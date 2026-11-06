@@ -242,11 +242,13 @@ private class InputFocusTest {
                     }
                 }
             }
+            // Font leading can put the caret above y=0; this case tests mapping, not clipping.
+            val textBounds = Rect(0.0, carets[0L].y, 100.0, carets[0L].height)
             rig.frame {
                 frame, canvas ->
                 canvas.translate(30.0, 40.0)
                 canvas.scale(2.0, 2.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
+                frame.place(canvas, area, textBounds)
             }
             assertTrue(area.requestFocus())
             val caret = carets[0L]
@@ -261,7 +263,7 @@ private class InputFocusTest {
             rig.frame {
                 frame, canvas ->
                 canvas.translate(50.0, 60.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
+                frame.place(canvas, area, textBounds)
             }
             assertEquals(2L, rig.log.carets.size)
             assertTrue(abs(rig.log.carets[1L].x - (50.0 + caret.x)) < 0.001)

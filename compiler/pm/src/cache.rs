@@ -38,7 +38,7 @@ impl PackageCache {
 
     pub fn registry(&self, registry: &RegistryUrl) -> PathBuf {
         self.root
-            .join("registry")
+            .join("registry-v2")
             .join(scoop_wire::sha256(registry.as_str().as_bytes()).to_string())
     }
 

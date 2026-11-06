@@ -1,0 +1,22 @@
+schema = 1
+name = "native-cxx-target-selection"
+inputs = ["cone"]
+tools = ["scoop"]
+when = { os = "linux" }
+tags = ["native", "cxx", "compiler-correctness"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${fixture}/cone", "--release", "--lockfile", "${work}/Cone.lock", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

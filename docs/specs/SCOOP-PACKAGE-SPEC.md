@@ -436,7 +436,7 @@ PM cache 默认根目录为 `~/.scoop/packages/`，与安装根下的 `bin`、`l
 
 ```text
 ~/.scoop/packages/
-  registry/<registry-id>/
+  registry-v2/<registry-id>/
     index/<group>/<name>.json
     cache/<group>/<name>/<version>.tar.zst
     src/<group>/<name>/<version>/

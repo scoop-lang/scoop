@@ -87,7 +87,12 @@ public class SurfaceWindow internal constructor(
         refreshWindow()
     }
     private fun refreshWindow() {
-        if (nativeWindow.state != WindowState.Open) {
+        if (
+            nativeWindow.state !=
+                WindowState.Open &&
+                nativeWindow.state !=
+                WindowState.PendingConfigure
+        ) {
             close();
             return
         }
@@ -108,7 +113,10 @@ public class SurfaceWindow internal constructor(
                         !nativeWindow.isOccluded
                 renderer.setFrameDemand((scheduler.dirty || animations.hasFrameWork) && drawable)
             }
-            case None -> renderer.setFrameDemand(false)
+            case None -> {
+                configured = None
+                renderer.setFrameDemand(false)
+            }
         }
         refreshAnimationDeadline(drawable)
     }

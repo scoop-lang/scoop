@@ -105,7 +105,7 @@ fn real_registry_resolution_downloads_only_selected_versions_and_shares_across_p
         prepared_roots.push(config.root.to_path_buf().unwrap());
     }
     assert_eq!(prepared_roots[0], prepared_roots[1]);
-    assert!(prepared_roots[0].starts_with(root.join("cache/registry")));
+    assert!(prepared_roots[0].starts_with(root.join("cache/registry-v2")));
     assert_eq!(server.total(), requests);
     let new = publish(
         &server,

@@ -36,6 +36,7 @@ path = "tests-darwin"
 when = { os = "darwin" }
 
 [native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 cxx = true
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
@@ -78,3 +79,124 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "user32"
 when = { os = "windows" }
+
+[[sources]]
+path = "src/shared"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/renderer.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "EGL"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "GLESv2"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_demand.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_group.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/dsl_builders.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_activity.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_boundary.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_caret.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_defaults.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_focus.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_pointer.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_press.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_routing.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_scroll_route.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_support.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_claim.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/pointer_observation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_reads.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/focus_visibility.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_boundary_update.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gtk-4"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gobject-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "glib-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

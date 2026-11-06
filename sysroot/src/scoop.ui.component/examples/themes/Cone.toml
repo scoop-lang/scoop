@@ -33,3 +33,19 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/model.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/gallery.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }

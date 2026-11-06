@@ -1,0 +1,27 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.native.macos.MetalContext
+import scoop.test.*
+import scoop.tests.graphics.TestMetalSurface
+
+@Test
+private class MetalThemeTest {
+    @Test
+    fun `all theme parts agree between raster and Metal at two times DPI`() {
+        TestMetalSurface.create(256, 192).use {
+            objects -> @Unsafe
+            {
+                MetalContext.create(objects.device(), objects.queue()).use {
+                    context ->
+                    @Unsafe
+                    {
+                        context.target(objects.texture(), 256, 192, 2.0).use {
+                            target -> verifyThemeGpu(target)
+                        }
+                    }
+                    context.drain()
+                }
+            }
+        }
+    }
+}

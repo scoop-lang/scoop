@@ -63,13 +63,16 @@ internal fun ApplicationOwner.refreshMonitors(): Array<Monitor> {
                     Monitor(
                         monitorIdentity(value.key),
                         name,
-                        Some(
-                            DesktopRect(
-                                DesktopPosition(value.x, value.y),
-                                value.width,
-                                value.height
+                        if (value.x.isFinite() && value.y.isFinite())
+                            Some(
+                                DesktopRect(
+                                    DesktopPosition(value.x, value.y),
+                                    value.width,
+                                    value.height
+                                )
                             )
-                        ),
+                        else
+                            None,
                         PhysicalSize(value.pixelWidth.toInt(), value.pixelHeight.toInt()),
                         value.scale,
                         if (value.refreshMilliHertz > 0L)

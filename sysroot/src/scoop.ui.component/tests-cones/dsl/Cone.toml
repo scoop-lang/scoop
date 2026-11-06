@@ -9,6 +9,10 @@ kind = "library"
 path = "tests"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }
+
 [test-dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

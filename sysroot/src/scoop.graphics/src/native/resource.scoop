@@ -14,6 +14,14 @@ internal class GraphicsResource(pointer: Ptr<Unit>): Closeable {
             throw IllegalStateException(Some("graphics resource requires its owner thread"))
     }
     fun get(): Ptr<Unit> {
+        val value = getForClose()
+        @Unsafe
+        {
+            platformGraphicsAccess(value)
+        }
+        return value
+    }
+    fun getForClose(): Ptr<Unit> {
         checkThread()
         return pointer ?: throw IllegalStateException(Some("graphics resource is closed"))
     }
@@ -24,12 +32,22 @@ internal class GraphicsResource(pointer: Ptr<Unit>): Closeable {
                 pointer = None;
                 @Unsafe
                 {
-                    graphicsDrop(value)
+                    // Closing an abandoned GPU resource remains safe.
+                    platformGraphicsDrop(value)
                 }
             }
             case None -> {}
         }
     }
+}
+
+@Unsafe
+internal fun platformGraphicsDrop(pointer: Ptr<Unit>) {
+    try {
+        platformGraphicsAccess(pointer)
+    }
+    catch (_: GraphicsException) {}
+    graphicsDrop(pointer)
 }
 
 internal fun ownedGraphics(pointer: Ptr<Unit>?, operation: String): GraphicsResource =

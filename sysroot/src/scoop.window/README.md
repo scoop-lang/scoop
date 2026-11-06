@@ -1,8 +1,8 @@
 # scoop.window
 
-面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit 和 Windows Win32 骨架；Linux 和其他窗口后端留到后续。
+面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。控件、文档布局、菜单模型、剪贴板、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
+库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、菜单模型、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
 
 ## 依赖与入口
 
@@ -57,13 +57,13 @@ macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到
 
 ## 文本输入
 
-macOS 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+macOS／Linux 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。读写把 CRLF／CR 归一为 LF；写入包含 NUL 的文本抛出 IllegalArgumentException，读取包含 NUL 的原生文本报告 Unsupported。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
 
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 
 应用只从编辑批次插入文字，不再从 `KeyEvent.logicalKey` 额外插入字符。输入法消耗的候选选择／确认键不会再作为普通按键交付；普通快捷键保留 Keyboard 事件。失焦会撤销 active preedit，并为已交付的按下状态补发 synthetic release。
 
-macOS 把原生解释出的移动、删除、提交等语义保存在 `KeyEvent.textCommands`；多条命令保留顺序，随该次按下事件进入同一输入路由。空列表表示由编辑器使用平台缺省键位，keyup 和 synthetic release 没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
+`KeyEvent.textCommands` 保存 window 后端解释出的移动、删除、提交等编辑语义；多条命令保留顺序，随该次按下事件进入同一输入路由。macOS 使用原生 selector，Linux 使用当前逻辑键和标准 Control 编辑键位。空列表表示本次没有编辑命令，keyup 和 synthetic 输入也没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
 
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit／IMM32 的 UTF-16 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
@@ -122,3 +122,25 @@ scoop test sysroot/src/scoop.window/examples/dxgi/app --release --target x86_64-
 ```
 
 DPI、输入、错误收尾、watch 和无窗口退出用例各自成 Cone，因为 Application 与进程 DPI 模式不可在同一测试进程中重启。测试不会重置库的单次入口约束。输入测试通过真实 HWND 消息及与 IMM32 共用的 native UTF-16 归一路径验证批次、候选窗矩形和载荷所有权；不冒充已安装中／日输入法的候选交互。watch 测试验证 WaitUntil、借入 manual-reset HANDLE、ready 内 remove 和重复 remove；无窗口退出测试验证实际 IOCP 接收取消与异步 finally。实际显示器／输入法覆盖边界见 [PROGRESS.md](../../../docs/windowing/PROGRESS.md)。
+
+## Linux GNU
+
+`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端。未设置时，有 `WAYLAND_DISPLAY` 则选择 Wayland，否则选择 X11；连接失败不会改连另一显示服务器。`DISPLAY`、`WAYLAND_DISPLAY` 和 `XDG_RUNTIME_DIR` 使用显示系统的普通约定。
+
+两个显示后端都由 GTK 4.18 以上和 libadwaita 1.4 以上实现；`AdwWindow` 和 `AdwHeaderBar` 负责标题栏、按钮、圆角和阴影。原生输入法、剪贴板和显示器使用 GDK／GTK 接口，X11 的位置和窗口管理请求使用 Xlib，键符号转换使用 xkbcommon。字符比较复用目标资源 `scoop_text_backend`。开发资源按[准备脚本说明](../../../scripts/README.md)放入目标 sysroot，普通应用使用预编译 `.slib` 和系统动态库。
+
+窗口在 GTK 首次分配内容区前为 PendingConfigure，metrics 为 None；显示后由 GeometryChanged 给出实际内容尺寸。framebuffer 按 GTK 的整数 scale factor 计算，桌面的分数缩放由 GTK／合成器处理。Wayland 桌面位置与主显示器等未提供的信息返回 None。最大内容尺寸约束、非默认 resize increments、单窗口强制明暗主题、blur 和内容保护返回 Unsupported；显式请求不支持的创建属性会报错。普通 Window／UI 接口保持，Linux 专用的 `NativeWindowHandle.Gtk` 借出 GtkWindow 与内容容器。
+
+两个后端使用 Linux evdev 物理键和 GDK 当前键盘布局；有完整按键状态时保留左右修饰键，未知键保留原生代码。输入法由 GtkIMContext 接入当前桌面的输入服务，未启用输入法时使用 GTK 的普通字符／compose 输入。剪贴板使用 GdkClipboard，实际跨应用传递遵守显示服务器的焦点与选择规则。
+
+`ShortcutChord` 的 Primary 为 Control，`Window.shortcutLabel` 按当前 XKB 布局显示物理键，使用 `Ctrl+Shift+…` 形式；逻辑键保留声明的文本。AltGraph 状态可确定时通过 `Modifiers.altGraph` 提供，输入 AltGraph 字符不会触发普通快捷键或 Control 编辑命令。
+
+验证命令使用准备好的 GNU sysroot：
+
+```sh
+SCOOP_WINDOW_BACKEND=x11 scoop test sysroot/src/scoop.window --release
+SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window --release
+SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window.asyncio --release
+```
+
+窗口测试使用真实显示服务器，X11 输入测试还需要 libXtst 开发包；GTK 自行映射普通窗口，应用绘图由 Surface 挂载的 GtkGLArea 提供。GTK 信号仅排入窗口事件，业务回调在 GTK dispatch 返回后执行。验证范围、依赖版本及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

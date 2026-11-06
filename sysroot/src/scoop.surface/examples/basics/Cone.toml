@@ -12,6 +12,13 @@ when = { os = ["darwin", "windows"] }
 path = "tests"
 when = { os = ["darwin", "windows"] }
 
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }
+
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

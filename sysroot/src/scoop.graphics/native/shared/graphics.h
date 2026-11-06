@@ -38,7 +38,10 @@ struct SGBounds {
   SGRect rect;
 };
 
+struct SGGLState;
 struct SGObject {
+  std::shared_ptr<SGGLState> gl;
+  void *glSurface = nullptr;
   virtual ~SGObject() = default;
 };
 struct SGPath : SGObject {
@@ -60,15 +63,21 @@ struct SGPaint : SGObject {
 struct SGImage : SGObject {
   sk_sp<GrDirectContext> context;
   sk_sp<SkImage> image;
-  explicit SGImage(sk_sp<SkImage> i, sk_sp<GrDirectContext> c = nullptr)
-      : context(std::move(c)), image(std::move(i)) {}
+  explicit SGImage(sk_sp<SkImage> i, sk_sp<GrDirectContext> c = nullptr,
+                   std::shared_ptr<SGGLState> state = {})
+      : context(std::move(c)), image(std::move(i)) {
+    gl = std::move(state);
+  }
 };
 struct SGDrawing : SGObject {
   sk_sp<GrDirectContext> context;
   sk_sp<SkPicture> picture;
   bool independentTiles;
-  SGDrawing(sk_sp<SkPicture> p, sk_sp<GrDirectContext> c, bool tiles)
-      : context(std::move(c)), picture(std::move(p)), independentTiles(tiles) {}
+  SGDrawing(sk_sp<SkPicture> p, sk_sp<GrDirectContext> c, bool tiles,
+            std::shared_ptr<SGGLState> state = {})
+      : context(std::move(c)), picture(std::move(p)), independentTiles(tiles) {
+    gl = std::move(state);
+  }
 };
 struct SGFilter : SGObject {
   sk_sp<SkImageFilter> filter;
@@ -95,12 +104,15 @@ struct SGCanvas : SGObject {
   SkRect viewport;
   int base;
   std::vector<std::vector<SkPath>> clips;
-  SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c, float dpi)
+  SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c, float dpi,
+           std::shared_ptr<SGGLState> state = {}, void *nativeSurface = nullptr)
       : surface(std::move(s)), context(std::move(c)),
         canvas(surface->getCanvas()), scale(dpi),
         viewport(
             SkRect::MakeWH(surface->width() / dpi, surface->height() / dpi)),
         base(canvas->getSaveCount()), clips(1) {
+    gl = std::move(state);
+    glSurface = nativeSurface;
     canvas->save();
     canvas->scale(dpi, dpi);
   }
@@ -109,13 +121,17 @@ struct SGCanvas : SGObject {
         recording(parent.recording), canvas(parent.canvas), scale(parent.scale),
         viewport(parent.viewport), base(canvas->getSaveCount()),
         clips(1, parent.clips.back()) {
+    gl = parent.gl;
+    glSurface = parent.glSurface;
     canvas->save();
   }
   SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c,
-           std::shared_ptr<SGRecording> r, SkRect bounds)
+           std::shared_ptr<SGRecording> r, SkRect bounds,
+           std::shared_ptr<SGGLState> state = {})
       : surface(std::move(s)), context(std::move(c)), recording(std::move(r)),
         canvas(recording->recorder.getRecordingCanvas()), scale(1),
         viewport(bounds), base(canvas->getSaveCount()), clips(1) {
+    gl = std::move(state);
     canvas->save();
     canvas->clipRect(bounds);
   }

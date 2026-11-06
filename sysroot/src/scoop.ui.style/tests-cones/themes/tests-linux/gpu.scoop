@@ -1,0 +1,16 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.native.linux.GLESContext
+import scoop.test.*
+
+@Test
+private class GLESThemeTest {
+    @Test
+    fun `all theme parts agree between raster and GLES at two times DPI`() {
+        GLESContext.createOffscreen().use {
+            context ->
+            context.offscreen(256, 192, 2.0).use { target -> verifyThemeGpu(target) }
+            context.drain()
+        }
+    }
+}

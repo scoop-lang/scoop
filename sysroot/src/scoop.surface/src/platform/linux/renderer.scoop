@@ -1,0 +1,309 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.graphics.native.RenderTarget
+import scoop.graphics.native.linux.GLESContext
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun createRendererHost(): RendererHost = LinuxRendererHost()
+
+private class LinuxRendererHost: RendererHost {
+    private var closed = false
+    private var context: GLESContext? = None
+    public override fun create(window: Window, proxy: ApplicationProxy): WindowRenderer {
+        if (closed)
+            throw IllegalStateException(Some("renderer host is closed"))
+        @Unsafe
+        {
+            val lease = window.acquireNativeWindow()
+            try {
+                val view =
+                    when (lease.handle) {
+                        case Gtk(_, view) -> view
+                    }
+                val device = context ?: GLESContext.createGtk(linuxSurfaceDisplay(view))
+                context = Some(device)
+                val renderer = LinuxWindowRenderer(window, proxy, lease, device)
+                renderer.install(view)
+                return renderer
+            } catch (error: Throwable) {
+                lease.close()
+                throw error
+            }
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        val failure = cleanupFailure(None) { context?.abandon() }
+        val closedFailure = cleanupFailure(failure) { context?.close() }
+        context = None
+        throwFailure(closedFailure)
+    }
+}
+
+private class LinuxWindowRenderer(
+    private val window: Window,
+    private val proxy: ApplicationProxy,
+    private val lease: NativeWindowLease,
+    private val context: GLESContext
+): WindowRenderer {
+    private var native: Ptr<Unit>? = None
+    private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
+    private var metrics: WindowMetrics? = None
+    private var wanted = false
+
+    @Unsafe
+    fun install(view: Ptr<Unit>) {
+        val registration =
+            foreignCallback<(Ptr<Unit>, Int) -> Int>(
+                { reason: Int -> notify(reason) },
+                0,
+                ForeignCallbackMode.Reusable
+            )
+        try {
+            native =
+                Some(
+                    linuxSurfaceCreate(
+                        view,
+                        context.gtkContext,
+                        registration.function,
+                        registration.context
+                    ) ?:
+                        throw GraphicsException("create GTK GLES window target")
+                )
+            callback = Some(registration)
+        } catch (error: Throwable) {
+            releaseForeignCallback(registration);
+            throw error
+        }
+    }
+    private fun notify(reason: Int): Int {
+        if (native == None)
+            return 0
+        val accepted =
+            proxy.post {
+                _ -> if (
+                    native != None && (reason == 2 || wanted) && window.state == WindowState.Open
+                )
+                    window.requestRedraw()
+            }
+        return if (accepted)
+            1
+        else
+            0
+    }
+    private fun checkCallback() {
+        @Unsafe
+        {
+            when (callback) {
+                case Some(value) -> throwFailure(foreignCallbackFailure(value))
+                case None -> throw IllegalStateException(Some("window renderer is closed"))
+            }
+        }
+    }
+    private fun pointer(): Ptr<Unit> {
+        checkCallback()
+        return native ?: throw IllegalStateException(Some("window renderer is closed"))
+    }
+    public override fun configure(value: WindowMetrics) {
+        when (metrics) {
+            case Some(previous) -> if (previous.physicalSize != value.physicalSize)
+                context.drain()
+            case None -> {}
+        }
+        @Unsafe
+        {
+            linuxResult(
+                linuxSurfaceConfigure(
+                    pointer(),
+                    value.physicalSize.width,
+                    value.physicalSize.height,
+                    value.scaleFactor
+                ),
+                "configure GTK GLES window target"
+            )
+        }
+        metrics = Some(value)
+    }
+    public override fun setFrameDemand(required: Boolean) {
+        wanted = required
+        when (native) {
+            case Some(value) -> @Unsafe
+            {
+                val drawable =
+                    window.state == WindowState.Open && window.isVisible && !window.isOccluded
+                linuxResult(linuxSurfaceDemand(value, required, drawable), "set GTK frame demand")
+            }
+            case None -> {
+                if (required)
+                    throw IllegalStateException(Some("window renderer is closed"))
+            }
+        }
+        if (required)
+            checkCallback()
+    }
+    public override fun acquire(): FrameAcquisition {
+        val configuration = metrics ?: return FrameAcquisition.Deferred
+        @Unsafe
+        {
+            val result = linuxSurfaceAcquire(pointer())
+            if (result.status < 0)
+                throw GraphicsException("acquire GTK frame")
+            if (result.pointer == None)
+                return FrameAcquisition.Deferred
+            val frame = result.pointer!!
+            try {
+                val target =
+                    context.gtkTarget(
+                        linuxFrameSurface(frame),
+                        configuration.physicalSize.width,
+                        configuration.physicalSize.height,
+                        configuration.scaleFactor
+                    )
+                return FrameAcquisition.Ready(LinuxFrame(window, frame, target, configuration))
+            } catch (error: Throwable) {
+                linuxFrameClose(frame);
+                throw error
+            }
+        }
+    }
+    public override fun close() {
+        val previous = native
+        native = None
+        wanted = false
+        var failure: Throwable? = None
+        when (previous) {
+            case Some(value) -> {
+                failure = cleanupFailure(failure) { context.drain() }
+                failure =
+                    cleanupFailure(failure) {
+                        @Unsafe
+                        {
+                            linuxResult(linuxSurfaceClose(value), "close GTK surface")
+                        }
+                    }
+            }
+            case None -> {}
+        }
+        @Unsafe
+        {
+            when (callback) {
+                case Some(value) -> {
+                    callback = None
+                    failure =
+                        cleanupFailure(failure) {
+                            @Unsafe
+                            {
+                                throwFailure(foreignCallbackFailure(value))
+                            }
+                        }
+                    releaseForeignCallback(value)
+                }
+                case None -> {}
+            }
+        }
+        lease.close()
+        throwFailure(failure)
+    }
+}
+
+private class LinuxFrame(
+    private val window: Window,
+    private val native: Ptr<Unit>,
+    private val target: RenderTarget,
+    private val configuration: WindowMetrics
+): RenderFrame {
+    private var submitted = false
+    private var closed = false
+    private fun checkOpen() {
+        if (closed || submitted)
+            throw IllegalStateException(Some("frame has ended"))
+    }
+    public override fun draw(block: (Canvas) -> Unit) {
+        checkOpen();
+        target.draw(block)
+    }
+    public override fun submit(): Boolean {
+        checkOpen()
+        if (window.state != WindowState.Open || window.metrics != Some(configuration))
+            return false
+        @Unsafe
+        {
+            val current = linuxFrameCurrent(native)
+            if (current < 0)
+                throw GraphicsException("check GTK frame configuration")
+            if (current == 0)
+                return false
+        }
+        target.submit()
+        window.prePresentNotify()
+        @Unsafe
+        {
+            val result = linuxFramePresent(native)
+            if (result < 0)
+                throw GraphicsException("present GTK frame")
+            submitted = true
+            return result == 1
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        var failure: Throwable? = None
+        if (!submitted)
+            failure = cleanupFailure(failure) { target.abort() }
+        failure = cleanupFailure(failure) { target.close() }
+        @Unsafe
+        {
+            linuxFrameClose(native)
+        }
+        throwFailure(failure)
+    }
+}
+
+private fun linuxResult(result: Int, operation: String) {
+    if (result != 1)
+        throw GraphicsException(operation)
+}
+
+@CLayout
+private struct LinuxAcquiredFrame(val pointer: Ptr<Unit>?, val status: Int)
+
+@Extern(name = "scoop_surface_gtk_display")
+private fun linuxSurfaceDisplay(view: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_surface_gles_create")
+private fun linuxSurfaceCreate(
+    view: Ptr<Unit>,
+    context: Ptr<Unit>,
+    callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
+    data: Ptr<Unit>
+): Ptr<Unit>?
+
+@Extern(name = "scoop_surface_gles_configure")
+private fun linuxSurfaceConfigure(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): Int
+
+@Extern(name = "scoop_surface_gles_demand")
+private fun linuxSurfaceDemand(surface: Ptr<Unit>, required: Boolean, drawable: Boolean): Int
+
+@Extern(name = "scoop_surface_gles_acquire")
+private fun linuxSurfaceAcquire(surface: Ptr<Unit>): LinuxAcquiredFrame
+
+@Extern(name = "scoop_surface_gles_close")
+private fun linuxSurfaceClose(surface: Ptr<Unit>): Int
+
+@Extern(name = "scoop_surface_gles_frame_surface")
+private fun linuxFrameSurface(frame: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_surface_gles_frame_current")
+private fun linuxFrameCurrent(frame: Ptr<Unit>): Int
+
+@Extern(name = "scoop_surface_gles_present")
+private fun linuxFramePresent(frame: Ptr<Unit>): Int
+
+@Extern(name = "scoop_surface_gles_frame_close")
+private fun linuxFrameClose(frame: Ptr<Unit>)

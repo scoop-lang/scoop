@@ -1,0 +1,109 @@
+package scoop.tests.ui.frames
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.sampleCanvasPixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiFrameTest {
+    @Test
+    fun `successive window frames erase pixels left by moved and removed UI content`() {
+        val probe = MovingUiProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host ->
+            Application().run(host)
+            assertTrue(probe.finished)
+            assertTrue(host.isClosed)
+        }
+    }
+}
+
+private class MovingUiProbe {
+    val step = state(0)
+    var accepted = -1
+    var finished = false
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop frame replacement"
+                            size = LogicalSize(160.0, 80.0)
+                            transparent = true
+                        }
+                    )
+                window.createDeadline { fail(Some("UI frame replacement timeout")) }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                host.attach(window, { scope -> MovingUiContent(this, scope) })
+            }
+            case AboutToWait -> {
+                if (accepted == step.value) {
+                    if (accepted == 3) {
+                        finished = true
+                        active.requestExit()
+                    } else {
+                        step.value += 1
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+private class MovingUiContent(private val probe: MovingUiProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View =
+        element(probe.step.value, { step, mount -> MovingUiInk(probe, step, mount) })
+}
+
+private class MovingUiInk(
+    private val probe: MovingUiProbe,
+    private val step: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 80.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val value = step.value
+        context.draw {
+            paint ->
+            if (value != 3) {
+                val left =
+                    if (value % 2 == 0)
+                        0.0
+                    else
+                        80.0
+                paint.canvas.drawRect(Rect(left, 0.0, 80.0, 80.0), Paint(Color.White))
+            }
+            val first = paint.canvas.pixelTransform.map(Point(8.0, 8.0))
+            val second = paint.canvas.pixelTransform.map(Point(88.0, 8.0))
+            assertEquals(
+                if (value == 0 || value == 2)
+                    255uL
+                else
+                    0uL,
+                sampleCanvasPixel(paint.canvas, first.x.toInt(), first.y.toInt()) % 256uL
+            )
+            assertEquals(
+                if (value == 1)
+                    255uL
+                else
+                    0uL,
+                sampleCanvasPixel(paint.canvas, second.x.toInt(), second.y.toInt()) % 256uL
+            )
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = value
+        }
+    }
+}

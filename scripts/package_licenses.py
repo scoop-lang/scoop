@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 
 from build_rust_text import NOTICE_DIRECTORY
+from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
+from prepare_gtk import TARGET as GTK_TARGET
 from target_catalog import host_definition, llvm_mingw_resource_triple, native_configuration
 
 
@@ -155,6 +157,11 @@ def collect_libraries(root, sysroot, target):
     collector = Collector(root, "lib-" + target)
     notices = sysroot / "lib" / target / NOTICE_DIRECTORY
     collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
+    if target == GTK_TARGET:
+        for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
+            collector.add(
+                "GTK-" + directory.name, "See included documents", license_files(directory)
+            )
     configuration = native_configuration(target)
     if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
         prefix = root / "lib" / target / "toolchain"

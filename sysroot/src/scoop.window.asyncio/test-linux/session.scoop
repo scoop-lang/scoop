@@ -1,0 +1,80 @@
+package scoop.window.asyncio
+
+import scoop.asyncio.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.test.*
+
+@Test
+private class LinuxAsyncioTest {
+    @Test
+    fun `io_uring notifications resume timers and cancellation drains window leases`() {
+        val handler = LinuxSessionHandler()
+        Application().runWithAsyncio(handler)
+        assertEquals(3, handler.ticks)
+        assertTrue(handler.closing && handler.finished && handler.destroyed)
+    }
+}
+
+private class LinuxSessionHandler: ApplicationHandler {
+    val thread = currentThreadId()
+    var lease: NativeWindowLease? = None
+    var ticks = 0
+    var closing = false
+    var finished = false
+    var destroyed = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(thread, currentThreadId())
+        when (event) {
+            case Resumed -> {
+                val window = application.createWindow(windowAttributes { visible = false })
+                @Unsafe
+                {
+                    lease = Some(window.acquireNativeWindow())
+                }
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                val scope = currentApplicationScope()
+                val loop = currentEventLoop()
+                assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+                scope.launch {
+                    try {
+                        loop.sleep(Duration.seconds(30L))
+                    }
+                    finally {
+                        nonCancellableScope<Unit> {
+                            loop.sleep(Duration.milliseconds(20L))
+                            try {
+                                assertTrue(this @LinuxSessionHandler.closing)
+                            }
+                            finally {
+                                this @LinuxSessionHandler.finished = true;
+                                this @LinuxSessionHandler.lease!!.close()
+                            }
+                        }
+                    }
+                }
+                scope.launch {
+                    for (_ in 0 ..< 3) {
+                        loop.sleep(Duration.milliseconds(10L))
+                        assertEquals(this @LinuxSessionHandler.thread, currentThreadId())
+                        assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+                        this @LinuxSessionHandler.ticks += 1
+                    }
+                    application.requestExit()
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("Linux asyncio timed out"))
+            case Window(_, WindowEvent.Closing) -> closing = true
+            case Window(_, WindowEvent.Destroyed) -> {
+                assertTrue(finished)
+                destroyed = true
+            }
+            else -> {}
+        }
+    }
+}

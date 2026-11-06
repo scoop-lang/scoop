@@ -169,12 +169,20 @@ pub fn native_tool_configuration(
     let target = crate::registry::select_target(triple)?.target();
     let definition = scoop_target_data::definition(target.id()).expect("selected target");
     let environment = match definition.os {
-        scoop_target_data::TargetOs::Linux => vec![
-            std::env::var_os("PATH"),
-            (definition.native_environment == scoop_target_data::NativeEnvironment::LinuxMusl)
-                .then(|| std::env::var_os("REALGCC"))
-                .flatten(),
-        ],
+        scoop_target_data::TargetOs::Linux => {
+            let mut values = vec![
+                std::env::var_os("PATH"),
+                (definition.native_environment == scoop_target_data::NativeEnvironment::LinuxMusl)
+                    .then(|| std::env::var_os("REALGCC"))
+                    .flatten(),
+            ];
+            if definition.native_environment == scoop_target_data::NativeEnvironment::LinuxGnu
+                && request.compiler().is_none()
+            {
+                values.push(Some(crate::linux_c::bundled_clang_path()?.into_os_string()));
+            }
+            values
+        }
         scoop_target_data::TargetOs::Windows => [
             "PATH",
             "SystemRoot",

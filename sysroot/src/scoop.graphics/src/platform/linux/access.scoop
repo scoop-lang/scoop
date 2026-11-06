@@ -1,0 +1,10 @@
+package scoop.graphics
+
+@Unsafe
+internal fun platformGraphicsAccess(pointer: Ptr<Unit>) {
+    if (!glesActivate(pointer))
+        throw GraphicsException("activate GLES resource context")
+}
+
+@Extern(name = "scoop_graphics_gles_activate")
+private fun glesActivate(pointer: Ptr<Unit>): Boolean

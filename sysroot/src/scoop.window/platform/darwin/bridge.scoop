@@ -38,3 +38,11 @@ private fun nativeNSView(window: Ptr<Unit>): Ptr<Unit>
 
 @Extern(name = "scoop_window_titlebar")
 internal fun nativeWindowTitlebar(window: Ptr<Unit>, flags: Int)
+
+@Unsafe
+internal fun platformWindowMetrics(pointer: Ptr<Unit>): WindowMetrics? =
+    Some(nativeWindowSnapshot(pointer).metrics())
+
+internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? = owner.metrics
+
+internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Super

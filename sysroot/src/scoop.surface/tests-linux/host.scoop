@@ -1,0 +1,212 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.sampleCanvasPixel
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class LinuxSurfaceHostTest {
+    @Test
+    fun `two EGL windows retain in-paint demand present pixels idle remap resize and reattach`() {
+        val probe = LinuxSurfaceProbe()
+        val application =
+            Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit })
+        val host = SurfaceHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            application.run(host)
+            assertTrue(probe.finished)
+            assertTrue(probe.firstFrames >= 7 && probe.secondFrames >= 1)
+            assertEquals(3, probe.closedContents)
+            assertTrue(host.isClosed)
+            assertEquals(WindowState.Destroyed, probe.first!!.state)
+            assertEquals(WindowState.Destroyed, probe.second!!.state)
+        } finally {
+            host.close()
+        }
+    }
+}
+
+private class LinuxSurfaceProbe {
+    var first: Window? = None
+    var second: Window? = None
+    var attached: SurfaceWindow? = None
+    var firstFrames = 0
+    var secondFrames = 0
+    var closedContents = 0
+    var phase = 0
+    var finished = false
+    var timer: WindowDeadline? = None
+
+    fun event(host: SurfaceHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val a =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop Linux EGL first"
+                            size = LogicalSize(320.0, 180.0)
+                        }
+                    )
+                val b =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop Linux EGL second"
+                            size = LogicalSize(160.0, 90.0)
+                        }
+                    )
+                first = Some(a)
+                second = Some(b)
+                a.createDeadline {
+                    fail(Some("Linux Surface timed out at phase " + phase.toString()))
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                attached =
+                    Some(
+                        host.attach(
+                            a,
+                            LinuxContent(
+                                {
+                                    frame ->
+                                    firstFrames += 1
+                                    frame.canvas.clear(Color(1.0, 0.0, 0.0))
+                                    assertEquals(
+                                        4278190335uL,
+                                        sampleCanvasPixel(frame.canvas, 4, 4),
+                                        Some(
+                                            f"phase=${phase}, frame=${firstFrames}, size=${
+                                                frame.size.width
+                                            }x${frame.size.height}"
+                                        )
+                                    )
+                                    // Keep demand active across an outstanding Wayland callback.
+                                    if (phase == 0 && firstFrames < 4)
+                                        frame.window.requestFrame()
+                                    if (phase == 5 && frame.size == Size(360.0, 200.0)) {
+                                        phase = 6
+                                        a.requestSize(LogicalSize(380.0, 220.0))
+                                        frame.window.requestFrame()
+                                    }
+                                },
+                                {
+                                    completion -> if (
+                                        phase ==
+                                            4 &&
+                                            completion.submission ==
+                                            FrameSubmission.Accepted
+                                    ) {
+                                        phase = 5
+                                        a.requestSize(LogicalSize(360.0, 200.0))
+                                        attached!!.requestFrame()
+                                    } else
+                                        if (
+                                            phase ==
+                                                6 &&
+                                                completion.size ==
+                                                Size(380.0, 220.0) &&
+                                                completion.submission ==
+                                                FrameSubmission.Accepted
+                                        ) {
+                                            phase = 7
+                                            attached!!.close()
+                                        }
+                                },
+                                { closedContents += 1 }
+                            )
+                        )
+                    )
+                host.attach(
+                    b,
+                    LinuxContent(
+                        {
+                            frame ->
+                            secondFrames += 1
+                            frame.canvas.clear(Color(0.0, 0.0, 1.0))
+                            assertEquals(65535uL, sampleCanvasPixel(frame.canvas, 4, 4))
+                        },
+                        { _ -> Unit },
+                        { closedContents += 1 }
+                    )
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && firstFrames >= 4 && secondFrames > 0) {
+                    phase = 1
+                    later(100L) {
+                        val idleFirst = firstFrames
+                        val idleSecond = secondFrames
+                        phase = 2
+                        later(120L) {
+                            assertEquals(idleFirst, firstFrames)
+                            assertEquals(idleSecond, secondFrames)
+                            first!!.setVisible(false)
+                            attached!!.requestFrame()
+                            phase = 3
+                            later(80L) {
+                                assertEquals(idleFirst, firstFrames)
+                                phase = 4
+                                first!!.setVisible(true)
+                                attached!!.requestFrame()
+                            }
+                        }
+                    }
+                } else
+                    if (phase == 7) {
+                        assertEquals(SurfaceWindowState.Closed, attached!!.state)
+                        phase = 8
+                        attached =
+                            Some(
+                                host.attach(
+                                    first!!,
+                                    LinuxContent(
+                                        {
+                                            frame ->
+                                            frame.canvas.clear(Color(0.0, 1.0, 0.0))
+                                            assertEquals(
+                                                16711935uL,
+                                                sampleCanvasPixel(frame.canvas, 4, 4)
+                                            )
+                                        },
+                                        {
+                                            completion -> if (
+                                                completion.submission == FrameSubmission.Accepted
+                                            ) {
+                                                phase = 9
+                                                application.requestExit()
+                                            }
+                                        },
+                                        { closedContents += 1 }
+                                    )
+                                )
+                            )
+                    }
+            }
+            case Exiting -> finished = phase == 9
+            else -> {}
+        }
+    }
+    private fun later(milliseconds: Long, block: () -> Unit) {
+        timer?.close()
+        val next = first!!.createDeadline(block)
+        timer = Some(next)
+        next.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+}
+
+private class LinuxContent(
+    val painter: (FrameContext) -> Unit,
+    val completed: (FrameCompletion) -> Unit,
+    val retired: () -> Unit
+): SurfaceContent {
+    public override fun paint(frame: FrameContext) {
+        painter(frame)
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        completed(frame)
+    }
+    public override fun close() {
+        retired()
+    }
+}

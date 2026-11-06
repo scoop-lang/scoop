@@ -1,0 +1,75 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.graphics.native.RenderTarget
+import scoop.test.*
+
+internal fun verifyPaintGpu(target: RenderTarget) {
+    PaintLayers().use {
+        layers ->
+        val key = PaintKey()
+        val input = PaintLayerInput(Size(96.0, 64.0), Rect(0.0, 0.0, 96.0, 64.0), 0L, 18.0)
+        val policy = PaintCachePolicy.Tiles(32, 0)
+        ImageFilter.dropShadow(Point(8.0, 1.0), 3.0, 3.0, Color(0.0, 0.0, 1.0)).use {
+            filter ->
+            target.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.saveLayer(filter = Some(filter))
+                layers.draw(canvas, key, input, PaintCachePolicy.None) {
+                    record -> paintShadowSource(record)
+                }
+                canvas.restore()
+            }
+            val reference = target.readPixels()
+            target.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.saveLayer(filter = Some(filter))
+                layers.draw(canvas, key, input, policy) { record -> paintShadowSource(record) }
+                canvas.restore()
+            }
+            assertPaintPixels(reference, target.readPixels(), 192, 128, 3, "GPU tiles")
+            val retained = cachedPaint(layers, key)
+            val pixels = retained.tiles[PaintTileIndex(0L, 0L)]!!.image
+            target.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.saveLayer(filter = Some(filter))
+                layers.draw(canvas, key, input, policy) {
+                    _ -> fail(Some("GPU cache hit executed the drawing"))
+                }
+                canvas.restore()
+            }
+            assertSame(pixels, retained.tiles[PaintTileIndex(0L, 0L)]!!.image)
+            assertPaintPixels(reference, target.readPixels(), 192, 128, 3, "GPU hit")
+            RasterSurface(192, 128).use {
+                raster ->
+                raster.draw {
+                    canvas ->
+                    assertFalse(canvas.isCompatible(pixels))
+                    canvas.clear(Color.Transparent)
+                    canvas.scale(2.0, 2.0)
+                    canvas.saveLayer(filter = Some(filter))
+                    layers.draw(canvas, key, input, policy) { record -> paintShadowSource(record) }
+                    canvas.restore()
+                }
+                assertTrue(pixels.isClosed)
+                assertTrue(retained.drawing.isClosed)
+                assertTrue(cachedPaint(layers, key) !== retained)
+                val cpu = raster.readPixels()
+                raster.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.scale(2.0, 2.0)
+                    canvas.saveLayer(filter = Some(filter))
+                    layers.draw(canvas, key, input, PaintCachePolicy.None) {
+                        record -> paintShadowSource(record)
+                    }
+                    canvas.restore()
+                }
+                assertPaintPixels(raster.readPixels(), cpu, 192, 128, 2, "Raster after GPU")
+            }
+        }
+    }
+}
