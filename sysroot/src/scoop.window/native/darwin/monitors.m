@@ -7,6 +7,7 @@ typedef struct {
   double x, y, width, height, pixel_width, pixel_height, scale;
   const uint8_t *name;
   int64_t name_length;
+  double work_x, work_y, work_width, work_height;
 } SWMonitorData;
 
 @interface SWMonitorRecord : NSObject
@@ -34,6 +35,11 @@ void *scoop_window_monitors(void) {
       data.y = top - NSMaxY(frame);
       data.width = frame.size.width;
       data.height = frame.size.height;
+      NSRect work = screen.visibleFrame;
+      data.work_x = work.origin.x;
+      data.work_y = top - NSMaxY(work);
+      data.work_width = work.size.width;
+      data.work_height = work.size.height;
       data.pixel_width = ceil(pixels.size.width);
       data.pixel_height = ceil(pixels.size.height);
       data.scale = screen.backingScaleFactor;
@@ -73,4 +79,17 @@ void scoop_window_monitors_release(void *pointer) {
 int64_t scoop_window_current_monitor(void *pointer) {
   NSScreen *screen = ((__bridge SWWindow *)pointer).window.screen;
   return [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+}
+
+typedef struct {
+  int64_t error;
+  double x, y, width, height;
+} SWDesktopRect;
+
+int32_t scoop_window_desktop_capabilities(void) { return 1 | 2 | 8; }
+SWDesktopRect scoop_window_system_taskbar_bounds(void) {
+  return (SWDesktopRect){.error = -1};
+}
+double scoop_window_system_menu_bar_height(void) {
+  return NSStatusBar.systemStatusBar.thickness;
 }

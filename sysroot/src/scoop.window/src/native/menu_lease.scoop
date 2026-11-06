@@ -9,8 +9,14 @@ public class NativeMenuLease internal constructor(
     private var closeCallback: (() -> Unit)?
 ): Closeable {
     internal var closed = false
+    internal var acceptsActions = true
     private var tracking = false
     private var closeRequested = false
+
+    public val isTracking: Boolean get() {
+        requireActive()
+        return tracking || menu.busy()
+    }
 
     public val handle: NativeMenuHandle@Unsafe get() {
         requireActive()
@@ -19,8 +25,10 @@ public class NativeMenuLease internal constructor(
 
     public fun beginTracking() {
         requireActive()
-        if (tracking || closeRequested)
+        if (tracking || closeRequested || !acceptsActions)
             throw WindowException("native menu tracking", WindowErrorKind.InvalidState)
+        if (menu.busy())
+            throw WindowException("native menu tracking", WindowErrorKind.ResourceBusy)
         tracking = true
         @Unsafe
         {
@@ -28,22 +36,27 @@ public class NativeMenuLease internal constructor(
         }
     }
 
-    public fun endTracking() {
+    public fun endTracking(): MenuItemId? {
         menu.application.checkThread()
         if (!tracking)
-            return
+            return None
         tracking = false
         @Unsafe
         {
             nativeMenuExternalTracking(menu.pointer!!, 0)
+            val selected = nativeMenuSelection(menu.pointer!!)
+            menu.application.mailbox.wake()
+            return if (selected == 0L)
+                None
+            else
+                Some(MenuItemId(selected))
         }
-        menu.application.mailbox.wake()
     }
 
     /** Reports an item selected by a host that does not invoke the native menu's action. */
     public fun activate(item: MenuItemId): Boolean {
         requireActive()
-        if (closeRequested || menu.phase != MenuState.Open)
+        if (!acceptsActions || closeRequested || menu.phase != MenuState.Open)
             return false
         val node = menu.findItem(item) ?: return false
         if (!node.enabled() || node.prepared.kind >= 3)
@@ -72,8 +85,22 @@ public class NativeMenuLease internal constructor(
         if (tracking || menu.busy())
             throw WindowException("native menu is still tracking", WindowErrorKind.ResourceBusy)
         closed = true
+        acceptsActions = false
         closeCallback = None
         menu.settleUse()
+        menu.application.mailbox.wake()
+    }
+
+    /** Retires this use immediately; the borrower still ends tracking and closes it. */
+    public fun cancel() {
+        menu.application.checkThread()
+        if (closed || !acceptsActions)
+            return
+        acceptsActions = false
+        @Unsafe
+        {
+            nativeMenuCancel(menu.pointer!!)
+        }
         menu.application.mailbox.wake()
     }
 
@@ -81,10 +108,7 @@ public class NativeMenuLease internal constructor(
         if (closeRequested || closed)
             return
         closeRequested = true
-        @Unsafe
-        {
-            nativeMenuCancel(menu.pointer!!)
-        }
+        cancel()
         val callback = closeCallback
         closeCallback = None
         menu.application.mailbox.postControl {

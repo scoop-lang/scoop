@@ -32,9 +32,15 @@ int32_t scoop_window_menu_busy(void *pointer) {
 
 void scoop_window_menu_external_tracking(void *pointer, int32_t tracking) {
   SWMenu *owner = (__bridge SWMenu *)pointer;
+  if (tracking)
+    owner.selected = 0;
   owner.externalTracking = tracking != 0;
   if (!tracking)
     sw_menu_event(owner, 112, 0, 0);
+}
+
+int64_t scoop_window_menu_selection(void *pointer) {
+  return ((__bridge SWMenu *)pointer).selected;
 }
 
 int64_t scoop_window_menu_bind(void *pointer, int32_t kind, int64_t serial,

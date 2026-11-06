@@ -1,0 +1,94 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.tray"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+when = { os = ["darwin", "windows"] }
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+[[sources]]
+path = "platform/darwin"
+when = { os = "darwin" }
+[[sources]]
+path = "platform/windows"
+when = { os = "windows" }
+[[sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[dependencies]
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"
+
+[native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }, { sysroot = "include/tray", when = { os = "linux", env = "gnu" } }]
+c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/events.c"
+[[native.sources]]
+path = "native/darwin/tray.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows/tray.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/windows/image.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux/tray.c"
+when = { os = "linux", env = "gnu" }
+[[native.sources]]
+path = "native/linux/menu.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "AppKit"
+kind = "framework"
+when = { os = "darwin" }
+[[native.libraries]]
+name = "shell32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "user32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "gdi32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "shcore"
+when = { os = "windows" }
+[[native.libraries]]
+name = "dbusmenu-glib"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"scoop:scoop.window.asyncio" = "0.1.0"
+"scoop:scoop.asyncio" = "0.1.0"
+"scoop.tests:tray-native" = { version = "0.1.0", path = "test-native" }
+
+[[test.sources]]
+path = "tests"
+when = { os = ["darwin", "windows"] }
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }
+[[test.sources]]
+path = "test-darwin"
+when = { os = "darwin" }
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }
+[[test.sources]]
+path = "test-linux"
+when = { os = "linux", env = "gnu" }

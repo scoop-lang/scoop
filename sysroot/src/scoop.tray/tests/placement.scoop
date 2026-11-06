@@ -1,0 +1,96 @@
+package scoop.tray
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TrayPlacementTests {
+    @Test
+    fun `a top bar on a negative-coordinate monitor opens inward and slides along the edge`() {
+        val result =
+            planPlacement(
+                DesktopRect(DesktopPosition(-32.0, 0.0), 24.0, 24.0),
+                DesktopRect(DesktopPosition(-1600.0, 24.0), 1600.0, 876.0),
+                200.0,
+                120.0,
+                4.0,
+                TrayWindowPlacement()
+            )
+        assertEquals(-200.0, result.origin.x)
+        assertEquals(28.0, result.origin.y)
+        assertEquals(200.0, result.width)
+        assertEquals(120.0, result.height)
+    }
+    @Test
+    fun `a bottom tray uses the real work area rather than the icon lower edge`() {
+        val result =
+            planPlacement(
+                DesktopRect(DesktopPosition(980.0, 770.0), 20.0, 24.0),
+                DesktopRect(DesktopPosition(0.0, 0.0), 1000.0, 760.0),
+                300.0,
+                200.0,
+                4.0,
+                TrayWindowPlacement()
+            )
+        assertEquals(700.0, result.origin.x)
+        assertEquals(560.0, result.origin.y)
+    }
+    @Test
+    fun `flipping and shrinking require their own explicit policies`() {
+        val anchor = DesktopRect(DesktopPosition(420.0, 30.0), 20.0, 20.0)
+        val work = DesktopRect(DesktopPosition(0.0, 0.0), 800.0, 600.0)
+        val flipped =
+            planPlacement(
+                anchor,
+                work,
+                100.0,
+                100.0,
+                4.0,
+                TrayWindowPlacement(side = TrayPlacementSide.Above)
+            )
+        assertEquals(380.0, flipped.origin.x)
+        assertEquals(54.0, flipped.origin.y)
+        assertEquals(
+            WindowErrorKind.Unavailable,
+            assertFailsWith<WindowException> {
+                planPlacement(
+                    anchor,
+                    work,
+                    100.0,
+                    100.0,
+                    4.0,
+                    TrayWindowPlacement(side = TrayPlacementSide.Above, flip = false)
+                )
+            }.kind
+        )
+        val resized =
+            planPlacement(
+                anchor,
+                work,
+                100.0,
+                100.0,
+                4.0,
+                TrayWindowPlacement(
+                    side = TrayPlacementSide.Above,
+                    flip = false,
+                    allowResize = true
+                )
+            )
+        assertEquals(0.0, resized.origin.y)
+        assertEquals(26.0, resized.height)
+    }
+    @Test
+    fun `without sliding an out-of-bounds alignment is rejected`() {
+        val anchor = DesktopRect(DesktopPosition(0.0, 0.0), 16.0, 16.0)
+        val work = DesktopRect(DesktopPosition(0.0, 16.0), 600.0, 400.0)
+        assertEquals(
+            WindowErrorKind.Unavailable,
+            assertFailsWith<WindowException> {
+                planPlacement(anchor, work, 200.0, 120.0, 4.0, TrayWindowPlacement(slide = false))
+            }.kind
+        )
+        assertFailsWith<IllegalArgumentException> {
+            planPlacement(anchor, work, 200.0, 120.0, -1.0, TrayWindowPlacement())
+        }
+    }
+}

@@ -1,0 +1,23 @@
+package scoop.tray
+
+import scoop.window.*
+
+internal fun trayTestImage(red: UInt8 = 16.toUByte()): DesktopImage =
+    DesktopImage(
+        LogicalSize(16.0, 16.0),
+        [
+            DesktopImageRepresentation(
+                PhysicalSize(1, 1),
+                Array<UInt8>(4L) {
+                    i -> when (i) {
+                        0L -> red;
+                        1L -> 32.toUByte();
+                        2L -> 64.toUByte();
+                        else -> 128.toUByte()
+                    }
+                }
+            ),
+            DesktopImageRepresentation(PhysicalSize(2, 2), Array<UInt8>(16L) { _ -> 255.toUByte() })
+        ],
+        template = true
+    )

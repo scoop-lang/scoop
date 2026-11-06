@@ -55,6 +55,7 @@ typedef struct {
   double x, y, width, height, pixel_width, pixel_height, scale;
   const uint8_t *name;
   int64_t name_length;
+  double work_x, work_y, work_width, work_height;
 } SWMonitorData;
 typedef struct {
   SWMonitorData *items;
@@ -164,6 +165,7 @@ void sw_ime_caret(SWWindow *window);
 void sw_ime_document(SWWindow *window);
 GtkIMContext *sw_ime_context(SWWindow *window);
 void sw_snapshot_update(SWWindow *window);
+void sw_desktop_bounds(SWWindow *window);
 void sw_update_buttons(SWWindow *window);
 int64_t sw_request_size(SWWindow *window, double width, double height);
 GdkSurface *sw_surface(SWWindow *window);

@@ -46,6 +46,8 @@ Session 借用 Menu 与目标窗口，展示未安全退出前不能销毁原生
 
 scoop.window.native 的 Menu.acquireNativeMenu(requestClose) 返回 NativeMenuLease。lease 提供 NativeMenuUseId 和目标平台 NativeMenuHandle，保活 Menu 的原生树。AppKit 借出 NSMenu，Win32 借出 HMENU，GTK 借出 GMenuModel／GActionGroup；使用者不得销毁这些对象。原生数据属于当前 owner，句柄的访问与操作只能在该线程及 lease 有效期间发生。
 
-独立使用者通过 beginTracking／endTracking 报告不能改动原生树的期间，通过 activate(item) 报告已映射的公共 MenuItemId；返回 false 表示条目或使用已退休／禁用。Win32 原生 command ID 使用 lease.itemForNativeCommand 查询对应的公共 ID，不截断转换。原生 NSMenu／GAction 已直接报告的动作不重复调用 activate。
+独立使用者通过 beginTracking／endTracking 报告不能改动原生树的期间；beginTracking 清空本次选择，endTracking 返回本次原生使用选中的 MenuItemId?，包含标准角色，未开始或未选择时为 None。isTracking 查询实际原生使用，不能重入正在展示的菜单。通过 activate(item) 报告已映射的公共 MenuItemId；返回 false 表示条目或使用已退休／禁用。Win32 原生 command ID 使用 lease.itemForNativeCommand 查询对应的公共 ID，不截断转换。原生 NSMenu／GAction 已直接报告的动作不重复调用 activate。
 
 Menu.close 或应用关闭立即停止原生动作（包含由原生端直接执行的标准角色），随后通知 requestClose；使用者负责结束自身 tracking、解除附着并 close lease。通知只发一次；退出控制通路不依赖普通业务队列。lease.close 不销毁 Menu；其原生使用仍活动时不能提前归还句柄。窗口库只保存 NativeMenuUseId，不认识 TrayIcon，也不引入托盘依赖。
+
+使用者可以先调用 lease.cancel() 退休当前使用的动作并请求结束原生菜单，再等待自身展示退出、endTracking 和 close；cancel 不关闭 Menu，不允许在已取消的 lease 上开始新展示。GTK 借用模型的标准 action 属性使用 scoop-menu 命名空间；对应 GActionGroup 使用去除该命名空间的动作名，可按 GMenuModel／GActionGroup 公共接口只读适配其他原生菜单协议。

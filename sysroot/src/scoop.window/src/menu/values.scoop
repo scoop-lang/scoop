@@ -55,8 +55,6 @@ public struct MenuCapabilities(
     val templateImages: Boolean
 )
 
-public struct DesktopCapabilities(val menus: MenuCapabilities)
-
 public enum MenuSource {
     ApplicationMenuBar(WindowId?), WindowMenuBar(WindowId),
     Popup(PopupSessionId, WindowId), Native(NativeMenuUseId)
@@ -81,20 +79,4 @@ public enum PopupCancelReason {
 
 public enum PopupResult {
     Selected(MenuItemId), Cancelled(PopupCancelReason), Failed(WindowException)
-}
-
-public fun ActiveApplication.desktopCapabilities(): DesktopCapabilities {
-    owner.requireRunning("desktop capabilities")
-    @Unsafe
-    {
-        val flags = nativeMenuCapabilities()
-        return DesktopCapabilities(
-            MenuCapabilities(
-                flags.and(1) != 0,
-                flags.and(2) != 0,
-                flags.and(4) != 0,
-                flags.and(8) != 0
-            )
-        )
-    }
 }

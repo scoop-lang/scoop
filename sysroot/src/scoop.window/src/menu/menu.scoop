@@ -68,7 +68,7 @@ internal fun MenuUse.acceptsActions(): Boolean =
     when (this) {
         case Bar(binding) -> !binding.closed
         case Popup(session) -> session.acceptsActions
-        case Native(lease) -> !lease.closed
+        case Native(lease) -> !lease.closed && lease.acceptsActions
     }
 
 internal class MenuNode(val id: MenuItemId, val parent: MenuNode?, var prepared: PreparedMenuItem) {
@@ -106,6 +106,7 @@ internal class MenuOwner(val application: ApplicationOwner, val id: MenuId, nati
         requireOpen()
         if (hasUse || busy())
             throw WindowException("menu already in use", WindowErrorKind.ResourceBusy)
+        publish()
     }
 
     fun findItem(identity: MenuItemId): MenuNode? {

@@ -4,12 +4,17 @@
 SWWindow *sw_menu_target(SWMenu *menu) {
   if (menu->window)
     return menu->window;
-  HWND hwnd = GetActiveWindow();
+  HWND hwnd =
+      menu->external_tracking ? menu->external_window : GetActiveWindow();
   WCHAR name[64];
   if (!hwnd || !GetClassNameW(hwnd, name, 64) || wcscmp(name, sw_window_class))
     return NULL;
   SWWindow *window = (SWWindow *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-  return window && window->application == menu->application ? window : NULL;
+  return window && window->application == menu->application &&
+                 (!menu->external_tracking ||
+                  window->identity == menu->external_window_identity)
+             ? window
+             : NULL;
 }
 
 void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window) {
@@ -27,8 +32,12 @@ void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window) {
   sw_enqueue(menu->application, event);
 }
 
-static HWND native_editor(SWWindow *window) {
-  HWND focus = GetFocus();
+static HWND menu_focus(SWMenu *menu) {
+  return menu->external_tracking ? menu->external_focus : GetFocus();
+}
+
+static HWND native_editor(SWMenu *menu, SWWindow *window) {
+  HWND focus = menu_focus(menu);
   if (!focus || focus == window->hwnd || !IsChild(window->hwnd, focus))
     return NULL;
   WCHAR name[64];
@@ -47,7 +56,7 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
   if (entry->role >= 4) {
     if (!window)
       return false;
-    HWND editor = native_editor(window);
+    HWND editor = native_editor(entry->menu, window);
     if (editor) {
       DWORD start = 0, end = 0;
       SendMessageW(editor, EM_GETSEL, (WPARAM)&start, (LPARAM)&end);
@@ -69,7 +78,8 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
         return false;
       }
     }
-    return entry->enabled && GetFocus() == window->hwnd && window->ime_allowed;
+    return entry->enabled && menu_focus(entry->menu) == window->hwnd &&
+           window->ime_allowed;
   }
   if (!entry->enabled)
     return false;
@@ -102,7 +112,7 @@ bool sw_menu_activate(SWMenuEntry *entry) {
   } else if (entry->role == 3) {
     ShowWindow(window->hwnd, IsZoomed(window->hwnd) ? SW_RESTORE : SW_MAXIMIZE);
   } else {
-    HWND editor = native_editor(window);
+    HWND editor = native_editor(menu, window);
     if (editor) {
       static const UINT commands[] = {WM_CUT,    WM_COPY, WM_PASTE,
                                       EM_SETSEL, WM_UNDO, EM_REDO};

@@ -15,17 +15,6 @@ static void x11_state(SWWindow *window, bool enabled, const char *name) {
              SubstructureRedirectMask | SubstructureNotifyMask, &event);
   XFlush(display);
 }
-int64_t scoop_window_position(SWWindow *window, double x, double y) {
-  if (window->application->kind != SW_X11)
-    return -1;
-  if (x < INT16_MIN || y < INT16_MIN || x > INT16_MAX || y > INT16_MAX)
-    return EOVERFLOW;
-  Display *display = gdk_x11_display_get_xdisplay(window->application->display);
-  XMoveWindow(display, gdk_x11_surface_get_xid(sw_surface(window)), (int)x,
-              (int)y);
-  XFlush(display);
-  return 0;
-}
 int64_t scoop_window_constraints(SWWindow *window, double min_width,
                                  double min_height, double max_width,
                                  double max_height) {

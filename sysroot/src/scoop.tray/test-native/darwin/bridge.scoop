@@ -1,0 +1,10 @@
+package scoop.tests.tray.native
+
+@Extern(name = "scoop_test_tray_click")
+public fun clickTray(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_tray_image")
+public fun checkTrayImage(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_tray_select")
+public fun selectTrayMenu(tray: Ptr<Unit>): Int

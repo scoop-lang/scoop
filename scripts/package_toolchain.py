@@ -32,6 +32,8 @@ from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order
+from prepare_tray import LINK_INPUTS as TRAY_LINK_INPUTS
+from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
 TOOLS = ("scoop", "scoopc", "scoop-link", "scoop-lsp", "scoop-pm")
@@ -113,6 +115,17 @@ def prepare_targets(args, targets, binaries, environment):
                     args.gtk_prefix,
                     "--build-dir",
                     args.work_dir / "gtk" / target,
+                ],
+                environment,
+            )
+        if target == TRAY_TARGET:
+            run_script(
+                "prepare_tray.py",
+                [
+                    "--development-prefix",
+                    args.tray_prefix,
+                    "--build-dir",
+                    args.work_dir / "tray" / target,
                 ],
                 environment,
             )
@@ -280,6 +293,10 @@ def assemble_libraries(root, target, args, order):
         shutil.copytree(source / "include/gtk", destination / "include/gtk")
         for library in GTK_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
+    if target == TRAY_TARGET:
+        shutil.copytree(source / "include/tray", destination / "include/tray")
+        for library in TRAY_LINK_INPUTS:
+            shutil.copy2(source / library, destination / library)
     for package in COMPRESSION_PACKAGES:
         for library in package["libraries"]:
             shutil.copy2(source / library, destination / library)
@@ -437,6 +454,12 @@ def main():
         type=Path,
         default=Path("/usr"),
         help="Linux GTK/libadwaita development prefix used by pkg-config",
+    )
+    parser.add_argument(
+        "--tray-prefix",
+        type=Path,
+        default=Path("/usr"),
+        help="Linux libdbusmenu-glib development prefix used by scoop.tray",
     )
     parser.add_argument(
         "--prepared-sysroot",

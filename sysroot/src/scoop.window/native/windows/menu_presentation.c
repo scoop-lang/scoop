@@ -95,10 +95,28 @@ void scoop_window_menu_cancel(SWMenu *menu) {
 }
 
 void scoop_window_menu_external_tracking(SWMenu *menu, int32_t tracking) {
+  if (tracking) {
+    menu->selected = 0;
+    SWWindow *window = sw_menu_target(menu);
+    menu->external_window = window ? window->hwnd : NULL;
+    menu->external_window_identity = window ? window->identity : 0;
+    menu->external_focus = GetFocus();
+  }
   menu->external_tracking = tracking != 0;
-  if (!tracking)
+  if (tracking) {
+    for (SWMenuEntry *entry = menu->entries; entry; entry = entry->next)
+      EnableMenuItem(entry->parent, entry->position,
+                     MF_BYPOSITION |
+                         (sw_menu_enabled(entry) ? MF_ENABLED : MF_GRAYED));
+  } else {
+    menu->external_window = NULL;
+    menu->external_focus = NULL;
+    menu->external_window_identity = 0;
     sw_menu_event(menu, 112, 0, 0);
+  }
 }
+
+int64_t scoop_window_menu_selection(SWMenu *menu) { return menu->selected; }
 
 int64_t scoop_window_menu_bind(SWMenu *menu, int32_t kind, int64_t serial,
                                SWWindow *window) {

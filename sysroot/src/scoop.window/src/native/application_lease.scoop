@@ -1,0 +1,113 @@
+package scoop.window.native
+
+import scoop.window.*
+
+/** Keeps the existing application alive until a separate native resource is retired. */
+public class NativeApplicationLease internal constructor(
+    internal val owner: ApplicationOwner,
+    private var closing: (() -> Unit)?
+): Closeable {
+    private var closed = false
+    private var closeRequested = false
+
+    public val isClosing: Boolean get() {
+        checkThread()
+        return closed || closeRequested
+    }
+
+    public fun checkThread() {
+        owner.checkThread()
+    }
+
+    /** Delivers ordinary callbacks through the same application and asyncio queues. */
+    public fun post(block: () -> Unit): Boolean {
+        checkThread()
+        if (closed || closeRequested)
+            return false
+        return owner.mailbox.post {
+            if (!closed && !closeRequested)
+                block()
+        }
+    }
+
+    /** Cleanup remains available after the application stops accepting business work. */
+    public fun postControl(block: () -> Unit): Boolean {
+        checkThread()
+        if (closed)
+            return false
+        return owner.mailbox.postControl {
+            if (!closed)
+                block()
+        }
+    }
+
+    /** Starts native tracking only after the current callback and I/O watch return. */
+    public fun postNative(block: () -> Unit): Boolean {
+        checkThread()
+        if (closed)
+            return false
+        owner.deferNativeOperation {
+            if (!closed)
+                block()
+        }
+        return true
+    }
+
+    @Unsafe
+    public fun acquireWindow(window: Window): NativeWindowLease {
+        requireOpen()
+        requireWindow(window.owner.application === owner, "window belongs to another application")
+        return window.acquireNativeWindow()
+    }
+
+    @Unsafe
+    public fun acquireMenu(menu: Menu, requestClose: () -> Unit): NativeMenuLease {
+        requireOpen()
+        requireWindow(menu.owner.application === owner, "menu belongs to another application")
+        return menu.acquireNativeMenu(requestClose)
+    }
+
+    /** The caller must first unregister and destroy its own native resource. */
+    public override fun close() {
+        checkThread()
+        if (closed)
+            return
+        closed = true
+        closing = None
+        for (index in 0L ..< owner.nativeResources.size)
+            if (owner.nativeResources[index] === this) {
+                owner.nativeResources.removeAt(index)
+                break
+            }
+        owner.mailbox.wake()
+    }
+
+    internal fun requestClose() {
+        if (closed || closeRequested)
+            return
+        closeRequested = true
+        val callback = closing
+        closing = None
+        owner.mailbox.postControl {
+            if (!closed)
+                callback!!()
+        }
+    }
+
+    private fun requireOpen() {
+        owner.requireRunning("native application resource")
+        if (closed || closeRequested)
+            throw WindowException("native application resource", WindowErrorKind.InvalidState)
+    }
+}
+
+/** Registers the real resource's shutdown callback without creating another event loop. */
+@Unsafe
+public fun ActiveApplication.registerNativeResource(
+    requestClose: () -> Unit
+): NativeApplicationLease {
+    owner.requireRunning("register native application resource")
+    val lease = NativeApplicationLease(owner, Some(requestClose))
+    owner.nativeResources.add(lease)
+    return lease
+}

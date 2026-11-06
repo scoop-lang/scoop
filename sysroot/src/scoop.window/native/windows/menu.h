@@ -37,6 +37,8 @@ struct SWMenu {
   SWMenuEntry **accelerator_entries;
   int accelerator_count;
   HKL layout;
+  HWND external_window, external_focus;
+  int64_t external_window_identity;
   int64_t identity, serial, selected;
   uint64_t next_command;
   int32_t binding;

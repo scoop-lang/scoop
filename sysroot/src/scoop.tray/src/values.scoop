@@ -1,0 +1,96 @@
+package scoop.tray
+
+import scoop.window.*
+
+public struct TrayIconId(val value: Long): Equals<TrayIconId>, Hash {
+    public override operator fun equals(other: TrayIconId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct TrayMenuSessionId(val value: Long): Equals<TrayMenuSessionId>, Hash {
+    public override operator fun equals(other: TrayMenuSessionId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public enum TrayState {
+    Open, Closing, Closed
+}
+
+public enum TrayAvailability {
+    Available, Unavailable
+}
+
+public enum TrayActivationKind {
+    Primary, Context, Secondary
+}
+
+public enum TrayActivationSource {
+    Pointer, Keyboard, Unknown
+}
+
+public struct TrayCapabilities(
+    val templateImages: Boolean,
+    val primaryActivation: Boolean,
+    val contextActivation: Boolean,
+    val keyboardActivation: Boolean,
+    val activationWithMenu: Boolean,
+    val iconBounds: Boolean,
+    val eventAnchor: Boolean,
+    val hostMenu: Boolean,
+    val programmaticMenu: Boolean,
+    val placeWindow: Boolean
+)
+
+public class TrayOptions public constructor(
+    public val image: DesktopImage,
+    public val tooltip: String? = None,
+    public val menu: Menu? = None
+)
+
+/** A current native icon rectangle; registration does not imply visible placement. */
+public struct TrayGeometry(val bounds: DesktopRect, val monitor: MonitorId?)
+
+public enum TrayAnchor {
+    Rectangle(TrayGeometry), PointHint(DesktopPosition)
+}
+
+public struct TrayActivation(
+    val kind: TrayActivationKind,
+    val source: TrayActivationSource,
+    val anchor: TrayAnchor?,
+    val button: MouseButton?,
+    val clickCount: Int?
+)
+
+public enum TrayMenuCancelReason {
+    User, ExplicitClose, MenuClosed, TrayClosed, ApplicationExit
+}
+
+public enum TrayMenuResult {
+    Selected(MenuItemId), Cancelled(TrayMenuCancelReason), Failed(WindowException)
+}
+
+public enum TrayEvent {
+    Activated(TrayActivation), AvailabilityChanged(TrayAvailability),
+    MenuCompleted(TrayMenuSessionId, TrayMenuResult)
+}
+
+public enum TrayPlacementSide {
+    Automatic, Above, Below, Left, Right
+}
+
+public enum TrayPlacementAlignment {
+    Start, Center, End
+}
+
+public class TrayWindowPlacement public constructor(
+    public val side: TrayPlacementSide = TrayPlacementSide.Automatic,
+    public val alignment: TrayPlacementAlignment = TrayPlacementAlignment.Center,
+    public val gap: Double = 4.0,
+    public val flip: Boolean = true,
+    public val slide: Boolean = true,
+    public val allowResize: Boolean = false,
+    public val anchor: TrayAnchor? = None,
+    public val allowPointHint: Boolean = false,
+    public val allowMonitorBounds: Boolean = false
+)

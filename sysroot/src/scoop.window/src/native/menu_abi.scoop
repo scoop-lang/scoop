@@ -1,5 +1,8 @@
 package scoop.window
 
+@Extern(name = "scoop_window_menu_selection")
+internal fun nativeMenuSelection(menu: Ptr<Unit>): Long
+
 @CLayout
 internal struct NativeMenuKey(val key: Int, val modifiers: Int, val error: Long)
 

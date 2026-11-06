@@ -1,0 +1,203 @@
+package scoop.tray
+
+import scoop.window.*
+import scoop.window.native.*
+
+/** One programmatic native presentation; the Menu event owns the selected action. */
+public class TrayMenuSession internal constructor(
+    internal val owner: TrayOwner,
+    public val id: TrayMenuSessionId
+): Closeable {
+    internal var completed: TrayMenuResult? = None
+    internal var cancellation: TrayMenuCancelReason? = None
+    internal var started = false
+    public val result: TrayMenuResult? get() {
+        owner.checkThread();
+        return completed
+    }
+    internal val finished: Boolean get() =
+        when (completed) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    public override fun close() {
+        owner.cancelSession(this, TrayMenuCancelReason.ExplicitClose)
+    }
+}
+
+internal fun TrayOwner.setMenu(next: Menu?) {
+    when ((menu, next)) {
+        case(Some(previous), Some(value)) -> if (previous === value)
+            return
+        case(None, None) -> return
+        else -> {}
+    }
+    if (busy())
+        throw WindowException("replace tray menu", WindowErrorKind.ResourceBusy)
+    var lease: NativeMenuLease? = None
+    when (next) {
+        case Some(value) -> @Unsafe
+        {
+            lease = Some(resource!!.acquireMenu(value) { menuClosed(value) })
+        }
+        case None -> {}
+    }
+    when (session) {
+        case Some(active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
+        case None -> {}
+    }
+    try {
+        @Unsafe
+        {
+            installTrayMenu(pointer!!, lease)
+        }
+    } catch (error: Throwable) {
+        when (lease) {
+            case Some(value) -> value.close();
+            case None -> {}
+        }
+        close(TrayMenuCancelReason.TrayClosed)
+        throw error
+    }
+    when (menuLease) {
+        case Some(previous) -> {
+            previous.cancel();
+            previous.close()
+        };
+        case None -> {}
+    }
+    menuLease = lease
+    menu = next
+}
+
+internal fun TrayOwner.detachMenu() {
+    @Unsafe
+    {
+        when (pointer) {
+            case Some(native) -> installTrayMenu(native, None);
+            case None -> {}
+        }
+    }
+    when (menuLease) {
+        case Some(lease) -> {
+            lease.cancel();
+            lease.close()
+        };
+        case None -> {}
+    }
+    menuLease = None
+    menu = None
+}
+
+private fun TrayOwner.menuClosed(closed: Menu) {
+    when (menu) {
+        case Some(value) -> if (!(value === closed))
+            return
+        case None -> return
+    }
+    detaching = true
+    renewing = false
+    @Unsafe
+    {
+        nativeTrayCancel(pointer!!)
+    }
+    when (session) {
+        case Some(active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
+        case None -> {}
+    }
+    settle()
+}
+
+internal fun TrayOwner.showMenu(): TrayMenuSession {
+    requireOpen()
+    if (!capabilities().programmaticMenu)
+        throw WindowException("programmatic tray menu", WindowErrorKind.Unsupported)
+    when (menuLease) {
+        case None -> throw WindowException("tray menu is not bound", WindowErrorKind.InvalidState);
+        case Some(_) -> {}
+    }
+    when (session) {
+        case Some(_) -> throw WindowException("tray menu session", WindowErrorKind.ResourceBusy);
+        case None -> {}
+    }
+    if (busy())
+        throw WindowException("tray menu is tracking", WindowErrorKind.ResourceBusy)
+    val created = TrayMenuSession(this, TrayMenuSessionId(nextTrayMenu()))
+    session = Some(created)
+    resource!!.postNative { launch(created) }
+    return created
+}
+
+private fun TrayOwner.launch(active: TrayMenuSession) {
+    if (active.finished)
+        return
+    val lease = menuLease!!
+    try {
+        lease.beginTracking()
+        active.started = true
+        @Unsafe
+        {
+            val result = nativeTrayShowMenu(pointer!!)
+            checkTrayStatus(result.error, "show tray menu")
+            if (result.command != 0)
+                when (lease.itemForNativeCommand(result.command)) {
+                    case Some(item) -> lease.activate(item)
+                    case None -> {}
+                }
+        }
+        val selected = lease.endTracking()
+        val result =
+            when (active.cancellation) {
+                case Some(reason) -> TrayMenuResult.Cancelled(reason)
+                case None -> when (selected) {
+                    case Some(item) -> TrayMenuResult.Selected(item)
+                    case None -> TrayMenuResult.Cancelled(TrayMenuCancelReason.User)
+                }
+            }
+        finish(active, result)
+    } catch (error: WindowException) {
+        lease.endTracking()
+        finish(
+            active,
+            when (active.cancellation) {
+                case Some(reason) -> TrayMenuResult.Cancelled(reason)
+                case None -> TrayMenuResult.Failed(error)
+            }
+        )
+    } finally {
+        settle()
+    }
+}
+
+internal fun TrayOwner.cancelSession(active: TrayMenuSession, reason: TrayMenuCancelReason) {
+    checkThread()
+    if (active.finished)
+        return
+    when (active.cancellation) {
+        case None -> active.cancellation = Some(reason);
+        case Some(_) -> {}
+    }
+    if (active.started) {
+        when (menuLease) {
+            case Some(lease) -> lease.cancel();
+            case None -> {}
+        }
+        if (!detaching && state == TrayState.Open)
+            renewing = true
+        @Unsafe
+        {
+            nativeTrayCancel(pointer!!)
+        }
+    } else {
+        finish(active, TrayMenuResult.Cancelled(reason))
+        settle()
+    }
+}
+
+private fun TrayOwner.finish(active: TrayMenuSession, result: TrayMenuResult) {
+    if (active.finished)
+        return
+    active.completed = Some(result)
+    session = None
+    emit(TrayEvent.MenuCompleted(active.id, result))
+}

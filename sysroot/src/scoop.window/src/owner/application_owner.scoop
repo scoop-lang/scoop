@@ -6,6 +6,7 @@ import scoop.time.TimeMark
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 import scoop.window.native.ApplicationWatch
+import scoop.window.native.NativeApplicationLease
 import scoop.window.native.dispatchWatch
 
 internal class ApplicationOwner(
@@ -15,6 +16,7 @@ internal class ApplicationOwner(
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
     val menus = ArrayList<MenuOwner>()
+    val nativeResources = ArrayList<NativeApplicationLease>()
     var nextMenu = 1L
     var nextMenuItem = 1L
     var nextMenuUse = 1L
@@ -242,6 +244,8 @@ internal class ApplicationOwner(
         refreshDeadline()
         for (menu in menus.toArray())
             menu.close(PopupCancelReason.ApplicationExit)
+        for (resource in nativeResources.toArray())
+            resource.requestClose()
         for (window in windows)
             window.close()
         mailbox.wake()

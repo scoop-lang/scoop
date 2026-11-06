@@ -15,9 +15,9 @@
 | 批次 | 范围 | 状态 |
 | --- | --- | --- |
 | 准备 | 设计基线、开发分支、验证与提交约定 | 已建立分支；设计进入版本管理 |
-| D1 | 公共合同、跨 Cone 原生使用、平台关键组合 | 菜单身份、图像、能力与 NativeMenuLease 已实施；应用资源登记随 D3 完成 |
+| D1 | 公共合同、跨 Cone 原生使用、平台关键组合 | 已实施菜单身份、图像、能力、NativeMenuLease 与应用资源登记；平台验证限制见下 |
 | D2 | Menu／Popup、快捷键、原生菜单借用 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
-| D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 待实施 |
+| D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D4 | Frame／Region、原生外观与系统操作 | 待实施 |
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 待实施 |
 | D6 | 原生文件／目录对话框 | 待实施 |
@@ -37,3 +37,12 @@
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的窗口库和完整测试程序均编译通过；各目标默认测试 1 passed、1 ignored。SSH 会话无法创建测试所需的原生 Application，原生窗口／菜单用例保留到桌面会话执行；这些结果不代表 GUI 交互验收通过。
 
 测试入口、所需桌面条件及独立焦点／Windows 用例的执行方式见[菜单测试说明](../../sysroot/src/scoop.window/tests-cones/menus/README.md)。macOS amd64 构建与三平台完整桌面组合继续随后续批次和最终打包验收推进。
+
+2026-11-07，D3：已加入独立 [scoop.tray](../../sysroot/src/scoop.tray/README.md) 与[托盘规范](../specs/SCOOP-TRAY-SPEC.md)，实现 AppKit status item、Win32 通知图标及专用消息 HWND、Linux SNI／DBusMenu。应用资源登记与原有 asyncio attachment 共存，退出等待原生使用和异步回调退休。菜单取消立即退休旧动作，程序化 session 结束后可重新借用同一 Menu。Win32 外部菜单保存打开前的窗口／编辑焦点，避免托盘宿主改变标准命令的目标。
+
+新增实际图标锚点、Monitor.workArea、系统栏查询能力和邻近窗口定位。X11 同时补齐 WM 外框查询与桌面单位转换；Wayland 保留无普通窗口全局定位／工作区查询的边界，SNI 只报告宿主提供的 PointHint。libdbusmenu-glib 的准备、头文件、链接输入和许可单独归托盘，普通 window／UI 不依赖它；目标生产清单已确认 GNU 包含托盘、musl 不包含托盘。
+
+- macOS aarch64：格式化、原生严格编译、窗口／托盘／window.asyncio 构建通过；托盘 5 passed、1 ignored，包含无窗口资源与 asyncio 延迟清理组合；菜单复验 2 passed、1 ignored，原生 popup／asyncio 组合复验 1 passed。真实状态栏 popup 的取消／再次展示／选择用例已编译，当前 loginwindow 下不执行，须在解锁桌面以 `--ignored` 单独验证。
+- Linux GNU：独立准备 libdbusmenu-glib 开发资源及增量复用通过；窗口、window.asyncio、托盘与测试构建通过。X11 与带 seat 的嵌套 Wayland 各 5 passed，覆盖实际总线协议的多分辨率 ARGB、DBusMenu 图像／快捷键／状态／子菜单、更新后稳定命令身份、退休动作、Watcher 消失与返回、激活提示、关闭中的异步请求。X11 验证基于实际外框和工作区的位置请求，Wayland 验证 Unsupported。菜单复验各 2 passed。这是协议与软件显示会话验证，不替代具体桌面 Shell 中的图标呈现验收。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的窗口／window.asyncio／托盘库及完整测试程序均编译通过；各目标托盘 4 passed、1 ignored，菜单复验 1 passed、1 ignored。忽略项需要交互桌面和 Explorer，包含通知回调、图像与自己图标的重新注册；SSH 结果不代表 GUI 验收通过。
+- 打包入口与许可收集已接入托盘；相关 Python 检查通过，包组装 5 项、许可收集 4 项测试通过。完整发行包继续在 D9 后统一构建。

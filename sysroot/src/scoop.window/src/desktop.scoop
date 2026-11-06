@@ -1,0 +1,83 @@
+package scoop.window
+
+public struct DesktopPositioningCapabilities(
+    val globalWindowPosition: Boolean,
+    val monitorWorkArea: Boolean,
+    val systemTaskbarBounds: Boolean,
+    val systemMenuBarHeight: Boolean
+)
+
+public struct DesktopCapabilities(
+    val menus: MenuCapabilities,
+    val positioning: DesktopPositioningCapabilities
+)
+
+/** Queries the active backend; availability is reported by the individual operation. */
+public fun ActiveApplication.desktopCapabilities(): DesktopCapabilities {
+    owner.requireRunning("desktop capabilities")
+    @Unsafe
+    {
+        val menus = nativeMenuCapabilities()
+        val positioning = nativeDesktopCapabilities()
+        return DesktopCapabilities(
+            MenuCapabilities(
+                menus.and(1) != 0,
+                menus.and(2) != 0,
+                menus.and(4) != 0,
+                menus.and(8) != 0
+            ),
+            DesktopPositioningCapabilities(
+                positioning.and(1) != 0,
+                positioning.and(2) != 0,
+                positioning.and(4) != 0,
+                positioning.and(8) != 0
+            )
+        )
+    }
+}
+
+/** The system taskbar reported by the Shell, not an enumeration of all appbars. */
+public fun ActiveApplication.systemTaskbarBounds(): DesktopRect? {
+    if (!desktopCapabilities().positioning.systemTaskbarBounds)
+        throw WindowException("system taskbar bounds", WindowErrorKind.Unsupported)
+    @Unsafe
+    {
+        val value = nativeSystemTaskbarBounds()
+        if (value.error == -2L)
+            return None
+        checkNativeStatus(value.error, "system taskbar bounds")
+        return Some(DesktopRect(DesktopPosition(value.x, value.y), value.width, value.height))
+    }
+}
+
+/** A native height in desktop units; this does not imply a visible bar rectangle. */
+public fun ActiveApplication.systemMenuBarHeight(): Double? {
+    if (!desktopCapabilities().positioning.systemMenuBarHeight)
+        throw WindowException("system menu bar height", WindowErrorKind.Unsupported)
+    @Unsafe
+    {
+        val height = nativeSystemMenuBarHeight()
+        return if (height.isFinite() && height > 0.0)
+            Some(height)
+        else
+            None
+    }
+}
+
+@CLayout
+internal struct NativeDesktopRect(
+    val error: Long,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double
+)
+
+@Extern(name = "scoop_window_desktop_capabilities")
+internal fun nativeDesktopCapabilities(): Int
+
+@Extern(name = "scoop_window_system_taskbar_bounds")
+internal fun nativeSystemTaskbarBounds(): NativeDesktopRect
+
+@Extern(name = "scoop_window_system_menu_bar_height")
+internal fun nativeSystemMenuBarHeight(): Double

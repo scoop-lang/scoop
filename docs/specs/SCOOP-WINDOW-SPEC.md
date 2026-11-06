@@ -64,7 +64,7 @@ WindowAttributes、Window 的能力与方法分组见映射表，当前阶段只
 
 WindowException 保留 WindowErrorKind、operation、backend 和可选 native code；类别包含 Unsupported、Unavailable、PermissionDenied、InvalidState、ResourceBusy、Disconnected、NativeFailure。参数错误使用现有参数异常；backend 随实际后端提供，按实际显示系统为 AppKit／Win32／X11／Wayland，不假定原生 code 都是 errno；Win32 保留 DWORD／HRESULT 的 32-bit 数值。能力提示不替代实际操作错误。
 
-WindowId、DeviceId、MonitorId 为不同值类型，只在一次 Application 生命周期内比较，不暴露原生身份，不复用活过的编号。本阶段 Monitor 为不可变快照，保存 id、可选 name／desktopBounds／refreshRateMilliHertz、physicalSize 与 scaleFactor；不持有原生指针。ActiveApplication.monitors／primaryMonitor 与 Window.currentMonitor 在 owner 上获取快照，后者及 primaryMonitor 可为 None。AppKit 用 NSScreen 的桌面矩形和 backing 转换，CoreGraphics 未给出正刷新率时返回 None，不把最大可用刷新率当作实际刷新率。显示器变更通知刷新当前身份集合，已观察到离开的身份退休；再次出现分配新编号。后续加入视频模式及控制请求时再定义对应活动句柄的失效行为。
+WindowId、DeviceId、MonitorId 为不同值类型，只在一次 Application 生命周期内比较，不暴露原生身份，不复用活过的编号。本阶段 Monitor 为不可变快照，保存 id、可选 name／desktopBounds／workArea／refreshRateMilliHertz、physicalSize 与 scaleFactor；不持有原生指针。workArea 只保存平台实际给出的工作区，不以完整屏幕范围填补缺失值。ActiveApplication.monitors／primaryMonitor 与 Window.currentMonitor 在 owner 上获取快照，后者及 primaryMonitor 可为 None。AppKit 用 NSScreen 的桌面矩形和 backing 转换，CoreGraphics 未给出正刷新率时返回 None，不把最大可用刷新率当作实际刷新率。显示器变更通知刷新当前身份集合，已观察到离开的身份退休；再次出现分配新编号。后续加入视频模式及控制请求时再定义对应活动句柄的失效行为。
 
 LogicalPosition／LogicalSize／LogicalRect 采用有限 Double，内容坐标左上原点、向右／向下递增。PhysicalSize 为非负 Int 像素尺寸；PhysicalPosition 允许小数。DesktopPosition／DesktopRect 仅用于同一显示系统的全局桌面坐标，不允许通过单个窗口 DPI 在混合 DPI 桌面上换算。
 
@@ -180,6 +180,8 @@ lease.close 可跨线程且幂等，原子结束借用并把实际释放排入 o
 
 ## 7. 窗口及应用关闭
 
+独立托盘 Cone 所需的 NativeApplicationLease、显示器 workArea 及系统栏查询合同见[托盘规范](SCOOP-TRAY-SPEC.md)。这些入口复用既有 owner／mailbox／关闭通路；window 不引入托盘类型或 Linux 托盘依赖。
+
 状态为 PendingConfigure／Open／Closing／Destroyed。CloseRequested 只表示意图；requestDestroy 幂等、非阻塞，先进入 Closing／通知并拒绝新业务，等 Closing 已交付、callback 和 lease 均退休后实际销毁并发一次 Destroyed。Closing 后不再交付业务输入／重绘；迟到原生事件按 id 和 phase 丢弃，Destroyed 为该窗口的最后事件。
 
 ApplicationOptions.lastWindowPolicy 为 KeepRunning／Exit，默认 KeepRunning。退出先停止业务投递，发送 Exiting／Closing；随后继续服务 native cleanup、窗口销毁和可选 I/O 根收尾。所有窗口、watch、native callback、集成 session 均完成后，才停止主循环并返回／抛错。清理错误不阻止其他资源关闭，按 ResourceUseException 保留正文与清理失败。
@@ -257,6 +259,8 @@ GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd
 GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
 
 窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+
+X11 的 outerBounds 查询实际原生顶层外框：沿 X11 窗口树取得 WM frame，读取其当前几何并转换到 GDK 桌面坐标；不能取得时返回 None。位置请求也以外框左上角的桌面坐标表达，在 WM 声明支持时使用 EWMH `_NET_MOVERESIZE_WINDOW` 的 NorthWest gravity，否则沿现有 X11 移动请求交给 WM。请求坐标先转换为 X11 原生单位，成功仍只代表 Requested。托盘定位使用这份实际外框尺寸，不以内容区冒充窗口尺寸。
 
 GTK 不提供的窗口控制明确返回 Unsupported，包括内容保护、背景模糊、独立窗口的强制明暗主题、非默认 resize increments、最大内容尺寸约束。默认创建值不要求这些能力；调用方显式要求不支持的创建属性则创建失败。Requested 只表示已发出有效原生请求，不能把 desired state 当成观察结果。X11 的全局位置、层级与 attention 使用其原生窗口管理协议；Wayland 对没有对应协议的操作仍返回 Unsupported。
 

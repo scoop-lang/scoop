@@ -1,7 +1,7 @@
 package scoop.window
 
 internal fun MenuOwner.settleUse() {
-    if (busy() || application.nativeOperationDepth != 0)
+    if (busy())
         return
     when (use) {
         case Some(MenuUse.Bar(binding)) -> {

@@ -57,10 +57,14 @@ void scoop_window_menu_cancel(SWMenu *menu) {
 }
 
 void scoop_window_menu_external_tracking(SWMenu *menu, int32_t tracking) {
+  if (tracking)
+    menu->selected = 0;
   menu->external_tracking = tracking != 0;
   if (!tracking)
     sw_menu_event(menu, 112, 0, 0);
 }
+
+int64_t scoop_window_menu_selection(SWMenu *menu) { return menu->selected; }
 
 int64_t scoop_window_menu_bind(SWMenu *menu, int32_t kind, int64_t serial,
                                SWWindow *window) {

@@ -236,6 +236,10 @@ name = "shcore"
 when = { os = "windows" }
 
 [[native.libraries]]
+name = "shell32"
+when = { os = "windows" }
+
+[[native.libraries]]
 name = "imm32"
 when = { os = "windows" }
 
@@ -302,6 +306,10 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/linux/properties.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/desktop.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]

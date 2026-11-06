@@ -69,6 +69,8 @@ internal fun ApplicationOwner.drainShutdown() {
             0L &&
             menus.size ==
             0L &&
+            nativeResources.size ==
+            0L &&
             nativeOperations.size ==
             0L &&
             nativeOperationDepth ==

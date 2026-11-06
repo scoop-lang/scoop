@@ -83,20 +83,7 @@ void sw_snapshot_update(SWWindow *window) {
     sw_emit(window, 5);
   }
   sw_focus(window, gtk_window_is_active(GTK_WINDOW(window->window)));
-  if (surface && GDK_IS_X11_SURFACE(surface)) {
-    Display *display =
-        gdk_x11_display_get_xdisplay(window->application->display);
-    Window xid = gdk_x11_surface_get_xid(surface), child;
-    int x, y;
-    if (XTranslateCoordinates(display, xid, DefaultRootWindow(display), 0, 0,
-                              &x, &y, &child)) {
-      if (window->snapshot.x != x || window->snapshot.y != y) {
-        window->snapshot.x = x;
-        window->snapshot.y = y;
-        sw_emit(window, 3);
-      }
-    }
-  }
+  sw_desktop_bounds(window);
 }
 static void changed(GObject *object, GParamSpec *pspec, gpointer data) {
   sw_snapshot_update(data);
