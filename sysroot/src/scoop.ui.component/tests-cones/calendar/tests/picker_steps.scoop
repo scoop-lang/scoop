@@ -1,0 +1,198 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.*
+import scoop.surface.FocusOrigin
+import scoop.test.*
+import scoop.ui.component.*
+
+internal fun advancePicker(p: DateProbe) {
+    when (p.phase) {
+        case 26 -> {
+            p.draft.editor.replaceAll("2024-02-30");
+            p.key(36, "\r")
+        }
+        case 27 -> {
+            assertTrue(p.draft.error != None);
+            assertEquals("2024-02-30", p.draft.editor.text)
+            assertEquals(Some(LocalDate(2024, 2, 29)), p.selected.value)
+            p.draft.editor.replaceAll("2024-03-01");
+            p.key(36, "\r")
+        }
+        case 28 -> {
+            assertEquals(Some(LocalDate(2024, 3, 1)), p.selected.value);
+            assertEquals(None, p.draft.error)
+            assertTrue(p.pickerFocus.hasFocus)
+            p.selected.value = Some(LocalDate(2024, 3, 2));
+            p.changed()
+        }
+        case 29 -> {
+            assertEquals("2024-03-01", p.draft.editor.text)
+            p.key(53)
+        }
+        case 30 -> {
+            assertEquals("2024-03-02", p.draft.editor.text)
+            p.draft.editor.replaceAll("2024-03-03")
+            p.key(125)
+        }
+        case 31 -> {
+            assertTrue(p.picker.isOpen)
+            p.focused(LocalDate(2024, 3, 2))
+            p.click(p.cell(LocalDate(2024, 3, 10)).bounds)
+        }
+        case 32 -> {
+            assertFalse(p.picker.isOpen)
+            assertEquals(Some(LocalDate(2024, 3, 10)), p.selected.value)
+            assertEquals("2024-03-10", p.draft.editor.text)
+            assertTrue(p.pickerFocus.requestFocus(FocusOrigin.Keyboard))
+            p.draft.editor.replaceAll("2024-03-12")
+            p.click(p.outsideBounds)
+        }
+        case 33 -> {
+            assertEquals(Some(LocalDate(2024, 3, 12)), p.selected.value)
+            p.readOnly = true
+            p.changed()
+        }
+        case 34 -> {
+            assertFalse(p.picker.openCalendar())
+            assertTrue(p.pickerFocus.requestFocus(FocusOrigin.Keyboard))
+            p.draft.editor.replaceAll("2024-03-13")
+            p.key(36, "\r")
+        }
+        case 35 -> {
+            assertEquals(Some(LocalDate(2024, 3, 12)), p.selected.value)
+            p.readOnly = false
+            p.natural = true
+            p.changed()
+            p.draft.editor.replaceAll("tomorrow")
+        }
+        case 36 -> {
+            assertEquals(0, p.parses)
+            p.savedChanges = p.changes
+            p.reject = true
+            p.key(36, "\r")
+        }
+        case 37 -> {
+            assertEquals(1, p.parses)
+            assertEquals(Some(LocalDate(2024, 3, 12)), p.selected.value)
+            assertEquals("tomorrow", p.draft.editor.text)
+            assertTrue(p.draft.error != None)
+            assertEquals(p.savedChanges, p.changes)
+            p.reject = false
+            p.key(36, "\r")
+        }
+        case 38 -> {
+            assertEquals(2, p.parses)
+            assertEquals(Some(LocalDate(2024, 2, 29)), p.selected.value)
+            assertEquals(None, p.draft.error)
+            assertEquals(p.savedChanges + 1, p.changes)
+            p.draft.editor.replaceAll("")
+            p.changed()
+        }
+        case 39 -> {
+            assertTrue(p.pickerFocus.hasFocus)
+            p.text("ri", true)
+        }
+        case 40 -> {
+            assertTrue(p.draft.editor.isComposing)
+            assertEquals("ri", p.draft.editor.text)
+            p.selected.value = Some(LocalDate(2024, 3, 14))
+            p.changed()
+        }
+        case 41 -> {
+            assertTrue(p.draft.editor.isComposing)
+            assertEquals("ri", p.draft.editor.text)
+            p.text("日期")
+        }
+        case 42 -> {
+            assertFalse(p.draft.editor.isComposing)
+            assertEquals("日期", p.draft.editor.text)
+            p.key(36, "\r")
+        }
+        case 43 -> {
+            assertEquals(Some(LocalDate(2024, 3, 14)), p.selected.value)
+            assertTrue(p.draft.error != None)
+            p.draft.editor.replaceAll("")
+            p.changed()
+        }
+        case 44 -> p.text("ri", true)
+        case 45 -> {
+            assertTrue(p.draft.editor.isComposing)
+            p.key(53)
+        }
+        case 46 -> {
+            assertFalse(p.draft.editor.isComposing)
+            assertEquals("", p.draft.editor.text)
+            p.key(53)
+        }
+        case 47 -> {
+            assertEquals("2024-03-14", p.draft.editor.text)
+            p.mode = 4
+            p.range.value = None
+            p.natural = false
+            p.changed()
+        }
+        case 48 -> assertTrue(p.picker.openCalendar())
+        case 49 -> {
+            assertTrue(p.picker.isOpen)
+            p.click(p.cell(p.base).bounds)
+        }
+        case 50 -> {
+            assertEquals(None, p.range.value)
+            p.key(53)
+        }
+        case 51 -> {
+            assertTrue(p.picker.isOpen)
+            assertEquals(None, p.range.value)
+            p.key(53)
+        }
+        case 52 -> {
+            assertFalse(p.picker.isOpen)
+            assertTrue(p.picker.openCalendar())
+        }
+        case 53 -> p.click(p.cell(p.base).bounds)
+        case 54 -> p.click(p.cell(LocalDate(2024, 3, 2)).bounds)
+        case 55 -> {
+            assertEquals(Some(DateRange(p.base, LocalDate(2024, 3, 2))), p.range.value)
+            assertEquals("2024-02-28 .. 2024-03-02", p.rangeDraft.editor.text)
+            assertFalse(p.picker.isOpen)
+            p.veto = true
+            assertTrue(p.picker.openCalendar())
+        }
+        case 56 -> p.click(p.cell(LocalDate(2024, 2, 29)).bounds)
+        case 57 -> p.click(p.cell(LocalDate(2024, 3, 3)).bounds)
+        case 58 -> {
+            assertTrue(p.picker.isOpen)
+            assertEquals(
+                Some(DateRange(LocalDate(2024, 2, 29), LocalDate(2024, 3, 3))),
+                p.range.value
+            )
+            assertFalse(p.picker.closeCalendar())
+            p.veto = false
+            assertTrue(p.picker.closeCalendar())
+            p.mode = 5
+            p.dropdowns = false
+            p.numbers = false
+            p.changed()
+        }
+        case 59 -> assertTrue(p.calendar.focusDate(LocalDate(2026, 11, 8)))
+        case 60 -> {
+            p.focused(LocalDate(2026, 11, 8))
+            p.key(121)
+        }
+        case 61 -> {
+            p.focused(LocalDate(2026, 12, 6))
+            p.key(49, " ")
+        }
+        case 62 -> {
+            assertEquals(Some(LocalDate(2026, 12, 6)), p.selected.value)
+            assertEquals(Some(LocalDate(2026, 11, 30)), p.calendar.page)
+            p.mode = 2
+            p.range.value = None
+            p.months = true
+            p.dropdowns = true
+            p.observeCaptions = true
+            p.changed()
+        }
+        else -> fail(Some("unknown date picker test phase"))
+    }
+}

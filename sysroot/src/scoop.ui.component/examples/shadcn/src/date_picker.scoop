@@ -1,0 +1,128 @@
+package scoop.examples.ui.shadcn
+
+import scoop.datetime.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as pickerColumn
+import scoop.ui.component.frame as pickerFrame
+import scoop.ui.component.input as pickerInput
+
+internal fun datePickerExamples(model: DateExamplesModel): View {
+    val simple =
+        datePicker(model.pickerDate.binding(), model.reference) {
+            this.calendar {
+                this.today = Some(model.reference);
+                this.locale = model.locale
+            }
+        }
+    val birthday =
+        datePicker(model.birthday.binding(), model.reference) {
+            this.calendar {
+                this.caption = CalendarCaption.Dropdowns
+                this.rules =
+                    CalendarRules(
+                        minDate = Some(LocalDate(1900, 1, 1)),
+                        maxDate = Some(model.reference)
+                    )
+                this.years = Array<Int>(127L) { index -> 1900 + index.toInt() }
+            }
+        }
+    val range =
+        dateRangePicker(model.pickerRange.binding(), model.reference) {
+            this.calendar {
+                this.monthCount = 2L;
+                this.today = Some(model.reference)
+            }
+            this.presets =
+                [
+                    DatePickerPreset(
+                        "Next 7 days",
+                        CalendarValue.Range(
+                            Some(DateRange(model.reference, model.reference.plusDays(6L)))
+                        )
+                    ),
+                    DatePickerPreset(
+                        "Next 30 days",
+                        CalendarValue.Range(
+                            Some(DateRange(model.reference, model.reference.plusDays(29L)))
+                        )
+                    )
+                ]
+        }
+    val editable =
+        datePicker(model.pickerDate.binding(), model.reference) {
+            this.draft = Some(model.editable)
+            this.handle = Some(model.editorHandle)
+            this.commitOnBlur = true
+            this.placeholder = "YYYY-MM-DD"
+            this.calendar { this.today = Some(model.reference) }
+        }
+    val natural =
+        datePicker(model.naturalDate.binding(), model.reference) {
+            this.draft = Some(model.natural)
+            this.referenceDate = Some(model.reference)
+            this.parser = Some(::exampleDateParser)
+            this.placeholder = "tomorrow"
+        }
+    return pickerColumn {
+        this.add(panelHeading("Date Picker"))
+        this.typography(
+            "Choose a date, enter a draft, or use a preset. Escape cancels a draft; invalid text stays available to correct.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.add(pickerField("Date", simple))
+            this.add(pickerField("Birthday", birthday))
+            this.spacing = 20.0
+        }
+        this.add(pickerField("Date range and presets", range))
+        this.add(pickerField("Editable date · Enter or leave the field to confirm", editable))
+        this.row {
+            this.button(
+                "Reset draft",
+                {
+                    model.editorHandle.reset();
+                    Unit
+                }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                "Set external date",
+                { model.pickerDate.value = Some(model.reference.plusDays(7L)) }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.add(pickerField("Natural language · today, tomorrow, next week", natural))
+        this.add(
+            pickerField(
+                "Time · press Enter to confirm",
+                pickerInput(model.timeDraft) {
+                    this.placeholder = "HH:MM"
+                    this.invalid = model.timeError.value
+                    this.onSubmit = { _ -> model.commitTime() }
+                }
+            )
+        )
+        if (model.timeError.value)
+            this.typography("Enter a valid local time such as 09:30.", TypographyRole.Muted)
+        this.typography(model.schedule(), TypographyRole.Lead)
+        this.typography(
+            "The examples use 6 November 2026 as their reference date.",
+            TypographyRole.Muted
+        )
+        this.spacing = 14.0
+        this.alignment = CrossAlignment.Start
+    }
+}
+
+private fun pickerField(title: String, content: View): View =
+    pickerColumn {
+        this.typography(title, TypographyRole.Muted)
+        this.add(
+            pickerFrame(content) {
+                this.width = Some(340.0);
+                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            }
+        )
+        this.spacing = 6.0
+        this.alignment = CrossAlignment.Start
+    }

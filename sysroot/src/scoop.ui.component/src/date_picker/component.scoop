@@ -1,0 +1,247 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as dateColumn
+import scoop.ui.component.row as dateRow
+import scoop.ui.component.button as dateButton
+
+public class DatePicker public constructor(
+    private val props: Props<DatePickerProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control = DatePickerControl(props, scope)
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme);
+        control.mount()
+    }
+    public override fun render(): View {
+        val control = this.control
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val selected = calendarRead(input.selection)
+        val open = control.open.value
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val focusVisual = InteractionVisual(focusVisible = true)
+        val buttonRing =
+            theme.surfaceMetrics(
+                SurfaceVisual(input.buttonStyle.kind, focusVisual),
+                actionOptions(
+                    theme,
+                    ActionShape.Button(ButtonSize.Icon),
+                    ButtonVariant.Outline,
+                    input.buttonStyle,
+                    focusVisual
+                ),
+                scope.layoutDirection
+            ).focusOutset
+        val inputRing =
+            when (input.draft) {
+                case Some(_) -> theme.surfaceMetrics(
+                    SurfaceVisual(SurfaceKind.Plain, focusVisual),
+                    input.inputStyle.options(focusVisual),
+                    scope.layoutDirection
+                ).focusOutset
+                case None -> 0.0
+            }
+        val triggerRing = lowerBound(buttonRing, inputRing)
+        val calendarProps =
+            CalendarProps(
+                control.selection(),
+                calendarFirst(selected) ?: (input.calendar.today ?: input.initialPage),
+                input.calendar,
+                enabled = input.mutable,
+                handle = Some(control.calendar),
+                fonts = input.fonts,
+                theme = input.theme,
+                day = input.day
+            )
+        val appearance = CalendarAppearance(calendarProps, theme, scope.layoutDirection)
+        val columns =
+            if (input.calendar.weekNumbers == CalendarWeekNumbers.None)
+                7.0
+            else
+                8.0
+        val width =
+            (columns * appearance.cell + 16.0 * d) *
+                input.calendar.monthCount.toDouble() +
+                input.calendar.monthGap *
+                d *
+                (input.calendar.monthCount - 1L).toDouble() +
+                20.0 *
+                d
+        val popupContent =
+            dateColumn {
+                if (input.presets.size > 0L)
+                    this.add(
+                        dateColumn {
+                            for (index in 0L ..< input.presets.size) {
+                                val preset = input.presets[index]
+                                this.add(
+                                    dateButton(
+                                        preset.label,
+                                        {
+                                            control.acceptValue(preset.value);
+                                            Unit
+                                        }
+                                    ) {
+                                        this.variant = ButtonVariant.Ghost
+                                        this.enabled =
+                                            input.mutable &&
+                                                calendarValueAllowed(
+                                                    preset.value,
+                                                    input.calendar.rules
+                                                )
+                                        this.fonts = input.fonts
+                                        this.theme = input.theme
+                                        this.key = ViewKey.Number(index)
+                                    }
+                                )
+                            }
+                            this.spacing = 2.0 * d
+                            this.alignment = CrossAlignment.Stretch
+                        }
+                    )
+                this.add(
+                    component(
+                        calendarProps,
+                        { props, scope -> Calendar(props, scope) },
+                        ViewKey.Text("calendar")
+                    )
+                )
+                when (input.footer) {
+                    case Some(content) -> this.add(content);
+                    case None -> {}
+                }
+                this.spacing = 8.0 * d
+                this.alignment = CrossAlignment.Stretch
+            }
+        val popup =
+            component(
+                PopoverProps(
+                    control.open,
+                    popupContent,
+                    anchor = Some(control.anchor),
+                    width = width / d,
+                    alignment = OverlayAlignment.Start,
+                    mode = input.mode,
+                    focus =
+                        OverlayFocusOptions(autoFocus = false, restoreTarget = Some(control.focus)),
+                    handle = Some(control.layer),
+                    enabled = input.mutable,
+                    transition = input.transition,
+                    onCloseRequest = { reason -> control.closeRequest(reason) },
+                    onClosed = { reason -> control.closed(reason) },
+                    fonts = input.fonts,
+                    theme = input.theme,
+                    style = input.popupStyle
+                ),
+                { props, scope -> Popover(props, scope) }
+            )
+        val trigger =
+            when (input.draft) {
+                case None -> {
+                    val text = control.text()
+                    component(
+                        ButtonProps(
+                            ButtonContent.Resolved {
+                                style -> dateRow {
+                                    this.add(dateCalendarIcon(style.iconSize, style.text.color))
+                                    this.add(
+                                        calendarLabel(
+                                            if (text.byteLength == 0L)
+                                                input.placeholder
+                                            else
+                                                text,
+                                            style.text,
+                                            input.fonts
+                                        )
+                                    )
+                                    this.spacing = style.spacing
+                                    this.alignment = CrossAlignment.Center
+                                }
+                            },
+                            { control.toggle() },
+                            input.mutable,
+                            input.buttonStyle,
+                            input.theme,
+                            input.focus.copy { this.handle = Some(control.focus) },
+                            input.invalid,
+                            ButtonVariant.Outline,
+                            labelTarget = input.labelTarget
+                        ),
+                        { props, scope -> Button(props, scope) }
+                    )
+                }
+                case Some(draft) -> dateColumn {
+                    this.add(
+                        dateRow {
+                            this.item(
+                                component(
+                                    InputProps(
+                                        draft.editor,
+                                        input.placeholder,
+                                        input.enabled,
+                                        input.readOnly,
+                                        input.invalid || draft.error != None,
+                                        fonts = input.fonts,
+                                        style = input.inputStyle,
+                                        theme = input.theme,
+                                        focus =
+                                            input.focus.copy { this.handle = Some(control.focus) },
+                                        onEdited = { _ -> control.edited() },
+                                        onSubmit =
+                                            {
+                                                _ ->
+                                                control.commit();
+                                                Unit
+                                            },
+                                        labelTarget = input.labelTarget
+                                    ),
+                                    { props, scope -> Input(props, scope) },
+                                    ViewKey.Text("input")
+                                )
+                            ) { this.grow = 1.0 }
+                            this.item(
+                                dateButton(
+                                    { style -> dateCalendarIcon(style.iconSize, style.text.color) },
+                                    { control.toggle() }
+                                ) {
+                                    this.enabled = input.mutable
+                                    this.variant = ButtonVariant.Outline
+                                    this.size = ButtonSize.Icon
+                                    this.style = input.buttonStyle
+                                    this.theme = input.theme
+                                    this.key = ViewKey.Text("trigger")
+                                }
+                            ) { this.shrink = 0.0 }
+                            this.spacing = lowerBound(6.0 * d, buttonRing + inputRing)
+                            this.alignment = CrossAlignment.Center
+                        }
+                    )
+                    when (draft.error) {
+                        case Some(error) -> this.add(
+                            calendarLabel(
+                                error,
+                                theme.tokens.typography.body.copy {
+                                    this.color = theme.tokens.palette.destructive.background
+                                },
+                                input.fonts
+                            )
+                        )
+                        case None -> {}
+                    }
+                    this.spacing = lowerBound(6.0 * d, inputRing)
+                    this.alignment = CrossAlignment.Stretch
+                }
+            }
+        return element(
+            DatePickerRootInput(control, selected, open),
+            { props, scope -> DatePickerRoot(props, scope) },
+            [panelFrame(trigger, Insets.all(triggerRing)), popup]
+        )
+    }
+}

@@ -1,0 +1,361 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.*
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.ui.component.label as dateLabel
+import scoop.ui.component.row as dateRow
+
+internal class DateScene(private val p: DateProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val selection =
+            when (p.mode) {
+                case 1 -> CalendarSelection.Multiple(p.multiple.binding())
+                case 2 -> CalendarSelection.Range(p.range.binding())
+                else -> CalendarSelection.Single(
+                    binding(
+                        { p.selected.value },
+                        {
+                            value -> if (!p.reject)
+                                p.selected.value = value
+                        }
+                    )
+                )
+            }
+        val days: (CalendarDay, ActionContentStyle) -> View =
+            { day, style -> observedDay(p, day, style, generation) }
+        val control =
+            if (!p.shown)
+                empty()
+            else
+                if (p.mode == 3 || p.mode == 4) {
+                    val input =
+                        DatePickerProps(
+                            if (p.mode == 4)
+                                CalendarSelection.Range(p.range.binding())
+                            else
+                                selection,
+                            p.base,
+                            draft =
+                                Some(
+                                    if (p.mode == 4)
+                                        p.rangeDraft
+                                    else
+                                        p.draft
+                                ),
+                            calendar =
+                                CalendarOptions(
+                                    monthCount =
+                                        if (p.mode == 4)
+                                            2L
+                                        else
+                                            1L,
+                                    today = Some(p.base)
+                                ),
+                            parser =
+                                if (p.natural)
+                                    Some(
+                                        {
+                                            text,
+                                            reference,
+                                            locale -> p.parse(text, reference, locale)
+                                        }
+                                    )
+                                else
+                                    None,
+                            handle = Some(p.picker),
+                            focus = FocusOptions(Some(p.pickerFocus)),
+                            commitOnBlur = true,
+                            readOnly = p.readOnly,
+                            day = Some(days),
+                            onValueChange = { _ -> p.changes += 1 },
+                            onCloseRequest = { _ -> !p.veto }
+                        )
+                    component(input, { props, scope -> DatePicker(props, scope) })
+                } else
+                    calendar(
+                        selection,
+                        if (p.mode == 5)
+                            LocalDate(2026, 11, 6)
+                        else
+                            p.base
+                    ) {
+                        this.handle = Some(p.calendar)
+                        this.monthCount =
+                            if (p.months)
+                                2L
+                            else
+                                1L
+                        this.weekNumbers =
+                            if (p.numbers)
+                                CalendarWeekNumbers.Iso
+                            else
+                                CalendarWeekNumbers.None
+                        this.caption =
+                            if (p.dropdowns)
+                                CalendarCaption.Dropdowns
+                            else
+                                CalendarCaption.Label
+                        this.day = Some(days)
+                        if (p.observeCaptions)
+                            this.header =
+                                Some {
+                                    parts -> dateRow {
+                                        this.add(parts.previous)
+                                        this.add(
+                                            observedBounds(
+                                                p,
+                                                parts.caption,
+                                                false,
+                                                Some(parts.page.anchor)
+                                            )
+                                        )
+                                        this.add(parts.next)
+                                        this.alignment = CrossAlignment.Center
+                                    }
+                                }
+                        this.today = Some(p.base)
+                        this.rules =
+                            CalendarRules(
+                                minimumDates = 1L,
+                                maximumDates = Some(2L),
+                                minimumNights = 1L,
+                                disabled =
+                                    if (p.disabledLeap)
+                                        Some({ date -> date == LocalDate(2024, 2, 29) })
+                                    else
+                                        None
+                            )
+                        if (p.mode == 5) {
+                            this.source = p.customSource;
+                            this.locale = CalendarLocale(weekStartsOn = DayOfWeek.Monday)
+                        }
+                        if (p.largeRing)
+                            this.dayStyle {
+                                this.surface {
+                                    this.focus =
+                                        Some(
+                                            OutlineStyle(
+                                                Color(30.0 / 255.0, 100.0 / 255.0, 240.0 / 255.0),
+                                                7.0,
+                                                7.0
+                                            )
+                                        )
+                                }
+                            }
+                        this.onValueChange = { _ -> p.changes += 1 }
+                    }
+        return direction(
+            element(
+                generation,
+                { props, scope -> DateRoot(p, props, scope) },
+                [
+                    input(p.background) { this.focus = FocusOptions(Some(p.backgroundFocus)) },
+                    observedBounds(p, control, false),
+                    observedBounds(
+                        p,
+                        button("Outside", {}) { this.focus = FocusOptions(Some(p.outsideFocus)) },
+                        true
+                    )
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class DateDayInput(val day: CalendarDay, val style: ActionContentStyle, val generation: Int)
+
+private fun observedDay(
+    p: DateProbe,
+    day: CalendarDay,
+    style: ActionContentStyle,
+    generation: Int
+): View =
+    element(
+        DateDayInput(day, style, generation),
+        { props, scope -> DateDayObservation(p, props, scope) },
+        [
+            component(
+                LabelProps(LabelText.Plain(day.data.label, None), baseStyle = Some(style.text)),
+                { props, scope -> Label(props, scope) }
+            )
+        ]
+    )
+
+private class NativeDateBounds(var rect: Rect)
+
+private class DateDayObservation(
+    private val p: DateProbe,
+    private val props: Props<DateDayInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val cell = p.capture(props.value.day)
+    init {
+        cell.mounts += 1;
+        scope.onDispose { cell.unmounts += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val bounds = NativeDateBounds(rect)
+        context.draw {
+            target -> @Unsafe
+            {
+                captureGeometry(target.canvas, rect).use {
+                    value -> bounds.rect = value.toWindow(rect)
+                };
+                p.draws += 1;
+                cell.draws += 1
+            }
+        }
+        context.children()
+        val input = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                cell.bounds = bounds.rect;
+                cell.focus = Some(input.day.focus);
+                cell.seen = input.generation
+            }
+        }
+    }
+}
+
+private class DateBoundsInput(val outside: Boolean, val page: LocalDate?)
+
+private fun observedBounds(
+    p: DateProbe,
+    content: View,
+    outside: Boolean,
+    page: LocalDate? = None
+): View =
+    element(
+        DateBoundsInput(outside, page),
+        { props, scope -> DateBoundsObservation(p, props, scope) },
+        [content]
+    )
+
+private class DateBoundsObservation(
+    private val p: DateProbe,
+    private val props: Props<DateBoundsInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    init {
+        scope.resource {
+            scope.input.addDefaultAction {
+                context,
+                event -> if (!context.defaultPrevented && props.value.page != None)
+                    when (event) {
+                        case Keyboard(key) -> {
+                            if (
+                                key.state ==
+                                    ElementState.Pressed &&
+                                    key.logicalKey ==
+                                    LogicalKey.Named(NamedKey.Escape)
+                            )
+                                p.captionEscapes += 1
+                        }
+                        else -> {}
+                    }
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val bounds = NativeDateBounds(rect)
+        context.draw {
+            target -> @Unsafe
+            {
+                captureGeometry(target.canvas, rect).use {
+                    value -> bounds.rect = value.toWindow(rect)
+                }
+            }
+        }
+        context.children()
+        val input = props.value
+        val generation = p.generation.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                when (input.page) {
+                    case Some(page) -> p.captions.add(DateCaption(page, bounds.rect, generation))
+                    case None -> if (input.outside)
+                        p.outsideBounds = bounds.rect
+                    else
+                        p.rootBounds = bounds.rect
+                }
+            }
+        }
+    }
+}
+
+private class DateRoot(
+    private val p: DateProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(900.0, 760.0))
+        context.measureChild(0L, Constraints(maxWidth = Some(270.0)));
+        context.placeChild(0L, Point(20.0, 15.0))
+        val maximum =
+            if (p.zero)
+                0.0
+            else
+                if (p.narrow)
+                    320.0
+                else
+                    if (p.mode == 3 || p.mode == 4)
+                        380.0
+                    else
+                        810.0
+        context.measureChild(
+            1L,
+            Constraints(
+                maxWidth =
+                    Some(
+                        if (maximum < size.width - 40.0)
+                            maximum
+                        else
+                            size.width - 40.0
+                    )
+            )
+        )
+        context.placeChild(1L, Point(20.0, 70.0))
+        context.measureChild(2L, Constraints());
+        context.placeChild(2L, Point(300.0, 15.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

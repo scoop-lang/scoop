@@ -38,6 +38,12 @@ dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMe
 contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {}): View
 menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {}): View
 toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): View
+calendar(selection: CalendarSelection, initialPage: LocalDate, configure: CalendarBuilder.() -> Unit = {}): View
+calendar(value: Binding<LocalDate?>, initialPage: LocalDate, configure: CalendarBuilder.() -> Unit = {}): View
+calendarMultiple(value: Binding<Array<LocalDate>>, initialPage: LocalDate, configure: CalendarBuilder.() -> Unit = {}): View
+calendarRange(value: Binding<DateRange?>, initialPage: LocalDate, configure: CalendarBuilder.() -> Unit = {}): View
+datePicker(value: Binding<LocalDate?>, initialPage: LocalDate, configure: DatePickerBuilder.() -> Unit = {}): View
+dateRangePicker(value: Binding<DateRange?>, initialPage: LocalDate, configure: DatePickerBuilder.() -> Unit = {}): View
 messageScroller(source: TranscriptSource, state: MessageScrollState, configure: MessageScrollerBuilder.() -> Unit = {}): View
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
 ```
@@ -312,3 +318,10 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 `ToastState.show(title) { kind = ToastKind.Success; description("Saved"); action("Undo", undo) }` 返回 ToastId；`update(id, title) { ... }` 替换同一条内容并重置时长，`dismiss(id)` 关闭。String／StyledText／View 标题与说明、ToastProps、ToastAction 和 ToastDismiss 均为显式类型；关闭中的 id 拒绝迟到结果，onClosed 只通知一次。
 
 `toaster(state) { position = ToastPosition.BottomEnd; visibleCount = 3L }` 是每窗口显式宿主，支持六位置、每位置队列、OldestFirst／NewestFirst、展开／叠放、宽度与间距、字体／主题／样式。每宿主共用一个最早 deadline，悬浮、焦点、失活、隐藏及禁用保存剩余时长，排队不计时；Loading 默认持续。动作、局部 Escape、滑动取消与关闭复用现有输入、Presence 和非模态焦点会话。卸载保留未关闭记录与剩余时间，解绑并释放挂载资源。
+
+
+## P7a：Calendar／DatePicker
+
+`calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 共享 CalendarSelection／CalendarValue、CalendarRules 和 CalendarOptions；ChildrenBuilder 提供同名真实成员。规则控制 required、数量、夜数、日期边界及范围内部禁用日。CalendarLocale 显式提供周起点、月份全名／简称、星期文字、周编号规则和格式；默认 GregorianCalendarPages，也可用 CalendarPageSource 给出真实日期、页导航和月／年选项。多月窄宽纵排，cellSize 之外保留实际 focusOutset；header、monthGrid、day、weekNumber、footer 支持组合，day 内容保留原按钮行为。CalendarHandle 提供 showDate／focusDate／focusFirst／cancelRange，聚焦在有效 Accepted 场景后执行。
+
+`datePicker(selected.binding(), initialPage)` 和 `dateRangePicker` 组合按钮／输入、Popover 与同一 Calendar。提供 DatePickerDraft 后使用其唯一 TextEditorState，Enter 提交严格 ISO 日期或 `start .. end` 范围；commitOnBlur 可选，错误保留草稿。自定义 parser 接收原文、referenceDate 与 locale，只在提交时运行；外部日期变化不覆盖聚焦或组合输入中的草稿。presets 使用明确 CalendarValue，时间由独立 LocalTime 输入组合；DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar。受控 open、关闭 veto、readonly、FieldTarget、主题和字体沿既有组件合同。详细规则见组件规范第 43–44 节。

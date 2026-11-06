@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.datetime.LocalDate
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.portal as makePortal
@@ -22,6 +23,11 @@ import scoop.ui.component.resizable as appendResizable
 import scoop.ui.component.carousel as appendCarousel
 import scoop.ui.component.drawer as appendDrawer
 import scoop.ui.component.toaster as appendToaster
+import scoop.ui.component.calendar as appendCalendar
+import scoop.ui.component.calendarMultiple as appendCalendarMultiple
+import scoop.ui.component.calendarRange as appendCalendarRange
+import scoop.ui.component.datePicker as appendDatePicker
+import scoop.ui.component.dateRangePicker as appendDateRangePicker
 import scoop.ui.component.sidebar as appendSidebar
 import scoop.ui.component.sidebarTrigger as appendSidebarTrigger
 import scoop.ui.component.sidebarGroup as appendSidebarGroup
@@ -737,6 +743,49 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): Unit {
         add(appendToaster(state, configure))
+    }
+
+    public fun calendar(
+        value: Binding<LocalDate?>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendar(value, initialPage, configure))
+    }
+    public fun calendar(
+        selection: CalendarSelection,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendar(selection, initialPage, configure))
+    }
+    public fun calendarMultiple(
+        value: Binding<Array<LocalDate>>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendarMultiple(value, initialPage, configure))
+    }
+    public fun calendarRange(
+        value: Binding<DateRange?>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendarRange(value, initialPage, configure))
+    }
+    public fun datePicker(
+        value: Binding<LocalDate?>,
+        initialPage: LocalDate,
+        configure: DatePickerBuilder.() -> Unit = {}
+    ) {
+        add(appendDatePicker(value, initialPage, configure))
+    }
+    public fun dateRangePicker(
+        value: Binding<DateRange?>,
+        initialPage: LocalDate,
+        configure: DatePickerBuilder.() -> Unit = {}
+    ) {
+        add(appendDateRangePicker(value, initialPage, configure))
     }
 
     public fun portal(

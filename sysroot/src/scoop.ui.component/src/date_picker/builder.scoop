@@ -1,0 +1,120 @@
+package scoop.ui.component
+
+import scoop.datetime.LocalDate
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class DatePickerBuilder internal constructor() {
+    public var key: ViewKey = ViewKey.Position
+    public var draft: DatePickerDraft? = None
+    public var open: Binding<Boolean>? = None
+    public var calendar: CalendarOptions = defaultCalendarOptions
+    public var referenceDate: LocalDate? = None
+    public var parser: ((String, LocalDate, CalendarLocale) -> DatePickerParse)? = None
+    public var format: ((CalendarValue, CalendarLocale) -> String)? = None
+    public var presets: Array<DatePickerPreset> = []
+    public var placeholder: String = "Pick a date"
+    public var enabled: Boolean = true
+    public var readOnly: Boolean = false
+    public var invalid: Boolean = false
+    public var commitOnBlur: Boolean = false
+    public var closeOnSelect: Boolean = true
+    public var handle: DatePickerHandle? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var inputStyle: TextFieldStyle = textFieldStyle()
+    public var buttonStyle: ButtonStyle = defaultButtonStyle
+    public var popupStyle: StyleOverride = styleOverride()
+    public var mode: OverlayMode = OverlayMode.NonModal
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var day: ((CalendarDay, ActionContentStyle) -> View)? = None
+    public var footer: View? = None
+    public var onValueChange: (CalendarValue) -> Unit = {}
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public fun calendar(configure: CalendarOptionsBuilder.() -> Unit) {
+        calendar = calendar.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun inputStyle(configure: TextFieldStyleBuilder.() -> Unit) {
+        inputStyle = inputStyle.copy(configure)
+    }
+    public fun buttonStyle(configure: ButtonStyleBuilder.() -> Unit) {
+        buttonStyle = buttonStyle.copy(configure)
+    }
+    public fun popupStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        popupStyle = popupStyle.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(selection: CalendarSelection, initialPage: LocalDate): DatePickerProps =
+        DatePickerProps(
+            selection,
+            initialPage,
+            draft,
+            open,
+            calendar,
+            referenceDate,
+            parser,
+            format,
+            presets,
+            placeholder,
+            enabled,
+            readOnly,
+            invalid,
+            commitOnBlur,
+            closeOnSelect,
+            handle,
+            focus,
+            labelTarget,
+            fonts,
+            theme,
+            inputStyle,
+            buttonStyle,
+            popupStyle,
+            mode,
+            transition,
+            day,
+            footer,
+            onValueChange,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+public fun datePicker(
+    value: Binding<LocalDate?>,
+    initialPage: LocalDate,
+    configure: DatePickerBuilder.() -> Unit = {}
+): View = makeDatePicker(CalendarSelection.Single(value), initialPage, configure)
+
+public fun dateRangePicker(
+    value: Binding<DateRange?>,
+    initialPage: LocalDate,
+    configure: DatePickerBuilder.() -> Unit = {}
+): View = makeDatePicker(CalendarSelection.Range(value), initialPage, configure)
+
+internal fun makeDatePicker(
+    selection: CalendarSelection,
+    initialPage: LocalDate,
+    configure: DatePickerBuilder.() -> Unit
+): View {
+    val b = DatePickerBuilder()
+    if (datePickerRange(selection))
+        b.placeholder = "Pick a date range"
+    b.configure()
+    return component(
+        b.snapshot(selection, initialPage),
+        { props, scope -> DatePicker(props, scope) },
+        b.key
+    )
+}

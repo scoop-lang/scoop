@@ -68,3 +68,8 @@ Drawer 页面提供 Bottom／Top／Start／End、垂直吸附、只拖把手、�
 Sidebar 页面提供 Sidebar／Floating／Inset、Offcanvas／Icon／None、逻辑 Start／End、可点击 rail 和 Command+B。菜单包含独立项目动作、badge、可折叠子菜单、账号入口及 Skeleton；主区草稿使用外部编辑模型，宽窄布局切换后保留。窄布局使用 Drawer，可切换关闭拦截；明暗、System／Neutral、RTL 与减少动态沿顶部配置。
 
 Toast 页面提供六种类型、六位置、展开／堆叠、可见数量、队列顺序和窄宽选择；可以一次排入五条、执行 Undo、关闭最新通知或暂时禁用交互。Save workspace／Simulate failure 运行应用作用域内的真实异步 Job，两秒后更新同一条 Loading 通知；提前关闭后，任务完成只更新页面结果，不复活通知。Gallery 使用既有 window.asyncio 宿主，正文输入、明暗、System／Neutral、RTL 和减少动态继续生效。
+
+
+Calendar 页面展示单选、多选与范围、单／双月、窄宽、月／年下拉、周号、outside days、中文 locale、禁用日期和四周规划周期的自定义 CalendarPageSource。参考日期由示例模型明确提供；页面底部显示真实选择值。焦点与选择分别响应键盘操作，范围只有第二个端点接受后才提交。
+
+Date Picker 页面展示普通日期、生日、双月范围与 7／30 日预设、严格 ISO 草稿、显式自然语言 parser，以及独立时间输入组成的 LocalDateTime。可用 Enter、移开焦点、Reset 和外部日期更新观察草稿处理；解析错误保留原文，组合输入优先。设置表单也加入生日 Field，继承禁用、readonly、方向和主题配置。

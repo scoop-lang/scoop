@@ -1,0 +1,399 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.surface.FocusOrigin
+import scoop.ui.*
+
+internal class CalendarMember(
+    val page: CalendarPage,
+    val data: CalendarDayData,
+    val key: ViewKey,
+    val ownFocus: FocusHandle,
+    val options: FocusOptions,
+    val row: Int,
+    val column: Int
+) {
+    val focus: FocusHandle get() = options.handle ?: ownFocus
+}
+
+internal class CalendarSnapshot(
+    val pages: Array<CalendarPage>,
+    val members: Array<CalendarMember>,
+    val selection: CalendarValue,
+    val range: DateRange?,
+    val preview: Boolean,
+    val preferred: FocusHandle?
+)
+
+internal struct CalendarFocusRequest(
+    val date: LocalDate?,
+    val origin: FocusOrigin,
+    val forward: Boolean
+)
+
+internal class CalendarControl(val props: Props<CalendarProps>, val scope: ComponentScope) {
+    val display = state(props.value.initialPage)
+    val pending = state<LocalDate?>(None)
+    val preview = state<LocalDate?>(None)
+    val previousFocus = FocusHandle()
+    val nextFocus = FocusHandle()
+    private var lastSelection: CalendarValue? = None
+    private var bound: CalendarHandle? = None
+    private var retired = false
+    private var cachedOptions: CalendarOptions? = None
+    private var cachedAnchor: LocalDate? = None
+    private var cachedPages: Array<CalendarPage> = []
+    private var members: Array<CalendarMember> = []
+    private var focusRequest: CalendarFocusRequest? = None
+    val active: Boolean get() = !retired && scope.isMounted
+    val currentPage: LocalDate get() = pages()[0L].anchor
+    init {
+        scope.onDispose {
+            retired = true
+            bound?.release(this)
+            bound = None
+            focusRequest = None
+        }
+    }
+    fun pages(): Array<CalendarPage> {
+        val options = props.value.options
+        val anchor = display.value
+        if (cachedAnchor == Some(anchor))
+            when (cachedOptions) {
+                case Some(old) -> if (old === options)
+                    return cachedPages
+                case None -> {}
+            }
+        val result = ArrayList<CalendarPage>()
+        var cursor: LocalDate? = Some(anchor)
+        while (result.size < options.monthCount) {
+            val next = cursor ?: break
+            val page = options.source.page(options.request(next))
+            for (old in result)
+                requireComponent(
+                    old.anchor != page.anchor,
+                    "calendar source returned a cyclic page sequence"
+                )
+            result.add(page)
+            cursor = page.next
+        }
+        cachedOptions = Some(options)
+        cachedAnchor = Some(anchor)
+        cachedPages = result.toArray()
+        return cachedPages
+    }
+    fun snapshot(): CalendarSnapshot {
+        val input = props.value
+        val pages = pages()
+        val selected = calendarRead(input.selection)
+        val start = pending.value
+        val candidate = preview.value
+        val range =
+            when (start) {
+                case Some(first) -> Some(orderedDateRange(first, candidate ?: first))
+                case None -> when (selected) {
+                    case Range(value) -> value;
+                    else -> None
+                }
+            }
+        val entries = ArrayList<CalendarMember>()
+        var preferred: FocusHandle? = None
+        var first: FocusHandle? = None
+        var row = 0
+        for (page in pages)
+            for (week in page.weeks) {
+                for (column in 0L ..< 7L)
+                    when (week.days[column]) {
+                        case Some(data) -> {
+                            val key =
+                                ViewKey.Text(page.anchor.toString() + ":" + data.date.toString())
+                            var own: FocusHandle? = None
+                            for (member in members)
+                                if (member.key == key)
+                                    own = Some(member.ownFocus)
+                            val options = input.dayFocus(page, data)
+                            val member =
+                                CalendarMember(
+                                    page,
+                                    data,
+                                    key,
+                                    own ?: FocusHandle(),
+                                    options,
+                                    row,
+                                    column.toInt()
+                                )
+                            entries.add(member)
+                            if (
+                                input.enabled &&
+                                    data.enabled &&
+                                    input.options.rules.allows(data.date)
+                            ) {
+                                if (!data.outside && !panelPresent(first))
+                                    first = Some(member.focus)
+                                if (
+                                    !data.outside &&
+                                        calendarSelected(selected, data.date) &&
+                                        !panelPresent(preferred)
+                                )
+                                    preferred = Some(member.focus)
+                            }
+                        }
+                        case None -> {}
+                    }
+                row += 1
+            }
+        members = entries.toArray()
+        return CalendarSnapshot(
+            pages,
+            members,
+            selected,
+            range,
+            start != None,
+            when (preferred) {
+                case Some(_) -> preferred;
+                case None -> first
+            }
+        )
+    }
+    fun synchronize(snapshot: CalendarSnapshot) {
+        props.value.handle?.bind(this)
+        when (bound) {
+            case Some(old) -> when (props.value.handle) {
+                case Some(next) -> if (old !== next)
+                    old.release(this)
+                case None -> old.release(this)
+            }
+            case None -> {}
+        }
+        bound = props.value.handle
+        when (lastSelection) {
+            case Some(previous) -> if (!sameCalendarValue(previous, snapshot.selection)) {
+                cancelRange()
+                if (props.value.options.syncSelection)
+                    when (calendarFirst(snapshot.selection)) {
+                        case Some(date) -> setPage(date)
+                        case None -> {}
+                    }
+            }
+            case None -> {}
+        }
+        lastSelection = Some(snapshot.selection)
+        if (!props.value.enabled) {
+            focusRequest = None
+            cancelRange()
+        }
+    }
+    fun choose(member: CalendarMember) {
+        if (!active || !props.value.enabled || !member.data.enabled)
+            return
+        val input = props.value
+        val before = calendarRead(input.selection)
+        when (calendarActivate(before, pending.value, member.data.date, input.options.rules)) {
+            case Rejected -> {}
+            case Pending(date) -> {
+                pending.value = Some(date);
+                preview.value = Some(date)
+            }
+            case Commit(next) -> {
+                if (!calendarWrite(input.selection, next))
+                    return
+                val accepted = calendarRead(props.value.selection)
+                lastSelection = Some(accepted)
+                cancelRange()
+                if (!sameCalendarValue(before, accepted))
+                    props.value.onValueChange(accepted)
+            }
+        }
+    }
+    fun hover(date: LocalDate, entered: Boolean) {
+        if (!active || !props.value.enabled || pending.value == None)
+            return
+        val next =
+            if (entered)
+                Some(date)
+            else
+                if (preview.value == Some(date))
+                    None
+                else
+                    preview.value
+        if (preview.value != next)
+            preview.value = next
+    }
+    fun cancelRange(): Boolean {
+        if (!active)
+            return false
+        val had = pending.value != None
+        if (had)
+            pending.value = None
+        if (preview.value != None)
+            preview.value = None
+        return had
+    }
+    private fun setPage(date: LocalDate) {
+        val next = props.value.options.source.page(props.value.options.request(date)).anchor
+        if (currentPage == next)
+            return
+        display.value = next
+        props.value.onPageChange(next)
+    }
+    fun captionPage(index: Long): LocalDate? {
+        val visible = pages()
+        return if (index >= 0L && index < visible.size)
+            Some(visible[index].anchor)
+        else
+            None
+    }
+    fun showCaption(date: LocalDate, index: Long) {
+        if (!active || !props.value.enabled)
+            return
+        val options = props.value.options
+        var page = options.source.page(options.request(date))
+        for (_ in 0L ..< index) {
+            val previous = page.previous ?: return
+            page = options.source.page(options.request(previous))
+        }
+        setPage(page.anchor)
+    }
+    fun show(
+        date: LocalDate,
+        focus: Boolean,
+        origin: FocusOrigin = FocusOrigin.Programmatic
+    ): Boolean {
+        if (!active || !props.value.enabled)
+            return false
+        val page = props.value.options.source.page(props.value.options.request(date))
+        var exists = false
+        for (week in page.weeks)
+            for (cell in week.days)
+                when (cell) {
+                    case Some(day) -> if (
+                        day.date ==
+                            date &&
+                            (!focus || (day.enabled && props.value.options.rules.allows(date)))
+                    )
+                        exists = true
+                    case None -> {}
+                }
+        if (!exists)
+            return false
+        setPage(page.anchor)
+        if (focus)
+            requestFocus(Some(date), origin, true)
+        return true
+    }
+    fun turn(forward: Boolean) {
+        if (!active || !props.value.enabled)
+            return
+        var page = pages()[0L]
+        val steps =
+            if (props.value.options.pagedNavigation)
+                props.value.options.monthCount
+            else
+                1L
+        for (_ in 0L ..< steps) {
+            val next =
+                (
+                    if (forward)
+                        page.next
+                    else
+                        page.previous
+                ) ?:
+                    break
+            page = props.value.options.source.page(props.value.options.request(next))
+        }
+        setPage(page.anchor)
+    }
+    fun focusFirst(): Boolean {
+        if (!active || !props.value.enabled)
+            return false
+        for (page in pages())
+            for (week in page.weeks)
+                for (cell in week.days)
+                    when (cell) {
+                        case Some(day) -> if (
+                            !day.outside &&
+                                day.enabled &&
+                                props.value.options.rules.allows(day.date)
+                        ) {
+                            requestFocus(Some(day.date), FocusOrigin.Programmatic, true)
+                            return true
+                        }
+                        case None -> {}
+                    }
+        requestFocus(None, FocusOrigin.Programmatic, true)
+        return true
+    }
+    fun seek(date: LocalDate, forward: Boolean, targetPage: LocalDate? = None) {
+        if (targetPage != None)
+            setPage(targetPage!!)
+        else {
+            var present = false
+            for (page in pages())
+                for (week in page.weeks)
+                    for (cell in week.days)
+                        if (cell?.date == Some(date))
+                            present = true
+            if (!present)
+                setPage(date)
+        }
+        var candidate: LocalDate? = None
+        for (page in pages())
+            for (week in page.weeks)
+                for (cell in week.days)
+                    when (cell) {
+                        case Some(day) -> if (
+                            day.enabled && props.value.options.rules.allows(day.date)
+                        ) {
+                            val eligible =
+                                if (forward)
+                                    day.date >= date
+                                else
+                                    day.date <= date
+                            val closer =
+                                when (candidate) {
+                                    case None -> true;
+                                    case Some(old) -> if (forward)
+                                        day.date < old
+                                    else
+                                        day.date > old
+                                }
+                            if (eligible && closer)
+                                candidate = Some(day.date)
+                        }
+                        case None -> {}
+                    }
+        if (pending.value != None && preview.value != candidate)
+            preview.value = candidate
+        requestFocus(candidate, FocusOrigin.Keyboard, forward)
+    }
+    private fun requestFocus(date: LocalDate?, origin: FocusOrigin, forward: Boolean) {
+        focusRequest = Some(CalendarFocusRequest(date, origin, forward))
+        scope.requestFrame()
+    }
+    fun accept(snapshot: CalendarSnapshot) {
+        if (!active || snapshot.pages[0L].anchor != currentPage)
+            return
+        val request = focusRequest ?: return
+        focusRequest = None
+        when (request.date) {
+            case Some(date) -> {
+                var fallback: FocusHandle? = None
+                for (member in snapshot.members)
+                    if (member.data.date == date) {
+                        if (!member.data.outside && member.focus.requestFocus(request.origin))
+                            return
+                        fallback = Some(member.focus)
+                    }
+                if (fallback?.requestFocus(request.origin) ?: false)
+                    return
+            }
+            case None -> {}
+        }
+        if (request.forward) {
+            if (!nextFocus.requestFocus(request.origin))
+                previousFocus.requestFocus(request.origin)
+        } else
+            if (!previousFocus.requestFocus(request.origin))
+                nextFocus.requestFocus(request.origin)
+    }
+}

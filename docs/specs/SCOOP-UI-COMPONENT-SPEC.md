@@ -1014,3 +1014,30 @@ ToastProps 使用普通 PanelContent title、可选 description／icon／action�
 控制器、输入与绘图资源在构造作用域取得，不经 onMount 向 State 发布资源。更换 state 时若旧记录的关闭回调失败，根错误收尾仍解除旧、新状态的宿主绑定，不留下已退休宿主。卡片位置、尺寸与子项放置保存为完整布局结果，Accepted 后才更新可交互几何和实测高度；高度改变使同位置的实际卡片布局失效，悬浮展开由普通观察状态触发更新。稳定布局下的进入／退出、平移和回弹只更新场景。默认字体从根借用，Toaster 的显式 fonts 覆盖保持有效。
 
 卡片采用 popover 背景／前景、1 像素 border、16 圆角、floating shadow、16 内边距及 12 横向间隔；标题 14／medium、说明 14／muted、垂直间距 4。语义图标 16，Error 使用 destructive，Loading 复用 Spinner。动作默认 Outline／Sm，按自然宽度与正文并排；正文剩余宽度不足 96 密度单位时移到下一行，并按扣除图标占位后的可用宽度约束。关闭默认 Ghost／IconSm。保留普通内容的自然换行、窄宽和零尺寸处理；内部控件焦点环允许在 padding 内外扩，绘制和命中使用同一动画变换。
+
+
+## 43. Calendar
+
+`CalendarSelection.Single(Binding<LocalDate?>)`、`Multiple(Binding<Array<LocalDate>>)` 和 `Range(Binding<DateRange?>)` 是完整且互斥的选择入口；对应 `calendar`、`calendarMultiple`、`calendarRange`，均显式传入 initialPage: LocalDate。DateRange 构造要求 start≤end，长度以 start.daysUntil(end) 的夜数表示，同日为 0。CalendarValue 是通知／解析使用的同形日期快照，不携带 Binding。Multiple 拒绝重复日期，选择值不包含时区或 Instant。
+
+CalendarRules 默认 required=false、minimumDates=0、maximumDates=None、minimumNights=0、maximumNights=None、minDate／maxDate／disabled=None、allowDisabledInside=false。限制非负且上下界有序。Single 再次选择可清空非 required 值；Multiple 只增删目标日期，最小数量限制删除，最大数量限制增加。Range 首次激活只记录内部起点，第二次激活排序两端、检查端点和夜数，并在不允许内部禁用日时检查实际区间，成功后一次写入完整值；失败保留起点，Escape／取消清除起点和预览。控件不把禁用日跳过后组成另一段范围。setter 拒绝时保留实际值，不通知虚假的 onValueChange；异常沿所属 UI 根交付。外部改变值只更新高亮，syncSelection=false 默认不移动月份；显式启用后移到新的首个选中日期。
+
+CalendarOptions 默认 monthCount=1、pagedNavigation=false、showOutsideDays=true、fixedWeeks=false、weekNumbers=None、caption=Label、cellSize=28、monthGap=16、syncSelection=false、today=None。CalendarLocale 显式提供 12 个月名及简称 shortMonths、从星期一开始的 7 个星期名、weekStartsOn=Sunday、firstWeekContainsDate=1 和数字／日期格式化；默认英文及 ISO 日期文字，不访问系统时区或时钟。月份下拉使用简称，普通标题使用完整月名，不从任意语言文字截取简称。Iso 周号使用星期一和每年包含 1 月 4 日的周；Locale 周号采用 locale 的两项规则。年份下拉可指定 years 数组，缺省显示当前页年前 100 年到后 20 年，并限制到日期库可表示范围。Label／Dropdowns 两种标题均保留前后页动作，Dropdowns 使用现有自绘 Select。
+
+多月标题下拉改变整个显示序列，使所选页保留在该标题的原索引；前页沿来源的 previous 链取得，来源无法提供足够前页时保留原显示序列。下拉 Binding 即时回读实际显示页，成功选择关闭当前 Select，外层日历弹层仍保持打开。
+
+CalendarPageSource.page(CalendarPageRequest) 返回不可变 CalendarPage：规范页 anchor、caption、完整七列 weeks、previous／next／previousYear／nextYear 和月／年选项。每个 CalendarDayData 有实际 LocalDate、显示 label、outside 和 enabled；空格显式为 None，同页日期唯一且按日期递增。页选项携带实际目标 anchor 和标签，来源负责非公历翻页和文字，UI 不猜测历法。默认 GregorianCalendarPages 复用 LocalDate／YearMonth 算术；自定义月页消费与公历相同选择、禁用和焦点代码。本轮不提供 Persian／Hijri 换算引擎。
+
+同一份页快照驱动 Grid、选择与键盘。日期按钮通过 KeyNavigation 提供单一 roving Tab 停靠；左右键按 LTR／RTL 前后一天，上下七天，Home／End 到当前周首尾，PageUp／Down 到来源的前后页，Shift+Page 到来源的前后年。目标禁用时只在本次可显示页内寻找同方向可用日期，整页不可用则退到可用翻页入口；不跨年无限搜索。CalendarHandle 可显式 showDate、focusDate、focusFirst、cancelRange；focusFirst 请求当前可用日期，没有可用日期时退到翻页入口，卸载后请求返回 false。跨页聚焦只在对应 Accepted 场景后尝试一次，不用预估矩形。
+
+月份使用有限七列 Grid，窄宽时多月自动纵向排列，所有月份和日期保留稳定 key。cellSize 是日期按钮的最小表面尺寸，轨道额外保留主题实际 focusOutset；字体、密度、样式和可用宽度变化参与测量，完整焦点环不可被月页边缘裁切。范围底色连接相邻格，起点／终点随逻辑方向解析，文字不镜像。CalendarProps／builder 提供 enabled、fonts／theme／style、dayStyle、handle、onValueChange、onPageChange 和 header／monthGrid／day／weekNumber／footer 内容入口；自定义 day 位于原日期按钮内部，保留原激活和导航。
+
+## 44. DatePicker
+
+`datePicker(Binding<LocalDate?>, initialPage)` 和 `dateRangePicker(Binding<DateRange?>, initialPage)` 组合同一 Calendar、Popover 和按钮／Input。DatePickerProps 接收 Single／Range，Multiple 非法。默认非模态、关闭时恢复触发器焦点、确认完整日期后 closeOnSelect=true；受控 open、关闭拦截、过渡、禁用、readonly、FieldTarget 和字体／主题沿现有控件合同。CalendarOptions／Rules、presets、可选 footer 及独立时间 Input 是正常组合入口，时间保存为 LocalTime，不推测 timezone。触发区分别按 inputStyle／buttonStyle 的实际 focusOutset 保留外侧留白和内部间距，不用日历单元格样式代替触发器尺寸。
+
+未提供 draft 时使用格式化选中值的按钮；提供 DatePickerDraft 时使用其唯一 TextEditorState。draft.error 是可观察解析错误，reset(text) 是应用显式接受外部值／丢弃草稿的入口，控件不再维护每字符同步的 String。默认 Enter 提交，commitOnBlur=false；可选 blur 提交在焦点离开整个日期控件后，通过一个可取消的原生 deadline 延后到输入事件结束后执行；内部切到日历按钮不提交，打开日历和刚接受日历选择时取消旧 blur。composition 中不解析或重置编辑模型，Escape 先由 IME 消费，再取消草稿／暂定范围和关闭弹层。
+
+非编辑期间外部值变化同步格式化草稿；聚焦或 composition 期间保留用户草稿，直到明确提交／reset／日历选择。解析器只在提交动作执行，接收 text、referenceDate 和 CalendarLocale，返回 DatePickerParse.Date／Range／Empty／Invalid(message)；默认严格 ISO 日期，范围用 `start .. end`。模式不符、required／日期限制不满足均保留草稿并显示错误，不改变选中值。默认 referenceDate=initialPage；自然语言示例必须传入真实 parser，不在 render 中猜测日期。成功写入后按 setter 实际采纳值格式化；拒绝时不关闭、不通知成功。Calendar 选择先接受业务值，再替换草稿并关闭，迟到 blur 不能重新提交旧文字。
+
+DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar，绑定只属于一个活动控件，卸载后返回 false。presets 提供明确 CalendarValue 和标签，复用同一次约束检查和提交。日期、范围、生日年份选择、预设、严格输入、显式自然语言解析和 LocalTime 组合均须有实际示例；验收覆盖键盘／中文编辑模型、失败草稿、外部更新、受控拒绝、暂定范围取消、弹层焦点及静止停帧。

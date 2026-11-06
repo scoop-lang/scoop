@@ -1,5 +1,6 @@
 package scoop.examples.ui.shadcn
 
+import scoop.datetime.LocalDate
 import scoop.text.contains
 import scoop.ui.*
 import scoop.ui.component.*
@@ -10,6 +11,8 @@ internal class SettingsModel {
     val email = TextEditorState()
     val code = TextEditorState()
     val bio = TextEditorState("Building something useful.")
+    val birthday = state<LocalDate?>(None)
+    val birthdayTarget = FieldTarget()
     val targets = Array<FieldTarget>(6L) { _ -> FieldTarget() }
     val emailFocus = FocusHandle()
     val codeFocus = FocusHandle()
@@ -55,6 +58,7 @@ internal class SettingsModel {
         email.replaceAll("");
         code.replaceAll("")
         bio.replaceAll("Building something useful.")
+        birthday.value = None
         updates.value = true;
         privateProfile.value = false;
         plan.value = Some(0)

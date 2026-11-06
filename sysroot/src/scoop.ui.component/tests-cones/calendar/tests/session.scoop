@@ -1,0 +1,276 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.*
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class CalendarWindowTest {
+    @Test
+    fun `native dates share layout selection navigation drafts and popup ownership`() {
+        val p = DateProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.calendar.isAttached)
+            assertFalse(p.picker.isAttached)
+            for (cell in p.cells)
+                assertEquals(cell.mounts, cell.unmounts)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"calendar phase=${p.phase}, rendered=${p.rendered}, generation=${
+                    p.generation.value
+                }"
+            )
+            dateNativeFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class DateCell(val page: LocalDate, val date: LocalDate, val outside: Boolean) {
+    var focus: FocusHandle? = None
+    var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var mounts = 0
+    var unmounts = 0
+    var draws = 0
+    var seen = -1
+}
+
+internal class DateCaption(val page: LocalDate, val bounds: Rect, val generation: Int)
+
+internal class DateProbe {
+    val base = LocalDate(2024, 2, 28)
+    val selected = state<LocalDate?>(Some(base))
+    val multiple = state<Array<LocalDate>>([])
+    val range = state<DateRange?>(None)
+    val draft = DatePickerDraft()
+    val rangeDraft = DatePickerDraft()
+    val background = TextEditorState("Unchanged background draft")
+    val picker = DatePickerHandle()
+    val calendar = CalendarHandle()
+    val pickerFocus = FocusHandle()
+    val backgroundFocus = FocusHandle()
+    val outsideFocus = FocusHandle()
+    val generation = state(0)
+    val theme =
+        ThemeSource(shadcnTheme() { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val cells = ArrayList<DateCell>()
+    val captions = ArrayList<DateCaption>()
+    val customSource: CalendarPageSource = NativePlanningPages()
+    var rootBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var outsideBounds = rootBounds
+    var mode = 0
+    var shown = true
+    var reject = false
+    var disabledLeap = false
+    var dropdowns = false
+    var observeCaptions = false
+    var captionEscapes = 0
+    var numbers = false
+    var months = false
+    var rtl = false
+    var narrow = false
+    var largeRing = false
+    var zero = false
+    var readOnly = false
+    var natural = false
+    var veto = false
+    var changes = 0
+    var savedChanges = 0
+    var parses = 0
+    var draws = 0
+    var savedDraws = 0
+    var savedCell: DateCell? = None
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(80L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        val characters =
+            if (text.byteLength > 0L)
+                text
+            else
+                when (code) {
+                    case 53 -> "\u001b";
+                    case 125 -> "\uf701";
+                    case 126 -> "\uf700";
+                    case 123 -> "\uf702";
+                    case 124 -> "\uf703"
+                    case 115 -> "\uf729";
+                    case 119 -> "\uf72b";
+                    case 116 -> "\uf72c";
+                    case 121 -> "\uf72d"
+                    else -> text
+                }
+        assertEquals(0, dateNativeKey(native!!, code, characters, flags))
+    }
+    fun text(text: String, marked: Boolean = false) {
+        assertEquals(0, dateNativeText(native!!, text, marked))
+    }
+    fun click(bounds: Rect) {
+        val x = bounds.x + bounds.width / 2.0
+        val y = bounds.y + bounds.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun cell(date: LocalDate): DateCell {
+        for (cell in cells)
+            if (
+                cell.date ==
+                    date &&
+                    !cell.outside &&
+                    cell.mounts >
+                    cell.unmounts &&
+                    cell.seen >=
+                    generation.value
+            )
+                return cell
+        for (cell in cells)
+            if (cell.date == date && cell.mounts > cell.unmounts && cell.seen >= generation.value)
+                return cell
+        throw IllegalStateException(Some(f"date cell is not presented: ${date}"))
+    }
+    fun focused(date: LocalDate) {
+        assertTrue(cell(date).focus!!.hasFocus, Some(f"expected focus on ${date}"))
+    }
+    fun clickCaption(page: LocalDate, year: Boolean) {
+        for (index in 0L ..< captions.size) {
+            val item = captions[captions.size - index - 1L]
+            if (item.page == page && item.generation >= generation.value) {
+                val bounds = item.bounds
+                click(
+                    Rect(
+                        bounds.x +
+                            if (year)
+                                bounds.width / 2.0
+                            else
+                                0.0,
+                        bounds.y,
+                        bounds.width / 2.0,
+                        bounds.height
+                    )
+                )
+                return
+            }
+        }
+        throw IllegalStateException(Some(f"date caption is not presented: ${page}"))
+    }
+    fun capture(day: CalendarDay): DateCell {
+        for (cell in cells)
+            if (
+                cell.page ==
+                    day.page.anchor &&
+                    cell.date ==
+                    day.data.date &&
+                    cell.outside ==
+                    day.data.outside &&
+                    cell.mounts >
+                    cell.unmounts
+            )
+                return cell
+        val cell = DateCell(day.page.anchor, day.data.date, day.data.outside)
+        cells.add(cell)
+        return cell
+    }
+    fun parse(text: String, reference: LocalDate, locale: CalendarLocale): DatePickerParse {
+        parses += 1
+        return if (text == "tomorrow")
+            DatePickerParse.Date(reference.plusDays(1L))
+        else
+            DatePickerParse.Invalid("Use tomorrow in this example.")
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Calendar test";
+                            size = LogicalSize(900.0, 760.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { scope -> DateScene(this, scope) }, fonts = Some(fonts))
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < timeout, Some("calendar timeout"))
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !pickerFocus.isPending
+                ) {
+                    if (phase < 26)
+                        advanceCalendar(this)
+                    else
+                        if (phase < 63)
+                            advancePicker(this)
+                        else
+                            advanceCaption(this)
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 74)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 74;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

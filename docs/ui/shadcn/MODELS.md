@@ -56,9 +56,9 @@ OTP 的 group／separator 只影响显示。原文、复制、提交和长度判
 
 ## 4. Calendar 与 DatePicker
 
-默认日期采用现有 `scoop.datetime.LocalDate`／YearMonth／DayOfWeek；它们是日期值，不带时区。选中 11 月 4 日就是这个日期，不在控件里转成午夜 UTC 再转回来。今天、周起点、月／星期名称、数字与日期格式由明确的日期／locale 数据输入；涉及 Instant、系统时区或 IO 的转换由调用方完成。
+默认日期采用现有 `scoop.datetime.LocalDate`／YearMonth／DayOfWeek；它们是日期值，不带时区。选中 11 月 4 日就是这个日期，不在控件里转成午夜 UTC 再转回来。今天、周起点、月份全名／简称、星期名称、数字与日期格式由明确的日期／locale 数据输入；涉及 Instant、系统时区或 IO 的转换由调用方完成。
 
-选择模式是三个完整入口：Single 的可选日期、Multiple 的唯一日期数组、Range 的可选完整 DateRange。DateRange 保证 start≤end；范围第一下点击保存暂定起点和预览，不向外发布缺失终点的范围。第二下点击按规则形成完整有序范围，校验后一次提交。可限制 required、最小／最大范围、禁用日期，以及是否允许范围内部包含禁用日；不会静默跳过日期后形成另一段范围。
+选择模式是三个完整入口：Single 的可选日期、Multiple 的唯一日期数组、Range 的可选完整 DateRange。DateRange 保证 start≤end，nights 为 start.daysUntil(end)，同一天为零夜；范围第一下点击保存暂定起点和预览，不向外发布缺失终点的范围。第二下点击按规则形成完整有序范围，校验后一次提交。CalendarRules 限制 required、minimumDates／maximumDates、minimumNights／maximumNights、minDate／maxDate、disabled 和 allowDisabledInside；不会静默跳过日期后形成另一段范围。
 
 Calendar 的界面状态只包含显示月份、当前焦点日期和暂定范围。外部改 selection 时更新高亮；是否把月份移动到新值由明确的同步选项控制。方向键±1／±7 天，Home／End 到周边界，PageUp／Down 翻月，Shift+Page 翻年；所有运算复用日期库。只在本次显示页的有效日期中确定可用焦点，整页不可选时退到翻页入口，不为找到“下一个可用日”无限扫描年份。
 
@@ -68,10 +68,10 @@ Calendar 的界面状态只包含显示月份、当前焦点日期和暂定范�
 
 DatePicker 是 Popover、Calendar 和按钮／输入的实际组合，支持日期、范围、生日选择、预设值和时间输入。核心合同：
 
-- 按钮模式的文字由选中值格式化；输入模式保留 TextEditorState 草稿，Enter／blur 的提交策略明确，解析失败显示错误并保留草稿。
+- 按钮模式的文字由选中值格式化；输入模式使用 DatePickerDraft 的唯一 TextEditorState 和可观察 error。默认 Enter 提交，commitOnBlur=false；显式启用 blur 时，在本次输入事件结束后提交。默认解析严格 ISO 日期，范围使用 `start .. end`；解析失败显示错误并保留草稿。
 - 外部选中值变化时，非编辑中的草稿同步；编辑／composition 中的更新由明确的 accept／reset 动作收束，不能覆盖正在输入的文字。
 - 日期和时间分别采用 LocalDate／LocalTime，应用需要时组成 LocalDateTime；控件不推测 timezone。
-- 自然语言示例接受显式 parser、参考日期和 locale；解析由提交或编辑通知触发，失败返回可显示错误。没有 parser 时不能把任意字符串猜成有效日期；这不要求组件库重写 chrono-node。
+- 自然语言示例接受显式 parser、参考日期和 locale；解析只由提交动作触发，返回 DatePickerParse.Date／Range／Empty／Invalid。没有 parser 时不能把任意字符串猜成有效日期；这不要求组件库重写 chrono-node。
 - Escape 先交给 IME，再关闭 popup；取消不提交暂定 range／无效草稿。点击日历提交时，输入的晚到 blur 不得覆盖刚选中的日期。
 
 ## 5. Table 与 DataTable

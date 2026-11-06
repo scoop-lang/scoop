@@ -2,7 +2,7 @@
 
 当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
-2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。Toast 随后按新协议交付，本设计 P6 完成，累计 **52／64**；继续 P7 日期与数据展示。整改本身不增加组件目录完成数。
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6 及 P7a Calendar／DatePicker 随后按新协议交付，累计 **54／64**；继续 P7b Table／DataTable。整改本身不增加组件目录完成数。
 
 ## P0a：完整配色与主题
 
@@ -288,3 +288,10 @@
 - 布局使用完整 LayoutResult，按实际字体和图标留白测量动作；短动作自然宽度内联，窄卡片和长动作转到正文下方并限制在卡片内。修复非模态弹层中较早通知持有焦点时的关闭恢复，以及 Surface 已 Closing 时作用域回调进入已关闭输入路由的问题。
 - macOS aarch64 release：**3 项模型测试、45 阶段 Toast 实窗测试**及 Overlay／Modal／Portal 模式／窗口错误隔离四项实窗回归通过，共 8 项测试；窗口错误隔离包含 13 个失败场景。覆盖队列、暂停、布局／密度／RTL、真实窗口缩放、拖动取消、受控更新、焦点恢复、异步迟到、回调抛错、停帧和卸载。30 个 Scoop 文件格式检查、相关静态检查、生产库及 Gallery 构建通过。
 - Gallery 实查浅色 System、深色 Neutral、宽窄／RTL、通知图标、动作与完整焦点环、真实任务更新、提前关闭和中文草稿保留。累计 **52／64**，P6 闭合。原始验收资料留在仓库外，清理本轮临时脚本和待恢复快照，保留共享缓存、生产库、Gallery 与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P7a：Calendar／DatePicker
+
+- Calendar 完成单选／多选／范围、日期与数量约束、范围预览、单／多月、翻月／年、月份／年份下拉、周起点／周号和 locale。默认公历覆盖完整周、闰日和日期边界；自定义 CalendarPageSource 以真实日期提供页面和导航，Gallery 展示 28 天计划周期。键盘导航、稳定日期 key、独立句柄和部件插槽沿用既有焦点与布局协议，多月窄宽纵排并保留完整 focusOutset。
+- DatePicker 组合 Popover、Calendar 与按钮／可编辑输入，支持日期／范围、生日、preset、严格 ISO 草稿、显式自然语言解析器及独立 LocalTime 输入。文本编辑只使用一份 TextEditorState；解析失败保留草稿，外部更新不覆盖焦点或 IME 组合输入，失焦提交使用可取消的作用域任务。实际 Binding 接受后才格式化、通知和关闭；关闭拦截、重置、只读、禁用及 FieldTarget 已接入设置表单。
+- macOS aarch64 release：**6 项模型测试与 74 阶段原生窗口测试**通过，覆盖键盘／指针、范围拒绝、受控 setter、跨月下拉、真实窗口缩放、密度／RTL、7 像素焦点环、零布局、中文 IME、外部值更新、失焦、嵌套 Escape／关闭拦截、稳定挂载、停帧与卸载。34 个 Scoop 文件格式检查、组件／独立实窗／Gallery 静态检查、生产库和 Gallery 构建通过。公共 locale API 更新后重新发布组件，闭合 Gallery 消费旧预编译库的初次检查失败。
+- Gallery 实查浅色 System、深色 Neutral／RTL、宽窄与中文、范围和键盘选择、生日年份、无效草稿与自然语言、时间和 preset。修复多月中后续月份的标题选择偏移、Select 接受后的关闭及月份简称显示；最终实查第二个月的下拉选择仍保留该月位置并正常关闭。累计 **54／64**。原始验收资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

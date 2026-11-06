@@ -1,0 +1,172 @@
+package scoop.examples.ui.shadcn
+
+import scoop.datetime.*
+import scoop.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+internal class DateExamplesModel {
+    val reference = LocalDate(2026, 11, 6)
+    val single = state<LocalDate?>(Some(reference))
+    val multiple = state<Array<LocalDate>>([reference, reference.plusDays(3L)])
+    val range = state<DateRange?>(Some(DateRange(reference, reference.plusDays(5L))))
+    val selectionMode = state(0)
+    val months = state(false)
+    val narrow = state(false)
+    val dropdowns = state(false)
+    val numbers = state(false)
+    val outside = state(true)
+    val chinese = state(false)
+    val disabled = state(false)
+    val weekends = state(false)
+    val custom = state(false)
+    val calendar = CalendarHandle()
+    val planning: CalendarPageSource = PlanningCyclePages()
+    val defaultPages: CalendarPageSource = GregorianCalendarPages()
+    val english = CalendarLocale()
+    private val chineseMonths =
+        ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+    val localized =
+        CalendarLocale(
+            months = chineseMonths,
+            shortMonths = chineseMonths,
+            weekdays = ["一", "二", "三", "四", "五", "六", "日"],
+            weekStartsOn = DayOfWeek.Monday
+        )
+    val pickerDate = state<LocalDate?>(Some(reference))
+    val pickerRange = state<DateRange?>(None)
+    val birthday = state<LocalDate?>(Some(LocalDate(1990, 4, 18)))
+    val naturalDate = state<LocalDate?>(None)
+    val editable = DatePickerDraft()
+    val natural = DatePickerDraft(TextEditorState("tomorrow"))
+    val editorHandle = DatePickerHandle()
+    val timeDraft = TextEditorState("09:00")
+    val time = state<LocalTime?>(Some(LocalTime(9, 0)))
+    val timeError = state(false)
+    val changes = state(0)
+    val locale: CalendarLocale get() =
+        if (chinese.value)
+            localized
+        else
+            english
+    val selection: CalendarSelection get() =
+        when (selectionMode.value) {
+            case 1 -> CalendarSelection.Multiple(multiple.binding())
+            case 2 -> CalendarSelection.Range(range.binding())
+            else -> CalendarSelection.Single(single.binding())
+        }
+    fun selectedText(): String =
+        when (selectionMode.value) {
+            case 1 -> {
+                var result = ""
+                for (date in multiple.value)
+                    result += (
+                        if (result.byteLength == 0L)
+                            ""
+                        else
+                            ", "
+                    ) +
+                        locale.date(date)
+                if (result.byteLength == 0L)
+                    "No dates selected"
+                else
+                    result
+            }
+            case 2 -> when (range.value) {
+                case Some(dates) -> locale.date(dates.start) + " — " + locale.date(dates.end);
+                case None -> "Choose a start and end date"
+            }
+            else -> when (single.value) {
+                case Some(date) -> locale.date(date);
+                case None -> "No date selected"
+            }
+        }
+    fun commitTime() {
+        val text = timeDraft.committedText.trim()
+        val parsed =
+            LocalTime.parseOrNone(
+                if (text.byteLength == 5L)
+                    text + ":00"
+                else
+                    text
+            )
+        timeError.value = parsed == None
+        if (parsed != None)
+            time.value = parsed
+    }
+    fun schedule(): String =
+        when ((pickerDate.value, time.value)) {
+            case(Some(date), Some(time)) -> LocalDateTime(date, time).toString()
+            else -> "Choose a date and time"
+        }
+}
+
+/** Three explicit four-week planning periods demonstrate a source with non-month page boundaries. */
+internal class PlanningCyclePages: CalendarPageSource {
+    private val start = LocalDate(2026, 11, 2)
+    public override fun page(request: CalendarPageRequest): CalendarPage {
+        val requested = start.daysUntil(request.anchor) / 28L
+        val index =
+            if (requested < 0L)
+                0L
+            else
+                if (requested > 2L)
+                    2L
+                else
+                    requested
+        val first = start.plusDays(index * 28L)
+        val choices =
+            Array<CalendarPageChoice>(3L) {
+                i -> CalendarPageChoice(start.plusDays(i * 28L), f"Cycle ${i + 1L}")
+            }
+        val weeks =
+            Array<CalendarWeek>(4L) {
+                week -> CalendarWeek(
+                    Array<CalendarDayData?>(7L) {
+                        day ->
+                        val offset = week * 7L + day
+                        Some(
+                            CalendarDayData(
+                                first.plusDays(offset),
+                                request.locale.number((offset + 1L).toInt())
+                            )
+                        )
+                    },
+                    Some(f"${week + 1L}")
+                )
+            }
+        return CalendarPage(
+            first,
+            f"Planning cycle ${index + 1L}",
+            weeks,
+            if (index == 0L)
+                None
+            else
+                Some(first.plusDays(-28L)),
+            if (index == 2L)
+                None
+            else
+                Some(first.plusDays(28L)),
+            months = choices
+        )
+    }
+}
+
+internal fun exampleDateParser(
+    text: String,
+    reference: LocalDate,
+    locale: CalendarLocale
+): DatePickerParse {
+    val value = text.trim().lowercaseAscii()
+    return when (value) {
+        case "today" -> DatePickerParse.Date(reference)
+        case "tomorrow" -> DatePickerParse.Date(reference.plusDays(1L))
+        case "next week" -> DatePickerParse.Date(reference.plusDays(7L))
+        case "" -> DatePickerParse.Empty
+        else -> when (LocalDate.parseOrNone(value)) {
+            case Some(date) -> DatePickerParse.Date(date)
+            case None -> DatePickerParse.Invalid("Use today, tomorrow, next week, or YYYY-MM-DD.")
+        }
+    }
+}
