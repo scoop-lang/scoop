@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as comboColumn
@@ -39,13 +38,13 @@ internal class ComboboxExamplesModel {
         }
 }
 
-internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollection): View =
+internal fun comboboxExamples(model: ComboboxExamplesModel): View =
     comboColumn {
-        add(panelHeading("Combobox", fonts))
+        add(panelHeading("Combobox"))
         typography(
             "Search and choose while the cursor stays in the input. Selection and search text are independent.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.enabled.value)
@@ -53,45 +52,32 @@ internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollectio
                 else
                     "Enable",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.invalid.value)
                     "Clear invalid"
                 else
                     "Show invalid",
                 { model.invalid.value = !model.invalid.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.narrow.value)
                     "Width: narrow"
                 else
                     "Width: normal",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.auto.value)
                     "Auto highlight: on"
                 else
                     "Auto highlight: off",
                 { model.auto.value = !model.auto.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             spacing = 8.0;
             lineSpacing = 8.0
         }
         combobox(model.selected.binding(), model.choices, model.query) {
-            this.fonts = Some(fonts);
             placeholder = "Choose a language";
             showClear = true
             enabled = model.enabled.value;
@@ -103,12 +89,9 @@ internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollectio
                 else
                     320.0
         }
-        typography(f"Selected: ${model.selected.value ?: "none"}", TypographyRole.Small) {
-            this.fonts = Some(fonts)
-        }
-        typography("Multiple selections", TypographyRole.H4) { this.fonts = Some(fonts) }
+        typography(f"Selected: ${model.selected.value ?: "none"}", TypographyRole.Small)
+        typography("Multiple selections", TypographyRole.H4)
         combobox(model.multiple.binding(), model.choices, model.multiQuery) {
-            this.fonts = Some(fonts);
             placeholder = "Add a language";
             showClear = true;
             autoHighlight = true
@@ -124,10 +107,9 @@ internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollectio
         typography(
             "Use Backspace on an empty input to remove the last chip, or arrow left to reach its remove button.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        typography("Search inside the popup", TypographyRole.H4) { this.fonts = Some(fonts) }
+        )
+        typography("Search inside the popup", TypographyRole.H4)
         combobox(model.popup.binding(), model.choices, model.popupQuery) {
-            this.fonts = Some(fonts);
             inputPlacement = ComboboxInputPlacement.Popup
             autoHighlight = true;
             showClear = true;
@@ -135,9 +117,8 @@ internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollectio
             width = 260.0;
             popupWidth = Some(320.0)
         }
-        typography("Create an option", TypographyRole.H4) { this.fonts = Some(fonts) }
+        typography("Create an option", TypographyRole.H4)
         combobox(model.created.binding(), model.choices, model.customQuery) {
-            this.fonts = Some(fonts);
             showClear = true;
             autoHighlight = true;
             width = 320.0
@@ -152,11 +133,8 @@ internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollectio
                     }
                 )
         }
-        typography("Provided results · 10,000 choices", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        typography("Provided results · 10,000 choices", TypographyRole.H4)
         combobox(model.large.binding(), GalleryChoiceSource(), model.largeQuery) {
-            this.fonts = Some(fonts);
             filter = ComboboxFilter.Provided;
             autoHighlight = true
             width = 360.0;

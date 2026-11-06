@@ -42,16 +42,14 @@ internal class DescriptionReuseProbe {
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
                 )
                 window =
-                    Some(
-                        host.attach(
-                            application.createWindow(
-                                windowAttributes {
-                                    this.title = "UI description reuse"
-                                    this.visible = false
-                                }
-                            ),
-                            { mount -> DescriptionReuseScene(this, scope = mount) }
-                        )
+                    host.attach(
+                        application.createWindow(
+                            windowAttributes {
+                                this.title = "UI description reuse"
+                                this.visible = false
+                            }
+                        ),
+                        { mount -> DescriptionReuseScene(this, scope = mount) }
                     )
                 post(application)
             }

@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
+import scoop.window.WindowDeadline
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
@@ -101,6 +102,17 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun onDispose(action: () -> Unit) {
         checkMounted()
         cleanup.add(action)
+    }
+    /** Uses the native deadline while keeping callbacks inside this root's failure boundary. */
+    public fun createDeadline(action: () -> Unit): WindowDeadline {
+        checkMounted()
+        val value =
+            root.window.createDeadline {
+                if (isMounted)
+                    root.surface.dispatch(action)
+            }
+        managed.add(value)
+        return value
     }
     /** Local frame-request eligibility; ancestor and submitted placement gates still apply. */
     public var isFrameEnabled: Boolean

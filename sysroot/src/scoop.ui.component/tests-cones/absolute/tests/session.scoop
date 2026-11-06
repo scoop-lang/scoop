@@ -71,7 +71,7 @@ internal class AbsoluteProbe {
                 view = Some(observeWindow(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { mount -> AbsoluteScene(this, scope = mount) }))
+                ui = host.attach(native, { mount -> AbsoluteScene(this, scope = mount) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

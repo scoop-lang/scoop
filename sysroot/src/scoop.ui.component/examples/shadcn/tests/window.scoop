@@ -181,7 +181,11 @@ internal class GalleryProbe(
                 native = Some(window)
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 frames = Some(observeFrames(window))
-                host.attach(window, { mount -> ObservedGallery(this, scope = mount) })
+                host.attach(
+                    window,
+                    { mount -> ObservedGallery(this, scope = mount) },
+                    fonts = Some(fonts)
+                )
                 window.requestFocus()
                 waitFor(active, 25000L)
             }
@@ -365,7 +369,7 @@ private class ObservedGallery(private val probe: GalleryProbe, scope: ComponentS
                 {
                     mount ->
                     probe.creates += 1
-                    Gallery(probe.model, probe.fonts, scope = mount)
+                    Gallery(probe.model, scope = mount)
                 }
             )
         )

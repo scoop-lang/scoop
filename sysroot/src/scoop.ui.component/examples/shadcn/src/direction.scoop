@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.label as makeLabel
@@ -18,30 +17,22 @@ internal class DirectionExamplesModel {
     val focus = FocusHandle()
 }
 
-internal fun directionExamples(
-    model: DirectionExamplesModel,
-    fonts: FontCollection,
-    theme: Theme
-): View =
+internal fun directionExamples(model: DirectionExamplesModel, theme: Theme): View =
     makeColumn {
-        this.add(panelHeading("Direction", fonts))
+        this.add(panelHeading("Direction"))
         this.typography(
             "Use the toolbar to switch direction. The same controls keep their text, selection and state.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        this.typography("Inherited layout and text", TypographyRole.H3) { this.fonts = Some(fonts) }
+        )
+        this.typography("Inherited layout and text", TypographyRole.H3)
         this.row {
-            this.badge("1 · First") { this.fonts = Some(fonts) }
-            this.badge("2 · Second") { this.fonts = Some(fonts) }
-            this.badge("3 · Third") { this.fonts = Some(fonts) }
+            this.badge("1 · First")
+            this.badge("2 · Second")
+            this.badge("3 · Third")
             this.spacing = 12.0
         }
-        this.input(model.text) {
-            this.fonts = Some(fonts)
-            this.focus = FocusOptions(Some(model.focus))
-        }
+        this.input(model.text) { this.focus = FocusOptions(Some(model.focus)) }
         this.toggleGroup(model.selected.binding()) {
-            this.fonts = Some(fonts)
             for (value in [0, 1, 2])
                 this.item(
                     Choice(
@@ -54,8 +45,8 @@ internal fun directionExamples(
         this.typography(
             "Arrow keys follow the reading direction. Item order stays 1, 2, 3.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        this.frame(makeLabel("Logical Start border and padding", { this.fonts = Some(fonts) })) {
+        )
+        this.frame(makeLabel("Logical Start border and padding", {})) {
             this.logicalPadding = Some(LogicalInsets(20.0, 12.0, 8.0, 12.0))
             style {
                 this.background(Some(Paint(theme.tokens.palette.muted.background)))
@@ -69,26 +60,21 @@ internal fun directionExamples(
                 this.corners(Corners.all(6.0))
             }
         }
-        this.typography("Local LTR override", TypographyRole.H3) { this.fonts = Some(fonts) }
-        this.direction(makeInput(model.code) { this.fonts = Some(fonts) }, LayoutDirection.Ltr)
+        this.typography("Local LTR override", TypographyRole.H3)
+        this.direction(makeInput(model.code), LayoutDirection.Ltr)
         this.typography(
             "The code field keeps its own direction. Glyphs and artwork are never mirrored.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
-            this.button(f"State retained: ${model.clicks.value}", { model.clicks.value += 1 }) {
-                this.fonts = Some(fonts)
-            }
+            this.button(f"State retained: ${model.clicks.value}", { model.clicks.value += 1 })
             this.button(
                 "Focus the text field",
                 {
                     model.focus.requestFocus();
                     Unit
                 }
-            ) {
-                this.fonts = Some(fonts)
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 12.0
         }
         this.spacing = 16.0

@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
@@ -16,12 +15,7 @@ internal fun previewTitle(value: PreviewState): String =
         case Disabled -> "Disabled"
     }
 
-internal fun previewControl(
-    model: GalleryModel,
-    fonts: FontCollection,
-    value: ControlDemo,
-    state: PreviewState
-): View {
+internal fun previewControl(model: GalleryModel, value: ControlDemo, state: PreviewState): View {
     val enabled = state != PreviewState.Disabled
     val invalid = state == PreviewState.Invalid
     val focus =
@@ -34,7 +28,6 @@ internal fun previewControl(
             this.button("Continue", { model.clicks.value += 1 }) {
                 this.enabled = enabled
                 this.invalid = invalid
-                this.fonts = Some(fonts)
                 this.focus = focus
             }
             this.justify = MainAlignment.Center
@@ -48,7 +41,6 @@ internal fun previewControl(
         ) {
             this.enabled = enabled
             this.invalid = invalid
-            this.fonts = Some(fonts)
             this.focus = focus
             this.placeholder = "Your name"
             this.description =
@@ -68,7 +60,7 @@ internal fun previewControl(
                 this.invalid = invalid
                 this.focus = focus
             }
-            this.label("Accept terms") { this.fonts = Some(fonts) }
+            this.label("Accept terms")
             this.spacing = 4.0
             this.alignment = CrossAlignment.Center
         }

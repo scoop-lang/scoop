@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as splitColumn
@@ -40,17 +39,13 @@ internal class ResizableExamplesModel {
     }
 }
 
-internal fun resizableExamples(
-    model: ResizableExamplesModel,
-    fonts: FontCollection,
-    borderColor: Color
-): View =
+internal fun resizableExamples(model: ResizableExamplesModel, borderColor: Color): View =
     splitColumn {
-        add(panelHeading("Resizable", fonts))
+        add(panelHeading("Resizable"))
         typography(
             "Drag the dividers. Tab to a handle for arrow keys, Home / End, Page Up / Down, or Enter to collapse. Escape cancels a drag.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.vertical.value)
@@ -58,22 +53,15 @@ internal fun resizableExamples(
                 else
                     "Horizontal",
                 { model.vertical.value = !model.vertical.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.enabled.value)
                     "Disable handles"
                 else
                     "Enable handles",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button("Collapse / restore sidebar", { model.collapse() }) {
-                this.fonts = Some(fonts);
                 variant = ButtonVariant.Outline
             }
             button(
@@ -82,10 +70,7 @@ internal fun resizableExamples(
                 else
                     "Narrow layout",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             spacing = 8.0
         }
         item(
@@ -94,12 +79,8 @@ internal fun resizableExamples(
                     panel(
                         ViewKey.Text("sidebar"),
                         splitColumn {
-                            typography("Workspace", TypographyRole.Large) {
-                                this.fonts = Some(fonts)
-                            }
-                            typography("Projects\nComponents\nSettings", TypographyRole.Muted) {
-                                this.fonts = Some(fonts)
-                            }
+                            typography("Workspace", TypographyRole.Large)
+                            typography("Projects\nComponents\nSettings", TypographyRole.Muted)
                             padding = Insets.all(16.0);
                             spacing = 12.0;
                             alignment = CrossAlignment.Stretch
@@ -116,8 +97,8 @@ internal fun resizableExamples(
                     panel(
                         ViewKey.Text("editor"),
                         splitColumn {
-                            typography("Editor", TypographyRole.Large) { this.fonts = Some(fonts) }
-                            textarea(model.note) { this.fonts = Some(fonts) }
+                            typography("Editor", TypographyRole.Large)
+                            textarea(model.note)
                             padding = Insets.all(16.0);
                             spacing = 12.0;
                             alignment = CrossAlignment.Stretch
@@ -134,15 +115,11 @@ internal fun resizableExamples(
                         makeResizable(model.nested.binding()) {
                             panel(
                                 ViewKey.Text("preview"),
-                                splitPanelText(
-                                    "Preview",
-                                    "Nested panels use their own sizes.",
-                                    fonts
-                                )
+                                splitPanelText("Preview", "Nested panels use their own sizes.")
                             ) { minimum = 112.0 }
                             panel(
                                 ViewKey.Text("console"),
-                                splitPanelText("Console", "Content stays mounted.", fonts)
+                                splitPanelText("Console", "Content stays mounted.")
                             ) { minimum = 112.0 }
                             orientation = Orientation.Vertical;
                             withHandle = true
@@ -187,19 +164,19 @@ internal fun resizableExamples(
         typography(
             f"${model.commits.value} committed changes · ${model.cancels.value} cancelled drags",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         typography(
             "Minimums stay visible when space runs out. Collapsing retains the last expanded fraction; changing the window size does not commit a resize.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         spacing = 16.0;
         alignment = CrossAlignment.Stretch
     }
 
-private fun splitPanelText(title: String, description: String, fonts: FontCollection): View =
+private fun splitPanelText(title: String, description: String): View =
     splitColumn {
-        typography(title, TypographyRole.Large) { this.fonts = Some(fonts) }
-        typography(description, TypographyRole.Muted) { this.fonts = Some(fonts) }
+        typography(title, TypographyRole.Large)
+        typography(description, TypographyRole.Muted)
         padding = Insets.all(16.0);
         spacing = 8.0;
         alignment = CrossAlignment.Stretch

@@ -57,7 +57,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 val session = OverlayFocusSession(value, value.options, currentFocus)
                 value.focusSession = Some(session)
                 value.domain =
-                    if (value.options.mode == OverlayMode.Modal)
+                    if (session.isModal)
                         Some(session)
                     else
                         containingModal(value.node.parent)
@@ -70,6 +70,21 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 } else
                     session.finish()
             }
+        }
+    }
+
+    /** Logical ancestry and registration order survive a change of modal policy. */
+    fun reclassify() {
+        for (portal in sessions) {
+            val session = portal.focusSession
+            portal.domain =
+                when (session) {
+                    case Some(value) -> if (value.isModal)
+                        Some(value)
+                    else
+                        containingModal(portal.node.parent)
+                    case None -> containingModal(portal.node.parent)
+                }
         }
     }
 

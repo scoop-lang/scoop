@@ -113,7 +113,7 @@ internal class TextProbe(val fonts: FontCollection) {
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 view = Some(observeWindow(native))
-                ui = Some(host.attach(native, { mount -> TextScene(this, scope = mount) }))
+                ui = host.attach(native, { mount -> TextScene(this, scope = mount) })
                 deadline(application)
             }
             case AboutToWait -> advance(application)

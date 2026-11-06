@@ -86,7 +86,7 @@ internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
         }
     val ownedBoundaries = ArrayList<InputBoundary>()
     for (boundary in boundaries)
-        if (present(insideActivity(Some(boundary.input), scope)))
+        if (boundary.accepts && present(insideActivity(Some(boundary.input), scope)))
             ownedBoundaries.add(boundary)
     return InputActivitySnapshot(
         insideActivity(logicalFocus?.scope, scope),

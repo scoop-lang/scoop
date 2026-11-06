@@ -181,7 +181,7 @@ internal class InteractionProbe {
                 timer = Some(native.createDeadline { waiting = false })
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { mount -> InteractionRoot(this, scope = mount) }))
+                ui = host.attach(native, { mount -> InteractionRoot(this, scope = mount) })
                 val deadline = MonotonicTimeSource.markNow() + Duration.seconds(25L)
                 watchdog = Some(deadline)
                 active.setControlFlow(ControlFlow.WaitUntil(deadline))

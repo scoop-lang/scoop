@@ -22,14 +22,14 @@ internal class TabsExamplesModel {
     val mounts = Array<State<Int>>(2L) { _ -> state(0) }
 }
 
-internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
+internal fun tabsExamples(gallery: GalleryModel): View {
     val model = gallery.tabs
     return makeColumn {
-        this.add(panelHeading("Tabs", fonts))
+        this.add(panelHeading("Tabs"))
         this.typography(
             "Auto selects with arrow keys. Manual moves focus first; Space or Enter selects. Tab enters the selected panel. Edit the drafts, then switch, reorder or change layout.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
             this.button(
                 if (model.manual.value)
@@ -37,22 +37,15 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 else
                     "Activation: Auto",
                 { model.manual.value = !model.manual.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (model.vertical.value)
                     "Vertical"
                 else
                     "Horizontal",
                 { model.vertical.value = !model.vertical.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Reorder tabs", { model.reverse.value = !model.reverse.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
@@ -64,20 +57,14 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 else
                     "Dispose inactive",
                 { model.keep.value = !model.keep.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (model.enabled.value)
                     "Disable tabs"
                 else
                     "Enable tabs",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (model.selected.value == None)
                     "Select account"
@@ -90,13 +77,10 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                         else
                             None
                 }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
-        this.typography("Default · local drafts", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography("Default · local drafts", TypographyRole.H3)
         this.tabs(model.selected.binding()) {
             for (
                 value in if (model.reverse.value)
@@ -115,12 +99,11 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                         empty()
                     else
                         component(
-                            TabDraftProps(model, value.toLong(), fonts),
+                            TabDraftProps(model, value.toLong()),
                             { current, mount -> TabDraft(current, scope = mount) }
                         )
                 )
             }
-            this.fonts = Some(fonts)
             this.activation =
                 if (model.manual.value)
                     TabActivation.Manual
@@ -144,18 +127,14 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 model.mounts[1L].value
             }",
             TypographyRole.Small
-        ) { this.fonts = Some(fonts) }
+        )
         this.separator()
-        this.typography("Line · custom icon and loading content", TypographyRole.H3) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Line · custom icon and loading content", TypographyRole.H3)
         this.tabs(model.preview.binding()) {
             this.item(
                 Choice(ViewKey.Text("preview"), 0, "Preview"),
                 makeColumn {
-                    this.typography("A preview of the current workspace.", TypographyRole.Muted) {
-                        this.fonts = Some(fonts)
-                    }
+                    this.typography("A preview of the current workspace.", TypographyRole.Muted)
                     if (model.busy.value)
                         this.spinner()
                     this.spacing = 12.0
@@ -169,7 +148,7 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                                 this.style = appearance.text;
                                 this.text("Preview")
                             }
-                        ) { this.fonts = Some(fonts) }
+                        )
                         this.spacing = appearance.spacing
                         this.alignment = CrossAlignment.Center
                     }
@@ -180,7 +159,7 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 makeTypography(
                     "Application data stays in your model; tabs control which view is visible.",
                     TypographyRole.Muted
-                ) { this.fonts = Some(fonts) }
+                )
             )
             this.variant = TabsVariant.Line
             this.activation =
@@ -199,7 +178,6 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 else
                     ContentRetention.Dispose
             this.enabled = model.enabled.value
-            this.fonts = Some(fonts)
             this.spacing = 16.0
         }
         this.row {
@@ -209,20 +187,14 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                 else
                     "Show loading",
                 { model.busy.value = !model.busy.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (gallery.reduced.value)
                     "Motion: Reduced"
                 else
                     "Motion: Full",
                 { gallery.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.spacing = 16.0
@@ -231,7 +203,7 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
     }
 }
 
-private class TabDraftProps(val model: TabsExamplesModel, val id: Long, val fonts: FontCollection)
+private class TabDraftProps(val model: TabsExamplesModel, val id: Long)
 
 private class TabDraft(private val props: Props<TabDraftProps>, scope: ComponentScope): Component(
     scope
@@ -242,14 +214,11 @@ private class TabDraft(private val props: Props<TabDraftProps>, scope: Component
         props.value.model.mounts[props.value.id].value += 1
     }
     public override fun render(): View {
-        val input = props.value
+        val editor = this.editor
+        val count = this.count
         return makeColumn {
-            this.input(this @TabDraft.editor) { this.fonts = Some(input.fonts) }
-            this.button(
-                f"Local count: ${this @TabDraft.count.value}",
-                { this @TabDraft.count.value += 1 }
-            ) {
-                this.fonts = Some(input.fonts);
+            this.input(editor)
+            this.button(f"Local count: ${count.value}", { count.value += 1 }) {
                 this.variant = ButtonVariant.Secondary
             }
             this.spacing = 12.0

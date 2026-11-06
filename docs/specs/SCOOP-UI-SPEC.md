@@ -264,7 +264,7 @@ fun portal(
 
 节点类型匹配同时区分 Component／Element／LazyElement 描述类别、具体实例静态类型 C／E 和输入类型 P，保留每个类型的完整泛型实参。内部描述通过普通泛型类型检查判断，例如 `other is ComponentDescription<P, C>`；ElementDescription 与 LazyDescription 同理。类型匹配仅返回判断结果，不能提前更新 Props、调用工厂或改变挂载状态。P 是描述类型的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
 
-Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值不是类型身份，Portal 的 OverlayMode 属于匹配条件。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
+Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值和 Portal 的 OverlayMode 都是可更新配置，不属于类型身份。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
@@ -420,6 +420,8 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 `ComponentScope.moveFocus(reverse: Boolean = false): Boolean` 从本作用域内当前逻辑焦点继续一次 Tab／Shift+Tab 遍历。没有本作用域内的有效焦点时返回 false；有效时从目标最近的 FocusScope 开始，沿用其 loop、父级续行、roving、lazy 显露、唯一 pending 与 FocusOrigin.Keyboard。它不合成键盘事件，不激活 OS 窗口，也不跨越当前焦点域；返回 true 表示请求已被接受。只能在逻辑／输入／完成回调阶段调用。菜单在 Portal 的 onClosed（焦点域已释放且正常恢复已尝试）中消费保存的 Tab 方向；新焦点已离开原 owner 时不抢回焦点。
 
 Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
+
+`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
 
 ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
@@ -600,7 +602,9 @@ SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活
 
 `portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {})` 在逻辑父级保留零内容占位，内容交给窗口层出口。open Binding 是期望打开状态的唯一来源；框架在普通逻辑更新中收集 getter 的 State 依赖，随后在纯求值之外同步呈现阶段。普通 Binding 的非 State 数据仍由调用方以 Props 更新通知。初始 false 不挂载内容、不安装模态屏障；容器只按约束下限测量 Portal 占位，不测量或重复呈现层内容。
 
-PortalOptions 包含 placement、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。mode 为 NonModal／FocusContained／Modal，是挂载形状，改变时退休旧会话；其他选项可正常更新。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
+PortalOptions 包含 placement、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。mode 为 NonModal／FocusContained／Modal，是普通可更新配置；同一逻辑父级、key 与 Portal 类别下切换模式保留内容实例、本地状态、编辑模型和焦点会话。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
+
+模式更新先验证完整 PortalOptions，再在普通逻辑安全边界整体更新输入屏障、代理的焦点资格、FocusScope 与后代所属模态域。边界保留建立次序，父层切换不能覆盖后来打开的嵌套层；退出中的会话保留实际关闭时的屏障直到 Accepted 移除，新的配置只在真正重开时生效。模式切换不触发 onCloseRequest／onClosed，不运行关闭／重开或重置 Presence。进入约束模式时，如果当前焦点已在面板内则保留；否则等本次配置的 Accepted 场景后取得焦点，更新的显式聚焦意图仍优先。解除约束不主动搬移现有焦点。原打开时保存的恢复目标不被每次模式切换覆盖，实际恢复按当前有效焦点域检查，不能使用已退役的边界快照拒绝仍合法的目标。
 
 Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受后写 open=false，并读取 setter 实际采纳的值。拒绝或 setter 不采纳时保持打开，但不撤回既有输入消费。外部直接写 false 不经过 veto。关闭／退出中的请求合并；请求开始即保存焦点 revision，回调内的更新请求不能被后续退出过程重新记为恢复基线。回调可以同步替换内容或关闭根，回到框架后须检查当前实例。渲染、测量、scene、draw 期间不允许发出关闭请求或修改 Binding。
 
@@ -632,7 +636,7 @@ AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现�
 
 OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受原焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受当前有效焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 的登记处于禁用状态，允许 Tab 离开；FocusContained 启用 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 启用 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
 
 退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
@@ -814,7 +818,9 @@ Label、Typography、Button 内容、可选择文字、Input／Textarea／OTP、
 
 ## 9. 宿主、关闭与错误
 
-`UiHost` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create)` 返回管理根组件的 UiWindow。`runUiApplication(title, create)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；复杂窗口策略使用显式 UiHost。
+`UiHost(onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler = { _, _, _ -> })` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create, fonts = None): UiWindow?` 成功返回 Some(UiWindow)，初次构造／挂载失败则清理并交付根错误，处理器正常返回时返回 None；挂载回调主动关闭根同样返回 None。错误线程或已经关闭的宿主在开始附着前直接拒绝。处理器默认重新抛出，不默默丢弃错误；调用方可以提供正常返回的处理器，使其他根继续运行。
+
+`runUiApplication(title, create, fonts = None)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；根错误采用明确的重新抛出策略，退出事件循环并向调用方报告失败。复杂窗口策略使用显式 UiHost。UiWindow.close 及已处理的根错误均只关闭根和 Surface，原生 Window 仍由调用方持有，不隐式触发 LastWindowPolicy；错误处理器可按 WindowId 选择销毁原生窗口或退出应用。
 
 macOS 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
 
@@ -834,7 +840,9 @@ SurfaceContent 的 close 必须幂等。通过 owner 线程检查后，attach �
 
 SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SPEC.md#4-surface-宿主与帧)，aarch64 实施及原生关闭／异常验证见 [UI 实施记录](../ui/PROGRESS.md#34-surface-内容根的所有权)。UI 根作为其 content 管理完整挂载树，逻辑回调内请求关闭同样延迟到回调返回后释放资源。
 
-参数、重复 key、活动实例重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。具体 class 静态类型与新挂载新实例的工厂约定不增加反射错误诊断；活动实例重复挂载仍报状态错误。render、update、measure、paint、输入处理或挂载回调抛错时，停止新 UI 工作，通过宿主关闭其管理的相关根及 surface，按 SurfaceHost 既有异常通路传播。首期不保留一个继续接收输入的半更新树，不增加错误边界或自动重试次数。
+参数、重复 key、实例重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。窗口的构造、render、update、measure、scene／draw、输入、作用域 deadline、动画和帧完成回调失败时，只停止失败根的新工作、退休输入与资源并关闭其 Surface；全部同步借用退出、清理完成后向 onRootError 交付一次 WindowId 和 Throwable。其他根的更新队列、共享 State 订阅与有效场景保留。挂载与逻辑队列通过 SurfaceWindow.dispatch 接入同一回调和失败通路，不先触发 SurfaceHost 的整体关闭再尝试隔离。
+
+清理继续处理其余资源，原始错误及所有清理错误按 ResourceUseException 保留；不回滚已经写入的共享业务状态，也不重试、自动重新挂载或保留可交互的半更新树。根错误处理器自身抛错、宿主应用事件回调失败、共享 renderer 故障及消息投递失败关闭整个 UiHost／SurfaceHost，向调用方传播原始与后续错误。正常返回的错误处理器不能吞掉宿主级故障。
 
 ### 9.1 异步 I/O、下载进度与跨线程更新
 
@@ -893,13 +901,13 @@ PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewp
 
 `inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。
 
-## 11. 整改目标协议（P0 合同，按批次交付）
+## 11. 完整布局与更新合同汇总
 
-本节统一 P1 的布局泛型与 P4 的构造作用域，避免为过渡接口保留桥接或平行实现。P0 不修改公开运行协议；以下签名与语义在相应批次完成实现、调用方及验收后成为现行合同。现有六种 View 职责、State 写入即通知、D0a receiver 边界和 Accepted 几何发布合同继续有效。
+本节汇总整改后的布局、构造与失效协议，详细接口见第 2～9 节。实际执行范围与结果见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。六种 View 职责、State 写入即通知、D0a receiver 边界和 Accepted 几何发布合同继续有效；不提供过渡接口或平行实现。
 
 ### 11.1 类型化结果与构造协议
 
-目标公开协议为持有当前 ComponentScope 的抽象基类：`Component(scope)`、`Element<L>(scope)`、`LazyElement<L>(scope)`。Component 声明 `render(): View`；两个自绘基类分别声明 `measure(MeasureContext, Constraints): LayoutResult<L>` 与 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`，共同声明 `scene(SceneContext, layout: L): Unit`。`onMount(): Unit`／`onUnmount(): Unit` 保留默认空实现；自绘基类的 `update(): UiInvalidation` 默认返回 Layout。UiInvalidation 为 None／Scene／Layout，后者包含场景失效。
+公开协议为持有当前 ComponentScope 的抽象基类：`Component(scope)`、`Element<L>(scope)`、`LazyElement<L>(scope)`。Component 声明 `render(): View`；两个自绘基类分别声明 `measure(MeasureContext, Constraints): LayoutResult<L>` 与 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`，共同声明 `scene(SceneContext, layout: L): Unit`。`onMount(): Unit`／`onUnmount(): Unit` 保留默认空实现；自绘基类的 `update(): UiInvalidation` 默认返回 Layout。UiInvalidation 为 None／Scene／Layout，后者包含场景失效。
 
 `LayoutResult<L>(metrics: LayoutMetrics, data: L, dispose: () -> Unit = {})` 是一次成功测量的自有结果。metrics 与 data 只读，data 使用具体的普通 struct／class；不需要数据的元素使用 Unit。成功返回转移释放责任，框架在结果不再被所选布局或本轮有效结果表引用时只调用一次 dispose。构造结果前失败，由测量实现释放本次新取得的资源；结果返回后校验或组装失败，由框架释放。释放失败按原有清理错误合并规则保留，不掩盖原始异常。
 
@@ -919,7 +927,7 @@ measureChild／measureItem 继续向容器返回 LayoutMetrics，context 内部�
 
 ### 11.3 结果表与资源持有
 
-P1 结果表属于根的一次布局轮次，保存在节点，跨不同 MeasureContext／LazyMeasureContext 回调复用。有效键为节点的布局输入版本、Constraints 值、方向及相关环境／动画采样。同一轮相同有效请求只计算一次，失败不缓存。节点内只保存真实发生的小型请求表，不要求 Constraints 的 Hash 或对象地址身份，不以任意配额限制合法布局。
+结果表属于根的一次布局轮次，保存在节点，跨不同 MeasureContext／LazyMeasureContext 回调复用。有效键为节点的布局输入版本、Constraints 值、方向及相关环境／动画采样。同一轮相同有效请求只计算一次，失败不缓存。节点内只保存真实发生的小型请求表，不要求 Constraints 的 Hash 或对象地址身份，不以任意配额限制合法布局。
 
 子树布局变化使依赖它的祖先结果失效。Lazy 的实际子项准备可以在布局期间发生，已准备项及其有效版本纳入本次结果；不能使同一父请求无条件重试。下一轮仅保留仍可能复用的当前选择，其余历史约束结果释放。完整结果之间共享子结果引用，不复制整棵放置树；多个父结果不分别关闭同一个子结果。
 
@@ -929,11 +937,11 @@ P1 结果表属于根的一次布局轮次，保存在节点，跨不同 Measure
 
 逻辑更新负责当前 Props、必要的 render／reconcile／update；布局失效负责重新测量及其依赖的祖先；场景失效只负责场景或合成。`ComponentScope.requestLayout()` 使本节点及实际布局依赖路径失效并请求帧，`requestFrame()` 只请求场景。未知输入变化保守返回 Layout，仅替换事件处理器且不改变输入资格时允许 None。children 的增删、重排及已排队后代更新独立处理，不能被 Unit 输入或父级跳过掩盖。
 
-P2 复用未失效且约束、方向及布局依赖未变化的上一轮选中结果。初期失效沿布局依赖保守传播，路径外的有效兄弟可以命中。动画在实际读取阶段登记用途：布局阶段读取的值变化使布局失效，场景阶段读取仅使场景失效；两者都读取按布局处理。沿用 Surface 时间轴、完成回调与帧参与，不把逐帧值写入 State。
+框架复用未失效且约束、方向及布局依赖未变化的上一轮选中结果。初期失效沿布局依赖保守传播，路径外的有效兄弟可以命中。动画在实际读取阶段登记用途：布局阶段读取的值变化使布局失效，场景阶段读取仅使场景失效；两者都读取按布局处理。沿用 Surface 时间轴、完成回调与帧参与，不把逐帧值写入 State。
 
-字体、图像固有尺寸等可变资源使用实际通知或 revision。仅有 revision 的资源在已请求帧入口集中检查一次，失效实际依赖节点；不在每个节点扫描全部资源，也不为检查资源制造周期帧。P4 根默认字体由 scope 明确提供，显式控件字体优先；根只关闭自己创建的 fallback 集合，多个窗口借用的外部集合由调用方关闭。
+字体、图像固有尺寸等可变资源使用实际通知或 revision。仅有 revision 的资源在已请求帧入口集中检查一次，失效实际依赖节点；不在每个节点扫描全部资源，也不为检查资源制造周期帧。根默认字体由 scope 明确提供，显式控件字体优先；根只关闭自己创建的 fallback 集合，多个窗口借用的外部集合由调用方关闭。
 
-P5 场景缓存不能仅由尺寸相等推定有效。当前变换、clip、顺序、输入资格、焦点、锚点及 Portal 出口继续参与本帧组装。一次性帧完成回调不能作为跨帧记录重放；像素缓存、scene 跳过和几何复用分别验证。draw 保持直接绘图，drawLayer 保持有限独立记录与合成隔离，缓存开关不改变 Clear／Src 等混合结果。
+场景缓存不能仅由尺寸相等推定有效。当前变换、clip、顺序、输入资格、焦点、锚点及 Portal 出口继续参与本帧组装。一次性帧完成回调不能作为跨帧记录重放；像素缓存、scene 跳过和几何复用分别验证。draw 保持直接绘图，drawLayer 保持有限独立记录与合成隔离，缓存开关不改变 Clear／Src 等混合结果。
 
 ### 11.5 定向验收
 

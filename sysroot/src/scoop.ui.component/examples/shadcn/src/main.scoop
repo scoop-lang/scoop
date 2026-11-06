@@ -21,7 +21,7 @@ internal fun runGallery(model: GalleryModel) {
                             )
                         host.attach(
                             window,
-                            { mount -> Gallery(model, fonts, scope = mount) },
+                            { mount -> Gallery(model, scope = mount) },
                             fonts = Some(fonts)
                         )
                         window.requestFocus()

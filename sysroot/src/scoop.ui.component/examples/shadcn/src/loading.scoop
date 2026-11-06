@@ -9,12 +9,10 @@ import scoop.ui.component.row as makeRow
 import scoop.ui.component.card as makeCard
 import scoop.ui.style.*
 
-internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun skeletonExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(panelHeading("Skeleton", fonts))
-        this.label("Keep content in place while it loads. Reveal it when ready.") {
-            this.fonts = Some(fonts)
-        }
+        this.add(panelHeading("Skeleton"))
+        this.label("Keep content in place while it loads. Reveal it when ready.")
         this.row {
             this.skeleton {
                 this.shape = SkeletonShape.Circle;
@@ -39,15 +37,13 @@ internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View 
         }
         this.scrollArea(
             makeColumn {
-                this.skeleton(
-                    component({ mount -> LoadedSkeletonCard(model, fonts, scope = mount) })
-                ) {
+                this.skeleton(component({ mount -> LoadedSkeletonCard(model, scope = mount) })) {
                     this.loading = model.skeletonLoading.value
                     this.animated = model.skeletonAnimated.value
                     this.width = Some(model.loadingExtent.value)
                 }
                 this.frame(empty()) { this.height = Some(400.0) }
-                this.label("Scroll up to return to the preview.") { this.fonts = Some(fonts) }
+                this.label("Scroll up to return to the preview.")
                 this.spacing = 24.0
                 this.padding = Insets.all(8.0)
                 this.alignment = CrossAlignment.Start
@@ -64,27 +60,21 @@ internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View 
                 else
                     "Show skeleton",
                 { model.skeletonLoading.value = !model.skeletonLoading.value }
-            ) { this.fonts = Some(fonts) }
+            )
             this.button(
                 if (model.skeletonAnimated.value)
                     "Pause pulse"
                 else
                     "Animate pulse",
                 { model.skeletonAnimated.value = !model.skeletonAnimated.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (model.reduced.value)
                     "Use full motion"
                 else
                     "Reduce motion",
                 { model.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.spacing = 24.0
@@ -92,63 +82,46 @@ internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View 
         this.alignment = CrossAlignment.Start
     }
 
-private class LoadedSkeletonCard(
-    private val model: GalleryModel,
-    private val fonts: FontCollection,
-    scope: ComponentScope
-): Component(scope) {
+private class LoadedSkeletonCard(private val model: GalleryModel, scope: ComponentScope): Component(
+    scope
+) {
     private val count = state(0)
     public override fun onMount() {
         model.skeletonCreates += 1
     }
-    public override fun render(): View =
-        makeCard(
+    public override fun render(): View {
+        val model = this.model
+        val count = this.count
+        return makeCard(
             makeRow {
                 this.button(
-                    f"Saved ${this @LoadedSkeletonCard.count.value}",
+                    f"Saved ${count.value}",
                     {
-                        this @LoadedSkeletonCard.count.value += 1
-                        this @LoadedSkeletonCard.model.skeletonCount =
-                            this @LoadedSkeletonCard.count.value
+                        count.value += 1
+                        model.skeletonCount = count.value
                     }
-                ) {
-                    this.fonts = Some(this @LoadedSkeletonCard.fonts);
-                    this.focus = FocusOptions(Some(this @LoadedSkeletonCard.model.skeletonFocus))
-                }
-                this.spinner {
-                    this.running = this @LoadedSkeletonCard.model.skeletonChildRunning.value
-                }
+                ) { this.focus = FocusOptions(Some(model.skeletonFocus)) }
+                this.spinner { this.running = model.skeletonChildRunning.value }
                 this.button(
                     "Toggle activity",
-                    {
-                        this @LoadedSkeletonCard.model.skeletonChildRunning.value =
-                            !this @LoadedSkeletonCard.model.skeletonChildRunning.value
-                    }
-                ) {
-                    this.fonts = Some(this @LoadedSkeletonCard.fonts)
-                    this.variant = ButtonVariant.Ghost
-                }
+                    { model.skeletonChildRunning.value = !model.skeletonChildRunning.value }
+                ) { this.variant = ButtonVariant.Ghost }
                 this.spacing = 12.0
                 this.alignment = CrossAlignment.Center
             }
-        ) {
-            this.title("Your workspace is ready");
-            this.fonts = Some(this @LoadedSkeletonCard.fonts)
-        }
+        ) { this.title("Your workspace is ready"); }
+    }
 }
 
-internal fun progressExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun progressExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(panelHeading("Progress", fonts))
-        this.label("Track a known value, or show ongoing work until a total becomes available.") {
-            this.fonts = Some(fonts)
-        }
+        this.add(panelHeading("Progress"))
+        this.label("Track a known value, or show ongoing work until a total becomes available.")
         this.scrollArea(
             makeColumn {
                 this.progress(model.progressValue.value) {
                     this.label("Uploading project files")
                     this.showValue = true
-                    this.fonts = Some(fonts)
                     if (model.loadingTransparent.value)
                         this.indicatorColor = Some(Color.Transparent)
                 }
@@ -157,12 +130,11 @@ internal fun progressExamples(model: GalleryModel, fonts: FontCollection): View 
                     this.maximum = 8.0;
                     this.label("Processing tasks");
                     this.valueLabel("3 of 8")
-                    this.fonts = Some(fonts)
                     this.thickness = Some(8.0)
                     this.indicatorColor = Some(Color(0.22, 0.55, 0.42))
                 }
                 this.frame(empty()) { this.height = Some(400.0) }
-                this.label("Scroll up to return to the preview.") { this.fonts = Some(fonts) }
+                this.label("Scroll up to return to the preview.")
                 this.spacing = 24.0
                 this.padding = Insets.all(8.0)
                 this.alignment = CrossAlignment.Stretch
@@ -173,21 +145,15 @@ internal fun progressExamples(model: GalleryModel, fonts: FontCollection): View 
             this.height = Some(180.0)
         }
         this.row {
-            this.button("Start", { model.progressValue.value = Some(0.0) }) {
-                this.fonts = Some(fonts)
-            }
+            this.button("Start", { model.progressValue.value = Some(0.0) })
             this.button(
                 "Advance 20%",
                 {
                     model.progressValue.value =
                         Some(((model.progressValue.value ?: 0.0) + 20.0) % 120.0)
                 }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Unknown total", { model.progressValue.value = None }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button(
@@ -196,10 +162,7 @@ internal fun progressExamples(model: GalleryModel, fonts: FontCollection): View 
                 else
                     "Reduce motion",
                 { model.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.spacing = 24.0

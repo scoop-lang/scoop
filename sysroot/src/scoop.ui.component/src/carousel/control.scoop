@@ -31,7 +31,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         }
     val focus = scope.focusTarget(area, read().props.viewport.focus)
     val motion = scope.animation(0.0)
-    val timer = scope.resource { scope.nativeWindow.createDeadline { autoplayTick() } }
+    val timer = scope.createDeadline { autoplayTick() }
     var geometry: CarouselGeometry? = None
     var gesture: CarouselGesture? = None
     private var handle: CarouselHandle? = None

@@ -105,7 +105,11 @@ private class ShowcaseProbe {
                 model.systemTheme(native.observedTheme)
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                host.attach(native, { mount -> ObservedShowcase(this, scope = mount) })
+                host.attach(
+                    native,
+                    { mount -> ObservedShowcase(this, scope = mount) },
+                    fonts = Some(fonts)
+                )
                 waitFor(active, 25000L)
             }
             case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)
@@ -263,7 +267,7 @@ private class ObservedShowcase(private val probe: ShowcaseProbe, scope: Componen
                     {
                         mount ->
                         probe.creates += 1
-                        Showcase(probe.model, probe.fonts, scope = mount)
+                        Showcase(probe.model, scope = mount)
                     }
                 )
             ]

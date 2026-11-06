@@ -92,7 +92,7 @@ internal class DrawingProbe {
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 view = Some(observeWindow(native))
-                uiWindow = Some(host.attach(native, { mount -> DrawingScene(this, scope = mount) }))
+                uiWindow = host.attach(native, { mount -> DrawingScene(this, scope = mount) })
                 waitFor(application, 30000L)
             }
             case AboutToWait -> advance(application)

@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
@@ -28,21 +27,16 @@ internal class PopoverExamplesModel {
     val handle = OverlayHandle()
 }
 
-internal fun popoverExamples(
-    model: PopoverExamplesModel,
-    fonts: FontCollection,
-    gallery: GalleryModel
-): View =
+internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel): View =
     makeColumn {
-        add(panelHeading("Popover", fonts))
+        add(panelHeading("Popover"))
         typography(
             "Edit a real form in an anchored popup. Escape closes it; Tab follows the selected focus mode.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         row {
             for (mode in [OverlayMode.NonModal, OverlayMode.FocusContained, OverlayMode.Modal]) {
                 button(popoverModeName(mode), { model.mode.value = mode }) {
-                    this.fonts = Some(fonts)
                     variant =
                         if (model.mode.value == mode)
                             ButtonVariant.Default
@@ -59,30 +53,21 @@ internal fun popoverExamples(
                 else
                     "Veto close",
                 { model.veto.value = !model.veto.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.reject.value)
                     "Accept binding"
                 else
                     "Reject binding",
                 { model.reject.value = !model.reject.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.enabled.value)
                     "Disable"
                 else
                     "Enable",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             spacing = 8.0
         }
         row {
@@ -92,10 +77,7 @@ internal fun popoverExamples(
                 else
                     "Motion: Full",
                 { gallery.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 "Cycle side",
                 {
@@ -107,10 +89,7 @@ internal fun popoverExamples(
                             else -> OverlaySide.Bottom
                         }
                 }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Ghost
-            }
+            ) { variant = ButtonVariant.Ghost }
             button(
                 "Cycle alignment",
                 {
@@ -121,10 +100,7 @@ internal fun popoverExamples(
                             case End -> OverlayAlignment.Start
                         }
                 }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Ghost
-            }
+            ) { variant = ButtonVariant.Ghost }
             spacing = 8.0
         }
         row {
@@ -134,10 +110,7 @@ internal fun popoverExamples(
                 else
                     "Show arrow",
                 { model.arrow.value = !model.arrow.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
         }
         row {
             popover(
@@ -149,17 +122,12 @@ internal fun popoverExamples(
                     }
                 ),
                 makeColumn {
-                    typography("Width", TypographyRole.Small) { this.fonts = Some(fonts) }
-                    add(
-                        makeInput(model.width) {
-                            this.fonts = Some(fonts);
-                            focus = FocusOptions(Some(model.edit))
-                        }
-                    )
-                    typography("Max. width", TypographyRole.Small) { this.fonts = Some(fonts) }
-                    add(makeInput(model.maxWidth) { this.fonts = Some(fonts) })
-                    typography("Height", TypographyRole.Small) { this.fonts = Some(fonts) }
-                    add(makeInput(model.height) { this.fonts = Some(fonts) })
+                    typography("Width", TypographyRole.Small)
+                    add(makeInput(model.width) { focus = FocusOptions(Some(model.edit)) })
+                    typography("Max. width", TypographyRole.Small)
+                    add(makeInput(model.maxWidth))
+                    typography("Height", TypographyRole.Small)
+                    add(makeInput(model.height))
                     button(
                         "Save dimensions",
                         {
@@ -168,16 +136,15 @@ internal fun popoverExamples(
                                     model.maxWidth.text
                                 }"
                         }
-                    ) { this.fonts = Some(fonts) }
+                    )
                     popover(
                         model.nested.binding(),
                         makeColumn {
                             typography(
                                 "Nested content keeps its logical parent.",
                                 TypographyRole.Small
-                            ) { this.fonts = Some(fonts) }
+                            )
                             button("Close nested", { model.nested.value = false }) {
-                                this.fonts = Some(fonts);
                                 variant = ButtonVariant.Outline
                             }
                             spacing = 8.0;
@@ -185,12 +152,11 @@ internal fun popoverExamples(
                         }
                     ) {
                         trigger("More options") { size = ButtonSize.Sm }
-                        this.fonts = Some(fonts);
+
                         side = OverlaySide.End;
                         width = 220.0
                     }
                     button("Close", { model.handle.requestClose() }) {
-                        this.fonts = Some(fonts);
                         variant = ButtonVariant.Ghost
                     }
                     spacing = 8.0;
@@ -200,7 +166,6 @@ internal fun popoverExamples(
                 trigger("Open popover")
                 title("Dimensions")
                 description("Set the dimensions for the layer.")
-                this.fonts = Some(fonts)
                 mode = model.mode.value;
                 side = model.side.value;
                 alignment = model.alignment.value
@@ -218,16 +183,15 @@ internal fun popoverExamples(
             }
         }
         button(f"Outside action · ${model.outside.value}", { model.outside.value += 1 }) {
-            this.fonts = Some(fonts);
             variant = ButtonVariant.Secondary
         }
-        typography(model.saved.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        typography(model.saved.value, TypographyRole.Small)
         typography(
             f"Open: ${model.open.value} · binding changes: ${
                 model.changes.value
             } · completed closes: ${model.closes.value}",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         spacing = 16.0
         alignment = CrossAlignment.Start
     }

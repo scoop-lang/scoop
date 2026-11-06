@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
@@ -28,17 +27,15 @@ internal class SliderExamplesModel {
     val target = FieldTarget()
 }
 
-internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
+internal fun sliderExamples(model: GalleryModel): View {
     val data = model.sliders
     return makeColumn {
-        this.add(panelHeading("Slider", fonts))
+        this.add(panelHeading("Slider"))
         this.typography(
             "Drag a thumb or click its track. Arrow keys step, Home / End reach the allowed endpoints, and Page keys move ten steps. Escape cancels a drag.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        this.typography(f"Volume: ${data.single.value[0L].toInt()}%", TypographyRole.Small) {
-            this.fonts = Some(fonts)
-        }
+        )
+        this.typography(f"Volume: ${data.single.value[0L].toInt()}%", TypographyRole.Small)
         this.frame(
             makeSlider(
                 data.single.binding(),
@@ -61,7 +58,7 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
         this.fieldLabel(
             f"Price range: $${data.range.value[0L].toInt()} – $${data.range.value[1L].toInt()}",
             data.target
-        ) { this.fonts = Some(fonts) }
+        )
         this.frame(
             makeSlider(
                 data.range.binding(),
@@ -82,9 +79,7 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
                         560.0
                 )
         }
-        this.typography("Three independent thumbs · minimum gap 10", TypographyRole.Small) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Three independent thumbs · minimum gap 10", TypographyRole.Small)
         this.frame(
             makeSlider(
                 data.multiple.binding(),
@@ -100,7 +95,7 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
                 (data.continuous.value[1L] * 100.0).toInt()
             }%",
             TypographyRole.Small
-        ) { this.fonts = Some(fonts) }
+        )
         this.frame(
             makeSlider(data.continuous.binding(), RangeSpec(0.0, 1.0, minimumGap = 0.1)) {
                 this.keyboardStep = Some(0.01)
@@ -111,26 +106,21 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
         ) { this.width = Some(560.0) }
         this.row {
             this.button("Reset range", { data.range.value = [20.0, 70.0] }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle disabled", { data.enabled.value = !data.enabled.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle invalid", { data.invalid.value = !data.invalid.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Reverse", { data.reversed.value = !data.reversed.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
         }
         this.row {
             this.button("Toggle width", { data.narrow.value = !data.narrow.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button(
@@ -139,17 +129,14 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
                 else
                     "Reduce motion",
                 { model.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.typography(
             f"Commits: ${data.commits.value} · Cancellations: ${data.cancels.value}",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        this.typography("Vertical", TypographyRole.H3) { this.fonts = Some(fonts) }
+        )
+        this.typography("Vertical", TypographyRole.H3)
         this.row {
             for (value in data.vertical)
                 this.frame(
@@ -175,7 +162,7 @@ internal fun sliderExamples(model: GalleryModel, fonts: FontCollection): View {
                 }
             this.spacing = 24.0
         }
-        this.typography("Disabled", TypographyRole.Small) { this.fonts = Some(fonts) }
+        this.typography("Disabled", TypographyRole.Small)
         this.frame(
             makeSlider(data.disabled.binding(), RangeSpec(0.0, 100.0, Some(1.0))) {
                 this.enabled = false

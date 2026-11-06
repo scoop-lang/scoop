@@ -65,6 +65,7 @@ private class UiFailureTest {
             assertEquals(harness.records.size - 1L, harness.index)
             val last = harness.records[harness.index]
             assertTrue(containsFailure(failure, last.primary))
+            assertEquals(1, failureCount(failure, last.primary))
             assertTrue(containsFailure(failure, last.cleanupA))
             assertTrue(containsFailure(failure, last.cleanupB))
             for (record in harness.records) {
@@ -310,4 +311,13 @@ private fun containsFailure(error: Throwable, expected: Throwable): Boolean {
         return containsFailure(error.primaryFailure, expected) ||
             containsFailure(error.cleanupFailure, expected)
     return false
+}
+
+private fun failureCount(error: Throwable, expected: Throwable): Int {
+    if (error === expected)
+        return 1
+    if (error is ResourceUseException)
+        return failureCount(error.primaryFailure, expected) +
+            failureCount(error.cleanupFailure, expected)
+    return 0
 }

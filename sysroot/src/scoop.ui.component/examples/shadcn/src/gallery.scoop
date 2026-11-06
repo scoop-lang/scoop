@@ -1,353 +1,139 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.*
 import scoop.ui.*
+import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
 import scoop.ui.component.row as makeRow
 import scoop.ui.component.frame as makeFrame
 import scoop.ui.component.scrollArea as makeScrollArea
-import scoop.ui.component.*
 import scoop.ui.style.*
 
-internal class Gallery(
-    private val model: GalleryModel,
-    private val fonts: FontCollection,
-    scope: ComponentScope
-): Component(scope) {
-    public override fun render(): View {
-        val palette = model.source.current.value.tokens.palette
-        val entries = model.entries()
-        val current = model.current(entries)
-        return cachedScene(
-            direction(
-                makeFrame(
-                    makeColumn {
-                        this.row {
-                            this.add(this @Gallery.text("Scoop / shadcn", 22.0, 700))
-                            this.item(empty()) { this.grow = 1.0 }
-                            if (this @Gallery.model.hasSystemColors)
-                                this.button(
-                                    if (this @Gallery.model.usesSystemColors)
-                                        "Colors: System"
-                                    else
-                                        "Colors: Neutral",
-                                    { this @Gallery.model.toggleColors() }
-                                ) {
-                                    this.fonts = Some(this @Gallery.fonts)
-                                    this.variant = ButtonVariant.Outline
-                                }
-                            this.button(
-                                if (this @Gallery.model.mode.value == ThemeMode.Light)
-                                    "Dark theme"
-                                else
-                                    "Light theme",
-                                { this @Gallery.model.toggleTheme() }
+internal class Gallery(private val model: GalleryModel, scope: ComponentScope): Component(scope) {
+    public override fun render(): View = galleryView(model)
+}
+
+private fun galleryView(model: GalleryModel): View {
+    val palette = model.source.current.value.tokens.palette
+    val entries = model.entries()
+    val current = model.current(entries)
+    val content =
+        when (current) {
+            case Some(value) -> galleryDemo(model, value)
+            case None -> makeColumn {
+                spacing = 12.0
+                add(galleryText(model, "No matching components", 24.0, 600))
+                add(
+                    galleryText(model, "Try Card, Alert, Button, Input, or Empty.", 14.0, 400, true)
+                )
+            }
+        }
+    return cachedScene(
+        direction(
+            makeFrame(
+                makeColumn {
+                    spacing = 24.0
+                    padding = Insets.all(28.0)
+                    alignment = CrossAlignment.Stretch
+                    add(galleryToolbar(model))
+                    item(
+                        makeRow {
+                            spacing = 32.0
+                            alignment = CrossAlignment.Stretch
+                            add(galleryNavigation(model, entries, current))
+                            item(
+                                makeScrollArea(
+                                    makeFrame(content) { padding = Some(Insets.all(6.0)) }
+                                )
                             ) {
-                                this.fonts = Some(this @Gallery.fonts)
-                                this.variant = ButtonVariant.Outline
+                                grow = 1.0
+                                basis = FlexBasis.Fixed(0.0)
                             }
-                            this.button(
-                                if (this @Gallery.model.direction.value == LayoutDirection.Ltr)
-                                    "Switch to RTL"
-                                else
-                                    "Switch to LTR",
-                                { this @Gallery.model.toggleDirection() }
-                            ) {
-                                this.fonts = Some(this @Gallery.fonts)
-                                this.variant = ButtonVariant.Outline
-                            }
-                            this.spacing = 12.0
-                            this.alignment = CrossAlignment.Center
                         }
-                        this.item(
-                            makeRow {
-                                this.frame(
-                                    makeScrollArea(
-                                        makeColumn {
-                                            this.input(this @Gallery.model.query) {
-                                                this.placeholder = "Search components..."
-                                                this.fonts = Some(this @Gallery.fonts)
-                                            }
-                                            this.add(
-                                                this @Gallery.text("COMPONENTS", 11.0, 600, true)
-                                            )
-                                            for (entry in entries)
-                                                this.button(
-                                                    demoTitle(entry),
-                                                    { this @Gallery.model.selected.value = entry }
-                                                ) {
-                                                    this.fonts = Some(this @Gallery.fonts)
-                                                    this.variant =
-                                                        if (current == Some(entry))
-                                                            ButtonVariant.Default
-                                                        else
-                                                            ButtonVariant.Outline
-                                                    style {
-                                                        surface {
-                                                            this.suggestedSize =
-                                                                Some(Size(190.0, 32.0))
-                                                        }
-                                                    }
-                                                }
-                                            this.spacing = 12.0
-                                            this.alignment = CrossAlignment.Stretch
-                                            this.padding = Insets(4.0, 4.0, 12.0, 4.0)
-                                        }
-                                    )
-                                ) {
-                                    this.width = Some(190.0)
-                                    this.alignment =
-                                        Alignment(AxisAlignment.Start, AxisAlignment.Start)
-                                }
-                                this.item(
-                                    makeScrollArea(
-                                        makeFrame(
-                                            when (current) {
-                                                case Some(value) -> this @Gallery.demo(value)
-                                                case None -> makeColumn {
-                                                    this.add(
-                                                        this @Gallery.text(
-                                                            "No matching components",
-                                                            24.0,
-                                                            600
-                                                        )
-                                                    )
-                                                    this.add(
-                                                        this @Gallery.text(
-                                                            "Try Card, Alert, Button, Input, or Empty.",
-                                                            14.0,
-                                                            400,
-                                                            true
-                                                        )
-                                                    )
-                                                    this.spacing = 12.0
-                                                }
-                                            }
-                                        ) { padding = Some(Insets.all(6.0)) }
-                                    )
-                                ) {
-                                    this.grow = 1.0;
-                                    this.basis = FlexBasis.Fixed(0.0)
-                                }
-                                this.spacing = 32.0
-                                this.alignment = CrossAlignment.Stretch
-                            }
-                        ) {
-                            this.grow = 1.0;
-                            this.basis = FlexBasis.Fixed(0.0)
-                        }
-                        this.add(
-                            this @Gallery.text(
-                                "Base Nova  /  Native Scoop controls",
-                                12.0,
-                                400,
-                                true
-                            )
-                        )
-                        this.spacing = 24.0
-                        this.padding = Insets.all(28.0)
-                        this.alignment = CrossAlignment.Stretch
+                    ) {
+                        grow = 1.0
+                        basis = FlexBasis.Fixed(0.0)
                     }
-                ) { style { this.background(Some(Paint(palette.background.background))) } },
-                model.direction.value
-            )
+                    add(galleryText(model, "Base Nova  /  Native Scoop controls", 12.0, 400, true))
+                }
+            ) { style { background(Some(Paint(palette.background.background))) } },
+            model.direction.value
         )
+    )
+}
+
+private fun galleryToolbar(model: GalleryModel): View {
+    val colors =
+        if (model.usesSystemColors)
+            "Colors: System"
+        else
+            "Colors: Neutral"
+    val theme =
+        if (model.mode.value == ThemeMode.Light)
+            "Dark theme"
+        else
+            "Light theme"
+    val direction =
+        if (model.direction.value == LayoutDirection.Ltr)
+            "Switch to RTL"
+        else
+            "Switch to LTR"
+    return makeRow {
+        spacing = 12.0
+        alignment = CrossAlignment.Center
+        add(galleryText(model, "Scoop / shadcn", 22.0, 700))
+        item(empty()) { grow = 1.0 }
+        if (model.hasSystemColors)
+            button(colors, { model.toggleColors() }) { variant = ButtonVariant.Outline }
+        button(theme, { model.toggleTheme() }) { variant = ButtonVariant.Outline }
+        button(direction, { model.toggleDirection() }) { variant = ButtonVariant.Outline }
     }
+}
 
-    internal fun text(
-        value: String,
-        size: Double = 14.0,
-        weight: Int = 400,
-        muted: Boolean = false
-    ): View {
-        val palette = model.source.current.value.tokens.palette
-        return label(value) {
-            this.fonts = Some(this @Gallery.fonts)
-            this.style =
-                Some(
-                    spanStyle {
-                        this.fontSize = Some(size)
-                        this.weight = Some(weight)
-                        this.color =
-                            Some(
-                                if (muted)
-                                    palette.muted.foreground
-                                else
-                                    palette.background.foreground
-                            )
-                    }
-                )
-        }
-    }
-
-    private fun demo(value: Demo): View =
-        when (value) {
-            case Button -> controlDemo(ControlDemo.Button)
-            case Input -> controlDemo(ControlDemo.Input)
-            case Checkbox -> controlDemo(ControlDemo.Checkbox)
-            case Badge -> badgeExamples(model, fonts)
-            case Spinner -> spinnerExamples(model, fonts)
-            case Card -> cardExamples(model, fonts)
-            case Separator -> separatorExamples(fonts)
-            case AspectRatio -> component({ mount -> AspectExamples(fonts, scope = mount) })
-            case Alert -> alertExamples(model, fonts)
-            case Empty -> emptyExamples(model, fonts)
-            case Avatar -> component({ mount -> AvatarExamples(model, fonts, scope = mount) })
-            case Skeleton -> skeletonExamples(model, fonts)
-            case Progress -> progressExamples(model, fonts)
-            case Typography -> typographyExamples(model, fonts)
-            case Kbd -> component({ mount -> KbdExamples(model, fonts, scope = mount) })
-            case Label -> fieldLabelExamples(model.fields, fonts)
-            case ButtonGroup -> buttonGroupExamples(model.groups, fonts)
-            case Item -> component(
-                model.items,
-                { _, mount -> ItemExamples(model.items, fonts, scope = mount) }
-            )
-            case Switch -> switchExamples(model, fonts)
-            case Toggle -> toggleExamples(model.selection, fonts)
-            case InputOtp -> otpExamples(model.otp, fonts)
-            case RadioGroup -> radioGroupExamples(model.choices, fonts, model.source.current.value)
-            case ToggleGroup -> toggleGroupExamples(model.choices, fonts)
-            case Slider -> sliderExamples(model, fonts)
-            case Textarea -> textareaExamples(model.textFields, fonts)
-            case InputGroup -> inputGroupExamples(model.inputGroups, fonts)
-            case Field -> settingsExamples(model.settings, fonts, model.source.current.value)
-            case Direction -> directionExamples(model.directions, fonts, model.source.current.value)
-            case ScrollArea -> scrollExamples(model.scrolling, fonts, model.source.current.value)
-            case Collapsible -> collapsibleExamples(model.disclosures, fonts)
-            case Accordion -> accordionExamples(model.disclosures, fonts)
-            case Tabs -> tabsExamples(model, fonts)
-            case Breadcrumb -> breadcrumbExamples(model.navigation, fonts)
-            case Pagination -> paginationExamples(model.navigation, fonts)
-            case Popover -> popoverExamples(model.popover, fonts, model)
-            case Tooltip -> tooltipExamples(model.hints, fonts)
-            case HoverCard -> hoverCardExamples(model.previews, fonts)
-            case Dialog -> dialogExamples(model.dialogs, fonts, model)
-            case AlertDialog -> alertDialogExamples(model.confirmations, fonts, model)
-            case Sheet -> sheetExamples(model.sheets, fonts, model)
-            case DropdownMenu -> menuExamples(model.menus, fonts, model, value)
-            case ContextMenu -> menuExamples(model.menus, fonts, model, value)
-            case Menubar -> menuExamples(model.menus, fonts, model, value)
-            case Select -> selectExamples(model.selects, fonts)
-            case Command -> commandExamples(model.commands, fonts)
-            case Combobox -> comboboxExamples(model.comboboxes, fonts)
-            case NavigationMenu -> navigationMenuExamples(model.navigationMenus, fonts)
-            case Carousel -> carouselExamples(model.carousels, fonts)
-            case Drawer -> drawerExamples(model.drawers, fonts)
-            case Sidebar -> sidebarExamples(model.sidebars, fonts)
-            case Resizable -> resizableExamples(
-                model.resizables,
-                fonts,
-                model.source.current.value.tokens.palette.border
-            )
-        }
-
-    private fun controlDemo(value: ControlDemo): View =
-        makeColumn {
-            this.add(
-                this @Gallery.text(
-                    when (value) {
-                        case Button -> "Button";
-                        case Input -> "Input";
-                        case Checkbox -> "Checkbox"
-                    },
-                    32.0,
-                    650
-                )
-            )
-            this.add(
-                this @Gallery.text(
-                    when (value) {
-                        case Button -> "A real action with pointer, keyboard, and validation states."
-                        case Input -> "One text model, native text services, and theme-aware validation."
-                        case Checkbox -> "A controlled value with one activation path and a visible state ring."
-                    },
-                    14.0,
-                    400,
-                    true
-                )
-            )
-            this.row {
-                for (state in [PreviewState.Normal, PreviewState.Invalid, PreviewState.Disabled])
-                    this.item(this @Gallery.preview(value, state)) {
-                        this.grow = 1.0;
-                        this.basis = FlexBasis.Fixed(0.0)
-                    }
-                this.spacing = 16.0
-                this.alignment = CrossAlignment.Stretch
-            }
-            this.add(this @Gallery.text("Keyboard focus", 18.0, 600))
-            this.add(
-                this @Gallery.text(
-                    "Tab between controls. Pointer focus keeps the action ring quiet; keyboard and programmatic focus show it. Text inputs keep a visible ring when clicked.",
-                    14.0,
-                    400,
-                    true
-                )
-            )
-            this.button(
-                "Focus the normal control",
-                {
-                    this @Gallery.model.focus(value).requestFocus();
-                    Unit
-                }
-            ) {
-                this.fonts = Some(this @Gallery.fonts)
-                this.variant = ButtonVariant.Outline
-            }
-            this.add(
-                this @Gallery.text(
-                    when (value) {
-                        case Button -> f"Action count: ${this @Gallery.model.clicks.value}"
-                        case Input -> f"Current value: ${this @Gallery.model.name.text}"
-                        case Checkbox -> if (this @Gallery.model.checked.value)
-                            "Current value: checked"
-                        else
-                            "Current value: unchecked"
-                    },
-                    14.0,
-                    500
-                )
-            )
-            this.add(
-                this @Gallery.text(
-                    "Theme and direction changes retain the same application state. Invalid controls remain interactive; disabled controls do not activate.",
-                    14.0,
-                    400,
-                    true
-                )
-            )
-            if (value == ControlDemo.Button)
-                this.add(buttonExamples(this @Gallery.model, this @Gallery.fonts))
-            if (value == ControlDemo.Checkbox)
-                this.add(checkboxGroupExamples(this @Gallery.model.selection, this @Gallery.fonts))
-            if (value == ControlDemo.Input)
-                this.add(inputExamples(this @Gallery.model.textFields, this @Gallery.fonts))
-            this.spacing = 24.0
-            this.padding = Insets(6.0, 6.0, 12.0, 12.0)
-            this.alignment = CrossAlignment.Stretch
-        }
-
-    private fun preview(value: ControlDemo, state: PreviewState): View {
-        val palette = model.source.current.value.tokens.palette
-        return makeFrame(
+private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current: Demo?): View =
+    makeFrame(
+        makeScrollArea(
             makeColumn {
-                this.add(this @Gallery.text(previewTitle(state), 12.0, 500, true))
-                this.frame(previewControl(this @Gallery.model, this @Gallery.fonts, value, state)) {
-                    this.height = Some(84.0)
-                    this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
-                }
-                this.spacing = 16.0
-                this.alignment = CrossAlignment.Stretch
+                spacing = 12.0
+                alignment = CrossAlignment.Stretch
+                padding = Insets(4.0, 4.0, 12.0, 4.0)
+                input(model.query) { placeholder = "Search components..." }
+                add(galleryText(model, "COMPONENTS", 11.0, 600, true))
+                for (entry in entries)
+                    button(demoTitle(entry), { model.selected.value = entry }) {
+                        variant =
+                            if (current == Some(entry))
+                                ButtonVariant.Default
+                            else
+                                ButtonVariant.Outline
+                        style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
+                    }
             }
-        ) {
-            this.padding = Some(Insets.all(16.0))
-            style {
-                this.background(Some(Paint(palette.card.background)))
-                this.border(Some(Border.all(1.0, palette.border)))
-                this.corners(Corners.all(10.0))
-            }
+        )
+    ) {
+        width = Some(190.0)
+        alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+    }
+
+internal fun galleryText(
+    model: GalleryModel,
+    value: String,
+    size: Double = 14.0,
+    weight: Int = 400,
+    muted: Boolean = false
+): View {
+    val palette = model.source.current.value.tokens.palette
+    return label(value) {
+        style {
+            fontSize = Some(size)
+            this.weight = Some(weight)
+            color =
+                Some(
+                    if (muted)
+                        palette.muted.foreground
+                    else
+                        palette.background.foreground
+                )
         }
     }
 }

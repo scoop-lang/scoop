@@ -49,15 +49,15 @@ internal class SelectionExamplesModel {
         )
 }
 
-internal fun checkboxGroupExamples(model: SelectionExamplesModel, fonts: FontCollection): View =
+internal fun checkboxGroupExamples(model: SelectionExamplesModel): View =
     makeColumn {
-        this.typography("Select notifications", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography("Select notifications", TypographyRole.H3)
         this.row {
             this.checkbox(model.all()) {
                 this.labelTarget = Some(model.checkTargets[0L]);
                 this.enabled = model.enabled.value
             }
-            this.fieldLabel("Select all", model.checkTargets[0L]) { this.fonts = Some(fonts) }
+            this.fieldLabel("Select all", model.checkTargets[0L])
             this.alignment = CrossAlignment.Center
             this.spacing = 8.0
         }
@@ -68,9 +68,7 @@ internal fun checkboxGroupExamples(model: SelectionExamplesModel, fonts: FontCol
                     this.labelTarget = Some(model.checkTargets[index + 1L]);
                     this.enabled = model.enabled.value
                 }
-                this.fieldLabel(titles[index], model.checkTargets[index + 1L]) {
-                    this.fonts = Some(fonts)
-                }
+                this.fieldLabel(titles[index], model.checkTargets[index + 1L])
                 this.alignment = CrossAlignment.Center
                 this.padding = Insets(24.0, 0.0, 0.0, 0.0)
                 this.spacing = 8.0
@@ -81,24 +79,21 @@ internal fun checkboxGroupExamples(model: SelectionExamplesModel, fonts: FontCol
             else
                 "Enable group",
             { model.enabled.value = !model.enabled.value }
-        ) {
-            this.fonts = Some(fonts);
-            this.variant = ButtonVariant.Outline
-        }
+        ) { this.variant = ButtonVariant.Outline }
         this.typography(
             "A partial selection shows Mixed. Activate Select all to check every option; activate it again to clear them.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.spacing = 12.0
     }
 
-internal fun switchExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun switchExamples(model: GalleryModel): View =
     makeColumn {
-        this.typography("Switch", TypographyRole.H1) { this.fonts = Some(fonts) }
+        this.typography("Switch", TypographyRole.H1)
         this.typography(
             "A shared value drives the track and thumb. Click its label or press Space.",
             TypographyRole.Lead
-        ) { this.fonts = Some(fonts) }
+        )
         for (index in 0L ..< 6L)
             this.row {
                 this.switchControl(model.selection.switches[index].binding()) {
@@ -121,7 +116,7 @@ internal fun switchExamples(model: GalleryModel, fonts: FontCollection): View =
                         "Disabled · small"
                     ][index],
                     model.selection.switchTargets[index]
-                ) { this.fonts = Some(fonts) }
+                )
                 this.spacing = 20.0
                 this.alignment = CrossAlignment.Center
                 this.padding = Insets.all(8.0)
@@ -132,26 +127,23 @@ internal fun switchExamples(model: GalleryModel, fonts: FontCollection): View =
             else
                 "Reduce motion",
             { model.toggleMotion() }
-        ) {
-            this.fonts = Some(fonts);
-            this.variant = ButtonVariant.Outline
-        }
+        ) { this.variant = ButtonVariant.Outline }
         this.typography(
             "Theme and RTL changes preserve every value. The hit area extends beyond the track without changing its layout size.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.spacing = 24.0
         this.padding = Insets.all(12.0)
         this.alignment = CrossAlignment.Start
     }
 
-internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection): View =
+internal fun toggleExamples(model: SelectionExamplesModel): View =
     makeColumn {
-        this.typography("Toggle", TypographyRole.H1) { this.fonts = Some(fonts) }
+        this.typography("Toggle", TypographyRole.H1)
         this.typography(
             "Selected state survives pointer release. Space and Enter change the same binding.",
             TypographyRole.Lead
-        ) { this.fonts = Some(fonts) }
+        )
         for (variantIndex in 0L ..< 2L)
             this.row {
                 for (sizeIndex in 0L ..< 3L)
@@ -159,7 +151,6 @@ internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection
                         ["Small", "Default", "Large"][sizeIndex],
                         model.toggles[variantIndex * 3L + sizeIndex].binding()
                     ) {
-                        this.fonts = Some(fonts)
                         this.variant =
                             if (variantIndex == 0L)
                                 ToggleVariant.Default
@@ -184,7 +175,7 @@ internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection
                                 this.style = appearance.text;
                                 this.text("Show preview")
                             }
-                        ) { this.fonts = Some(fonts) }
+                        )
                         this.spacing = appearance.spacing
                         this.alignment = CrossAlignment.Center
                     }
@@ -192,23 +183,17 @@ internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection
                 model.toggles[7L].binding()
             ) { this.variant = ToggleVariant.Outline }
             this.toggle("Invalid", model.toggles[8L].binding()) {
-                this.fonts = Some(fonts);
                 this.invalid = true;
                 this.variant = ToggleVariant.Outline
             }
-            this.toggle("Disabled", model.toggles[8L].binding()) {
-                this.fonts = Some(fonts);
-                this.enabled = false
-            }
+            this.toggle("Disabled", model.toggles[8L].binding()) { this.enabled = false }
             this.spacing = 12.0
             this.alignment = CrossAlignment.Center
         }
         this.card(
             makeColumn {
                 if (model.toggles[7L].value)
-                    this.label("This content follows the same selected value.") {
-                        this.fonts = Some(fonts)
-                    }
+                    this.label("This content follows the same selected value.")
             }
         ) {
             this.title("Preview")
@@ -218,7 +203,6 @@ internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection
                 else
                     "Use Show preview to reveal the content."
             )
-            this.fonts = Some(fonts)
         }
         this.spacing = 24.0
         this.padding = Insets.all(12.0)

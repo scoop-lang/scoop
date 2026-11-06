@@ -98,7 +98,7 @@ internal class RevealProbe {
                     )
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { mount -> RevealScene(this, scope = mount) }))
+                ui = host.attach(native, { mount -> RevealScene(this, scope = mount) })
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

@@ -209,7 +209,7 @@ private class DescriptionTypeTest {
     }
 
     @Test
-    fun `empty direction and portal modes remain distinct from instance descriptions`() {
+    fun `view shapes remain distinct while portal modes share identity`() {
         val records = ReuseRecords()
         val open = state(true)
         val views =
@@ -242,7 +242,10 @@ private class DescriptionTypeTest {
             ]
         for (left in 0L ..< views.size)
             for (right in 0L ..< views.size)
-                assertEquals(left == right, views[left].sameType(views[right]))
+                assertEquals(
+                    left == right || (left >= 5L && right >= 5L),
+                    views[left].sameType(views[right])
+                )
         assertTrue(views[1L].sameType(direction(views[2L], LayoutDirection.Rtl)))
         assertTrue(views[5L].sameType(portal(state(false).binding(), views[2L])))
         assertTrue(

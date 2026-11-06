@@ -2,6 +2,8 @@
 
 当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收，继续下述未完成批次。组件目录仍为 Sidebar 交付后的 51／64；整改不增加目录完成数，Toast 尚未计入。
+
 ## P0a：完整配色与主题
 
 - ThemePalette 直接迁移为完整的语义颜色对、独立 input／ring、五色 ChartPalette 和 SidebarPalette。三个已有主题及控件、示例、测试同步迁移，没有旧字段别名或运行时缺省补色。

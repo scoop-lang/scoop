@@ -1,0 +1,231 @@
+package scoop.tests.ui.window_errors
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+internal enum FailurePoint {
+    Constructor, Render, Mount, Update, Measure, Scene, Input, Complete, Deadline, Animation, Cleanup, Reporter
+}
+
+internal class FailureRecord(val point: FailurePoint) {
+    val primary = IllegalStateException(Some("expected UI callback failure"))
+    val cleanup = IllegalArgumentException(Some("expected root cleanup failure"))
+    val trigger = state(false)
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var view: ViewProbe? = None
+    var fonts: FontCollection? = None
+    var area: InputArea? = None
+    var image: Image? = None
+    var canvas: Canvas? = None
+    var closes = 0
+    var reports = 0
+    var callbacks = 0
+    var retiredCallbacks = -1
+    var accepted = false
+    var inputSent = false
+}
+
+@Test
+private class WindowErrorUiTest {
+    @Test
+    fun `window callbacks retire and report once while a sibling continues until the error handler fails`() {
+        val probe = FailureProbe()
+        val host =
+            UiHost(
+                onRootError = { id, error -> probe.report(id, error) },
+                handler = { owner, active, event -> probe.event(owner, active, event) }
+            )
+        try {
+            val failure = assertFailsWith<ResourceUseException> { Application().run(host) }
+            assertTrue(containsFailure(failure, probe.records[11L].primary))
+            assertTrue(containsFailure(failure, probe.records[11L].cleanup))
+            assertTrue(containsFailure(failure, probe.reporterFailure))
+            assertTrue(containsFailure(failure, probe.siblingCleanup))
+            assertTrue(host.isClosed)
+            assertEquals(12L, probe.started)
+            assertEquals(12, probe.shared.value)
+            assertEquals(1, probe.siblingCloses)
+            assertTrue(probe.sibling!!.isClosed)
+            for (record in probe.records) {
+                assertEquals(1, record.reports)
+                assertEquals(1, record.closes)
+                assertEquals(record.retiredCallbacks, record.callbacks)
+                assertTrue(record.view!!.restored())
+                assertEquals(WindowState.Destroyed, record.window!!.state)
+            }
+        } finally {
+            host.close()
+            for (record in probe.records)
+                record.view?.close()
+        }
+    }
+}
+
+internal class FailureProbe {
+    val records =
+        [
+            FailureRecord(FailurePoint.Constructor),
+            FailureRecord(FailurePoint.Render),
+            FailureRecord(FailurePoint.Mount),
+            FailureRecord(FailurePoint.Update),
+            FailureRecord(FailurePoint.Measure),
+            FailureRecord(FailurePoint.Scene),
+            FailureRecord(FailurePoint.Input),
+            FailureRecord(FailurePoint.Complete),
+            FailureRecord(FailurePoint.Deadline),
+            FailureRecord(FailurePoint.Animation),
+            FailureRecord(FailurePoint.Cleanup),
+            FailureRecord(FailurePoint.Reporter)
+        ]
+    val shared = state(0)
+    val reporterFailure = IllegalStateException(Some("expected application error handler failure"))
+    val siblingCleanup = IllegalStateException(Some("expected sibling cleanup failure"))
+    var sibling: UiWindow? = None
+    var siblingCloses = 0
+    var committed = -1
+    var started = 0L
+    fun raise(record: FailureRecord) {
+        // A failure does not undo business writes already observed by another root.
+        if (record.point == FailurePoint.Input)
+            shared.value += 1
+        throw record.primary
+    }
+    fun report(id: WindowId, error: Throwable) {
+        val record = records[started - 1L]
+        assertEquals(record.window!!.id, id)
+        assertTrue(containsFailure(error, record.primary))
+        assertTrue(containsFailure(error, record.cleanup))
+        assertEquals(1, record.closes)
+        assertTrue(record.image!!.isClosed)
+        assertTrue(record.area!!.isClosed)
+        assertTrue(record.fonts!!.isClosed)
+        assertTrue(record.view!!.restored())
+        assertEquals(WindowState.Open, record.window!!.state)
+        assertFalse(sibling!!.isClosed)
+        assertEquals(0, siblingCloses)
+        when (record.canvas) {
+            case Some(canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
+            case None -> {}
+        }
+        record.reports += 1
+        record.retiredCallbacks = record.callbacks
+        record.trigger.value = !record.trigger.value
+        if (record.point == FailurePoint.Reporter)
+            throw reporterFailure
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                sibling =
+                    host.attach(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop healthy sibling"
+                                size = LogicalSize(180.0, 100.0)
+                            }
+                        ),
+                        { scope -> HealthyRoot(this, scope) }
+                    )
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (started > 0L) {
+                    val current = records[started - 1L]
+                    if (current.reports == 0) {
+                        if (
+                            current.point ==
+                                FailurePoint.Input &&
+                                current.accepted &&
+                                current.window!!.isFocused &&
+                                !current.inputSent
+                        ) {
+                            current.inputSent = true
+                            assertTrue(sendSurfaceKey(current.window!!, 0, true))
+                        }
+                        return
+                    }
+                }
+                if (committed != shared.value)
+                    return
+                for (index in 0L ..< started) {
+                    val record = records[index]
+                    assertEquals(record.retiredCallbacks, record.callbacks)
+                }
+                if (started < records.size)
+                    start(host, active, records[started])
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"window error timeout at ${started}, sibling=${committed}")
+            )
+            else -> {}
+        }
+    }
+    private fun start(host: UiHost, active: ActiveApplication, record: FailureRecord) {
+        started += 1L
+        if (record.point != FailurePoint.Input)
+            shared.value += 1
+        val native =
+            active.createWindow(
+                windowAttributes {
+                    title = "Scoop window isolation"
+                    size = LogicalSize(180.0, 100.0)
+                    visible =
+                        record.point ==
+                            FailurePoint.Measure ||
+                            record.point ==
+                            FailurePoint.Scene ||
+                            record.point ==
+                            FailurePoint.Input ||
+                            record.point ==
+                            FailurePoint.Complete ||
+                            record.point ==
+                            FailurePoint.Reporter
+                }
+            )
+        record.window = Some(native)
+        record.view = Some(observeWindow(native))
+        if (record.point == FailurePoint.Input) {
+            native.setWindowLevel(WindowLevel.AlwaysOnTop)
+            native.requestFocus()
+        }
+        record.ui = host.attach(native, { scope -> FailingRoot(this, record, scope) })
+        if (
+            record.point ==
+                FailurePoint.Constructor ||
+                record.point ==
+                FailurePoint.Render ||
+                record.point ==
+                FailurePoint.Mount
+        ) {
+            when (record.ui) {
+                case None -> {}
+                case Some(_) -> fail(Some("failed mount returned a live UI window"))
+            }
+        } else {
+            assertFalse(record.ui!!.isClosed)
+            if (record.point == FailurePoint.Update)
+                record.trigger.value = true
+            if (record.point == FailurePoint.Cleanup)
+                record.ui!!.close()
+        }
+    }
+}
+
+internal fun containsFailure(error: Throwable, expected: Throwable): Boolean {
+    if (error === expected)
+        return true
+    if (error is ResourceUseException)
+        return containsFailure(error.primaryFailure, expected) ||
+            containsFailure(error.cleanupFailure, expected)
+    return false
+}

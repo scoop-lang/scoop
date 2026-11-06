@@ -1,0 +1,179 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.style.*
+
+internal fun galleryDemo(model: GalleryModel, value: Demo): View =
+    when (value) {
+        case Button -> controlDemo(model, ControlDemo.Button)
+        case Input -> controlDemo(model, ControlDemo.Input)
+        case Checkbox -> controlDemo(model, ControlDemo.Checkbox)
+        case Badge -> badgeExamples(model)
+        case Spinner -> spinnerExamples(model)
+        case Card -> cardExamples(model)
+        case Separator -> separatorExamples()
+        case AspectRatio -> component({ mount -> AspectExamples(scope = mount) })
+        case Alert -> alertExamples(model)
+        case Empty -> emptyExamples(model)
+        case Avatar -> component({ mount -> AvatarExamples(model, scope = mount) })
+        case Skeleton -> skeletonExamples(model)
+        case Progress -> progressExamples(model)
+        case Typography -> typographyExamples(model)
+        case Kbd -> component({ mount -> KbdExamples(model, scope = mount) })
+        case Label -> fieldLabelExamples(model.fields)
+        case ButtonGroup -> buttonGroupExamples(model.groups)
+        case Item -> component(
+            model.items,
+            { _, mount -> ItemExamples(model.items, scope = mount) }
+        )
+        case Switch -> switchExamples(model)
+        case Toggle -> toggleExamples(model.selection)
+        case InputOtp -> otpExamples(model.otp)
+        case RadioGroup -> radioGroupExamples(model.choices, model.source.current.value)
+        case ToggleGroup -> toggleGroupExamples(model.choices)
+        case Slider -> sliderExamples(model)
+        case Textarea -> textareaExamples(model.textFields)
+        case InputGroup -> inputGroupExamples(model.inputGroups)
+        case Field -> settingsExamples(model.settings, model.source.current.value)
+        case Direction -> directionExamples(model.directions, model.source.current.value)
+        case ScrollArea -> scrollExamples(model.scrolling, model.source.current.value)
+        case Collapsible -> collapsibleExamples(model.disclosures)
+        case Accordion -> accordionExamples(model.disclosures)
+        case Tabs -> tabsExamples(model)
+        case Breadcrumb -> breadcrumbExamples(model.navigation)
+        case Pagination -> paginationExamples(model.navigation)
+        case Popover -> popoverExamples(model.popover, model)
+        case Tooltip -> tooltipExamples(model.hints)
+        case HoverCard -> hoverCardExamples(model.previews)
+        case Dialog -> dialogExamples(model.dialogs, model)
+        case AlertDialog -> alertDialogExamples(model.confirmations, model)
+        case Sheet -> sheetExamples(model.sheets, model)
+        case DropdownMenu -> menuExamples(model.menus, model, value)
+        case ContextMenu -> menuExamples(model.menus, model, value)
+        case Menubar -> menuExamples(model.menus, model, value)
+        case Select -> selectExamples(model.selects)
+        case Command -> commandExamples(model.commands)
+        case Combobox -> comboboxExamples(model.comboboxes)
+        case NavigationMenu -> navigationMenuExamples(model.navigationMenus)
+        case Carousel -> carouselExamples(model.carousels)
+        case Drawer -> drawerExamples(model.drawers)
+        case Sidebar -> sidebarExamples(model.sidebars)
+        case Resizable -> resizableExamples(
+            model.resizables,
+            model.source.current.value.tokens.palette.border
+        )
+    }
+
+private fun controlDemo(model: GalleryModel, value: ControlDemo): View =
+    makeColumn {
+        this.add(
+            galleryText(
+                model,
+                when (value) {
+                    case Button -> "Button";
+                    case Input -> "Input";
+                    case Checkbox -> "Checkbox"
+                },
+                32.0,
+                650
+            )
+        )
+        this.add(
+            galleryText(
+                model,
+                when (value) {
+                    case Button -> "A real action with pointer, keyboard, and validation states."
+                    case Input -> "One text model, native text services, and theme-aware validation."
+                    case Checkbox -> "A controlled value with one activation path and a visible state ring."
+                },
+                14.0,
+                400,
+                true
+            )
+        )
+        this.row {
+            for (state in [PreviewState.Normal, PreviewState.Invalid, PreviewState.Disabled])
+                this.item(galleryPreview(model, value, state)) {
+                    this.grow = 1.0;
+                    this.basis = FlexBasis.Fixed(0.0)
+                }
+            this.spacing = 16.0
+            this.alignment = CrossAlignment.Stretch
+        }
+        this.add(galleryText(model, "Keyboard focus", 18.0, 600))
+        this.add(
+            galleryText(
+                model,
+                "Tab between controls. Pointer focus keeps the action ring quiet; keyboard and programmatic focus show it. Text inputs keep a visible ring when clicked.",
+                14.0,
+                400,
+                true
+            )
+        )
+        this.button(
+            "Focus the normal control",
+            {
+                model.focus(value).requestFocus();
+                Unit
+            }
+        ) { this.variant = ButtonVariant.Outline }
+        this.add(
+            galleryText(
+                model,
+                when (value) {
+                    case Button -> f"Action count: ${model.clicks.value}"
+                    case Input -> f"Current value: ${model.name.text}"
+                    case Checkbox -> if (model.checked.value)
+                        "Current value: checked"
+                    else
+                        "Current value: unchecked"
+                },
+                14.0,
+                500
+            )
+        )
+        this.add(
+            galleryText(
+                model,
+                "Theme and direction changes retain the same application state. Invalid controls remain interactive; disabled controls do not activate.",
+                14.0,
+                400,
+                true
+            )
+        )
+        if (value == ControlDemo.Button)
+            this.add(buttonExamples(model))
+        if (value == ControlDemo.Checkbox)
+            this.add(checkboxGroupExamples(model.selection))
+        if (value == ControlDemo.Input)
+            this.add(inputExamples(model.textFields))
+        this.spacing = 24.0
+        this.padding = Insets(6.0, 6.0, 12.0, 12.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+
+private fun galleryPreview(model: GalleryModel, value: ControlDemo, state: PreviewState): View {
+    val palette = model.source.current.value.tokens.palette
+    return makeFrame(
+        makeColumn {
+            this.add(galleryText(model, previewTitle(state), 12.0, 500, true))
+            this.frame(previewControl(model, value, state)) {
+                this.height = Some(84.0)
+                this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
+            }
+            this.spacing = 16.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    ) {
+        this.padding = Some(Insets.all(16.0))
+        style {
+            this.background(Some(Paint(palette.card.background)))
+            this.border(Some(Border.all(1.0, palette.border)))
+            this.corners(Corners.all(10.0))
+        }
+    }
+}

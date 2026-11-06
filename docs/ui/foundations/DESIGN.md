@@ -23,7 +23,7 @@ A–F 之后的平台抽象、布局与控件公共能力已按 [控件基础补
 
 关键源码依据：
 
-- [MeasureContext](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)要求每个直接子项测量一次；[MountedNode](../../../sysroot/src/scoop.ui/src/runtime/node.scoop)在布局前匹配、挂载整个显式子数组。clip 或不放置不等于虚拟化。
+- 初始 MeasureContext 要求每个直接子项测量一次。当前 [MeasureContext](../../../sysroot/src/scoop.ui/src/layout/measure.scoop) 保存类型化完整结果，允许同轮不同约束请求，相同有效请求复用；当前有效布局还可跨帧复用。显式子数组仍按普通身份匹配；clip／未放置与 Lazy 按需实现是不同职责。
 - 原 PaintContext 在绘制时登记 InputArea，直接跳过 paint 会丢失本帧区域。A1 将区域放置迁入 [SceneContext](../../../sysroot/src/scoop.ui/src/layout/scene.scoop)，[PaintContext](../../../sysroot/src/scoop.ui/src/layout/paint.scoop)只保留纯绘制；[输入场景](../../../sysroot/src/scoop.surface/src/shared/input/scene.scoop)仍保存成功帧的 Canvas 几何与输入父关系。
 - [指针派发](../../../sysroot/src/scoop.surface/src/shared/input/pointer.scoop)已有冒泡；[焦点派发](../../../sysroot/src/scoop.surface/src/shared/input/focus.scoop)只向当前焦点路径发送键盘事件，没有 Tab 遍历和无焦点快捷键根入口。
 - [RenderTarget.snapshot](../../../sysroot/src/scoop.graphics/src/native/target.scoop)明确会把 GPU 目标读回成 CPU 图像，不能直接当作高效 GPU 滚动缓存。

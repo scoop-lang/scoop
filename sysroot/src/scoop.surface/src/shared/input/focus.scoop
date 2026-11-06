@@ -35,7 +35,7 @@ internal fun InputRouter.clearFocus() {
 internal fun InputRouter.reconcileFocus() {
     when (logicalFocus) {
         case Some(area) -> {
-            if (!allowsFocus(area.scope) || path(area.scope).size == 0L)
+            if (!area.focusable || !allowsFocus(area.scope) || path(area.scope).size == 0L)
                 logicalFocus = None
         }
         case None -> {}

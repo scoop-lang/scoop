@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.Color
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.command as makeCommand
@@ -72,13 +71,13 @@ private fun commandExampleItems(model: CommandExamplesModel): CommandContent =
         }
     }
 
-internal fun commandExamples(model: CommandExamplesModel, fonts: FontCollection): View =
+internal fun commandExamples(model: CommandExamplesModel): View =
     makeColumn {
-        add(panelHeading("Command", fonts))
+        add(panelHeading("Command"))
         typography(
             "Search by words, initials or keywords. Arrow keys move the highlight while your cursor stays in the input.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.enabled.value)
@@ -86,36 +85,26 @@ internal fun commandExamples(model: CommandExamplesModel, fonts: FontCollection)
                 else
                     "Enable",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.auto.value)
                     "Auto highlight: on"
                 else
                     "Auto highlight: off",
                 { model.auto.value = !model.auto.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.narrow.value)
                     "Width: narrow"
                 else
                     "Width: normal",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             spacing = 8.0;
             lineSpacing = 8.0
         }
         command(model.choices, model.query) {
             active = Some(model.active.binding());
-            this.fonts = Some(fonts)
             width =
                 if (model.narrow.value)
                     200.0
@@ -126,11 +115,10 @@ internal fun commandExamples(model: CommandExamplesModel, fonts: FontCollection)
             panelStyle { border(Some(Border.all(1.0, Color(0.5, 0.5, 0.5, 0.2)))) }
             empty("No matching commands. Try “settings” or “设置”.")
         }
-        typography(model.result.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        typography(model.result.value, TypographyRole.Small)
         dialog(
             model.open.binding(),
             makeCommand(model.choices, model.dialogQuery) {
-                this.fonts = Some(fonts);
                 width = 360.0;
                 focus = FocusOptions(Some(model.dialogFocus))
                 onSelect = { _ -> model.open.value = false }
@@ -139,19 +127,16 @@ internal fun commandExamples(model: CommandExamplesModel, fonts: FontCollection)
             title("Run a command");
             description("Choose an action or type to search.")
             trigger("Open command dialog") { variant = ButtonVariant.Outline }
-            this.fonts = Some(fonts);
+
             width = 420.0
             focus { initialFocus = Some(model.dialogFocus) }
         }
-        typography("Provided results · 10,000 commands", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        typography("Provided results · 10,000 commands", TypographyRole.H4)
         typography(
             "This list keeps the caller’s order and does not filter locally. Home and End reveal candidates without moving input focus.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         command(ExampleCommandSource(model), model.providedQuery) {
-            this.fonts = Some(fonts);
             filter = CommandFilter.Provided;
             width = 400.0;
             maxHeight = 160.0

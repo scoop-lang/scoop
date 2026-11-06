@@ -12,16 +12,21 @@ internal class OverlayFocusSession(
     private val root = portal.root
     private val node = portal.node
     private val saved = root.focus.capture()
-    private val previousBoundary = root.surface.focusBoundary
     private val input = node.scope.input
-    private val constrained = initial.mode != OverlayMode.NonModal
+    private var mode = initial.mode
+    private val constrained: Boolean get() = mode != OverlayMode.NonModal
+    private var focusOptions = initial.focusOptions
     private val proxy = node.scope.createArea(focusable = constrained)
-    private val fallbackTarget: FocusTarget? =
+    private var fallbackTarget: FocusTarget? =
         if (constrained)
             Some(node.scope.focusTarget(proxy, FocusOptions(tabStop = false)))
         else
             None
-    private val fallback = fallbackTarget?.handle
+    private val fallback: FocusHandle? get() =
+        if (constrained)
+            fallbackTarget?.handle
+        else
+            None
     private var dismissal: Closeable? = None
     private var finished = false
     val group =
@@ -33,13 +38,14 @@ internal class OverlayFocusSession(
             )
         )
     private var openingRevision = root.surface.focusRevision
-    val boundary: InputBoundary? =
-        when (initial.mode) {
-            case NonModal -> None
-            case FocusContained -> Some(InputBoundary(input, InputBoundaryMode.FocusOnly))
-            case Modal -> Some(InputBoundary(input))
-        }
+    private val barrier = InputBoundary(input, boundaryMode(), constrained)
+    val boundary: InputBoundary? get() =
+        if (constrained)
+            Some(barrier)
+        else
+            None
     private var initialPending = true
+    private var constraintPending = false
     private var restoreOnClose = initial.focusOptions?.restoreFocus ?: false
     private var restoreTarget = initial.focusOptions?.restoreTarget ?: None
     private var closingRevision: ULong? = None
@@ -60,13 +66,39 @@ internal class OverlayFocusSession(
                     }
                 )
         } catch (error: Throwable) {
-            throwUi(cleanupUi(Some(error)) { boundary?.close() })
+            throwUi(cleanupUi(Some(error)) { barrier.close() })
             throw error
         }
     }
+    private fun boundaryMode(): InputBoundaryMode =
+        if (mode == OverlayMode.FocusContained)
+            InputBoundaryMode.FocusOnly
+        else
+            InputBoundaryMode.AllInput
     fun replace(options: PortalOptions) {
-        if (isClosing)
+        if (isClosing || finished)
             return
+        val changed = mode != options.mode
+        val wasConstrained = constrained
+        mode = options.mode
+        focusOptions = options.focusOptions
+        if (changed) {
+            proxy.focusable = constrained
+            if (!portal.active || finished)
+                return
+            if (constrained) {
+                when (fallbackTarget) {
+                    case None -> fallbackTarget =
+                        Some(node.scope.focusTarget(proxy, FocusOptions(tabStop = false)))
+                    case Some(_) -> {}
+                }
+            } else
+                constraintPending = false
+            if (!wasConstrained && constrained) {
+                constraintPending = true
+                openingRevision = root.surface.focusRevision
+            }
+        }
         restoreOnClose = options.focusOptions?.restoreFocus ?: false
         restoreTarget = options.focusOptions?.restoreTarget ?: None
         group.options =
@@ -75,6 +107,11 @@ internal class OverlayFocusSession(
                 defaultFocus = options.focusOptions?.initialFocus ?: None,
                 fallback = fallback
             )
+        if (changed) {
+            barrier.update(boundaryMode(), constrained)
+            root.overlays.reclassify()
+            node.request(UiInvalidation.Scene)
+        }
     }
     fun place(context: FrameContext) {
         context.place(proxy, Rect(0.0, 0.0, context.size.width, context.size.height))
@@ -86,6 +123,7 @@ internal class OverlayFocusSession(
             !constrained && root.surface.input.activity.hasFocus && !input.activity.hasFocus
         closingRevision = Some(revision)
         initialPending = false
+        constraintPending = false
         if (!input.isClosed)
             input.enabled = false
     }
@@ -99,7 +137,7 @@ internal class OverlayFocusSession(
         if (finished)
             return
         finished = true
-        var failure = cleanupUi(None) { boundary?.close() }
+        var failure = cleanupUi(None) { barrier.close() }
         failure = cleanupUi(failure) { dismissal?.close() }
         dismissal = None
         failure = cleanupUi(failure) { group.close() }
@@ -119,12 +157,11 @@ internal class OverlayFocusSession(
             case Some(value) -> value === frame
             case None -> false
         }
-    val isModal: Boolean get() = portal.options.mode == OverlayMode.Modal
+    val isModal: Boolean get() = mode == OverlayMode.Modal
     val inCurrentDomain: Boolean get() =
         when (boundary) {
             case Some(value) -> value.isCurrent
-            case None -> sameInputBoundary(previousBoundary, root.surface.focusBoundary) &&
-                withinCurrentFocusDomain()
+            case None -> withinCurrentFocusDomain()
         }
     private fun withinCurrentFocusDomain(): Boolean {
         val boundary = root.surface.focusBoundary ?: return true
@@ -137,7 +174,7 @@ internal class OverlayFocusSession(
         }
     }
     val acceptsFocus: Boolean get() =
-        when (portal.options.focusOptions) {
+        when (focusOptions) {
             case Some(_) -> true
             case None -> false
         }
@@ -147,11 +184,19 @@ internal class OverlayFocusSession(
             case None -> false
         }
     fun complete(frame: OverlayFrame) {
-        if (!initialPending || isClosing || !wasPresented(frame) || !isCurrentFocus)
-            return
-        initialPending = false
         if (
-            (portal.options.focusOptions?.autoFocus ?: false) &&
+            (!initialPending && !constraintPending) ||
+                isClosing ||
+                !wasPresented(frame) ||
+                !isCurrentFocus
+        )
+            return
+        val preserve = constraintPending && input.activity.hasFocus
+        initialPending = false
+        constraintPending = false
+        if (
+            !preserve &&
+                (focusOptions?.autoFocus ?: false) &&
                 openingRevision ==
                 root.surface.focusRevision
         )
@@ -175,7 +220,6 @@ internal class OverlayFocusSession(
             case Some(handle) -> candidates.add(handle)
             case None -> {}
         }
-        var expected = previousBoundary
         var cursor = previous
         while (true) {
             val prior = cursor ?: break
@@ -191,11 +235,8 @@ internal class OverlayFocusSession(
                     case None -> {}
                 }
             }
-            expected = prior.previousBoundary
             cursor = prior.previous
         }
-        if (!sameInputBoundary(expected, root.surface.focusBoundary))
-            return
         root.focus.restore(candidates.toArray(), root.overlays.currentFocus?.group)
     }
 }
@@ -206,7 +247,7 @@ internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
         val node = cursor ?: return None
         when (node.body) {
             case Portal(value) -> when (value.focusSession) {
-                case Some(modal) -> if (value.options.mode == OverlayMode.Modal)
+                case Some(modal) -> if (modal.isModal)
                     return Some(modal)
                 case None -> {}
             }
@@ -217,13 +258,6 @@ internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
 }
 
 internal fun sameModal(left: OverlayFocusSession?, right: OverlayFocusSession?): Boolean =
-    when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
-        case(None, None) -> true
-        else -> false
-    }
-
-internal fun sameInputBoundary(left: InputBoundary?, right: InputBoundary?): Boolean =
     when ((left, right)) {
         case(Some(a), Some(b)) -> a === b
         case(None, None) -> true

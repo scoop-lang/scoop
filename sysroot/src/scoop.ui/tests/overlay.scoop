@@ -217,7 +217,7 @@ private class OverlayPlacementTest {
                 this.placement = OverlayPlacement.Anchored(LayoutAnchor(), gap = 0.0 / 0.0)
             }
         }
-        assertFalse(
+        assertTrue(
             portal(state(true).binding(), empty()).sameType(
                 portal(state(true).binding(), empty()) {
                     this.options {

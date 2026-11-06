@@ -17,84 +17,66 @@ import scoop.ui.component.button as makeButton
 import scoop.ui.component.badge as makeBadge
 import scoop.ui.style.*
 
-internal fun panelHeading(text: String, fonts: FontCollection, size: Double = 32.0): View =
+internal fun panelHeading(text: String, size: Double = 32.0): View =
     label(text) {
-        this.fonts = Some(fonts)
         style {
             this.fontSize = Some(size);
             this.weight = Some(600)
         }
     }
 
-private fun panelControls(
-    model: GalleryModel,
-    fonts: FontCollection,
-    variantTitle: String? = None
-): View =
+private fun panelControls(model: GalleryModel, variantTitle: String? = None): View =
     makeRow {
         this.button("Toggle sections", { model.panelExpanded.value = !model.panelExpanded.value }) {
-            this.fonts = Some(fonts);
             this.variant = ButtonVariant.Outline
         }
         this.button("Toggle width", { model.panelNarrow.value = !model.panelNarrow.value }) {
-            this.fonts = Some(fonts);
             this.variant = ButtonVariant.Outline
         }
         when (variantTitle) {
             case Some(title) -> this.button(
                 title,
                 { model.panelCompact.value = !model.panelCompact.value }
-            ) {
-                this.fonts = Some(fonts)
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             case None -> {}
         }
         this.spacing = 8.0
     }
 
-private fun panelAction(model: GalleryModel, fonts: FontCollection, focus: FocusHandle): View {
+private fun panelAction(model: GalleryModel, focus: FocusHandle): View {
     val step = model.panelStep.value
     return button(
         f"Create project (${model.panelClicks.value})",
         { model.panelClicks.value += step }
-    ) {
-        this.fonts = Some(fonts)
-        this.focus = FocusOptions(Some(focus))
-    }
+    ) { this.focus = FocusOptions(Some(focus)) }
 }
 
-private fun panelActions(model: GalleryModel, fonts: FontCollection): View =
+private fun panelActions(model: GalleryModel): View =
     makeRow {
         this.button("Resize", { model.panelNarrow.value = !model.panelNarrow.value }) {
-            this.fonts = Some(fonts);
             this.variant = ButtonVariant.Outline
         }
         this.button("Hide details", { model.panelExpanded.value = false }) {
-            this.fonts = Some(fonts);
             this.variant = ButtonVariant.Ghost
         }
         this.spacing = 8.0
     }
 
-internal fun cardExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun cardExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(panelHeading("Card", fonts))
+        this.add(panelHeading("Card"))
         this.label(
             "Compose a header, content, action, and footer. Narrow cards move the action below the heading."
-        ) { this.fonts = Some(fonts) }
-        this.add(panelControls(model, fonts, Some("Toggle size")))
+        )
+        this.add(panelControls(model, Some("Toggle size")))
         this.frame(
             makeCard(
                 makeColumn {
-                    this.label("Keep everything for your next project in one place.") {
-                        this.fonts = Some(fonts)
-                    }
-                    this.add(panelAction(model, fonts, model.cardFocus))
+                    this.label("Keep everything for your next project in one place.")
+                    this.add(panelAction(model, model.cardFocus))
                     this.spacing = 12.0
                 }
             ) {
-                this.fonts = Some(fonts)
                 this.size =
                     if (model.panelCompact.value)
                         CardSize.Sm
@@ -106,19 +88,12 @@ internal fun cardExamples(model: GalleryModel, fonts: FontCollection): View =
                         "Plan, build, and share with your team. Longer descriptions wrap inside the available space."
                     )
                     this.header(
-                        makeFrame(
-                            makeBadge("TEAM") {
-                                this.fonts = Some(fonts);
-                                this.variant = ButtonVariant.Secondary
-                            }
-                        ) { this.width = Some(56.0) }
-                    )
-                    this.action(panelActions(model, fonts))
-                    this.footer(
-                        makeLabel("Your changes are saved to this workspace.") {
-                            this.fonts = Some(fonts)
+                        makeFrame(makeBadge("TEAM") { this.variant = ButtonVariant.Secondary }) {
+                            this.width = Some(56.0)
                         }
                     )
+                    this.action(panelActions(model))
+                    this.footer(makeLabel("Your changes are saved to this workspace."))
                 }
                 this.headerSeparator = model.panelCompact.value
             }
@@ -132,26 +107,21 @@ internal fun cardExamples(model: GalleryModel, fonts: FontCollection): View =
                 )
             this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
         }
-        this.card(
-            makeLabel("A compact card can also contain content on its own.") {
-                this.fonts = Some(fonts)
-            }
-        ) { this.size = CardSize.Sm }
+        this.card(makeLabel("A compact card can also contain content on its own.")) {
+            this.size = CardSize.Sm
+        }
         this.spacing = 24.0
         this.padding = Insets.all(6.0)
         this.alignment = CrossAlignment.Start
     }
 
-internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun alertExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(panelHeading("Alert", fonts))
-        this.label("Inline notices with optional icons, descriptions, and actions.") {
-            this.fonts = Some(fonts)
-        }
-        this.add(panelControls(model, fonts))
+        this.add(panelHeading("Alert"))
+        this.label("Inline notices with optional icons, descriptions, and actions.")
+        this.add(panelControls(model))
         this.frame(
-            makeAlert(panelAction(model, fonts, model.alertFocus)) {
-                this.fonts = Some(fonts)
+            makeAlert(panelAction(model, model.alertFocus)) {
                 this.title("A new workspace is ready")
                 if (model.panelExpanded.value) {
                     this.description(
@@ -165,7 +135,7 @@ internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
                             { current, mount -> PanelStatusIcon(current, scope = mount) }
                         )
                     )
-                    this.action(panelActions(model, fonts))
+                    this.action(panelActions(model))
                 }
             }
         ) {
@@ -178,7 +148,6 @@ internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
                 )
         }
         this.alert(empty()) {
-            this.fonts = Some(fonts)
             this.variant = AlertVariant.Destructive
             this.title("Unable to save changes")
             this.description(
@@ -199,26 +168,20 @@ internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
         this.alignment = CrossAlignment.Start
     }
 
-internal fun emptyExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun emptyExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(panelHeading("Empty", fonts))
-        this.label("A starting point for new content, search results, or a quiet workspace.") {
-            this.fonts = Some(fonts)
-        }
-        this.add(panelControls(model, fonts, Some("Toggle media")))
+        this.add(panelHeading("Empty"))
+        this.label("A starting point for new content, search results, or a quiet workspace.")
+        this.add(panelControls(model, Some("Toggle media")))
         this.frame(
             makeEmpty(
                 makeColumn {
-                    this.input(model.emptyQuery) {
-                        this.fonts = Some(fonts);
-                        this.placeholder = "Project name"
-                    }
-                    this.add(panelAction(model, fonts, model.emptyFocus))
+                    this.input(model.emptyQuery) { this.placeholder = "Project name" }
+                    this.add(panelAction(model, model.emptyFocus))
                     this.spacing = 12.0
                     this.alignment = CrossAlignment.Stretch
                 }
             ) {
-                this.fonts = Some(fonts)
                 this.outlined = true
                 if (model.panelExpanded.value) {
                     this.media(
@@ -233,12 +196,9 @@ internal fun emptyExamples(model: GalleryModel, fonts: FontCollection): View =
                         else
                             EmptyMediaVariant.Icon
                     this.header(
-                        makeFrame(
-                            makeBadge("WORKSPACE") {
-                                this.fonts = Some(fonts);
-                                this.variant = ButtonVariant.Outline
-                            }
-                        ) { this.width = Some(96.0) }
+                        makeFrame(makeBadge("WORKSPACE") { this.variant = ButtonVariant.Outline }) {
+                            this.width = Some(96.0)
+                        }
                     )
                     this.title("No projects yet")
                     this.description(
@@ -257,11 +217,9 @@ internal fun emptyExamples(model: GalleryModel, fonts: FontCollection): View =
         }
         this.emptyState(
             makeButton("Clear filters", { model.emptyQuery.replaceAll("") }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
         ) {
-            this.fonts = Some(fonts)
             this.title("No results found")
             this.description("Try a different search or clear your filters.")
             style {
@@ -275,33 +233,33 @@ internal fun emptyExamples(model: GalleryModel, fonts: FontCollection): View =
         this.alignment = CrossAlignment.Start
     }
 
-internal fun separatorExamples(fonts: FontCollection): View =
+internal fun separatorExamples(): View =
     makeColumn {
-        this.add(panelHeading("Separator", fonts))
-        this.label("A decorative line between related sections.") { this.fonts = Some(fonts) }
-        this.label("Scoop workspace") { this.fonts = Some(fonts) }
+        this.add(panelHeading("Separator"))
+        this.label("A decorative line between related sections.")
+        this.label("Scoop workspace")
         this.item(makeSeparator { this.length = Some(520.0) }) {
             this.align = Some(CrossAlignment.Start)
         }
         this.row {
-            this.label("Overview") { this.fonts = Some(fonts) }
+            this.label("Overview")
             this.separator {
                 this.axis = FlexAxis.Vertical;
                 this.length = Some(24.0)
             }
-            this.label("Projects") { this.fonts = Some(fonts) }
+            this.label("Projects")
             this.separator {
                 this.axis = FlexAxis.Vertical;
                 this.length = Some(24.0)
             }
-            this.label("Settings") { this.fonts = Some(fonts) }
+            this.label("Settings")
             this.spacing = 16.0
             this.alignment = CrossAlignment.Center
         }
         this.separator()
         this.label(
             "The divider above fills the available width. A zero-length divider below leaves no line."
-        ) { this.fonts = Some(fonts) }
+        )
         this.separator { this.length = Some(0.0) }
         this.spacing = 24.0
         this.padding = Insets.all(6.0)

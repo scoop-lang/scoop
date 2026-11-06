@@ -15,6 +15,8 @@ P3 中，Label／Button 的便利描述入口显式比较实际显示输入：�
 
 P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象基类，工厂将本次 scope 交给构造器，onMount 不再接收参数。Button、选择控件、Command／Combobox 行、Sidebar 等在构造中建立必需的区域与控制器，移除仅用于 onMount 后发布资源的 State；业务状态和业务挂载通知继续保留。所有文字消费者以显式 FontCollection 优先，否则读取根默认字体，并随默认来源替换或实际 revision 更新布局。只关闭自己取得的资源，不关闭借用字体。
 
+现有控件使用 `ComponentScope.createDeadline` 接入 Hover、Typeahead、文本编辑、Select 滚动和 Carousel 自动播放的原生定时回调；错误按所属 UiHost 根隔离，时间源与调度仍由 window／surface 提供。示例普通 View 函数接收显示值、模型与动作，默认文字使用根字体；函数提取不增加挂载节点，不改变 key／子顺序或局部状态归属。
+
 ## 1. 定位与依赖
 
 生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。

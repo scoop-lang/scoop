@@ -9,9 +9,8 @@ import scoop.ui.component.row as makeRow
 import scoop.ui.component.spinner as makeSpinner
 import scoop.ui.style.*
 
-private fun heading(text: String, fonts: FontCollection, size: Double = 18.0): View =
+private fun heading(text: String, size: Double = 18.0): View =
     label(text) {
-        this.fonts = Some(fonts)
         style {
             this.fontSize = Some(size);
             this.weight = Some(600)
@@ -38,19 +37,18 @@ private fun variantTitle(variant: ButtonVariant): String =
         case Link -> "Link"
     }
 
-internal fun buttonExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun buttonExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(heading("Variants", fonts))
+        this.add(heading("Variants"))
         this.row {
             for (variant in actionVariants())
                 this.button(variantTitle(variant), { model.clicks.value += 1 }) {
                     this.variant = variant
-                    this.fonts = Some(fonts)
                 }
             this.spacing = 8.0
             this.alignment = CrossAlignment.Center
         }
-        this.add(heading("Text sizes", fonts))
+        this.add(heading("Text sizes"))
         this.row {
             for (size in [ButtonSize.Xs, ButtonSize.Sm, ButtonSize.Default, ButtonSize.Lg])
                 this.button(
@@ -64,12 +62,11 @@ internal fun buttonExamples(model: GalleryModel, fonts: FontCollection): View =
                 ) {
                     this.size = size
                     this.variant = ButtonVariant.Outline
-                    this.fonts = Some(fonts)
                 }
             this.spacing = 8.0
             this.alignment = CrossAlignment.Center
         }
-        this.add(heading("Icon sizes and custom content", fonts))
+        this.add(heading("Icon sizes and custom content"))
         this.row {
             for (size in [ButtonSize.IconXs, ButtonSize.IconSm, ButtonSize.Icon, ButtonSize.IconLg])
                 this.button(
@@ -86,13 +83,7 @@ internal fun buttonExamples(model: GalleryModel, fonts: FontCollection): View =
                     this.variant = ButtonVariant.Outline
                 }
             this.button(
-                {
-                    appearance: ActionContentStyle -> busyContent(
-                        appearance,
-                        fonts,
-                        model.busy.value
-                    )
-                },
+                { appearance: ActionContentStyle -> busyContent(appearance, model.busy.value) },
                 { model.busy.value = !model.busy.value }
             )
             this.spacing = 8.0
@@ -101,11 +92,7 @@ internal fun buttonExamples(model: GalleryModel, fonts: FontCollection): View =
         this.spacing = 16.0
     }
 
-private fun busyContent(
-    appearance: ActionContentStyle,
-    fonts: FontCollection,
-    running: Boolean
-): View =
+private fun busyContent(appearance: ActionContentStyle, running: Boolean): View =
     makeRow {
         this.spinner {
             this.size = Some(appearance.iconSize)
@@ -123,7 +110,6 @@ private fun busyContent(
                 )
             }
         ) {
-            this.fonts = Some(fonts)
             this.underline =
                 if (appearance.underline)
                     Some(appearance.text.color)
@@ -134,24 +120,20 @@ private fun busyContent(
         this.alignment = CrossAlignment.Center
     }
 
-internal fun badgeExamples(model: GalleryModel, fonts: FontCollection): View {
+internal fun badgeExamples(model: GalleryModel): View {
     val step = model.badgeStep.value
     return makeColumn {
-        this.add(heading("Badge", fonts, 32.0))
+        this.add(heading("Badge", 32.0))
         this.label(
             "Display badges do not enter Tab order. An explicit action uses the shared Press behavior."
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
             for (variant in actionVariants())
-                this.badge(variantTitle(variant)) {
-                    this.variant = variant
-                    this.fonts = Some(fonts)
-                }
+                this.badge(variantTitle(variant)) { this.variant = variant }
             this.spacing = 8.0
         }
         this.row {
             this.badge("Action") {
-                this.fonts = Some(fonts)
                 this.variant = ButtonVariant.Outline
                 this.enabled = model.badgeEnabled.value
                 this.focus = FocusOptions(Some(model.badgeFocus))
@@ -161,22 +143,10 @@ internal fun badgeExamples(model: GalleryModel, fonts: FontCollection): View {
                     else
                         None
             }
-            this.badge("Invalid") {
-                this.fonts = Some(fonts);
-                this.invalid = true
-            }
-            this.badge("Disabled") {
-                this.fonts = Some(fonts);
-                this.enabled = false
-            }
+            this.badge("Invalid") { this.invalid = true }
+            this.badge("Disabled") { this.enabled = false }
             this.badge(
-                {
-                    appearance: ActionContentStyle -> busyContent(
-                        appearance,
-                        fonts,
-                        model.busy.value
-                    )
-                }
+                { appearance: ActionContentStyle -> busyContent(appearance, model.busy.value) }
             ) {
                 this.variant = ButtonVariant.Secondary
                 this.onClick = Some({ model.busy.value = !model.busy.value })
@@ -184,21 +154,16 @@ internal fun badgeExamples(model: GalleryModel, fonts: FontCollection): View {
             this.spacing = 8.0
             this.alignment = CrossAlignment.Center
         }
-        this.label(f"Action count: ${model.badgeClicks.value}") { this.fonts = Some(fonts) }
+        this.label(f"Action count: ${model.badgeClicks.value}")
         this.row {
             this.button(
                 "Toggle disabled",
                 { model.badgeEnabled.value = !model.badgeEnabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Toggle action", { model.badgeAction.value = !model.badgeAction.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Use +10 callback", { model.badgeStep.value = 10 }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
@@ -209,12 +174,10 @@ internal fun badgeExamples(model: GalleryModel, fonts: FontCollection): View {
     }
 }
 
-internal fun spinnerExamples(model: GalleryModel, fonts: FontCollection): View =
+internal fun spinnerExamples(model: GalleryModel): View =
     makeColumn {
-        this.add(heading("Spinner", fonts, 32.0))
-        this.label("A loading indicator with size, color, and motion controls.") {
-            this.fonts = Some(fonts)
-        }
+        this.add(heading("Spinner", 32.0))
+        this.label("A loading indicator with size, color, and motion controls.")
         this.scrollArea(
             makeColumn {
                 this.row {
@@ -226,13 +189,9 @@ internal fun spinnerExamples(model: GalleryModel, fonts: FontCollection): View =
                     this.spacing = 24.0
                     this.alignment = CrossAlignment.Center
                 }
-                this.label("Scroll down to move every spinner outside this viewport.") {
-                    this.fonts = Some(fonts)
-                }
+                this.label("Scroll down to move every spinner outside this viewport.")
                 this.frame(empty()) { this.height = Some(400.0) }
-                this.label("The spinners remain above. Scroll up to resume.") {
-                    this.fonts = Some(fonts)
-                }
+                this.label("The spinners remain above. Scroll up to resume.")
                 this.spacing = 24.0
                 this.padding = Insets.all(10.0)
             }
@@ -248,22 +207,19 @@ internal fun spinnerExamples(model: GalleryModel, fonts: FontCollection): View =
                 else
                     "Start",
                 { model.busy.value = !model.busy.value }
-            ) { this.fonts = Some(fonts) }
+            )
             this.button(
                 if (model.reduced.value)
                     "Use full motion"
                 else
                     "Reduce motion",
                 { model.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts)
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.label(
             "Switch pages while loading, or scroll the indicators out of view to pause visible motion."
-        ) { this.fonts = Some(fonts) }
+        )
         this.spacing = 24.0
         this.padding = Insets.all(6.0)
         this.alignment = CrossAlignment.Start

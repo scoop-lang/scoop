@@ -23,19 +23,14 @@ internal class ChoiceExamplesModel {
     val label = FieldTarget()
 }
 
-internal fun radioGroupExamples(
-    model: ChoiceExamplesModel,
-    fonts: FontCollection,
-    theme: Theme
-): View =
+internal fun radioGroupExamples(model: ChoiceExamplesModel, theme: Theme): View =
     makeColumn {
-        this.add(panelHeading("Radio Group", fonts))
+        this.add(panelHeading("Radio Group"))
         this.typography(
             "Tab enters the selected option. Arrow keys move and select; Space selects, Enter leaves the value unchanged.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.radioGroup(model.radio.binding()) {
-            this.fonts = Some(fonts)
             this.enabled = model.enabled.value
             this.invalid = model.invalid.value
             this.axis =
@@ -61,42 +56,33 @@ internal fun radioGroupExamples(
                         this.labelTarget = Some(model.label)
                 }
         }
-        this.fieldLabel("Select Default using an associated label", model.label) {
-            this.fonts = Some(fonts)
-        }
+        this.fieldLabel("Select Default using an associated label", model.label)
         this.row {
             this.button("Clear externally", { model.radio.value = None }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Select Comfortable", { model.radio.value = Some(1) }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Reorder", { model.reverse.value = !model.reverse.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
         }
         this.row {
             this.button("Toggle disabled", { model.enabled.value = !model.enabled.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle invalid", { model.invalid.value = !model.invalid.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle axis", { model.vertical.value = !model.vertical.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
         }
-        this.typography("Choose a plan", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography("Choose a plan", TypographyRole.H3)
         this.radioGroup(model.plan.binding()) {
-            this.fonts = Some(fonts)
             this.spacing = 12.0
             for (value in [0, 1])
                 this.item(
@@ -117,17 +103,14 @@ internal fun radioGroupExamples(
                                                 "Starter — free"
                                             else
                                                 "Professional — $20 / month"
-                                        ) {
-                                            this.fonts = Some(fonts)
-                                            style { this.weight = Some(600) }
-                                        }
+                                        ) { style { this.weight = Some(600) } }
                                         this.typography(
                                             if (value == 0)
                                                 "A personal workspace with essential tools."
                                             else
                                                 "Shared projects and more storage for your team.",
                                             TypographyRole.Muted
-                                        ) { this.fonts = Some(fonts) }
+                                        )
                                         this.spacing = 4.0
                                     }
                                     this.spacing = 12.0
@@ -156,18 +139,15 @@ internal fun radioGroupExamples(
         this.alignment = CrossAlignment.Stretch
     }
 
-internal fun toggleGroupExamples(model: ChoiceExamplesModel, fonts: FontCollection): View =
+internal fun toggleGroupExamples(model: ChoiceExamplesModel): View =
     makeColumn {
-        this.add(panelHeading("Toggle Group", fonts))
+        this.add(panelHeading("Toggle Group"))
         this.typography(
             "Arrow keys move focus without changing selection. Use Space, Enter or a click to toggle an option.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
-        this.typography("Single selection · activate again to clear", TypographyRole.H3) {
-            this.fonts = Some(fonts)
-        }
+        )
+        this.typography("Single selection · activate again to clear", TypographyRole.H3)
         this.toggleGroup(model.single.binding()) {
-            this.fonts = Some(fonts)
             this.variant = ToggleVariant.Outline
             this.spacing =
                 if (model.connected.value)
@@ -195,12 +175,9 @@ internal fun toggleGroupExamples(model: ChoiceExamplesModel, fonts: FontCollecti
                     )
                 )
         }
-        this.typography("Multiple selection · independent values", TypographyRole.H3) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Multiple selection · independent values", TypographyRole.H3)
         for (size in [ToggleSize.Sm, ToggleSize.Default, ToggleSize.Lg])
             this.toggleGroup(model.multiple.binding()) {
-                this.fonts = Some(fonts)
                 this.size = size
                 this.enabled = model.enabled.value
                 this.item(Choice(ViewKey.Text("bold"), 0, "Bold")) {
@@ -211,7 +188,6 @@ internal fun toggleGroupExamples(model: ChoiceExamplesModel, fonts: FontCollecti
                 this.item(Choice(ViewKey.Text("disabled"), 3, "Unavailable", false))
             }
         this.toggleGroup(model.preview.binding()) {
-            this.fonts = Some(fonts)
             this.variant = ToggleVariant.Outline
             this.item(Choice(ViewKey.Text("preview"), 0, "Preview")) {
                 this.content =
@@ -224,7 +200,7 @@ internal fun toggleGroupExamples(model: ChoiceExamplesModel, fonts: FontCollecti
                                         this.style = appearance.text;
                                         this.text("Preview")
                                     }
-                                ) { this.fonts = Some(fonts) }
+                                )
                                 this.spacing = appearance.spacing
                                 this.alignment = CrossAlignment.Center
                             }
@@ -242,22 +218,18 @@ internal fun toggleGroupExamples(model: ChoiceExamplesModel, fonts: FontCollecti
                 else
                     "No view selected.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
             this.button("Toggle spacing", { model.connected.value = !model.connected.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle axis", { model.vertical.value = !model.vertical.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Toggle disabled", { model.enabled.value = !model.enabled.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Reorder", { model.reverse.value = !model.reverse.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0

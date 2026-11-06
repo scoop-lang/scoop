@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
@@ -26,16 +25,15 @@ internal class InputGroupExamplesModel {
     val submits = state(0)
 }
 
-internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontCollection): View =
+internal fun inputGroupExamples(model: InputGroupExamplesModel): View =
     makeColumn {
-        this.add(panelHeading("Input Group", fonts))
+        this.add(panelHeading("Input Group"))
         this.typography(
             "One editor, a shared frame, and independent addon actions. Click an addon label to focus the input.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.frame(
             makeInputGroup {
-                this.fonts = Some(fonts)
                 this.enabled = model.enabled.value
                 this.invalid = model.invalid.value
                 this.input(model.address) { this.readOnly = model.readonly.value }
@@ -69,32 +67,24 @@ internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontColle
         }
         this.row {
             this.button("Move addons", { model.block.value = !model.block.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Enabled", { model.enabled.value = !model.enabled.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Invalid", { model.invalid.value = !model.invalid.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Read only", { model.readonly.value = !model.readonly.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
         }
-        this.typography("Search, shortcut hint, and busy indicator", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Search, shortcut hint, and busy indicator", TypographyRole.H4)
         this.inputGroup {
-            this.fonts = Some(fonts)
             this.input(model.query) { this.placeholder = "Search projects…" }
             this.addon {
                 this.add(
@@ -105,7 +95,7 @@ internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontColle
                 )
             }
             this.addon(InputGroupAlign.InlineEnd) {
-                this.add(makeKbd("⌘ K") { this.fonts = Some(fonts) })
+                this.add(makeKbd("⌘ K"))
                 this.button(
                     "Clear",
                     {
@@ -122,11 +112,8 @@ internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontColle
                 )
             }
         }
-        this.typography("Multiline with block header and actions", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Multiline with block header and actions", TypographyRole.H4)
         this.inputGroup {
-            this.fonts = Some(fonts)
             this.textarea(model.message) {
                 this.rows = 3L
                 this.placeholder = "Ask a question…"
@@ -141,12 +128,10 @@ internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontColle
                 }
             }
         }
-        this.typography("Explicit custom control", TypographyRole.H4) { this.fonts = Some(fonts) }
+        this.typography("Explicit custom control", TypographyRole.H4)
         this.inputGroup {
-            this.fonts = Some(fonts)
             this.control(
                 makeInput(model.custom) {
-                    this.fonts = Some(fonts)
                     this.focus = FocusOptions(Some(model.focus))
                     this.chrome = TextFieldChrome.Bare
                 },
@@ -163,9 +148,7 @@ internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontColle
                 )
             }
         }
-        this.typography(f"Actions: ${model.submits.value}", TypographyRole.Small) {
-            this.fonts = Some(fonts)
-        }
+        this.typography(f"Actions: ${model.submits.value}", TypographyRole.Small)
         this.spacing = 12.0
         this.alignment = CrossAlignment.Start
         this.padding = Insets(6.0, 6.0, 12.0, 12.0)

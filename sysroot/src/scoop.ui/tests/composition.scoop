@@ -64,28 +64,24 @@ internal class CompositionProbe(val store: CompositionStore) {
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
                 )
                 first =
-                    Some(
-                        host.attach(
-                            application.createWindow(
-                                windowAttributes {
-                                    this.title = "UI composition"
-                                    this.visible = false
-                                }
-                            ),
-                            { mount -> CompositionScene(this, scope = mount) }
-                        )
+                    host.attach(
+                        application.createWindow(
+                            windowAttributes {
+                                this.title = "UI composition"
+                                this.visible = false
+                            }
+                        ),
+                        { mount -> CompositionScene(this, scope = mount) }
                     )
                 second =
-                    Some(
-                        host.attach(
-                            application.createWindow(
-                                windowAttributes {
-                                    this.title = "UI shared state"
-                                    this.visible = false
-                                }
-                            ),
-                            { mount -> CompositionMirror(this, scope = mount) }
-                        )
+                    host.attach(
+                        application.createWindow(
+                            windowAttributes {
+                                this.title = "UI shared state"
+                                this.visible = false
+                            }
+                        ),
+                        { mount -> CompositionMirror(this, scope = mount) }
                     )
                 postStep(application)
             }

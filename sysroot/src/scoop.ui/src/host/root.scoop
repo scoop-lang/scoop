@@ -153,8 +153,10 @@ internal class UiRoot(
         checkThread()
         if (!isOpen)
             return
-        stop()
-        host.retire(this)
+        surface.dispatch {
+            stop()
+            host.retire(this)
+        }
     }
     fun closeSurface() {
         when (attached) {
@@ -166,11 +168,10 @@ internal class UiRoot(
         checkThread()
         if (closed)
             return
-        stop()
+        var failure = cleanupUi(None) { stop() }
         closed = true
         val current = node
         node = None
-        var failure: Throwable? = None
         when (current) {
             case Some(value) -> failure = cleanupUi(failure) { value.unmount() }
             case None -> {}

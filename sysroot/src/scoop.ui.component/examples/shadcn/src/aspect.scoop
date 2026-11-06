@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.style.Insets
 import scoop.ui.component.*
@@ -9,21 +8,13 @@ import scoop.ui.component.column as makeColumn
 import scoop.ui.component.imageView as makeImage
 
 /** The example owns its image; ImageView instances borrow it until unmount. */
-internal class AspectExamples(private val fonts: FontCollection, scope: ComponentScope): Component(
-    scope
-) {
-    private val artwork = state<Image?>(None)
-    public override fun onMount() {
-        artwork.value = Some(scope.resource { panelArtwork() })
-    }
+internal class AspectExamples(scope: ComponentScope): Component(scope) {
+    private val artwork = scope.resource { panelArtwork() }
     public override fun render(): View {
-        // Initial render precedes onMount; its state write schedules the resource-backed view.
-        val picture = artwork.value ?: return empty()
+        val picture = artwork
         return makeColumn {
-            this.add(panelHeading("Aspect Ratio", this @AspectExamples.fonts))
-            this.label("The same image in 16:9 and square frames, using Cover and Contain.") {
-                this.fonts = Some(this @AspectExamples.fonts)
-            }
+            this.add(panelHeading("Aspect Ratio"))
+            this.label("The same image in 16:9 and square frames, using Cover and Contain.")
             for (ratio in [16.0 / 9.0, 1.0])
                 this.row {
                     for (fit in [ContentFit.Cover, ContentFit.Contain])
@@ -34,7 +25,7 @@ internal class AspectExamples(private val fonts: FontCollection, scope: Componen
                                         "Cover"
                                     else
                                         "Contain"
-                                ) { this.fonts = Some(this @AspectExamples.fonts) }
+                                )
                                 this.aspectRatio(
                                     makeImage(picture, Size(96.0, 64.0)) { this.fit = fit },
                                     ratio

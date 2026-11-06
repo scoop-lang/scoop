@@ -14,7 +14,7 @@ internal class SelectScrollButton(
     private val down: Boolean
 ) {
     private val area = scope.createArea { _, _ -> refresh() }
-    private val timer = scope.resource { scope.nativeWindow.createDeadline { tick() } }
+    private val timer = scope.createDeadline { tick() }
     private val press = scope.press(area, PressOptions(true, false)) { step() }
     private val glyph =
         scope.resource {

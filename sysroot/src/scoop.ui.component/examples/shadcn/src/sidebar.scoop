@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
@@ -29,13 +28,13 @@ internal class SidebarExamplesModel {
     val draft = TextEditorState("Plan the next release")
 }
 
-internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection): View =
+internal fun sidebarExamples(model: SidebarExamplesModel): View =
     sidebarColumn {
-        add(panelHeading("Sidebar", fonts))
+        add(panelHeading("Sidebar"))
         typography(
             "A workspace with collapsible navigation. Try the rail, keyboard shortcut, and narrow layout.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             for (variant in [SidebarVariant.Sidebar, SidebarVariant.Floating, SidebarVariant.Inset])
                 button(
@@ -45,10 +44,7 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
                         case Inset -> "Inset"
                     },
                     { model.variant.value = variant }
-                ) {
-                    this.fonts = Some(fonts);
-                    this.variant = ButtonVariant.Outline
-                }
+                ) { this.variant = ButtonVariant.Outline }
             for (
                 collapse in [SidebarCollapse.Offcanvas, SidebarCollapse.Icon, SidebarCollapse.None]
             )
@@ -59,10 +55,7 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
                         case None -> "Always open"
                     },
                     { model.collapse.value = collapse }
-                ) {
-                    this.fonts = Some(fonts);
-                    variant = ButtonVariant.Outline
-                }
+                ) { variant = ButtonVariant.Outline }
             spacing = 8.0
         }
         wrap {
@@ -72,10 +65,7 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
                 else
                     "Use narrow layout",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Secondary
-            }
+            ) { variant = ButtonVariant.Secondary }
             button(
                 if (model.side.value == SidebarSide.Start)
                     "Move to end"
@@ -88,55 +78,37 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
                         else
                             SidebarSide.Start
                 }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Secondary
-            }
+            ) { variant = ButtonVariant.Secondary }
             button(
                 if (model.loading.value)
                     "Show navigation"
                 else
                     "Show skeleton",
                 { model.loading.value = !model.loading.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Secondary
-            }
+            ) { variant = ButtonVariant.Secondary }
             button(
                 if (model.veto.value)
                     "Dismiss blocked"
                 else
                     "Dismiss allowed",
                 { model.veto.value = !model.veto.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Secondary
-            }
+            ) { variant = ButtonVariant.Secondary }
             spacing = 8.0
         }
         frame(
-            makeSidebar(
-                model.open.binding(),
-                { shown -> sidebarExampleNavigation(model, fonts, shown) }
-            ) {
+            makeSidebar(model.open.binding(), { shown -> sidebarExampleNavigation(model, shown) }) {
                 variant = model.variant.value;
                 collapsible = model.collapse.value;
                 side = model.side.value
                 breakpoint = 640.0;
                 rail = true;
-                this.fonts = Some(fonts)
                 onCloseRequest = { _ -> !model.veto.value }
                 header {
                     shown -> sidebarColumn {
                         sidebarTrigger(model.open.binding())
                         if (!shown.collapsed) {
-                            typography("Project Atlas", TypographyRole.Small) {
-                                this.fonts = Some(fonts)
-                            }
-                            sidebarInput(model.search) {
-                                placeholder = "Search workspace";
-                                this.fonts = Some(fonts)
-                            }
+                            typography("Project Atlas", TypographyRole.Small)
+                            sidebarInput(model.search) { placeholder = "Search workspace"; }
                         }
                         spacing = 8.0;
                         alignment = CrossAlignment.Stretch
@@ -145,31 +117,24 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
                 footer {
                     shown -> makeSidebarMenu {
                         collapsed = shown.collapsed;
-                        this.fonts = Some(fonts)
                         item(
                             ViewKey.Number(90L),
                             "Ada Lovelace",
                             { model.section.value = "Account" }
-                        ) { icon { appearance -> sidebarExampleIcon("A", fonts, appearance) } }
+                        ) { icon { appearance -> sidebarExampleIcon("A", appearance) } }
                     }
                 }
                 inset(
                     sidebarColumn {
                         sidebarTrigger(model.open.binding())
-                        typography(model.section.value, TypographyRole.H3) {
-                            this.fonts = Some(fonts)
-                        }
-                        typography("Workspace draft", TypographyRole.Small) {
-                            this.fonts = Some(fonts)
-                        }
-                        input(model.draft) { this.fonts = Some(fonts) }
-                        typography(f"${model.count.value} project actions", TypographyRole.Muted) {
-                            this.fonts = Some(fonts)
-                        }
+                        typography(model.section.value, TypographyRole.H3)
+                        typography("Workspace draft", TypographyRole.Small)
+                        input(model.draft)
+                        typography(f"${model.count.value} project actions", TypographyRole.Muted)
                         typography(
                             "Press Command+B to toggle navigation. Your draft remains in the application model.",
                             TypographyRole.Muted
-                        ) { this.fonts = Some(fonts) }
+                        )
                         spacing = 16.0;
                         padding = Insets.all(20.0);
                         alignment = CrossAlignment.Stretch
@@ -197,7 +162,6 @@ internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection)
 
 private fun sidebarExampleNavigation(
     model: SidebarExamplesModel,
-    fonts: FontCollection,
     shown: SidebarPresentation
 ): View =
     makeSidebarGroup(
@@ -213,7 +177,6 @@ private fun sidebarExampleNavigation(
                 add(
                     makeSidebarMenu {
                         collapsed = shown.collapsed;
-                        this.fonts = Some(fonts)
                         for (
                             (key, title, iconText) in [
                                 (1L, "Inbox", "I"),
@@ -232,20 +195,17 @@ private fun sidebarExampleNavigation(
                                 }
                             ) {
                                 active = model.section.value == title
-                                icon {
-                                    appearance -> sidebarExampleIcon(iconText, fonts, appearance)
-                                }
+                                icon { appearance -> sidebarExampleIcon(iconText, appearance) }
                                 if (key == 1L)
                                     badge {
                                         appearance -> makeSidebarBadge("12") {
-                                            this.fonts = Some(fonts);
                                             color = Some(appearance.text.color)
                                         }
                                     }
                                 if (key == 2L) {
                                     action(
                                         makeSidebarAction(
-                                            makeLabel("+") { this.fonts = Some(fonts) },
+                                            makeLabel("+"),
                                             { model.count.value += 1 }
                                         )
                                     )
@@ -253,7 +213,6 @@ private fun sidebarExampleNavigation(
                                     submenu(
                                         model.projects.binding(),
                                         makeSidebarMenu {
-                                            this.fonts = Some(fonts)
                                             item(
                                                 ViewKey.Number(10L),
                                                 "Design system",
@@ -271,7 +230,7 @@ private fun sidebarExampleNavigation(
                         }
                         item(ViewKey.Number(5L), "Unavailable", {}) {
                             enabled = false;
-                            icon { appearance -> sidebarExampleIcon("—", fonts, appearance) }
+                            icon { appearance -> sidebarExampleIcon("—", appearance) }
                         }
                         item(
                             ViewKey.Number(6L),
@@ -279,7 +238,7 @@ private fun sidebarExampleNavigation(
                             { model.section.value = "Documentation" }
                         ) {
                             variant = SidebarMenuVariant.Outline;
-                            icon { appearance -> sidebarExampleIcon("D", fonts, appearance) }
+                            icon { appearance -> sidebarExampleIcon("D", appearance) }
                         }
                     }
                 )
@@ -289,16 +248,10 @@ private fun sidebarExampleNavigation(
     ) {
         label("Workspace");
         collapsed = shown.collapsed;
-        this.fonts = Some(fonts)
     }
 
-private fun sidebarExampleIcon(
-    text: String,
-    fonts: FontCollection,
-    appearance: ActionContentStyle
-): View =
+private fun sidebarExampleIcon(text: String, appearance: ActionContentStyle): View =
     makeLabel(text) {
-        this.fonts = Some(fonts)
         style { color = Some(appearance.text.color) }
         settings { maxLines = Some(1L) }
     }

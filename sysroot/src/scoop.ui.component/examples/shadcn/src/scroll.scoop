@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.label as makeLabel
@@ -35,18 +34,18 @@ internal class ScrollExamplesModel {
     }
 }
 
-internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, theme: Theme): View {
+internal fun scrollExamples(model: ScrollExamplesModel, theme: Theme): View {
     val decoration =
         styleOverride {
             this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
             this.corners(Corners.all(theme.tokens.corners.large))
         }
     return makeColumn {
-        this.add(panelHeading("Scroll Area", fonts))
+        this.add(panelHeading("Scroll Area"))
         this.typography(
             "Native wheel, keyboard and focus reveal share one scroll position. Drag either thumb; use the toolbar to compare RTL and themes.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
             this.button(
                 "Focus viewport",
@@ -54,19 +53,15 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
                     model.focus.requestFocus();
                     Unit
                 }
-            ) { this.fonts = Some(fonts) }
+            )
             this.button(
                 "Reveal last field",
                 {
                     model.destination.requestFocus();
                     Unit
                 }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Return to top", { model.vertical.scrollTo(Point(0.0, 0.0)) }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
@@ -78,12 +73,8 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
                 else
                     "Enable viewport",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Toggle width", { model.narrow.value = !model.narrow.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button(
@@ -93,25 +84,17 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
                     case Hidden -> "Bars: Hidden"
                 },
                 { model.nextVisibility() }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.frame(
             makeScrollArea(
                 makeColumn {
                     for (index in 1 .. 12) {
-                        this.label(f"Release ${index} — UI component updates") {
-                            this.fonts = Some(fonts)
-                        }
+                        this.label(f"Release ${index} — UI component updates")
                         this.separator()
                     }
-                    this.input(model.text) {
-                        this.fonts = Some(fonts)
-                        this.focus = FocusOptions(Some(model.destination))
-                    }
+                    this.input(model.text) { this.focus = FocusOptions(Some(model.destination)) }
                     this.spacing = 10.0
                     this.padding = Insets(16.0, 16.0, 16.0, 16.0)
                     this.alignment = CrossAlignment.Stretch
@@ -130,13 +113,11 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
                 this.style = decoration
             }
         ) { this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start) }
-        this.typography("Horizontal · Home / End follow reading direction", TypographyRole.H3) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Horizontal · Home / End follow reading direction", TypographyRole.H3)
         this.scrollArea(
             makeRow {
                 for (index in 1 .. 6)
-                    this.frame(makeLabel(f"Collection ${index}", { this.fonts = Some(fonts) })) {
+                    this.frame(makeLabel(f"Collection ${index}", {})) {
                         this.width = Some(180.0)
                         this.height = Some(90.0)
                         style {
@@ -154,16 +135,16 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
             this.scrollbars = model.visibility.value
             this.style = decoration
         }
-        this.typography("Two axes", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography("Two axes", TypographyRole.H3)
         this.scrollArea(
             makeFrame(
                 makeColumn {
                     for (index in 1 .. 8)
                         this.row {
-                            this.label(f"${index} · Planning") { this.fonts = Some(fonts) }
+                            this.label(f"${index} · Planning")
                             this.item(empty()) { this.grow = 1.0 }
-                            this.badge("In progress") { this.fonts = Some(fonts) }
-                            this.label("Updated today") { this.fonts = Some(fonts) }
+                            this.badge("In progress")
+                            this.label("Updated today")
                             this.spacing = 80.0
                         }
                     this.spacing = 20.0
@@ -178,26 +159,21 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
             this.scrollbars = model.visibility.value
             this.style = decoration
         }
-        this.typography("Nested scrolling", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography("Nested scrolling", TypographyRole.H3)
         this.button(
             if (model.contain.value)
                 "Inner: contain wheel"
             else
                 "Inner: pass remaining wheel",
             { model.contain.value = !model.contain.value }
-        ) {
-            this.fonts = Some(fonts);
-            this.variant = ButtonVariant.Outline
-        }
+        ) { this.variant = ButtonVariant.Outline }
         this.scrollArea(
             makeColumn {
-                this.label("The inner viewport hands remaining motion to this one.") {
-                    this.fonts = Some(fonts)
-                }
+                this.label("The inner viewport hands remaining motion to this one.")
                 this.scrollArea(
                     makeColumn {
                         for (index in 1 .. 12)
-                            this.label(f"Nested item ${index}") { this.fonts = Some(fonts) }
+                            this.label(f"Nested item ${index}")
                         this.spacing = 10.0
                         this.padding = Insets(12.0, 12.0, 12.0, 12.0)
                     }
@@ -212,7 +188,7 @@ internal fun scrollExamples(model: ScrollExamplesModel, fonts: FontCollection, t
                     this.style = decoration
                 }
                 for (index in 1 .. 8)
-                    this.label(f"Outer item ${index}") { this.fonts = Some(fonts) }
+                    this.label(f"Outer item ${index}")
                 this.spacing = 12.0
                 this.padding = Insets(16.0, 16.0, 16.0, 16.0)
                 this.alignment = CrossAlignment.Stretch

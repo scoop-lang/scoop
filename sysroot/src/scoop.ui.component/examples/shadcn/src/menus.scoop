@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.style.Insets
 import scoop.ui.component.*
@@ -105,18 +104,13 @@ internal fun exampleMenu(model: MenuExamplesModel, gallery: GalleryModel): MenuC
         }
     }
 
-internal fun menuExamples(
-    model: MenuExamplesModel,
-    fonts: FontCollection,
-    gallery: GalleryModel,
-    demo: Demo
-): View =
+internal fun menuExamples(model: MenuExamplesModel, gallery: GalleryModel, demo: Demo): View =
     makeColumn {
-        add(panelHeading(demoTitle(demo), fonts))
+        add(panelHeading(demoTitle(demo)))
         typography(
             "Use arrows, type to find a command, and press Enter. Escape closes one layer; Tab leaves the menu.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.enabled.value)
@@ -124,40 +118,28 @@ internal fun menuExamples(
                 else
                     "Enable menus",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.modal.value)
                     "Mode: Modal"
                 else
                     "Mode: NonModal",
                 { model.modal.value = !model.modal.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.narrow.value)
                     "Width: narrow"
                 else
                     "Width: normal",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (gallery.reduced.value)
                     "Motion: Reduced"
                 else
                     "Motion: Full",
                 { gallery.toggleMotion() }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             spacing = 8.0;
             lineSpacing = 8.0
         }
@@ -169,20 +151,14 @@ internal fun menuExamples(
                     else
                         "Reject binding",
                     { model.reject.value = !model.reject.value }
-                ) {
-                    this.fonts = Some(fonts);
-                    variant = ButtonVariant.Outline
-                }
+                ) { variant = ButtonVariant.Outline }
                 button(
                     if (model.veto.value)
                         "Allow close"
                     else
                         "Veto close",
                     { model.veto.value = !model.veto.value }
-                ) {
-                    this.fonts = Some(fonts);
-                    variant = ButtonVariant.Outline
-                }
+                ) { variant = ButtonVariant.Outline }
                 spacing = 8.0
             }
             row {
@@ -197,7 +173,6 @@ internal fun menuExamples(
                     exampleMenu(model, gallery)
                 ) {
                     trigger("Open menu")
-                    this.fonts = Some(fonts)
                     enabled = model.enabled.value
                     width =
                         if (model.narrow.value)
@@ -211,7 +186,7 @@ internal fun menuExamples(
                             OverlayMode.NonModal
                     onCloseRequest = { _ -> !model.veto.value }
                 }
-                button("Outside action", { model.count.value += 1 }) { this.fonts = Some(fonts) }
+                button("Outside action", { model.count.value += 1 })
                 spacing = 12.0
             }
             breadcrumb {
@@ -236,11 +211,9 @@ internal fun menuExamples(
                             variant = ButtonVariant.Ghost;
                             size = ButtonSize.IconSm
                         };
-                        this.fonts = Some(fonts)
                     }
                 )
                 current("Menus")
-                this.fonts = Some(fonts)
             }
             row {
                 buttonGroup {
@@ -266,11 +239,9 @@ internal fun menuExamples(
                             ) {
                                 trigger("…") { size = ButtonSize.Icon };
                                 group = Some(position);
-                                this.fonts = Some(fonts)
                             }
                         }
                     )
-                    this.fonts = Some(fonts)
                 }
             }
         } else
@@ -280,14 +251,13 @@ internal fun menuExamples(
                         "Right-click here · Shift+F10 when focused",
                         { model.count.value += 1 }
                     ) {
-                        this.fonts = Some(fonts);
                         variant = ButtonVariant.Outline
                         style { surface { padding = Some(Insets.all(32.0)) } }
                     },
                     exampleMenu(model, gallery)
                 ) {
                     open = Some(model.contextOpen.binding())
-                    this.fonts = Some(fonts);
+
                     enabled = model.enabled.value
                     width =
                         if (model.narrow.value)
@@ -303,7 +273,7 @@ internal fun menuExamples(
                 typography(
                     "The normal click action remains separate from the context menu.",
                     TypographyRole.Small
-                ) { this.fonts = Some(fonts) }
+                )
             } else {
                 row {
                     menubar(model.bar.binding()) {
@@ -337,7 +307,7 @@ internal fun menuExamples(
                                     )
                             }
                         )
-                        this.fonts = Some(fonts);
+
                         enabled = model.enabled.value
                         width =
                             if (model.narrow.value)
@@ -352,21 +322,16 @@ internal fun menuExamples(
                     }
                 }
             }
-        typography(f"${model.result.value} · Actions: ${model.count.value}", TypographyRole.Small) {
-            this.fonts = Some(fonts)
-        }
+        typography(f"${model.result.value} · Actions: ${model.count.value}", TypographyRole.Small)
         typography(
             f"Status bar: ${model.checked.value} · Appearance choice: ${model.appearance.value}",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         alertDialog(
             model.confirmation.binding(),
-            makeTypography("This example only changes the local preview.", TypographyRole.P) {
-                this.fonts = Some(fonts)
-            }
+            makeTypography("This example only changes the local preview.", TypographyRole.P)
         ) {
             title("Delete project?");
-            this.fonts = Some(fonts)
             action(
                 "Delete",
                 {

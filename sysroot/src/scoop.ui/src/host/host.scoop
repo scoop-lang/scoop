@@ -3,12 +3,14 @@ package scoop.ui
 import scoop.platform.concurrent.currentThreadId
 import scoop.graphics.text.FontCollection
 import scoop.surface.SurfaceHost
+import scoop.surface.SurfaceWindow
 import scoop.surface.HostShortcutScope
 import scoop.surface.ShortcutBinding
 import scoop.window.*
 
 /** Runs logical updates and Surface frames on the existing application owner. */
 public class UiHost public constructor(
+    private val onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error },
     private val handler: (UiHost, ActiveApplication, ApplicationEvent) -> Unit = { _, _, _ -> }
 ): ApplicationHandler, Closeable {
     private val thread = currentThreadId()
@@ -23,7 +25,19 @@ public class UiHost public constructor(
     private var closing = false
     private var hostShortcuts: HostShortcutScope? = None
     private val surfaces =
-        SurfaceHost { _, application, event -> handler(this, application, event) }
+        SurfaceHost(
+            onWindowError =
+                {
+                    id,
+                    error -> try {
+                        onRootError(id, error)
+                    } catch (reported: Throwable) {
+                        // Surface owns the original failure and combines a failing report with it.
+                        throw cleanupUi(Some(reported)) { close() }!!
+                    }
+                },
+            handler = { _, application, event -> handler(this, application, event) }
+        )
 
     public val isClosed: Boolean get() {
         checkThread()
@@ -46,20 +60,51 @@ public class UiHost public constructor(
         window: Window,
         create: (ComponentScope) -> C,
         fonts: FontCollection? = None
-    ): UiWindow {
+    ): UiWindow? {
         checkThread()
         if (closing)
             throw IllegalStateException(Some("UI host is closed"))
         return callback {
-            val root = UiRoot(this, window, component(create), fonts)
-            roots.add(root)
+            var root: UiRoot? = None
+            var surface: SurfaceWindow? = None
             try {
-                val surface = surfaces.attach(window, root)
-                root.mount(surface)
-                UiWindow(root)
+                val created = UiRoot(this, window, component(create), fonts)
+                root = Some(created)
+                roots.add(created)
+                val attached = surfaces.attach(window, created)
+                surface = Some(attached)
+                if (attached.dispatch { created.mount(attached) })
+                    Some(UiWindow(created))
+                else
+                    None
             } catch (error: Throwable) {
-                throw cleanupUi(Some(error)) { root.closeSurface() }!!
+                when (surface) {
+                    // A published Surface only propagates a failed error handler or host failure.
+                    case Some(_) -> throw error
+                    case None -> {
+                        val failedRoot = root
+                        val failure = cleanupUi(Some(error)) { failedRoot?.close() }!!
+                        if (surfaces.isClosing)
+                            throw failure
+                        reportRootError(window.id, failure)
+                    }
+                }
+                None
             }
+        }
+    }
+    private fun reportRootError(id: WindowId, error: Throwable) {
+        if (closing)
+            throw error
+        try {
+            onRootError(id, error)
+        } catch (reported: Throwable) {
+            val failure: Throwable? =
+                if (reported === error)
+                    Some(error)
+                else
+                    Some(ResourceUseException(error, reported))
+            throw cleanupUi(failure) { close() }!!
         }
     }
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
@@ -99,7 +144,9 @@ public class UiHost public constructor(
         queued = true
         if (!mailbox.post { _ -> callback { flush() } }) {
             queued = false
-            close()
+            throw cleanupUi(Some(IllegalStateException(Some("UI update delivery failed")))) {
+                close()
+            }!!
         }
     }
     private fun flush() {
@@ -114,7 +161,7 @@ public class UiHost public constructor(
         try {
             for (root in work)
                 if (root.isOpen)
-                    root.flush()
+                    root.surface.dispatch { root.flush() }
         } finally {
             processing = false
         }
@@ -174,18 +221,19 @@ public class UiHost public constructor(
         if (closing)
             return
         closing = true
-        hostShortcuts?.close()
+        var failure = cleanupUi(None) { hostShortcuts?.close() }
         hostShortcuts = None
         queued = false
         pending.clear()
-        for (root in roots) {
+        for (root in roots.toArray()) {
             root.pendingEnqueued = false
-            root.stop()
+            failure = cleanupUi(failure) { root.stop() }
         }
         if (nativeDepth > 0 || depth == 0)
-            surfaces.close()
+            failure = cleanupUi(failure) { surfaces.close() }
         else
             pendingRetirement = true
+        throwUi(failure)
     }
 }
 
@@ -208,7 +256,7 @@ public fun <C: Component> runUiApplication(
 ) {
     val application =
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
-    UiHost {
+    UiHost(onRootError = { _, error -> throw error }) {
         host,
         active,
         event -> when (event) {

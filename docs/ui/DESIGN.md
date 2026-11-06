@@ -6,7 +6,7 @@
 
 2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已实施到 Sidebar，实际交付见[组件实施记录](shadcn/PROGRESS.md)：扩展现有 component 并新增独立 shadcn 主题，目标覆盖排除 Code Block／Native Select 后的 64 项。Windows／Linux native 和 accessibility 继续按独立工作推进。
 
-2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-整改目标协议p0-合同按批次交付)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
+2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-完整布局与更新合同汇总)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 
 ## 1. 分层目标
 
@@ -120,9 +120,9 @@ Element 的 Props 由框架更新。业务 State 依赖仍只在 render 收集�
 
 component、element 和 lazyElement 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架总是替换当前 Props；显式且稳定的 InputComparison 可在输入等价、没有自身 State 失效或方向变化时跳过 render／update。任意用户输入默认保守更新。Element children、Lazy source／retention 和已排队后代分别处理；忽略回调变化的比较必须配合读取当前 Props 的稳定事件转发。
 
-匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 及 Portal 模态类别保持既有区别。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议为持有构造作用域的抽象基类，实际实例自身保存单次挂载归属。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
+匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 保持各自职责；同一父级与 key 的 Portal 更新 NonModal／FocusContained／Modal 配置时保留内容挂载、编辑模型和最初保存的焦点目标。模式变化更新屏障与焦点约束，不触发关闭回调；退出中的约束保留到 Accepted 移除。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议为持有构造作用域的抽象基类，实际实例自身保存单次挂载归属。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
 
-同一实例只能占据一个活动挂载位置，工厂为新挂载创建新实例。只检查当前活动的重复实例，不保留退休对象历史。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
+实例保存单次挂载归属，同一个实例不能再次挂载；每次新挂载由工厂创建新实例。不再使用全局实例表或退休对象登记表。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
 
 不引入关联类型、不透明返回类型或 result builder。所有协议方法都是普通固定签名方法；泛型工厂、Props 和具体 ComponentNode／ElementNode class 通过普通泛型实现跨 Cone 承载。
 
@@ -246,7 +246,7 @@ Label 的文字元素委托公共 ParagraphHost，接受 String 或 StyledText �
 
 ## 9. 生命周期与宿主关闭
 
-Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame／requestLayout，以及直接复用 Surface 的 createArea／animation。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
+Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame／requestLayout，以及直接复用 Surface 的 createArea／animation 和原生 createDeadline。deadline 回调在所属根的失败边界内执行，随挂载退休关闭。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
 
 长寿命资源在构造中创建并登记，onMount 用于业务挂载通知。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
 
@@ -264,7 +264,7 @@ SurfaceContent 已在 macOS 两架构验证正常、原生和异常关闭，并�
 
 ### 9.1 多窗口与窗口层前置
 
-scoop.window 已实现多个独立的非模态顶层窗口，共享一个 Application 和原生主循环，按 WindowId 区分事件，默认 LastWindowPolicy.KeepRunning。UiHost 对每个 Window 分别 attach 独立 UI 根；普通关闭一个窗口只卸载该根，同一 owner 上共享的业务 State 可以继续供其他根使用。组件、输入区域和挂载身份不跨窗口共用。
+scoop.window 已实现多个独立的非模态顶层窗口，共享一个 Application 和原生主循环，按 WindowId 区分事件，默认 LastWindowPolicy.KeepRunning。UiHost 对每个 Window 分别 attach 独立 UI 根；普通关闭一个窗口只卸载该根，同一 owner 上共享的业务 State 可以继续供其他根使用。UiWindow 关闭和已处理的根错误都不销毁调用方的原生 Window；LastWindowPolicy 只由实际原生窗口的关闭触发。组件、输入区域和挂载身份不跨窗口共用。
 
 窗口装饰／缩放、按钮和层级已有属性入口；macOS 另有 TitlebarOptions。Win32 在关闭 decorations 但保留 resizable 时仍使用 WS_THICKFRAME，完全自绘窗框的系统拖移／边缘缩放接口尚未实现。
 
@@ -339,7 +339,7 @@ Context 传播 Store 引用，不改变线程和任务归属。协程的 executi
 
 ## 10. 失败与退出
 
-构造、render、update、measure、paint、动画业务完成回调和输入处理均可能抛错。首期沿 SurfaceHost 的现有异常通路关闭所管理的根和 Surface；不继续使用半更新树，不提供自动重试或错误边界。
+UiHost 的 onRootError(WindowId, Throwable) 在失败窗口的输入、内容、renderer／lease 清理后收到一次报告。正常返回允许其他窗口继续；默认重新抛出。构造、render、update、measure、scene／draw、输入、作用域 deadline、动画及帧完成回调共用 SurfaceWindow.dispatch 的安全退休边界。初次挂载失败并已处理时 attach 返回 None，成功返回 Some(UiWindow)。处理器自身抛错、应用事件回调、共享 renderer 和消息投递失败关闭宿主并传播错误。已发生的共享 State 写入保留，不自动重试或重新挂载。
 
 框架恢复绘制状态并中止失败帧，丢弃未提交 placement；新建但未完成挂载的节点也须清理。控件自己的缓存遵守创建失败回滚及替换时及时关闭旧值的合同，错误不能留下未登记 native 资源。
 
@@ -393,7 +393,7 @@ Context 传播 Store 引用，不改变线程和任务归属。协程的 executi
 | --- | --- | --- |
 | 向外部 GPU 目标绘制 Canvas | graphics.native 的 MetalContext.target／D3DContext.target 返回 RenderTarget；draw 借出 Canvas，submit 提交 GPU 工作 | 按实际应用补充外部目标与采样方的交付规则；GL／GLES／Vulkan 需要各自的后端接入 |
 | 把外部 GPU 结果画入 Canvas | Image 目前从 RGBA 像素或 PNG／JPEG 创建；RenderTarget.snapshot 对 GPU 目标进行显式读回 | 原生纹理／图像导入、格式转换、使用完成通知及资源释放规则 |
-| 完整 UI 离屏运行 | 当前拟实施的 UiHost.attach 绑定 Window，InputArea 与动画属于 SurfaceWindow | 可由外部宿主持有的 UI 根，以及目标、尺寸、时间、输入和关闭的适配 |
+| 完整 UI 离屏运行 | 当前 UiHost.attach 绑定 Window，InputArea 与动画属于 SurfaceWindow | 可由外部宿主持有的 UI 根，以及目标、尺寸、时间、输入和关闭的适配 |
 | 3D 与媒体处理 | Canvas 提供 2D 绘图；组件可以使用普通库并管理其资源 | 3D 渲染和媒体解码／音频由独立库或应用接入，不进入 UI 核心 |
 
 源码依据为 [MetalContext](../../sysroot/src/scoop.graphics/src/platform/darwin/metal.scoop)、[D3DContext](../../sysroot/src/scoop.graphics/src/platform/windows/d3d.scoop)、[RenderTarget](../../sysroot/src/scoop.graphics/src/native/target.scoop)及 [Image](../../sysroot/src/scoop.graphics/src/drawing/image.scoop)。现有 [Metal 测试](../../sysroot/src/scoop.graphics/tests/metal.scoop)使用的[原生目标](../../sysroot/src/scoop.graphics/test-native/native/metal.m)是同时可绘制和采样的离屏纹理；这证明目标包装已有基础，不代表完整 3D 合成或视频路径已经验证。

@@ -12,7 +12,7 @@ internal fun reuseRetired(
     window: Window,
     record: FailureRecord
 ) {
-    val first = host.attach(window, { scope -> RetiredRoot(record, scope) })
+    val first = host.attach(window, { scope -> RetiredRoot(record, scope) })!!
     record.retiredWindow = Some(first)
     first.close()
     assertTrue(active.proxy().post { _ -> Unit })

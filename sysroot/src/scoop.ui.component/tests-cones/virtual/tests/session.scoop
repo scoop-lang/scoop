@@ -96,7 +96,7 @@ internal class ListProbe {
                 frames = Some(observeFrames(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { mount -> ListScene(this, scope = mount) }))
+                ui = host.attach(native, { mount -> ListScene(this, scope = mount) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

@@ -7,10 +7,21 @@ public enum InputBoundaryMode {
 /** Explicit input barrier; a retired scope stays blocking until this registration closes. */
 public class InputBoundary public constructor(
     public val input: InputScope,
-    public val mode: InputBoundaryMode = InputBoundaryMode.AllInput
+    mode: InputBoundaryMode = InputBoundaryMode.AllInput,
+    enabled: Boolean = true
 ): Closeable {
     internal var closed = false
     private val owner = input.owner
+    internal var currentMode = mode
+    internal var accepts = enabled
+    public val mode: InputBoundaryMode get() {
+        owner.checkThread()
+        return currentMode
+    }
+    public val enabled: Boolean get() {
+        owner.checkThread()
+        return accepts
+    }
     init {
         input.checkOpen()
         try {
@@ -28,6 +39,20 @@ public class InputBoundary public constructor(
     public val isCurrent: Boolean get() {
         owner.checkThread()
         return !closed && sameBoundary(owner.currentFocusBoundary, Some(this))
+    }
+    /** Changes effective input policy without moving this registration above its children. */
+    public fun update(mode: InputBoundaryMode, enabled: Boolean) {
+        owner.checkOpen()
+        if (closed)
+            throw IllegalStateException(Some("input boundary is closed"))
+        if (currentMode == mode && accepts == enabled)
+            return
+        val previous = owner.currentBoundary
+        val affected = accepts || enabled
+        currentMode = mode
+        accepts = enabled
+        if (affected)
+            owner.boundaryChanged(previous)
     }
     public override fun close() {
         owner.checkThread()
@@ -51,6 +76,8 @@ internal val InputRouter.currentFocusBoundary: InputBoundary? get() {
     while (index > 0L) {
         index -= 1L
         val boundary = boundaries[index]
+        if (!boundary.accepts)
+            continue
         var cursor: InputScope? = Some(boundary.input)
         while (true) {
             val current = cursor ?: break
@@ -67,7 +94,7 @@ internal val InputRouter.currentBoundary: InputBoundary? get() {
     while (index > 0L) {
         index -= 1L
         val boundary = boundaries[index]
-        if (boundary.mode == InputBoundaryMode.AllInput)
+        if (boundary.accepts && boundary.currentMode == InputBoundaryMode.AllInput)
             return Some(boundary)
     }
     return None
@@ -84,12 +111,10 @@ internal fun InputRouter.installBoundary(value: InputBoundary) {
     checkOpen()
     for (current in boundaries)
         requireInput(current.input !== value.input, "input scope already has a boundary")
+    val previous = currentBoundary
     boundaries.add(value)
-    if (value.mode == InputBoundaryMode.AllInput) {
-        boundaryRevision += 1uL
-        pendingBoundaryChange = true
-    }
-    changed()
+    if (value.accepts)
+        boundaryChanged(previous)
 }
 
 internal fun InputRouter.removeBoundary(value: InputBoundary) {
@@ -97,14 +122,19 @@ internal fun InputRouter.removeBoundary(value: InputBoundary) {
     for (index in 0L ..< boundaries.size) {
         if (boundaries[index] === value) {
             boundaries.removeAt(index)
-            if (!sameBoundary(previous, currentBoundary)) {
-                boundaryRevision += 1uL
-                pendingBoundaryChange = true
-            }
-            changed()
+            if (value.accepts)
+                boundaryChanged(previous)
             return
         }
     }
+}
+
+private fun InputRouter.boundaryChanged(previous: InputBoundary?) {
+    if (!sameBoundary(previous, currentBoundary)) {
+        boundaryRevision += 1uL
+        pendingBoundaryChange = true
+    }
+    changed()
 }
 
 internal fun InputRouter.allows(scope: InputScope): Boolean {

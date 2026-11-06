@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
@@ -24,13 +23,13 @@ internal class SelectExamplesModel {
     val result = state("Choose an option")
 }
 
-internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): View =
+internal fun selectExamples(model: SelectExamplesModel): View =
     makeColumn {
-        add(panelHeading("Select", fonts))
+        add(panelHeading("Select"))
         typography(
             "Choose with the pointer, arrow keys or typeahead. The selected row opens in line with its trigger; scroll to browse more choices.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.popup.value)
@@ -38,54 +37,39 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                 else
                     "Position: selected item",
                 { model.popup.value = !model.popup.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.narrow.value)
                     "Width: narrow"
                 else
                     "Width: normal",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.enabled.value)
                     "Disable"
                 else
                     "Enable",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.invalid.value)
                     "Clear invalid"
                 else
                     "Show invalid",
                 { model.invalid.value = !model.invalid.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.modal.value)
                     "Mode: Modal"
                 else
                     "Mode: NonModal",
                 { model.modal.value = !model.modal.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             spacing = 8.0;
             lineSpacing = 8.0
         }
-        fieldLabel("Fruit", model.target) { this.fonts = Some(fonts) }
+        fieldLabel("Fruit", model.target)
         select(
             binding(
                 { model.fruit.value },
@@ -96,7 +80,6 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
             )
         ) {
             labelTarget = Some(model.target);
-            this.fonts = Some(fonts)
             width =
                 Some(
                     if (model.narrow.value)
@@ -147,15 +130,11 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
             onValueChange = { value -> model.result.value = f"Selected: ${value ?: "none"}" }
             onCloseRequest = { _ -> !model.veto.value }
         }
-        typography(model.result.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        typography(model.result.value, TypographyRole.Small)
         wrap {
-            button("Clear value", { model.fruit.value = None }) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            button("Clear value", { model.fruit.value = None }) { variant = ButtonVariant.Outline; }
             button("Unknown value", { model.fruit.value = Some("unavailable") }) {
                 variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
             }
             button(
                 if (model.reject.value)
@@ -163,26 +142,19 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                 else
                     "Reject selection",
                 { model.reject.value = !model.reject.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.veto.value)
                     "Allow close"
                 else
                     "Veto close",
                 { model.veto.value = !model.veto.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             spacing = 8.0;
             lineSpacing = 8.0
         }
-        typography("Long list", TypographyRole.H4) { this.fonts = Some(fonts) }
+        typography("Long list", TypographyRole.H4)
         select(model.long.binding()) {
-            this.fonts = Some(fonts);
             width =
                 Some(
                     if (model.narrow.value)
@@ -205,9 +177,8 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                     )
                 )
         }
-        typography("Connected actions", TypographyRole.H4) { this.fonts = Some(fonts) }
+        typography("Connected actions", TypographyRole.H4)
         buttonGroup {
-            this.fonts = Some(fonts)
             item(
                 {
                     position -> makeSelect(
@@ -219,7 +190,7 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                     ) {
                         group = Some(position);
                         width = Some(180.0);
-                        this.fonts = Some(fonts);
+
                         placeholder = "Choose a plan"
                     }
                 }
@@ -228,9 +199,7 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                 variant = ButtonVariant.Outline
             }
         }
-        typography("Small, disabled and custom content", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        typography("Small, disabled and custom content", TypographyRole.H4)
         wrap {
             select(
                 model.plan.binding(),
@@ -239,7 +208,6 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                     Choice(ViewKey.Text("team"), "team", "Team")
                 ]
             ) {
-                this.fonts = Some(fonts);
                 width = Some(180.0);
                 size = SelectSize.Sm;
                 placeholder = "Choose a plan"
@@ -248,36 +216,18 @@ internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): 
                 model.fruit.binding(),
                 [Choice(ViewKey.Text("blueberry"), "blueberry", "Blueberry")]
             ) {
-                this.fonts = Some(fonts);
                 width = Some(180.0);
                 enabled = false
             }
             select(model.plan.binding()) {
-                this.fonts = Some(fonts);
                 width = Some(220.0)
                 valueContent =
-                    Some {
-                        value -> makeLabel(value.choice?.label ?: "Select workspace tier") {
-                            this.fonts = Some(fonts)
-                        }
-                    }
+                    Some { value -> makeLabel(value.choice?.label ?: "Select workspace tier") }
                 item(Choice(ViewKey.Text("personal"), "personal", "Personal")) {
-                    icon =
-                        Some(
-                            makeBadge("P") {
-                                variant = ButtonVariant.Secondary;
-                                this.fonts = Some(fonts)
-                            }
-                        )
+                    icon = Some(makeBadge("P") { variant = ButtonVariant.Secondary; })
                 }
                 item(Choice(ViewKey.Text("team"), "team", "Team")) {
-                    icon =
-                        Some(
-                            makeBadge("T") {
-                                variant = ButtonVariant.Secondary;
-                                this.fonts = Some(fonts)
-                            }
-                        )
+                    icon = Some(makeBadge("T") { variant = ButtonVariant.Secondary; })
                 }
             }
             spacing = 12.0;

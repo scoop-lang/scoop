@@ -1,7 +1,6 @@
 package scoop.examples.ui.shadcn
 
 import scoop.graphics.*
-import scoop.graphics.text.FontCollection
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
@@ -24,13 +23,13 @@ internal class CarouselExamplesModel {
     val note = TextEditorState("Edit this note, then drag to another slide.")
 }
 
-internal fun carouselExamples(model: CarouselExamplesModel, fonts: FontCollection): View =
+internal fun carouselExamples(model: CarouselExamplesModel): View =
     carouselColumn {
-        add(panelHeading("Carousel", fonts))
+        add(panelHeading("Carousel"))
         typography(
             "Drag a slide or use the arrow buttons. Tab to the viewport for arrows, Home / End and Page Up / Down.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.vertical.value)
@@ -38,50 +37,35 @@ internal fun carouselExamples(model: CarouselExamplesModel, fonts: FontCollectio
                 else
                     "Horizontal",
                 { model.vertical.value = !model.vertical.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.loop.value)
                     "Loop: on"
                 else
                     "Loop: off",
                 { model.loop.value = !model.loop.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.multiple.value)
                     "Multiple items"
                 else
                     "One item",
                 { model.multiple.value = !model.multiple.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.playing.value)
                     "Pause autoplay"
                 else
                     "Start autoplay",
                 { model.playing.value = !model.playing.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             button(
                 if (model.narrow.value)
                     "Use available width"
                 else
                     "Narrow layout",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                this.fonts = Some(fonts);
-                variant = ButtonVariant.Outline
-            }
+            ) { variant = ButtonVariant.Outline }
             spacing = 8.0
         }
         item(
@@ -91,18 +75,15 @@ internal fun carouselExamples(model: CarouselExamplesModel, fonts: FontCollectio
                         item(
                             ViewKey.Number(number),
                             carouselColumn {
-                                typography(f"Slide ${number + 1L}", TypographyRole.H3) {
-                                    this.fonts = Some(fonts)
-                                }
+                                typography(f"Slide ${number + 1L}", TypographyRole.H3)
                                 if (number == 0L)
-                                    textarea(model.note) { this.fonts = Some(fonts) }
+                                    textarea(model.note)
                                 else {
                                     typography(
                                         "Each slide keeps its content while moving through the carousel.",
                                         TypographyRole.Muted
-                                    ) { this.fonts = Some(fonts) }
+                                    )
                                     button("Save this slide", { model.actions.value += 1 }) {
-                                        this.fonts = Some(fonts);
                                         variant = ButtonVariant.Secondary
                                     }
                                 }
@@ -158,11 +139,11 @@ internal fun carouselExamples(model: CarouselExamplesModel, fonts: FontCollectio
                 model.actions.value
             } saved",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         typography(
             "Autoplay pauses while you hover or focus the carousel. Editing and ordinary button clicks remain independent of dragging.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         spacing = 16.0;
         alignment = CrossAlignment.Stretch
     }

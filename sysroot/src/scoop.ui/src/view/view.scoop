@@ -81,7 +81,7 @@ internal fun View.sameType(other: View): Boolean =
         case(Component(a), Component(b)) -> a.sameType(b)
         case(Element(a, _), Element(b, _)) -> a.sameType(b)
         case(Lazy(a, _, _), Lazy(b, _, _)) -> a.sameType(b)
-        case(Portal(_, _, a), Portal(_, _, b)) -> a.mode == b.mode
+        case(Portal(_, _, _), Portal(_, _, _)) -> true
         else -> false
     }
 

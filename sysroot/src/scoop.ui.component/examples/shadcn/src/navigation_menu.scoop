@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.style.Insets
 import scoop.ui.*
 import scoop.ui.component.*
@@ -25,27 +24,20 @@ internal class NavigationMenuExamplesModel {
 
 private fun navExampleLink(
     model: NavigationMenuExamplesModel,
-    fonts: FontCollection,
     title: String,
     description: String
 ): View =
     navigationMenuLink(
         navColumn {
-            typography(title, TypographyRole.Small) { this.fonts = Some(fonts) }
-            typography(description, TypographyRole.Muted) { this.fonts = Some(fonts) }
+            typography(title, TypographyRole.Small)
+            typography(description, TypographyRole.Muted)
             spacing = 4.0;
             alignment = CrossAlignment.Stretch
         },
         { model.navigate(title) }
-    ) {
-        this.fonts = Some(fonts);
-        active = model.page.value == title
-    }
+    ) { active = model.page.value == title }
 
-internal fun navigationMenuExamples(
-    model: NavigationMenuExamplesModel,
-    fonts: FontCollection
-): View {
+internal fun navigationMenuExamples(model: NavigationMenuExamplesModel): View {
     val guides =
         navRow {
             this.item(
@@ -53,7 +45,6 @@ internal fun navigationMenuExamples(
                     add(
                         navExampleLink(
                             model,
-                            fonts,
                             "Getting started",
                             "Install Scoop and build a native application."
                         )
@@ -61,7 +52,6 @@ internal fun navigationMenuExamples(
                     add(
                         navExampleLink(
                             model,
-                            fonts,
                             "Language guide",
                             "Values, types, and reusable components."
                         )
@@ -74,11 +64,10 @@ internal fun navigationMenuExamples(
             }
             this.item(
                 navColumn {
-                    add(navExampleLink(model, fonts, "Examples", "Explore complete applications."))
+                    add(navExampleLink(model, "Examples", "Explore complete applications."))
                     add(
                         navExampleLink(
                             model,
-                            fonts,
                             "Component library",
                             "Compose native controls and layouts."
                         )
@@ -95,29 +84,22 @@ internal fun navigationMenuExamples(
     val docs =
         navColumn {
             input(model.query) {
-                this.fonts = Some(fonts);
                 placeholder = "Search documentation";
                 focus = FocusOptions(Some(model.search))
             }
-            navigationMenuLink("Language reference", { model.navigate("Language reference") }) {
-                this.fonts = Some(fonts)
-            }
-            navigationMenuLink("UI components", { model.navigate("UI components") }) {
-                this.fonts = Some(fonts)
-            }
-            navigationMenuLink("Runtime and GC", { model.navigate("Runtime and GC") }) {
-                this.fonts = Some(fonts)
-            }
+            navigationMenuLink("Language reference", { model.navigate("Language reference") })
+            navigationMenuLink("UI components", { model.navigate("UI components") })
+            navigationMenuLink("Runtime and GC", { model.navigate("Runtime and GC") })
             spacing = 4.0;
             alignment = CrossAlignment.Stretch;
             padding = Insets.all(4.0)
         }
     return navColumn {
-        add(panelHeading("Navigation Menu", fonts))
+        add(panelHeading("Navigation Menu"))
         typography(
             "Browse destinations and rich panels with pointer or keyboard. Hover keeps the current focus; arrow down enters a panel.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         wrap {
             button(
                 if (model.vertical.value)
@@ -125,45 +107,32 @@ internal fun navigationMenuExamples(
                 else
                     "Orientation: horizontal",
                 { model.vertical.value = !model.vertical.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.viewport.value)
                     "Viewport: shared edge"
                 else
                     "Viewport: trigger edge",
                 { model.viewport.value = !model.viewport.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.narrow.value)
                     "Panel: narrow"
                 else
                     "Panel: normal",
                 { model.narrow.value = !model.narrow.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             button(
                 if (model.enabled.value)
                     "Disable"
                 else
                     "Enable",
                 { model.enabled.value = !model.enabled.value }
-            ) {
-                variant = ButtonVariant.Outline;
-                this.fonts = Some(fonts)
-            }
+            ) { variant = ButtonVariant.Outline; }
             spacing = 8.0;
             lineSpacing = 8.0
         }
         navigationMenu(Some(model.open.binding())) {
-            this.fonts = Some(fonts)
             orientation =
                 if (model.vertical.value)
                     FlexAxis.Vertical
@@ -192,16 +161,13 @@ internal fun navigationMenuExamples(
             link(ViewKey.Text("releases"), "Releases", { model.navigate("Releases") })
             link(ViewKey.Text("preview"), "Preview", {}) { enabled = false }
         }
-        typography(f"Current page: ${model.page.value}", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        typography(f"Current page: ${model.page.value}", TypographyRole.H4)
         typography(
             "The open panel is independent from the current page. Panel contents remain ordinary links, columns, and a native editor.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         button("Open documentation", { model.open.value = Some(ViewKey.Text("docs")) }) {
             variant = ButtonVariant.Outline;
-            this.fonts = Some(fonts)
         }
         spacing = 24.0
     }

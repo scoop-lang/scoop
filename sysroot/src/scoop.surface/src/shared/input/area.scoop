@@ -22,9 +22,18 @@ public class InputArea internal constructor(
     public val scope: InputScope = InputScope(owner, Some(this), Some(parent), handler)
     internal val closed: Boolean get() = scope.closed
     private var ignored = false
-    public val focusable: Boolean get() {
+    public var focusable: Boolean
+    get() {
         owner.checkThread()
         return acceptsFocus
+    }
+    set(value) {
+        checkOpen()
+        requireInput(value || !acceptsText, "text input requires focus capability")
+        if (acceptsFocus != value) {
+            acceptsFocus = value
+            owner.changed()
+        }
     }
     public var textInput: Boolean
     get() {

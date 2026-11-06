@@ -78,7 +78,7 @@ internal class FontProbe(val external: FontCollection, val replacement: FontColl
                             size = LogicalSize(240.0, 180.0)
                         }
                     )
-                root = Some(host.attach(window, { scope -> FontRoot(this, active, scope) }))
+                root = host.attach(window, { scope -> FontRoot(this, active, scope) })
                 original = Some(root!!.defaultFonts)
                 borrowedA = Some(borrowed(host, active))
                 borrowedB = Some(borrowed(host, active))
@@ -99,7 +99,7 @@ internal class FontProbe(val external: FontCollection, val replacement: FontColl
             ),
             { scope -> BorrowedRoot(this, scope) },
             fonts = Some(external)
-        )
+        )!!
     private fun verifyFonts(fonts: FontCollection, count: Int) {
         for (index in [0L, 1L, 2L, 4L]) {
             assertTrue(seen[index]!! === fonts)

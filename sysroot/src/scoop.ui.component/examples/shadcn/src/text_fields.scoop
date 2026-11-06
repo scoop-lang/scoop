@@ -1,6 +1,5 @@
 package scoop.examples.ui.shadcn
 
-import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
@@ -27,11 +26,10 @@ internal class TextExamplesModel {
     val selectedFiles = state(0)
 }
 
-internal fun inputExamples(model: TextExamplesModel, fonts: FontCollection): View =
+internal fun inputExamples(model: TextExamplesModel): View =
     makeColumn {
-        this.typography("Password and input policy", TypographyRole.H4) { this.fonts = Some(fonts) }
+        this.typography("Password and input policy", TypographyRole.H4)
         this.input(model.password) {
-            this.fonts = Some(fonts)
             this.placeholder = "Password"
             this.projection =
                 if (model.revealed.value)
@@ -45,16 +43,12 @@ internal fun inputExamples(model: TextExamplesModel, fonts: FontCollection): Vie
             else
                 "Show password",
             { model.revealed.value = !model.revealed.value }
-        ) {
-            this.fonts = Some(fonts)
-            this.variant = ButtonVariant.Outline
-        }
+        ) { this.variant = ButtonVariant.Outline }
         this.typography(
             "Masked text blocks copy by default. Showing it preserves selection and undo history.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.input(model.digits) {
-            this.fonts = Some(fonts)
             this.placeholder = "Up to six digits"
             this.policy =
                 textEditPolicy {
@@ -69,15 +63,9 @@ internal fun inputExamples(model: TextExamplesModel, fonts: FontCollection): Vie
                     }
                 }
         }
-        this.input(model.readonly) {
-            this.fonts = Some(fonts);
-            this.readOnly = true
-        }
-        this.typography("Application-owned file selection", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        this.input(model.readonly) { this.readOnly = true }
+        this.typography("Application-owned file selection", TypographyRole.H4)
         this.inputGroup {
-            this.fonts = Some(fonts)
             this.input(model.file) { this.readOnly = true }
             this.addon {
                 this.button(
@@ -94,20 +82,19 @@ internal fun inputExamples(model: TextExamplesModel, fonts: FontCollection): Vie
                 model.selectedFiles.value
             } times. Applications connect this action to their own file chooser.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.spacing = 12.0
         this.alignment = CrossAlignment.Stretch
     }
 
-internal fun textareaExamples(model: TextExamplesModel, fonts: FontCollection): View =
+internal fun textareaExamples(model: TextExamplesModel): View =
     makeColumn {
-        this.add(panelHeading("Textarea", fonts))
+        this.add(panelHeading("Textarea"))
         this.typography(
             "A shared editing model with native composition, selection, copy and undo. Primary+Enter submits.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.textarea(model.message) {
-            this.fonts = Some(fonts)
             this.rows = 4L
             this.placeholder = "Write a message…"
             this.wrap = model.wrap.value
@@ -126,51 +113,37 @@ internal fun textareaExamples(model: TextExamplesModel, fonts: FontCollection): 
                 else
                     "Wrap: off",
                 { model.wrap.value = !model.wrap.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button(
                 if (model.insertTab.value)
                     "Tab: insert"
                 else
                     "Tab: navigate",
                 { model.insertTab.value = !model.insertTab.value }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.spacing = 8.0
         }
         this.typography(
             f"Edits: ${model.edits.value} · Submits: ${model.submits.value}",
             TypographyRole.Small
-        ) { this.fonts = Some(fonts) }
-        this.typography("Horizontal and vertical scrolling", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        )
+        this.typography("Horizontal and vertical scrolling", TypographyRole.H4)
         this.textarea(model.code) {
-            this.fonts = Some(fonts)
             this.rows = 3L
             this.wrap = false
             this.tab = TextTabBehavior.Insert
         }
-        this.typography("Read only / invalid / disabled", TypographyRole.H4) {
-            this.fonts = Some(fonts)
-        }
+        this.typography("Read only / invalid / disabled", TypographyRole.H4)
         this.textarea(model.readonly) {
-            this.fonts = Some(fonts);
             this.rows = 2L;
             this.readOnly = true
         }
         this.textarea(model.invalid) {
-            this.fonts = Some(fonts);
             this.rows = 2L;
             this.invalid = true
             this.description = "Describe the issue before submitting."
         }
         this.textarea(model.disabled) {
-            this.fonts = Some(fonts);
             this.rows = 2L;
             this.enabled = false
         }

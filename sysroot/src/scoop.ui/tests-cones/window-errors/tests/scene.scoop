@@ -1,0 +1,145 @@
+package scoop.tests.ui.window_errors
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+internal class FailingRoot(
+    private val probe: FailureProbe,
+    private val record: FailureRecord,
+    scope: ComponentScope
+): Component(scope) {
+    private val image = scope.resource { Image.fromRgba(1, 1, [0, 0, 0, -1]) }
+    init {
+        record.fonts = Some(scope.defaultFonts)
+        record.image = Some(image)
+        record.area =
+            Some(
+                scope.createArea(focusable = true) {
+                    _, event ->
+                    record.callbacks += 1
+                    when (event) {
+                        case Keyboard(key) -> {
+                            if (
+                                record.point ==
+                                    FailurePoint.Input &&
+                                    key.state ==
+                                    ElementState.Pressed
+                            )
+                                probe.raise(record)
+                        }
+                        else -> {}
+                    }
+                }
+            )
+        scope.onDispose {
+            record.closes += 1
+            throw record.cleanup
+        }
+        if (record.point == FailurePoint.Constructor)
+            probe.raise(record)
+    }
+    public override fun render(): View {
+        record.callbacks += 1
+        if (record.point == FailurePoint.Render)
+            probe.raise(record)
+        return element(
+            record.trigger.value,
+            { props, mount -> FailingLeaf(probe, record, props, mount) }
+        )
+    }
+    public override fun onMount() {
+        if (record.point == FailurePoint.Mount)
+            probe.raise(record)
+        if (record.point == FailurePoint.Input)
+            assertTrue(scope.focusTarget(record.area!!).handle.requestFocus())
+        if (record.point == FailurePoint.Deadline)
+            scope.createDeadline { probe.raise(record) }.schedule(
+                MonotonicTimeSource.markNow() + Duration.milliseconds(10L)
+            )
+        if (record.point == FailurePoint.Animation)
+            scope.animation(0.0).animateTo(
+                1.0,
+                AnimationSpec.Tween(Duration.milliseconds(10L)),
+                onFinished = Some({ _ -> probe.raise(record) })
+            )
+        if (record.point == FailurePoint.Cleanup)
+            scope.onDispose { probe.raise(record) }
+    }
+}
+
+private class FailingLeaf(
+    private val probe: FailureProbe,
+    private val record: FailureRecord,
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
+        record.callbacks += 1
+        if (record.point == FailurePoint.Update && props.value)
+            probe.raise(record)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        record.callbacks += 1
+        if (record.point == FailurePoint.Measure)
+            probe.raise(record)
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 100.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        record.callbacks += 1
+        context.place(record.area!!, Rect(0.0, 0.0, 100.0, 80.0))
+        context.draw {
+            paint ->
+            record.canvas = Some(paint.canvas)
+            paint.canvas.clear(Color.White)
+            if (record.point == FailurePoint.Scene || record.point == FailurePoint.Reporter)
+                probe.raise(record)
+        }
+        context.onFrameComplete {
+            frame ->
+            record.callbacks += 1
+            if (record.point == FailurePoint.Complete)
+                probe.raise(record)
+            if (frame.submission == FrameSubmission.Accepted)
+                record.accepted = true
+        }
+    }
+}
+
+internal class HealthyRoot(private val probe: FailureProbe, scope: ComponentScope): Component(
+    scope
+) {
+    init {
+        scope.onDispose {
+            probe.siblingCloses += 1
+            throw probe.siblingCleanup
+        }
+    }
+    public override fun render(): View =
+        element(probe.shared.value, { props, mount -> HealthyLeaf(probe, props, mount) })
+}
+
+private class HealthyLeaf(
+    private val probe: FailureProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 100.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val value = props.value
+        context.draw { paint -> paint.canvas.clear(Color(value.toDouble() / 12.0, 0.2, 0.3)) }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = value
+        }
+    }
+}

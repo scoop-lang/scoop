@@ -19,14 +19,14 @@ import scoop.ui.component.radioGroup as makeRadioGroup
 import scoop.ui.component.slider as makeSlider
 import scoop.ui.style.*
 
-internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme: Theme): View =
+internal fun settingsExamples(model: SettingsModel, theme: Theme): View =
     makeColumn {
-        this.add(panelHeading("Field", fonts))
-        this.typography("Profile settings", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.add(panelHeading("Field"))
+        this.typography("Profile settings", TypographyRole.H3)
         this.typography(
             "Labels, help, errors and groups. Responsive fields follow their available width; edits stay in place.",
             TypographyRole.Muted
-        ) { this.fonts = Some(fonts) }
+        )
         this.row {
             this.button(
                 "Layout",
@@ -38,20 +38,14 @@ internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme
                             case Horizontal -> FieldOrientation.Responsive
                         }
                 }
-            ) {
-                this.fonts = Some(fonts);
-                this.variant = ButtonVariant.Outline
-            }
+            ) { this.variant = ButtonVariant.Outline }
             this.button("Width", { model.narrow.value = !model.narrow.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Enabled", { model.enabled.value = !model.enabled.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.button("Read only", { model.readonly.value = !model.readonly.value }) {
-                this.fonts = Some(fonts);
                 this.variant = ButtonVariant.Outline
             }
             this.spacing = 8.0
@@ -74,22 +68,18 @@ internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme
                 else
                     "editable"
             }"
-        ) { this.fonts = Some(fonts) }
+        )
         this.frame(
             makeFieldGroup {
-                this.add(settingsAccount(model, fonts))
-                this.fieldSeparator("Preferences") { this.fonts = Some(fonts) }
-                this.add(settingsPreferences(model, fonts, theme))
+                this.add(settingsAccount(model))
+                this.fieldSeparator("Preferences")
+                this.add(settingsPreferences(model, theme))
                 this.fieldSeparator()
                 this.row {
                     this.button("Save settings", { model.submit() }) {
-                        this.fonts = Some(fonts);
                         this.enabled = model.enabled.value
                     }
-                    this.button("Reset", { model.reset() }) {
-                        this.fonts = Some(fonts);
-                        this.variant = ButtonVariant.Outline
-                    }
+                    this.button("Reset", { model.reset() }) { this.variant = ButtonVariant.Outline }
                     this.spacing = 8.0
                 }
                 this.fieldDescription(
@@ -97,7 +87,7 @@ internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme
                         f"Settings accepted in this demo (${model.saved.value})."
                     else
                         "No settings submitted yet."
-                ) { this.fonts = Some(fonts) }
+                )
             }
         ) {
             this.width =
@@ -114,18 +104,16 @@ internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme
         this.alignment = CrossAlignment.Start
     }
 
-private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
+private fun settingsAccount(model: SettingsModel): View =
     makeFieldSet(
         makeFieldGroup {
             this.field(
                 makeInput(model.name) {
-                    this.fonts = Some(fonts);
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.targets[0L])
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.label("Display name", model.targets[0L]);
                 this.description("Shown on your profile and contributions.")
@@ -133,7 +121,6 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
             }
             this.field(
                 makeInputGroup {
-                    this.fonts = Some(fonts);
                     this.enabled = model.enabled.value;
                     this.invalid = model.emailErrors.size > 0L
                     this.input(model.email) {
@@ -148,7 +135,6 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
                     }
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.label("Email", model.targets[1L]);
                 this.required = true
@@ -158,7 +144,6 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
             }
             this.field(
                 makeOtp(model.code, 6L) {
-                    this.fonts = Some(fonts);
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.targets[2L]);
@@ -166,7 +151,6 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
                     this.invalid = model.codeErrors.size > 0L
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.label("Verification", model.targets[2L]);
                 this.required = true
@@ -176,14 +160,12 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
             }
             this.field(
                 makeTextarea(model.bio) {
-                    this.fonts = Some(fonts);
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.targets[3L]);
                     this.rows = 3L
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.label("Bio", model.targets[3L]);
                 this.description(
@@ -193,12 +175,11 @@ private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
             }
         }
     ) {
-        this.fonts = Some(fonts);
         this.legend("Account")
         this.description("Required fields are checked when you save; errors update as you edit.")
     }
 
-private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, theme: Theme): View =
+private fun settingsPreferences(model: SettingsModel, theme: Theme): View =
     makeFieldSet(
         makeFieldGroup {
             this.add(
@@ -209,7 +190,6 @@ private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, the
                             this.labelTarget = Some(model.targets[4L])
                         }
                     ) {
-                        this.fonts = Some(fonts);
                         this.orientation = FieldOrientation.Horizontal
                         this.controlPlacement = FieldControlPlacement.Start
                         this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
@@ -242,7 +222,6 @@ private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, the
                     this.labelTarget = Some(model.targets[5L])
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = FieldOrientation.Horizontal
                 this.label("Private profile", model.targets[5L]);
                 this.description("Only invited teammates can see your activity.")
@@ -250,13 +229,11 @@ private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, the
             }
             this.field(
                 makeRadioGroup(model.plan.binding()) {
-                    this.fonts = Some(fonts);
                     this.enabled = model.enabled.value
                     this.item(Choice(ViewKey.Text("personal"), 0, "Personal"))
                     this.item(Choice(ViewKey.Text("team"), 1, "Team"))
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.title("Workspace plan");
                 this.description("Choose the scope for these preferences.")
@@ -267,7 +244,6 @@ private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, the
                     this.enabled = model.enabled.value
                 }
             ) {
-                this.fonts = Some(fonts);
                 this.orientation = model.orientation.value
                 this.title(f"Storage budget · ${model.storage.value[0L]} GB")
                 this.description("Drag or use arrow keys to adjust in 5 GB steps.")
@@ -275,7 +251,6 @@ private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, the
             }
         }
     ) {
-        this.fonts = Some(fonts);
         this.legend("Workspace preferences");
         this.variant = FieldLegendVariant.Label
     }
