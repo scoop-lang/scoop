@@ -22,6 +22,7 @@ public class VirtualListBuilder internal constructor() {
     public var retention: ItemRetention = ItemRetention.Dispose
     public var navigation: ItemNavigation = ItemNavigation.None
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public var endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0)
     public var key: ViewKey = ViewKey.Position
 
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
@@ -51,7 +52,8 @@ public class VirtualListBuilder internal constructor() {
             anchor,
             retention,
             navigation,
-            paintCache
+            paintCache,
+            endPadding
         )
 }
 

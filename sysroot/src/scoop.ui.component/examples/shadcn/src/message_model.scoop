@@ -1,0 +1,198 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+import scoop.window.asyncio.currentApplicationScope
+
+internal class TranscriptExampleRow(
+    val id: Long,
+    val user: Boolean,
+    text: String,
+    val editable: Boolean = false
+) {
+    val text = state(text)
+    val image = state(false)
+    val note = TextEditorState("A note that stays with this message")
+}
+
+internal class MessageScrollerExamplesModel {
+    val scroll =
+        MessageScrollState(
+            MessageScrollOptions(
+                initialPosition = MessageInitialPosition.LastAnchor,
+                scrollMargin = 12.0
+            )
+        )
+    val revision = state(0)
+    val narrow = state(false)
+    val running = state(false)
+    val status = state("Scroll up to read while a reply grows.")
+    val saved = state<VirtualReadingAnchor?>(None)
+    var rows = initialMessages()
+    private var next = 8L
+    private var oldest = 0L
+    private var stream: Job? = None
+    private var imageJob: Job? = None
+    private var streamRevision = 0L
+    private fun replace(value: Array<TranscriptExampleRow>) {
+        rows = value
+        revision.value += 1
+    }
+    private fun reply(): TranscriptExampleRow? =
+        if (rows.size == 0L)
+            None
+        else
+            Some(rows[rows.size - 1L])
+    fun send() {
+        stop()
+        val id = next
+        next += 2L
+        val user =
+            TranscriptExampleRow(id, true, "Show how this plan behaves as the conversation grows.")
+        val answer = TranscriptExampleRow(id + 1L, false, "Here is the next part of the plan.")
+        val previous = rows
+        replace(
+            Array<TranscriptExampleRow>(previous.size + 2L) {
+                at -> if (at < previous.size)
+                    previous[at]
+                else
+                    if (at == previous.size)
+                        user
+                    else
+                        answer
+            }
+        )
+        scroll.beginTurn(ViewKey.Number(id))
+        status.value = "New turn placed near the top. Start streaming to grow its reply."
+    }
+    fun streamReply() {
+        val target = reply() ?: return
+        stop()
+        val model = this
+        val revision = streamRevision
+        running.value = true
+        status.value = "Streaming a reply. Scroll or select text to keep your reading position."
+        stream =
+            Some(
+                currentApplicationScope().launch {
+                    try {
+                        for (at in 1 .. 12) {
+                            currentEventLoop().sleep(Duration.milliseconds(180L))
+                            target.text.value += f"\n\n${
+                                at
+                            }. Keep the same message key while content arrives. Reading an earlier paragraph should remain comfortable, even when the reply adds detail or an image appears."
+                        }
+                        model.status.value =
+                            "Reply complete. The window is idle until your next action."
+                    } finally {
+                        if (model.streamRevision == revision)
+                            model.running.value = false
+                    }
+                }
+            )
+    }
+    fun stop() {
+        streamRevision += 1L
+        stream?.cancel()
+        stream = None
+        imageJob?.cancel()
+        imageJob = None
+        running.value = false
+    }
+    fun loadImage() {
+        val target = reply() ?: return
+        imageJob?.cancel()
+        val model = this
+        status.value = "Loading a local illustration…"
+        imageJob =
+            Some(
+                currentApplicationScope().launch {
+                    currentEventLoop().sleep(Duration.milliseconds(700L))
+                    target.image.value = true
+                    model.status.value = "Image ready. Existing reading position was retained."
+                }
+            )
+    }
+    fun history() {
+        val start = oldest - 3L
+        oldest = start
+        val previous = rows
+        replace(
+            Array<TranscriptExampleRow>(previous.size + 3L) {
+                at -> if (at < 3L)
+                    TranscriptExampleRow(
+                        start + at,
+                        at == 0L,
+                        "Earlier context: the workspace keeps decisions, notes and follow-up questions together."
+                    )
+                else
+                    previous[at - 3L]
+            }
+        )
+        status.value = "Older messages added above the current reading position."
+    }
+    fun toggleFollow() {
+        scroll.options =
+            MessageScrollOptions(
+                autoScroll = !scroll.options.autoScroll,
+                initialPosition = MessageInitialPosition.LastAnchor,
+                scrollMargin = 12.0
+            )
+    }
+    fun remember() {
+        saved.value = scroll.reading?.anchor ?: None
+        status.value = "Reading position saved by message key."
+    }
+    fun restore() {
+        when (saved.value) {
+            case Some(value) -> status.value =
+                if (scroll.restore(value))
+                    "Restoring the saved message."
+                else
+                    "The saved message is no longer present."
+            case None -> {}
+        }
+    }
+    fun emptyOrRestore() {
+        stop()
+        replace(
+            if (rows.size == 0L)
+                initialMessages()
+            else
+                []
+        )
+        scroll.reset(MessageInitialPosition.LastAnchor)
+    }
+}
+
+private fun initialMessages(): Array<TranscriptExampleRow> =
+    [
+        TranscriptExampleRow(0L, true, "How should we organize this project?"),
+        TranscriptExampleRow(
+            1L,
+            false,
+            "Start with a short plan and keep the main decisions close to the work. A long conversation can remain readable without forcing the viewport to follow every update."
+        ),
+        TranscriptExampleRow(2L, true, "Keep a record of the tradeoffs too."),
+        TranscriptExampleRow(
+            3L,
+            false,
+            "Each message has a stable identity. You can keep a note here, return to a saved paragraph, and add older context without losing your place.",
+            true
+        ),
+        TranscriptExampleRow(4L, true, "What happens when a reply keeps growing?"),
+        TranscriptExampleRow(
+            5L,
+            false,
+            "The current turn first grows into the available space. Optional following starts only after that space is full. Scrolling or selecting text stops automatic movement."
+        ),
+        TranscriptExampleRow(6L, true, "Let's try the next step."),
+        TranscriptExampleRow(
+            7L,
+            false,
+            "Use the controls above to stream a reply, prepend history, reveal an image or send a new turn."
+        )
+    ]

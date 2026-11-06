@@ -2,7 +2,7 @@
 
 当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
-2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6、P7 日期与数据展示随后按新协议交付，累计 **57／64**；继续 P8 会话与问卷，先验证 MessageScroller 的真实窗口纵向样例。整改本身不增加组件目录完成数。
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6、P7 及 P8a MessageScroller 随后按新协议交付，累计 **58／64**；继续 P8 的会话展示组件与 Questionnaire。整改本身不增加组件目录完成数。
 
 ## P0a：完整配色与主题
 
@@ -312,3 +312,10 @@
 - Tooltip、图例、指针及键盘共用 Accepted 几何；活动扇区的外扩绘制与命中一致，零值／空图／零尺寸不接收图表焦点。静态几何和 drawLayer 复用，指针移动不重新计算尺度；自定义圆心 View 保留独立编辑与 IME，静止及卸载后停帧。
 - macOS aarch64 release：**10 项模型／几何测试与 45 阶段原生窗口测试**通过。覆盖极值域、缺值／正负值、扇区／内孔／反向弧、混合图、缓存、受控拒绝、键盘／鼠标、真实窗口缩放、明暗／RTL、圆心中文 IME、禁用和卸载。组件、独立实窗与 Gallery 的格式／静态检查及生产构建通过；末次事件和文字位置修正定向复验原生窗口与 Gallery，未重复无关测试。
 - Gallery 实查六类、横纵／堆叠、图例显隐、数据更新／清空恢复、宽窄、System／Neutral、明暗及 RTL。修复进入／离开事件阶段造成的提示残留，并强化直接移出绘图区的断言；修正示例小数刻度、圆心文字居中和雷达刻度与顶端分类的重叠。累计 **57／64**，P7 闭合。验收原始资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P8a：MessageScroller
+
+- 完成稳定 key 的 TranscriptSource／DSL、初始起点／末端／最后锚点、回合定位、前一消息露出、可配置自动跟随、历史插入保持及按消息恢复。复用同一 VirtualList、ScrollState 和惰性正文；正文编辑、IME 与应用模型保持独立，外部滚动和实际选择立即停止跟随。
+- VirtualList 增加显式尾部留白与 FillViewport，当前布局先根据实际内容、请求位置和视口求留白，再限制滚动范围；窗口变高、正文缩短仍保持回合起点。读取快照只发布 Accepted 几何，Discarded、零尺寸和卸载不能更新可交互位置；迟到请求不会重新接入已卸载视图，静止后不持续请求帧。
+- macOS aarch64 release：**4 项模型测试、44 阶段 MessageScroller 原生窗口测试及既有 29 阶段 VariableList 回归通过**。覆盖流式追加、历史插入、真实指针／中文 IME、选择与边界恢复、宽窄／RTL／高度变化、初始隐藏准备、空数据、目标替换、禁用／零尺寸、失败帧、卸载和停帧。组件、独立实窗与 Gallery 格式／静态检查及生产构建通过。修复输入观察缺少 capture handler、视口变高时提前夹取滚动范围，以及零尺寸输入域仍启用的问题。
+- Gallery 实查新回合、真实异步流式文字／延迟图片、向上阅读、历史插入、保存／恢复、空内容、窄宽、System／Neutral、明暗、RTL 和中文输入完整焦点环；示例任务取消以当前任务修订号收尾。累计 **58／64**，继续 Attachment、Bubble、Marker、Message、Trace 与 Questionnaire。验收原始资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

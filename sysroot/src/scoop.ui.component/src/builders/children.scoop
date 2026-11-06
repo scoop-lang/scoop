@@ -29,6 +29,8 @@ import scoop.ui.component.calendarRange as appendCalendarRange
 import scoop.ui.component.datePicker as appendDatePicker
 import scoop.ui.component.dateRangePicker as appendDateRangePicker
 import scoop.ui.component.chart as appendChart
+import scoop.ui.component.messageScroller as appendMessageScroller
+import scoop.ui.component.messageScrollButton as appendMessageScrollButton
 import scoop.ui.component.table as appendTable
 import scoop.ui.component.dataTable as appendDataTable
 import scoop.ui.component.sidebar as appendSidebar
@@ -43,6 +45,20 @@ import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun messageScroller(
+        source: TranscriptSource,
+        state: MessageScrollState,
+        configure: MessageScrollerBuilder.() -> Unit = {}
+    ) {
+        add(appendMessageScroller(source, state, configure))
+    }
+    public fun messageScrollButton(
+        state: MessageScrollState,
+        direction: MessageScrollDirection = MessageScrollDirection.End,
+        configure: ButtonBuilder.() -> Unit = {}
+    ) {
+        add(appendMessageScrollButton(state, direction, configure))
+    }
     public fun chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}) {
         add(appendChart(model, configure))
     }

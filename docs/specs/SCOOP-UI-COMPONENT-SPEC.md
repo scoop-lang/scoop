@@ -307,7 +307,7 @@ Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, 
 
 ### 6.3 VirtualList
 
-VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（KeepVisible／FollowEnd，默认 KeepVisible）。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
+VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（None／KeepVisible／FollowEnd，默认 KeepVisible），以及逻辑主轴末端的 endPadding（VirtualListEndPadding，默认 Fixed(0)）。Fixed(length) 为有限非负长度；FillViewport 按当前 Start 定位、恢复或 KeepVisible 的未截断逻辑起点，填充该点到视口末端缺少的空间。填充在本次测量中随实际条目尺寸更新，先于滚动范围收敛，避免视口增高或正文缩短时先把阅读位置截断。两者参与 content extent 和滚动范围，不对应数据 key 或可见项；水平 RTL 时留在物理左端。None 保持数值位置，仅按实际范围收敛。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
 retention 使用 UI 的 ItemRetention，缺省 Dispose，KeepAlive(maxOffscreenItems) 保留有限的离屏原实例；可见／overscan 选择与活动交互项不计入上限。它直接传给 lazyElement，不在控件中维护另一份挂载或回收池。绘制缓存独立，保留实例并不自动缓存像素。
 
@@ -319,9 +319,9 @@ ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，�
 
 水平列表按继承的 LayoutDirection 排列，RTL 的第一项位于逻辑起点即物理右侧，条目绘图不镜像；不足一屏的内容也在逻辑起点对齐。ScrollState.offset 仍是从物理左侧计量的偏移，阅读锚点则使用逻辑排列方向。默认零位置首次呈现从逻辑首项开始；非零构造位置或显式 scrollTo 等请求按物理位置处理。方向热切换按稳定 key 保持阅读位置，重新测量依赖方向的条目，不重新创建同一 key。scrollToItem 的 Start／End 和横向 PageUp／PageDown／Home／End 按逻辑起终点解析，wheel 与滚动条继续使用物理位移。
 
-KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。
+KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。VirtualReadingSnapshot.endPadding 记录同一 Accepted 布局的实际末端留白。
 
-VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest)。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
+VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest, margin = 0, previousItemPeek = 0)。margin 与 previousItemPeek 是有限非负逻辑长度；Start 定位减去 margin 及不超过上一项实际长度的 peek，首项的 peek 为零；End／Nearest 使用 margin 扩张目标范围，Center 保持中心。带 peek 的请求按需测量紧前一项，与目标共用本帧结果。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
 
@@ -1076,3 +1076,20 @@ ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始
 几何和命中共享完整不可变布局结果，仅在数据／尺寸／字体／轴或绘图参数／系列显隐变化时重建。pointer 移动只更新 active 和提示布局，静态数据图层复用有限 drawLayer 的 key／revision；Accepted 后才发布可输入几何，Discarded 和零尺寸不发布。默认数据更新直接呈现最终值，不制造持续动画；自定义内容沿已有 Surface 动画与可见性协议，静止、隐藏及卸载后没有图表自发帧需求。RTL 镜像 Cartesian 的横轴与逻辑导航，图例和提示使用逻辑布局；极坐标角度保持显式数值含义。
 
 验收使用精确坐标／堆叠／角度／命中断言和六类真实数据图，覆盖空值、常量／负值／全零、受控 active、键盘与鼠标提示、图例显隐、稳定颜色、窗口缩放、明暗／RTL、零尺寸和停帧。D3 array／shape 的刻度、堆叠和单调曲线参考及衍生实现保留对应 ISC 许可证；其余绘制复用已有 graphics／graphics.text／math 公共接口。
+
+
+## 47. MessageScroller
+
+`messageScroller(source, state) { ... }` 组合原有 VirtualList、ScrollState 和 VirtualListHandle，不拥有会话协议、网络任务或第二份虚拟挂载树。TranscriptSource 是 ItemSource 的会话结构元数据扩展，提供按索引查找前一个回合锚点；锚点由应用明确声明。TranscriptList 用 TranscriptItem 的稳定显式 ViewKey、scrollAnchor 与按需 content 工厂建立普通 key／锚点索引；更新结构或条目输入时替换 source，流式正文也可由原 key 下的业务 State 更新。按 key 和回合查询不遍历全部历史或预建 View。
+
+MessageScrollState 持有一个 ScrollState、一个 VirtualListHandle、当前阅读策略和最近 Accepted 结果，同一时刻只附着一个宿主。MessageScrollOptions 默认 autoScroll=false、initialPosition=End、edgeThreshold=8、scrollMargin=0、previousItemPeek=64、preserveOnPrepend=true；支持 Start／End／LastAnchor 初始位置。首个非空来源只执行一次初始定位；LastAnchor 在最后回合已完整可见或没有锚点时使用 End，否则定位该回合。初始定位尚未完成时呈现静态空白或占位内容，不先显示最老消息。空来源可保留一次显式定位，首个非空来源解析后结束，不无限重试不存在的 key。
+
+Holding 使用既有 KeepVisible 保持当前 key／项内偏移。beginTurn(key) 接受应用的显式新回合请求，在下一次来源更新后解析一次，将回合放到 scrollMargin 加实际 previousItemPeek 的位置；它不从新增锚点自动推导发送行为。Anchoring 使用 endPadding=FillViewport，在当前实际布局中收敛为 `max(0, viewport - anchorInset - turnExtent)`，后续增高、缩短和窗口缩放沿同一阅读位置调整留白。Accepted 后记录实际留白，转入 Holding 时冻结该长度，避免继承自动填充策略。正文填满时，仅 autoScroll 开启才进入 Following 并定位实际末端；默认不制造滚动动画。Following 复用 VirtualList 的 FollowEnd，正常新增或流式更新保持末端。
+
+User 滚动意图（包括边界无位移）、正文指针操作、键盘及选择开始立即进入 Holding，停止较旧定位；不消费正文输入。释放选择不会自动拉回。用户随后主动滚回 edgeThreshold 内且没有活动指针选择时，autoScroll 可重新跟随；显式 hold、搜索、restore 或正文操作之后的普通数据更新不恢复旧策略。外部 Programmatic 意图也进入 Holding；内部定位识别自己同步产生的意图，LayoutCorrection 不改变阅读策略。preserveOnPrepend=false 只对来源在前方插入时保留数值偏移，普通正文增高仍沿 KeepVisible。
+
+scrollToMessage(key, alignment)、scrollToStart、scrollToEnd、restore(VirtualReadingAnchor) 和 hold 是应用动作。未知非空来源中的显式目标返回 false，不改变位置或策略；beginTurn 允许同一动作先替换来源再请求新 key，随后一次解析失败即结束。scrollToEnd 清理回合留白，并在 autoScroll 开启时重新跟随；其他显式定位进入 Holding。较新动作、真实来源替换期间的 restore、reset、宿主替换和卸载结束旧请求。reset 可指定新的初始位置，清理旧阅读事实与意图；卸载后的迟到动作不重新挂载宿主或预约帧。
+
+reading、visibleKeys、currentAnchor、atStart／atEnd 来自完整可见场景的 Accepted 结果；可见 key 排除 overscan 和末端留白，currentAnchor 由该位置对应的来源索引查询。隐藏的初始定位帧和 Discarded 不作为已读事实。持久化只保存 ViewKey／项内偏移等普通数据，不序列化 View、挂载实例或段落。调用方可独立观察 ScrollState 意图；作用域管理订阅、默认字体、焦点及帧完成资源。
+
+MessageScrollerBuilder 提供 itemExtent（默认 Variable(160)）、spacing（默认 24）、overscan、width／height（默认高度 480）、scrollbar、enabled、focus、theme、controls 和 placeholder；所有长度随正文密度解析。正文按 source 按需构造，controls 位于独立的视口覆盖层，可使用 messageScrollButton 的 Start／End 动作或自定义 View。无可跳转内容时默认按钮不加入输入或 Tab；未呈现、禁用或零尺寸视口的整个正文作用域不接受焦点和输入，恢复可用尺寸后按原模型继续。文字选择、编辑器、链接及弹层继续使用原有组件。验收先用真实窗口覆盖短／长回合、流式增高、历史 prepend、阅读／选择中断、明确跳转／恢复、初始与空来源、变宽／变高、RTL、零尺寸、卸载和静止停帧，再扩展会话展示家族。

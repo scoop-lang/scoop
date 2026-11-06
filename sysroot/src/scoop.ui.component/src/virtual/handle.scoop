@@ -36,14 +36,18 @@ public class VirtualListHandle public constructor() {
     }
     public fun scrollToItem(
         key: ViewKey,
-        alignment: ScrollAlignment = ScrollAlignment.Nearest
+        alignment: ScrollAlignment = ScrollAlignment.Nearest,
+        margin: Double = 0.0,
+        previousItemPeek: Double = 0.0
     ): Boolean {
         checkThread()
         requireComponent(
             key != ViewKey.Position,
             "virtual item positioning requires an explicit key"
         )
-        return target?.requestItem(key, alignment) ?: false
+        nonnegative(margin, "invalid virtual positioning margin")
+        nonnegative(previousItemPeek, "invalid virtual previous item peek")
+        return target?.requestItem(key, alignment, margin, previousItemPeek) ?: false
     }
     public fun focusItem(key: ViewKey, edge: ItemFocusEdge = ItemFocusEdge.First): Boolean {
         checkThread()
@@ -87,7 +91,8 @@ public class VirtualListHandle public constructor() {
 }
 
 internal enum VirtualPosition {
-    Item(val alignment: ScrollAlignment), Reading(val offset: Double)
+    Item(val alignment: ScrollAlignment, val margin: Double, val previousPeek: Double),
+    Reading(val offset: Double)
 }
 
 internal class ItemScrollRequest(

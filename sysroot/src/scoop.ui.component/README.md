@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+`messageScroller(source, state)` 以 `TranscriptSource` 的稳定 key 和显式回合锚点按需构造消息。`MessageScrollState` 组合既有滚动／虚拟列表能力，提供初始 End／Start／LastAnchor、新回合顶部定位、可收缩尾部留白、可选自动跟随、阅读保持及按 key 跳转／恢复。指针选择、键盘和滚动立即停止旧跟随；公开阅读快照仅来自 Accepted。`transcript { item(key, scrollAnchor = true) { ... } }` 创建来源，`messageScrollButton` 可放入自定义 controls；真实输入和停帧测试位于 `tests-cones/message-scroller`。
+
 `table { header { row { head(...) } }; body { row(key) { cell(...) } } }` 提供有限表格、跨列、caption 和 footer；`dataTable(model)` 消费应用持有的 DataTableState、TableSource 与类型化 TableColumn。Local 缓存筛选、稳定排序和分页结果，Provided 直接呈现当前页。选择只针对本页可选行，列宽拖动共用一份轨道，固定表头位于 VirtualList 正文之外；行内编辑与菜单保留普通生命周期。完整合同见组件规范第 45 节，原生组合测试位于 `tests-cones/table`。
 
 `calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 提供日期单选、多选和完整范围。CalendarOptions 配置多月、完整周、outside days、ISO／locale 周号、月／年下拉、日期规则及自定义 CalendarPageSource；日期运算采用 LocalDate，范围长度按夜数计算。方向键、周边界和翻页复用日期焦点，布局为实际主题焦点环留白。CalendarHandle 可定位／聚焦日期或取消暂定范围。
@@ -21,7 +23,7 @@ import scoop.ui.style.ThemeMode
 import scoop.ui.style.ThemeSource
 import scoop.ui.style.macos.macosTheme
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
     public override fun render(): View =
         button(f"Count: ${count}", { count += 1 })
@@ -30,7 +32,7 @@ class Counter: Component {
 fun main() {
     val source = ThemeSource(macosTheme(ThemeMode.Light))
     context(source) {
-        runUiApplication("Counter", { Counter() })
+        runUiApplication("Counter", { scope -> Counter(scope) })
     }
 }
 ```

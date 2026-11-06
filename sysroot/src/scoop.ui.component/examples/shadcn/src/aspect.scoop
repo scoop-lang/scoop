@@ -47,7 +47,7 @@ internal class AspectExamples(scope: ComponentScope): Component(scope) {
     }
 }
 
-private fun panelArtwork(): Image =
+internal fun panelArtwork(): Image =
     RasterSurface(768, 512).use {
         raster ->
         raster.draw {

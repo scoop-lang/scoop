@@ -11,7 +11,8 @@ public struct VirtualReadingAnchor(val key: ViewKey, val offset: Double)
 public struct VirtualReadingSnapshot(
     val visible: VirtualRange,
     val anchor: VirtualReadingAnchor?,
-    val atEnd: Boolean
+    val atEnd: Boolean,
+    val endPadding: Double = 0.0
 )
 
 internal class VirtualItemAnchor(val key: ViewKey, val index: Long, val inside: Double)

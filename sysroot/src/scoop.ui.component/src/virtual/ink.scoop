@@ -26,10 +26,15 @@ internal class VirtualListInk(
         pending = None
         return focus!!.requestFocus(key, edge)
     }
-    fun requestItem(key: ViewKey, alignment: ScrollAlignment): Boolean {
+    fun requestItem(
+        key: ViewKey,
+        alignment: ScrollAlignment,
+        margin: Double,
+        previousPeek: Double
+    ): Boolean {
         if (!active)
             return false
-        return request(key, VirtualPosition.Item(alignment))
+        return request(key, VirtualPosition.Item(alignment, margin, previousPeek))
     }
     fun restore(anchor: VirtualReadingAnchor): Boolean {
         if (!active)
@@ -66,6 +71,10 @@ internal class VirtualListInk(
         val input = props.value
         itemEstimate(input.input.itemExtent)
         nonnegative(input.input.overscan, "invalid virtual overscan")
+        when (input.input.endPadding) {
+            case Fixed(length) -> nonnegative(length, "invalid virtual end padding")
+            case FillViewport -> {}
+        }
         control!!.update()
         focus!!.options =
             LazyFocusOptions(
@@ -106,7 +115,7 @@ internal class VirtualListInk(
             case Some(value) -> when (value.position) {
                 case Reading(_) -> if (value.source !== input.input.source)
                     pending = None
-                case Item(_) -> {}
+                case Item(_, _, _) -> {}
             }
             case None -> {}
         }
@@ -121,7 +130,7 @@ internal class VirtualListInk(
                 case Some(key) -> Some(
                     ItemScrollRequest(
                         key,
-                        VirtualPosition.Item(ScrollAlignment.Nearest),
+                        VirtualPosition.Item(ScrollAlignment.Nearest, 0.0, 0.0),
                         props.value.controls.state.requestRevision,
                         props.value.input.source
                     )

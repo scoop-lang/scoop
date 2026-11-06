@@ -22,7 +22,8 @@ public class VirtualListProps public constructor(
     public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
     public val retention: ItemRetention = ItemRetention.Dispose,
     public val navigation: ItemNavigation = ItemNavigation.None,
-    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    public val endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0)
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */

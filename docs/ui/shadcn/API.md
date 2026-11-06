@@ -344,3 +344,10 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 kind 提供 Area／Bar／Line／Pie／Radar／Radial。Cartesian 的 curve 为 Linear／Step／Monotone，stack 为 None／Stacked／Normalized，orientation 控制横纵，connectMissing 明确连接缺口；各系列的 mark 可将 Bar 与 Line 等组合。xAxis／yAxis 使用 ChartAxis，包含 Category／Linear、Auto／Fixed domain、includeZero、nice、tickCount、shown／grid 和 formatter。pointRadius、barRadius、barGap 及 labels 控制有限的绘图外观。Pie 的 innerRadius 形成 Donut，startAngle／endAngle 控制弧度起止；Radial 共用角度及内半径，Radar 使用 datum 分类极轴。center 接收内孔中的普通 View。
 
 active 可接 `Binding<ChartSelection?>`，省略时由组件持有。鼠标和方向键选择同一份 Accepted 几何中的项；Home／End 定位边界，Escape 关闭提示。tooltip／legend 可关闭，ChartTooltipOptions 配置 formatter／labelFormatter、hideLabel／hideIndicator 及 Dot／Line／Dashed；tooltipContent 返回普通 View。ChartLegendOptions 配置标签 formatter 和 hideIcon，图例按钮直接切换对应系列。width／height 可显式给出，默认图面比例 16∶9；focus／enabled／fonts／theme 沿已有组件协议。完整数据、尺度与停帧规则见组件规范第 46 节。
+
+
+## P8a：MessageScroller
+
+`TranscriptSource : ItemSource` 增加 `anchorAtOrBefore(index)`；`TranscriptList(Array<TranscriptItem>)` 建立稳定 key 与回合索引，content 为按需构造 View 的函数。`transcript { item(key, scrollAnchor) { ... } }` 收集同一类型的数据。`messageScroller(source, MessageScrollState) { ... }` 使用已有 VirtualList，spacing、itemExtent、宽高、overscan、scrollbar、focus、enabled、theme、placeholder 与 controls 均可配置。
+
+MessageScrollState 的 options 使用 MessageScrollOptions，默认值与 [模型设计](MODELS.md)一致。应用通过 beginTurn、hold、scrollToMessage、scrollToStart、scrollToEnd、restore 和 reset 表达意图；reading、visibleKeys、currentAnchor、atStart／atEnd 为已呈现事实。messageScrollButton 提供 Start／End 的常用跳转，或由应用传入自定义 controls。VirtualList.endPadding 使用 Fixed(length) 或 FillViewport，后者在测量中补足当前阅读／Start 定位到视口末端的空间；scrollToItem 的 margin／previousItemPeek 服务实际定位，完整行为见组件规范第 6.3、47 节。
