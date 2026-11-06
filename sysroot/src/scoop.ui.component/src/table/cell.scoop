@@ -1,0 +1,61 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class TableCellLayout(
+    val padding: Double,
+    val alignment: AxisAlignment,
+    val natural: Boolean
+)
+
+/** Natural header/end content aligns within the shared column, not within a stretched label. */
+internal class TableCellInk(
+    private val props: Props<TableCellLayout>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val inset = input.padding * 2.0
+        val maximum = insetMaximum(constraints.maxWidth, inset)
+        val height = insetMaximum(constraints.maxHeight, inset)
+        val natural = input.natural || input.alignment != AxisAlignment.Start
+        var child =
+            context.measureChild(
+                0L,
+                Constraints(
+                    maxWidth =
+                        if (natural)
+                            None
+                        else
+                            maximum,
+                    maxHeight = height
+                )
+            )
+        if (natural && child.size.width > (maximum ?: child.size.width))
+            child = context.measureChild(0L, Constraints(maxWidth = maximum, maxHeight = height))
+        val size = constraints.constrain(Size(child.size.width + inset, child.size.height + inset))
+        val bounds =
+            Rect(
+                input.padding,
+                input.padding,
+                lowerBound(size.width - inset, 0.0),
+                lowerBound(size.height - inset, 0.0)
+            )
+        val origin =
+            alignedOrigin(
+                bounds,
+                child.size,
+                Alignment(input.alignment, AxisAlignment.Center),
+                context.layoutDirection
+            )
+        context.placeChild(0L, origin)
+        return LayoutResult(offsetMetrics(child, size, origin.y), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
+    }
+}

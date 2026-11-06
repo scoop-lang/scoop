@@ -1041,3 +1041,19 @@ CalendarPageSource.page(CalendarPageRequest) 返回不可变 CalendarPage：规�
 非编辑期间外部值变化同步格式化草稿；聚焦或 composition 期间保留用户草稿，直到明确提交／reset／日历选择。解析器只在提交动作执行，接收 text、referenceDate 和 CalendarLocale，返回 DatePickerParse.Date／Range／Empty／Invalid(message)；默认严格 ISO 日期，范围用 `start .. end`。模式不符、required／日期限制不满足均保留草稿并显示错误，不改变选中值。默认 referenceDate=initialPage；自然语言示例必须传入真实 parser，不在 render 中猜测日期。成功写入后按 setter 实际采纳值格式化；拒绝时不关闭、不通知成功。Calendar 选择先接受业务值，再替换草稿并关闭，迟到 blur 不能重新提交旧文字。
 
 DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar，绑定只属于一个活动控件，卸载后返回 false。presets 提供明确 CalendarValue 和标签，复用同一次约束检查和提交。日期、范围、生日年份选择、预设、严格输入、显式自然语言解析和 LocalTime 组合均须有实际示例；验收覆盖键盘／中文编辑模型、失败草稿、外部更新、受控拒绝、暂定范围取消、弹层焦点及静止停帧。
+
+## 45. Table 与 DataTable
+
+`table { header { row { head(...) } }; body { row(key) { cell(...) } }; footer { row { cell(...) } }; caption(...) }` 是有限呈现入口，部件接受 String／StyledText／View，cell 可指定 span 与逻辑对齐。行内实际列跨度必须与 columns 一致；省略 columns 时按首行推导等比例列。header／body／footer 保持声明顺序和稳定行 key，自动 Position 与显式 key 沿用普通 View 身份规则，caption 位于表格之后。Table 不隐式筛选、排序或虚拟化。默认文字 14、head 高 40／medium、cell 四侧 8 留白、行底部 1 border、hover 为 muted 的 50%、selected 为 muted、footer 使用 medium 与 muted 的 50%，caption 上距 16、muted 前景；长度随密度缩放，普通输入与按钮的实际 focusOutset 可增大 cell 留白。表头、footer 及 Center／End 内容先按自然宽度测量，在共享列内逻辑对齐，过长时受列内可用宽度约束；正文 Start 内容允许填充列宽，保留输入框的正常尺寸。
+
+TableColumnSize 使用 GridTrack.Fixed／Auto／Fraction、minimum=48、maximum=None 和显式文字 samples。Fixed／Auto 在最小最大值间夹取；Fraction 从 minimum 起分配可用剩余宽度，达到 maximum 后将剩余空间分给其他比例列。总最小宽度超出视口时横向滚动，不压成负宽。Auto 只测表头文字与显式 samples，使用真实字体，不扫描数据源或挂载行。Custom 表头没有可自动提取的文字时由 samples 或 minimum 决定宽度。表头、footer 和正文行共用同一不可变列宽结果；测量缓存只依赖列配置、字体、密度和宽度，不保存待发布几何。一次横向 ScrollViewport 移动整个表格；DataTable 的 header 固定在垂直 VirtualList 之外。零尺寸跳过子项，Discarded 不发布交互几何。
+
+`TableSource<Row>` 是不可变行快照，提供 count、keyAt、indexOfKey 和 rowAt；显式 key 不可为 Position，重复显示值合法。`TableRows<Row>` 从有 key 的 TableRecord 数组构造并检查唯一性。任意来源按普通 ItemSource 合同保证映射，控件不为了验证或 Auto 列宽遍历巨大来源。`TableColumn<Row>` 使用稳定 String id、header、类型化 cell `(Row) -> View`、size、alignment、可选 compare／filter、remoteSort、hideable、resizable；compare 为 `(Row, Row) -> Int`，filter 为 `(Row, String) -> Boolean`，无 Any 或字段反射。
+
+`DataTableState<Row>(data, columns, query, selectable)` 是应用持有的模型，`dataTable(state) { ... }` 消费其快照。TableData.Local 提供完整来源；Provided 提供已排序筛选的当前页及 totalRows，pageCount 按 pageSize 推导。TableQuery 保存有序 TableSort、TableFilter、pageIndex=0 和 pageSize=10；重复列查询、未知列、负页号和非正页大小非法。Local 过滤后使用标准库稳定多列排序，同值保持来源顺序，再取页；没有筛选排序时直接切片来源。分页复用相同的筛选排序结果，选择／显隐／宽度变化不重跑查询。Provided 只呈现来源，不执行列比较或过滤回调。
+
+setQuery／toggleSort／setFilter／setPage／setPageSize 是显式模型动作；排序或筛选改变默认回第一页。toggleSort 按未排序→升序→降序→未排序循环；additive 保留其他排序列，改变已有列方向时保留其优先级，新列追加到末尾。replaceData 在一次动作中更新结果、夹取失效页并移除 Local 中确实删除的已选 key；Provided 不因本页缺失而删除选择。模型动作成功更新后才交付可选 onQueryChange，异步请求、取消、迟到结果、loading／error 由调用方负责，render 不回写查询。列定义是该模型的固定配置；应用需要另一组列时显式建立新模型。
+
+selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作更新。isSelected／setSelected 以稳定 key 工作；selectPage 与 pageSelection 只看当前呈现页中 selectable 的行，混合为 Indeterminate，空集合为 Unchecked 且禁用全选；跨页选择保留。隐藏列与调整宽度不改变排序／筛选，至少保留一个数据列。resizeColumn 以逻辑长度夹取列限制，resetColumnWidth 恢复声明宽度；表头分隔区复用 Drag，逻辑前后键改变 10，Home 恢复声明值，Escape／外层取消恢复本次开始值，期间外部改宽则保留外部结果。
+
+DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。

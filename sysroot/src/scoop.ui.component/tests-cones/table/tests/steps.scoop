@@ -1,0 +1,218 @@
+package scoop.tests.ui.table
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+internal fun advanceTable(p: TableProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(p.handle.isAttached)
+            assertTrue(p.live() < 80)
+            assertEquals(p.cell(0L, 0).bounds.x, p.cell(1L, 0).bounds.x)
+            p.savedCell = Some(p.cell(0L, 1))
+            p.click(p.cell(0L, 0).bounds.x + 20.0, 94.0)
+        }
+        case 1 -> {
+            assertEquals("name", p.model.query.sorting[0L].column)
+            assertEquals(ViewKey.Number(0L), p.model.result.rows.keyAt(0L))
+            assertTrue(p.savedCell!! === p.cell(0L, 1))
+            p.click(p.cell(0L, 0).bounds.x + 20.0, 94.0)
+        }
+        case 2 -> {
+            assertEquals(TableSortDirection.Descending, p.model.query.sorting[0L].direction)
+            assertEquals(ViewKey.Number(2L), p.model.result.rows.keyAt(0L))
+            p.model.setQuery(TableQuery())
+        }
+        case 3 -> assertTrue(p.fieldFocus.requestFocus())
+        case 4 -> {
+            assertTrue(p.fieldFocus.hasFocus);
+            p.text("draft")
+        }
+        case 5 -> {
+            assertTrue(p.editor.text.byteLength > 5L)
+            p.savedCell = Some(p.cell(0L, 1))
+            p.model.showColumn("amount", false)
+        }
+        case 6 -> {
+            assertTrue(p.savedCell!! === p.cell(0L, 1))
+            assertTrue(p.fieldFocus.hasFocus)
+            p.model.showColumn("amount", true)
+        }
+        case 7 -> {
+            p.savedX = p.cell(0L, 1).bounds.x
+            p.dragX = 216.0;
+            p.dragY = 94.0
+            p.press(p.dragX, p.dragY, true)
+        }
+        case 8 -> p.move(p.dragX + 60.0, p.dragY)
+        case 9 -> {
+            p.press(p.dragX + 60.0, p.dragY, false)
+        }
+        case 10 -> {
+            assertEquals(Some(220.0), p.model.columnWidth("name"))
+            assertTrue(abs(p.cell(0L, 1).bounds.x - p.savedX - 60.0) < 0.1)
+            p.dragX += 60.0
+            p.press(p.dragX, p.dragY, true)
+        }
+        case 11 -> p.move(p.dragX + 30.0, p.dragY)
+        case 12 -> p.key(53)
+        case 13 -> {
+            assertEquals(Some(220.0), p.model.columnWidth("name"))
+            p.press(p.dragX + 30.0, p.dragY, false)
+            p.key(124)
+        }
+        case 14 -> {
+            assertEquals(Some(230.0), p.model.columnWidth("name"));
+            p.key(115)
+        }
+        case 15 -> {
+            assertEquals(None, p.model.columnWidth("name"))
+            p.disabled = true;
+            p.changed()
+        }
+        case 16 -> {
+            assertFalse(p.fieldFocus.requestFocus())
+            p.disabled = false;
+            p.rtl = true
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { preference = MotionPreference.Reduced } }
+                }
+            p.native!!.requestSize(LogicalSize(480.0, 640.0))
+            p.changed()
+        }
+        case 17 -> {
+            assertTrue(p.horizontal.snapshot.maximum.x > 100.0)
+            p.horizontal.scrollTo(p.horizontal.snapshot.maximum)
+        }
+        case 18 -> {
+            assertTrue(p.cell(0L, 0).bounds.x > p.cell(0L, 1).bounds.x)
+            assertTrue(p.rootBounds.width <= 440.0)
+            val name = p.cell(0L, 0).bounds
+            p.click(name.x + name.width - 20.0, 94.0)
+        }
+        case 19 -> {
+            assertEquals("name", p.model.query.sorting[0L].column)
+            p.rtl = false
+            p.native!!.requestSize(LogicalSize(760.0, 640.0))
+            p.model.setQuery(TableQuery())
+            p.horizontal.scrollTo(Point(0.0, 0.0))
+            p.changed()
+        }
+        case 20 -> assertTrue(p.filterFocus.requestFocus())
+        case 21 -> p.text("1")
+        case 22 -> {
+            assertEquals("1", p.model.query.filters[0L].text)
+            assertEquals(10L, p.model.result.totalRows)
+            assertEquals(ViewKey.Number(1L), p.model.result.rows.keyAt(0L))
+            p.filter.replaceAll("")
+            p.model.setFilter("name", "")
+            assertTrue(p.outsideFocus.requestFocus())
+        }
+        case 23 -> assertTrue(p.handle.scrollToItem(ViewKey.Number(0L), ScrollAlignment.Start))
+        case 24 -> p.click(p.cell(0L, 3).bounds)
+        case 25 -> {
+            assertTrue(p.menuOpen.value)
+            assertTrue(p.handle.scrollToItem(ViewKey.Number(9L), ScrollAlignment.End))
+        }
+        case 26 -> {
+            assertFalse(p.menuOpen.value);
+            assertTrue(p.outsideFocus.requestFocus())
+        }
+        case 27 -> assertTrue(p.handle.scrollToItem(ViewKey.Number(9L), ScrollAlignment.End))
+        case 28 -> {
+            p.selection = false
+            p.reads = 0
+            p.model.replaceData(TableData.Local(NativeTableSource(1000000L, p)))
+            p.model.setPageSize(1000000L)
+            p.changed()
+        }
+        case 29 -> {
+            assertTrue(p.reads < 300)
+            assertTrue(p.live() < 100)
+            assertTrue(p.handle.scrollToItem(ViewKey.Number(999999L), ScrollAlignment.End))
+        }
+        case 30 -> {
+            assertTrue(p.vertical.snapshot.offset.y > 40000000.0)
+            assertTrue(p.reads < 600)
+            assertTrue(p.live() < 100)
+            assertTrue(p.handle.focusItem(ViewKey.Number(0L)))
+        }
+        case 31 -> {
+            assertTrue(p.fieldFocus.hasFocus);
+            p.text("中文", true)
+        }
+        case 32 -> {
+            p.model.showColumn("amount", false)
+        }
+        case 33 -> {
+            assertTrue(p.fieldFocus.hasFocus);
+            p.text("中文")
+        }
+        case 34 -> {
+            assertTrue(p.editor.committedText.byteLength >= 11L)
+            val cell = p.cell(0L, 1).bounds
+            assertTrue(cell.x - 7.0 >= p.rootBounds.x)
+            assertTrue(p.outsideFocus.requestFocus())
+            p.zero = true;
+            p.changed()
+        }
+        case 35 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            p.savedDraws = p.draws
+        }
+        case 36 -> {
+            assertEquals(p.savedDraws, p.draws)
+            p.zero = false
+            p.model.showColumn("amount", true)
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens {
+                        typography { body { this.fontSize = 21.0 } };
+                        motion { preference = MotionPreference.Reduced }
+                    }
+                }
+            p.changed()
+        }
+        case 37 -> {
+            assertTrue(p.cell(0L, 1).bounds.width > 270.0)
+            p.finite = true;
+            p.changed()
+        }
+        case 38 -> {
+            assertFalse(p.handle.isAttached)
+            assertEquals(p.cell(100L, 0).bounds.x, p.cell(101L, 0).bounds.x)
+            val amount = p.cell(100L, 1).bounds
+            assertTrue(
+                abs(amount.x + amount.width - (p.rootBounds.x + p.rootBounds.width - 12.0)) < 0.1
+            )
+            p.click(p.cell(101L, 1).bounds)
+        }
+        case 39 -> {
+            assertEquals(1, p.actions);
+            p.shown = false;
+            p.changed()
+        }
+        case 40 -> {
+            assertFalse(p.handle.isAttached)
+            assertFalse(p.menuOpen.value)
+            for (cell in p.cells)
+                if (cell.row != -1L)
+                    assertEquals(cell.mounts, cell.unmounts)
+            p.savedDraws = p.draws
+        }
+        case 41 -> {
+            assertEquals(p.savedDraws, p.draws);
+            assertFalse(p.frames!!.snapshot().required)
+        }
+        case 42 -> assertTrue(p.outsideFocus.requestFocus())
+        case 43 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected table phase"))
+    }
+}

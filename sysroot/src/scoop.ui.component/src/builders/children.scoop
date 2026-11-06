@@ -28,6 +28,8 @@ import scoop.ui.component.calendarMultiple as appendCalendarMultiple
 import scoop.ui.component.calendarRange as appendCalendarRange
 import scoop.ui.component.datePicker as appendDatePicker
 import scoop.ui.component.dateRangePicker as appendDateRangePicker
+import scoop.ui.component.table as appendTable
+import scoop.ui.component.dataTable as appendDataTable
 import scoop.ui.component.sidebar as appendSidebar
 import scoop.ui.component.sidebarTrigger as appendSidebarTrigger
 import scoop.ui.component.sidebarGroup as appendSidebarGroup
@@ -40,6 +42,15 @@ import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun table(configure: TableBuilder.() -> Unit) {
+        add(appendTable(configure))
+    }
+    public fun <Row> dataTable(
+        state: DataTableState<Row>,
+        configure: DataTableBuilder.() -> Unit = {}
+    ) {
+        add(appendDataTable(state, configure))
+    }
     public fun sidebar(
         open: Binding<Boolean>,
         content: View,

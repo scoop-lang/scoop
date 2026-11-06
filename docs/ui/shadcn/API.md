@@ -44,6 +44,8 @@ calendarMultiple(value: Binding<Array<LocalDate>>, initialPage: LocalDate, confi
 calendarRange(value: Binding<DateRange?>, initialPage: LocalDate, configure: CalendarBuilder.() -> Unit = {}): View
 datePicker(value: Binding<LocalDate?>, initialPage: LocalDate, configure: DatePickerBuilder.() -> Unit = {}): View
 dateRangePicker(value: Binding<DateRange?>, initialPage: LocalDate, configure: DatePickerBuilder.() -> Unit = {}): View
+table(configure: TableBuilder.() -> Unit): View
+dataTable<Row>(state: DataTableState<Row>, configure: DataTableBuilder.() -> Unit = {}): View
 messageScroller(source: TranscriptSource, state: MessageScrollState, configure: MessageScrollerBuilder.() -> Unit = {}): View
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
 ```
@@ -325,3 +327,11 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 `calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 共享 CalendarSelection／CalendarValue、CalendarRules 和 CalendarOptions；ChildrenBuilder 提供同名真实成员。规则控制 required、数量、夜数、日期边界及范围内部禁用日。CalendarLocale 显式提供周起点、月份全名／简称、星期文字、周编号规则和格式；默认 GregorianCalendarPages，也可用 CalendarPageSource 给出真实日期、页导航和月／年选项。多月窄宽纵排，cellSize 之外保留实际 focusOutset；header、monthGrid、day、weekNumber、footer 支持组合，day 内容保留原按钮行为。CalendarHandle 提供 showDate／focusDate／focusFirst／cancelRange，聚焦在有效 Accepted 场景后执行。
 
 `datePicker(selected.binding(), initialPage)` 和 `dateRangePicker` 组合按钮／输入、Popover 与同一 Calendar。提供 DatePickerDraft 后使用其唯一 TextEditorState，Enter 提交严格 ISO 日期或 `start .. end` 范围；commitOnBlur 可选，错误保留草稿。自定义 parser 接收原文、referenceDate 与 locale，只在提交时运行；外部日期变化不覆盖聚焦或组合输入中的草稿。presets 使用明确 CalendarValue，时间由独立 LocalTime 输入组合；DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar。受控 open、关闭 veto、readonly、FieldTarget、主题和字体沿既有组件合同。详细规则见组件规范第 43–44 节。
+
+## P7b：Table／DataTable
+
+`table { header { row { head("Invoice") } }; body { row(key) { cell(value) } }; footer { row { cell("Total") } }; caption("Recent invoices") }` 是有限呈现入口。head／cell／caption 接收 String、StyledText 或 View，cell 提供 span、逻辑 alignment 和 key；各行覆盖同一列数。columns 使用 TableColumnSize 的 Fixed／Auto／Fraction、minimum／maximum 和显式 samples；省略时推导等比例列。Auto 只测表头和这些样本文字。表格与 DataTable 共用列宽、横向滚动和行外观，字体与主题来自根或显式覆盖。
+
+`DataTableState<Row>(TableData.Local(source), columns)` 持有查询、选择和列配置；`TableRows` 从带显式 ViewKey 的 TableRecord 数组构造，其他来源实现 TableSource 的 count／keyAt／indexOfKey／rowAt。TableColumn 接收 id、header、类型化 cell、size、alignment、compare／filter，以及 remoteSort／hideable／resizable。Local 用标准库稳定多列排序并复用分页结果；Provided(source, totalRows) 直接呈现调用方的当前页。setQuery／toggleSort／setFilter／setPage／setPageSize 和 replaceData 是应用动作，成功改变查询后交付 onQueryChange；render 不回写模型。
+
+`dataTable(model)` 默认有当前页选择列、排序表头、列显隐菜单、页码和页大小控制，bodyHeight=320、itemExtent=Variable(48)。selection／pagination／columnMenu 可关闭，additiveSort 控制排序按钮是否保留其他排序列；toolbar、footer、empty 接收实际内容。筛选输入使用自己的 TextEditorState，在编辑提交后调用 setFilter。horizontal／vertical 是独立 ScrollState，handle 使用原 VirtualListHandle。列宽拖动与逻辑箭头键调用 resizeColumn，Home 恢复声明宽度；输入、菜单和行操作保留普通行为。选择只作用于本页可选行并保留其他页的 key，至少保留一个可见数据列。完整规则见组件规范第 45 节。

@@ -1,5 +1,7 @@
 # shadcn Gallery
 
+Table 展示有限发票、共享列宽、footer 和独立动作。Data Table 展示付款列表的排序、邮件筛选、本页选择、列显隐／拖宽、行内备注与菜单、分页、虚拟滚动和调用方提供的结果页；备注保存于稳定行模型。可切换窄宽、主题及 RTL，或加载更多行检查实际交互。
+
 Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
 
 真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。

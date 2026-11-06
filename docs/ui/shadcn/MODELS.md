@@ -87,6 +87,8 @@ TableColumn<Row> 必须有稳定列 id、header 和类型化 cell 渲染函数�
 
 TableQuery 包含排序描述、列过滤输入、pageIndex／pageSize；选中行 key、列可见性和列宽是各自明确状态。pageIndex 从 0 开始，UI 页码从 1 开始。变更过滤／排序默认回第一页；行数减少使页号失效时在一次模型更新中收敛，不能在 render 中反复回写。外部模式的请求、取消、loading／error 和迟到结果处理归应用，同一个最终结果经正常 Props 进入。
 
+落地入口为应用持有的 `DataTableState<Row>(data, columns, query, selectable)` 与 `dataTable(state)`。replaceData、setQuery 和选择／显隐／宽度方法是普通应用动作，render 只读取快照。TableData.Provided 接收当前页来源与 totalRows，页数按 pageSize 推导；onQueryChange 交付成功更新后的查询。列定义固定在一个模型内，本地分页复用已有筛选／稳定排序结果。
+
 P3 已实现的独立 Pagination 只接收 Binding<Long> 和 pageCount，不承担上述表格查询规则。`paginationItems` 用边界与邻近范围生成有序 Page／Ellipsis，只缺一页时补齐页码，多页缺口跳过；空数据和 Long 上界有定向覆盖。外部越界页码只在展示窗口计算时夹取，绑定原值保留；业务模型负责决定何时重置。实际改变后通知 setter 采纳值，拒绝写入时不通知。
 
 表头全选明确作用于**当前结果页的可选行**，三态从该集合计算；跨页已选 key 保留。库不把“勾选本页”解释为后台所有匹配记录，更不生成抽象的“全量减例外”选择协议。删除已知行时由模型更新移除相应选择；Provided 模式中暂未出现在本页不等于已删除。

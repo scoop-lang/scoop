@@ -1,0 +1,161 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum TableSection {
+    Header, Body, Footer
+}
+
+public class TableCellProps public constructor(
+    public val content: PanelContent,
+    public val span: Long = 1L,
+    public val alignment: AxisAlignment = AxisAlignment.Start,
+    public val header: Boolean = false,
+    public val key: ViewKey = ViewKey.Position
+)
+
+public class TableRowProps public constructor(
+    public val cells: Array<TableCellProps>,
+    public val section: TableSection = TableSection.Body,
+    public val selected: Boolean = false,
+    public val key: ViewKey = ViewKey.Position
+)
+
+public class TableProps public constructor(
+    public val rows: Array<TableRowProps>,
+    public val columns: Array<TableColumnSize>,
+    public val caption: PanelContent? = None,
+    public val horizontal: ScrollState? = None,
+    public val width: Double? = None,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None
+)
+
+public class TableCellBuilder internal constructor() {
+    public var span: Long = 1L
+    public var alignment: AxisAlignment = AxisAlignment.Start
+    public var key: ViewKey = ViewKey.Position
+}
+
+public class TableRowBuilder internal constructor() {
+    private val cells = ArrayList<TableCellProps>()
+    public var selected: Boolean = false
+    public fun cell(text: String, configure: TableCellBuilder.() -> Unit = {}) {
+        append(tableText(text), false, configure)
+    }
+    public fun cell(text: StyledText, configure: TableCellBuilder.() -> Unit = {}) {
+        append(PanelContent.Label(LabelProps(LabelText.Styled(text))), false, configure)
+    }
+    public fun cell(view: View, configure: TableCellBuilder.() -> Unit = {}) {
+        append(PanelContent.Custom(view), false, configure)
+    }
+    public fun head(text: String, configure: TableCellBuilder.() -> Unit = {}) {
+        append(tableText(text), true, configure)
+    }
+    public fun head(text: StyledText, configure: TableCellBuilder.() -> Unit = {}) {
+        append(PanelContent.Label(LabelProps(LabelText.Styled(text))), true, configure)
+    }
+    public fun head(view: View, configure: TableCellBuilder.() -> Unit = {}) {
+        append(PanelContent.Custom(view), true, configure)
+    }
+    private fun append(
+        content: PanelContent,
+        header: Boolean,
+        configure: TableCellBuilder.() -> Unit
+    ) {
+        val builder = TableCellBuilder()
+        builder.configure()
+        cells.add(TableCellProps(content, builder.span, builder.alignment, header, builder.key))
+    }
+    internal fun snapshot(section: TableSection, key: ViewKey): TableRowProps =
+        TableRowProps(cells.toArray(), section, selected, key)
+}
+
+public class TableSectionBuilder internal constructor(private val section: TableSection) {
+    internal val rows = ArrayList<TableRowProps>()
+    public fun row(key: ViewKey = ViewKey.Position, configure: TableRowBuilder.() -> Unit) {
+        val builder = TableRowBuilder()
+        builder.configure()
+        rows.add(builder.snapshot(section, key))
+    }
+}
+
+public class TableBuilder internal constructor() {
+    private val rows = ArrayList<TableRowProps>()
+    private var caption: PanelContent? = None
+    public var columns: Array<TableColumnSize>? = None
+    public var horizontal: ScrollState? = None
+    public var width: Double? = None
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    public fun header(configure: TableSectionBuilder.() -> Unit) {
+        append(TableSection.Header, configure)
+    }
+    public fun body(configure: TableSectionBuilder.() -> Unit) {
+        append(TableSection.Body, configure)
+    }
+    public fun footer(configure: TableSectionBuilder.() -> Unit) {
+        append(TableSection.Footer, configure)
+    }
+    public fun caption(text: String) {
+        caption = Some(tableText(text))
+    }
+    public fun caption(text: StyledText) {
+        caption = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun caption(view: View) {
+        caption = Some(PanelContent.Custom(view))
+    }
+    private fun append(section: TableSection, configure: TableSectionBuilder.() -> Unit) {
+        val builder = TableSectionBuilder(section)
+        builder.configure()
+        for (value in builder.rows)
+            rows.add(value)
+    }
+    internal fun build(): View {
+        val values = rows.toArray()
+        var count = 0L
+        if (values.size > 0L)
+            for (cell in values[0L].cells)
+                count += cell.span
+        val sizes = columns ?: Array<TableColumnSize>(count) { _ -> TableColumnSize() }
+        return component(
+            TableProps(values, sizes, caption, horizontal, width, enabled, fonts, theme),
+            { props, scope -> Table(props, scope) },
+            key
+        )
+    }
+}
+
+public fun table(configure: TableBuilder.() -> Unit): View {
+    val builder = TableBuilder()
+    builder.configure()
+    return builder.build()
+}
+
+internal fun tableText(text: String): PanelContent =
+    PanelContent.Label(LabelProps(LabelText.Plain(text, None)))
+
+internal fun tableCheckRows(rows: Array<TableRowProps>, count: Long) {
+    val keys = HashSet<ViewKey>()
+    for (index in 0L ..< rows.size) {
+        val row = rows[index]
+        if (row.key != ViewKey.Position)
+            requireComponent(keys.add(row.key), "duplicate table row key")
+        var covered = 0L
+        for (cell in row.cells) {
+            requireComponent(
+                cell.span > 0L && cell.span <= count - covered,
+                "table cell span exceeds columns"
+            )
+            covered += cell.span
+        }
+        requireComponent(covered == count && count > 0L, "table row must cover all columns")
+    }
+}

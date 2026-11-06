@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+`table { header { row { head(...) } }; body { row(key) { cell(...) } } }` 提供有限表格、跨列、caption 和 footer；`dataTable(model)` 消费应用持有的 DataTableState、TableSource 与类型化 TableColumn。Local 缓存筛选、稳定排序和分页结果，Provided 直接呈现当前页。选择只针对本页可选行，列宽拖动共用一份轨道，固定表头位于 VirtualList 正文之外；行内编辑与菜单保留普通生命周期。完整合同见组件规范第 45 节，原生组合测试位于 `tests-cones/table`。
+
 `calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 提供日期单选、多选和完整范围。CalendarOptions 配置多月、完整周、outside days、ISO／locale 周号、月／年下拉、日期规则及自定义 CalendarPageSource；日期运算采用 LocalDate，范围长度按夜数计算。方向键、周边界和翻页复用日期焦点，布局为实际主题焦点环留白。CalendarHandle 可定位／聚焦日期或取消暂定范围。
 
 `datePicker(value.binding(), initialPage) { draft = Some(dateDraft) }` 与 `dateRangePicker` 组合日历弹层和日期输入。DatePickerDraft 保存唯一 TextEditorState；Enter 提交严格 ISO 日期，范围格式为 `start .. end`，解析失败保留原文。commitOnBlur 可选，外部更新保留正在编辑／组合输入的草稿；DatePickerHandle.reset 显式接受当前选中值。presets、显式 parser／referenceDate、生日年份选择和独立 LocalTime 输入是普通组合；`tests-cones/calendar` 覆盖实际键盘、中文文本宿主、范围取消与弹层焦点。

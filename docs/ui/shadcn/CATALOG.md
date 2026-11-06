@@ -83,7 +83,7 @@
 | [Calendar](https://ui.shadcn.com/docs/components/calendar) | `calendar(selection, initialPage)`；header／monthGrid／day／weekNumber | Single／Multiple／Range、单／多月、翻月／年与下拉、禁用日期、周起点／周号／locale、键盘日期导航、范围预览；默认 LocalDate 公历，其他历法使用明确的月页数据接入 | P7 |
 | [Date Picker](https://ui.shadcn.com/docs/components/date-picker) | `datePicker`、`dateRangePicker`，复用 Popover／Calendar／Input | 日期／范围、生日、preset、可编辑日期、时间输入与自然语言输入组合；文本草稿、解析失败、提交／取消明确，外部解析器不能在 render 中运行 | P7 |
 | [Table](https://ui.shadcn.com/docs/components/table) | `table`；caption／header／body／footer／row／head／cell | 同一份列轨道、对齐、横向溢出、footer／actions、RTL；数据表仅负责呈现，不隐式排序和虚拟化 | P7 |
-| [Data Table](https://ui.shadcn.com/docs/components/data-table) | `dataTable(source, columns, state)`，复用 Table 布局／VirtualList | 本地及外部结果模式、稳定排序／筛选／分页／列可见性／行选择、行操作与空结果、共用列宽、虚拟正文；不用 Any 值包或通用插件框架 | P7 |
+| [Data Table](https://ui.shadcn.com/docs/components/data-table) | `dataTable(state)`，显式 DataTableState／TableSource／TableColumn，复用 Table 布局／VirtualList | 本地及外部结果模式、稳定排序／筛选／分页／列可见性／行选择、行操作与空结果、共用列宽、虚拟正文；不用 Any 值包或通用插件框架 | P7 |
 | [Chart](https://ui.shadcn.com/docs/components/chart) | `chart(model)`；container／axis／grid／series／tooltip／legend | Area、Bar、Line、Pie／Donut、Radar、Radial 六类；实际数据、轴／刻度／图例／tooltip、堆叠及规定的组合；明暗／缩放／空值处理，交付真实绘图而非图片 | P7 |
 
 ## 6. 会话与问卷：7 项

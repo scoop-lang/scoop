@@ -65,6 +65,8 @@ internal fun galleryDemo(model: GalleryModel, value: Demo): View =
         case Toast -> toastExamples(model.toasts)
         case Calendar -> calendarExamples(model.dates)
         case DatePicker -> datePickerExamples(model.dates)
+        case Table -> tableExamples(model.tables)
+        case DataTable -> dataTableExamples(model.tables)
         case Resizable -> resizableExamples(
             model.resizables,
             model.source.current.value.tokens.palette.border

@@ -2,7 +2,7 @@
 
 当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
-2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6 及 P7a Calendar／DatePicker 随后按新协议交付，累计 **54／64**；继续 P7b Table／DataTable。整改本身不增加组件目录完成数。
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6、P7a Calendar／DatePicker 及 P7b Table／DataTable 随后按新协议交付，累计 **56／64**；继续 P7c Chart。整改本身不增加组件目录完成数。
 
 ## P0a：完整配色与主题
 
@@ -295,3 +295,12 @@
 - DatePicker 组合 Popover、Calendar 与按钮／可编辑输入，支持日期／范围、生日、preset、严格 ISO 草稿、显式自然语言解析器及独立 LocalTime 输入。文本编辑只使用一份 TextEditorState；解析失败保留草稿，外部更新不覆盖焦点或 IME 组合输入，失焦提交使用可取消的作用域任务。实际 Binding 接受后才格式化、通知和关闭；关闭拦截、重置、只读、禁用及 FieldTarget 已接入设置表单。
 - macOS aarch64 release：**6 项模型测试与 74 阶段原生窗口测试**通过，覆盖键盘／指针、范围拒绝、受控 setter、跨月下拉、真实窗口缩放、密度／RTL、7 像素焦点环、零布局、中文 IME、外部值更新、失焦、嵌套 Escape／关闭拦截、稳定挂载、停帧与卸载。34 个 Scoop 文件格式检查、组件／独立实窗／Gallery 静态检查、生产库和 Gallery 构建通过。公共 locale API 更新后重新发布组件，闭合 Gallery 消费旧预编译库的初次检查失败。
 - Gallery 实查浅色 System、深色 Neutral／RTL、宽窄与中文、范围和键盘选择、生日年份、无效草稿与自然语言、时间和 preset。修复多月中后续月份的标题选择偏移、Select 接受后的关闭及月份简称显示；最终实查第二个月的下拉选择仍保留该月位置并正常关闭。累计 **54／64**。原始验收资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+
+## P7b：Table／DataTable
+
+- Table 完成 header／body／footer／caption、跨列、逻辑对齐和实际行操作；Fixed／Auto／Fraction 共用不可变列宽，Auto 只测表头与显式文字样本。列外溢使用一份横向滚动，正文 hover 包含交互子项，单元格保留焦点环留白。修正表头按钮与末端内容的自然宽度测量，以及自动 Position 与显式数字行 key 的冲突。
+- DataTable 使用应用持有的类型化来源、列与查询模型。Local 缓存筛选和稳定多列排序，分页／选择／显隐／拖宽复用已有结果；Provided 直接消费调用方当前页和总数。已有排序列切换方向保留优先级，本页三态选择跳过禁用行并保留跨页 key；移除数据、空页和末页夹取由模型动作处理。固定表头与虚拟正文共享轨道，列柄支持拖动／取消、逻辑键与恢复声明宽度；列菜单只呈现可隐藏的列。
+- Gallery 提供发票表及付款数据表，包含筛选、排序、页码／页大小、行内备注、独立菜单、删除、加载更多及调用方结果模式。备注属于稳定行模型，跨页与列隐藏后保留。实查浅色 System、深色 System／RTL、窄宽、空结果、排序优先级、有限表格总计和金额对齐；修正不可隐藏操作列产生的空白菜单项。
+- macOS aarch64 release：**7 项模型测试及 44 阶段实窗测试通过**，覆盖列宽共享与实际拖动、取消／禁用、RTL 横向滚动、过滤与菜单、百万行按需挂载、编辑身份／中文预编辑、零尺寸与卸载停帧、密度变化及有限表格对齐。组件、独立实窗和 Gallery 格式／静态检查、生产构建通过。菜单测试先明确显露目标行，避免把 overscan 挂载误认作视口内可点击；最后的菜单呈现调整只复验相关检查和构建。
+- 累计 **56／64**。原始验收资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物及下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

@@ -1,0 +1,176 @@
+package scoop.examples.ui.shadcn
+
+import scoop.charset.unicodeCasefold
+import scoop.text.contains
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class Payment(val id: Long, val email: String, val amount: Int, val status: String) {
+    val note = TextEditorState("")
+    val enabled: Boolean get() = id % 7L != 0L
+}
+
+internal class TableExamplesModel {
+    private var records = Array<Payment>(75L) { index -> makePayment(index) }
+    val filter = TextEditorState()
+    val provided = state(false)
+    val narrow = state(false)
+    val disabled = state(false)
+    val additive = state(false)
+    val notice = state("Rows keep their identity while sorting, filtering and scrolling.")
+    val requests = state(0)
+    private val columns = paymentColumns(this)
+    val local =
+        DataTableState(TableData.Local(source()), columns, selectable = { row -> row.enabled })
+    private val provider =
+        DataTableState(TableData.Local(source()), columns, selectable = { row -> row.enabled })
+    val external =
+        DataTableState(
+            TableData.Provided(provider.result.rows, provider.result.totalRows),
+            columns,
+            selectable = { row -> row.enabled },
+            onQueryChange = Some { query -> provide(query) }
+        )
+    val active: DataTableState<Payment> get() =
+        if (provided.value)
+            external
+        else
+            local
+    private fun source(): TableRows<Payment> =
+        TableRows(
+            Array<TableRecord<Payment>>(records.size) {
+                index -> TableRecord(ViewKey.Number(records[index].id), records[index])
+            }
+        )
+    private fun provide(query: TableQuery) {
+        requests.value += 1
+        provider.setQuery(query)
+        external.replaceData(TableData.Provided(provider.result.rows, provider.result.totalRows))
+    }
+    fun delete(id: Long) {
+        val next = ArrayList<Payment>()
+        for (value in records)
+            if (value.id != id)
+                next.add(value)
+        records = next.toArray()
+        val rows = source()
+        local.replaceData(TableData.Local(rows))
+        provider.replaceData(TableData.Local(rows))
+        external.setSelected(ViewKey.Number(id), false)
+        external.replaceData(TableData.Provided(provider.result.rows, provider.result.totalRows))
+        notice.value = f"Deleted payment ${id + 1L}."
+    }
+    fun loadMany() {
+        val next = ArrayList<Payment>()
+        for (value in records)
+            next.add(value)
+        val start =
+            if (records.size == 0L)
+                0L
+            else
+                records[records.size - 1L].id + 1L
+        for (id in start ..< start + 500L)
+            next.add(makePayment(id))
+        records = next.toArray()
+        val rows = source()
+        local.replaceData(TableData.Local(rows))
+        provider.replaceData(TableData.Local(rows))
+        active.setPageSize(500L)
+        external.replaceData(TableData.Provided(provider.result.rows, provider.result.totalRows))
+        notice.value =
+            "500 rows per page; the body still mounts only the visible rows and active controls."
+    }
+}
+
+private fun makePayment(index: Long): Payment =
+    Payment(
+        index,
+        [
+            "ada@example.com",
+            "lin@example.com",
+            "ada@example.com",
+            "mika@example.com",
+            "long.customer.name@example.org"
+        ][index % 5L],
+        (125L + index % 9L * 75L).toInt(),
+        ["Success", "Processing", "Pending"][index % 3L]
+    )
+
+private fun paymentColumns(model: TableExamplesModel): Array<TableColumn<Payment>> =
+    [
+        TableColumn(
+            "status",
+            "Status",
+            { row -> badge(row.status) { this.variant = ButtonVariant.Secondary } },
+            TableColumnSize(GridTrack.Auto, minimum = 112.0, samples = ["Processing"]),
+            compare = Some { a, b -> a.status.compareTo(b.status).toInt() }
+        ),
+        TableColumn(
+            "email",
+            "Email",
+            { row -> label(row.email) },
+            TableColumnSize(GridTrack.Fraction(1.0), minimum = 230.0),
+            compare = Some { a, b -> a.email.compareTo(b.email).toInt() },
+            filter =
+                Some { row, text -> unicodeCasefold(row.email).contains(unicodeCasefold(text)) }
+        ),
+        TableColumn(
+            "amount",
+            "Amount",
+            { row -> label(f"USD ${row.amount}") },
+            TableColumnSize(GridTrack.Fixed(120.0), minimum = 100.0),
+            alignment = AxisAlignment.End,
+            compare = Some { a, b -> a.amount - b.amount }
+        ),
+        TableColumn(
+            "note",
+            "Note",
+            { row -> input(row.note) { this.placeholder = "Add a note" } },
+            TableColumnSize(GridTrack.Fixed(180.0), minimum = 130.0)
+        ),
+        TableColumn(
+            "actions",
+            "",
+            { row -> component({ scope -> PaymentActions(model, row, scope) }) },
+            TableColumnSize(GridTrack.Fixed(56.0), minimum = 48.0),
+            hideable = false,
+            resizable = false
+        )
+    ]
+
+private class PaymentActions(
+    private val model: TableExamplesModel,
+    private val row: Payment,
+    scope: ComponentScope
+): Component(scope) {
+    private val open = state(false)
+    public override fun render(): View {
+        val row = this.row
+        val model = this.model
+        return dropdownMenu(
+            open.binding(),
+            menu {
+                this.label(ViewKey.Text("title"), f"Payment ${row.id + 1L}")
+                this.item(
+                    ViewKey.Text("details"),
+                    "View details",
+                    {
+                        model.notice.value =
+                            f"Payment ${row.id + 1L}: ${row.email}, USD ${row.amount}."
+                    }
+                )
+                this.separator(ViewKey.Text("separator"))
+                this.item(ViewKey.Text("delete"), "Delete payment", { model.delete(row.id) }) {
+                    this.destructive = true
+                }
+            }
+        ) {
+            this.trigger("…") {
+                this.variant = ButtonVariant.Ghost;
+                this.size = ButtonSize.IconSm
+            }
+        }
+    }
+}

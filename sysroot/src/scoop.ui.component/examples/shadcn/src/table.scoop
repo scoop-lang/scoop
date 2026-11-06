@@ -1,0 +1,144 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as tablesColumn
+import scoop.ui.component.button as tableActionButton
+import scoop.ui.component.frame as tablesFrame
+
+internal fun tableExamples(model: TableExamplesModel): View =
+    tablesColumn {
+        this.add(panelHeading("Table"))
+        this.typography(
+            "A finite invoice table with shared columns, a footer and independent row actions.",
+            TypographyRole.Muted
+        )
+        this.table {
+            this.columns =
+                Some(
+                    [
+                        TableColumnSize(GridTrack.Fixed(110.0)),
+                        TableColumnSize(GridTrack.Auto, samples = ["Credit Card"]),
+                        TableColumnSize(GridTrack.Fraction(1.0), minimum = 150.0),
+                        TableColumnSize(GridTrack.Fixed(110.0)),
+                        TableColumnSize(GridTrack.Fixed(60.0))
+                    ]
+                )
+            this.header {
+                this.row {
+                    this.head("Invoice");
+                    this.head("Status");
+                    this.head("Method");
+                    this.head("Amount") { this.alignment = AxisAlignment.End };
+                    this.head("")
+                }
+            }
+            this.body {
+                for (index in 0L ..< 7L)
+                    this.row(ViewKey.Number(index)) {
+                        this.cell(f"INV00${index + 1L}")
+                        this.cell(["Paid", "Pending", "Unpaid"][index % 3L])
+                        this.cell(["Credit Card", "PayPal", "Bank Transfer"][index % 3L])
+                        this.cell(f"USD ${150L + index * 50L}") {
+                            this.alignment = AxisAlignment.End
+                        }
+                        this.cell(
+                            tableActionButton(
+                                "…",
+                                { model.notice.value = f"Opened invoice ${index + 1L}." }
+                            ) {
+                                this.variant = ButtonVariant.Ghost;
+                                this.size = ButtonSize.IconSm
+                            }
+                        )
+                    }
+            }
+            this.footer {
+                this.row {
+                    this.cell("Total") { this.span = 3L };
+                    this.cell("USD 2100") { this.alignment = AxisAlignment.End };
+                    this.cell("")
+                }
+            }
+            this.caption("A list of your recent invoices.")
+        }
+        this.typography(model.notice.value, TypographyRole.Muted)
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun dataTableExamples(model: TableExamplesModel): View {
+    val active = model.active
+    val content =
+        dataTable(active) {
+            this.bodyHeight = 310.0
+            this.enabled = !model.disabled.value
+            this.additiveSort = model.additive.value
+            this.pageSizes = [10L, 20L, 50L, 100L, 500L]
+            this.toolbar(
+                input(model.filter) {
+                    this.placeholder = "Filter emails…"
+                    this.enabled = !model.disabled.value
+                    this.onEdited =
+                        { _ -> model.active.setFilter("email", model.filter.committedText) }
+                }
+            )
+        }
+    return tablesColumn {
+        this.add(panelHeading("Data Table"))
+        this.typography(
+            "Sort, filter, select this page or edit a note. Drag a column edge to resize it; focus the edge and use arrow keys or Home.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button(
+                if (model.provided.value)
+                    "Caller-supplied pages"
+                else
+                    "Local query",
+                {
+                    model.provided.value = !model.provided.value;
+                    model.active.setFilter("email", model.filter.committedText)
+                }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.additive.value)
+                    "Multi-sort on"
+                else
+                    "Single sort",
+                { model.additive.value = !model.additive.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.disabled.value)
+                    "Disabled"
+                else
+                    "Enabled",
+                { model.disabled.value = !model.disabled.value }
+            ) { this.variant = ButtonVariant.Outline }
+        }
+        this.add(
+            tablesFrame(content) {
+                this.width =
+                    Some(
+                        if (model.narrow.value)
+                            350.0
+                        else
+                            900.0
+                    )
+            }
+        )
+        this.row {
+            this.button("Load 500 more rows", { model.loadMany() }) {
+                this.variant = ButtonVariant.Secondary
+            }
+            this.typography(f"Caller query updates: ${model.requests.value}", TypographyRole.Muted)
+        }
+        this.typography(model.notice.value, TypographyRole.Muted)
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Start
+    }
+}

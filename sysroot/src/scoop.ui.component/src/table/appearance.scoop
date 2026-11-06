@@ -1,0 +1,120 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class TableAppearance(
+    val theme: Theme,
+    val fonts: FontCollection,
+    val source: ThemeSource?,
+    val direction: LayoutDirection
+) {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val body =
+        theme.tokens.typography.body.copy {
+            this.weight = 400;
+            this.color = theme.tokens.palette.background.foreground
+        }
+    val head = body.copy { this.weight = 500 }
+    val muted = body.copy { this.color = theme.tokens.palette.muted.foreground }
+    private val focused = InteractionVisual(focusVisible = true)
+    val padding =
+        lowerBound(
+            8.0 * density,
+            lowerBound(
+                theme.surfaceMetrics(
+                    SurfaceVisual(SurfaceKind.Action, focused),
+                    actionOptions(
+                        theme,
+                        ActionShape.Button(ButtonSize.Sm),
+                        ButtonVariant.Ghost,
+                        buttonStyle(),
+                        focused
+                    ),
+                    direction
+                ).focusOutset,
+                theme.surfaceMetrics(
+                    SurfaceVisual(SurfaceKind.Plain, focused),
+                    textFieldStyle().options(focused),
+                    direction
+                ).focusOutset
+            )
+        )
+    val paragraph =
+        paragraphStyle {
+            this.maxLines = Some(1L)
+            this.ellipsis = "…"
+            this.direction =
+                if (direction == LayoutDirection.Rtl)
+                    TextDirection.Rtl
+                else
+                    TextDirection.Ltr
+        }
+    fun content(content: PanelContent, header: Boolean = false, dim: Boolean = false): View =
+        when (content) {
+            case Custom(view) -> view
+            case Label(input) -> component(
+                LabelProps(
+                    input.text,
+                    Some(input.fonts ?: fonts),
+                    Some(input.settings ?: paragraph),
+                    input.inlines,
+                    if (panelPresent(input.theme))
+                        input.theme
+                    else
+                        source,
+                    Some(
+                        input.baseStyle ?:
+                            (
+                                if (dim)
+                                    muted
+                                else
+                                    if (header)
+                                        head
+                                    else
+                                        body
+                            )
+                    )
+                ),
+                { props, scope -> Label(props, scope) }
+            )
+        }
+    fun cell(
+        cell: TableCellProps,
+        key: ViewKey = ViewKey.Position,
+        emphasized: Boolean = false
+    ): View =
+        element(
+            TableCellLayout(padding, cell.alignment, cell.header || emphasized),
+            { props, scope -> TableCellInk(props, scope) },
+            [content(cell.content, cell.header || emphasized)],
+            key
+        )
+    fun natural(
+        columns: Array<TableColumnSize>,
+        headers: Array<String>,
+        extra: Double = 0.0
+    ): Array<Double> =
+        Array<Double>(columns.size) {
+            index ->
+            val column = columns[index]
+            var width = column.minimum
+            when (column.track) {
+                case Auto -> {
+                    if (index < headers.size)
+                        width = lowerBound(width, measure(headers[index]) + extra)
+                    for (text in column.samples)
+                        width = lowerBound(width, measure(text))
+                    width += padding * 2.0 / density
+                }
+                else -> {}
+            }
+            width
+        }
+    private fun measure(text: String): Double =
+        Paragraph(fonts, text, head, paragraph).use {
+            value -> value.layoutUnwrapped().use { layout -> layout.size.width / density }
+        }
+}

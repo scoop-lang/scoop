@@ -1,0 +1,188 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as tableControlsRow
+import scoop.ui.component.select as tablePageSizeSelect
+import scoop.ui.component.pagination as tablePageNavigation
+
+internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePlan<Row>): View {
+    val model = input.state
+    val cells = ArrayList<TableCellProps>()
+    val views = ArrayList<View>()
+    if (input.selection) {
+        val cell =
+            TableCellProps(
+                PanelContent.Custom(
+                    checkbox(
+                        binding(
+                            { model.pageSelection },
+                            { value -> model.selectPage(value == CheckState.Checked) }
+                        )
+                    ) {
+                        this.enabled = input.enabled && model.pageSelectableCount > 0L;
+                        this.theme = input.theme
+                    }
+                ),
+                header = true
+            )
+        cells.add(cell)
+        views.add(plan.appearance.cell(cell, ViewKey.Text("selection")))
+    }
+    for (column in plan.columns) {
+        var title = column.header
+        var order = 0L
+        for (sort in model.query.sorting) {
+            order += 1L
+            if (sort.column == column.id)
+                title += if (sort.direction == TableSortDirection.Ascending)
+                    f" ↑${order}"
+                else
+                    f" ↓${order}"
+        }
+        val label =
+            if (column.sortable)
+                PanelContent.Custom(
+                    button(title, { model.toggleSort(column.id, input.additiveSort) }) {
+                        this.variant = ButtonVariant.Ghost
+                        this.size = ButtonSize.Sm
+                        this.enabled = input.enabled
+                        this.fonts = input.fonts
+                        this.theme = input.theme
+                        this.style { this.surface { this.padding = Some(Insets.all(0.0)) } }
+                    }
+                )
+            else
+                tableText(title)
+        val cell = TableCellProps(label, alignment = column.alignment, header = true)
+        cells.add(cell)
+        val key = ViewKey.Text(f"column:${column.id}")
+        val content = plan.appearance.cell(cell, key)
+        views.add(
+            if (column.resizable)
+                element(
+                    TableResizeInput(
+                        binding(
+                            { model.columnWidth(column.id) },
+                            {
+                                width -> when (width) {
+                                    case Some(value) -> model.resizeColumn(column.id, value);
+                                    case None -> model.resetColumnWidth(column.id)
+                                }
+                            }
+                        ),
+                        column.size,
+                        plan.appearance,
+                        input.enabled
+                    ),
+                    { props, scope -> TableResizeHeader(props, scope) },
+                    [content],
+                    key
+                )
+            else
+                content
+        )
+    }
+    return tableRowView(
+        TableRowProps(cells.toArray(), TableSection.Header),
+        plan.tracks,
+        plan.appearance,
+        ViewKey.Text("header"),
+        prepared = Some(views.toArray())
+    )
+}
+
+internal fun <Row> dataTableColumnMenu(input: DataTableProps<Row>, open: Binding<Boolean>): View {
+    val model = input.state
+    val content =
+        menu {
+            for (column in model.columns)
+                if (column.hideable)
+                    this.checkboxItem(
+                        ViewKey.Text(column.id),
+                        column.header,
+                        binding(
+                            { model.isColumnVisible(column.id) },
+                            { value -> model.showColumn(column.id, value) }
+                        )
+                    ) {
+                        this.enabled =
+                            input.enabled &&
+                                (
+                                    !model.isColumnVisible(column.id) ||
+                                        model.hiddenColumns.size <
+                                        model.columns.size -
+                                        1L
+                                )
+                    }
+        }
+    return dropdownMenu(open, content) {
+        this.trigger("Columns") {
+            this.variant = ButtonVariant.Outline;
+            this.size = ButtonSize.Sm
+        }
+        this.enabled = input.enabled && content.entries.size > 0L
+        this.fonts = input.fonts
+        this.theme = input.theme
+    }
+}
+
+internal fun <Row> dataTablePagination(
+    input: DataTableProps<Row>,
+    appearance: TableAppearance
+): View {
+    val model = input.state
+    return tableControlsRow {
+        this.spacing = 12.0 * appearance.density
+        this.alignment = CrossAlignment.Center
+        this.item(
+            appearance.content(
+                tableText(
+                    f"Selected: ${model.selectedKeys.size} · Rows: ${model.result.totalRows}"
+                ),
+                dim = true
+            )
+        ) { this.grow = 1.0 }
+        if (input.pageSizes.size > 0L)
+            this.add(
+                tablePageSizeSelect(
+                    binding<Long?>(
+                        { Some(model.query.pageSize) },
+                        {
+                            value -> when (value) {
+                                case Some(size) -> model.setPageSize(size);
+                                case None -> {}
+                            }
+                        }
+                    )
+                ) {
+                    this.width = Some(80.0 * appearance.density)
+                    this.size = SelectSize.Sm
+                    this.enabled = input.enabled
+                    this.theme = input.theme
+                    this.fonts = input.fonts
+                    for (size in input.pageSizes)
+                        this.item(Choice(ViewKey.Number(size), size, f"${size}"))
+                }
+            )
+        this.add(
+            tablePageNavigation(
+                binding({ model.query.pageIndex + 1L }, { value -> model.setPage(value - 1L) }),
+                model.result.pageCount
+            ) {
+                this.compact = true
+                this.items =
+                    Some(
+                        if (model.result.pageCount == 0L)
+                            []
+                        else
+                            [PaginationItem.Page(model.query.pageIndex + 1L)]
+                    )
+                this.enabled = input.enabled
+                this.theme = input.theme
+                this.fonts = input.fonts
+            }
+        )
+    }
+}

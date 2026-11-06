@@ -1,0 +1,233 @@
+package scoop.tests.ui.table
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class TableWindowTest {
+    @Test
+    fun `native table columns share scrolling resizing and virtual control ownership`() {
+        val p = TableProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.handle.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+            for (cell in p.cells)
+                assertEquals(cell.mounts, cell.unmounts)
+        } catch (error: Throwable) {
+            println(
+                f"table phase=${p.phase}, rendered=${p.rendered}, generation=${p.generation.value}"
+            )
+            tableNativeFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class TableCellObservation(val row: Long, val column: Int) {
+    var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var mounts = 0
+    var unmounts = 0
+    var seen = -1
+}
+
+internal class TableProbe {
+    val theme =
+        ThemeSource(shadcnTheme() { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val editor = TextEditorState("seed ")
+    val filter = TextEditorState()
+    val fieldFocus = FocusHandle()
+    val filterFocus = FocusHandle()
+    val outsideFocus = FocusHandle()
+    val horizontal = ScrollState()
+    val vertical = ScrollState()
+    val handle = VirtualListHandle()
+    val menuOpen = state(false)
+    val cells = ArrayList<TableCellObservation>()
+    val model =
+        DataTableState<Long>(
+            TableData.Local(NativeTableSource(30L, this)),
+            nativeTableColumns(this),
+            selectable = { row -> row % 7L != 0L }
+        )
+    var rootBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var savedCell: TableCellObservation? = None
+    var savedX = 0.0
+    var dragX = 0.0
+    var dragY = 0.0
+    var reads = 0
+    var actions = 0
+    var draws = 0
+    var savedDraws = 0
+    var rtl = false
+    var zero = false
+    var disabled = false
+    var selection = true
+    var finite = false
+    var shown = true
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(80L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun cell(row: Long, column: Int): TableCellObservation {
+        for (value in cells)
+            if (
+                value.row ==
+                    row &&
+                    value.column ==
+                    column &&
+                    value.mounts >
+                    value.unmounts &&
+                    value.seen >=
+                    generation.value
+            )
+                return value
+        throw IllegalStateException(Some(f"table cell not presented: ${row}/${column}"))
+    }
+    fun live(): Int {
+        var count = 0
+        for (value in cells)
+            if (value.mounts > value.unmounts)
+                count += 1
+        return count
+    }
+    fun move(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun press(x: Double, y: Double, down: Boolean) {
+        move(x, y);
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun click(x: Double, y: Double) {
+        press(x, y, true);
+        press(x, y, false)
+    }
+    fun click(bounds: Rect) {
+        click(bounds.x + bounds.width / 2.0, bounds.y + bounds.height / 2.0)
+    }
+    fun key(code: Int, text: String = "") {
+        val value =
+            if (text.byteLength > 0L)
+                text
+            else
+                when (code) {
+                    case 53 -> "\u001b";
+                    case 123 -> "\uf702";
+                    case 124 -> "\uf703";
+                    case 115 -> "\uf729";
+                    else -> text
+                }
+        assertEquals(0, tableNativeKey(native!!, code, value))
+    }
+    fun text(value: String, marked: Boolean = false) {
+        assertEquals(0, tableNativeText(native!!, value, marked))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Table test";
+                            size = LogicalSize(760.0, 640.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { scope -> TableScene(this, scope) }, fonts = Some(fonts))
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < timeout, Some("table timeout"))
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !fieldFocus.isPending &&
+                        !handle.isPending &&
+                        !frames!!.snapshot().required
+                ) {
+                    advanceTable(this)
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 44)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 44;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
+
+internal class NativeTableSource(
+    public override val count: Long,
+    private val p: TableProbe
+): TableSource<Long> {
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun rowAt(index: Long): Long {
+        p.reads += 1;
+        return index
+    }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+}

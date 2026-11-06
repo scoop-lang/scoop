@@ -1,0 +1,85 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.ViewKey
+
+public interface TableSource<Row> {
+    public val count: Long
+    public fun keyAt(index: Long): ViewKey
+    public fun indexOfKey(key: ViewKey): Long?
+    public fun rowAt(index: Long): Row
+}
+
+public class TableRecord<Row> public constructor(public val key: ViewKey, public val value: Row)
+
+/** Immutable rows with one explicit index, independent of display text or page positions. */
+public class TableRows<Row> public constructor(
+    private val rows: Array<TableRecord<Row>>
+): TableSource<Row> {
+    private val positions = HashMap<ViewKey, Long>()
+    init {
+        for (index in 0L ..< rows.size) {
+            val key = rows[index].key
+            requireComponent(
+                key != ViewKey.Position && !positions.containsKey(key),
+                "table rows require unique explicit keys"
+            )
+            positions.put(key, index)
+        }
+    }
+    public override val count: Long get() = rows.size
+    public override fun keyAt(index: Long): ViewKey = rows[index].key
+    public override fun indexOfKey(key: ViewKey): Long? = positions[key]
+    public override fun rowAt(index: Long): Row = rows[index].value
+}
+
+public enum TableData<Row> {
+    Local(TableSource<Row>), Provided(TableSource<Row>, Long)
+}
+
+public class TableResult<Row> internal constructor(
+    public val rows: TableSource<Row>,
+    public val totalRows: Long,
+    public val pageCount: Long
+)
+
+internal fun <Row> tableDataSource(data: TableData<Row>): TableSource<Row> =
+    when (data) {
+        case Local(source) -> source
+        case Provided(source, _) -> source
+    }
+
+internal class TableSlice<Row>(
+    private val source: TableSource<Row>,
+    private val start: Long,
+    public override val count: Long
+): TableSource<Row> {
+    private fun offset(index: Long): Long {
+        requireComponent(index >= 0L && index < count, "table row index is out of range")
+        return start + index
+    }
+    public override fun keyAt(index: Long): ViewKey = source.keyAt(offset(index))
+    public override fun rowAt(index: Long): Row = source.rowAt(offset(index))
+    public override fun indexOfKey(key: ViewKey): Long? {
+        val at = source.indexOfKey(key) ?: return None
+        return if (at >= start && at - start < count)
+            Some(at - start)
+        else
+            None
+    }
+}
+
+internal class TableOrder<Row>(
+    private val source: TableSource<Row>,
+    private val indices: Array<Long>
+): TableSource<Row> {
+    private val positions = HashMap<ViewKey, Long>()
+    init {
+        for (index in 0L ..< indices.size)
+            positions.put(source.keyAt(indices[index]), index)
+    }
+    public override val count: Long get() = indices.size
+    public override fun keyAt(index: Long): ViewKey = source.keyAt(indices[index])
+    public override fun indexOfKey(key: ViewKey): Long? = positions[key]
+    public override fun rowAt(index: Long): Row = source.rowAt(indices[index])
+}
