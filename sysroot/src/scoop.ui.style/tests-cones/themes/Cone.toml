@@ -32,33 +32,5 @@ when = { os = "darwin" }
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
 
 [[test.sources]]
-path = "tests"
-when = { os = "darwin" }
-
-[[test.sources]]
-path = "tests/builders.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/geometry.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/gpu.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/helpers.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/painting.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/resources.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
 path = "tests-linux"
 when = { os = "linux", env = "gnu" }

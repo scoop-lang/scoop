@@ -45,7 +45,6 @@ private class LinuxHandler: ApplicationHandler {
     val thread = currentThreadId()
     var window: Window? = None
     var lease: NativeWindowLease? = None
-    var content: Ptr<Unit>? = None
     var worker: Thread? = None
     var releaser: Thread? = None
     var posts = 0
@@ -77,20 +76,20 @@ private class LinuxHandler: ApplicationHandler {
                         val value = window!!
                         assertEquals(WindowState.Open, value.state)
                         assertTrue(value.metrics!!.physicalSize.isDrawable)
-                        when (content) {
-                            case Some(pointer) -> @Unsafe
-                            {
-                                val size = value.metrics!!.physicalSize
-                                assertEquals(
-                                    0,
-                                    presentWaylandContent(pointer, size.width, size.height)
-                                )
-                            }
-                            case None -> {}
-                        }
+
                         redraws += 1
                         if (stage == 0) {
                             verifyShortcutLabels(value)
+                            if (x11)
+                                @Unsafe
+                                {
+                                    when (lease!!.handle) {
+                                        case Gtk(native, view) -> assertEquals(
+                                            1,
+                                            sendGtkInput(native, view)
+                                        )
+                                    }
+                                }
                             stage = 1
                             assertEquals(
                                 RequestStatus.Requested,
@@ -126,14 +125,6 @@ private class LinuxHandler: ApplicationHandler {
                 case Window(identity, WindowEvent.Closing) -> {
                     closing += 1
                     if (identity == window!!.id) {
-                        when (content) {
-                            case Some(pointer) -> @Unsafe
-                            {
-                                destroyWaylandContent(pointer)
-                            }
-                            case None -> {}
-                        }
-                        content = None
                         val held = lease!!
                         releaser =
                             Some(
@@ -169,6 +160,26 @@ private class LinuxHandler: ApplicationHandler {
                 case Exiting -> exiting += 1
                 else -> {}
             }
+        } catch (error: Throwable) {
+            println("Linux window lifecycle stage " + stage.toString())
+            if (error is AssertionFailure) {
+                println(
+                    f"${error.location.file}:${error.location.line}: ${
+                        error.message ?: "assertion"
+                    }"
+                )
+                when (error.expected) {
+                    case Text(value) -> println(f"expected: ${value}")
+                    else -> {}
+                }
+                when (error.actual) {
+                    case Text(value) -> println(f"actual: ${value}")
+                    else -> {}
+                }
+            } else
+                if (error is Exception)
+                    println(error.message ?: "window failure")
+            throw error
         } finally {
             inside = false
         }
@@ -196,10 +207,20 @@ private class LinuxHandler: ApplicationHandler {
                 }
             )
         }
-        value.setSizeConstraints(
-            WindowSizeConstraints(Some(LogicalSize(100.0, 80.0)), Some(LogicalSize(640.0, 480.0)))
+        assertEquals(
+            RequestStatus.Unsupported,
+            value.setSizeConstraints(
+                WindowSizeConstraints(
+                    Some(LogicalSize(100.0, 80.0)),
+                    Some(LogicalSize(640.0, 480.0))
+                )
+            )
         )
-        assertFailsWith<IllegalArgumentException> { value.requestSize(LogicalSize(700.0, 500.0)) }
+        assertEquals(
+            RequestStatus.Requested,
+            value.setSizeConstraints(WindowSizeConstraints(Some(LogicalSize(100.0, 80.0)), None))
+        )
+        assertFailsWith<IllegalArgumentException> { value.requestSize(LogicalSize(80.0, 60.0)) }
         value.setResizable(false);
         value.setResizable(true)
         value.setDecorations(false);
@@ -219,35 +240,32 @@ private class LinuxHandler: ApplicationHandler {
             val held = value.acquireNativeWindow()
             lease = Some(held)
             when (held.handle) {
-                case Wayland(display, surface) -> {
+                case Gtk(native, view) -> {
+                    x11 = usesX11(native)
+                    assertTrue(native.toULong() != 0uL && view.toULong() != 0uL)
                     assertEquals(WindowState.PendingConfigure, value.state)
                     assertEquals(None, value.metrics)
-                    assertEquals(None, value.desktopPosition)
-                    assertEquals(None, application.primaryMonitor())
-                    assertEquals(
-                        RequestStatus.Unsupported,
-                        value.requestPosition(DesktopPosition(10.0, 10.0))
-                    )
-                    content =
-                        Some(
-                            createWaylandContent(display, surface) ?:
-                                fail(Some("wl_shm unavailable"))
+                    if (!x11) {
+                        assertEquals(None, value.desktopPosition)
+                        assertEquals(None, application.primaryMonitor())
+                        assertEquals(
+                            RequestStatus.Unsupported,
+                            value.requestPosition(DesktopPosition(10.0, 10.0))
                         )
-                }
-                case X11(connection, handle, visual) -> {
-                    x11 = true
-                    assertTrue(connection.toULong() != 0uL && handle != 0u && visual != 0u)
-                    assertEquals(WindowState.Open, value.state)
-                    assertEquals(LogicalSize(320.0, 180.0), value.metrics!!.logicalSize)
-                    verifyTransparency(value)
-                    application.clipboard.writeText("中文 / 👩‍💻\r\nline\rend")
-                    assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
-                    assertFailsWith<IllegalArgumentException> {
-                        application.clipboard.writeText("rejected\u{0}text")
+                    } else {
+                        application.clipboard.writeText("中文 / 👩‍💻\r\nline\rend")
+                        assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
+                        assertFailsWith<IllegalArgumentException> {
+                            application.clipboard.writeText("rejected\u{0}text")
+                        }
+                        assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
+                        assertTrue(writeNulClipboard(native))
+                        val invalidText =
+                            assertFailsWith<WindowException> { application.clipboard.readText() }
+                        assertEquals(WindowErrorKind.Unsupported, invalidText.kind)
+                        application.clipboard.writeText("")
+                        assertEquals(Some(""), application.clipboard.readText())
                     }
-                    assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
-                    application.clipboard.writeText("")
-                    assertEquals(Some(""), application.clipboard.readText())
                 }
             }
         }
@@ -272,16 +290,6 @@ private class LinuxHandler: ApplicationHandler {
                             posts += 1
                             value.setVisible(true)
                             value.requestRedraw()
-                            @Unsafe
-                            {
-                                when (lease!!.handle) {
-                                    case X11(connection, native, _) -> assertEquals(
-                                        1,
-                                        sendX11Input(connection, native)
-                                    )
-                                    case Wayland(_, _) -> {}
-                                }
-                            }
                         }
                     )
                 }
@@ -295,16 +303,13 @@ private class LinuxHandler: ApplicationHandler {
         @Unsafe
         {
             when (lease!!.handle) {
-                case X11(connection, native, _) -> {
-                    val size = value.metrics!!.physicalSize
-                    assertEquals(1, hasX11OpaqueRegion(connection, native, size.width, size.height))
-                    assertEquals(RequestStatus.Applied, value.setTransparent(true))
-                    assertEquals(1, hasX11OpaqueRegion(connection, native, 0, 0))
-                    assertEquals(RequestStatus.Applied, value.setTransparent(false))
-                    assertEquals(1, hasX11OpaqueRegion(connection, native, size.width, size.height))
-                }
-                case Wayland(_, _) -> {
-                    assertEquals(RequestStatus.Applied, value.setTransparent(true))
+                case Gtk(native, _) -> {
+                    val expected =
+                        if (x11 && !isComposited(native))
+                            RequestStatus.Unsupported
+                        else
+                            RequestStatus.Applied
+                    assertEquals(expected, value.setTransparent(true))
                     assertEquals(RequestStatus.Applied, value.setTransparent(false))
                 }
             }

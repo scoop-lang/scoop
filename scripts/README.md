@@ -59,15 +59,18 @@ python3 scripts/prepare_sysroot.py \
 
 Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 
-Linux GNU 的 GUI 同时支持 Wayland 和 X11，渲染使用 Skia Ganesh GLES／EGL，字体使用 Fontconfig／FreeType。先安装系统开发包：EGL、GLES、Fontconfig、FreeType、zlib、Wayland client／cursor／EGL、libdecor、XCB／RandR／XKB／cursor／imdkit 和 xkbcommon／xkbcommon-x11；Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。使用相同的固定 vendor 源码构建：
+Linux GNU 的 GUI 使用 GTK 4／libadwaita，支持 Wayland 和 X11；窗口标题栏、圆角和阴影由 GTK／libadwaita 绘制，内容仍使用 Skia Ganesh GLES，字体使用 Fontconfig／FreeType。需要 GTK 4.18 以上、libadwaita 1.4 以上，以及 EGL、GLES、Fontconfig、FreeType、zlib、X11 和 xkbcommon 开发包。Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。先准备 GTK 开发资源，再使用固定 vendor 源码构建 Skia：
 
 ```sh
+python3 scripts/prepare_gtk.py --build-dir ../scoop-work/gtk/x86_64-unknown-linux-gnu
 python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
   --build-dir ../scoop-work/skia/x86_64-unknown-linux-gnu --gn /path/to/gn \
   --cc /path/to/llvm/bin/clang --cxx /path/to/llvm/bin/clang++
 ```
 
-随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，收集静态库和头文件；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。协议生成来源、测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
+`prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和六个链接输入放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU target 组件包含开发资源及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
+
+随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，收集静态库和头文件；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
 
 `--sysroot` 默认为仓库的 `sysroot`，`--runtime-root` 默认为仓库的 `runtime`；可显式选择 `--cache-dir`、`--scoopc` 和现有 native 工具参数。维护脚本默认将工作目录放在仓库已忽略的 `tmp` 下，避免占用 HOME 所在磁盘；也可显式指定其他磁盘。构建缓存、中间产物和辅助程序的 Rust target 目录保存在工作目录或显式 `CARGO_TARGET_DIR`，不要选择绝对路径 `/tmp`。目标输出为 `sysroot/lib/<triple>`，公开头文件为 `sysroot/include`。
 
@@ -104,6 +107,8 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 开发与发行 sysroot 均准备 `runtime`、`runtime-stress`、`runtime-startup-stats`、`runtime-stress-startup-stats` 四组目标 runtime，每组包含 `index.cbor`。默认构建使用 `runtime`，不编入 GC stress 或启动统计支持；`scoop --enable-gc-stress build/run/test/link` 选择 stress 配置，随后由 `SCOOP_GC_STRESS_MOVE` / `SCOOP_GC_STRESS_MINOR` 决定运行时是否开启。`--enable-startup-stats` 独立选择启动统计配置，编入后每次启动直接向 stderr 输出记录；未传时预处理完全排除计时和报告代码。两个开关可以组合，独立 `scoop-link` 同样支持。普通 fixtures 不传这些开关，相关专测显式选择。旧 schema 6 runtime 索引需要重新准备，`.slib` 和 runtime ABI 不变。
 
 `package_toolchain.py` 是发行组件包的唯一入口：取得固定 LLVM 输入、按 lockfile 构建 VS Code 扩展、构建 LLVM、五个 release 宿主命令与独立的 scoop-example、准备该宿主支持的全部 native／runtime 资源，并用本次编译器为各发行目标构建系统库 `.slib`，随包复制内置 Cone 源码、vendor、Scoop 编程 skill 和 post-install 脚本，最后按宿主／目标／全局维度生成下述五类组件归档。打包不生成 API 文档；文档由安装后的配套工具现场生成。无需事先逐个执行其他准备或扩展打包脚本。默认工作位置为 `tmp/package/<host>`，全部归档集中于以版本命名的 `tmp/dist/scoop-<version>/`；用 `--work-dir`、`--output-dir` 可选择外置盘目录。脚本不自动运行测试。
+
+Linux GNU 的 native 与系统库默认使用本次准备或通过 `--llvm-prefix` 选择的 LLVM Clang；GUI 的 native 警告选项要求 Clang。`--gnu-cc` 仍可显式覆盖编译器。musl 使用自己的 `--musl-cc`，不会复用 GNU Clang 配置。
 
 已显式准备的系统资源可通过 `--prepared-sysroot <目录>` 直接组装，跳过 native 后端与 runtime 的重复构建；宿主命令、示例与归档仍走同一流程。该目录应包含本宿主交付的各目标 native／runtime 资源、源码、vendor 和头文件，并包含各目标已经构建的系统 `.slib`；这些 `.slib` 打进对应 target 的 `lib-<target>` 组件包。缺失文件按普通 I/O 报错，不加入生产过程复核。
 

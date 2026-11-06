@@ -1,7 +1,9 @@
 #ifndef SCOOP_WINDOW_LINUX_H
 #define SCOOP_WINDOW_LINUX_H
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <errno.h>
 #include <limits.h>
 #include <math.h>
@@ -12,7 +14,14 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <xkbcommon/xkbcommon-compose.h>
+#define GDK_VERSION_MIN_REQUIRED GDK_VERSION_4_14
+#define GDK_VERSION_MAX_ALLOWED GDK_VERSION_4_18
+#define ADW_VERSION_MIN_REQUIRED ADW_VERSION_1_4
+#define ADW_VERSION_MAX_ALLOWED ADW_VERSION_1_4
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
+#include <adwaita.h>
+#pragma clang diagnostic pop
 #include <xkbcommon/xkbcommon.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
@@ -70,23 +79,27 @@ typedef struct SWWatch SWWatch;
 typedef struct SWWindow SWWindow;
 typedef struct {
   SWCallback callback;
-  void *context, *backend;
-  int kind, wake_fd, display_fd, decor_fd, error;
-  bool stopped, error_reported, display_write_pending;
+  void *context;
+  GMainContext *main_context;
+  GdkDisplay *display;
+  GListModel *monitors;
+  gulong display_closed, monitors_changed, theme_changed;
+  int kind, wake_fd, error, layout;
+  guint gdk_modifiers;
+  int64_t next_monitor;
+  bool stopped, error_reported, alt_graph;
   double deadline;
   SWEvent *head, *tail;
   SWWindow *windows;
   SWWatch *watches;
-  struct xkb_context *xkb;
-  struct xkb_keymap *keymap;
-  struct xkb_state *key_state;
-  struct xkb_compose_table *compose_table;
   bool physical_keys[768], physical_keys_known;
 } SWApplication;
 struct SWWindow {
   SWApplication *application;
   SWWindow *next;
-  void *backend;
+  GtkWidget *window, *view, *toolbar, *header;
+  GtkIMContext *ime, *simple_ime;
+  bool destroying;
   int64_t identity;
   SWSnapshot snapshot;
   bool configured, requested_visible, decorations, resizable, transparent;
@@ -105,7 +118,6 @@ struct SWWindow {
   uint32_t pressed_buttons;
   SWEventData pressed[768];
   bool key_down[768];
-  struct xkb_compose_state *compose;
   char *preedit;
   SWTextSnapshotData document;
   int64_t connection, sequence, applied_sequence;
@@ -137,14 +149,21 @@ void sw_watch_dispatch(SWApplication *app, struct pollfd *fds, size_t count,
 void sw_watch_retire(SWApplication *app);
 size_t sw_watch_count(SWApplication *app);
 void sw_watch_poll(SWApplication *app, struct pollfd *fds, SWWatch **watches);
-int sw_dispatch_native(SWApplication *app);
-int sw_flush(SWApplication *app);
 void sw_set_geometry(SWWindow *window, double width, double height,
                      double scale);
 int64_t sw_transparency(SWWindow *window, bool transparent);
 uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
-void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat, bool text);
+void sw_input_install(SWWindow *window);
+void sw_ime_install(SWWindow *window);
+void sw_ime_update(SWWindow *window);
+void sw_ime_caret(SWWindow *window);
+void sw_ime_document(SWWindow *window);
+GtkIMContext *sw_ime_context(SWWindow *window);
+void sw_snapshot_update(SWWindow *window);
+void sw_update_buttons(SWWindow *window);
+int64_t sw_request_size(SWWindow *window, double width, double height);
+GdkSurface *sw_surface(SWWindow *window);
 void sw_reset_input(SWWindow *window);
 void sw_focus(SWWindow *window, bool focused);
 void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
@@ -162,63 +181,9 @@ bool sw_utf8_valid(const uint8_t *text, size_t length);
 bool sw_utf8_boundary(const uint8_t *text, size_t length, size_t offset);
 int64_t sw_utf8_offset(const char *text, size_t length, size_t scalars);
 
-int sw_x11_initialize(SWApplication *app);
-void sw_x11_finish(SWApplication *app);
-int sw_x11_dispatch(SWApplication *app);
-int sw_x11_flush(SWApplication *app);
-int sw_x11_create(SWWindow *window, const char *title);
-void sw_x11_destroy(SWWindow *window);
-int64_t sw_x11_title(SWWindow *window, const char *title);
-int64_t sw_x11_size(SWWindow *window, double width, double height);
-int64_t sw_x11_visible(SWWindow *window, bool visible);
-int64_t sw_x11_focus(SWWindow *window);
-int64_t sw_x11_position(SWWindow *window, double x, double y);
-int64_t sw_x11_hints(SWWindow *window);
-int64_t sw_x11_level(SWWindow *window, int value);
-int64_t sw_x11_minimized(SWWindow *window, bool value);
-int64_t sw_x11_maximized(SWWindow *window, bool value);
-int64_t sw_x11_theme(SWWindow *window, int value);
-int64_t sw_x11_attention(SWWindow *window, int value);
-int64_t sw_x11_cursor(SWWindow *window);
-SWMonitors *sw_x11_monitors(SWApplication *app);
-int64_t sw_x11_current_monitor(SWWindow *window);
-void sw_x11_ime(SWWindow *window);
-void sw_x11_caret(SWWindow *window);
-SWClipboardText sw_x11_clipboard_read(SWApplication *app);
-int64_t sw_x11_clipboard_write(SWApplication *app, const uint8_t *text,
-                               size_t length);
-void *sw_x11_connection(SWWindow *window);
-uint32_t sw_x11_window(SWWindow *window);
-uint32_t sw_x11_visual(SWWindow *window);
-
-int sw_wayland_initialize(SWApplication *app);
-void sw_wayland_finish(SWApplication *app);
-int sw_wayland_dispatch(SWApplication *app);
-int sw_wayland_flush(SWApplication *app);
-int sw_wayland_create(SWWindow *window, const char *title);
-void sw_wayland_destroy(SWWindow *window);
-int64_t sw_wayland_title(SWWindow *window, const char *title);
-int64_t sw_wayland_size(SWWindow *window, double width, double height);
-int64_t sw_wayland_visible(SWWindow *window, bool visible);
-int64_t sw_wayland_focus(SWWindow *window);
-int64_t sw_wayland_hints(SWWindow *window);
-int64_t sw_wayland_minimized(SWWindow *window, bool value);
-int64_t sw_wayland_maximized(SWWindow *window, bool value);
-int64_t sw_wayland_cursor(SWWindow *window);
-SWMonitors *sw_wayland_monitors(SWApplication *app);
-int64_t sw_wayland_current_monitor(SWWindow *window);
-void sw_wayland_ime(SWWindow *window);
-void sw_wayland_caret(SWWindow *window);
-void sw_wayland_document(SWWindow *window);
-double sw_wayland_repeat_deadline(SWApplication *app);
-void sw_wayland_repeat(SWApplication *app);
-SWClipboardText sw_wayland_clipboard_read(SWApplication *app);
-int64_t sw_wayland_clipboard_write(SWApplication *app, const uint8_t *text,
-                                   size_t length);
-void *sw_wayland_display(SWWindow *window);
-void *sw_wayland_surface(SWWindow *window);
-size_t sw_wayland_transfer_count(SWApplication *app);
-void sw_wayland_transfer_poll(SWApplication *app, struct pollfd *fds);
-void sw_wayland_transfer_flush(SWApplication *app);
+void sw_monitors_changed(GListModel *model, guint position, guint removed,
+                         guint added, gpointer data);
+void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
+                      gpointer data);
 
 #endif

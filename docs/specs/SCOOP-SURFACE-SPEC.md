@@ -315,15 +315,11 @@ Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换�
 
 ## 10. Linux GNU 呈现
 
-Linux 使用 Skia Ganesh GLES 与 EGL，目标为 `x86_64-unknown-linux-gnu`；musl 暂无本阶段需要的 C++ 资源。X11 从 window 的 XCB connection、window 与 visual 创建匹配的 EGL window surface；Wayland 从同一 lease 的 wl_display／wl_surface 创建 wl_egl_window。首次有效 configure 后才按实际像素尺寸创建 EGL window surface，不能用临时 1×1 backbuffer 绘制逻辑上的首帧。呈现对象不取得窗口事件循环的所有权，关闭 renderer 后再释放 lease。
+Linux 使用 Skia Ganesh GLES 与 GtkGLArea，目标为 `x86_64-unknown-linux-gnu`；musl 暂无本阶段需要的 C++／桌面资源。renderer 在 window 的 Gtk 内容容器中挂载一个 GtkGLArea，使用 GTK 管理的 framebuffer 与合成呈现，不创建额外 wl_egl_window 或 EGL window surface。
 
-像素尺寸变化时先完成旧目标的 GPU 使用。两个后端都在旧目标退休后按新尺寸重建 EGL window surface，确保下一次绘制已经使用新 backbuffer，不能将仅在 swap 时生效的旧尺寸存储包装成新尺寸的 Skia target。尺寸未变时复用原 surface。
+同一 RendererHost 的各 GtkGLArea 使用同一个通过 GdkDisplay 创建的 GLES context，保持现有跨窗口 GPU 资源共享语义。Ganesh 复用该 context，使用真实 framebuffer id、RGBA8 与 bottom-left origin，公开 Canvas 仍为 top-left 逻辑坐标。目标、GPU 图像和 context 保持必要的共享持有；宿主关闭先排空并 abandon Ganesh，再释放 GDK context。独立 surfaceless EGL 离屏 API 保留。
 
-graphics 的目标专用 Unsafe GLES 接入使用实际 GrDirectContext 和 EGL context，要求 EGL 1.5／GLES 3 与 surfaceless context。原生 context 以及 GPU 图像、绘图目标之间保持必要的共享持有，正常资源析构必须在相应 context 当前时执行。renderer 卸载 window surface 后，graphics 可通过 surfaceless context 收尾；普通 GLESContext.close 与其他后端一样允许目标和 GPU 图像保留 context；宿主结束对 borrowed display 的使用时显式 abandon，先排空 GPU、释放 Ganesh 资源，再关闭 EGL，不能保留指向已销毁显示连接的句柄。此后存活的 GPU 资源不可再绘制或读回，操作报 GraphicsException，close 仍安全幂等；独立 CPU 快照不受影响。GL framebuffer 使用真实 EGL 配置的颜色格式和 bottom-left origin，公开 Canvas 保持 top-left 逻辑坐标和既有预乘 alpha 合同。
-
-Wayland 等待首个 configure 后才建立有效帧尺寸，提交前按实际物理尺寸调整 wl_egl_window；整数和 fractional scale 由 window 配置，不在 renderer 重复设置 surface scale。每次提交登记一个 frame callback，后续获取在它返回前为 Deferred；EGL swap interval 为 0，由本方 callback 控制呈现节奏，不能让 EGL 在等待被 compositor 遮挡窗口的帧机会时阻塞窗口事件循环。没有后续 demand 时不提交新帧，但保留上一帧尚未返回的 callback，避免新到达的需求绕过它；回调返回时若仍无需求，不发重绘通知。显式隐藏、等待重新配置或关闭时取消旧 callback。X11 使用 EGL swap interval 与实际交换完成控制连续帧，在无绘图需求时不注册周期性定时器。不能以固定频率空回调轮询 drawable。未配置、隐藏、零尺寸或本帧已过期返回 Deferred；确定的 EGL／GL 失败报告 GraphicsException，不能隐式换后端。
-
-重绘请求可以在 Wayland frame callback 尚未到达时提前被处理，包括绘制期间保留的新失效。本次获取返回 Deferred 仍消费该次机会通知；dirty 继续保留，callback 到达后必须能再次通知下一次可绘制机会，不能因提前通知仍被标为未消费而永久停止后续帧。
+Skia 绘制在 owner 业务事件边界执行；GTK render signal 仅交付可用帧机会并呈现已经提交的内容，不递归调用业务 handler。GtkGLArea 使用 auto-render=false；只在实际 demand 存在时注册 frame-clock tick，提交后排入一次 GTK 重绘。无 demand 时不保留持续 tick；未映射、等待实际内容分配、零尺寸或尚未得到帧机会时返回 Deferred，dirty 保留到下次机会。大小或 generation 变化令旧帧 Discarded，确定的 GLES／GTK context 错误报告 GraphicsException。
 
 Skia 构建由既有维护脚本使用本地固定 vendor 输入完成，启用 GLES／EGL、Fontconfig／FreeType，继续复用共享 HarfBuzz／ICU／图像解码资源。普通应用只消费预编译 `.slib`、头文件和声明的 native 依赖。验收分别覆盖 Wayland 与 X11 的真实 GLES 绘制、resize、隐藏重显、多窗口、帧需求撤销、异常及资源关闭；离屏测试不能替代实际呈现。验证记录须区分真实显示服务器、软件 GPU、合成输入及实际硬件输入。
 

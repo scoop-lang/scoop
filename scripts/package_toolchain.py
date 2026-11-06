@@ -29,6 +29,8 @@ from build_skia import LIBRARY as SKIA_LIBRARY
 from build_skia import TARGETS as SKIA_TARGETS
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
+from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
+from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order
 from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
@@ -100,6 +102,17 @@ def prepare_targets(args, targets, binaries, environment):
                     "--jobs",
                     args.jobs,
                     *skia_native,
+                ],
+                environment,
+            )
+        if target == GTK_TARGET:
+            run_script(
+                "prepare_gtk.py",
+                [
+                    "--development-prefix",
+                    args.gtk_prefix,
+                    "--build-dir",
+                    args.work_dir / "gtk" / target,
                 ],
                 environment,
             )
@@ -263,6 +276,10 @@ def assemble_libraries(root, target, args, order):
     if target in SKIA_TARGETS:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
         shutil.copytree(source / "include/skia", destination / "include/skia")
+    if target == GTK_TARGET:
+        shutil.copytree(source / "include/gtk", destination / "include/gtk")
+        for library in GTK_LINK_INPUTS:
+            shutil.copy2(source / library, destination / library)
     for package in COMPRESSION_PACKAGES:
         for library in package["libraries"]:
             shutil.copy2(source / library, destination / library)
@@ -416,6 +433,12 @@ def main():
     parser.add_argument("--llvm-prefix", type=Path, help="Reuse an installed matching LLVM version")
     parser.add_argument("--gn", default="gn", help="GN executable used to prepare Skia resources")
     parser.add_argument(
+        "--gtk-prefix",
+        type=Path,
+        default=Path("/usr"),
+        help="Linux GTK/libadwaita development prefix used by pkg-config",
+    )
+    parser.add_argument(
         "--prepared-sysroot",
         type=Path,
         help="Use a prepared sysroot (native backends, runtime and system slibs) as-is",
@@ -433,7 +456,9 @@ def main():
         type=Path,
         help="Explicit Python license when absent from its installation",
     )
-    parser.add_argument("--gnu-cc", default="gcc")
+    parser.add_argument(
+        "--gnu-cc", help="GNU target C compiler; defaults to the prepared LLVM Clang"
+    )
     parser.add_argument("--musl-cc", default="musl-gcc")
     parser.add_argument("--unwind-cc", default="clang")
     parser.add_argument("--unwind-cxx", default="clang++")
@@ -515,6 +540,8 @@ def main():
             environment,
         )
     args.llvm_prefix = args.llvm_prefix.resolve()
+    if host_system == "Linux" and args.gnu_cc is None:
+        args.gnu_cc = str(args.llvm_prefix / "bin/clang")
     suffix = ".exe" if windows else ""
     if windows:
         environment["PATH"] = str(args.llvm_prefix / "bin") + os.pathsep + environment["PATH"]

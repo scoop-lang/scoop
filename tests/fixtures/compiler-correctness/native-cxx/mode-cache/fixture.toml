@@ -29,7 +29,7 @@ stderr = ""
 
 [[steps]]
 name = "enable_cxx"
-files = [{replace = {path = "${work}/cone/Cone.toml", old = "cxx = false", new = "cxx = true"}}]
+files = [{replace = {path = "${work}/cone/Cone.toml", old = 'cxx = { when = { env = "musl" } }', new = 'cxx = { when = { os = ["darwin", "linux"], env = ["none", "gnu"] } }' }}]
 
 [[steps]]
 name = "enabled"

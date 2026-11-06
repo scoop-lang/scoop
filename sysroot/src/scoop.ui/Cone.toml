@@ -122,3 +122,23 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/text_projection.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/description_types.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_comparison.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/reuse_models.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/subscriptions.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_edit_cells.scoop"
+when = { os = "linux", env = "gnu" }

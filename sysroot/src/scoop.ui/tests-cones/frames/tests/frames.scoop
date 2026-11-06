@@ -40,7 +40,7 @@ private class MovingUiProbe {
                     )
                 window.createDeadline { fail(Some("UI frame replacement timeout")) }
                 .schedule(MonotonicTimeSource.markNow() + Duration.seconds(10L))
-                host.attach(window, { MovingUiContent(this) })
+                host.attach(window, { scope -> MovingUiContent(this, scope) })
             }
             case AboutToWait -> {
                 if (accepted == step.value) {
@@ -57,15 +57,22 @@ private class MovingUiProbe {
     }
 }
 
-private class MovingUiContent(private val probe: MovingUiProbe): Component {
+private class MovingUiContent(private val probe: MovingUiProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
-        element(probe.step.value, { step -> MovingUiInk(probe, step) })
+        element(probe.step.value, { step, mount -> MovingUiInk(probe, step, mount) })
 }
 
-private class MovingUiInk(private val probe: MovingUiProbe, private val step: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(160.0, 80.0)))
-    public override fun scene(context: SceneContext) {
+private class MovingUiInk(
+    private val probe: MovingUiProbe,
+    private val step: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 80.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
         val value = step.value
         context.draw {
             paint ->

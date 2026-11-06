@@ -35,7 +35,9 @@ impl ConditionalSourcePath {
 }
 
 /// The selected caller-provided target set is the canonical predicate form.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
 pub struct TargetPredicate {
     targets: Vec<SelectedSourceTarget>,
 }

@@ -15,6 +15,7 @@ path = "windows"
 when = { os = "windows" }
 
 [native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
@@ -95,19 +96,31 @@ path = "linux"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
-path = "linux/content.c"
-when = { os = "linux", env = "gnu" }
-
-[[native.sources]]
 path = "linux/input.c"
 when = { os = "linux", env = "gnu" }
 
+
 [[native.libraries]]
-name = "xcb"
+name = "gtk-4"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
 
 [[native.libraries]]
-name = "wayland-client"
+name = "glib-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gobject-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "X11"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "Xtst"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }

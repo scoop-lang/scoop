@@ -130,6 +130,8 @@ class ComponentArchiveTests(unittest.TestCase):
                         package_toolchain.SKIA_LIBRARY,
                         "include/skia/include/core/SkCanvas.h",
                     ]
+                if target == package_toolchain.GTK_TARGET:
+                    target_files += ["include/gtk/gtk/gtk.h", *package_toolchain.GTK_LINK_INPUTS]
                 for relative in target_files:
                     path = target_root / relative
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,6 +354,12 @@ class ComponentArchiveTests(unittest.TestCase):
                         package_toolchain.SKIA_LIBRARY,
                     )
                     self.assertTrue((lib_root / "include/skia/include/core/SkCanvas.h").is_file())
+                if target == package_toolchain.GTK_TARGET:
+                    self.assertTrue((lib_root / "include/gtk/gtk/gtk.h").is_file())
+                    for library in package_toolchain.GTK_LINK_INPUTS:
+                        self.assertEqual((lib_root / library).read_text(), library)
+                else:
+                    self.assertFalse((lib_root / "include/gtk").exists())
                 for variant in (
                     "runtime",
                     "runtime-stress",
@@ -374,6 +382,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     jobs=2,
                     gn="gn",
                     llvm_prefix=work / "llvm",
+                    gtk_prefix=work / "gtk",
                     llvm_source=work / "llvm-source",
                     mingw_ucrt=work / "ucrt",
                     mingw_msvcrt=work / "msvcrt",
@@ -397,6 +406,16 @@ class ComponentArchiveTests(unittest.TestCase):
                 arguments = run.call_args.args[1]
                 self.assertNotIn("--runtime-only", arguments)
                 self.assertEqual(arguments[arguments.index("--scoop") + 1], binaries[0])
+                self.assertEqual(
+                    "prepare_gtk.py" in scripts, target == package_toolchain.GTK_TARGET
+                )
+                if target == package_toolchain.GTK_TARGET:
+                    gtk = next(
+                        call.args[1]
+                        for call in run.call_args_list
+                        if call.args[0] == "prepare_gtk.py"
+                    )
+                    self.assertEqual(gtk[gtk.index("--development-prefix") + 1], args.gtk_prefix)
                 if target == "x86_64-unknown-linux-musl":
                     self.assertNotIn("build_skia.py", scripts)
                     continue

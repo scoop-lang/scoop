@@ -21,3 +21,7 @@ when = { os = "darwin" }
 "scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
+
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }

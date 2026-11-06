@@ -127,11 +127,11 @@ DPI、输入、错误收尾、watch 和无窗口退出用例各自成 Cone，因
 
 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端。未设置时，有 `WAYLAND_DISPLAY` 则选择 Wayland，否则选择 X11；连接失败不会改连另一显示服务器。`DISPLAY`、`WAYLAND_DISPLAY` 和 `XDG_RUNTIME_DIR` 使用显示系统的普通约定。
 
-X11 依赖 XCB、RandR、XKB、xcb-cursor、xcb-imdkit、xkbcommon-x11；Wayland 依赖 wayland-client、wayland-cursor、libdecor 和 xkbcommon。字符比较复用目标资源 `scoop_text_backend`。Linux GNU 构建前安装对应开发包，普通应用使用 `.slib` 和系统动态库。Wayland 协议生成文件及其来源见 [protocol README](native/linux/protocol/README.md)。
+两个显示后端都由 GTK 4.18 以上和 libadwaita 1.4 以上实现；`AdwWindow` 和 `AdwHeaderBar` 负责标题栏、按钮、圆角和阴影。原生输入法、剪贴板和显示器使用 GDK／GTK 接口，X11 的位置和窗口管理请求使用 Xlib，键符号转换使用 xkbcommon。字符比较复用目标资源 `scoop_text_backend`。开发资源按[准备脚本说明](../../../scripts/README.md)放入目标 sysroot，普通应用使用预编译 `.slib` 和系统动态库。
 
-Wayland 窗口在首次 configure 前为 PendingConfigure，metrics 为 None；显示后由 GeometryChanged 给出有效尺寸。隐藏重显需要重新配置。桌面位置、主显示器、最小化状态等协议不提供的信息返回 None，未支持的操作返回 Unsupported。显式请求不支持的创建属性会报错。
+窗口在 GTK 首次分配内容区前为 PendingConfigure，metrics 为 None；显示后由 GeometryChanged 给出实际内容尺寸。framebuffer 按 GTK 的整数 scale factor 计算，桌面的分数缩放由 GTK／合成器处理。Wayland 桌面位置与主显示器等未提供的信息返回 None。最大内容尺寸约束、非默认 resize increments、单窗口强制明暗主题、blur 和内容保护返回 Unsupported；显式请求不支持的创建属性会报错。普通 Window／UI 接口保持，Linux 专用的 `NativeWindowHandle.Gtk` 借出 GtkWindow 与内容容器。
 
-两个后端使用 Linux evdev 物理键和当前 XKB 布局；有完整按键状态时保留左右修饰键，未知键保留原生代码。X11 的输入法接入为 XIM，Wayland 为 text-input-v3；未启动输入法时普通按键与 XKB compose 仍可输入。Wayland 剪贴板写入需要用户输入 serial，没有有效 serial 时报告 Unavailable。
+两个后端使用 Linux evdev 物理键和 GDK 当前键盘布局；有完整按键状态时保留左右修饰键，未知键保留原生代码。输入法由 GtkIMContext 接入当前桌面的输入服务，未启用输入法时使用 GTK 的普通字符／compose 输入。剪贴板使用 GdkClipboard，实际跨应用传递遵守显示服务器的焦点与选择规则。
 
 `ShortcutChord` 的 Primary 为 Control，`Window.shortcutLabel` 按当前 XKB 布局显示物理键，使用 `Ctrl+Shift+…` 形式；逻辑键保留声明的文本。AltGraph 状态可确定时通过 `Modifiers.altGraph` 提供，输入 AltGraph 字符不会触发普通快捷键或 Control 编辑命令。
 
@@ -143,4 +143,4 @@ SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window --release
 SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window.asyncio --release
 ```
 
-窗口测试使用真实显示服务器；Wayland 的窗口专测通过所属 test-native Cone 提交真实 wl_shm 缓冲区，使没有 renderer 的测试窗口也能映射。应用绘图由 Surface 提供。验证范围、依赖版本及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+窗口测试使用真实显示服务器，X11 输入测试还需要 libXtst 开发包；GTK 自行映射普通窗口，应用绘图由 Surface 挂载的 GtkGLArea 提供。GTK 信号仅排入窗口事件，业务回调在 GTK dispatch 返回后执行。验证范围、依赖版本及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

@@ -18,26 +18,14 @@ private class LinuxRendererHost: RendererHost {
         {
             val lease = window.acquireNativeWindow()
             try {
-                val handle = lease.handle
-                val device =
-                    context ?:
-                        when (handle) {
-                            case X11(connection, _, visual) -> GLESContext.createX11(
-                                connection,
-                                visual
-                            )
-                            case Wayland(display, _) -> GLESContext.createWayland(display)
-                        }
+                val view =
+                    when (lease.handle) {
+                        case Gtk(_, view) -> view
+                    }
+                val device = context ?: GLESContext.createGtk(linuxSurfaceDisplay(view))
                 context = Some(device)
                 val renderer = LinuxWindowRenderer(window, proxy, lease, device)
-                when (handle) {
-                    case X11(connection, native, _) -> renderer.install(
-                        Some(connection),
-                        native,
-                        None
-                    )
-                    case Wayland(_, surface) -> renderer.install(None, 0u, Some(surface))
-                }
+                renderer.install(view)
                 return renderer
             } catch (error: Throwable) {
                 lease.close()
@@ -68,7 +56,7 @@ private class LinuxWindowRenderer(
     private var wanted = false
 
     @Unsafe
-    fun install(connection: Ptr<Unit>?, nativeWindow: UInt, surface: Ptr<Unit>?) {
+    fun install(view: Ptr<Unit>) {
         val registration =
             foreignCallback<(Ptr<Unit>, Int) -> Int>(
                 { reason: Int -> notify(reason) },
@@ -79,16 +67,12 @@ private class LinuxWindowRenderer(
             native =
                 Some(
                     linuxSurfaceCreate(
-                        context.display,
-                        context.configuration,
-                        context.nativeContext,
-                        connection,
-                        nativeWindow,
-                        surface,
+                        view,
+                        context.gtkContext,
                         registration.function,
                         registration.context
                     ) ?:
-                        throw GraphicsException("create EGL window surface")
+                        throw GraphicsException("create GTK GLES window target")
                 )
             callback = Some(registration)
         } catch (error: Throwable) {
@@ -139,7 +123,7 @@ private class LinuxWindowRenderer(
                     value.physicalSize.height,
                     value.scaleFactor
                 ),
-                "configure EGL window surface"
+                "configure GTK GLES window target"
             )
         }
         metrics = Some(value)
@@ -151,7 +135,7 @@ private class LinuxWindowRenderer(
             {
                 val drawable =
                     window.state == WindowState.Open && window.isVisible && !window.isOccluded
-                linuxResult(linuxSurfaceDemand(value, required, drawable), "set EGL frame demand")
+                linuxResult(linuxSurfaceDemand(value, required, drawable), "set GTK frame demand")
             }
             case None -> {
                 if (required)
@@ -167,13 +151,13 @@ private class LinuxWindowRenderer(
         {
             val result = linuxSurfaceAcquire(pointer())
             if (result.status < 0)
-                throw GraphicsException("acquire EGL frame")
+                throw GraphicsException("acquire GTK frame")
             if (result.pointer == None)
                 return FrameAcquisition.Deferred
             val frame = result.pointer!!
             try {
                 val target =
-                    context.target(
+                    context.gtkTarget(
                         linuxFrameSurface(frame),
                         configuration.physicalSize.width,
                         configuration.physicalSize.height,
@@ -198,7 +182,7 @@ private class LinuxWindowRenderer(
                     cleanupFailure(failure) {
                         @Unsafe
                         {
-                            linuxResult(linuxSurfaceClose(value), "close EGL surface")
+                            linuxResult(linuxSurfaceClose(value), "close GTK surface")
                         }
                     }
             }
@@ -250,7 +234,7 @@ private class LinuxFrame(
         {
             val current = linuxFrameCurrent(native)
             if (current < 0)
-                throw GraphicsException("check EGL frame configuration")
+                throw GraphicsException("check GTK frame configuration")
             if (current == 0)
                 return false
         }
@@ -260,7 +244,7 @@ private class LinuxFrame(
         {
             val result = linuxFramePresent(native)
             if (result < 0)
-                throw GraphicsException("present EGL frame")
+                throw GraphicsException("present GTK frame")
             submitted = true
             return result == 1
         }
@@ -289,16 +273,15 @@ private fun linuxResult(result: Int, operation: String) {
 @CLayout
 private struct LinuxAcquiredFrame(val pointer: Ptr<Unit>?, val status: Int)
 
+@Extern(name = "scoop_surface_gtk_display")
+private fun linuxSurfaceDisplay(view: Ptr<Unit>): Ptr<Unit>
+
 @Extern(name = "scoop_surface_gles_create")
 private fun linuxSurfaceCreate(
-    display: Ptr<Unit>,
-    config: Ptr<Unit>,
-    nativeContext: Ptr<Unit>,
-    connection: Ptr<Unit>?,
-    window: UInt,
-    surface: Ptr<Unit>?,
+    view: Ptr<Unit>,
+    context: Ptr<Unit>,
     callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
-    context: Ptr<Unit>
+    data: Ptr<Unit>
 ): Ptr<Unit>?
 
 @Extern(name = "scoop_surface_gles_configure")

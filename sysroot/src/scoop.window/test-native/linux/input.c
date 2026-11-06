@@ -1,67 +1,60 @@
+#define GDK_VERSION_MIN_REQUIRED GDK_VERSION_4_14
+#define GDK_VERSION_MAX_ALLOWED GDK_VERSION_4_18
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
+#include <gtk/gtk.h>
+#pragma clang diagnostic pop
+#include <X11/extensions/XTest.h>
+#include <gdk/x11/gdkx.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <xcb/xcb.h>
 
-int32_t scoop_test_x11_input(xcb_connection_t *connection,
-                             xcb_window_t window) {
-  xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(
-      connection, xcb_get_geometry(connection, window), NULL);
-  if (!geometry)
+bool scoop_test_gtk_x11(void *window) {
+  return GDK_IS_X11_DISPLAY(gtk_widget_get_display(GTK_WIDGET(window)));
+}
+bool scoop_test_gtk_composited(void *window) {
+  return gdk_display_is_composited(gtk_widget_get_display(GTK_WIDGET(window)));
+}
+int32_t scoop_test_gtk_input(void *window, void *view) {
+  GdkDisplay *gdk = gtk_widget_get_display(GTK_WIDGET(window));
+  if (!GDK_IS_X11_DISPLAY(gdk))
     return 0;
-  xcb_key_press_event_t event = {0};
-  event.root = geometry->root;
-  free(geometry);
-  event.event = window;
-  event.event_x = 25;
-  event.event_y = 30;
-  event.same_screen = 1;
-  const uint8_t kinds[] = {XCB_KEY_PRESS, XCB_KEY_RELEASE, XCB_BUTTON_PRESS,
-                           XCB_BUTTON_RELEASE};
-  const uint32_t masks[] = {
-      XCB_EVENT_MASK_KEY_PRESS, XCB_EVENT_MASK_KEY_RELEASE,
-      XCB_EVENT_MASK_BUTTON_PRESS, XCB_EVENT_MASK_BUTTON_RELEASE};
-  for (unsigned index = 0; index < 4; ++index) {
-    event.response_type = kinds[index];
-    event.detail = index < 2 ? 38 : 1;
-    xcb_generic_error_t *error = xcb_request_check(
-        connection, xcb_send_event_checked(connection, false, window,
-                                           masks[index], (const char *)&event));
-    if (error) {
-      free(error);
-      return 0;
-    }
-  }
-  return 1;
+  Display *display = gdk_x11_display_get_xdisplay(gdk);
+  Window native =
+      gdk_x11_surface_get_xid(gtk_native_get_surface(GTK_NATIVE(window)));
+  graphene_point_t point = {24, 24}, position;
+  if (!gtk_widget_compute_point(GTK_WIDGET(view), GTK_WIDGET(window), &point,
+                                &position))
+    return 0;
+  double offset_x, offset_y;
+  gtk_native_get_surface_transform(GTK_NATIVE(window), &offset_x, &offset_y);
+  int root_x, root_y;
+  Window child;
+  if (!XTranslateCoordinates(display, native, DefaultRootWindow(display),
+                             (int)(position.x - offset_x),
+                             (int)(position.y - offset_y), &root_x, &root_y,
+                             &child))
+    return 0;
+  gtk_widget_grab_focus(GTK_WIDGET(view));
+  XSetInputFocus(display, native, RevertToParent, CurrentTime);
+  int ok = XTestFakeMotionEvent(display, -1, root_x, root_y, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, True, CurrentTime) &&
+           XTestFakeButtonEvent(display, 1, False, CurrentTime) &&
+           XTestFakeKeyEvent(display, 38, True, CurrentTime) &&
+           XTestFakeKeyEvent(display, 38, False, CurrentTime);
+  XFlush(display);
+  return ok != 0;
 }
 
-int32_t scoop_test_x11_opaque_region(xcb_connection_t *connection,
-                                     xcb_window_t window, int32_t width,
-                                     int32_t height) {
-  const char name[] = "_NET_WM_OPAQUE_REGION";
-  xcb_intern_atom_reply_t *atom = xcb_intern_atom_reply(
-      connection, xcb_intern_atom(connection, false, sizeof(name) - 1, name),
-      NULL);
-  if (!atom)
-    return 0;
-  xcb_get_property_reply_t *reply = xcb_get_property_reply(
-      connection,
-      xcb_get_property(connection, false, window, atom->atom, XCB_ATOM_CARDINAL,
-                       0, 4),
-      NULL);
-  free(atom);
-  if (!reply)
-    return 0;
-  bool valid;
-  if (!width && !height)
-    valid = reply->type == XCB_ATOM_NONE;
-  else {
-    uint32_t *values = xcb_get_property_value(reply);
-    valid = reply->format == 32 && reply->type == XCB_ATOM_CARDINAL &&
-            xcb_get_property_value_length(reply) == 16 && !values[0] &&
-            !values[1] && values[2] == (uint32_t)width &&
-            values[3] == (uint32_t)height;
-  }
-  free(reply);
-  return valid;
+bool scoop_test_gtk_clipboard_nul(void *window) {
+  static const char text[] = "left\0right";
+  GBytes *bytes = g_bytes_new_static(text, sizeof(text) - 1);
+  GdkContentProvider *provider =
+      gdk_content_provider_new_for_bytes("text/plain;charset=utf-8", bytes);
+  bool result = gdk_clipboard_set_content(
+      gdk_display_get_clipboard(gtk_widget_get_display(GTK_WIDGET(window))),
+      provider);
+  g_object_unref(provider);
+  g_bytes_unref(bytes);
+  return result;
 }

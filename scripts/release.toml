@@ -33,6 +33,8 @@ build_system = "macOS 27.0.1 (Rosetta on Apple Silicon)"
 [targets.x86_64-unknown-linux-gnu]
 cpu = "x86-64"
 minimum_libc = "2.43"
+minimum_gtk = "4.18"
+minimum_libadwaita = "1.4"
 build_system = "Ubuntu 26.04.1"
 
 [targets.x86_64-unknown-linux-musl]

@@ -89,9 +89,10 @@ void sw_set_geometry(SWWindow *window, double width, double height,
     return;
   }
   SWSnapshot *value = &window->snapshot;
-  bool changed = !window->configured || value->width != width ||
-                 value->height != height || value->scale != scale ||
-                 value->pixel_width != pw || value->pixel_height != ph;
+  bool initial = !window->configured;
+  bool changed = initial || value->width != width || value->height != height ||
+                 value->scale != scale || value->pixel_width != pw ||
+                 value->pixel_height != ph;
   value->width = width;
   value->height = height;
   value->pixel_width = pw;
@@ -104,5 +105,9 @@ void sw_set_geometry(SWWindow *window, double width, double height,
       sw_fail(window->application, error);
     window->caret_known = false;
     sw_emit(window, 2);
+    // Activation may precede the allocation that opens the managed window.
+    if (initial && value->focused)
+      sw_emit(window, 4);
+    sw_emit(window, 15);
   }
 }

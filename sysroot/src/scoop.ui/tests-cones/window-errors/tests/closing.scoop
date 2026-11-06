@@ -1,0 +1,82 @@
+package scoop.tests.ui.window_errors
+
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiShutdownTest {
+    @Test
+    fun `exit and terminal input notifications preserve state without queueing closing roots`() {
+        verifyClosing()
+    }
+}
+
+private class ClosingProbe {
+    val value = state(0)
+    var renders = 0
+    var renderedValue = -1
+    var terminalNotifications = 0
+    var unmounts = 0
+    var ui: UiWindow? = None
+}
+
+private class ClosingRoot(private val probe: ClosingProbe, scope: ComponentScope): Component(
+    scope
+) {
+    init {
+        scope.resource {
+            scope.input.observePointer {
+                event -> when (event) {
+                    case Closed -> {
+                        probe.terminalNotifications += 1
+                        probe.value.value += 1
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun render(): View {
+        probe.renders += 1
+        probe.renderedValue = probe.value.value
+        return empty()
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+}
+
+private fun verifyClosing() {
+    val probes = [ClosingProbe(), ClosingProbe()]
+    UiHost {
+        host,
+        active,
+        event -> when (event) {
+            case Resumed -> {
+                for (probe in probes) {
+                    val window = active.createWindow(windowAttributes { visible = false })
+                    probe.ui = host.attach(window, { scope -> ClosingRoot(probe, scope) })
+                }
+                active.requestExit()
+                probes[0L].value.value += 1
+            }
+            else -> {}
+        }
+    }.use {
+        host ->
+        Application().run(host)
+        assertTrue(host.isClosed)
+    }
+    for (probe in probes) {
+        assertEquals(1, probe.renders)
+        assertEquals(0, probe.renderedValue)
+        assertEquals(1, probe.terminalNotifications)
+        assertEquals(1, probe.unmounts)
+        assertTrue(probe.ui!!.isClosed)
+        assertEquals(WindowState.Destroyed, probe.ui!!.nativeWindow.state)
+    }
+    assertEquals(2, probes[0L].value.value)
+    assertEquals(1, probes[1L].value.value)
+}

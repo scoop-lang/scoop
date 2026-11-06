@@ -11,6 +11,25 @@ public class GLESContext private constructor(private val resource: GraphicsResou
     public val configuration: Ptr<Unit> @Unsafe get() = glesConfig(resource.get())
     public val nativeContext: Ptr<Unit> @Unsafe get() = glesNative(resource.get())
 
+    /** Borrows the GdkGLContext used by GTK areas attached to this context. */
+    public val gtkContext: Ptr<Unit> @Unsafe get() =
+        glesGtkNative(resource.get()) ?: throw GraphicsException("context does not use GTK")
+
+    /** Wraps the current framebuffer of a GtkGLArea using this context. */
+    @Unsafe
+    public fun gtkTarget(view: Ptr<Unit>, width: Int, height: Int, scale: Double): RenderTarget {
+        validateTarget(width, height, scale)
+        return RenderTarget(
+            ownedGraphics(
+                glesGtkTarget(resource.get(), view, width, height),
+                "wrap GTK GLES target"
+            ),
+            width,
+            height,
+            scale
+        )
+    }
+
     /** Wraps framebuffer zero of a live EGLSurface belonging to this context's display. */
     @Unsafe
     public fun target(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): RenderTarget {
@@ -72,6 +91,11 @@ public class GLESContext private constructor(private val resource: GraphicsResou
         }
     }
     public companion object {
+        /** Creates one shared GLES context for GtkGLAreas on the supplied GdkDisplay. */
+        @Unsafe
+        public fun createGtk(display: Ptr<Unit>): GLESContext =
+            GLESContext(ownedGraphics(glesGtkContext(display), "create GTK GLES context"))
+
         /** The XCB connection must outlive this context and all of its EGL surfaces. */
         @Unsafe
         public fun createX11(connection: Ptr<Unit>, visual: UInt): GLESContext =
@@ -128,3 +152,12 @@ private fun glesDrain(context: Ptr<Unit>): Int
 
 @Extern(name = "scoop_graphics_gles_close")
 private fun glesClose(context: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_gles_gtk_context")
+private fun glesGtkContext(display: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gles_gtk_native")
+private fun glesGtkNative(context: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gles_gtk_target")
+private fun glesGtkTarget(context: Ptr<Unit>, view: Ptr<Unit>, width: Int, height: Int): Ptr<Unit>?

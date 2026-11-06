@@ -43,7 +43,9 @@ impl NativeConfig {
                 "{}: Objective-C native sources require a Darwin target",
                 path.as_str()
             )),
-            Some("cc" | "cpp" | "cxx" | "C") if self.cxx => Ok(NativeSourceLanguage::Cxx),
+            Some("cc" | "cpp" | "cxx" | "C") if self.cxx(target.id) => {
+                Ok(NativeSourceLanguage::Cxx)
+            }
             Some("cc" | "cpp" | "cxx" | "C") => {
                 Err(format!("{} requires native.cxx = true", path.as_str()))
             }

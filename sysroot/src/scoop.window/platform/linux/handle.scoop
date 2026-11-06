@@ -1,7 +1,6 @@
 package scoop.window.native
 
-/** Borrowed native handles; the lease retains their window and display connection. */
+/** Borrowed GtkWindow and content container; the lease retains their window and display. */
 public enum NativeWindowHandle {
-    X11(val connection: Ptr<Unit>, val window: UInt, val visual: UInt),
-    Wayland(val display: Ptr<Unit>, val surface: Ptr<Unit>)
+    Gtk(val window: Ptr<Unit>, val view: Ptr<Unit>)
 }

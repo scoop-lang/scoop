@@ -41,57 +41,5 @@ path = "src"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
-path = "tests/absolute.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/dsl_builders.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/layout.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/scroll.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/style_builders.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/styles.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/text_fields.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/virtual.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/virtual_extents.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/content_fit.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/flex.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/flow_layout.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/interaction_values.scoop"
-when = { os = "linux", env = "gnu" }
-
-[[test.sources]]
-path = "tests/reading.scoop"
+path = "tests"
 when = { os = "linux", env = "gnu" }

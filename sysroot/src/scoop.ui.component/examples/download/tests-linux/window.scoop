@@ -111,30 +111,32 @@ private class LinuxDownloadProbe {
                                             )
                                         probe.window = Some(native)
                                         probe.ui =
-                                            Some(
-                                                host.attach(
-                                                    native,
-                                                    {
-                                                        LinuxDownloadScene(
-                                                            probe,
-                                                            {
-                                                                val content =
-                                                                    DownloadPanel(
-                                                                        jobs,
-                                                                        http,
-                                                                        probe.workers,
-                                                                        probe.application.proxy(),
-                                                                        probe.model,
-                                                                        server.request("/known"),
-                                                                        probe.destination,
-                                                                        probe.fonts
-                                                                    )
-                                                                probe.panel = Some(content)
-                                                                content
-                                                            }
-                                                        )
-                                                    }
-                                                )
+                                            host.attach(
+                                                native,
+                                                {
+                                                    scope -> LinuxDownloadScene(
+                                                        probe,
+                                                        {
+                                                            scope ->
+                                                            val content =
+                                                                DownloadPanel(
+                                                                    jobs,
+                                                                    http,
+                                                                    probe.workers,
+                                                                    probe.application.proxy(),
+                                                                    probe.model,
+                                                                    server.request("/known"),
+                                                                    probe.destination,
+                                                                    probe.fonts,
+                                                                    scope
+                                                                )
+                                                            probe.panel = Some(content)
+                                                            content
+                                                        },
+                                                        scope
+                                                    )
+                                                },
+                                                fonts = Some(probe.fonts)
                                             )
                                         probe.scenario(server)
                                         probe.finished = true
@@ -222,24 +224,31 @@ private class LinuxDownloadProbe {
 
 private class LinuxDownloadScene(
     private val probe: LinuxDownloadProbe,
-    private val create: () -> DownloadPanel
-): Component {
-    public override fun render(): View = element({ LinuxDownloadAudit(probe) }, [component(create)])
+    private val create: (ComponentScope) -> DownloadPanel,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element({ scope -> LinuxDownloadAudit(probe, scope) }, [component(create)])
 }
 
-private class LinuxDownloadAudit(private val probe: LinuxDownloadProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class LinuxDownloadAudit(
+    private val probe: LinuxDownloadProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.mounts += 1
     }
     public override fun onUnmount() {
         probe.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, layout: Unit) {
         context.children()
         context.draw { paint -> assertEquals(255uL, sampleCanvasPixel(paint.canvas, 5, 5) % 256uL) }
         context.onFrameComplete {

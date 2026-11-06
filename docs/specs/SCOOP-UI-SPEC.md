@@ -836,6 +836,8 @@ macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding
 
 UiWindow.close 停止根组件的新工作并请求关闭所附着的 SurfaceWindow，不关闭调用方传入的原生 Window；窗口是否继续存在由调用方决定。根组件的实际资源释放遵循下述 content 的安全关闭时机，不在活动绘制／输入回调中抢先销毁其资源。原生 Closing、Application Exiting、SurfaceHost 失败以及显式 close 都必须走同一幂等资源收尾，不能依赖应用转发某个清理通知。
 
+原生窗口进入 Closing／Destroyed，或所附着的 Surface 离开 Open 后，该根不再排队逻辑更新。输入收尾的失焦、悬停取消及终止通知仍可更新普通 State；这些写入保留，其他仍开放根的订阅照常生效，但不能使退休中的根向已关闭的应用业务队列投递更新。正常退出因此不属于消息投递失败；开放根实际发生的投递故障仍按宿主错误传播。
+
 surface 已提供真实的内容拥有关系：SurfaceContent 具有 paint(FrameContext) 和 Closeable 合同，SurfaceHost.attach 可以接收它。现有 painter 入口继续服务直接绘图，由库适配为无额外持有资源的 content。SurfaceWindow 在当前业务回调和 Canvas 借用结束后、renderer／lease 释放前，关闭其 content 一次。UI 根挂载对象作为 content 被持有，因此异常或原生关闭路径也能释放整个 UI 子树。
 
 SurfaceContent 定义在 scoop.surface，只表达可绘制、需要关闭的内容；它的签名不引用 Component、View 或其他 scoop.ui 类型，不产生低层到 UI 的反向依赖。

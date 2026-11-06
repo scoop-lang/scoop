@@ -12,7 +12,7 @@ Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN
 
 Windows 发行准备使用同一 GNU-LLVM Rust 宿主构建主命令、示例命令和内部 runtime 准备程序，交付三个完整 Windows target 的 native 库与 runtime，系统 `.slib` 由发布侧预编译并随对应 target 组件包交付。宿主 Clang／LLD／RC 工具及 Clang resource headers 安装在 `libexec/llvm`，该目录是包含 llvm-config、开发头文件、静态 SDK 库与 CMake exports 的完整 LLVM prefix；两个 LLVM-MinGW 目标在各自 `lib/<target>/toolchain` 中保留所选 prefix 的 x86-64 开发资源、驱动与目录关系，Microsoft SDK／MSVC toolset 由本机开发环境提供。目标 libunwind 随各自目录交付；宿主与目标 LLVM／MinGW、C++／unwind 的实际许可一并收集。安装后的 API 文档生成沿用相同 target 选择。
 
-发行脚本默认显式准备目标 native 与 runtime 资源，也可通过 `--prepared-sysroot` 消费维护者已经准备的 sysroot，跳过这些资源的重建；两种入口均使用同一编译器构建系统 `.slib` 并随对应 target 组件包交付，`--prepared-sysroot` 消费的 sysroot 应已包含这些 `.slib`；后续命令构建、示例、组装和归档流程相同。该入口是普通产物消费，不增加来源审核或生产过程复核；缺失资源按实际 I/O 报错，编译消费仍执行既有格式／ABI 检查。
+发行脚本默认显式准备目标 native 与 runtime 资源，也可通过 `--prepared-sysroot` 消费维护者已经准备的 sysroot，跳过这些资源的重建；两种入口均使用同一编译器构建系统 `.slib` 并随对应 target 组件包交付，`--prepared-sysroot` 消费的 sysroot 应已包含这些 `.slib`；后续命令构建、示例、组装和归档流程相同。Linux GNU 的发行准备默认使用本次 LLVM prefix 中的 Clang 编译 native 与系统库，`--gnu-cc` 可显式覆盖；musl 保持独立目标工具链。该入口是普通产物消费，不增加来源审核或生产过程复核；缺失资源按实际 I/O 报错，编译消费仍执行既有格式／ABI 检查。
 
 一个 Cone 是一次独立编译的单位。library 和 executable Cone 都产生完整 `.slib`；executable 的最终程序由独立链接阶段从产物闭包生成。产物是编译结果，不承担独立分发认证或源码／工具移除后的可用性保证。缓存只判断正常输入是否变化，不检查输出是否遭到外部破坏。
 
@@ -86,13 +86,15 @@ OpenSSL 的 Darwin/AArch64 构建同样保留上游目标配置与 Apple Clang �
 
 Windows 发行包按宿主 PE 的实际 imports 收集非系统 DLL，递归包含其依赖，并放在对应宿主 executable 的相邻目录；内置外部命令遵守相同的加载规则。Windows 基线自带的系统 DLL 与 API-set 不复制。LLVM 的 DLL 优先从本次选定的 LLVM 安装取得，宿主命令启动不依赖开发机 PATH 中的另一份 LLVM 或 MinGW DLL。目标开发资源及 SDK／toolset 的选择仍由各 target 的 native 构建合同负责。
 
-Linux generated-C 支持 GCC 与 GNU 风格 Clang，默认 driver 仍为 GNU 环境的 `gcc` 和 musl 环境的 `musl-gcc`。先通过无系统头文件的预定义宏探测实际 compiler family；Clang 显式使用所选 LLVM machine triple，两者使用所选 native sysroot。`REALGCC` 只传给实际 `musl-gcc` wrapper；直接 GCC、Clang 不依赖第二个 GCC 可执行文件。真实 header/object probe 检查 libc、LP64 与机器，误选另一 libc 的 driver 必须得到不匹配诊断。Linux producer 合同保存 GCC 或 Clang 的版本和预处理配置；Clang identity 与 Windows 共用纯数据编码，native 环境仍由完整 target 区分。
+Linux generated-C 支持 GCC 与 GNU 风格 Clang。GNU 环境省略 `--cc` 时优先使用当前 Scoop 命令安装目录下的 `libexec/llvm/bin/clang`，未配套 LLVM 的开发布局回退到 PATH 中的 `gcc`；musl 环境默认仍为 `musl-gcc`。显式 `--cc` 优先，native C++ 默认沿已有配对规则选择同一套 `clang++` 或 `g++`。随包 Clang 的候选路径属于默认 GNU 工具选择的更新输入；安装位置与候选是否出现的变化使对应默认选择更新，显式编译器选择不受影响。先通过无系统头文件的预定义宏探测实际 compiler family；Clang 显式使用所选 LLVM machine triple，两者使用所选 native sysroot。`REALGCC` 只传给实际 `musl-gcc` wrapper；直接 GCC、Clang 不依赖第二个 GCC 可执行文件。真实 header/object probe 检查 libc、LP64 与机器，误选另一 libc 的 driver 必须得到不匹配诊断。Linux producer 合同保存 GCC 或 Clang 的版本和预处理配置；Clang identity 与 Windows 共用纯数据编码，native 环境仍由完整 target 区分。
 
-GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 升至 26，已解析工具调用记录显式保存 Linux compiler 选择；native 工具记录同步演进，不保留旧记录的兼容转换。
+GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 升至 27，已解析工具调用记录显式保存 Linux compiler 选择；native 工具记录同步演进，不保留旧记录的兼容转换。
 
 两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
-Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择，目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。
+Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 5；PM 的清单解析记录使用 `manifests-v4`，含已解析清单的 registry 缓存使用 `registry-v2`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
+
+Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
 
 runtime 源码组合直接消费目录投影，不再登记重复 OS＋arch 的 runtime profile。结构完备的 build selection 分别选择 OS services、primitive API adapter、object image parser、loaded-image provider、startup/argv adapter、trace/symbolizer adapter、ISA helper、machine frame recovery、ManagedEntry、Scoop ABI shim、unwind provider 与已有实测 runtime tuning；缺少任一当前 target 必需组件时不能形成目录记录。`platform/arch` 只保存纯 ISA helper；frame decoder／virtual unwind 按 machine-frame profile 选择，ManagedEntry 与返回 shim 另外按 procedure ABI、Scoop ABI 和 object target 选择。red-zone 等参数属于实际 ABI／frame component，不由 x86_64 等 ISA 名称普遍推导；GC 私有 helper 的内联策略由目录绑定的 runtime tuning 显式形成编译参数，不在 C 源中从宿主或 target 架构宏推导。PE image parser 的 machine 核对同样由 object target 提供，不能把 AMD64 写成通用 PE 条件。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件、运行时注册或重复平台探测。
 
@@ -104,7 +106,7 @@ Mach-O／ELF／COFF 的容器事实与其 machine 规则分别表达。共享对
 
 ## 2. 编译阶段与产物契约
 
-`native.include` 按语言规范 12.2.1 保存普通路径或 target sysroot 相对路径。PM 展开配置、compiler 请求与解析缓存保存路径种类；compiler protocol 升至 26，package protocol 升至 4，相关本机记录直接重新生成。toolchain 显式接收本次 Scoop sysroot，按已选目标解析 include，同一结果用于 native C／C++／Objective-C 与独立 RC 构建。实际目录和使用的头文件／资源沿已有更新记录处理；缓存命中仍先于预处理与工具探测，未选中条目不参与更新。预处理结果只保存实际 translation unit 和观察到的输入，移除无生产调用的旧临时 flag／library 重复编码，实际 native 配置继续由对象构建记录负责。
+`native.include` 按语言规范 12.2.1 保存普通路径或 target sysroot 相对路径。PM 展开配置、compiler 请求与解析缓存保存路径种类；compiler protocol 升至 27，package protocol 升至 5，相关本机记录直接重新生成。toolchain 显式接收本次 Scoop sysroot，按已选目标解析 include，同一结果用于 native C／C++／Objective-C 与独立 RC 构建。实际目录和使用的头文件／资源沿已有更新记录处理；缓存命中仍先于预处理与工具探测，未选中条目不参与更新。预处理结果只保存实际 translation unit 和观察到的输入，移除无生产调用的旧临时 flag／library 重复编码，实际 native 配置继续由对象构建记录负责。
 
 M51 的普通 native include 支持语言规范 12.2.1 的路径字符串或条件路径表。预处理搜索目录、选项投影与 native 对象更新判断只使用当前目标选中的路径，并保持声明顺序；复用现有目标谓词，不引入依赖准备回调或目标变量插值。M63 后原始 manifest 的本机解析记录由 PM 按实际输入更新复用，driver 不再保存原始清单解析缓存；PM 的解析记录还包含配套静态目录的 source-condition 投影，新增目标或修改谓词事实后重新解析，不复用旧的展开目标集合。系统库选库记录同样跟踪公共目录的目标事实，未变化时仍在 manifest 正文读取之前复用；语言实体、`.slib` 与 runtime ABI 不变。
 
@@ -1113,7 +1115,7 @@ run 直接执行本次成功构建确定的文件；同一请求构建失败时�
 
 直接 scoopc 与 scoop 的用户 native 源码编译使用所选 sysroot 的 `include` 提供公开 Scoop C 头，实际头文件沿普通 depfile 更新；不默认读取仓库 runtime 头文件目录。parent 已提供 native 对象的 protocol 请求直接使用这些对象，不另行定位头文件或编译相同源码。
 
-当前 Cone 的 `native.cxx = true` 要求解析同一 target 的配套 C++ driver：GNU 使用对应工具链的 `g++`，Darwin 使用同一 Xcode 工具链的 `clang++`。选中的 C++ 源码交给该 driver，`.c`、generated-C bridge、runtime 和生成的启动 C 代码仍按各自 C 编译配置生成对象。未启用 `cxx` 却选中 C++ 源码、启用后缺少配套 driver／运行库、启用后 target 为 musl，均在调用 native 编译器前诊断；不回退到宿主 C++ 工具链。
+当前 Cone 的 `native.cxx` 在所选 target 下生效时要求解析同一 target 的配套 C++ driver：GNU 使用对应工具链的 `g++`，Darwin 使用同一 Xcode 工具链的 `clang++`。选中的 C++ 源码交给该 driver，`.c`、generated-C bridge、runtime 和生成的启动 C 代码仍按各自 C 编译配置生成对象。未启用 `cxx` 却选中 C++ 源码、启用后缺少配套 driver／运行库、启用后 target 为 musl，均在调用 native 编译器前诊断；不回退到宿主 C++ 工具链。
 
 Windows native C/C++ driver 单独选择：Microsoft 默认使用宿主 LLVM 的 clang-cl，也接受显式 cl；MinGW 使用 Clang／Clang++ 与所选 prefix 的 libc++。`--cc` 选择用户 native C driver，`--cxx` 可选择相容 C++ driver；Microsoft 未显式选择 C++ 时沿用选中 C driver，MinGW 沿配套位置选 Clang++。generated-C 优先使用安装根 libexec/llvm/bin 的 Clang；直接运行开发输出时允许从 PATH 定位宿主 Clang，不将其 builtin 交给 cl。实际 header/object probe 检查 Win64、LLP64、CRT、MSVC STL 或 libc++，无须执行程序；C++ probe 包含 RTTI、标准库和内部异常。路径只进入宿主调用及普通更新记录，未使用的 C++ 配置不探测。交叉宿主的源码、对象与库路径必须作为文件参数传递，不能让 clang-cl 将 `/Users/...` 等 POSIX 路径解释为 Microsoft 编译选项。
 
@@ -1135,7 +1137,7 @@ Darwin native `.m` 按语言规范 12.2.1 使用所选 Apple Clang，预处理�
 
 Apple Clang native 对象中的 `_objc_msgSend$<selector>` 未定义引用由 Darwin linker 合成 selector stub；Scoop 将实际 `_objc_msgSend` 作为其运行库需求解析，不能把合成 stub 伪装成 SDK 的动态 export。已有 native 定义和显式源码 extern 仍走通常的定义／库归属检查。该规则仅适用于 Mach-O 的非空 selector，不改变其他 target 的符号解析。
 
-LIR foundation 以必需的 Boolean `native_cxx` 保存当前 Cone 的显式 C++ 运行库需求；该字段与普通 native library 表一起进入 Code。foundation wire 为 8；production/8 不再复制这一数据，读取方采用同一份 foundation。需求不依赖是否选中 C++ 文件，也不从机器符号推断。C++ 编译器沿已选择 C driver 的配套位置解析，保留相同 target、sysroot 和环境；以实际目标 headers、对象和链接配置判断相容性，不要求 C/C++ driver 的完整版本文本相等；缺失配套 driver、标准库或 ABI 配置直接诊断。
+LIR foundation 以必需的 Boolean `native_cxx` 保存当前 Cone 在所选 target 下的显式 C++ 运行库需求；该字段与普通 native library 表一起进入 Code。foundation wire 为 8；production/8 不再复制这一数据，读取方采用同一份 foundation。需求不依赖是否选中 C++ 文件，也不从机器符号推断。C++ 编译器沿已选择 C driver 的配套位置解析，保留相同 target、sysroot 和环境；以实际目标 headers、对象和链接配置判断相容性，不要求 C/C++ driver 的完整版本文本相等；缺失配套 driver、标准库或 ABI 配置直接诊断。
 
 native 与 runtime 的真实编译保存源码、depfile 中实际使用的头文件（含 scoop_rt.h）、include 配置、工具输入及影响 include 选择的目录状态。后续先检查这些输入的 metadata；全部未变化时不调用预处理器、不读取全部头文件。增加、删除或改变 include 搜索输入后重新发现并编译必要部分；所选 target、宏、SDK、C/C++ 配置与诊断位置沿正常工具调用传递。不为构建中外部替换输入建立稳定性检测、重试或不可变预处理镜像。
 
@@ -1151,7 +1153,7 @@ PM的全局源码/解析缓存与编译缓存职责分离，默认布局和覆�
 
 输入缺失是普通源码构建错误，输出缺失只生成该输出。manifest 仅测试配置变化不使生产节点失效；未选中源码、程序 argv、测试过滤及显示方式不使编译失效。工具变化可以直接失效，不为恢复内容可能相同的命中强制读取整个程序。尚未使用的 generator 配置不影响构建；实际使用的工具按同一规则记录。
 
-machine transport 为一次 request/response 的 length-prefixed canonical CBOR，protocol version 为 26（展开 native.include 保存普通路径或 target sysroot 路径；已解析 Linux C 工具记录加入 compiler family；展开 native 配置加入 `objc_flags`；合并 full 静态变量调试级别、Windows C++ 工具 locator 与编译期环境、文件及目录输入；展开配置保留原 Cone 根定位；当前 Cone 采用已展开配置，已有 Check、观察、生成器配置、工具输入和片段诊断原文保持），stdout 只含协议 frame。build request field 6 为输出选择：Artifact、Documentation、ArtifactWithDocumentation，保存各自实际输出 locator；Check 使用新 tag 4 的单字段 map，只保存 tag、不含 locator；成功 response 的 field 2 使用对应 product 选择，Artifact 与 ArtifactWithDocumentation 变体携带 artifact summary，文档输出保存渲染输入 locator 和独立文档 warning；Check product 同样使用 tag 4 的单字段 map，warning 与实际 generator 输入沿共有成功字段保存。Check 拒绝 dump、observation-only 与非空 native 对象输入。build request field 9 为 OptimizationMode（Debug=1、Release=2），field 10 为按归一化路径排序的选中 native 源码所对应的已编译 native 对象 locator 数组，机器生产时数量必须与 manifest 的实际 target 选择一致；没有 native 源码或仅文档时为空。field 11 为当前 Cone 的 CompilationPurpose（Production=1、Test=2）；field 12 为按名称排序且唯一的 generator 注册数组，保存名称与已按接收 CLI cwd 解析的绝对宿主程序路径，未使用的注册不探测程序。build request field 13 为 DebugInfoLevel（none=0、line-tables=1、full=2）；和 field 9 的优化模式独立，生产级别进入源码 Cone 的编译更新键。target request 保存 canonical triple，以及待解析的 C driver／native sysroot 选择或已解析的 C 工具调用记录。parent 将已得到的记录直接交给 child，child 解码后用于实际编译，不重复执行探测；独立 scoopc 请求仍执行正常工具发现。调用记录保存普通版本／deployment 配置、host locator 和本机输入摘要，不是产物验证资格，host locator 不进入 artifact identity。旧或不匹配协议拒绝。request envelope field 5 为 observation-only 标志（unsigned 0／1）；为 true 时必须请求非空 dump 集合，沿同一编译实现执行到最后一个所需阶段，不发布机器对象或 `.slib`。观察成功使用 response tag 3，携带 warning 和 dump 描述，不伪造产物摘要。
+machine transport 为一次 request/response 的 length-prefixed canonical CBOR，protocol version 为 27（展开 native.cxx 保存目标条件；展开 native.include 保存普通路径或 target sysroot 路径；已解析 Linux C 工具记录加入 compiler family；展开 native 配置加入 `objc_flags`；合并 full 静态变量调试级别、Windows C++ 工具 locator 与编译期环境、文件及目录输入；展开配置保留原 Cone 根定位；当前 Cone 采用已展开配置，已有 Check、观察、生成器配置、工具输入和片段诊断原文保持），stdout 只含协议 frame。build request field 6 为输出选择：Artifact、Documentation、ArtifactWithDocumentation，保存各自实际输出 locator；Check 使用新 tag 4 的单字段 map，只保存 tag、不含 locator；成功 response 的 field 2 使用对应 product 选择，Artifact 与 ArtifactWithDocumentation 变体携带 artifact summary，文档输出保存渲染输入 locator 和独立文档 warning；Check product 同样使用 tag 4 的单字段 map，warning 与实际 generator 输入沿共有成功字段保存。Check 拒绝 dump、observation-only 与非空 native 对象输入。build request field 9 为 OptimizationMode（Debug=1、Release=2），field 10 为按归一化路径排序的选中 native 源码所对应的已编译 native 对象 locator 数组，机器生产时数量必须与 manifest 的实际 target 选择一致；没有 native 源码或仅文档时为空。field 11 为当前 Cone 的 CompilationPurpose（Production=1、Test=2）；field 12 为按名称排序且唯一的 generator 注册数组，保存名称与已按接收 CLI cwd 解析的绝对宿主程序路径，未使用的注册不探测程序。build request field 13 为 DebugInfoLevel（none=0、line-tables=1、full=2）；和 field 9 的优化模式独立，生产级别进入源码 Cone 的编译更新键。target request 保存 canonical triple，以及待解析的 C driver／native sysroot 选择或已解析的 C 工具调用记录。parent 将已得到的记录直接交给 child，child 解码后用于实际编译，不重复执行探测；独立 scoopc 请求仍执行正常工具发现。调用记录保存普通版本／deployment 配置、host locator 和本机输入摘要，不是产物验证资格，host locator 不进入 artifact identity。旧或不匹配协议拒绝。request envelope field 5 为 observation-only 标志（unsigned 0／1）；为 true 时必须请求非空 dump 集合，沿同一编译实现执行到最后一个所需阶段，不发布机器对象或 `.slib`。观察成功使用 response tag 3，携带 warning 和 dump 描述，不伪造产物摘要。
 
 成功响应直接携带生产时得到的产物摘要：Cone、直接依赖、target、产物 profile、各语义指纹、artifact fingerprint 及测试目录，并携带 warning 和 dump 描述。parent 将该摘要与产物实际位置保存为普通构建记录，不重新打开 child 产物、重读摘要或逐字段核对响应与归档。摘要是后续编译、链接及测试列举需要的数据，不是验证资格；不得包含无人消费的归档长度或成员数来支持复核。protocol 8 用此摘要替换原独立的七个指纹字段。
 

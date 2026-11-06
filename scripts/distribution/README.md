@@ -39,7 +39,7 @@ post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只�
 
 安装根的 `VERSION` 随 bin 包提供，第一行为发行版本，随后记录源码 revision 与宿主平台。`scoop --version`、`scoopc --version`、`scoop-link --version`、`scoop-lsp --version`、`scoop-pm --version` 显示同一份发行版本和源码 revision。`share/scoop/toolchain.toml` 列出宿主、默认目标、各目标的有序内置 Cone 清单、native 版本、VSIX 和编程 skill 路径；`share/scoop/install/targets.list` 列出本 release 为该 host 提供的目标（默认目标在首行），`<target>.list` 保存该目标的 Cone 顺序，供 post-install 读取。普通命令不把它作为启动验证清单。
 
-Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包要求声明版本的 glibc、GCC、GNU ld 和开发文件；生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行。native C++ 另需配套 clang++／g++ 与标准库；musl C++ 不在当前范围。
+Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 llvm 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI 另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
 
 Windows x64 发行的最低版本以 `toolchain.toml` 为准：llvm 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标另含对应 LLVM-MinGW CRT 的 x86-64 开发资源。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标解压对应 lib 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
 

@@ -69,7 +69,12 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
                 window = Some(native)
                 native.createDeadline { fail(Some(f"Linux showcase timeout at phase ${phase}")) }
                 .schedule(MonotonicTimeSource.markNow() + Duration.seconds(60L))
-                ui = Some(host.attach(native, { LinuxShowcaseScene(this) }))
+                ui =
+                    host.attach(
+                        native,
+                        { scope -> LinuxShowcaseScene(this, scope) },
+                        fonts = Some(fonts)
+                    )
             }
             case AboutToWait -> {
                 if (frames <= previous)
@@ -139,24 +144,35 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
     }
 }
 
-private class LinuxShowcaseScene(private val probe: LinuxShowcaseProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class LinuxShowcaseScene(
+    private val probe: LinuxShowcaseProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         probe.mounts += 1
     }
     public override fun onUnmount() {
         probe.unmounts += 1
     }
     public override fun render(): View =
-        element({ LinuxShowcaseAudit(probe) }, [component({ Showcase(probe.model, probe.fonts) })])
+        element(
+            { scope -> LinuxShowcaseAudit(probe, scope) },
+            [component({ scope -> Showcase(probe.model, scope) })]
+        )
 }
 
-private class LinuxShowcaseAudit(private val probe: LinuxShowcaseProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class LinuxShowcaseAudit(
+    private val probe: LinuxShowcaseProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, layout: Unit) {
         context.children()
         context.draw { paint -> assertEquals(255uL, sampleCanvasPixel(paint.canvas, 5, 5) % 256uL) }
         context.onFrameComplete {

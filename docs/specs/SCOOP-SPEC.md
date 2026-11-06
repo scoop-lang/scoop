@@ -2988,7 +2988,7 @@ include 搜索目录允许不存在，直接交给所选 C/C++ 编译器按搜�
 
 Windows Microsoft driver 的 `/I`、`/FI` 路径及 `/D`、`/U` 宏参数使用相同规则，其余 `/` 编译选项按原 argv 传递。目标、CRT linkage、输入语言、编译阶段、依赖输出、产物位置和 LTCG 仍由 driver 管理；不能用 native flags 改换这些配置。GNU 风格的 include 选项只在所选 driver 能保持相应语义时使用，否则给出正常的选项不支持诊断。
 
-manifest Cone 通过 `[native]` 中的 Boolean 字段 `cxx` 显式启用 C++，省略时为 `false`。例如：
+manifest Cone 通过 `[native]` 中的 `cxx` 字段显式启用 C++，省略时为 `false`。该字段接受 Boolean，或包含 `when` 的表；后者按 12.2.2 的目标条件决定本次编译是否需要 C++。例如：
 
 ```toml
 [native]
@@ -2996,7 +2996,9 @@ cxx = true
 cxx_flags = ["-std=c++20"]
 ```
 
-- `cxx = true` 声明当前 Cone 需要 C++ 编译／链接支持；不能仅凭文件后缀、编译参数或待解析的符号隐式开启。选中的 `.cc`、`.cpp`、`.cxx` 或 `.C` native 源码要求该开关为 `true`，否则在 native 编译前报错。
+仅 Linux GNU 的原生依赖需要 C++ 运行库时可声明 `cxx = { when = { os = "linux", env = "gnu" } }`。条件只影响当前 Cone 的 C++ 需求，不取消依赖闭包中的需求；无 C++ 源码但链接到使用 C++ 运行库的原生动态库时也使用此声明。未匹配目标不探测 C++ 工具，也不引入其运行库。
+
+- `cxx = true` 或匹配的 `cxx.when` 声明当前 Cone 需要 C++ 编译／链接支持；不能仅凭文件后缀、编译参数或待解析的符号隐式开启。选中的 `.cc`、`.cpp`、`.cxx` 或 `.C` native 源码要求该开关生效，否则在 native 编译前报错。
 - `.c` 文件仍按 C 编译；开启 C++ 不改变 C 文件的语言。`c_flags` 与 `cxx_flags` 是字符串数组，分别传给当前 Cone 的 native C 与 C++ 编译器，不向依赖者传播，也不改变 Scoop、generated-C bridge 或 runtime 的编译配置。参数不能覆盖 driver 管理的 target、sysroot、输入语言、编译阶段和输出位置。
 - C++ 编译使用所选 target 的配套 C++ driver，例如 GNU 工具链的 `g++` 或 Darwin Apple Clang 的 `clang++`。缺少可用的 C++ 编译器或运行库时报错，不能使用其他 target 或宿主机的工具链代替。不要求 C/C++ driver 的完整版本号或目标名称字符串相等；兼容性由实际目标输入、编译和链接操作确定。
 - C++ 链接需求写入 `.slib`，并沿最终程序的完整依赖闭包传递。即使 root Cone 自己没有 C++ 源码或未开启 `cxx`，只要闭包需要 C++，最终链接就必须使用配套的 C++ driver 与 C++ 运行库配置；`cxx = false` 不能取消依赖的要求。

@@ -3,6 +3,7 @@ use toml::Spanned;
 
 use super::{NativeCompileFlag, NativeConfig, NativeIncludeFlag, flags};
 use crate::{ManifestParseError, ManifestParseErrorKind};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Deserialize, Default)]
@@ -19,7 +20,7 @@ pub(crate) struct RawNativeConfig {
     #[serde(default)]
     objc_flags: Vec<Spanned<String>>,
     #[serde(default)]
-    cxx: bool,
+    cxx: Option<Spanned<RawCxx>>,
     #[serde(default)]
     libraries: Vec<super::libraries::RawNativeLibrary>,
 }
@@ -43,7 +44,11 @@ impl RawNativeConfig {
             c_flags: parse_flags(self.c_flags)?,
             cxx_flags: parse_flags(self.cxx_flags)?,
             objc_flags: parse_flags(self.objc_flags)?,
-            cxx: self.cxx,
+            cxx: self
+                .cxx
+                .map(|raw| parse_cxx(raw, catalog))
+                .transpose()?
+                .unwrap_or_default(),
             libraries: self
                 .libraries
                 .into_iter()
@@ -51,6 +56,34 @@ impl RawNativeConfig {
                 .collect::<Result<_, _>>()?,
         })
     }
+}
+
+#[derive(Deserialize)]
+#[serde(
+    untagged,
+    deny_unknown_fields,
+    expecting = "a boolean or a table containing a when condition"
+)]
+enum RawCxx {
+    Enabled(bool),
+    Conditional { when: BTreeMap<String, toml::Value> },
+}
+
+fn parse_cxx(
+    raw: Spanned<RawCxx>,
+    catalog: &[crate::SourceTarget<'_>],
+) -> Result<crate::TargetPredicate, ManifestParseError> {
+    let span = raw.span();
+    let when = match raw.into_inner() {
+        RawCxx::Enabled(false) => return Ok(crate::TargetPredicate::default()),
+        RawCxx::Enabled(true) => None,
+        RawCxx::Conditional { when } => Some(
+            when.into_iter()
+                .map(|(key, value)| (key, Spanned::new(span.clone(), value)))
+                .collect(),
+        ),
+    };
+    crate::selection::parse_predicate(when, catalog)
 }
 
 fn parse_path(value: Spanned<String>) -> Result<PathBuf, ManifestParseError> {

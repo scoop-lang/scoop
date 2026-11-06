@@ -1,100 +1,159 @@
-#include "wayland.h"
-#include "x11.h"
+#include "window.h"
+#include <gdk/x11/gdkx.h>
 
-static int64_t hints(SWWindow *window) {
-  return window->application->kind == SW_X11 ? sw_x11_hints(window)
-                                             : sw_wayland_hints(window);
+static void x11_state(SWWindow *window, bool enabled, const char *name) {
+  Display *display = gdk_x11_display_get_xdisplay(window->application->display);
+  XEvent event = {0};
+  event.xclient.type = ClientMessage;
+  event.xclient.window = gdk_x11_surface_get_xid(sw_surface(window));
+  event.xclient.message_type = XInternAtom(display, "_NET_WM_STATE", False);
+  event.xclient.format = 32;
+  event.xclient.data.l[0] = enabled ? 1 : 0;
+  event.xclient.data.l[1] = XInternAtom(display, name, False);
+  event.xclient.data.l[3] = 1;
+  XSendEvent(display, DefaultRootWindow(display), False,
+             SubstructureRedirectMask | SubstructureNotifyMask, &event);
+  XFlush(display);
 }
-
 int64_t scoop_window_position(SWWindow *window, double x, double y) {
-  return window->application->kind == SW_X11 ? sw_x11_position(window, x, y)
-                                             : -1;
+  if (window->application->kind != SW_X11)
+    return -1;
+  if (x < INT16_MIN || y < INT16_MIN || x > INT16_MAX || y > INT16_MAX)
+    return EOVERFLOW;
+  Display *display = gdk_x11_display_get_xdisplay(window->application->display);
+  XMoveWindow(display, gdk_x11_surface_get_xid(sw_surface(window)), (int)x,
+              (int)y);
+  XFlush(display);
+  return 0;
 }
-
 int64_t scoop_window_constraints(SWWindow *window, double min_width,
                                  double min_height, double max_width,
                                  double max_height) {
   if (min_width > INT_MAX || min_height > INT_MAX || max_width > INT_MAX ||
       max_height > INT_MAX)
     return EOVERFLOW;
+  if (max_width >= 0 || max_height >= 0)
+    return -1;
   window->min_width = min_width;
   window->min_height = min_height;
-  window->max_width = max_width;
-  window->max_height = max_height;
-  int64_t result = hints(window);
-  if (result)
-    return result;
-  double width = fmax(min_width, window->requested_width);
-  double height = fmax(min_height, window->requested_height);
-  if (max_width >= 0)
-    width = fmin(max_width, width);
-  if (max_height >= 0)
-    height = fmin(max_height, height);
-  if (width != window->requested_width || height != window->requested_height) {
-    result = window->application->kind == SW_X11
-                 ? sw_x11_size(window, width, height)
-                 : sw_wayland_size(window, width, height);
-    if (!result) {
-      window->requested_width = width;
-      window->requested_height = height;
-    }
-  }
-  return result;
+  gtk_widget_queue_resize(window->view);
+  return 0;
 }
-
 int64_t scoop_window_resize_increments(SWWindow *window, double width,
                                        double height) {
-  if (window->application->kind == SW_WAYLAND && (width != 1 || height != 1))
-    return -1;
-  window->increment_width = width;
-  window->increment_height = height;
-  return hints(window);
+  return width == 1 && height == 1 ? 0 : -1;
 }
 int64_t scoop_window_resizable(SWWindow *window, int32_t value) {
   window->resizable = value != 0;
-  return hints(window);
+  gtk_window_set_resizable(GTK_WINDOW(window->window), window->resizable);
+  gtk_widget_queue_resize(window->view);
+  return 0;
 }
 int64_t scoop_window_decorations(SWWindow *window, int32_t value) {
   window->decorations = value != 0;
-  return hints(window);
+  gtk_window_set_decorated(GTK_WINDOW(window->window), window->decorations);
+  gtk_widget_set_visible(window->header, window->decorations);
+  return 0;
+}
+void sw_update_buttons(SWWindow *window) {
+  if (window->close_button && window->minimize_button &&
+      window->maximize_button) {
+    adw_header_bar_set_decoration_layout(ADW_HEADER_BAR(window->header), NULL);
+    return;
+  }
+  char *layout = NULL;
+  g_object_get(gtk_widget_get_settings(window->window), "gtk-decoration-layout",
+               &layout, NULL);
+  gchar **sides =
+      g_strsplit(layout ? layout : ":minimize,maximize,close", ":", 2);
+  GString *filtered = g_string_new(NULL);
+  for (unsigned side = 0; side < 2; ++side) {
+    if (side)
+      g_string_append_c(filtered, ':');
+    gchar **buttons = g_strsplit(sides[side] ? sides[side] : "", ",", -1);
+    bool first = true;
+    for (char **button = buttons; *button; ++button) {
+      if ((!strcmp(*button, "close") && !window->close_button) ||
+          (!strcmp(*button, "minimize") && !window->minimize_button) ||
+          (!strcmp(*button, "maximize") && !window->maximize_button) ||
+          !**button)
+        continue;
+      if (!first)
+        g_string_append_c(filtered, ',');
+      g_string_append(filtered, *button);
+      first = false;
+    }
+    g_strfreev(buttons);
+    if (!sides[side])
+      break;
+  }
+  adw_header_bar_set_decoration_layout(ADW_HEADER_BAR(window->header),
+                                       filtered->str);
+  g_string_free(filtered, TRUE);
+  g_strfreev(sides);
+  g_free(layout);
 }
 int64_t scoop_window_buttons(SWWindow *window, int32_t close, int32_t minimize,
                              int32_t maximize) {
   window->close_button = close != 0;
   window->minimize_button = minimize != 0;
   window->maximize_button = maximize != 0;
-  return hints(window);
+  gtk_window_set_deletable(GTK_WINDOW(window->window), window->close_button);
+  sw_update_buttons(window);
+  return 0;
 }
 int64_t scoop_window_level(SWWindow *window, int32_t value) {
-  return window->application->kind == SW_X11 ? sw_x11_level(window, value)
-                                             : (value ? -1 : 0);
+  if (window->application->kind != SW_X11)
+    return value ? -1 : 0;
+  x11_state(window, value > 0, "_NET_WM_STATE_ABOVE");
+  x11_state(window, value < 0, "_NET_WM_STATE_BELOW");
+  return 0;
 }
 int64_t scoop_window_minimized(SWWindow *window, int32_t value) {
-  return window->application->kind == SW_X11
-             ? sw_x11_minimized(window, value)
-             : sw_wayland_minimized(window, value);
+  if (value)
+    gtk_window_minimize(GTK_WINDOW(window->window));
+  else
+    gtk_window_unminimize(GTK_WINDOW(window->window));
+  return 0;
 }
 int64_t scoop_window_maximized(SWWindow *window, int32_t value) {
-  return window->application->kind == SW_X11
-             ? sw_x11_maximized(window, value)
-             : sw_wayland_maximized(window, value);
+  if (value)
+    gtk_window_maximize(GTK_WINDOW(window->window));
+  else
+    gtk_window_unmaximize(GTK_WINDOW(window->window));
+  return 0;
 }
 int64_t scoop_window_theme(SWWindow *window, int32_t value) {
-  return window->application->kind == SW_X11 ? sw_x11_theme(window, value)
-                                             : (value < 0 ? 0 : -1);
+  return value < 0 ? 0 : -1;
+}
+int64_t sw_transparency(SWWindow *window, bool transparent) {
+  static bool installed;
+  if (!installed) {
+    GtkCssProvider *provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_string(
+        provider, ".scoop-window.scoop-transparent, "
+                  ".scoop-window.scoop-transparent contents, "
+                  ".scoop-window.scoop-transparent toolbarview, "
+                  ".scoop-window.scoop-transparent scoopcontent "
+                  "{ background: transparent; }");
+    gtk_style_context_add_provider_for_display(
+        window->application->display, GTK_STYLE_PROVIDER(provider),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+    installed = true;
+  }
+  if (transparent)
+    gtk_widget_add_css_class(window->window, "scoop-transparent");
+  else
+    gtk_widget_remove_css_class(window->window, "scoop-transparent");
+  return 0;
 }
 int64_t scoop_window_transparent(SWWindow *window, int32_t value) {
   if (value && window->application->kind == SW_X11 &&
-      ((SXWindow *)window->backend)->depth != 32)
+      !gdk_display_is_composited(window->application->display))
     return -1;
-  int64_t error = sw_transparency(window, value != 0);
-  if (error)
-    return error;
   window->transparent = value != 0;
-  if (window->application->kind == SW_WAYLAND && window->configured &&
-      ((SLWindow *)window->backend)->mapped)
-    wl_surface_commit(((SLWindow *)window->backend)->surface);
-  return 0;
+  return sw_transparency(window, window->transparent);
 }
 int64_t scoop_window_blur(SWWindow *window, int32_t value) {
   return value ? -1 : 0;
@@ -103,16 +162,26 @@ int64_t scoop_window_content_protection(SWWindow *window, int32_t value) {
   return value ? -1 : 0;
 }
 int64_t scoop_window_attention(SWWindow *window, int32_t value) {
-  return window->application->kind == SW_X11 ? sw_x11_attention(window, value)
-                                             : (value < 0 ? 0 : -1);
+  if (window->application->kind != SW_X11)
+    return value < 0 ? 0 : -1;
+  gdk_x11_surface_set_urgency_hint(sw_surface(window), value >= 0);
+  return 0;
+}
+static void cursor(SWWindow *window) {
+  const char *names[] = {"default",     "text",      "crosshair",
+                         "pointer",     "grab",      "grabbing",
+                         "not-allowed", "ew-resize", "ns-resize"};
+  gtk_widget_set_cursor_from_name(window->view, window->cursor_visible
+                                                    ? names[window->cursor_icon]
+                                                    : "none");
 }
 int64_t scoop_window_cursor_icon(SWWindow *window, int32_t value) {
   window->cursor_icon = value;
-  return window->application->kind == SW_X11 ? sw_x11_cursor(window)
-                                             : sw_wayland_cursor(window);
+  cursor(window);
+  return 0;
 }
 int64_t scoop_window_cursor_visible(SWWindow *window, int32_t value) {
   window->cursor_visible = value != 0;
-  return window->application->kind == SW_X11 ? sw_x11_cursor(window)
-                                             : sw_wayland_cursor(window);
+  cursor(window);
+  return 0;
 }

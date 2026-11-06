@@ -2,32 +2,22 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 uint64_t sw_modifiers(SWApplication *app) {
-  if (!app->key_state)
-    return 0;
-  struct xkb_state *state = app->key_state;
+  guint state = app->gdk_modifiers;
   uint64_t result = SW_ALT_GRAPH_KNOWN;
-  if (xkb_state_mod_name_is_active(state, "LevelThree",
-                                   XKB_STATE_MODS_EFFECTIVE) > 0 ||
-      xkb_state_mod_name_is_active(state, "Mod5", XKB_STATE_MODS_EFFECTIVE) > 0)
-    result |= SW_ALT_GRAPH;
-  if (xkb_state_mod_name_is_active(state, XKB_MOD_NAME_SHIFT,
-                                   XKB_STATE_MODS_EFFECTIVE) > 0)
+  if (state & GDK_SHIFT_MASK)
     result |= SW_SHIFT;
-  if (xkb_state_mod_name_is_active(state, XKB_MOD_NAME_CTRL,
-                                   XKB_STATE_MODS_EFFECTIVE) > 0)
+  if (state & GDK_CONTROL_MASK)
     result |= SW_CONTROL;
-  if (xkb_state_mod_name_is_active(state, XKB_MOD_NAME_ALT,
-                                   XKB_STATE_MODS_EFFECTIVE) > 0)
+  if (state & GDK_ALT_MASK)
     result |= SW_ALT;
-  if (xkb_state_mod_name_is_active(state, XKB_MOD_NAME_LOGO,
-                                   XKB_STATE_MODS_EFFECTIVE) > 0)
+  if (state & (GDK_SUPER_MASK | GDK_META_MASK))
     result |= SW_SUPER;
-  if (xkb_state_led_name_is_active(state, XKB_LED_NAME_CAPS) > 0)
+  if (state & GDK_LOCK_MASK)
     result |= SW_CAPS;
-  if (xkb_state_led_name_is_active(state, XKB_LED_NAME_NUM) > 0)
+  if (state & (1u << 4))
     result |= SW_NUM;
-  if (xkb_state_led_name_is_active(state, XKB_LED_NAME_SCROLL) > 0)
-    result |= SW_SCROLL;
+  if (app->alt_graph || (state & (1u << 7)))
+    result |= SW_ALT_GRAPH;
   if (app->physical_keys_known) {
     static const unsigned sides[] = {42, 54, 29, 97, 56, 100, 125, 126};
     result |= 1u << 16;
@@ -37,7 +27,6 @@ uint64_t sw_modifiers(SWApplication *app) {
   }
   return result;
 }
-
 void sw_update_modifiers(SWWindow *window) {
   uint64_t value = sw_modifiers(window->application);
   if (window->modifiers == value)
@@ -49,60 +38,22 @@ void sw_update_modifiers(SWWindow *window) {
     sw_enqueue(window->application, event);
   }
 }
-
-static bool compose(SWWindow *window, xkb_keysym_t symbol) {
-  if (!window->compose)
-    return false;
-  xkb_compose_state_feed(window->compose, symbol);
-  switch (xkb_compose_state_get_status(window->compose)) {
-  case XKB_COMPOSE_COMPOSING:
-    return true;
-  case XKB_COMPOSE_CANCELLED:
-    xkb_compose_state_reset(window->compose);
-    return true;
-  case XKB_COMPOSE_COMPOSED: {
-    int size = xkb_compose_state_get_utf8(window->compose, NULL, 0);
-    char *text = malloc((size_t)size + 1);
-    if (text) {
-      xkb_compose_state_get_utf8(window->compose, text, (size_t)size + 1);
-      sw_commit(window, text, size);
-      free(text);
-    } else
-      sw_fail(window->application, ENOMEM);
-    xkb_compose_state_reset(window->compose);
-    return true;
-  }
-  case XKB_COMPOSE_NOTHING:
-    return false;
-  }
-  return false;
-}
-
-void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat,
-            bool text) {
-  SWApplication *app = window->application;
-  if (!app->key_state)
+static void key_event(SWWindow *window, guint symbol, guint keycode,
+                      bool down) {
+  if (keycode < 8)
     return;
-  bool tracked = code < sizeof(window->key_down) / sizeof(window->key_down[0]);
+  guint code = keycode - 8;
+  bool tracked = code < G_N_ELEMENTS(window->key_down);
   if (!down && (!tracked || !window->key_down[code]))
     return;
-  sw_update_modifiers(window);
-  xkb_keysym_t symbol = xkb_state_key_get_one_sym(app->key_state, code + 8);
-  bool shortcut = (window->modifiers & SW_SUPER) != 0 ||
-                  (!(window->modifiers & SW_ALT_GRAPH) &&
-                   (window->modifiers & (SW_CONTROL | SW_ALT)) != 0);
-  if (down && text && !shortcut && compose(window, symbol))
-    return;
-  if (down && window->preedit_active &&
-      (symbol == XKB_KEY_Return || symbol == XKB_KEY_Escape))
-    return;
+  bool repeat = tracked && window->key_down[code];
   SWEvent *event = sw_event(window, 10);
   if (!event)
     return;
   event->data.a = code;
   event->data.b = window->modifiers;
   event->data.c = symbol;
-  event->data.flags = (down ? 1 : 0) | (repeat ? 2 : 0);
+  event->data.flags = (down ? 1 : 0) | (down && repeat ? 2 : 0);
   if (symbol >= XKB_KEY_dead_grave && symbol <= XKB_KEY_dead_greek)
     event->data.flags |= 8;
   char value[64];
@@ -111,7 +62,7 @@ void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat,
     event->data.text = (uint8_t *)strndup(value, size - 1);
     if (!event->data.text) {
       sw_free_event(event);
-      sw_fail(app, ENOMEM);
+      sw_fail(window->application, ENOMEM);
       return;
     }
     event->data.text_length = size - 1;
@@ -126,15 +77,170 @@ void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat,
     if (event->data.text && !window->pressed[code].text) {
       window->pressed[code] = (SWEventData){0};
       sw_free_event(event);
-      sw_fail(app, ENOMEM);
+      sw_fail(window->application, ENOMEM);
       return;
     }
     window->key_down[code] = down;
   }
-  sw_enqueue(app, event);
-  if (down && text && !shortcut && size > 1 && (uint8_t)value[0] >= 32 &&
-      (uint8_t)value[0] != 127)
-    sw_commit(window, value, size - 1);
+  sw_enqueue(window->application, event);
+}
+static void key_state(SWWindow *window, GtkEventController *controller,
+                      guint symbol, guint code, GdkModifierType state,
+                      bool down) {
+  SWApplication *app = window->application;
+  app->gdk_modifiers = state;
+  GdkEvent *event = gtk_event_controller_get_current_event(controller);
+  if (event)
+    app->layout = gdk_key_event_get_layout(event);
+  if (symbol == GDK_KEY_ISO_Level3_Shift || symbol == GDK_KEY_ISO_Level5_Shift)
+    app->alt_graph = down;
+  if (!app->physical_keys_known &&
+      !(state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_ALT_MASK |
+                 GDK_SUPER_MASK | GDK_META_MASK))) {
+    memset(app->physical_keys, 0, sizeof(app->physical_keys));
+    app->physical_keys_known = true;
+  }
+  if (code >= 8 && code - 8 < G_N_ELEMENTS(app->physical_keys)) {
+    app->physical_keys[code - 8] = down;
+  }
+  sw_update_modifiers(window);
+}
+static gboolean key_pressed(GtkEventControllerKey *controller, guint symbol,
+                            guint code, GdkModifierType state, gpointer data) {
+  SWWindow *window = data;
+  key_state(window, GTK_EVENT_CONTROLLER(controller), symbol, code, state,
+            true);
+  bool composing = window->preedit_active;
+  if (!(composing && (symbol == GDK_KEY_Return || symbol == GDK_KEY_Escape)))
+    key_event(window, symbol, code, true);
+  GdkEvent *event =
+      gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
+  if (event)
+    gtk_im_context_filter_keypress(sw_ime_context(window), event);
+  return TRUE;
+}
+static void key_released(GtkEventControllerKey *controller, guint symbol,
+                         guint code, GdkModifierType state, gpointer data) {
+  SWWindow *window = data;
+  key_state(window, GTK_EVENT_CONTROLLER(controller), symbol, code, state,
+            false);
+  key_event(window, symbol, code, false);
+  GdkEvent *event =
+      gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
+  if (event)
+    gtk_im_context_filter_keypress(sw_ime_context(window), event);
+}
+static gboolean modifiers(GtkEventControllerKey *controller,
+                          GdkModifierType state, gpointer data) {
+  SWWindow *window = data;
+  window->application->gdk_modifiers = state;
+  sw_update_modifiers(window);
+  return FALSE;
+}
+static void pointer_state(SWWindow *window, GtkEventController *controller,
+                          double x, double y) {
+  window->pointer_x = x;
+  window->pointer_y = y;
+  window->application->gdk_modifiers =
+      gtk_event_controller_get_current_event_state(controller);
+}
+static void pointer_enter(GtkEventControllerMotion *controller, double x,
+                          double y, gpointer data) {
+  SWWindow *window = data;
+  pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
+  sw_pointer(window, 0, 0, 0, 0, 0);
+}
+static void pointer_motion(GtkEventControllerMotion *controller, double x,
+                           double y, gpointer data) {
+  SWWindow *window = data;
+  pointer_state(window, GTK_EVENT_CONTROLLER(controller), x, y);
+  sw_pointer(window, 2, 0, 0, 0, 0);
+}
+static void pointer_leave(GtkEventControllerMotion *controller, gpointer data) {
+  sw_pointer(data, 1, 0, 0, 0, 0);
+}
+static int pointer_button(guint button) {
+  return button == 1 ? 0 : button == 3 ? 1 : button == 2 ? 2 : (int)button;
+}
+static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
+                            double y, gpointer data) {
+  SWWindow *window = data;
+  gtk_widget_grab_focus(window->view);
+  pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
+  sw_pointer(window, 3,
+             pointer_button(gtk_gesture_single_get_current_button(
+                 GTK_GESTURE_SINGLE(gesture))),
+             0, 0, 0);
+  gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+}
+static void pointer_released(GtkGestureClick *gesture, int count, double x,
+                             double y, gpointer data) {
+  SWWindow *window = data;
+  pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
+  sw_pointer(window, 4,
+             pointer_button(gtk_gesture_single_get_current_button(
+                 GTK_GESTURE_SINGLE(gesture))),
+             0, 0, 0);
+}
+static void pointer_cancel(GtkGesture *gesture, GdkEventSequence *sequence,
+                           gpointer data) {
+  sw_cancel_pointer(data, 1);
+}
+static gboolean scroll(GtkEventControllerScroll *controller, double dx,
+                       double dy, gpointer data) {
+  SWWindow *window = data;
+  window->application->gdk_modifiers =
+      gtk_event_controller_get_current_event_state(
+          GTK_EVENT_CONTROLLER(controller));
+  sw_pointer(window,
+             gtk_event_controller_scroll_get_unit(controller) ==
+                     GDK_SCROLL_UNIT_WHEEL
+                 ? 5
+                 : 6,
+             0, dx, dy, 1);
+  return TRUE;
+}
+static void scroll_begin(GtkEventControllerScroll *controller, gpointer data) {
+  sw_pointer(data, 6, 0, 0, 0, 0);
+}
+static void scroll_end(GtkEventControllerScroll *controller, gpointer data) {
+  sw_pointer(data, 6, 0, 0, 0, 2);
+}
+static void focus_enter(GtkEventControllerFocus *controller, gpointer data) {
+  sw_ime_update(data);
+}
+static void focus_leave(GtkEventControllerFocus *controller, gpointer data) {
+  SWWindow *window = data;
+  sw_reset_input(window);
+  sw_ime_update(window);
+}
+void sw_input_install(SWWindow *window) {
+  GtkEventController *keyboard = gtk_event_controller_key_new();
+  g_signal_connect(keyboard, "key-pressed", G_CALLBACK(key_pressed), window);
+  g_signal_connect(keyboard, "key-released", G_CALLBACK(key_released), window);
+  g_signal_connect(keyboard, "modifiers", G_CALLBACK(modifiers), window);
+  gtk_widget_add_controller(window->view, keyboard);
+  GtkEventController *motion = gtk_event_controller_motion_new();
+  g_signal_connect(motion, "enter", G_CALLBACK(pointer_enter), window);
+  g_signal_connect(motion, "motion", G_CALLBACK(pointer_motion), window);
+  g_signal_connect(motion, "leave", G_CALLBACK(pointer_leave), window);
+  gtk_widget_add_controller(window->view, motion);
+  GtkGesture *click = gtk_gesture_click_new();
+  gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
+  g_signal_connect(click, "pressed", G_CALLBACK(pointer_pressed), window);
+  g_signal_connect(click, "released", G_CALLBACK(pointer_released), window);
+  g_signal_connect(click, "cancel", G_CALLBACK(pointer_cancel), window);
+  gtk_widget_add_controller(window->view, GTK_EVENT_CONTROLLER(click));
+  GtkEventController *wheel =
+      gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+  g_signal_connect(wheel, "scroll", G_CALLBACK(scroll), window);
+  g_signal_connect(wheel, "scroll-begin", G_CALLBACK(scroll_begin), window);
+  g_signal_connect(wheel, "scroll-end", G_CALLBACK(scroll_end), window);
+  gtk_widget_add_controller(window->view, wheel);
+  GtkEventController *focus = gtk_event_controller_focus_new();
+  g_signal_connect(focus, "enter", G_CALLBACK(focus_enter), window);
+  g_signal_connect(focus, "leave", G_CALLBACK(focus_leave), window);
+  gtk_widget_add_controller(window->view, focus);
 }
 
 void sw_cancel_pointer(SWWindow *window, int reason) {
@@ -185,9 +291,12 @@ void sw_focus(SWWindow *window, bool focused) {
   if (!focused) {
     sw_reset_input(window);
     window->application->physical_keys_known = false;
+    window->application->alt_graph = false;
   }
   window->snapshot.focused = focused;
-  sw_emit(window, 4);
+  sw_ime_update(window);
+  if (window->configured)
+    sw_emit(window, 4);
 }
 
 void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,

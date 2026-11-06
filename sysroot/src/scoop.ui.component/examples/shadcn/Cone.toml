@@ -44,3 +44,15 @@ when = { os = ["windows", "linux"] }
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }
+
+[[test.sources]]
+path = "tests/model.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/settings.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/palette.scoop"
+when = { os = "linux", env = "gnu" }

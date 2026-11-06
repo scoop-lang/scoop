@@ -142,8 +142,7 @@ void sw_preedit(SWWindow *window, const char *text, size_t length,
 }
 
 void sw_cancel_composition(SWWindow *window) {
-  if (window->compose)
-    xkb_compose_state_reset(window->compose);
+  gtk_im_context_reset(sw_ime_context(window));
   if (window->preedit_active) {
     window->preedit_active = false;
     sw_preedit(window, "", 0, 0, 0);
@@ -164,10 +163,7 @@ int32_t scoop_window_ime_allowed(SWWindow *window, int32_t allowed) {
     free((void *)window->document.text);
     window->document = (SWTextSnapshotData){.revision = -1};
   }
-  if (window->application->kind == SW_X11)
-    sw_x11_ime(window);
-  else
-    sw_wayland_ime(window);
+  sw_ime_update(window);
   SWEvent *event = sw_event(window, 14);
   if (!event)
     return ENOMEM;
@@ -184,17 +180,13 @@ int64_t scoop_window_ime_caret(SWWindow *window, double x, double y,
   window->caret_width = width;
   window->caret_height = height;
   window->caret_known = true;
-  if (window->application->kind == SW_X11)
-    sw_x11_caret(window);
-  else
-    sw_wayland_caret(window);
+  sw_ime_caret(window);
   return 0;
 }
 
 int64_t scoop_window_clear_ime_caret(SWWindow *window) {
   window->caret_known = false;
-  if (window->application->kind == SW_WAYLAND)
-    sw_wayland_caret(window);
+  sw_ime_caret(window);
   return 0;
 }
 
@@ -205,6 +197,8 @@ int64_t scoop_window_publish_text(SWWindow *window, SWTextSnapshotData data) {
       (data.after && data.after < window->applied_sequence) ||
       data.revision < window->document.revision)
     return 2;
+  if (data.length > INT_MAX)
+    return EOVERFLOW;
   if (data.length < 0 || data.anchor < 0 || data.cursor < 0 ||
       !sw_utf8_valid(data.text, data.length) ||
       !sw_utf8_boundary(data.text, data.length, data.anchor) ||
@@ -234,8 +228,7 @@ int64_t scoop_window_publish_text(SWWindow *window, SWTextSnapshotData data) {
     window->applied_sequence = data.after;
   if (previous.revision != data.revision)
     window->caret_known = false;
-  if (window->application->kind == SW_WAYLAND)
-    sw_wayland_document(window);
+  sw_ime_document(window);
   return 0;
 }
 

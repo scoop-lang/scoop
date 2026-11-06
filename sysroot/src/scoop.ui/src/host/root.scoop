@@ -6,6 +6,7 @@ import scoop.graphics.Color
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
+import scoop.window.WindowState
 
 private class SceneCompletion(val node: MountedNode, val action: (FrameCompletion) -> Unit)
 
@@ -75,6 +76,16 @@ internal class UiRoot(
         current.mountPending()
     }
     fun enqueue(value: MountedNode) {
+        if (
+            !isOpen ||
+                surface.state !=
+                SurfaceWindowState.Open ||
+                window.state ==
+                WindowState.Closing ||
+                window.state ==
+                WindowState.Destroyed
+        )
+            return
         pending.add(value)
         host.enqueue(this)
     }

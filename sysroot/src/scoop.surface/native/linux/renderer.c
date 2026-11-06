@@ -1,10 +1,12 @@
-#include <EGL/egl.h>
+#define GDK_VERSION_MIN_REQUIRED GDK_VERSION_4_14
+#define GDK_VERSION_MAX_ALLOWED GDK_VERSION_4_14
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-value"
+#include <gtk/gtk.h>
+#pragma clang diagnostic pop
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <wayland-client.h>
-#include <wayland-egl.h>
-#include <xcb/xcb.h>
 
 typedef int32_t (*SSCallback)(void *, int32_t);
 typedef struct {
@@ -12,171 +14,125 @@ typedef struct {
   int32_t status;
 } SSAcquired;
 typedef struct {
-  EGLDisplay display;
-  EGLConfig config;
-  EGLContext egl_context;
-  EGLSurface surface;
-  struct wl_surface *wayland_surface;
-  struct wl_egl_window *wayland_window;
-  struct wl_callback *frame_callback;
-  xcb_connection_t *connection;
-  xcb_window_t window;
+  GtkWidget *view;
+  GtkGLArea *area;
+  GdkGLContext *gl;
   SSCallback callback;
   void *context;
+  guint tick;
   int width, height;
   double scale;
   uint64_t generation;
-  bool wanted, notified, closed, acquired;
+  bool wanted, notified, closed, acquired, ready, presented;
 } SSSurface;
 typedef struct {
   SSSurface *surface;
   uint64_t generation;
 } SSFrame;
 
+static int current(SSSurface *surface) {
+  if (surface->closed || surface->width <= 0 || surface->height <= 0 ||
+      !gtk_widget_get_mapped(GTK_WIDGET(surface->area)))
+    return 0;
+  if (gtk_gl_area_get_error(surface->area))
+    return -1;
+  int scale = gtk_widget_get_scale_factor(GTK_WIDGET(surface->area));
+  return gtk_widget_get_width(GTK_WIDGET(surface->area)) * scale ==
+             surface->width &&
+         gtk_widget_get_height(GTK_WIDGET(surface->area)) * scale ==
+             surface->height;
+}
 static void notify(SSSurface *surface) {
   if (surface->closed || !surface->wanted || surface->notified ||
-      surface->frame_callback || surface->width <= 0 || surface->height <= 0)
+      surface->acquired || !surface->ready || surface->presented ||
+      current(surface) == 0)
     return;
   surface->notified = true;
   if (!surface->callback(surface->context, 1))
     surface->wanted = false;
 }
-static void cancel_callback(SSSurface *surface) {
-  if (surface->frame_callback) {
-    wl_callback_destroy(surface->frame_callback);
-    surface->frame_callback = NULL;
-  }
-  surface->notified = false;
+static GdkGLContext *create_context(GtkGLArea *area, gpointer data) {
+  return g_object_ref(((SSSurface *)data)->gl);
 }
-static void frame_done(void *data, struct wl_callback *callback,
-                       uint32_t time) {
+static gboolean render(GtkGLArea *area, GdkGLContext *context, gpointer data) {
   SSSurface *surface = data;
-  wl_callback_destroy(callback);
-  surface->frame_callback = NULL;
+  surface->presented = false;
+  surface->ready = true;
   notify(surface);
+  return TRUE;
 }
-static const struct wl_callback_listener frames = {frame_done};
-
-void *scoop_surface_gles_create(void *display, void *config, void *egl_context,
-                                void *connection, uint32_t window,
-                                void *wayland_surface, SSCallback callback,
-                                void *context) {
+static void resize(GtkGLArea *area, int width, int height, gpointer data) {
+  SSSurface *surface = data;
+  ++surface->generation;
+  surface->notified = false;
+  surface->ready = false;
+}
+static gboolean tick(GtkWidget *widget, GdkFrameClock *clock, gpointer data) {
+  SSSurface *surface = data;
+  notify(surface);
+  if (!surface->wanted || surface->closed) {
+    surface->tick = 0;
+    return G_SOURCE_REMOVE;
+  }
+  return G_SOURCE_CONTINUE;
+}
+void *scoop_surface_gtk_display(void *view) {
+  return gtk_widget_get_display(GTK_WIDGET(view));
+}
+void *scoop_surface_gles_create(void *view, void *gl_context,
+                                SSCallback callback, void *context) {
+  if (gtk_widget_get_first_child(GTK_WIDGET(view)))
+    return NULL;
   SSSurface *surface = calloc(1, sizeof(*surface));
   if (!surface)
     return NULL;
-  surface->display = display;
-  surface->config = config;
-  surface->egl_context = egl_context;
-  surface->connection = connection;
-  surface->window = window;
-  surface->wayland_surface = wayland_surface;
+  surface->view = view;
+  surface->gl = g_object_ref(gl_context);
   surface->callback = callback;
   surface->context = context;
+  surface->area = GTK_GL_AREA(gtk_gl_area_new());
+  gtk_gl_area_set_allowed_apis(surface->area, GDK_GL_API_GLES);
+  gtk_gl_area_set_required_version(surface->area, 3, 0);
+  gtk_gl_area_set_has_stencil_buffer(surface->area, TRUE);
+  gtk_gl_area_set_auto_render(surface->area, FALSE);
+  g_signal_connect(surface->area, "create-context", G_CALLBACK(create_context),
+                   surface);
+  g_signal_connect(surface->area, "render", G_CALLBACK(render), surface);
+  g_signal_connect(surface->area, "resize", G_CALLBACK(resize), surface);
+  gtk_widget_set_parent(GTK_WIDGET(surface->area), surface->view);
+  g_object_ref(surface->area);
+  gtk_widget_queue_resize(surface->view);
   return surface;
 }
-
-static int create_surface(SSSurface *surface) {
-  void *native_window = &surface->window;
-  if (surface->wayland_surface) {
-    surface->wayland_window = wl_egl_window_create(
-        surface->wayland_surface, surface->width, surface->height);
-    if (!surface->wayland_window)
-      return -1;
-    native_window = surface->wayland_window;
-  }
-  surface->surface = eglCreatePlatformWindowSurface(
-      surface->display, surface->config, native_window, NULL);
-  if (surface->surface == EGL_NO_SURFACE) {
-    if (surface->wayland_window)
-      wl_egl_window_destroy(surface->wayland_window);
-    surface->wayland_window = NULL;
-    return -1;
-  }
-  if (!eglMakeCurrent(surface->display, surface->surface, surface->surface,
-                      surface->egl_context) ||
-      !eglSwapInterval(surface->display, surface->wayland_surface ? 0 : 1)) {
-    eglMakeCurrent(surface->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
-                   surface->egl_context);
-    eglDestroySurface(surface->display, surface->surface);
-    surface->surface = EGL_NO_SURFACE;
-    if (surface->wayland_window)
-      wl_egl_window_destroy(surface->wayland_window);
-    surface->wayland_window = NULL;
-    return -1;
-  }
-  return 1;
-}
-
-static bool destroy_surface(SSSurface *surface) {
-  if (surface->surface == EGL_NO_SURFACE)
-    return true;
-  if (eglGetCurrentSurface(EGL_DRAW) == surface->surface &&
-      !eglMakeCurrent(surface->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
-                      surface->egl_context))
-    return false;
-  if (!eglDestroySurface(surface->display, surface->surface))
-    return false;
-  surface->surface = EGL_NO_SURFACE;
-  if (surface->wayland_window)
-    wl_egl_window_destroy(surface->wayland_window);
-  surface->wayland_window = NULL;
-  return true;
-}
-
 int32_t scoop_surface_gles_configure(SSSurface *surface, int32_t width,
                                      int32_t height, double scale) {
   if (surface->closed || width < 0 || height < 0 || scale <= 0)
     return -1;
   if (surface->width != width || surface->height != height ||
       surface->scale != scale) {
-    if ((surface->width != width || surface->height != height) &&
-        !destroy_surface(surface))
-      return -1;
     surface->width = width;
     surface->height = height;
     surface->scale = scale;
     ++surface->generation;
-    cancel_callback(surface);
+    surface->notified = false;
   }
-  if (width > 0 && height > 0 && surface->surface == EGL_NO_SURFACE &&
-      create_surface(surface) != 1)
-    return -1;
   notify(surface);
   return 1;
 }
 int32_t scoop_surface_gles_demand(SSSurface *surface, bool required,
                                   bool drawable) {
-  surface->wanted = required;
-  if (!required)
+  surface->wanted = required && drawable;
+  if (!surface->wanted) {
     surface->notified = false;
-  if (!drawable)
-    cancel_callback(surface);
-  if (required)
+    if (surface->tick) {
+      gtk_widget_remove_tick_callback(GTK_WIDGET(surface->area), surface->tick);
+      surface->tick = 0;
+    }
+  } else {
+    if (!surface->tick)
+      surface->tick = gtk_widget_add_tick_callback(GTK_WIDGET(surface->area),
+                                                   tick, surface, NULL);
     notify(surface);
-  return 1;
-}
-
-static int current(SSSurface *surface) {
-  if (surface->closed || surface->surface == EGL_NO_SURFACE ||
-      surface->width <= 0 || surface->height <= 0)
-    return 0;
-  if (surface->connection) {
-    xcb_get_geometry_reply_t *geometry = xcb_get_geometry_reply(
-        surface->connection,
-        xcb_get_geometry(surface->connection, surface->window), NULL);
-    xcb_get_window_attributes_reply_t *attributes =
-        xcb_get_window_attributes_reply(
-            surface->connection,
-            xcb_get_window_attributes(surface->connection, surface->window),
-            NULL);
-    int status = geometry && attributes
-                     ? geometry->width == surface->width &&
-                           geometry->height == surface->height &&
-                           attributes->map_state == XCB_MAP_STATE_VIEWABLE
-                     : -1;
-    free(geometry);
-    free(attributes);
-    return status;
   }
   return 1;
 }
@@ -184,20 +140,21 @@ SSAcquired scoop_surface_gles_acquire(SSSurface *surface) {
   if (surface->acquired)
     return (SSAcquired){NULL, -1};
   surface->notified = false;
-  if (surface->frame_callback)
-    return (SSAcquired){NULL, 0};
   int status = current(surface);
   if (status != 1)
     return (SSAcquired){NULL, status};
+  if (!surface->ready || surface->presented)
+    return (SSAcquired){NULL, 0};
   SSFrame *frame = malloc(sizeof(*frame));
   if (!frame)
     return (SSAcquired){NULL, -1};
   *frame = (SSFrame){surface, surface->generation};
   surface->acquired = true;
+  surface->ready = false;
   return (SSAcquired){frame, 1};
 }
 void *scoop_surface_gles_frame_surface(SSFrame *frame) {
-  return frame->surface->surface;
+  return frame->surface->area;
 }
 int32_t scoop_surface_gles_frame_current(SSFrame *frame) {
   return frame->generation == frame->surface->generation
@@ -206,33 +163,31 @@ int32_t scoop_surface_gles_frame_current(SSFrame *frame) {
 }
 int32_t scoop_surface_gles_present(SSFrame *frame) {
   SSSurface *surface = frame->surface;
-  if (frame->generation != surface->generation || surface->closed)
-    return 0;
-  if (surface->wayland_surface && !surface->frame_callback) {
-    surface->frame_callback = wl_surface_frame(surface->wayland_surface);
-    if (!surface->frame_callback)
-      return -1;
-    wl_callback_add_listener(surface->frame_callback, &frames, surface);
-  }
-  if (!eglMakeCurrent(surface->display, surface->surface, surface->surface,
-                      surface->egl_context) ||
-      !eglSwapBuffers(surface->display, surface->surface)) {
-    cancel_callback(surface);
-    return -1;
-  }
-  if (!surface->wayland_surface)
-    notify(surface);
+  int status = scoop_surface_gles_frame_current(frame);
+  if (status != 1)
+    return status;
+  surface->presented = true;
+  gtk_gl_area_queue_render(surface->area);
   return 1;
 }
 void scoop_surface_gles_frame_close(SSFrame *frame) {
-  frame->surface->acquired = false;
+  SSSurface *surface = frame->surface;
+  surface->acquired = false;
+  if (!surface->presented) {
+    surface->ready = true;
+    notify(surface);
+  }
   free(frame);
 }
 int32_t scoop_surface_gles_close(SSSurface *surface) {
   surface->closed = true;
   surface->wanted = false;
-  cancel_callback(surface);
-  bool ok = destroy_surface(surface);
+  if (surface->tick)
+    gtk_widget_remove_tick_callback(GTK_WIDGET(surface->area), surface->tick);
+  g_signal_handlers_disconnect_by_data(surface->area, surface);
+  gtk_widget_unparent(GTK_WIDGET(surface->area));
+  g_object_unref(surface->area);
+  g_object_unref(surface->gl);
   free(surface);
-  return ok ? 1 : -1;
+  return 1;
 }

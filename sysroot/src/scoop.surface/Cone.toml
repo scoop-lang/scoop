@@ -36,6 +36,7 @@ path = "tests-darwin"
 when = { os = "darwin" }
 
 [native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 cxx = true
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
@@ -98,21 +99,6 @@ when = { os = "linux", env = "gnu" }
 
 [[native.libraries]]
 name = "GLESv2"
-kind = "dynamic"
-when = { os = "linux", env = "gnu" }
-
-[[native.libraries]]
-name = "wayland-egl"
-kind = "dynamic"
-when = { os = "linux", env = "gnu" }
-
-[[native.libraries]]
-name = "wayland-client"
-kind = "dynamic"
-when = { os = "linux", env = "gnu" }
-
-[[native.libraries]]
-name = "xcb"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
 
@@ -186,4 +172,31 @@ when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests/pointer_observation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_reads.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/focus_visibility.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_boundary_update.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gtk-4"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gobject-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "glib-2.0"
+kind = "dynamic"
 when = { os = "linux", env = "gnu" }

@@ -242,19 +242,23 @@ PointerState 与 KeyEvent 均携带 InputTime，取消事件独立携带；平�
 
 Linux 桌面接入首先面向 `x86_64-unknown-linux-gnu`，复用第 2～8 节的应用、事件、关闭、lease、deadline 和 asyncio 合同。`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端；未设置时有 WAYLAND_DISPLAY 则选择 Wayland，否则选择 X11。显式选择或已选显示连接失败正常报错，不静默改用另一个显示服务器。`WindowBackend` 报告实际 Wayland／X11；原始 Application.run 不初始化 io_uring。
 
-X11 使用 XCB 与 XKB，XIM 接入使用 xcb-imdkit；Wayland 使用 wayland-client、xdg-shell、libdecor 与 xkbcommon。原生显示连接、libdecor 自身的事件 descriptor、eventfd 唤醒、最近 deadline 和借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。libdecor 的装饰输入不能仅依赖内容 surface 的事件来偶然推进。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。显示连接失联进入已有失败与关闭路径，不继续等待已失效的服务器。
+Linux 窗口由 GTK 4.18 及以上与 libadwaita 1.4 及以上承载，X11／Wayland 仍是实际显示协议。装饰窗口使用 `AdwWindow`、`AdwToolbarView` 与 `AdwHeaderBar`；标题栏、圆角、阴影与桌面窗口按钮遵循 libadwaita。内容区保留 Scoop 自绘，不把普通组件改成 GTK 控件。窗口库本身不创建 GPU context，渲染器在取得 native lease 后挂载内容 widget。
 
-X11 的配置、位置和窗口管理状态来自服务器通知／查询，DPI 读取 Xft.dpi，缺失时为 1；RandR 提供输出、当前模式与热插拔通知。Wayland 首次显示和隐藏后重显等待实际 configure；未配置时 metrics 为 None，不申请 drawable。零 configure 尺寸采用有效请求或上次内容尺寸。wl_output 的整数 scale 和可用的 fractional-scale／viewporter 决定逻辑／像素转换；没有全局窗口位置、主显示器或最小化观察协议时相应查询返回 None。输出身份在删除时退休。渲染层的 wl_egl_window 只在配置完成后调整像素大小。
+GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。GTK signal 只更新原生快照或排队事件；业务 handler 在 GMainContext dispatch 之外执行，剪贴板的同步读取也不递归进入业务 handler。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。
 
-窗口装饰由 X11 窗口管理器或 Wayland libdecor 提供。没有协议的全局位置、置顶／置底、resize increments、内容保护、背景模糊、主题或激活请求明确返回 Unsupported；默认创建值不要求不存在的协议，调用方显式要求的创建属性若不支持则创建失败。Requested 只表示已发出有效原生请求；不能把 desired state 当成观察结果。
+GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
 
-Linux 的非透明内容区域随实际窗口尺寸发布：Wayland 使用 wl_surface 的 opaque region，X11 使用 `_NET_WM_OPAQUE_REGION`；设置透明时清除该区域。首个 configure、resize 和透明属性更新均同步这份合成状态，不能只保存本地属性而让默认非透明窗口仍透出桌面。X11 透明还要求带 alpha 的 visual 及实际合成器支持，window 不自行启动合成器；renderer 继续负责正确的预乘 alpha 像素。
+窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
 
-两个后端的物理键统一采用 Linux evdev 编码，未知物理键为 NativeKeyCode.LinuxEvdev，未知逻辑键保留 XkbKeysym。逻辑键来自当前 XKB 布局，compose／XIM／text-input-v3 的正文只经 TextInputBatch 交付一次。失焦取消组合和鼠标序列，并补发已经交付按下键的 synthetic release。Wayland 使用 compositor 的 repeat_info 仅为可重复、仍按下的键安排最近期限；没有活动按键时不唤醒。指针与键盘保存原生接收边界的 Observed 单调时间。
+GTK 不提供的窗口控制明确返回 Unsupported，包括内容保护、背景模糊、独立窗口的强制明暗主题、非默认 resize increments、最大内容尺寸约束。默认创建值不要求这些能力；调用方显式要求不支持的创建属性则创建失败。Requested 只表示已发出有效原生请求，不能把 desired state 当成观察结果。X11 的全局位置、层级与 attention 使用其原生窗口管理协议；Wayland 对没有对应协议的操作仍返回 Unsupported。
 
-Linux 提供第 2.2 节的纯文本剪贴板、逻辑快捷键比较、clearImeCursorArea 以及文档／caret 发布接口。X11 使用 CLIPBOARD selection，Wayland 使用 wl_data_device 的 text/plain;charset=utf-8；失去所有权不保留虚假的本地剪贴板值。读写遵守原生 owner／serial 条件，失败明确报告；文本通过显式长度传递。同步读取只推进所需原生协议，不递归进入业务 handler。Wayland text-input-v3 的 preedit、commit、delete-surrounding 在 done 时形成一个有序批次，surrounding 与 caret 只使用匹配连接／revision 的已发布快照。XIM 没有 surrounding 查询协议时只提供其实际支持的 preedit、commit 与候选位置，不虚构服务器能力。未安装输入法仍通过 XKB compose 支持普通文本与组合键。
+默认内容背景由 libadwaita 提供，透明窗口通过去掉该窗口和内容区背景实现；窗口圆角和阴影仍由 GTK 合成。renderer 负责正确的预乘 alpha 像素。X11 透明需要实际合成器支持，window 不自行启动合成器。
 
-Linux native handle 为 `X11(connection: Ptr<Unit>, window: UInt, visual: UInt)` 或 `Wayland(display: Ptr<Unit>, surface: Ptr<Unit>)`。X11 connection 是 xcb_connection_t；Wayland surface 是实际内容 wl_surface。lease 保活其窗口和显示连接，renderer 先退休 EGL surface／frame callback 再释放 lease。帧机会使用 Wayland frame callback 或 X11 renderer 的实际呈现节奏；未请求帧时不安排持续计时工作。
+物理键使用 Linux evdev 编码，未知物理键为 NativeKeyCode.LinuxEvdev，未知逻辑键保留 XkbKeysym。逻辑键和布局来自 GDK 键盘事件，普通组合键与输入法使用 GtkIMContext；正文只经 TextInputBatch 交付一次。失焦取消组合和鼠标序列，并补发已经交付按下键的 synthetic release。重复键和指针滚动节奏由 GTK 处理，不另起重复计时器。输入保留原生接收边界的 Observed 单调时间。
+
+纯文本剪贴板使用 GdkClipboard，读取实际所有者的内容，不以本地副本伪造成功。GtkIMContext 的 commit、preedit 与 delete-surrounding 接入已有编辑批次；surrounding、selection 与 caret 只使用匹配连接／revision 的已发布快照。GTK 仅提供其实际输入法能力，Scoop 不重写 XIM 或 Wayland text-input 协议。
+
+Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 GtkWindow 与可挂载渲染 widget 的内容容器。它们是借用对象，lease 保活窗口与显示连接；需要原始 GDK／X11／Wayland 对象的调用方通过 GTK 公共接口取得，不能绕过 GTK 向其 surface 单独提交 EGL buffer。renderer 先卸载内容 widget 和帧回调，再释放 lease。macOS AppKit 和 Windows Win32 的句柄及实现不变。
 
 按真实桌面协议分别验证创建／属性／多窗口、DPI、输入／编辑、剪贴板、deadline、watch、跨线程投递和延迟 lease 关闭；合成事件仅证明归一与路由。显示器热插拔、真实输入法候选窗与硬件刷新行为单独记录，不能用合成事件声称完成。
 

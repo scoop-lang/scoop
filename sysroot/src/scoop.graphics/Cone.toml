@@ -65,7 +65,7 @@ when = { os = "windows" }
 
 [native]
 cxx = true
-include = [{ sysroot = "include/skia" }]
+include = [{ sysroot = "include/skia" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
 
 [[native.sources]]
@@ -191,4 +191,19 @@ when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests/gles.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gtk-4"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "gobject-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "glib-2.0"
+kind = "dynamic"
 when = { os = "linux", env = "gnu" }
