@@ -231,7 +231,7 @@ composition 的开始、范围更新、提交、取消和 unmark 归一到现有
 
 失焦或原生侧确认捕获／跟踪中断时，先取消仍活动的鼠标序列，再交付相应的后续状态通知。正常最后一个 Up 已结束序列时不重复取消；原生取消和失焦归一只结束一次。PointerEvent.Left 仅表示离开内容区，滚轮 ScrollPhase.Cancelled 仅结束滚轮相位，两者均不替代鼠标序列取消。
 
-AppKit 至少覆盖窗口／应用失焦；对系统可观察的原生跟踪中断报告 CaptureLost。mouseDragged 与正常 mouseUp 继续原按下序列，不能用 mouseExited 代替中断。Win32 将 WM_CAPTURECHANGED／WM_CANCELMODE 中的异常丢失映射为取消；正常 ReleaseCapture 也会触发消息，必须区分正常结束，避免抢在最后一个 Up 前取消。这里不增加 Confined／Locked 光标能力，也不把鼠标序列固定目标的 GUI 路由移入 window。
+AppKit 至少覆盖窗口／应用失焦；对系统可观察的原生跟踪中断报告 CaptureLost。mouseDragged 与正常 mouseUp 继续原按下序列，不能用 mouseExited 代替中断。Win32 将 WM_CAPTURECHANGED／WM_CANCELMODE 中的异常丢失映射为取消；正常 ReleaseCapture 也会触发消息，必须区分正常结束，避免抢在最后一个 Up 前取消。同一窗口已经持有捕获时，继续按下其他鼠标按钮沿用该捕获，不重复调用 SetCapture 而打断现有按钮集合。这里不增加 Confined／Locked 光标能力，也不把鼠标序列固定目标的 GUI 路由移入 window。
 
 ### 11.2 输入单调时间
 

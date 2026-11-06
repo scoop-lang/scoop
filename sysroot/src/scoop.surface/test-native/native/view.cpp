@@ -4,9 +4,11 @@
 
 #include <cmath>
 #include <cstdint>
+#include <dcomp.h>
 #include <dwmapi.h>
 #include <memory>
 #include <new>
+#include <wrl/client.h>
 
 extern "C" bool scoop_window_test_surface_text(HWND, bool);
 extern "C" bool scoop_window_test_surface_caret(HWND, double, double, double,
@@ -18,6 +20,7 @@ struct ViewProbe {
   HWND firstChild;
   HWND child = nullptr;
   LONG_PTR procedure;
+  Microsoft::WRL::ComPtr<IDCompositionDevice> composition;
 
   ~ViewProbe() {
     if (child && IsWindow(child))
@@ -56,6 +59,9 @@ ViewProbe *scoop_surface_test_view_create(HWND window, bool customContent) {
   probe->window = window;
   probe->parent = GetParent(window);
   probe->procedure = GetWindowLongPtrW(window, GWLP_WNDPROC);
+  if (FAILED(
+          DCompositionCreateDevice(nullptr, IID_PPV_ARGS(&probe->composition))))
+    return nullptr;
   if (customContent) {
     probe->child =
         CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE, 4, 4, 12, 12,
@@ -76,9 +82,15 @@ bool scoop_surface_test_view_check(ViewProbe *probe, int32_t width,
 }
 
 bool scoop_surface_test_view_restored(ViewProbe *probe) {
-  // Reattachment in the host test separately proves the composition target was
-  // retired.
-  return !IsWindow(probe->window) || probe->matches();
+  if (!IsWindow(probe->window))
+    return true;
+  if (!probe->matches())
+    return false;
+  // The same HWND layer cannot have another target while Surface owns it.
+  // A successful probe releases its empty target without committing a visual.
+  Microsoft::WRL::ComPtr<IDCompositionTarget> target;
+  return SUCCEEDED(
+      probe->composition->CreateTargetForHwnd(probe->window, FALSE, &target));
 }
 
 void scoop_surface_test_view_drop(ViewProbe *probe) { delete probe; }

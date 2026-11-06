@@ -159,7 +159,11 @@ def prepare(args):
     make = [tools["make"]]
     configure_prefix = prefix.as_posix()
     if host == "Windows":
-        environment["PATH"] = str(Path(tools["cc"]).parent) + os.pathsep + environment["PATH"]
+        search_paths = [str(Path(tools["cc"]).parent)]
+        if mingw:
+            # Make recipes need the utilities beside the selected MSYS shell.
+            search_paths.append(str(Path(tools["shell"]).parent))
+        environment["PATH"] = os.pathsep.join((*search_paths, environment["PATH"]))
     if msvc:
         environment["VSLANG"] = "1033"
         make.append("/NOLOGO")

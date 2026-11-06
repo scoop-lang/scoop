@@ -218,7 +218,8 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
     }
     if (!up) {
       window->pressed_buttons |= mask;
-      SetCapture(window->hwnd);
+      if (GetCapture() != window->hwnd)
+        SetCapture(window->hwnd);
     } else
       window->pressed_buttons &= ~mask;
     pointer(window, up ? 4 : 3, position, button, twice ? 2 : 1, 0, 0);

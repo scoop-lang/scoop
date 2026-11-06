@@ -114,6 +114,8 @@ Linux GNU 的 native 与系统库默认使用本次准备或通过 `--llvm-prefi
 
 Windows 在 x64 MSVC／Windows SDK 开发环境中运行，提供 `--mingw-msvcrt <prefix>` 与 `--mingw-ucrt <prefix>`，二者使用 `release.toml` 固定的 LLVM-MinGW 版本。UCRT prefix 同时用于 GNU-LLVM Rust 宿主和可选的宿主 LLVM 构建；Scoop 应用默认目标仍为 MSVC UCRT。默认完整准备还需要 `--windows-perl` 选择原生 Windows Perl，`--msys-perl`、`--msys-make`、`--msys-shell` 选择 MinGW OpenSSL 的完整 MSYS Perl、GNU Make 和 shell，以及 PATH 上的 NASM、NMake、CMake、Ninja、Cargo 和 npm。使用 `--prepared-sysroot` 时不调用这些 native 构建工具。
 
+MinGW OpenSSL 构建将所选 compiler 和 MSYS shell 的目录加入子进程 PATH，compiler 目录优先，使 Make recipe 能找到同一 MSYS 安装中的 `rm`、`mkdir` 等工具；不修改用户全局 PATH。
+
 例如，已有 LLVM 与含系统 `.slib` 的三目标 sysroot 时可运行 `python scripts/package_toolchain.py --llvm-prefix E:/scoop-work/llvm/installed --prepared-sysroot ./sysroot --mingw-msvcrt E:/llvm-mingw-msvcrt --mingw-ucrt E:/llvm-mingw-ucrt --work-dir E:/scoop-work/package --output-dir E:/scoop-work/dist --jobs 3`。Windows 发行产出三个完整 target 的 `lib-<target>` 组件包（各含预编译 `.slib`、native 库、runtime、每目标的 unwind，两个 MinGW 目标另含 x86-64 prefix 的 `toolchain/`），以及 `libexec/llvm/bin` 中带宿主 Clang／LLD／RC 工具和配套 resource headers 的 llvm 组件包。Microsoft SDK／MSVC toolset 从使用者的开发环境发现，不复制维护机的 SDK 路径配置。
 
 构建机需要 Python 3.12+ 及其开发文件、Git、SWIG 4、Ninja、Rust/Cargo、C/C++ 开发工具链、CMake、Make、Perl、Node.js 22.18+ 和 npm。npm 依赖、首次缺失的 LLVM 归档以及 Tree-sitter WASM 工具链需要联网取得；其余 native 上游输入已在 vendor 中。已有 WASI SDK／Binaryen 可按 [tooling 说明](../tooling/README.md) 选择。
