@@ -46,6 +46,7 @@ datePicker(value: Binding<LocalDate?>, initialPage: LocalDate, configure: DatePi
 dateRangePicker(value: Binding<DateRange?>, initialPage: LocalDate, configure: DatePickerBuilder.() -> Unit = {}): View
 table(configure: TableBuilder.() -> Unit): View
 dataTable<Row>(state: DataTableState<Row>, configure: DataTableBuilder.() -> Unit = {}): View
+chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}): View
 messageScroller(source: TranscriptSource, state: MessageScrollState, configure: MessageScrollerBuilder.() -> Unit = {}): View
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
 ```
@@ -335,3 +336,11 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 `DataTableState<Row>(TableData.Local(source), columns)` 持有查询、选择和列配置；`TableRows` 从带显式 ViewKey 的 TableRecord 数组构造，其他来源实现 TableSource 的 count／keyAt／indexOfKey／rowAt。TableColumn 接收 id、header、类型化 cell、size、alignment、compare／filter，以及 remoteSort／hideable／resizable。Local 用标准库稳定多列排序并复用分页结果；Provided(source, totalRows) 直接呈现调用方的当前页。setQuery／toggleSort／setFilter／setPage／setPageSize 和 replaceData 是应用动作，成功改变查询后交付 onQueryChange；render 不回写模型。
 
 `dataTable(model)` 默认有当前页选择列、排序表头、列显隐菜单、页码和页大小控制，bodyHeight=320、itemExtent=Variable(48)。selection／pagination／columnMenu 可关闭，additiveSort 控制排序按钮是否保留其他排序列；toolbar、footer、empty 接收实际内容。筛选输入使用自己的 TextEditorState，在编辑提交后调用 setFilter。horizontal／vertical 是独立 ScrollState，handle 使用原 VirtualListHandle。列宽拖动与逻辑箭头键调用 resizeColumn，Home 恢复声明宽度；输入、菜单和行操作保留普通行为。选择只作用于本页可选行并保留其他页的 key，至少保留一个可见数据列。完整规则见组件规范第 45 节。
+
+## P7c：Chart
+
+`ChartModel(ChartData(datums, series))` 是应用持有的数据与显隐模型，`chart(model) { ... }` 及 ChildrenBuilder.chart 创建相同控件。ChartDatum 使用 ChartDatumKey、label、可选数值 x 和极坐标扇区颜色；ChartSeries 使用 ChartSeriesKey、label、与 datum 等长的 `Array<Double?>`、可选颜色／图标／Cartesian mark。缺值使用 None。replaceData 保留持续存在的系列 key 的配色及显隐，showSeries 显式切换可见性；显示文字不充当身份。
+
+kind 提供 Area／Bar／Line／Pie／Radar／Radial。Cartesian 的 curve 为 Linear／Step／Monotone，stack 为 None／Stacked／Normalized，orientation 控制横纵，connectMissing 明确连接缺口；各系列的 mark 可将 Bar 与 Line 等组合。xAxis／yAxis 使用 ChartAxis，包含 Category／Linear、Auto／Fixed domain、includeZero、nice、tickCount、shown／grid 和 formatter。pointRadius、barRadius、barGap 及 labels 控制有限的绘图外观。Pie 的 innerRadius 形成 Donut，startAngle／endAngle 控制弧度起止；Radial 共用角度及内半径，Radar 使用 datum 分类极轴。center 接收内孔中的普通 View。
+
+active 可接 `Binding<ChartSelection?>`，省略时由组件持有。鼠标和方向键选择同一份 Accepted 几何中的项；Home／End 定位边界，Escape 关闭提示。tooltip／legend 可关闭，ChartTooltipOptions 配置 formatter／labelFormatter、hideLabel／hideIndicator 及 Dot／Line／Dashed；tooltipContent 返回普通 View。ChartLegendOptions 配置标签 formatter 和 hideIcon，图例按钮直接切换对应系列。width／height 可显式给出，默认图面比例 16∶9；focus／enabled／fonts／theme 沿已有组件协议。完整数据、尺度与停帧规则见组件规范第 46 节。

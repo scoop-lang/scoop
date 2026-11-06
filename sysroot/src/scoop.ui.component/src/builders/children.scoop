@@ -28,6 +28,7 @@ import scoop.ui.component.calendarMultiple as appendCalendarMultiple
 import scoop.ui.component.calendarRange as appendCalendarRange
 import scoop.ui.component.datePicker as appendDatePicker
 import scoop.ui.component.dateRangePicker as appendDateRangePicker
+import scoop.ui.component.chart as appendChart
 import scoop.ui.component.table as appendTable
 import scoop.ui.component.dataTable as appendDataTable
 import scoop.ui.component.sidebar as appendSidebar
@@ -42,6 +43,9 @@ import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}) {
+        add(appendChart(model, configure))
+    }
     public fun table(configure: TableBuilder.() -> Unit) {
         add(appendTable(configure))
     }

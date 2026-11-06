@@ -1,0 +1,67 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.Color
+import scoop.ui.component.*
+
+internal fun chartBrowserData(revision: Int): ChartData {
+    val names = ["Chrome", "Safari", "Firefox", "Edge", "Other"]
+    val colors =
+        [
+            Color(0.15, 0.39, 0.92),
+            Color(0.06, 0.68, 0.51),
+            Color(0.96, 0.59, 0.09),
+            Color(0.54, 0.36, 0.96),
+            Color(0.91, 0.27, 0.48)
+        ]
+    val values = [275.0, 200.0, 187.0, 173.0, 90.0]
+    return ChartData(
+        Array<ChartDatum>(names.size) {
+            at -> ChartDatum(ChartDatumKey(names[at]), names[at], color = Some(colors[at]))
+        },
+        [
+            ChartSeries(
+                ChartSeriesKey("visitors"),
+                "Visitors",
+                Array<Double?>(values.size) { at -> Some(values[at] + revision.toDouble() * 5.0) }
+            )
+        ]
+    )
+}
+
+internal fun chartActivityData(revision: Int): ChartData {
+    val names = ["Design", "Research", "Delivery", "Support", "Planning", "Review"]
+    val current = [80.0, 65.0, 90.0, 72.0, 85.0, 78.0]
+    return ChartData(
+        Array<ChartDatum>(names.size) { at -> ChartDatum(ChartDatumKey(names[at]), names[at]) },
+        [
+            ChartSeries(
+                ChartSeriesKey("current"),
+                "This month",
+                Array<Double?>(current.size) {
+                    at -> Some(current[at] + (revision % 3).toDouble() * 2.0)
+                }
+            ),
+            ChartSeries(
+                ChartSeriesKey("previous"),
+                "Last month",
+                [Some(65.0), Some(80.0), Some(72.0), Some(60.0), Some(78.0), Some(88.0)]
+            )
+        ]
+    )
+}
+
+internal fun chartProgressData(revision: Int): ChartData =
+    ChartData(
+        [
+            ChartDatum(ChartDatumKey("design"), "Design", color = Some(Color(0.15, 0.39, 0.92))),
+            ChartDatum(ChartDatumKey("build"), "Build", color = Some(Color(0.06, 0.68, 0.51))),
+            ChartDatum(ChartDatumKey("verify"), "Verify", color = Some(Color(0.54, 0.36, 0.96)))
+        ],
+        [
+            ChartSeries(
+                ChartSeriesKey("progress"),
+                "Completion",
+                [Some(95.0), Some(65.0 + (revision % 4).toDouble() * 5.0), Some(40.0)]
+            )
+        ]
+    )

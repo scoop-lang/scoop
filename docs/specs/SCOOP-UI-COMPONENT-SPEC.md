@@ -1057,3 +1057,22 @@ setQuery／toggleSort／setFilter／setPage／setPageSize 是显式模型动作�
 selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作更新。isSelected／setSelected 以稳定 key 工作；selectPage 与 pageSelection 只看当前呈现页中 selectable 的行，混合为 Indeterminate，空集合为 Unchecked 且禁用全选；跨页选择保留。隐藏列与调整宽度不改变排序／筛选，至少保留一个数据列。resizeColumn 以逻辑长度夹取列限制，resetColumnWidth 恢复声明宽度；表头分隔区复用 Drag，逻辑前后键改变 10，Home 恢复声明值，Escape／外层取消恢复本次开始值，期间外部改宽则保留外部结果。
 
 DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
+
+
+## 46. Chart
+
+`chart(model) { ... }` 消费应用持有的 ChartModel。ChartData 保存有稳定 ChartDatumKey 的 datum 数组和有稳定 ChartSeriesKey 的系列数组；datum 有 label、可选数值 x 和供 Pie／Radial 扇区使用的可选颜色，系列有 label、逐 datum 的 `Double?`、可选颜色／图标和 Cartesian mark 覆盖。两种 key 是不同值类型，唯一性分别检查；系列长度必须匹配 datum，所有实际坐标有限，None 表示缺值。显示文字可以重复。ChartModel.replaceData 是普通应用动作；显隐状态独立于数据，持续存在的 key 保留显隐和配色槽，新的系列按声明次序取得五色 palette 槽，隐藏或重排不改变其他系列颜色。
+
+ChartKind 覆盖 Area、Bar、Line、Pie、Radar、Radial；Pie 的 innerRadius 比例形成 Donut。Cartesian mark 可将同轴的 Bar／Line／Area 合成一张图，不建立多坐标系统。ChartCurve 提供 Linear／Step／Monotone，ChartStack 提供 None／Stacked／Normalized；堆叠只作用于 Bar／Area，正负值分别从零累加，归一化分别按正值和负值绝对总量归一，缺值不贡献总量且仍保留缺口。Line 缺值默认断开，connectMissing 是明确选择。单调插值采用 Steffen 的相邻斜率约束；不能形成单调 x 段的边使用直线，避免重复坐标产生无效控制点。
+
+ChartAxis 提供 Category／Linear、Auto／Fixed domain、includeZero、nice、tickCount、可选 tick formatter 和显示开关。Category 按 datum 顺序分配，Linear 使用显式 x；普通数值轴按实际可见数据及堆叠端点取域，Bar／Area 的自动域包含零。手动域必须有限且递增，超域数据在 plot 内裁剪，不把域外值夹成伪造的边界样本。空域为 0～1，常量非零域向两侧扩张，常量零域为 0～1。nice tick 使用 D3 的 1／2／5 十进制步长规则，极端浮点步长无法表示时保留有限域端点。轴和标签使用真实字体测量；分类 tick 空间不足时按可见间隔选择，数据不自动丢点。Bar 支持横／纵、分组／堆叠、正负值、圆角和数值标签；Area 使用从系列颜色衰减的渐变填充。
+
+Pie 按每个可见系列形成同心环，值非负，缺值和零值不占角度；总量为零时没有扇区和可命中项。startAngle／endAngle 为顺时针弧度，默认从顶部绘制一周；负跨度反向绘制，非零跨度的绝对值不超过一周。innerRadius 是 [0, 1) 内的外半径比例。扇区绘制与命中使用相同的内外半径和角度，活动扇区沿径向突出，命中也包含突出区域；可显示标签及普通 View 中心内容，中心内容只在内孔可容纳的正方形内布局。Radar 用 datum 分类作为等角极轴，可见系列共享数值域、网格和刻度；缺值断开相邻边。Radial 用同一数值域将各个 datum／可见系列的有效项分配到同心轨道，提供背景轨道和数值标签，负值从零点反向延展；零值保留轨道但没有可选择的数值条。极坐标图不使用 Cartesian mark／stack／orientation／xAxis，Radar 的分类标签来自 datum，Pie／Radial 的 datum 颜色覆盖系列颜色。
+
+ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
+
+图表自身是一个焦点目标，active 可用外部 `Binding<ChartSelection?>` 控制；默认由控件持有。指针用最近点／条形／扇区的实际几何选择数据，移出后关闭鼠标提示。键盘逻辑前后键逐 datum 导航，上下键切换可见系列，Home／End 定位边界，Escape 清空提示；缺值和无图形项跳过，普通 Tab 继续离开图表。拒绝 setter 保留调用方状态，禁用和卸载撤销输入；业务选择、取数与异步取消归应用。
+
+几何和命中共享完整不可变布局结果，仅在数据／尺寸／字体／轴或绘图参数／系列显隐变化时重建。pointer 移动只更新 active 和提示布局，静态数据图层复用有限 drawLayer 的 key／revision；Accepted 后才发布可输入几何，Discarded 和零尺寸不发布。默认数据更新直接呈现最终值，不制造持续动画；自定义内容沿已有 Surface 动画与可见性协议，静止、隐藏及卸载后没有图表自发帧需求。RTL 镜像 Cartesian 的横轴与逻辑导航，图例和提示使用逻辑布局；极坐标角度保持显式数值含义。
+
+验收使用精确坐标／堆叠／角度／命中断言和六类真实数据图，覆盖空值、常量／负值／全零、受控 active、键盘与鼠标提示、图例显隐、稳定颜色、窗口缩放、明暗／RTL、零尺寸和停帧。D3 array／shape 的刻度、堆叠和单调曲线参考及衍生实现保留对应 ISC 许可证；其余绘制复用已有 graphics／graphics.text／math 公共接口。

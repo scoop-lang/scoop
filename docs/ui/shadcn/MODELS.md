@@ -101,7 +101,7 @@ Header 和可见行消费同一个不可变列宽数组。Fixed／比例列直�
 
 Chart 交付六类真实图表，与 [shadcn Chart](https://ui.shadcn.com/docs/components/chart) 的常用图表范围对应。Scoop 没有可直接运行的 Recharts，采用现有 graphics／graphics.text／math 实现这一有限绘图需求；不嵌入 WebView，不包装静态图，也不新增一个通用 renderer。
 
-ChartModel 使用类型化系列与数据：稳定 SeriesKey／DatumKey、显示 label、可选颜色和数值／分类坐标。可空样本用 Option 表达缺值，NaN／Infinity 不是合法缺值编码。格式化是明确回调，Tooltip／Legend 使用同一系列名称和颜色。可见系列状态独立于数据，颜色按稳定系列身份分配，隐藏一条系列不使剩余颜色乱序。
+ChartModel 持有不可变 ChartData，ChartDatum／ChartSeries 使用类型化系列与数据：稳定 ChartSeriesKey／ChartDatumKey、显示 label、可选颜色和数值／分类坐标。可空样本用 Option 表达缺值，NaN／Infinity 不是合法缺值编码。格式化是明确回调，Tooltip／Legend 使用同一系列名称和颜色。可见系列状态独立于数据，颜色按稳定系列身份分配，隐藏一条系列不使剩余颜色乱序。
 
 | 图表族 | 本轮实际能力 |
 | --- | --- |
@@ -114,9 +114,9 @@ ChartModel 使用类型化系列与数据：稳定 SeriesKey／DatumKey、显示
 
 共用有限的线性／分类尺度、tick 生成、文字测量、plot rect、路径与命中算法。相同轴域的 Bar＋Line 等组合可以共用一个 plot；多坐标系统、地图、任意缩放／刷选、3D、金融图及 Recharts 全部扩展不属于本轮。普通数值轴有明确的手动／自动 domain、零点和 nice tick 规则；常量域、空数据、全零饼图、负数与缺值都有明确结果。
 
-算法先用成熟公开实现核对刻度、堆叠和曲线规则，实际复用代码时记录许可证；不从截图估算数值比例。geometry 与 hit-test 共用同一数据／尺度快照，文本真实排版。Legend／Tooltip 支持图标、标签、数值 formatter、隐藏标题和点／线／虚线指示；Tooltip 支持鼠标与键盘数据项导航，不能只有鼠标 hover。
+算法先用成熟公开实现核对刻度、堆叠和曲线规则，实际复用代码时记录许可证；不从截图估算数值比例。geometry 与 hit-test 共用同一数据／尺度快照，文本真实排版。Pie／Radial 可由 datum 颜色覆盖系列颜色；活动 Pie 扇区的突出范围同时用于绘制和优先命中，内孔内容按可容纳的正方形布局。Radar 缺值打断相邻边，跨最后／第一项的有效边仍保留。Legend／Tooltip 支持图标、标签、数值 formatter、隐藏标题和点／线／虚线指示；Tooltip 支持鼠标与键盘数据项导航，不能只有鼠标 hover。
 
-数据／大小／字体／系列显隐变化才重算对应布局；pointer 移动仅更新 active datum 和提示，不能重建全部数据。动画绑定 stable key 并复用 Surface，结束／隐藏／减少动态后停帧。大输入不自动丢点；降采样若需要由显式数据准备决定并保留语义，不作为隐含绘图优化。
+数据／大小／字体／系列显隐或绘图参数变化才重算对应布局；等值的默认轴配置可复用原计划。pointer 移动仅更新 active datum 和提示，不能重建全部数据。图面仅在 Accepted 的有效几何中有可选项时接收焦点；零尺寸、全缺值或全零 Pie 不留下可聚焦的空图面。默认数据更新直接呈现最终值，自定义内容需要动画时按 stable key 复用 Surface，结束／隐藏／减少动态后停帧。大输入不自动丢点；降采样若需要由显式数据准备决定并保留语义，不作为隐含绘图优化。
 
 验收除截图外，精确检查值域到坐标、堆叠总量／正负基线、角度和命中结果；六类各有真实数据例子，并组合 Tooltip、Legend、Dark、RTL 布局及窗口缩放。
 
