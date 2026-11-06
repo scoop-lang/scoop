@@ -62,6 +62,8 @@ internal fun chordMatches(
 ): Boolean {
     val value = resolvedModifiers(chord.modifiers, primary)
     val actual = event.modifiers
+    if (actual.altGraph == Some(true))
+        return false
     if (
         value.shift !=
             actual.shift ||

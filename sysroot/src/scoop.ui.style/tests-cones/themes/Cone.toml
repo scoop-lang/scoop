@@ -30,3 +30,7 @@ when = { os = "darwin" }
 "scoop:scoop.ui.style.shadcn" = { version = "0.1.0", path = "../../../scoop.ui.style.shadcn" }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../../../scoop.graphics/test-native" }
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }

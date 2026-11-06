@@ -26,8 +26,11 @@ from build_llvm import VERSION
 from build_rust_text import HEADER as RUST_TEXT_HEADER
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
 from build_skia import LIBRARY as SKIA_LIBRARY
+from build_skia import TARGETS as SKIA_TARGETS
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
+from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
+from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order
 from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
@@ -83,7 +86,10 @@ def prepare_targets(args, targets, binaries, environment):
                 ],
                 environment,
             )
-        if facts["os"] in ("darwin", "windows"):
+        if target in SKIA_TARGETS:
+            skia_native = (
+                ["--cc", args.llvm_prefix / "bin/clang"] if facts["os"] == "linux" else native
+            )
             run_script(
                 "build_skia.py",
                 [
@@ -95,7 +101,18 @@ def prepare_targets(args, targets, binaries, environment):
                     args.gn,
                     "--jobs",
                     args.jobs,
-                    *native,
+                    *skia_native,
+                ],
+                environment,
+            )
+        if target == GTK_TARGET:
+            run_script(
+                "prepare_gtk.py",
+                [
+                    "--development-prefix",
+                    args.gtk_prefix,
+                    "--build-dir",
+                    args.work_dir / "gtk" / target,
                 ],
                 environment,
             )
@@ -256,9 +273,13 @@ def assemble_libraries(root, target, args, order):
     shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
     shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
     shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
-    if TARGETS[target]["os"] in ("darwin", "windows"):
+    if target in SKIA_TARGETS:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
         shutil.copytree(source / "include/skia", destination / "include/skia")
+    if target == GTK_TARGET:
+        shutil.copytree(source / "include/gtk", destination / "include/gtk")
+        for library in GTK_LINK_INPUTS:
+            shutil.copy2(source / library, destination / library)
     for package in COMPRESSION_PACKAGES:
         for library in package["libraries"]:
             shutil.copy2(source / library, destination / library)
@@ -338,7 +359,7 @@ def assemble_bin(root, targets, args, release, extension, orders, python_version
         manifest += [
             f"{name} = {json.dumps(release[name])}" for name in ("rust_windows", "llvm_mingw")
         ]
-    if any(TARGETS[target]["os"] in ("darwin", "windows") for target in targets):
+    if any(target in SKIA_TARGETS for target in targets):
         manifest.append(f"skia = {json.dumps(release['skia'])}")
     manifest += [
         f"{name} = {json.dumps(release[name])}"
@@ -410,8 +431,12 @@ def main():
         help="Use a local LLVM source archive instead of downloading the fixed release",
     )
     parser.add_argument("--llvm-prefix", type=Path, help="Reuse an installed matching LLVM version")
+    parser.add_argument("--gn", default="gn", help="GN executable used to prepare Skia resources")
     parser.add_argument(
-        "--gn", default="gn", help="GN executable used to prepare Darwin Skia resources"
+        "--gtk-prefix",
+        type=Path,
+        default=Path("/usr"),
+        help="Linux GTK/libadwaita development prefix used by pkg-config",
     )
     parser.add_argument(
         "--prepared-sysroot",
@@ -431,7 +456,9 @@ def main():
         type=Path,
         help="Explicit Python license when absent from its installation",
     )
-    parser.add_argument("--gnu-cc", default="gcc")
+    parser.add_argument(
+        "--gnu-cc", help="GNU target C compiler; defaults to the prepared LLVM Clang"
+    )
     parser.add_argument("--musl-cc", default="musl-gcc")
     parser.add_argument("--unwind-cc", default="clang")
     parser.add_argument("--unwind-cxx", default="clang++")
@@ -513,6 +540,8 @@ def main():
             environment,
         )
     args.llvm_prefix = args.llvm_prefix.resolve()
+    if host_system == "Linux" and args.gnu_cc is None:
+        args.gnu_cc = str(args.llvm_prefix / "bin/clang")
     suffix = ".exe" if windows else ""
     if windows:
         environment["PATH"] = str(args.llvm_prefix / "bin") + os.pathsep + environment["PATH"]

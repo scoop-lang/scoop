@@ -1,0 +1,16 @@
+package scoop.ui
+
+import scoop.graphics.native.linux.GLESContext
+import scoop.test.*
+
+@Test
+private class GLESGpuTest {
+    @Test
+    fun `GLES preserves GPU pixels and resources at two times DPI`() {
+        GLESContext.createOffscreen().use {
+            context ->
+            context.offscreen(192, 128, 2.0).use { target -> verifyPaintGpu(target) }
+            context.drain()
+        }
+    }
+}

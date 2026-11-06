@@ -1,0 +1,12 @@
+package native.test
+
+@Extern(name = "native_answer")
+fun nativeAnswer(): Int
+
+fun main() {
+    @Unsafe
+    {
+        if (nativeAnswer() != 42)
+            throw IllegalStateException(Some("native result"))
+    }
+}

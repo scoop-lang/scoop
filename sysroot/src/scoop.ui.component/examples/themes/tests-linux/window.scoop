@@ -1,0 +1,183 @@
+package scoop.examples.ui.themes
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.sampleCanvasPixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class LinuxShowcaseWindowTest {
+    @Test
+    fun `the complete Linux UI presents all themes preserves models and stops hidden and idle frames`() {
+        FontCollection().use {
+            fonts ->
+            val probe = LinuxShowcaseProbe(fonts)
+            val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+            try {
+                context(probe.model.source) {
+                    Application(
+                        applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                    ).run(host)
+                }
+                assertTrue(probe.finished)
+                assertEquals(1, probe.mounts)
+                assertEquals(1, probe.unmounts)
+                assertTrue(probe.frames >= 5)
+                assertTrue(probe.ui!!.isClosed)
+                assertTrue(host.isClosed)
+                assertFalse(fonts.isClosed)
+                assertEquals(ThemeChoice.Fluent, probe.model.choice.value)
+                assertTrue(probe.model.glow.value)
+                assertFalse(probe.model.enabled.value)
+            } catch (error: Throwable) {
+                println(f"Linux showcase phase=${probe.phase}, frames=${probe.frames}")
+                throw error
+            } finally {
+                host.close()
+            }
+        }
+    }
+}
+
+private class LinuxShowcaseProbe(val fonts: FontCollection) {
+    val model = ShowcaseModel()
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var frames = 0
+    var previous = 0
+    var phase = 0
+    var mounts = 0
+    var unmounts = 0
+    var finished = false
+    private var timer: WindowDeadline? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Linux UI verification"
+                            size = LogicalSize(1120.0, 840.0)
+                        }
+                    )
+                window = Some(native)
+                native.createDeadline { fail(Some(f"Linux showcase timeout at phase ${phase}")) }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(60L))
+                ui =
+                    host.attach(
+                        native,
+                        { scope -> LinuxShowcaseScene(this, scope) },
+                        fonts = Some(fonts)
+                    )
+            }
+            case AboutToWait -> {
+                if (frames <= previous)
+                    return
+                when (phase) {
+                    case 0 -> {
+                        previous = frames
+                        phase = 1
+                        model.select(ThemeChoice.Material)
+                        model.selectMode(ModeChoice.Dark)
+                    }
+                    case 1 -> {
+                        previous = frames
+                        phase = 2
+                        model.select(ThemeChoice.Fluent)
+                        model.glow.value = true
+                    }
+                    case 2 -> {
+                        previous = frames
+                        phase = 3
+                        model.enabled.value = false
+                    }
+                    case 3 -> {
+                        phase = 4
+                        awaitIdle()
+                    }
+                    case 5 -> {
+                        phase = 6
+                        active.requestExit()
+                    }
+                    else -> {}
+                }
+            }
+            case Exiting -> finished = phase == 6
+            else -> {}
+        }
+    }
+
+    private fun awaitIdle() {
+        // Selection animations and already requested frames must settle before measuring idle.
+        val before = frames
+        later(250L) {
+            if (frames != before) {
+                awaitIdle()
+            } else {
+                val idle = frames
+                later(250L) {
+                    assertEquals(idle, frames)
+                    window!!.setVisible(false)
+                    model.selectMode(ModeChoice.Light)
+                    later(100L) {
+                        assertEquals(idle, frames)
+                        previous = frames
+                        phase = 5
+                        window!!.setVisible(true)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun later(milliseconds: Long, action: () -> Unit) {
+        timer?.close()
+        val next = window!!.createDeadline(action)
+        timer = Some(next)
+        next.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+}
+
+private class LinuxShowcaseScene(
+    private val probe: LinuxShowcaseProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View =
+        element(
+            { scope -> LinuxShowcaseAudit(probe, scope) },
+            [component({ scope -> Showcase(probe.model, scope) })]
+        )
+}
+
+private class LinuxShowcaseAudit(
+    private val probe: LinuxShowcaseProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        context.draw { paint -> assertEquals(255uL, sampleCanvasPixel(paint.canvas, 5, 5) % 256uL) }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.frames += 1
+        }
+    }
+}

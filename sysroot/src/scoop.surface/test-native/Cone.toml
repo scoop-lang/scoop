@@ -16,12 +16,14 @@ path = "src/windows"
 when = { os = "windows" }
 
 [dependencies]
+"scoop:scoop.graphics" = "0.1.0"
 "scoop:scoop.window" = "0.1.0"
 "scoop.tests:window-native" = { version = "0.1.0", path = "../../scoop.window/test-native" }
 
 [native]
+include = [{ sysroot = "include/skia" }]
 cxx = true
-cxx_flags = ["-Wmost", "-Wextra", "-Werror"]
+cxx_flags = ["-DSK_RELEASE", "-Wmost", "-Wextra", "-Werror"]
 objc_flags = ["-Wall", "-Wextra", "-Werror"]
 [[native.sources]]
 path = "native/view.m"
@@ -60,3 +62,16 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "dwmapi"
 when = { os = "windows" }
+
+[[sources]]
+path = "src/linux"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/probe.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "EGL"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

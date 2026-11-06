@@ -20,7 +20,7 @@ public struct DeviceId(val value: Long): Equals<DeviceId>, Hash {
 
 /** The implemented window-system backend. */
 public enum WindowBackend {
-    AppKit, Win32
+    AppKit, Win32, X11, Wayland
 }
 
 /** Whether an operation was observed, requested, or has no platform implementation. */

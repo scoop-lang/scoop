@@ -1,10 +1,10 @@
 # scoop.surface
 
-本库提供窗口呈现、帧调度、动画与区域输入。上层的 [scoop.ui](../scoop.ui/README.md) 已在 macOS aarch64 提供不含现成控件的自绘框架；后续 `scoop.ui.component` 使用其公开能力实现 Label／Button 等基础控件，见 [UI 设计](../../../docs/ui/DESIGN.md)。
+本库提供窗口呈现、帧调度、动画与区域输入。上层的 [scoop.ui](../scoop.ui/README.md) 提供自绘框架，`scoop.ui.component` 使用其公开能力实现 Label／Button 等基础控件；Linux GNU 的 Wayland／X11 共用这些接口，见 [UI 设计](../../../docs/ui/DESIGN.md)。
 
 公共字体和段落 API 已迁入 [scoop.graphics.text](../scoop.graphics.text/README.md)，已实现 StyledText／SpanStyle 和行内对象，详细合同见[设计](../../../docs/graphics/text/DESIGN.md)。Surface 继续只管理呈现、动画和区域几何，文本或 UI 宿主拥有具体内容和资源。
 
-普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 使用 CAMetalLayer／CAMetalDisplayLink 和 Skia Ganesh Metal；Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
+普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 使用 CAMetalLayer／CAMetalDisplayLink 和 Skia Ganesh Metal；Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition；Linux GNU 的 Wayland／X11 使用 EGL／GLES 和 Skia Ganesh。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
 
 ```scoop
 import scoop.graphics.*
@@ -74,7 +74,7 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 边界所属 scope 已退休时，屏障仍持续到 InputBoundary.close，便于 UI 等待弹层移除帧成功提交。当前域根的 `beforePointerPress` 在首次按钮按下的派发前读取 InputPress，返回 true 消费整段按下序列，返回 false 沿已固定的目标和坐标继续。外部点击策略可以据此关闭最上层弹层；追加按钮不再次执行预处理，回调中改变边界也不能把旧事件投向背景。
 
-macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，UI 可通过 `scope.resource { ShortcutScope(scope.input, bindings) }` 管理它。ShortcutKey 显式选择 logical 或 physical；ShortcutModifiers.primary 是 Command，完整修饰组合匹配，文字大小写比较复用 Window 的 Unicode 处理。默认忽略重复和合成输入，canExecute=false 向外层继续；无焦点时可使用窗口根。每个输入节点的普通 defaultAction 和 addDefaultAction 登记先执行，ShortcutScope 最后匹配，文本编辑命令可以先消费事件。
+macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，UI 可通过 `scope.resource { ShortcutScope(scope.input, bindings) }` 管理它。ShortcutKey 显式选择 logical 或 physical；ShortcutModifiers.primary 在 macOS 为 Command、Linux 为 Ctrl，完整修饰组合匹配，文字大小写比较复用 Window 的 Unicode 处理。默认忽略重复和合成输入，canExecute=false 向外层继续；无焦点时可使用窗口根。每个输入节点的普通 defaultAction 和 addDefaultAction 登记先执行，ShortcutScope 最后匹配，文本编辑命令可以先消费事件。
 
 `HostShortcutScope(host, bindings)` 为宿主当前及后续附着的窗口共用一份应用快捷键，窗口根的普通行为与本地 ShortcutScope 先处理，宿主最后回退。登记可早于 Application.run；每个宿主只允许一个活动登记，支持 enabled 和 bindings 整体更新，关闭后可重新创建。关闭单个窗口不影响其他窗口，关闭宿主立即停用。任何 InputBoundary 都阻止宿主回退，包括窗口根本身作为边界；需要在模态内执行的动作应登记到该域。
 
@@ -109,3 +109,9 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 桌面测试须串行执行。`tests-cones/input` 还需要真实窗口焦点；macOS 可以拒绝后台进程的 activate 请求，此时在准备期将“Scoop region input”置于前台。测试给帧／焦点准备 30 秒，确认真实焦点后用独立的 5 秒期限验证输入会话，不用强制激活或伪造焦点绕过系统行为。超时会报告阶段、帧数、焦点和输入计数。需要桌面应用入口时，可将 `scoop test --no-run` 的测试可执行文件放入普通 `.app` 包装后从访达启动；无参数直接运行仍执行 scoop.test 的非 ignored 用例，设置 `SCOOP_TEST_RUN_DIR` 可记录原有结构化结果。
 
 复用临时测试应用时，用新文件替换其中的可执行文件，并执行 `codesign --force --sign - /path/Test.app` 更新整个测试应用的本地签名。命令行前台启动可用 `open -n -W ... --args --scoop-test-filter TestClassName` 选择相关用例；以 scoop.test 报告中的实际 case 结束和 complete 为结果，单独的 open 返回成功不表示测试通过。
+
+## Linux GNU
+
+在已准备 GNU sysroot 的图形会话中，使用 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 运行应用及 `scoop test sysroot/src/scoop.surface --release`。Wayland 使用 frame callback 和 EGL swap interval，X11 使用 EGL swap interval；没有帧需求时停止请求，不建立固定刷新定时器。Wayland 的 PendingConfigure 窗口可以先附着，首次 configure 后才取得可绘制目标，隐藏重显同样等待有效配置。
+
+窗口 surface、GPU 工作和 native lease 按关闭顺序释放，同一宿主的窗口共享 GLES context。原始 GPU 资源不能越过借用 display 的生命周期；SurfaceHost 收尾时显式释放该 context 的 native 资源。两种显示协议的真实呈现、像素读回及限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

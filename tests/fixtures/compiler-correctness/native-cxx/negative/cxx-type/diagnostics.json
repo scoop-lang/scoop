@@ -1,7 +1,7 @@
 [
   {
     "code": "SCOOP_PACKAGE_PREPARE",
-    "message": "${work}/cone/Cone.toml: invalid Cone.toml: TOML parse error at line 8, column 7\n  |\n8 | cxx = \"true\"\n  |       ^^^^^^\ninvalid type: string \"true\", expected a boolean\n",
+    "message": "${work}/cone/Cone.toml: invalid Cone.toml: TOML parse error at line 8, column 7\n  |\n8 | cxx = \"true\"\n  |       ^^^^^^\na boolean or a table containing a when condition\n",
     "notes": [],
     "origin": {
       "end": 115,

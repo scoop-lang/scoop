@@ -94,5 +94,5 @@ pub(super) fn libraries(
 }
 
 pub(super) fn cxx(request: &ValidatedSingleConeBuildRequest<'_>) -> bool {
-    matches!(request.current(), ValidatedCurrentConeInput::Manifest { manifest } if manifest.parsed().semantic().native().cxx())
+    matches!(request.current(), ValidatedCurrentConeInput::Manifest { manifest } if manifest.parsed().semantic().native().cxx(request.target().id()))
 }

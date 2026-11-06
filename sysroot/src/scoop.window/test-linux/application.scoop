@@ -1,0 +1,349 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.native.*
+import scoop.tests.window.*
+
+@Test
+private class LinuxApplicationTest {
+    @Test
+    fun `native windows configure resize remap and drain cross-thread leases`() {
+        val app = Application()
+        val handler = LinuxHandler()
+        val proxy = app.proxy()
+        assertTrue(proxy.post { _ -> handler.posts += 1 })
+        val wrong = Thread.start { assertFailsWith<IllegalStateException> { app.run(handler) } }
+        wrong.join()
+        app.run(handler)
+        handler.worker!!.join()
+        handler.releaser!!.join()
+        assertEquals(2, handler.posts)
+        assertEquals(2, handler.closing)
+        assertEquals(2, handler.destroyed)
+        assertEquals(1, handler.exiting)
+        assertEquals(1, handler.deadlines)
+        if (handler.x11) {
+            assertEquals(1, handler.keyDown)
+            assertEquals(1, handler.keyUp)
+            assertEquals("a", handler.text)
+            assertEquals(2, handler.buttons)
+        }
+        assertTrue(handler.redraws >= 3)
+        assertEquals(WindowState.Destroyed, handler.window!!.state)
+        assertFalse(proxy.requestExit())
+        assertFalse(proxy.post { _ -> fail() })
+        assertFailsWith<WindowException> { handler.window!!.setTitle("late") }
+        assertFailsWith<IllegalStateException> { app.run(handler) }
+    }
+}
+
+private class LinuxHandler: ApplicationHandler {
+    val thread = currentThreadId()
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var worker: Thread? = None
+    var releaser: Thread? = None
+    var posts = 0
+    var closing = 0
+    var destroyed = 0
+    var exiting = 0
+    var redraws = 0
+    var deadlines = 0
+    var stage = 0
+    var x11 = false
+    var keyDown = 0
+    var keyUp = 0
+    var buttons = 0
+    var text = ""
+    var inside = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(thread, currentThreadId())
+        assertFalse(inside)
+        inside = true
+        try {
+            when (event) {
+                case Resumed -> start(application)
+                case NewEvents(StartCause.Deadline) -> fail(
+                    Some("Linux window lifecycle timed out")
+                )
+                case Window(identity, WindowEvent.RedrawRequested) -> {
+                    if (identity == window!!.id) {
+                        val value = window!!
+                        assertEquals(WindowState.Open, value.state)
+                        assertTrue(value.metrics!!.physicalSize.isDrawable)
+
+                        redraws += 1
+                        if (stage == 0) {
+                            verifyShortcutLabels(value)
+                            if (x11)
+                                @Unsafe
+                                {
+                                    when (lease!!.handle) {
+                                        case Gtk(native, view) -> assertEquals(
+                                            1,
+                                            sendGtkInput(native, view)
+                                        )
+                                    }
+                                }
+                            stage = 1
+                            assertEquals(
+                                RequestStatus.Requested,
+                                value.requestSize(LogicalSize(360.0, 200.0))
+                            )
+                            value.requestRedraw()
+                        } else
+                            if (
+                                stage ==
+                                    1 &&
+                                    value.metrics!!.logicalSize ==
+                                    LogicalSize(360.0, 200.0)
+                            ) {
+                                stage = 2
+                                verifyTransparency(value)
+                                value.setVisible(false)
+                                value.setVisible(true)
+                                value.requestRedraw()
+                            } else
+                                if (stage == 2) {
+                                    stage = 3
+                                    val timer =
+                                        value.createDeadline {
+                                            deadlines += 1
+                                            application.requestExit()
+                                        }
+                                    timer.schedule(
+                                        MonotonicTimeSource.markNow() + Duration.milliseconds(50L)
+                                    )
+                                }
+                    }
+                }
+                case Window(identity, WindowEvent.Closing) -> {
+                    closing += 1
+                    if (identity == window!!.id) {
+                        val held = lease!!
+                        releaser =
+                            Some(
+                                Thread.start {
+                                    held.close();
+                                    held.close()
+                                }
+                            )
+                    }
+                }
+                case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+                case Window(_, WindowEvent.Keyboard(key)) -> {
+                    assertEquals(PhysicalKey.Code(KeyCode.KeyA), key.physicalKey)
+                    assertEquals(LogicalKey.Character("a"), key.logicalKey)
+                    if (key.state == ElementState.Pressed)
+                        keyDown += 1
+                    else
+                        keyUp += 1
+                }
+                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+                    for (operation in batch.operations)
+                        when (operation) {
+                            case Commit(value, _) -> text += value
+                            else -> fail(Some("ordinary XKB key produced a composition"))
+                        }
+                }
+                case Window(_, WindowEvent.Pointer(event)) -> {
+                    when (event) {
+                        case Button(_, _, _, _) -> buttons += 1
+                        else -> {}
+                    }
+                }
+                case Exiting -> exiting += 1
+                else -> {}
+            }
+        } catch (error: Throwable) {
+            println("Linux window lifecycle stage " + stage.toString())
+            if (error is AssertionFailure) {
+                println(
+                    f"${error.location.file}:${error.location.line}: ${
+                        error.message ?: "assertion"
+                    }"
+                )
+                when (error.expected) {
+                    case Text(value) -> println(f"expected: ${value}")
+                    else -> {}
+                }
+                when (error.actual) {
+                    case Text(value) -> println(f"actual: ${value}")
+                    else -> {}
+                }
+            } else
+                if (error is Exception)
+                    println(error.message ?: "window failure")
+            throw error
+        } finally {
+            inside = false
+        }
+    }
+
+    private fun start(application: ActiveApplication) {
+        val value =
+            application.createWindow(
+                windowAttributes {
+                    title = "Scoop Linux lifecycle"
+                    size = LogicalSize(320.0, 180.0)
+                    visible = false
+                    requestActivation = false
+                }
+            )
+        window = Some(value)
+        assertFalse(value.isVisible)
+        assertEquals(RequestStatus.Unsupported, value.setBlur(true))
+        assertEquals(RequestStatus.Unsupported, value.setContentProtected(true))
+        assertFailsWith<WindowException> {
+            application.createWindow(
+                windowAttributes {
+                    blur = true;
+                    visible = false
+                }
+            )
+        }
+        assertEquals(
+            RequestStatus.Unsupported,
+            value.setSizeConstraints(
+                WindowSizeConstraints(
+                    Some(LogicalSize(100.0, 80.0)),
+                    Some(LogicalSize(640.0, 480.0))
+                )
+            )
+        )
+        assertEquals(
+            RequestStatus.Requested,
+            value.setSizeConstraints(WindowSizeConstraints(Some(LogicalSize(100.0, 80.0)), None))
+        )
+        assertFailsWith<IllegalArgumentException> { value.requestSize(LogicalSize(80.0, 60.0)) }
+        value.setResizable(false);
+        value.setResizable(true)
+        value.setDecorations(false);
+        value.setDecorations(true)
+        value.setCursorVisible(false);
+        value.setCursorVisible(true)
+        value.setTitle("窗口 😀")
+        value.setTransparent(true)
+        value.setTransparent(false)
+        value.setImeAllowed(true);
+        value.setImeAllowed(false)
+        val monitors = application.monitors()
+        assertTrue(monitors.size > 0L)
+        assertTrue(monitors[0L].physicalSize.isDrawable)
+        @Unsafe
+        {
+            val held = value.acquireNativeWindow()
+            lease = Some(held)
+            when (held.handle) {
+                case Gtk(native, view) -> {
+                    x11 = usesX11(native)
+                    assertTrue(native.toULong() != 0uL && view.toULong() != 0uL)
+                    assertEquals(WindowState.PendingConfigure, value.state)
+                    assertEquals(None, value.metrics)
+                    if (!x11) {
+                        assertEquals(None, value.desktopPosition)
+                        assertEquals(None, application.primaryMonitor())
+                        assertEquals(
+                            RequestStatus.Unsupported,
+                            value.requestPosition(DesktopPosition(10.0, 10.0))
+                        )
+                    } else {
+                        application.clipboard.writeText("中文 / 👩‍💻\r\nline\rend")
+                        assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
+                        assertFailsWith<IllegalArgumentException> {
+                            application.clipboard.writeText("rejected\u{0}text")
+                        }
+                        assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
+                        assertTrue(writeNulClipboard(native))
+                        val invalidText =
+                            assertFailsWith<WindowException> { application.clipboard.readText() }
+                        assertEquals(WindowErrorKind.Unsupported, invalidText.kind)
+                        application.clipboard.writeText("")
+                        assertEquals(Some(""), application.clipboard.readText())
+                    }
+                }
+            }
+        }
+        val second =
+            application.createWindow(
+                windowAttributes {
+                    visible = false;
+                    requestActivation = false
+                }
+            )
+        assertNotEquals(value.id, second.id)
+        second.requestDestroy();
+        second.requestDestroy()
+        val proxy = application.proxy()
+        worker =
+            Some(
+                Thread.start {
+                    assertFailsWith<IllegalStateException> { value.setTitle("wrong thread") }
+                    assertTrue(
+                        proxy.post {
+                            _ ->
+                            posts += 1
+                            value.setVisible(true)
+                            value.requestRedraw()
+                        }
+                    )
+                }
+            )
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+    }
+
+    private fun verifyTransparency(value: Window) {
+        @Unsafe
+        {
+            when (lease!!.handle) {
+                case Gtk(native, _) -> {
+                    val expected =
+                        if (x11 && !isComposited(native))
+                            RequestStatus.Unsupported
+                        else
+                            RequestStatus.Applied
+                    assertEquals(expected, value.setTransparent(true))
+                    assertEquals(RequestStatus.Applied, value.setTransparent(false))
+                }
+            }
+        }
+    }
+
+    private fun verifyShortcutLabels(value: Window) {
+        val chord =
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("é")),
+                ShortcutModifiers(primary = true, control = true, shift = true)
+            )
+        val label = value.shortcutLabel(chord)
+        assertEquals(3, label.parts.size)
+        assertEquals("Ctrl", label.parts[0])
+        assertEquals("Shift", label.parts[1])
+        assertEquals("é", label.parts[2])
+        assertEquals("+", label.separator)
+        val enter =
+            value.shortcutLabel(
+                ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.Enter)))
+            )
+        assertEquals(1, enter.parts.size)
+        assertEquals("Enter", enter.parts[0])
+        val letter =
+            value.shortcutLabel(ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyA))))
+        assertEquals(1, letter.parts.size)
+        assertEquals("a", letter.parts[0])
+        Thread.start {
+            assertFailsWith<IllegalStateException> { value.shortcutLabel(chord) }
+            assertEquals(3, label.parts.size)
+            assertEquals("Ctrl", label.parts[0])
+            assertEquals("Shift", label.parts[1])
+            assertEquals("é", label.parts[2])
+        }.use { thread -> thread.join() }
+    }
+}

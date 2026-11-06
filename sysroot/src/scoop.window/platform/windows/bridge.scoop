@@ -24,3 +24,9 @@ private fun nativeHwnd(window: Ptr<Unit>): Ptr<Unit>
 
 @Extern(name = "scoop_window_hinstance")
 private fun nativeHinstance(window: Ptr<Unit>): Ptr<Unit>
+
+@Unsafe
+internal fun platformWindowMetrics(pointer: Ptr<Unit>): WindowMetrics? =
+    Some(nativeWindowSnapshot(pointer).metrics())
+
+internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? = owner.metrics

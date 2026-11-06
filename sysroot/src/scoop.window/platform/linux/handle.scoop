@@ -1,0 +1,6 @@
+package scoop.window.native
+
+/** Borrowed GtkWindow and content container; the lease retains their window and display. */
+public enum NativeWindowHandle {
+    Gtk(val window: Ptr<Unit>, val view: Ptr<Unit>)
+}

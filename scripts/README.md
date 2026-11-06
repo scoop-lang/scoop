@@ -59,6 +59,19 @@ python3 scripts/prepare_sysroot.py \
 
 Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 
+Linux GNU 的 GUI 使用 GTK 4／libadwaita，支持 Wayland 和 X11；窗口标题栏、圆角和阴影由 GTK／libadwaita 绘制，内容仍使用 Skia Ganesh GLES，字体使用 Fontconfig／FreeType。需要 GTK 4.18 以上、libadwaita 1.4 以上，以及 EGL、GLES、Fontconfig、FreeType、zlib、X11 和 xkbcommon 开发包。Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。先准备 GTK 开发资源，再使用固定 vendor 源码构建 Skia：
+
+```sh
+python3 scripts/prepare_gtk.py --build-dir ../scoop-work/gtk/x86_64-unknown-linux-gnu
+python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
+  --build-dir ../scoop-work/skia/x86_64-unknown-linux-gnu --gn /path/to/gn \
+  --cc /path/to/llvm/bin/clang --cxx /path/to/llvm/bin/clang++
+```
+
+`prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和六个链接输入放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU target 组件包含开发资源及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
+
+随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，收集静态库和头文件；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
+
 `--sysroot` 默认为仓库的 `sysroot`，`--runtime-root` 默认为仓库的 `runtime`；可显式选择 `--cache-dir`、`--scoopc` 和现有 native 工具参数。维护脚本默认将工作目录放在仓库已忽略的 `tmp` 下，避免占用 HOME 所在磁盘；也可显式指定其他磁盘。构建缓存、中间产物和辅助程序的 Rust target 目录保存在工作目录或显式 `CARGO_TARGET_DIR`，不要选择绝对路径 `/tmp`。目标输出为 `sysroot/lib/<triple>`，公开头文件为 `sysroot/include`。
 
 脚本读取 `src/*/Cone.toml` 的生产依赖确定顺序，逐个执行普通 release library 构建；测试源码不进入发布库，各库的 lock 保存到工作目录的 `locks/`，不写入随包源码。`runtime_builder` 是独立于 Cargo 主 workspace 的脚本内部辅助程序，复用已有的 O2 runtime 编译与索引实现，不安装到发行包的 `bin`。准备过程不重新读取对象以核对摘要或复验产物；重复运行使用已有构建记录，输入发生变化时更新对应结果。runtime 与公开头文件先复制完整输出，再替换准备目录；复制失败保留原目录。
@@ -94,6 +107,8 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 开发与发行 sysroot 均准备 `runtime`、`runtime-stress`、`runtime-startup-stats`、`runtime-stress-startup-stats` 四组目标 runtime，每组包含 `index.cbor`。默认构建使用 `runtime`，不编入 GC stress 或启动统计支持；`scoop --enable-gc-stress build/run/test/link` 选择 stress 配置，随后由 `SCOOP_GC_STRESS_MOVE` / `SCOOP_GC_STRESS_MINOR` 决定运行时是否开启。`--enable-startup-stats` 独立选择启动统计配置，编入后每次启动直接向 stderr 输出记录；未传时预处理完全排除计时和报告代码。两个开关可以组合，独立 `scoop-link` 同样支持。普通 fixtures 不传这些开关，相关专测显式选择。旧 schema 6 runtime 索引需要重新准备，`.slib` 和 runtime ABI 不变。
 
 `package_toolchain.py` 是发行组件包的唯一入口：取得固定 LLVM 输入、按 lockfile 构建 VS Code 扩展、构建 LLVM、五个 release 宿主命令与独立的 scoop-example、准备该宿主支持的全部 native／runtime 资源，并用本次编译器为各发行目标构建系统库 `.slib`，随包复制内置 Cone 源码、vendor、Scoop 编程 skill 和 post-install 脚本，最后按宿主／目标／全局维度生成下述五类组件归档。打包不生成 API 文档；文档由安装后的配套工具现场生成。无需事先逐个执行其他准备或扩展打包脚本。默认工作位置为 `tmp/package/<host>`，全部归档集中于以版本命名的 `tmp/dist/scoop-<version>/`；用 `--work-dir`、`--output-dir` 可选择外置盘目录。脚本不自动运行测试。
+
+Linux GNU 的 native 与系统库默认使用本次准备或通过 `--llvm-prefix` 选择的 LLVM Clang；GUI 的 native 警告选项要求 Clang。`--gnu-cc` 仍可显式覆盖编译器。musl 使用自己的 `--musl-cc`，不会复用 GNU Clang 配置。
 
 已显式准备的系统资源可通过 `--prepared-sysroot <目录>` 直接组装，跳过 native 后端与 runtime 的重复构建；宿主命令、示例与归档仍走同一流程。该目录应包含本宿主交付的各目标 native／runtime 资源、源码、vendor 和头文件，并包含各目标已经构建的系统 `.slib`；这些 `.slib` 打进对应 target 的 `lib-<target>` 组件包。缺失文件按普通 I/O 报错，不加入生产过程复核。
 
@@ -159,7 +174,7 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 
 Windows 的宿主 DLL 分别放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；两个 MinGW prefix 保留自身的 DLL 和目录关系。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
 
-打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（本 release 为该 host 提供的目标，默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的文档生成直接读取。只有 Darwin 源码的窗口 Cone 因此不进入 Linux 目标清单，不需要空后端。
+打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（本 release 为该 host 提供的目标，默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的文档生成直接读取。Linux GNU 的 GUI Cone 进入 GNU 清单，未提供 musl 源码的 GUI Cone 不进入 musl 清单，不需要空后端。
 
 post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，以 `--no-deps --deny-doc-warnings` 为所选目标生成共同站点。嵌套测试／辅助 Cone 不进入发行清单。工作目录下的 `doc-target` 和普通 `cache` 保留中间结果；文档直接生成到安装根的 `docs/<target>`，保留普通文档更新记录，重复执行复用未变化的文档。文档失败使本次 post-install 返回非零状态，不将失败报告为安装成功。
 

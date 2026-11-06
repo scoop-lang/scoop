@@ -55,18 +55,13 @@ pub(in crate::program::native) fn candidate(
         }
     }
     if explicit.is_none()
-        && let crate::namespace::NativeNamespace::Elf(namespace) = &inputs.namespace
-        && namespace.system.contains_key(symbol)
-        && !namespace
-            .system_interfaces
-            .values()
-            .any(|interface| interface.find(symbol, None).is_some())
+        && matches!(inputs.namespace, crate::namespace::NativeNamespace::Elf(_))
         && candidates.iter().any(|(candidate, binding)| {
-            *binding == NativeSymbolBinding::Strong && !system_candidate(candidate)
+            *binding == NativeSymbolBinding::Strong && matches!(candidate, Candidate::Object(_))
         })
     {
-        // Toolchain archives follow explicit inputs and only supply missing
-        // definitions, including arithmetic builtins bundled by Rust staticlibs.
+        // Object definitions precede toolchain archive fallbacks and interpose
+        // shared runtime exports, including Rust staticlib arithmetic builtins.
         candidates.retain(|(candidate, _)| !system_candidate(candidate));
     }
     choose(symbol, candidates, inputs.target.native_object_format())?.or_else(|| {

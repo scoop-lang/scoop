@@ -21,6 +21,8 @@ Windows 不依赖外置 `icudtl.dat`；将同一 ICU common 数据通过上游�
 
 Windows 同一入口将 Metal 换为 Ganesh Direct3D 12，字体使用 DirectWrite；其他启用模块相同。三个完整 Windows target 使用各自的 `--cc`（Microsoft 为 clang-cl，MinGW 为相应 CRT prefix 的 clang），C++ driver 从同一目录选择或通过 `--cxx` 指定。Microsoft 构建在匹配发行配置的 x64 MSVC／Windows SDK 开发环境运行。各 target 使用独立 build-dir，输出仍为目标目录中的 `libscoop_skia.a`，格式为包含对应 COFF 对象的普通 archive。
 
+Linux GNU 同一入口启用 Ganesh GL，限定 GLES，并使用 EGL；字体使用系统 Fontconfig／FreeType，保留相同的段落、ICU、PathOps 和 codec 模块。需要 GN、Ninja、Clang／Clang++、llvm-ar、pkg-config 及这些系统库的开发头文件；`--cc`／`--cxx` 可指定本地 LLVM 工具。输出为 ELF 对象组成的 `libscoop_skia.a`，同时服务 Wayland 和 X11；不会应用 Darwin 部署或 Windows 平台补丁。musl 目标不提供此 GUI 资源。
+
 Darwin ARM64 与 x86_64 分别在独立工作目录构建。部署目标和 CPU 来自 `scripts/release.toml`；SDK 默认使用当前 Xcode 的 macosx，也可用 `--sdk` 显式选择。`patches/macos-deployment.patch` 将 Skia 硬编码的 macOS 11 target 改为 GN 参数，让 C++／Objective-C++ 与 C／assembly 使用同一部署版本。没有屏蔽 SDK 可用性错误。
 
 `patches/text-baselines.patch` 修正 SkParagraph 的公共基线与实际绘制坐标差异，并让同一行的 ideographic placeholder 使用计入对象高度前确定的文字基线距离。对象改变行高时仍共用同一参照，不因前一个对象的高度改变后一个对象的基线。补丁在公共文本层生效，Scoop 和 UI 无需移动已排好的对象作补偿；回归归属 graphics.text 的 scoop.test，平台验证范围见 [UI 实施记录](../../../docs/ui/PROGRESS.md)。

@@ -1,0 +1,16 @@
+package scoop.tests.window
+
+/** Identifies the display protocol of the leased GTK window. */
+@Extern(name = "scoop_test_gtk_x11")
+public fun usesX11(window: Ptr<Unit>): Boolean
+
+/** Delivers X11 protocol events to the test's GTK content widget. These are synthesized input. */
+@Extern(name = "scoop_test_gtk_input")
+public fun sendGtkInput(window: Ptr<Unit>, view: Ptr<Unit>): Int
+
+/** Whether the display has the compositor required for a transparent GTK window. */
+@Extern(name = "scoop_test_gtk_composited")
+public fun isComposited(window: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_test_gtk_clipboard_nul")
+public fun writeNulClipboard(window: Ptr<Unit>): Boolean

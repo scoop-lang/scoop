@@ -1,0 +1,89 @@
+package scoop.tests.surface.errors
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class LinuxSurfaceErrorTest {
+    @Test
+    fun `a failing GLES painter drains visible and pending surfaces and preserves cleanup errors`() {
+        val application = Application()
+        val primary = IllegalArgumentException(Some("GLES painter failed"))
+        val firstCleanup = IllegalStateException(Some("visible content cleanup failed"))
+        val secondCleanup = IllegalStateException(Some("hidden content cleanup failed"))
+        val windows = ArrayList<Window>()
+        val contents = ArrayList<FailingContent>()
+        val paints = ArrayList<Unit>()
+        val host =
+            SurfaceHost {
+                owner,
+                active,
+                event -> when (event) {
+                    case Resumed -> {
+                        val visible =
+                            active.createWindow(
+                                windowAttributes {
+                                    title = "Scoop Linux failing painter"
+                                    size = LogicalSize(240.0, 120.0)
+                                }
+                            )
+                        val hidden = active.createWindow(windowAttributes { this.visible = false })
+                        windows.add(visible)
+                        windows.add(hidden)
+                        val first =
+                            FailingContent(firstCleanup) {
+                                frame ->
+                                paints.add(Unit)
+                                frame.canvas.saveLayer(0.5)
+                                frame.canvas.clear(Color.White)
+                                throw primary
+                            }
+                        val second = FailingContent(secondCleanup) { _ -> fail() }
+                        contents.add(first)
+                        contents.add(second)
+                        owner.attach(visible, first)
+                        owner.attach(hidden, second)
+                        val rejectedCleanup = IllegalStateException(Some("rejected cleanup failed"))
+                        val rejected = FailingContent(rejectedCleanup) { _ -> fail() }
+                        val failure =
+                            assertFailsWith<ResourceUseException> {
+                                owner.attach(visible, rejected)
+                            }
+                        assertTrue(containsFailure(failure, rejectedCleanup))
+                        assertEquals(1, rejected.closeCalls)
+                        assertTrue(rejected.image.isClosed)
+                        active.setControlFlow(
+                            ControlFlow.WaitUntil(
+                                MonotonicTimeSource.markNow() + Duration.seconds(5L)
+                            )
+                        )
+                    }
+                    case NewEvents(StartCause.Deadline) -> fail(
+                        Some("GLES error cleanup timed out")
+                    )
+                    else -> {}
+                }
+            }
+        try {
+            val error = assertFailsWith<ResourceUseException> { application.run(host) }
+            assertTrue(containsFailure(error, primary))
+            assertTrue(containsFailure(error, firstCleanup))
+            assertTrue(containsFailure(error, secondCleanup))
+            assertEquals(1L, paints.size)
+            assertTrue(host.isClosed)
+            for (window in windows)
+                assertEquals(WindowState.Destroyed, window.state)
+            for (content in contents) {
+                assertEquals(1, content.closeCalls)
+                assertTrue(content.image.isClosed)
+            }
+            assertFalse(application.proxy().post { _ -> fail() })
+        } finally {
+            host.close()
+        }
+    }
+}

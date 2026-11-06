@@ -237,7 +237,7 @@ private fun showcaseFields(
                     placeholder = "Add a note"
                     rows = 3L
                     this.enabled = enabled
-                    description = "Enter adds a line. ⌘Enter submits."
+                    description = "Enter adds a line. Ctrl+Enter (⌘Enter on macOS) submits."
                     this.onSubmit = { _ -> onSubmit() }
                 }
             }

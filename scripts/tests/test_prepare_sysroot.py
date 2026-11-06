@@ -79,6 +79,14 @@ class SysrootSelectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "scoop:scoop.window has no source Cone"):
                 cone_order(root, root, LINUX)
 
+    def test_repository_graph_is_complete_for_every_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            for target in TARGET_FACTS:
+                with self.subTest(target=target):
+                    order = cone_order(prepare_sysroot.ROOT / "sysroot", work, target)
+                    self.assertIn("scoop.core", order)
+
     def test_conditions_and_empty_selection_keep_compiler_responsibility(self):
         self.assertTrue(has_target_sources({}, LINUX))
         self.assertTrue(has_target_sources({"sources": []}, LINUX))

@@ -1,0 +1,20 @@
+package scoop.tests.surface
+
+import scoop.graphics.*
+import scoop.graphics.native.*
+
+/** Reads the actual Ganesh canvas, synchronizing its GPU work at this explicit test readback. */
+public fun sampleCanvasPixel(canvas: Canvas, x: Int, y: Int): ULong {
+    @Unsafe
+    {
+        return canvas.withSkiaCanvas {
+            pointer -> @Unsafe
+            {
+                return@withSkiaCanvas pixel(pointer, x, y)
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_surface_test_canvas_pixel")
+private fun pixel(canvas: Ptr<Unit>, x: Int, y: Int): ULong

@@ -108,6 +108,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
                     )
                     1 -> TextInputOperation.Commit(text, replacement)
                     2 -> TextInputOperation.ClearPreedit
+                    3 -> TextInputOperation.DeleteSurrounding(edit.anchor, edit.cursor)
                     else -> throw WindowException(
                         "unknown native text operation",
                         WindowErrorKind.NativeFailure

@@ -4,7 +4,7 @@
 
 弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。
 
-2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已实施到 Sidebar，实际交付见[组件实施记录](shadcn/PROGRESS.md)：扩展现有 component 并新增独立 shadcn 主题，目标覆盖排除 Code Block／Native Select 后的 64 项。Windows／Linux native 和 accessibility 继续按独立工作推进。
+2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。Linux GNU 已通过 Wayland／X11 对接这些公共合同，范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已实施到 Sidebar，实际交付见[组件实施记录](shadcn/PROGRESS.md)：扩展现有 component 并新增独立 shadcn 主题，目标覆盖排除 Code Block／Native Select 后的 64 项。Windows native 和 accessibility 继续按独立工作推进。
 
 2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-完整布局与更新合同汇总)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 

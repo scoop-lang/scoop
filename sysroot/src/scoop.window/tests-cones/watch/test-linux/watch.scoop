@@ -1,0 +1,130 @@
+package scoop.tests.window.watch
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class LinuxWatchTest {
+    @Test
+    fun `readable watch stays idle and retires its ready snapshot before completing removal`() {
+        @Unsafe
+        {
+            val descriptor = createEvent()
+            assertTrue(descriptor >= 0)
+            try {
+                val handler = LinuxWatchHandler(descriptor)
+                Application().runAttached(handler) {
+                    host ->
+                    val attachment = LinuxWatchAttachment(host, descriptor)
+                    handler.attachment = Some(attachment)
+                    attachment.install()
+                    attachment
+                }
+                val attachment = handler.attachment!!
+                assertEquals(2, attachment.ready)
+                assertEquals(1, attachment.removed)
+                assertEquals(1, attachment.closeRequests)
+                assertEquals(2, handler.batches)
+                // Neither readiness dispatch nor removal reads or closes the borrowed fd.
+                assertEquals(2L, takeEvent(descriptor))
+                assertEquals(-11L, takeEvent(descriptor))
+            } finally {
+                assertEquals(0, closeEvent(descriptor))
+            }
+        }
+    }
+}
+
+private class LinuxWatchAttachment(
+    val host: ApplicationHost,
+    val descriptor: Int
+): ApplicationAttachment {
+    var watch: ApplicationWatch? = None
+    var ready = 0
+    var removed = 0
+    var closeRequests = 0
+    var active = false
+    fun install() {
+        @Unsafe
+        {
+            watch = Some(host.watchReadable(descriptor) { onReady() })
+        }
+        assertEquals(0, ready)
+    }
+    public override fun post(block: () -> Unit): Boolean = host.postControl(block)
+    public override fun requestClose() {
+        closeRequests += 1
+        watch!!.remove { retired() }
+    }
+    private fun retired() {
+        assertFalse(active)
+        removed += 1
+        host.complete(None)
+    }
+    private fun onReady() {
+        assertTrue(host.isCurrentThread())
+        assertFalse(active)
+        active = true
+        try {
+            ready += 1
+            @Unsafe
+            {
+                if (ready == 1) {
+                    assertEquals(1L, takeEvent(descriptor))
+                    assertTrue(
+                        host.postControl {
+                            @Unsafe
+                            {
+                                assertEquals(0, signalEvent(descriptor))
+                            }
+                        }
+                    )
+                } else {
+                    watch!!.remove { retired() }
+                    watch!!.remove { fail(Some("duplicate remove completion")) }
+                    assertEquals(0, removed)
+                    assertEquals(0, signalEvent(descriptor))
+                    host.requestExit()
+                }
+            }
+        } finally {
+            active = false
+        }
+    }
+}
+
+private class LinuxWatchHandler(val descriptor: Int): ApplicationHandler {
+    var attachment: LinuxWatchAttachment? = None
+    var batches = 0
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> application.setControlFlow(
+                ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+            )
+            case NewEvents(StartCause.Deadline) -> {
+                application.setControlFlow(ControlFlow.Wait)
+                @Unsafe
+                {
+                    assertEquals(0, signalEvent(descriptor))
+                }
+            }
+            case AboutToWait -> batches += 1
+            else -> {}
+        }
+    }
+}
+
+@Extern(name = "scoop_test_watch_event")
+private fun createEvent(): Int
+
+@Extern(name = "scoop_test_watch_signal")
+private fun signalEvent(descriptor: Int): Int
+
+@Extern(name = "scoop_test_watch_take")
+private fun takeEvent(descriptor: Int): Long
+
+@Extern(name = "scoop_test_watch_close")
+private fun closeEvent(descriptor: Int): Int

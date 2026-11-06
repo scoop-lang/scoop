@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -29,7 +30,9 @@ from target_catalog import native_configuration
 
 REVISION = "f326a1e25fc736704063922b9ce76b527b1c5efe"
 TARGETS = tuple(
-    name for name, target in CATALOG_TARGETS.items() if target["os"] in {"darwin", "windows"}
+    name
+    for name, target in CATALOG_TARGETS.items()
+    if target["os"] in {"darwin", "windows"} or target["native_environment"] == "LinuxGnu"
 )
 LIBRARY = "libscoop_skia.a"
 PACKAGES = (
@@ -106,8 +109,18 @@ def prepare(args):
     vendor = ROOT / "sysroot/vendor/skia"
     target_configuration = native_configuration(args.target)
     windows = target_configuration["os"] == "windows"
+    linux = target_configuration["os"] == "linux"
+    platform_patch = (
+        []
+        if linux
+        else [
+            vendor
+            / "patches"
+            / ("windows-toolchain.patch" if windows else "macos-deployment.patch")
+        ]
+    )
     patches = [
-        vendor / "patches" / ("windows-toolchain.patch" if windows else "macos-deployment.patch"),
+        *platform_patch,
         vendor / "patches/text-baselines.patch",
         vendor / "patches/graphics-pathops.patch",
     ]
@@ -160,6 +173,8 @@ def prepare(args):
     release = tomllib.loads(RELEASE_CONFIG.read_text())["targets"][args.target]
     if windows:
         platform_options, platform_tools = build_skia_windows.configuration(args, release)
+    elif linux:
+        platform_options, platform_tools = linux_configuration(args, release)
     else:
         platform_options, platform_tools = darwin_configuration(args, release)
     source = args.build_dir / "source"
@@ -199,6 +214,18 @@ def prepare(args):
         build_skia_windows.combine(
             args, objects, staged, (*ARCHIVES, *build_skia_windows.ARCHIVES), platform_tools[-1]
         )
+    elif linux:
+        staged.unlink(missing_ok=True)
+        subprocess.run(
+            [
+                platform_tools[-1],
+                "qcL",
+                str(staged),
+                *(str(objects / f"lib{name}.a") for name in ARCHIVES),
+            ],
+            check=True,
+        )
+        subprocess.run([platform_tools[-1], "s", str(staged)], check=True)
     else:
         subprocess.run(
             [
@@ -225,6 +252,36 @@ def prepare(args):
     temporary.replace(args.prefix / LIBRARY)
     save_record(record, inputs, objects, tools=[*tools, *platform_tools])
     print(f"Prepared {args.target} Skia {REVISION}: {args.prefix}", flush=True)
+
+
+def linux_configuration(args, release):
+    cc = shutil.which(args.cc or "clang")
+    cxx = shutil.which(args.cxx or (str(Path(cc).with_name("clang++")) if cc else "clang++"))
+    ar = shutil.which(str(Path(cc).with_name("llvm-ar"))) if cc else None
+    pkg_config = shutil.which("pkg-config")
+    if not all((cc, cxx, ar, pkg_config)):
+        raise ValueError("Linux Skia preparation requires Clang, clang++, llvm-ar and pkg-config")
+    flags = shlex.split(
+        subprocess.check_output(
+            [pkg_config, "--cflags", "fontconfig", "freetype2", "egl", "glesv2"], text=True
+        )
+    )
+    architecture = native_configuration(args.target)["arch"]
+    return {
+        "target_os": "linux",
+        "target_cpu": gn_cpu(architecture),
+        "cc": cc,
+        "cxx": cxx,
+        "ar": ar,
+        "skia_use_metal": False,
+        "skia_use_gl": True,
+        "skia_use_egl": True,
+        "skia_gl_standard": "gles",
+        "skia_use_fontconfig": True,
+        "skia_use_freetype": True,
+        "skia_use_system_freetype2": True,
+        "extra_cflags": [*flags, cpu_flag(architecture, release["cpu"]), "-fPIC"],
+    }, [cc, cxx, pkg_config, ar]
 
 
 def darwin_configuration(args, release):
@@ -264,7 +321,9 @@ def main():
     parser.add_argument("--sdk", default="macosx")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 6))
     args = parser.parse_args()
-    host = {"darwin": "Darwin", "windows": "Windows"}[native_configuration(args.target)["os"]]
+    host = {"darwin": "Darwin", "windows": "Windows", "linux": "Linux"}[
+        native_configuration(args.target)["os"]
+    ]
     if platform.system() != host:
         parser.error(f"prepare {args.target} Skia resources on a {host} host")
     if args.jobs < 1:

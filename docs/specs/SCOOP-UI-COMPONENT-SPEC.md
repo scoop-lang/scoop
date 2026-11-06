@@ -27,7 +27,7 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 框架决定挂载身份、树的更新和生命周期；[公共样式库](SCOOP-UI-STYLE-SPEC.md)提供装饰与效果应用，本库决定控件外观、文字输入与裁剪策略、点击语义、布局算法及默认样式。公共文本模型、样式继承、shaping 和行内对象排版由 graphics.text 完成，段落与子组件的测量／缓存适配使用 scoop.ui.text；路径绘制、帧呈现和动画求值继续由 graphics／surface 完成。第一期控件全部自绘，不嵌入原生 Label／Button。
 
-首期与 UI 框架相同，先在 macOS aarch64 完成实现与验证，最后统一补验 x86_64；Windows 接入后续单独推进。普通控件测试使用本 Cone 的 scoop.test，实施记录见 [UI 实施记录](../ui/PROGRESS.md)。
+公共控件实现覆盖 macOS 与 Linux GNU。Linux 的 Wayland／X11 共用相同的布局、交互、主题和文本编辑组件，由 window／surface 提供平台输入与 GLES 呈现；编辑快捷键遵守 UI 规范中的 Linux Ctrl 约定。Windows 接入后续单独推进。普通控件测试使用本 Cone 的 scoop.test，原有 macOS 范围见 [UI 实施记录](../ui/PROGRESS.md)，Linux 范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。
 
 Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 所需能力的扩充设计见[基础交互能力设计](../ui/foundations/DESIGN.md)。各项按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收，当前公开合同以本文件及 UI 规范为准；Code Block 不在本次扩充设计范围内。
 

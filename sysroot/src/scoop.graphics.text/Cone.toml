@@ -83,6 +83,14 @@ when = { os = "darwin" }
 name = "dwrite"
 when = { os = "windows" }
 
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/fonts.cpp"
+when = { os = "linux", env = "gnu" }
+
 [[native.libraries]]
 name = "uuid"
 when = { os = "windows" }

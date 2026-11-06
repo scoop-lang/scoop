@@ -1,0 +1,68 @@
+package scoop.tests.surface.initialFocus
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class InitialFocusTest {
+    @Test
+    fun `initial OS focus activates a placed input area without refocusing the window`() {
+        val application = Application()
+        val content = FocusContent()
+        SurfaceHost {
+            host,
+            active,
+            event -> when (event) {
+                case Resumed -> {
+                    val native =
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop initial input focus"
+                                size = LogicalSize(480.0, 240.0)
+                            }
+                        )
+                    content.window = Some(native)
+                    val surface = host.attach(native, content)
+                    content.area = Some(surface.createArea(focusable = true))
+                    native.requestFocus()
+                    native.createDeadline {
+                        fail(Some("initial OS focus did not activate the input area"))
+                    }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                }
+                case AboutToWait -> {
+                    if (content.painted) {
+                        val area = content.area!!
+                        assertTrue(area.requestFocus())
+                        if (content.window!!.isFocused && area.isFocusActive) {
+                            content.finished = true
+                            active.requestExit()
+                        }
+                    }
+                }
+                else -> {}
+            }
+        }.use { host -> application.run(host) }
+        assertTrue(content.finished)
+        assertTrue(content.closed)
+    }
+}
+
+private class FocusContent: SurfaceContent {
+    var window: Window? = None
+    var finished = false
+    var area: InputArea? = None
+    var painted = false
+    var closed = false
+    public override fun paint(frame: FrameContext) {
+        frame.canvas.clear(Color.White)
+        frame.place(area!!, Rect(0.0, 0.0, 120.0, 48.0))
+        painted = true
+    }
+    public override fun close() {
+        closed = true
+    }
+}
