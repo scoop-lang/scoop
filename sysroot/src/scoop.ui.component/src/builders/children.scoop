@@ -45,6 +45,97 @@ import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun bubble(content: String, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(conversationText(content), configure))
+    }
+    public fun bubble(content: StyledText, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(conversationText(content), configure))
+    }
+    public fun bubble(content: View, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(ButtonContent.Custom(content), configure))
+    }
+    public fun bubble(
+        content: (ActionContentStyle) -> View,
+        configure: BubbleBuilder.() -> Unit = {}
+    ) {
+        add(makeBubble(ButtonContent.Resolved(content), configure))
+    }
+    public fun marker(content: String, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(conversationText(content), configure))
+    }
+    public fun marker(content: StyledText, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(conversationText(content), configure))
+    }
+    public fun marker(content: View, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(ButtonContent.Custom(content), configure))
+    }
+    public fun marker(
+        content: (ActionContentStyle) -> View,
+        configure: MarkerBuilder.() -> Unit = {}
+    ) {
+        add(makeMarker(ButtonContent.Resolved(content), configure))
+    }
+    public fun traceLine(content: String, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(conversationText(content), configure))
+    }
+    public fun traceLine(content: StyledText, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(conversationText(content), configure))
+    }
+    public fun traceLine(content: View, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(ButtonContent.Custom(content), configure))
+    }
+    public fun traceLine(
+        content: (ActionContentStyle) -> View,
+        configure: TraceLineBuilder.() -> Unit = {}
+    ) {
+        add(makeTraceLine(ButtonContent.Resolved(content), configure))
+    }
+    public fun attachment(content: String, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(conversationText(content), configure))
+    }
+    public fun attachment(content: StyledText, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(conversationText(content), configure))
+    }
+    public fun attachment(content: View, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(ButtonContent.Custom(content), configure))
+    }
+    public fun message(content: View, configure: MessageBuilder.() -> Unit = {}) {
+        add(makeMessage({ _ -> content }, configure))
+    }
+    public fun message(
+        content: (MessageAlignment) -> View,
+        configure: MessageBuilder.() -> Unit = {}
+    ) {
+        add(makeMessage(content, configure))
+    }
+    public fun trace(title: String, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(conversationText(title), content, configure))
+    }
+    public fun trace(title: StyledText, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(conversationText(title), content, configure))
+    }
+    public fun trace(title: View, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(ButtonContent.Custom(title), content, configure))
+    }
+    public fun bubbleGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun messageGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun traceGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun attachmentGroup(configure: AttachmentGroupBuilder.() -> Unit) {
+        add(makeAttachmentGroup(None, configure))
+    }
+    public fun attachmentGroup(
+        source: ItemSource,
+        configure: AttachmentGroupBuilder.() -> Unit = {}
+    ) {
+        add(makeAttachmentGroup(Some(source), configure))
+    }
+
     public fun messageScroller(
         source: TranscriptSource,
         state: MessageScrollState,

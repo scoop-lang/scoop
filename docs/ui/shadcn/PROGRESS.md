@@ -2,7 +2,7 @@
 
 当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
-2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6、P7 及 P8a MessageScroller 随后按新协议交付，累计 **58／64**；继续 P8 的会话展示组件与 Questionnaire。整改本身不增加组件目录完成数。
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6、P7、P8a MessageScroller 及 P8b 会话展示组件随后按新协议交付，累计 **63／64**；继续 Questionnaire 与 P9 组合验收。整改本身不增加组件目录完成数。
 
 ## P0a：完整配色与主题
 
@@ -319,3 +319,10 @@
 - VirtualList 增加显式尾部留白与 FillViewport，当前布局先根据实际内容、请求位置和视口求留白，再限制滚动范围；窗口变高、正文缩短仍保持回合起点。读取快照只发布 Accepted 几何，Discarded、零尺寸和卸载不能更新可交互位置；迟到请求不会重新接入已卸载视图，静止后不持续请求帧。
 - macOS aarch64 release：**4 项模型测试、44 阶段 MessageScroller 原生窗口测试及既有 29 阶段 VariableList 回归通过**。覆盖流式追加、历史插入、真实指针／中文 IME、选择与边界恢复、宽窄／RTL／高度变化、初始隐藏准备、空数据、目标替换、禁用／零尺寸、失败帧、卸载和停帧。组件、独立实窗与 Gallery 格式／静态检查及生产构建通过。修复输入观察缺少 capture handler、视口变高时提前夹取滚动范围，以及零尺寸输入域仍启用的问题。
 - Gallery 实查新回合、真实异步流式文字／延迟图片、向上阅读、历史插入、保存／恢复、空内容、窄宽、System／Neutral、明暗、RTL 和中文输入完整焦点环；示例任务取消以当前任务修订号收尾。累计 **58／64**，继续 Attachment、Bubble、Marker、Message、Trace 与 Questionnaire。验收原始资料留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P8b：Bubble／Message／Marker／Attachment／Trace
+
+- Bubble 完成七种变体、逻辑对齐、宽度限制、上下反应和独立操作；Message 按正文底部对齐头像，标题／页脚使用各自实际尺寸。纯展示退出 Tab 顺序，可点击表面保留同一正文实例，整组禁用涵盖反应和子动作；默认及自定义外扩焦点环均纳入布局。
+- Attachment 完成五种状态、三种尺寸、横向／竖向、借用图片和独立动作；媒体区域直接接收实际方形约束，图片 Cover 填满、图标居中，裁剪不影响外部焦点环。AttachmentGroup 复用 Carousel，支持横向滚轮、吸附、键盘、RTL 和边缘渐隐。Marker 完成普通／下边框／分隔线；Trace 支持四种状态、独立行、受控／自有展开、手动选择保持及嵌套编辑。可见动画复用现有时钟，隐藏、禁用、停止和卸载后停帧。
+- macOS aarch64 release：**4 项模型测试与 68 阶段原生窗口测试通过**，覆盖真实指针／中文 IME、Tab 顺序、整组禁用、可选区域与编辑身份、7 像素外扩焦点环、图片实际填充像素、附件滚动、受控展开拒绝、密度／RTL、零尺寸、阅读保持和卸载。组件、独立实窗与 Gallery 格式／静态检查及生产构建通过；媒体修正后只重跑受影响的原生测试与 Gallery。
+- Gallery 实查五个页面、宽窄、System／Neutral、明暗／RTL、中文草稿和完整焦点环、独立反应、图片状态、Trace 的 Dialog／Sheet 组合。闭合媒体插槽放松紧约束导致的留白；测试等候条件与像素通道解释也已修正并复验。累计 **63／64**，剩余 Questionnaire 与 P9。原始验收资料留在仓库外，清理本轮临时脚本、锁、试验包装与窗口，保留共享缓存、生产库、Gallery、测试产物和下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

@@ -1093,3 +1093,31 @@ scrollToMessage(key, alignment)、scrollToStart、scrollToEnd、restore(VirtualR
 reading、visibleKeys、currentAnchor、atStart／atEnd 来自完整可见场景的 Accepted 结果；可见 key 排除 overscan 和末端留白，currentAnchor 由该位置对应的来源索引查询。隐藏的初始定位帧和 Discarded 不作为已读事实。持久化只保存 ViewKey／项内偏移等普通数据，不序列化 View、挂载实例或段落。调用方可独立观察 ScrollState 意图；作用域管理订阅、默认字体、焦点及帧完成资源。
 
 MessageScrollerBuilder 提供 itemExtent（默认 Variable(160)）、spacing（默认 24）、overscan、width／height（默认高度 480）、scrollbar、enabled、focus、theme、controls 和 placeholder；所有长度随正文密度解析。正文按 source 按需构造，controls 位于独立的视口覆盖层，可使用 messageScrollButton 的 Start／End 动作或自定义 View。无可跳转内容时默认按钮不加入输入或 Tab；未呈现、禁用或零尺寸视口的整个正文作用域不接受焦点和输入，恢复可用尺寸后按原模型继续。文字选择、编辑器、链接及弹层继续使用原有组件。验收先用真实窗口覆盖短／长回合、流式增高、历史 prepend、阅读／选择中断、明确跳转／恢复、初始与空来源、变宽／变高、RTL、零尺寸、卸载和静止停帧，再扩展会话展示家族。
+
+## 48. Bubble、Message 与 Marker
+
+三者接收普通 View、String／StyledText 或显式的内容样式工厂，不解释消息角色或协议。BubbleVariant 为 Default／Secondary／Muted／Tinted／Outline／Ghost／Destructive；普通气泡按父级有限宽度的 80% 限宽，Ghost 默认 100%，无界约束使用自然宽度。MessageAlignment.Start／End 按布局方向定位，不镜像图像或文字内部坐标。局部 maxWidthFraction、style、字体、主题和焦点配置可覆盖默认值。气泡正文、反应区和附加动作保持各自稳定槽位，改变变体／方向／尺寸不重挂载正文。
+
+Bubble 默认表面内边距 12／8、圆角 12；Ghost 无背景、圆角和正文内边距。Tinted 使用 primary 的 Oklab 色相与 40% 色度，明／暗亮度 0.93／0.30，悬停使用 50% 色度和 0.88／0.35 亮度。其余变体直接使用语义颜色对；自定义内容工厂取得最终文字／图标前景。可操作正文复用 Press 和原有表面 painter，未声明动作时没有额外 Tab 目标；动作增删保留正文实例，嵌套动作不会再触发外层动作。
+
+BubbleReactions 指定 Top／Bottom 与 Start／End，默认 Bottom／End，以正文边缘为锚点外移其高度的 3/4。反应区本身使用 muted 胶囊和 card 分隔环；外伸及 focusOutset 纳入整个气泡的实际布局范围，窄宽时收缩到父级范围。反应动作与正文动作是独立兄弟目标；enabled=false 同时停用正文、反应区和附加动作的输入。bubbleGroup 与 messageGroup 以稳定 View key 组合连续内容，默认间距 8。
+
+Message 组合 avatar、header、正文和 footer；头像对齐正文底边，footer 按实际高度排在正文下方，不能用固定负偏移模拟。起终侧翻转头像与正文的顺序；header／footer 默认 12 字号、500 字重、muted 前景和逻辑两侧 12 留白。正文可用接收 MessageAlignment 的工厂把对齐传给 Bubble 等子部件，普通不透明 View 不做递归属性注入；captionInset 可明确配合 Ghost 设为零。窄宽、可选区域增删与主题切换保留正文槽位和编辑模型。
+
+MarkerVariant 为 Default／Border／Separator，文字默认 muted、图标 16、间距 8；Border 在底部留白后绘制边线，Separator 在居中文字两侧分配等长分隔线。loading 可组合 Spinner 和文字 shimmer，onClick 是显式动作，纯状态行不加入 Tab。shimmer 只使用现有作用域动画和成功帧可见性；停止、Reduced、透明、零尺寸、离屏、窗口隐藏和卸载结束其自发帧需求，不改变文字布局。
+
+## 49. Attachment
+
+AttachmentState 为 Idle／Uploading／Processing／Error／Done，默认 Done；AttachmentSize 为 Default／Sm／Xs，支持 Horizontal／Vertical。应用提供状态、标题／说明、普通正文、media 和 actions；Image 由调用方装载及持有，控件不会上传、下载、重试或关闭借用图片。media 可明确选择图标／图片；Uploading／Processing 默认运行指示和标题 shimmer，错误有独立颜色与文字，Idle 使用虚线边框，完成停止动画。
+
+默认横向卡片的最小建议宽为 160，竖向为 120；有限父宽仍可收缩。图标媒体默认边长 40／32／28，竖向媒体按正文可用宽度取正方形；图标在媒体区域中居中，图片按实际方形区域紧约束测量并以 Cover 填满，图像裁剪仅发生在媒体区域。标题和说明在有限宽度截断，完整正文仍是普通 View。竖向动作位于媒体逻辑末端的上方覆盖层，横向动作单独测量，空间不足时移到下一行。整卡 onClick 与独立 actions 不双触发；撤销整卡动作保留正文和动作挂载，禁用后整个卡片不接受输入，表面与子动作焦点环均保留实际空间。
+
+attachmentGroup 复用 Carousel 的唯一 keyed 子树、实际测量吸附和离屏输入管理，默认横向、Content 尺寸、12 间距、无前后按钮；支持真实拖动、横向滚轮和键盘，垂直滚轮继续交给外层。逻辑首尾存在隐藏内容时应用边缘透明渐变，静止不自发请求帧；减弱动态、零尺寸及卸载沿原有生命周期。分组不复制图片或为循环制造重复交互实例。
+
+## 50. Trace
+
+TraceStatus 为 Complete／Running／Error／Pending，默认 Complete。traceLine 是普通状态行，提供 title、description、icon、显式动作、主题与焦点；Complete 无默认运行标记，Running 有 Spinner／可停 shimmer，Error 使用 destructive，Pending 降低透明度。纯 line 不加入 Tab；链接、Dialog、Sheet 等由显式动作和普通 View 组合。Trace 不执行 agent／tool 任务或计算业务进度。
+
+trace(title, content) 组合状态行和已有 Collapsible。未提供外部 open Binding 时，尚未被用户操作的行仅在 Running 默认展开；第一次明确打开／关闭后保留该选择，流式追加和状态变化不强行重开。提供 open Binding 时读取实际接受结果，拒绝 setter 不发成功变化通知。触发器先请求切换，再在仍挂载时调用 line.onClick；onOpenChange 只报告实际接受的展开变化。嵌套步骤独立持有展开选择，关闭保留策略使用 ContentRetention；KeepMounted 的正文不可见时退出输入与帧参与，恢复后保留原编辑状态。
+
+展开正文使用逻辑起侧边线和内边距，标题与描述在窄宽下先限制描述宽度再截断标题；正文和触发器共享稳定槽位。焦点、IME、退出动画、Reduced、Accepted／Discarded、停帧与卸载继续使用既有协议。验收覆盖五个会话展示组件的全部变体、独立动作、内容保留、真实主题／RTL／窄宽、完整焦点环、运行态停帧、图片借用及嵌套 Trace 对 MessageScroller 阅读位置的影响。

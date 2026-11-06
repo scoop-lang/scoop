@@ -1,0 +1,256 @@
+package scoop.tests.ui.conversation
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ConversationWindowTest {
+    @Test
+    fun `conversation components preserve geometry content actions and native input through lifecycle changes`() {
+        val p = ConversationProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertFalse(p.frames!!.snapshot().attached)
+            assertFalse(p.carousel.isAttached)
+            assertFalse(p.reading.isAttached)
+            assertFalse(p.picture.isClosed)
+        } catch (error: Throwable) {
+            println("conversation phase=" + p.phase.toString() + ", mode=" + p.mode.toString())
+            conversationNativeFailure(error)
+            throw error
+        } finally {
+            host.close()
+            p.fonts.close()
+            p.picture.close()
+        }
+    }
+}
+
+internal class ConversationRecord {
+    var area: InputArea? = None
+    var mounts = 0
+    var unmounts = 0
+}
+
+internal class ConversationProbe {
+    val theme =
+        ThemeSource(
+            shadcnTheme(ThemeMode.Light) {
+                tokens { motion { preference = MotionPreference.Reduced } }
+            }
+        )
+    val fonts = FontCollection(false)
+    val picture =
+        RasterSurface(240, 160).use {
+            raster ->
+            raster.draw { canvas -> canvas.clear(Color(0.2, 0.5, 0.8)) };
+            raster.snapshot()
+        }
+    val generation = state(0)
+    val records = HashMap<String, ConversationRecord>()
+    val edit = TextEditorState("")
+    val editFocus = FocusHandle()
+    val mainFocus = FocusHandle()
+    val otherFocus = FocusHandle()
+    val nestedFocus = FocusHandle()
+    val reactionFocus = FocusHandle()
+    val carouselFocus = FocusHandle()
+    val files = [FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle()]
+    val carousel = CarouselHandle()
+    val opened = state(false)
+    val innerOpened = state(true)
+    val reading =
+        MessageScrollState(MessageScrollOptions(initialPosition = MessageInitialPosition.Start))
+    val source = state<TranscriptSource>(TranscriptList([]))
+    val traceOpen =
+        binding(
+            { opened.value },
+            {
+                value -> if (!reject)
+                    opened.value = value
+            }
+        )
+    var mode = 0
+    var shown = true
+    var zero = false
+    var rtl = false
+    var align = MessageAlignment.Start
+    var enabled = true
+    var actionable = true
+    var showHeader = true
+    var showFooter = true
+    var reactionTop = false
+    var variant = BubbleVariant.Default
+    var attachmentState = AttachmentState.Done
+    var attachmentSize = AttachmentSize.Default
+    var vertical = false
+    var markerVariant = MarkerVariant.Default
+    var status = TraceStatus.Complete
+    var controlled = false
+    var reject = false
+    var fullMotion = false
+    var hidden = false
+    var streaming = false
+    var bodyWidth = 1000.0
+    var bodyText = "Trace content"
+    var clickScale = 1
+    var clicks = 0
+    var reactions = 0
+    var changes = 0
+    var activations = 0
+    var mounts = 0
+    var unmounts = 0
+    var savedMount = 0
+    var savedFrames = 0
+    var savedWidth = 0.0
+    var savedY = 0.0
+    var savedOffset = 0.0
+    var mediaTopPixel = 0L
+    var mediaBottomPixel = 0L
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var draws = 0
+    var pointer = Point(0.0, 0.0)
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun record(name: String): ConversationRecord {
+        when (records.get(name)) {
+            case Some(value) -> return value;
+            case None -> {}
+        }
+        val result = ConversationRecord();
+        records.put(name, result);
+        return result
+    }
+    fun bounds(name: String): Rect = record(name).area!!.windowBounds!!
+    fun changed() {
+        generation.value += 1
+    }
+    fun setTheme(dark: Boolean, full: Boolean = false, scale: Double = 1.0) {
+        fullMotion = full
+        theme.current.value =
+            shadcnTheme(
+                if (dark)
+                    ThemeMode.Dark
+                else
+                    ThemeMode.Light
+            ) {
+                tokens {
+                    motion {
+                        preference =
+                            if (full)
+                                MotionPreference.Full
+                            else
+                                MotionPreference.Reduced
+                    }
+                    typography {
+                        body { fontSize = 14.0 * scale };
+                        action { fontSize = 14.0 * scale }
+                    }
+                }
+            }
+        changed()
+    }
+    fun key(code: Int, text: String) {
+        assertEquals(0, conversationNativeKey(native!!, code, text))
+    }
+    fun press(name: String, down: Boolean) {
+        if (down) {
+            val box = bounds(name)
+            pointer = Point(box.x + box.width / 2.0, box.y + box.height / 2.0)
+        }
+        assertEquals(0, conversationNativePointer(native!!, pointer.x, pointer.y, down))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop conversation components test";
+                            size = LogicalSize(760.0, 620.0)
+                        }
+                    )
+                native = Some(window);
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(
+                    window,
+                    { scope -> ConversationScene(this, scope) },
+                    fonts = Some(fonts)
+                )
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(
+                    now < timeout,
+                    Some(
+                        f"conversation window timeout: focused=${native!!.isFocused}, rendered=${
+                            rendered
+                        }, generation=${generation.value}, frames=${
+                            frames!!.snapshot().required
+                        }, pending=${reading.isPending}"
+                    )
+                )
+                val settled =
+                    hidden ||
+                        (
+                            native!!.isFocused &&
+                                rendered >=
+                                generation.value &&
+                                (streaming || !frames!!.snapshot().required) &&
+                                (mode != 6 || !reading.isPending)
+                        )
+                if (now >= next && settled) {
+                    advanceConversation(this)
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!hidden && !native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 68)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 68;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

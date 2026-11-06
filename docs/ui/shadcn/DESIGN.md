@@ -2,7 +2,7 @@
 
 日期：2026-11-04。状态：实施中，实际交付与验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。尚未在实施记录中闭合的类型、签名和批次仍是拟议合同，不表示仓库已经提供这些 API。
 
-2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。P6、P7 及 P8a MessageScroller 已交付，累计 58／64；继续 P8 的会话展示组件与 Questionnaire。
+2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。P6、P7、P8a MessageScroller 及 P8b 会话展示组件已交付，累计 63／64；继续 Questionnaire 与 P9 组合验收。
 
 ## 1. 交付目标与复刻基线
 

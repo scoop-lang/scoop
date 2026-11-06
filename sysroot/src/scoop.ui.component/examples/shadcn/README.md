@@ -1,5 +1,7 @@
 # shadcn Gallery
 
+Bubble、Message、Marker、Attachment、Trace 页面提供窄宽、逻辑对齐、独立动作和真实异步更新。Bubble 展示全部变体及上下反应区；Message 可增删头像／页脚并保留草稿。Attachment 包含五种状态、三种尺寸、横纵媒体及可滚动图片组。Trace 支持嵌套编辑、受控／拒绝展开、链接动作及 Dialog／Sheet；页面和 Sheet 分别持有编辑器状态。切页取消任务，明暗、System／Neutral、RTL 与减少动态沿顶部设置。
+
 Message Scroller 页面使用稳定消息 key，提供新回合、真实异步流式回复、历史插入、延迟图片、保存／恢复阅读位置和清空恢复。Auto follow 显式启用末端跟随；拖选正文、输入备注或向上滚动后保持阅读位置。顶部主题／RTL 与 Narrow 可组合检查；切页取消示例任务并释放图片。
 
 Table 展示有限发票、共享列宽、footer 和独立动作。Data Table 展示付款列表的排序、邮件筛选、本页选择、列显隐／拖宽、行内备注与菜单、分页、虚拟滚动和调用方提供的结果页；备注保存于稳定行模型。可切换窄宽、主题及 RTL，或加载更多行检查实际交互。

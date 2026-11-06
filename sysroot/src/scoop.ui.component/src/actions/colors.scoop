@@ -6,7 +6,7 @@ import scoop.math.*
 private struct ActionLch(val lightness: Double, val chroma: Double, val hue: Double)
 
 // Oklab matrices and sRGB transfer functions: https://bottosson.github.io/posts/oklab/
-// The only caller is the Secondary preset's CSS color-mix(in oklch, ... 5%).
+// Shared by the Secondary color mix and the conversation bubble relative tint.
 internal fun secondaryHover(background: Color, foreground: Color): Color {
     val from = actionLch(background)
     val to = actionLch(foreground)
@@ -32,6 +32,15 @@ internal fun secondaryHover(background: Color, foreground: Color): Color {
     if (difference < -PI)
         difference += PI * 2.0
     val hue = first + difference * 0.05
+    return actionLchColor(lightness, chroma, hue, alpha)
+}
+
+internal fun bubbleTint(color: Color, lightness: Double, chromaScale: Double): Color {
+    val base = actionLch(color)
+    return actionLchColor(lightness, base.chroma * chromaScale, base.hue, color.alpha)
+}
+
+private fun actionLchColor(lightness: Double, chroma: Double, hue: Double, alpha: Double): Color {
     val a = chroma * cos(hue)
     val b = chroma * sin(hue)
     val l = cube(lightness + 0.3963377774 * a + 0.2158037573 * b)

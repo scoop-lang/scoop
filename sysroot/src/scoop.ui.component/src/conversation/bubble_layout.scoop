@@ -1,0 +1,123 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class BubbleLayoutProps(
+    val align: MessageAlignment,
+    val fraction: Double,
+    val reactions: BubbleReactions?,
+    val actions: Boolean,
+    val enabled: Boolean,
+    val density: Double
+)
+
+internal class BubbleLayout(
+    private val props: Props<BubbleLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        scope.routeChildren(area)
+    }
+    public override fun update(): UiInvalidation {
+        area.scope.enabled = props.value.enabled
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val maximum =
+            when (constraints.maxWidth) {
+                case Some(width) -> Some(width * input.fraction)
+                case None -> None
+            }
+        val body = conversationMeasure(context, 0L, maximum, constraints.maxHeight)
+        val reaction =
+            if (panelPresent(input.reactions))
+                conversationMeasure(context, 1L, maximum)
+            else {
+                context.skipChild(1L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val overhang = reaction.size.height * 0.75
+        val top =
+            if (input.reactions?.side == Some(BubbleReactionSide.Top))
+                overhang
+            else
+                0.0
+        val bottom =
+            if (input.reactions?.side == Some(BubbleReactionSide.Bottom))
+                overhang
+            else
+                0.0
+        val action =
+            if (input.actions)
+                conversationMeasure(context, 2L, maximum)
+            else {
+                context.skipChild(2L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val contentWidth =
+            lowerBound(body.size.width, lowerBound(reaction.size.width, action.size.width))
+        val height =
+            top +
+                body.size.height +
+                bottom +
+                if (input.actions)
+                    4.0 * input.density + action.size.height
+                else
+                    0.0
+        val size = constraints.constrain(Size(constraints.maxWidth ?: contentWidth, height))
+        val x = conversationOffset(input.align, size.width, body.size.width)
+        context.placeChild(
+            0L,
+            Point(logicalX(x, body.size.width, size.width, context.layoutDirection), top)
+        )
+        when (input.reactions) {
+            case Some(value) -> {
+                val ideal =
+                    x +
+                        if (value.align == MessageAlignment.Start)
+                            12.0 * input.density
+                        else
+                            body.size.width - reaction.size.width - 12.0 * input.density
+                val start =
+                    upperBound(
+                        lowerBound(0.0, ideal),
+                        lowerBound(0.0, size.width - reaction.size.width)
+                    )
+                context.placeChild(
+                    1L,
+                    Point(
+                        logicalX(start, reaction.size.width, size.width, context.layoutDirection),
+                        if (value.side == BubbleReactionSide.Top)
+                            0.0
+                        else
+                            top + body.size.height - reaction.size.height * 0.25
+                    )
+                )
+            }
+            case None -> {}
+        }
+        if (input.actions)
+            context.placeChild(
+                2L,
+                Point(
+                    logicalX(
+                        conversationOffset(input.align, size.width, action.size.width),
+                        action.size.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    top + body.size.height + bottom + 4.0 * input.density
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

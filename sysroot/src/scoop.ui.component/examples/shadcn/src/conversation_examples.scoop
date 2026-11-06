@@ -1,0 +1,106 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as conversationColumn
+import scoop.ui.component.frame as conversationFrame
+
+internal fun conversationExamples(model: GalleryModel, page: Demo): View =
+    component(
+        { scope -> ConversationExamples(model.conversations, model.source, page, scope) },
+        ViewKey.Text(demoTitle(page))
+    )
+
+internal class ConversationExamples(
+    private val model: ConversationExamplesModel,
+    private val theme: ThemeSource,
+    private val page: Demo,
+    scope: ComponentScope
+): Component(scope) {
+    private val artwork = scope.resource { panelArtwork() }
+    public override fun onUnmount() {
+        model.stop()
+    }
+    public override fun render(): View {
+        val model = this.model
+        val theme = this.theme
+        val page = this.page
+        val artwork = this.artwork
+        val body =
+            when (page) {
+                case Bubble -> conversationBubbleExamples(model)
+                case Message -> conversationMessageExamples(model, artwork)
+                case Marker -> conversationMarkerExamples(model)
+                case Attachment -> conversationAttachmentExamples(model, artwork)
+                case Trace -> conversationTraceExamples(model)
+                else -> empty()
+            }
+        return conversationColumn {
+            this.typography(demoTitle(page), TypographyRole.H2)
+            this.typography(
+                "Messages, files, status and steps share the same native controls.",
+                TypographyRole.Muted
+            )
+            this.wrap {
+                this.button(
+                    if (model.narrow.value)
+                        "Full width"
+                    else
+                        "Narrow",
+                    { model.narrow.value = !model.narrow.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.end.value)
+                        "Align start"
+                    else
+                        "Align end",
+                    { model.end.value = !model.end.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.enabled.value)
+                        "Disable content"
+                    else
+                        "Enable content",
+                    { model.enabled.value = !model.enabled.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.actions.value)
+                        "Hide actions"
+                    else
+                        "Show actions",
+                    { model.actions.value = !model.actions.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button("Stream update", { model.start() }) {
+                    this.variant = ButtonVariant.Secondary
+                }
+                this.button("Stop", { model.stop() }) { this.variant = ButtonVariant.Outline }
+                this.spacing = 8.0
+                this.lineSpacing = 8.0
+            }
+            this.label("Independent actions: " + model.clicks.value.toString())
+            this.item(
+                conversationFrame(body) {
+                    this.width =
+                        Some(
+                            if (model.narrow.value)
+                                330.0
+                            else
+                                850.0
+                        )
+                    this.padding = Some(Insets.all(8.0))
+                    this.style =
+                        styleOverride {
+                            this.border(
+                                Some(Border.all(1.0, theme.current.value.tokens.palette.border))
+                            )
+                            this.corners(Corners.all(12.0))
+                        }
+                }
+            ) { this.align = Some(CrossAlignment.Start) }
+            this.spacing = 16.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}

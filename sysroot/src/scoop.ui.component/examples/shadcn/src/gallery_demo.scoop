@@ -68,6 +68,11 @@ internal fun galleryDemo(model: GalleryModel, value: Demo): View =
         case Table -> tableExamples(model.tables)
         case DataTable -> dataTableExamples(model.tables)
         case Chart -> chartExamples(model.charts)
+        case Bubble -> conversationExamples(model, value)
+        case Message -> conversationExamples(model, value)
+        case Marker -> conversationExamples(model, value)
+        case Attachment -> conversationExamples(model, value)
+        case Trace -> conversationExamples(model, value)
         case MessageScroller -> component(
             { scope -> MessageScrollerExamples(model.messages, model.source, scope) }
         )

@@ -48,6 +48,13 @@ table(configure: TableBuilder.() -> Unit): View
 dataTable<Row>(state: DataTableState<Row>, configure: DataTableBuilder.() -> Unit = {}): View
 chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}): View
 messageScroller(source: TranscriptSource, state: MessageScrollState, configure: MessageScrollerBuilder.() -> Unit = {}): View
+bubble(content: View, configure: BubbleBuilder.() -> Unit = {}): View
+message(content: View, configure: MessageBuilder.() -> Unit = {}): View
+marker(content: View, configure: MarkerBuilder.() -> Unit = {}): View
+attachment(title: String, configure: AttachmentBuilder.() -> Unit = {}): View
+attachmentGroup(source: ItemSource, configure: AttachmentGroupBuilder.() -> Unit = {}): View
+traceLine(title: String, configure: TraceLineBuilder.() -> Unit = {}): View
+trace(title: String, content: View, configure: TraceBuilder.() -> Unit = {}): View
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
 ```
 
@@ -351,3 +358,13 @@ active 可接 `Binding<ChartSelection?>`，省略时由组件持有。鼠标和�
 `TranscriptSource : ItemSource` 增加 `anchorAtOrBefore(index)`；`TranscriptList(Array<TranscriptItem>)` 建立稳定 key 与回合索引，content 为按需构造 View 的函数。`transcript { item(key, scrollAnchor) { ... } }` 收集同一类型的数据。`messageScroller(source, MessageScrollState) { ... }` 使用已有 VirtualList，spacing、itemExtent、宽高、overscan、scrollbar、focus、enabled、theme、placeholder 与 controls 均可配置。
 
 MessageScrollState 的 options 使用 MessageScrollOptions，默认值与 [模型设计](MODELS.md)一致。应用通过 beginTurn、hold、scrollToMessage、scrollToStart、scrollToEnd、restore 和 reset 表达意图；reading、visibleKeys、currentAnchor、atStart／atEnd 为已呈现事实。messageScrollButton 提供 Start／End 的常用跳转，或由应用传入自定义 controls。VirtualList.endPadding 使用 Fixed(length) 或 FillViewport，后者在测量中补足当前阅读／Start 定位到视口末端的空间；scrollToItem 的 margin／previousItemPeek 服务实际定位，完整行为见组件规范第 6.3、47 节。
+
+## P8b：会话展示组件
+
+`bubble` 接收 String、StyledText、View 或 ActionContentStyle 工厂。variant 提供 Default／Secondary／Muted／Tinted／Outline／Ghost／Destructive，align 使用逻辑 Start／End；maxWidthFraction 可覆盖普通 80%／Ghost 100% 的限宽。`reactions(content, side, align)` 配置 Top／Bottom 反应区，actions 放在其下方。onClick 可动态增删，正文仍保留同一挂载；enabled 同时控制表面及内部输入，focus／focusOutline／fonts／theme／style 沿既有协议。外伸反应区和实际焦点环均计入测量范围。
+
+`message(content)` 组合 avatar、header、正文、footer 和 reserveAvatar；正文另有 `(MessageAlignment) -> View` 重载，用于明确向 Bubble 传递对齐。header／footer 支持文字、富文本或普通 View，captionInset 默认 12，头像对齐正文底边。`bubbleGroup`／`messageGroup`／`traceGroup` 复用 Column，默认间距 8。`marker` 接收与 Bubble 相同的内容形状，variant 为 Default／Border／Separator，可选 icon、loading、shimmer 与 onClick；纯展示行不占 Tab。
+
+`attachment(title)` 的标题支持 String／StyledText／View，description 接收文字或 View，content 和 actions 接收普通 View。state 为 Idle／Uploading／Processing／Error／Done；size 为 Default／Sm／Xs，orientation 为 Horizontal／Vertical。`image(image, naturalSize)` 借用应用持有的 GraphicsImage，`icon(content)` 显式替换媒体。整卡 onClick 与子动作分别激活，卡片不持有上传任务。`attachmentGroup { item(key, content); attachment(key, title) { ... } }` 与外部 ItemSource 重载提供同一横向 Carousel；length／spacing／enabled／handle／focus／fade／theme 可配置，使用真实测量吸附、键盘、拖动和横向滚轮，竖向滚轮留给外层。
+
+`traceLine` 是可选动作的状态行，status 为 Complete／Running／Error／Pending；icon、description、shimmer、focus、enabled 和样式均可覆盖。`trace(title, content)` 组合状态行和 Collapsible，open 缺省时 Running 自动展开一次用户选择之前的状态，手动选择后保持；外部 Binding 拒绝请求时 onOpenChange 不报告成功变化。onClick 在触发器请求切换后执行。retention 默认 KeepMounted，嵌套步骤独立保存展开选择与编辑状态。运行指示和 shimmer 使用作用域动画，隐藏、减少动态、停止及卸载结束其自发帧需求。完整规则见组件规范第 48～50 节。

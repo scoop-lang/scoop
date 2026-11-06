@@ -1,0 +1,105 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as conversationColumn
+import scoop.ui.component.button as conversationButton
+import scoop.ui.component.attachment as conversationAttachment
+
+internal fun conversationAttachmentExamples(model: ConversationExamplesModel, image: Image): View =
+    conversationColumn {
+        this.wrap {
+            this.button("Next state", { model.nextAttachment() }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Next size", { model.nextSize() }) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.vertical.value)
+                    "Horizontal"
+                else
+                    "Vertical",
+                { model.vertical.value = !model.vertical.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button("Restore removed file", { model.removed.value = false }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0;
+            this.lineSpacing = 8.0
+        }
+        this.label(attachmentStateName(model.attachment.value))
+        if (!model.removed.value)
+            this.attachment("Project notes and decisions.pdf") {
+                this.description("PDF · 2.4 MB · Ready to open")
+                this.state = model.attachment.value
+                this.size = model.attachmentSize.value
+                this.orientation =
+                    if (model.vertical.value)
+                        Orientation.Vertical
+                    else
+                        Orientation.Horizontal
+                this.onClick =
+                    if (model.actions.value)
+                        Some({ model.clicks.value += 1 })
+                    else
+                        None
+                this.enabled = model.enabled.value
+                this.actions =
+                    if (model.actions.value)
+                        Some(
+                            conversationButton("×", { model.removed.value = true }) {
+                                this.variant = ButtonVariant.Ghost;
+                                this.size = ButtonSize.IconXs
+                            }
+                        )
+                    else
+                        None
+            }
+        this.attachmentGroup {
+            for (at in 0L ..< 6L)
+                this.item(
+                    ViewKey.Number(at),
+                    conversationAttachment("Reference " + (at + 1L).toString()) {
+                        this.description("Image · 320 × 180")
+                        this.image(image, Size(320.0, 180.0))
+                        this.orientation = Orientation.Vertical
+                        this.size = model.attachmentSize.value
+                        this.state =
+                            if (at == 0L)
+                                model.attachment.value
+                            else
+                                AttachmentState.Done
+                        this.onClick = Some({ model.clicks.value += 1 })
+                        this.enabled = model.enabled.value
+                    }
+                )
+            this.enabled = model.enabled.value
+        }
+        this.attachment(
+            "A very long filename that should remain readable at the narrowest supported width.txt"
+        ) {
+            this.description("Error · Select Retry to try again")
+            this.state = AttachmentState.Error
+            this.size = AttachmentSize.Xs
+            this.enabled = model.enabled.value
+            this.actions =
+                Some(
+                    conversationButton("Retry", { model.start() }) {
+                        this.size = ButtonSize.Xs;
+                        this.variant = ButtonVariant.Ghost
+                    }
+                )
+        }
+        this.spacing = 16.0;
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun attachmentStateName(value: AttachmentState): String =
+    when (value) {
+        case Idle -> "Idle — waiting for a file"
+        case Uploading -> "Uploading — transfer in progress"
+        case Processing -> "Processing — preparing the preview"
+        case Error -> "Error — action required"
+        case Done -> "Done — ready to open"
+    }

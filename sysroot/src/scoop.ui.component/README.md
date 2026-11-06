@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+`bubble`、`message`、`marker`、`attachment` 和 `trace` 提供会话展示组合。气泡支持七种变体、逻辑对齐及外伸反应区；Message 以真实正文／页脚高度定位头像。Attachment 借用应用图片，状态、整卡动作及独立动作由应用提供，AttachmentGroup 复用 Carousel 的横向吸附。Trace 组合 Collapsible，保留用户展开选择与嵌套编辑状态；纯状态行没有额外 Tab 目标。可选动作变化保留正文挂载，运行指示在不可见／减少动态／停止后停帧，布局纳入实际焦点环范围。组合实窗测试位于 `tests-cones/conversation`，完整合同见组件规范第 48～50 节。
+
 `messageScroller(source, state)` 以 `TranscriptSource` 的稳定 key 和显式回合锚点按需构造消息。`MessageScrollState` 组合既有滚动／虚拟列表能力，提供初始 End／Start／LastAnchor、新回合顶部定位、可收缩尾部留白、可选自动跟随、阅读保持及按 key 跳转／恢复。指针选择、键盘和滚动立即停止旧跟随；公开阅读快照仅来自 Accepted。`transcript { item(key, scrollAnchor = true) { ... } }` 创建来源，`messageScrollButton` 可放入自定义 controls；真实输入和停帧测试位于 `tests-cones/message-scroller`。
 
 `table { header { row { head(...) } }; body { row(key) { cell(...) } } }` 提供有限表格、跨列、caption 和 footer；`dataTable(model)` 消费应用持有的 DataTableState、TableSource 与类型化 TableColumn。Local 缓存筛选、稳定排序和分页结果，Provided 直接呈现当前页。选择只针对本页可选行，列宽拖动共用一份轨道，固定表头位于 VirtualList 正文之外；行内编辑与菜单保留普通生命周期。完整合同见组件规范第 45 节，原生组合测试位于 `tests-cones/table`。

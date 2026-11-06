@@ -1,0 +1,80 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+internal struct BubbleColors(
+    val background: Color,
+    val foreground: Color,
+    val hover: Color,
+    val border: Color
+)
+
+internal fun bubbleColors(variant: BubbleVariant, theme: Theme): BubbleColors {
+    val p = theme.tokens.palette
+    val dark = theme.tokens.mode == ThemeMode.Dark
+    val foreground =
+        when (variant) {
+            case Default -> p.primary.foreground
+            case Secondary -> p.secondary.foreground
+            case Destructive -> p.destructive.background
+            else -> p.background.foreground
+        }
+    val background =
+        when (variant) {
+            case Default -> p.primary.background
+            case Secondary -> p.secondary.background
+            case Muted -> p.muted.background
+            case Tinted -> bubbleTint(
+                p.primary.background,
+                if (dark)
+                    0.3
+                else
+                    0.93,
+                0.4
+            )
+            case Outline -> p.background.background
+            case Ghost -> Color.Transparent
+            case Destructive -> p.destructive.background.withAlpha(
+                if (dark)
+                    0.2
+                else
+                    0.1
+            )
+        }
+    val hover =
+        when (variant) {
+            case Default -> background.withAlpha(background.alpha * 0.8)
+            case Tinted -> bubbleTint(
+                p.primary.background,
+                if (dark)
+                    0.35
+                else
+                    0.88,
+                0.5
+            )
+            case Destructive -> p.destructive.background.withAlpha(
+                if (dark)
+                    0.3
+                else
+                    0.2
+            )
+            case Ghost -> p.muted.background.withAlpha(
+                if (dark)
+                    0.5
+                else
+                    1.0
+            )
+            case Outline -> p.muted.background
+            else -> secondaryHover(background, p.background.foreground)
+        }
+    return BubbleColors(
+        background,
+        foreground,
+        hover,
+        if (variant == BubbleVariant.Outline)
+            p.border
+        else
+            Color.Transparent
+    )
+}

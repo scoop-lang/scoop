@@ -39,6 +39,20 @@ public class CarouselHandle public constructor() {
         checkThread();
         return target?.step(true, animated) ?: false
     }
+    internal fun wheel(amount: Double): Double {
+        checkThread()
+        return when (target) {
+            case Some(control) -> carouselWheel(control, amount)
+            case None -> 0.0
+        }
+    }
+    internal fun finishWheel() {
+        checkThread()
+        when (target) {
+            case Some(control) -> carouselFinishWheel(control)
+            case None -> {}
+        }
+    }
     internal fun bind(control: CarouselControl) {
         checkThread()
         when (target) {

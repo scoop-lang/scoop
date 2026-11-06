@@ -16,7 +16,8 @@ internal class ActionInkProps(
     val visual: SurfaceVisual,
     val behavior: ActionBehavior,
     val group: GroupPosition? = None,
-    val labelTarget: FieldTarget? = None
+    val labelTarget: FieldTarget? = None,
+    val actionable: Boolean = true
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
@@ -40,7 +41,11 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
         when (value.behavior) {
             case Press(owner, action, focus) -> {
                 val control = owner
-                control.press.update(PressOptions(value.visual.interaction.enabled), action)
+                control.press.update(
+                    PressOptions(value.visual.interaction.enabled && value.actionable),
+                    action
+                )
+                control.area.focusable = value.actionable
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
                 if (panelPresent(value.labelTarget) && !panelPresent(field))

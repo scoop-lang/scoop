@@ -1,0 +1,235 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum MessageAlignment {
+    Start, End
+}
+
+public open class ConversationActionBuilder internal constructor() {
+    public var onClick: (() -> Unit)? = None
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var focusOutline: OutlineStyle? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+}
+
+internal class ConversationSurfaceProps(
+    val content: ButtonContent,
+    val theme: Theme,
+    val appearance: TextStyle,
+    val style: ButtonStyle,
+    val onClick: (() -> Unit)?,
+    val enabled: Boolean,
+    val focus: FocusOptions,
+    val fonts: FontCollection? = None
+)
+
+/** Keeps one input and content identity when an optional action changes. */
+internal class ConversationSurface(
+    private val props: Props<ConversationSurfaceProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val click: () -> Unit =
+        {
+            when (props.value.onClick) {
+                case Some(action) -> action();
+                case None -> {}
+            }
+        }
+    private val control = PressControl(scope, PressOptions(false), props.value.focus, click)
+    public override fun render(): View {
+        val input = props.value
+        val visual =
+            SurfaceVisual(SurfaceKind.Plain, control.press.interaction.asVisual(input.enabled))
+        val shape = ActionShape.Button(ButtonSize.Default)
+        val content =
+            when (input.content) {
+                case Label(value) -> ButtonContent.Label(
+                    LabelProps(
+                        value.text,
+                        when (value.fonts) {
+                            case Some(_) -> value.fonts;
+                            case None -> input.fonts
+                        },
+                        value.settings,
+                        value.inlines,
+                        value.theme,
+                        value.baseStyle,
+                        value.underline
+                    )
+                )
+                else -> input.content
+            }
+        val body =
+            element(
+                ActionInkProps(
+                    input.theme,
+                    shape,
+                    ButtonVariant.Ghost,
+                    input.style,
+                    visual,
+                    ActionBehavior.Press(control, click, input.focus),
+                    actionable = panelPresent(input.onClick)
+                ),
+                { current, mount -> ActionInk(current, mount) },
+                [
+                    actionContent(
+                        content,
+                        ActionContentStyle(
+                            input.appearance,
+                            16.0 * input.appearance.fontSize / 14.0,
+                            8.0 * input.appearance.fontSize / 14.0,
+                            visual.interaction,
+                            false
+                        )
+                    )
+                ]
+            )
+        val ring =
+            if (!panelPresent(input.onClick))
+                0.0
+            else
+                input.theme.surfaceMetrics(
+                    visual,
+                    actionOptions(
+                        input.theme,
+                        shape,
+                        ButtonVariant.Ghost,
+                        input.style,
+                        visual.interaction
+                    ),
+                    scope.layoutDirection
+                ).focusOutset
+        return panelFrame(body, Insets.all(ring))
+    }
+}
+
+internal fun conversationSurface(input: ConversationSurfaceProps): View =
+    component(input, { current, mount -> ConversationSurface(current, mount) })
+
+internal fun conversationText(text: String): ButtonContent =
+    ButtonContent.Label(LabelProps(LabelText.Plain(text, None)))
+
+internal fun conversationText(text: StyledText): ButtonContent =
+    ButtonContent.Label(LabelProps(LabelText.Styled(text)))
+
+internal fun conversationCaption(
+    content: ButtonContent,
+    appearance: TextStyle,
+    fonts: FontCollection?,
+    layoutDirection: LayoutDirection,
+    lines: Long? = None
+): View {
+    val resolved =
+        when (content) {
+            case Label(value) -> ButtonContent.Label(
+                LabelProps(
+                    value.text,
+                    when (value.fonts) {
+                        case Some(_) -> value.fonts;
+                        case None -> fonts
+                    },
+                    Some(
+                        value.settings ?:
+                            paragraphStyle {
+                                this.maxLines = lines;
+                                this.direction = layoutDirection.textDirection()
+                            }
+                    ),
+                    value.inlines,
+                    value.theme,
+                    value.baseStyle,
+                    value.underline
+                )
+            )
+            else -> content
+        }
+    return actionContent(
+        resolved,
+        ActionContentStyle(
+            appearance,
+            16.0 * appearance.fontSize / 14.0,
+            8.0 * appearance.fontSize / 14.0,
+            InteractionVisual(),
+            false
+        )
+    )
+}
+
+internal fun conversationStyle(
+    background: Color,
+    foreground: Color,
+    padding: Insets,
+    radius: Double,
+    border: Color = Color.Transparent,
+    hover: Color = background,
+    outline: OutlineStyle? = None,
+    local: StyleOverride = styleOverride()
+): ButtonStyle =
+    buttonStyle {
+        this.kind = SurfaceKind.Plain
+        this.text { this.color = Some(foreground) }
+        this.surface {
+            this.minimumSize = Some(Size(0.0, 0.0))
+            this.suggestedSize = Some(Size(0.0, 0.0))
+            this.padding = Some(padding)
+            this.focus = outline
+            this.style =
+                styleOverride {
+                    this.background(Some(Paint(background)))
+                    this.border(Some(Border.all(1.0, border)))
+                    this.corners(Corners.all(radius))
+                    this.boxShadows([])
+                }.then(local)
+        }
+        this.states {
+            this.hovered { this.background(Some(Paint(hover))) }
+            this.pressed { this.background(Some(Paint(mixThemeColor(hover, foreground, 0.08)))) }
+        }
+    }
+
+/** A bounded natural measurement, reused by conversation slots and their overlays. */
+internal fun conversationMeasure(
+    context: MeasureContext,
+    index: Long,
+    width: Double?,
+    height: Double? = None
+): LayoutMetrics {
+    val natural = context.measureChild(index, Constraints(maxHeight = height))
+    return if (panelPresent(width) && natural.size.width > width!!)
+        context.measureChild(index, Constraints(maxWidth = width, maxHeight = height))
+    else
+        natural
+}
+
+internal fun conversationOffset(alignment: MessageAlignment, width: Double, child: Double): Double =
+    if (alignment == MessageAlignment.End)
+        lowerBound(0.0, width - child)
+    else
+        0.0
+
+public fun bubbleGroup(configure: LinearBuilder.() -> Unit): View = conversationGroup(configure)
+
+public fun messageGroup(configure: LinearBuilder.() -> Unit): View = conversationGroup(configure)
+
+public fun traceGroup(configure: LinearBuilder.() -> Unit): View = conversationGroup(configure)
+
+internal fun conversationGroup(configure: LinearBuilder.() -> Unit): View =
+    makeColumn {
+        this.spacing = 8.0;
+        this.alignment = CrossAlignment.Stretch;
+        this.configure()
+    }
