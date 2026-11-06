@@ -1,0 +1,65 @@
+package scoop.ui.component
+
+import scoop.datetime.LocalDate
+import scoop.text.*
+
+internal fun datePickerParse(text: String, range: Boolean): DatePickerParse {
+    val value = text.trim()
+    if (value.byteLength == 0L)
+        return DatePickerParse.Empty
+    if (!range)
+        return when (LocalDate.parseOrNone(value)) {
+            case Some(date) -> DatePickerParse.Date(date)
+            case None -> DatePickerParse.Invalid("Enter a date as YYYY-MM-DD.")
+        }
+    val parts = value.split("..")
+    if (parts.size == 2L)
+        when ((LocalDate.parseOrNone(parts[0L].trim()), LocalDate.parseOrNone(parts[1L].trim()))) {
+            case(Some(start), Some(end)) -> {
+                if (start <= end)
+                    return DatePickerParse.Range(DateRange(start, end));
+            }
+            else -> {}
+        }
+    return DatePickerParse.Invalid("Enter an ordered range as YYYY-MM-DD .. YYYY-MM-DD.")
+}
+
+internal fun datePickerRange(selection: CalendarSelection): Boolean =
+    when (selection) {
+        case Range(_) -> true;
+        else -> false
+    }
+
+internal fun datePickerValue(parsed: DatePickerParse, range: Boolean): CalendarValue? =
+    when (parsed) {
+        case Date(value) -> if (range)
+            None
+        else
+            Some(CalendarValue.Single(Some(value)))
+        case Range(value) -> if (range)
+            Some(CalendarValue.Range(Some(value)))
+        else
+            None
+        case Empty -> Some(
+            if (range)
+                CalendarValue.Range(None)
+            else
+                CalendarValue.Single(None)
+        )
+        case Invalid(_) -> None
+    }
+
+internal fun datePickerText(value: CalendarValue, locale: CalendarLocale): String =
+    when (value) {
+        case Single(date) -> when (date) {
+            case Some(day) -> locale.date(day);
+            case None -> ""
+        }
+        case Range(range) -> when (range) {
+            case Some(days) -> locale.date(days.start) + " .. " + locale.date(days.end);
+            case None -> ""
+        }
+        case Multiple(_) -> throw IllegalArgumentException(
+            Some("date picker cannot format multiple dates")
+        )
+    }

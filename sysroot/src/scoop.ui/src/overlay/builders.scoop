@@ -15,7 +15,8 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public var placement: OverlayPlacement = value.placement
     public var handle: OverlayHandle? = value.handle
     public var anchorVisibility: AnchorVisibility = value.anchorVisibility
-    public var modal: ModalOptions? = value.modal
+    public var mode: OverlayMode = value.mode
+    public var focus: OverlayFocusOptions? = value.focus
     public var dismiss: OverlayDismiss = value.dismiss
     public var transition: PresenceOptions = value.transition
     public var onCloseRequest: (OverlayCloseReason) -> Boolean = value.onCloseRequest
@@ -61,6 +62,34 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
                 builder.matchAnchorWidth
             )
     }
+    public fun contentAligned(
+        anchor: LayoutAnchor,
+        configure: AnchoredPlacementBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = AnchoredPlacementBuilder()
+        builder.alignment = OverlayAlignment.Center
+        builder.matchAnchorWidth = true
+        when (placement) {
+            case ContentAligned(_, side, alignment, gap, padding, matchWidth) -> {
+                builder.preferredSide = side
+                builder.alignment = alignment
+                builder.gap = gap
+                builder.viewportPadding = padding
+                builder.matchAnchorWidth = matchWidth
+            }
+            else -> {}
+        }
+        builder.configure()
+        placement =
+            OverlayPlacement.ContentAligned(
+                anchor,
+                builder.preferredSide,
+                builder.alignment,
+                builder.gap,
+                builder.viewportPadding,
+                builder.matchAnchorWidth
+            )
+    }
     public fun atPoint(point: Point, configure: PointPlacementBuilder.() -> Unit = {}): Unit {
         val builder = PointPlacementBuilder()
         when (placement) {
@@ -85,19 +114,28 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public fun dismiss(configure: OverlayDismissBuilder.() -> Unit): Unit {
         val builder = OverlayDismissBuilder(dismiss)
         builder.configure()
-        dismiss = OverlayDismiss(builder.escape, builder.outsidePress)
+        dismiss = OverlayDismiss(builder.escape, builder.outsidePress, builder.includeAnchor)
     }
-    public fun modal(configure: ModalOptionsBuilder.() -> Unit = {}): Unit {
-        val builder = ModalOptionsBuilder(modal ?: ModalOptions())
+    public fun focus(configure: OverlayFocusOptionsBuilder.() -> Unit = {}): Unit {
+        val builder = OverlayFocusOptionsBuilder(focus ?: OverlayFocusOptions())
         builder.configure()
-        modal = Some(ModalOptions(builder.initialFocus, builder.restoreFocus))
+        focus =
+            Some(
+                OverlayFocusOptions(
+                    builder.initialFocus,
+                    builder.restoreFocus,
+                    builder.autoFocus,
+                    builder.restoreTarget
+                )
+            )
     }
     internal fun snapshot(): PortalOptions =
         PortalOptions(
             placement,
             handle,
             anchorVisibility,
-            modal,
+            mode,
+            focus,
             dismiss,
             transition,
             onCloseRequest,
@@ -114,7 +152,8 @@ public class PortalBuilder internal constructor(): PortalOptionsBuilder(PortalOp
         placement = value.placement
         handle = value.handle
         anchorVisibility = value.anchorVisibility
-        modal = value.modal
+        mode = value.mode
+        focus = value.focus
         dismiss = value.dismiss
         transition = value.transition
         onCloseRequest = value.onCloseRequest
@@ -139,11 +178,14 @@ public class AnchoredPlacementBuilder internal constructor() {
 public class OverlayDismissBuilder internal constructor(value: OverlayDismiss) {
     public var escape: Boolean = value.escape
     public var outsidePress: OutsidePress = value.outsidePress
+    public var includeAnchor: Boolean = value.includeAnchor
 }
 
-public class ModalOptionsBuilder internal constructor(value: ModalOptions) {
+public class OverlayFocusOptionsBuilder internal constructor(value: OverlayFocusOptions) {
     public var initialFocus: FocusHandle? = value.initialFocus
     public var restoreFocus: Boolean = value.restoreFocus
+    public var autoFocus: Boolean = value.autoFocus
+    public var restoreTarget: FocusHandle? = value.restoreTarget
 }
 
 public class PointPlacementBuilder internal constructor() {
@@ -151,4 +193,21 @@ public class PointPlacementBuilder internal constructor() {
     public var alignment: OverlayAlignment = OverlayAlignment.Start
     public var gap: Double = 0.0
     public var viewportPadding: Double = 8.0
+}
+
+public fun overlayFocusOptions(
+    configure: OverlayFocusOptionsBuilder.() -> Unit = {}
+): OverlayFocusOptions = OverlayFocusOptions().copy(configure)
+
+public fun OverlayFocusOptions.copy(
+    configure: OverlayFocusOptionsBuilder.() -> Unit = {}
+): OverlayFocusOptions {
+    val builder = OverlayFocusOptionsBuilder(this)
+    builder.configure()
+    return OverlayFocusOptions(
+        builder.initialFocus,
+        builder.restoreFocus,
+        builder.autoFocus,
+        builder.restoreTarget
+    )
 }

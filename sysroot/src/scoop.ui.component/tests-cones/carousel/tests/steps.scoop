@@ -1,0 +1,280 @@
+package scoop.tests.ui.carousel
+
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun advanceCarousel(p: CarouselProbe) {
+    when (p.phase) {
+        case 0 -> {
+            p.expect(0L, 0.0)
+            val snaps = p.handle.snapPositions
+            assertEquals(4L, snaps.size)
+            for (index in 0L ..< 4L)
+                assertEquals([0.0, 110.0, 260.0, 270.0][index], snaps[index])
+            assertTrue(p.viewport.requestFocus())
+        }
+        case 1 -> {
+            assertTrue(p.viewport.hasFocus);
+            p.key(124)
+        }
+        case 2 -> {
+            p.expect(1L, 110.0);
+            p.key(119)
+        }
+        case 3 -> {
+            p.expect(3L, 270.0);
+            assertFalse(p.handle.snapshot.canNext);
+            p.key(48)
+        }
+        case 4 -> {
+            assertTrue(p.buttons[2L].hasFocus);
+            assertFalse(p.buttons[0L].hasFocus);
+            assertFalse(p.editor.hasFocus);
+            assertFalse(p.buttons[0L].requestFocus());
+            assertFalse(p.editor.requestFocus());
+            assertTrue(p.viewport.requestFocus())
+        }
+        case 5 -> {
+            assertTrue(p.viewport.hasFocus);
+            p.key(115)
+        }
+        case 6 -> {
+            p.expect(0L, 0.0);
+            p.reject = true;
+            p.key(124)
+        }
+        case 7 -> {
+            p.expect(0L, 0.0);
+            assertEquals(3, p.selections);
+            p.reject = false;
+            p.press(80.0, 112.0, true)
+        }
+        case 8 -> p.press(80.0, 112.0, false)
+        case 9 -> {
+            assertEquals(1, p.clicks);
+            assertTrue(p.viewport.requestFocus())
+        }
+        case 10 -> {
+            assertTrue(p.viewport.hasFocus);
+            p.press(80.0, 112.0, true)
+        }
+        case 11 -> p.move(25.0, 112.0)
+        case 12 -> {
+            assertTrue(p.handle.snapshot.dragging);
+            p.expect(0L, 55.0);
+            p.move(-70.0, 112.0)
+        }
+        case 13 -> p.press(-70.0, 112.0, false)
+        case 14 -> {
+            p.expect(1L, 110.0);
+            assertEquals(1, p.clicks);
+            p.press(100.0, 180.0, true)
+        }
+        case 15 -> p.move(160.0, 180.0)
+        case 16 -> {
+            assertTrue(p.handle.snapshot.dragging);
+            p.key(53)
+        }
+        case 17 -> {
+            p.expect(1L, 110.0);
+            assertEquals(1, p.cancels);
+            p.press(160.0, 180.0, false);
+            p.selected.value = 3L;
+            p.refresh()
+        }
+        case 18 -> {
+            p.expect(3L, 270.0);
+            p.loop = true;
+            p.refresh()
+        }
+        case 19 -> {
+            p.expect(3L, 350.0);
+            assertTrue(p.handle.snapshot.looping);
+            assertTrue(p.handle.next(false))
+        }
+        case 20 -> {
+            p.expect(0L, 0.0);
+            assertTrue(p.handle.previous(false))
+        }
+        case 21 -> {
+            p.expect(3L, 350.0);
+            p.controlled = false;
+            p.refresh()
+        }
+        case 22 -> {
+            p.expect(3L, 350.0);
+            p.reordered = true;
+            p.refresh()
+        }
+        case 23 -> {
+            p.expect(0L, 0.0);
+            assertEquals(Some(ViewKey.Number(3L)), p.handle.snapshot.key);
+            assertEquals(4, p.mounts);
+            p.vertical = true;
+            p.refresh()
+        }
+        case 24 -> {
+            p.expect(0L, 0.0);
+            assertTrue(p.viewport.requestFocus());
+            p.key(125)
+        }
+        case 25 -> {
+            p.expect(1L, 170.0);
+            p.key(126)
+        }
+        case 26 -> {
+            p.expect(0L, 0.0);
+            p.press(100.0, 170.0, true)
+        }
+        case 27 -> p.move(100.0, 110.0)
+        case 28 -> {
+            assertTrue(p.handle.snapshot.dragging);
+            p.zero = true;
+            p.refresh()
+        }
+        case 29 -> {
+            assertFalse(p.handle.snapshot.dragging);
+            assertEquals(2, p.cancels);
+            p.press(100.0, 110.0, false);
+            p.zero = false;
+            p.enabled = false;
+            p.loop = false;
+            p.refresh();
+            p.lead.requestFocus()
+        }
+        case 30 -> {
+            assertFalse(p.handle.next());
+            p.enabled = true;
+            p.narrow = true;
+            p.refresh()
+        }
+        case 31 -> {
+            p.expect(0L, 0.0);
+            assertTrue(p.handle.scrollTo(2L, false))
+        }
+        case 32 -> {
+            p.expect(2L, 320.0);
+            p.narrow = false;
+            p.vertical = false;
+            p.empty = true;
+            p.refresh()
+        }
+        case 33 -> {
+            assertEquals(0L, p.handle.snapshot.count);
+            assertEquals(-1L, p.handle.snapshot.index);
+            assertFalse(p.handle.next());
+            p.empty = false;
+            p.refresh()
+        }
+        case 34 -> {
+            p.expect(2L, 270.0);
+            assertEquals(8, p.mounts);
+            assertTrue(p.handle.scrollTo(3L, false))
+        }
+        case 35 -> {
+            p.expect(3L, 270.0);
+            assertTrue(p.editor.requestFocus())
+        }
+        case 36 -> {
+            assertTrue(p.editor.hasFocus);
+            carouselEditorRight(p.native!!)
+            assertEquals(3L, p.handle.snapshot.index)
+            p.controlled = true;
+            p.selected.value = 0L;
+            p.refresh();
+            p.viewport.requestFocus()
+        }
+        case 37 -> {
+            p.expect(0L, 0.0);
+            p.press(150.0, 250.0, true)
+        }
+        case 38 -> p.move(50.0, 250.0)
+        case 39 -> {
+            assertTrue(p.handle.snapshot.dragging);
+            p.selected.value = 2L;
+            p.refresh()
+        }
+        case 40 -> {
+            p.expect(2L, 270.0);
+            assertEquals(3, p.cancels);
+            p.press(50.0, 250.0, false)
+            p.loop = true;
+            p.autoplay = true;
+            p.refresh();
+            p.viewport.requestFocus();
+            p.move(430.0, 430.0)
+        }
+        case 41 -> {
+            p.beforeAuto = p.selections;
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(450L)
+        }
+        case 42 -> {
+            assertEquals(p.beforeAuto, p.selections);
+            assertEquals(p.quiet!!, p.frames!!.snapshot());
+            p.lead.requestFocus();
+            p.beforeAuto = p.selections;
+            p.waitAfter = Duration.milliseconds(600L)
+        }
+        case 43 -> {
+            assertTrue(p.selections > p.beforeAuto);
+            p.move(150.0, 250.0);
+            p.beforeAuto = p.selections;
+            p.waitAfter = Duration.milliseconds(450L)
+        }
+        case 44 -> {
+            assertEquals(p.beforeAuto, p.selections);
+            p.hidden = true;
+            p.native!!.setVisible(false);
+            p.waitAfter = Duration.milliseconds(450L)
+        }
+        case 45 -> {
+            assertEquals(p.beforeAuto, p.selections);
+            p.native!!.setVisible(true);
+            p.native!!.requestFocus();
+            p.hidden = false;
+            p.beforeAuto = p.selections
+            p.move(430.0, 430.0);
+            p.lead.requestFocus()
+            p.waitAfter = Duration.milliseconds(450L)
+        }
+        case 46 -> {
+            assertTrue(p.selections > p.beforeAuto)
+            p.autoplay = false;
+            p.rtl = true;
+            p.refresh();
+            p.viewport.requestFocus()
+        }
+        case 47 -> {
+            p.beforeIndex = p.handle.snapshot.index;
+            p.key(123)
+        }
+        case 48 -> {
+            assertEquals((p.beforeIndex + 1L) % 4L, p.handle.snapshot.index)
+            p.motion = true;
+            p.refresh()
+        }
+        case 49 -> {
+            assertTrue(p.handle.next());
+            p.waitAfter = Duration.milliseconds(400L)
+        }
+        case 50 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(250L)
+        }
+        case 51 -> {
+            assertEquals(p.quiet!!, p.frames!!.snapshot());
+            p.gone = true;
+            p.refresh()
+        }
+        case 52 -> {
+            assertFalse(p.handle.isAttached);
+            assertFalse(p.viewport.isAttached);
+            assertEquals(8, p.unmounts);
+            p.native!!.requestDestroy()
+        }
+        else -> assertTrue(false, Some("unexpected carousel phase"))
+    }
+}

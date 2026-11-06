@@ -1,0 +1,188 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class AccordionProps<T: Equals<T>> public constructor(
+    public val entries: Array<AccordionEntry<T>>,
+    public val selected: AccordionSelection<T>,
+    public val enabled: Boolean = true,
+    public val loop: Boolean = true,
+    public val variant: AccordionVariant = AccordionVariant.Default,
+    public val retention: ContentRetention = ContentRetention.Dispose,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val onOpenChange: (T, Boolean) -> Unit = { _, _ -> }
+) {
+    init {
+        validateChoices(Array<Choice<T>>(entries.size) { index -> entries[index].choice })
+    }
+}
+
+public class Accordion<T: Equals<T>> public constructor(
+    private val props: Props<AccordionProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val handles = ChoiceHandles()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
+        val focus =
+            handles.resolve(
+                keys,
+                Array<FocusOptions>(keys.size) {
+                    index -> input.entries[index].trigger?.focus ?: FocusOptions()
+                }
+            )
+        val children =
+            Array<View>(keys.size) {
+                index ->
+                val entry = input.entries[index]
+                val key = entry.choice.key
+                val trigger =
+                    entry.trigger ?:
+                        TriggerSpec(
+                            ButtonContent.Label(
+                                LabelProps(LabelText.Plain(entry.choice.label, None))
+                            ),
+                            variant = ButtonVariant.Link
+                        )
+                val open =
+                    binding(
+                        {
+                            val latest = props.value
+                            when (accordionEntry(latest.entries, key)) {
+                                case Some(value) -> accordionOpen(
+                                    latest.selected,
+                                    value.choice.value
+                                )
+                                case None -> false
+                            }
+                        },
+                        {
+                            desired ->
+                            val latest = props.value
+                            when (accordionEntry(latest.entries, key)) {
+                                case Some(value) -> if (latest.enabled && value.choice.enabled)
+                                    setAccordionOpen(latest.selected, value.choice.value, desired)
+                                case None -> {}
+                            }
+                        }
+                    )
+                val frame =
+                    accordionItemStyle(theme, input.variant, index == keys.size - 1L).then(
+                        entry.style
+                    )
+                panelFrame(
+                    component(
+                        CollapsibleProps(
+                            open,
+                            panelFrame(entry.content, Insets(0.0, 0.0, 0.0, 10.0 * density)),
+                            Some(
+                                TriggerSpec(
+                                    trigger.content,
+                                    trigger.enabled,
+                                    trigger.indicator,
+                                    trigger.variant,
+                                    Some(
+                                        trigger.style ?: accordionTriggerStyle(theme, input.variant)
+                                    ),
+                                    choiceFocus(trigger.focus, focus[index]),
+                                    trigger.fonts
+                                )
+                            ),
+                            input.enabled && entry.choice.enabled,
+                            entry.retention ?: input.retention,
+                            0.0,
+                            input.transition,
+                            {
+                                accepted ->
+                                val latest = props.value
+                                when (accordionEntry(latest.entries, key)) {
+                                    case Some(value) -> latest.onOpenChange(
+                                        value.choice.value,
+                                        accepted
+                                    )
+                                    case None -> {}
+                                }
+                            },
+                            input.fonts,
+                            input.theme
+                        ),
+                        { current, mount -> Collapsible(current, scope = mount) }
+                    ),
+                    padding =
+                        if (input.variant == AccordionVariant.Card)
+                            Insets(12.0 * density, 0.0, 12.0 * density, 0.0)
+                        else
+                            Insets(),
+                    visual = frame
+                )
+            }
+        return choiceLayout(
+            children,
+            keys,
+            focus,
+            FlexAxis.Vertical,
+            if (input.variant == AccordionVariant.Card)
+                12.0 * density
+            else
+                0.0,
+            input.loop,
+            input.enabled,
+            input.style,
+            roving = false
+        )
+    }
+}
+
+private fun accordionTriggerStyle(theme: Theme, variant: AccordionVariant): ButtonStyle {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    return buttonStyle {
+        this.kind = SurfaceKind.Plain
+        surface {
+            this.suggestedSize = Some(Size(0.0, 0.0))
+            this.minimumSize = Some(Size(0.0, 0.0))
+            this.padding = Some(Insets(0.0, 10.0 * density, 0.0, 10.0 * density))
+            style { this.corners(Corners.all(theme.tokens.corners.large)) }
+        }
+        text {
+            this.fontSize = Some(14.0 * density)
+            this.lineHeight = Some(Some(20.0 / 14.0))
+            this.weight = Some(500)
+            this.color =
+                Some(
+                    if (variant == AccordionVariant.Card)
+                        theme.tokens.palette.card.foreground
+                    else
+                        theme.tokens.palette.background.foreground
+                )
+        }
+    }
+}
+
+private fun accordionItemStyle(
+    theme: Theme,
+    variant: AccordionVariant,
+    last: Boolean
+): StyleOverride =
+    styleOverride {
+        if (variant == AccordionVariant.Card) {
+            this.background(Some(Paint(theme.tokens.palette.card.background)))
+            this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
+            this.corners(Corners.all(theme.tokens.corners.large))
+        } else
+            if (!last)
+                this.border(Some(bottomBorder(theme.tokens.palette.border)))
+    }

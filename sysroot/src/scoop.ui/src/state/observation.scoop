@@ -1,43 +1,73 @@
 package scoop.ui
 
+import scoop.surface.AnimationReadObserver
+import scoop.collections.HashMap
+
+private val stateSequence = AtomicLong(0L)
+
+internal struct StateSignalId(val value: Long): Equals<StateSignalId>, Hash {
+    public override operator fun equals(other: StateSignalId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
 internal class StateSignal {
-    private val observers = ArrayList<MountedNode>()
-    fun subscribe(node: MountedNode) {
-        for (observer in observers)
-            if (observer === node)
-                return
-        observers.add(node)
+    val id = StateSignalId(stateSequence.fetchAdd(1L, MemoryOrder.Relaxed))
+    private val observers = ArrayList<StateSubscription>()
+
+    fun subscribe(node: MountedNode): StateSubscription {
+        val subscription = StateSubscription(Some(this), Some(node), observers.size)
+        observers.add(subscription)
+        return subscription
     }
-    fun unsubscribe(node: MountedNode) {
-        var index = 0L
-        while (index < observers.size) {
-            if (observers[index] === node) {
-                observers.removeAt(index)
-                return
+    fun remove(subscription: StateSubscription) {
+        val index = subscription.index
+        val last = observers.size - 1L
+        if (index != last) {
+            val moved = observers[last]
+            observers[index] = moved
+            moved.index = index
+        }
+        observers.removeAt(last)
+    }
+    fun changed(invalidation: UiInvalidation = UiInvalidation.None) {
+        for (observer in observers.toArray()) {
+            when (observer.node) {
+                case Some(node) -> {
+                    node.request(invalidation)
+                    node.invalidate()
+                }
+                case None -> {}
             }
-            index += 1L
         }
     }
-    fun changed() {
-        for (observer in observers.toArray())
-            observer.invalidate()
+}
+
+/** Closing a binding removes it without searching its source's other observers. */
+internal class StateSubscription(
+    private var source: StateSignal?,
+    var node: MountedNode?,
+    var index: Long
+): Closeable {
+    public override fun close() {
+        val owner = source ?: return
+        owner.remove(this)
+        source = None
+        node = None
+        index = -1L
     }
 }
 
 internal class DependencyCollector {
-    private val sources = ArrayList<StateSignal>()
+    val sources = HashMap<StateSignalId, StateSignal>()
     fun read(source: StateSignal) {
-        for (previous in sources)
-            if (previous === source)
-                return
-        sources.add(source)
+        sources[source.id] = source
     }
-    fun collected(): Array<StateSignal> = sources.toArray()
 }
 
 internal class UiEvaluation(
     val collector: DependencyCollector? = None,
-    val preparing: Boolean = false
+    val preparing: Boolean = false,
+    val frameReads: FrameReads? = None
 )
 
 context(evaluation: UiEvaluation)
@@ -56,17 +86,27 @@ internal fun currentEvaluation(): UiEvaluation? {
     }
 }
 
-internal fun <T> evaluateUi(collector: DependencyCollector?, block: () -> T): T {
-    val evaluation = UiEvaluation(collector)
+internal fun <T> evaluateUi(
+    collector: DependencyCollector?,
+    frameReads: FrameReads? = None,
+    block: () -> T
+): T {
+    val evaluation = UiEvaluation(collector, frameReads = frameReads)
+    val observer: AnimationReadObserver = frameReads ?: IgnoreAnimationReads
     context(evaluation) {
-        return block()
+        context(observer) {
+            return block()
+        }
     }
 }
 
 /** Item preparation is a lifecycle boundary, even when requested by a layout callback. */
 internal fun <T> prepareUi(block: () -> T): T {
     val evaluation = UiEvaluation(preparing = true)
+    val observer: AnimationReadObserver = IgnoreAnimationReads
     context(evaluation) {
-        return block()
+        context(observer) {
+            return block()
+        }
     }
 }

@@ -1,0 +1,164 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.collections.sortWith
+import scoop.comparisons.comparatorOf
+
+internal class TableComputed<Row>(
+    val data: TableData<Row>,
+    val query: TableQuery,
+    val ordered: TableSource<Row>,
+    val result: TableResult<Row>
+)
+
+internal fun <Row> tableColumn(columns: Array<TableColumn<Row>>, id: String): TableColumn<Row> {
+    for (column in columns)
+        if (column.id == id)
+            return column
+    throw IllegalArgumentException(Some(f"unknown table column: ${id}"))
+}
+
+internal fun <Row> tableInitial(
+    data: TableData<Row>,
+    columns: Array<TableColumn<Row>>,
+    query: TableQuery
+): TableComputed<Row> {
+    requireComponent(columns.size > 0L, "data table requires columns")
+    val ids = HashSet<String>()
+    for (column in columns)
+        requireComponent(ids.add(column.id), "duplicate table column id")
+    return tableCompute(data, columns, query, None)
+}
+
+internal fun <Row> tableCompute(
+    data: TableData<Row>,
+    columns: Array<TableColumn<Row>>,
+    query: TableQuery,
+    previous: TableComputed<Row>?
+): TableComputed<Row> {
+    val ids = HashSet<String>()
+    for (sort in query.sorting) {
+        tableColumn(columns, sort.column)
+        requireComponent(ids.add(sort.column), "duplicate table sort column")
+    }
+    ids.clear()
+    for (filter in query.filters) {
+        tableColumn(columns, filter.column)
+        requireComponent(ids.add(filter.column), "duplicate table filter column")
+    }
+    val source = tableDataSource(data)
+    requireComponent(source.count >= 0L, "negative table source count")
+    val ordered =
+        when (data) {
+            case Provided(_, total) -> {
+                requireComponent(total >= source.count, "provided table total must cover its page")
+                source
+            }
+            case Local(_) -> {
+                var cached: TableSource<Row>? = None
+                when (previous) {
+                    case Some(old) -> when (old.data) {
+                        case Local(oldSource) -> {
+                            if (source === oldSource && tableCriteriaEqual(query, old.query))
+                                cached = Some(old.ordered)
+                        }
+                        else -> {}
+                    }
+                    case None -> {}
+                }
+                cached ?: tableLocalOrder(source, columns, query)
+            }
+        }
+    val total =
+        when (data) {
+            case Local(_) -> ordered.count;
+            case Provided(_, rows) -> rows
+        }
+    val pages =
+        total /
+            query.pageSize +
+            if (total % query.pageSize == 0L)
+                0L
+            else
+                1L
+    val index =
+        if (pages == 0L)
+            0L
+        else
+            if (query.pageIndex < pages)
+                query.pageIndex
+            else
+                pages - 1L
+    val resolved =
+        if (index == query.pageIndex)
+            query
+        else
+            TableQuery(query.sorting, query.filters, index, query.pageSize)
+    val rows =
+        when (data) {
+            case Provided(_, _) -> ordered
+            case Local(_) -> {
+                val start = index * query.pageSize
+                TableSlice<Row>(
+                    ordered,
+                    start,
+                    if (query.pageSize < total - start)
+                        query.pageSize
+                    else
+                        total - start
+                )
+            }
+        }
+    return TableComputed(data, resolved, ordered, TableResult(rows, total, pages))
+}
+
+private fun <Row> tableLocalOrder(
+    source: TableSource<Row>,
+    columns: Array<TableColumn<Row>>,
+    query: TableQuery
+): TableSource<Row> {
+    if (query.sorting.size == 0L && query.filters.size == 0L)
+        return source
+    val filters =
+        Array<(Row, String) -> Boolean>(query.filters.size) {
+            index -> tableColumn(columns, query.filters[index].column).filter ?:
+                throw IllegalArgumentException(Some("local table filter requires a predicate"))
+        }
+    val comparators =
+        Array<(Row, Row) -> Int>(query.sorting.size) {
+            index -> tableColumn(columns, query.sorting[index].column).compare ?:
+                throw IllegalArgumentException(Some("local table sort requires a comparator"))
+        }
+    val indices = ArrayList<Long>()
+    for (index in 0L ..< source.count) {
+        var included = true
+        for (filter in 0L ..< filters.size) {
+            if (!filters[filter](source.rowAt(index), query.filters[filter].text)) {
+                included = false
+                break
+            }
+        }
+        if (included)
+            indices.add(index)
+    }
+    if (comparators.size > 0L)
+        indices.sortWith(
+            comparatorOf<Long> compare@{
+                left, right ->
+                val a = source.rowAt(left)
+                val b = source.rowAt(right)
+                for (index in 0L ..< comparators.size) {
+                    val comparison = comparators[index](a, b).toLong()
+                    if (comparison != 0L)
+                        return@compare if (
+                            query.sorting[index].direction == TableSortDirection.Ascending
+                        )
+                            comparison
+                        else
+                            -comparison
+                }
+                0L
+            }
+        )
+    return TableOrder(source, indices.toArray())
+}

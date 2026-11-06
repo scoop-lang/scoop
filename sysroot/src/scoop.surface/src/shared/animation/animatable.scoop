@@ -17,7 +17,12 @@ public class Animatable<T> internal constructor(
     initial: T,
     private val converter: AnimationConverter<T>,
     private val group: AnimationGroup?
-): Closeable {
+): Closeable, AnimationSource {
+    private var serial = 0L
+    public override val revision: Long get() {
+        timeline.checkThread()
+        return serial
+    }
     private var frameEnabled = true
     public var isFrameEnabled: Boolean
     get() {
@@ -50,18 +55,22 @@ public class Animatable<T> internal constructor(
     }
     public val value: T get() {
         timeline.checkThread();
+        observeAnimation(this)
         return current
     }
     public val target: T get() {
         timeline.checkThread();
+        observeAnimation(this)
         return goal
     }
     public val velocity: AnimationVector get() {
         timeline.checkThread();
+        observeAnimation(this)
         return speed
     }
     public val state: AnimationState get() {
         timeline.checkThread()
+        observeAnimation(this)
         return when (playback) {
             case Idle -> AnimationState.Idle
             case Running(_) -> AnimationState.Running
@@ -86,6 +95,7 @@ public class Animatable<T> internal constructor(
         val run = MotionRun(vector, destination, speed, spec, repeat)
         playback = AnimationPlayback.Running(AnimationSegment(run, now))
         goal = target
+        serial += 1L
         callback = onFinished
         timeline.schedule(this)
         sample(now)
@@ -101,6 +111,7 @@ public class Animatable<T> internal constructor(
         goal = value
         vector = next
         speed = AnimationVector()
+        serial += 1L
         timeline.unschedule(this)
         timeline.changed(requestsFrames)
     }
@@ -110,6 +121,7 @@ public class Animatable<T> internal constructor(
             return
         sample(timeline.now())
         playback = AnimationPlayback.Cancelled
+        serial += 1L
         callback = None
         speed = AnimationVector()
         timeline.unschedule(this)
@@ -122,6 +134,7 @@ public class Animatable<T> internal constructor(
         when (playback) {
             case Running(segment) -> {
                 playback = AnimationPlayback.Paused(segment, now)
+                serial += 1L
                 timeline.unschedule(this)
                 timeline.changed(requestsFrames)
             }
@@ -138,6 +151,7 @@ public class Animatable<T> internal constructor(
                         AnimationSegment(segment.run, segment.start + (now - paused))
                     )
                 timeline.schedule(this)
+                serial += 1L
                 timeline.changed(requestsFrames)
             }
             else -> {}
@@ -162,8 +176,20 @@ public class Animatable<T> internal constructor(
                 val sampled = run.sample(durationSeconds(time - segment.start))
                 sampled.value.check()
                 sampled.velocity.check()
-                current = converter.fromVector(sampled.value)
-                vector = converter.toVector(current)
+                val next = converter.fromVector(sampled.value)
+                val nextVector = converter.toVector(next)
+                if (
+                    nextVector !=
+                        vector ||
+                        sampled.velocity !=
+                        speed ||
+                        sampled.target !=
+                        converter.toVector(goal) ||
+                        sampled.finished
+                )
+                    serial += 1L
+                current = next
+                vector = nextVector
                 speed = sampled.velocity
                 goal = converter.fromVector(sampled.target)
                 if (sampled.finished) {
@@ -198,6 +224,7 @@ public class Animatable<T> internal constructor(
         val repaint = requestsFrames
         frameEnabled = false
         playback = AnimationPlayback.Closed
+        serial += 1L
         callback = None
         speed = AnimationVector()
         timeline.detached(this)

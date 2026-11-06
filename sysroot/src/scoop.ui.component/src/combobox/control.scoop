@@ -1,0 +1,280 @@
+package scoop.ui.component
+
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.ui.text.TextEditorState
+
+internal class ComboChip<T: Equals<T>>(val value: T, val key: ViewKey, val focus: FocusHandle)
+
+internal class ComboboxControl<T: Equals<T>>(
+    val props: Props<ComboboxProps<T>>,
+    val owner: ComponentScope
+) {
+    val themes = ThemeAccess()
+    val localOpen = state(false)
+    val localActive = state<ViewKey?>(None)
+    val ownEditor = FocusHandle()
+    val ownTrigger = FocusHandle()
+    val anchor = LayoutAnchor()
+    val ownLayer = OverlayHandle()
+    val ownScroll = ScrollState()
+    val ownList = VirtualListHandle()
+    var chips: Array<ComboChip<T>> = []
+    private var nextChip = 0L
+    private var pendingTab: Boolean? = None
+    private var cached: ComboboxProps<T>? = None
+    private var cachedQuery = ""
+    private var filtered: ChoiceSource<T>? = None
+    private var rowSource: ComboboxRows<T>? = None
+    val open = binding({ props.value.open?.value ?: localOpen.value }, { value -> setOpen(value) })
+    val active =
+        binding(
+            { (props.value.active ?: localActive.binding()).value },
+            { value -> (props.value.active ?: localActive.binding()).value = value }
+        )
+    val editor: FocusHandle get() = props.value.input.focus.handle ?: ownEditor
+    val trigger: FocusHandle get() = props.value.triggerFocus.handle ?: ownTrigger
+    val layer: OverlayHandle get() = props.value.handle ?: ownLayer
+    val list: VirtualListHandle get() = props.value.listHandle ?: ownList
+    val scroll: ScrollState get() = props.value.scroll ?: ownScroll
+
+    fun mount() {
+        themes.mount(props.value.input.theme)
+    }
+    fun results(): ChoiceSource<T> {
+        val input = props.value
+        val query = input.query.committedText
+        when (cached) {
+            case Some(previous) -> if (previous === input && query == cachedQuery)
+                return filtered!!;
+            case None -> {}
+        }
+        val result = comboResults(input, query)
+        cached = Some(input);
+        cachedQuery = query;
+        filtered = Some(result)
+        return result
+    }
+    fun rows(source: ChoiceSource<T>, theme: Theme): ComboboxRows<T> {
+        val input = props.value
+        when (rowSource) {
+            case Some(previous) -> if (
+                previous.source === source && previous.input === input && previous.theme === theme
+            )
+                return previous;
+            case None -> {}
+        }
+        val result =
+            ComboboxRows(
+                source,
+                input,
+                theme,
+                active,
+                { key -> highlight(key) },
+                { key -> select(key) }
+            )
+        rowSource = Some(result)
+        return result
+    }
+    fun setOpen(value: Boolean) {
+        if (value && !props.value.mutable)
+            return
+        val previous = open.value
+        if (value)
+            pendingTab = None
+        if (previous == value)
+            return
+        when (props.value.open) {
+            case Some(target) -> target.value = value;
+            case None -> localOpen.value = value
+        }
+        if (open.value != previous)
+            props.value.onOpenChange(open.value)
+    }
+    fun show(keyboard: Boolean = false, last: Boolean = false) {
+        val input = props.value
+        if (!input.mutable || input.query.isComposing)
+            return
+        val source = results()
+        if (!open.value) {
+            var selected: ViewKey? = None
+            for (value in comboValues(input.selection))
+                when (source.indexOfValue(value)) {
+                    case Some(index) -> if (selected == None && source.enabledAt(index))
+                        selected = Some(source.keyAt(index))
+                    case None -> {}
+                }
+            if (selected != None)
+                active.value = selected
+            else
+                if (keyboard) {
+                    var offset = 0L
+                    while (offset < source.count) {
+                        val index =
+                            if (last)
+                                source.count - offset - 1L
+                            else
+                                offset
+                        if (source.enabledAt(index)) {
+                            active.value = Some(source.keyAt(index));
+                            break
+                        }
+                        offset += 1L
+                    }
+                }
+        }
+        setOpen(true)
+        if (open.value && input.inputPlacement == ComboboxInputPlacement.Inline)
+            editor.requestFocus(
+                if (keyboard)
+                    FocusOrigin.Keyboard
+                else
+                    FocusOrigin.Pointer
+            )
+    }
+    fun toggle() {
+        if (!props.value.mutable)
+            return
+        if (open.value)
+            layer.requestClose()
+        else
+            show()
+        if (props.value.inputPlacement == ComboboxInputPlacement.Inline)
+            editor.requestFocus()
+    }
+    fun edited(query: TextEditorState) {
+        props.value.input.onEdited(query)
+        if (!query.isComposing)
+            show()
+    }
+    fun highlight(key: ViewKey) {
+        if (!props.value.mutable || props.value.query.isComposing)
+            return
+        val source = results()
+        val index = source.indexOfKey(key) ?: return
+        if (source.enabledAt(index))
+            active.value = Some(key)
+    }
+    fun select(key: ViewKey) {
+        val input = props.value
+        if (!input.mutable || !open.value || input.query.isComposing)
+            return
+        val source = results()
+        val index = source.indexOfKey(key) ?: return
+        val item = choiceEntryItem(source.entryAt(index)) ?: return
+        if (!item.choice.enabled)
+            return
+        val previous = comboValues(input.selection)
+        val adding = !input.multiple || !comboContains(previous, item.choice.value)
+        val next = ArrayList<T>()
+        if (input.multiple)
+            for (value in previous)
+                if (value != item.choice.value)
+                    next.add(value)
+        if (adding)
+            next.add(item.choice.value)
+        comboWrite(input, next.toArray())
+        val accepted = comboValues(props.value.selection)
+        if (comboContains(accepted, item.choice.value) != adding)
+            return
+        if (props.value.clearQueryOnSelect)
+            props.value.query.replaceAll("")
+        if (props.value.closeOnSelect ?: !props.value.multiple)
+            layer.requestClose()
+        if (props.value.inputPlacement == ComboboxInputPlacement.Inline || open.value)
+            editor.requestFocus()
+    }
+    fun clear() {
+        val input = props.value
+        if (!input.mutable || input.query.isComposing)
+            return
+        comboWrite(input, [])
+        if (comboValues(props.value.selection).size != 0L)
+            return
+        props.value.query.replaceAll("")
+        if (input.inputPlacement == ComboboxInputPlacement.Inline || open.value)
+            editor.requestFocus()
+        else
+            trigger.requestFocus()
+    }
+    fun remove(value: T, keyboard: Boolean = false) {
+        val input = props.value
+        if (!input.mutable || input.query.isComposing)
+            return
+        val next = ArrayList<T>()
+        for (entry in comboValues(input.selection))
+            if (entry != value)
+                next.add(entry)
+        comboWrite(input, next.toArray())
+        val accepted = comboValues(props.value.selection)
+        if (comboContains(accepted, value))
+            return
+        if (keyboard) {
+            var previous: FocusHandle? = None
+            for (chip in chips) {
+                if (chip.value == value)
+                    break
+                if (comboContains(accepted, chip.value))
+                    previous = Some(chip.focus)
+            }
+            when (previous) {
+                case Some(focus) -> {
+                    focus.requestFocus(FocusOrigin.Keyboard);
+                    return
+                };
+                case None -> {}
+            }
+        }
+        editor.requestFocus(
+            if (keyboard)
+                FocusOrigin.Keyboard
+            else
+                FocusOrigin.Pointer
+        )
+    }
+    fun resolveChips(values: Array<T>) {
+        val next = ArrayList<ComboChip<T>>()
+        for (value in values) {
+            var duplicate = false
+            for (entry in next)
+                if (entry.value == value)
+                    duplicate = true
+            if (duplicate)
+                continue
+            var previous: ComboChip<T>? = None
+            for (chip in chips)
+                if (chip.value == value)
+                    previous = Some(chip)
+            when (previous) {
+                case Some(chip) -> next.add(chip)
+                case None -> {
+                    next.add(ComboChip(value, ViewKey.Number(nextChip), FocusHandle()));
+                    nextChip += 1L
+                }
+            }
+        }
+        chips = next.toArray()
+    }
+    fun tab(reverse: Boolean) {
+        pendingTab = Some(reverse)
+        layer.requestClose()
+        if (open.value)
+            pendingTab = None
+    }
+    fun updated() {
+        if (open.value)
+            pendingTab = None
+    }
+    fun closed(reason: OverlayCloseReason) {
+        val next = pendingTab
+        pendingTab = None
+        when (next) {
+            case Some(reverse) -> if (owner.isMounted)
+                owner.moveFocus(reverse);
+            case None -> {}
+        }
+        props.value.onClosed(reason)
+    }
+}

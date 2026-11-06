@@ -5,17 +5,24 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class GestureRoot(private val probe: GestureProbe): Component {
-    private val content = element({ GestureChild(probe) })
+internal class GestureRoot(private val probe: GestureProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val content = element({ mount -> GestureChild(probe, scope = mount) })
     public override fun render(): View =
-        element(probe.shift.value, { props -> GesturePanel(props, probe) }, [content])
+        element(
+            probe.shift.value,
+            { props, mount -> GesturePanel(props, probe, scope = mount) },
+            [content]
+        )
 }
 
 private class GesturePanel(
     private val props: Props<Double>,
-    private val probe: GestureProbe
-): Element {
-    public override fun onMount(scope: ComponentScope) {
+    private val probe: GestureProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         val area = scope.createArea()
         probe.parent = Some(area)
         probe.drag =
@@ -42,12 +49,14 @@ private class GesturePanel(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(80.0, 40.0)))
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(240.0, 140.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 140.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val shift = props.value
         context.translate(shift, 0.0)
         context.place(probe.parent!!, Rect(0.0, 0.0, 220.0, 120.0))
@@ -59,8 +68,10 @@ private class GesturePanel(
     }
 }
 
-private class GestureChild(private val probe: GestureProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class GestureChild(private val probe: GestureProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         probe.area =
             Some(
@@ -80,9 +91,10 @@ private class GestureChild(private val probe: GestureProbe): Element {
         probe.press = Some(scope.press(probe.area!!) { probe.clicks += 1 })
         probe.mounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(80.0, 40.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(probe.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
     }
     public override fun onUnmount() {

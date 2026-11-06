@@ -1,0 +1,222 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.wrap as makeWrapped
+
+public class Breadcrumb public constructor(
+    private val props: Props<BreadcrumbProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.action.fontSize / 14.0
+        return panelFrame(
+            makeWrapped {
+                for (index in 0L ..< input.entries.size) {
+                    val entry = input.entries[index]
+                    this.item(
+                        component(
+                            BreadcrumbRowProps(entry, index == 0L, input, theme),
+                            { current, mount -> BreadcrumbRow(current, scope = mount) },
+                            entry.key
+                        )
+                    ) { this.max = entry.maxWidth }
+                }
+                this.spacing = input.spacing * density
+                this.lineSpacing = input.lineSpacing * density
+                this.alignment = CrossAlignment.Center
+            },
+            visual = input.style
+        )
+    }
+}
+
+private class BreadcrumbRowProps(
+    val entry: BreadcrumbEntry,
+    val first: Boolean,
+    val root: BreadcrumbProps,
+    val theme: Theme
+)
+
+private class BreadcrumbRow(
+    private val props: Props<BreadcrumbRowProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        val entry = input.entry
+        val theme = input.theme
+        val density = theme.tokens.typography.action.fontSize / 14.0
+        val plain =
+            theme.tokens.typography.action.copy {
+                this.weight = 400;
+                this.lineHeight = Some(20.0 / 14.0);
+                this.color = theme.tokens.palette.background.foreground
+            }
+        val body =
+            when (entry.content) {
+                case Link(content, action) -> component(
+                    ButtonProps(
+                        ButtonContent.Resolved {
+                            appearance ->
+                            val active =
+                                appearance.interaction.enabled &&
+                                    (
+                                        appearance.interaction.hovered ||
+                                            appearance.interaction.pressed
+                                    )
+                            val overrideText =
+                                when (entry.style) {
+                                    case Some(value) -> value.text;
+                                    case None -> None
+                                }
+                            val overrideColor =
+                                when (overrideText) {
+                                    case Some(value) -> value.color;
+                                    case None -> None
+                                }
+                            val color =
+                                overrideColor ?:
+                                    if (active)
+                                        theme.tokens.palette.background.foreground
+                                    else
+                                        theme.tokens.palette.muted.foreground
+                            actionContent(
+                                navigationLabel(content, input.root.fonts),
+                                ActionContentStyle(
+                                    appearance.text.copy { this.color = color },
+                                    appearance.iconSize,
+                                    appearance.spacing,
+                                    appearance.interaction,
+                                    false
+                                )
+                            )
+                        },
+                        action,
+                        input.root.enabled && entry.enabled,
+                        breadcrumbButtonStyle(theme, entry.style),
+                        input.root.theme,
+                        entry.focus,
+                        variant = ButtonVariant.Ghost
+                    ),
+                    { current, mount -> Button(current, scope = mount) }
+                )
+                case Current(content) -> actionContent(
+                    navigationLabel(content, input.root.fonts),
+                    ActionContentStyle(
+                        plain,
+                        16.0 * density,
+                        6.0 * density,
+                        InteractionVisual(),
+                        false
+                    )
+                )
+                case Ellipsis -> navigationEllipsis(
+                    20.0 * density,
+                    16.0 * density,
+                    theme.tokens.palette.muted.foreground
+                )
+                case Custom(content) -> content
+            }
+        return makeRow {
+            this.add(
+                if (input.first)
+                    empty()
+                else
+                    input.root.separator ?:
+                        navigationIcon(
+                            NavigationGlyph.End,
+                            14.0 * density,
+                            theme.tokens.palette.muted.foreground
+                        )
+            )
+            this.add(body)
+            this.spacing =
+                if (input.first)
+                    0.0
+                else
+                    input.root.spacing * density
+            this.alignment = CrossAlignment.Center
+        }
+    }
+}
+
+internal fun navigationLabel(
+    content: ButtonContent,
+    fonts: FontCollection?,
+    alignment: TextAlignment = TextAlignment.Start
+): ButtonContent =
+    when (content) {
+        case Label(label) -> ButtonContent.Label(
+            LabelProps(
+                label.text,
+                if (!panelPresent(label.fonts))
+                    fonts
+                else
+                    label.fonts,
+                if (!panelPresent(label.settings))
+                    Some(
+                        paragraphStyle {
+                            this.maxLines = Some(1L);
+                            this.alignment = alignment
+                        }
+                    )
+                else
+                    label.settings,
+                label.inlines,
+                label.theme,
+                label.baseStyle,
+                label.underline
+            )
+        )
+        else -> content
+    }
+
+internal fun breadcrumbButtonStyle(theme: Theme, value: ButtonStyle?): ButtonStyle {
+    val local = value ?: buttonStyle { this.kind = SurfaceKind.Plain }
+    val density = theme.tokens.typography.action.fontSize / 14.0
+    return local.copy {
+        this.surface =
+            this.surface.copy {
+                if (this.padding == None)
+                    this.padding = Some(Insets())
+                if (this.suggestedSize == None)
+                    this.suggestedSize = Some(Size(0.0, 20.0 * density))
+                if (this.minimumSize == None)
+                    this.minimumSize = Some(Size(0.0, 0.0))
+                this.style =
+                    styleOverride {
+                        this.background(Some(Paint(Color.Transparent)));
+                        this.border(None);
+                        this.boxShadows([])
+                    }.then(this.style)
+            }
+        this.text =
+            Some(
+                (this.text ?: spanStyle()).copy {
+                    if (this.weight == None)
+                        this.weight = Some(400)
+                    if (this.lineHeight == None)
+                        this.lineHeight = Some(Some(20.0 / 14.0))
+                }
+            )
+        this.states =
+            this.states.copy {
+                this.pressed =
+                    styleOverride {
+                        this.background(
+                            Some(Paint(theme.tokens.palette.background.foreground.withAlpha(0.08)))
+                        )
+                    }.then(this.pressed)
+            }
+    }
+}

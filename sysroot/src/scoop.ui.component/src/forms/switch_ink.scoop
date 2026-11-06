@@ -1,0 +1,179 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class SwitchInkProps(
+    val input: SwitchProps,
+    val theme: Theme,
+    val checked: Boolean,
+    val control: PressControl,
+    val visual: InteractionVisual,
+    val activate: () -> Unit
+)
+
+internal class SwitchDrawing(
+    val surface: SurfaceGeometry,
+    val visual: SurfaceVisual,
+    val thumb: Rect,
+    val thumbStyle: Style,
+    val hit: Rect
+)
+
+internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private var previousMetrics: SurfaceMetrics? = None
+    private var previousTheme: Theme? = None
+    private var motion: InteractionMotion? = None
+    private var selection: Animatable<Double>? = None
+    private var painters: ThemePainterCache? = None
+    private var thumb: StylePainter? = None
+    private var content: StylePainter? = None
+    private var field: FieldLink? = None
+    public override fun onMount() {
+        val control = props.value.control
+        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+        painters = Some(scope.resource { ThemePainterCache() })
+        thumb = Some(scope.resource { StylePainter() })
+        content = Some(scope.resource { StylePainter() })
+        motion = Some(InteractionMotion(scope, props.value.visual))
+        selection =
+            Some(
+                scope.animation(
+                    if (props.value.checked)
+                        1.0
+                    else
+                        0.0
+                )
+            )
+    }
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        val control = value.control
+        control.press.update(PressOptions(value.input.enabled, false), value.activate)
+        control.area.scope.enabled = value.input.enabled
+        control.focus.options = value.input.focus
+        field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
+        val specs = value.theme.tokens.motion
+        motion!!.update(
+            value.visual,
+            specs.resolve(value.input.style.transition.resolve(specs.hover)),
+            specs.resolve(value.input.style.transition.resolve(specs.press))
+        )
+        changeProgress(
+            selection!!,
+            if (value.checked)
+                1.0
+            else
+                0.0,
+            if (value.input.enabled)
+                specs.resolve(value.input.style.selectionTransition.resolve(specs.selection))
+            else
+                None
+        )
+        painters!!.get(value.theme)
+        val visual = SurfaceVisual(SurfaceKind.Plain, value.visual)
+        val metrics =
+            value.theme.surfaceMetrics(
+                visual,
+                switchOptions(
+                    value.input,
+                    value.theme,
+                    value.visual,
+                    if (value.checked)
+                        1.0
+                    else
+                        0.0
+                ),
+                scope.layoutDirection
+            )
+        val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val value = props.value
+        val visual = SurfaceVisual(SurfaceKind.Plain, value.visual)
+        val progress =
+            if (value.checked)
+                1.0
+            else
+                0.0
+        val options = switchOptions(value.input, value.theme, visual.interaction, progress)
+        val metrics = value.theme.surfaceMetrics(visual, options, context.layoutDirection)
+        val size =
+            constraints.constrain(
+                Size(
+                    lowerBound(metrics.suggestedSize.width, metrics.minimumSize.width),
+                    lowerBound(metrics.suggestedSize.height, metrics.minimumSize.height)
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val density = input.theme.tokens.typography.body.fontSize / 14.0
+        val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(input.visual))
+        val progress = selection!!.value
+        val options = switchOptions(input.input, input.theme, visual.interaction, progress)
+        val size = context.size
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        val geometry = input.theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
+        val thumbSide =
+            (
+                if (input.input.size == SwitchSize.Sm)
+                    12.0
+                else
+                    16.0
+            ) *
+                density
+        val drawing =
+            SwitchDrawing(
+                geometry,
+                visual,
+                switchThumbBounds(geometry.content, thumbSide, progress, context.layoutDirection),
+                switchThumbStyle(input.input, input.theme, progress),
+                switchHitBounds(
+                    bounds,
+                    input.input.style.hitInsets ?:
+                        Insets(12.0 * density, 8.0 * density, 12.0 * density, 8.0 * density)
+                )
+            )
+
+        val value = drawing
+        val painter = painters!!.get(props.value.theme)
+        if (value.surface.opacity < 1.0)
+            context.saveLayer(value.surface.opacity)
+        context.draw {
+            paint -> painter.drawSurface(
+                paint.canvas,
+                value.surface,
+                value.visual,
+                SurfaceLayer.Background
+            )
+        }
+        content!!.scene(context, value.surface.bounds, value.surface.contentStyle) {
+            children -> thumb!!.scene(children, value.thumb, value.thumbStyle) { _ -> }
+        }
+        context.draw {
+            paint -> painter.drawSurface(
+                paint.canvas,
+                value.surface,
+                value.visual,
+                SurfaceLayer.Foreground
+            )
+        }
+        if (value.surface.opacity < 1.0)
+            context.restore()
+        context.place(props.value.control.area, value.hit)
+    }
+}

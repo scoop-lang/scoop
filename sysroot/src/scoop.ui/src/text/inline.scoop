@@ -30,11 +30,11 @@ public fun inlineChildren(content: StyledText, inlines: Array<InlineView>): Arra
                 case Text(value) -> ViewKey.Text(value)
                 case Number(value) -> ViewKey.Number(value)
             }
-        component(item.view, { props -> InlineChild(props) }, key)
+        component(item.view, { props, mount -> InlineChild(props, scope = mount) }, key)
     }
 }
 
-private class InlineChild(private val props: Props<View>): Component {
+private class InlineChild(private val props: Props<View>, scope: ComponentScope): Component(scope) {
     public override fun render(): View = props.value
 }
 

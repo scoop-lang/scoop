@@ -31,7 +31,7 @@ private class StyleFailureTest {
                         probe.window = Some(native)
                         probe.view = Some(observeWindow(native))
                         probe.frames = Some(observeFrames(native))
-                        owner.attach(native, { FailureScene(probe) })
+                        owner.attach(native, { mount -> FailureScene(probe, scope = mount) })
                         active.setControlFlow(
                             ControlFlow.WaitUntil(
                                 MonotonicTimeSource.markNow() + Duration.seconds(20L)
@@ -82,12 +82,16 @@ private class FailureProbe {
     var disposals = 0
 }
 
-private class FailureScene(private val probe: FailureProbe): Component {
-    public override fun render(): View = element({ FailureInk(probe) })
+private class FailureScene(private val probe: FailureProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View = element({ mount -> FailureInk(probe, scope = mount) })
 }
 
-private class FailureInk(private val probe: FailureProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class FailureInk(private val probe: FailureProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         scope.onDispose {
             probe.disposals += 1;
             throw probe.closeFailure
@@ -103,9 +107,10 @@ private class FailureInk(private val probe: FailureProbe): Element {
     public override fun onUnmount() {
         probe.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(180.0, 100.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 100.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.painter!!.scene(
             context,
             style {

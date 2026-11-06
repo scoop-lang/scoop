@@ -1,0 +1,245 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum MarkerVariant {
+    Default, Border, Separator
+}
+
+public class MarkerProps public constructor(
+    public val content: ButtonContent,
+    public val icon: View? = None,
+    public val variant: MarkerVariant = MarkerVariant.Default,
+    public val loading: Boolean = false,
+    public val shimmer: Boolean = true,
+    public val onClick: (() -> Unit)? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val focusOutline: OutlineStyle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class MarkerBuilder internal constructor(): ConversationActionBuilder() {
+    public var icon: View? = None
+    public var variant: MarkerVariant = MarkerVariant.Default
+    public var loading: Boolean = false
+    public var shimmer: Boolean = true
+    internal fun snapshot(content: ButtonContent): MarkerProps =
+        MarkerProps(
+            content,
+            icon,
+            variant,
+            loading,
+            shimmer,
+            onClick,
+            enabled,
+            focus,
+            focusOutline,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class Marker(private val props: Props<MarkerProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private val themes = ThemeAccess()
+    private val text = ActionTextStyle()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val p = theme.tokens.palette
+        val base = text.resolve(theme.tokens.typography.body, p.muted.foreground, None)
+        val density = base.fontSize / 14.0
+        val hasIcon = panelPresent(input.icon) || input.loading
+        val icon =
+            input.icon ?:
+                spinner {
+                    this.size = Some(16.0 * density);
+                    this.running = input.loading && input.enabled
+                    this.color = Some(p.muted.foreground);
+                    this.theme = input.theme
+                }
+        val content = conversationCaption(input.content, base, input.fonts, scope.layoutDirection)
+        val line =
+            element(
+                MarkerLayoutProps(input.variant, hasIcon, density, p.border),
+                { current, mount -> MarkerLayout(current, mount) },
+                [
+                    panelSlot(icon, 0L),
+                    panelSlot(
+                        conversationShimmer(
+                            content,
+                            input.loading && input.shimmer && input.enabled,
+                            theme
+                        ),
+                        1L
+                    )
+                ]
+            )
+        return conversationSurface(
+            ConversationSurfaceProps(
+                ButtonContent.Custom(line),
+                theme,
+                base,
+                conversationStyle(
+                    Color.Transparent,
+                    p.muted.foreground,
+                    Insets(),
+                    4.0 * density,
+                    hover =
+                        if (panelPresent(input.onClick))
+                            p.muted.background
+                        else
+                            Color.Transparent,
+                    outline = input.focusOutline,
+                    local = styleOverride { this.border(None) }.then(input.style)
+                ),
+                input.onClick,
+                input.enabled,
+                input.focus,
+                input.fonts
+            )
+        )
+    }
+}
+
+internal class MarkerLayoutProps(
+    val variant: MarkerVariant,
+    val icon: Boolean,
+    val density: Double,
+    val color: Color
+)
+
+internal struct MarkerLines(val left: Double, val right: Double, val y: Double)
+
+internal class MarkerLayout(
+    private val props: Props<MarkerLayoutProps>,
+    scope: ComponentScope
+): Element<MarkerLines>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkerLines
+    > {
+        val input = props.value
+        val d = input.density
+        val iconSize =
+            if (input.icon)
+                16.0 * d
+            else
+                0.0
+        val iconSpace =
+            if (input.icon)
+                iconSize + 8.0 * d
+            else
+                0.0
+        val reserve =
+            if (input.variant == MarkerVariant.Separator && panelPresent(constraints.maxWidth))
+                32.0 * d
+            else
+                0.0
+        val body =
+            conversationMeasure(
+                context,
+                1L,
+                insetMaximum(constraints.maxWidth, iconSpace + reserve)
+            )
+        if (input.icon)
+            context.measureChild(0L, Constraints.tight(Size(iconSize, iconSize)))
+        else
+            context.skipChild(0L)
+        val height = lowerBound(16.0 * d, lowerBound(iconSize, body.size.height))
+        val size =
+            constraints.constrain(
+                Size(
+                    constraints.maxWidth ?: (iconSpace + body.size.width),
+                    height +
+                        if (input.variant == MarkerVariant.Border)
+                            8.0 * d + 1.0
+                        else
+                            0.0
+                )
+            )
+        val contentWidth = iconSpace + body.size.width
+        val x =
+            if (input.variant == MarkerVariant.Separator)
+                lowerBound(0.0, (size.width - contentWidth) / 2.0)
+            else
+                0.0
+        if (input.icon)
+            context.placeChild(
+                0L,
+                Point(
+                    logicalX(x, iconSize, size.width, context.layoutDirection),
+                    (height - iconSize) / 2.0
+                )
+            )
+        context.placeChild(
+            1L,
+            Point(
+                logicalX(x + iconSpace, body.size.width, size.width, context.layoutDirection),
+                (height - body.size.height) / 2.0
+            )
+        )
+        return LayoutResult(
+            LayoutMetrics(size),
+            MarkerLines(
+                lowerBound(0.0, x - 12.0 * d),
+                lowerBound(0.0, size.width - x - contentWidth - 12.0 * d),
+                height / 2.0
+            )
+        )
+    }
+    public override fun scene(context: SceneContext, layout: MarkerLines) {
+        val input = props.value
+        val size = context.size
+        context.children()
+        context.draw {
+            paint ->
+            if (input.variant == MarkerVariant.Border && size.height >= 1.0)
+                paint.canvas.drawRect(
+                    Rect(0.0, size.height - 1.0, size.width, 1.0),
+                    Paint(input.color)
+                )
+            if (input.variant == MarkerVariant.Separator) {
+                paint.canvas.drawRect(Rect(0.0, layout.y, layout.left, 1.0), Paint(input.color))
+                paint.canvas.drawRect(
+                    Rect(size.width - layout.right, layout.y, layout.right, 1.0),
+                    Paint(input.color)
+                )
+            }
+        }
+    }
+}
+
+public fun marker(text: String, configure: MarkerBuilder.() -> Unit = {}): View =
+    makeMarker(conversationText(text), configure)
+
+public fun marker(text: StyledText, configure: MarkerBuilder.() -> Unit = {}): View =
+    makeMarker(conversationText(text), configure)
+
+public fun marker(content: View, configure: MarkerBuilder.() -> Unit = {}): View =
+    makeMarker(ButtonContent.Custom(content), configure)
+
+public fun marker(
+    content: (ActionContentStyle) -> View,
+    configure: MarkerBuilder.() -> Unit = {}
+): View = makeMarker(ButtonContent.Resolved(content), configure)
+
+internal fun makeMarker(content: ButtonContent, configure: MarkerBuilder.() -> Unit): View {
+    val builder = MarkerBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(content),
+        { current, mount -> Marker(current, mount) },
+        builder.key
+    )
+}

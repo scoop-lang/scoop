@@ -120,3 +120,7 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
 `TextEditHost` 的显示投影与编辑正文分离：`textMask()` 和 `textProjection { … }` 保留同一 IME／历史，并通过 `TextDisplay` 映射命中和几何。只读 `SelectableTextHost` 复用 StyledText／ParagraphHost，提供方向选区、行内替代文字复制及稳定 key 的范围动作。
+
+窗口错误通过 `UiHost(onRootError = { id, error -> ... })` 接收：失败根完成输入与资源清理后报告一次，处理器正常返回可继续运行其他根，默认处理器重新抛出。`attach` 成功返回 `Some(UiWindow)`，已处理的初次挂载失败返回 `None`。宿主事件、共享渲染器、消息投递和错误处理器自身的失败仍关闭整个宿主。`scope.createDeadline` 使用原生一次性 deadline，随作用域退休关闭，并在所属根的错误边界内交付回调。
+
+同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到移除帧被接受。模式变化本身不产生关闭回调。

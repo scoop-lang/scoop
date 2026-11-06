@@ -1,0 +1,331 @@
+package scoop.tests.ui.drawer
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal fun advanceDrawer(p: DrawerProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertFalse(p.controller.isAttached);
+            assertTrue(p.trigger.requestFocus())
+        }
+        case 1 -> {
+            assertTrue(p.trigger.hasFocus);
+            p.open.value = true
+        }
+        case 2 -> {
+            p.expect(2L, 400.0);
+            assertTrue(p.editor.hasFocus)
+            assertTrue(p.editorRing, Some("editor focus ring is clipped"));
+            assertTrue(p.footerRing, Some("footer focus ring is clipped"))
+            assertFalse(p.background.requestFocus());
+            assertTrue(p.grip.requestFocus())
+        }
+        case 3 -> {
+            assertTrue(p.grip.hasFocus);
+            p.key(115, "\uf729")
+        }
+        case 4 -> {
+            p.expect(0L, 160.0);
+            p.key(126, "\uf700")
+        }
+        case 5 -> {
+            p.expect(1L, 250.0);
+            p.reject = true;
+            p.key(119, "\uf72b")
+        }
+        case 6 -> {
+            p.expect(1L, 250.0);
+            assertEquals(2, p.selections);
+            p.reject = false;
+            assertTrue(p.controller.snapTo(2L, false))
+        }
+        case 7 -> {
+            p.expect(2L, 400.0);
+            p.start(p.bodyBounds)
+        }
+        case 8 -> p.release()
+        case 9 -> {
+            assertEquals(1, p.clicks);
+            p.start(p.headerBounds)
+        }
+        case 10 -> p.out(60.0)
+        case 11 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.expect(2L, 340.0);
+            p.key(53, "\u001b")
+        }
+        case 12 -> {
+            p.expect(2L, 400.0);
+            assertEquals(1, p.cancels);
+            assertTrue(p.open.value)
+            p.release();
+            p.scroll.scrollTo(Point(0.0, 150.0))
+        }
+        case 13 -> {
+            assertTrue(p.scroll.offset.y > 0.0)
+            p.start(Rect(350.0, p.headerBounds.y + 80.0, 20.0, 20.0))
+        }
+        case 14 -> {
+            p.out(60.0);
+            assertFalse(p.controller.snapshot.dragging);
+            p.release();
+            p.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        case 15 -> p.start(p.bodyBounds)
+        case 16 -> p.out(100.0)
+        case 17 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            assertTrue(sendSurfaceScroll(p.native!!, p.last.x, p.last.y, 0, -2))
+        }
+        case 18 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            assertEquals(2, p.cancels);
+            p.expect(2L, 400.0)
+            p.release();
+            p.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        case 19 -> p.start(p.headerBounds)
+        case 20 -> p.out(100.0)
+        case 21 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.native!!.requestSize(LogicalSize(680.0, 560.0));
+            p.height = Some(360.0);
+            p.refresh()
+        }
+        case 22 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            assertEquals(3, p.cancels);
+            p.expect(2L, 360.0)
+            assertEquals(1, p.mounts);
+            p.release();
+            p.side = SheetSide.Top;
+            p.snaps = false;
+            p.height = Some(240.0);
+            p.refresh()
+        }
+        case 23 -> {
+            p.expect(0L, 240.0);
+            assertTrue(p.headerBounds.y < 50.0);
+            p.start(p.headerBounds)
+        }
+        case 24 -> p.out(60.0)
+        case 25 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.expect(0L, 180.0);
+            p.release()
+        }
+        case 26 -> {
+            p.expect(0L, 240.0);
+            p.side = SheetSide.Start;
+            p.height = None;
+            p.refresh()
+        }
+        case 27 -> {
+            p.expect(0L, 220.0);
+            assertTrue(p.headerBounds.x < 50.0);
+            p.start(p.headerBounds)
+        }
+        case 28 -> p.out(70.0)
+        case 29 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.expect(0L, 150.0);
+            p.key(53, "\u001b")
+        }
+        case 30 -> {
+            p.expect(0L, 220.0);
+            p.release();
+            p.rtl = true;
+            p.refresh()
+        }
+        case 31 -> {
+            assertTrue(p.headerBounds.x > 400.0);
+            p.start(p.headerBounds)
+        }
+        case 32 -> p.out(70.0)
+        case 33 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.expect(0L, 150.0);
+            p.enabled = false;
+            p.refresh()
+        }
+        case 34 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            assertEquals(5, p.cancels);
+            p.release()
+            p.enabled = true;
+            p.rtl = false;
+            p.side = SheetSide.Bottom;
+            p.height = Some(400.0);
+            p.snaps = true
+            p.snap.value = 2L
+            p.mode = OverlayMode.NonModal;
+            p.refresh()
+        }
+        case 35 -> {
+            p.expect(2L, 400.0);
+            assertTrue(p.background.requestFocus())
+        }
+        case 36 -> {
+            assertTrue(p.background.hasFocus);
+            p.mode = OverlayMode.FocusContained;
+            p.refresh()
+        }
+        case 37 -> {
+            assertFalse(p.background.requestFocus());
+            p.mode = OverlayMode.Modal;
+            p.nestedOpen.value = true;
+            p.refresh()
+        }
+        case 38 -> {
+            assertTrue(p.nestedController.isAttached);
+            assertEquals(1L, p.controller.snapshot.nestedDepth)
+            assertTrue(
+                p.headerBounds.y > 240.0 && p.headerBounds.y < 280.0,
+                Some("parent must follow the smaller front drawer height")
+            )
+            assertTrue(p.nestedTarget.hasFocus);
+            assertFalse(p.editor.requestFocus());
+            p.nestedLayer.requestClose()
+        }
+        case 39 -> {
+            assertFalse(p.nestedController.isAttached);
+            assertEquals(0L, p.controller.snapshot.nestedDepth);
+            p.start(p.headerBounds)
+        }
+        case 40 -> p.out(390.0)
+        case 41 -> {
+            p.expect(2L, 10.0);
+            p.veto = true;
+            p.release()
+        }
+        case 42 -> {
+            assertTrue(p.open.value);
+            p.expect(2L, 400.0);
+            p.rejectClose = true;
+            p.veto = false;
+            p.start(p.headerBounds)
+        }
+        case 43 -> p.out(390.0)
+        case 44 -> p.release()
+        case 45 -> {
+            assertTrue(p.open.value);
+            p.expect(2L, 400.0);
+            p.rejectClose = false;
+            p.motion = true
+            p.nestedOpen.value = true;
+            p.refresh();
+            p.hold = 300L
+        }
+        case 46 -> {
+            assertTrue(p.nestedGrip.hasFocus);
+            assertTrue(p.nestedTarget.requestFocus());
+            p.beforeMounts = p.mounts
+        }
+        case 47 -> {
+            assertTrue(p.nestedTarget.hasFocus);
+            p.nestedLayer.requestClose();
+            p.hold = 30L
+        }
+        case 48 -> {
+            assertFalse(p.nestedOpen.value);
+            assertTrue(p.nestedController.isAttached)
+            p.nestedOpen.value = true;
+            p.hold = 300L
+        }
+        case 49 -> {
+            assertTrue(p.nestedOpen.value);
+            assertTrue(p.nestedTarget.hasFocus);
+            assertEquals(p.beforeMounts, p.mounts)
+            p.nestedLayer.requestClose();
+            p.hold = 350L
+        }
+        case 50 -> {
+            assertFalse(p.nestedController.isAttached);
+            assertEquals(0L, p.controller.snapshot.nestedDepth)
+            assertFalse(p.frames!!.snapshot().required);
+            p.quiet = Some(p.frames!!.snapshot());
+            p.hold = 220L
+        }
+        case 51 -> {
+            assertEquals(p.quiet!!, p.frames!!.snapshot());
+            p.only = true;
+            p.motion = false;
+            p.refresh()
+        }
+        case 52 -> p.start(p.headerBounds)
+        case 53 -> p.out(80.0)
+        case 54 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            p.release();
+            p.only = false;
+            p.mode = OverlayMode.NonModal;
+            p.refresh()
+        }
+        case 55 -> p.start(p.headerBounds)
+        case 56 -> p.out(80.0)
+        case 57 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.blockedRelease = true;
+            p.release()
+        }
+        case 58 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            assertEquals(6, p.cancels);
+            p.expect(2L, 400.0);
+            p.blockedRelease = false;
+            p.mode = OverlayMode.Modal;
+            p.refresh()
+        }
+        case 59 -> p.start(p.headerBounds)
+        case 60 -> p.out(390.0)
+        case 61 -> p.release()
+        case 62 -> {
+            assertFalse(p.open.value);
+            assertFalse(p.controller.isAttached);
+            assertTrue(p.trigger.hasFocus);
+            p.gone = true;
+            p.refresh()
+        }
+        case 63 -> {
+            assertEquals(p.mounts, p.unmounts);
+            p.gone = false;
+            p.shortContent = true;
+            p.height = None;
+            p.snaps = false
+            p.open.value = true;
+            p.refresh()
+        }
+        case 64 -> {
+            assertTrue(
+                p.controller.snapshot.extent < 250.0,
+                Some("short content must retain its natural height")
+            )
+            assertTrue(p.editorRing);
+            assertTrue(p.footerRing);
+            p.start(p.headerBounds)
+        }
+        case 65 -> p.out(40.0)
+        case 66 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            p.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        case 67 -> {
+            assertFalse(p.controller.snapshot.dragging);
+            assertEquals(7, p.cancels)
+            p.release();
+            p.gone = true;
+            p.refresh()
+        }
+        case 68 -> {
+            assertEquals(p.mounts, p.unmounts);
+            p.done = true;
+            p.native!!.requestDestroy()
+        }
+        else -> assertTrue(false, Some("unexpected drawer phase"))
+    }
+}

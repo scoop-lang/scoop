@@ -3,6 +3,7 @@ package scoop.ui.text
 import scoop.graphics.text.*
 import scoop.ui.cleanupUi
 import scoop.ui.throwUi
+import scoop.ui.observeFonts
 
 /** Owns the two native snapshots; replacement publishes only fully built results. */
 internal class ParagraphCache: Closeable {
@@ -25,6 +26,7 @@ internal class ParagraphCache: Closeable {
         width: Double?,
         metrics: Array<InlineMetrics>
     ): TextLayout {
+        observeFonts(fonts)
         when (current) {
             case Some(previous) -> {
                 if (previous.matches(fonts, content, settings)) {

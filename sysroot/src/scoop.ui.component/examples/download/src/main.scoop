@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
                                     host.attach(
                                         window,
                                         {
-                                            DownloadPanel(
+                                            mount -> DownloadPanel(
                                                 jobs,
                                                 client,
                                                 workers,
@@ -51,9 +51,11 @@ fun main(args: Array<String>) {
                                                 model,
                                                 request,
                                                 destination,
-                                                fonts
+                                                fonts,
+                                                scope = mount
                                             )
-                                        }
+                                        },
+                                        fonts = Some(fonts)
                                     )
                                     window.requestFocus()
                                     suspendCancellableCoroutine<Unit> { _ -> }

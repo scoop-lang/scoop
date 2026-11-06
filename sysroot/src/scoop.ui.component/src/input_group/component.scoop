@@ -1,0 +1,188 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.window.*
+
+internal class InputGroupInput(
+    val props: InputGroupProps,
+    val theme: Theme,
+    val focus: FocusHandle,
+    val enabled: Boolean,
+    val invalid: Boolean
+)
+
+public class InputGroup public constructor(
+    private val props: Props<InputGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val ownFocus = FocusHandle()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val value = props.value
+        val theme = themes.read(value.theme)
+        val enabled = value.enabled && inputGroupControlEnabled(value.control)
+        val invalid = value.invalid || inputGroupControlInvalid(value.control)
+        val focus = inputGroupFocus(value.control, ownFocus)
+        val children = ArrayList<View>()
+        children.add(inputGroupControlView(value, focus, enabled, invalid))
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        for (addon in value.addons) {
+            val block = inputGroupBlock(addon.align)
+            val padding =
+                addon.padding ?:
+                    Insets(
+                        (
+                            if (block)
+                                10.0
+                            else
+                                8.0
+                        ) *
+                            density,
+                        (
+                            if (block)
+                                8.0
+                            else
+                                0.0
+                        ) *
+                            density,
+                        (
+                            if (block)
+                                10.0
+                            else
+                                8.0
+                        ) *
+                            density,
+                        (
+                            if (block)
+                                8.0
+                            else
+                                0.0
+                        ) *
+                            density
+                    )
+            children.add(
+                frame(addon.content) {
+                    this.padding = Some(padding)
+                    this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Center)
+                    this.style = addon.style
+                    this.key = addon.key
+                }
+            )
+        }
+        return element(
+            InputGroupInput(value, theme, focus, enabled, invalid),
+            { current, mount -> InputGroupInk(current, scope = mount) },
+            children.toArray()
+        )
+    }
+}
+
+internal fun inputGroupBlock(align: InputGroupAlign): Boolean =
+    align == InputGroupAlign.BlockStart || align == InputGroupAlign.BlockEnd
+
+internal class InputGroupInk(
+    internal val props: Props<InputGroupInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var painters: ThemePainterCache? = None
+
+    public override fun onMount() {
+        area =
+            Some(
+                scope.createArea {
+                    _,
+                    _ -> if (scope.isMounted)
+                        scope.requestFrame()
+                }
+            )
+        scope.routeChildren(area!!)
+        area!!.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (
+                            props.value.enabled &&
+                                props.value.focus.requestFocus(FocusOrigin.Pointer)
+                        )
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        scope.resource {
+            area!!.scope.observeActivity {
+                if (scope.isMounted)
+                    scope.requestFrame()
+            }
+        }
+        scope.resource {
+            area!!.scope.addEventFinished {
+                _ -> if (scope.isMounted)
+                    scope.requestFrame()
+            }
+        }
+        painters = Some(scope.resource { ThemePainterCache() })
+    }
+    public override fun update(): UiInvalidation {
+        area!!.scope.enabled = props.value.enabled
+        painters!!.get(props.value.theme)
+        return UiInvalidation.Layout
+    }
+    internal fun visual(): SurfaceVisual =
+        SurfaceVisual(
+            SurfaceKind.Plain,
+            InteractionVisual(
+                props.value.enabled,
+                area!!.scope.isHovered,
+                focusVisible = props.value.focus.isFocusVisible,
+                invalid = props.value.invalid
+            )
+        )
+    internal fun options(): SurfaceOptions {
+        val surface = props.value.props.surface
+        return surface.copy { this.padding = Some(surface.padding ?: Insets()) }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(measureInputGroup(this, context, constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val visual = visual()
+        val shape =
+            props.value.theme.surfaceGeometry(
+                Rect(0.0, 0.0, context.size.width, context.size.height),
+                visual,
+                options(),
+                context.layoutDirection
+            )
+        val painter = painters!!.get(props.value.theme)
+        if (shape.opacity < 1.0)
+            context.saveLayer(shape.opacity)
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, shape, visual, SurfaceLayer.Background)
+        }
+        if (context.size.width > 0.0 && context.size.height > 0.0) {
+            context.place(area!!, shape.bounds)
+            context.withState {
+                content ->
+                content.clipRect(shape.bounds)
+                content.children()
+            }
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, shape, visual, SurfaceLayer.Foreground)
+        }
+        if (shape.opacity < 1.0)
+            context.restore()
+    }
+}

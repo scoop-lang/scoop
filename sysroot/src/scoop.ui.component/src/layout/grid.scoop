@@ -4,15 +4,26 @@ import scoop.collections.sortedBy
 import scoop.graphics.*
 import scoop.ui.*
 
-public class Grid public constructor(private val props: Props<GridProps>): Component {
+public class Grid public constructor(
+    private val props: Props<GridProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
-        element(props.value, { value -> GridInk(value) }, props.value.children)
+        element(
+            props.value,
+            { value, mount -> GridInk(value, scope = mount) },
+            props.value.children
+        )
 }
 
 private struct GridRequirement(val start: Long, val span: Long, val extent: Double)
 
-private class GridInk(private val props: Props<GridProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class GridInk(private val props: Props<GridProps>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val padding = input.logicalPadding?.resolve(context.layoutDirection) ?: input.padding
         val inset = padding.totals()
@@ -106,9 +117,9 @@ private class GridInk(private val props: Props<GridProps>): Element {
                 )
             )
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.clip)
     }
 }

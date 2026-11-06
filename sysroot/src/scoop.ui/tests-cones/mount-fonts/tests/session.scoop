@@ -1,0 +1,163 @@
+package scoop.tests.ui.mountfonts
+
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.ParagraphMeasurement
+import scoop.window.*
+
+@Test
+private class MountFontsTest {
+    @Test
+    fun `construction resources and root font changes preserve mounted identities and borrowed lifetimes`() {
+        FontCollection().use {
+            external ->
+            external.register(testSansBytes, "Mount Fonts")
+            FontCollection().use {
+                replacement ->
+                replacement.register(testSansBytes, "Mount Fonts")
+                val p = FontProbe(external, replacement)
+                UiHost { host, active, event -> p.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(p.finished)
+                assertTrue(p.root!!.isClosed)
+                assertTrue(p.original!!.isClosed)
+                assertFalse(external.isClosed)
+                assertFalse(replacement.isClosed)
+                assertEquals(193, p.disposals)
+                assertEquals(192, p.mounts)
+                assertEquals(192, p.unmounts)
+                assertEquals(64, p.batchRenders)
+                assertEquals(1, p.rootRenders)
+                assertEquals(3, p.fontRenders)
+                assertEquals(2, p.borrowedDisposals)
+                for (measurement in p.layouts)
+                    assertFailsWith<IllegalStateException> { measurement.layout }
+                println(
+                    "mount/fonts: 192 batch instances; 1 initial root render; shared defaults, replacement and revision verified"
+                )
+            }
+        }
+    }
+}
+
+internal class FontProbe(val external: FontCollection, val replacement: FontCollection) {
+    val measured = MutableArray<Int>(5L) { _ -> 0 }
+    val seen = MutableArray<FontCollection?>(5L) { _ -> None }
+    val layouts = ArrayList<ParagraphMeasurement>()
+    var root: UiWindow? = None
+    var borrowedA: UiWindow? = None
+    var borrowedB: UiWindow? = None
+    var original: FontCollection? = None
+    var scope: ComponentScope? = None
+    var phase = 0
+    var finished = false
+    var disposals = 0
+    var mounts = 0
+    var unmounts = 0
+    var batchRenders = 0
+    var rootRenders = 0
+    var fontRenders = 0
+    var borrowedDisposals = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop construction and default fonts"
+                            size = LogicalSize(240.0, 180.0)
+                        }
+                    )
+                root = host.attach(window, { scope -> FontRoot(this, active, scope) })
+                original = Some(root!!.defaultFonts)
+                borrowedA = Some(borrowed(host, active))
+                borrowedB = Some(borrowed(host, active))
+                assertTrue(borrowedA!!.defaultFonts === external)
+                assertTrue(borrowedB!!.defaultFonts === external)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"mount/fonts timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    private fun borrowed(host: UiHost, active: ActiveApplication): UiWindow =
+        host.attach(
+            active.createWindow(
+                windowAttributes {
+                    visible = false;
+                    title = "Scoop borrowed fonts"
+                }
+            ),
+            { scope -> BorrowedRoot(this, scope) },
+            fonts = Some(external)
+        )!!
+    private fun verifyFonts(fonts: FontCollection, count: Int) {
+        for (index in [0L, 1L, 2L, 4L]) {
+            assertTrue(seen[index]!! === fonts)
+            assertEquals(count, measured[index])
+        }
+        assertTrue(seen[3L]!! === external)
+        assertEquals(1, measured[3L])
+        assertEquals(64, batchRenders)
+        assertEquals(192, mounts)
+        assertEquals(0, unmounts)
+        assertFalse(original!!.isClosed)
+    }
+    fun accepted(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                verifyFonts(original!!, 1)
+                assertEquals(1, fontRenders)
+                phase = 1
+                root!!.defaultFonts = replacement
+            }
+            case 1 -> {
+                verifyFonts(replacement, 2)
+                assertEquals(2, fontRenders)
+                borrowedA!!.close()
+                assertFalse(external.isClosed)
+                assertTrue(borrowedB!!.defaultFonts === external)
+                phase = 2
+                replacement.register(testSansBytes, "Second Mount Alias")
+                scope!!.requestFrame()
+            }
+            case 2 -> {
+                assertTrue(borrowedA!!.isClosed)
+                verifyFonts(replacement, 3)
+                assertEquals(2, fontRenders)
+                phase = 3
+                root!!.defaultFonts = external
+            }
+            case 3 -> {
+                verifyFonts(external, 4)
+                assertEquals(3, fontRenders)
+                phase = 4
+                finished = true
+                root!!.close()
+                borrowedB!!.close()
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
+
+private class BorrowedRoot(private val p: FontProbe, scope: ComponentScope): Component(scope) {
+    init {
+        assertTrue(scope.defaultFonts === p.external)
+        scope.onDispose {
+            assertFalse(p.external.isClosed)
+            p.borrowedDisposals += 1
+        }
+    }
+    public override fun render(): View = empty()
+}

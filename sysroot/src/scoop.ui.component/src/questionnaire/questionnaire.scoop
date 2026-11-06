@@ -1,0 +1,384 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.style as baseStyle
+
+public class Questionnaire(
+    private val props: Props<QuestionnaireProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val handles = ChoiceHandles()
+    private val editorFocus = FocusHandle()
+    private val text = ActionTextStyle()
+    private val control = QuestionnaireControl(props, scope)
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun onUnmount() {
+        control.close()
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val appearance =
+            text.resolve(
+                theme.tokens.typography.body,
+                theme.tokens.palette.background.foreground,
+                None
+            )
+        val d = appearance.fontSize / 14.0
+        val state = input.state
+        val current = state.current
+        val members = ArrayList<QuestionnaireMember>()
+        val choiceViews = ArrayList<View>()
+        val keys = ArrayList<ViewKey>()
+        val options = ArrayList<FocusOptions>()
+        when (current) {
+            case Some(question) -> {
+                for (choice in question.choices) {
+                    keys.add(ViewKey.Text(question.key.value + ":choice:" + choice.key.value))
+                    options.add(input.choiceFocus(question.key, Some(choice.key)))
+                }
+                if (question.kind != QuestionKind.Freeform && panelPresent(question.freeform)) {
+                    keys.add(ViewKey.Text(question.key.value + ":freeform"))
+                    options.add(input.choiceFocus(question.key, None))
+                }
+            }
+            case None -> {}
+        }
+        val focus = handles.resolve(keys.toArray(), options.toArray())
+        var shortcutIndex = 0L
+        when (current) {
+            case Some(question) -> {
+                for (index in 0L ..< question.choices.size) {
+                    val choice = question.choices[index]
+                    val shortcut =
+                        if (choice.enabled && input.shortcuts)
+                            questionShortcut(shortcutIndex)
+                        else
+                            ""
+                    if (choice.enabled)
+                        shortcutIndex += 1L
+                    val member =
+                        QuestionnaireMember(
+                            Some(choice.key),
+                            focus[index],
+                            choice.enabled,
+                            state.isSelected(question.key, choice.key),
+                            shortcut
+                        )
+                    members.add(member)
+                    choiceViews.add(
+                        questionnaireChoice(
+                            input,
+                            theme,
+                            appearance,
+                            question,
+                            member,
+                            choice.title,
+                            choice.description,
+                            choiceFocus(options[index], focus[index]),
+                            control,
+                            scope.layoutDirection
+                        )
+                    )
+                }
+                if (focus.size > question.choices.size) {
+                    val index = question.choices.size
+                    val member =
+                        QuestionnaireMember(
+                            None,
+                            focus[index],
+                            true,
+                            state.usesText(question.key),
+                            ""
+                        )
+                    members.add(member)
+                    choiceViews.add(
+                        questionnaireChoice(
+                            input,
+                            theme,
+                            appearance,
+                            question,
+                            member,
+                            question.freeform!!.title,
+                            "",
+                            choiceFocus(options[index], focus[index]),
+                            control,
+                            scope.layoutDirection
+                        )
+                    )
+                }
+            }
+            case None -> {}
+        }
+        val resolved = members.toArray()
+        val activeInput = input.inputFocus.handle ?: editorFocus
+        val editor =
+            when (current) {
+                case Some(question) -> state.editor(question.key);
+                case None -> None
+            }
+        val showsInput =
+            when (current) {
+                case Some(question) -> question.kind ==
+                    QuestionKind.Freeform ||
+                    state.usesText(question.key)
+                case None -> false
+            }
+        val snapshot =
+            QuestionnaireScene(
+                state,
+                state.activeKey,
+                state.focusRevision,
+                control.deliveryRevision,
+                resolved,
+                editor,
+                activeInput,
+                showsInput,
+                editor?.isComposing ?: false
+            )
+        val progress = state.progress
+        val progressView =
+            questionnaireLabel(
+                input.strings.progress(progress.position, progress.total),
+                appearance,
+                theme.tokens.palette.muted.foreground,
+                12.0,
+                500,
+                input.fonts,
+                scope.layoutDirection
+            )
+        val body =
+            when (current) {
+                case Some(question) -> item(
+                    question,
+                    input,
+                    theme,
+                    appearance,
+                    resolved,
+                    focus,
+                    keys.toArray(),
+                    choiceViews.toArray(),
+                    activeInput,
+                    showsInput
+                )
+                case None -> empty()
+            }
+        val direction = scope.layoutDirection
+        val owner = control
+        val content =
+            makeColumn {
+                this.add(panelSlot(input.part(QuestionnairePart.Progress, progressView), 0L))
+                this.add(
+                    panelFrame(
+                        body,
+                        key = ViewKey.Text("question:" + (state.activeKey?.value ?: "empty"))
+                    )
+                )
+                this.add(
+                    panelSlot(
+                        input.part(
+                            QuestionnairePart.Actions,
+                            questionnaireActions(input, owner, theme, direction, d)
+                        ),
+                        2L
+                    )
+                )
+                this.spacing = 16.0 * d
+                this.alignment = CrossAlignment.Stretch
+            }
+        return styled(
+            element(
+                QuestionnaireEventsProps(control, snapshot),
+                { value, mount -> QuestionnaireEvents(value, mount) },
+                [content]
+            )
+        ) { this.style = input.style.resolve(baseStyle()) }
+    }
+    private fun item(
+        question: Question,
+        input: QuestionnaireProps,
+        theme: Theme,
+        appearance: TextStyle,
+        members: Array<QuestionnaireMember>,
+        focus: Array<FocusHandle>,
+        keys: Array<ViewKey>,
+        choices: Array<View>,
+        inputHandle: FocusHandle,
+        showsInput: Boolean
+    ): View {
+        val state = input.state
+        val d = appearance.fontSize / 14.0
+        val p = theme.tokens.palette
+        val enabled = input.enabled && !input.busy
+        val owner = control
+        val direction = scope.layoutDirection
+        var preferred: FocusHandle? = None
+        for (member in members)
+            if (member.enabled && member.selected)
+                preferred = Some(member.focus)
+        val choicesView =
+            choiceLayout(
+                choices,
+                keys,
+                focus,
+                FlexAxis.Vertical,
+                8.0 * d,
+                true,
+                enabled,
+                styleOverride(),
+                preferred,
+                {
+                    handle -> if (question.kind == QuestionKind.Single)
+                        for (member in members)
+                            if (member.focus === handle)
+                                owner.select(question.key, member.key)
+                },
+                fitCross = false,
+                roving = question.kind == QuestionKind.Single
+            )
+        val editor =
+            if (showsInput)
+                makeInput(state.editor(question.key)!!) {
+                    this.placeholder = question.freeform!!.placeholder
+                    this.enabled = enabled
+                    this.invalid = panelPresent(state.issue(question.key))
+                    this.focus = choiceFocus(input.inputFocus, inputHandle)
+                    this.fonts = input.fonts
+                    this.theme = input.theme
+                    this.style { this.surface { this.focus = input.focusOutline } }
+                    this.onEdited = { _ -> owner.edited(question.key) }
+                }
+            else
+                empty()
+        val item =
+            makeColumn {
+                this.add(
+                    input.part(
+                        QuestionnairePart.Title,
+                        questionnaireLabel(
+                            question.title,
+                            appearance,
+                            p.background.foreground,
+                            16.0,
+                            500,
+                            input.fonts,
+                            direction
+                        )
+                    )
+                )
+                if (question.description != "")
+                    this.add(
+                        input.part(
+                            QuestionnairePart.Description,
+                            questionnaireLabel(
+                                question.description,
+                                appearance,
+                                p.muted.foreground,
+                                14.0,
+                                400,
+                                input.fonts,
+                                direction
+                            )
+                        )
+                    )
+                if (!question.required) {
+                    val caption =
+                        when (state.answer(question.key)) {
+                            case Skipped -> input.strings.skipped;
+                            else -> input.strings.optional
+                        }
+                    this.add(
+                        questionnaireLabel(
+                            caption,
+                            appearance,
+                            p.muted.foreground,
+                            12.0,
+                            500,
+                            input.fonts,
+                            direction
+                        )
+                    )
+                }
+                if (choices.size > 0L)
+                    this.add(panelSlot(input.part(QuestionnairePart.Choices, choicesView), 10L))
+                if (showsInput) {
+                    val ring =
+                        theme.surfaceMetrics(
+                            SurfaceVisual(SurfaceKind.Plain),
+                            surfaceOptions { this.focus = input.focusOutline },
+                            direction
+                        ).focusOutset
+                    this.add(
+                        panelSlot(
+                            input.part(
+                                QuestionnairePart.Input,
+                                panelFrame(editor, Insets.all(ring))
+                            ),
+                            11L
+                        )
+                    )
+                }
+                when (state.issue(question.key)) {
+                    case Some(issue) -> this.add(
+                        panelSlot(
+                            input.part(
+                                QuestionnairePart.Error,
+                                questionnaireLabel(
+                                    input.strings.issue(issue),
+                                    appearance,
+                                    p.destructive.background,
+                                    14.0,
+                                    400,
+                                    input.fonts,
+                                    direction
+                                )
+                            ),
+                            12L
+                        )
+                    )
+                    case None -> {}
+                }
+                this.spacing = 12.0 * d
+                this.alignment = CrossAlignment.Stretch
+            }
+        return input.part(QuestionnairePart.Item, item)
+    }
+}
+
+internal fun questionnaireLabel(
+    value: String,
+    base: TextStyle,
+    color: Color,
+    size: Double,
+    weight: Int,
+    fonts: FontCollection?,
+    direction: LayoutDirection,
+    align: TextAlignment = TextAlignment.Start
+): View =
+    conversationCaption(
+        ButtonContent.Label(
+            LabelProps(
+                LabelText.Plain(value, None),
+                settings =
+                    Some(
+                        paragraphStyle {
+                            this.alignment = align;
+                            this.direction = direction.textDirection()
+                        }
+                    )
+            )
+        ),
+        base.copy {
+            this.color = color;
+            this.fontSize = size * base.fontSize / 14.0;
+            this.weight = weight
+        },
+        fonts,
+        direction
+    )

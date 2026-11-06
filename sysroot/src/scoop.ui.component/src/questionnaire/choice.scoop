@@ -1,0 +1,173 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun questionnaireChoice(
+    input: QuestionnaireProps,
+    theme: Theme,
+    appearance: TextStyle,
+    question: Question,
+    member: QuestionnaireMember,
+    title: String,
+    description: String,
+    focus: FocusOptions,
+    owner: QuestionnaireControl,
+    direction: LayoutDirection
+): View {
+    val d = appearance.fontSize / 14.0
+    val p = theme.tokens.palette
+    val invalid = panelPresent(input.state.issue(question.key))
+    val body =
+        makeRow {
+            this.item(
+                element(
+                    QuestionnaireIndicatorProps(
+                        theme,
+                        member.selected,
+                        question.kind == QuestionKind.Multiple,
+                        d
+                    ),
+                    { value, mount -> QuestionnaireIndicator(value, mount) }
+                )
+            ) { this.shrink = 0.0 }
+            this.item(
+                makeColumn {
+                    this.add(
+                        questionnaireLabel(
+                            title,
+                            appearance,
+                            p.background.foreground,
+                            14.0,
+                            500,
+                            input.fonts,
+                            direction
+                        )
+                    )
+                    if (description != "")
+                        this.add(
+                            questionnaireLabel(
+                                description,
+                                appearance,
+                                p.muted.foreground,
+                                12.0,
+                                400,
+                                input.fonts,
+                                direction
+                            )
+                        )
+                    this.alignment = CrossAlignment.Stretch
+                    this.spacing = 2.0 * d
+                }
+            ) { this.grow = 1.0 }
+            if (member.shortcut != "")
+                this.item(
+                    makeFrame(
+                        questionnaireLabel(
+                            member.shortcut,
+                            appearance,
+                            p.muted.foreground,
+                            10.0,
+                            500,
+                            input.fonts,
+                            direction,
+                            TextAlignment.Center
+                        )
+                    ) {
+                        this.width = Some(20.0 * d);
+                        this.height = Some(20.0 * d)
+                        this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
+                        this.style =
+                            styleOverride {
+                                this.border(Some(Border.all(1.0 * d, p.border)))
+                                this.corners(Corners.all(4.0 * d))
+                            }
+                    }
+                ) { this.shrink = 0.0 }
+            this.alignment = CrossAlignment.Center
+            this.spacing = 10.0 * d
+        }
+    val style =
+        conversationStyle(
+            if (member.selected)
+                p.muted.background
+            else
+                Color.Transparent,
+            p.background.foreground,
+            Insets(12.0 * d, 10.0 * d, 12.0 * d, 10.0 * d),
+            8.0 * d,
+            if (invalid)
+                p.destructive.background
+            else
+                if (member.selected)
+                    mixThemeColor(p.border, p.primary.background, 0.4)
+                else
+                    p.input,
+            mixThemeColor(p.background.background, p.muted.background, 0.5),
+            input.focusOutline
+        ).copy { this.surface { this.minimumSize = Some(Size(0.0, 44.0 * d)) } }
+    return input.part(
+        QuestionnairePart.Choice,
+        conversationSurface(
+            ConversationSurfaceProps(
+                ButtonContent.Custom(body),
+                theme,
+                appearance,
+                style,
+                Some({ owner.select(question.key, member.key) }),
+                input.enabled && !input.busy && member.enabled,
+                focus,
+                input.fonts
+            )
+        )
+    )
+}
+
+internal class QuestionnaireIndicatorProps(
+    val theme: Theme,
+    val selected: Boolean,
+    val multiple: Boolean,
+    val density: Double
+)
+
+/** The whole card owns Press and focus; the marker is paint only. */
+internal class QuestionnaireIndicator(
+    private val props: Props<QuestionnaireIndicatorProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val painters = scope.resource { ThemePainterCache() }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val side = 16.0 * props.value.density
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(side, side))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val painter = painters.get(input.theme)
+        if (input.multiple) {
+            val visual =
+                CheckboxVisual(
+                    if (input.selected)
+                        CheckMark.On
+                    else
+                        CheckMark.Off
+                )
+            val geometry =
+                input.theme.checkboxGeometry(
+                    bounds,
+                    visual,
+                    checkboxOptions(),
+                    context.layoutDirection
+                )
+            context.draw { paint -> painter.drawCheckbox(paint.canvas, geometry, visual) }
+        } else {
+            val visual = RadioVisual(input.selected)
+            val geometry = input.theme.radioGeometry(bounds, visual, radioOptions())
+            context.draw { paint -> painter.drawRadio(paint.canvas, geometry, visual) }
+        }
+    }
+}

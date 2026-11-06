@@ -11,7 +11,8 @@ public struct VirtualReadingAnchor(val key: ViewKey, val offset: Double)
 public struct VirtualReadingSnapshot(
     val visible: VirtualRange,
     val anchor: VirtualReadingAnchor?,
-    val atEnd: Boolean
+    val atEnd: Boolean,
+    val endPadding: Double = 0.0
 )
 
 internal class VirtualItemAnchor(val key: ViewKey, val index: Long, val inside: Double)
@@ -26,11 +27,13 @@ internal class VirtualReadingPosition(
 
 internal class VirtualListFrame(
     val props: VirtualListInkProps,
-    val snapshot: ScrollSnapshot,
+    val layout: ScrollLayout,
     val revision: ULong,
     val hasViewport: Boolean,
     val reading: VirtualReadingPosition,
     val request: ItemScrollRequest?,
     val requestDone: Boolean,
     val recheck: Boolean
-)
+) {
+    val snapshot: ScrollSnapshot get() = layout.snapshot
+}

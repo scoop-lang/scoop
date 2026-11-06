@@ -1,0 +1,261 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal fun drawerPanel(input: DrawerInput, content: View): View =
+    element(
+        input,
+        { current, mount -> DrawerPanel(current, scope = mount) },
+        [
+            content,
+            element(
+                input,
+                { current, mount -> DrawerSwipeHandle(current, scope = mount) },
+                [input.props.swipeHandle.content ?: empty()]
+            )
+        ]
+    )
+
+internal class DrawerPanel(private val props: Props<DrawerInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val side = drawerPhysicalSide(input.props.side, context.layoutDirection)
+        val vertical = side == OverlaySide.Top || side == OverlaySide.Bottom
+        if (!input.props.swipeHandle.visible) {
+            context.skipChild(1L)
+            val panel = context.measureChild(0L, constraints)
+            context.placeChild(0L, Point(0.0, 0.0));
+            return LayoutResult(panel, Unit)
+        }
+        val main =
+            if (vertical)
+                constraints.maxHeight
+            else
+                constraints.maxWidth
+        val thickness = min(12.0 * input.density, main ?: 12.0 * input.density)
+        val cross =
+            if (vertical)
+                constraints.maxWidth ?: constraints.minWidth
+            else
+                constraints.maxHeight ?: constraints.minHeight
+        context.measureChild(
+            1L,
+            Constraints.tight(
+                if (vertical)
+                    Size(cross, thickness)
+                else
+                    Size(thickness, cross)
+            )
+        )
+        val panel =
+            context.measureChild(
+                0L,
+                childConstraints(
+                    constraints,
+                    if (vertical)
+                        Size(0.0, thickness)
+                    else
+                        Size(thickness, 0.0)
+                )
+            )
+        val size =
+            constraints.constrain(
+                Size(
+                    panel.size.width +
+                        if (vertical)
+                            0.0
+                        else
+                            thickness,
+                    panel.size.height +
+                        if (vertical)
+                            thickness
+                        else
+                            0.0
+                )
+            )
+        val leading = side == OverlaySide.Bottom || side == OverlaySide.Right
+        context.placeChild(
+            0L,
+            Point(
+                if (!vertical && leading)
+                    thickness
+                else
+                    0.0,
+                if (vertical && leading)
+                    thickness
+                else
+                    0.0
+            )
+        )
+        context.placeChild(
+            1L,
+            Point(
+                if (!vertical && !leading)
+                    size.width - thickness
+                else
+                    0.0,
+                if (vertical && !leading)
+                    size.height - thickness
+                else
+                    0.0
+            )
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class DrawerSwipeHandle(
+    private val props: Props<DrawerInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var focus: FocusTarget? = None
+    private var painter: ThemePainterCache? = None
+    public override fun onMount() {
+        val current =
+            scope.createArea(focusable = true) {
+                context,
+                _ -> if (context.phase == RoutedPhase.Notification && scope.isMounted)
+                    scope.requestFrame()
+            }
+        area = Some(current);
+        props.value.owner.handleArea = Some(current)
+        scope.routeChildren(current)
+        focus = Some(scope.focusTarget(current, props.value.props.swipeHandle.focus))
+        painter = Some(scope.resource { ThemePainterCache() })
+        scope.resource {
+            current.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> if (current.isFocusActive) {
+                        when (props.value.owner.control) {
+                            case Some(control) -> drawerKeyboard(control, context, key, true)
+                            case None -> {}
+                        }
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (props.value.props.options.enabled)
+                            focus!!.handle.requestFocus(FocusOrigin.Pointer)
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        area!!.scope.enabled = input.props.options.enabled && input.props.swipeHandle.visible
+        if (!scope.isMounted)
+            return UiInvalidation.Layout
+        focus!!.options = input.props.swipeHandle.focus
+        painter!!.get(input.theme)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(0.0, 0.0))
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(maxWidth = Some(size.width), maxHeight = Some(size.height))
+            )
+        context.placeChild(
+            0L,
+            Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val density = input.density
+        val vertical = input.props.side == SheetSide.Top || input.props.side == SheetSide.Bottom
+        val width =
+            if (vertical)
+                min(context.size.width, 96.0 * density)
+            else
+                min(context.size.width, 4.0 * density)
+        val height =
+            if (vertical)
+                min(context.size.height, 4.0 * density)
+            else
+                min(context.size.height, 96.0 * density)
+        val bounds =
+            Rect(
+                (context.size.width - width) / 2.0,
+                (context.size.height - height) / 2.0,
+                width,
+                height
+            )
+        val visual =
+            SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(
+                    enabled = input.props.options.enabled,
+                    hovered = area!!.scope.isHovered,
+                    focusVisible = area!!.isFocusVisible
+                )
+            )
+        val local =
+            styleOverride {
+                background(
+                    if (panelPresent(input.props.swipeHandle.content))
+                        None
+                    else
+                        Some(Paint(input.theme.tokens.palette.muted.background))
+                )
+                border(None);
+                corners(Corners.all(4.0 * density))
+            }.then(input.props.swipeHandle.style)
+        val shape =
+            input.theme.surfaceGeometry(
+                bounds,
+                visual,
+                surfaceOptions {
+                    style = local;
+                    padding = Some(Insets());
+                    focus = Some(OutlineStyle(input.theme.tokens.palette.ring, density, density))
+                },
+                context.layoutDirection
+            )
+        context.draw {
+            output -> painter!!.get(input.theme).drawSurface(output.canvas, shape, visual)
+        }
+        if (context.size.width > 0.0 && context.size.height > 0.0)
+            context.place(
+                area!!,
+                if (vertical)
+                    Rect(
+                        0.0,
+                        (context.size.height - 20.0 * density) / 2.0,
+                        context.size.width,
+                        20.0 * density
+                    )
+                else
+                    Rect(
+                        (context.size.width - 20.0 * density) / 2.0,
+                        0.0,
+                        20.0 * density,
+                        context.size.height
+                    )
+            )
+        context.children()
+    }
+    public override fun onUnmount() {
+        props.value.owner.handleArea = None
+    }
+}

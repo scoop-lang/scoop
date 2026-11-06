@@ -1,0 +1,85 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+internal class WorkspaceAppModel {
+    val navigation = state(true)
+    val tab = state<Int?>(Some(0))
+    val bar = state<ViewKey?>(None)
+    val commandsOpen = state(false)
+    val renameOpen = state(false)
+    val detailsOpen = state(false)
+    val nestedOpen = state(false)
+    val activityOpen = state(false)
+    val name = state("Project Atlas")
+    val draft = TextEditorState("A small workspace for decisions, notes and the next useful step.")
+    val nameDraft = TextEditorState("Project Atlas")
+    val note = TextEditorState("The workspace keeps drafts while panels open and close.")
+    val nestedNote = TextEditorState("Details for the current rename")
+    val query = TextEditorState()
+    val editorFocus = FocusHandle()
+    val nameFocus = FocusHandle()
+    val detailsFocus = FocusHandle()
+    val nestedFocus = FocusHandle()
+    val commandFocus = FocusHandle()
+    val commandTrigger = FocusHandle()
+    val menuFocus = FocusHandle()
+    val resizeFocus = FocusHandle()
+    val editorTabFocus = FocusHandle()
+    val previewTabFocus = FocusHandle()
+    val nestedTrigger = FocusHandle()
+    val sizes =
+        state(
+            [
+                ResizableSize(ViewKey.Text("editor"), 0.7),
+                ResizableSize(ViewKey.Text("inspector"), 0.3)
+            ]
+        )
+    val commits = state(0)
+    var focusEditorAfterCommand = false
+    val commands = workspaceCommands(this)
+
+    fun rename() {
+        nameDraft.replaceAll(name.value)
+        renameOpen.value = true
+    }
+    fun saveName() {
+        if (nameDraft.text.charLength > 0L) {
+            name.value = nameDraft.committedText
+            renameOpen.value = false
+        }
+    }
+    fun command() {
+        query.replaceAll("")
+        commandsOpen.value = true
+    }
+}
+
+private fun workspaceCommands(model: WorkspaceAppModel): CommandContent =
+    commandItems {
+        this.group(ViewKey.Text("workspace"), "Workspace") {
+            this.item(ViewKey.Text("rename"), "Rename project", { model.rename() }) {
+                this.keywords = ["name", "重命名"]
+            }
+            this.item(
+                ViewKey.Text("details"),
+                "Project details",
+                { model.detailsOpen.value = true }
+            ) { this.keywords = ["inspector", "详情"] }
+            this.item(
+                ViewKey.Text("activity"),
+                "Recent activity",
+                { model.activityOpen.value = true }
+            )
+            this.item(
+                ViewKey.Text("editor"),
+                "Focus editor",
+                {
+                    model.tab.value = Some(0)
+                    model.focusEditorAfterCommand = true
+                }
+            )
+        }
+    }

@@ -19,12 +19,13 @@ internal class DownloadPanel(
     val model: DownloadModel,
     private val request: HttpRequest,
     private val destination: Path,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     var controller: DownloadController? = None
     var clicks: Int by state(0)
     private val themes = currentThemeSource()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         controller =
             Some(scope.resource { DownloadController(jobs, client, workers, proxy, model) })
     }
@@ -53,7 +54,7 @@ internal class DownloadPanel(
                 this.add(
                     element(
                         ProgressInput(value, theme.tokens.palette),
-                        { props -> ProgressBar(props) }
+                        { props, mount -> ProgressBar(props, scope = mount) }
                     )
                 )
                 this.row {
@@ -94,7 +95,7 @@ internal class DownloadPanel(
             this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
             this.style =
                 styleOverride {
-                    this.background(Some(Paint(theme.tokens.palette.canvas)))
+                    this.background(Some(Paint(theme.tokens.palette.background.background)))
                     this.clipContent(true)
                 }
         }
@@ -103,14 +104,16 @@ internal class DownloadPanel(
 
 private class ProgressInput(val snapshot: DownloadSnapshot, val colors: ThemePalette)
 
-private class ProgressBar(private val props: Props<ProgressInput>): Element {
+private class ProgressBar(private val props: Props<ProgressInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var amount: Animatable<Double>? = None
     private var target = 0.0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         target = props.value.snapshot.fraction ?: 0.0
         amount = Some(scope.animation(target))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value.snapshot
         val next = value.fraction ?: 0.0
         if (
@@ -121,16 +124,22 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
             target = next
             if (amount!!.state == AnimationState.Running || amount!!.value != next)
                 amount!!.snapTo(next)
-            return
+            return UiInvalidation.Layout
         }
         if (next == target)
-            return
+            return UiInvalidation.Layout
         target = next
         amount!!.animateTo(next, AnimationSpec.Tween(Duration.milliseconds(100L)))
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 360.0, 12.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 360.0, 12.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             val value = props.value
@@ -141,7 +150,7 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
             when (value.snapshot.fraction) {
                 case Some(_) -> paint.canvas.drawRect(
                     Rect(0.0, 0.0, paint.size.width * amount!!.value, paint.size.height),
-                    Paint(value.colors.accent)
+                    Paint(value.colors.primary.background)
                 )
                 case None -> if (value.snapshot.phase == DownloadPhase.Running)
                     paint.canvas.drawRect(
@@ -151,7 +160,7 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
                             paint.size.width * 0.3,
                             paint.size.height
                         ),
-                        Paint(value.colors.accent)
+                        Paint(value.colors.primary.background)
                     )
             }
         }

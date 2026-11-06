@@ -1,0 +1,135 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class ResizablePanelInput(val root: ResizableInput, val index: Long) {
+    val hasHandle: Boolean get() = index + 1L < root.props.panels.size
+    val key: ViewKey get() = root.props.panels[index].key
+}
+
+internal class ResizablePanelLayout(
+    private val props: Props<ResizablePanelInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val horizontal = input.root.props.orientation == Orientation.Horizontal
+        val thickness =
+            if (input.hasHandle)
+                input.root.theme.tokens.typography.body.fontSize / 14.0
+            else
+                0.0
+        val main =
+            (
+                if (horizontal)
+                    constraints.maxWidth
+                else
+                    constraints.maxHeight
+            ) ?:
+                0.0
+        val extent = lowerBound(0.0, main - thickness)
+        val maxCross =
+            if (horizontal)
+                constraints.maxHeight
+            else
+                constraints.maxWidth
+        var naturalCross =
+            if (input.hasHandle)
+                24.0 * thickness
+            else
+                0.0
+        if (extent == 0.0 || maxCross == Some(0.0))
+            context.skipChild(0L)
+        else {
+            val child =
+                context.measureChild(
+                    0L,
+                    if (horizontal)
+                        Constraints(
+                            minWidth = extent,
+                            maxWidth = Some(extent),
+                            minHeight = maxCross ?: 0.0,
+                            maxHeight = maxCross
+                        )
+                    else
+                        Constraints(
+                            minHeight = extent,
+                            maxHeight = Some(extent),
+                            minWidth = maxCross ?: 0.0,
+                            maxWidth = maxCross
+                        )
+                )
+            naturalCross =
+                lowerBound(
+                    naturalCross,
+                    if (horizontal)
+                        child.size.height
+                    else
+                        child.size.width
+                )
+        }
+        val size = constraints.constrain(resizableSize(main, maxCross ?: naturalCross, horizontal))
+        if (extent > 0.0 && maxCross != Some(0.0))
+            context.placeChild(
+                0L,
+                if (horizontal)
+                    Point(logicalX(0.0, extent, size.width, context.layoutDirection), 0.0)
+                else
+                    Point(0.0, 0.0)
+            )
+        if (!input.hasHandle || size.width == 0.0 || size.height == 0.0)
+            context.skipChild(1L)
+        else {
+            context.measureChild(
+                1L,
+                Constraints.tight(
+                    resizableSize(
+                        thickness,
+                        if (horizontal)
+                            size.height
+                        else
+                            size.width,
+                        horizontal
+                    )
+                )
+            )
+            context.placeChild(
+                1L,
+                if (horizontal)
+                    Point(logicalX(extent, thickness, size.width, context.layoutDirection), 0.0)
+                else
+                    Point(0.0, extent)
+            )
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class ResizableContent(
+    private val props: Props<StyleOverride>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var painter: StylePainter? = None
+    public override fun onMount() {
+        painter = Some(scope.resource { StylePainter() })
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        painter!!.scene(context, props.value.resolve(style())) {
+            local -> containerScene(local, true)
+        }
+    }
+}

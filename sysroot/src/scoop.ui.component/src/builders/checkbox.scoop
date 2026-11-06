@@ -6,10 +6,12 @@ import scoop.ui.style.ThemeSource
 /** Shared options; the factory keeps external bindings and owned state distinct. */
 public class CheckboxBuilder internal constructor() {
     public var enabled: Boolean = true
+    public var invalid: Boolean = false
     public var style: CheckboxStyle = checkboxStyle()
     public var theme: ThemeSource? = None
     public var key: ViewKey = ViewKey.Position
     public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
 
     public fun style(configure: CheckboxStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
@@ -18,6 +20,6 @@ public class CheckboxBuilder internal constructor() {
     public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
         focus = focus.copy(configure)
     }
-    internal fun snapshot(checked: Binding<Boolean>): CheckboxProps =
-        CheckboxProps(checked, enabled, style, theme, focus)
+    internal fun snapshot(checked: Binding<CheckState>): CheckboxProps =
+        CheckboxProps(checked, enabled, style, theme, focus, invalid, labelTarget)
 }

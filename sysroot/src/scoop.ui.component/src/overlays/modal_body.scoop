@@ -1,0 +1,87 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class ModalBodyProps(
+    val options: ModalOptions,
+    val theme: Theme,
+    val scrollState: ScrollState? = options.scrollState,
+    val fillHeight: Boolean = true
+)
+
+/** Reuses the eager viewport controller and retains the same body when scrolling is toggled. */
+internal class ModalBody(private val props: Props<ModalBodyProps>, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
+    private val local = ScrollState()
+    private var control: ScrollControl? = None
+    private fun controls(): ScrollControlProps {
+        val input = props.value
+        val options = input.options
+        return ScrollControlProps(
+            input.scrollState ?: local,
+            ScrollAxes.Vertical,
+            40.0,
+            ScrollChain.Contain,
+            if (options.scrollable)
+                ScrollbarVisibility.Auto
+            else
+                ScrollbarVisibility.Hidden,
+            scrollbarOptions(),
+            options.enabled,
+            FocusOptions(tabStop = false),
+            PaintCachePolicy.None,
+            input.theme
+        )
+    }
+    public override fun onMount() {
+        control = Some(ScrollControl(scope) { controls() })
+    }
+    public override fun update(): UiInvalidation {
+        control!!.update()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val scroll = props.value.options.scrollable
+        val padding =
+            props.value.options.contentPadding *
+                props.value.theme.tokens.typography.body.fontSize /
+                14.0
+        val insets = Size(padding * 2.0, padding * 2.0)
+        val inner = childConstraints(constraints, insets)
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(
+                    inner.minWidth,
+                    inner.maxWidth,
+                    maxHeight =
+                        if (scroll)
+                            None
+                        else
+                            inner.maxHeight
+                )
+            )
+        val content = Size(child.size.width + insets.width, child.size.height + insets.height)
+        val size =
+            constraints.constrain(
+                Size(
+                    content.width,
+                    if (scroll && props.value.fillHeight)
+                        constraints.maxHeight ?: content.height
+                    else
+                        content.height
+                )
+            )
+        val layout = control!!.layout(size, content)
+        context.placeChild(0L, Point(padding, padding))
+        return LayoutResult(LayoutMetrics(size), layout)
+    }
+    public override fun scene(context: SceneContext, layout: ScrollLayout) {
+        control!!.scene(context, layout)
+    }
+}

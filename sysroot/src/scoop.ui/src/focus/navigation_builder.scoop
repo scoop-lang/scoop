@@ -14,6 +14,8 @@ public class NavigationOptionsBuilder internal constructor() {
     public var direction: LayoutDirection? = None
     public var loop: Boolean = false
     public var roving: Boolean = true
+    public var preferredTab: FocusHandle? = None
+    public var onNavigate: (FocusHandle) -> Unit = {}
 
     public fun add(item: NavigationItem): Unit {
         entries.add(item)
@@ -26,5 +28,13 @@ public class NavigationOptionsBuilder internal constructor() {
         add(NavigationItem(handle, row, column))
     }
     internal fun snapshot(): NavigationOptions =
-        NavigationOptions(entries.toArray(), layout, direction, loop, roving)
+        NavigationOptions(
+            entries.toArray(),
+            layout,
+            direction,
+            loop,
+            roving,
+            preferredTab,
+            onNavigate
+        )
 }

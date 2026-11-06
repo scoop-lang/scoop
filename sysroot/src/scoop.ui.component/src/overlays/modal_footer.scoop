@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.math.max
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class DialogFooterProps public constructor(
+    public val children: Array<View>,
+    public val theme: ThemeSource? = None
+)
+
+public class DialogFooter public constructor(
+    private val props: Props<DialogFooterProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val density = themes.read(props.value.theme).tokens.typography.body.fontSize / 14.0
+        return modalActions(props.value.children, density, false)
+    }
+}
+
+public fun dialogFooter(configure: ChildrenBuilder.() -> Unit): View {
+    val builder = ChildrenBuilder()
+    builder.configure()
+    return component(
+        DialogFooterProps(builder.childrenSnapshot()),
+        { current, mount -> DialogFooter(current, scope = mount) }
+    )
+}
+
+internal fun modalActions(children: Array<View>, density: Double, balanced: Boolean): View =
+    element(
+        ModalActionsProps(8.0 * density, balanced),
+        { current, mount -> ModalActions(current, scope = mount) },
+        children
+    )
+
+private class ModalActionsProps(val spacing: Double, val balanced: Boolean)
+
+/** Reflows the same child sequence; only placements change at the narrow boundary. */
+private class ModalActions(
+    private val props: Props<ModalActionsProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val count = context.childCount
+        if (count == 0L)
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+        val gap = props.value.spacing
+        val natural =
+            Array<LayoutMetrics>(count) { index -> context.measureChild(index, Constraints()) }
+        var total = gap * (count - 1L).toDouble()
+        for (item in natural)
+            total += item.size.width
+        val width = constraints.maxWidth ?: max(constraints.minWidth, total)
+        val balanced = props.value.balanced && count == 2L
+        val row = balanced || total <= width
+        var height = 0.0
+        val sizes = ArrayList<Size>()
+        for (index in 0L ..< count) {
+            val itemWidth =
+                if (balanced)
+                    max(0.0, (width - gap) / 2.0)
+                else
+                    if (row)
+                        min(natural[index].size.width, width)
+                    else
+                        width
+            val child =
+                context.measureChild(
+                    index,
+                    Constraints(itemWidth, Some(itemWidth), maxHeight = constraints.maxHeight)
+                )
+            if (row)
+                height = max(height, child.size.height)
+            else
+                height += child.size.height
+            sizes.add(child.size)
+        }
+        if (!row)
+            height += gap * (count - 1L).toDouble()
+        val size = constraints.constrain(Size(width, height))
+        var offset =
+            if (row && !balanced)
+                max(0.0, width - total)
+            else
+                0.0
+        for (index in 0L ..< count) {
+            val child = sizes[index]
+            if (row) {
+                val x =
+                    if (context.layoutDirection == LayoutDirection.Rtl)
+                        width - offset - child.width
+                    else
+                        offset
+                context.placeChild(index, Point(x, max(0.0, (size.height - child.height) / 2.0)))
+                offset += child.width + gap
+            } else {
+                context.placeChild(index, Point(0.0, max(0.0, height - offset - child.height)))
+                offset += child.height + gap
+            }
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

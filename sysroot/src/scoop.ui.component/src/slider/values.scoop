@@ -1,0 +1,105 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class SliderThumbOptions public constructor(
+    public val focus: FocusOptions = FocusOptions(),
+    public val labelTarget: FieldTarget? = None
+)
+
+public class SliderProps public constructor(
+    public val values: Binding<Array<Double>>,
+    public val range: RangeSpec,
+    public val orientation: Orientation = Orientation.Horizontal,
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val keyboardStep: Double? = None,
+    public val thumbs: Array<SliderThumbOptions> = [],
+    public val labelTarget: FieldTarget? = None,
+    public val style: SliderStyle = sliderStyle(),
+    public val theme: ThemeSource? = None,
+    public val onValueCommit: (Array<Double>) -> Unit = {},
+    public val onValueCancel: (Array<Double>, DragCancelReason) -> Unit = { _, _ -> }
+) {
+    init {
+        when (keyboardStep) {
+            case Some(step) -> requireComponent(
+                step.isFinite() && step > 0.0,
+                "slider keyboard step must be finite and positive"
+            )
+            case None -> requireComponent(
+                range.step != None,
+                "continuous slider requires a keyboard step"
+            )
+        }
+    }
+}
+
+public class SliderThumbBuilder internal constructor() {
+    public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+}
+
+public class SliderBuilder internal constructor() {
+    private val thumbs = ArrayList<SliderThumbOptions>()
+    public var orientation: Orientation = Orientation.Horizontal
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var keyboardStep: Double? = None
+    public var labelTarget: FieldTarget? = None
+    public var style: SliderStyle = sliderStyle()
+    public var theme: ThemeSource? = None
+    public var onValueCommit: (Array<Double>) -> Unit = {}
+    public var onValueCancel: (Array<Double>, DragCancelReason) -> Unit = { _, _ -> }
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: SliderStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun thumb(configure: SliderThumbBuilder.() -> Unit = {}) {
+        val builder = SliderThumbBuilder()
+        builder.configure()
+        addThumb(SliderThumbOptions(builder.focus, builder.labelTarget))
+    }
+    public fun addThumb(options: SliderThumbOptions) {
+        thumbs.add(options)
+    }
+    internal fun snapshot(values: Binding<Array<Double>>, range: RangeSpec): SliderProps =
+        SliderProps(
+            values,
+            range,
+            orientation,
+            enabled,
+            invalid,
+            keyboardStep,
+            thumbs.toArray(),
+            labelTarget,
+            style,
+            theme,
+            onValueCommit,
+            onValueCancel
+        )
+}
+
+public fun slider(
+    values: Binding<Array<Double>>,
+    range: RangeSpec,
+    configure: SliderBuilder.() -> Unit = {}
+): View = makeSlider(values, range, configure)
+
+internal fun makeSlider(
+    values: Binding<Array<Double>>,
+    range: RangeSpec,
+    configure: SliderBuilder.() -> Unit
+): View {
+    val builder = SliderBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(values, range),
+        { current, mount -> Slider(current, scope = mount) },
+        builder.key
+    )
+}

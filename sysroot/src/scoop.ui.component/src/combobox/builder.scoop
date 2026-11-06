@@ -1,0 +1,143 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+public class ComboboxBuilder<T: Equals<T>> internal constructor(): InputBuilder() {
+    public var open: Binding<Boolean>? = None
+    public var active: Binding<ViewKey?>? = None
+    public var filter: ComboboxFilter<T> = ComboboxFilter.Contains
+    public var autoHighlight: Boolean = false
+    public var loop: Boolean = true
+    public var clearQueryOnSelect: Boolean = true
+    public var closeOnSelect: Boolean? = None
+    public var customChoice: ((String) -> Choice<T>?)? = None
+    public var valueText: ((T) -> String)? = None
+    public var unavailableText: String = "Unavailable selection"
+    public var inputPlacement: ComboboxInputPlacement = ComboboxInputPlacement.Inline
+    public var showTrigger: Boolean = true
+    public var showClear: Boolean = false
+    public var width: Double = 240.0
+    public var popupWidth: Double? = None
+    public var maxHeight: Double = 252.0
+    public var empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results found.", None)))
+    public var triggerStyle: ButtonStyle = buttonStyle()
+    public var triggerFocus: FocusOptions = FocusOptions()
+    public var popupStyle: StyleOverride = styleOverride()
+    public var scroll: ScrollState? = None
+    public var listHandle: VirtualListHandle? = None
+    public var handle: OverlayHandle? = None
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onValueChange: (T?) -> Unit = {}
+    public var onValuesChange: (Array<T>) -> Unit = {}
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    init {
+        placeholder = "Select an option"
+    }
+    public fun empty(text: String) {
+        empty = PanelContent.Label(LabelProps(LabelText.Plain(text, None)))
+    }
+    public fun empty(text: StyledText) {
+        empty = PanelContent.Label(LabelProps(LabelText.Styled(text)))
+    }
+    public fun empty(view: View) {
+        empty = PanelContent.Custom(view)
+    }
+    public fun triggerStyle(configure: ButtonStyleBuilder.() -> Unit) {
+        triggerStyle = triggerStyle.copy(configure)
+    }
+    public fun triggerFocus(configure: FocusOptionsBuilder.() -> Unit) {
+        triggerFocus = triggerFocus.copy(configure)
+    }
+    public fun popupStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        popupStyle = popupStyle.copy(configure)
+    }
+    internal fun snapshot(
+        selection: ComboboxSelection<T>,
+        source: ChoiceSource<T>,
+        query: TextEditorState
+    ): ComboboxProps<T> =
+        ComboboxProps(
+            selection,
+            source,
+            inputProps(query),
+            open,
+            active,
+            filter,
+            autoHighlight,
+            loop,
+            clearQueryOnSelect,
+            closeOnSelect,
+            customChoice,
+            valueText,
+            unavailableText,
+            inputPlacement,
+            showTrigger,
+            showClear,
+            width,
+            popupWidth,
+            maxHeight,
+            empty,
+            triggerStyle,
+            triggerFocus,
+            popupStyle,
+            scroll,
+            listHandle,
+            handle,
+            transition,
+            onValueChange,
+            onValuesChange,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+public fun <T: Equals<T>> combobox(
+    value: Binding<T?>,
+    choices: ChoiceSource<T>,
+    query: TextEditorState,
+    configure: ComboboxBuilder<T>.() -> Unit = {}
+): View = makeCombobox(ComboboxSelection.Single(value), choices, query, configure)
+
+public fun <T: Equals<T>> combobox(
+    value: Binding<Array<T>>,
+    choices: ChoiceSource<T>,
+    query: TextEditorState,
+    configure: ComboboxBuilder<T>.() -> Unit = {}
+): View = makeCombobox(ComboboxSelection.Multiple(value), choices, query, configure)
+
+public fun <T: Equals<T>> combobox(
+    value: Binding<T?>,
+    choices: Array<Choice<T>>,
+    query: TextEditorState,
+    configure: ComboboxBuilder<T>.() -> Unit = {}
+): View = combobox(value, choiceSource(choices), query, configure)
+
+public fun <T: Equals<T>> combobox(
+    value: Binding<Array<T>>,
+    choices: Array<Choice<T>>,
+    query: TextEditorState,
+    configure: ComboboxBuilder<T>.() -> Unit = {}
+): View = combobox(value, choiceSource(choices), query, configure)
+
+internal fun <T: Equals<T>> makeCombobox(
+    selection: ComboboxSelection<T>,
+    source: ChoiceSource<T>,
+    query: TextEditorState,
+    configure: ComboboxBuilder<T>.() -> Unit
+): View {
+    val builder = ComboboxBuilder<T>()
+    builder.configure()
+    return component(
+        builder.snapshot(selection, source, query),
+        { current, mount -> Combobox(current, scope = mount) },
+        builder.key
+    )
+}

@@ -1,0 +1,30 @@
+package scoop.tests.ui.resizable
+
+import scoop.test.*
+import scoop.tests.window.nativeEditorKey
+import scoop.window.Window
+import scoop.window.native.*
+
+/** Editable content needs the AppKit function-key character as well as its hardware code. */
+internal fun splitEditorRight(window: Window) {
+    val text = "\uf703"
+    @Unsafe
+    {
+        val result =
+            window.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    return@use when (lease.handle) {
+                        case AppKit(_, view) -> text.withUtf8Bytes {
+                            bytes,
+                            length -> @Unsafe
+                            {
+                                return@withUtf8Bytes nativeEditorKey(view, 124, bytes, length, 0)
+                            }
+                        }
+                    }
+                }
+            }
+        assertEquals(0, result)
+    }
+}

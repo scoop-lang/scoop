@@ -1,0 +1,154 @@
+package scoop.tests.ui.tabs
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class TabsWindowTest {
+    @Test
+    fun `tabs separate focus from selection and retain keyed editors across layout and mode changes`() {
+        val p = TabsProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(2, p.callbacks)
+            assertEquals(2, p.reboundCallbacks)
+            for (index in 0L ..< 3L) {
+                assertEquals(p.mounts[index], p.unmounts[index])
+                assertFalse(p.headers[index].isAttached)
+                assertFalse(p.records[index]!!.focus.isAttached)
+            }
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"tabs phase=${p.phase}, rendered=${p.rendered}, generation=${p.generation.value}"
+            )
+            tabsFailure(error)
+            throw error
+        } finally {
+            host.close()
+            p.view?.close()
+            p.frames?.close()
+            p.fonts.close()
+        }
+    }
+}
+
+internal class TabsProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val selected = state<Int?>(None)
+    val alternate = state<Int?>(Some(2))
+    val records = MutableArray<TabRecord?>(3L) { _ -> None }
+    val factories = MutableArray<Int>(3L) { _ -> 0 }
+    val mounts = MutableArray<Int>(3L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(3L) { _ -> 0 }
+    val headers = Array<FocusHandle>(3L) { _ -> FocusHandle() }
+    val bounds = MutableArray<Rect>(3L) { _ -> Rect(0.0, 0.0, 0.0, 0.0) }
+    var retention = ContentRetention.Dispose
+    var activation = TabActivation.Auto
+    var axis = FlexAxis.Horizontal
+    var variant = TabsVariant.Default
+    var deny = false
+    var rebound = false
+    var callbacks = 0
+    var reboundCallbacks = 0
+    var enabled = true
+    var loop = true
+    var reorder = false
+    var rtl = false
+    var zero = false
+    var width = 500.0
+    var gone = false
+    var measured = 0
+    var rendered = -1
+    var phase = 0
+    var finished = false
+    var delay = 160L
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop tabs test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(560.0, 400.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> TabsScene(this, scope = mount) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("tabs timeout"))
+                val visible = native!!.isVisible
+                if (
+                    (!visible || (native!!.isFocused && rendered >= generation.value)) &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    delay = 160L
+                    when (phase / 8) {
+                        case 0 -> tabsSelection(this)
+                        case 1 -> tabsRetention(this)
+                        case 2 -> tabsNavigation(this)
+                        case 3 -> tabsConstraints(this)
+                        case 4 -> tabsFinish(this)
+                        else -> fail(Some("unexpected tabs phase"))
+                    }
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(delay)
+                } else
+                    if (visible && !native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 36)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 36;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, tabsKey(native!!, code, text, flags))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

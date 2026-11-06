@@ -1,0 +1,89 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.math.max
+import scoop.ui.*
+
+public class PopupArrow public constructor(
+    public val width: Double = 10.0,
+    public val height: Double = 5.0,
+    public val paint: Paint? = None
+) {
+    init {
+        nonnegative(width, "invalid popup arrow width")
+        nonnegative(height, "invalid popup arrow height")
+    }
+}
+
+internal class PopupArrowInk(
+    val width: Double,
+    val height: Double,
+    val inset: Double,
+    val paint: Paint
+)
+
+internal fun popupArrowInk(
+    arrow: PopupArrow?,
+    density: Double,
+    background: Paint?
+): PopupArrowInk? {
+    val value = arrow ?: return None
+    val paint = value.paint ?: background ?: return None
+    return Some(PopupArrowInk(value.width * density, value.height * density, 8.0 * density, paint))
+}
+
+/** Rounded tip on a unit triangle; the same geometry is used on every physical side. */
+internal fun popupArrowPath(): Path =
+    path {
+        moveTo(Point(-0.5, -0.1))
+        lineTo(Point(-0.12, 0.76))
+        quadraticTo(Point(0.0, 1.0), Point(0.12, 0.76))
+        lineTo(Point(0.5, -0.1))
+        closeContour()
+    }
+
+internal fun drawPopupArrow(context: SceneContext, shape: Path, ink: PopupArrowInk) {
+    val layout = context.overlayLayout ?: return
+    val anchor = layout.anchor ?: return
+    val side = layout.side ?: return
+    val size = context.size
+    val vertical = side == OverlaySide.Top || side == OverlaySide.Bottom
+    val edge =
+        if (vertical)
+            size.width
+        else
+            size.height
+    val width = min(ink.width, max(0.0, edge - ink.inset * 2.0))
+    if (width == 0.0 || ink.height == 0.0)
+        return
+    val wanted =
+        if (vertical)
+            anchor.x + anchor.width / 2.0 - layout.bounds.x
+        else
+            anchor.y + anchor.height / 2.0 - layout.bounds.y
+    val center = max(width / 2.0 + ink.inset, min(wanted, edge - width / 2.0 - ink.inset))
+    context.draw {
+        paint -> paint.canvas.withState {
+            canvas ->
+            when (side) {
+                case Top -> canvas.translate(center, size.height)
+                case Bottom -> {
+                    canvas.translate(center, 0.0);
+                    canvas.scale(1.0, -1.0)
+                }
+                case Left -> {
+                    canvas.translate(size.width, center);
+                    canvas.rotate(-1.5707963267948966)
+                }
+                case Right -> {
+                    canvas.translate(0.0, center);
+                    canvas.rotate(1.5707963267948966)
+                }
+                else -> return@withState
+            }
+            canvas.scale(width, ink.height)
+            canvas.drawPath(shape, ink.paint)
+        }
+    }
+}

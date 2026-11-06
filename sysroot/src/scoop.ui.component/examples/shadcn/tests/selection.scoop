@@ -1,0 +1,324 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class SelectionWindowTest {
+    @Test
+    fun `selection controls use current bindings labels and one press while preserving mounts and stopping frames`() {
+        val probe = SelectionProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.fonts.isClosed)
+            assertFalse(probe.frames!!.snapshot().attached)
+            assertEquals(1, probe.checkMounts)
+            assertEquals(1, probe.switchMounts)
+            assertEquals(1, probe.toggleMounts)
+            for (focus in probe.focus)
+                assertFalse(focus.isAttached)
+            for (target in probe.targets)
+                assertFalse(target.isAttached)
+        } catch (error: Throwable) {
+            println(
+                f"selection phase=${probe.phase}, check=${probe.checkWrites}, switch=${
+                    probe.switchWrites
+                }, toggle=${probe.toggleWrites}"
+            )
+            galleryFailure(error)
+            throw error
+        } finally {
+            host.close();
+            probe.view?.close();
+            probe.frames?.close();
+            probe.fonts.close()
+        }
+    }
+}
+
+internal class SelectionProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val checks = [state(CheckState.Indeterminate), state(CheckState.Indeterminate)]
+    val bool = state(false)
+    val switches = [state(false), state(true)]
+    val toggles = [state(false), state(false)]
+    val nested = state(false)
+    val targets = [FieldTarget(), FieldTarget(), FieldTarget()]
+    val focus =
+        [FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle()]
+    val generation = state(0)
+    var rendered = -1
+    var checkWrites = 0
+    var switchWrites = 0
+    var toggleWrites = 0
+    var childWrites = 0
+    var checkMounts = 0
+    var switchMounts = 0
+    var toggleMounts = 0
+    var alternate = false
+    var reject = false
+    var enabled = true
+    var gone = false
+    var direction = LayoutDirection.Ltr
+    var phase = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var quiet: FrameSnapshot? = None
+    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun currentFocus(index: Long): FocusHandle =
+        focus[
+            index +
+                (
+                    if (alternate)
+                        3L
+                    else
+                        0L
+                )
+        ]
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop selection test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(700.0, 500.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> SelectionScene(this, scope = mount) })
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("selection timeout"))
+                if (native!!.isFocused && rendered >= generation.value)
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 30)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 30;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        when (phase) {
+            case 0 -> {
+                assertEquals(CheckState.Indeterminate, checks[0L].value);
+                click(52.0, 52.0)
+            }
+            case 1 -> {
+                assertEquals(CheckState.Checked, checks[0L].value);
+                assertEquals(1, checkWrites);
+                key(49, " ")
+            }
+            case 2 -> {
+                assertEquals(CheckState.Unchecked, checks[0L].value);
+                assertEquals(2, checkWrites)
+                assertTrue(sendSurfaceKey(native!!, 49, true));
+                assertTrue(sendSurfaceKey(native!!, 49, true));
+                assertTrue(sendSurfaceKey(native!!, 49, false))
+            }
+            case 3 -> {
+                assertEquals(CheckState.Checked, checks[0L].value);
+                assertEquals(3, checkWrites)
+                key(36, "\r");
+                assertEquals(3, checkWrites)
+                checks[0L].value = CheckState.Indeterminate;
+                bool.value = true
+            }
+            case 4 -> {
+                assertEquals(3, checkWrites);
+                click(110.0, 53.0)
+            }
+            case 5 -> {
+                assertEquals(CheckState.Checked, checks[0L].value);
+                assertEquals(4, checkWrites);
+                click(52.0, 102.0)
+            }
+            case 6 -> {
+                assertFalse(bool.value);
+                click(30.0, 150.0)
+            }
+            case 7 -> {
+                assertTrue(switches[0L].value);
+                assertEquals(1, switchWrites);
+                assertFalse(focus[1L].isFocusVisible);
+                key(49, " ")
+            }
+            case 8 -> {
+                assertFalse(switches[0L].value);
+                assertEquals(2, switchWrites);
+                key(36, "\r")
+            }
+            case 9 -> {
+                assertEquals(2, switchWrites);
+                click(55.0, 218.0)
+            }
+            case 10 -> {
+                assertTrue(toggles[0L].value);
+                assertEquals(1, toggleWrites);
+                assertTrue(sendSurfaceKey(native!!, 49, true))
+            }
+            case 11 -> {
+                assertTrue(toggles[0L].value);
+                assertEquals(1, toggleWrites);
+                assertTrue(sendSurfaceKey(native!!, 49, false))
+            }
+            case 12 -> {
+                assertFalse(toggles[0L].value);
+                assertEquals(2, toggleWrites);
+                key(36, "\r")
+            }
+            case 13 -> {
+                assertTrue(toggles[0L].value);
+                assertEquals(3, toggleWrites)
+                toggles[0L].value = false;
+                switches[0L].value = true;
+                alternate = true
+            }
+            case 14 -> {
+                assertEquals(1, checkMounts);
+                assertEquals(1, switchMounts);
+                assertEquals(1, toggleMounts)
+                for (index in 0L ..< 3L)
+                    assertFalse(focus[index].isAttached)
+                assertFalse(targets[1L].isAttached);
+                assertTrue(targets[2L].isAttached)
+                click(110.0, 152.0)
+            }
+            case 15 -> {
+                assertEquals(2, switchWrites);
+                click(110.0, 182.0)
+            }
+            case 16 -> {
+                assertFalse(switches[1L].value);
+                assertTrue(switches[0L].value);
+                assertEquals(3, switchWrites)
+                reject = true;
+                key(49, " ")
+            }
+            case 17 -> {
+                assertFalse(switches[1L].value);
+                assertEquals(4, switchWrites)
+                assertTrue(currentFocus(2L).requestFocus());
+                key(49, " ")
+            }
+            case 18 -> {
+                assertFalse(toggles[1L].value);
+                assertEquals(4, toggleWrites)
+                assertTrue(currentFocus(0L).requestFocus());
+                key(49, " ")
+            }
+            case 19 -> {
+                assertEquals(CheckState.Indeterminate, checks[1L].value);
+                assertEquals(5, checkWrites)
+                reject = false;
+                direction = LayoutDirection.Rtl
+                theme.current.value =
+                    shadcnTheme(ThemeMode.Dark) {
+                        tokens { motion { this.preference = MotionPreference.Reduced } }
+                    }
+            }
+            case 20 -> {
+                assertEquals(1, switchMounts);
+                click(110.0, 182.0)
+            }
+            case 21 -> {
+                assertTrue(switches[1L].value);
+                assertEquals(5, switchWrites)
+                assertTrue(sendSurfaceKey(native!!, 49, true));
+                enabled = false
+            }
+            case 22 -> {
+                assertTrue(sendSurfaceKey(native!!, 49, false));
+                click(110.0, 182.0);
+                assertEquals(5, switchWrites)
+            }
+            case 23 -> {
+                assertFalse(targets[2L].isEnabled);
+                enabled = true
+            }
+            case 24 -> {
+                assertTrue(moveSurfacePointer(native!!, 55.0, 218.0));
+                assertTrue(view!!.button(55.0, 218.0, true))
+                assertTrue(moveSurfacePointer(native!!, 600.0, 420.0));
+                assertTrue(view!!.button(600.0, 420.0, false))
+            }
+            case 25 -> {
+                assertEquals(4, toggleWrites);
+                click(75.0, 280.0)
+            }
+            case 26 -> {
+                assertEquals(1, childWrites);
+                assertFalse(nested.value)
+                assertTrue(moveSurfacePointer(native!!, 50.0, 150.0));
+                assertTrue(view!!.button(50.0, 150.0, true))
+                gone = true
+            }
+            case 27 -> {
+                assertTrue(view!!.button(50.0, 150.0, false));
+                assertEquals(5, switchWrites)
+                for (handle in focus)
+                    assertFalse(handle.isAttached)
+                for (target in targets)
+                    assertFalse(target.isAttached)
+            }
+            case 28 -> {
+                assertFalse(frames!!.snapshot().required)
+                quiet = Some(frames!!.snapshot())
+            }
+            case 29 -> {
+                assertEquals(quiet!!, frames!!.snapshot());
+                native!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected selection phase"))
+        }
+        if (phase < 27)
+            generation.value += 1
+        phase += 1
+    }
+    private fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y));
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    private fun key(code: Int, text: String) {
+        assertEquals(0, galleryKey(native!!, code, text))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        )
+    }
+}

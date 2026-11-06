@@ -41,10 +41,15 @@ private class SelectionTestInput(
 internal fun selectableTestView(probe: EditProbe): View {
     val test = probe.displayTest
     val inlines =
-        [inlineView(InlineKey.Text("badge"), element(0, { _ -> SelectableInline(probe) }))]
+        [
+            inlineView(
+                InlineKey.Text("badge"),
+                element(0, { _, mount -> SelectableInline(probe, scope = mount) })
+            )
+        ]
     return element(
         SelectionTestInput(test.content, inlines, test.maxLines, test.action, test.short),
-        { props -> SelectableTestElement(probe, props) },
+        { props, mount -> SelectableTestElement(probe, props, scope = mount) },
         inlineChildren(test.content, inlines),
         key = ViewKey.Text("selectable")
     )
@@ -52,16 +57,17 @@ internal fun selectableTestView(probe: EditProbe): View {
 
 private class SelectableTestElement(
     private val probe: EditProbe,
-    private val props: Props<SelectionTestInput>
-): Element {
+    private val props: Props<SelectionTestInput>,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private var host: SelectableTextHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
         host = Some(value)
         probe.displayTest.host = Some(value)
         probe.displayTest.mounts += 1
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val test = probe.displayTest
         val input = props.value
         val range =
@@ -89,32 +95,39 @@ private class SelectableTestElement(
             decorations = [TextRangeDecoration(range, underline = Some(Color(0.1, 0.3, 0.8)))],
             onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
         )
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
         val input = props.value
-        return host!!.measure(
-            context,
-            constraints,
-            Some(
-                paragraphStyle {
-                    maxLines = input.maxLines
-                    ellipsis = "…"
-                }
-            ),
-            input.inlines
-        )
+        val measured =
+            host!!.measure(
+                context,
+                constraints,
+                Some(
+                    paragraphStyle {
+                        maxLines = input.maxLines
+                        ellipsis = "…"
+                    }
+                ),
+                input.inlines
+            )
+        return LayoutResult(measured.metrics, measured, { measured.close() })
     }
-    public override fun scene(context: SceneContext) {
-        host!!.scene(context)
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        host!!.scene(context, measured)
     }
     public override fun onUnmount() {
         probe.displayTest.unmounts += 1
     }
 }
 
-private class SelectableInline(private val probe: EditProbe): Element {
+private class SelectableInline(private val probe: EditProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = scope.createArea(focusable = true)
         area = Some(value)
         probe.displayTest.inlineArea = Some(value)
@@ -123,9 +136,10 @@ private class SelectableInline(private val probe: EditProbe): Element {
         assertFailsWith<IllegalArgumentException> { probe.scope!!.createArea(parent = Some(value)) }
         probe.displayTest.inlineMounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(28.0, 18.0)), Some(14.0))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(28.0, 18.0)), Some(14.0)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.1, 0.6, 0.3))) }
@@ -241,7 +255,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
             assertFalse(host.layout.didExceedMaxLines)
             assertTrue(test.inlineArea!!.visibleBounds != None)
             host.setSelection(TextPosition(0L), TextPosition(0L))
-            test.oldLayout = Some(host.layout)
+            test.oldSelectableLayout = Some(host.layout)
             test.expectedEnd = host.layout.lines[0L].contentRange.end
             probe.next {
                 test.width = 50.0;
@@ -251,7 +265,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
         }
         case 71 -> {
             assertEquals(2, test.discards)
-            assertTrue(test.oldLayout!!.isClosed)
+            assertTrue(test.oldSelectableLayout!!.isClosed)
             host.setSelection(TextPosition(test.content.text.byteLength), TextPosition(0L))
             probe.next {
                 test.short = true;

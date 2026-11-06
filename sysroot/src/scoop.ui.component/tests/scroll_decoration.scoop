@@ -1,0 +1,95 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ScrollDecorationTest {
+    @Test
+    fun `overlay bars resolve the shared corner in logical direction without changing offsets`() {
+        val snapshot = ScrollSnapshot(Point(30.0, 40.0), Size(200.0, 120.0), Size(500.0, 600.0))
+        val ltr =
+            ScrollBarsLayout(
+                snapshot,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                10.0,
+                LayoutDirection.Ltr
+            )
+        val rtl =
+            ScrollBarsLayout(
+                snapshot,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                10.0,
+                LayoutDirection.Rtl
+            )
+        assertEquals(Some(Rect(0.0, 110.0, 190.0, 10.0)), ltr.horizontal)
+        assertEquals(Some(Rect(190.0, 0.0, 10.0, 110.0)), ltr.vertical)
+        assertEquals(Some(Rect(10.0, 110.0, 190.0, 10.0)), rtl.horizontal)
+        assertEquals(Some(Rect(0.0, 0.0, 10.0, 110.0)), rtl.vertical)
+        val single =
+            ScrollBarsLayout(
+                snapshot,
+                ScrollAxes.Horizontal,
+                ScrollbarVisibility.Always,
+                10.0,
+                LayoutDirection.Rtl
+            )
+        assertEquals(Some(Rect(0.0, 110.0, 200.0, 10.0)), single.horizontal)
+        assertEquals(None, single.vertical)
+        val hidden =
+            ScrollBarsLayout(
+                snapshot,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Hidden,
+                10.0,
+                LayoutDirection.Rtl
+            )
+        assertEquals(None, hidden.horizontal)
+        assertEquals(None, hidden.vertical)
+        val zero =
+            ScrollBarsLayout(
+                ScrollSnapshot(Point(0.0, 0.0), Size(0.0, 0.0), Size(500.0, 600.0)),
+                ScrollAxes.Both,
+                ScrollbarVisibility.Always,
+                10.0,
+                LayoutDirection.Rtl
+            )
+        assertEquals(None, zero.horizontal)
+        assertEquals(None, zero.vertical)
+    }
+
+    @Test
+    fun `viewport decoration keeps rounded clipping and the themes focus ring independent of content size`() {
+        val bounds = Rect(0.0, 0.0, 200.0, 120.0)
+        for (theme in [shadcnTheme(), shadcnTheme(ThemeMode.Dark)]) {
+            val local =
+                styleOverride {
+                    this.corners(Corners.all(8.0))
+                    this.border(Some(Border.Logical(start = BorderEdge(2.0, Color.Black))))
+                    this.clipContent(false)
+                }
+            val options = scrollSurfaceOptions(local, None)
+            val visual = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(focusVisible = true))
+            val geometry = theme.surfaceGeometry(bounds, visual, options, LayoutDirection.Rtl)
+            assertEquals(bounds, geometry.bounds)
+            assertEquals(CornerRadii.all(8.0), geometry.outline.radii)
+            assertTrue(geometry.contentStyle.clipContent)
+            assertEquals(3.0, geometry.ring!!.border.width)
+            assertEquals(theme.tokens.palette.ring.withAlpha(0.5), geometry.ring!!.border.color)
+            assertEquals(0.0, geometry.style.border!!.resolve(LayoutDirection.Rtl).left.width)
+            assertEquals(2.0, geometry.style.border!!.resolve(LayoutDirection.Rtl).right.width)
+            val quiet = theme.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.Plain), options)
+            assertEquals(None, quiet.ring)
+            val override = OutlineStyle(Color(0.2, 0.5, 0.8), 2.0, 4.0)
+            val custom =
+                theme.surfaceGeometry(bounds, visual, scrollSurfaceOptions(local, Some(override)))
+            assertEquals(override.color, custom.ring!!.border.color)
+            assertEquals(override.width, custom.ring!!.border.width)
+        }
+    }
+}

@@ -1,0 +1,174 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Tabs<T: Equals<T>> public constructor(
+    private val props: Props<TabsProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val handles = ChoiceHandles()
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    private fun select(key: ViewKey) {
+        if (selectTab(props.value, key))
+            props.value.onValueChange(props.value.selected.value)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.action.fontSize / 14.0
+        val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
+        val focus =
+            handles.resolve(
+                keys,
+                Array<FocusOptions>(keys.size) { index -> input.entries[index].focus }
+            )
+        val selected = tabsIndex(input.entries, input.selected.value)
+        val headings =
+            Array<View>(keys.size) {
+                index ->
+                val entry = input.entries[index]
+                val key = entry.choice.key
+                val configured =
+                    entry.trigger ?:
+                        ButtonContent.Label(
+                            LabelProps(
+                                LabelText.Plain(entry.choice.label, None),
+                                input.fonts,
+                                Some(
+                                    paragraphStyle {
+                                        this.maxLines = Some(1L)
+                                        this.alignment =
+                                            if (input.axis == FlexAxis.Horizontal)
+                                                TextAlignment.Center
+                                            else
+                                                TextAlignment.Start
+                                    }
+                                )
+                            )
+                        )
+                val content =
+                    when (configured) {
+                        case Label(label) -> ButtonContent.Label(
+                            LabelProps(
+                                label.text,
+                                when (label.fonts) {
+                                    case Some(_) -> label.fonts;
+                                    case None -> input.fonts
+                                },
+                                label.settings,
+                                label.inlines,
+                                label.theme,
+                                label.baseStyle,
+                                label.underline
+                            )
+                        )
+                        else -> configured
+                    }
+                component(
+                    TabControlProps(
+                        content,
+                        selected == Some(index),
+                        input.enabled && entry.choice.enabled,
+                        input.variant,
+                        input.axis,
+                        entry.triggerStyle ?: buttonStyle { this.kind = SurfaceKind.Plain },
+                        choiceFocus(entry.focus, focus[index]),
+                        theme,
+                        { select(key) }
+                    ),
+                    { current, mount -> TabControl(current, scope = mount) }
+                )
+            }
+        val header =
+            panelFrame(
+                choiceLayout(
+                    headings,
+                    keys,
+                    focus,
+                    input.axis,
+                    if (input.variant == TabsVariant.Line)
+                        4.0 * density
+                    else
+                        0.0,
+                    input.loop,
+                    input.enabled,
+                    styleOverride(),
+                    when (selected) {
+                        case Some(index) -> Some(focus[index]);
+                        case None -> None
+                    },
+                    {
+                        handle -> if (props.value.activation == TabActivation.Auto)
+                            for (index in 0L ..< focus.size)
+                                if (focus[index] === handle)
+                                    select(keys[index])
+                    }
+                ),
+                padding = Insets.all(3.0 * density),
+                visual = tabsListStyle(theme, input.variant).then(input.listStyle)
+            )
+        val panels =
+            Array<View>(keys.size) {
+                index ->
+                val entry = input.entries[index]
+                val active = selected == Some(index)
+                element(
+                    DisclosureBodyProps(
+                        None,
+                        active,
+                        active,
+                        input.enabled && entry.choice.enabled
+                    ),
+                    { current, mount -> DisclosureBody(current, scope = mount) },
+                    if (
+                        active ||
+                            (entry.retention ?: input.retention) ==
+                            ContentRetention.KeepMounted
+                    )
+                        [panelFrame(entry.content, visual = entry.panelStyle)]
+                    else
+                        [],
+                    keys[index]
+                )
+            }
+        return panelFrame(
+            element(
+                TabsLayoutProps(input.axis, input.spacing),
+                { current, mount -> TabsLayout(current, scope = mount) },
+                [
+                    header,
+                    element(
+                        selected,
+                        { current, mount -> TabPanels(current, scope = mount) },
+                        panels
+                    )
+                ]
+            ),
+            visual = input.style
+        )
+    }
+}
+
+private fun tabsListStyle(theme: Theme, variant: TabsVariant): StyleOverride =
+    styleOverride {
+        this.background(
+            if (variant == TabsVariant.Default)
+                Some(Paint(theme.tokens.palette.muted.background))
+            else
+                None
+        )
+        this.corners(
+            Corners.all(
+                if (variant == TabsVariant.Default)
+                    theme.tokens.corners.large
+                else
+                    0.0
+            )
+        )
+    }

@@ -10,6 +10,10 @@ import scoop.ui.style.fluent.fluentTheme
 import scoop.window.*
 
 internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
+    if (probe.phase >= 24 && probe.phase < 48) {
+        advanceAppearance(probe, active)
+        return
+    }
     when (probe.phase) {
         case 0 -> {
             assertEquals(Size(200.0, 120.0), probe.outer.viewport)
@@ -168,12 +172,12 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
                 assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 4))
             }
         }
-        case 24 -> {
+        case 48 -> {
             probe.outer.animateTo(Point(200.0, 480.0), AnimationSpec.Tween(Duration.seconds(3L)))
             probe.generation.value = 3
             probe.phase += 1
         }
-        case 25 -> {
+        case 49 -> {
             assertFalse(probe.outer.isAnimating)
             assertEquals(Point(0.0, 0.0), probe.outer.maximum)
             assertEquals(Point(0.0, 0.0), probe.outer.offset)
@@ -181,17 +185,17 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             probe.generation.value = 4
             probe.phase += 1
         }
-        case 26 -> {
+        case 50 -> {
             assertFalse(probe.outer.isAttached)
             assertFalse(probe.inner.isAttached)
             assertEquals(1, probe.unmounts)
             assertTrue(probe.frames!!.snapshot().paused)
-            probe.phase = 28
+            probe.phase = 52
         }
-        case 28 -> {}
+        case 52 -> {}
         else -> fail(Some("unexpected scroll area phase"))
     }
-    if (probe.phase == 28) {
+    if (probe.phase == 52) {
         probe.ui!!.close()
         probe.window!!.requestDestroy()
     }

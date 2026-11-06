@@ -1,0 +1,84 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class NavigationMenuModelTest {
+    @Test
+    fun `navigation entries use explicit identity and distinguish destinations from panels`() {
+        val builder = NavigationMenuBuilder()
+        builder.item(ViewKey.Text("guide"), "Same", empty()) { width = 280.0 }
+        builder.link(ViewKey.Text("home"), "Same", {}) { active = true }
+        val input = builder.snapshot(None)
+        assertEquals(2L, input.entries.size)
+        assertTrue(navMenuPanel(input, ViewKey.Text("guide")))
+        assertFalse(navMenuPanel(input, ViewKey.Text("home")))
+        assertFalse(navMenuPanel(input, ViewKey.Text("missing")))
+        assertFailsWith<IllegalArgumentException> {
+            NavigationMenuProps([input.entries[0L], input.entries[0L]])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            val bad = NavigationMenuBuilder();
+            bad.link(ViewKey.Position, "Home", {});
+            bad.snapshot(None)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            val bad = NavigationMenuBuilder();
+            bad.item(ViewKey.Text("bad"), "Bad", empty()) { width = -1.0 };
+            bad.snapshot(None)
+        }
+    }
+
+    @Test
+    fun `controlled navigation reports accepted keys and retains the independent local state`() {
+        val local = state<ViewKey?>(Some(ViewKey.Text("local")))
+        val external = state<ViewKey?>(None)
+        val accept = state(false)
+        val notified = ArrayList<ViewKey?>()
+        val input =
+            NavigationMenuProps(
+                [],
+                Some(
+                    binding(
+                        { external.value },
+                        {
+                            next -> if (accept.value)
+                                external.value = next
+                        }
+                    )
+                ),
+                onOpenChange = { next -> notified.add(next) }
+            )
+        navMenuWrite(input, local, Some(ViewKey.Text("guide")))
+        assertEquals(None, external.value);
+        assertEquals(0L, notified.size)
+        accept.value = true
+        navMenuWrite(input, local, Some(ViewKey.Text("guide")))
+        navMenuWrite(input, local, Some(ViewKey.Text("guide")))
+        assertEquals(1L, notified.size)
+        assertEquals(Some(ViewKey.Text("guide")), notified[0L])
+        navMenuWrite(input, local, None)
+        assertEquals(None, external.value);
+        assertEquals(2L, notified.size)
+        assertEquals(Some(ViewKey.Text("local")), local.value)
+        navMenuWrite(NavigationMenuProps([]), local, None)
+        assertEquals(None, local.value)
+    }
+
+    @Test
+    fun `disabled and removed navigation panels do not clear borrowed application state`() {
+        val opened = state<ViewKey?>(Some(ViewKey.Text("guide")))
+        val builder = NavigationMenuBuilder()
+        builder.item(ViewKey.Text("guide"), "Guide", empty()) { enabled = false }
+        val input = builder.snapshot(Some(opened.binding()))
+        assertFalse(navMenuPanel(input, ViewKey.Text("guide")))
+        val empty = NavigationMenuProps([], Some(opened.binding()))
+        assertFalse(navMenuPanel(empty, ViewKey.Text("guide")))
+        assertEquals(Some(ViewKey.Text("guide")), opened.value)
+        val links = LinearBuilder()
+        links.navigationMenu { link(ViewKey.Text("home"), "Home", {}) }
+        links.navigationMenuLink("Destination", {})
+        assertEquals(2L, links.snapshot().children.size)
+    }
+}

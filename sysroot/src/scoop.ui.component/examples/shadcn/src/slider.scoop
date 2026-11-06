@@ -1,0 +1,174 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.slider as makeSlider
+import scoop.ui.style.*
+
+internal class SliderExamplesModel {
+    val single = state<Array<Double>>([35.0])
+    val range = state<Array<Double>>([20.0, 70.0])
+    val multiple = state<Array<Double>>([10.0, 40.0, 80.0])
+    val continuous = state<Array<Double>>([0.3, 0.7])
+    val vertical =
+        [
+            state<Array<Double>>([25.0]),
+            state<Array<Double>>([20.0, 80.0]),
+            state<Array<Double>>([10.0, 50.0, 90.0])
+        ]
+    val disabled = state<Array<Double>>([50.0])
+    val enabled = state(true)
+    val invalid = state(false)
+    val reversed = state(false)
+    val narrow = state(false)
+    val commits = state(0)
+    val cancels = state(0)
+    val target = FieldTarget()
+}
+
+internal fun sliderExamples(model: GalleryModel): View {
+    val data = model.sliders
+    return makeColumn {
+        this.add(panelHeading("Slider"))
+        this.typography(
+            "Drag a thumb or click its track. Arrow keys step, Home / End reach the allowed endpoints, and Page keys move ten steps. Escape cancels a drag.",
+            TypographyRole.Muted
+        )
+        this.typography(f"Volume: ${data.single.value[0L].toInt()}%", TypographyRole.Small)
+        this.frame(
+            makeSlider(
+                data.single.binding(),
+                RangeSpec(0.0, 100.0, Some(1.0), reversed = data.reversed.value)
+            ) {
+                this.enabled = data.enabled.value
+                this.invalid = data.invalid.value
+                this.onValueCommit = { _ -> data.commits.value += 1 }
+                this.onValueCancel = { _, _ -> data.cancels.value += 1 }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (data.narrow.value)
+                        260.0
+                    else
+                        560.0
+                )
+        }
+        this.fieldLabel(
+            f"Price range: $${data.range.value[0L].toInt()} – $${data.range.value[1L].toInt()}",
+            data.target
+        )
+        this.frame(
+            makeSlider(
+                data.range.binding(),
+                RangeSpec(0.0, 100.0, Some(5.0), minimumGap = 10.0, reversed = data.reversed.value)
+            ) {
+                this.enabled = data.enabled.value
+                this.invalid = data.invalid.value
+                this.labelTarget = Some(data.target)
+                this.onValueCommit = { _ -> data.commits.value += 1 }
+                this.onValueCancel = { _, _ -> data.cancels.value += 1 }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (data.narrow.value)
+                        260.0
+                    else
+                        560.0
+                )
+        }
+        this.typography("Three independent thumbs · minimum gap 10", TypographyRole.Small)
+        this.frame(
+            makeSlider(
+                data.multiple.binding(),
+                RangeSpec(0.0, 100.0, Some(1.0), minimumGap = 10.0)
+            ) {
+                this.enabled = data.enabled.value
+                this.onValueCommit = { _ -> data.commits.value += 1 }
+                this.onValueCancel = { _, _ -> data.cancels.value += 1 }
+            }
+        ) { this.width = Some(560.0) }
+        this.typography(
+            f"Continuous range: ${(data.continuous.value[0L] * 100.0).toInt()}% – ${
+                (data.continuous.value[1L] * 100.0).toInt()
+            }%",
+            TypographyRole.Small
+        )
+        this.frame(
+            makeSlider(data.continuous.binding(), RangeSpec(0.0, 1.0, minimumGap = 0.1)) {
+                this.keyboardStep = Some(0.01)
+                this.enabled = data.enabled.value
+                this.onValueCommit = { _ -> data.commits.value += 1 }
+                this.onValueCancel = { _, _ -> data.cancels.value += 1 }
+            }
+        ) { this.width = Some(560.0) }
+        this.row {
+            this.button("Reset range", { data.range.value = [20.0, 70.0] }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle disabled", { data.enabled.value = !data.enabled.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle invalid", { data.invalid.value = !data.invalid.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Reverse", { data.reversed.value = !data.reversed.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.row {
+            this.button("Toggle width", { data.narrow.value = !data.narrow.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.reduced.value)
+                    "Resume motion"
+                else
+                    "Reduce motion",
+                { model.toggleMotion() }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.typography(
+            f"Commits: ${data.commits.value} · Cancellations: ${data.cancels.value}",
+            TypographyRole.Muted
+        )
+        this.typography("Vertical", TypographyRole.H3)
+        this.row {
+            for (value in data.vertical)
+                this.frame(
+                    makeSlider(
+                        value.binding(),
+                        RangeSpec(
+                            0.0,
+                            100.0,
+                            Some(1.0),
+                            minimumGap = 10.0,
+                            reversed = data.reversed.value
+                        )
+                    ) {
+                        this.orientation = Orientation.Vertical
+                        this.enabled = data.enabled.value
+                        this.invalid = data.invalid.value
+                        this.onValueCommit = { _ -> data.commits.value += 1 }
+                        this.onValueCancel = { _, _ -> data.cancels.value += 1 }
+                    }
+                ) {
+                    this.height = Some(160.0);
+                    this.width = Some(40.0)
+                }
+            this.spacing = 24.0
+        }
+        this.typography("Disabled", TypographyRole.Small)
+        this.frame(
+            makeSlider(data.disabled.binding(), RangeSpec(0.0, 100.0, Some(1.0))) {
+                this.enabled = false
+            }
+        ) { this.width = Some(360.0) }
+        this.spacing = 20.0
+        this.padding = Insets.all(8.0)
+    }
+}

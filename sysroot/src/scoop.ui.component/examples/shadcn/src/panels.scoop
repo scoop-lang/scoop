@@ -1,0 +1,354 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.component.separator as makeSeparator
+import scoop.ui.component.card as makeCard
+import scoop.ui.component.alert as makeAlert
+import scoop.ui.component.emptyState as makeEmpty
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.badge as makeBadge
+import scoop.ui.style.*
+
+internal fun panelHeading(text: String, size: Double = 32.0): View =
+    label(text) {
+        style {
+            this.fontSize = Some(size);
+            this.weight = Some(600)
+        }
+    }
+
+private fun panelControls(model: GalleryModel, variantTitle: String? = None): View =
+    makeRow {
+        this.button("Toggle sections", { model.panelExpanded.value = !model.panelExpanded.value }) {
+            this.variant = ButtonVariant.Outline
+        }
+        this.button("Toggle width", { model.panelNarrow.value = !model.panelNarrow.value }) {
+            this.variant = ButtonVariant.Outline
+        }
+        when (variantTitle) {
+            case Some(title) -> this.button(
+                title,
+                { model.panelCompact.value = !model.panelCompact.value }
+            ) { this.variant = ButtonVariant.Outline }
+            case None -> {}
+        }
+        this.spacing = 8.0
+    }
+
+private fun panelAction(model: GalleryModel, focus: FocusHandle): View {
+    val step = model.panelStep.value
+    return button(
+        f"Create project (${model.panelClicks.value})",
+        { model.panelClicks.value += step }
+    ) { this.focus = FocusOptions(Some(focus)) }
+}
+
+private fun panelActions(model: GalleryModel): View =
+    makeRow {
+        this.button("Resize", { model.panelNarrow.value = !model.panelNarrow.value }) {
+            this.variant = ButtonVariant.Outline
+        }
+        this.button("Hide details", { model.panelExpanded.value = false }) {
+            this.variant = ButtonVariant.Ghost
+        }
+        this.spacing = 8.0
+    }
+
+internal fun cardExamples(model: GalleryModel): View =
+    makeColumn {
+        this.add(panelHeading("Card"))
+        this.label(
+            "Compose a header, content, action, and footer. Narrow cards move the action below the heading."
+        )
+        this.add(panelControls(model, Some("Toggle size")))
+        this.frame(
+            makeCard(
+                makeColumn {
+                    this.label("Keep everything for your next project in one place.")
+                    this.add(panelAction(model, model.cardFocus))
+                    this.spacing = 12.0
+                }
+            ) {
+                this.size =
+                    if (model.panelCompact.value)
+                        CardSize.Sm
+                    else
+                        CardSize.Default
+                if (model.panelExpanded.value) {
+                    this.title("Your workspace")
+                    this.description(
+                        "Plan, build, and share with your team. Longer descriptions wrap inside the available space."
+                    )
+                    this.header(
+                        makeFrame(makeBadge("TEAM") { this.variant = ButtonVariant.Secondary }) {
+                            this.width = Some(56.0)
+                        }
+                    )
+                    this.action(panelActions(model))
+                    this.footer(makeLabel("Your changes are saved to this workspace."))
+                }
+                this.headerSeparator = model.panelCompact.value
+            }
+        ) {
+            this.width =
+                Some(
+                    if (model.panelNarrow.value)
+                        280.0
+                    else
+                        680.0
+                )
+            this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+        }
+        this.card(makeLabel("A compact card can also contain content on its own.")) {
+            this.size = CardSize.Sm
+        }
+        this.spacing = 24.0
+        this.padding = Insets.all(6.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun alertExamples(model: GalleryModel): View =
+    makeColumn {
+        this.add(panelHeading("Alert"))
+        this.label("Inline notices with optional icons, descriptions, and actions.")
+        this.add(panelControls(model))
+        this.frame(
+            makeAlert(panelAction(model, model.alertFocus)) {
+                this.title("A new workspace is ready")
+                if (model.panelExpanded.value) {
+                    this.description(
+                        "Invite your teammates to start collaborating. You can change these settings at any time."
+                    )
+                    this.icon(
+                        element(
+                            PanelStatusIconProps(
+                                model.source.current.value.tokens.palette.background.foreground
+                            ),
+                            { current, mount -> PanelStatusIcon(current, scope = mount) }
+                        )
+                    )
+                    this.action(panelActions(model))
+                }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (model.panelNarrow.value)
+                        280.0
+                    else
+                        680.0
+                )
+        }
+        this.alert(empty()) {
+            this.variant = AlertVariant.Destructive
+            this.title("Unable to save changes")
+            this.description(
+                "The project name is already in use. Choose a different name and try again."
+            )
+            this.icon(
+                element(
+                    PanelStatusIconProps(
+                        model.source.current.value.tokens.palette.destructive.background,
+                        true
+                    ),
+                    { current, mount -> PanelStatusIcon(current, scope = mount) }
+                )
+            )
+        }
+        this.spacing = 24.0
+        this.padding = Insets.all(6.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun emptyExamples(model: GalleryModel): View =
+    makeColumn {
+        this.add(panelHeading("Empty"))
+        this.label("A starting point for new content, search results, or a quiet workspace.")
+        this.add(panelControls(model, Some("Toggle media")))
+        this.frame(
+            makeEmpty(
+                makeColumn {
+                    this.input(model.emptyQuery) { this.placeholder = "Project name" }
+                    this.add(panelAction(model, model.emptyFocus))
+                    this.spacing = 12.0
+                    this.alignment = CrossAlignment.Stretch
+                }
+            ) {
+                this.outlined = true
+                if (model.panelExpanded.value) {
+                    this.media(
+                        element(
+                            model.source.current.value.tokens.palette.background.foreground,
+                            { current, mount -> PanelPlus(current, scope = mount) }
+                        )
+                    )
+                    this.mediaVariant =
+                        if (model.panelCompact.value)
+                            EmptyMediaVariant.Default
+                        else
+                            EmptyMediaVariant.Icon
+                    this.header(
+                        makeFrame(makeBadge("WORKSPACE") { this.variant = ButtonVariant.Outline }) {
+                            this.width = Some(96.0)
+                        }
+                    )
+                    this.title("No projects yet")
+                    this.description(
+                        "Create your first project to start working with your team. You can invite more people later."
+                    )
+                }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (model.panelNarrow.value)
+                        280.0
+                    else
+                        680.0
+                )
+        }
+        this.emptyState(
+            makeButton("Clear filters", { model.emptyQuery.replaceAll("") }) {
+                this.variant = ButtonVariant.Outline
+            }
+        ) {
+            this.title("No results found")
+            this.description("Try a different search or clear your filters.")
+            style {
+                this.background(
+                    Some(Paint(model.source.current.value.tokens.palette.muted.background))
+                )
+            }
+        }
+        this.spacing = 24.0
+        this.padding = Insets.all(6.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun separatorExamples(): View =
+    makeColumn {
+        this.add(panelHeading("Separator"))
+        this.label("A decorative line between related sections.")
+        this.label("Scoop workspace")
+        this.item(makeSeparator { this.length = Some(520.0) }) {
+            this.align = Some(CrossAlignment.Start)
+        }
+        this.row {
+            this.label("Overview")
+            this.separator {
+                this.axis = FlexAxis.Vertical;
+                this.length = Some(24.0)
+            }
+            this.label("Projects")
+            this.separator {
+                this.axis = FlexAxis.Vertical;
+                this.length = Some(24.0)
+            }
+            this.label("Settings")
+            this.spacing = 16.0
+            this.alignment = CrossAlignment.Center
+        }
+        this.separator()
+        this.label(
+            "The divider above fills the available width. A zero-length divider below leaves no line."
+        )
+        this.separator { this.length = Some(0.0) }
+        this.spacing = 24.0
+        this.padding = Insets.all(6.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+
+private class PanelPlus(private val props: Props<Color>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        val paint = Paint(props.value)
+        context.draw {
+            target ->
+            target.canvas.drawRect(
+                Rect(size.width / 2.0 - 1.0, size.height / 2.0 - 6.0, 2.0, 12.0),
+                paint
+            )
+            target.canvas.drawRect(
+                Rect(size.width / 2.0 - 6.0, size.height / 2.0 - 1.0, 12.0, 2.0),
+                paint
+            )
+        }
+    }
+}
+
+internal struct PanelStatusIconProps(val color: Color, val warning: Boolean = false)
+
+internal class PanelStatusIcon(
+    private val props: Props<PanelStatusIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        val value = props.value
+        val scale = min(size.width, size.height) / 16.0
+        if (scale <= 0.0)
+            return
+        val center = Point(size.width / 2.0, size.height / 2.0)
+        val stroke = Paint(value.color, PaintingStyle.Stroke, 4.0 / 3.0 * scale, StrokeCap.Round)
+        context.draw {
+            paint ->
+            paint.canvas.drawCircle(center, 20.0 / 3.0 * scale, stroke)
+            paint.canvas.drawLine(
+                Point(
+                    center.x,
+                    center.y +
+                        (
+                            if (value.warning)
+                                -3.0
+                            else
+                                0.0
+                        ) *
+                        scale
+                ),
+                Point(
+                    center.x,
+                    center.y +
+                        (
+                            if (value.warning)
+                                0.0
+                            else
+                                3.0
+                        ) *
+                        scale
+                ),
+                stroke
+            )
+            paint.canvas.drawCircle(
+                Point(
+                    center.x,
+                    center.y +
+                        (
+                            if (value.warning)
+                                3.0
+                            else
+                                -3.0
+                        ) *
+                        scale
+                ),
+                2.0 / 3.0 * scale,
+                Paint(value.color)
+            )
+        }
+    }
+}

@@ -1,0 +1,197 @@
+package scoop.tests.ui.messages
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MessageScrollerWindowTest {
+    @Test
+    fun `message turns preserve reading through native input streaming prepend restore and idle`() {
+        val p = MessageProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.frames!!.snapshot().attached)
+            assertFalse(p.model.isAttached)
+        } catch (error: Throwable) {
+            println(
+                f"message phase=${p.phase}, pending=${p.model.isPending}, offset=${
+                    p.model.scroll.offset.y
+                }"
+            )
+            messageNativeFailure(error)
+            throw error
+        } finally {
+            p.fonts.close()
+        }
+    }
+}
+
+internal class MessageTestRow(val id: Long, height: Double) {
+    val height = state(height)
+    val editor = TextEditorState()
+    val focus = FocusHandle()
+    var area: InputArea? = None
+}
+
+internal class MessageProbe {
+    val theme =
+        ThemeSource(
+            shadcnTheme(ThemeMode.Light) {
+                tokens { motion { preference = MotionPreference.Reduced } }
+            }
+        )
+    val fonts = FontCollection(false)
+    val model = MessageScrollState(MessageScrollOptions(scrollMargin = 8.0))
+    val rows = HashMap<Long, MessageTestRow>()
+    var order: Array<Long> = [0L, 1L, 2L, 3L, 4L, 5L]
+    val source = state<TranscriptSource>(makeSource(order))
+    val generation = state(0)
+    val focus = FocusHandle()
+    var viewportHeight = 240.0
+    var shown = true
+    var zero = false
+    var enabled = true
+    var rtl = false
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var draws = 0
+    var savedDraws = 0
+    var savedOffset = 0.0
+    var savedTop = 0.0
+    var checkpoint: VirtualReadingAnchor? = None
+    var pointer = Point(0.0, 0.0)
+    var discardNext = false
+    var discarded = 0
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun row(id: Long): MessageTestRow {
+        val old = rows.get(id)
+        when (old) {
+            case Some(value) -> return value;
+            case None -> {}
+        }
+        val height =
+            when (id) {
+                case - 2L -> 45.0;
+                case - 1L -> 55.0;
+                case 6L -> 50.0;
+                case 7L -> 40.0;
+                case 9L -> 40.0
+                else -> 60.0
+            }
+        val value = MessageTestRow(id, height)
+        rows.put(id, value)
+        return value
+    }
+    fun makeSource(order: Array<Long>): TranscriptSource =
+        TranscriptList(
+            Array<TranscriptItem>(order.size) {
+                at ->
+                val value = row(order[at])
+                TranscriptItem(
+                    ViewKey.Number(value.id),
+                    { component(value, { current, mount -> MessageRow(current, mount) }) },
+                    value.id == 0L || value.id == 6L || value.id == 8L || value.id == 42L
+                )
+            }
+        )
+    fun replace(order: Array<Long>) {
+        this.order = order
+        source.value = makeSource(order)
+        changed()
+    }
+    fun auto(value: Boolean, preserve: Boolean = true) {
+        model.options =
+            MessageScrollOptions(
+                autoScroll = value,
+                scrollMargin = 8.0,
+                preserveOnPrepend = preserve
+            )
+    }
+    fun top(id: Long): Double = row(id).area!!.windowBounds!!.y
+    fun checkpointId(): Long =
+        when (checkpoint!!.key) {
+            case Number(value) -> value
+            else -> throw IllegalStateException(Some("unexpected message checkpoint key"))
+        }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop MessageScroller test"
+                            size = LogicalSize(760.0, 540.0)
+                        }
+                    )
+                native = Some(window)
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { scope -> MessageScene(this, scope) }, fonts = Some(fonts))
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < timeout, Some("message scroller timeout"))
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        (!model.isPending || source.value.count == 0L) &&
+                        !frames!!.snapshot().required
+                ) {
+                    advanceMessage(this)
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 44)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 44;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

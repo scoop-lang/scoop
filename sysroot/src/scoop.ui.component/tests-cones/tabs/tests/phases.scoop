@@ -1,0 +1,267 @@
+package scoop.tests.ui.tabs
+
+import scoop.surface.AnimationState
+import scoop.test.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun tabsSelection(p: TabsProbe) {
+    when (p.phase) {
+        case 0 -> {
+            for (count in p.factories)
+                assertEquals(0, count)
+            p.selected.value = Some(0)
+            p.changed()
+        }
+        case 1 -> {
+            assertEquals(1, p.factories[0L])
+            assertEquals(0, p.factories[1L])
+            assertTrue(p.headers[0L].requestFocus())
+        }
+        case 2 -> {
+            assertTrue(p.headers[0L].hasFocus);
+            p.key(124)
+        }
+        case 3 -> {
+            assertEquals(Some(1), p.selected.value)
+            assertTrue(p.headers[1L].hasFocus)
+            assertEquals(1, p.unmounts[0L])
+            assertEquals(1, p.factories[1L])
+            assertEquals(1, p.callbacks)
+            p.activation = TabActivation.Manual
+            p.changed()
+        }
+        case 4 -> p.key(123)
+        case 5 -> {
+            assertTrue(p.headers[0L].hasFocus)
+            assertEquals(Some(1), p.selected.value)
+            p.key(49, " ")
+        }
+        case 6 -> {
+            assertEquals(Some(0), p.selected.value)
+            assertEquals(2, p.factories[0L])
+            assertEquals(1, p.unmounts[1L])
+            assertEquals(2, p.callbacks)
+            p.retention = ContentRetention.KeepMounted
+            p.changed()
+            assertTrue(p.records[0L]!!.focus.requestFocus())
+        }
+        case 7 -> {
+            assertTrue(p.records[0L]!!.focus.hasFocus)
+            assertEquals(2, p.factories[1L])
+            assertEquals(1, p.factories[2L])
+            assertEquals(0, tabsText(p.native!!, "ni", true))
+        }
+        else -> fail(Some("unexpected tabs selection phase"))
+    }
+}
+
+internal fun tabsRetention(p: TabsProbe) {
+    when (p.phase) {
+        case 8 -> {
+            assertTrue(p.records[0L]!!.model.isComposing)
+            p.reorder = true
+            p.axis = FlexAxis.Vertical
+            p.rtl = true
+            p.variant = TabsVariant.Line
+            p.changed()
+        }
+        case 9 -> {
+            assertTrue(p.records[0L]!!.model.isComposing)
+            assertTrue(p.records[0L]!!.focus.hasFocus)
+            assertEquals(2, p.factories[0L])
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark)
+        }
+        case 10 -> {
+            assertTrue(p.records[0L]!!.model.isComposing)
+            assertEquals(0, tabsText(p.native!!, "你", false))
+            p.key(125)
+            assertTrue(p.records[0L]!!.focus.hasFocus)
+            p.records[0L]!!.local.value = 42
+            p.selected.value = Some(1)
+            p.changed()
+        }
+        case 11 -> {
+            assertEquals("draft你", p.records[0L]!!.model.text)
+            assertFalse(p.records[0L]!!.focus.hasFocus)
+            assertFalse(p.records[1L]!!.focus.hasFocus)
+            p.measured = p.records[0L]!!.measures
+            p.records[0L]!!.local.value = 43
+            p.changed()
+        }
+        case 12 -> {
+            assertEquals(p.generation.value, p.records[0L]!!.version)
+            assertEquals(43, p.records[0L]!!.observed)
+            assertEquals(p.measured, p.records[0L]!!.measures)
+            p.selected.value = None
+            p.changed()
+            p.delay = 400L
+        }
+        case 13 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            p.quiet = Some(p.frames!!.snapshot())
+            p.records[0L]!!.scope!!.isFrameEnabled = true
+            p.records[0L]!!.scope!!.requestFrame()
+            p.records[0L]!!.local.value = 44
+            p.delay = 250L
+        }
+        case 14 -> {
+            assertEquals(44, p.records[0L]!!.observed)
+            assertEquals(p.quiet!!.callbacks, p.frames!!.snapshot().callbacks)
+            assertEquals(p.quiet!!.presentations, p.frames!!.snapshot().presentations)
+            p.enabled = false
+            p.selected.value = Some(0)
+            p.changed()
+        }
+        case 15 -> {
+            assertFalse(p.records[0L]!!.focus.hasFocus)
+            assertEquals(1, tabsText(p.native!!, "blocked", false))
+            p.enabled = true
+            p.activation = TabActivation.Auto
+            p.deny = true
+            p.changed()
+        }
+        else -> fail(Some("unexpected tabs retention phase"))
+    }
+}
+
+internal fun tabsNavigation(p: TabsProbe) {
+    when (p.phase) {
+        case 16 -> assertTrue(p.headers[0L].requestFocus())
+        case 17 -> {
+            assertTrue(p.headers[0L].hasFocus);
+            p.key(125)
+        }
+        case 18 -> {
+            assertTrue(p.headers[1L].hasFocus)
+            assertEquals(Some(0), p.selected.value)
+            assertEquals(2, p.callbacks)
+            p.deny = false
+            p.rebound = true
+            p.loop = false
+            p.changed()
+        }
+        case 19 -> {
+            assertEquals(Some(2), p.alternate.value)
+            assertTrue(p.records[2L]!!.measures > 0)
+            assertFalse(p.records[2L]!!.focus.hasFocus)
+            p.key(119)
+        }
+        case 20 -> {
+            assertEquals(Some(0), p.alternate.value)
+            assertEquals(Some(0), p.selected.value)
+            assertTrue(p.headers[0L].hasFocus)
+            assertEquals(1, p.reboundCallbacks)
+            p.key(125)
+        }
+        case 21 -> {
+            assertTrue(p.headers[0L].hasFocus)
+            assertEquals(1, p.reboundCallbacks)
+            p.activation = TabActivation.Manual
+            p.changed()
+        }
+        case 22 -> p.key(115)
+        case 23 -> {
+            assertTrue(p.headers[1L].hasFocus)
+            assertEquals(Some(0), p.alternate.value)
+            p.key(36, "\r")
+        }
+        else -> fail(Some("unexpected tabs navigation phase"))
+    }
+}
+
+internal fun tabsConstraints(p: TabsProbe) {
+    when (p.phase) {
+        case 24 -> {
+            assertEquals(Some(1), p.alternate.value)
+            assertEquals(2, p.reboundCallbacks)
+            p.axis = FlexAxis.Horizontal
+            p.variant = TabsVariant.Default
+            p.rtl = false
+            p.changed()
+        }
+        case 25 -> {
+            assertTrue(p.headers[1L].hasFocus)
+            p.key(48, "\t")
+        }
+        case 26 -> {
+            assertTrue(p.records[1L]!!.focus.hasFocus)
+            assertEquals(0, tabsText(p.native!!, "z", false))
+            p.reorder = false
+            p.width = 100.0
+            p.changed()
+        }
+        case 27 -> {
+            assertTrue(p.records[1L]!!.focus.hasFocus)
+            assertEquals("draftz", p.records[1L]!!.model.text)
+            assertEquals(2, p.factories[1L])
+            p.width = 500.0
+            p.zero = true
+            p.changed()
+        }
+        case 28 -> {
+            assertFalse(p.records[1L]!!.focus.hasFocus)
+            assertFalse(p.frames!!.snapshot().required)
+            p.zero = false
+            p.alternate.value = Some(99)
+            p.changed()
+        }
+        case 29 -> {
+            assertEquals(Some(99), p.alternate.value)
+            assertEquals(2, p.factories[0L])
+            p.retention = ContentRetention.Dispose
+            p.changed()
+        }
+        case 30 -> {
+            for (id in 0L ..< 3L)
+                assertEquals(p.mounts[id], p.unmounts[id])
+            assertEquals(Some(99), p.alternate.value)
+            p.alternate.value = Some(0)
+            p.changed()
+        }
+        case 31 -> {
+            assertEquals(3, p.factories[0L])
+            assertEquals(7, p.records[0L]!!.observed)
+            p.native!!.setVisible(false)
+            p.delay = 250L
+        }
+        else -> fail(Some("unexpected tabs constraints phase"))
+    }
+}
+
+internal fun tabsFinish(p: TabsProbe) {
+    when (p.phase) {
+        case 32 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            assertTrue(p.frames!!.snapshot().paused)
+            p.theme.current.value =
+                shadcnTheme { tokens { motion { this.preference = MotionPreference.Reduced } } }
+            p.native!!.setVisible(true)
+            p.native!!.requestFocus()
+            p.changed()
+        }
+        case 33 -> {
+            assertFalse(p.records[0L]!!.focus.hasFocus)
+            assertEquals(3, p.factories[0L])
+            p.gone = true
+            p.changed()
+        }
+        case 34 -> {
+            for (id in 0L ..< 3L) {
+                assertEquals(p.mounts[id], p.unmounts[id])
+                assertFalse(p.records[id]!!.scope!!.isMounted)
+                assertEquals(AnimationState.Closed, p.records[id]!!.motion!!.state)
+            }
+            assertFalse(p.frames!!.snapshot().required)
+            p.quiet = Some(p.frames!!.snapshot())
+            p.delay = 250L
+        }
+        case 35 -> {
+            assertEquals(p.quiet!!.callbacks, p.frames!!.snapshot().callbacks)
+            assertEquals(p.quiet!!.presentations, p.frames!!.snapshot().presentations)
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected tabs final phase"))
+    }
+}

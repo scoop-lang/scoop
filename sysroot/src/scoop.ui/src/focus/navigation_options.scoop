@@ -11,5 +11,7 @@ public struct NavigationOptions(
     val layout: NavigationLayout = NavigationLayout.Vertical,
     val direction: LayoutDirection? = None,
     val loop: Boolean = false,
-    val roving: Boolean = true
+    val roving: Boolean = true,
+    val preferredTab: FocusHandle? = None,
+    val onNavigate: (FocusHandle) -> Unit = {}
 )

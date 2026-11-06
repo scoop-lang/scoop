@@ -6,8 +6,11 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class NavigationScene(private val probe: NavigationProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+internal class NavigationScene(
+    private val probe: NavigationProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,
@@ -35,12 +38,12 @@ internal class NavigationScene(private val probe: NavigationProbe): Component {
         members.add(cell(7L))
         return element(
             PanelProps(false, revision),
-            { props -> NavigationPanel(probe, props) },
+            { props, mount -> NavigationPanel(probe, props, scope = mount) },
             [
                 cell(0L),
                 element(
                     PanelProps(true, revision),
-                    { props -> NavigationPanel(probe, props) },
+                    { props, mount -> NavigationPanel(probe, props, scope = mount) },
                     members.toArray()
                 ),
                 cell(6L)
@@ -50,7 +53,7 @@ internal class NavigationScene(private val probe: NavigationProbe): Component {
     private fun cell(index: Long): View =
         element(
             CellProps(index, index != 5L || probe.showLast),
-            { props -> NavigationCell(probe, props) },
+            { props, mount -> NavigationCell(probe, props, scope = mount) },
             key = ViewKey.Number(index)
         )
 }
@@ -59,10 +62,11 @@ private class CellProps(val index: Long, val visible: Boolean)
 
 private class NavigationCell(
     private val probe: NavigationProbe,
-    private val props: Props<CellProps>
-): Element {
+    private val props: Props<CellProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val index = props.value.index
         val region = scope.createArea(focusable = true)
         area = Some(region)
@@ -90,9 +94,10 @@ private class NavigationCell(
         if (index == 0L)
             assertTrue(probe.handles[0L].requestFocus())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 40.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.visible)
             context.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
         context.place(area!!, Rect(2.0, 2.0, 32.0, 30.0))
@@ -106,15 +111,18 @@ private class PanelProps(val group: Boolean, val revision: Int)
 
 private class NavigationPanel(
     private val probe: NavigationProbe,
-    private val props: Props<PanelProps>
-): Element {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<PanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         if (props.value.group) {
             probe.groupScope = Some(scope)
             probe.group = Some(scope.keyNavigation(probe.configuration()))
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         var x = 0.0
         for (index in 0L ..< context.childCount) {
             val width =
@@ -126,9 +134,9 @@ private class NavigationPanel(
             context.placeChild(index, Point(x, 0.0))
             x += width
         }
-        return LayoutMetrics(constraints.constrain(Size(x, 40.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(x, 40.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.group)
             context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()

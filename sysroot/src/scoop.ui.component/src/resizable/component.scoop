@@ -1,0 +1,207 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class ResizableOwner {
+    var control: ResizableControl? = None
+}
+
+internal class ResizableInput(
+    val props: ResizableProps,
+    val values: Array<ResizableSize>,
+    val model: HashMap<ViewKey, ResizableSize>,
+    val theme: Theme,
+    val owner: ResizableOwner
+)
+
+internal class ResizableGeometry(
+    val size: Size,
+    val target: Double,
+    val lengths: Array<Double>,
+    val input: ResizableProps,
+    val direction: LayoutDirection
+)
+
+public class Resizable public constructor(
+    private val props: Props<ResizableProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val owner = ResizableOwner()
+    private var checked: Array<ResizableSize>? = None
+    private var model = HashMap<ViewKey, ResizableSize>()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val values = input.sizes.value
+        val same =
+            when (checked) {
+                case Some(previous) -> previous === values;
+                case None -> false
+            }
+        if (!same) {
+            model = resizableValues(values)
+            checked = Some(values)
+        }
+        val config = ResizableInput(input, values, model, themes.read(input.theme), owner)
+        val children =
+            Array<View>(input.panels.size) {
+                index ->
+                val panel = input.panels[index]
+                val part = ResizablePanelInput(config, index)
+                element(
+                    part,
+                    { current, mount -> ResizablePanelLayout(current, scope = mount) },
+                    [
+                        element(
+                            panel.style,
+                            { current, mount -> ResizableContent(current, scope = mount) },
+                            [panel.content],
+                            key = ViewKey.Text("content")
+                        ),
+                        element(
+                            part,
+                            { current, mount -> ResizableHandle(current, scope = mount) },
+                            key = ViewKey.Text("handle")
+                        )
+                    ],
+                    key = panel.key
+                )
+            }
+        return element(
+            config,
+            { current, mount -> ResizableLayout(current, scope = mount) },
+            children
+        )
+    }
+}
+
+private class ResizableLayout(
+    private val props: Props<ResizableInput>,
+    scope: ComponentScope
+): Element<ResizableGeometry>(scope) {
+    private var painter: StylePainter? = None
+    public override fun onMount() {
+        props.value.owner.control = Some(ResizableControl(scope, { props.value }))
+        painter = Some(scope.resource { StylePainter() })
+    }
+    public override fun update(): UiInvalidation {
+        props.value.owner.control!!.update()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ResizableGeometry
+    > {
+        val input = props.value
+        val horizontal = input.props.orientation == Orientation.Horizontal
+        val thickness = input.theme.tokens.typography.body.fontSize / 14.0
+        val length =
+            input.props.length ?:
+                (
+                    if (horizontal)
+                        constraints.maxWidth
+                    else
+                        constraints.maxHeight
+                ) ?:
+                320.0
+        val base = constraints.constrain(resizableSize(length, 0.0, horizontal))
+        val main =
+            if (horizontal)
+                base.width
+            else
+                base.height
+        val gap = thickness * lowerBound(0.0, (context.childCount - 1L).toDouble())
+        nonnegative(gap, "resizable separator total overflow")
+        val target = lowerBound(0.0, main - gap)
+        val sizes = resizableAllocation(input.props.panels, input.model, target)
+        val maxCross =
+            if (horizontal)
+                constraints.maxHeight
+            else
+                constraints.maxWidth
+        var cross = maxCross ?: 0.0
+        if (maxCross == None) {
+            for (index in 0L ..< context.childCount) {
+                val extent =
+                    sizes[index] +
+                        (
+                            if (index + 1L < context.childCount)
+                                thickness
+                            else
+                                0.0
+                        )
+                val measured =
+                    context.measureChild(
+                        index,
+                        if (horizontal)
+                            Constraints(minWidth = extent, maxWidth = Some(extent))
+                        else
+                            Constraints(minHeight = extent, maxHeight = Some(extent))
+                    )
+                cross =
+                    lowerBound(
+                        cross,
+                        if (horizontal)
+                            measured.size.height
+                        else
+                            measured.size.width
+                    )
+            }
+        }
+        val size = constraints.constrain(resizableSize(main, cross, horizontal))
+        val actualCross =
+            if (horizontal)
+                size.height
+            else
+                size.width
+        var offset = 0.0
+        for (index in 0L ..< context.childCount) {
+            val extent =
+                sizes[index] +
+                    (
+                        if (index + 1L < context.childCount)
+                            thickness
+                        else
+                            0.0
+                    )
+            context.measureChild(
+                index,
+                Constraints.tight(resizableSize(extent, actualCross, horizontal))
+            )
+            context.placeChild(
+                index,
+                if (horizontal)
+                    Point(logicalX(offset, extent, size.width, context.layoutDirection), 0.0)
+                else
+                    Point(0.0, offset)
+            )
+            offset += extent
+        }
+        val shape = ResizableGeometry(size, target, sizes, input.props, context.layoutDirection)
+        return LayoutResult(LayoutMetrics(size), shape)
+    }
+    public override fun scene(context: SceneContext, shape: ResizableGeometry) {
+        painter!!.scene(context, props.value.props.style.resolve(style())) {
+            local -> containerScene(local, props.value.props.clip)
+        }
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                props.value.owner.control!!.accept(shape)
+        }
+    }
+    public override fun onUnmount() {
+        props.value.owner.control!!.retire()
+    }
+}
+
+internal fun resizableSize(main: Double, cross: Double, horizontal: Boolean): Size =
+    if (horizontal)
+        Size(main, cross)
+    else
+        Size(cross, main)

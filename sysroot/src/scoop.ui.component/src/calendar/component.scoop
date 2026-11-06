@@ -1,0 +1,213 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as calendarColumn
+import scoop.ui.component.row as calendarRow
+
+public class Calendar public constructor(
+    private val props: Props<CalendarProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control = CalendarControl(props, scope)
+    private val themes = ThemeAccess()
+    private val appearances = CalendarAppearanceCache()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val control = this.control
+        val input = props.value
+        val snapshot = control.snapshot()
+        val appearance = appearances.resolve(input, themes.read(input.theme), scope.layoutDirection)
+        val columns =
+            if (input.options.weekNumbers == CalendarWeekNumbers.None)
+                7L
+            else
+                8L
+        val width = appearance.cell * columns.toDouble()
+        val months =
+            Array<View>(snapshot.pages.size) {
+                index ->
+                val page = snapshot.pages[index]
+                val body =
+                    calendarColumn {
+                        this.add(
+                            calendarHeader(
+                                control,
+                                page,
+                                index,
+                                index == 0L,
+                                index == snapshot.pages.size - 1L,
+                                appearance
+                            )
+                        )
+                        val days = this @Calendar.monthGrid(page, snapshot, appearance)
+                        this.add(
+                            when (input.monthGrid) {
+                                case Some(build) -> build(page, days);
+                                case None -> days
+                            }
+                        )
+                        this.spacing = 12.0 * appearance.density
+                        this.alignment = CrossAlignment.Stretch
+                    }
+                element(
+                    CalendarMonthSizeInput(width),
+                    { value, scope -> CalendarMonthSize(value, scope) },
+                    [body],
+                    ViewKey.Number(index)
+                )
+            }
+        val content =
+            calendarColumn {
+                this.add(
+                    element(
+                        CalendarMonthsInput(
+                            months.size,
+                            width,
+                            input.options.monthGap * appearance.density
+                        ),
+                        { value, scope -> CalendarMonths(value, scope) },
+                        months
+                    )
+                )
+                when (input.footer) {
+                    case Some(footer) -> this.add(footer);
+                    case None -> {}
+                }
+                this.spacing = 12.0 * appearance.density
+                this.alignment = CrossAlignment.Start
+            }
+        return element(
+            CalendarEventsInput(control, snapshot),
+            { value, scope -> CalendarEvents(value, scope) },
+            [
+                panelFrame(
+                    content,
+                    Insets.all(8.0 * appearance.density),
+                    styleOverride {
+                        this.background(
+                            Some(Paint(appearance.theme.tokens.palette.background.background))
+                        )
+                        this.corners(Corners.all(appearance.theme.tokens.corners.large))
+                    }.then(input.style)
+                )
+            ]
+        )
+    }
+    private fun monthGrid(
+        page: CalendarPage,
+        snapshot: CalendarSnapshot,
+        appearance: CalendarAppearance
+    ): View {
+        val input = props.value
+        val numbered = input.options.weekNumbers != CalendarWeekNumbers.None
+        val offset =
+            if (numbered)
+                1L
+            else
+                0L
+        val entries = ArrayList<GridItem>()
+        val start = input.options.request(page.anchor).weekStart.isoDayNumber
+        for (column in 0L ..< 7L) {
+            val weekday = (start.toLong() - 1L + column) % 7L
+            entries.add(
+                GridItem(
+                    calendarLabel(
+                        input.options.locale.weekdays[weekday],
+                        appearance.weekday,
+                        input.fonts
+                    ),
+                    column + offset,
+                    0L,
+                    vertical = CrossAlignment.Center
+                )
+            )
+        }
+        for (row in 0L ..< page.weeks.size) {
+            val week = page.weeks[row]
+            if (numbered) {
+                val text = week.number ?: ""
+                val content =
+                    when (input.weekNumber) {
+                        case Some(build) -> build(text);
+                        case None -> calendarLabel(text, appearance.weekday, input.fonts)
+                    }
+                entries.add(GridItem(content, 0L, row + 1L, vertical = CrossAlignment.Center))
+            }
+            for (column in 0L ..< 7L)
+                when (week.days[column]) {
+                    case Some(data) -> {
+                        var member: CalendarMember? = None
+                        for (item in snapshot.members)
+                            if (item.page === page && item.data === data)
+                                member = Some(item)
+                        val active = member!!
+                        val day =
+                            CalendarDay(
+                                page,
+                                data,
+                                calendarSelected(snapshot.selection, data.date),
+                                input.options.today == Some(data.date),
+                                input.enabled &&
+                                    data.enabled &&
+                                    input.options.rules.allows(data.date),
+                                snapshot.range,
+                                snapshot.preview,
+                                active.focus
+                            )
+                        val button =
+                            component(
+                                ButtonProps(
+                                    ButtonContent.Resolved {
+                                        style -> when (input.day) {
+                                            case Some(build) -> build(day, style)
+                                            case None -> calendarLabel(
+                                                data.label,
+                                                style.text,
+                                                input.fonts
+                                            )
+                                        }
+                                    },
+                                    { control.choose(active) },
+                                    day.enabled,
+                                    appearance.style(day),
+                                    input.theme,
+                                    active.options.copy { this.handle = Some(active.focus) },
+                                    variant = ButtonVariant.Ghost,
+                                    size = ButtonSize.Icon
+                                ),
+                                { value, scope -> Button(value, scope) }
+                            )
+                        val content =
+                            element(
+                                CalendarDayFrameInput(control, day, appearance),
+                                { value, scope -> CalendarDayFrame(value, scope) },
+                                [button],
+                                active.key
+                            )
+                        entries.add(GridItem(content, column + offset, row + 1L))
+                    }
+                    case None -> {}
+                }
+        }
+        val grid =
+            GridProps(
+                Array<GridTrack>(7L + offset) { _ -> GridTrack.Fraction(1.0) },
+                Array<GridTrack>(page.weeks.size + 1L) {
+                    index -> GridTrack.Fixed(
+                        if (index == 0L)
+                            20.0 * appearance.density
+                        else
+                            appearance.cell
+                    )
+                },
+                entries.toArray(),
+                rowGap = 8.0 * appearance.density
+            )
+        return component(grid, { value, scope -> Grid(value, scope) })
+    }
+}

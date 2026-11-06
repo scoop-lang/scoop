@@ -1,0 +1,341 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.graphics.text.TextAlignment
+import scoop.math.PI
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as chartsColumn
+import scoop.ui.component.frame as chartsFrame
+import scoop.ui.component.chart as chartPreview
+import scoop.ui.component.typography as chartCenterText
+
+internal class ChartExamplesModel {
+    val kind = state(ChartKind.Line)
+    val curve = state(ChartCurve.Monotone)
+    val stacking = state(ChartStack.None)
+    val donut = state(true)
+    val half = state(false)
+    val narrow = state(false)
+    val horizontal = state(false)
+    val labels = state(false)
+    val connect = state(false)
+    val numeric = state(false)
+    val indicator = state(ChartIndicator.Dot)
+    val selection = state<ChartSelection?>(None)
+    val values = ChartModel(visitorsData(0))
+    val mixed = ChartModel(visitorsData(0, true))
+    val browsers = ChartModel(chartBrowserData(0))
+    val activity = ChartModel(chartActivityData(0))
+    val progress = ChartModel(chartProgressData(0))
+    val numericAxis = ChartAxis()
+    val categoryAxis = ChartAxis(ChartAxisKind.Category, grid = false)
+    val valueAxis = ChartAxis()
+    var revision = 0
+    fun shownModel(): ChartModel =
+        when (kind.value) {
+            case Pie -> browsers;
+            case Radar -> activity;
+            case Radial -> progress;
+            else -> values
+        }
+    fun refresh() {
+        revision += 1
+        values.replaceData(visitorsData(revision))
+        browsers.replaceData(chartBrowserData(revision))
+        activity.replaceData(chartActivityData(revision))
+        progress.replaceData(chartProgressData(revision))
+    }
+    fun clear() {
+        val shown = shownModel()
+        if (shown.data.datums.size == 0L)
+            refresh()
+        else
+            shown.replaceData(ChartData([], []))
+    }
+}
+
+private fun visitorsData(revision: Int, mixed: Boolean = false): ChartData {
+    val months = ["January", "February", "March", "April", "May", "June"]
+    val days = [0.0, 31.0, 59.0, 90.0, 120.0, 151.0]
+    val desktop = [186.0, 305.0, 237.0, 73.0, 209.0, 214.0]
+    val mobile: Array<Double?> =
+        [Some(80.0), Some(200.0), None, Some(190.0), Some(130.0), Some(140.0)]
+    return ChartData(
+        Array<ChartDatum>(months.size) {
+            at -> ChartDatum(ChartDatumKey(months[at]), months[at], Some(days[at]))
+        },
+        [
+            ChartSeries(
+                ChartSeriesKey("desktop"),
+                "Desktop",
+                Array<Double?>(desktop.size) {
+                    at -> Some(desktop[at] + ((revision.toLong() + at) % 3L).toDouble() * 15.0)
+                },
+                mark =
+                    if (mixed)
+                        Some(ChartMark.Bar)
+                    else
+                        None
+            ),
+            ChartSeries(
+                ChartSeriesKey("mobile"),
+                "Mobile",
+                mobile,
+                mark =
+                    if (mixed)
+                        Some(ChartMark.Line)
+                    else
+                        None
+            )
+        ]
+    )
+}
+
+internal fun chartExamples(model: ChartExamplesModel): View =
+    chartsColumn {
+        this.add(panelHeading("Chart"))
+        this.typography(
+            "Explore visitor trends, browser share, team activity and progress. Hover a mark or use the arrow keys, and toggle legend items to compare series.",
+            TypographyRole.Muted
+        )
+        this.wrap {
+            for (
+                kind in [
+                    ChartKind.Line,
+                    ChartKind.Area,
+                    ChartKind.Bar,
+                    ChartKind.Pie,
+                    ChartKind.Radar,
+                    ChartKind.Radial
+                ]
+            ) {
+                val title =
+                    when (kind) {
+                        case Line -> "Line";
+                        case Area -> "Area";
+                        case Bar -> "Bar";
+                        case Pie -> "Pie / Donut";
+                        case Radar -> "Radar";
+                        case Radial -> "Radial"
+                    }
+                this.button(title, { model.kind.value = kind }) {
+                    this.variant =
+                        if (model.kind.value == kind)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+            }
+            this.spacing = 8.0;
+            this.lineSpacing = 8.0
+        }
+        if (chartExampleCartesian(model.kind.value))
+            this.wrap {
+                this.button(
+                    when (model.curve.value) {
+                        case Linear -> "Linear";
+                        case Step -> "Step";
+                        case Monotone -> "Smooth"
+                    },
+                    {
+                        model.curve.value =
+                            when (model.curve.value) {
+                                case Linear -> ChartCurve.Step;
+                                case Step -> ChartCurve.Monotone;
+                                case Monotone -> ChartCurve.Linear
+                            }
+                    }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    when (model.stacking.value) {
+                        case None -> "Grouped";
+                        case Stacked -> "Stacked";
+                        case Normalized -> "Normalized"
+                    },
+                    {
+                        model.stacking.value =
+                            when (model.stacking.value) {
+                                case None -> ChartStack.Stacked;
+                                case Stacked -> ChartStack.Normalized;
+                                case Normalized -> ChartStack.None
+                            }
+                    }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button("Horizontal", { model.horizontal.value = !model.horizontal.value }) {
+                    this.variant =
+                        if (model.horizontal.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Labels", { model.labels.value = !model.labels.value }) {
+                    this.variant =
+                        if (model.labels.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Connect missing", { model.connect.value = !model.connect.value }) {
+                    this.variant =
+                        if (model.connect.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Numeric axis", { model.numeric.value = !model.numeric.value }) {
+                    this.variant =
+                        if (model.numeric.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                    this.variant =
+                        if (model.narrow.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.spacing = 8.0;
+                this.lineSpacing = 8.0
+            }
+        if (!chartExampleCartesian(model.kind.value))
+            this.wrap {
+                if (model.kind.value != ChartKind.Radar) {
+                    this.button("Inner hole", { model.donut.value = !model.donut.value }) {
+                        this.variant =
+                            if (model.donut.value)
+                                ButtonVariant.Default
+                            else
+                                ButtonVariant.Outline
+                    }
+                    this.button("Half circle", { model.half.value = !model.half.value }) {
+                        this.variant =
+                            if (model.half.value)
+                                ButtonVariant.Default
+                            else
+                                ButtonVariant.Outline
+                    }
+                }
+                this.button("Labels", { model.labels.value = !model.labels.value }) {
+                    this.variant =
+                        if (model.labels.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                    this.variant =
+                        if (model.narrow.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.spacing = 8.0;
+                this.lineSpacing = 8.0
+            }
+        this.add(
+            chartsFrame(
+                chartPreview(model.shownModel()) {
+                    this.kind = model.kind.value;
+                    this.innerRadius =
+                        if (model.donut.value)
+                            0.5
+                        else
+                            0.0
+                    if (model.half.value) {
+                        this.startAngle = -PI;
+                        this.endAngle = 0.0
+                    }
+                    if (
+                        model.donut.value &&
+                            (
+                                model.kind.value ==
+                                    ChartKind.Pie ||
+                                    model.kind.value ==
+                                    ChartKind.Radial
+                            )
+                    )
+                        this.center =
+                            Some(
+                                chartCenterText(
+                                    if (model.kind.value == ChartKind.Pie)
+                                        "Visitors"
+                                    else
+                                        "Progress",
+                                    TypographyRole.Muted
+                                ) { this.settings { this.alignment = TextAlignment.Center } }
+                            )
+                    this.curve = model.curve.value;
+                    this.stack = model.stacking.value
+                    this.height = Some(300.0);
+                    this.orientation =
+                        if (model.horizontal.value)
+                            Orientation.Horizontal
+                        else
+                            Orientation.Vertical
+                    this.labels = model.labels.value;
+                    this.connectMissing = model.connect.value
+                    this.xAxis =
+                        if (model.numeric.value)
+                            model.numericAxis
+                        else
+                            model.categoryAxis
+                    this.yAxis = model.valueAxis;
+                    this.active = Some(model.selection.binding())
+                    this.tooltipOptions =
+                        ChartTooltipOptions(
+                            indicator = model.indicator.value,
+                            formatter = Some { entry -> f"${entry.value.toInt()}" }
+                        )
+                }
+            ) {
+                this.width =
+                    Some(
+                        if (model.narrow.value)
+                            350.0
+                        else
+                            880.0
+                    )
+            }
+        )
+        this.wrap {
+            this.button("Update values", { model.refresh() }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Empty / restore", { model.clear() }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                "Tooltip indicator",
+                {
+                    model.indicator.value =
+                        when (model.indicator.value) {
+                            case Dot -> ChartIndicator.Line;
+                            case Line -> ChartIndicator.Dashed;
+                            case Dashed -> ChartIndicator.Dot
+                        }
+                }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.typography("Desktop bars with a mobile trend", TypographyRole.H3)
+        this.add(
+            chartPreview(model.mixed) {
+                this.height = Some(220.0);
+                this.curve = ChartCurve.Monotone;
+                this.yAxis = model.valueAxis
+            }
+        )
+        this.spacing = 16.0;
+        this.alignment = CrossAlignment.Start
+    }
+
+private fun chartExampleCartesian(kind: ChartKind): Boolean =
+    when (kind) {
+        case Area -> true;
+        case Bar -> true;
+        case Line -> true;
+        else -> false
+    }

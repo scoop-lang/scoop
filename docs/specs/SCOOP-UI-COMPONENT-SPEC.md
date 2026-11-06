@@ -1,8 +1,21 @@
 # Scoop 基础控件库规范
 
+2026-11-06 整改 P1：所有自绘及惰性元素沿 UI 规范的 Element<L>／LazyElement<L> 返回完整 LayoutResult<L>，scene 仅使用最终选中的布局数据。ActionInk、Frame、文字、滚动与虚拟列表等测量几何随结果保存；颜色等仅像素输入在 scene 采样。P4 将公开协议统一为持有构造作用域的抽象基类，并统一使用根默认字体，不增加兼容控件或第二套协议。当前实施状态见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
+
 日期：2026-11-04。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
 
 控件基础的布局、方向与公共交互演进按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述已实施批次的现行合同。
+
+shadcn 控件扩展的批次与平台验收见 [shadcn 实施记录](../ui/shadcn/PROGRESS.md)，操作控件、内容面板、头像与加载状态的合同分别见第 11～13 节。
+
+P2 中，内置元素的 update 按实际输入区分布局与场景变化；动画颜色、透明度、选择标记和焦点装饰在 scene 采样，尺寸及子放置保留在完整布局结果。普通 ScrollArea 在 scene 计算滚动快照与变换，虚拟列表的选项范围仍属于布局输入；需要再次收敛的可变 extent 显式请求布局。
+
+P3 中，Label／Button 的便利描述入口显式比较实际显示输入：普通文字按值比较，不可变样式／StyledText 及可观察主题来源采用明确身份，段落设置按字段比较；带不透明行内 View、Custom 或 Resolved 内容时保守求值。Button builder 的默认样式是共享的不可变值，显式样式仍按原优先级处理。Button 的点击通过稳定转发入口读取当前 Props，允许只换动作时跳过 render；hover、pressed、focus 和主题 State 的独立失效仍执行，包括 Link 下划线及交互前景色。
+
+
+P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象基类，工厂将本次 scope 交给构造器，onMount 不再接收参数。Button、选择控件、Command／Combobox 行、Sidebar 等在构造中建立必需的区域与控制器，移除仅用于 onMount 后发布资源的 State；业务状态和业务挂载通知继续保留。所有文字消费者以显式 FontCollection 优先，否则读取根默认字体，并随默认来源替换或实际 revision 更新布局。只关闭自己取得的资源，不关闭借用字体。
+
+现有控件使用 `ComponentScope.createDeadline` 接入 Hover、Typeahead、文本编辑、Select 滚动和 Carousel 自动播放的原生定时回调；错误按所属 UiHost 根隔离，时间源与调度仍由 window／surface 提供。示例普通 View 函数接收显示值、模型与动作，默认文字使用根字体；函数提取不增加挂载节点，不改变 key／子顺序或局部状态归属。
 
 ## 1. 定位与依赖
 
@@ -26,7 +39,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | --- | --- |
 | Label | 纯文本或 StyledText、字体／样式输入及行内 View 绑定，复用公共段落测量与绘制 |
 | Button | 标签、hover／pressed／focus／disabled 外观、指针与键盘激活 |
-| Checkbox | 布尔 checked、外部 Binding 或自有状态、指针与 Space 切换及 disabled 外观 |
+| Checkbox | CheckState 三态或 Boolean 绑定、自有布尔状态、指针与 Space 切换及 disabled／invalid 外观 |
 | Input／Textarea | 共享 TextEditorState 的单行／多行输入、主题表面、占位文本、验证说明与滚动条 |
 | Row／Column | 子项的单轴排列、spacing 与交叉轴对齐 |
 | Stack | 子项叠放和对齐 |
@@ -35,7 +48,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | VirtualList | 按需子项、固定／可变 extent、阅读锚点和按 key 定位 |
 | Frame | 单个子项的 padding、固定尺寸、对齐、背景和显式 clip |
 
-这些控件是普通的持久 Component class，构造器接收各自的 Props；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
+这些控件是普通的持久 Component 子类，构造器接收各自的 Props 和当前 ComponentScope；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
 
 常用入口提供返回 View 的普通函数，保留具体组件类型并使用延迟工厂。最小调用形式为：
 
@@ -45,7 +58,7 @@ import scoop.ui.component.button
 import scoop.ui.component.column
 import scoop.ui.component.label
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
 
     public override fun render(): View =
@@ -72,6 +85,7 @@ button(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = 
 button(text: StyledText, onClick: () -> Unit, configure: StyledButtonBuilder.() -> Unit = {}): View
 button(content: View, onClick: () -> Unit, configure: ContentButtonBuilder.() -> Unit = {}): View
 checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
+checkbox(checked: Binding<CheckState>, configure: CheckboxBuilder.() -> Unit = {}): View
 checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit = {}): View
 ```
 
@@ -80,10 +94,10 @@ checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit 
 | LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle? = None；theme: ThemeSource? = None；key: ViewKey = Position |
 | PlainLabelBuilder : LabelBuilder | 继承上述字段；style: SpanStyle? = None |
 | StyledLabelBuilder : LabelBuilder | 继承上述字段；inlines: Array<InlineView> = [] |
-| ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；invalid: Boolean = false；variant: ButtonVariant = Default；size: ButtonSize = Default；group: GroupPosition? = None（第 16 节）；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
 | ButtonBuilder : ContentButtonBuilder | 继承上述字段；fonts: FontCollection? = None |
 | StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle? = None；inlines: Array<InlineView> = [] |
-| CheckboxBuilder | enabled: Boolean = true；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| CheckboxBuilder | enabled: Boolean = true；invalid: Boolean = false；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions()；labelTarget: FieldTarget? = None（第 15 节） |
 
 LabelBuilder／StyledButtonBuilder 的 settings 成员接受 ParagraphStyleBuilder；PlainLabelBuilder 的 style 接受 SpanStyleBuilder；ButtonBuilder／CheckboxBuilder 的 style 接受各自样式 Builder。真实嵌套成员返回 Unit，基于当前值继续修改，空块保留配置；完整赋值替换。PlainLabelBuilder.style 的 None 表示没有局部覆盖，第一次 style 块从全部继承的 spanStyle() 开始。String Button 的标签段落继续默认居中，StyledText Button 使用其 settings；不为某种文字模式暴露没有意义的输入。
 
@@ -120,11 +134,11 @@ ScrollAreaBuilder 的属性与 ScrollAreaProps 除 content 外的全部字段一
 
 Label 接受 String 加可选 SpanStyle 的便利输入，也接受公共 StyledText、字体来源、ParagraphStyle 和 `Array<InlineView>`。便利输入转换为相同的纯文本描述，不建立另一套排版路径。默认字体、字号和颜色来自当前 Theme 的公共 typography／语义参数；框架与控件库都不建立全局可变默认主题。调用方可以传入自己的字体及样式，其资源默认借用。
 
-显式组件接收 `Props<LabelProps>`。LabelProps 保存纯文本及可选 SpanStyle 覆盖，或完整 StyledText，另有可选 FontCollection、ParagraphStyle、主题来源和行内绑定；label 的 String／StyledText 重载构造相同的输入。Plain 以当前主题 TextStyle 为基础，仅覆盖明确的 SpanStyle 属性；完整 StyledText 保留调用者指定的内容模型。文字与实际已解析样式不变时保留规范化内容。字体为 None 时，挂载的 Label 自己创建一次系统 fallback 字体集合并登记到 scope；外部字体只借用，切换来源不关闭调用方资源。
+显式组件接收 `Props<LabelProps>`。LabelProps 保存纯文本及可选 SpanStyle 覆盖，或完整 StyledText，另有可选 FontCollection、ParagraphStyle、主题来源和行内绑定；label 的 String／StyledText 重载构造相同的输入。Plain 以当前主题 TextStyle 为基础，仅覆盖明确的 SpanStyle 属性；完整 StyledText 保留调用者指定的内容模型。文字与实际已解析样式不变时保留规范化内容。字体为 None 时读取 scope.defaultFonts；根统一拥有默认集合，Label 不另建 fallback 集合。外部字体只借用，切换来源不关闭调用方资源。
 
 LabelProps.baseStyle 可显式提供本轮完整 TextStyle，供 Button 等组合控件传入从当前主题解析的操作标签样式；Plain 的局部 SpanStyle 再覆盖它。显式 baseStyle 或完整 StyledText 已包含所需文字默认值时，不要求仅为排版建立环境主题来源。Button 对未明确指定子标签主题／基础样式的 Label 传入本轮 action 字体与表面文字颜色，保留标签自身 SpanStyle。
 
-Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在 onMount 中通过 ComponentScope 登记 ParagraphHost，在 measure／scene 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
+Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在构造时通过 ComponentScope 登记 ParagraphHost，在 measure／scene 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
 
 父约束给出有限最大宽度时按该宽度布局，无界时使用 layoutUnwrapped。最终 LayoutMetrics 的 size 遵守 Constraints，基线来自同一 TextLayout；绘制、对象放置及查询也使用这个结果，不另行估计文字宽度。换行、对齐、maxLines、ellipsis 和 Unicode 行为采用 graphics.text 合同。默认不裁剪超出外框的绘制，需要 clip 时显式包住整个文字与子项绘制作用域。
 
@@ -140,21 +154,25 @@ Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；�
 
 SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged 和 key；StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
 
-未指定 fonts 时挂载创建一次 fallback FontCollection；外部字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
+未指定 fonts 时使用 scope.defaultFonts，并在 update 中读取当前集合；显式字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
 
 ## 4. Button
 
-Button 的输入包括内容 View、onClick、enabled 及样式。组件在 onMount 创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
+Button 的输入包括内容 View、onClick、enabled 及样式。组件在构造时创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
 
-ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop 和 order。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。
+ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop、order 和 visibility。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。InteractionVisual.focusVisible 消费公共焦点指示；普通指针聚焦不画键盘焦点环，实际焦点与按键接收仍有效。Input／Textarea 沿 TextEditHost 的文本指示策略，局部 InteractionStyles.focused 也只按可见焦点应用。
 
-首次 Component.render 使用未交互外观；onMount 在子 Element 挂载前创建 area／focus／Press，并通过普通 State 发布这组挂载资源。后续 render 读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不能在首次 render 解引用尚未挂载的 Press。
+工厂将当前 ComponentScope 交给构造器，area／focus／Press 在首次 Component.render 前完成登记。首次和后续 render 都直接读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不再以可空 State 发布资源或额外触发一次 render。
 
-显式组件接收 `Props<ButtonProps>`，其中 content 是 ButtonContent.Label(LabelProps) 或 ButtonContent.Custom(View)，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String、StyledText 和显式 View 入口。StyledText 允许行内绑定，Custom 内容由普通布局、图标和文字组合，三个入口共享同一个 Button／Press，不克隆 View 或合并隐藏属性。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
+显式组件接收 `Props<ButtonProps>`，其中 content 是 ButtonContent.Label(LabelProps) 或 ButtonContent.Custom(View) 或 ButtonContent.Resolved((ActionContentStyle) -> View)，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String、StyledText 和显式 View 入口。StyledText 允许行内绑定，Custom 内容由普通布局、图标和文字组合，所有入口共享同一个 Button／Press，不克隆 View 或合并隐藏属性。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
+
+ButtonProps／ContentButtonBuilder 增加可选 labelTarget，使用同一 Press 输入区域和 FocusTarget 绑定 FieldTarget，标签只聚焦而不触发按钮动作。
+
+ButtonProps／ContentButtonBuilder 与 CheckboxProps／CheckboxBuilder 增加 invalid=false，受控及自有 Checkbox 入口使用相同字段。它只表示校验结果，仍可点击／聚焦；不会暗改 enabled 或 checked。Button、Checkbox、Input／Textarea 将 invalid 传入公共 InteractionVisual，统一使用主题 validation。选中的 Checkbox 保留 primary 边框，验证环仍显示；显式 marker.validation 或局部 Style 可覆盖。
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
 
-Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，在 onMount 中调用 scope.routeChildren(area) 建立逻辑关系；scene 放置自己的区域并调用 children() 呈现子项。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
+Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，在构造初始化中调用 scope.routeChildren(area) 建立逻辑关系；scene 放置自己的区域并调用 children() 呈现子项。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
 
 Button 的 LayoutMetrics 将标签基线加上实际垂直放置偏移，使整个按钮可以和周围文字按基线对齐。没有对应标签基线时返回 None，不根据字号估算另一条基线。
 
@@ -181,11 +199,15 @@ enabled 和最新回调在 Element.update 的逻辑阶段生效。禁用不等�
 
 ## 5. Checkbox
 
-Checkbox 标记使用 Theme.checkboxGeometry 和 ThemePainter.drawCheckbox，向主题传入 Off／On 及交互视觉数据，布局与点击可组合标签／留白。公共主题另外提供 Mixed 标记供菜单／树／表格使用；首期 Checkbox 仍保留下面的布尔 Binding 行为，不自行维护另一套标记绘图。
+Checkbox 标记使用 Theme.checkboxGeometry 和 ThemePainter.drawCheckbox，向主题传入 Off／On／Mixed 及交互视觉数据，布局与点击可组合标签／留白，不维护另一套标记绘图。选中与混合态的选择进度均为 1，未选中为 0；invalid 时选中与混合态保留 primary 边框。
 
-Checkbox 的 checked 是布尔值。最小入口为：
+`CheckState` 为 Unchecked／Checked／Indeterminate，分别映射主题 CheckMark.Off／On／Mixed。CheckboxProps.checked 统一为 Binding<CheckState>；Boolean 便利入口通过 getter／setter 映射同一绑定，true 为 Checked、false 为 Unchecked，写回只有 Checked 对应 true，不持有镜像 State。两种受控入口共用 Checkbox、InputArea 和 Press，互换绑定类型保留组件。最小入口为：
 
 ```text
+fun checkbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit = {}
+): View
 fun checkbox(
     checked: Binding<Boolean>,
     configure: CheckboxBuilder.() -> Unit = {}
@@ -200,7 +222,7 @@ fun checkbox(
 
 CheckboxStyle 使用 CheckboxOptions 和同一 InteractionStyles，并可明确覆盖外部 padding；默认 padding 来自主题 small spacing。建议／最小标记尺寸与 padding 决定测量，实际可用空间中的标记 bounds 交给主题计算。同一个 InputArea 包含显式留白，不因选择、glow、阴影或主题 painter 替换而重新创建。
 
-外部绑定入口以当前 Binding 的 value 为显示和交互的状态来源。有效激活时读取当前值并写入其取反值，随后由底层 State 通知读取者；绑定的业务 setter 可以按自身规则接受或拒绝修改，控件不先保存另一个乐观值。外部修改 checked 只更新显示，不合成用户激活。
+外部绑定入口以当前 Binding 的 value 为显示和交互的状态来源。有效激活时读取当前值，按 Unchecked→Checked、Checked→Unchecked、Indeterminate→Checked 写入一次，随后由底层 State 通知读取者；绑定的业务 setter 可以按自身规则接受或拒绝修改，控件不先保存另一个乐观值。外部修改 checked 只更新显示，不合成用户激活。
 
 自有状态入口由持久的内部组件在首次构造时创建 State，initialChecked 只决定首次值；普通父级重建或再次传入初始值不重置它。该组件把自己的 State 作为 Binding 交给相同的 Checkbox 实现，不复制绘制和输入逻辑。两种入口采用不同组件形状，切换外部绑定／自有状态模式时按框架第 5 节重新挂载；同一外部绑定入口更换 Binding 对象则沿通常 Props 更新保留实例。
 
@@ -214,7 +236,7 @@ import scoop.ui.component.button
 import scoop.ui.component.checkbox
 import scoop.ui.component.column
 
-class Form: Component {
+class Form(scope: ComponentScope): Component(scope) {
     private val checked: State<Boolean> = state(false)
 
     public override fun render(): View =
@@ -267,23 +289,25 @@ AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size
 
 ### 6.2 ScrollArea
 
-ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions 和可选 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
+ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions、StyleOverride（默认空覆盖）、可选 focusOutline: OutlineStyle 和 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
 
 每个滚动轴须有有限的父最大约束或显式尺寸，最终尺寸服从父最小／最大限制。非滚动轴有界时填满，无界时从一次子项测量取得尺寸。内容沿滚动轴采用无界约束，沿已确定的交叉轴采用 tight 约束；每次 measure 回调测量一次内容，按最终测量结果以负 offset 平移呈现。视口对像素与命中使用同一个 clip，整个显式内容树保持挂载。普通滚动只请求位置帧，不把 offset 作为内容 Props 重建；绘制缓存和虚拟化另行接入。
 
+ScrollArea 的 style 配置视口背景、边框、圆角、阴影和内容效果；默认透明、无边框、无圆角。装饰不改变内容约束或增加内边距，边框覆盖视口边缘。圆角裁剪同时作用于正文、滚动条和命中；clipContent 不能取消视口裁剪。focusOutline 覆盖主题焦点环，环在视口裁剪之外绘制。enabled=false 停用输入，不额外降低整棵正文的透明度。
+
 ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记实际滚动路径，复用 UI 的焦点显露。行内目标的 FocusHandle、Tab 和组内键盘导航可显露已放置的离屏内容，嵌套视口按从内到外的成功帧顺序处理；滚动条和 Portal 不因逻辑祖先关系而被错误当作内容滚动。
 
-两者另提供 paintCache，使用 UI 的 PaintCachePolicy.None／Tiles，默认 None，经同一 ScrollViewport 传给内容场景。它只优化采用 drawLayer 的有限图层；公共 ParagraphHost 的正文已经使用稳定 PaintKey、真实绘制边界和布局修订，普通 draw 仍直接执行。切换此策略不更换 ScrollState、内容实例、输入作用域或虚拟化策略。VirtualList.retention 与 paintCache 独立，Dispose／KeepAlive 均可搭配 None／Tiles。
+两者另提供 paintCache，使用 UI 的 PaintCachePolicy.None／Tiles，默认 None，经同一 ScrollViewport 传给内容场景。它只缓存采用 drawLayer 的有限图层像素；公共 ParagraphHost 在普通场景直接 draw，在显式 cachedScene 或像素缓存内使用稳定 PaintKey、真实绘制边界和布局修订。None 下显式声明的 drawLayer 可以复用 Drawing，仍不保留像素；缩放和像素质量变化只重建所需图块。切换此策略不更换 ScrollState、内容实例、输入作用域或虚拟化策略。VirtualList.retention 与 paintCache 独立，Dispose／KeepAlive 均可搭配 None／Tiles。
 
 Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, apply)，将内容位移取反为 offset，返回实际消费位移；子项到边界后只交接剩余原始单位。Contain 在本层消费后 preventDefault。新 wheel（包括零位移手势开始）先取消旧平滑滚动；系统 phase／momentum 沿用 Surface 路由。控件不另建惯性时钟。
 
-滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
+滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例、焦点和物理 offset，不反转正文或隐式请求新的滚动位置；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
 
-滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab 并显示主题焦点轮廓，PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
 
 ### 6.3 VirtualList
 
-VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（KeepVisible／FollowEnd，默认 KeepVisible）。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
+VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（None／KeepVisible／FollowEnd，默认 KeepVisible），以及逻辑主轴末端的 endPadding（VirtualListEndPadding，默认 Fixed(0)）。Fixed(length) 为有限非负长度；FillViewport 按当前 Start 定位、恢复或 KeepVisible 的未截断逻辑起点，填充该点到视口末端缺少的空间。填充在本次测量中随实际条目尺寸更新，先于滚动范围收敛，避免视口增高或正文缩短时先把阅读位置截断。两者参与 content extent 和滚动范围，不对应数据 key 或可见项；水平 RTL 时留在物理左端。None 保持数值位置，仅按实际范围收敛。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
 retention 使用 UI 的 ItemRetention，缺省 Dispose，KeepAlive(maxOffscreenItems) 保留有限的离屏原实例；可见／overscan 选择与活动交互项不计入上限。它直接传给 lazyElement，不在控件中维护另一份挂载或回收池。绘制缓存独立，保留实例并不自动缓存像素。
 
@@ -295,9 +319,9 @@ ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，�
 
 水平列表按继承的 LayoutDirection 排列，RTL 的第一项位于逻辑起点即物理右侧，条目绘图不镜像；不足一屏的内容也在逻辑起点对齐。ScrollState.offset 仍是从物理左侧计量的偏移，阅读锚点则使用逻辑排列方向。默认零位置首次呈现从逻辑首项开始；非零构造位置或显式 scrollTo 等请求按物理位置处理。方向热切换按稳定 key 保持阅读位置，重新测量依赖方向的条目，不重新创建同一 key。scrollToItem 的 Start／End 和横向 PageUp／PageDown／Home／End 按逻辑起终点解析，wheel 与滚动条继续使用物理位移。
 
-KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。
+KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。VirtualReadingSnapshot.endPadding 记录同一 Accepted 布局的实际末端留白。
 
-VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest)。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
+VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest, margin = 0, previousItemPeek = 0)。margin 与 previousItemPeek 是有限非负逻辑长度；Start 定位减去 margin 及不超过上一项实际长度的 peek，首项的 peek 为零；End／Nearest 使用 margin 扩张目标范围，Center 保持中心。带 peek 的请求按需测量紧前一项，与目标共用本帧结果。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
 
@@ -333,7 +357,7 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 
 `RangeSpec(minimum, maximum, step=None, minimumGap=0, reversed=false)` 提供有限区间内的纯值计算。minimum／maximum 有限且有可表示的非负跨度，step 若指定必须有限为正；离散模式用整数步号计算，不持续累加浮点值。步数须能由 Double 精确表示整数；非整步 maximum 不增加一个特殊末端 step。连续模式不量化，退化区间返回唯一值。
 
-`clamp(value)` 返回可用值；`valueAt(position)`／`positionOf(value)` 在归一化 0～1 位置与数值之间转换，reversed 显式反转。`validate(values)` 检查当前有序 thumb、步对齐和 minimumGap 是否可满足；`move(values,index,value)` 只替换活动下标，限制在邻居及配置边界内，不排序、不换身份，不改变其他 thumb。配置更新前由调用方验证现有值，非法配置／当前值报告参数错误。
+`clamp(value)` 返回可用值；`valueAt(position)`／`positionOf(value)` 在归一化 0～1 位置与数值之间转换，reversed 显式反转。`validate(values)` 检查当前有序 thumb、步对齐和 minimumGap 是否可满足；连续间距同时接受恰等于相邻值加减 minimumGap 的 Double 边界，避免边界运算与反向减法的舍入差异拒绝 move 的结果，正间距仍要求值严格递增。`move(values,index,value)` 只替换活动下标，限制在邻居及配置边界内，不排序、不换身份，不改变其他 thumb。配置更新前由调用方验证现有值，非法配置／当前值报告参数错误。
 
 `resizePair(first,second,delta,firstMin=0,firstMax=None,secondMin=0,secondMax=None)` 在两侧 min／max 内限制同一个位移，返回保留总长度的 SplitSizes；现有尺寸和位移必须可表示且满足配置。不会由两侧各自计算导致总量漂移。
 
@@ -395,17 +419,19 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy 和当前回调均经 Props 更新。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
+
+两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
 
 projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。内置遮罩默认禁用 Copy／Cut，明确 Allow 时复制原文；切换显隐保留模型、历史与 IME 连接，控件不创建另一份显示文档。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 
-组件 render 读取 model.inputState，并观察实际已挂载宿主的 interaction。内部只保存一个可观察的宿主挂载引用；Element 创建时登记，退休时解除对应实例，不复制 focus／hover 或另建文本订阅器。Host、字体、段落度量缓存及主题 painter 由 ComponentScope 管理；未传 fonts 时创建一次系统 fallback 字体集合，更换外部来源不关闭借用资源。
+绘制 Element 在构造时通过自己的 ComponentScope 创建 TextEditHost，保证编辑输入、滚动视口、布局失效和 scene 属于同一次挂载。组合组件在 render 中读取 model.inputState 与用于外观的交互 State；后者由宿主的真实 onInteractionChanged 通知更新，默认值不触发补渲染，也不发布宿主或作用域引用。默认字体在 render 中以显式 fonts 优先，否则读取 scope.defaultFonts；默认集合更换保留组件、宿主和编辑模型，再由 Element.update 更新外观。宿主、段落度量缓存及主题 painter 沿各自作用域释放，控件不关闭借用字体。OTP 采用相同的构造与借用合同。
 
-TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和焦点来自 palette.error，description 使用错误色；明确的局部表面与焦点覆盖仍优先，禁用说明使用 disabledText。没有内置验证器或提交阻断。
+TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和状态环来自 tokens.validation，即使未聚焦也显示；description 使用 palette.destructive.background。明确的局部表面与 validation 覆盖仍优先，focus 只覆盖正常焦点外观，禁用说明使用 disabledText。没有内置验证器或提交阻断。正文区域（背景、文字、边框和状态环）整体应用 SurfaceGeometry.opacity，description 在此层之外。placeholder 始终使用 muted.foreground，再随正文区域合成；局部 placeholder 覆盖仍优先。
 
 有界宽度占满父约束，无界宽度使用显式 SurfaceOptions.suggestedSize.width，缺省 240，再满足主题 minimumSize。Input 一行、Textarea rows 行的建议高度使用同一字体与正文样式下真实空段落的行高，合并 padding、边框和主题建议／最小高度，再按父约束收敛；不以字符数估算布局。Host 每帧只按最终内视口测量一次，基线来自该布局并加实际内容偏移。description 作为普通 Label 在边框外下方按同宽约束测量，不作为输入正文或滚动内容。
 
@@ -424,3 +450,688 @@ Image 的 naturalSize 是明确的正有限逻辑尺寸，像素密度由像素�
 两种 builder 均提供 fit: ContentFit=Contain、alignment: Alignment=Center／Center、clip=true 和 key；Image 另有 sampling=Linear、opacity=1，Path 另有 naturalSize=None 和 paint=Paint()。fitContent(naturalSize, bounds, fit, alignment, direction) 公开同一纯几何算法：Contain 等比包含，Cover 等比覆盖，Fill 使用完整目标矩形，None 保留自然尺寸。零宽／高目标返回空目标；对齐的水平 Start／End 依 LayoutDirection 解析，图片和路径本身不镜像。clip=true 时只裁到布局框，false 允许明确的内容溢出。
 
 Path 按 viewBox 原点和平移／缩放映射到目标矩形，stroke 与路径一起变换。Image 使用现有 graphics 绘图与采样合同。两者借用输入资源，更新或卸载不关闭调用方的 Image／Path；持有者必须在使用期间保持它们打开，关闭资源的错误沿普通绘图失败路径处理。替换内容通过 Props，绘制读取本轮输入，不跨更新保留旧资源缓存。展示本身不创建 InputArea、焦点、计时器或加载状态；加载／失败／重试属于应用或后续控件组合。
+
+
+## 11. 操作变体、Badge 与 Spinner
+
+ButtonProps／ContentButtonBuilder 增加 variant: ButtonVariant = Default、size: ButtonSize = Default。ButtonVariant 为 Default／Outline／Secondary／Ghost／Destructive／Link；ButtonSize 为 Xs／Sm／Default／Lg／IconXs／IconSm／Icon／IconLg。ButtonStyle.kind 继续选择主题基础表面的尺寸与外观，variant／size 在其上解析，随后依次应用显式 surface／text 及适用的 states；明确的局部覆盖优先。状态解析只消费公共 token、mode 和几何，不判断主题实现类型。
+
+Default 保留所选主题部件；Outline 使用背景与边框、hover 使用 muted（Dark 为 input 的 0.3／0.5 alpha）；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，新增非 Default 变体使用 disabledText，并将底色与 muted 等量混合；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样并使用主题的预乘 alpha 插值；Outline／Secondary／Ghost 的 pressed 在 hover 背景上混入 8% background.foreground，Destructive 的 pressed alpha 为 Light 0.3／Dark 0.4，Link 保持透明。按下与悬停使用不同终点，松开后返回当前悬停或普通状态。Secondary 的 OKLCH 色彩混合只服务此处 hover 预设，不引入 CSS 解析器。
+
+以 Nova 32 高表面为基准，Xs／Sm／Default／Lg 建议高 24／28／32／36，对应文字字号 12／12.8／14／14，图标尺寸 12／14／16／16，内容间距 4／4／6／6；其他主题按基础建议高和操作字号等比例派生。Icon 四尺寸取对应边长，图标为 12／16／16／16，无文字专用水平留白；正常父约束、内容最小需求及显式局部尺寸仍优先，不能裁掉放大后的字体。默认保留主题圆角，Xs／Sm 使用 medium 圆角；局部 corners 可覆盖。禁用清除交互过渡，但不清除 invalid。
+
+新增 `button(content: (ActionContentStyle) -> View, onClick, configure: ContentButtonBuilder.() -> Unit = {})` 及同名 ChildrenBuilder 成员。ActionContentStyle 是完整不可变值，包含 text: TextStyle、iconSize: Double、spacing: Double、interaction: InteractionVisual、underline: Boolean；回调只在组件 render 中构造内容，接收当前主题、变体、尺寸及局部文字覆盖的结果。它不注入子树 Context，不克隆 View。既有任意 View 与 StyledText 保留自身样式；需要自动适配的图标／Spinner 使用此入口显式消费尺寸和颜色。
+
+LabelProps／LabelBuilder 增加 underline: Color? = None。它是纯绘制装饰，使用 ParagraphHost 的实际文字选择区域在每行底部绘制 1 单位线条，既不改正文／测量也不添加输入。Button 的 Link 文字入口在 hover 时提供该装饰；显式 Label 下划线优先。
+
+### 11.1 Badge
+
+`badge(text: String, configure: BadgeBuilder.() -> Unit = {})`、StyledText 对应 StyledBadgeBuilder、View 与 `(ActionContentStyle) -> View` 对应 ContentBadgeBuilder；ChildrenBuilder 有同名真实成员。BadgeProps／Badge 是普通组件，content 复用 ButtonContent，onClick: (() -> Unit)? = None、variant=Default、enabled=true、invalid=false、style: ButtonStyle=buttonStyle()、theme=None、focus=FocusOptions()。builder 另有 key；文字 builder 有 fonts，Styled 另有 settings／inlines。
+
+六种变体与 Button 同名；Badge 为 20 建议高、12／16 文字、12 图标、4 间距、8 水平与 1 垂直内缩、胶囊圆角，按主题操作字号缩放并受真实内容和父约束限制。Secondary 的动作 hover 使用 secondary 背景 alpha 0.8；Outline 明暗均使用 border 边框，Outline／Ghost 的动作 hover 文字使用 muted.foreground；Destructive 动作 hover 使用 destructive alpha 0.2／0.3（Light／Dark）。pressed 反馈和局部覆盖顺序与 Button 相同。
+
+无 onClick 时为被动展示，不建立 Press 或 Tab 目标，不拦截内容中的独立动作；自身不产生 hover／pressed 状态。有动作时复用同一 Press 和焦点规则，读取最新回调，一次激活只执行一次。onClick 有无变化按普通子树替换规则建立／撤销行为；disabled／卸载取消未完成序列。Link 只提供样式，不自动打开 URL。
+
+### 11.2 Spinner
+
+`spinner(configure: SpinnerBuilder.() -> Unit = {})` 与 ChildrenBuilder.spinner 返回普通 SpinnerProps／Spinner 组件。字段为 size: Double? = None、color: Color? = None、running: Boolean = true、period: Duration = Duration.seconds(1L)、theme: ThemeSource? = None；builder 另有 key。size 为有限非负逻辑尺寸，None 使用操作字号的 16／14；color=None 使用当前操作文字颜色。尺寸为零合法且不请求动画帧，period 必须大于 ZERO。
+
+图形采用实际 Lucide loader-circle 路径，保存来源与许可证；路径由挂载作用域持有，不逐帧分配。rotation 使用 scope.animation、线性 Tween 与 Repeat.Restart，running／period／减少动态变化才调整动画，普通刷新不重启。停止或 Reduced 显示静态图形且不请求帧。Spinner 在成功帧后用自身图形范围与 Canvas.localClipBounds 的保守交集设置该 Animatable.isFrameEnabled，实际零尺寸或透明图形也不请求帧；滚回视口沿同一时间轴恢复，不扫描离屏子树或建立定时器。虚拟保留、窗口隐藏和卸载继续沿已有动画组与 Surface 参与规则处理；局部开关不越过所属组的资格。它没有计时线程、后台任务或全局状态；父控件通过 ActionContentStyle 显式传入大小与颜色。
+
+## 12. 内容面板、分隔线与比例布局
+
+### 12.1 类型化内容与公共组合
+
+Card、Alert、EmptyState 的必需 body 是 View。标题／说明使用 `PanelContent.Label(LabelProps)／Custom(View)`，可分别提供纯文字、StyledText 或完整 View；普通文字接受根的字体与当前角色样式，StyledText 和显式 baseStyle 保留自身样式，Custom 不被检查或修改。三个 builder 的 title／description 成员各有 String、StyledText、View 重载，直接赋入 None 撤销该可选区；fonts、theme、style、key 的约定与现有控件一致。PanelBuilder 仅复用这些实际消费者及第 17 节 Item 的字段和成员，不建立插槽注册表或挂载树上下文。
+
+无内容的可选区域不产生节点、间距或边框。各区域有稳定的局部 key；移除 header／description／action 等相邻区域，或窄宽换行，不重新挂载仍存在的 body 与其状态。header、action、footer、media 等 View 都是调用方内容，既不克隆，也不偷偷增加输入行为；root 的显式 theme 只用于自身表面与便利文字，任意子 View 保留自己的主题选择。构造和配置只发布描述，字体、Path 和 painter 的所有权仍沿第 7 节。
+
+Card 头部及 Alert 的正文／动作布局在有限宽度下优先并排：动作使用自然宽度，正文取得余量；余量不足当前正文字号的 8 倍时，动作移到下一行的逻辑末端。无界宽度按两者自然尺寸排列。两种布局均使用同一子树、方向和最终测量，不以窗口宽度猜测 CSS breakpoint，也不裁掉长动作。
+
+### 12.2 Card
+
+`card(content: View, configure: CardBuilder.() -> Unit = {})` 创建 CardProps／Card。除公共 title／description、fonts／theme／style 外，字段为 header／action／footer: View? = None、size: CardSize = Default、headerSeparator: Boolean = false；CardSize 为 Default／Sm。builder 的 header／action／footer(View) 写入对应字段；同名 ChildrenBuilder.card 追加一次。
+
+Nova 下 Default／Sm 的区域间距和内缩分别为 16／12，随 body 字号相对 14 缩放。header 中自定义内容、标题和说明按 4 间距排列，action 位于逻辑末端；标题 Default 为 16／22、Sm 为 14／19.25，使用操作字重，说明为 body 与 muted.foreground。body 独立左右内缩；footer 存在时使用同样内缩、顶边分隔线和 muted 背景 alpha 0.5，根不再重复加尾部内缩。headerSeparator 仅在实际 header 存在时添加底边与对应留白。
+
+表面使用 card 配色、large 圆角、foreground alpha 0.1 的 1 单位边线及内容裁剪。style 最后覆盖。header、body、footer 的可组合边界由明确的 View 槽表达，不为每一层无行为的容器另建持久组件。
+
+### 12.3 Alert
+
+`alert(content: View, configure: AlertBuilder.() -> Unit = {})` 创建 AlertProps／Alert。额外字段为 variant: AlertVariant = Default、icon／action: View? = None；AlertVariant 为 Default／Destructive。icon／action(View) 为真实 builder 成员。
+
+表面为 card 背景、border 边框和 medium 圆角，水平／垂直内缩为 10／8；图标在逻辑起端，与正文间隔 8、向下偏移 2，正文标题、说明和 body 之间间距 2。标题使用操作字重；Default 的说明使用 muted.foreground，Destructive 的标题使用 destructive.background、说明使用其 alpha 0.9。尺寸随 body 字号缩放，动作窄宽行为见 12.1。任意内容保持自身文字或图标颜色，便利文字随 variant 更新。Alert 是静态内容，不创建焦点、计时器、关闭动作或弹层。
+
+### 12.4 EmptyState
+
+`emptyState(content: View, configure: EmptyStateBuilder.() -> Unit = {})` 创建 EmptyStateProps／EmptyState，保留 UI.empty() 的原含义。额外字段为 header／media: View? = None、mediaVariant: EmptyMediaVariant = Default、outlined: Boolean = false；EmptyMediaVariant 为 Default／Icon。header／media(View) 写入对应字段。
+
+根使用 large 圆角、24 内缩和 16 区域间距；有限父宽下占满可用宽度，无界时使用自然宽度。header 中 media、自定义 header、title、description 按 8 间距排列，media 后另留 8，标题为 14 的操作文字，说明为 14／22.75 的 muted 文字。header 和 body 分别限制为 384 建议宽并在可用宽度中居中；父宽更小时正常收缩换行，不强制最小 384。Icon media 使用 32 方形、medium 圆角和 muted 背景，Default 保留内容自然尺寸。这些尺寸按 body 字号相对 14 缩放。
+
+outlined 提供 1 单位、3 开／3 间隔的圆角虚线，默认关闭；显式 style.border 覆盖该预设，可改实线或清除边框，style.background 可设置背景。虚线由已有 Path／PathMeasure 生成有限段并按最终尺寸／圆角缓存，只在几何变化时重建，卸载关闭；不引入绘制后端或周期任务。面板自身不参与输入，body 中按钮、文本选择或表单保持原行为。
+
+### 12.5 Separator
+
+`separator(configure: SeparatorBuilder.() -> Unit = {})` 创建 SeparatorProps／Separator，字段为 axis: FlexAxis = Horizontal、length: Double? = None、thickness: Double = 1、color: Color? = None、theme: ThemeSource? = None；builder 另有 key。length／thickness 必须有限非负，零表示空线。默认颜色使用当前 border。
+
+length=None 使用父约束该轴的有限上限；无界时使用该轴下限，不虚构自然长度。父约束决定最终外框，线条保持指定 thickness 并在交叉轴居中；父交叉尺寸不足时收窄到可用值。只绘制逻辑坐标中的矩形，由 Canvas 应用一次 DPI，不创建 InputArea。
+
+### 12.6 AspectRatio
+
+`aspectRatio(content: View, ratio: Double, configure: AspectRatioBuilder.() -> Unit = {})` 创建 AspectRatioProps／AspectRatio；ratio 必须有限且严格大于零，builder 字段为 clip: Boolean = true、key。ratio 为宽／高。
+
+有有限最大宽时优先用该宽推算高度，再受有限最大高限制；只有有限最大高时反向推算宽度。两轴无界时用内容自然尺寸求能包含它的比例外框。随后在不越过最大值的前提下满足可兼容的最小值；比例与父约束不可同时满足时，父约束优先，不报告比例配置错误。计算出的实际尺寸必须有限；不可表示的几何正常报参数错误。
+
+实际子项最后按外框紧约束测量并放在原点；空尺寸合法。clip=true 裁剪同一外框，clip=false 允许内容自身的显式溢出。图片继续使用 ImageView 的 Contain／Cover，AspectRatio 不复制图像适配、读取像素或预乘 DPI。
+
+## 13. 头像与加载状态
+
+### 13.1 Avatar 与头像组
+
+`avatar(fallback, configure: AvatarBuilder.() -> Unit = {})` 的 fallback 接受 String、StyledText 或 View，按 PanelContent 保存。AvatarProps 的其余输入为 image: AvatarImageState = Empty、size: AvatarSize = Default、badge: AvatarBadge = None、fonts／theme、style；builder 另有 key。AvatarSize 为 Sm／Default／Lg，对应 Nova 24／32／40，按 body 字号相对 14 缩放；回退文字分别为 12／14／14，使用 muted 前景，普通文字居中。
+
+AvatarImageState 为 Empty／Loading／Failed／Ready(Image)。前三种状态都显示当前 fallback，Ready 使用同一 ImageView 的 Cover；资源由调用方装载并拥有，状态和图片替换不关闭借用 Image，不创建下载任务、重试或定时器。已关闭的 Ready 图片沿 ImageView 的普通资源错误处理，不偷偷改写业务状态。默认背景仅在 fallback 时使用 muted，外框为圆形裁剪和 1 单位 border；默认边框在 Light／Dark 下分别用 Darken／Lighten 混合，显式 style.border 覆盖或清除它，其他局部装饰也继续有效。父约束决定最终外框，圆角使用实际短边的一半。
+
+AvatarBadge 为 None／Dot(Color?)／Content(View, Color?)。builder 的 badge(color: Color? = None) 和 badge(content: View, color: Color? = None) 写入对应值。标记位于逻辑末端底部，Sm／Default／Lg 的边长为 8／10／12，使用 primary 背景和 2 单位 background 外环；Sm 仅显示圆点，Content 的 View 不呈现。它没有额外输入行为，调用方内容也不被克隆或增加动作。
+
+`avatarGroup(size: AvatarSize = Default, configure: AvatarGroupBuilder.() -> Unit)` 收集 avatar 的三个 fallback 重载和 count(Long)／count(View) 成员；size 是条目配置的初始尺寸，显式条目 size 可覆盖。count 的数值必须非负，默认文字为 `+N`，使用组 size 与 muted 颜色。组不推断缺失人数、不截断数据。每项使用稳定 key，后项绘制在前项之上；默认重叠 8，方向只改变逻辑排列。overlap 可配置为有限非负逻辑长度，每个接缝最多重叠相邻较小项的宽度，位置不倒退。组在每项外绘制 2 单位 background 环，布局保留最外侧环的 2 单位空间；空组尺寸为零。组和条目均不增加选择或 roving 导航语义。
+
+### 13.2 Skeleton
+
+`skeleton(configure: SkeletonBuilder.() -> Unit = {})` 和 `skeleton(content: View, configure: SkeletonBuilder.() -> Unit = {})` 创建同一个 SkeletonProps／Skeleton。字段为 content、loading: Boolean = true、animated: Boolean = true、shape: SkeletonShape = Rectangle、width／height: Double?、period: Duration = 2 秒、color: Color?、theme；builder 另有 key。无内容入口以 empty() 为正文并默认 height=16；显式内容入口默认 height=None。width 默认 None，两入口可显式覆盖；所有明确尺寸必须有限非负，period 必须严格为正。
+
+width=None 使用有限父宽，否则使用内容自然宽度；height=None 使用实际内容高度。内容在两种 loading 状态下均按相同约束测量；loading=true 时不放置或呈现内容，只画占位，内容不能命中或保持活动焦点。loading=false 时放置原内容并停止占位动画，保留该子树及业务状态，不在切换时重建正文。Rectangle 使用 small 圆角和整个外框；Circle 在外框中居中绘制短边为直径的圆。默认颜色在 muted 背景中混入 12% background.foreground，使明暗主题的脉冲都具有可见对比度；显式 color 保留原值。
+
+默认脉冲周期为 2 秒，透明度从 1 到 0.5 再回到 1，两个半周期使用 cubic-bezier(0.4, 0, 0.6, 1)。animated=false、loading=false、Reduced、透明、零尺寸或不可见时不留下循环帧需求；静态占位使用完整透明度。
+
+### 13.3 Progress
+
+`progress(value: Double?, configure: ProgressBuilder.() -> Unit = {})` 创建 ProgressProps／Progress；另有 Double 便利重载。None 表示未知进度，Some 表示确定值；min／max 默认为 0／100，与 [Base UI Progress](https://base-ui.com/react/components/progress) 的值模型一致。minimum／maximum 必须有限、差值有限且 maximum>minimum；确定值必须有限，显示位置通过现有 RangeSpec 钳制到 0～1，不反写调用方的值。控件不创建任务、轮询或完成回调。
+
+builder 提供 minimum／maximum、label／valueLabel: PanelContent?、showValue: Boolean = false、thickness: Double?、indicatorColor: Color?、style: StyleOverride、transition: StyleValue<AnimationSpec?> = Inherit、period: Duration = 2 秒、fonts／theme／key。label／valueLabel 有 String、StyledText、View 成员；valueLabel 优先于 showValue。showValue 生成取最近整数的百分比，未知进度显示省略号；调用方可用自定义文字承担本地化和业务格式。
+
+可选 label／value 在轨道上方，分别使用 action 与 muted body 文字，位于逻辑起端／末端；窄宽时允许换行，不叠字，区域间距为 12。轨道填满有限宽度，无界时自然宽度为零，默认高 4、muted 背景、圆角为半高，指示使用 primary。尺寸按 body 字号缩放，明确 thickness 必须有限非负。style 仅覆盖轨道装饰；指示始终裁剪到同一轨道几何，RTL 从右侧增长，不镜像图像或文字。
+
+确定值首次挂载直接显示当前值，后续更新默认使用主题 selection 动画；transition 可显式替换或禁用，并最终服从 Reduced。未知进度使用占轨道 30% 的移动段，以 period 沿逻辑方向穿过轨道；Reduced 下在轨道中央静态显示该段。确定／未知切换停止前一种动画，最新 Props 决定当前目标，不创建另一份业务进度状态。停止、隐藏、离屏和卸载的帧资格遵守 13.4。
+
+### 13.4 可见动画与资源
+
+Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见性处理。成功帧按图形范围与当前 Canvas clip 的保守交集设置既有 isFrameEnabled；未知 Progress 使用整个轨道作为可见范围，避免移动段暂时出界后永远停住。窗口隐藏、未呈现子树和卸载继续由已有 Surface／ComponentScope 处理。失败帧不发布新的可见资格，离屏暂停不改写原时间轴；恢复后沿原时钟求值。控件不增加全局动画管理器、独立 timer 或新的调度入口。
+
+## 14. Typography 与快捷键提示
+
+### 14.1 文字角色与段落
+
+`typography(text: String, role: TypographyRole = P, configure)`、StyledText 重载及 `typography(role: TypographyRole = P, configure: TypographyTextBuilder.() -> Unit)` 创建 TypographyProps／Typography。角色为 H1／H2／H3／H4／P／Blockquote／InlineCode／Lead／Large／Small／Muted。当前设计采用 [Typography 的明确角色](https://v3.shadcn.com/docs/components/typography)，不引入 Typeset、Markdown 解析或代码块。
+
+默认尺寸按主题 body 字号相对 14 缩放，使用其字体族和当前语义前景：H1 为 36／40、800，H2 为 30／36、600，H3 为 24／32、600，H4 为 20／28、600；标题字距为字号的 -0.025。P 为 16／28、400；Blockquote 为 16／24、斜体；InlineCode 为 14／20、600、monospace；Lead 为 20／28、muted 前景；Large 为 18／28、600；Small 为 14／14、500；Muted 为 14／20、muted 前景。没有浏览器视口断点，H1 的更大字号由显式文字覆盖表达。段落外间距由父布局决定，不推断相邻节点或 CSS margin collapse。
+
+H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: TextStyle 覆盖最终基础样式，不重写嵌套 span。
+
+builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
+
+TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKey)、inline(InlineKey, View, alternateText, configure)。code 创建带真实大小、基线和圆角背景的非选择 InlineCode 子 View，作为原段落内的一个行内对象参与排版／选择，复制时使用原代码文字；不会给子 View 再创建选择宿主。明确 key 保持行内对象身份，默认 code key 按声明位置生成；重复 key 沿 StyledText 规则报错。其他行内 View 也通过现有 InlineView 测量、命中和替代文字合同处理。range action 的位置始终是 StyledText 的 UTF-8 字节位置，行内对象占 U+FFFC 的三个字节。
+
+### 14.2 列表与文字表格
+
+`typographyList(configure: TypographyListBuilder.() -> Unit)` 收集 `item(String／StyledText／View, key = Position)`。普通项使用 P，可选择和换行，圆点使用同一正文基线；内容起端缩进 24、项间距 8，随密度缩放。View 可组合嵌套列表或其他内容，容器不检查其内部结构。builder 提供 fonts／theme／key；显式条目 key 保留挂载身份。
+
+`typographyTable(configure: TypographyTableBuilder.() -> Unit)` 收集 header／row 接收者，行 builder 用 cell(String／StyledText／View) 按顺序添加单元格。header 至多一行且必须先声明，row 可指定稳定 key。所有行列数必须相同且非零；空表合法，返回零自然尺寸。columns: Array<GridTrack>? 默认 None，由实际列数生成等分 Fraction(1)；明确 columns 必须覆盖所有列，直接复用 Grid 的轨道规则。有界默认列共享可用宽度，无界则从各列真实内容取得自然尺寸；所有行共享同一 Grid，长文字换行决定实际行高。
+
+表格普通文字为 16／24，表头为 700；单元格水平留白 16、垂直 8、边线 1，接缝只画一次，偶数正文行使用 muted 背景。列顺序、起端对齐和单边线随 RTL 转换，不镜像文字。builder 提供 fonts／theme／key；单元格的 StyledText 和 View 保留明确样式或行为。本入口只负责静态文字排版；P7 的 Table／DataTable 另行提供完整表格部件和交互，不把这里的文字组合计为 P7 已完成。
+
+### 14.3 Kbd 与 KbdGroup
+
+`kbd(content, configure: KbdBuilder.() -> Unit = {})` 接受 String、View、ShortcutChord 或 ShortcutLabel，创建 KbdProps／Kbd。builder 提供 fonts／theme、textStyle: TextStyle?、style、key。默认使用 muted 颜色对、small 圆角，最小宽与高度 20、水平留白 4，文字 12／16、500；数值按 body 字号相对 14 缩放。宽度来自内容自然测量并满足父约束，不把普通 Label 的有限段落宽当作键帽的自然宽。
+
+ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取得当前平台／键盘布局的 parts 与 separator，单键帽按原顺序连接。`kbdGroup(chord／label, configure: KbdBuilder.() -> Unit = {})` 为各 part 分别创建键帽，并在 separator 非空时绘制原分隔文字；顺序始终按平台标签保持 LTR，外层布局可为 RTL。显式 ShortcutLabel 使用调用方已有结果。后续 Props 或主题更新重新查询当前窗口标签；没有键盘布局轮询或自动绑定注册。
+
+`kbdGroup(configure: KbdGroupBuilder.() -> Unit)` 则收集普通 ChildrenBuilder 子项，以中心交叉对齐和默认 4 的 spacing 排列，支持组合快捷键、说明文字或自定义键图标；spacing 必须有限非负。Kbd 自身只绘制，不创建 Press、焦点或快捷键注册。实际动作与提示由调用方复用同一个 ShortcutChord；嵌入 Button、文字行内对象或其他区域不改变其事件归属。资源沿普通 Label／Frame 与作用域管理，借用字体不关闭。
+
+## 15. FieldLabel 与控件关联
+
+`FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps／SwitchProps 及对应 builder 提供 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
+
+`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText／View 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。Props 的 content 为 FieldLabelContent.Text(LabelText) 或 Custom(View)；builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。Custom 保留完整 View 及自身样式，标签只提供原有指针关联，可包裹含控件的 choice card；子控件消费的点击不再次触发标签动作。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
+
+标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
+
+## 16. ButtonGroup
+
+`buttonGroup(configure: ButtonGroupBuilder.() -> Unit)` 创建 ButtonGroupProps／ButtonGroup，ChildrenBuilder 提供同名成员。根字段为 entries: Array<ButtonGroupEntry>、axis: FlexAxis = Horizontal、fonts／theme: None、style: StyleOverride = styleOverride()；builder 另有 key。ButtonGroupEntry 保存明确的 ButtonGroupContent、key: ViewKey = Position 和 layout: FlexItemOptions = FlexItemOptions()。ButtonGroupContent 区分 Button(ButtonProps)、Input(InputProps)、Text(PanelContent, FontCollection?, StyleOverride)、Separator(Color?)、Custom((GroupPosition) -> View)、Plain(View)、Nested(View)，不检查或克隆不透明 View。空组自然尺寸为零。
+
+builder 的 button 提供现有四种内容重载及相同配置，input 接收 TextEditorState／InputBuilder，text 接受 String／StyledText／View 和 ButtonGroupTextBuilder（fonts、style、key）。separator(color: Color? = None, key = Position) 创建内部接缝；item(render: (GroupPosition) -> View, key = Position, configure: FlexItemBuilder.() -> Unit = {}) 接入自定义条目；add(View, key = Position, configure: FlexItemBuilder.() -> Unit = {}) 保留调用方已完成的外观；group(configure: ButtonGroupBuilder.() -> Unit) 加入嵌套组。Button／Input 的 key 来自自己的 builder，其他条目使用明确的外层 key；不读取 View 的内部 key。根 fonts／theme 为未明确指定的内置条目提供默认来源，嵌套组拥有自己的配置。
+
+GroupPosition 是含 axis、first、last 的普通值。ButtonProps、InputProps／TextareaProps 及对应 builder 增加 group: GroupPosition? = None，自定义条目可把当前位置明确传给实际控件。组内没有选择状态、roving 导航或额外 Press。没有嵌套组时，按条目位置连接相邻表面；含嵌套组时各直接条目保持独立边角并使用 8 的间隔，按 body 字号相对 14 缩放。Plain 始终保留原外观，Custom 自行使用位置值；多个窗口和主题不共享可变位置上下文。
+
+连接表面去掉内部圆角和后项逻辑起端边框，垂直组去掉后项上边框；第一项起端保持原圆角，末项末端默认使用主题 large 圆角，明确的局部圆角覆盖保留外侧值。测量、内容内缩、边框内轮廓、绘制和焦点环使用同一连接结果，RTL 只解析逻辑起止侧。父约束继续优先，零尺寸合法。文本条目使用 muted 背景、border、14／20 的 medium 文字和水平内缩 10；内部分隔线使用 input 颜色、主轴厚度 1、交叉轴两端各留白 1。尺寸随正文密度缩放，细线保持 1。
+
+排列复用现有 Flex 测量、收缩及交叉轴 Stretch。纵向先取条目自然宽度，再受父宽约束统一拉伸；普通有限宽上限不把组撑满，明确的最小宽仍生效。builder 的内置 Input 默认 grow=1，其余条目默认 grow=0。本组中含实际焦点的条目最后呈现，保证接缝上的焦点环可见；这只改变绘制顺序，不改变布局、Tab 顺序或子组件动作。组默认不裁剪溢出的环，显式根 style 仍可裁剪。移除、增添、重排和方向／主题更新沿普通 key 匹配保留仍存在的控件及文本模型。
+
+## 17. Item
+
+### 17.1 内容、尺寸与排列
+
+`item(configure: ItemBuilder.() -> Unit = {})` 与 `item(content: View, configure: ItemBuilder.() -> Unit = {})` 创建同一个 ItemProps／Item。content: View? 默认 None；title／description: PanelContent?、media／actions／header／footer: View? 也均默认 None。标题／说明已经足以组成条目，不为未提供的正文创建空 View 或间距。ItemBuilder 继承 PanelBuilder，提供 media／actions／header／footer 的同名 View 成员；title／description 沿用 String、StyledText、View 重载，正文由所选工厂重载提供。ChildrenBuilder 使用 `contentItem` 的两个重载，避免与现有 LinearBuilder.item 的 Flex 配置产生歧义；顶层工厂仍为 item。
+
+其余字段为 variant: ItemVariant = Default（另有 Outline／Muted）、size: ItemSize = Default（另有 Sm／Xs）、mediaVariant: ItemMediaVariant = Default（另有 Icon／Image）、onClick: (() -> Unit)? = None、enabled: Boolean = true、focus: FocusOptions = FocusOptions()、focusOutline: OutlineStyle? = None、states: InteractionStyles = interactionStyles()、transition: StyleValue<AnimationSpec?> = Inherit、fonts／theme: None、style: StyleOverride = styleOverride()；builder 另有 key。style／states／focus 提供既有接收者配置，transition 明确 Set(None) 关闭过渡。
+
+默认外框为 large 圆角、1 单位透明边框与透明背景；Outline 使用 border 颜色，Muted 使用 muted 背景的 0.5 透明度。Default／Sm 水平内缩 12、垂直 10、区域间距 10；Xs 为 10／8／8。尺寸按主题 body 字号相对 14 缩放，细边保持 1。条目填满有限父宽，无界时取内容自然宽；父约束和零尺寸沿普通布局合同处理。
+
+header 和 footer 独占全宽，中心区域按逻辑方向排列 media、content 和 actions。content 依次包含实际存在的 title、description 与正文，Default／Sm 间距 4，Xs 为 0。标题普通文字为 body 字体族的 14／19.25、500，默认一行省略；说明为 muted 前景的 14／21、400，Xs 为 12／18，默认两行省略。普通文字方向随挂载方向；明确的 LabelProps.settings、StyledText 基础样式和自定义 View 保留自身配置，正文可直接使用 Typography／SelectableStyledText 提供选择与复制。
+
+动作区域先取自然宽度；留给内容不足当前 body 字号的 8 倍时，动作移到下一行的逻辑末端。并排时正文和动作垂直居中；media 在有说明时顶端对齐并下移 2，其他情况居中。Default 媒体保持自然尺寸，可放 Avatar 或任意 View；Icon 使用 16 方框，Image 使用 Default／Sm／Xs 对应的 40／32／24 方框与 small 圆角裁剪，内容按实际方框紧约束测量。`media(image: Image)` 便利成员创建借用该图片的 Cover ImageView 并选择 Image 变体，不读取文件或下载资源；`media(View)` 不检查图片或修改其适配方式。
+
+可选区域使用稳定的局部 key；标题／说明、媒体、动作、头尾的增删及窄宽换行，保留仍存在的正文与内部控件。Group 与 Item 都不推断列表选择、导航目的地或数据源，不自行打开 URL。
+
+### 17.2 行动作与输入归属
+
+无 onClick 时只展示，不建立行 Press 或 Tab 目标，正文和动作里的控件仍保有自己的输入行为。有动作时建立一个可聚焦区域，使用同一 Press 的 default 阶段与 routeChildren；行空白或非交互文字可点击，Space／Enter 可激活。子按钮消费激活，选择文字与 Drag 接管指针序列时取消行点击，不在整行上覆盖透明按钮，也不合成子输入事件。事件读取最新回调和 FocusOptions。
+
+动作行的 hover／press 默认过渡为 100ms，hover 使用 muted 背景，pressed 在其上混入 8% background.foreground；局部 style／states 覆盖默认表面，focusOutline 可覆盖当前主题焦点环，Reduced 最终关闭过渡。enabled=false 禁用本行及其子树，并采用主题 disabledOpacity；展示模式也可禁用内部控件。禁用、移除及卸载取消未完成的行输入。onClick 有无变化按普通子树替换规则建立／撤销行为；同一动作模式内的 Props 更新不重新挂载行内容。借用字体、图片、FocusHandle 和业务模型不随行关闭。
+
+### 17.3 ItemGroup 与 ItemSeparator
+
+`itemGroup(size: ItemSize = Default, configure: ItemGroupBuilder.() -> Unit)` 收集普通 ChildrenBuilder 子项，并提供 `item(configure)`／`item(content, configure)` 成员。size 决定组间距并作为这些条目的初始尺寸，明确条目 size 可覆盖；Default／Sm／Xs 间距为 16／10／8，按 body 字号缩放。ItemGroupProps 保存 children、size、theme 和 style；builder 的 theme／style／key 只配置容器，条目字体与主题继续显式配置或取 ambient。组填满有限宽度并按声明顺序排列，不增加焦点、选择或输入行为；key 沿普通子项匹配。
+
+`itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {})` 创建 ItemSeparatorProps／ItemSeparator；Props 保存 color: Color? = None、theme: ThemeSource? = None，builder 另有 key。内容为水平 Separator，颜色默认 border，上下各留白 8 并随 body 字号缩放。ChildrenBuilder 提供同名成员，ItemGroup 可混排分隔线和自定义内容。实现复用原 Separator 的有限／无界测量与绘制，不另建分隔线或列表框架。
+
+
+## 18. Switch 与 Toggle
+
+### 18.1 Switch
+
+`switchControl(checked: Binding<Boolean>, configure: SwitchBuilder.() -> Unit = {}): View` 以及同名 ChildrenBuilder 成员构造 Switch。SwitchProps 接收 checked、enabled=true、invalid=false、size=SwitchSize.Default、style=switchStyle()、theme=None、focus=FocusOptions()、labelTarget=None；builder 提供相同选项及 key，并提供 style／focus 接收者配置。SwitchSize 为 Default／Sm。控件读取并写入当前 Binding；有效指针、Space 或关联 FieldLabel 激活时读取最新值并取反一次。业务 setter 可以拒绝写入，不保存镜像或乐观值；外部更新不合成激活。Enter 不切换。取消、重复键、失焦、禁用和卸载遵守 Checkbox 的 Press 合同；替换绑定、FocusHandle、FieldTarget 或主题保留挂载和输入区域。
+
+SwitchStyle 的 track: SurfaceOptions、thumb: StyleOverride、states: InteractionStyles、hitInsets: Insets? 默认未覆盖；transition／selectionTransition 为 StyleValue<AnimationSpec?>.Inherit。switchStyle 及 copy 使用 SwitchStyleBuilder，track／thumb／states 有接收者配置，两个 transition 也可显式写 None。hitInsets 未指定时为左右 12、上下 8；必须有限且非负，不参与布局。主题 body 字号／14 作为默认尺寸密度；显式 hitInsets 不再缩放。
+
+默认轨道为 32×18.4，Sm 为 24×14，边框 1，圆角为完整胶囊，thumb 为 16／12。有限父约束优先，零尺寸合法；轨道使用最终布局 bounds。滑块尺寸不超过轨道内框可用尺寸，垂直居中；Unchecked 在逻辑起点，Checked 在逻辑终点，RTL 反向。命中范围在轨道 bounds 外扩 hitInsets，沿正常场景裁剪；实际零宽／零高不增加命中范围。
+
+未选中背景为 palette.input，Dark 乘 0.8 alpha；选中为 primary.background。Light thumb 为 background.background，Dark 未选中为 background.foreground、选中为 primary.foreground。轨道和 thumb 颜色以及 thumb 位移使用同一个 0…1 选择动画采样；首次挂载直接显示当前值，后续使用主题 selection（shadcn 为 150ms），局部可覆盖或禁用。hover／press 使用已有交互动画；disabled 停止过渡，Reduced 最终关闭所有过渡，普通重建不重启动画。没有独立时钟或定时线程。
+
+track 使用公共 SurfaceKind.Plain 的几何和 painter；focus、invalid、disabled opacity 沿主题统一合同。局部 track／thumb Style 最后覆盖预设，states 应用于轨道。默认轨道透明边框，focus-visible 使用 ring 边框、invalid 使用 validation.borderColor，invalid 优先。禁用透明度包住轨道与 thumb 整体，避免重复衰减。动画不活动或卸载后没有额外帧需求。
+
+### 18.2 Toggle
+
+`toggle(content, pressed: Binding<Boolean>, configure): View` 提供 String、StyledText、View、(ActionContentStyle) -> View 四种内容入口及 ChildrenBuilder 成员；对应 ToggleBuilder、StyledToggleBuilder、ContentToggleBuilder。ToggleProps 使用同一 ButtonContent，并接收 pressed、enabled=true、invalid=false、variant=ToggleVariant.Default、size=ToggleSize.Default、style=buttonStyle { kind=Plain }、theme=None、focus=FocusOptions()。builder 另有 key；String／StyledText 借用 fonts，StyledText 可指定 settings／inlines。style 和 focus 的接收者配置沿 Button 合同，构造只发布描述，不创建资源或调用 setter。
+
+ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed 是业务选择值；鼠标或 Space／Enter 的短暂按下仍由 Press.interaction.pressed 表达，两者独立。每次有效激活读取最新 Binding 并取反一次，setter 可拒绝；外部更新、更换绑定和普通重建不生成第二份状态。取消、重复键、禁用、失焦、卸载和子动作消费遵守 Button 的输入规则，复用同一 ActionInk／内容解析路径。
+
+默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；瞬态 pressed 在 muted 背景上混入 8% background.foreground，松开后恢复对应选择／悬停状态；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。ToggleProps／builder 可接收 group: GroupPosition? = None，沿 ButtonGroup 的圆角、单接缝及焦点绘制合同；分组选择策略属于 ToggleGroup。
+
+## 19. Input OTP
+
+`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=500ms、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
+
+InputOtpPart 为 Group(InputOtpGroup)／Separator(View)。InputOtpGroup 保存非空的 Array<InputOtpSlot>，slot 包含 index 和 invalid=false；全部 group 的索引必须按正文逻辑顺序恰好覆盖 0..<length。parts 为空时使用一个默认组。显式描述必须以组开始和结束，不能出现连续 separator；相邻组可直接相连。builder 的 `group { slot(index, invalid=false) }` 和 `separator(content: View)` 构建描述，`separator()` 使用 16 单位的减号图形。分隔内容是正常 View，保留其 key 与挂载；槽和组是同一编辑表面的几何，不各自挂载输入控件。方向改变按逻辑起止侧翻转布局，组和分隔符不进入正文、粘贴结果或复制文本。
+
+InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者只接受 ASCII 数字／ASCII 数字与字母，粘贴先移除新增片段中的 ASCII 空白和连字符；新增片段中的其他非法字符使本次提交拒绝，不顺带清理外部写入的旧正文。Custom 保留调用方的 paste／transform／accepts，长度上限取其明确 maxLength 与 length 的较小值；未设上限时使用 length。统一通过 TextEditPolicy 处理过滤、grapheme 计数和截断，一次粘贴只产生一个撤销项。preedit 不提前过滤或截断，最终提交使用当前策略；外部模型更新不触发完成通知。
+
+onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操作改变已提交正文、组合已经结束且新正文恰为 length 个 grapheme 时调用。满长度下真正替换内容可再次完成；纯选择、主题／方向／分组变化、重复 render、取消或拒绝后恢复原基线不重复通知。回调读取最新 Props，允许调用方替换正文或移除控件，不自动提交表单或移走焦点。
+
+InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／caretColor／markedColor: Color?、caretWidth=1。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。Dark 底色为 input 的 0.3 倍 alpha；Light 透明。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
+
+槽位、间隙、鼠标命中、方向导航、选区、marked 装饰与原生 caret 共享 UI 规范第 7.5.3.1 节的 TextEditLayout。空槽中的可见 caret 居中，已有字符处使用真实插入边缘；只在 caret 确实可见时闪烁。临时超长 preedit 或外部超长正文按同一槽几何向逻辑末尾扩展，延续末组边框并可滚动显露；不改写模型来凑固定槽数。测量为外侧焦点环预留空间；有限窄宽和零尺寸沿同一视口裁剪，主题／分组／方向变化保留输入宿主与选区；卸载释放排版、取消闪烁及输入连接，字体由调用方持有。
+
+
+## 20. Radio Group 与 Toggle Group
+
+### 20.1 选择项及分组协议
+
+`Choice<T: Equals<T>>(key: ViewKey, value: T, label: String, enabled: Boolean = true)` 是两类分组共用的不可变领域元数据。key 必须显式；同组 key 和 value 均唯一，新的 Props 快照接入时检查，报告 IllegalArgumentException；普通内部交互重绘不重复校验。选择值使用 Equals<T>，不转换为字符串、反射类型或挂载 key。外部绑定值不在当前条目中时保留；空条目合法且不产生 Tab 停靠点。
+
+组按条目 key 保留内部 FocusHandle，重排不重新挂载项；可通过项 focus 提供外部 handle，替换遵循 FocusTarget 合同。组只有一个 roving Tab 停靠点，默认循环；方向及 Home／End 复用 KeyNavigation，跳过 disabled／不可达项，水平轴继承 RTL。组的 enabled=false 禁用整个输入子树；条目可独立禁用，组 invalid 与项 invalid 合并。绑定 setter 可拒绝写入；渲染不调用 setter，不保存选择镜像，激活使用最新绑定。
+
+### 20.2 Radio Group
+
+`radioGroup(selected: Binding<T?>, configure: RadioGroupBuilder<T>.() -> Unit = {}): View` 及 ChildrenBuilder 成员使用 RadioGroupProps／RadioGroup。builder 的 `item(choice: Choice<T>, configure: RadioItemBuilder.() -> Unit = {})` 收集 RadioGroupEntry<T>，`add(entry)` 接受完整值。组属性为 entries、selected、axis=Vertical、spacing=8、loop=true、enabled=true、invalid=false、fonts=None、theme=None、style=styleOverride()，builder 另有 key。项属性为 choice、focus=FocusOptions()、labelTarget=None、invalid=false、marker=radioOptions()、content=None。
+
+默认项使用 16 单位圆形 indicator（尺寸由主题 RadioMetrics 决定），与 14／20 的标签相隔 8；选择圆点 8、边框 1、focus-visible 和 invalid 使用主题 ring，颜色／选择动画复用主题及 Surface 时间轴。禁用透明度只对整项叠加一次，包含 indicator 与文字。默认纵向项占用可用宽度，横向按内容布局；spacing 有限非负，父约束和 RTL 优先。所有主题使用既有 radioMetrics／radioGeometry／drawRadio 路径。
+
+项的自定义 `content: ((RadioItemContent) -> View)?` 收到 indicator: View、selected、enabled、invalid、textStyle: TextStyle，可组合说明与 choice card。indicator 是普通非交互绘制描述，整项拥有一套 Press／FocusTarget，子动作消费仍能取消整项动作；不检查或改写不透明 View。Pointer／Space／FieldLabel 激活选择该项，已选项不清空、不重复写入；Enter 不选择。方向／Home／End 接受组内焦点请求后选择目标；Tab 优先已选有效项，当前仍持有焦点的有效项优先，未知或禁用选择回退到历史／首项。直接请求焦点不改变选择。FieldTarget 关联使用与整项相同的最新选择动作。
+
+### 20.3 Toggle Group
+
+`toggleGroup(selected: Binding<T?>, configure: ToggleGroupBuilder<T>.() -> Unit = {})` 与 `toggleGroup(selected: Binding<Array<T>>, configure)` 及 ChildrenBuilder 对应成员提供单／多选。完整 ToggleGroupProps 使用 `ToggleGroupSelection<T>.Single(binding)`／`.Multiple(binding)`。builder 以 `item(choice, configure: ToggleGroupItemBuilder.() -> Unit = {})` 或 add(ToggleGroupEntry<T>) 收集项；项默认使用 choice.label，可提供 ButtonContent（包括 Resolved 自定义图标／文字），以及 focus、invalid、可选 ButtonStyle。
+
+组属性为 entries、selected、axis=Horizontal、spacing=8、loop=true、enabled=true、invalid=false、variant=Default、size=Default、fonts=None、theme=None、style=styleOverride()，builder 另有 key。每项复用 Toggle／ActionInk。单选再次激活清空，多选按当前数组追加／删除本值，保留未知值及其顺序；重复本值删除全部。方向键只移动焦点，Space／Enter／指针更改选择，Tab 遵循当前／历史焦点，不因外部选择变化合成焦点请求。
+
+spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，首末保留外角，焦点项最后绘制；默认左右 padding=8，独立或有间距项保持 Toggle 的 padding=10，显式项样式优先。横向按内容宽度，纵向按最宽内容宽度并拉齐各项；样式、尺寸、禁用透明度和主题更新沿 Toggle 合同，不新建绘图或按压状态机。
+
+
+## 21. Slider
+
+`slider(values: Binding<Array<Double>>, range: RangeSpec, configure: SliderBuilder.() -> Unit = {}): View` 及 ChildrenBuilder 成员构造 SliderProps／Slider。values 使用稳定 thumb 下标；支持零个、单个、范围及多个 thumb，重建不交换其实例或焦点。组属性为 orientation=Horizontal、enabled=true、invalid=false、keyboardStep=None、thumbs=[]、labelTarget=None、style=sliderStyle()、theme=None、onValueCommit={}、onValueCancel={}，builder 另有 key。thumb(configure: SliderThumbBuilder.() -> Unit) 收集 SliderThumbOptions(focus=FocusOptions(), labelTarget=None)，addThumb 接受完整选项。未指定 thumbs 时每个值使用默认选项；指定时数量须与 values 一致。根 labelTarget 关联首个 thumb，显式项 labelTarget 优先；标签只请求焦点，不改值。
+
+输入快照沿 RangeSpec 检查有限性、范围、离散步、排序和 minimumGap；非法输入报告 IllegalArgumentException，禁止排序或静默改写外部值。连续范围必须提供有限正 keyboardStep，离散范围使用 RangeSpec.step。相同不可变 values 数组和等值范围复用校验结果；内部指针／键盘计算复用已检查的界限，不重复全量验证。临时 Binding 或 RangeSpec 对象可以在普通配置中重建；业务更新以当前数值及范围字段变化识别，不以适配闭包的对象身份判断。
+
+每个 thumb 有独立 FocusTarget 和正常 Tab 停靠点。仅真实、无修饰的 key-down／repeat 执行动作：水平 Left／Right、垂直 Down／Up 分别减少／增加，水平 RTL 和 reversed 各反转一次；Home／End 到当前 thumb 允许的最小／最大值，PageUp／PageDown 增减十个步长。其他轴箭头、Space／Enter 及 key-up 保留给外层。只移动当前 thumb，保持邻居和身份，达到边界仍消费已认领的键。每次实际被 Binding 采纳的键盘变化调用 onValueCommit 一次，拒绝或无变化不通知。
+
+指针输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
+
+取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；输入资源随挂载收尾，没有常驻时钟或第二份受控值。
+
+SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160／4／12／8（按主题 body 字号／14 缩放）；长度有限非负。有限主轴填充可用空间，无界主轴使用 length；交叉轴取 thumbSize，父约束优先，包括零尺寸。纵向最小值在下端，reversed 翻转；单 thumb 的 range 从数值最小端延伸到 thumb，多 thumb 在首末之间填充。track／range 使用普通 StyleOverride，默认 muted.background／primary.background 与全圆角；thumb 使用普通 StyleOverride 并映射为现有 SurfaceOptions，默认白底、ring 色 1 单位边框。hover／pressed／focus-visible 使用 3 单位主题 ring，invalid 使用统一 validation。主题及样式更新走现有 geometry／StylePainter／ThemePainter；disabled 透明度对整控件覆盖一次。动画只平滑交互颜色／光环，值位置立即响应绑定；reduced motion 遵循主题，静止后停止请求帧。
+
+## 22. Input Group
+
+`inputGroup(configure: InputGroupBuilder.() -> Unit): View` 及 ChildrenBuilder 成员收集一个编辑控件和附加区域。InputGroupProps 必须有 `control: InputGroupControl`，其变体为 Input(InputProps)、Textarea(TextareaProps)、Custom(View, FocusHandle)；其余属性为 addons=[]、enabled=true、invalid=false、fonts=None、theme=None、surface=surfaceOptions()。builder 另有 key；input(state, configure)、textarea(state, configure) 或 control(view, focus) 恰好调用一次，重复／缺失立即报告 IllegalArgumentException。这只是正常的配置校验，不检查不透明 View 或反射类型。
+
+`addon(align=InlineStart, configure: InputGroupAddonBuilder.() -> Unit)` 收集 InputGroupAddon(content: View, align, key=Position, padding=None, style=styleOverride())，也可 addAddon 完整描述。InputGroupAlign 为 InlineStart／InlineEnd／BlockStart／BlockEnd。addon builder 提供 add(View)、text(String)、button 的文字／View／解析后内容入口，spacing 默认继承 8（按字号缩放），可配置 key、padding、style；button 默认 Ghost／Xs，其余变体和尺寸使用现有 ButtonBuilder。text 使用 Muted 文字角色，图标、Kbd、Spinner、菜单等通过普通 View 组合；内置文字与按钮继承根 fonts／theme 的缺省值，显式配置仍优先。
+
+正文始终位于逻辑子序列首位，附加区域按声明顺序挂载、按 align 放置；RTL 只交换横向逻辑起止。添加、移除、改位置或按 key 重排 addon 不改变正文父级与描述类型；保留文本模型、选区、撤销历史、IME 连接和实际焦点。相同描述类型下替换配置回调不更换实例。Input 与 Textarea 是不同控件类型，显式切换遵守通常卸载／挂载规则。
+
+内置控件显式使用 Bare 模式；根只消费其 enabled／invalid／focus 等已知 Props，既不遍历后代，也不创建编辑器或转写正文。根 enabled 与内置 enabled 共同控制输入，invalid 合并为外框状态。根使用原 Theme Plain 表面，内缩默认 0，只增加一份边框；内置控件的 padding 负责文字留白。禁用透明度对整组应用一次，附加按钮仍通过原 Press 接收有效状态和取消。内置 description 保留在编辑槽内；需要组外帮助文字时由 Field 或普通兄弟视图组合。
+
+每个组有稳定的内部 FocusHandle，只有内置控件未提供外部 handle 时使用；撤销外部 handle 回到原内部 handle。外框的 focus-visible 只跟随编辑控件，附加按钮显示自己的焦点环。点击未被后代默认动作处理的附加内容／空白，以 Pointer 来源请求同一控件焦点，不改选区或合成提交；按钮、链接等自己的动作优先。自定义控件必须由调用方实际连接所给 FocusHandle，并自行采用无外框外观及 FieldTarget 关联；组不为其补挂另一个输入区域或 IME 连接。禁用、未挂载、零尺寸、隐藏或域外的目标不能通过附加区域获取焦点。
+
+有限宽度填满父约束，无界宽度采用 surface.suggestedSize.width 或 240。顶部／底部区域按可用宽度测量，起始／末尾区域占用各自自然宽度，正文取得剩余宽度；高内容按实际尺寸扩展整组。Inline 默认水平内缩 8、垂直 0，Block 默认水平 10、垂直 8，均按字号缩放，可逐区覆盖。窄宽和紧高度下各区域受剩余空间约束，正文可以为零尺寸；整个组零尺寸时不发布子输入区域。边框、文字基线、裁剪与命中使用同一次测量结果，失败帧不替换成功几何。
+
+验收覆盖全部四个位置、RTL、窄宽／零尺寸、单行与多行、外部 handle／模型更新、正文与 keyed addon 的实例保留、真实中文 preedit／commit、复制／撤销、密码显隐、输入策略、只读／禁用／invalid、附加按钮动作与 Tab 顺序、标签、静止停帧及卸载收尾。Gallery 的文件输入示例接应用选择动作，不在本库增加文件对话框或文件解析。
+
+## 23. Field 与表单分组
+
+`field(control: View, configure: FieldBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 成员构造 FieldProps／Field。control 必需且始终保留在同一直接父级的固定槽中；其余输入为 heading: FieldHeading?、description: PanelContent?、errors: Array<String>=[]、error: PanelContent?、orientation=Vertical、controlPlacement=End、descriptionPlacement=AfterControl、required=false、requiredText="Required"、invalid=false、breakpoint／controlWidth／spacing／contentSpacing=None、fonts／theme=None、padding=Insets()、style=styleOverride()；builder 另有 key。FieldHeading 为 Label(FieldLabelContent, FieldTarget) 或 Title(PanelContent)，label／title 成员选择一个标题，支持 String／StyledText／View；description／error 同样接受这些内容。required 只附加可本地化说明，不执行校验或创建提交规则。
+
+Field 不读取不透明 control 的属性或后代，不拥有编辑模型、选择绑定、控件工厂或校验状态。invalid 只决定自动标题与必填说明的错误色；error 自定义内容优先于 errors，错误数组忽略空字符串并按首次出现顺序去重，一条直接显示、多条显示带缩进的项目符号，空数组不产生错误槽。控件自身的 enabled／invalid、Field 的状态和业务错误由调用方明确传入；没有自动状态同步、通用 Form engine、类型反射或额外类型身份。FieldLabel 沿第 15 节关联目标并反映其 enabled；普通 title 没有激活动作。自定义标题／说明／错误 View 保留调用方样式与交互。
+
+FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本次有限可用内容宽度达到 breakpoint 时横排；默认阈值为 448，按主题 body 字号／14 缩放，无界宽度按纵排。FieldControlPlacement 为 Start／End，按逻辑方向决定控制槽在标题前／后；FieldDescriptionPlacement 为 AfterControl／WithHeading。纵排按标题与 control 的指定顺序排列说明及错误，错误总在最后；WithHeading 将说明紧随标题。横排把标题和 control 分列，说明依配置归列；End 的错误在 control 列，Start 的错误在标题列，适用于 Checkbox／Switch 与说明组合。RTL 只交换逻辑横向位置，不改变挂载、键盘顺序或输入方向的显式设置。
+
+默认主间距为 8、同列内容间距为 2，均按字号缩放。有限宽度填满父约束；横排先以 controlWidth 或扣除间距后可用宽度的 60% 为最大宽度测量 control，紧凑控件保持自然宽度，标题列取得实际余量；无界横排按内容自然宽度。controlWidth、breakpoint、间距及 padding 必须有限非负。正文每轮只测量一次，布局切换和标题／说明／错误增删不重新挂载它，也不丢失焦点、选区、preedit 或撤销历史。窄宽和有限高度遵守父约束，内容超出最终布局时裁剪；正常布局保留控件自身向外绘制的焦点环。零尺寸只测量、不放置子节点，Accepted 帧按既有规则撤销输入资格，恢复时沿同一实例继续。外框装饰复用 Frame／StyleOverride，Field 自身没有 Press 或焦点停靠点。
+
+`fieldTitle`、`fieldDescription`、`fieldLegend` 的 String／StyledText／View 入口构造 FieldTextProps／FieldText；普通字段文本使用 body 字号和 20／14 行高，Title／LegendLabel 字重 500，Description 为 muted.foreground，Error 为 destructive.background。Legend 默认字号 16、行高 24／16、字重 500，可选 FieldLegendVariant.Label；尺寸仍按字号缩放。FieldTextBuilder 配置 fonts／theme、textStyle: SpanStyle?、style 和 key，FieldLegendBuilder 另有 variant。自动标题与说明和这些独立入口使用同一解析函数；自定义 View 不被重写。
+
+`fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {})` 及自定义内容重载使用 FieldErrorProps／FieldError，遵循上述错误数组和优先级规则；builder 支持 content、fonts／theme、textStyle、style、key。多条错误间距为 4、项目符号列与正文缩进共 16，按字号缩放；错误与普通说明不增加 Tab 停靠点，富交互内容由调用方显式提供。没有内容时尺寸为零。
+
+`fieldGroup { ... }` 与 `fieldContent { ... }` 使用同一 FieldStackProps／FieldStack，FieldStackKind.Group／Content 的默认间距分别为 20／2，按字号缩放。FieldStackBuilder 继承 ChildrenBuilder，提供 spacing、theme、padding、style、key；子项是普通 View，嵌套组或选择组的间距由调用方显式配置，不检查后代类型。`fieldSet(content: View) { legend(...); description(...) }` 使用 FieldSetProps／FieldSet，FieldSetBuilder 提供 legend: PanelContent?、variant=Legend、description、spacing、fonts／theme、padding、style、key，默认间距 16。legend／说明增删保留固定 content 槽；字段组和集合不建立另一套焦点域或禁用状态。
+
+`fieldSeparator()` 及 String／StyledText／View 内容重载提供分组间的水平线，可配置 fonts／theme、color、style、key。两段 Separator 均分内容以外的宽度，内容两侧间距 8；没有内容时为一条完整线。最小建议高度 20，较高内容自然增高，窄宽和零尺寸遵守约束；颜色默认 border，内容默认 muted.foreground。它不增加输入区域或焦点。
+
+验收包括纵排／横排／实际宽度切换、RTL、窄宽／零尺寸、单／多／重复／空错误、自定义错误与 required 说明、标签／目标换绑、choice card 内外点击仅激活一次、禁用与只读、标题／说明／错误更新保留实例和 IME、keyed 分组重排、嵌套 FieldSet／FieldGroup、静止停帧与卸载收尾。Gallery 提供带校验的设置表单组合 InputGroup、OTP、Checkbox／Radio／Switch 和 Slider；DatePicker 在 P7 接入同一表单。真实窗口行为验收不等于 OS accessibility 认证。
+
+
+## 24. Collapsible 与 Accordion
+
+### 24.1 触发器与受控 Collapsible
+
+`collapsible(open: Binding<Boolean>, content: View, configure: CollapsibleBuilder.() -> Unit = {})` 使用 CollapsibleProps／Collapsible。Props 为 open、content、trigger: TriggerSpec?=None、enabled=true、retention=ContentRetention.Dispose、spacing=8、transition: StyleValue<AnimationSpec?>=Inherit、onOpenChange: (Boolean) -> Unit={}、fonts／theme、style=styleOverride()；builder 同名并有 key。spacing 须有限非负。没有 trigger 时可用外部按钮或程序写入 binding。构造不读取 binding、不挂载内容、不调用回调。
+
+TriggerSpec 包含非交互的 ButtonContent、enabled=true、indicator=true、variant=Ghost、style: ButtonStyle?=None、focus=FocusOptions() 和 fonts=None。TriggerBuilder 配置这些字段，提供 style／focus 配置块。CollapsibleBuilder.trigger 的 String／StyledText／View 重载构造此描述；String／StyledText 使用原有 Label，View 直接组合。实际触发器只有一份 Button／Press／焦点登记，不能把另一个 Button 作为原始 trigger 内容。箭头位于逻辑 End，以同一 Presence 进度旋转，不建立第二个循环动画。调用方可以关闭 indicator 或使用自定义内容。
+
+触发时读取最新 Props 和 binding；禁用不写入，允许时取反当前值，写入后只按 setter 实际采纳的变化调用最新 onOpenChange。外部写入和换绑不回放用户通知，不另存一份业务 open。Space／Enter、指针取消、焦点指示及禁用沿用 Button。根 enabled=false 停用触发器和正文输入，但不更改受控 open 或隐式收起。增删 trigger 保留正文槽。
+
+### 24.2 折叠布局、保留与动画
+
+ContentRetention 为 Dispose／KeepMounted。Dispose 在初始关闭时不创建正文，开始退出时保留正文到 Presence.Absent 后卸载；KeepMounted 即使初始关闭也挂载正文，关闭完成后以 MeasureContext.skipChild 保留但不测量、不放置、不接收输入或 Tab，但继续接收 Props／State 更新。两种模式开始关闭就通过内容作用域撤销输入、指针候选、焦点和 IME，并关闭其帧资格；退出绘图继续由外层 Presence 驱动。不能提前 deactivate 正文或用反射检查其类型。关闭过程中重开复用正文并从当前进度返回；输入在新内容场景 Accepted 且有非零呈现区域后恢复，不恢复关闭前的焦点。最终卸载后重开则创建新实例。
+
+默认过渡为 200ms cubic-bezier(0.4, 0, 0.2, 1)，由 ThemeMotion 解析；显式 StyleValue.Set(None) 或 Reduced 立即达到终值，热切换 Reduced 也收束当前过渡。首次挂载直接呈现受控初值。动画只改变正文可见高度和 trigger／正文间距，不缩放文字；正文以可用宽度及无界高度每轮最多测量一次，取自然高度乘进度，最后服从父约束。正文自身更新或宽度变化重新测量；零尺寸不放置内容，恢复沿原挂载。过渡和约束溢出时绘制／命中共用裁剪，完全展开且未溢出时保留子控件向外的焦点环。关闭完成、不可见和卸载均不保留循环帧请求。保留挂载与像素缓存是两件事。
+
+style 仅装饰根，内容装饰可组合 Frame。默认有限宽度填满，未约束宽度从触发器和正文自然宽度取得；RTL 使用同一子树和逻辑排列，不反转模型。外层显示过渡与正文动画使用各自现有 scope AnimationGroup，不引入新调度器或按帧读取 binding。
+
+### 24.3 Accordion
+
+AccordionSelection<T: Equals<T>> 为 Single(Binding<T?>, allowCollapse=true)／Multiple(Binding<Array<T>>)。`accordion(selected: Binding<T?>) { ... }` 与 `accordion(selected: Binding<Array<T>>) { ... }` 构造同一 AccordionProps<T>／Accordion<T>；Single builder 另有 allowCollapse=true。Props 包含 entries、selected、enabled=true、loop=true、variant=AccordionVariant.Default、retention=Dispose、transition=Inherit、fonts／theme、style 和 onOpenChange: (T, Boolean) -> Unit={}。
+
+AccordionEntry<T> 包含 Choice<T>、必需 content、可选 TriggerSpec、可选 retention 和 style。builder 的 `item(choice, content) { trigger(...); ... }` 收集它们，item 的 trigger 默认使用 Choice.label 作为 heading，采用 Link 触发外观、逻辑 End 箭头和 hover 下划线。每项需显式且唯一的 key，value 也唯一；沿用 Choice 校验。根与项 enabled 共同决定交互。keyed 重排、标题／内容 Props 变化、绑定替换和主题／方向变化按普通描述匹配保留实例，不把 ViewKey 当作类型身份。
+
+Single 展开一项时写入它的 value；allowCollapse=false 只禁止用户关闭当前项，不替调用方选择初值，不改写外部 None、缺失或禁用值。Multiple 只切换目标值，保留其余值和顺序，选中不重复追加，取消移除该值的全部出现。缺失值不呈现面板但不清洗外部数组；disabled 项仍按外部值呈现，只停用交互。每项以 Boolean binding 适配同一 Collapsible 实现，不复制动画和内容保留状态机。onOpenChange 只报告用户实际改变的目标项；Single 隐式关闭的旧项不另发一次用户事件。
+
+所有可用 heading 默认参与普通 Tab；同一根用 KeyNavigation 的非 roving Vertical 规则处理 Up／Down／Home／End，跳过禁用或不可用项，loop 控制首尾环绕，只移动焦点，不改变展开值。Space／Enter 仍由各 heading 的唯一 Press 激活；正文编辑器的按键不被祖先截获。Default 各项间使用 border 分隔，最后一项不画底边；Card 每项使用 card 配色、完整圆角边框与 12 的间距。触发器纵向留白和正文尾部留白默认 10，按 body 字号／14 缩放。
+
+验收覆盖受控 setter 拒绝、换绑和最新回调；默认卸载／KeepMounted 的工厂次数、局部状态、Props 更新、重排与嵌套；关闭途中停止输入／IME／Spinner、重开与 Reduced 热切换、零尺寸、隐藏／恢复、静止和卸载；Single／Multiple、缺失值、禁止全关、禁用跳过、键盘只导航与激活分离；真实 Gallery 组合输入、按钮和加载内容。
+
+## 25. Tabs
+
+`tabs(selected: Binding<T?>, configure: TabsBuilder<T>.() -> Unit = {})` 构造 TabsProps<T>／Tabs<T>，T 遵守 Equals<T>。Props 包含 entries、selected、activation=TabActivation.Auto、axis=FlexAxis.Horizontal、variant=TabsVariant.Default、retention=ContentRetention.Dispose、enabled=true、loop=true、spacing=8、fonts／theme、style=styleOverride()、listStyle=styleOverride() 与 onValueChange: (T?) -> Unit={}；builder 同名并有 key。spacing 有限非负。
+
+TabEntry<T> 含 Choice<T>、必需 content、trigger: ButtonContent?=None、focus=FocusOptions()、retention: ContentRetention?=None、triggerStyle: ButtonStyle?=None 和 panelStyle=styleOverride()。`TabsBuilder.item(choice, content) { ... }` 收集 TabItemBuilder；trigger 的 String／StyledText／View／ActionContentStyle 回调重载设置非交互原始内容。缺省使用 Choice.label；内置 Label 未配置 fonts 时继承根字体，自定义 View 自行配置。一个 header 只有一份 Press／FocusTarget。显式 key 与 value 必须分别唯一，沿用 Choice 校验，不以 key 替代普通描述类型匹配。构造不读取 binding、不创建面板或触发动作。
+
+Auto 通过同一个 roving KeyNavigation 在沿 axis 的方向键、Home／End 导航被接受后选择目标；Horizontal 遵守当前 RTL，Vertical 使用 Up／Down，loop 控制首尾。Manual 只导航，Space／Enter 或指针激活才选择。普通 Tab 以当前可用选中项为入口，在组内已有焦点时保留该目标；组只有一个 Tab 停靠点，随后进入当前面板的普通可聚焦内容。disabled 与不可用 header 跳过，正文编辑器不被祖先导航截获。程序聚焦或外部 selected 更新不模拟导航，也不把焦点移入面板。
+
+选择动作按 key 读取最新 Props，禁用或值相同不写入。写入候选 Some(value) 后，只有实际值与旧值不同才调用最新 onValueChange，并传入 setter 实际采纳的可空值；拒绝 setter 保留原选择和面板，但不强制退回已移动的 header 焦点。None、缺失或 disabled 的外部值均不清洗、不自动选择第一项；缺失值不显示面板，已选 disabled 项仍显示对应面板并停用该项输入。根 enabled=false 同时停用 header 与面板输入，不改写选择。
+
+面板默认 Dispose，未选中不挂载，切换时立即卸载旧面板；KeepMounted 从初始状态保留全部面板实例，未选中时跳过布局、输入／IME、Tab 和动画帧请求，但继续接收逻辑更新。复用 §24 的内容门控，不另建生命周期协议。切换没有高度过渡；重新显示只在 Accepted 非零几何后恢复输入，不恢复旧面板焦点。每项可覆盖 retention；改为 Dispose 立即卸载未选中的保留内容。同父级稳定 key 的重排、标题／内容 Props、主题、横纵及 Default／Line 切换保留实例与编辑状态，类型变化仍按普通规则重新挂载。
+
+Horizontal 为 header 在上、面板在下，Vertical 为 header 在逻辑 Start、面板在 End；固定同一逻辑父级和两个槽，方向／轴变化只更新几何。列表按内容取宽，面板使用剩余可用宽度，spacing 分开两槽。Default 列表为 muted 背景、large 圆角、3 的 padding；header 默认高 26、横向 padding 6、14／20 medium 文字、medium 圆角；选中采用 background 色，Dark 使用 input 边框及 input／30 底色。Line 列表透明、项间距 4，选中条使用 foreground、厚 2，Horizontal 在下边、Vertical 在逻辑 End。尺寸按 action 字号／14 缩放。未选中文字为淡化 foreground（Dark 使用 muted.foreground），hover／选中恢复 foreground；pressed 具有可区分的反馈。hover／press 和焦点环复用 ActionInk／ThemePainter，选中条使用 ThemeMotion.selection，Reduced 热切换立即收束。局部 triggerStyle、panelStyle、listStyle、根 style 各作用于对应部分，不重叠登记输入。
+
+验收包含 Auto／Manual、横纵／RTL、Tab 入口、禁用跳过、拒绝 setter／换绑／实际值通知、None／未知／禁用外部值；Dispose／KeepMounted 的工厂次数、状态、关闭 Props 更新、IME 与停帧；keyed 重排、轴／变体／主题切换保留编辑；零尺寸与恢复、Reduced、卸载清理；真实 Gallery 中的表单与加载内容及 Default／Line 焦点外观。
+
+## 26. Breadcrumb
+
+`breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {})` 与 ChildrenBuilder 成员构造 BreadcrumbProps／Breadcrumb。Props 为 entries=[]、separator: View?=None、spacing=6、lineSpacing=6、enabled=true、fonts／theme、style=styleOverride()。spacing／lineSpacing 有限非负，按 action 字号／14 缩放；根使用普通 Wrap，RTL 交换逻辑起止。separator 未配置时为 14 的 ChevronEnd，可配置任意非交互 View；首项不显示分隔符，分隔符与后项同组换行。
+
+BreadcrumbEntry 含 `content: BreadcrumbContent`、key=Position、enabled=true、focus=FocusOptions()、maxWidth: Double?=None、style: ButtonStyle?=None。BreadcrumbContent 为 Link(ButtonContent, onNavigate)、Current(ButtonContent)、Ellipsis、Custom(View)。builder 的 item(String／StyledText／View／ActionContentStyle 回调, onNavigate)、current(String／StyledText／View)、ellipsis()、custom(View) 收集条目，配置块设置其余字段；add 接收完整条目。maxWidth 有限非负，限制整项（含其前置分隔符）的逻辑宽度；内置 Label 默认单行省略，未指定字体时继承根 fonts。自定义正文自行遵守约束。
+
+Link 使用同一个普通 Button／Press／FocusTarget，普通 Tab、Space／Enter 与指针激活只调用最新 onNavigate；根与条目 enabled 共同控制。Current、Ellipsis、默认分隔符不登记输入、无跳转；Custom 保留调用方自己的行为，可放置 Dropdown trigger 等已有控件，根 enabled 不推断或改写不透明 Custom 的内部状态。没有内置 URL 打开或路由。相同父级、key 和描述类型按普通规则复用，重排及首项改变不改变正文槽；类型变化仍重新挂载。
+
+内置文字为 action 字号、20／14 行高、normal weight；链接默认 muted.foreground，hover／pressed 恢复 foreground，按下有轻微背景反馈，焦点环不影响布局；Current 为 foreground。Ellipsis 为 20 的容器和 16 的 MoreHorizontal 图标。所有预设尺寸按字号缩放，局部 ButtonStyle 可覆盖链接外观。验收覆盖普通／自定义分隔符、长项省略与换行、RTL、当前项无动作、最新回调、禁用、键盘与 keyed 重排；Dropdown 组合在菜单批次交付后接入同一 Custom 槽。
+
+## 27. Pagination
+
+`pagination(page: Binding<Long>, pageCount: Long, configure: PaginationBuilder.() -> Unit = {})` 与 ChildrenBuilder 成员构造 PaginationProps／Pagination。页码从 1 开始；pageCount 可以为 0，pageCount／siblings=1／boundaries=1 必须非负。`paginationItems(page, pageCount, siblings=1, boundaries=1): Array<PaginationItem>` 是实际控件和调用方共用的纯范围计算，PaginationItem 为 Page(Long)／Ellipsis。显示首尾 boundaries 项及当前页两侧 siblings 项，重叠去重；只缺一页时直接显示该页，多页缺口显示省略号。未知外部 page 只在计算窗口时夹到有效范围，不写回 binding；空数据没有页码。算术覆盖 Long 上界，不遍历被省略的页。
+
+其余 Props 为 items: Array<PaginationItem>?=None、enabled=true、showPrevious=true、showNext=true、compact=false、previousText="Previous"、nextText="Next"、pageLabel: (Long)->String、pageContent: ((Long, ActionContentStyle)->View)?=None、ellipsis: View?=None、fonts／theme、buttonStyle=buttonStyle()、style=styleOverride()、previousFocus／nextFocus=FocusOptions()、pageFocus: (Long)->FocusOptions、onValueChange: (Long)->Unit。None items 使用自动范围；Some 使用显式顺序，Page 必须在 1..pageCount 内且不重复。builder 另有 key，item(page)／ellipsis() 追加显式条目，ellipsis(View) 设置省略号正文；add 接收完整 PaginationItem。构造和 DSL 不读取 binding、不调用业务回调或内容工厂。
+
+数字按钮用 Ghost／Icon，实际有效选中页用 Outline；Previous／Next 用 Ghost／Default、逻辑方向的 Chevron 和可本地化文字，compact 只隐藏文字。缺省省略号是 32 的非交互容器及 16 的 MoreHorizontal 图标。列表间距 2，使用普通 Row／Button，有限宽度居中，无界宽度取内容宽度；父约束优先，不创建第二套键盘导航或命中。逐页 key 来自页码，边缘按钮有独立稳定 key；页码窗口变化保留仍存在的按钮实例和焦点。根 style 和 buttonStyle 分别作用于整体及按钮，预设尺寸按 action 字号缩放，RTL 镜像布局和方向图标。
+
+动作读取最新 Props／binding。Previous 在 page<=1 时不可用，page>pageCount 时指向最后一页；Next 在 page>=pageCount 时不可用，page<1 时指向第一页；空数据、根 disabled 时两者不可用，计算避免溢出。数字或边缘动作只提交有效且不同的候选；setter 拒绝时不伪造选择，实际改变后通知 setter 采纳的 Long。外部值与 pageCount 更新不主动修正页码、不合成通知，控件不取数据。普通 Tab、Space／Enter 和指针走原 Button，禁用／卸载／隐藏取消在原层收尾。
+
+验收覆盖空数据、单页、首尾、缺口合并、Long 上界、显式条目错误、拒绝 setter／换绑／实际值通知、动态 pageCount、局部状态与焦点保留、RTL／窄宽／compact、明暗主题及真实应用页码驱动的数据视图。
+
+## 28. Popover
+
+`popover(open: Binding<Boolean>, content: View, configure: PopoverBuilder.() -> Unit = {})` 与 ChildrenBuilder 同名成员构造 PopoverProps／Popover。完整内容、受控 open 为必需参数。Props 包含 trigger: PopupTriggerSpec?=None、anchor: LayoutAnchor?=None、title／description: PanelContent?=None、width=288、side=Bottom、alignment=Center、gap=4、viewportPadding=8、matchAnchorWidth=false、anchorVisibility=Close、mode=NonModal、focus=OverlayFocusOptions()、handle=None、enabled=true、dismiss: OverlayDismiss?=None、transition: StyleValue<AnimationSpec?>=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme、style。必须提供 trigger 或外部 anchor；width／gap／viewportPadding 有限且非负。builder 增加 key，并继承 PanelBuilder 的 title／description／fonts／theme／style 配置。
+
+PopupTriggerSpec 保存 ButtonContent、enabled=true、variant=Outline、size=Default、style=buttonStyle()、focus=FocusOptions()、fonts=None。trigger(text／StyledText／View) 块配置上述按钮选项，View 是单个按钮的非交互正文。内置 trigger 沿用 Button 的 Press、Tab 与焦点合同，以最新 Props 切换绑定；setter 真实采纳不同值后才通知 onOpenChange。外部更新不合成通知。anchor=None 时用 trigger 的真实场景矩形；外部 anchor 使用公共 LayoutAnchor，触发器可省略，关闭不需要私有节点或自存窗口坐标。根布局固定 trigger／Portal 两槽，开闭不重建触发器。
+
+内容以 Portal 呈现，默认非模态、明确初始／恢复焦点；初始 None 选第一个 Tab stop。NonModal／FocusContained 默认 Escape 与外部 CloseAndContinue，Modal 默认 CloseAndConsume，两者默认 includeAnchor=true，避免触发器按下先关再开；完整 dismiss 可覆盖；无效 Modal＋Continue 沿 Portal 报错。关闭请求先经过业务 veto，再提交绑定；拒绝 setter 不伪造关闭。enabled=false 禁用触发器和内容输入，不改变 open。Presence 默认 100ms，按真实定位边做 8 的短位移、0.95 到 1 缩放与淡入淡出；Reduced Motion 即时结束。退出立即停用内容输入，中途重开保留内容与进度；最终移除释放内容。焦点保存、恢复、嵌套关闭及三种模式沿 UI §7.6，不另建键盘或焦点处理器。
+
+默认内容宽 288、padding 与主体 spacing=10、corner=8、popover 配色、foreground 10% 的 1 边框及 floating 阴影；Header 的 title／description 间距 2，title 为 action，description 为 muted body。尺寸按字号缩放并服从父级／视口约束；局部 style 覆盖面板。所有文字槽和自定义正文可组合输入、表单与按钮。验收包含可编辑内容、普通／仅焦点约束／模态、Tab 与 Escape、外部继续／消费、veto／拒绝绑定、最新回调、退出重开／资源释放、锚点翻转与裁剪、RTL、明暗 System／Neutral、Reduced Motion 与窄窗口。
+
+Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: Paint?=None)` 是普通配置值，尺寸有限且非负，None paint 继承最终面板背景；没有背景时不画继承色箭头。箭头与面板共用进入／退出变换，依据实际翻转后的 OverlayLayout.side 与 anchor 中心定位，在圆角以内钳制；零尺寸或无可用边长时不画。箭头不新增输入或布局锚点，不改变正文实例、Tab 顺序或面板测量尺寸。尺寸按字体密度缩放，局部 paint 可以覆盖继承色。
+
+## 29. Tooltip
+
+`tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {})` 及 String／StyledText 正文重载、ChildrenBuilder 同名成员构造 TooltipProps／Tooltip。Props 的正文为 PanelContent；trigger 必需且保持原有交互。选项为 open: Binding<Boolean>?=None、side=Top、alignment=Center、gap=4、viewportPadding=8、maxWidth=320、openDelay=0ms、closeDelay=0ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true、arrow=Some(PopupArrow())、handle=None、transition=Inherit、onOpenChange、onClosed、fonts／theme／style；builder 增加 key。尺寸与延迟使用相同有限非负校验。
+
+未提供 open 时仅持有一份局部短期打开 State；提供时直接读写当前 Binding，不镜像、不提前求值。实际值改变后通知 onOpenChange，拒绝 setter 不合成关闭或回调。包装器只有无激活动作的区域和 anchor，观察子内容的 hover／focus，已有 Button 保留唯一 Press、动作和焦点；不会检查、克隆或改写 View。提示不请求／恢复焦点，正文整棵输入子树停用，不加入 Tab，也不执行自定义正文的按钮动作；面板本身仍可参与悬浮通路。键盘焦点立即打开，鼠标遵守 openDelay；Escape、触发器按下／激活、离开窗口或失焦关闭并取消等待，显式关闭沿 Hover 的离开后再进入规则。关闭不消费原触发器的动作。
+
+默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、corner=6、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
+
+## 30. HoverCard
+
+`hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
+
+面板默认 popover 配色、10 padding、8 圆角、foreground 10% 的 1 边框及 floating 阴影，100ms 动画与 Popover 相同。触发器可复用已有链接式 Button、头像或组合内容，包装不截取原动作。验收包含鼠标跨间隙进入正文、反向离开与有限通过期限、键盘入口、文字选择／正文动作、Escape、关闭后再次进入、当前回调与绑定、嵌套 Portal、明暗 System／Neutral、RTL 和 Reduced Motion。
+
+
+## 31. Dialog 与 AlertDialog
+
+`dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {})`、`alertDialog(open, content, configure: AlertDialogBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员分别构造 DialogProps／Dialog 与 AlertDialogProps／AlertDialog。两者使用普通 Portal 的 Modal 模式、Viewport 定位、同一焦点会话与 Presence；不另建窗口、挂载树或焦点管理器。业务 Binding 必需，描述构造不读取它；触发器、关闭按钮及 Portal 写入后，仅实际值改变才通知最新 onOpenChange，外部直接写入不合成控件回调。同类型配置变化及退出中重开遵守既有实例保留规则。
+
+共同配置在 Props.options: ModalOptions 中保存为不可变快照，三个 builder 直接展开同名配置成员。ModalOptions 的配置为 trigger: PopupTriggerSpec?=None、title／description: PanelContent?、header: View?=None、scrollable=false、scrollState: ScrollState?=None、focus=OverlayFocusOptions()、handle=None、enabled=true、viewportPadding=16、contentPadding=16、backdrop: Paint?=Some(Black 10%)、transition=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme／style；builder 继承 PanelBuilder 的标题便利成员并增加 trigger(String／StyledText／View, PopupTriggerBuilder block)、header(View)、focus block、transition(AnimationSpec?)，key 沿正常描述规则。外部普通 Button 也可直接写同一 Binding，不要求内置 trigger。trigger 的 View 必须是非交互内容，内置 Button 是唯一激活目标，不检查或克隆 View。
+
+Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，可通过 close 内容／样式替换或完全隐藏；调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
+
+默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。正文的 16 内边距属于滚动内容，视口包含这段留白，不能紧贴子控件外框裁掉焦点环；页脚动作排列及标题排列不额外裁剪各自的布局外框，溢出仍受面板和显式视口约束。焦点环按主题的 outset 向外绘制，不增加控件测量尺寸，也不重复叠加环的 border width。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
+
+`dialogFooter(configure: ChildrenBuilder.() -> Unit): View` 及 ChildrenBuilder 同名成员构造 DialogFooterProps／DialogFooter；子项为普通 View，保留 key 与输入归属。可用宽度足够时按逻辑顺序靠 End 排列，间距 8；不足以容纳自然宽度时反向纵排、占满可用宽度，符合窄屏取消／确认次序。它不注入或改写按钮动作。
+
+AlertDialog 不提供外部点击关闭或右上关闭按钮。额外配置 size: AlertDialogSize=Default（Default 最大宽度 384，Sm 为 320）、media: View?=None、action: View?=None、cancel: PopupTriggerSpec=Outline 的本地化可替换 “Cancel”。media 使用 40 方框、muted 背景和 6 圆角；较宽的 Default 将媒体与标题说明并列，窄宽和 Sm 居中纵排。footer 保留取消按钮，可选 action 是原样组合的真实业务 View；提供 action(String, onClick, ButtonBuilder block) 便利入口，但不自动关闭、提交或管理异步状态。应用在动作中决定是否写 open，提交期间可通过自身 enabled／onCloseRequest 控制继续打开。默认初始焦点为当前 cancel 的 FocusHandle（未提供时用本挂载自有 handle），明确 focus.initialFocus 可覆盖；Escape 走关闭／取消路径，绝不激活 action。取消与 Escape 都经过 onCloseRequest 和当前 Binding，拒绝时继续打开。Sm 的两项操作采用等宽两列；Default 使用响应式 DialogFooter，只有取消时保持普通单项布局。
+
+验收包括普通／受控拒绝／veto、外部点击不穿透、Enter／Space／Escape、默认取消与明确初始焦点、嵌套域及恢复、最新 Props／Binding、滚动正文和固定 footer、窄宽／零约束／RTL、退出重开保留局部状态、卸载与静止停帧。
+
+## 32. Sheet
+
+`sheet(open: Binding<Boolean>, content: View, configure: SheetBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 SheetProps／Sheet。共享 Dialog 的受控状态、触发器、标题／描述／自定义 header、footer、关闭按钮、滚动正文、焦点、dismiss、回调、字体／主题／样式和模态生命周期；不提供拖动或 snap，那属于 Drawer。
+
+SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布局按当前 LayoutDirection 转为物理侧，不重挂载内容。width: Double?=None 只控制 Start／End 的宽度，默认取视口 75% 与 384 中较小者；height: Double?=None 只控制 Top／Bottom 的高度，默认自然内容高度。垂直侧铺满视口高度，水平侧铺满视口宽度；明确主轴尺寸受视口约束。viewportPadding 默认 0，可显式保留边缘留白；所有尺寸有限且非负。
+
+默认面板采用 popover 配色、直角、内侧 1 边框与 floating 阴影；header／body／footer padding=16，header 标题／描述间距=2，footer 贴近底部，普通正文和 footer 的业务 View 保持原样。关闭按钮放在逻辑 End 上方。默认 200ms 淡入并从对应物理侧向内移动 40，遮罩只随同一 Presence 淡入；Reduced Motion 无动画。侧别、尺寸、主题与方向改变更新同一内容实例及输入变换，关闭恢复遵守 Portal。验收覆盖四边／RTL、可调宽高、滚动和固定操作区、嵌套 Dialog、拒绝关闭、退出重开与借用状态保留。
+
+## 33. DropdownMenu、ContextMenu 与 Menubar
+
+三个入口共享 `MenuContent(entries: Array<MenuEntry>)`、菜单行、roving KeyNavigation、Typeahead、Hover 通路和 Portal。MenuContent 在新快照入口检查同级显式 key 唯一，不以标题作为身份；相同标题合法，子菜单各有独立 key 空间。MenuEntry 为 Action(item, onSelect, closeOnSelect=true)、Checkbox(item, checked: Binding<Boolean>, closeOnSelect=false, onCheckedChange)、Radio(item, isSelected, onSelect, closeOnSelect=false)、Submenu(item, content)、Label(key, content: PanelContent, inset=false)、Separator(key)。MenuItemSpec 保存 key、label（同时作为搜索文字）、enabled=true、destructive=false、inset=false、可选 content／icon／shortcut、FocusOptions 和 ButtonStyle。自定义行正文／图标为非交互 View，唯一 Press 执行动作；Label、Separator 不成为焦点或候选。
+
+`menu { ... }` 用 MenuBuilder 收集 item／checkboxItem／radioItem／submenu／label／separator／add。radioItem 的领域值与 Binding 使用同一 `T: Equals<T>`，内部只封装读取与选择闭包，不把领域值转换成 Any 或字符串；只在 setter 实际采纳变化后通知 onValueChange。Checkbox 同样通知实际采纳值。所有动作读取当前 Props，禁用项不执行；Action／Radio 回调正常返回后才执行 closeOnSelect，异常沿正常 UI 路径传播。选择、悬浮焦点和 open 各自独立，重排保持 keyed 实例／当前焦点，缺失或禁用项不被错误激活。
+
+共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、8 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、6 圆角；inset 为起侧 28；当前焦点或子菜单打开使用 accent 配色；指针进入／移动请求该行焦点，键盘导航后静止指针所在旧行不保留额外高亮，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
+
+`dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMenuBuilder.() -> Unit = {})` 构造 DropdownMenuProps／DropdownMenu。trigger 使用 PopupTriggerSpec，外部 anchor 可替代内置 trigger；至少有其一。默认 Bottom／Start、gap=4、viewportPadding=8、anchorVisibility=Close；可配置 handle、OverlayFocusOptions、dismiss、onOpenChange／onCloseRequest／onClosed。触发器是唯一 Button，支持 group: GroupPosition? 与 ButtonGroup 连接表面。普通激活／ArrowDown 进入首个有效项，ArrowUp 进入末项；没有有效项时沿 Portal 的默认焦点退路。非模态外部按下关闭并继续，Modal 消费且禁止 CloseAndContinue。拒绝 setter／veto 保持实际状态，外部赋值不伪造通知。
+
+菜单内 Up／Down／Home／End 导航跳过 disabled 和装饰项，Enter／Space 选择；loop 同时控制菜单行和 Menubar 入口的首尾循环，false 时在边界停留。typeahead 使用现有非编辑逻辑字符协议，不创建 TextEditorState。指针移动将焦点移到可用行，子菜单通过 Hover 延迟及已提交几何走廊打开；悬浮打开使用 autoFocus=false 的焦点会话，不主动移动至子菜单，指针进入后关闭仍按同一会话恢复父行；键盘逻辑 End 进入首项，逻辑 Start 退出子菜单并恢复其父行，RTL 对调左右。Escape 只关闭最内层。Tab／Shift+Tab 请求关闭整条菜单链，保存方向，在根 onClosed 后通过 ComponentScope.moveFocus 从恢复的入口继续；拒绝关闭时保持菜单，退出期间重开清除旧续行意图。所有层共享根关闭请求，不在多个层重复业务回调。
+
+`contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {})` 构造 ContextMenuProps／ContextMenu；open 可选，缺省为该挂载的本地 State，其他菜单选项及回调同上。右键 Press 使用原生事件的窗口逻辑坐标打开 AtPoint，消费此右键动作而不触发原内容主动作；没有有效已提交区域时不打开。Menu 键或 Shift+F10 在焦点所属内容的作用域打开，以已提交内容矩形逻辑起侧下角定位，不猜测未放置几何。包装区域提供 tabStop=false 的焦点退路，原内容的按钮／选择／编辑保留各自输入所有权；键盘打开不覆盖原后代焦点。
+
+`menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
+
+验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。
+
+
+## 34. Select
+
+`select<T: Equals<T>>(value: Binding<T?>, choices: Array<Choice<T>>, configure: SelectBuilder<T>.() -> Unit = {})` 以及省略 choices 的部件 DSL 构造 SelectProps／Select。SelectContent 保存带明确 key 的 SelectEntry.Item(SelectItem(choice, content?, icon?, focus, style))、Label(key, PanelContent)、Separator(key)；key 与候选值唯一。Builder.item、label、separator、group 组成有序候选，ChildrenBuilder 提供同名入口。显示文本只用于展示与 typeahead，不作为身份。选择、活动焦点与 open 各自独立；open 可借用外部 Binding，缺省为挂载内 State。未知或禁用的外部选择保留原值，不写回或自动改选；未知值显示 unavailableText，None 显示 placeholder。
+
+唯一的 Button trigger 支持 Default／Sm（32／28 高）、width、invalid、enabled、ButtonStyle、ThemeSource、fonts、FocusOptions、labelTarget、group 与自定义 valueContent／icon。默认最小自然宽 144、1 input 边框、8 圆角（Sm 为 10）、单行省略、14 正文、16 chevron；逻辑起／止 padding 为 10／8。Dark 底色与 hover 分别使用 input 原 alpha 的 30%／50%，局部 surface 与状态覆盖仍优先。焦点环、校验、禁用及父级连接表面沿已有 Button 合同。FieldTarget 标签只聚焦当前 trigger。
+
+默认 SelectPosition.ItemAligned 通过 UI ContentAligned 和 popup 根 LayoutMetrics.overlayAnchor 对齐打开时的可用选中行；无可用选择时退回 Anchored。SelectPosition.Popup 总是侧边定位。两者使用同一个 ScrollViewport、最终绘制及命中几何，不访问内部节点。面板匹配 trigger 宽度，受 maxHeight（默认 320）及视口限制，4 padding、8 圆角、popover 配色、1 ring 和浮层阴影。候选默认 28 高、14 字、6 圆角、逻辑末端 16 勾选标记；分组标签和分隔线沿菜单部件。打开时显露选中行，退出期间重开也按当次选择重新对齐；本次打开首次 Accepted 的局部滚动参考用于后续对齐；用户滚动不使面板跟随上下移动。长列表使用有限候选的普通滚动；溢出时默认显示上下 24 高的滚动按钮，点击或悬停按行滚动，窗口失焦／隐藏／禁用／到达边界／卸载停止计时。
+
+Enter／Space／ArrowDown 打开并聚焦可用选择，否则首项；ArrowUp 在没有可用选择时进入末项。打开后复用 roving 真实焦点及 typeahead，Up／Down／Home／End 跳过禁用项和装饰项，Enter／Space 提交。关闭时字符 typeahead 直接选择匹配项。提交读取最新 Props 和 Binding，通知实际被采纳的变化；setter 拒绝时保持打开，选择成功再请求关闭，关闭 veto 可保留当前面板。Escape／外部按下按 Portal 合同关闭和恢复，Tab／Shift+Tab 在实际 onClosed 后沿原方向继续；退出期间重开清除旧续行。可配置 mode、loop、typeahead、popupFocus、handle、onValueChange／onOpenChange／onCloseRequest／onClosed；外部赋值不伪造用户通知。ItemAligned 缺省无过渡，Popup 缺省 100ms 淡入缩放，显式 transition 与主题减少动画策略继续生效。
+
+验收覆盖受控／本地开关、未知与禁用选择、重复身份、分组、自定义正文、两种定位及窗口边缘／RTL、长列表初始显露和滚动稳定、真实键盘／鼠标／typeahead、拒绝更新和关闭、标签、退出重开、动态候选／主题／窄宽、卸载及静止停帧。
+
+## 35. Command
+
+`command(source: CommandSource, query: TextEditorState, configure: CommandBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 CommandProps／Command。CommandProps 保存 source、input: InputProps（query 为 input.state）、active: Binding<ViewKey?>?=None、filter=Ranked、autoHighlight=true、loop=true、width=320、maxHeight=288、empty（默认 “No results found.”）、showSearchIcon=true、searchIcon: View?=None、scroll: ScrollState?=None、listHandle: VirtualListHandle?=None、panelStyle 和 onSelect(ViewKey)。CommandBuilder 继承 InputBuilder，完整复用输入的样式、主题、字体、焦点、标签、编辑策略及通知；style 配置输入外观，panelStyle 配置整体外观，empty 接受 String／StyledText／View。尺寸有限非负，width 指含内边距的外框；空结果按实际内容测量并限制在 maxHeight 内。输入是唯一 Tab 目标；列表只改变活动 key，不抢走编辑焦点。
+
+CommandSource 是不可变元数据快照，继承 NavigationSource，增加 itemCount 和 entryAt(index)。count 包括装饰项，itemCount 只计实际命令（含 disabled），默认 keyAt／enabledAt／searchTextAt 从对应条目得到；indexOfKey 由来源保证稳定映射。CommandEntry 为 Item(CommandItem)、Label(key, PanelContent)、Separator(key)。CommandItem 包含显式 key、label、onSelect、enabled=true、keywords=[]、content／icon／shortcut=None 和 style；自定义内容与图标非交互，唯一激活区域由命令行创建，shortcut 只显示现有 ShortcutChord 的平台标签。CommandContent(entries) 是数组快照，检查所有 key 显式且唯一并建立索引；`commandItems { item(key, label, action) { ... }; group(key, title) { ... }; separator(key) }` 生成它。相同 label 合法。
+
+Ranked 模式使用 cmdk 的 MIT 评分算法，连续匹配、词首、大小写、跳跃和有限相邻换位的权重保持上游规则；索引采用 Unicode 标量，大小写展开保留原字符映射，不将 UTF-8 字节当作字符。空 query 保留来源顺序；有 query 时排除零分条目，组内按分数降序，组按最高分降序，同分保持输入顺序，空组和首尾分隔符移除。Custom(score) 用有限非负的 `(CommandItem, String) -> Double` 替代评分；Provided 直接消费来源和顺序，不二次筛选排序。只在 Props 快照或已提交 query 改变时重新计算，不因高亮、光标闪烁或滚动重复评分。来源 itemCount 为零时显示 empty，装饰行不进入导航。
+
+active 缺省由本挂载持有，外部 active 则使用当前 Binding。有效 key 在重排中保留；消失／禁用后清空，autoHighlight=true 再选择首个可用候选，false 保持 None。Up／Down／Home／End 复用 ActiveItems，在输入框默认编辑动作之前处理；Enter 仅激活本次结果中的有效活动项，无候选时不提交旧 key，Shift／Primary 等修饰组合仍交给编辑器。输入法总是在 Window 层先解释按键；若之后仍有活动 composition，而原生层继续转发上述候选键，则消费该键，既不导航／激活命令，也不让普通光标移动或提交默认动作间接结束组合；preedit 不参加筛选。Escape 继续沿 IME／Portal 顺序处理。指针移动高亮可用项，按下／松开使用 Press 的取消及禁用合同，真实焦点留在输入；调用条目动作后通知 onSelect，既不自行关闭 Dialog，也不注册全局快捷键。
+
+默认外观为 popover 配色、12 圆角和 4 内边距；搜索输入用 InputGroup、32 高、8 圆角及 16 搜索图标。列表最大高度 288，滚动条隐藏、滚动残量限制在列表；组标题 12／500、muted 色，条目正文 14／20、逻辑水平 padding 8／垂直 6、4 圆角、图标 16；活动行 muted 背景，disabled 整行 50% 透明度，shortcut 为 12，未带 shortcut 的活动行显示末尾勾号。尺寸随主题正文密度缩放，RTL 解析逻辑顺序；单行省略的条目正文继承布局方向并沿逻辑 Start 对齐，平台快捷键保留 LTR。VirtualList 消费同一元数据，只有可见／overscan 项创建 View，活动项通过 scrollToItem 显露且不调用 focusItem；调用方可提供超大 Provided 来源。Dialog 通过普通 `dialog(open, command(...))` 组合，初始焦点指定该输入的 FocusHandle，动作和关闭策略由应用决定；借用编辑器／字体／滚动模型卸载后保留。
+
+## 36. Combobox
+
+`combobox(value, choices, query) { ... }` 同时提供 `Binding<T?>` 单选及 `Binding<Array<T>>` 多选重载，`T: Equals<T>`，query 为调用方的唯一 TextEditorState。choices 接受 ChoiceSource<T> 或小规模 Array<Choice<T>>。ComboboxProps 保存 ComboboxSelection.Single／Multiple、source 和 InputProps；ComboboxBuilder<T> 继承 InputBuilder，输入样式、字体、焦点、标签、编辑策略和通知直接沿用。选择值、已提交 query、active key 和 open 为四份不同含义的状态；搜索和导航不写入选择，外部替换选择不打开弹窗，也不改写 query。
+
+ChoiceSource<T> 继承 NavigationSource，提供 choiceCount、entryAt(index) 和 indexOfValue(value)；count 包括装饰行，choiceCount 包括所有实际选项（含 disabled），keyAt／enabledAt／searchTextAt 有基于 entry 的缺省实现。ChoiceEntry<T> 为 Item(ChoiceItem<T>)、Label(key, PanelContent)、Separator(key)。ChoiceItem 保存原有 Choice<T> 及 keywords、非交互 content／icon、style。ChoiceContent(entries) 检查显式唯一 key 和唯一领域值并建立 key 索引；`choiceItems<T> { item(choice) { ... }; group(key, title) { ... }; separator(key) }` 生成快照。大来源自行保证此合同并提供 key／value 定位，Provided 模式不为筛选枚举全部元数据，View 只在虚拟列表需要时创建。
+
+ComboboxFilter.Contains 为默认，使用 Unicode case-fold 后的 label／keywords 包含匹配，保持输入顺序，移除空组与首尾分隔。Custom 接受 `(ChoiceItem<T>, String) -> Boolean`，Provided 不再次筛选。结果仅在 Props 快照或 committedText 改变后重算。可选 customChoice(query) 在非空已提交查询时提供一个额外 Choice 或返回 None；来源中已存在该领域值时不重复追加，新 key 必须显式且唯一，不会将显示文字当身份。空结果使用 empty 内容，不能成为活动项。active 可绑定或由本挂载持有，重排保留有效 key，消失／禁用后清空，autoHighlight（默认 false）可再选首项；键盘主动打开则选择已选项或相应端点。候选复用 Command 的 ActiveItems 路由，真实焦点留在输入，composition 处理及外层事件取消与第 35 节相同。
+
+单选提交当前有效候选，多选切换该值并按选择顺序显示 chips。onValueChange／onValuesChange 仅在 setter 采纳的实际值改变后通知；拒绝选择不清 query、不关闭。clearQueryOnSelect 默认 true；closeOnSelect 默认按模式取单选 true／多选 false，可显式覆盖。showClear 默认 false，清空选值与查询并返回输入；输入为空且无 composition 时 Backspace 删除最后 chip，chip 的独立删除按钮支持左右方向、Home／End、Backspace／Delete，并按逻辑方向切换焦点。删除被拒绝时不假报成功。已有选择不在来源中仍被保留，显示 valueText(value) 或 unavailableText（默认 “Unavailable selection”），不在 render 中写 Binding。
+
+inputPlacement 默认 Inline：InputGroup 包含搜索输入和可选展开／清空按钮，多选 chips 与输入在同一表面内换行；单选在空 query 时用当前值文字作为输入的前景色提示，实际 query 仍为空。Popup 模式由普通按钮显示值，搜索输入放在弹窗内；labelTarget 关联当前可见入口。showTrigger 默认 true，width=240、maxHeight=252，popupWidth 可独立指定，尺寸有限非负。open／active／scroll／listHandle／OverlayHandle 均可借用；默认点击输入或实际已提交编辑可打开，程序改 query 不自行打开。enabled=false 或 readOnly 禁止打开和选择；禁用与卸载取消 Press／导航，不关闭借用模型。
+
+弹窗使用同一 Portal 锚定入口，默认 Bottom／Start、gap=4、viewportPadding=8，popover 配色、8 圆角、1 像素 foreground 10% 边框、floating 阴影和 100ms 动画，Reduced Motion 复用主题。Inline 不把焦点移入列表，Popup 初始聚焦搜索并在关闭后恢复入口；Tab 关闭后沿原方向移出，Escape／外点／veto／退出重开沿用 Portal，不保存第二套关闭会话。候选行正文 14、垂直 padding=4、逻辑开始 padding=6、末尾勾号宽 16；组标题 12、muted、padding 8／6，列表 padding=4，活动行 accent 背景／前景、disabled 整行 50% 透明度。chips 为 21 高、12 字号、muted 背景、4 圆角，换行间距 4，最小输入宽 64；芯片旁的 Bare 输入仅按正文与水平 4 的内缩测量，32 的默认建议高度由 InputGroup 外框承担，不能再叠加一份独立输入高度。表面完整复用 InputGroup 的焦点环与 invalid。RTL 解析布局与段落方向，按钮值文字单行省略。popupStyle／triggerStyle 及行 style 提供通常的局部外观覆盖。
+
+## 37. NavigationMenu
+
+`navigationMenu(open: Binding<ViewKey?>? = None) { ... }` 创建 NavigationMenuProps／NavigationMenu。builder 的 `item(key, label, content) { ... }` 接受 String／StyledText／非交互 View 触发内容，`link(key, label, onNavigate) { ... }` 添加一级链接；`add(entry)` 接收明确的 NavigationMenuEntry.Panel／Link。条目 key 必须显式且同级唯一，显示文字可重复。Panel 保存 PopupTriggerSpec、普通 View 正文、width=360、可选 initialFocus 和局部 panelStyle；Link 保存 NavigationMenuLinkProps。链接和内容面板没有命令菜单的勾选、单选、typeahead 或菜单项动作规则。
+
+根提供 orientation=Horizontal、viewport=true、alignment=Start、loop=true、enabled=true、fonts／theme、style、popupStyle、gap=8、viewportPadding=8、hover 和 transition。默认 HoverOptions 为打开／关闭各 50ms、跨间隙上限 350ms、走廊内扩 6；共用既有 Hover 和原生 deadline。viewport=true 时面板锚定整个入口列表，false 时锚定当前触发器；横向面板在下方，纵向面板在逻辑末端，并遵守 Portal 的翻转与可用空间约束。有效面板由唯一 open key 决定，缺失／禁用 key 不显示内容也不暗写借用 Binding；onOpenChange 只通知 setter 采纳的实际变化。
+
+列表保留内容自然宽度，在父级给予额外宽度时沿逻辑起点对齐，布局锚点取实际列表矩形。一级入口保留普通 Tab 顺序，主轴方向键及 Home／End 通过 KeyNavigation 跳过禁用项，循环由 loop 控制；有面板打开时切换入口会切换相应内容，链接入口关闭面板。横向 Down 或纵向逻辑末端方向键打开当前面板并聚焦 initialFocus 或首个可聚焦内容；Enter／Space 使用入口唯一 Press。悬浮打开不抢焦点，面板内的普通链接、表单和其他控件保持自身按键行为；Tab 可从触发器进入逻辑上的面板内容并继续移出。内容获得焦点后离开指针不会关闭，焦点和指针均离开后按 Hover 延迟关闭。程序打开但尚未进入悬浮或内容焦点会话时，不因指针原本在外面而自动关闭；hover.focus 可显式开启入口焦点触发，默认关闭。Escape／外点／受控关闭复用 Portal；onCloseRequest(key, reason) 可以拒绝关闭，onClosed(key, reason) 观察完整退出，关闭后的焦点按原非模态恢复规则处理。切换面板立即退去旧面板，防止旧内容在新内容上叠放；外部关闭保留正常退出过渡。禁用和卸载收尾 Hover、Press、动画及焦点，不清空应用模型。
+
+`navigationMenuLink(label, onNavigate) { ... }` 提供独立内容链接，label 接受 String／StyledText／非交互 View，builder 继承 ButtonBuilder，另有 active=false 和 inPanel=true。NavigationMenuLinkProps 保留 ButtonProps、active 与 inPanel。唯一 Button 执行 onNavigate，应用负责实际路由及面板内链接是否关闭根；一级 link 激活时关闭当前面板。active 表示当前页面，不等于焦点或展开状态。自定义正文可组合标题、说明、图标和分栏，普通 View 内容不被遍历或改写。
+
+Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 6；入口无外围边框，hover／focus 使用 muted，展开或 active 的静态背景为 muted 50%。面板内链接使用 8 padding、6 圆角和普通字重，保留完整焦点环。面板为 popover 配色、1 像素 foreground 10% 边线、8 圆角、4 padding 和 floating 阴影；焦点环的外绘制空间由内容留白承担。箭头宽 12，300ms 旋转；面板 350ms 进入、150ms 退出，淡入并从 90% 缩放到原尺寸；显式 transition 和主题 Reduced Motion 同时约束这些动画。方向热切换更新布局、侧边定位、段落和图标，不重挂载同 key 的入口。
+
+## 38. Resizable
+
+`resizable(sizes: Binding<Array<ResizableSize>>) { panel(key, content) { ... }; handle(afterKey) { ... } }` 创建 ResizableProps／Resizable。ResizableSize 为显式 key、fraction（有限 0..1）与 collapsed=false；展开项的 fraction 按相对权重分配，全部为零时等分。缺失项使用等权默认值，未知 key 保留，显示和窗口缩放不暗写 Binding。模型 key 唯一。折叠项保留最近展开时占全部面板实际长度的比例，恢复时用当前总长换算并受相邻面板约束；不允许折叠的面板忽略模型中的 collapsed，不改写模型。
+
+每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style；afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
+
+分配复用 allocateFlex：折叠项使用 collapsedSize，展开项按比例和 min／max 分配剩余长度；分隔线占 1 主题密度单位。最小尺寸总和超出可用长度时保留明确 overflow，不产生负面板；所有项到达 maximum 后允许尾部空白。逻辑顺序和 key 稳定，横向 RTL 只转换放置坐标与拖动符号。正文按面板边界裁剪，零尺寸正文不放置但保留挂载；缩放、方向切换、重排和折叠恢复不替换正文实例。根仅在 clip=true 或明确 style.clipContent 时裁剪，焦点环向外绘制且不增加分隔线布局尺寸。
+
+拖动复用 Drag 的主轴阈值、指针声明与取消，仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
+
+把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 4 像素命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
+
+## 39. Carousel
+
+`carousel(source: ItemSource) { ... }` 与 `carousel { item(key, content) { ... } }` 创建 CarouselProps／Carousel。复用 ItemSource 的不可变快照约定，key 必须显式且唯一；普通有限轮播保留每个项目的唯一挂载实例，数据源变化更新描述，同 key 重排保留局部状态。CarouselItemSize 为 Fraction、Length 或 Content：Fraction 是视口内主轴长度的比例，并减去 `spacing * (1 - fraction)`，使等分项目及间距可以正好容纳；Length 是逻辑长度，Content 使用正文真实测量。比例必须有限且大于零，长度／间距／内缩非负有限。DSL 的 item 配置 size 与 style；外部 source 用 itemSize(index) 提供同一规则。
+
+根支持 orientation=Horizontal、selected: Binding<Long>?=None、initialIndex=0、loop=false、enabled=true、length=None、spacing=16、dragThreshold=4、projectionSeconds=0.15、autoplay=None、handle、theme、style、viewport、previous／next 及 onSelect(index, key)／onDragCancel(reason)。不受控时保留已选 key，删除它后夹取原索引；受控索引按当前 source 解释，越界仅夹取显示，不暗写应用状态。选择请求只通知 setter 实际采纳的索引／key，不因 resize、主题或方向变化假报选择。CarouselHandle 仅绑定一个活动挂载，提供 snapshot、position、snapPositions、previous／next／scrollTo(index, animated)，未挂载或无有效几何时返回 false；卸载解除绑定。
+
+主轴有限时填可用长度，无界时默认 320；length 可明确覆盖。默认两侧各为导航按钮保留 48 密度单位，按钮 32、圆形 Outline；窄宽保留合法零尺寸视口。viewport 默认各边 4 内缩，为正文焦点环提供绘制空间，内部裁剪与输入几何同变换；交叉轴取正文自然尺寸并遵守父约束。完全离屏项目继续逻辑更新，但暂停子树帧请求并退出输入／Tab 顺序；重新可见后在 Accepted 几何后恢复。横向按逻辑起点排列、RTL 对换物理方向，纵向向下为下一项。
+
+吸附由实际测量项目起点产生。非循环位置夹在 0 与内容末端减视口之间，重合的尾部锚点不产生无意义的上一／下一动作；不足一屏时两个方向都不可用。循环按实际总长和接缝间距移动同一批内容，每个 key 仅有一个交互实例；仅在移走任一项后余下环长仍可覆盖视口时启用，否则按非循环处理。内容、尺寸、方向或外部定位改变使旧拖动／动画目标失效，以当前选择重新定位；不清空项目状态。
+
+Drag 到达主轴阈值后声明原指针路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
+
+CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+
+## 40. Drawer
+
+`drawer(open: Binding<Boolean>, content: View) { ... }` 创建 DrawerProps／Drawer。标题、说明、header／footer、trigger／close、字体、主题、滚动正文及关闭 veto 复用 ModalOptions 和 DismissibleModalBuilder；默认 side=Bottom、showCloseButton=false、viewportPadding=0。side 使用 SheetSide 的 Top／Bottom／Start／End，横向随 RTL 解析。mode 默认 Modal，也可显式选择 NonModal／FocusContained；只有 Modal 默认绘制遮罩，三种模式的指针、Tab、Escape、初始／恢复焦点、退出重开及 onClosed 均由同一 Portal 处理。swipe 关闭沿 OverlayHandle 的 Explicit 请求，不直接绕过业务 veto 或拒绝绑定。
+
+根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示，外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
+
+无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
+
+swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
+
+Drag 达到主轴阈值后才声明原指针路径，未达阈值保留正文点击。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
+
+DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex、extent、visibleExtent、dragging、nestedDepth）和 `snapTo(index, animated=true)`。popup 完成退出或卸载后解除绑定，应用可以继续保留句柄。parent 显式关联同窗口内已挂载的父 DrawerHandle，用于嵌套外观与手势协调；不能自指、成环或跨窗口。焦点层级仍来自正常 Portal 嵌套，parent 不建立另一套模态或恢复会话。父面板按实际前层尺寸缩放，每层缩小 5%、向内露出 16 并略微压暗；子层拖动时逐渐还原父层。子层打开期间不启动父层拖动，子层关闭／重开和整体卸载正常解除关联。
+
+默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；仅验证现有桌面指针，不声称提供尚未交付的触屏后端。
+
+
+## 41. Sidebar
+
+`sidebar(open: Binding<Boolean>, content: View) { ... }` 返回 Sidebar；另有 `(SidebarPresentation) -> View` 内容重载。SidebarContent 为 Custom(View)／Resolved(factory)，header／footer 也接受这两种明确内容。SidebarPresentation 只描述本次 mobile、collapsed（桌面 Icon 折叠）及 expanded，不保存业务值。SidebarProps 保存 open、content、header=None、footer=None、inset=None、variant=Sidebar、collapsible=Offcanvas、side=Start、layout=Auto、width=256、iconWidth=48、mobileWidth=288、breakpoint=768、rail=false、enabled=true、scrollState=None、focus=OverlayFocusOptions()、shortcut=Primary+B、transition=Inherit、onOpenChange={}、onCloseRequest={true}、onClosed={}、fonts=None、theme=None、style／insetStyle 空覆盖。SidebarVariant 为 Sidebar／Floating／Inset；SidebarCollapse 为 Offcanvas／Icon／None；SidebarSide 为 Start／End；SidebarLayout 为 Auto／Desktop／Mobile。长度有限且非负，并按正文密度缩放；None 始终使用展开的内联导航，忽略窄布局及折叠动作，不改写 open。
+
+Auto 按父级本次可用宽度与 breakpoint 判断窄布局，无界宽度采用桌面。实际布局成功后发布改变，后续帧切换宿主；不在测量或绘制中写 Binding。可选 inset 是相邻的主内容，拥有剩余宽度且在桌面／窄布局转换时保持同一父级和槽。未给 inset 时返回导航自身占用宽度。桌面 Sidebar 占 width；Icon 折叠为 iconWidth；Offcanvas 折叠为零并从逻辑侧退出。Floating／Inset 外侧留白 8，Floating 用 8 圆角、sidebar border 和小阴影；Inset 主内容背景为 background，8 外边距、12 圆角及小阴影，展开时贴导航一侧不留重复外边距。默认宽度过渡为 200ms linear，Reduced 立即就位。
+
+桌面折叠保留内容实例；Offcanvas 关闭立即停止内容输入／IME／Tab 和子树帧请求，退出画面仍可绘制，完全隐藏不测量或放置正文。Icon 模式保留真实菜单按钮及图标，隐藏标签、分组标题／动作、badge、菜单动作和子菜单；这些内容保留普通逻辑更新。恢复输入等待 Accepted 非零几何。切换窄宿主时导航依正常挂载规则卸载／重建，编辑模型、选择和业务开关由调用方提升；不进行任意子树迁移。窄布局使用同一 open 的模态 Drawer、mobileWidth、逻辑侧及原焦点／关闭合同，正文滚动与拖动由 Drawer 仲裁，头尾固定。
+
+SidebarBuilder 提供 header／footer／inset 成员和 content 重载；sidebarTrigger(open) 是 Ghost／IconSm 普通按钮，使用 Lucide panel-left 并随 RTL 翻转，可替换内容／焦点／样式。rail 是 16 宽、非 Tab stop 的侧边点击区域，悬浮显示 2 宽 sidebar border 和横向 resize cursor；点击切换开关，不承担拖动改变宽度。快捷键通过已有 ShortcutScope，在本 Sidebar 及 inset 的逻辑输入域工作；窄布局内容也注册同一动作。尊重 IME、内层消费、禁用、重复键和上层焦点域，不安装全局事件总线。按钮、rail、快捷键只通知 Binding 实际采纳的变化；窄层的快捷键及 Drawer 关闭请求先经 onCloseRequest。独立 sidebarTrigger 与外部直接写 open 一样，按调用方 Binding 的 setter 决定是否采纳，遵循 Portal 的普通规则。调用方可用 shortcut=None 禁用默认组合。
+
+`sidebarGroup(content) { label(...); action(...); collapsed=false }` 用 8 padding，标题高 32、12／500、sidebar 前景 70%，动作是单独真实 View；分组内容保留原样组合。`sidebarMenu { item(key, label, onClick) { ... } }` 提供 SidebarMenuProps／SidebarMenuItemProps；同级显式 key 唯一，稳定重排保留按钮／正文实例。menu 配置 collapsed=false、enabled=true、fonts／theme、style；item 支持 icon=None、content=None、active=false、enabled=true、variant=Default／Outline、size=Default／Sm／Lg、badge=None、action=None、actionOnHover=false、submenu=None、submenuOpen=None、focus、style。submenuOpen 存在时用现有 Collapsible KeepMounted，展开值由应用负责；没有绑定时显示提供的子菜单。普通导航保留 Tab，不加菜单角色或 roving 焦点，动作由当前 onClick 完成。按钮高 32／28／48，字号 14／12／14，水平 8 padding、8 图文间距、16 图标、6 圆角；Icon 折叠按钮 32 方形。icon／badge 接受普通 View 或 ActionContentStyle 内容回调，回调获得当前文字前景色、密度尺寸和交互状态；badge 在按钮内容内布局，action 保持独立。标签单行省略并继承布局方向，action／badge 的实测宽度为正文让位且动作不会触发主按钮。active 使用 sidebar accent 与 500 字重；Outline 增加背景和边框。悬浮显示的 action 在行悬浮或行内焦点时可见；折叠时退出输入。折叠菜单的 Tooltip 使用原标签，普通按钮保持唯一 Press 和焦点。
+
+`sidebarMenuBadge(text)` 提供高／最小宽 20 的 12／500 标签，可通过 color 覆盖文字颜色；`sidebarMenuAction(content, onClick)` 提供 20 方形 Ghost 动作；`sidebarSubmenu(content)` 提供逻辑起边 1 border、两侧 14 外距及内部水平 10／垂直 2 留白，collapsed 可隐藏；`sidebarMenuSkeleton { showIcon=false; collapsed=false; textFraction=0.7 }` 组合已有 Skeleton，行高 32、图标 16、文字高 16，比例明确在 [0,1]，不在 render 随机。`sidebarInput(state)` 沿用 Input，32 高、background 背景及无阴影。各部件有对应 Props／builder、fonts／theme 和必要局部样式，不建立 Provider 或选择镜像。
+
+ModalOptions／ModalBuilder 同时增加 contentPadding=16，统一控制 header、body、footer 的逻辑内边距，有限非负并随密度缩放；默认行为不变。Sidebar 的窄层使用 contentPadding=0，自己的组与头尾留白保护完整焦点环，避免重复添加 Dialog 内边距。
+
+验收覆盖三种变体／折叠、逻辑侧／RTL、窄宽 Drawer 及窗口缩放、受控拒绝／换绑／实际值通知、真实快捷键／Tab／文本编辑、滚动与关闭拦截、稳定 key、动作及子菜单、静态／动画停帧、宿主切换和卸载；不把桌面指针测试记为触屏验收。
+
+## 42. Toast
+
+`ToastState()` 是 owner 线程显式通知模型；`show(ToastProps)`／`show(title) { ... }` 返回不透明 ToastId，`update(id, props)`／`update(id, title) { ... }` 替换同一条记录，`dismiss(id)` 请求退出。count 包括排队与退出中的记录，contains 仅对仍可更新的记录为 true。记录处于退出或已经完成时 update／dismiss 返回 false；没有宿主或尚未显示的通知可同步完成关闭。每个状态仅绑定一个活动 Toaster，跨状态的 id 不相互匹配；getter 与 mutation 都遵守 State 的 owner 线程和求值期间禁止修改合同。
+
+ToastProps 使用普通 PanelContent title、可选 description／icon／action，提供 Default／Success／Info／Warning／Error／Loading、可选 position、duration=5 秒、dismiss=ToastDismiss()、style 和 onClosed(id, reason)。String／StyledText／View 标题与说明有 builder 入口；ToastAction 为 ButtonContent、onClick、dismiss=true、enabled、focus 与样式。普通 duration=None 表示持续，非空必须大于零；Loading 不计时。update 从新 Props 重置持续时间，Loading→Success／Error 获得完整新时长。关闭原因 Explicit／Timeout／Action／Swipe／Escape 只确定一次；先标记关闭，再运行独立动作回调，避免重入双执行，onClosed 在记录移除后只调用一次。
+
+`toaster(state) { ... }` 创建零布局占位宿主。默认 position=BottomEnd、visibleCount=3（每位置）、order=OldestFirst、expanded=false、width=384、offset=16、gap=12、enabled=true、transition、fonts／theme／style。位置为 TopStart／TopCenter／TopEnd／BottomStart／BottomCenter／BottomEnd，Start／End 按 RTL 解析；记录可覆盖宿主位置。队列按声明的 OldestFirst／NewestFirst 补充空位，已经显示的记录保留，退出项仍占展示槽直到完成；降低上限使多余未退出项回队列并暂停剩余时间。新进入的可见项位于叠层前方；hover／焦点进入该位置任一通知时展开自然高度与 gap，离开后收叠，expanded=true 始终展开。默认收叠每层向视口内偏移 12、缩小 10%，后层背景使用前层高度并隐藏正文；隐藏正文退出输入／Tab 与子树动画，模型和实例保留。
+
+每条实际显示的通知复用一个 NonModal Portal，autoFocus=false，忽略全局 Escape 和 outsidePress；只在该条正文的未消费 Escape 上关闭，不干扰应用输入。动作、关闭按钮保留普通 Tab，非交互通知不额外加入 Tab。拖动达到阈值后复用 Drag 取消子项 Press，并将焦点放到非 Tab 卡片目标以便 Escape 取消。边侧通知沿对应物理水平边、居中通知沿上下边拖动；反向位移有有限阻力，释放的位移加 0.15 秒速度投影达到 max(40, 主轴长度×0.4) 时退出，否则回弹。外层取消、禁用、窗口失焦、几何变化及卸载结束手势；焦点恢复沿同一 Portal 会话和 revision，不盖过应用较新的显式聚焦。
+
+进入／退出复用 Presence，布局与回弹使用本挂载动画时钟；默认 500ms cubicBezier(0.22,1,0.36,1)，Reduced Motion 或 transition(None) 立即完成。每宿主仅预约一个最早 deadline，使用 MonotonicTimeSource；Accepted 且进入完成后开始计时。该位置 hover／焦点／拖动、窗口失活／隐藏／遮蔽、禁用或无有效几何时保存剩余时长并取消不需要的排期，恢复继续剩余时长；排队不耗时。deadline 与 Window 活动观察分别通过 ComponentScope.createDeadline／observeWindowActivity 进入根错误边界，不轮询。卸载先解除绑定并暂停全部记录，再完成已退出记录和取消挂载资源；一个关闭回调失败不能阻止其余记录收尾。异步任务由应用 Job 负责，同 id 的迟到结果不会复活关闭记录。
+
+控制器、输入与绘图资源在构造作用域取得，不经 onMount 向 State 发布资源。更换 state 时若旧记录的关闭回调失败，根错误收尾仍解除旧、新状态的宿主绑定，不留下已退休宿主。卡片位置、尺寸与子项放置保存为完整布局结果，Accepted 后才更新可交互几何和实测高度；高度改变使同位置的实际卡片布局失效，悬浮展开由普通观察状态触发更新。稳定布局下的进入／退出、平移和回弹只更新场景。默认字体从根借用，Toaster 的显式 fonts 覆盖保持有效。
+
+卡片采用 popover 背景／前景、1 像素 border、16 圆角、floating shadow、16 内边距及 12 横向间隔；标题 14／medium、说明 14／muted、垂直间距 4。语义图标 16，Error 使用 destructive，Loading 复用 Spinner。动作默认 Outline／Sm，按自然宽度与正文并排；正文剩余宽度不足 96 密度单位时移到下一行，并按扣除图标占位后的可用宽度约束。关闭默认 Ghost／IconSm。保留普通内容的自然换行、窄宽和零尺寸处理；内部控件焦点环允许在 padding 内外扩，绘制和命中使用同一动画变换。
+
+
+## 43. Calendar
+
+`CalendarSelection.Single(Binding<LocalDate?>)`、`Multiple(Binding<Array<LocalDate>>)` 和 `Range(Binding<DateRange?>)` 是完整且互斥的选择入口；对应 `calendar`、`calendarMultiple`、`calendarRange`，均显式传入 initialPage: LocalDate。DateRange 构造要求 start≤end，长度以 start.daysUntil(end) 的夜数表示，同日为 0。CalendarValue 是通知／解析使用的同形日期快照，不携带 Binding。Multiple 拒绝重复日期，选择值不包含时区或 Instant。
+
+CalendarRules 默认 required=false、minimumDates=0、maximumDates=None、minimumNights=0、maximumNights=None、minDate／maxDate／disabled=None、allowDisabledInside=false。限制非负且上下界有序。Single 再次选择可清空非 required 值；Multiple 只增删目标日期，最小数量限制删除，最大数量限制增加。Range 首次激活只记录内部起点，第二次激活排序两端、检查端点和夜数，并在不允许内部禁用日时检查实际区间，成功后一次写入完整值；失败保留起点，Escape／取消清除起点和预览。控件不把禁用日跳过后组成另一段范围。setter 拒绝时保留实际值，不通知虚假的 onValueChange；异常沿所属 UI 根交付。外部改变值只更新高亮，syncSelection=false 默认不移动月份；显式启用后移到新的首个选中日期。
+
+CalendarOptions 默认 monthCount=1、pagedNavigation=false、showOutsideDays=true、fixedWeeks=false、weekNumbers=None、caption=Label、cellSize=28、monthGap=16、syncSelection=false、today=None。CalendarLocale 显式提供 12 个月名及简称 shortMonths、从星期一开始的 7 个星期名、weekStartsOn=Sunday、firstWeekContainsDate=1 和数字／日期格式化；默认英文及 ISO 日期文字，不访问系统时区或时钟。月份下拉使用简称，普通标题使用完整月名，不从任意语言文字截取简称。Iso 周号使用星期一和每年包含 1 月 4 日的周；Locale 周号采用 locale 的两项规则。年份下拉可指定 years 数组，缺省显示当前页年前 100 年到后 20 年，并限制到日期库可表示范围。Label／Dropdowns 两种标题均保留前后页动作，Dropdowns 使用现有自绘 Select。
+
+多月标题下拉改变整个显示序列，使所选页保留在该标题的原索引；前页沿来源的 previous 链取得，来源无法提供足够前页时保留原显示序列。下拉 Binding 即时回读实际显示页，成功选择关闭当前 Select，外层日历弹层仍保持打开。
+
+CalendarPageSource.page(CalendarPageRequest) 返回不可变 CalendarPage：规范页 anchor、caption、完整七列 weeks、previous／next／previousYear／nextYear 和月／年选项。每个 CalendarDayData 有实际 LocalDate、显示 label、outside 和 enabled；空格显式为 None，同页日期唯一且按日期递增。页选项携带实际目标 anchor 和标签，来源负责非公历翻页和文字，UI 不猜测历法。默认 GregorianCalendarPages 复用 LocalDate／YearMonth 算术；自定义月页消费与公历相同选择、禁用和焦点代码。本轮不提供 Persian／Hijri 换算引擎。
+
+同一份页快照驱动 Grid、选择与键盘。日期按钮通过 KeyNavigation 提供单一 roving Tab 停靠；左右键按 LTR／RTL 前后一天，上下七天，Home／End 到当前周首尾，PageUp／Down 到来源的前后页，Shift+Page 到来源的前后年。目标禁用时只在本次可显示页内寻找同方向可用日期，整页不可用则退到可用翻页入口；不跨年无限搜索。CalendarHandle 可显式 showDate、focusDate、focusFirst、cancelRange；focusFirst 请求当前可用日期，没有可用日期时退到翻页入口，卸载后请求返回 false。跨页聚焦只在对应 Accepted 场景后尝试一次，不用预估矩形。
+
+月份使用有限七列 Grid，窄宽时多月自动纵向排列，所有月份和日期保留稳定 key。cellSize 是日期按钮的最小表面尺寸，轨道额外保留主题实际 focusOutset；字体、密度、样式和可用宽度变化参与测量，完整焦点环不可被月页边缘裁切。范围底色连接相邻格，起点／终点随逻辑方向解析，文字不镜像。CalendarProps／builder 提供 enabled、fonts／theme／style、dayStyle、handle、onValueChange、onPageChange 和 header／monthGrid／day／weekNumber／footer 内容入口；自定义 day 位于原日期按钮内部，保留原激活和导航。
+
+## 44. DatePicker
+
+`datePicker(Binding<LocalDate?>, initialPage)` 和 `dateRangePicker(Binding<DateRange?>, initialPage)` 组合同一 Calendar、Popover 和按钮／Input。DatePickerProps 接收 Single／Range，Multiple 非法。默认非模态、关闭时恢复触发器焦点、确认完整日期后 closeOnSelect=true；受控 open、关闭拦截、过渡、禁用、readonly、FieldTarget 和字体／主题沿现有控件合同。CalendarOptions／Rules、presets、可选 footer 及独立时间 Input 是正常组合入口，时间保存为 LocalTime，不推测 timezone。触发区分别按 inputStyle／buttonStyle 的实际 focusOutset 保留外侧留白和内部间距，不用日历单元格样式代替触发器尺寸。
+
+未提供 draft 时使用格式化选中值的按钮；提供 DatePickerDraft 时使用其唯一 TextEditorState。draft.error 是可观察解析错误，reset(text) 是应用显式接受外部值／丢弃草稿的入口，控件不再维护每字符同步的 String。默认 Enter 提交，commitOnBlur=false；可选 blur 提交在焦点离开整个日期控件后，通过一个可取消的原生 deadline 延后到输入事件结束后执行；内部切到日历按钮不提交，打开日历和刚接受日历选择时取消旧 blur。composition 中不解析或重置编辑模型，Escape 先由 IME 消费，再取消草稿／暂定范围和关闭弹层。
+
+非编辑期间外部值变化同步格式化草稿；聚焦或 composition 期间保留用户草稿，直到明确提交／reset／日历选择。解析器只在提交动作执行，接收 text、referenceDate 和 CalendarLocale，返回 DatePickerParse.Date／Range／Empty／Invalid(message)；默认严格 ISO 日期，范围用 `start .. end`。模式不符、required／日期限制不满足均保留草稿并显示错误，不改变选中值。默认 referenceDate=initialPage；自然语言示例必须传入真实 parser，不在 render 中猜测日期。成功写入后按 setter 实际采纳值格式化；拒绝时不关闭、不通知成功。Calendar 选择先接受业务值，再替换草稿并关闭，迟到 blur 不能重新提交旧文字。
+
+DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar，绑定只属于一个活动控件，卸载后返回 false。presets 提供明确 CalendarValue 和标签，复用同一次约束检查和提交。日期、范围、生日年份选择、预设、严格输入、显式自然语言解析和 LocalTime 组合均须有实际示例；验收覆盖键盘／中文编辑模型、失败草稿、外部更新、受控拒绝、暂定范围取消、弹层焦点及静止停帧。
+
+## 45. Table 与 DataTable
+
+`table { header { row { head(...) } }; body { row(key) { cell(...) } }; footer { row { cell(...) } }; caption(...) }` 是有限呈现入口，部件接受 String／StyledText／View，cell 可指定 span 与逻辑对齐。行内实际列跨度必须与 columns 一致；省略 columns 时按首行推导等比例列。header／body／footer 保持声明顺序和稳定行 key，自动 Position 与显式 key 沿用普通 View 身份规则，caption 位于表格之后。Table 不隐式筛选、排序或虚拟化。默认文字 14、head 高 40／medium、cell 四侧 8 留白、行底部 1 border、hover 为 muted 的 50%、selected 为 muted、footer 使用 medium 与 muted 的 50%，caption 上距 16、muted 前景；长度随密度缩放，普通输入与按钮的实际 focusOutset 可增大 cell 留白。表头、footer 及 Center／End 内容先按自然宽度测量，在共享列内逻辑对齐，过长时受列内可用宽度约束；正文 Start 内容允许填充列宽，保留输入框的正常尺寸。
+
+TableColumnSize 使用 GridTrack.Fixed／Auto／Fraction、minimum=48、maximum=None 和显式文字 samples。Fixed／Auto 在最小最大值间夹取；Fraction 从 minimum 起分配可用剩余宽度，达到 maximum 后将剩余空间分给其他比例列。总最小宽度超出视口时横向滚动，不压成负宽。Auto 只测表头文字与显式 samples，使用真实字体，不扫描数据源或挂载行。Custom 表头没有可自动提取的文字时由 samples 或 minimum 决定宽度。表头、footer 和正文行共用同一不可变列宽结果；测量缓存只依赖列配置、字体、密度和宽度，不保存待发布几何。一次横向 ScrollViewport 移动整个表格；DataTable 的 header 固定在垂直 VirtualList 之外。零尺寸跳过子项，Discarded 不发布交互几何。
+
+`TableSource<Row>` 是不可变行快照，提供 count、keyAt、indexOfKey 和 rowAt；显式 key 不可为 Position，重复显示值合法。`TableRows<Row>` 从有 key 的 TableRecord 数组构造并检查唯一性。任意来源按普通 ItemSource 合同保证映射，控件不为了验证或 Auto 列宽遍历巨大来源。`TableColumn<Row>` 使用稳定 String id、header、类型化 cell `(Row) -> View`、size、alignment、可选 compare／filter、remoteSort、hideable、resizable；compare 为 `(Row, Row) -> Int`，filter 为 `(Row, String) -> Boolean`，无 Any 或字段反射。
+
+`DataTableState<Row>(data, columns, query, selectable)` 是应用持有的模型，`dataTable(state) { ... }` 消费其快照。TableData.Local 提供完整来源；Provided 提供已排序筛选的当前页及 totalRows，pageCount 按 pageSize 推导。TableQuery 保存有序 TableSort、TableFilter、pageIndex=0 和 pageSize=10；重复列查询、未知列、负页号和非正页大小非法。Local 过滤后使用标准库稳定多列排序，同值保持来源顺序，再取页；没有筛选排序时直接切片来源。分页复用相同的筛选排序结果，选择／显隐／宽度变化不重跑查询。Provided 只呈现来源，不执行列比较或过滤回调。
+
+setQuery／toggleSort／setFilter／setPage／setPageSize 是显式模型动作；排序或筛选改变默认回第一页。toggleSort 按未排序→升序→降序→未排序循环；additive 保留其他排序列，改变已有列方向时保留其优先级，新列追加到末尾。replaceData 在一次动作中更新结果、夹取失效页并移除 Local 中确实删除的已选 key；Provided 不因本页缺失而删除选择。模型动作成功更新后才交付可选 onQueryChange，异步请求、取消、迟到结果、loading／error 由调用方负责，render 不回写查询。列定义是该模型的固定配置；应用需要另一组列时显式建立新模型。
+
+selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作更新。isSelected／setSelected 以稳定 key 工作；selectPage 与 pageSelection 只看当前呈现页中 selectable 的行，混合为 Indeterminate，空集合为 Unchecked 且禁用全选；跨页选择保留。隐藏列与调整宽度不改变排序／筛选，至少保留一个数据列。resizeColumn 以逻辑长度夹取列限制，resetColumnWidth 恢复声明宽度；表头分隔区复用 Drag，逻辑前后键改变 10，Home 恢复声明值，Escape／外层取消恢复本次开始值，期间外部改宽则保留外部结果。
+
+DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
+
+
+## 46. Chart
+
+`chart(model) { ... }` 消费应用持有的 ChartModel。ChartData 保存有稳定 ChartDatumKey 的 datum 数组和有稳定 ChartSeriesKey 的系列数组；datum 有 label、可选数值 x 和供 Pie／Radial 扇区使用的可选颜色，系列有 label、逐 datum 的 `Double?`、可选颜色／图标和 Cartesian mark 覆盖。两种 key 是不同值类型，唯一性分别检查；系列长度必须匹配 datum，所有实际坐标有限，None 表示缺值。显示文字可以重复。ChartModel.replaceData 是普通应用动作；显隐状态独立于数据，持续存在的 key 保留显隐和配色槽，新的系列按声明次序取得五色 palette 槽，隐藏或重排不改变其他系列颜色。
+
+ChartKind 覆盖 Area、Bar、Line、Pie、Radar、Radial；Pie 的 innerRadius 比例形成 Donut。Cartesian mark 可将同轴的 Bar／Line／Area 合成一张图，不建立多坐标系统。ChartCurve 提供 Linear／Step／Monotone，ChartStack 提供 None／Stacked／Normalized；堆叠只作用于 Bar／Area，正负值分别从零累加，归一化分别按正值和负值绝对总量归一，缺值不贡献总量且仍保留缺口。Line 缺值默认断开，connectMissing 是明确选择。单调插值采用 Steffen 的相邻斜率约束；不能形成单调 x 段的边使用直线，避免重复坐标产生无效控制点。
+
+ChartAxis 提供 Category／Linear、Auto／Fixed domain、includeZero、nice、tickCount、可选 tick formatter 和显示开关。Category 按 datum 顺序分配，Linear 使用显式 x；普通数值轴按实际可见数据及堆叠端点取域，Bar／Area 的自动域包含零。手动域必须有限且递增，超域数据在 plot 内裁剪，不把域外值夹成伪造的边界样本。空域为 0～1，常量非零域向两侧扩张，常量零域为 0～1。nice tick 使用 D3 的 1／2／5 十进制步长规则，极端浮点步长无法表示时保留有限域端点。轴和标签使用真实字体测量；分类 tick 空间不足时按可见间隔选择，数据不自动丢点。Bar 支持横／纵、分组／堆叠、正负值、圆角和数值标签；Area 使用从系列颜色衰减的渐变填充。
+
+Pie 按每个可见系列形成同心环，值非负，缺值和零值不占角度；总量为零时没有扇区和可命中项。startAngle／endAngle 为顺时针弧度，默认从顶部绘制一周；负跨度反向绘制，非零跨度的绝对值不超过一周。innerRadius 是 [0, 1) 内的外半径比例。扇区绘制与命中使用相同的内外半径和角度，活动扇区沿径向突出，命中也包含突出区域；可显示标签及普通 View 中心内容，中心内容只在内孔可容纳的正方形内布局。Radar 用 datum 分类作为等角极轴，可见系列共享数值域、网格和刻度；缺值断开相邻边。Radial 用同一数值域将各个 datum／可见系列的有效项分配到同心轨道，提供背景轨道和数值标签，负值从零点反向延展；零值保留轨道但没有可选择的数值条。极坐标图不使用 Cartesian mark／stack／orientation／xAxis，Radar 的分类标签来自 datum，Pie／Radial 的 datum 颜色覆盖系列颜色。
+
+ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
+
+图表自身是一个焦点目标，active 可用外部 `Binding<ChartSelection?>` 控制；默认由控件持有。指针用最近点／条形／扇区的实际几何选择数据，移出后关闭鼠标提示。键盘逻辑前后键逐 datum 导航，上下键切换可见系列，Home／End 定位边界，Escape 清空提示；缺值和无图形项跳过，普通 Tab 继续离开图表。拒绝 setter 保留调用方状态，禁用和卸载撤销输入；业务选择、取数与异步取消归应用。
+
+几何和命中共享完整不可变布局结果，仅在数据／尺寸／字体／轴或绘图参数／系列显隐变化时重建。pointer 移动只更新 active 和提示布局，静态数据图层复用有限 drawLayer 的 key／revision；Accepted 后才发布可输入几何，Discarded 和零尺寸不发布。默认数据更新直接呈现最终值，不制造持续动画；自定义内容沿已有 Surface 动画与可见性协议，静止、隐藏及卸载后没有图表自发帧需求。RTL 镜像 Cartesian 的横轴与逻辑导航，图例和提示使用逻辑布局；极坐标角度保持显式数值含义。
+
+验收使用精确坐标／堆叠／角度／命中断言和六类真实数据图，覆盖空值、常量／负值／全零、受控 active、键盘与鼠标提示、图例显隐、稳定颜色、窗口缩放、明暗／RTL、零尺寸和停帧。D3 array／shape 的刻度、堆叠和单调曲线参考及衍生实现保留对应 ISC 许可证；其余绘制复用已有 graphics／graphics.text／math 公共接口。
+
+
+## 47. MessageScroller
+
+`messageScroller(source, state) { ... }` 组合原有 VirtualList、ScrollState 和 VirtualListHandle，不拥有会话协议、网络任务或第二份虚拟挂载树。TranscriptSource 是 ItemSource 的会话结构元数据扩展，提供按索引查找前一个回合锚点；锚点由应用明确声明。TranscriptList 用 TranscriptItem 的稳定显式 ViewKey、scrollAnchor 与按需 content 工厂建立普通 key／锚点索引；更新结构或条目输入时替换 source，流式正文也可由原 key 下的业务 State 更新。按 key 和回合查询不遍历全部历史或预建 View。
+
+MessageScrollState 持有一个 ScrollState、一个 VirtualListHandle、当前阅读策略和最近 Accepted 结果，同一时刻只附着一个宿主。MessageScrollOptions 默认 autoScroll=false、initialPosition=End、edgeThreshold=8、scrollMargin=0、previousItemPeek=64、preserveOnPrepend=true；支持 Start／End／LastAnchor 初始位置。首个非空来源只执行一次初始定位；LastAnchor 在最后回合已完整可见或没有锚点时使用 End，否则定位该回合。初始定位尚未完成时呈现静态空白或占位内容，不先显示最老消息。空来源可保留一次显式定位，首个非空来源解析后结束，不无限重试不存在的 key。
+
+Holding 使用既有 KeepVisible 保持当前 key／项内偏移。beginTurn(key) 接受应用的显式新回合请求，在下一次来源更新后解析一次，将回合放到 scrollMargin 加实际 previousItemPeek 的位置；它不从新增锚点自动推导发送行为。Anchoring 使用 endPadding=FillViewport，在当前实际布局中收敛为 `max(0, viewport - anchorInset - turnExtent)`，后续增高、缩短和窗口缩放沿同一阅读位置调整留白。Accepted 后记录实际留白，转入 Holding 时冻结该长度，避免继承自动填充策略。正文填满时，仅 autoScroll 开启才进入 Following 并定位实际末端；默认不制造滚动动画。Following 复用 VirtualList 的 FollowEnd，正常新增或流式更新保持末端。
+
+User 滚动意图（包括边界无位移）、正文指针操作、键盘及选择开始立即进入 Holding，停止较旧定位；不消费正文输入。释放选择不会自动拉回。用户随后主动滚回 edgeThreshold 内且没有活动指针选择时，autoScroll 可重新跟随；显式 hold、搜索、restore 或正文操作之后的普通数据更新不恢复旧策略。外部 Programmatic 意图也进入 Holding；内部定位识别自己同步产生的意图，LayoutCorrection 不改变阅读策略。preserveOnPrepend=false 只对来源在前方插入时保留数值偏移，普通正文增高仍沿 KeepVisible。
+
+scrollToMessage(key, alignment)、scrollToStart、scrollToEnd、restore(VirtualReadingAnchor) 和 hold 是应用动作。未知非空来源中的显式目标返回 false，不改变位置或策略；beginTurn 允许同一动作先替换来源再请求新 key，随后一次解析失败即结束。scrollToEnd 清理回合留白，并在 autoScroll 开启时重新跟随；其他显式定位进入 Holding。较新动作、真实来源替换期间的 restore、reset、宿主替换和卸载结束旧请求。reset 可指定新的初始位置，清理旧阅读事实与意图；卸载后的迟到动作不重新挂载宿主或预约帧。
+
+reading、visibleKeys、currentAnchor、atStart／atEnd 来自完整可见场景的 Accepted 结果；可见 key 排除 overscan 和末端留白，currentAnchor 由该位置对应的来源索引查询。隐藏的初始定位帧和 Discarded 不作为已读事实。持久化只保存 ViewKey／项内偏移等普通数据，不序列化 View、挂载实例或段落。调用方可独立观察 ScrollState 意图；作用域管理订阅、默认字体、焦点及帧完成资源。
+
+MessageScrollerBuilder 提供 itemExtent（默认 Variable(160)）、spacing（默认 24）、overscan、width／height（默认高度 480）、scrollbar、enabled、focus、theme、controls 和 placeholder；所有长度随正文密度解析。正文按 source 按需构造，controls 位于独立的视口覆盖层，可使用 messageScrollButton 的 Start／End 动作或自定义 View。无可跳转内容时默认按钮不加入输入或 Tab；未呈现、禁用或零尺寸视口的整个正文作用域不接受焦点和输入，恢复可用尺寸后按原模型继续。文字选择、编辑器、链接及弹层继续使用原有组件。验收先用真实窗口覆盖短／长回合、流式增高、历史 prepend、阅读／选择中断、明确跳转／恢复、初始与空来源、变宽／变高、RTL、零尺寸、卸载和静止停帧，再扩展会话展示家族。
+
+## 48. Bubble、Message 与 Marker
+
+三者接收普通 View、String／StyledText 或显式的内容样式工厂，不解释消息角色或协议。BubbleVariant 为 Default／Secondary／Muted／Tinted／Outline／Ghost／Destructive；普通气泡按父级有限宽度的 80% 限宽，Ghost 默认 100%，无界约束使用自然宽度。MessageAlignment.Start／End 按布局方向定位，不镜像图像或文字内部坐标。局部 maxWidthFraction、style、字体、主题和焦点配置可覆盖默认值。气泡正文、反应区和附加动作保持各自稳定槽位，改变变体／方向／尺寸不重挂载正文。
+
+Bubble 默认表面内边距 12／8、圆角 12；Ghost 无背景、圆角和正文内边距。Tinted 使用 primary 的 Oklab 色相与 40% 色度，明／暗亮度 0.93／0.30，悬停使用 50% 色度和 0.88／0.35 亮度。其余变体直接使用语义颜色对；自定义内容工厂取得最终文字／图标前景。可操作正文复用 Press 和原有表面 painter，未声明动作时没有额外 Tab 目标；动作增删保留正文实例，嵌套动作不会再触发外层动作。
+
+BubbleReactions 指定 Top／Bottom 与 Start／End，默认 Bottom／End，以正文边缘为锚点外移其高度的 3/4。反应区本身使用 muted 胶囊和 card 分隔环；外伸及 focusOutset 纳入整个气泡的实际布局范围，窄宽时收缩到父级范围。反应动作与正文动作是独立兄弟目标；enabled=false 同时停用正文、反应区和附加动作的输入。bubbleGroup 与 messageGroup 以稳定 View key 组合连续内容，默认间距 8。
+
+Message 组合 avatar、header、正文和 footer；头像对齐正文底边，footer 按实际高度排在正文下方，不能用固定负偏移模拟。起终侧翻转头像与正文的顺序；header／footer 默认 12 字号、500 字重、muted 前景和逻辑两侧 12 留白。正文可用接收 MessageAlignment 的工厂把对齐传给 Bubble 等子部件，普通不透明 View 不做递归属性注入；captionInset 可明确配合 Ghost 设为零。窄宽、可选区域增删与主题切换保留正文槽位和编辑模型。
+
+MarkerVariant 为 Default／Border／Separator，文字默认 muted、图标 16、间距 8；Border 在底部留白后绘制边线，Separator 在居中文字两侧分配等长分隔线。loading 可组合 Spinner 和文字 shimmer，onClick 是显式动作，纯状态行不加入 Tab。shimmer 只使用现有作用域动画和成功帧可见性；停止、Reduced、透明、零尺寸、离屏、窗口隐藏和卸载结束其自发帧需求，不改变文字布局。
+
+## 49. Attachment
+
+AttachmentState 为 Idle／Uploading／Processing／Error／Done，默认 Done；AttachmentSize 为 Default／Sm／Xs，支持 Horizontal／Vertical。应用提供状态、标题／说明、普通正文、media 和 actions；Image 由调用方装载及持有，控件不会上传、下载、重试或关闭借用图片。media 可明确选择图标／图片；Uploading／Processing 默认运行指示和标题 shimmer，错误有独立颜色与文字，Idle 使用虚线边框，完成停止动画。
+
+默认横向卡片的最小建议宽为 160，竖向为 120；有限父宽仍可收缩。图标媒体默认边长 40／32／28，竖向媒体按正文可用宽度取正方形；图标在媒体区域中居中，图片按实际方形区域紧约束测量并以 Cover 填满，图像裁剪仅发生在媒体区域。标题和说明在有限宽度截断，完整正文仍是普通 View。竖向动作位于媒体逻辑末端的上方覆盖层，横向动作单独测量，空间不足时移到下一行。整卡 onClick 与独立 actions 不双触发；撤销整卡动作保留正文和动作挂载，禁用后整个卡片不接受输入，表面与子动作焦点环均保留实际空间。
+
+attachmentGroup 复用 Carousel 的唯一 keyed 子树、实际测量吸附和离屏输入管理，默认横向、Content 尺寸、12 间距、无前后按钮；支持真实拖动、横向滚轮和键盘，垂直滚轮继续交给外层。逻辑首尾存在隐藏内容时应用边缘透明渐变，静止不自发请求帧；减弱动态、零尺寸及卸载沿原有生命周期。分组不复制图片或为循环制造重复交互实例。
+
+## 50. Trace
+
+TraceStatus 为 Complete／Running／Error／Pending，默认 Complete。traceLine 是普通状态行，提供 title、description、icon、显式动作、主题与焦点；Complete 无默认运行标记，Running 有 Spinner／可停 shimmer，Error 使用 destructive，Pending 降低透明度。纯 line 不加入 Tab；链接、Dialog、Sheet 等由显式动作和普通 View 组合。Trace 不执行 agent／tool 任务或计算业务进度。
+
+trace(title, content) 组合状态行和已有 Collapsible。未提供外部 open Binding 时，尚未被用户操作的行仅在 Running 默认展开；第一次明确打开／关闭后保留该选择，流式追加和状态变化不强行重开。提供 open Binding 时读取实际接受结果，拒绝 setter 不发成功变化通知。触发器先请求切换，再在仍挂载时调用 line.onClick；onOpenChange 只报告实际接受的展开变化。嵌套步骤独立持有展开选择，关闭保留策略使用 ContentRetention；KeepMounted 的正文不可见时退出输入与帧参与，恢复后保留原编辑状态。
+
+展开正文使用逻辑起侧边线和内边距，标题与描述在窄宽下先限制描述宽度再截断标题；正文和触发器共享稳定槽位。焦点、IME、退出动画、Reduced、Accepted／Discarded、停帧与卸载继续使用既有协议。验收覆盖五个会话展示组件的全部变体、独立动作、内容保留、真实主题／RTL／窄宽、完整焦点环、运行态停帧、图片借用及嵌套 Trace 对 MessageScroller 阅读位置的影响。
+
+## 51. Questionnaire
+
+QuestionnaireState 由应用持有。QuestionKey 与 QuestionChoiceKey 是不同的值类型，题目和固定选项分别按 key 保持身份；QuestionKind 为 Single／Multiple／Freeform，选择题可额外声明一项 QuestionFreeform。每个 freeform 只有一个 TextEditorState，隐藏、前后导航和条件停用保留草稿及编辑历史；结果和持久化快照才读取 committedText。定义只保存题目、说明、required／enabled、选项和局部纯校验，不执行异步业务。
+
+QuestionAnswer 为 Choice(key)／Text(value)，QuestionnaireAnswer 为 Unanswered／Skipped／Single(answer)／Multiple(answers)。未回答与明确 Skip 分开；选择题结果按定义顺序交付固定选项，已选 freeform 位于末尾，空白是否合法由 allowBlank 指定。Next 校验当前题；optional 也须回答或显式 Skip，required 不可 Skip。Previous 不校验当前题。Submit 校验全部 enabled 题，失败定位首个无效题，成功交付不可变的 keyed 结果；没有 enabled 题时为 0／0 和空结果。被停用的题目不参与导航、进度、校验和结果，但保留草稿。
+
+replaceQuestions 按稳定 key 保留同题型答案和仍存在的 freeform 编辑器，移除已删除／停用固定选项的选择；题型变化重置该题答案，题目删除释放所属草稿。snapshot 同时保存未选 freeform 的文字、选择、Skip、题型与活动题。restore 先验证 key、题型、选择及 Skip，再一次性恢复，成为新的 reset 基线；省略题目恢复为空答案。reset 按当前定义恢复基线中仍匹配的题目，新题从空答案开始；两者清空错误、组合输入和编辑历史，不发送结果。普通重排和条件显隐不改变基线。setErrors 接入调用方的 keyed 错误，可定位首个 enabled 错误；编辑对应答案清除此题错误。
+
+questionnaire(state, onSubmit) 的 busy／enabled 是显式应用输入。默认 Next／Submit 可激活以显示校验结果；busy 停用回答和导航，单次激活只交付一次，重入不重复调用。成功交付后的重复提交须等更新场景 Accepted，防止同一帧中的后续按键再次读取旧 busy；异步保存状态仍由调用方持有，完成后自行清除 busy 或设置错误。Dialog 关闭只取消展示，不 Skip、reset 或 submit。QuestionnaireStrings 提供按钮、进度、可选／跳过状态和错误文案；题目文字属于定义，组件不引入 locale 或网络服务。
+
+默认选项卡片最小高度 44、内边距 12／10、圆角 8，选择标记 16、快捷键提示 20、卡片间距 8；标题 16／500、说明 14、进度 12／500，题目及导航间距 16。有限宽度下选项组与输入及导航占用同一可用宽度，正文自然换行，快捷键在提示框中居中。操作区保留逻辑起侧 Previous 与末侧 Skip／Next／Submit，必要时换行；所有长度随文字密度变化。表面和输入使用同一主题、Press、KeyNavigation 和 TextEditor，focusOutset 纳入外部布局，不能在选项或问卷边缘裁掉。QuestionnairePart 的 Item／Title／Description／Choice／Choices／Input／Error／Progress／Actions 可包装或替换默认 View，默认导航和进度具有稳定槽位。
+
+固定选项按 enabled 顺序分配 1–9、a–z 快捷键，选择后不自动翻题；文本输入持有焦点或正在组合时暂停。Single 的箭头选择复用 Radio 的 roving 协议，Multiple 的选项可分别 Tab；ArrowLeft／Right 仅在焦点未处于回答控件时前后导航，不截获文本和 Radio 动作。Primary+Enter 校验并继续，末题提交；重复按键和组合输入同次提交不另触发问卷动作。成功导航和校验失败的焦点转移在新场景 Accepted 后执行；依赖实际尺寸的输入域启停同样在 Accepted 回调发布，避免构建场景时同步触发编辑器失焦。零尺寸、禁用、旧题及卸载不响应输入或保留待处理焦点。默认无持续动画，空闲不请求帧。

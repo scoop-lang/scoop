@@ -1,0 +1,236 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class ToastCardControl(val scope: ComponentScope, val read: () -> ToastItemInput) {
+    val area =
+        scope.createArea(focusable = true) {
+            context,
+            _ -> if (context.phase == RoutedPhase.Notification && active)
+                read().host.refresh()
+        }
+    val focus = scope.focusTarget(area, FocusOptions(tabStop = false))
+    val offset = scope.animation(0.0)
+    val origin = scope.animation(Point(0.0, 0.0))
+    val zoom = scope.animation(1.0)
+    var geometry: ToastGeometry? = None
+    var ready = false
+    var dragging = false
+    private var dragOrigin = 0.0
+    private var retired = false
+    private val drag =
+        scope.drag(area, options(), { _ -> available() }, { event -> dragged(event) })
+    val active: Boolean get() = !retired && scope.isMounted
+    init {
+        scope.onDispose { retire() }
+        scope.routeChildren(area)
+        read().entry.card = Some(this)
+        scope.resource {
+            area.scope.observeActivity {
+                if (active)
+                    read().host.refresh()
+            }
+        }
+        scope.resource {
+            area.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (
+                            sliderKeyAllowed(key) &&
+                                !key.isRepeat &&
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.Escape)
+                        ) {
+                            if (dragging) {
+                                context.consume();
+                                cancel()
+                            }
+                            else
+                                if (read().entry.data.value.dismiss.escape) {
+                                    context.consume();
+                                    read().entry.model.close(
+                                        read().entry.id,
+                                        ToastCloseReason.Escape
+                                    )
+                                }
+                        }
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    private fun options(): DragOptions =
+        DragOptions(
+            if (
+                toastSide(read().position, scope.layoutDirection) ==
+                    OverlaySide.Top ||
+                    toastSide(read().position, scope.layoutDirection) ==
+                    OverlaySide.Bottom
+            )
+                DragAxis.Vertical
+            else
+                DragAxis.Horizontal,
+            4.0 * read().density,
+            read().props.enabled &&
+                read().entry.closing.value ==
+                None &&
+                read().entry.data.value.dismiss.swipe
+        )
+    private fun available(): Boolean =
+        active &&
+            ready &&
+            read().props.enabled &&
+            read().entry.closing.value ==
+            None &&
+            read().entry.data.value.dismiss.swipe &&
+            area.scope.isInputAllowed
+    fun update() {
+        drag.update(options(), { _ -> available() }, { event -> dragged(event) })
+        if (!panelPresent(toastTransition(read()))) {
+            if (offset.state == AnimationState.Running)
+                offset.snapTo(offset.target)
+            if (origin.state == AnimationState.Running)
+                origin.snapTo(origin.target)
+            if (zoom.state == AnimationState.Running)
+                zoom.snapTo(zoom.target)
+        }
+        read().host.refresh()
+    }
+    fun accept(shape: ToastGeometry, phase: PresencePhase) {
+        if (!active)
+            return
+        val old = geometry
+        val changed =
+            when (old) {
+                case Some(value) -> !toastSameGeometry(value, shape);
+                case None -> true
+            }
+        if (changed) {
+            if (panelPresent(old))
+                cancel()
+            if (!active)
+                return
+            geometry = Some(shape)
+            val spec =
+                if (panelPresent(old))
+                    toastTransition(read())
+                else
+                    None
+            val next = Point(shape.bounds.x, shape.bounds.y)
+            when (spec) {
+                case Some(value) -> {
+                    if (origin.target != next)
+                        origin.animateTo(next, value)
+                    if (zoom.target != shape.zoom)
+                        zoom.animateTo(shape.zoom, value)
+                }
+                case None -> {
+                    if (origin.value != next || origin.state == AnimationState.Running)
+                        origin.snapTo(next)
+                    if (zoom.value != shape.zoom || zoom.state == AnimationState.Running)
+                        zoom.snapTo(shape.zoom)
+                }
+            }
+        }
+        val entry = read().entry
+        if (entry.height != shape.naturalHeight) {
+            entry.height = shape.naturalHeight
+            read().host.heightChanged(read().position)
+        }
+        ready =
+            phase ==
+                PresencePhase.Present &&
+                shape.bounds.width >
+                0.0 &&
+                shape.bounds.height >
+                0.0 &&
+                area.visibleBounds !=
+                None
+        read().host.refresh()
+    }
+    private fun dragged(event: DragEvent) {
+        when (event) {
+            case Started(sample) -> {
+                if (!available()) {
+                    drag.cancel();
+                    return
+                }
+                dragging = true;
+                dragOrigin = offset.value
+                offset.cancel()
+                focus.handle.requestFocus(FocusOrigin.Pointer)
+                if (!active)
+                    return
+                move(sample)
+                read().host.refresh()
+            }
+            case Moved(sample) -> move(sample)
+            case Ended(sample) -> {
+                if (!dragging)
+                    return
+                move(sample)
+                dragging = false
+                val shape = geometry ?: return
+                val input = read()
+                if (toastReleased(shape, offset.value, sample.velocity, input.density))
+                    input.entry.model.close(input.entry.id, ToastCloseReason.Swipe)
+                else
+                    rebound()
+                if (active)
+                    input.host.refresh()
+            }
+            case Cancelled(_, _) -> if (dragging) {
+                dragging = false
+                rebound()
+                if (active)
+                    read().host.refresh()
+            }
+        }
+    }
+    private fun move(sample: DragSample) {
+        if (!dragging || !active)
+            return
+        val shape = geometry ?: return
+        var value = dragOrigin + sample.displacement
+        if (value * shape.outward < 0.0)
+            value /= 4.0
+        if (value.isFinite() && offset.value != value)
+            offset.snapTo(value)
+    }
+    private fun rebound() {
+        if (!active)
+            return
+        when (toastTransition(read())) {
+            case Some(spec) -> if (offset.value != 0.0)
+                offset.animateTo(0.0, spec)
+            case None -> if (offset.value != 0.0 || offset.state == AnimationState.Running)
+                offset.snapTo(0.0)
+        }
+    }
+    fun cancel() {
+        val wasDragging = dragging
+        dragging = false
+        drag.cancel()
+        if (wasDragging)
+            rebound()
+    }
+    fun retire() {
+        if (retired)
+            return
+        retired = true
+        ready = false;
+        dragging = false
+        when (read().entry.card) {
+            case Some(current) -> if (current === this)
+                read().entry.card = None
+            case None -> {}
+        }
+        read().host.refresh()
+    }
+}

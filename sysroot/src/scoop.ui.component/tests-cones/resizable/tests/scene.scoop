@@ -1,0 +1,214 @@
+package scoop.tests.ui.resizable
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class SplitScene(private val p: SplitProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val current = p.generation.value
+        val children = ArrayList<View>()
+        children.add(
+            button("Before", {}) {
+                fonts = Some(p.fonts);
+                focus = FocusOptions(Some(p.lead))
+            }
+        )
+        children.add(
+            if (p.gone)
+                empty()
+            else
+                resizable(
+                    binding(
+                        { p.sizes.value },
+                        {
+                            value -> if (!p.reject)
+                                p.sizes.value = value
+                        }
+                    )
+                ) {
+                    val keys =
+                        if (p.reordered)
+                            ["c", "b", "a"]
+                        else
+                            ["a", "b", "c"]
+                    for (name in keys)
+                        panel(ViewKey.Text(name), splitTracked(p, name, p.vertical)) {
+                            minimum =
+                                if (name == "a")
+                                    60.0
+                                else
+                                    if (name == "b")
+                                        80.0
+                                    else
+                                        50.0
+                            maximum =
+                                if (name == "a")
+                                    Some(220.0)
+                                else
+                                    None
+                            collapsible = name == "a"
+                        }
+                    handle(ViewKey.Text(keys[0L])) {
+                        focus =
+                            FocusOptions(
+                                Some(
+                                    if (keys[0L] == "a")
+                                        p.handles[0L]
+                                    else
+                                        p.handles[3L]
+                                )
+                            )
+                    }
+                    handle(ViewKey.Text(keys[1L])) { focus = FocusOptions(Some(p.handles[1L])) }
+                    orientation =
+                        if (p.vertical)
+                            Orientation.Vertical
+                        else
+                            Orientation.Horizontal
+                    enabled = p.enabled;
+                    withHandle = true
+                    onSizesCommit = { _ -> p.commits += 1 }
+                    onSizesCancel = { _, _ -> p.cancels += 1 }
+                }
+        )
+        children.add(
+            resizable(p.nested.binding()) {
+                panel(ViewKey.Text("nested-a"), splitTracked(p, "nested-a", false))
+                panel(ViewKey.Text("nested-b"), splitTracked(p, "nested-b", false))
+                handle(ViewKey.Text("nested-a")) { focus = FocusOptions(Some(p.handles[2L])) }
+                withHandle = true;
+                onSizesCommit = { _ -> p.nestedCommits += 1 }
+            }
+        )
+        return direction(
+            element(
+                current,
+                { value, mount -> SplitTestLayout(p, value, scope = mount) },
+                children.toArray()
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class SplitTestLayout(
+    private val p: SplitProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Moved(point)) -> p.pointerTrace.add(
+                        f"phase ${p.phase}: move ${point.state.logicalPosition.x}, ${
+                            point.state.logicalPosition.y
+                        }"
+                    )
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (p.preventRelease) {
+                            p.preventRelease = false;
+                            context.preventDefault()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val length =
+            if (p.narrow)
+                302.0
+            else
+                402.0
+        val size =
+            if (p.zero)
+                Size(0.0, 0.0)
+            else
+                if (p.vertical)
+                    Size(200.0, length)
+                else
+                    Size(length, 200.0)
+        context.measureChild(0L, Constraints());
+        context.placeChild(0L, Point(20.0, 20.0))
+        context.measureChild(1L, Constraints.tight(size));
+        context.placeChild(1L, Point(20.0, 70.0))
+        context.measureChild(2L, Constraints.tight(Size(202.0, 80.0)));
+        context.placeChild(2L, Point(20.0, 490.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 610.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val current = generation.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = current
+        }
+    }
+}
+
+private class SplitTrackedInput(val probe: SplitProbe, val name: String, val vertical: Boolean)
+
+private fun splitTracked(p: SplitProbe, name: String, vertical: Boolean): View =
+    element(
+        SplitTrackedInput(p, name, vertical),
+        { current, mount -> SplitTracked(current, scope = mount) },
+        [
+            if (name == "b")
+                input(p.text) {
+                    fonts = Some(p.fonts);
+                    focus = FocusOptions(Some(p.editor))
+                }
+            else
+                empty()
+        ]
+    )
+
+private class SplitTracked(
+    private val props: Props<SplitTrackedInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        props.value.probe.mounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(40.0, 40.0))
+        context.measureChild(
+            0L,
+            Constraints(maxWidth = Some(size.width), maxHeight = Some(size.height))
+        )
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val input = props.value
+        val size = context.size
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                input.probe.extents[ViewKey.Text(input.name)] =
+                    if (input.vertical)
+                        size.height
+                    else
+                        size.width
+        }
+    }
+    public override fun onUnmount() {
+        props.value.probe.unmounts += 1
+    }
+}

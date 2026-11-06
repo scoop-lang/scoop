@@ -1,0 +1,86 @@
+package scoop.ui.component
+
+internal class TableWidths(val values: Array<Double>, val total: Double)
+
+/** Pure memoized sizing; an overflow total resolves to the same immutable track array. */
+internal class TableTracks(
+    val columns: Array<TableColumnSize>,
+    private val natural: Array<Double>,
+    val density: Double
+) {
+    private var cached: TableWidths? = None
+    private var available = -1.0
+    fun resolve(width: Double): TableWidths {
+        nonnegative(width, "invalid table available width")
+        when (cached) {
+            case Some(value) -> if (width == available || width == value.total)
+                return value
+            case None -> {}
+        }
+        val values =
+            MutableArray<Double>(columns.size) {
+                index ->
+                val column = columns[index]
+                column.constrain(
+                    when (column.track) {
+                        case Fixed(value) -> value
+                        case Auto -> natural[index]
+                        case Fraction(_) -> column.minimum
+                    }
+                )
+            }
+        var total = 0.0
+        for (index in 0L ..< values.size)
+            total += values[index]
+        var remaining = lowerBound(width / density - total, 0.0)
+        // Each constrained pass exhausts a column or all remaining width.
+        for (_ in 0L ..< columns.size) {
+            if (remaining <= 0.000001)
+                break
+            var scale = 0.0
+            for (index in 0L ..< columns.size)
+                when (columns[index].track) {
+                    case Fraction(weight) -> {
+                        if (values[index] < (columns[index].maximum ?: Double.MAX_VALUE))
+                            scale = lowerBound(scale, weight)
+                    }
+                    else -> {}
+                }
+            if (scale == 0.0)
+                break
+            var weightSum = 0.0
+            for (index in 0L ..< columns.size)
+                when (columns[index].track) {
+                    case Fraction(weight) -> {
+                        if (values[index] < (columns[index].maximum ?: Double.MAX_VALUE))
+                            weightSum += weight / scale
+                    }
+                    else -> {}
+                }
+            val rest = remaining
+            for (index in 0L ..< columns.size)
+                when (columns[index].track) {
+                    case Fraction(weight) -> {
+                        val before = values[index]
+                        if (before < (columns[index].maximum ?: Double.MAX_VALUE)) {
+                            values[index] =
+                                columns[index].constrain(
+                                    before + rest * ((weight / scale) / weightSum)
+                                )
+                            remaining -= values[index] - before
+                        }
+                    }
+                    else -> {}
+                }
+        }
+        val pixels = Array<Double>(values.size) { index -> values[index] * density }
+        total = 0.0
+        for (value in pixels)
+            total += value
+        nonnegative(total, "table column extent overflow")
+        val result = TableWidths(pixels, total)
+        cached = Some(result)
+        available = width
+        return result
+    }
+}

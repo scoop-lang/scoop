@@ -1,0 +1,180 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as transcriptColumn
+import scoop.ui.component.row as transcriptRow
+import scoop.ui.component.frame as transcriptFrame
+import scoop.ui.component.messageScroller as transcriptScroller
+import scoop.ui.component.messageScrollButton as transcriptJump
+import scoop.ui.component.typography as transcriptPlaceholder
+
+internal class MessageScrollerExamples(
+    private val model: MessageScrollerExamplesModel,
+    private val theme: ThemeSource,
+    scope: ComponentScope
+): Component(scope) {
+    private val artwork = scope.resource { panelArtwork() }
+    private var seen = -1
+    private var source: TranscriptSource? = None
+    public override fun render(): View {
+        val model = this.model
+        val revision = model.revision.value
+        val picture = artwork
+        val borderColor = theme.current.value.tokens.palette.border
+        if (seen != revision) {
+            val rows = model.rows
+            source =
+                Some(
+                    TranscriptList(
+                        Array<TranscriptItem>(rows.size) {
+                            at ->
+                            val row = rows[at]
+                            TranscriptItem(
+                                ViewKey.Number(row.id),
+                                {
+                                    component(
+                                        row,
+                                        {
+                                            current,
+                                            mount -> TranscriptExampleMessage(
+                                                current,
+                                                picture,
+                                                mount
+                                            )
+                                        }
+                                    )
+                                },
+                                row.user
+                            )
+                        }
+                    )
+                )
+            seen = revision
+        }
+        val view =
+            transcriptScroller(source!!, model.scroll) {
+                this.height = Some(420.0)
+                this.spacing = 20.0
+                this.controls =
+                    Some(
+                        transcriptRow {
+                            this.add(transcriptJump(model.scroll, MessageScrollDirection.Start))
+                            this.add(transcriptJump(model.scroll))
+                            this.spacing = 8.0
+                        }
+                    )
+                this.placeholder =
+                    Some(
+                        transcriptPlaceholder(
+                            "No messages yet. Send a turn to begin.",
+                            TypographyRole.Muted
+                        )
+                    )
+            }
+        return transcriptColumn {
+            this.add(panelHeading("Message Scroller"))
+            this.typography(
+                "Keep your place in a conversation as replies stream, images appear and older messages are loaded.",
+                TypographyRole.Muted
+            )
+            this.wrap {
+                this.button("Send a turn", { model.send() })
+                this.button("Stream reply", { model.streamReply() }) {
+                    this.enabled = !model.running.value;
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Stop", { model.stop() }) {
+                    this.enabled = model.running.value;
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Older messages", { model.history() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Load image", { model.loadImage() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.spacing = 8.0;
+                this.lineSpacing = 8.0
+            }
+            this.wrap {
+                this.button("Auto follow", { model.toggleFollow() }) {
+                    this.variant =
+                        if (model.scroll.options.autoScroll)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.button("Save reading", { model.remember() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Restore reading", { model.restore() }) {
+                    this.variant = ButtonVariant.Outline;
+                    this.enabled = model.saved.value != None
+                }
+                this.button("Empty / restore", { model.emptyOrRestore() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                    this.variant =
+                        if (model.narrow.value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+                this.spacing = 8.0;
+                this.lineSpacing = 8.0
+            }
+            this.typography(model.status.value, TypographyRole.Muted)
+            this.add(
+                transcriptFrame(view) {
+                    this.width =
+                        Some(
+                            if (model.narrow.value)
+                                350.0
+                            else
+                                880.0
+                        )
+                    this.style {
+                        this.border(Some(Border.all(1.0, borderColor)));
+                        this.corners(Corners.all(12.0))
+                    }
+                }
+            )
+            this.spacing = 16.0
+        }
+    }
+    public override fun onUnmount() {
+        model.stop()
+    }
+}
+
+private class TranscriptExampleMessage(
+    private val props: Props<TranscriptExampleRow>,
+    private val picture: Image,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val row = props.value
+        val image = picture
+        return transcriptColumn {
+            this.typography(
+                if (row.user)
+                    "You"
+                else
+                    "Assistant",
+                TypographyRole.Small
+            )
+            this.typography(row.text.value)
+            if (row.editable)
+                this.input(row.note)
+            if (row.image.value)
+                this.imageView(image, Size(320.0, 180.0)) { this.fit = ContentFit.Cover }
+            this.spacing = 8.0
+            this.logicalPadding = Some(LogicalInsets(16.0, 12.0, 16.0, 12.0))
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}

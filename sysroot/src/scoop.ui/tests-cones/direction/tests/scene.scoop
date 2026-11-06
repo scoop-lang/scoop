@@ -4,18 +4,32 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.FrameSubmission
 import scoop.ui.*
-import scoop.ui.text.ParagraphHost
+import scoop.ui.text.*
 
-internal class DirectionRoot(private val probe: DirectionProbe): Component {
+internal class DirectionRoot(private val probe: DirectionProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val popupOpen = state(true)
     private val content =
         element(
-            { DirectionPanel(probe) },
+            { mount -> DirectionPanel(probe, scope = mount) },
             [
-                element({ DirectionLeaf(probe.records[0L]) }, key = ViewKey.Number(0L)),
-                element({ DirectionLeaf(probe.records[1L]) }, key = ViewKey.Number(1L)),
-                direction(element({ DirectionLeaf(probe.records[2L]) }), LayoutDirection.Rtl),
-                portal(popupOpen.binding(), element({ DirectionPopup(probe) })) {
+                element(
+                    { mount -> DirectionLeaf(probe.records[0L], scope = mount) },
+                    key = ViewKey.Number(0L)
+                ),
+                element(
+                    { mount -> DirectionLeaf(probe.records[1L], scope = mount) },
+                    key = ViewKey.Number(1L)
+                ),
+                direction(
+                    element({ mount -> DirectionLeaf(probe.records[2L], scope = mount) }),
+                    LayoutDirection.Rtl
+                ),
+                portal(
+                    popupOpen.binding(),
+                    element({ mount -> DirectionPopup(probe, scope = mount) })
+                ) {
                     placement =
                         OverlayPlacement.Anchored(
                             probe.anchor,
@@ -23,15 +37,17 @@ internal class DirectionRoot(private val probe: DirectionProbe): Component {
                             viewportPadding = 0.0
                         )
                 },
-                element({ DirectionText(probe, false) }),
-                element({ DirectionText(probe, true) })
+                element({ mount -> DirectionText(probe, false, scope = mount) }),
+                element({ mount -> DirectionText(probe, true, scope = mount) })
             ]
         )
     public override fun render(): View = direction(content, probe.desired.value)
 }
 
-private class DirectionPanel(private val probe: DirectionProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class DirectionPanel(private val probe: DirectionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         scope.layoutAnchor(probe.anchor)
         scope.keyNavigation(
             NavigationOptions(
@@ -43,7 +59,9 @@ private class DirectionPanel(private val probe: DirectionProbe): Element {
             )
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< 3L) {
             context.measureChild(index, Constraints.tight(Size(40.0, 20.0)))
             context.placeChild(index, Point(20.0 + index.toDouble() * 50.0, 20.0))
@@ -54,9 +72,9 @@ private class DirectionPanel(private val probe: DirectionProbe): Element {
             context.measureChild(index, Constraints(maxWidth = Some(120.0)))
             context.placeChild(index, Point(20.0, 130.0 + (index - 4L).toDouble() * 30.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(400.0, 240.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(400.0, 240.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val current = context.layoutDirection
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.anchor(probe.anchor, Rect(160.0, 80.0, 20.0, 20.0))
@@ -68,20 +86,24 @@ private class DirectionPanel(private val probe: DirectionProbe): Element {
     }
 }
 
-private class DirectionLeaf(private val record: DirectionRecord): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class DirectionLeaf(private val record: DirectionRecord, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         record.scope = Some(scope)
         record.area = Some(scope.createArea(focusable = true))
         scope.focusTarget(record.area!!, FocusOptions(Some(record.handle)))
         record.mounts += 1
         record.local.value = 19
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         record.updates += 1
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 20.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.observed = context.layoutDirection
         context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
     }
@@ -90,10 +112,13 @@ private class DirectionLeaf(private val record: DirectionRecord): Element {
     }
 }
 
-private class DirectionPopup(private val probe: DirectionProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 30.0)))
-    public override fun scene(context: SceneContext) {
+private class DirectionPopup(private val probe: DirectionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 30.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.popup = Some(context.layoutDirection)
         probe.side = context.overlayLayout!!.side
     }
@@ -101,32 +126,38 @@ private class DirectionPopup(private val probe: DirectionProbe): Element {
 
 private class DirectionText(
     private val probe: DirectionProbe,
-    private val explicit: Boolean
-): Element {
+    private val explicit: Boolean,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private val content = styledText { text("abc") }
     private var host: ParagraphHost? = None
     private var fonts: FontCollection? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         host = Some(scope.resource { ParagraphHost() })
         fonts = Some(scope.resource { FontCollection() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        host!!.measure(
-            context,
-            constraints,
-            fonts!!,
-            content,
-            if (explicit)
-                Some(paragraphStyle { direction = TextDirection.Ltr })
-            else
-                None
-        )
-    public override fun scene(context: SceneContext) {
-        val left = host!!.layout.lines[0L].rect.x
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured =
+            host!!.measure(
+                context,
+                constraints,
+                fonts!!,
+                content,
+                if (explicit)
+                    Some(paragraphStyle { direction = TextDirection.Ltr })
+                else
+                    None
+            )
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        val left = measured.layout.lines[0L].rect.x
         if (explicit)
             probe.explicitTextX = left
         else
             probe.inheritedTextX = left
-        host!!.scene(context)
+        host!!.scene(context, measured)
     }
 }

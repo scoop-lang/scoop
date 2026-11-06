@@ -1,0 +1,79 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as chartColumn
+
+public class Chart public constructor(
+    private val props: Props<ChartProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val localActive = state<ChartSelection?>(None)
+    private val active =
+        binding(
+            {
+                when (props.value.active) {
+                    case Some(value) -> value.value;
+                    case None -> localActive.value
+                }
+            },
+            {
+                selection -> when (props.value.active) {
+                    case Some(value) -> value.value = selection;
+                    case None -> localActive.value = selection
+                }
+            }
+        )
+    private var previous: ChartPlan? = None
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val fonts = input.fonts ?: scope.defaultFonts
+        val snapshot = input.model.snapshot
+        val plan =
+            when (previous) {
+                case Some(value) -> if (
+                    chartPlanMatches(value, input, snapshot, theme, fonts, scope.layoutDirection)
+                )
+                    value
+                else
+                    ChartPlan(input, snapshot, ChartAppearance(theme, fonts, scope.layoutDirection))
+                case None -> ChartPlan(
+                    input,
+                    snapshot,
+                    ChartAppearance(theme, fonts, scope.layoutDirection)
+                )
+            }
+        previous = Some(plan)
+        val payload =
+            if (input.tooltip && input.enabled)
+                chartPayload(plan, active.value)
+            else
+                None
+        val tooltip =
+            when (payload) {
+                case None -> empty()
+                case Some(value) -> when (input.tooltipContent) {
+                    case Some(content) -> content(value);
+                    case None -> chartTooltip(value, input.tooltipOptions, plan.appearance)
+                }
+            }
+        val plot =
+            element(
+                ChartInkProps(input, plan, active),
+                { props, scope -> ChartInk(props, scope) },
+                [tooltip, input.center ?: empty()],
+                ViewKey.Text("plot")
+            )
+        return chartColumn {
+            this.alignment = CrossAlignment.Stretch
+            this.add(plot)
+            if (input.legend)
+                this.add(chartLegend(input, plan))
+        }
+    }
+}

@@ -12,7 +12,8 @@ public class TextEditHost public constructor(
     internal val scope: ComponentScope,
     initialState: TextEditorState,
     initialAppearance: TextEditAppearance,
-    initialOptions: TextEditOptions = TextEditOptions()
+    initialOptions: TextEditOptions = TextEditOptions(),
+    private val onInteractionChanged: (TextEditInteraction) -> Unit = { _ -> Unit }
 ): Closeable {
     private val thread = currentThreadId()
     internal val window = scope.nativeWindow
@@ -22,6 +23,7 @@ public class TextEditHost public constructor(
     internal var placeholder = ""
     internal var edited: (TextEditorState) -> Unit = { _ -> Unit }
     internal var submitted: (TextEditorState) -> Unit = { _ -> Unit }
+    private var committed: (TextEditorState) -> Unit = { _ -> Unit }
     internal var closed = false
     internal var performing = false
     internal var notifying = false
@@ -31,6 +33,9 @@ public class TextEditHost public constructor(
     internal var preferredX: Double? = None
     internal val visual = State<TextEditInteraction>(TextEditInteraction())
     internal val body = ParagraphCache()
+    internal val glyphs = ArrayList<EditorGlyphCache>()
+    internal var currentLayout: TextEditLayout? = None
+    internal var geometryGeneration = 0L
     internal val hint = ParagraphCache()
     internal val bodyKey = PaintKey()
     internal val hintKey = PaintKey()
@@ -38,7 +43,6 @@ public class TextEditHost public constructor(
     internal var currentProjection = initialOptions.projection
     internal var content: StyledText? = None
     internal var hintContent: StyledText? = None
-    internal var measured: EditorMeasure? = None
     internal var staged: EditorFrame? = None
     internal var accepted: EditorFrame? = None
     internal var revealNeeded = false
@@ -52,9 +56,9 @@ public class TextEditHost public constructor(
             focusable = true,
             textInput = initialOptions.enabled && !initialOptions.readOnly
         ) { context, event -> editorHandle(this, context, event) }
-    public val focus = scope.focusTarget(area)
-    internal val blink = scope.resource { window.createDeadline { editorBlink(this) } }
-    internal val dragTimer = scope.resource { window.createDeadline { editorDragTick(this) } }
+    public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
+    internal val blink = scope.createDeadline { editorBlink(this) }
+    internal val dragTimer = scope.createDeadline { editorDragTick(this) }
 
     init {
         initialOptions.check()
@@ -78,26 +82,33 @@ public class TextEditHost public constructor(
         checkOpen();
         return visual.value
     }
-    /** Borrowed until the next measurement or close; callers must not close it. */
-    public val layout: TextLayout get() {
+    internal fun publishInteraction(value: TextEditInteraction) {
+        if (visual.value == value)
+            return
+        visual.value = value
+        onInteractionChanged(value)
+    }
+    /** Borrowed from the last accepted frame; measurements carry their own layouts. */
+    public val layout: TextEditLayout get() {
         checkOpen();
-        return body.layout
+        return accepted?.layout ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
     public val display: TextDisplay get() {
         checkOpen()
-        return currentDisplay ?:
-            throw IllegalStateException(Some("text editor has not been measured"))
+        return accepted?.display ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
     public fun caret(position: TextPosition): Rect? {
         checkOpen()
-        return body.layout.caret(
-            editorVisualPosition(body.layout, display.toDisplay(position)),
+        return layout.caret(
+            editorVisualPosition(layout, display.toDisplay(position)),
             appearance.caretWidth
         )
     }
     public fun selectionBounds(range: Utf8Range): Array<TextBox> {
         checkOpen()
-        return body.layout.selection(display.displayRange(range))
+        return layout.selection(display.displayRange(range))
     }
     internal val copyAllowed: Boolean get() =
         when (options.copy) {
@@ -105,11 +116,11 @@ public class TextEditHost public constructor(
             case Allow -> true
             case Deny -> false
         }
-    /** The layout being presented, including offsets clamped for this measurement. */
+    /** The last accepted viewport and its clamped offsets. */
     public val scrollSnapshot: ScrollSnapshot get() {
         checkOpen()
-        return measured?.snapshot ?:
-            throw IllegalStateException(Some("text editor has not been measured"))
+        return accepted?.snapshot ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
 
     internal fun checkOpen() {
@@ -131,7 +142,8 @@ public class TextEditHost public constructor(
         focus: FocusOptions = FocusOptions(),
         placeholder: String = "",
         onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-        onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+        onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
+        onCommitted: (TextEditorState) -> Unit = { _ -> Unit }
     ) {
         checkOpen()
         checkFocusMutation()
@@ -143,9 +155,35 @@ public class TextEditHost public constructor(
         )
         if (area.isFocusActive && options.enabled)
             state.checkHost(this)
-        this.focus.options = focus
+        this.focus.options =
+            if (focus.visibility == FocusVisibility.Automatic)
+                focus.copy { this.visibility = FocusVisibility.Always }
+            else
+                focus
         val blinkChanged = this.options.caretBlink != options.caretBlink
         val rebound = current !== state
+        val layoutChanged =
+            rebound ||
+                this.appearance.fonts !==
+                appearance.fonts ||
+                this.appearance.textStyle !==
+                appearance.textStyle ||
+                this.appearance.placeholderStyle !==
+                appearance.placeholderStyle ||
+                this.appearance.caretWidth !=
+                appearance.caretWidth ||
+                this.placeholder !=
+                placeholder ||
+                this.options.multiline !=
+                options.multiline ||
+                this.options.wrap !=
+                options.wrap ||
+                this.options.direction !=
+                options.direction ||
+                this.options.alignment !=
+                options.alignment ||
+                this.options.projection !==
+                options.projection
         val restart =
             rebound ||
                 this.options.readOnly !=
@@ -168,6 +206,7 @@ public class TextEditHost public constructor(
         this.placeholder = placeholder
         edited = onEdited
         submitted = onSubmit
+        committed = onCommitted
         if (blinkChanged) {
             blink.cancel()
             caretVisible = true
@@ -180,16 +219,29 @@ public class TextEditHost public constructor(
         if (restart)
             invalidate()
         editorInteraction(this, area.isFocusActive, visual.value.hovered && options.enabled)
-        scope.requestFrame()
+        if (layoutChanged)
+            scope.requestLayout()
+        else
+            scope.requestFrame()
     }
 
-    public fun measure(constraints: Constraints): LayoutMetrics {
+    public fun measure(
+        constraints: Constraints,
+        cells: TextEditCells? = None
+    ): TextEditMeasurement {
         checkOpen()
-        return editorMeasure(this, constraints)
+        when (cells) {
+            case Some(_) -> requireUi(
+                !options.multiline,
+                "cell layout requires a single-line editor"
+            )
+            case None -> {}
+        }
+        return editorMeasure(this, constraints, cells)
     }
-    public fun scene(context: SceneContext) {
+    public fun scene(context: SceneContext, measurement: TextEditMeasurement) {
         checkOpen()
-        editorScene(this, context)
+        editorScene(this, context, measurement)
     }
     public fun execute(command: TextEditCommand): Boolean {
         checkOpen()
@@ -218,7 +270,7 @@ public class TextEditHost public constructor(
         caretVisible = true
         blink.cancel()
         if (!closed && scope.isMounted)
-            scope.requestFrame()
+            scope.requestLayout()
     }
     internal fun retireConnection() {
         if (!area.isClosed)
@@ -245,6 +297,7 @@ public class TextEditHost public constructor(
         notify: Boolean = true
     ): Boolean {
         val before = current.text
+        val beforeCommitted = current.committedText
         val composing = current.isComposing
         performing = true
         val changed =
@@ -259,15 +312,22 @@ public class TextEditHost public constructor(
             retireConnection()
         publishNative()
         if (notify)
-            notifyEdited(before)
+            notifyEdited(before, beforeCommitted)
         return changed
     }
-    internal fun notifyEdited(before: String) {
-        if (before == current.text || notifying || closed)
+    internal fun notifyEdited(before: String, beforeCommitted: String) {
+        if (notifying || closed)
             return
+        val state = current
+        val revision = state.revision
+        val after = state.committedText
+        val completed = !state.isComposing && beforeCommitted != after
         notifying = true
         try {
-            edited(current)
+            if (before != state.text)
+                edited(state)
+            if (completed && !closed && current === state && state.revision == revision)
+                committed(state)
         } finally {
             notifying = false
         }
@@ -293,6 +353,11 @@ public class TextEditHost public constructor(
         staged = None
         failure = cleanupUi(failure) { accepted?.close() }
         accepted = None
+        failure = cleanupUi(failure) { currentLayout?.release() }
+        currentLayout = None
+        for (glyph in glyphs)
+            failure = cleanupUi(failure) { glyph.close() }
+        glyphs.clear()
         failure = cleanupUi(failure) { body.close() }
         failure = cleanupUi(failure) { hint.close() }
         throwUi(failure)

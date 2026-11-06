@@ -1,0 +1,285 @@
+package scoop.ui.component
+
+import scoop.datetime.LocalDate
+import scoop.platform.time.MonotonicTimeSource
+import scoop.ui.*
+
+internal class DatePickerBlur(val draft: DatePickerDraft, val revision: Long)
+
+internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: ComponentScope) {
+    private val localOpen = state(false)
+    val ownFocus = FocusHandle()
+    val anchor = LayoutAnchor()
+    val layer = OverlayHandle()
+    val calendar = CalendarHandle()
+    val open = binding({ props.value.open?.value ?: localOpen.value }, { value -> setOpen(value) })
+    val focus: FocusHandle get() = props.value.focus.handle ?: ownFocus
+    private var previousValue: CalendarValue? = None
+    private var previousOpen = false
+    private var previousFocus = false
+    private var pendingBlur: DatePickerBlur? = None
+    private val blurTimer = scope.createDeadline { commitBlur() }
+    private var focusCalendar = false
+    private var retired = false
+    private var bound: DatePickerHandle? = None
+    val active: Boolean get() = !retired && scope.isMounted
+    init {
+        scope.onDispose {
+            retired = true;
+            bound?.release(this);
+            bound = None;
+            pendingBlur = None
+        }
+    }
+    fun mount() {
+        when (props.value.draft) {
+            case Some(draft) -> if (draft.editor.text.byteLength == 0L && !draft.editor.isComposing)
+                draft.reset(text())
+            case None -> {}
+        }
+    }
+    fun text(): String {
+        val value = calendarRead(props.value.selection)
+        return when (props.value.format) {
+            case Some(format) -> format(value, props.value.calendar.locale);
+            case None -> datePickerText(value, props.value.calendar.locale)
+        }
+    }
+    fun synchronize(value: CalendarValue, showing: Boolean) {
+        props.value.handle?.bind(this)
+        when (bound) {
+            case Some(old) -> when (props.value.handle) {
+                case Some(next) -> if (old !== next)
+                    old.release(this);
+                case None -> old.release(this)
+            }
+            case None -> {}
+        }
+        bound = props.value.handle
+        when (previousValue) {
+            case Some(previous) -> if (!sameCalendarValue(previous, value)) {
+                if (!focus.hasFocus && !(props.value.draft?.editor?.isComposing ?: false))
+                    props.value.draft?.reset(text())
+            }
+            case None -> {}
+        }
+        previousValue = Some(value)
+        if (showing != previousOpen) {
+            previousOpen = showing
+            focusCalendar = showing
+            cancelBlur()
+            if (!showing)
+                calendar.cancelRange()
+        }
+        if (!props.value.mutable || !props.value.commitOnBlur)
+            cancelBlur()
+    }
+    private fun setOpen(value: Boolean) {
+        if (!active || (value && !props.value.mutable))
+            return
+        val before = open.value
+        if (before == value)
+            return
+        when (props.value.open) {
+            case Some(target) -> target.value = value;
+            case None -> localOpen.value = value
+        }
+        val accepted = open.value
+        if (accepted != before) {
+            previousOpen = accepted
+            focusCalendar = accepted
+            cancelBlur()
+            if (!accepted)
+                calendar.cancelRange()
+            props.value.onOpenChange(accepted)
+        }
+    }
+    fun show(): Boolean {
+        if (!active || !props.value.mutable || (props.value.draft?.editor?.isComposing ?: false))
+            return false
+        setOpen(true)
+        return open.value
+    }
+    fun close(): Boolean {
+        if (!active || !open.value)
+            return false
+        layer.requestClose()
+        return !open.value
+    }
+    fun toggle() {
+        if (open.value)
+            close()
+        else
+            show()
+    }
+    fun reset(): Boolean {
+        if (!active)
+            return false
+        cancelBlur()
+        calendar.cancelRange()
+        return props.value.draft?.reset(text()) ?: true
+    }
+    private fun error(message: String): Boolean {
+        when (props.value.draft) {
+            case Some(draft) -> if (draft.error != Some(message))
+                draft.problem.value = Some(message);
+            case None -> {}
+        }
+        return false
+    }
+    fun commit(): Boolean {
+        if (!active || !props.value.mutable)
+            return false
+        val draft = props.value.draft ?: return false
+        if (draft.editor.isComposing)
+            return false
+        val input = props.value
+        val parsed =
+            when (input.parser) {
+                case Some(parse) -> parse(
+                    draft.editor.committedText,
+                    input.referenceDate ?: input.initialPage,
+                    input.calendar.locale
+                )
+                case None -> datePickerParse(
+                    draft.editor.committedText,
+                    datePickerRange(input.selection)
+                )
+            }
+        when (parsed) {
+            case Invalid(message) -> return error(message);
+            else -> {}
+        }
+        val value =
+            datePickerValue(parsed, datePickerRange(input.selection)) ?:
+                return error("Choose a value matching this date field.")
+        return acceptValue(value)
+    }
+    fun acceptValue(value: CalendarValue): Boolean {
+        if (!active || !props.value.mutable || (props.value.draft?.editor?.isComposing ?: false))
+            return false
+        val input = props.value
+        val validMode =
+            when ((input.selection, value)) {
+                case(Single(_), Single(_)) -> true;
+                case(Range(_), Range(_)) -> true;
+                else -> false
+            }
+        if (!validMode || !calendarValueAllowed(value, input.calendar.rules))
+            return error("Choose a date within the allowed range.")
+        val before = calendarRead(input.selection)
+        if (!calendarWrite(input.selection, value))
+            return error("The date change was not accepted.")
+        val accepted = calendarRead(props.value.selection)
+        previousValue = Some(accepted)
+        cancelBlur()
+        props.value.draft?.reset(text())
+        if (!sameCalendarValue(before, accepted))
+            props.value.onValueChange(accepted)
+        if (props.value.closeOnSelect && open.value)
+            layer.requestClose()
+        return true
+    }
+    fun selection(): CalendarSelection =
+        when (props.value.selection) {
+            case Single(_) -> CalendarSelection.Single(
+                binding<LocalDate?>(
+                    {
+                        when (props.value.selection) {
+                            case Single(value) -> value.value;
+                            else -> None
+                        }
+                    },
+                    {
+                        value ->
+                        acceptValue(CalendarValue.Single(value));
+                        Unit
+                    }
+                )
+            )
+            case Range(_) -> CalendarSelection.Range(
+                binding<DateRange?>(
+                    {
+                        when (props.value.selection) {
+                            case Range(value) -> value.value;
+                            else -> None
+                        }
+                    },
+                    {
+                        value ->
+                        acceptValue(CalendarValue.Range(value));
+                        Unit
+                    }
+                )
+            )
+            case Multiple(_) -> throw IllegalArgumentException(
+                Some("date picker cannot select multiple dates")
+            )
+        }
+    fun edited() {
+        when (props.value.draft) {
+            case Some(draft) -> if (draft.error != None)
+                draft.problem.value = None;
+            case None -> {}
+        }
+    }
+    fun activity() {
+        if (!active)
+            return
+        val now = scope.input.activity.hasFocus
+        if (previousFocus && !now && props.value.commitOnBlur && props.value.mutable && !open.value)
+            when (props.value.draft) {
+                case Some(draft) -> {
+                    pendingBlur = Some(DatePickerBlur(draft, draft.editor.revision))
+                    blurTimer.schedule(MonotonicTimeSource.markNow())
+                }
+                case None -> {}
+            }
+        if (now || open.value)
+            cancelBlur()
+        previousFocus = now
+    }
+    private fun cancelBlur() {
+        pendingBlur = None
+        blurTimer.cancel()
+    }
+    private fun commitBlur() {
+        if (!active)
+            return
+        val pending = pendingBlur ?: return
+        pendingBlur = None
+        val draft = props.value.draft ?: return
+        if (
+            !scope.input.activity.hasFocus &&
+                !open.value &&
+                props.value.commitOnBlur &&
+                pending.draft ===
+                draft &&
+                pending.revision ==
+                draft.editor.revision
+        )
+            commit()
+    }
+    fun closeRequest(reason: OverlayCloseReason): Boolean {
+        if (!props.value.onCloseRequest(reason))
+            return false
+        if (reason == OverlayCloseReason.Escape)
+            reset()
+        return true
+    }
+    fun closed(reason: OverlayCloseReason) {
+        focusCalendar = false
+        calendar.cancelRange()
+        props.value.onClosed(reason)
+    }
+    fun accept() {
+        if (!active || !focusCalendar || !open.value || !calendar.isAttached)
+            return
+        focusCalendar = false
+        val date =
+            calendarFirst(calendarRead(props.value.selection)) ?:
+                (props.value.calendar.today ?: props.value.initialPage)
+        if (!calendar.focusDate(date))
+            calendar.focusFirst()
+    }
+}

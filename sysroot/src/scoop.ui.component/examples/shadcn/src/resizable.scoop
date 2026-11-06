@@ -1,0 +1,183 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as splitColumn
+import scoop.ui.component.frame as splitFrame
+import scoop.ui.component.resizable as makeResizable
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class ResizableExamplesModel {
+    val sizes =
+        state<Array<ResizableSize>>(
+            [
+                ResizableSize(ViewKey.Text("sidebar"), 0.25),
+                ResizableSize(ViewKey.Text("editor"), 0.5),
+                ResizableSize(ViewKey.Text("detail"), 0.25)
+            ]
+        )
+    val nested = state<Array<ResizableSize>>([])
+    val vertical = state(false)
+    val enabled = state(true)
+    val narrow = state(false)
+    val commits = state(0)
+    val cancels = state(0)
+    val note = TextEditorState("Content survives resizing and collapse.")
+    fun collapse() {
+        val current = sizes.value
+        sizes.value =
+            Array(current.size) {
+                index ->
+                val value = current[index]
+                if (value.key == ViewKey.Text("sidebar"))
+                    ResizableSize(value.key, value.fraction, !value.collapsed)
+                else
+                    value
+            }
+    }
+}
+
+internal fun resizableExamples(model: ResizableExamplesModel, borderColor: Color): View =
+    splitColumn {
+        add(panelHeading("Resizable"))
+        typography(
+            "Drag the dividers. Tab to a handle for arrow keys, Home / End, Page Up / Down, or Enter to collapse. Escape cancels a drag.",
+            TypographyRole.Muted
+        )
+        wrap {
+            button(
+                if (model.vertical.value)
+                    "Vertical"
+                else
+                    "Horizontal",
+                { model.vertical.value = !model.vertical.value }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.enabled.value)
+                    "Disable handles"
+                else
+                    "Enable handles",
+                { model.enabled.value = !model.enabled.value }
+            ) { variant = ButtonVariant.Outline }
+            button("Collapse / restore sidebar", { model.collapse() }) {
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.narrow.value)
+                    "Use available width"
+                else
+                    "Narrow layout",
+                { model.narrow.value = !model.narrow.value }
+            ) { variant = ButtonVariant.Outline }
+            spacing = 8.0
+        }
+        item(
+            splitFrame(
+                makeResizable(model.sizes.binding()) {
+                    panel(
+                        ViewKey.Text("sidebar"),
+                        splitColumn {
+                            typography("Workspace", TypographyRole.Large)
+                            typography("Projects\nComponents\nSettings", TypographyRole.Muted)
+                            padding = Insets.all(16.0);
+                            spacing = 12.0;
+                            alignment = CrossAlignment.Stretch
+                        }
+                    ) {
+                        minimum =
+                            if (model.vertical.value)
+                                140.0
+                            else
+                                84.0;
+                        maximum = Some(240.0);
+                        collapsible = true
+                    }
+                    panel(
+                        ViewKey.Text("editor"),
+                        splitColumn {
+                            typography("Editor", TypographyRole.Large)
+                            textarea(model.note)
+                            padding = Insets.all(16.0);
+                            spacing = 12.0;
+                            alignment = CrossAlignment.Stretch
+                        }
+                    ) {
+                        minimum =
+                            if (model.vertical.value)
+                                168.0
+                            else
+                                120.0
+                    }
+                    panel(
+                        ViewKey.Text("detail"),
+                        makeResizable(model.nested.binding()) {
+                            panel(
+                                ViewKey.Text("preview"),
+                                splitPanelText("Preview", "Nested panels use their own sizes.")
+                            ) { minimum = 112.0 }
+                            panel(
+                                ViewKey.Text("console"),
+                                splitPanelText("Console", "Content stays mounted.")
+                            ) { minimum = 112.0 }
+                            orientation = Orientation.Vertical;
+                            withHandle = true
+                        }
+                    ) {
+                        minimum =
+                            if (model.vertical.value)
+                                225.0
+                            else
+                                100.0;
+                        maximum = Some(320.0)
+                    }
+                    orientation =
+                        if (model.vertical.value)
+                            Orientation.Vertical
+                        else
+                            Orientation.Horizontal
+                    enabled = model.enabled.value;
+                    withHandle = true;
+                    onSizesCommit = { _ -> model.commits.value += 1 }
+                    onSizesCancel = { _, _ -> model.cancels.value += 1 }
+                }
+            ) {
+                height =
+                    Some(
+                        if (model.vertical.value)
+                            640.0
+                        else
+                            300.0
+                    )
+                width =
+                    if (model.narrow.value)
+                        Some(340.0)
+                    else
+                        None
+                style {
+                    border(Some(Border.all(1.0, borderColor)));
+                    corners(Corners.all(8.0))
+                }
+            }
+        ) { align = Some(CrossAlignment.Start) }
+        typography(
+            f"${model.commits.value} committed changes · ${model.cancels.value} cancelled drags",
+            TypographyRole.Muted
+        )
+        typography(
+            "Minimums stay visible when space runs out. Collapsing retains the last expanded fraction; changing the window size does not commit a resize.",
+            TypographyRole.Muted
+        )
+        spacing = 16.0;
+        alignment = CrossAlignment.Stretch
+    }
+
+private fun splitPanelText(title: String, description: String): View =
+    splitColumn {
+        typography(title, TypographyRole.Large)
+        typography(description, TypographyRole.Muted)
+        padding = Insets.all(16.0);
+        spacing = 8.0;
+        alignment = CrossAlignment.Stretch
+    }

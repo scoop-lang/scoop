@@ -1,0 +1,237 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class ButtonGroupWindowTest {
+    @Test
+    fun `groups preserve editing mounts tab order and focus stacking across direction and keyed reordering`() {
+        val probe = ButtonGroupProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.fonts.isClosed)
+            assertFalse(probe.frames!!.snapshot().attached)
+            for (focus in probe.focus)
+                assertFalse(focus.isAttached)
+            for (index in 0L ..< 3L) {
+                assertEquals(1, probe.mounts[index])
+                assertEquals(1, probe.disposals[index])
+            }
+        } catch (error: Throwable) {
+            println(f"button group phase=${probe.phase}, paints=${probe.paints}")
+            galleryFailure(error)
+            throw error
+        } finally {
+            host.close()
+            probe.view?.close()
+            probe.frames?.close()
+            probe.fonts.close()
+        }
+    }
+}
+
+internal class ButtonGroupProbe {
+    val theme =
+        ThemeSource(
+            shadcnTheme() { tokens { motion { this.preference = MotionPreference.Reduced } } }
+        )
+    val fonts = FontCollection(false)
+    val focus = [FocusHandle(), FocusHandle(), FocusHandle()]
+    val editor = TextEditorState("Scoop", Some(Utf8Selection(1L, 3L)))
+    val measurementEditor = TextEditorState()
+    val generation = state(0)
+    val mounts = MutableArray<Int>(3L) { _ -> 0 }
+    val disposals = MutableArray<Int>(3L) { _ -> 0 }
+    val actions = MutableArray<Int>(3L) { _ -> 0 }
+    val painted = ArrayList<Long>()
+    var vertical = false
+    var rtl = false
+    var reordered = false
+    var enabled = true
+    var removed = false
+    var gone = false
+    var step = 1
+    var phase = 0
+    var paints = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var afterPaint = 0
+    private var quiet: FrameSnapshot? = None
+    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop button group test"
+                            this.position = Some(DesktopPosition(80.0, 80.0))
+                            this.size = LogicalSize(520.0, 280.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> ButtonGroupScene(this, scope = mount) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("button group timeout"))
+                if (native!!.isFocused && (paints > afterPaint || phase == 16))
+                    advance()
+                if (phase < 17)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 17
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        afterPaint = paints
+        when (phase) {
+            case 0 -> assertTrue(focus[0L].requestFocus())
+            case 1 -> {
+                focused(0L)
+                key(48, "\t")
+            }
+            case 2 -> {
+                focused(1L)
+                assertEquals(Utf8Selection(1L, 3L), editor.selection)
+                vertical = true
+                rtl = true
+                theme.current.value =
+                    shadcnTheme(ThemeMode.Dark) {
+                        tokens { motion { this.preference = MotionPreference.Reduced } }
+                    }
+                change()
+            }
+            case 3 -> {
+                focused(1L)
+                assertEquals(Utf8Selection(1L, 3L), editor.selection)
+                assertEquals("Scoop", editor.text)
+                for (value in mounts)
+                    assertEquals(1, value)
+                key(0, "a", 8)
+                assertEquals(0, galleryText(native!!, "拼音", true))
+                assertEquals(0, galleryText(native!!, "你好", false))
+            }
+            case 4 -> {
+                assertEquals("你好", editor.text)
+                reordered = true
+                change()
+                assertTrue(focus[2L].requestFocus())
+            }
+            case 5 -> {
+                focused(2L)
+                assertEquals(1L, painted[0L])
+                assertEquals(0L, painted[1L])
+                key(48, "\t")
+            }
+            case 6 -> {
+                focused(1L)
+                assertEquals("你好", editor.text)
+                key(48, "\t")
+            }
+            case 7 -> {
+                focused(0L)
+                key(49, " ")
+            }
+            case 8 -> {
+                assertEquals(1, actions[0L])
+                enabled = false
+                step = 10
+                change()
+            }
+            case 9 -> {
+                assertFalse(focus[0L].hasFocus)
+                assertTrue(focus[2L].requestFocus())
+            }
+            case 10 -> {
+                focused(2L)
+                key(49, " ")
+            }
+            case 11 -> {
+                assertEquals(10, actions[2L])
+                click(40.0, 36.0)
+            }
+            case 12 -> {
+                assertEquals(20, actions[2L])
+                assertFalse(focus[2L].isFocusVisible)
+                removed = true
+                change()
+            }
+            case 13 -> {
+                assertFalse(focus[2L].isAttached)
+                assertEquals(1, disposals[2L])
+                assertTrue(focus[1L].requestFocus())
+            }
+            case 14 -> {
+                focused(1L)
+                assertEquals("你好", editor.text)
+                for (value in mounts)
+                    assertEquals(1, value)
+                gone = true
+                change()
+            }
+            case 15 -> {
+                for (handle in focus)
+                    assertFalse(handle.isAttached)
+                assertFalse(frames!!.snapshot().required)
+                quiet = Some(frames!!.snapshot())
+            }
+            case 16 -> {
+                assertEquals(quiet!!, frames!!.snapshot())
+                native!!.requestDestroy()
+            }
+            else -> throw IllegalStateException(Some("invalid button group phase"))
+        }
+        phase += 1
+    }
+    private fun focused(index: Long) {
+        assertTrue(focus[index].hasFocus)
+        assertTrue(focus[index].isFocusVisible)
+        assertEquals(index, painted[painted.size - 1L])
+    }
+    private fun key(code: Int, text: String, flags: Int = 0) {
+        assertEquals(0, galleryKey(native!!, code, text, flags))
+    }
+    private fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun change() {
+        generation.value += 1
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(70L))
+        )
+    }
+}

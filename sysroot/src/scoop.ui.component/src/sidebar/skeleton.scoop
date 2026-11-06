@@ -1,0 +1,138 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class SidebarSkeletonProps public constructor(
+    public val showIcon: Boolean = false,
+    public val collapsed: Boolean = false,
+    public val textFraction: Double = 0.7,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        requireComponent(
+            textFraction.isFinite() && textFraction >= 0.0 && textFraction <= 1.0,
+            "invalid sidebar skeleton fraction"
+        )
+    }
+}
+
+public class SidebarSkeletonBuilder internal constructor() {
+    public var showIcon: Boolean = false
+    public var collapsed: Boolean = false
+    public var textFraction: Double = 0.7
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun sidebarMenuSkeleton(configure: SidebarSkeletonBuilder.() -> Unit = {}): View {
+    val b = SidebarSkeletonBuilder();
+    b.configure()
+    return component(
+        SidebarSkeletonProps(b.showIcon, b.collapsed, b.textFraction, b.theme, b.style),
+        { current, mount -> SidebarSkeleton(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarSkeleton public constructor(
+    private val props: Props<SidebarSkeletonProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value;
+        val theme = themes.read(input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        return panelFrame(
+            element(
+                SidebarSkeletonInput(input, d),
+                { value, mount -> SidebarSkeletonLayout(value, scope = mount) },
+                [
+                    skeleton {
+                        width = Some(16.0 * d);
+                        height = Some(16.0 * d);
+                        this.theme = input.theme
+                    },
+                    skeleton {
+                        height = Some(16.0 * d);
+                        this.theme = input.theme
+                    }
+                ]
+            ),
+            visual = input.style
+        )
+    }
+}
+
+private class SidebarSkeletonInput(val props: SidebarSkeletonProps, val density: Double)
+
+private class SidebarSkeletonLayout(
+    private val props: Props<SidebarSkeletonInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value;
+        val d = input.density
+        val size = constraints.constrain(Size(constraints.maxWidth ?: 160.0 * d, 32.0 * d))
+        val icon =
+            if (input.props.showIcon)
+                context.measureChild(
+                    0L,
+                    Constraints(16.0 * d, Some(16.0 * d), 16.0 * d, Some(16.0 * d))
+                )
+            else {
+                context.skipChild(0L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val gap =
+            if (input.props.showIcon)
+                8.0 * d
+            else
+                0.0
+        val length =
+            max(0.0, size.width - 16.0 * d - icon.size.width - gap) * input.props.textFraction
+        if (input.props.collapsed)
+            context.skipChild(1L)
+        else {
+            val text =
+                context.measureChild(
+                    1L,
+                    Constraints(length, Some(length), 16.0 * d, Some(16.0 * d))
+                )
+            context.placeChild(
+                1L,
+                Point(
+                    logicalX(
+                        8.0 * d + icon.size.width + gap,
+                        text.size.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    8.0 * d
+                )
+            )
+        }
+        if (input.props.showIcon)
+            context.placeChild(
+                0L,
+                Point(
+                    logicalX(8.0 * d, icon.size.width, size.width, context.layoutDirection),
+                    8.0 * d
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

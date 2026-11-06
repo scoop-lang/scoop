@@ -1,0 +1,107 @@
+package scoop.ui.component
+
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Combobox<T: Equals<T>> public constructor(
+    private val props: Props<ComboboxProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control = ComboboxControl(props, scope)
+    public override fun onMount() {
+        control.mount()
+    }
+    public override fun render(): View {
+        val control = this.control
+        val input = props.value
+        val theme = control.themes.read(input.input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        control.active.value
+        control.resolveChips(
+            if (input.multiple)
+                comboValues(input.selection)
+            else
+                []
+        )
+        val source = control.results()
+        val inline = input.inputPlacement == ComboboxInputPlacement.Inline
+        val field =
+            panelFrame(
+                if (inline)
+                    comboField(control, theme, false)
+                else
+                    comboTrigger(control, theme),
+                width = Some(input.width * d)
+            )
+        val motion =
+            theme.tokens.motion.resolve(
+                input.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(100L))))
+            )
+        val popup =
+            portal(
+                binding(
+                    { control.props.value.mutable && control.open.value },
+                    { value -> control.setOpen(value) }
+                ),
+                element(
+                    PopupMotionProps(input.mutable, 8.0 * d),
+                    { current, mount -> PopupMotion(current, scope = mount) },
+                    [comboPopup(control, source, theme)]
+                )
+            ) {
+                placement =
+                    OverlayPlacement.Anchored(
+                        control.anchor,
+                        OverlaySide.Bottom,
+                        OverlayAlignment.Start,
+                        4.0 * d,
+                        8.0 * d,
+                        input.popupWidth == None
+                    )
+                handle = Some(control.layer)
+                focus =
+                    Some(
+                        if (inline)
+                            OverlayFocusOptions(autoFocus = false, restoreFocus = false)
+                        else
+                            OverlayFocusOptions(
+                                initialFocus = Some(control.editor),
+                                restoreTarget = Some(control.trigger)
+                            )
+                    )
+                dismiss =
+                    OverlayDismiss(
+                        escape = true,
+                        outsidePress = OutsidePress.CloseAndContinue,
+                        includeAnchor = true
+                    )
+                transition = PresenceOptions(motion, motion)
+                onCloseRequest = { reason -> control.props.value.onCloseRequest(reason) }
+                onClosed = { reason -> control.closed(reason) }
+            }
+        return element(
+            CandidateNavigationProps(
+                { control.results() },
+                input.query,
+                control.active,
+                control.editor,
+                input.mutable,
+                input.loop,
+                input.autoHighlight,
+                { key -> control.list.scrollToItem(key) },
+                { key -> control.select(key) },
+                navigationEnabled = control.open.value
+            ),
+            { current, mount -> CandidateNavigation(current, scope = mount) },
+            [
+                element(
+                    control,
+                    { current, mount -> ComboboxRoot(current, scope = mount) },
+                    [field, popup]
+                )
+            ]
+        )
+    }
+}

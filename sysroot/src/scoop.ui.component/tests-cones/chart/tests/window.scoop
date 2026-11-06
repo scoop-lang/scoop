@@ -1,0 +1,270 @@
+package scoop.tests.ui.chart
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ChartWindowTest {
+    @Test
+    fun `six charts share native input cached geometry center IME and idle lifecycles`() {
+        val p = ChartProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.frames!!.snapshot().attached)
+            assertFalse(p.focus.isAttached)
+        } catch (error: Throwable) {
+            println(f"chart phase=${p.phase}, active=${p.selection.value?.datum?.value ?: "none"}")
+            chartNativeFailure(error)
+            throw error
+        } finally {
+            p.fonts.close()
+        }
+    }
+}
+
+internal fun chartData(): ChartData =
+    ChartData(
+        [
+            ChartDatum(ChartDatumKey("jan"), "Jan"),
+            ChartDatum(ChartDatumKey("feb"), "Feb"),
+            ChartDatum(ChartDatumKey("mar"), "Mar"),
+            ChartDatum(ChartDatumKey("apr"), "Apr"),
+            ChartDatum(ChartDatumKey("may"), "May"),
+            ChartDatum(ChartDatumKey("jun"), "Jun")
+        ],
+        [
+            ChartSeries(
+                ChartSeriesKey("desktop"),
+                "Desktop",
+                [Some(10.0), Some(30.0), Some(20.0), Some(40.0), Some(35.0), Some(50.0)]
+            ),
+            ChartSeries(
+                ChartSeriesKey("mobile"),
+                "Mobile",
+                [Some(8.0), Some(18.0), None, Some(24.0), Some(20.0), Some(30.0)]
+            )
+        ]
+    )
+
+internal class ChartProbe {
+    val theme =
+        ThemeSource(
+            shadcnTheme(ThemeMode.Light) {
+                tokens { motion { preference = MotionPreference.Reduced } }
+            }
+        )
+    val fonts = FontCollection(false)
+    val model = ChartModel(chartData())
+    val selection = state<ChartSelection?>(None)
+    val generation = state(0)
+    val focus = FocusHandle()
+    val outside = FocusHandle()
+    val centerFocus = FocusHandle()
+    val editor = TextEditorState()
+    var center = false
+    var inner = 0.0
+    var axisCalls = 0
+    val axis =
+        ChartAxis(
+            formatter =
+                Some {
+                    value ->
+                    axisCalls += 1;
+                    f"${value.toInt()}"
+                }
+        )
+    var savedCalls = 0
+    var reject = false
+    var shown = true
+    var zero = false
+    var enabled = true
+    var rtl = false
+    var kind = ChartKind.Line
+    var orientation = Orientation.Vertical
+    var stack = ChartStack.None
+    var draws = 0
+    var savedDraws = 0
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(80L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun move(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun key(code: Int) {
+        val text =
+            when (code) {
+                case 53 -> "\u001b";
+                case 123 -> "\uf702";
+                case 124 -> "\uf703";
+                case 125 -> "\uf701";
+                case 126 -> "\uf700";
+                case 115 -> "\uf729";
+                case 119 -> "\uf72b";
+                else -> ""
+            }
+        assertEquals(0, chartNativeKey(native!!, code, text))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Chart test";
+                            size = LogicalSize(760.0, 540.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { scope -> ChartScene(this, scope) }, fonts = Some(fonts))
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < timeout, Some("chart timeout"))
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !focus.isPending &&
+                        !frames!!.snapshot().required
+                ) {
+                    advanceChart(this);
+                    phase += 1;
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 45)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 45;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
+
+internal class ChartScene(private val probe: ChartProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = probe
+        val generation = p.generation.value
+        val view =
+            if (p.shown)
+                chart(p.model) {
+                    this.height = Some(300.0)
+                    this.kind = p.kind;
+                    this.curve = ChartCurve.Monotone;
+                    this.stack = p.stack
+                    this.orientation = p.orientation;
+                    this.yAxis = p.axis;
+                    this.enabled = p.enabled
+                    this.labels = true
+                    this.innerRadius = p.inner
+                    this.center =
+                        if (p.center)
+                            Some(input(p.editor) { this.focus = FocusOptions(Some(p.centerFocus)) })
+                        else
+                            None
+                    this.active =
+                        Some(
+                            binding(
+                                { p.selection.value },
+                                {
+                                    value -> if (!p.reject)
+                                        p.selection.value = value
+                                }
+                            )
+                        )
+                    this.focus = FocusOptions(Some(p.focus))
+                }
+            else
+                empty()
+        return direction(
+            element(
+                generation,
+                { props, scope -> ChartRoot(p, props, scope) },
+                [button("Outside", {}) { this.focus = FocusOptions(Some(p.outside)) }, view]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+internal class ChartRoot(
+    private val p: ChartProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.maxWidth ?: 760.0
+        context.measureChild(0L, Constraints(110.0, Some(110.0), 32.0, Some(32.0)));
+        context.placeChild(0L, Point(20.0, 15.0))
+        context.measureChild(
+            1L,
+            if (p.zero)
+                Constraints(0.0, Some(0.0), 0.0, Some(0.0))
+            else
+                Constraints(width - 40.0, Some(width - 40.0), maxHeight = Some(450.0))
+        )
+        context.placeChild(1L, Point(20.0, 65.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, 540.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        val generation = props.value
+        context.draw { _ -> p.draws += 1 }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

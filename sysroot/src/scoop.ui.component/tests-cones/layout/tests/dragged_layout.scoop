@@ -6,10 +6,12 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class PaneSeparator(private val model: LayoutCombination): Element {
+internal class PaneSeparator(private val model: LayoutCombination, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var base = 0.0
     private var flow = LayoutDirection.Ltr
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val area = scope.createArea()
         model.separator = Some(area)
         model.resize =
@@ -52,9 +54,10 @@ internal class PaneSeparator(private val model: LayoutCombination): Element {
                 secondMin = 80.0
             ).first
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(8.0, 48.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(8.0, 48.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(model.separator!!, rect)
         context.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.2, 0.2, 0.2))) }
@@ -69,24 +72,26 @@ internal class PaneSeparator(private val model: LayoutCombination): Element {
 internal fun snappingStrip(model: LayoutCombination): View =
     element(
         model.widths.value,
-        { props -> SnappingStrip(model, props) },
+        { props, mount -> SnappingStrip(model, props, scope = mount) },
         Array<View>(3L) {
             index -> element(
                 index,
-                { props -> SnapCard(model, props) },
+                { props, mount -> SnapCard(model, props, scope = mount) },
                 key = ViewKey.Number(index)
             )
         }
     )
 
+private class SnappingLayout(val scroll: ScrollLayout, val anchors: Array<Double>)
+
 private class SnappingStrip(
     private val model: LayoutCombination,
-    private val props: Props<Array<Double>>
-): Element {
+    private val props: Props<Array<Double>>,
+    scope: ComponentScope
+): Element<SnappingLayout>(scope) {
     private var area: InputArea? = None
-    private var anchors: Array<Double> = []
     private var base = 0.0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val region = scope.createArea()
         area = Some(region)
         scope.routeChildren(region)
@@ -130,7 +135,9 @@ private class SnappingStrip(
     private fun move(sample: DragSample) {
         model.scroll.scrollTo(Point(base - sample.displacement, 0.0), ScrollOrigin.User)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SnappingLayout
+    > {
         val positions = ArrayList<Double>()
         var x = 0.0
         for (index in 0L ..< context.childCount) {
@@ -142,15 +149,15 @@ private class SnappingStrip(
             if (index + 1L < context.childCount)
                 x += 10.0
         }
-        anchors = positions.toArray()
+        val anchors = positions.toArray()
         val viewport = constraints.constrain(Size(120.0, 48.0))
-        model.viewport!!.layout(viewport, Size(x, 48.0))
-        return LayoutMetrics(viewport)
+        val scroll = model.viewport!!.layout(viewport, Size(x, 48.0))
+        return LayoutResult(LayoutMetrics(viewport), SnappingLayout(scroll, anchors))
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: SnappingLayout) {
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        model.viewport!!.present(context, Some({ content -> content.children() }))
-        val actual = anchors
+        model.viewport!!.present(context, measured.scroll, Some({ content -> content.children() }))
+        val actual = measured.anchors
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
                 model.anchors = actual
@@ -160,17 +167,19 @@ private class SnappingStrip(
 
 private class SnapCard(
     private val model: LayoutCombination,
-    private val props: Props<Long>
-): Element {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val region = scope.createArea()
         area = Some(region)
         scope.press(region) { model.cardClicks += 1 }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(100.0, 48.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 48.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         val color = Color(0.3 + props.value.toDouble() * 0.2, 0.6, 0.5)
         context.place(area!!, rect)

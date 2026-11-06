@@ -1,0 +1,90 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartPie(plan: ChartPlan, size: Size): ChartGeometry {
+    val layout = ChartPolarLayout(plan, size)
+    val result = ArrayList<ChartSeriesGeometry>()
+    val input = plan.input
+    val count = plan.snapshot.data.datums.size
+    val band = (layout.radius - layout.hole) / lowerBound(plan.prepared.series.size.toDouble(), 1.0)
+    val start = chartAngle(input.startAngle)
+    val sweep = input.endAngle - input.startAngle
+    var ring = 0L
+    for (series in plan.prepared.series) {
+        // Scaling before summing preserves proportions when finite values have an overflowing sum.
+        var maximum = 0.0
+        for (sample in series.samples)
+            when (sample) {
+                case Some(value) -> maximum = lowerBound(maximum, value.value);
+                case None -> {}
+            }
+        var total = 0.0
+        if (maximum > 0.0)
+            for (sample in series.samples)
+                when (sample) {
+                    case Some(value) -> total += value.value / maximum;
+                    case None -> {}
+                }
+        val outer = layout.radius - ring.toDouble() * band
+        val gap =
+            if (plan.prepared.series.size > 1L)
+                upperBound(2.0 * plan.appearance.density, band * 0.1)
+            else
+                0.0
+        val inner = lowerBound(layout.hole, outer - band + gap)
+        var fraction = 0.0
+        val samples = ArrayList<ChartSample?>()
+        for (at in 0L ..< count) {
+            samples.add(
+                when (series.samples[at]) {
+                    case None -> None
+                    case Some(value) -> {
+                        if (total == 0.0 || value.value == 0.0 || outer <= inner)
+                            None
+                        else {
+                            val weight = (value.value / maximum) / total
+                            val arc =
+                                ChartSector(
+                                    layout.center,
+                                    inner,
+                                    outer,
+                                    start + sweep * fraction,
+                                    sweep * weight,
+                                    chartSectorColor(plan, series, at),
+                                    4.0 * plan.appearance.density
+                                )
+                            fraction += weight
+                            Some(
+                                ChartSample(
+                                    chartPolarSelection(plan, series, at),
+                                    value.value,
+                                    chartPolarPoint(
+                                        layout.center,
+                                        (inner + outer) / 2.0,
+                                        arc.start + arc.sweep / 2.0
+                                    ),
+                                    layout.center,
+                                    ChartShape.Sector(arc),
+                                    arc.sweep != 0.0
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
+        result.add(ChartSeriesGeometry(series, samples.toArray()));
+        ring += 1L
+    }
+    return ChartGeometry(
+        size,
+        layout.plot,
+        result.toArray(),
+        [],
+        [],
+        ChartKind.Pie,
+        contentBounds = layout.content
+    )
+}

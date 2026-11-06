@@ -1,0 +1,238 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.style.*
+import scoop.ui.style.styled as makeStyled
+
+internal class ChoiceExamplesModel {
+    val radio = state<Int?>(Some(1))
+    val plan = state<Int?>(None)
+    val single = state<Int?>(Some(0))
+    val preview = state<Int?>(Some(0))
+    val multiple = state<Array<Int>>([0, 2])
+    val enabled = state(true)
+    val connected = state(true)
+    val vertical = state(false)
+    val reverse = state(false)
+    val invalid = state(false)
+    val label = FieldTarget()
+}
+
+internal fun radioGroupExamples(model: ChoiceExamplesModel, theme: Theme): View =
+    makeColumn {
+        this.add(panelHeading("Radio Group"))
+        this.typography(
+            "Tab enters the selected option. Arrow keys move and select; Space selects, Enter leaves the value unchanged.",
+            TypographyRole.Muted
+        )
+        this.radioGroup(model.radio.binding()) {
+            this.enabled = model.enabled.value
+            this.invalid = model.invalid.value
+            this.axis =
+                if (model.vertical.value)
+                    FlexAxis.Horizontal
+                else
+                    FlexAxis.Vertical
+            val order =
+                if (model.reverse.value)
+                    [2, 1, 0]
+                else
+                    [0, 1, 2]
+            for (value in order)
+                this.item(
+                    Choice(
+                        ViewKey.Number(value.toLong()),
+                        value,
+                        ["Default", "Comfortable", "Compact (unavailable)"][value.toLong()],
+                        value != 2
+                    )
+                ) {
+                    if (value == 0)
+                        this.labelTarget = Some(model.label)
+                }
+        }
+        this.fieldLabel("Select Default using an associated label", model.label)
+        this.row {
+            this.button("Clear externally", { model.radio.value = None }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Select Comfortable", { model.radio.value = Some(1) }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Reorder", { model.reverse.value = !model.reverse.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.row {
+            this.button("Toggle disabled", { model.enabled.value = !model.enabled.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle invalid", { model.invalid.value = !model.invalid.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle axis", { model.vertical.value = !model.vertical.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.typography("Choose a plan", TypographyRole.H3)
+        this.radioGroup(model.plan.binding()) {
+            this.spacing = 12.0
+            for (value in [0, 1])
+                this.item(
+                    Choice(
+                        ViewKey.Number(value.toLong()),
+                        value,
+                        ["Starter", "Professional"][value.toLong()]
+                    )
+                ) {
+                    this.content =
+                        Some {
+                            appearance -> makeStyled(
+                                makeRow {
+                                    this.add(appearance.indicator)
+                                    this.column {
+                                        this.label(
+                                            if (value == 0)
+                                                "Starter — free"
+                                            else
+                                                "Professional — $20 / month"
+                                        ) { style { this.weight = Some(600) } }
+                                        this.typography(
+                                            if (value == 0)
+                                                "A personal workspace with essential tools."
+                                            else
+                                                "Shared projects and more storage for your team.",
+                                            TypographyRole.Muted
+                                        )
+                                        this.spacing = 4.0
+                                    }
+                                    this.spacing = 12.0
+                                    this.padding = Insets.all(16.0)
+                                    this.alignment = CrossAlignment.Center
+                                }
+                            ) {
+                                style {
+                                    this.border =
+                                        Some(
+                                            Border.all(
+                                                1.0,
+                                                if (appearance.selected)
+                                                    theme.tokens.palette.primary.background
+                                                else
+                                                    theme.tokens.palette.input
+                                            )
+                                        )
+                                    this.corners = Corners.all(10.0)
+                                }
+                            }
+                        }
+                }
+        }
+        this.spacing = 18.0
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun toggleGroupExamples(model: ChoiceExamplesModel): View =
+    makeColumn {
+        this.add(panelHeading("Toggle Group"))
+        this.typography(
+            "Arrow keys move focus without changing selection. Use Space, Enter or a click to toggle an option.",
+            TypographyRole.Muted
+        )
+        this.typography("Single selection · activate again to clear", TypographyRole.H3)
+        this.toggleGroup(model.single.binding()) {
+            this.variant = ToggleVariant.Outline
+            this.spacing =
+                if (model.connected.value)
+                    0.0
+                else
+                    8.0
+            this.axis =
+                if (model.vertical.value)
+                    FlexAxis.Vertical
+                else
+                    FlexAxis.Horizontal
+            this.enabled = model.enabled.value
+            this.invalid = model.invalid.value
+            val order =
+                if (model.reverse.value)
+                    [2, 1, 0]
+                else
+                    [0, 1, 2]
+            for (value in order)
+                this.item(
+                    Choice(
+                        ViewKey.Number(value.toLong()),
+                        value,
+                        ["Left", "Center", "Right"][value.toLong()]
+                    )
+                )
+        }
+        this.typography("Multiple selection · independent values", TypographyRole.H3)
+        for (size in [ToggleSize.Sm, ToggleSize.Default, ToggleSize.Lg])
+            this.toggleGroup(model.multiple.binding()) {
+                this.size = size
+                this.enabled = model.enabled.value
+                this.item(Choice(ViewKey.Text("bold"), 0, "Bold")) {
+                    style { text { this.weight = Some(700) } }
+                }
+                this.item(Choice(ViewKey.Text("italic"), 1, "Italic"))
+                this.item(Choice(ViewKey.Text("underline"), 2, "Underline"))
+                this.item(Choice(ViewKey.Text("disabled"), 3, "Unavailable", false))
+            }
+        this.toggleGroup(model.preview.binding()) {
+            this.variant = ToggleVariant.Outline
+            this.item(Choice(ViewKey.Text("preview"), 0, "Preview")) {
+                this.content =
+                    Some(
+                        ButtonContent.Resolved {
+                            appearance -> makeRow {
+                                this.add(visibilityIcon(appearance))
+                                this.label(
+                                    styledText {
+                                        this.style = appearance.text;
+                                        this.text("Preview")
+                                    }
+                                )
+                                this.spacing = appearance.spacing
+                                this.alignment = CrossAlignment.Center
+                            }
+                        }
+                    )
+            }
+            this.item(Choice(ViewKey.Text("source"), 1, "Source"))
+        }
+        this.typography(
+            if (model.preview.value == Some(0))
+                "Preview content follows the selected value."
+            else
+                if (model.preview.value == Some(1))
+                    "Source content follows the selected value."
+                else
+                    "No view selected.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button("Toggle spacing", { model.connected.value = !model.connected.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle axis", { model.vertical.value = !model.vertical.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle disabled", { model.enabled.value = !model.enabled.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Reorder", { model.reverse.value = !model.reverse.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.spacing = 18.0
+    }

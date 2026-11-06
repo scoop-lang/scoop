@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 
-internal class FieldScene(private val probe: FieldProbe): Component {
+internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val generation = probe.version.value
         val callback = probe.callbackVersion
@@ -39,14 +39,14 @@ internal class FieldScene(private val probe: FieldProbe): Component {
             )
         return element(
             generation,
-            { current -> FieldPanel(probe, current) },
+            { current, mount -> FieldPanel(probe, current, scope = mount) },
             [
                 component(
                     props,
                     {
-                        current ->
+                        current, mount ->
                         probe.inputCreates += 1;
-                        Input(current)
+                        Input(current, scope = mount)
                     }
                 ),
                 component(
@@ -61,9 +61,9 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                         paintCache = PaintCachePolicy.Tiles(64, 0)
                     ),
                     {
-                        current ->
+                        current, mount ->
                         probe.textareaCreates += 1;
-                        Textarea(current)
+                        Textarea(current, scope = mount)
                     }
                 ),
                 input(probe.primary) {
@@ -94,7 +94,7 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                             }
                         ),
                         element(
-                            { ScaledField() },
+                            { mount -> ScaledField(scope = mount) },
                             [
                                 input(probe.dialog) {
                                     this.placeholder = "Dialog text"
@@ -108,9 +108,10 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                     ) {
                         this.options {
                             this.handle = Some(this @FieldScene.probe.overlay)
-                            this.modal =
+                            this.mode = OverlayMode.Modal
+                            this.focus =
                                 Some(
-                                    ModalOptions(
+                                    OverlayFocusOptions(
                                         initialFocus = Some(this @FieldScene.probe.focus[3L])
                                     )
                                 )
@@ -124,11 +125,17 @@ internal class FieldScene(private val probe: FieldProbe): Component {
     }
 }
 
-private class FieldPanel(private val probe: FieldProbe, private val props: Props<Int>): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class FieldPanel(
+    private val probe: FieldProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.primaryMetrics = Some(context.measureChild(0L, Constraints(260.0, Some(260.0))))
         context.placeChild(0L, Point(30.0, 30.0))
         context.measureChild(1L, Constraints(360.0, Some(360.0)))
@@ -139,14 +146,16 @@ private class FieldPanel(private val probe: FieldProbe, private val props: Props
         context.placeChild(3L, Point(440.0, 130.0))
         context.measureChild(4L, Constraints())
         context.placeChild(4L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(760.0, 520.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(760.0, 520.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         probe.horizontal = None
         probe.vertical = None
         context.draw {
-            paint -> paint.canvas.clear(probe.source.current.value.tokens.palette.canvas)
+            paint -> paint.canvas.clear(
+                probe.source.current.value.tokens.palette.background.background
+            )
         }
         context.children()
         context.onFrameComplete {
@@ -156,15 +165,20 @@ private class FieldPanel(private val probe: FieldProbe, private val props: Props
     }
 }
 
-private class ScaledField: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ScaledField(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, Constraints(320.0, Some(320.0)))
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(
-            constraints.constrain(Size(child.size.width * 1.2, child.size.height * 1.2))
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(Size(child.size.width * 1.2, child.size.height * 1.2))
+            ),
+            Unit
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.scale(1.2, 1.2)
         context.children()
     }
@@ -189,14 +203,18 @@ internal class FieldItems(private val probe: FieldProbe): ItemSource {
             else -> None
         }
     public override fun build(index: Long): View =
-        component(probe.row(index), { props -> FieldRowComponent(probe, props) })
+        component(
+            probe.row(index),
+            { props, mount -> FieldRowComponent(probe, props, scope = mount) }
+        )
 }
 
 private class FieldRowComponent(
     private val probe: FieldProbe,
-    private val props: Props<FieldRow>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<FieldRow>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         props.value.mounts += 1
     }
     public override fun onUnmount() {

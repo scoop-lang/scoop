@@ -1,0 +1,173 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class SelectViewportLayout(
+    val scroll: ScrollLayout,
+    val reference: Point,
+    val padding: Double,
+    val arrows: Double
+)
+
+/** List clipping and scroll reveal use the same viewport that publishes the painted offset. */
+internal class SelectViewport(
+    private val props: Props<SelectPanelProps>,
+    scope: ComponentScope
+): Element<SelectViewportLayout>(scope) {
+    private var owner: ComponentScope? = None
+    private var control: ScrollControl? = None
+    private var up: SelectScrollButton? = None
+    private var down: SelectScrollButton? = None
+    private var reference: Point? = None
+    private var opened = true
+    public override fun onMount() {
+        owner = Some(scope)
+        control =
+            Some(
+                ScrollControl(scope) {
+                    val input = props.value
+                    ScrollControlProps(
+                        input.popup.scroll,
+                        ScrollAxes.Vertical,
+                        28.0 * input.theme.tokens.typography.body.fontSize / 14.0,
+                        ScrollChain.Contain,
+                        ScrollbarVisibility.Hidden,
+                        scrollbarOptions(),
+                        input.popup.options.enabled,
+                        FocusOptions(tabStop = false),
+                        PaintCachePolicy.None,
+                        input.theme
+                    )
+                }
+            )
+        up = Some(SelectScrollButton(scope, { props.value }, false))
+        down = Some(SelectScrollButton(scope, { props.value }, true))
+    }
+    public override fun update(): UiInvalidation {
+        val current = props.value.popup.open.value
+        if (current && !opened)
+            reference = None
+        opened = current
+        control!!.update();
+        up!!.update();
+        down!!.update()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SelectViewportLayout
+    > {
+        val input = props.value
+        val density = input.theme.tokens.typography.body.fontSize / 14.0
+        val padding = upperBound(4.0 * density, (constraints.maxWidth ?: 8.0 * density) / 2.0)
+        val height =
+            upperBound(
+                input.popup.maxHeight * density,
+                constraints.maxHeight ?: input.popup.maxHeight * density
+            )
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(
+                    lowerBound(0.0, constraints.minWidth - padding * 2.0),
+                    when (constraints.maxWidth) {
+                        case Some(width) -> Some(lowerBound(0.0, width - padding * 2.0));
+                        case None -> None
+                    }
+                )
+            )
+        val total =
+            constraints.constrain(
+                Size(
+                    child.size.width + padding * 2.0,
+                    upperBound(height, child.size.height + padding * 2.0)
+                )
+            )
+        val room = lowerBound(0.0, total.height - padding * 2.0)
+        val arrows =
+            if (input.popup.scrollButtons && child.size.height > room)
+                upperBound(24.0 * density, room / 2.0)
+            else
+                0.0
+        val viewport =
+            Size(lowerBound(0.0, total.width - padding * 2.0), lowerBound(0.0, room - arrows * 2.0))
+        val adjustment =
+            when (child.overlayAnchor) {
+                case Some(rect) -> if (reference == None) {
+                    val initial = ScrollSnapshot(Point(0.0, 0.0), viewport, child.size)
+                    Some(
+                        ScrollAdjustment(
+                            input.popup.scroll.requestRevision,
+                            initial.revealedOffset(rect, vertical = ScrollAlignment.Center)
+                        )
+                    )
+                } else
+                    None
+                case None -> None
+            }
+        val presented = control!!.layout(viewport, child.size, adjustment)
+        val initial = reference ?: presented.snapshot.offset
+        context.placeChild(0L, Point(0.0, 0.0))
+        val anchor =
+            when (child.overlayAnchor) {
+                case Some(rect) -> Some(
+                    Rect(
+                        rect.x + padding,
+                        rect.y + padding + arrows - initial.y,
+                        rect.width,
+                        rect.height
+                    )
+                )
+                case None -> None
+            }
+        return LayoutResult(
+            LayoutMetrics(total, overlayAnchor = anchor),
+            SelectViewportLayout(presented, initial, padding, arrows)
+        )
+    }
+    public override fun scene(context: SceneContext, layout: SelectViewportLayout) {
+        val presented = layout.scroll.snapshot
+        val initial = layout.reference
+        val padding = layout.padding
+        val arrows = layout.arrows
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    owner!!.isMounted &&
+                    reference ==
+                    None
+            )
+                reference = Some(initial)
+        }
+        context.save();
+        context.translate(padding, padding + arrows)
+        control!!.scene(context, layout.scroll)
+        context.restore()
+        up!!.scene(
+            context,
+            if (arrows > 0.0)
+                Some(Rect(padding, padding, presented.viewport.width, arrows))
+            else
+                None,
+            presented
+        )
+        down!!.scene(
+            context,
+            if (arrows > 0.0)
+                Some(
+                    Rect(
+                        padding,
+                        padding + arrows + presented.viewport.height,
+                        presented.viewport.width,
+                        arrows
+                    )
+                )
+            else
+                None,
+            presented
+        )
+    }
+}

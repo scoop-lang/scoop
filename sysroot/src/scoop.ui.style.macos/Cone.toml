@@ -9,6 +9,10 @@ kind = "library"
 [[sources]]
 path = "src"
 
+[[sources]]
+path = "platform/darwin"
+when = { os = "darwin" }
+
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
@@ -16,3 +20,15 @@ path = "src"
 "scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
+
+[native]
+objc_flags = ["-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "native/darwin/colors.m"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "AppKit"
+kind = "framework"
+when = { os = "darwin" }

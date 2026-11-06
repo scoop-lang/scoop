@@ -1,0 +1,318 @@
+package scoop.tests.ui.componentframereuse
+
+import scoop.ui.component.*
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ComponentFrameReuseTest {
+    @Test
+    fun `loading selection scrolling and caret frames retain stable component layouts`() {
+        val probe = ComponentFrameProbe()
+        val theme = ThemeSource(shadcnTheme())
+        context(theme) {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+        }
+        assertTrue(probe.finished)
+        assertTrue(probe.frames >= 15)
+        assertEquals(1, probe.contentMeasures)
+        assertTrue(probe.editor!!.isClosed)
+    }
+}
+
+private class ComponentFrameProbe {
+    val checked = state(false)
+    val scroll = ScrollState()
+    val measures = MutableArray<Int>(7L) { _ -> 0 }
+    var baseline: Array<Int> = []
+    var editor: TextEditHost? = None
+    var editorMeasures = 0
+    var editorBaseline = 0
+    var contentMeasures = 0
+    var pixelBaseline: Array<Long> = []
+    val pixelsChanged = MutableArray<Boolean>(5L) { _ -> false }
+    var frames = 0
+    var started: TimeMark? = None
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop component frame reuse"
+                            size = LogicalSize(240.0, 460.0)
+                        }
+                    )
+                window.requestFocus()
+                host.attach(window, { mount -> ComponentFrameScene(this, active, scope = mount) })
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"component frame reuse timed out at ${frames}")
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted(active: ActiveApplication, pixels: Array<Long>) {
+        frames += 1
+        if (frames == 1)
+            assertTrue(editor!!.area.requestFocus())
+        if (frames == 3) {
+            baseline = Array<Int>(measures.size) { index -> measures[index] }
+            editorBaseline = editorMeasures
+            pixelBaseline = pixels
+            started = Some(MonotonicTimeSource.markNow())
+            checked.value = true
+            scroll.scrollTo(Point(0.0, 60.0))
+        }
+        if (frames > 3)
+            for (index in 0L ..< pixels.size)
+                if (pixels[index] != pixelBaseline[index])
+                    pixelsChanged[index] = true
+        if (
+            frames >= 15 && MonotonicTimeSource.markNow() - started!! >= Duration.milliseconds(160L)
+        ) {
+            for (index in 0L ..< measures.size)
+                assertEquals(
+                    baseline[index],
+                    measures[index],
+                    Some(f"component ${index} remeasured during scene frames")
+                )
+            assertEquals(editorBaseline, editorMeasures)
+            for (index in 0L ..< pixelsChanged.size)
+                assertTrue(pixelsChanged[index], Some(f"animated pixels ${index} did not change"))
+            assertEquals(Point(0.0, 60.0), scroll.snapshot.offset)
+            assertTrue(editor!!.area.isFocusActive)
+            assertTrue(editor!!.area.visibleCaretBounds != None)
+            println(
+                f"component frame reuse: ${
+                    frames - 3
+                } scene frames, zero additional layout callbacks"
+            )
+            finished = true
+            active.requestExit()
+        }
+    }
+}
+
+private class ComponentFrameScene(
+    private val probe: ComponentFrameProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val content = element({ mount -> ComponentFrameContent(probe, scope = mount) })
+        val children =
+            [
+                spinner(),
+                progress(None),
+                frame(label("Stable label")) {
+                    width = Some(180.0);
+                    height = Some(34.0);
+                    surface = Some(SurfaceKind.Plain)
+                },
+                component(
+                    ScrollAreaProps(
+                        content,
+                        Some(probe.scroll),
+                        width = Some(180.0),
+                        height = Some(60.0)
+                    ),
+                    { props, mount -> ScrollArea(props, scope = mount) }
+                ),
+                checkbox(probe.checked.binding()),
+                component(
+                    SwitchProps(probe.checked.binding()),
+                    { props, mount -> Switch(props, scope = mount) }
+                ),
+                element({ mount -> ComponentFrameEditor(probe, scope = mount) })
+            ]
+        val counted =
+            Array<View>(children.size) {
+                index -> element(
+                    { mount -> ComponentFrameCounter(probe, index, scope = mount) },
+                    [children[index]]
+                )
+            }
+        return cachedScene(
+            element({ mount -> ComponentFrameRoot(probe, active, scope = mount) }, counted)
+        )
+    }
+}
+
+private class ComponentFrameRoot(
+    private val probe: ComponentFrameProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Array<Size>>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Array<Size>
+    > {
+        val sizes =
+            Array<Size>(context.childCount) {
+                index ->
+                val metrics =
+                    context.measureChild(
+                        index,
+                        Constraints(maxWidth = Some(180.0), maxHeight = Some(60.0))
+                    )
+                context.placeChild(index, Point(15.0, 10.0 + index.toDouble() * 64.0))
+                metrics.size
+            }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 460.0))), sizes)
+    }
+    public override fun scene(context: SceneContext, sizes: Array<Size>) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val pixels = MutableArray<Long>(5L) { _ -> 0L }
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native ->
+                    val spinner =
+                        [
+                            Point(0.5, 0.15),
+                            Point(0.75, 0.25),
+                            Point(0.85, 0.5),
+                            Point(0.75, 0.75),
+                            Point(0.5, 0.85),
+                            Point(0.25, 0.75),
+                            Point(0.15, 0.5),
+                            Point(0.25, 0.25)
+                        ]
+                    for (index in 0L ..< spinner.size)
+                        pixels[0L] += framePixel(native, 0L, sizes[0L], spinner[index]) *
+                            (index + 1L)
+                    for (index in 0L ..< 9L)
+                        pixels[1L] += framePixel(
+                            native,
+                            1L,
+                            sizes[1L],
+                            Point((index.toDouble() + 0.5) / 9.0, 0.5)
+                        ) *
+                            (index + 1L)
+                    pixels[2L] = framePixel(native, 4L, sizes[4L], Point(0.25, 0.5))
+                    pixels[3L] = framePixel(native, 5L, sizes[5L], Point(0.2, 0.5))
+                    when (probe.editor!!.area.visibleCaretBounds) {
+                        case Some(rect) -> @Unsafe
+                        {
+                            pixels[4L] =
+                                readNativePixel(
+                                    native,
+                                    rect.x + rect.width / 2.0,
+                                    rect.y + rect.height / 2.0
+                                )
+                        }
+                        case None -> {}
+                    }
+                }
+            }
+        }
+        val sampled = pixels.toArray()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && !probe.finished)
+                probe.accepted(active, sampled)
+        }
+    }
+}
+
+private fun framePixel(native: Ptr<Unit>, index: Long, size: Size, position: Point): Long {
+    @Unsafe
+    {
+        return readNativePixel(
+            native,
+            15.0 + size.width * position.x,
+            10.0 + index.toDouble() * 64.0 + size.height * position.y
+        )
+    }
+}
+
+private class ComponentFrameCounter(
+    private val probe: ComponentFrameProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures[index] += 1
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+private class ComponentFrameContent(
+    private val probe: ComponentFrameProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.contentMeasures += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 260.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, size.width, size.height),
+                Paint(Color.Black)
+            )
+        }
+    }
+}
+
+private class ComponentFrameEditor(
+    private val probe: ComponentFrameProbe,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    public override fun onMount() {
+        val fonts = scope.resource { FontCollection() }
+        probe.editor =
+            Some(
+                scope.resource {
+                    TextEditHost(
+                        scope,
+                        TextEditorState("Caret"),
+                        TextEditAppearance(fonts),
+                        TextEditOptions(caretBlink = Duration.milliseconds(30L))
+                    )
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        probe.editorMeasures += 1
+        val measured =
+            probe.editor!!.measure(Constraints.tight(constraints.constrain(Size(180.0, 32.0))))
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        probe.editor!!.scene(context, measured)
+    }
+}

@@ -1,18 +1,36 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
+import scoop.window.WindowActivity
+import scoop.window.WindowDeadline
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
     private val root: UiRoot get() = node.root
     private var active = true
+    internal var fontReads: DependencyCollector? = None
     private val managed = ArrayList<Closeable>()
     private val cleanup = ArrayList<() -> Unit>()
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
+
+    /** The root owns its fallback collection; explicit application collections remain borrowed. */
+    public val defaultFonts: FontCollection get() {
+        checkMounted()
+        fontReads?.read(root.fonts.signal)
+        when (currentEvaluation()) {
+            case Some(evaluation) -> {
+                evaluation.collector?.read(root.fonts.signal)
+                evaluation.frameReads?.readDefaults(root.fonts)
+            }
+            case None -> {}
+        }
+        return root.fonts.value
+    }
 
     /** The borrowed native owner; the mount does not acquire or transfer its lifetime. */
     public val layoutDirection: LayoutDirection get() {
@@ -64,7 +82,13 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
 
     public val isMounted: Boolean get() {
         root.checkThread()
-        return active && root.isOpen
+        return active && root.isOpen && root.surface.state == SurfaceWindowState.Open
+    }
+    /** Continues ordinary Tab navigation from the current focus within this owner. */
+    public fun moveFocus(reverse: Boolean = false): Boolean {
+        checkMounted()
+        checkFocusMutation()
+        return root.focus.moveFrom(node, reverse)
     }
     private fun checkMounted() {
         if (!isMounted)
@@ -80,10 +104,46 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         cleanup.add(action)
     }
+    /** Uses the native deadline while keeping callbacks inside this root's failure boundary. */
+    public fun createDeadline(action: () -> Unit): WindowDeadline {
+        checkMounted()
+        val value =
+            root.window.createDeadline {
+                if (isMounted)
+                    root.surface.dispatch(action)
+            }
+        managed.add(value)
+        return value
+    }
+    /** Observes the native window while preserving this root's callback ownership. */
+    public fun observeWindowActivity(action: (WindowActivity) -> Unit): Closeable {
+        checkMounted()
+        val value =
+            root.window.observeActivity {
+                activity -> if (isMounted)
+                    root.surface.dispatch { action(activity) }
+            }
+        managed.add(value)
+        return value
+    }
+    /** Local frame-request eligibility; ancestor and submitted placement gates still apply. */
+    public var isFrameEnabled: Boolean
+    get() {
+        checkMounted()
+        return node.localFrameEnabled
+    }
+    set(value) {
+        checkMounted()
+        checkOverlayMutation()
+        node.setFrameEnabled(value)
+    }
     public fun requestFrame() {
         checkMounted()
-        if (node.frameEnabled)
-            root.requestFrame()
+        node.request(UiInvalidation.Scene)
+    }
+    public fun requestLayout() {
+        checkMounted()
+        node.request(UiInvalidation.Layout)
     }
     public fun createArea(
         focusable: Boolean = false,
@@ -166,10 +226,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
             case None -> {}
         }
         val items =
-            when (node.body) {
-                case Lazy(_, value) -> value
-                else -> throw IllegalArgumentException(Some("item focus requires a lazy element"))
-            }
+            node.lazyItems ?:
+                throw IllegalArgumentException(Some("item focus requires a lazy element"))
         val value = LazyFocus(node, viewport, items, options)
         node.lazyFocus = Some(value)
         managed.add(value)

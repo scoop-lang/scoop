@@ -1,0 +1,276 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.ui.component.carousel as attachmentCarousel
+
+public class AttachmentGroupProps public constructor(
+    public val source: ItemSource,
+    public val length: Double? = None,
+    public val spacing: Double = 12.0,
+    public val enabled: Boolean = true,
+    public val handle: CarouselHandle? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val fade: Boolean = true,
+    public val theme: ThemeSource? = None
+)
+
+public class AttachmentGroupBuilder internal constructor() {
+    public var length: Double? = None
+    public var spacing: Double = 12.0
+    public var enabled: Boolean = true
+    public var handle: CarouselHandle? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var fade: Boolean = true
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    private val entries = ArrayList<AttachmentGroupEntry>()
+    public fun item(key: ViewKey, content: View) {
+        entries.add(AttachmentGroupEntry(key, content))
+    }
+    public fun attachment(
+        key: ViewKey,
+        title: String,
+        configure: AttachmentBuilder.() -> Unit = {}
+    ) {
+        item(key, makeAttachment(conversationText(title), configure))
+    }
+    internal fun snapshot(source: ItemSource?): AttachmentGroupProps {
+        requireComponent(
+            !panelPresent(source) || entries.size == 0L,
+            "attachment group cannot mix a source and entries"
+        )
+        nonnegative(spacing, "invalid attachment group spacing")
+        return AttachmentGroupProps(
+            source ?: AttachmentGroupItems(entries.toArray()),
+            length,
+            spacing,
+            enabled,
+            handle,
+            focus,
+            fade,
+            theme
+        )
+    }
+}
+
+private class AttachmentGroupEntry(val key: ViewKey, val view: View)
+
+private class AttachmentGroupItems(private val values: Array<AttachmentGroupEntry>): ItemSource {
+    public override val count: Long get() = values.size
+    public override fun keyAt(index: Long): ViewKey = values[index].key
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< values.size)
+            if (values[index].key == key)
+                return Some(index)
+        return None
+    }
+    public override fun build(index: Long): View = values[index].view
+}
+
+public class AttachmentGroup(
+    private val props: Props<AttachmentGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val handle = CarouselHandle()
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val owner = input.handle ?: handle
+        val theme = themes.read(input.theme)
+        val ring = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Plain)).focusOutset
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val content =
+            attachmentCarousel(input.source) {
+                this.itemSize = { _ -> CarouselItemSize.Content }
+                this.length = input.length
+                this.spacing = input.spacing
+                this.enabled = input.enabled
+                this.handle = Some(owner)
+                this.theme = input.theme
+                this.viewport =
+                    CarouselViewportOptions(lowerBound(4.0, ring / density), input.focus)
+                this.previous = CarouselButtonOptions(visible = false)
+                this.next = CarouselButtonOptions(visible = false)
+            }
+        return element(
+            AttachmentGroupInkProps(input, owner, density),
+            { current, mount -> AttachmentGroupInk(current, mount) },
+            [content]
+        )
+    }
+}
+
+internal class AttachmentGroupInkProps(
+    val props: AttachmentGroupProps,
+    val handle: CarouselHandle,
+    val density: Double
+)
+
+internal class AttachmentGroupInk(
+    private val props: Props<AttachmentGroupInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    private val deadline = scope.createDeadline { finish() }
+    private var previous: AttachmentGroupInkProps? = None
+    init {
+        scope.routeChildren(area)
+        scope.resource { area.scope.addDefaultAction { context, event -> input(context, event) } }
+    }
+    private fun finish() {
+        if (scope.isMounted && props.value.props.enabled)
+            props.value.handle.finishWheel()
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        when (previous) {
+            case Some(old) -> if (
+                !input.props.enabled ||
+                    old.props.source !==
+                    input.props.source ||
+                    old.handle !==
+                    input.handle
+            )
+                deadline.cancel()
+            case None -> {}
+        }
+        previous = Some(input)
+        area.scope.enabled = input.props.enabled
+        return UiInvalidation.Layout
+    }
+    private fun input(context: RoutedEventContext, event: InputEvent) {
+        if (!scope.isMounted || !props.value.props.enabled)
+            return
+        when (event) {
+            case Pointer(
+                InputPointerEvent.Button(_, _, ElementState.Pressed, _)
+            ) -> deadline.cancel()
+            case Keyboard(_) -> deadline.cancel()
+            case Pointer(InputPointerEvent.Wheel(_, _, phase, momentum)) -> {
+                context.consumeScroll(40.0 * props.value.density) {
+                    amount ->
+                    if (amount.x != 0.0) {
+                        props.value.handle.wheel(
+                            if (scope.layoutDirection == LayoutDirection.Rtl)
+                                amount.x
+                            else
+                                -amount.x
+                        )
+                        deadline.schedule(
+                            MonotonicTimeSource.markNow() + Duration.milliseconds(120L)
+                        )
+                    }
+                    Point(amount.x, 0.0)
+                }
+                if (
+                    phase ==
+                        ScrollPhase.Ended ||
+                        phase ==
+                        ScrollPhase.Cancelled ||
+                        momentum ==
+                        ScrollPhase.Ended ||
+                        momentum ==
+                        ScrollPhase.Cancelled
+                ) {
+                    deadline.cancel();
+                    finish()
+                }
+            }
+            else -> {}
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        val snaps = input.handle.snapPositions
+        val offset = input.handle.position
+        val start = input.props.fade && offset > 0.5
+        val end = input.props.fade && snaps.size > 0L && offset < snaps[snaps.size - 1L] - 0.5
+        val fade = (start || end) && bounds.width > 0.0 && bounds.height > 0.0
+        if (fade)
+            context.saveLayer()
+        context.children()
+        if (fade) {
+            val fraction = upperBound(0.49, 24.0 * input.density / bounds.width)
+            val left =
+                if (context.layoutDirection == LayoutDirection.Rtl)
+                    end
+                else
+                    start
+            val right =
+                if (context.layoutDirection == LayoutDirection.Rtl)
+                    start
+                else
+                    end
+            val stops = ArrayList<GradientStop>()
+            stops.add(
+                GradientStop(
+                    0.0,
+                    if (left)
+                        Color.Transparent
+                    else
+                        Color.White
+                )
+            )
+            if (left)
+                stops.add(GradientStop(fraction, Color.White))
+            if (right)
+                stops.add(GradientStop(1.0 - fraction, Color.White))
+            stops.add(
+                GradientStop(
+                    1.0,
+                    if (right)
+                        Color.Transparent
+                    else
+                        Color.White
+                )
+            )
+            val mask = Gradient.linear(Point(0.0, 0.0), Point(bounds.width, 0.0), stops)
+            context.saveLayer(blendMode = BlendMode.DstIn)
+            context.draw { paint -> paint.canvas.drawRect(bounds, Paint(gradient = Some(mask))) }
+            context.restore();
+            context.restore()
+        }
+    }
+    public override fun onUnmount() {
+        deadline.cancel()
+    }
+}
+
+public fun attachmentGroup(configure: AttachmentGroupBuilder.() -> Unit): View =
+    makeAttachmentGroup(None, configure)
+
+public fun attachmentGroup(
+    source: ItemSource,
+    configure: AttachmentGroupBuilder.() -> Unit = {}
+): View = makeAttachmentGroup(Some(source), configure)
+
+internal fun makeAttachmentGroup(
+    source: ItemSource?,
+    configure: AttachmentGroupBuilder.() -> Unit
+): View {
+    val builder = AttachmentGroupBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(source),
+        { current, mount -> AttachmentGroup(current, mount) },
+        builder.key
+    )
+}

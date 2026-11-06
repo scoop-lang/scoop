@@ -44,8 +44,9 @@ internal struct TileInput(val id: Long, val version: Int)
 
 internal class StatefulTile(
     private val props: Props<TileInput>,
-    private val probe: CompositionProbe
-): Component {
+    private val probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     private val store = compositionStore()
     private var shared: Int by store.shared
     var local: Int by state(0)
@@ -57,7 +58,6 @@ internal class StatefulTile(
     var lastVersion = 0
     var lastExtra = 0
     var unmounts = 0
-    var scope: ComponentScope? = None
     var resource: TrackedImage? = None
     init {
         probe.tiles.add(this)
@@ -75,25 +75,25 @@ internal class StatefulTile(
         assertFailsWith<IllegalStateException> { local += 1 }
         return empty()
     }
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         probe.log.add("mount " + id.toString())
         resource = Some(scope.resource { TrackedImage(id.toString(), probe.log) })
         scope.onDispose { probe.log.add("dispose " + id.toString()) }
     }
     public override fun onUnmount() {
         unmounts += 1
-        assertFalse(scope!!.isMounted)
+        assertFalse(scope.isMounted)
         assertFalse(resource!!.image.isClosed)
-        assertFailsWith<IllegalStateException> { scope!!.requestFrame() }
+        assertFailsWith<IllegalStateException> { scope.requestFrame() }
         probe.log.add("unmount " + id.toString())
     }
 }
 
 internal class BindingReader(
     private val props: Props<Binding<Int>>,
-    probe: CompositionProbe
-): Component {
+    probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     var renders = 0
     var observed = 0
     init {
@@ -109,7 +109,11 @@ internal class BindingReader(
     }
 }
 
-internal class FlexibleReader(private val read: () -> Long, probe: CompositionProbe): Component {
+internal class FlexibleReader(
+    private val read: () -> Long,
+    probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     var observed = 0L
     var unmounts = 0
     init {
@@ -126,8 +130,9 @@ internal class FlexibleReader(private val read: () -> Long, probe: CompositionPr
 
 internal class PlainReader(
     private val model: CompositionModel,
-    private val probe: CompositionProbe
-): Component {
+    private val probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         probe.plainRenders += 1
         probe.plainObserved = model.plain.value.number
@@ -135,7 +140,10 @@ internal class PlainReader(
     }
 }
 
-internal class CompositionScene(private val probe: CompositionProbe): Component {
+internal class CompositionScene(
+    private val probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         probe.sceneRenders += 1
         val model = probe.model
@@ -145,7 +153,7 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
             children.add(
                 component(
                     TileInput(id, version),
-                    { props -> StatefulTile(props, probe) },
+                    { props, mount -> StatefulTile(props, probe, scope = mount) },
                     ViewKey.Number(id)
                 )
             )
@@ -156,7 +164,7 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
                     model.b.binding()
                 else
                     model.a.binding(),
-                { props -> BindingReader(props, probe) },
+                { props, mount -> BindingReader(props, probe, scope = mount) },
                 ViewKey.Text("binding")
             )
         )
@@ -164,7 +172,7 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
             children.add(
                 component(
                     21L,
-                    { props -> FlexibleReader({ props.value }, probe) },
+                    { props, mount -> FlexibleReader({ props.value }, probe, scope = mount) },
                     ViewKey.Text("flexible")
                 )
             )
@@ -172,15 +180,20 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
             children.add(
                 component(
                     12,
-                    { props -> FlexibleReader({ props.value.toLong() }, probe) },
+                    {
+                        props,
+                        mount -> FlexibleReader({ props.value.toLong() }, probe, scope = mount)
+                    },
                     ViewKey.Text("flexible")
                 )
             )
         }
-        children.add(component({ PlainReader(model, probe) }, ViewKey.Text("plain")))
-        return element({ CompositionLayout(probe) }, children.toArray())
+        children.add(
+            component({ mount -> PlainReader(model, probe, scope = mount) }, ViewKey.Text("plain"))
+        )
+        return element({ mount -> CompositionLayout(probe, scope = mount) }, children.toArray())
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.log.add("mount scene")
     }
     public override fun onUnmount() {
@@ -188,17 +201,23 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
     }
 }
 
-internal class CompositionLayout(private val probe: CompositionProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+internal class CompositionLayout(
+    private val probe: CompositionProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.log.add("mount layout")
     }
     public override fun onUnmount() {
         probe.log.add("unmount layout")
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.updates += 1
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         var index = 0L
         while (index < context.childCount) {
@@ -206,15 +225,18 @@ internal class CompositionLayout(private val probe: CompositionProbe): Element {
             context.placeChild(index, Point(0.0, 0.0))
             index += 1L
         }
-        return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.children()
     }
 }
 
-internal class CompositionMirror(private val probe: CompositionProbe): Component {
+internal class CompositionMirror(
+    private val probe: CompositionProbe,
+    scope: ComponentScope
+): Component(scope) {
     private val store = compositionStore()
     public override fun render(): View {
         probe.mirrorRenders += 1

@@ -1,0 +1,152 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.style.*
+import scoop.window.Utf8Selection
+
+internal val itemSelectionText = "Select this text"
+
+internal class ItemScene(private val probe: ItemProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        if (probe.gone)
+            return element(
+                generation,
+                { current, mount -> ItemTestLayout(probe, current, scope = mount) }
+            )
+        val step = probe.step
+        val text =
+            typography(itemSelectionText, TypographyRole.Small) {
+                this.fonts = Some(this @ItemScene.probe.fonts)
+                this.selectable = true
+                this.focus { this.handle = Some(this @ItemScene.probe.focus[1L]) }
+                this.onSelectionChanged =
+                    {
+                        a,
+                        c -> this @ItemScene.probe.selection =
+                            Utf8Selection(a.byteOffset, c.byteOffset)
+                    }
+            }
+        val body =
+            element(probe, { current, mount -> ItemBodyMarker(current, scope = mount) }, [text])
+        val active =
+            item(body) {
+                this.fonts = Some(this @ItemScene.probe.fonts)
+                this.onClick =
+                    if (this @ItemScene.probe.actionable)
+                        Some({ this @ItemScene.probe.rows += step })
+                    else
+                        None
+                this.enabled = this @ItemScene.probe.enabled
+                this.focus { this.handle = Some(this @ItemScene.probe.currentFocus()) }
+                this.variant = ItemVariant.Outline
+                this.actions(
+                    makeButton("Open", { this @ItemScene.probe.actions += step }) {
+                        this.fonts = Some(this @ItemScene.probe.fonts)
+                        this.focus { this.handle = Some(this @ItemScene.probe.focus[2L]) }
+                        this.style { this.surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                    }
+                )
+                if (this @ItemScene.probe.extras) {
+                    this.title("Retained body")
+                    this.description("Optional detail")
+                    this.header(itemBox(100.0, 18.0));
+                    this.footer(itemBox(110.0, 12.0))
+                    this.media(this @ItemScene.probe.image)
+                }
+            }
+        val children = ArrayList<View>()
+        children.add(active)
+        for (measurement in itemMeasurements(probe))
+            children.add(measurement)
+        return direction(
+            element(
+                generation,
+                { current, mount -> ItemTestLayout(probe, current, scope = mount) },
+                children.toArray()
+            ),
+            if (probe.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class ItemTestLayout(
+    private val probe: ItemProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (context.childCount > 0L) {
+            val size =
+                context.measureChild(
+                    0L,
+                    Constraints(
+                        maxWidth =
+                            Some(
+                                if (probe.narrow)
+                                    220.0
+                                else
+                                    460.0
+                            )
+                    )
+                ).size
+            assertEquals(
+                if (probe.narrow)
+                    220.0
+                else
+                    460.0,
+                size.width
+            )
+            if (!probe.extras)
+                assertEquals(54.0, size.height)
+            context.placeChild(0L, Point(20.0, 20.0))
+            measureItems(context)
+            context.measureChild(1L, Constraints())
+            context.placeChild(1L, Point(20.0, 220.0))
+            context.placeChild(12L, Point(300.0, 220.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 360.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, 520.0, 360.0),
+                Paint(probe.theme.current.value.tokens.palette.background.background)
+            )
+        }
+        context.children()
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.paints += 1
+        }
+    }
+}
+
+private class ItemBodyMarker(private val props: Props<ItemProbe>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
+        props.value.mounts += 1
+        scope.onDispose { props.value.disposals += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

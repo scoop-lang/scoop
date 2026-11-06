@@ -1,0 +1,210 @@
+package scoop.examples.ui.shadcn
+
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.kbd as makeKbd
+
+internal class HoverExamplesModel {
+    val delayed = state(false)
+    val enabled = state(true)
+    val open = state(false)
+    val reject = state(false)
+    val actions = state(0)
+    val changes = state(0)
+    val following = state(false)
+    val details = state(false)
+}
+
+internal fun tooltipExamples(model: HoverExamplesModel): View =
+    makeColumn {
+        add(panelHeading("Tooltip"))
+        typography(
+            "Hints keep the original button action and keyboard focus. Escape dismisses a hint until you leave and return.",
+            TypographyRole.Muted
+        )
+        row {
+            button(
+                if (model.delayed.value)
+                    "Delay: 400ms"
+                else
+                    "Delay: immediate",
+                { model.delayed.value = !model.delayed.value }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.enabled.value)
+                    "Disable hints"
+                else
+                    "Enable hints",
+                { model.enabled.value = !model.enabled.value }
+            ) { variant = ButtonVariant.Outline }
+            spacing = 8.0
+        }
+        row {
+            tooltip(makeButton("Save", { model.actions.value += 1 }), "Save the current document") {
+                enabled = model.enabled.value
+                openDelay =
+                    if (model.delayed.value)
+                        Duration.milliseconds(400L)
+                    else
+                        Duration.ZERO
+            }
+            tooltip(
+                makeButton("Shortcut", { model.actions.value += 1 }) {
+                    variant = ButtonVariant.Outline
+                },
+                makeKbd("⌘K")
+            ) { enabled = model.enabled.value }
+            tooltip(
+                makeButton("Unavailable", {}) { enabled = false },
+                "This action is unavailable until a document is open."
+            ) {
+                enabled = model.enabled.value;
+                maxWidth = 200.0
+            }
+            spacing = 12.0
+        }
+        typography(f"Button actions: ${model.actions.value}", TypographyRole.Small)
+        add(panelHeading("Placement and wrapping"))
+        row {
+            for (
+                side in [OverlaySide.Top, OverlaySide.Bottom, OverlaySide.Start, OverlaySide.End]
+            ) {
+                tooltip(
+                    makeButton(hintSideName(side), {}) { variant = ButtonVariant.Outline },
+                    "Long hints wrap within the chosen width and keep their arrow aligned with the trigger."
+                ) {
+                    this.side = side;
+                    maxWidth = 220.0;
+                }
+            }
+            spacing = 12.0
+        }
+        add(panelHeading("Controlled hint"))
+        row {
+            tooltip(
+                makeButton("Bound trigger", {}) { variant = ButtonVariant.Outline },
+                "This hint follows the current binding."
+            ) {
+                open =
+                    Some(
+                        binding(
+                            { model.open.value },
+                            {
+                                next -> if (!model.reject.value)
+                                    model.open.value = next
+                            }
+                        )
+                    )
+                onOpenChange = { _ -> model.changes.value += 1 }
+            }
+            button("Show", { model.open.value = true }) { variant = ButtonVariant.Outline }
+            button("Close", { model.open.value = false }) { variant = ButtonVariant.Outline }
+            button(
+                if (model.reject.value)
+                    "Allow binding"
+                else
+                    "Reject binding",
+                { model.reject.value = !model.reject.value }
+            ) { variant = ButtonVariant.Outline }
+            spacing = 8.0
+        }
+        typography(
+            f"Open: ${model.open.value} · accepted changes: ${model.changes.value}",
+            TypographyRole.Muted
+        )
+        spacing = 20.0
+        alignment = CrossAlignment.Stretch
+    }
+
+internal fun hoverCardExamples(model: HoverExamplesModel): View =
+    makeColumn {
+        add(panelHeading("Hover Card"))
+        typography(
+            "Move from the link into the preview. You can select text, follow the profile, or open its nested details without losing the card.",
+            TypographyRole.Muted
+        )
+        row {
+            hoverCard(
+                makeButton("@scoop", { model.actions.value += 1 }) { variant = ButtonVariant.Link },
+                makeColumn {
+                    typography("Scoop", TypographyRole.Large)
+                    typography(
+                        "A native language and UI toolkit. Explore the project and keep up with new components.",
+                        TypographyRole.Small
+                    )
+                    button(
+                        if (model.following.value)
+                            "Following"
+                        else
+                            "Follow",
+                        { model.following.value = !model.following.value }
+                    ) {
+                        variant =
+                            if (model.following.value)
+                                ButtonVariant.Outline
+                            else
+                                ButtonVariant.Default
+                    }
+                    popover(
+                        model.details.binding(),
+                        makeColumn {
+                            typography(
+                                "Built with Scoop components, shared themes and native input.",
+                                TypographyRole.Small
+                            )
+                            button("Close details", { model.details.value = false }) {
+                                variant = ButtonVariant.Outline
+                            }
+                            spacing = 8.0
+                        }
+                    ) {
+                        trigger("Project details") { size = ButtonSize.Sm }
+                        title("About the project")
+
+                        side = OverlaySide.End;
+                        width = 240.0
+                    }
+                    spacing = 10.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                enabled = model.enabled.value
+                arrow = Some(PopupArrow())
+                gap = 12.0
+                onClosed = { _ -> model.details.value = false }
+            }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (model.enabled.value)
+                    "Disable preview"
+                else
+                    "Enable preview",
+                { model.enabled.value = !model.enabled.value }
+            ) { variant = ButtonVariant.Outline }
+            button("Outside action", { model.actions.value += 1 }) {
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        typography(
+            f"Actions: ${model.actions.value} · following: ${model.following.value}",
+            TypographyRole.Muted
+        )
+        spacing = 20.0;
+        alignment = CrossAlignment.Stretch
+    }
+
+private fun hintSideName(side: OverlaySide): String =
+    when (side) {
+        case Top -> "Top"
+        case Bottom -> "Bottom"
+        case Start -> "Start"
+        case End -> "End"
+        case Left -> "Left"
+        case Right -> "Right"
+    }

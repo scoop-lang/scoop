@@ -1,0 +1,74 @@
+package scoop.ui.component
+
+import scoop.math.abs
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+@Test
+private class CarouselModelTest {
+    @Test
+    fun `measured anchors clamp trailing space and skip duplicate end positions`() {
+        val track = carouselTrack([80.0, 140.0, 60.0, 100.0], 220.0, 10.0, false)
+        carouselNear([0.0, 90.0, 240.0, 310.0], track.starts)
+        carouselNear([0.0, 90.0, 190.0, 190.0], track.snaps)
+        assertEquals(190.0, track.maximum)
+        assertEquals(Some(2L), carouselAdjacent(track, 1L, true))
+        assertEquals(Some(1L), carouselAdjacent(track, 3L, false))
+        assertEquals(None, carouselAdjacent(track, 2L, true))
+        assertEquals(Some(SnapTarget(2L, 190.0)), carouselNearest(track, 150.0, 0.0, 0.15))
+        val small = carouselTrack([60.0, 70.0], 200.0, 10.0, true)
+        assertFalse(small.looping)
+        assertEquals(None, carouselAdjacent(small, 0L, true))
+        assertEquals(None, carouselNearest(carouselTrack([], 0.0, 0.0, true), 0.0, 0.0, 0.0))
+        assertEquals(Some(95.0), carouselExtent(CarouselItemSize.Fraction(0.5), 200.0, 10.0))
+        assertEquals(None, carouselExtent(CarouselItemSize.Content, 200.0, 10.0))
+    }
+    @Test
+    fun `circular placement keeps one instance per key and snaps through the seam`() {
+        val track = carouselTrack([100.0, 100.0, 100.0], 150.0, 10.0, true)
+        assertTrue(track.looping)
+        assertEquals(330.0, track.cycle)
+        assertEquals(Some(0L), carouselAdjacent(track, 2L, true))
+        assertEquals(Some(2L), carouselAdjacent(track, 0L, false))
+        carouselNear(
+            [50.0, 160.0, -60.0],
+            Array<Double>(3L) { index -> carouselItemPosition(track, index, 280.0) }
+        )
+        assertEquals(Some(SnapTarget(0L, 330.0)), carouselNearest(track, 310.0, 0.0, 0.0))
+        assertEquals(Some(SnapTarget(2L, -110.0)), carouselNearest(track, 10.0, -600.0, 0.15))
+        assertFalse(carouselTrack([350.0, 10.0], 200.0, 10.0, true).looping)
+        assertFalse(carouselTrack([100.0, 100.0], 0.0, 10.0, true).looping)
+        assertEquals(325.0, carouselModulo(-5.0, 330.0))
+    }
+    @Test
+    fun `selection distinguishes controlled indices from retained keys and builders freeze entries`() {
+        val keys = [ViewKey.Text("c"), ViewKey.Text("a"), ViewKey.Text("b")]
+        assertEquals(2L, carouselSelected(keys, None, Some(ViewKey.Text("b")), 0L))
+        assertEquals(0L, carouselSelected(keys, Some(0L), Some(ViewKey.Text("b")), 2L))
+        assertEquals(2L, carouselSelected(keys, Some(99L), None, 0L))
+        assertEquals(1L, carouselSelected(keys, None, Some(ViewKey.Text("removed")), 1L))
+        assertEquals(-1L, carouselSelected([], Some(4L), None, 0L))
+        val builder = CarouselBuilder()
+        builder.item(ViewKey.Text("a"), empty()) { size = CarouselItemSize.Length(120.0) }
+        val props = builder.snapshot(None)
+        builder.item(ViewKey.Text("b"), empty())
+        assertEquals(1L, props.source.count)
+        assertEquals(CarouselItemSize.Length(120.0), props.itemSize(0L))
+        assertFalse(CarouselHandle().next())
+        assertFailsWith<IllegalArgumentException> {
+            carouselExtent(CarouselItemSize.Fraction(0.0), 20.0, 0.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            carouselExtent(CarouselItemSize.Length(-1.0), 20.0, 0.0)
+        }
+        assertFailsWith<IllegalArgumentException> { CarouselAutoplay(Duration.ZERO) }
+        assertFailsWith<IllegalArgumentException> { CarouselViewportOptions(-1.0) }
+    }
+}
+
+private fun carouselNear(expected: Array<Double>, actual: Array<Double>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertTrue(abs(expected[index] - actual[index]) < 1.0e-8)
+}

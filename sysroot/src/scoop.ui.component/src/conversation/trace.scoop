@@ -1,0 +1,352 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum TraceStatus {
+    Complete, Running, Error, Pending
+}
+
+public class TraceLineProps public constructor(
+    public val title: ButtonContent,
+    public val status: TraceStatus = TraceStatus.Complete,
+    public val icon: View? = None,
+    public val description: PanelContent? = None,
+    public val shimmer: Boolean = true,
+    public val onClick: (() -> Unit)? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val focusOutline: OutlineStyle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public open class TraceLineBuilder internal constructor(): ConversationActionBuilder() {
+    public var status: TraceStatus = TraceStatus.Complete
+    public var icon: View? = None
+    public var description: PanelContent? = None
+    public var shimmer: Boolean = true
+    public fun description(text: String) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun description(text: StyledText) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun description(content: View) {
+        description = Some(PanelContent.Custom(content))
+    }
+    internal fun line(title: ButtonContent): TraceLineProps =
+        TraceLineProps(
+            title,
+            status,
+            icon,
+            description,
+            shimmer,
+            onClick,
+            enabled,
+            focus,
+            focusOutline,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class TraceBuilder internal constructor(): TraceLineBuilder() {
+    public var open: Binding<Boolean>? = None
+    public var retention: ContentRetention = ContentRetention.KeepMounted
+    public var onOpenChange: (Boolean) -> Unit = {}
+}
+
+public class TraceProps public constructor(
+    public val line: TraceLineProps,
+    public val content: View,
+    public val open: Binding<Boolean>? = None,
+    public val retention: ContentRetention = ContentRetention.KeepMounted,
+    public val onOpenChange: (Boolean) -> Unit = {}
+)
+
+internal class TraceExpansion {
+    private val choice = state<Boolean?>(None)
+    fun read(status: TraceStatus): Boolean = choice.value ?: (status == TraceStatus.Running)
+    fun choose(value: Boolean) {
+        choice.value = Some(value)
+    }
+}
+
+public class Trace(private val props: Props<TraceProps>, scope: ComponentScope): Component(scope) {
+    private val themes = ThemeAccess()
+    private val expansion = TraceExpansion()
+    private val opened =
+        binding(
+            { props.value.open?.value ?: expansion.read(props.value.line.status) },
+            { value -> change(value) }
+        )
+    public override fun onMount() {
+        themes.mount(props.value.line.theme)
+    }
+    private fun change(value: Boolean) {
+        val input = props.value
+        if (!scope.isMounted || !input.line.enabled)
+            return
+        val previous = opened.value
+        when (input.open) {
+            case Some(binding) -> binding.value = value
+            case None -> expansion.choose(value)
+        }
+        if (scope.isMounted && previous != opened.value)
+            props.value.onOpenChange(opened.value)
+    }
+    private fun activate() {
+        change(!opened.value)
+        if (scope.isMounted)
+            props.value.line.onClick?.invoke()
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.line.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val expanded = opened.value
+        val openBinding = opened
+        val line =
+            component(
+                TraceLineInput(input.line, Some(expanded), Some({ activate() })),
+                { current, mount -> TraceLine(current, mount) }
+            )
+        val body =
+            frame(input.content) {
+                this.logicalPadding =
+                    Some(
+                        LogicalInsets(
+                            start = 16.0 * density,
+                            end = 4.0 * density,
+                            top = 8.0 * density,
+                            bottom = 4.0 * density
+                        )
+                    )
+                this.style =
+                    styleOverride {
+                        this.border(
+                            Some(
+                                Border.Logical(start = BorderEdge(1.0, theme.tokens.palette.border))
+                            )
+                        )
+                    }
+                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            }
+        return makeColumn {
+            this.add(panelSlot(line, 0L))
+            this.add(
+                panelSlot(
+                    component(
+                        CollapsibleProps(
+                            openBinding,
+                            body,
+                            enabled = input.line.enabled,
+                            retention = input.retention,
+                            spacing = 0.0,
+                            theme = input.line.theme
+                        ),
+                        { current, mount -> Collapsible(current, mount) }
+                    ),
+                    1L
+                )
+            )
+            this.spacing = 0.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}
+
+internal class TraceLineInput(
+    val line: TraceLineProps,
+    val expanded: Boolean? = None,
+    val action: (() -> Unit)? = None
+)
+
+internal class TraceLine(
+    private val props: Props<TraceLineInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val titles = ActionTextStyle()
+    private val descriptions = ActionTextStyle()
+    public override fun onMount() {
+        themes.mount(props.value.line.theme)
+    }
+    public override fun render(): View {
+        val frame = props.value
+        val input = frame.line
+        val theme = themes.read(input.theme)
+        val p = theme.tokens.palette
+        val color =
+            if (input.status == TraceStatus.Error)
+                p.destructive.background
+            else
+                p.muted.foreground
+        val base = titles.resolve(theme.tokens.typography.body, color, None)
+        val detail =
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                p.muted.foreground.withAlpha(0.7),
+                None
+            )
+        val d = base.fontSize / 14.0
+        val icon =
+            input.icon ?:
+                when (input.status) {
+                    case Running -> spinner {
+                        this.size = Some(16.0 * d);
+                        this.color = Some(color);
+                        this.running = input.enabled;
+                        this.theme = input.theme
+                    }
+                    case Error -> toastIcon(ToastKind.Error, 16.0 * d, color)
+                    case Pending -> navigationIcon(NavigationGlyph.More, 16.0 * d, color)
+                    case Complete -> empty()
+                }
+        val hasIcon = panelPresent(input.icon) || input.status != TraceStatus.Complete
+        val title =
+            conversationCaption(input.title, base, input.fonts, scope.layoutDirection, Some(1L))
+        val description =
+            when (input.description) {
+                case Some(PanelContent.Label(label)) -> conversationCaption(
+                    ButtonContent.Label(label),
+                    detail,
+                    input.fonts,
+                    scope.layoutDirection,
+                    Some(1L)
+                )
+                case Some(value) -> panelCaption(value, detail, input.fonts)
+                case None -> empty()
+            }
+        val arrow =
+            when (frame.expanded) {
+                case Some(open) -> navigationIcon(
+                    if (open)
+                        NavigationGlyph.Down
+                    else
+                        NavigationGlyph.End,
+                    16.0 * d,
+                    color
+                )
+                case None -> empty()
+            }
+        val row =
+            element(
+                TraceLineLayoutProps(
+                    hasIcon,
+                    panelPresent(input.description),
+                    panelPresent(frame.expanded),
+                    d
+                ),
+                { current, mount -> TraceLineLayout(current, mount) },
+                [
+                    panelSlot(icon, 0L),
+                    panelSlot(
+                        conversationShimmer(
+                            title,
+                            input.status == TraceStatus.Running && input.shimmer && input.enabled,
+                            theme
+                        ),
+                        1L
+                    ),
+                    panelSlot(description, 2L),
+                    panelSlot(arrow, 3L)
+                ]
+            )
+        val action =
+            when (frame.action) {
+                case Some(_) -> frame.action;
+                case None -> input.onClick
+            }
+        return conversationShimmer(
+            conversationSurface(
+                ConversationSurfaceProps(
+                    ButtonContent.Custom(row),
+                    theme,
+                    base,
+                    conversationStyle(
+                        Color.Transparent,
+                        color,
+                        Insets(),
+                        4.0 * d,
+                        hover =
+                            if (panelPresent(action))
+                                p.muted.background.withAlpha(0.3)
+                            else
+                                Color.Transparent,
+                        outline = input.focusOutline,
+                        local = styleOverride { this.border(None) }.then(input.style)
+                    ),
+                    action,
+                    input.enabled,
+                    input.focus,
+                    input.fonts
+                )
+            ),
+            false,
+            theme,
+            if (input.status == TraceStatus.Pending)
+                0.6
+            else
+                1.0
+        )
+    }
+}
+
+public fun traceLine(title: String, configure: TraceLineBuilder.() -> Unit = {}): View =
+    makeTraceLine(conversationText(title), configure)
+
+public fun traceLine(title: StyledText, configure: TraceLineBuilder.() -> Unit = {}): View =
+    makeTraceLine(conversationText(title), configure)
+
+public fun traceLine(title: View, configure: TraceLineBuilder.() -> Unit = {}): View =
+    makeTraceLine(ButtonContent.Custom(title), configure)
+
+public fun traceLine(
+    title: (ActionContentStyle) -> View,
+    configure: TraceLineBuilder.() -> Unit = {}
+): View = makeTraceLine(ButtonContent.Resolved(title), configure)
+
+internal fun makeTraceLine(title: ButtonContent, configure: TraceLineBuilder.() -> Unit): View {
+    val builder = TraceLineBuilder();
+    builder.configure()
+    return component(
+        TraceLineInput(builder.line(title)),
+        { current, mount -> TraceLine(current, mount) },
+        builder.key
+    )
+}
+
+public fun trace(title: String, content: View, configure: TraceBuilder.() -> Unit = {}): View =
+    makeTrace(conversationText(title), content, configure)
+
+public fun trace(title: StyledText, content: View, configure: TraceBuilder.() -> Unit = {}): View =
+    makeTrace(conversationText(title), content, configure)
+
+public fun trace(title: View, content: View, configure: TraceBuilder.() -> Unit = {}): View =
+    makeTrace(ButtonContent.Custom(title), content, configure)
+
+internal fun makeTrace(
+    title: ButtonContent,
+    content: View,
+    configure: TraceBuilder.() -> Unit
+): View {
+    val builder = TraceBuilder();
+    builder.configure()
+    return component(
+        TraceProps(
+            builder.line(title),
+            content,
+            builder.open,
+            builder.retention,
+            builder.onOpenChange
+        ),
+        { current, mount -> Trace(current, mount) },
+        builder.key
+    )
+}

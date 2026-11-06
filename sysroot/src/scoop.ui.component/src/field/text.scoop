@@ -1,0 +1,157 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum FieldTextRole {
+    Title, Description, Legend, LegendLabel, Error
+}
+
+public enum FieldLegendVariant {
+    Legend, Label
+}
+
+public class FieldTextProps public constructor(
+    public val content: PanelContent,
+    public val role: FieldTextRole,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val textStyle: SpanStyle? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class FieldText public constructor(
+    private val props: Props<FieldTextProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val base = fieldTextStyle(input.role, theme)
+        return panelFrame(
+            panelCaption(input.content, input.textStyle?.resolve(base) ?: base, input.fonts),
+            visual = input.style
+        )
+    }
+}
+
+internal fun fieldTextStyle(role: FieldTextRole, theme: Theme): TextStyle {
+    val body = theme.tokens.typography.body
+    val legend = role == FieldTextRole.Legend
+    return body.copy {
+        this.fontSize =
+            if (legend)
+                body.fontSize * 16.0 / 14.0
+            else
+                body.fontSize
+        this.lineHeight =
+            Some(
+                if (legend)
+                    1.5
+                else
+                    20.0 / 14.0
+            )
+        this.weight =
+            if (role == FieldTextRole.Description || role == FieldTextRole.Error)
+                400
+            else
+                500
+        this.color =
+            when (role) {
+                case Description -> theme.tokens.palette.muted.foreground
+                case Error -> theme.tokens.palette.destructive.background
+                else -> theme.tokens.palette.background.foreground
+            }
+    }
+}
+
+public open class FieldTextBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var textStyle: SpanStyle? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun textStyle(configure: SpanStyleBuilder.() -> Unit) {
+        textStyle = Some((textStyle ?: spanStyle()).copy(configure))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: PanelContent, role: FieldTextRole): FieldTextProps =
+        FieldTextProps(content, role, fonts, theme, textStyle, style)
+}
+
+public class FieldLegendBuilder internal constructor(): FieldTextBuilder() {
+    public var variant: FieldLegendVariant = FieldLegendVariant.Legend
+}
+
+internal fun fieldPlain(text: String): PanelContent =
+    PanelContent.Label(LabelProps(LabelText.Plain(text, None)))
+
+internal fun fieldStyled(text: StyledText): PanelContent =
+    PanelContent.Label(LabelProps(LabelText.Styled(text)))
+
+public fun fieldTitle(text: String, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(fieldPlain(text), FieldTextRole.Title, configure)
+
+public fun fieldTitle(text: StyledText, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(fieldStyled(text), FieldTextRole.Title, configure)
+
+public fun fieldTitle(content: View, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(PanelContent.Custom(content), FieldTextRole.Title, configure)
+
+public fun fieldDescription(text: String, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(fieldPlain(text), FieldTextRole.Description, configure)
+
+public fun fieldDescription(text: StyledText, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(fieldStyled(text), FieldTextRole.Description, configure)
+
+public fun fieldDescription(content: View, configure: FieldTextBuilder.() -> Unit = {}): View =
+    makeFieldText(PanelContent.Custom(content), FieldTextRole.Description, configure)
+
+public fun fieldLegend(text: String, configure: FieldLegendBuilder.() -> Unit = {}): View =
+    makeFieldLegend(fieldPlain(text), configure)
+
+public fun fieldLegend(text: StyledText, configure: FieldLegendBuilder.() -> Unit = {}): View =
+    makeFieldLegend(fieldStyled(text), configure)
+
+public fun fieldLegend(content: View, configure: FieldLegendBuilder.() -> Unit = {}): View =
+    makeFieldLegend(PanelContent.Custom(content), configure)
+
+internal fun makeFieldText(
+    content: PanelContent,
+    role: FieldTextRole,
+    configure: FieldTextBuilder.() -> Unit
+): View {
+    val builder = FieldTextBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(content, role),
+        { current, mount -> FieldText(current, scope = mount) },
+        builder.key
+    )
+}
+
+internal fun makeFieldLegend(
+    content: PanelContent,
+    configure: FieldLegendBuilder.() -> Unit
+): View {
+    val builder = FieldLegendBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(content, fieldLegendRole(builder.variant)),
+        { current, mount -> FieldText(current, scope = mount) },
+        builder.key
+    )
+}
+
+internal fun fieldLegendRole(variant: FieldLegendVariant): FieldTextRole =
+    if (variant == FieldLegendVariant.Legend)
+        FieldTextRole.Legend
+    else
+        FieldTextRole.LegendLabel

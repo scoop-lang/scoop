@@ -1,0 +1,181 @@
+package scoop.tests.ui.modalfamily
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.SheetSide
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ModalFamilyWindowTest {
+    @Test
+    fun `modal families retain content while isolating focus dismissal scrolling and sheet sides`() {
+        val p = ModalFamilyProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertFalse(p.layer.isAttached)
+            assertFalse(p.trigger.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"modal family phase=${p.phase}, mounts=${p.mounts}, unmounts=${
+                    p.unmounts
+                }, observed=${p.observed}"
+            )
+            modalFamilyFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class ModalFamilyProbe {
+    val theme =
+        ThemeSource(shadcnTheme { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val mounted = state(true)
+    val open = state(false)
+    val other = state(false)
+    val nestedOpen = state(false)
+    val scroll = ScrollState()
+    val layer = OverlayHandle()
+    val nestedLayer = OverlayHandle()
+    val trigger = FocusHandle()
+    val background = FocusHandle()
+    val first = FocusHandle()
+    val cancel = FocusHandle()
+    val action = FocusHandle()
+    val footer = FocusHandle()
+    val nestedTrigger = FocusHandle()
+    val nestedTarget = FocusHandle()
+    var kind = 0
+    var second = false
+    var deny = false
+    var veto = false
+    var enabled = true
+    var longContent = false
+    var scrollable = false
+    var slow = false
+    var explicitFocus = false
+    var rtl = false
+    var width = 384.0
+    var sheetWidth: Double? = None
+    var sheetHeight: Double? = None
+    var side = SheetSide.End
+    var actions = 0
+    var backgroundActions = 0
+    var changes = 0
+    var version = 1
+    var callbackVersion = 0
+    var closed = 0
+    var factories = 0
+    var mounts = 0
+    var unmounts = 0
+    var observed = 0
+    var savedFactories = 0
+    var savedChanges = 0
+    var bodyBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var footerBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var actionBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var bodyRingVisible = false
+    var footerRingVisible = false
+    var actionRingVisible = false
+    var savedFooter = Rect(0.0, 0.0, 0.0, 0.0)
+    var phase = 0
+    var rendered = -1
+    var hold = 180L
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "") {
+        assertEquals(0, modalFamilyKey(native!!, code, text))
+    }
+    fun click(rect: Rect) {
+        val x = rect.x + rect.width / 2.0
+        val y = rect.y + rect.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun clickBackground() {
+        click(Rect(20.0, 420.0, 140.0, 36.0))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop modal family test"
+                            position = Some(DesktopPosition(160.0, 100.0))
+                            size = LogicalSize(640.0, 480.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> ModalFamilyScene(this, scope = mount) })
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("modal family timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    hold = 180L
+                    modalFamilyStep(this)
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 44)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 44;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(20L))
+        )
+    }
+}

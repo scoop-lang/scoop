@@ -39,6 +39,14 @@ public class Window internal constructor(internal val owner: WindowOwner) {
         owner.application.deadlines.add(value)
         return value
     }
+    public val activity: WindowActivity get() = owner.activitySnapshot()
+    /** Observes changes without acquiring a native lease or requesting frames. */
+    public fun observeActivity(callback: (WindowActivity) -> Unit): Closeable {
+        owner.requireOpen()
+        val value = WindowActivityObserver(owner, owner.activitySnapshot(), callback)
+        owner.activityObservers.add(value)
+        return value
+    }
     /** Coalesces a redraw until this window can draw; never calls a handler recursively. */
     public fun requestRedraw() {
         owner.requireOpen();
@@ -91,6 +99,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
             )
         }
         owner.application.mailbox.wake()
+        owner.notifyActivity()
         return RequestStatus.Applied
     }
     /** Asks the window system to activate this window; native events confirm focus. */
@@ -129,6 +138,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
 }
 
 internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, native: Ptr<Unit>) {
+    val activityObservers = ArrayList<WindowActivityObserver>()
     var constraints: WindowSizeConstraints = WindowSizeConstraints()
     var buttons: WindowButtons = WindowButtons()
     var pointer: Ptr<Unit>? = Some(native)
@@ -154,6 +164,8 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
             return
         phase = WindowState.Closing
         dirty = false
+        for (observer in activityObservers.toArray())
+            observer.close()
         application.retireDeadlines(this)
         application.mailbox.wake()
     }

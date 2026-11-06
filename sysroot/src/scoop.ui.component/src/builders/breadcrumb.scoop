@@ -1,0 +1,132 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class BreadcrumbItemBuilder internal constructor() {
+    public var key: ViewKey = ViewKey.Position
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var maxWidth: Double? = None
+    public var style: ButtonStyle? = None
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = Some((style ?: buttonStyle()).copy(configure))
+    }
+    internal fun snapshot(content: BreadcrumbContent): BreadcrumbEntry =
+        BreadcrumbEntry(content, key, enabled, focus, maxWidth, style)
+}
+
+public class BreadcrumbBuilder internal constructor() {
+    private val entries = ArrayList<BreadcrumbEntry>()
+    public var separator: View? = None
+    public var spacing: Double = 6.0
+    public var lineSpacing: Double = 6.0
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun add(entry: BreadcrumbEntry) {
+        entries.add(entry)
+    }
+    private fun append(content: BreadcrumbContent, configure: BreadcrumbItemBuilder.() -> Unit) {
+        val builder = BreadcrumbItemBuilder();
+        builder.configure();
+        add(builder.snapshot(content))
+    }
+    public fun item(
+        text: String,
+        onNavigate: () -> Unit,
+        configure: BreadcrumbItemBuilder.() -> Unit = {}
+    ) {
+        append(
+            BreadcrumbContent.Link(
+                ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                onNavigate
+            ),
+            configure
+        )
+    }
+    public fun item(
+        text: StyledText,
+        onNavigate: () -> Unit,
+        configure: BreadcrumbItemBuilder.() -> Unit = {}
+    ) {
+        append(
+            BreadcrumbContent.Link(
+                ButtonContent.Label(LabelProps(LabelText.Styled(text))),
+                onNavigate
+            ),
+            configure
+        )
+    }
+    public fun item(
+        content: View,
+        onNavigate: () -> Unit,
+        configure: BreadcrumbItemBuilder.() -> Unit = {}
+    ) {
+        append(BreadcrumbContent.Link(ButtonContent.Custom(content), onNavigate), configure)
+    }
+    public fun item(
+        content: (ActionContentStyle) -> View,
+        onNavigate: () -> Unit,
+        configure: BreadcrumbItemBuilder.() -> Unit = {}
+    ) {
+        append(BreadcrumbContent.Link(ButtonContent.Resolved(content), onNavigate), configure)
+    }
+    public fun current(text: String, configure: BreadcrumbItemBuilder.() -> Unit = {}) {
+        append(
+            BreadcrumbContent.Current(ButtonContent.Label(LabelProps(LabelText.Plain(text, None)))),
+            configure
+        )
+    }
+    public fun current(text: StyledText, configure: BreadcrumbItemBuilder.() -> Unit = {}) {
+        append(
+            BreadcrumbContent.Current(ButtonContent.Label(LabelProps(LabelText.Styled(text)))),
+            configure
+        )
+    }
+    public fun current(content: View, configure: BreadcrumbItemBuilder.() -> Unit = {}) {
+        append(BreadcrumbContent.Current(ButtonContent.Custom(content)), configure)
+    }
+    public fun ellipsis(configure: BreadcrumbItemBuilder.() -> Unit = {}) {
+        append(BreadcrumbContent.Ellipsis, configure)
+    }
+    public fun custom(content: View, configure: BreadcrumbItemBuilder.() -> Unit = {}) {
+        append(BreadcrumbContent.Custom(content), configure)
+    }
+    public fun separator(content: View) {
+        separator = Some(content)
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(): BreadcrumbProps =
+        BreadcrumbProps(
+            entries.toArray(),
+            separator,
+            spacing,
+            lineSpacing,
+            enabled,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}): View =
+    makeBreadcrumb(configure)
+
+internal fun makeBreadcrumb(configure: BreadcrumbBuilder.() -> Unit): View {
+    val builder = BreadcrumbBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(),
+        { current, mount -> Breadcrumb(current, scope = mount) },
+        builder.key
+    )
+}

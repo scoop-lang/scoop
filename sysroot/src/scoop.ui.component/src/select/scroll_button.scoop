@@ -1,0 +1,141 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+/** Hover repetition is a native deadline, never a perpetual animation or focus target. */
+internal class SelectScrollButton(
+    private val scope: ComponentScope,
+    private val read: () -> SelectPanelProps,
+    private val down: Boolean
+) {
+    private val area = scope.createArea { _, _ -> refresh() }
+    private val timer = scope.createDeadline { tick() }
+    private val press = scope.press(area, PressOptions(true, false)) { step() }
+    private val glyph =
+        scope.resource {
+            path {
+                moveTo(
+                    Point(
+                        -4.0,
+                        if (down)
+                            -2.0
+                        else
+                            2.0
+                    )
+                )
+                lineTo(
+                    Point(
+                        0.0,
+                        if (down)
+                            2.0
+                        else
+                            -2.0
+                    )
+                )
+                lineTo(
+                    Point(
+                        4.0,
+                        if (down)
+                            -2.0
+                        else
+                            2.0
+                    )
+                )
+            }
+        }
+    private var canScroll = false
+    init {
+        scope.resource { area.scope.observeActivity { refresh() } }
+    }
+    fun update() {
+        press.update(PressOptions(read().popup.options.enabled, false)) { step() }
+        area.scope.enabled = read().popup.options.enabled
+        refresh()
+    }
+    private fun allowed(): Boolean =
+        scope.isMounted &&
+            read().popup.open.value &&
+            read().popup.options.enabled &&
+            scope.nativeWindow.isFocused &&
+            area.scope.isInputAllowed &&
+            area.visibleBounds !=
+            None &&
+            canScroll
+    private fun refresh() {
+        if (allowed() && area.scope.isHovered) {
+            if (!timer.isScheduled)
+                timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(60L))
+        } else
+            timer.cancel()
+    }
+    private fun tick() {
+        if (allowed() && area.scope.isHovered)
+            step()
+        refresh()
+    }
+    private fun step() {
+        if (!allowed())
+            return
+        val input = read()
+        input.popup.scroll.scrollBy(
+            Point(
+                0.0,
+                (
+                    if (down)
+                        28.0
+                    else
+                        -28.0
+                ) *
+                    input.theme.tokens.typography.body.fontSize /
+                    14.0
+            )
+        )
+    }
+    fun scene(context: SceneContext, bounds: Rect?, snapshot: ScrollSnapshot) {
+        val can =
+            bounds !=
+                None &&
+                if (down)
+                    snapshot.offset.y < snapshot.maximum.y
+                else
+                    snapshot.offset.y > 0.0
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                canScroll = can;
+                refresh()
+            }
+        }
+        when (bounds) {
+            case Some(rect) -> {
+                context.place(area, rect)
+                val input = read()
+                val density = input.theme.tokens.typography.body.fontSize / 14.0
+                val color = input.theme.tokens.palette.popover.foreground
+                context.draw {
+                    paint -> paint.canvas.withState {
+                        canvas ->
+                        canvas.translate(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+                        canvas.scale(density, density)
+                        canvas.drawPath(
+                            glyph,
+                            Paint(
+                                if (can)
+                                    color
+                                else
+                                    color.withAlpha(color.alpha * 0.3),
+                                PaintingStyle.Stroke,
+                                1.3333333333333333
+                            )
+                        )
+                    }
+                }
+            }
+            case None -> {}
+        }
+    }
+}

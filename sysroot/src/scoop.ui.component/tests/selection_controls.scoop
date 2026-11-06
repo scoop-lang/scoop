@@ -1,0 +1,304 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class SelectionControlTest {
+    @Test
+    fun `checkbox uses one binding for mixed state and boolean adapters`() {
+        assertEquals(CheckState.Checked, nextCheckState(CheckState.Unchecked))
+        assertEquals(CheckState.Unchecked, nextCheckState(CheckState.Checked))
+        assertEquals(CheckState.Checked, nextCheckState(CheckState.Indeterminate))
+        val value = state(false)
+        val attempts = state(0)
+        val accepted = state(true)
+        val original =
+            binding(
+                { value.value },
+                {
+                    next ->
+                    attempts.value += 1
+                    if (accepted.value)
+                        value.value = next
+                }
+            )
+        val mapped = checkboxStateBinding(original)
+        assertEquals(CheckState.Unchecked, mapped.value)
+        mapped.value = nextCheckState(mapped.value)
+        assertTrue(value.value)
+        assertEquals(1, attempts.value)
+        accepted.value = false
+        mapped.value = nextCheckState(mapped.value)
+        assertEquals(CheckState.Checked, mapped.value)
+        assertEquals(2, attempts.value)
+        value.value = false
+        assertEquals(CheckState.Unchecked, mapped.value)
+        val tri = state(CheckState.Indeterminate).binding()
+        assertSame(tri, CheckboxBuilder().snapshot(tri).checked)
+        val theme = shadcnTheme()
+        val visual = InteractionVisual(invalid = true)
+        val options = checkboxStyle().options(theme, visual, true)
+        val geometry =
+            theme.checkboxGeometry(
+                Rect(0.0, 0.0, 16.0, 16.0),
+                CheckboxVisual(CheckMark.Mixed, visual),
+                options
+            )
+        assertEquals(
+            theme.tokens.palette.primary.background,
+            geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color
+        )
+        assertEquals(theme.tokens.validation.color, geometry.ring!!.border.color)
+    }
+
+    @Test
+    fun `switch shares selection colors and geometry with rtl and constrained bounds`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            for (size in [SwitchSize.Default, SwitchSize.Sm]) {
+                val input = SwitchProps(state(false).binding(), size = size)
+                val visual = SurfaceVisual(SurfaceKind.Plain)
+                val options = switchOptions(input, theme, visual.interaction, 0.0)
+                val metrics = theme.surfaceMetrics(visual, options)
+                assertEquals(
+                    if (size == SwitchSize.Sm)
+                        Size(24.0, 14.0)
+                    else
+                        Size(32.0, 18.4),
+                    metrics.suggestedSize
+                )
+                val width = metrics.suggestedSize.width
+                val height = metrics.suggestedSize.height
+                val geometry = theme.surfaceGeometry(Rect(0.0, 0.0, width, height), visual, options)
+                val side =
+                    if (size == SwitchSize.Sm)
+                        12.0
+                    else
+                        16.0
+                val off = switchThumbBounds(geometry.content, side, 0.0, LayoutDirection.Ltr)
+                val on = switchThumbBounds(geometry.content, side, 1.0, LayoutDirection.Ltr)
+                assertEquals(side, off.width)
+                assertEquals(1.0, off.x)
+                assertEquals(width - 1.0 - side, on.x)
+                assertTrue(abs(off.y - (height - side) / 2.0) < 0.00001)
+                assertEquals(
+                    on,
+                    switchThumbBounds(geometry.content, side, 0.0, LayoutDirection.Rtl)
+                )
+                assertEquals(
+                    off,
+                    switchThumbBounds(geometry.content, side, 1.0, LayoutDirection.Rtl)
+                )
+                assertEquals(
+                    width / 2.0,
+                    switchThumbBounds(geometry.content, side, 0.5, LayoutDirection.Ltr).x +
+                        side /
+                        2.0
+                )
+                val selected =
+                    theme.surfaceGeometry(
+                        geometry.bounds,
+                        visual,
+                        switchOptions(input, theme, visual.interaction, 1.0)
+                    )
+                assertEquals(
+                    theme.tokens.palette.primary.background,
+                    selected.style.background!!.color
+                )
+                val expectedOff =
+                    if (mode == ThemeMode.Dark)
+                        theme.tokens.palette.input.withAlpha(theme.tokens.palette.input.alpha * 0.8)
+                    else
+                        theme.tokens.palette.input
+                assertEquals(expectedOff, geometry.style.background!!.color)
+                assertEquals(
+                    if (mode == ThemeMode.Dark)
+                        theme.tokens.palette.primary.foreground
+                    else
+                        theme.tokens.palette.background.background,
+                    switchThumbStyle(input, theme, 1.0).background!!.color
+                )
+                val invalid =
+                    SurfaceVisual(
+                        SurfaceKind.Plain,
+                        InteractionVisual(invalid = true, focusVisible = true, enabled = false)
+                    )
+                val error =
+                    theme.surfaceGeometry(
+                        geometry.bounds,
+                        invalid,
+                        switchOptions(input, theme, invalid.interaction, 1.0)
+                    )
+                assertEquals(theme.tokens.validation.color, error.ring!!.border.color)
+                assertEquals(
+                    theme.tokens.validation.borderColor!!,
+                    error.style.border!!.resolve(LayoutDirection.Ltr).left.color
+                )
+                assertEquals(0.5, error.opacity)
+            }
+        }
+        assertEquals(
+            Rect(2.0, 3.0, 0.0, 0.0),
+            switchThumbBounds(Rect(2.0, 3.0, 0.0, 0.0), 16.0, 1.0, LayoutDirection.Rtl)
+        )
+        assertEquals(
+            Rect(1.0, 1.0, 3.0, 3.0),
+            switchThumbBounds(Rect(1.0, 1.0, 3.0, 3.0), 16.0, 1.0, LayoutDirection.Ltr)
+        )
+        assertEquals(
+            Rect(-12.0, -8.0, 56.0, 30.0),
+            switchHitBounds(Rect(0.0, 0.0, 32.0, 14.0), Insets(12.0, 8.0, 12.0, 8.0))
+        )
+        assertEquals(
+            Rect(0.0, 0.0, 0.0, 14.0),
+            switchHitBounds(Rect(0.0, 0.0, 0.0, 14.0), Insets.all(8.0))
+        )
+        assertFailsWith<IllegalArgumentException> {
+            switchStyle { hitInsets = Some(Insets.all(-1.0)) }
+        }
+    }
+
+    @Test
+    fun `toggle selection does not become a transient press and local styles remain final`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            for (variant in [ToggleVariant.Default, ToggleVariant.Outline]) {
+                for (size in [ToggleSize.Sm, ToggleSize.Default, ToggleSize.Lg]) {
+                    val visual = InteractionVisual()
+                    val shape = ActionShape.Toggle(variant, size, true)
+                    val options =
+                        actionOptions(theme, shape, ButtonVariant.Ghost, buttonStyle(), visual)
+                    val surface = SurfaceVisual(SurfaceKind.Plain, visual)
+                    val metrics = theme.surfaceMetrics(surface, options)
+                    val height =
+                        when (size) {
+                            case Sm -> 28.0;
+                            case Default -> 32.0;
+                            case Lg -> 36.0
+                        }
+                    assertEquals(Size(height, height), metrics.suggestedSize)
+                    assertEquals(Insets(10.0, 0.0, 10.0, 0.0), metrics.padding)
+                    val geometry =
+                        theme.surfaceGeometry(Rect(0.0, 0.0, 60.0, height), surface, options)
+                    assertEquals(
+                        theme.tokens.palette.muted.background,
+                        geometry.style.background!!.color
+                    )
+                    if (variant == ToggleVariant.Default)
+                        assertEquals(None, geometry.style.border)
+                    else
+                        assertEquals(
+                            Some(Border.all(1.0, theme.tokens.palette.input)),
+                            geometry.style.border
+                        )
+                    val focused =
+                        actionOptions(
+                            theme,
+                            shape,
+                            ButtonVariant.Ghost,
+                            buttonStyle(),
+                            InteractionVisual(focusVisible = true)
+                        )
+                    assertEquals(
+                        metrics.contentInsets,
+                        theme.surfaceMetrics(surface, focused).contentInsets
+                    )
+                    val plain =
+                        actionOptions(
+                            theme,
+                            ActionShape.Toggle(variant, size, false),
+                            ButtonVariant.Ghost,
+                            buttonStyle(),
+                            visual
+                        )
+                    assertEquals(
+                        0.0,
+                        theme.surfaceGeometry(
+                            geometry.bounds,
+                            surface,
+                            plain
+                        ).style.background!!.color.alpha
+                    )
+                    val appearance =
+                        actionContentStyle(
+                            theme.tokens.typography.action,
+                            shape,
+                            ButtonVariant.Ghost,
+                            visual
+                        )
+                    assertFalse(appearance.interaction.pressed)
+                    assertFalse(appearance.underline)
+                }
+            }
+            val local =
+                buttonStyle {
+                    surface { style { this.background(Some(Paint(Color.Black))) } }
+                    states { pressed { this.background(Some(Paint(Color.White))) } }
+                }
+            val interaction = InteractionVisual(pressed = true, invalid = true)
+            val geometry =
+                theme.surfaceGeometry(
+                    Rect(0.0, 0.0, 40.0, 32.0),
+                    SurfaceVisual(SurfaceKind.Plain, interaction),
+                    toggleOptions(
+                        theme,
+                        ToggleVariant.Outline,
+                        ToggleSize.Default,
+                        false,
+                        local,
+                        interaction
+                    )
+                )
+            assertEquals(Color.White, geometry.style.background!!.color)
+            assertEquals(theme.tokens.validation.color, geometry.ring!!.border.color)
+        }
+    }
+
+    @Test
+    fun `selection factories publish descriptions without invoking bindings or content`() {
+        val calls = state(0)
+        val value = binding({ false }, { _ -> calls.value += 1 })
+        val fonts = FontCollection(false)
+        try {
+            val builder = ToggleBuilder()
+            builder.fonts = Some(fonts)
+            builder.size = ToggleSize.Sm
+            builder.style { text { this.weight = Some(700) } }
+            val input = builder.snapshot("Bold", value)
+            assertSame(value, input.pressed)
+            assertEquals(ToggleSize.Sm, input.size)
+            assertEquals(Some(700), input.style.text!!.weight)
+            when (input.content) {
+                case Label(label) -> assertSame(fonts, label.fonts!!)
+                else -> fail(Some("expected a label"))
+            }
+            val children = ChildrenBuilder()
+            children.checkbox(state(CheckState.Indeterminate).binding())
+            children.checkbox(value)
+            children.switchControl(value) { size = SwitchSize.Sm }
+            children.toggle("Bold", value)
+            children.toggle(styledText { this.text("Italic") }, value)
+            children.toggle(empty(), value)
+            children.toggle(
+                {
+                    _: ActionContentStyle ->
+                    calls.value += 1;
+                    empty()
+                },
+                value
+            )
+            assertEquals(7L, children.childCount)
+            assertEquals(0, calls.value)
+            assertSame(value, SwitchBuilder().snapshot(value).checked)
+            assertFalse(fonts.isClosed)
+        } finally {
+            fonts.close()
+        }
+    }
+}

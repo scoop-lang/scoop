@@ -1,0 +1,111 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun advanceDataApplication(p: ApplicationProbe) {
+    val m = p.model.appData
+    when (p.phase) {
+        case 0 -> p.focus(p.payment.noteFocus)
+        case 1 -> p.text("付款备注", true)
+        case 2 -> {
+            assertTrue(p.payment.note.isComposing);
+            p.text("付款备注")
+        }
+        case 3 -> {
+            assertEquals("付款备注", p.payment.note.text)
+            m.table.setSelected(ViewKey.Number(1L), true)
+            m.table.setSelected(ViewKey.Number(2L), true)
+            m.table.toggleSort("amount")
+        }
+        case 4 -> {
+            assertTrue(m.table.isSelected(ViewKey.Number(1L)))
+            assertEquals("amount", m.table.query.sorting[0L].column)
+            p.focus(m.filterFocus)
+        }
+        case 5 -> p.text("ada")
+        case 6 -> {
+            assertEquals("ada", m.table.query.filters[0L].text)
+            assertEquals(10L, m.table.result.totalRows)
+            assertTrue(m.table.isSelected(ViewKey.Number(1L)))
+            m.table.setPage(1L)
+        }
+        case 7 -> {
+            assertEquals(1L, m.table.query.pageIndex);
+            m.table.toggleSort("email")
+        }
+        case 8 -> {
+            assertEquals(0L, m.table.query.pageIndex);
+            p.focus(m.filterFocus)
+        }
+        case 9 -> {
+            p.selectAll();
+            p.key(51, "\b")
+        }
+        case 10 -> {
+            assertEquals(24L, m.table.result.totalRows);
+            m.table.setQuery(TableQuery(pageSize = 5L))
+        }
+        case 11 -> p.focus(p.payment.noteFocus)
+        case 12 -> {
+            assertEquals("付款备注", p.payment.note.text)
+            assertTrue(m.records[1L] === p.payment)
+            p.focus(p.payment.actionFocus)
+        }
+        case 13 -> p.enter()
+        case 14 -> p.key(119)
+        case 15 -> p.enter()
+        case 16 -> {
+            assertTrue(m.confirming.value)
+            assertTrue(m.cancelFocus.hasFocus)
+            assertEquals(24L, m.records.size)
+            p.escape()
+        }
+        case 17 -> {
+            assertFalse(m.confirming.value);
+            assertTrue(p.payment.actionFocus.hasFocus);
+            p.enter()
+        }
+        case 18 -> p.key(119)
+        case 19 -> p.enter()
+        case 20 -> {
+            assertTrue(m.confirming.value);
+            p.focus(m.confirmFocus)
+        }
+        case 21 -> p.enter()
+        case 22 -> {
+            assertEquals(23L, m.records.size)
+            assertEquals(Some(7.0), m.chart.data.series[0L].values[1L])
+            assertFalse(m.table.isSelected(ViewKey.Number(1L)))
+            assertTrue(m.table.isSelected(ViewKey.Number(2L)))
+            p.focus(m.undoFocus)
+        }
+        case 23 -> p.enter()
+        case 24 -> {
+            assertEquals(24L, m.records.size)
+            assertTrue(m.records[1L] === p.payment)
+            assertEquals("付款备注", p.payment.note.text)
+            assertEquals(Some(8.0), m.chart.data.series[0L].values[1L])
+            assertTrue(m.table.isSelected(ViewKey.Number(2L)))
+        }
+        case 25 -> {
+            m.refresh();
+            p.darkRtl(700.0)
+        }
+        case 26 -> {
+            assertTrue(m.records[1L] === p.payment);
+            p.focus(m.filterFocus)
+        }
+        case 27 -> p.text("mika")
+        case 28 -> {
+            assertEquals(5L, m.table.result.totalRows);
+            assertEquals("mika", m.table.query.filters[0L].text)
+        }
+        case 29 -> {
+            assertEquals("付款备注", p.payment.note.text);
+            p.focus(p.outside)
+        }
+        else -> fail(Some("unexpected data phase"))
+    }
+}

@@ -1,0 +1,106 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ToastKind {
+    Default, Success, Info, Warning, Error, Loading
+}
+
+public enum ToastPosition {
+    TopStart, TopCenter, TopEnd, BottomStart, BottomCenter, BottomEnd
+}
+
+public enum ToastOrder {
+    OldestFirst, NewestFirst
+}
+
+public enum ToastCloseReason {
+    Explicit, Timeout, Action, Swipe, Escape
+}
+
+/** Identity belongs to one state; it is never inferred from displayed text. */
+public class ToastId internal constructor(internal val key: Long)
+
+public struct ToastDismiss(
+    val closeButton: Boolean = true,
+    val escape: Boolean = true,
+    val swipe: Boolean = true
+)
+
+public class ToastAction public constructor(
+    public val content: ButtonContent,
+    public val onClick: () -> Unit,
+    public val dismiss: Boolean = true,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: ButtonStyle = buttonStyle(),
+    public val variant: ButtonVariant = ButtonVariant.Outline,
+    public val size: ButtonSize = ButtonSize.Sm
+)
+
+public class ToastProps public constructor(
+    public val title: PanelContent,
+    public val description: PanelContent? = None,
+    public val kind: ToastKind = ToastKind.Default,
+    public val position: ToastPosition? = None,
+    public val duration: Duration? = Some(Duration.seconds(5L)),
+    public val dismiss: ToastDismiss = ToastDismiss(),
+    public val icon: View? = None,
+    public val action: ToastAction? = None,
+    public val closeFocus: FocusOptions = FocusOptions(),
+    public val style: StyleOverride = styleOverride(),
+    public val onClosed: (ToastId, ToastCloseReason) -> Unit = { _, _ -> Unit }
+) {
+    init {
+        when (duration) {
+            case Some(value) -> requireComponent(
+                value > Duration.ZERO,
+                "toast duration must be positive"
+            )
+            case None -> {}
+        }
+    }
+}
+
+public class ToasterProps public constructor(
+    public val state: ToastState,
+    public val position: ToastPosition = ToastPosition.BottomEnd,
+    public val visibleCount: Long = 3L,
+    public val order: ToastOrder = ToastOrder.OldestFirst,
+    public val expanded: Boolean = false,
+    public val width: Double = 384.0,
+    public val offset: Double = 16.0,
+    public val gap: Double = 12.0,
+    public val enabled: Boolean = true,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        requireComponent(visibleCount > 0L, "toast visible count must be positive")
+        nonnegative(width, "invalid toast width")
+        nonnegative(offset, "invalid toast offset")
+        nonnegative(gap, "invalid toast gap")
+    }
+}
+
+internal val toastPositions: Array<ToastPosition> =
+    [
+        ToastPosition.TopStart,
+        ToastPosition.TopCenter,
+        ToastPosition.TopEnd,
+        ToastPosition.BottomStart,
+        ToastPosition.BottomCenter,
+        ToastPosition.BottomEnd
+    ]
+
+internal fun toastDuration(value: ToastProps): Duration? =
+    if (value.kind == ToastKind.Loading)
+        None
+    else
+        value.duration

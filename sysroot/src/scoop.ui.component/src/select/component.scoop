@@ -1,0 +1,363 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.ui.component.row as selectRow
+import scoop.ui.component.label as selectLabel
+
+public class Select<T: Equals<T>> public constructor(
+    private val props: Props<SelectProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val local = state(false)
+    private val last = state(false)
+    private val anchor = LayoutAnchor()
+    private val trigger = FocusHandle()
+    private val layer = OverlayHandle()
+    private val candidates = MenuFocus()
+    private val scroll = ScrollState()
+    private val themes = ThemeAccess()
+    private var pendingTab: Boolean? = None
+    private val open =
+        binding({ props.value.open?.value ?: local.value }, { value -> setOpen(value) })
+    private val chain = MenuChain({ close() }, { reverse -> tab(reverse) })
+
+    private val search =
+        scope.typeahead(
+            candidates,
+            { selectedKey() },
+            { key -> selectChoice(props.value, key) },
+            searchOptions()
+        )
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    private fun searchOptions(): TypeaheadOptions {
+        val value = props.value.typeahead
+        return TypeaheadOptions(
+            value.timeout,
+            value.enabled && props.value.enabled && !open.value,
+            value.keyboard,
+            value.matches
+        )
+    }
+    private fun updated() {
+        search.update(
+            candidates,
+            { selectedKey() },
+            { key -> selectChoice(props.value, key) },
+            Some(searchOptions())
+        )
+        if (open.value)
+            pendingTab = None
+    }
+    private fun selectedKey(): ViewKey? {
+        val choice = selectedChoice(props.value.content, props.value.value.value)
+        return if (choice?.enabled ?: false)
+            choice?.key
+        else
+            None
+    }
+    private fun initialFocus(): FocusHandle? =
+        when (selectedKey()) {
+            case Some(key) -> Some(candidates.handle(key))
+            case None -> candidates.edge(last.value)
+        }
+    private fun setOpen(value: Boolean) {
+        val previous = open.value
+        if (value)
+            pendingTab = None
+        if (value == previous)
+            return
+        when (props.value.open) {
+            case Some(binding) -> binding.value = value
+            case None -> local.value = value
+        }
+        if (open.value != previous)
+            props.value.onOpenChange(open.value)
+    }
+    private fun show(backwards: Boolean) {
+        if (!props.value.enabled)
+            return
+        if (last.value != backwards)
+            last.value = backwards
+        setOpen(true)
+        if (open.value)
+            initialFocus()?.requestFocus(FocusOrigin.Keyboard)
+    }
+    private fun close() {
+        (props.value.handle ?: layer).requestClose()
+    }
+    private fun toggle() {
+        if (!props.value.enabled)
+            return
+        if (open.value)
+            close()
+        else
+            show(false)
+    }
+    private fun tab(reverse: Boolean) {
+        pendingTab = Some(reverse)
+        close()
+        if (open.value)
+            pendingTab = None
+    }
+    private fun closed(reason: OverlayCloseReason) {
+        val next = pendingTab
+        pendingTab = None
+        when (next) {
+            case Some(reverse) -> if (scope.isMounted)
+                scope.moveFocus(reverse)
+            case None -> {}
+        }
+        props.value.onClosed(reason)
+    }
+    private fun menu(): MenuContent =
+        MenuContent(
+            Array<MenuEntry>(props.value.content.entries.size) {
+                index -> when (props.value.content.entries[index]) {
+                    case Label(key, content) -> MenuEntry.Label(key, content)
+                    case Separator(key) -> MenuEntry.Separator(key)
+                    case Item(item) -> MenuEntry.Radio(
+                        MenuItemSpec(
+                            item.choice.key,
+                            item.choice.label,
+                            item.choice.enabled,
+                            content = item.content,
+                            icon = item.icon,
+                            focus = item.focus,
+                            style = item.style
+                        ),
+                        { props.value.value.value == Some(item.choice.value) },
+                        { selectChoice(props.value, item.choice.key) },
+                        true
+                    )
+                }
+            }
+        )
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val content = menu()
+        candidates.resolve(content)
+        val options =
+            MenuOptions(
+                mode = input.mode,
+                loop = input.loop,
+                enabled = input.enabled,
+                fonts = input.fonts,
+                theme = input.theme,
+                typeahead = Some(input.typeahead)
+            )
+        val button =
+            component(
+                ButtonProps(
+                    ButtonContent.Resolved { appearance -> valueView(appearance, theme) },
+                    { toggle() },
+                    input.enabled,
+                    selectTriggerStyle(input.style, theme, input.size, input.invalid),
+                    input.theme,
+                    choiceFocus(input.focus, input.focus.handle ?: trigger),
+                    input.invalid,
+                    ButtonVariant.Outline,
+                    group = input.group,
+                    labelTarget = input.labelTarget
+                ),
+                { current, mount -> Button(current, scope = mount) }
+            )
+        val focus =
+            OverlayFocusOptions(
+                when (input.popupFocus.initialFocus) {
+                    case Some(_) -> input.popupFocus.initialFocus
+                    case None -> initialFocus()
+                },
+                input.popupFocus.restoreFocus,
+                input.popupFocus.autoFocus,
+                Some(input.popupFocus.restoreTarget ?: input.focus.handle ?: trigger)
+            )
+        val popup =
+            component(
+                SelectPopupProps(
+                    open,
+                    content,
+                    selectedKey(),
+                    candidates,
+                    chain,
+                    anchor,
+                    input.handle ?: layer,
+                    options,
+                    focus,
+                    input.position,
+                    input.maxHeight,
+                    input.scrollButtons,
+                    input.scroll ?: scroll,
+                    input.popupStyle,
+                    input.transition,
+                    { reason -> props.value.onCloseRequest(reason) },
+                    { reason -> closed(reason) }
+                ),
+                { current, mount -> SelectPopup(current, scope = mount) }
+            )
+        return element(
+            SelectRootProps(
+                anchor,
+                input.width,
+                input.enabled,
+                open.value,
+                { backwards -> show(backwards) },
+                { updated() }
+            ),
+            { current, mount -> SelectRootLayout(current, scope = mount) },
+            [button, popup]
+        )
+    }
+    private fun valueView(appearance: ActionContentStyle, theme: Theme): View {
+        val input = props.value
+        val choice = selectedChoice(input.content, input.value.value)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val content =
+            when (input.valueContent) {
+                case Some(build) -> build(SelectValue(input.value.value, choice, appearance))
+                case None -> selectLabel(
+                    styledText {
+                        style =
+                            appearance.text.copy {
+                                weight = 400;
+                                fontSize = 14.0 * density;
+                                lineHeight = Some(20.0 / 14.0)
+                                if (input.value.value == None)
+                                    color = theme.tokens.palette.muted.foreground
+                            }
+                        text(
+                            choice?.label ?:
+                                if (input.value.value == None)
+                                    input.placeholder
+                                else
+                                    input.unavailableText
+                        )
+                    }
+                ) {
+                    fonts = input.fonts;
+                    settings =
+                        Some(
+                            paragraphStyle {
+                                maxLines = Some(1L);
+                                ellipsis = "…"
+                            }
+                        )
+                }
+            }
+        return selectRow {
+            item(content) { grow = 1.0 }
+            item(
+                input.icon ?:
+                    navigationIcon(
+                        NavigationGlyph.Down,
+                        16.0 * density,
+                        theme.tokens.palette.muted.foreground
+                    )
+            ) { shrink = 0.0 }
+            if (input.style.surface.padding == None)
+                logicalPadding = Some(LogicalInsets(start = 2.0 * density))
+            spacing = 6.0 * density;
+            alignment = CrossAlignment.Center
+        }
+    }
+}
+
+internal fun selectTriggerStyle(
+    local: ButtonStyle,
+    theme: Theme,
+    size: SelectSize,
+    invalid: Boolean
+): ButtonStyle {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val dark = theme.tokens.mode == ThemeMode.Dark
+    val borderColor =
+        if (invalid)
+            (local.surface.validation ?: theme.tokens.validation).borderColor ?:
+                theme.tokens.palette.destructive.background
+        else
+            theme.tokens.palette.input
+    val focusColor =
+        if (invalid)
+            borderColor
+        else
+            (local.surface.focus?.borderColor ?: None) ?: theme.tokens.palette.ring
+    return local.copy {
+        surface {
+            if (suggestedSize == None)
+                suggestedSize =
+                    Some(
+                        Size(
+                            144.0 * density,
+                            (
+                                if (size == SelectSize.Sm)
+                                    28.0
+                                else
+                                    32.0
+                            ) *
+                                density
+                        )
+                    )
+            if (minimumSize == None)
+                minimumSize = Some(Size(0.0, 0.0))
+            if (padding == None)
+                padding = Some(Insets(8.0 * density, 0.0, 8.0 * density, 0.0))
+            style =
+                styleOverride {
+                    background(
+                        Some(
+                            Paint(
+                                if (dark)
+                                    theme.tokens.palette.input.withAlpha(
+                                        theme.tokens.palette.input.alpha * 0.3
+                                    )
+                                else
+                                    Color.Transparent
+                            )
+                        )
+                    )
+                    border(Some(Border.all(1.0, borderColor)))
+                    corners(
+                        Corners.all(
+                            (
+                                if (size == SelectSize.Sm)
+                                    10.0
+                                else
+                                    8.0
+                            ) *
+                                density
+                        )
+                    )
+                    boxShadows([])
+                }.then(local.surface.style)
+        }
+        states =
+            local.states.copy {
+                hovered =
+                    styleOverride {
+                        background(
+                            Some(
+                                Paint(
+                                    if (dark)
+                                        theme.tokens.palette.input.withAlpha(
+                                            theme.tokens.palette.input.alpha * 0.5
+                                        )
+                                    else
+                                        Color.Transparent
+                                )
+                            )
+                        )
+                    }.then(local.surface.style).then(local.states.hovered)
+                focused =
+                    styleOverride { border(Some(Border.all(1.0, focusColor))) }.then(
+                        local.states.focused
+                    )
+            }
+    }
+}

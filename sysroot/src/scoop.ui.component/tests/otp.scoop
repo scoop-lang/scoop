@@ -1,0 +1,180 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class InputOtpTest {
+    @Test
+    fun `paste cleans inserted separators and truncates once with one undo item`() {
+        val model = TextEditorState()
+        val policy = otpPolicy(InputOtpPattern.Digits, 6L)
+        assertTrue(model.applyEdit(Utf8Range(0L, 0L), "12- 34\t56-7", policy, TextEditSource.Paste))
+        assertEquals("123456", model.text)
+        assertTrue(model.undo())
+        assertEquals("", model.text)
+        assertFalse(model.canUndo)
+        assertTrue(model.redo())
+        assertEquals("123456", model.text)
+        assertFalse(model.applyEdit(Utf8Range(0L, 6L), "12a", policy))
+        assertEquals("123456", model.text)
+        assertFalse(model.applyEdit(Utf8Range(0L, 6L), "１２", policy))
+        model.replaceAll("-")
+        assertTrue(model.applyEdit(Utf8Range(1L, 1L), "12-3", policy, TextEditSource.Paste))
+        assertEquals("-123", model.text)
+    }
+
+    @Test
+    fun `patterns preserve raw composition and custom pipelines while limiting graphemes`() {
+        val model = TextEditorState()
+        val digits = otpPolicy(InputOtpPattern.Digits, 2L)
+        model.applyInput(
+            TextInputBatch(
+                None,
+                [TextInputOperation.Preedit("仮😀123", None, TextReplacement.CurrentSelection)]
+            ),
+            digits
+        )
+        assertEquals("仮😀123", model.text)
+        assertTrue(model.isComposing)
+        model.applyInput(
+            TextInputBatch(
+                None,
+                [TextInputOperation.Commit("123", TextReplacement.CurrentSelection)]
+            ),
+            digits
+        )
+        assertEquals("12", model.text)
+        assertFalse(model.isComposing)
+        val alpha = otpPolicy(InputOtpPattern.Alphanumeric, 4L)
+        assertTrue(model.applyEdit(Utf8Range(0L, 2L), "aB-12Z", alpha, TextEditSource.Paste))
+        assertEquals("aB12", model.text)
+        val stages = ArrayList<String>()
+        val custom =
+            textEditPolicy {
+                this.maxLength = Some(2L)
+                paste {
+                    _ ->
+                    stages.add("paste");
+                    TextEditDecision.Accept
+                }
+                transform {
+                    _ ->
+                    stages.add("transform");
+                    TextEditDecision.Accept
+                }
+                accepts {
+                    text ->
+                    stages.add("accepts");
+                    text != "XX"
+                }
+            }
+        val policy = otpPolicy(InputOtpPattern.Custom(custom), 4L)
+        model.replaceAll("")
+        assertTrue(model.applyEdit(Utf8Range(0L, 0L), "é😀Z", policy, TextEditSource.Paste))
+        assertEquals("é😀", model.text)
+        assertEquals(3L, stages.size)
+        assertEquals("paste", stages[0L])
+        assertEquals("transform", stages[1L])
+        assertEquals("accepts", stages[2L])
+        assertFalse(model.applyEdit(Utf8Range(0L, model.text.byteLength), "XX", policy))
+        assertEquals(Some(2L), policy.maxLength)
+        assertEquals(Some(1L), otpPolicy(InputOtpPattern.Custom(custom), 1L).maxLength)
+    }
+
+    @Test
+    fun `group descriptions require complete logical indices and immutable builder snapshots`() {
+        val state = TextEditorState()
+        val builder = InputOtpBuilder()
+        builder.group {
+            this.slot(0L);
+            this.slot(1L, true)
+        }
+        builder.separator(empty())
+        builder.group {
+            this.slot(2L);
+            this.slot(3L)
+        }
+        val input = builder.snapshot(state, 4L)
+        assertEquals(3L, input.parts.size)
+        builder.group { this.slot(4L) }
+        assertEquals(3L, input.parts.size)
+        assertEquals(4L, builder.snapshot(state, 5L).parts.size)
+        assertFailsWith<IllegalArgumentException> { InputOtpProps(state, 0L) }
+        assertFailsWith<IllegalArgumentException> { InputOtpGroup([]) }
+        assertFailsWith<IllegalArgumentException> { builder.snapshot(state, 6L) }
+        assertFailsWith<IllegalArgumentException> {
+            InputOtpProps(state, 1L, [InputOtpPart.Group(InputOtpGroup([InputOtpSlot(1L)]))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            InputOtpProps(state, 1L, [InputOtpPart.Separator(empty())])
+        }
+        assertEquals(1L, InputOtpProps(state, 4L).groups().size)
+    }
+
+    @Test
+    fun `slot surfaces use theme validation focus and connected edges in both directions`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val visual = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(focusVisible = true))
+            val error =
+                SurfaceVisual(
+                    SurfaceKind.Plain,
+                    InteractionVisual(focusVisible = true, invalid = true)
+                )
+            val style = inputOtpStyle()
+            val focusOptions = otpOptions(theme, style, visual.interaction)
+            val errorOptions = otpOptions(theme, style, error.interaction)
+            val bounds = Rect(0.0, 0.0, 32.0, 32.0)
+            for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl]) {
+                val position = Some(GroupPosition(FlexAxis.Horizontal, false, true))
+                val original = theme.surfaceGeometry(bounds, visual, focusOptions, direction)
+                val metrics =
+                    groupSurfaceMetrics(
+                        theme.surfaceMetrics(visual, focusOptions, direction),
+                        position,
+                        None,
+                        direction
+                    )
+                val connected = groupSurfaceGeometry(original, metrics, position, direction)
+                val edges = connected.style.border!!.resolve(direction)
+                assertEquals(
+                    if (direction == LayoutDirection.Ltr)
+                        0.0
+                    else
+                        1.0,
+                    edges.left.width
+                )
+                assertEquals(
+                    if (direction == LayoutDirection.Rtl)
+                        0.0
+                    else
+                        1.0,
+                    edges.right.width
+                )
+                assertEquals(theme.tokens.palette.ring, edges.top.color)
+                assertTrue(connected.ring!!.border.width > 0.0)
+                val invalid = theme.surfaceGeometry(bounds, error, errorOptions, direction)
+                assertEquals(
+                    theme.tokens.validation.borderColor!!,
+                    invalid.style.border!!.resolve(direction).top.color
+                )
+            }
+            val override =
+                style.copy { surface { this.border(Some(Border.all(2.0, Color.White))) } }
+            assertEquals(
+                Some(Border.all(2.0, Color.White)),
+                theme.surfaceGeometry(
+                    bounds,
+                    error,
+                    otpOptions(theme, override, error.interaction)
+                ).style.border
+            )
+        }
+    }
+}

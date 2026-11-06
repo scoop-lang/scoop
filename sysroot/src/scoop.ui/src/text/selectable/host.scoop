@@ -70,10 +70,11 @@ public class SelectableTextHost public constructor(
         checkOpen();
         return Utf8Selection(anchor.byteOffset, cursor.byteOffset)
     }
-    /** Borrowed until the next successful measurement or close. */
+    /** Borrowed from the last accepted frame. */
     public val layout: TextLayout get() {
         checkOpen();
-        return paragraph.layout
+        return accepted?.layout ?:
+            throw IllegalStateException(Some("selectable text has no accepted layout"))
     }
     public fun selectionBounds(): Array<TextBox> {
         checkOpen()
@@ -152,7 +153,7 @@ public class SelectableTextHost public constructor(
         }
         if (!closed) {
             refreshAdmission()
-            scope.requestFrame()
+            scope.requestLayout()
         }
     }
     internal fun refreshAdmission() {
@@ -205,13 +206,13 @@ public class SelectableTextHost public constructor(
         constraints: Constraints,
         settings: ParagraphStyle? = None,
         inlines: Array<InlineView> = []
-    ): LayoutMetrics {
+    ): ParagraphMeasurement {
         checkOpen()
         return paragraph.measure(context, constraints, fonts, content, settings, inlines)
     }
-    public fun scene(context: SceneContext) {
+    public fun scene(context: SceneContext, measurement: ParagraphMeasurement) {
         checkOpen()
-        selectableScene(this, context)
+        selectableScene(this, context, measurement)
     }
     public override fun close() {
         checkUiThread(thread)

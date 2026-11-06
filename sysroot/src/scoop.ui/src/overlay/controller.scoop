@@ -10,17 +10,31 @@ internal class OverlayFrame {
 
 internal class OverlayController(private val root: UiRoot): Closeable {
     private val sessions = ArrayList<PortalInstance>()
-    private val modals = ArrayList<ModalSession>()
+    private val focusSessions = ArrayList<OverlayFocusSession>()
     private val retiring = ArrayList<PortalInstance>()
     private var stopped = false
     private var registration: Closeable? = None
     var frame = OverlayFrame()
 
-    val currentModal: ModalSession? get() {
+    val currentModal: OverlayFocusSession? get() {
         val boundary = root.surface.inputBoundary ?: return None
-        for (modal in modals)
-            if (modal.boundary === boundary)
-                return Some(modal)
+        for (session in focusSessions) {
+            when (session.boundary) {
+                case Some(value) -> if (value === boundary)
+                    return Some(session)
+                case None -> {}
+            }
+        }
+        return None
+    }
+    val currentFocus: OverlayFocusSession? get() {
+        var index = focusSessions.size
+        while (index > 0L) {
+            index -= 1L
+            val session = focusSessions[index]
+            if (session.acceptsFocus && session.inCurrentDomain)
+                return Some(session)
+        }
         return None
     }
     fun start() {
@@ -37,26 +51,43 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             removeSession(value)
             sessions.add(value)
         }
-        when (value.options.modal) {
-            case Some(options) -> when (value.modal) {
-                case Some(_) -> {}
-                case None -> {
-                    val modal = ModalSession(value, options, currentModal)
-                    value.modal = Some(modal)
-                    value.domain = Some(modal)
-                    if (root.isOpen) {
-                        modals.add(modal)
-                        when (value.retirementRevision) {
-                            case Some(revision) -> modal.beginClose(revision)
-                            case None -> {}
-                        }
-                    } else
-                        modal.finish()
-                }
+        when (value.focusSession) {
+            case Some(_) -> {}
+            case None -> {
+                val session = OverlayFocusSession(value, value.options, currentFocus)
+                value.focusSession = Some(session)
+                value.domain =
+                    if (session.isModal)
+                        Some(session)
+                    else
+                        containingModal(value.node.parent)
+                if (root.isOpen) {
+                    focusSessions.add(session)
+                    when (value.retirementRevision) {
+                        case Some(revision) -> session.beginClose(revision)
+                        case None -> {}
+                    }
+                } else
+                    session.finish()
             }
-            case None -> value.domain = containingModal(value.node.parent)
         }
     }
+
+    /** Logical ancestry and registration order survive a change of modal policy. */
+    fun reclassify() {
+        for (portal in sessions) {
+            val session = portal.focusSession
+            portal.domain =
+                when (session) {
+                    case Some(value) -> if (value.isModal)
+                        Some(value)
+                    else
+                        containingModal(portal.node.parent)
+                    case None -> containingModal(portal.node.parent)
+                }
+        }
+    }
+
     fun remove(value: PortalInstance, pending: Boolean) {
         removeSession(value)
         if (pending)
@@ -77,8 +108,9 @@ internal class OverlayController(private val root: UiRoot): Closeable {
     }
     fun paint(context: FrameContext) {
         paintDomain(None, context)
-        for (modal in modals)
-            paintDomain(Some(modal), context)
+        for (session in focusSessions)
+            if (session.isModal)
+                paintDomain(Some(session), context)
         for (portal in sessions) {
             val included = portal.included
             when (included) {
@@ -88,7 +120,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             }
         }
     }
-    private fun paintDomain(domain: ModalSession?, context: FrameContext) {
+    private fun paintDomain(domain: OverlayFocusSession?, context: FrameContext) {
         for (portal in sessions) {
             val included = portal.included ?: continue
             if (!portal.isPresent || included !== frame || !sameModal(portal.domain, domain))
@@ -122,13 +154,14 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                     portal.node.layoutDirection
                 )
             val child = portal.node.children[0L]
-            val metrics = child.measure(plan.constraints, context.time)
-            child.finishMeasurement()
-            val layout = plan.layout(metrics.size, portal.snapshot)
-            portal.modal?.place(context)
-            child.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
+            val result = child.measure(plan.constraints, context.time)
+            result.finishMeasurement()
+            val metrics = result.metrics
+            val layout = plan.layout(metrics.size, portal.snapshot, metrics.overlayAnchor)
+            portal.focusSession?.place(context)
+            result.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
             portal.presented = Some(frame)
-            when (portal.modal) {
+            when (portal.focusSession) {
                 case Some(modal) -> modal.presented = Some(frame)
                 case None -> {}
             }
@@ -146,16 +179,22 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 failure =
                     cleanupUi(failure) { portal.forceClose(OverlayCloseReason.AnchorUnavailable) }
         }
-        val previous = root.surface.inputBoundary
-        var restore: ModalSession? = None
-        val work = modals.toArray()
+        val previous = currentFocus
+        var restore: OverlayFocusSession? = None
+        val work = focusSessions.toArray()
         var index = work.size
         while (index > 0L) {
             index -= 1L
             val modal = work[index]
             if (modal.isClosing && !modal.wasPresented(completed)) {
-                if (sameInputBoundary(previous, Some(modal.boundary)))
-                    restore = Some(modal)
+                when (restore) {
+                    case None -> if (
+                        modal.canRestoreFocus &&
+                            (sameModal(previous, Some(modal)) || modal.heldFocusOnClose)
+                    )
+                        restore = Some(modal)
+                    case Some(_) -> {}
+                }
                 failure = cleanupUi(failure) { modal.finish() }
                 removeModal(modal)
             }
@@ -173,15 +212,15 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             if (portal.hasPendingClose)
                 retiring.add(portal)
         }
-        for (modal in modals.toArray())
+        for (modal in focusSessions.toArray())
             if (root.isOpen)
                 failure = cleanupUi(failure) { modal.complete(completed) }
         throwUi(failure)
     }
-    private fun removeModal(value: ModalSession) {
-        for (index in 0L ..< modals.size)
-            if (modals[index] === value) {
-                modals.removeAt(index)
+    private fun removeModal(value: OverlayFocusSession) {
+        for (index in 0L ..< focusSessions.size)
+            if (focusSessions[index] === value) {
+                focusSessions.removeAt(index)
                 return
             }
     }
@@ -193,8 +232,8 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         registration = None
         for (portal in sessions.toArray())
             failure = cleanupUi(failure) { portal.forceClose(OverlayCloseReason.OwnerClosed) }
-        val work = modals.toArray()
-        modals.clear()
+        val work = focusSessions.toArray()
+        focusSessions.clear()
         var index = work.size
         while (index > 0L) {
             index -= 1L

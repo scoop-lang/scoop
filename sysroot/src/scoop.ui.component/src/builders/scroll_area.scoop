@@ -17,7 +17,13 @@ public class ScrollAreaBuilder internal constructor() {
     public var focus: FocusOptions = FocusOptions()
     public var theme: ThemeSource? = None
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public var style: StyleOverride = styleOverride()
+    public var focusOutline: OutlineStyle? = None
     public var key: ViewKey = ViewKey.Position
+
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.then(styleOverride(configure))
+    }
 
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
         scrollbar = scrollbar.copy(configure)
@@ -40,12 +46,18 @@ public class ScrollAreaBuilder internal constructor() {
             enabled,
             focus,
             theme,
-            paintCache
+            paintCache,
+            style,
+            focusOutline
         )
 }
 
 internal fun makeScrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit): View {
     val builder = ScrollAreaBuilder()
     builder.configure()
-    return component(builder.snapshot(content), { props -> ScrollArea(props) }, builder.key)
+    return component(
+        builder.snapshot(content),
+        { props, mount -> ScrollArea(props, scope = mount) },
+        builder.key
+    )
 }

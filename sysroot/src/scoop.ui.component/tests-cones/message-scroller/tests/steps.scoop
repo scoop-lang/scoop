@@ -1,0 +1,250 @@
+package scoop.tests.ui.messages
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.sendSurfaceScroll
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal fun advanceMessage(p: MessageProbe) {
+    val model = p.model
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(model.atEnd)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertEquals(120.0, model.scroll.offset.y)
+            p.replace([0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L])
+            model.beginTurn(ViewKey.Number(6L))
+        }
+        case 1 -> {
+            assertEquals(MessageScrollMode.Anchoring, model.mode)
+            assertEquals(292.0, model.scroll.offset.y)
+            assertEquals(138.0, p.top(6L))
+            assertEquals(532.0, model.scroll.content.height)
+            p.row(7L).height.value = 140.0
+        }
+        case 2 -> {
+            assertEquals(292.0, model.scroll.offset.y)
+            assertEquals(138.0, p.top(6L))
+            assertEquals(550.0, model.scroll.content.height)
+            p.auto(true)
+            assertTrue(model.scrollToEnd())
+        }
+        case 3 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            assertTrue(model.atEnd)
+            p.row(7L).height.value = 220.0
+        }
+        case 4 -> {
+            assertTrue(model.atEnd)
+            assertEquals(390.0, model.scroll.offset.y)
+            assertTrue(sendSurfaceScroll(p.native!!, 400.0, 160.0, 0, 2))
+        }
+        case 5 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertTrue(model.scroll.offset.y < 390.0)
+            p.savedOffset = model.scroll.offset.y
+            p.row(7L).height.value = 300.0
+        }
+        case 6 -> {
+            assertEquals(p.savedOffset, model.scroll.offset.y)
+            p.checkpoint = model.reading!!.anchor
+            p.savedTop = p.top(p.checkpointId())
+            p.replace([-2L, -1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L])
+        }
+        case 7 -> {
+            assertEquals(p.checkpoint, model.reading!!.anchor)
+            assertEquals(p.savedTop, p.top(p.checkpointId()))
+            p.row(4L).height.value = 100.0
+        }
+        case 8 -> {
+            assertEquals(p.checkpoint, model.reading!!.anchor)
+            assertEquals(p.savedTop, p.top(p.checkpointId()))
+            p.savedOffset = model.scroll.offset.y
+            assertFalse(model.scrollToMessage(ViewKey.Number(999L)))
+            assertEquals(p.savedOffset, model.scroll.offset.y)
+            assertTrue(model.scrollToMessage(ViewKey.Number(2L), ScrollAlignment.Start))
+        }
+        case 9 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertEquals(78.0, p.top(2L))
+            assertTrue(model.restore(p.checkpoint!!))
+        }
+        case 10 -> {
+            assertEquals(p.checkpoint, model.reading!!.anchor)
+            assertTrue(model.restore(VirtualReadingAnchor(ViewKey.Number(0L), 0.0)))
+            p.replace(p.order)
+        }
+        case 11 -> {
+            assertEquals(p.checkpoint, model.reading!!.anchor)
+            assertTrue(model.scrollToMessage(ViewKey.Number(7L), ScrollAlignment.Start))
+        }
+        case 12 -> assertTrue(p.row(7L).focus.requestFocus())
+        case 13 -> {
+            assertTrue(p.row(7L).focus.hasFocus)
+            assertEquals(0, messageNativeText(p.native!!, "tu", true))
+        }
+        case 14 -> {
+            assertTrue(p.row(7L).editor.isComposing)
+            assertEquals(0, messageNativeText(p.native!!, "图表", false))
+        }
+        case 15 -> {
+            assertEquals("图表", p.row(7L).editor.text)
+            assertFalse(p.row(7L).editor.isComposing)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            p.row(7L).height.value = 80.0
+            assertTrue(model.scrollToEnd())
+        }
+        case 16 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            val bounds = p.row(7L).area!!.windowBounds!!
+            p.pointer = Point(bounds.x + 30.0, bounds.y + 20.0)
+            assertEquals(0, messageNativePointer(p.native!!, p.pointer.x, p.pointer.y, true))
+        }
+        case 17 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            p.savedOffset = model.scroll.offset.y
+            p.row(7L).height.value = 100.0
+        }
+        case 18 -> {
+            assertEquals(p.savedOffset, model.scroll.offset.y)
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertEquals(0, messageNativePointer(p.native!!, p.pointer.x, p.pointer.y, false))
+        }
+        case 19 -> p.row(7L).height.value = 140.0
+        case 20 -> {
+            assertEquals(MessageScrollMode.Holding, model.mode)
+            assertEquals(p.savedOffset, model.scroll.offset.y)
+            assertTrue(model.scrollToEnd())
+        }
+        case 21 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            assertEquals(
+                Point(0.0, 0.0),
+                model.scroll.scrollBy(Point(0.0, 500.0), ScrollOrigin.User)
+            )
+            assertEquals(MessageScrollMode.Holding, model.mode)
+        }
+        case 22 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            p.rtl = true
+            p.viewportHeight = 300.0
+            p.native!!.requestSize(LogicalSize(500.0, 540.0))
+            p.changed()
+        }
+        case 23 -> {
+            assertTrue(model.atEnd)
+            assertEquals(Size(460.0, 300.0), model.scroll.viewport)
+            p.replace([-2L, -1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L])
+            model.beginTurn(ViewKey.Number(8L))
+        }
+        case 24 -> {
+            assertEquals(MessageScrollMode.Anchoring, model.mode)
+            assertEquals(142.0, p.top(8L))
+            p.viewportHeight = 360.0
+            p.changed()
+        }
+        case 25 -> {
+            assertEquals(142.0, p.top(8L))
+            p.row(9L).height.value = 10.0
+        }
+        case 26 -> {
+            assertEquals(142.0, p.top(8L))
+            p.viewportHeight = 180.0
+            p.changed()
+        }
+        case 27 -> {
+            assertEquals(142.0, p.top(8L))
+            p.zero = true
+            p.changed()
+        }
+        case 28 -> {
+            assertEquals(Size(0.0, 0.0), model.scroll.viewport)
+            assertFalse(p.focus.requestFocus())
+            p.zero = false
+            p.enabled = false
+            p.changed()
+        }
+        case 29 -> {
+            assertFalse(p.focus.requestFocus())
+            p.enabled = true
+            p.replace([])
+            model.reset(MessageInitialPosition.Start)
+        }
+        case 30 -> {
+            assertEquals(0L, model.visibleKeys.size)
+            p.replace([-2L, -1L, 0L])
+        }
+        case 31 -> {
+            assertTrue(model.atStart)
+            assertEquals(0.0, model.scroll.offset.y)
+            p.auto(false, false)
+            p.replace([-3L, -2L, -1L, 0L])
+        }
+        case 32 -> {
+            assertEquals(0.0, model.scroll.offset.y)
+            assertEquals(ViewKey.Number(-3L), model.visibleKeys[0L])
+            p.auto(true)
+            p.replace([0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L])
+            model.reset(MessageInitialPosition.LastAnchor)
+        }
+        case 33 -> {
+            assertEquals(MessageScrollMode.Following, model.mode)
+            assertTrue(model.atEnd)
+            p.auto(false)
+            p.row(9L).height.value = 400.0
+            model.reset(MessageInitialPosition.LastAnchor)
+        }
+        case 34 -> {
+            assertEquals(MessageScrollMode.Anchoring, model.mode)
+            assertEquals(142.0, p.top(8L))
+            p.replace([])
+            model.reset(MessageInitialPosition.Start)
+        }
+        case 35 -> {
+            assertEquals(0L, model.visibleKeys.size)
+            assertTrue(model.scrollToMessage(ViewKey.Number(42L)))
+            p.replace([42L])
+        }
+        case 36 -> {
+            assertEquals(ViewKey.Number(42L), model.visibleKeys[0L])
+            model.beginTurn(ViewKey.Number(999L))
+        }
+        case 37 -> {
+            assertFalse(model.isPending)
+            assertEquals(ViewKey.Number(42L), model.visibleKeys[0L])
+            p.discardNext = true
+            p.row(42L).height.value = 80.0
+        }
+        case 38 -> {
+            assertEquals(1, p.discarded)
+            p.replace([])
+            model.reset(MessageInitialPosition.Start)
+        }
+        case 39 -> {
+            assertTrue(model.scrollToMessage(ViewKey.Number(999L)))
+            p.replace([42L])
+        }
+        case 40 -> {
+            assertFalse(model.isPending)
+            assertEquals(ViewKey.Number(42L), model.visibleKeys[0L])
+            p.shown = false
+            p.changed()
+        }
+        case 41 -> {
+            assertFalse(model.isAttached)
+            assertFalse(model.list.isAttached)
+            assertFalse(model.scroll.isAttached)
+            assertFalse(p.frames!!.snapshot().required)
+            p.savedDraws = p.draws
+            model.beginTurn(ViewKey.Number(42L))
+        }
+        case 42 -> {
+            assertEquals(p.savedDraws, p.draws)
+            assertFalse(model.isPending)
+        }
+        case 43 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected message phase"))
+    }
+}

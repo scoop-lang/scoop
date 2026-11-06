@@ -1,0 +1,19 @@
+package scoop.ui.component
+
+/** Attachment groups feed native horizontal wheel movement into the existing carousel position. */
+internal fun carouselWheel(control: CarouselControl, amount: Double): Double {
+    if (!control.available() || panelPresent(control.gesture) || amount == 0.0)
+        return 0.0
+    val shape = control.geometry!!
+    val before = control.position
+    val next = upperBound(shape.track.maximum, lowerBound(0.0, before + amount))
+    control.motion.snapTo(next)
+    return next - before
+}
+
+internal fun carouselFinishWheel(control: CarouselControl) {
+    if (!control.available() || panelPresent(control.gesture))
+        return
+    val target = carouselNearest(control.geometry!!.track, control.position, 0.0, 0.0) ?: return
+    control.select(target.index, true, Some(target.position))
+}

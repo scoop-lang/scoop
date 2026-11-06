@@ -1,0 +1,223 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class NavigationMenuLinkBuilder internal constructor(): ButtonBuilder() {
+    init {
+        variant = ButtonVariant.Ghost
+    }
+    public var active: Boolean = false
+    public var inPanel: Boolean = true
+    internal fun snapshot(content: ButtonContent, action: () -> Unit): NavigationMenuLinkProps =
+        NavigationMenuLinkProps(
+            ButtonProps(
+                navigationLabel(content, fonts),
+                action,
+                enabled,
+                style,
+                theme,
+                focus,
+                invalid,
+                variant,
+                size,
+                group,
+                labelTarget
+            ),
+            active,
+            inPanel
+        )
+}
+
+public class NavigationMenuPanelBuilder internal constructor(): PopupTriggerBuilder() {
+    init {
+        variant = ButtonVariant.Ghost
+    }
+    public var width: Double = 360.0
+    public var initialFocus: FocusHandle? = None
+    public var panelStyle: StyleOverride = styleOverride()
+    internal fun snapshot(trigger: ButtonContent, content: View): NavigationMenuPanelProps =
+        NavigationMenuPanelProps(
+            PopupTriggerSpec(trigger, enabled, variant, size, style, focus, fonts),
+            content,
+            width,
+            initialFocus,
+            panelStyle
+        )
+}
+
+public class NavigationMenuBuilder internal constructor() {
+    private val entries = ArrayList<NavigationMenuEntry>()
+    public var orientation: FlexAxis = FlexAxis.Horizontal
+    public var viewport: Boolean = true
+    public var alignment: OverlayAlignment = OverlayAlignment.Start
+    public var loop: Boolean = true
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var popupStyle: StyleOverride = styleOverride()
+    public var gap: Double = 8.0
+    public var viewportPadding: Double = 8.0
+    public var hover: HoverOptions = navigationMenuHover()
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onOpenChange: (ViewKey?) -> Unit = {}
+    public var onCloseRequest: (ViewKey, OverlayCloseReason) -> Boolean = { _, _ -> true }
+    public var onClosed: (ViewKey, OverlayCloseReason) -> Unit = { _, _ -> Unit }
+    public var key: ViewKey = ViewKey.Position
+    public fun add(entry: NavigationMenuEntry) {
+        entries.add(entry)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    public fun item(
+        key: ViewKey,
+        text: String,
+        content: View,
+        configure: NavigationMenuPanelBuilder.() -> Unit = {}
+    ) {
+        panel(key, ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), content, configure)
+    }
+    public fun item(
+        key: ViewKey,
+        text: StyledText,
+        content: View,
+        configure: NavigationMenuPanelBuilder.() -> Unit = {}
+    ) {
+        panel(key, ButtonContent.Label(LabelProps(LabelText.Styled(text))), content, configure)
+    }
+    public fun item(
+        key: ViewKey,
+        trigger: View,
+        content: View,
+        configure: NavigationMenuPanelBuilder.() -> Unit = {}
+    ) {
+        panel(key, ButtonContent.Custom(trigger), content, configure)
+    }
+    private fun panel(
+        key: ViewKey,
+        trigger: ButtonContent,
+        content: View,
+        configure: NavigationMenuPanelBuilder.() -> Unit
+    ) {
+        val builder = NavigationMenuPanelBuilder();
+        builder.configure()
+        add(NavigationMenuEntry.Panel(key, builder.snapshot(trigger, content)))
+    }
+    public fun link(
+        key: ViewKey,
+        text: String,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        linkContent(
+            key,
+            ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+            onNavigate,
+            configure
+        )
+    }
+    public fun link(
+        key: ViewKey,
+        text: StyledText,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        linkContent(
+            key,
+            ButtonContent.Label(LabelProps(LabelText.Styled(text))),
+            onNavigate,
+            configure
+        )
+    }
+    public fun link(
+        key: ViewKey,
+        content: View,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        linkContent(key, ButtonContent.Custom(content), onNavigate, configure)
+    }
+    private fun linkContent(
+        key: ViewKey,
+        content: ButtonContent,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit
+    ) {
+        val builder = NavigationMenuLinkBuilder();
+        builder.inPanel = false;
+        builder.configure()
+        add(NavigationMenuEntry.Link(key, builder.snapshot(content, onNavigate)))
+    }
+    internal fun snapshot(open: Binding<ViewKey?>?): NavigationMenuProps =
+        NavigationMenuProps(
+            entries.toArray(),
+            open,
+            orientation,
+            viewport,
+            alignment,
+            loop,
+            enabled,
+            fonts,
+            theme,
+            style,
+            popupStyle,
+            gap,
+            viewportPadding,
+            hover,
+            transition,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+public fun navigationMenu(
+    open: Binding<ViewKey?>? = None,
+    configure: NavigationMenuBuilder.() -> Unit = {}
+): View {
+    val builder = NavigationMenuBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(open),
+        { current, mount -> NavigationMenu(current, scope = mount) },
+        builder.key
+    )
+}
+
+public fun navigationMenuLink(
+    text: String,
+    onNavigate: () -> Unit,
+    configure: NavigationMenuLinkBuilder.() -> Unit = {}
+): View =
+    navMenuLink(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), onNavigate, configure)
+
+public fun navigationMenuLink(
+    text: StyledText,
+    onNavigate: () -> Unit,
+    configure: NavigationMenuLinkBuilder.() -> Unit = {}
+): View =
+    navMenuLink(ButtonContent.Label(LabelProps(LabelText.Styled(text))), onNavigate, configure)
+
+public fun navigationMenuLink(
+    content: View,
+    onNavigate: () -> Unit,
+    configure: NavigationMenuLinkBuilder.() -> Unit = {}
+): View = navMenuLink(ButtonContent.Custom(content), onNavigate, configure)
+
+private fun navMenuLink(
+    content: ButtonContent,
+    action: () -> Unit,
+    configure: NavigationMenuLinkBuilder.() -> Unit
+): View {
+    val builder = NavigationMenuLinkBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(content, action),
+        { current, mount -> NavigationMenuLink(current, scope = mount) },
+        builder.key
+    )
+}

@@ -1,0 +1,178 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.column as itemColumn
+import scoop.ui.component.row as itemRow
+import scoop.ui.style.*
+
+internal class ItemRenderer(private val scope: ComponentScope) {
+    private val themes = ThemeAccess()
+    private val titles = ActionTextStyle()
+    private val descriptions = ActionTextStyle()
+    private val medium = spanStyle { this.weight = Some(500) }
+    private val regular = spanStyle { this.weight = Some(400) }
+    fun mount(theme: ThemeSource?) {
+        themes.mount(theme)
+    }
+    fun render(input: ItemProps, interaction: InteractionState, behavior: ActionBehavior): View {
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val gap = itemGap(input.size) * density
+        val direction = scope.layoutDirection
+        val title =
+            titles.resolve(
+                theme.tokens.typography.body,
+                theme.tokens.palette.background.foreground,
+                Some(medium),
+                lineHeight = Some(1.375)
+            )
+        val description =
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                theme.tokens.palette.muted.foreground,
+                Some(regular),
+                if (input.size == ItemSize.Xs)
+                    12.0 / 14.0
+                else
+                    1.0,
+                Some(1.5)
+            )
+        val hasText =
+            panelPresent(input.title) ||
+                panelPresent(input.description) ||
+                panelPresent(input.content)
+        val text =
+            if (hasText)
+                Some(
+                    itemColumn {
+                        when (input.title) {
+                            case Some(value) -> this.add(
+                                panelSlot(itemCaption(value, title, input.fonts, 1L, direction), 0L)
+                            )
+                            case None -> {}
+                        }
+                        when (input.description) {
+                            case Some(value) -> this.add(
+                                panelSlot(
+                                    itemCaption(value, description, input.fonts, 2L, direction),
+                                    1L
+                                )
+                            )
+                            case None -> {}
+                        }
+                        when (input.content) {
+                            case Some(value) -> this.add(panelSlot(value, 2L))
+                            case None -> {}
+                        }
+                        this.spacing =
+                            if (input.size == ItemSize.Xs)
+                                0.0
+                            else
+                                4.0 * density
+                        this.alignment = CrossAlignment.Stretch
+                    }
+                )
+            else
+                None
+        val middle =
+            itemRow {
+                when (input.media) {
+                    case Some(value) -> this.item(
+                        panelSlot(
+                            itemMedia(
+                                value,
+                                input.mediaVariant,
+                                input.size,
+                                theme.tokens.corners.small,
+                                density,
+                                panelPresent(input.description)
+                            ),
+                            0L
+                        )
+                    ) {
+                        this.shrink = 0.0
+                        if (panelPresent(input.description))
+                            this.align = Some(CrossAlignment.Start)
+                    }
+                    case None -> {}
+                }
+                if (hasText || panelPresent(input.actions))
+                    this.item(
+                        panelSlot(
+                            panelAside(
+                                text,
+                                input.actions,
+                                gap,
+                                theme.tokens.typography.body.fontSize * 8.0,
+                                AxisAlignment.Center
+                            ),
+                            1L
+                        )
+                    ) { this.grow = 1.0 }
+                this.spacing = gap
+                this.alignment = CrossAlignment.Center
+            }
+        val content =
+            itemColumn {
+                when (input.header) {
+                    case Some(value) -> this.add(panelSlot(value, 0L))
+                    case None -> {}
+                }
+                if (hasText || panelPresent(input.media) || panelPresent(input.actions))
+                    this.item(panelSlot(middle, 1L)) {
+                        // The row fills finite widths itself; keep its intrinsic measurement intact.
+                        this.align = Some(CrossAlignment.Start)
+                    }
+                when (input.footer) {
+                    case Some(value) -> this.add(panelSlot(value, 2L))
+                    case None -> {}
+                }
+                this.spacing = gap
+                this.alignment = CrossAlignment.Stretch
+            }
+        return element(
+            ItemInkProps(input, theme, interaction.asVisual(input.enabled), behavior),
+            { current, mount -> ItemInk(current, scope = mount) },
+            [content]
+        )
+    }
+}
+
+internal fun itemGap(size: ItemSize): Double =
+    if (size == ItemSize.Xs)
+        8.0
+    else
+        10.0
+
+private fun itemCaption(
+    content: PanelContent,
+    base: TextStyle,
+    fonts: FontCollection?,
+    lines: Long,
+    direction: LayoutDirection
+): View =
+    when (content) {
+        case Custom(view) -> view
+        case Label(input) -> panelCaption(
+            PanelContent.Label(
+                LabelProps(
+                    input.text,
+                    input.fonts,
+                    Some(
+                        input.settings ?:
+                            paragraphStyle {
+                                this.maxLines = Some(lines)
+                                this.direction = direction.textDirection()
+                            }
+                    ),
+                    input.inlines,
+                    input.theme,
+                    input.baseStyle,
+                    input.underline
+                )
+            ),
+            base,
+            fonts
+        )
+    }

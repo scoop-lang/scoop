@@ -1,0 +1,188 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+internal class CalendarMonthSizeInput(val width: Double)
+
+internal class CalendarMonthSize(
+    private val props: Props<CalendarMonthSizeInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.constrain(Size(props.value.width, 0.0)).width
+        if (width == 0.0 || constraints.maxHeight == Some(0.0)) {
+            context.skipChild(0L)
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, 0.0))), Unit)
+        }
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(
+                    minWidth = width,
+                    maxWidth = Some(width),
+                    maxHeight = constraints.maxHeight
+                )
+            )
+        if (child.size.width > 0.0 && child.size.height > 0.0)
+            context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(child.size)), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class CalendarMonthsInput(val count: Long, val width: Double, val gap: Double)
+
+/** The same month children move between one row and one column without remounting. */
+internal class CalendarMonths(
+    private val props: Props<CalendarMonthsInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val natural =
+            input.width * input.count.toDouble() + input.gap * (input.count - 1L).toDouble()
+        val horizontal = (constraints.maxWidth ?: natural) >= natural
+        val width =
+            if (horizontal)
+                input.width
+            else
+                upperBound(input.width, constraints.maxWidth ?: input.width)
+        val sizes = ArrayList<Size>()
+        var total = 0.0
+        var cross = 0.0
+        for (index in 0L ..< input.count) {
+            val result = context.measureChild(index, Constraints(maxWidth = Some(width)))
+            sizes.add(result.size)
+            if (index > 0L)
+                total += input.gap
+            total += if (horizontal)
+                result.size.width
+            else
+                result.size.height
+            cross =
+                lowerBound(
+                    cross,
+                    if (horizontal)
+                        result.size.height
+                    else
+                        result.size.width
+                )
+        }
+        val size =
+            constraints.constrain(
+                if (horizontal)
+                    Size(total, cross)
+                else
+                    Size(cross, total)
+            )
+        var offset = 0.0
+        for (index in 0L ..< input.count) {
+            val child = sizes[index]
+            context.placeChild(
+                index,
+                Point(
+                    logicalX(
+                        if (horizontal)
+                            offset
+                        else
+                            0.0,
+                        child.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    if (horizontal)
+                        0.0
+                    else
+                        offset
+                )
+            )
+            offset += (
+                if (horizontal)
+                    child.width
+                else
+                    child.height
+            ) +
+                input.gap
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class CalendarDayFrameInput(
+    val owner: CalendarControl,
+    val day: CalendarDay,
+    val appearance: CalendarAppearance
+)
+
+internal class CalendarDayFrame(
+    private val props: Props<CalendarDayFrameInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    init {
+        scope.resource {
+            scope.input.observeActivity {
+                if (scope.isMounted)
+                    props.value.owner.hover(props.value.day.data.date, scope.input.isHovered)
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val ring = props.value.appearance.ring
+        val child =
+            context.measureChild(0L, childConstraints(constraints, Size(ring * 2.0, ring * 2.0)))
+        context.placeChild(0L, Point(ring, ring))
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    Size(child.size.width + ring * 2.0, child.size.height + ring * 2.0)
+                )
+            ),
+            Unit
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val day = input.day
+        if (day.inRange && !(day.rangeStart && day.rangeEnd)) {
+            val width = context.size.width
+            val leftHalf = day.rangeEnd != (context.layoutDirection == LayoutDirection.Rtl)
+            val end = day.rangeStart || day.rangeEnd
+            val x =
+                if (end && !leftHalf)
+                    width / 2.0
+                else
+                    0.0
+            val shape =
+                Rect(
+                    x,
+                    input.appearance.ring,
+                    if (end)
+                        width / 2.0
+                    else
+                        width,
+                    lowerBound(0.0, context.size.height - input.appearance.ring * 2.0)
+                )
+            val color = input.appearance.theme.tokens.palette.muted.background
+            val fill =
+                if (day.preview)
+                    color.withAlpha(color.alpha * 0.65)
+                else
+                    color
+            context.draw { target -> target.canvas.drawRect(shape, Paint(fill)) }
+        }
+        context.children()
+    }
+}

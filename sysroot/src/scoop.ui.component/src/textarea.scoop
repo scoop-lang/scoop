@@ -30,7 +30,10 @@ public class TextareaProps public constructor(
     public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
-    public val copy: TextCopyPolicy = TextCopyPolicy.Default
+    public val copy: TextCopyPolicy = TextCopyPolicy.Default,
+    public val labelTarget: FieldTarget? = None,
+    public val group: GroupPosition? = None,
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -38,46 +41,47 @@ public class TextareaProps public constructor(
 }
 
 /** A fixed-row viewport; text, selection and history live in the shared editor model. */
-public class Textarea public constructor(private val props: Props<TextareaProps>): Component {
-    private val field = TextFieldRenderer()
-    public override fun onMount(scope: ComponentScope) {
-        field.mount(props.value.theme)
-    }
-    public override fun render(): View {
-        val input = props.value
-        return field.render(
-            TextFieldInput(
-                input.state,
-                input.placeholder,
-                input.invalid,
-                input.description,
-                input.fonts,
-                input.style,
-                input.theme,
-                input.focus,
-                TextEditOptions(
-                    multiline = true,
-                    wrap = input.wrap,
-                    readOnly = input.readOnly,
-                    enabled = input.enabled,
-                    tab = input.tab,
-                    submit = input.submit,
-                    direction = input.direction,
-                    alignment = input.alignment,
-                    paintCache = input.paintCache,
-                    caretBlink = input.caretBlink,
-                    policy = input.policy,
-                    projection = input.projection,
-                    copy = input.copy
-                ),
-                input.rows,
-                input.scrollbars,
-                input.onEdited,
-                input.onSubmit
-            )
-        )
-    }
+public class Textarea public constructor(
+    private val props: Props<TextareaProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val field = TextFieldRenderer(scope)
+    public override fun render(): View = field.render(multilineInput(props.value))
 }
+
+private fun multilineInput(input: TextareaProps): TextFieldInput =
+    TextFieldInput(
+        input.state,
+        input.placeholder,
+        input.invalid,
+        input.description,
+        input.fonts,
+        input.style,
+        input.theme,
+        input.focus,
+        TextEditOptions(
+            multiline = true,
+            wrap = input.wrap,
+            readOnly = input.readOnly,
+            enabled = input.enabled,
+            tab = input.tab,
+            submit = input.submit,
+            direction = input.direction,
+            alignment = input.alignment,
+            paintCache = input.paintCache,
+            caretBlink = input.caretBlink,
+            policy = input.policy,
+            projection = input.projection,
+            copy = input.copy
+        ),
+        input.rows,
+        input.scrollbars,
+        input.onEdited,
+        input.onSubmit,
+        input.labelTarget,
+        input.group,
+        input.chrome
+    )
 
 public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View =
     makeTextarea(state, configure)

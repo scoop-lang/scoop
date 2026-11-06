@@ -1,0 +1,55 @@
+package scoop.ui.component
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.*
+
+public class DrawerHandle public constructor() {
+    private val thread = currentThreadId()
+    private var current: DrawerControl? = None
+    private val value = state(DrawerSnapshot())
+    private fun checkThread() {
+        if (currentThreadId() != thread)
+            throw IllegalStateException(Some("drawer handle used from another thread"))
+    }
+    internal val target: DrawerControl? get() {
+        checkThread();
+        return current
+    }
+    public val isAttached: Boolean get() {
+        checkThread();
+        return current?.active ?: false
+    }
+    public val snapshot: DrawerSnapshot get() {
+        checkThread();
+        return value.value
+    }
+    public fun snapTo(index: Long, animated: Boolean = true): Boolean {
+        checkThread();
+        return current?.select(index, animated) ?: false
+    }
+    internal fun bind(control: DrawerControl) {
+        checkThread()
+        when (current) {
+            case Some(old) -> requireComponent(
+                old === control || !old.active,
+                "drawer handle already has a target"
+            )
+            case None -> {}
+        }
+        current = Some(control)
+    }
+    internal fun unbind(control: DrawerControl) {
+        checkThread()
+        when (current) {
+            case Some(old) -> if (old === control) {
+                current = None;
+                publish(DrawerSnapshot())
+            }
+            case None -> {}
+        }
+    }
+    internal fun publish(snapshot: DrawerSnapshot) {
+        if (value.value != snapshot)
+            value.value = snapshot
+    }
+}

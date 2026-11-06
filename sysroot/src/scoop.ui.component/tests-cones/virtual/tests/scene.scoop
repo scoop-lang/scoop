@@ -7,11 +7,11 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.*
 
-internal class ListScene(private val probe: ListProbe): Component {
+internal class ListScene(private val probe: ListProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.renders += 1
         return element(
-            { ListPanel(probe) },
+            { mount -> ListPanel(probe, scope = mount) },
             [
                 direction(
                     if (probe.show.value)
@@ -34,8 +34,8 @@ internal class ListScene(private val probe: ListProbe): Component {
     }
 }
 
-private class ListPanel(private val probe: ListProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class ListPanel(private val probe: ListProbe, scope: ComponentScope): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         scope.input.captureHandler =
             {
@@ -49,12 +49,14 @@ private class ListPanel(private val probe: ListProbe): Element {
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(160.0, 60.0)))
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(220.0, 120.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 120.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
         probe.passes += 1
@@ -81,7 +83,7 @@ internal class ListSource(
         }
     public override fun build(index: Long): View {
         probe.builds += 1
-        return component(index, { props -> ListRow(probe, props) })
+        return component(index, { props, mount -> ListRow(probe, props, scope = mount) })
     }
 }
 
@@ -96,16 +98,20 @@ internal class ListRowRecord(val id: Long) {
     var releases = 0
 }
 
-private class ListRow(probe: ListProbe, private val props: Props<Long>): Component {
+private class ListRow(
+    probe: ListProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = ListRowRecord(props.value)
     init {
         probe.rows.add(record)
     }
     public override fun render(): View {
         record.observed = record.local.value
-        return element({ ListRowInk(record) })
+        return element({ mount -> ListRowInk(record, scope = mount) })
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounts += 1
         scope.onDispose { record.disposals += 1 }
         val area = scope.createArea(focusable = true)
@@ -137,12 +143,16 @@ private class ListRow(probe: ListProbe, private val props: Props<Long>): Compone
     }
 }
 
-private class ListRowInk(private val record: ListRowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ListRowInk(private val record: ListRowRecord, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         record.direction = context.layoutDirection
-        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)
         context.draw {

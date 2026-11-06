@@ -1,0 +1,255 @@
+package scoop.tests.ui.sidebar
+
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.time.Duration
+import scoop.ui.component.*
+import scoop.window.*
+
+internal fun advanceSidebar(p: SidebarProbe) {
+    when (p.phase) {
+        case 0 -> {
+            p.near(256.0, p.geometry[0L].bounds.width);
+            p.near(256.0, p.geometry[1L].bounds.x)
+            assertTrue(p.geometry[5L].bounds.width >= 20.0 && p.geometry[5L].bounds.width < 40.0);
+            assertTrue(p.geometry[2L].ring);
+            assertTrue(p.geometry[3L].ring);
+            assertTrue(p.first.requestFocus())
+        }
+        case 1 -> {
+            assertTrue(p.first.hasFocus);
+            p.key(49)
+        }
+        case 2 -> {
+            assertEquals(1, p.clicks);
+            p.click(4L, true)
+        }
+        case 3 -> p.click(4L, false)
+        case 4 -> {
+            assertEquals(1, p.actions);
+            assertEquals(1, p.clicks);
+            assertTrue(p.mainEditor.requestFocus())
+        }
+        case 5 -> {
+            assertTrue(p.mainEditor.hasFocus);
+            p.toggle()
+        }
+        case 6 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.shown.collapsed)
+            p.near(48.0, p.geometry[0L].bounds.width);
+            p.near(48.0, p.geometry[1L].bounds.x)
+            assertEquals(1, p.navMounts);
+            assertEquals(1, p.mainMounts)
+            assertFalse(p.action.requestFocus());
+            p.toggle()
+        }
+        case 7 -> {
+            assertTrue(p.open.value);
+            p.reject = true;
+            p.toggle()
+        }
+        case 8 -> {
+            assertTrue(p.open.value);
+            assertEquals(2, p.notifications)
+            p.reject = false;
+            p.reverse = true;
+            p.refresh();
+            assertTrue(p.first.requestFocus())
+        }
+        case 9 -> {
+            assertTrue(p.first.hasFocus);
+            assertEquals(1, p.navMounts);
+            assertTrue(p.sub.requestFocus())
+        }
+        case 10 -> {
+            assertTrue(p.sub.hasFocus);
+            p.subopen.value = false
+        }
+        case 11 -> {
+            assertFalse(p.sub.hasFocus);
+            assertFalse(p.sub.requestFocus())
+            p.subopen.value = true;
+            p.variant = SidebarVariant.Floating;
+            p.side = SidebarSide.End;
+            p.refresh()
+        }
+        case 12 -> {
+            p.near(256.0, p.geometry[0L].bounds.width);
+            p.near(636.0, p.geometry[0L].bounds.x)
+            p.near(0.0, p.geometry[1L].bounds.x);
+            p.rtl = true;
+            p.refresh()
+        }
+        case 13 -> {
+            p.near(8.0, p.geometry[0L].bounds.x);
+            p.near(272.0, p.geometry[1L].bounds.x)
+            p.variant = SidebarVariant.Inset;
+            p.refresh()
+        }
+        case 14 -> {
+            p.near(272.0, p.geometry[1L].bounds.x);
+            p.near(8.0, p.geometry[1L].bounds.y)
+            assertTrue(p.mainEditor.requestFocus())
+        }
+        case 15 -> {
+            sidebarNativeKey(p.native!!, 119, "\uf72b")
+            sidebarNativeKey(p.native!!, 18, "!")
+            p.native!!.requestSize(LogicalSize(540.0, 520.0));
+            p.refresh()
+        }
+        case 16 -> {
+            assertTrue(p.shown.mobile);
+            p.near(512.0, p.geometry[6L].bounds.y + p.geometry[6L].bounds.height);
+            assertTrue(p.first.hasFocus)
+            p.near(288.0, p.geometry[0L].bounds.width);
+            p.near(0.0, p.geometry[1L].bounds.x)
+            assertEquals(1, p.mainMounts);
+            assertEquals(2, p.navMounts)
+            assertEquals("Workspace draft!", p.draft.text)
+            assertTrue(p.geometry[2L].ring);
+            assertFalse(p.mainEditor.requestFocus())
+            p.veto = true;
+            p.toggle()
+        }
+        case 17 -> {
+            assertTrue(p.open.value);
+            assertEquals(1, p.closeRequests)
+            p.veto = false;
+            p.toggle()
+        }
+        case 18 -> {
+            assertFalse(p.open.value);
+            assertEquals(1, p.closed);
+            assertTrue(p.mainEditor.hasFocus)
+            assertEquals(2, p.navUnmounts);
+            p.toggle()
+        }
+        case 19 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.first.hasFocus);
+            assertEquals(3, p.navMounts)
+            p.native!!.requestSize(LogicalSize(900.0, 560.0));
+            p.refresh()
+        }
+        case 20 -> {
+            assertFalse(p.shown.mobile);
+            assertEquals(4, p.navMounts);
+            assertEquals(1, p.mainMounts)
+            assertEquals("Workspace draft!", p.draft.text)
+            assertTrue(p.mainEditor.requestFocus());
+            p.enabled = false;
+            p.refresh()
+        }
+        case 21 -> {
+            p.toggle()
+        }
+        case 22 -> {
+            assertTrue(p.open.value);
+            assertFalse(p.first.requestFocus())
+            p.enabled = true;
+            p.shortcut = false;
+            p.refresh()
+        }
+        case 23 -> p.toggle()
+        case 24 -> {
+            assertTrue(p.open.value);
+            p.shortcut = true;
+            p.collapse = SidebarCollapse.None
+            p.open.value = false;
+            p.native!!.requestSize(LogicalSize(540.0, 520.0));
+            p.refresh()
+        }
+        case 25 -> {
+            assertFalse(p.shown.mobile);
+            assertTrue(p.shown.expanded)
+            p.near(256.0, p.geometry[0L].bounds.width);
+            assertFalse(p.open.value)
+            p.native!!.requestSize(LogicalSize(900.0, 560.0));
+            p.collapse = SidebarCollapse.Offcanvas
+            p.open.value = true;
+            p.motion = true;
+            p.loading = true;
+            p.refresh();
+            p.waitAfter = Duration.milliseconds(280L)
+        }
+        case 26 -> {
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(220L)
+        }
+        case 27 -> {
+            assertTrue(p.quiet!! != p.frames!!.snapshot());
+            p.toggle();
+            p.waitAfter = Duration.milliseconds(300L)
+        }
+        case 28 -> {
+            assertFalse(p.open.value);
+            assertFalse(p.first.requestFocus());
+            assertFalse(p.frames!!.snapshot().required)
+            assertEquals(4, p.navMounts);
+            assertEquals(3, p.navUnmounts)
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(220L)
+        }
+        case 29 -> {
+            assertEquals(p.quiet!!, p.frames!!.snapshot());
+            p.toggle();
+            p.waitAfter = Duration.milliseconds(300L)
+        }
+        case 30 -> {
+            assertTrue(p.open.value);
+            assertEquals(4, p.navMounts);
+            p.loading = false;
+            p.refresh()
+            assertTrue(p.first.requestFocus());
+            assertTrue(moveSurfacePointer(p.native!!, 880.0, 540.0))
+        }
+        case 31 -> {
+            assertTrue(p.first.hasFocus);
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(220L)
+        }
+        case 32 -> {
+            assertEquals(p.quiet!!, p.frames!!.snapshot())
+            p.collapse = SidebarCollapse.Icon;
+            p.side = SidebarSide.Start;
+            p.rtl = false
+            p.variant = SidebarVariant.Sidebar;
+            p.motion = false;
+            p.refresh()
+        }
+        case 33 -> {
+            assertTrue(p.first.hasFocus);
+            p.near(256.0, p.geometry[1L].bounds.x)
+            assertTrue(moveSurfacePointer(p.native!!, 256.0, 300.0));
+            assertTrue(p.view!!.button(256.0, 300.0, true))
+        }
+        case 34 -> assertTrue(p.view!!.button(256.0, 300.0, false))
+        case 35 -> {
+            assertFalse(p.open.value);
+            p.near(48.0, p.geometry[1L].bounds.x);
+            assertTrue(p.first.hasFocus)
+            assertTrue(p.trigger.requestFocus())
+        }
+        case 36 -> {
+            assertTrue(p.trigger.hasFocus);
+            p.key(49)
+        }
+        case 37 -> {
+            assertTrue(p.open.value);
+            assertEquals(4, p.navMounts);
+            p.gone = true;
+            p.refresh()
+        }
+        case 38 -> {
+            assertFalse(p.first.isAttached);
+            assertFalse(p.scroll.isAttached);
+            assertEquals(1, p.mainUnmounts)
+            p.quiet = Some(p.frames!!.snapshot());
+            p.waitAfter = Duration.milliseconds(220L)
+        }
+        case 39 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        case 40 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected sidebar phase"))
+    }
+}

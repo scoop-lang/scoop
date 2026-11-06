@@ -1,0 +1,7 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.style.macos.macosSystemPalette
+
+fun main() {
+    runGallery(GalleryModel(Some({ mode -> macosSystemPalette(mode) })))
+}

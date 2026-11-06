@@ -48,6 +48,13 @@ private fun InputRouter.invoke(
     val scope = delivery.scope
     if (!terminal && (closed || scope.closed || (!inactive && path(scope).size == 0L)))
         return
+    when (event) {
+        case Keyboard(_) -> {
+            if (!allowsFocus(scope))
+                return
+        }
+        else -> {}
+    }
     if (!terminal && !scrollDeliveryAllowed(flags.scroll))
         return
     val context =
@@ -121,7 +128,7 @@ private fun InputRouter.routeStages(
         if (!focused && focusesOnPress(event) && containsScope(hover, delivery.scope)) {
             when (delivery.scope.area) {
                 case Some(area) -> if (area.focusable) {
-                    focus(area)
+                    focus(area, FocusOrigin.Pointer)
                     focused = true
                 }
                 case None -> {}

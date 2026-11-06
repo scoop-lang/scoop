@@ -1,0 +1,196 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+import scoop.window.asyncio.currentApplicationScope
+
+internal class TranscriptExampleRow(
+    val id: Long,
+    val user: Boolean,
+    text: String,
+    val editable: Boolean = false
+) {
+    val text = state(text)
+    val image = state(false)
+    val note = TextEditorState("A note that stays with this message")
+}
+
+internal class MessageScrollerExamplesModel {
+    val scroll =
+        MessageScrollState(
+            MessageScrollOptions(
+                initialPosition = MessageInitialPosition.LastAnchor,
+                scrollMargin = 12.0
+            )
+        )
+    val revision = state(0)
+    val narrow = state(false)
+    val running = state(false)
+    val status = state("Scroll up to read while a reply grows.")
+    val saved = state<VirtualReadingAnchor?>(None)
+    var rows = initialMessages()
+    private var next = 8L
+    private var oldest = 0L
+    private var stream: Job? = None
+    private var imageJob: Job? = None
+    private var streamRevision = 0L
+    private fun replace(value: Array<TranscriptExampleRow>) {
+        rows = value
+        revision.value += 1
+    }
+    private fun reply(): TranscriptExampleRow? =
+        if (rows.size == 0L)
+            None
+        else
+            Some(rows[rows.size - 1L])
+    fun send(text: String = "Show how this plan behaves as the conversation grows.") {
+        stop()
+        val id = next
+        next += 2L
+        val user = TranscriptExampleRow(id, true, text)
+        val answer = TranscriptExampleRow(id + 1L, false, "Here is the next part of the plan.")
+        val previous = rows
+        replace(
+            Array<TranscriptExampleRow>(previous.size + 2L) {
+                at -> if (at < previous.size)
+                    previous[at]
+                else
+                    if (at == previous.size)
+                        user
+                    else
+                        answer
+            }
+        )
+        scroll.beginTurn(ViewKey.Number(id))
+        status.value = "Your message is ready for a reply."
+    }
+    fun streamReply() {
+        val target = reply() ?: return
+        stop()
+        val model = this
+        val revision = streamRevision
+        running.value = true
+        status.value = "Streaming a reply. Scroll or select text to keep your reading position."
+        stream =
+            Some(
+                currentApplicationScope().launch {
+                    try {
+                        for (at in 1 .. 12) {
+                            currentEventLoop().sleep(Duration.milliseconds(180L))
+                            target.text.value += f"\n\nReview item ${
+                                at
+                            }: confirm the owner, describe the expected result and record any open questions before the next project review."
+                        }
+                        model.status.value = "Reply complete."
+                    } finally {
+                        if (model.streamRevision == revision)
+                            model.running.value = false
+                    }
+                }
+            )
+    }
+    fun stop() {
+        streamRevision += 1L
+        stream?.cancel()
+        stream = None
+        imageJob?.cancel()
+        imageJob = None
+        running.value = false
+    }
+    fun loadImage() {
+        val target = reply() ?: return
+        imageJob?.cancel()
+        val model = this
+        status.value = "Loading a local illustration…"
+        imageJob =
+            Some(
+                currentApplicationScope().launch {
+                    currentEventLoop().sleep(Duration.milliseconds(700L))
+                    target.image.value = true
+                    model.status.value = "Project illustration ready."
+                }
+            )
+    }
+    fun history() {
+        val start = oldest - 3L
+        oldest = start
+        val previous = rows
+        replace(
+            Array<TranscriptExampleRow>(previous.size + 3L) {
+                at -> if (at < 3L)
+                    TranscriptExampleRow(
+                        start + at,
+                        at == 0L,
+                        "Earlier context: the workspace keeps decisions, notes and follow-up questions together."
+                    )
+                else
+                    previous[at - 3L]
+            }
+        )
+        status.value = "Older messages added above the current reading position."
+    }
+    fun toggleFollow() {
+        scroll.options =
+            MessageScrollOptions(
+                autoScroll = !scroll.options.autoScroll,
+                initialPosition = MessageInitialPosition.LastAnchor,
+                scrollMargin = 12.0
+            )
+    }
+    fun remember() {
+        saved.value = scroll.reading?.anchor ?: None
+        status.value = "Reading position saved."
+    }
+    fun restore() {
+        when (saved.value) {
+            case Some(value) -> status.value =
+                if (scroll.restore(value))
+                    "Restoring the saved message."
+                else
+                    "The saved message is no longer present."
+            case None -> {}
+        }
+    }
+    fun emptyOrRestore() {
+        stop()
+        replace(
+            if (rows.size == 0L)
+                initialMessages()
+            else
+                []
+        )
+        scroll.reset(MessageInitialPosition.LastAnchor)
+    }
+}
+
+private fun initialMessages(): Array<TranscriptExampleRow> =
+    [
+        TranscriptExampleRow(0L, true, "How should we organize this project?"),
+        TranscriptExampleRow(
+            1L,
+            false,
+            "Start with a short plan: one shared workspace for drafts, decisions and project notes. I have attached an outline for the first review."
+        ),
+        TranscriptExampleRow(2L, true, "Keep a record of the tradeoffs too."),
+        TranscriptExampleRow(
+            3L,
+            false,
+            "We can keep editing and preview side by side, with the inspector available when someone needs more detail. Record the tradeoffs in the decision notes below.",
+            true
+        ),
+        TranscriptExampleRow(4L, true, "What should we cover in the first review?"),
+        TranscriptExampleRow(
+            5L,
+            false,
+            "Review the draft with the people who will use it. Check that they can find their work, make a change and understand what to do next."
+        ),
+        TranscriptExampleRow(6L, true, "Let's try the next step."),
+        TranscriptExampleRow(
+            7L,
+            false,
+            "Tell me what you would like to explore. You can also answer the project questions below so we can tailor the next steps to your role."
+        )
+    ]

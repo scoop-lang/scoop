@@ -3,12 +3,14 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
+import scoop.ui.text.TextEditMeasurement
 import scoop.ui.style.*
 
 internal class TextFieldDrawing(
     val geometry: SurfaceGeometry,
     val horizontal: Rect?,
-    val vertical: Rect?
+    val vertical: Rect?,
+    val editor: TextEditMeasurement
 )
 
 /** Only the scalar font metric is cached; both temporary native objects close immediately. */
@@ -46,10 +48,20 @@ internal fun measureTextField(
     ink: TextFieldInk,
     context: MeasureContext,
     constraints: Constraints
-): LayoutMetrics {
+): LayoutResult<TextFieldDrawing> {
     val value = ink.props.value
     val input = value.input
-    val metrics = value.theme.surfaceMetrics(value.visual, value.surface, context.layoutDirection)
+    val base = value.theme.surfaceMetrics(value.visual, value.surface, context.layoutDirection)
+    val metrics =
+        if (input.chrome == TextFieldChrome.Bare)
+            bareTextFieldMetrics(base)
+        else
+            groupSurfaceMetrics(
+                base,
+                input.group,
+                groupEndRadius(value.theme, value.surface.style),
+                context.layoutDirection
+            )
     val insets = metrics.contentInsets.totals()
     val naturalWidth = value.surface.suggestedSize?.width ?: 240.0
     val width =
@@ -75,7 +87,7 @@ internal fun measureTextField(
         else
             0.0
     val horizontal = bars && !input.options.wrap
-    val rowHeight = ink.lineHeight.measure(ink.fonts!!, value.text)
+    val rowHeight = ink.lineHeight.measure(ink.fonts, value.text)
     val naturalHeight =
         lowerBound(
             rowHeight *
@@ -89,13 +101,18 @@ internal fun measureTextField(
         )
     val size = constraints.constrain(Size(width, naturalHeight + after))
     val fieldHeight = lowerBound(size.height - after, 0.0)
-    val geometry =
+    val original =
         value.theme.surfaceGeometry(
             Rect(0.0, 0.0, size.width, fieldHeight),
             value.visual,
             value.surface,
             context.layoutDirection
         )
+    val geometry =
+        if (input.chrome == TextFieldChrome.Bare)
+            bareTextFieldGeometry(original, metrics)
+        else
+            groupSurfaceGeometry(original, metrics, input.group, context.layoutDirection)
     val content = geometry.content
     val right =
         if (bars)
@@ -108,23 +125,22 @@ internal fun measureTextField(
         else
             0.0
     val viewport = Size(content.width - right, content.height - bottom)
-    val text = ink.host!!.measure(Constraints.tight(viewport))
-    val snapshot = ink.host!!.scrollSnapshot
-    ink.drawing =
-        Some(
-            TextFieldDrawing(
-                geometry,
-                if (horizontal && showScrollbar(input.scrollbars, snapshot.maximum.x))
-                    Some(Rect(0.0, viewport.height, viewport.width, bottom))
-                else
-                    None,
-                if (bars && showScrollbar(input.scrollbars, snapshot.maximum.y))
-                    Some(Rect(viewport.width, 0.0, right, viewport.height))
-                else
-                    None
-            )
-        )
     if (context.childCount == 1L)
         context.placeChild(0L, Point(0.0, fieldHeight + gap))
-    return offsetMetrics(text, size, content.y)
+    val text = ink.host.measure(Constraints.tight(viewport))
+    val snapshot = text.scrollSnapshot
+    val drawing =
+        TextFieldDrawing(
+            geometry,
+            if (horizontal && showScrollbar(input.scrollbars, snapshot.maximum.x))
+                Some(Rect(0.0, viewport.height, viewport.width, bottom))
+            else
+                None,
+            if (bars && showScrollbar(input.scrollbars, snapshot.maximum.y))
+                Some(Rect(viewport.width, 0.0, right, viewport.height))
+            else
+                None,
+            text
+        )
+    return LayoutResult(offsetMetrics(text.metrics, size, content.y), drawing, { text.close() })
 }

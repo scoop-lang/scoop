@@ -1,0 +1,139 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.ui.component.row as comboRow
+import scoop.ui.component.label as comboLabel
+
+internal class ComboboxRows<T: Equals<T>>(
+    val source: ChoiceSource<T>,
+    val input: ComboboxProps<T>,
+    val theme: Theme,
+    val active: Binding<ViewKey?>,
+    val highlight: (ViewKey) -> Unit,
+    val select: (ViewKey) -> Unit
+): ItemSource {
+    public override val count: Long get() = source.count
+    public override fun keyAt(index: Long): ViewKey = source.keyAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? = source.indexOfKey(key)
+    public override fun build(index: Long): View =
+        component(
+            ComboRowProps(source.entryAt(index), input, theme, active, highlight, select),
+            { current, mount -> ComboRow(current, scope = mount) }
+        )
+}
+
+private class ComboRowProps<T: Equals<T>>(
+    val entry: ChoiceEntry<T>,
+    val input: ComboboxProps<T>,
+    val theme: Theme,
+    val active: Binding<ViewKey?>,
+    val highlight: (ViewKey) -> Unit,
+    val select: (ViewKey) -> Unit
+)
+
+private class ComboRow<T: Equals<T>>(
+    private val props: Props<ComboRowProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val row = props.value
+        val theme = row.theme
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val fonts = row.input.input.fonts
+        val ink = theme.tokens.palette
+        val text =
+            theme.tokens.typography.body.copy {
+                fontSize = 14.0 * d;
+                lineHeight = Some(20.0 / 14.0);
+                weight = 400;
+                color = ink.popover.foreground
+            }
+        when (row.entry) {
+            case Label(_, content) -> return panelFrame(
+                panelCaption(
+                    content,
+                    text.copy {
+                        fontSize = 12.0 * d;
+                        lineHeight = Some(16.0 / 12.0);
+                        color = ink.muted.foreground
+                    },
+                    fonts
+                ),
+                Insets(8.0 * d, 6.0 * d, 8.0 * d, 6.0 * d)
+            )
+            case Separator(_) -> return panelFrame(separator(), Insets(0.0, 4.0 * d, 0.0, 4.0 * d))
+            else -> {}
+        }
+        val item = choiceEntryItem(row.entry)!!
+        val active = row.active.value == Some(item.choice.key)
+        val selected = comboContains(comboValues(row.input.selection), item.choice.value)
+        val enabled = row.input.mutable && item.choice.enabled
+        val color =
+            if (active)
+                ink.accent.foreground
+            else
+                ink.popover.foreground
+        val direction = scope.layoutDirection.textDirection()
+        val body =
+            comboRow {
+                when (item.icon) {
+                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
+                    case None -> {}
+                }
+                this.item(
+                    panelSlot(
+                        item.content ?:
+                            comboLabel(
+                                styledText {
+                                    style = text.copy { this.color = color };
+                                    this.text(item.choice.label)
+                                }
+                            ) {
+                                this.fonts = fonts
+                                settings =
+                                    Some(
+                                        paragraphStyle {
+                                            this.direction = direction;
+                                            maxLines = Some(1L);
+                                            ellipsis = "…"
+                                        }
+                                    )
+                            },
+                        1L
+                    )
+                ) { grow = 1.0 }
+                this.item(
+                    panelSlot(
+                        element(
+                            MenuCheckProps(selected, 16.0 * d, color),
+                            { current, mount -> MenuCheck(current, scope = mount) }
+                        ),
+                        2L
+                    )
+                ) { shrink = 0.0 }
+                spacing = 8.0 * d;
+                alignment = CrossAlignment.Center
+            }
+        return element(
+            CandidateRowInkProps(item.choice.key, enabled, row.highlight, row.select),
+            { current, mount -> CandidateRowInk(current, scope = mount) },
+            [
+                panelFrame(
+                    body,
+                    LogicalInsets(6.0 * d, 4.0 * d, 8.0 * d, 4.0 * d).resolve(
+                        scope.layoutDirection
+                    ),
+                    styleOverride {
+                        if (active && enabled)
+                            background(Some(Paint(ink.accent.background)));
+                        corners(Corners.all(6.0 * d))
+                    }.then(item.style)
+                )
+            ]
+        )
+    }
+}

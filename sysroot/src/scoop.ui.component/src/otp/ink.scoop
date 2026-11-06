@@ -1,0 +1,139 @@
+package scoop.ui.component
+
+import scoop.charset.graphemeBoundaries
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope): Element<
+    OtpDrawing
+>(scope) {
+    internal val host =
+        scope.resource {
+            val value = props.value
+            TextEditHost(
+                scope,
+                value.input.state,
+                otpAppearance(value.input, value.theme, value.text, value.fonts),
+                otpOptions(value.input),
+                value.onInteractionChanged
+            )
+        }
+    private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    private val painters = scope.resource { ThemePainterCache() }
+
+    init {
+        scope.routeChildren(host.area)
+    }
+
+    public override fun update(): UiInvalidation {
+        val input = props.value.input
+        host.update(
+            input.state,
+            otpAppearance(input, props.value.theme, props.value.text, props.value.fonts),
+            otpOptions(input),
+            input.focus,
+            onEdited = { state -> props.value.input.onEdited(state) },
+            onCommitted =
+                {
+                    state ->
+                    val current = props.value.input
+                    if (
+                        state ===
+                            current.state &&
+                            graphemeBoundaries(state.text).size -
+                            1L ==
+                            current.length
+                    )
+                        current.onComplete(state)
+                }
+        )
+        field.update(input.labelTarget, input.enabled)
+        painters.get(props.value.theme)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        OtpDrawing
+    > = measureOtp(this, context, constraints)
+    public override fun scene(context: SceneContext, current: OtpDrawing) {
+        val value = props.value
+        val painter = painters.get(value.theme)
+        val adapter = host
+        val offset = current.editor.scrollSnapshot.offset
+        if (!value.input.enabled)
+            context.saveLayer(value.theme.tokens.disabledOpacity)
+        context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.translate(current.origin.x, current.origin.y)
+        context.draw {
+            paint ->
+            paint.canvas.translate(-offset.x, -offset.y)
+            for (slot in current.slots)
+                painter.drawSurface(
+                    paint.canvas,
+                    slot.geometry,
+                    slot.visual,
+                    SurfaceLayer.Background
+                )
+        }
+        adapter.scene(context, current.editor)
+        context.withState<Unit> {
+            content ->
+            val viewport = current.editor.scrollSnapshot.viewport
+            content.clipRect(Rect(0.0, -current.origin.y, viewport.width, content.size.height))
+            content.translate(-offset.x, -offset.y)
+            content.children()
+        }
+        context.draw {
+            paint ->
+            paint.canvas.translate(-offset.x, -offset.y)
+            for (index in 0L ..< current.slots.size)
+                if (index != current.active)
+                    painter.drawSurface(
+                        paint.canvas,
+                        current.slots[index].geometry,
+                        current.slots[index].visual,
+                        SurfaceLayer.Foreground
+                    )
+            val active = current.slots[current.active]
+            painter.drawSurface(
+                paint.canvas,
+                active.geometry,
+                active.visual,
+                SurfaceLayer.Foreground
+            )
+        }
+        if (!value.input.enabled)
+            context.restore()
+    }
+}
+
+internal fun otpAppearance(
+    input: InputOtpProps,
+    theme: Theme,
+    text: TextStyle,
+    fonts: FontCollection
+): TextEditAppearance {
+    val style = input.style
+    val colors = theme.tokens.palette
+    return TextEditAppearance(
+        fonts,
+        text,
+        text,
+        style.selectionColor ?: colors.primary.background.withAlpha(0.30),
+        style.inactiveSelectionColor ?: colors.muted.foreground.withAlpha(0.20),
+        style.caretColor ?: colors.background.foreground,
+        style.markedColor ?: colors.primary.background,
+        style.caretWidth
+    )
+}
+
+internal fun otpOptions(input: InputOtpProps): TextEditOptions =
+    TextEditOptions(
+        readOnly = input.readOnly,
+        enabled = input.enabled,
+        submit = TextSubmitKeys.None,
+        caretBlink = input.caretBlink,
+        policy = otpPolicy(input.pattern, input.length)
+    )

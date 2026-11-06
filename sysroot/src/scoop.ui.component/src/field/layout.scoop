@@ -1,0 +1,234 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal fun fieldHorizontal(input: FieldProps, density: Double, width: Double?): Boolean =
+    when (input.orientation) {
+        case Horizontal -> true
+        case Vertical -> false
+        case Responsive -> when (width) {
+            case Some(value) -> value >= (input.breakpoint ?: 448.0 * density)
+            case None -> false
+        }
+    }
+
+private fun fieldControlColumn(input: FieldProps, part: FieldPart): Boolean =
+    when (part) {
+        case Control -> true
+        case Heading -> false
+        case Description -> input.descriptionPlacement == FieldDescriptionPlacement.AfterControl
+        case Error -> input.controlPlacement == FieldControlPlacement.End
+    }
+
+internal class FieldLayout(
+    private val props: Props<FieldLayoutProps>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
+        val result =
+            if (fieldHorizontal(props.value.input, props.value.density, constraints.maxWidth))
+                fieldHorizontalLayout(props.value, context, constraints)
+            else
+                fieldVerticalLayout(props.value, context, constraints)
+        val clipped = result.clipped
+        return LayoutResult(result.metrics, clipped)
+    }
+    public override fun scene(context: SceneContext, clipped: Boolean) {
+        containerScene(context, clipped)
+    }
+}
+
+private class FieldLayoutResult(val metrics: LayoutMetrics, val clipped: Boolean)
+
+private fun fieldVerticalOrder(input: FieldProps): Array<FieldPart> =
+    if (input.controlPlacement == FieldControlPlacement.Start)
+        if (input.descriptionPlacement == FieldDescriptionPlacement.AfterControl)
+            [FieldPart.Control, FieldPart.Description, FieldPart.Heading, FieldPart.Error]
+        else
+            [FieldPart.Control, FieldPart.Heading, FieldPart.Description, FieldPart.Error]
+    else
+        if (input.descriptionPlacement == FieldDescriptionPlacement.AfterControl)
+            [FieldPart.Heading, FieldPart.Control, FieldPart.Description, FieldPart.Error]
+        else
+            [FieldPart.Heading, FieldPart.Description, FieldPart.Control, FieldPart.Error]
+
+private fun fieldVerticalLayout(
+    input: FieldLayoutProps,
+    context: MeasureContext,
+    constraints: Constraints
+): FieldLayoutResult {
+    val parts = input.parts
+    val measured = MutableArray<LayoutMetrics>(parts.size) { _ -> LayoutMetrics(Size(0.0, 0.0)) }
+    val origins = MutableArray<Double>(parts.size) { _ -> 0.0 }
+    val spacing = input.input.spacing ?: 8.0 * input.density
+    val contentSpacing = input.input.contentSpacing ?: 2.0 * input.density
+    var y = 0.0
+    var width = constraints.minWidth
+    var previousColumn: Boolean? = None
+    for (part in fieldVerticalOrder(input.input)) {
+        for (index in 0L ..< parts.size) {
+            if (parts[index] != part)
+                continue
+            val column = fieldControlColumn(input.input, part)
+            val gap =
+                when (previousColumn) {
+                    case None -> 0.0
+                    case Some(previous) -> if (part != FieldPart.Error && previous != column)
+                        spacing
+                    else
+                        contentSpacing
+                }
+            y += gap
+            val child =
+                context.measureChild(
+                    index,
+                    Constraints(
+                        maxWidth = constraints.maxWidth,
+                        maxHeight = insetMaximum(constraints.maxHeight, y)
+                    )
+                )
+            measured[index] = child
+            origins[index] = y
+            width = lowerBound(width, child.size.width)
+            y += child.size.height
+            previousColumn = Some(column)
+        }
+    }
+    val size = constraints.constrain(Size(constraints.maxWidth ?: width, y))
+    if (size.width > 0.0 && size.height > 0.0)
+        for (index in 0L ..< parts.size)
+            context.placeChild(
+                index,
+                Point(
+                    logicalX(0.0, measured[index].size.width, size.width, context.layoutDirection),
+                    origins[index]
+                )
+            )
+    return FieldLayoutResult(offsetMetrics(measured[0L], size, origins[0L]), y > size.height)
+}
+
+private fun fieldHorizontalLayout(
+    input: FieldLayoutProps,
+    context: MeasureContext,
+    constraints: Constraints
+): FieldLayoutResult {
+    val parts = input.parts
+    val measured = MutableArray<LayoutMetrics>(parts.size) { _ -> LayoutMetrics(Size(0.0, 0.0)) }
+    val origins = MutableArray<Double>(parts.size) { _ -> 0.0 }
+    var hasHeadingColumn = false
+    for (part in parts)
+        if (!fieldControlColumn(input.input, part))
+            hasHeadingColumn = true
+    val gap =
+        if (hasHeadingColumn)
+            input.input.spacing ?: 8.0 * input.density
+        else
+            0.0
+    val available = insetMaximum(constraints.maxWidth, gap)
+    val controlLimit =
+        when (input.input.controlWidth) {
+            case Some(value) -> Some(upperBound(value, available ?: value))
+            case None -> when (available) {
+                case Some(value) -> Some(
+                    value *
+                        if (hasHeadingColumn)
+                            0.6
+                        else
+                            1.0
+                )
+                case None -> None
+            }
+        }
+    val control =
+        context.measureChild(
+            0L,
+            Constraints(maxWidth = controlLimit, maxHeight = constraints.maxHeight)
+        )
+    measured[0L] = control
+    val headingLimit = insetMaximum(available, control.size.width)
+    val contentSpacing = input.input.contentSpacing ?: 2.0 * input.density
+    var headingWidth = 0.0
+    var controlWidth = control.size.width
+    var headingHeight = 0.0
+    var controlHeight = control.size.height
+    var headingCount = 0
+    for (index in 1L ..< parts.size) {
+        val controlColumn = fieldControlColumn(input.input, parts[index])
+        val y =
+            if (controlColumn)
+                controlHeight + contentSpacing
+            else
+                headingHeight +
+                    if (headingCount > 0)
+                        contentSpacing
+                    else
+                        0.0
+        val child =
+            context.measureChild(
+                index,
+                Constraints(
+                    maxWidth =
+                        if (controlColumn)
+                            Some(controlWidth)
+                        else
+                            headingLimit,
+                    maxHeight = insetMaximum(constraints.maxHeight, y)
+                )
+            )
+        measured[index] = child
+        origins[index] = y
+        if (controlColumn) {
+            controlWidth = lowerBound(controlWidth, child.size.width)
+            controlHeight = y + child.size.height
+        } else {
+            headingWidth = lowerBound(headingWidth, child.size.width)
+            headingHeight = y + child.size.height
+            headingCount += 1
+        }
+    }
+    val size =
+        constraints.constrain(
+            Size(
+                constraints.maxWidth ?: (headingWidth + gap + controlWidth),
+                lowerBound(controlHeight, headingHeight)
+            )
+        )
+    val headingSpan = lowerBound(size.width - gap - controlWidth, 0.0)
+    val controlStart = input.input.controlPlacement == FieldControlPlacement.Start
+    if (size.width > 0.0 && size.height > 0.0)
+        for (index in 0L ..< parts.size) {
+            val controlColumn = fieldControlColumn(input.input, parts[index])
+            val x =
+                if (controlColumn) {
+                    if (controlStart)
+                        0.0
+                    else
+                        headingSpan + gap
+                }
+                else {
+                    if (controlStart)
+                        controlWidth + gap
+                    else
+                        0.0
+                }
+            context.placeChild(
+                index,
+                Point(
+                    logicalX(x, measured[index].size.width, size.width, context.layoutDirection),
+                    origins[index]
+                )
+            )
+        }
+    return FieldLayoutResult(
+        offsetMetrics(control, size, 0.0),
+        headingWidth +
+            gap +
+            controlWidth >
+            size.width ||
+            lowerBound(controlHeight, headingHeight) >
+            size.height
+    )
+}

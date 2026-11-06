@@ -1,0 +1,210 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput) {
+    val model = frame.props.state
+    val source = frame.props.source
+    val physical = model.scroll.snapshot
+    val reading = model.list.reading ?: return
+    if (physical.viewport.width <= 0.0 || physical.viewport.height <= 0.0)
+        return
+    if (source.count == 0L) {
+        model.publish(source, reading, physical, frame.density)
+        return
+    }
+    when (model.request) {
+        case Some(request) -> {
+            when (request.issued) {
+                case None -> {
+                    messageIssue(owner, request);
+                    return
+                }
+                case Some(revision) -> {
+                    if (model.list.isPending || revision != model.scroll.requestRevision)
+                        return
+                    when (request.destination) {
+                        case Initial(MessageInitialPosition.LastAnchor) -> {
+                            val last = transcriptAnchor(source, source.count - 1L)
+                            if (last != None && !messageAnchorVisible(source, reading, last!!)) {
+                                val next =
+                                    MessageRequest(MessageDestination.Turn(source.keyAt(last!!)))
+                                model.request = Some(next)
+                                messageIssue(owner, next)
+                                return
+                            }
+                        }
+                        case Reading(_) -> {
+                            val unchanged =
+                                when (request.source) {
+                                    case Some(old) -> old === source
+                                    case None -> false
+                                }
+                            if (!unchanged) {
+                                model.request = None
+                                model.present(MessageScrollMode.Holding, 0.0, true)
+                                return
+                            }
+                        }
+                        else -> {}
+                    }
+                    model.request = None
+                    val mode =
+                        when (request.destination) {
+                            case Turn(_) -> MessageScrollMode.Anchoring
+                            case End -> if (model.options.autoScroll)
+                                MessageScrollMode.Following
+                            else
+                                MessageScrollMode.Holding
+                            case Initial(position) ->
+                            if (
+                                position != MessageInitialPosition.Start && model.options.autoScroll
+                            )
+                                MessageScrollMode.Following
+                            else
+                                MessageScrollMode.Holding
+                            else -> MessageScrollMode.Holding
+                        }
+                    model.present(mode, model.presentation.value.padding, true)
+                }
+            }
+        }
+        case None -> {}
+    }
+    // A hidden preparation frame can resolve a request, but is never published as read content.
+    if (!frame.presentation.ready)
+        return
+    model.publish(source, reading, physical, frame.density)
+    if (model.mode == MessageScrollMode.Anchoring) {
+        val padding = reading.endPadding
+        model.present(MessageScrollMode.Anchoring, padding, true)
+        if (padding == 0.0 && model.options.autoScroll) {
+            model.request = Some(MessageRequest(MessageDestination.End))
+            messageIssue(owner, model.request!!)
+        }
+    } else
+        if (
+            model.mode ==
+                MessageScrollMode.Holding &&
+                model.options.autoScroll &&
+                !model.selecting &&
+                model.userRevision ==
+                Some(model.scroll.requestRevision)
+        ) {
+            model.userRevision = None
+            if (
+                physical.maximum.y -
+                    physical.offset.y <=
+                    model.options.edgeThreshold *
+                    frame.density
+            ) {
+                model.request = Some(MessageRequest(MessageDestination.End))
+                messageIssue(owner, model.request!!)
+            }
+        }
+}
+
+private fun messageAnchorVisible(
+    source: TranscriptSource,
+    reading: VirtualReadingSnapshot,
+    at: Long
+): Boolean {
+    if (at > reading.visible.start)
+        return at < reading.visible.end
+    if (at != reading.visible.start)
+        return false
+    return reading.anchor == Some(VirtualReadingAnchor(source.keyAt(at), 0.0))
+}
+
+internal fun messageIssue(owner: MessageViewport, request: MessageRequest) {
+    val input = owner.input
+    val model = input.props.state
+    val source = input.props.source
+    if (!owner.active || source.count == 0L || !model.list.isAttached)
+        return
+    when (request.destination) {
+        case Reading(_) -> when (request.source) {
+            case Some(old) -> {
+                if (old !== source && old.count > 0L) {
+                    model.request = None
+                    model.present(MessageScrollMode.Holding, model.presentation.value.padding, true)
+                    return
+                }
+            }
+            case None -> {}
+        }
+        else -> {}
+    }
+    val key =
+        when (request.destination) {
+            case Start -> source.keyAt(0L)
+            case End -> source.keyAt(source.count - 1L)
+            case Initial(position) -> source.keyAt(
+                if (position == MessageInitialPosition.Start)
+                    0L
+                else
+                    source.count - 1L
+            )
+            case Turn(value) -> value
+            case Item(value, _) -> value
+            case Reading(value) -> value.key
+        }
+    if (virtualIndex(source, source.count, key) == None) {
+        model.request = None
+        model.present(MessageScrollMode.Holding, model.presentation.value.padding, true)
+        return
+    }
+    val turn =
+        when (request.destination) {
+            case Turn(_) -> true;
+            else -> false
+        }
+    model.present(
+        if (turn)
+            MessageScrollMode.Anchoring
+        else
+            MessageScrollMode.Holding,
+        0.0,
+        model.presentation.value.ready
+    )
+    val epoch = model.epoch
+    model.internalRequest = true
+    var accepted = false
+    try {
+        accepted =
+            when (request.destination) {
+                case Reading(anchor) -> model.list.restore(anchor)
+                case Turn(_) -> model.list.scrollToItem(
+                    key,
+                    ScrollAlignment.Start,
+                    model.options.scrollMargin * input.density,
+                    model.options.previousItemPeek * input.density
+                )
+                case Item(_, alignment) -> model.list.scrollToItem(
+                    key,
+                    alignment,
+                    model.options.scrollMargin * input.density
+                )
+                case Start -> model.list.scrollToItem(key, ScrollAlignment.Start)
+                case End -> model.list.scrollToItem(key, ScrollAlignment.End)
+                case Initial(position) -> model.list.scrollToItem(
+                    key,
+                    if (position == MessageInitialPosition.Start)
+                        ScrollAlignment.Start
+                    else
+                        ScrollAlignment.End
+                )
+            }
+    } finally {
+        model.internalRequest = false
+    }
+    if (!owner.active || model.epoch != epoch)
+        return
+    if (accepted) {
+        request.issued = Some(model.scroll.requestRevision)
+        request.source = Some(source)
+    } else {
+        model.request = None
+        model.present(MessageScrollMode.Holding, 0.0, true)
+    }
+}

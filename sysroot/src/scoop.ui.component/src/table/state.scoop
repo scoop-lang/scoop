@@ -1,0 +1,222 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.collections.HashSet
+
+/** Application-owned query, selection and presentation state; render only reads snapshots. */
+public class DataTableState<Row> public constructor(
+    data: TableData<Row>,
+    public val columns: Array<TableColumn<Row>>,
+    query: TableQuery = TableQuery(),
+    public val selectable: (Row) -> Boolean = { _ -> true },
+    public val onQueryChange: ((TableQuery) -> Unit)? = None
+) {
+    private val computed = state(tableInitial(data, columns, query))
+    private val selection = state(TableSelection([]))
+    private val hidden = state<Array<String>>([])
+    private val sizes = state<Array<TableColumnWidth>>([])
+    public val query: TableQuery get() = computed.value.query
+    public val result: TableResult<Row> get() = computed.value.result
+    public val selectedKeys: Array<ViewKey> get() = selection.value.keys
+    public val hiddenColumns: Array<String> get() = hidden.value
+    public val widths: Array<TableColumnWidth> get() = sizes.value
+
+    public fun replaceData(data: TableData<Row>) {
+        val old = computed.value
+        val next = tableCompute(data, columns, old.query, Some(old))
+        val selected = ArrayList<ViewKey>()
+        for (key in selection.value.keys) {
+            val keep =
+                when (data) {
+                    case Local(source) -> source.indexOfKey(key) != None;
+                    case Provided(_, _) -> true
+                }
+            if (keep)
+                selected.add(key)
+        }
+        if (selected.size != selection.value.keys.size)
+            selection.value = TableSelection(selected.toArray())
+        computed.value = next
+        notify(old.query, next.query)
+    }
+    public fun setQuery(value: TableQuery) {
+        val old = computed.value
+        val nextQuery =
+            if (tableCriteriaEqual(old.query, value))
+                value
+            else
+                TableQuery(value.sorting, value.filters, 0L, value.pageSize)
+        if (old.query == nextQuery)
+            return
+        val next = tableCompute(old.data, columns, nextQuery, Some(old))
+        computed.value = next
+        notify(old.query, next.query)
+    }
+    public fun setPage(index: Long) {
+        setQuery(TableQuery(query.sorting, query.filters, index, query.pageSize))
+    }
+    public fun setPageSize(size: Long) {
+        setQuery(TableQuery(query.sorting, query.filters, 0L, size))
+    }
+    public fun toggleSort(id: String, additive: Boolean = false) {
+        requireComponent(tableColumn(columns, id).sortable, "table column is not sortable")
+        val next = ArrayList<TableSort>()
+        var found = false
+        for (sort in query.sorting) {
+            if (sort.column == id) {
+                found = true
+                if (sort.direction == TableSortDirection.Ascending)
+                    next.add(TableSort(id, TableSortDirection.Descending))
+            } else
+                if (additive)
+                    next.add(sort)
+        }
+        if (!found)
+            next.add(TableSort(id))
+        setQuery(TableQuery(next.toArray(), query.filters, 0L, query.pageSize))
+    }
+    public fun setFilter(id: String, text: String) {
+        tableColumn(columns, id)
+        val next = ArrayList<TableFilter>()
+        for (filter in query.filters)
+            if (filter.column != id)
+                next.add(filter)
+        if (text != "")
+            next.add(TableFilter(id, text))
+        setQuery(TableQuery(query.sorting, next.toArray(), 0L, query.pageSize))
+    }
+    private fun notify(previous: TableQuery, next: TableQuery) {
+        if (previous == next)
+            return
+        when (onQueryChange) {
+            case Some(action) -> action(next);
+            case None -> {}
+        }
+    }
+    public fun isSelected(key: ViewKey): Boolean = selection.value.lookup.contains(key)
+    public fun setSelected(key: ViewKey, value: Boolean) {
+        if (value == isSelected(key))
+            return
+        if (value) {
+            val source = tableDataSource(computed.value.data)
+            val index = source.indexOfKey(key) ?: return
+            if (!selectable(source.rowAt(index)))
+                return
+        }
+        val next = ArrayList<ViewKey>()
+        for (selected in selection.value.keys)
+            if (selected != key)
+                next.add(selected)
+        if (value)
+            next.add(key)
+        selection.value = TableSelection(next.toArray())
+    }
+    public val pageSelectableCount: Long get() {
+        val source = result.rows
+        var count = 0L
+        for (index in 0L ..< source.count)
+            if (selectable(source.rowAt(index)))
+                count += 1L
+        return count
+    }
+    public val pageSelection: CheckState get() {
+        val source = result.rows
+        var total = 0L
+        var selected = 0L
+        for (index in 0L ..< source.count) {
+            if (selectable(source.rowAt(index))) {
+                total += 1L
+                if (isSelected(source.keyAt(index)))
+                    selected += 1L
+            }
+        }
+        return if (selected == 0L)
+            CheckState.Unchecked
+        else
+            if (selected == total)
+                CheckState.Checked
+            else
+                CheckState.Indeterminate
+    }
+    public fun selectPage(value: Boolean) {
+        val source = result.rows
+        val next = ArrayList<ViewKey>()
+        for (key in selection.value.keys) {
+            val index = source.indexOfKey(key)
+            val targeted =
+                when (index) {
+                    case Some(at) -> selectable(source.rowAt(at));
+                    case None -> false
+                }
+            if (!targeted || value)
+                next.add(key)
+        }
+        if (value)
+            for (index in 0L ..< source.count) {
+                val key = source.keyAt(index)
+                if (selectable(source.rowAt(index)) && !isSelected(key))
+                    next.add(key)
+            }
+        selection.value = TableSelection(next.toArray())
+    }
+    public fun isColumnVisible(id: String): Boolean {
+        for (value in hidden.value)
+            if (value == id)
+                return false
+        return true
+    }
+    public fun showColumn(id: String, value: Boolean) {
+        val column = tableColumn(columns, id)
+        if (!column.hideable || isColumnVisible(id) == value)
+            return
+        // Keep one data column available for row content and actions.
+        if (!value && hidden.value.size == columns.size - 1L)
+            return
+        val next = ArrayList<String>()
+        for (item in hidden.value)
+            if (item != id)
+                next.add(item)
+        if (!value)
+            next.add(id)
+        hidden.value = next.toArray()
+    }
+    public fun columnWidth(id: String): Double? {
+        for (value in sizes.value)
+            if (value.column == id)
+                return Some(value.width)
+        return None
+    }
+    public fun resizeColumn(id: String, width: Double) {
+        val column = tableColumn(columns, id)
+        if (!column.resizable)
+            return
+        val nextWidth = column.size.constrain(width)
+        if (columnWidth(id) == Some(nextWidth))
+            return
+        setWidth(id, Some(nextWidth))
+    }
+    public fun resetColumnWidth(id: String) {
+        tableColumn(columns, id)
+        if (columnWidth(id) != None)
+            setWidth(id, None)
+    }
+    private fun setWidth(id: String, width: Double?) {
+        val next = ArrayList<TableColumnWidth>()
+        for (value in sizes.value)
+            if (value.column != id)
+                next.add(value)
+        when (width) {
+            case Some(value) -> next.add(TableColumnWidth(id, value));
+            case None -> {}
+        }
+        sizes.value = next.toArray()
+    }
+}
+
+private class TableSelection(val keys: Array<ViewKey>) {
+    val lookup = HashSet<ViewKey>()
+    init {
+        for (key in keys)
+            lookup.add(key)
+    }
+}

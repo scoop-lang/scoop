@@ -1,0 +1,165 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.component.scrollArea as makeScrollArea
+import scoop.ui.style.*
+
+internal class Gallery(private val model: GalleryModel, scope: ComponentScope): Component(scope) {
+    public override fun render(): View = galleryView(model)
+}
+
+private fun galleryView(model: GalleryModel): View {
+    val palette = model.source.current.value.tokens.palette
+    val entries = model.entries()
+    val current = model.current(entries)
+    val content =
+        when (current) {
+            case Some(value) -> galleryDemo(model, value)
+            case None -> makeColumn {
+                spacing = 12.0
+                add(galleryText(model, "No matching examples", 24.0, 600))
+                add(
+                    galleryText(model, "Try Card, Alert, Button, Input, or Empty.", 14.0, 400, true)
+                )
+            }
+        }
+    return cachedScene(
+        direction(
+            makeFrame(
+                makeColumn {
+                    spacing = 24.0
+                    padding = Insets.all(28.0)
+                    alignment = CrossAlignment.Stretch
+                    add(galleryToolbar(model))
+                    item(
+                        makeRow {
+                            spacing = 32.0
+                            alignment = CrossAlignment.Stretch
+                            add(galleryNavigation(model, entries, current))
+                            item(
+                                makeScrollArea(
+                                    makeFrame(content) { padding = Some(Insets.all(6.0)) }
+                                )
+                            ) {
+                                grow = 1.0
+                                basis = FlexBasis.Fixed(0.0)
+                            }
+                        }
+                    ) {
+                        grow = 1.0
+                        basis = FlexBasis.Fixed(0.0)
+                    }
+                    add(galleryText(model, "Base Nova  /  Native Scoop controls", 12.0, 400, true))
+                }
+            ) { style { background(Some(Paint(palette.background.background))) } },
+            model.direction.value
+        )
+    )
+}
+
+private fun galleryToolbar(model: GalleryModel): View {
+    val colors =
+        if (model.usesSystemColors)
+            "Colors: System"
+        else
+            "Colors: Neutral"
+    val theme =
+        if (model.mode.value == ThemeMode.Light)
+            "Dark theme"
+        else
+            "Light theme"
+    val direction =
+        if (model.direction.value == LayoutDirection.Ltr)
+            "Switch to RTL"
+        else
+            "Switch to LTR"
+    return makeRow {
+        spacing = 12.0
+        alignment = CrossAlignment.Center
+        add(galleryText(model, "Scoop / shadcn", 22.0, 700))
+        item(empty()) { grow = 1.0 }
+        if (model.hasSystemColors)
+            button(colors, { model.toggleColors() }) { variant = ButtonVariant.Outline }
+        button(theme, { model.toggleTheme() }) { variant = ButtonVariant.Outline }
+        button(direction, { model.toggleDirection() }) { variant = ButtonVariant.Outline }
+        button(
+            if (model.reduced.value)
+                "Full motion"
+            else
+                "Reduce motion",
+            { model.toggleMotion() }
+        ) { variant = ButtonVariant.Outline }
+    }
+}
+
+private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current: Demo?): View =
+    makeFrame(
+        makeScrollArea(
+            makeColumn {
+                spacing = 12.0
+                alignment = CrossAlignment.Stretch
+                padding = Insets(4.0, 4.0, 12.0, 4.0)
+                input(model.query) { placeholder = "Search examples..." }
+                for (applications in [true, false]) {
+                    var present = false
+                    for (entry in entries)
+                        if (applicationDemo(entry) == applications)
+                            present = true
+                    if (present)
+                        add(
+                            galleryText(
+                                model,
+                                if (applications)
+                                    "APPLICATIONS"
+                                else
+                                    "COMPONENTS",
+                                11.0,
+                                600,
+                                true
+                            )
+                        )
+                    for (entry in entries)
+                        if (applicationDemo(entry) == applications)
+                            button(demoTitle(entry), { model.selected.value = entry }) {
+                                variant =
+                                    if (current == Some(entry))
+                                        ButtonVariant.Default
+                                    else
+                                        ButtonVariant.Outline
+                                style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
+                            }
+                }
+            }
+        )
+    ) {
+        width = Some(190.0)
+        alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+    }
+
+internal fun galleryText(
+    model: GalleryModel,
+    value: String,
+    size: Double = 14.0,
+    weight: Int = 400,
+    muted: Boolean = false
+): View {
+    val palette = model.source.current.value.tokens.palette
+    return label(value) {
+        style {
+            fontSize = Some(size)
+            this.weight = Some(weight)
+            color =
+                Some(
+                    if (muted)
+                        palette.muted.foreground
+                    else
+                        palette.background.foreground
+                )
+        }
+    }
+}

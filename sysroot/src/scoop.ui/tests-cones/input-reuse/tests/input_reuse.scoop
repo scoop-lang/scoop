@@ -1,0 +1,232 @@
+package scoop.tests.ui.inputreuse
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiInputReuseTest {
+    @Test
+    fun `safe inputs skip while current actions independent state children and subscriptions advance`() {
+        val probe = InputProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        for (row in probe.rows)
+            assertEquals(1, row.unmounts)
+        for (id in 1L ..< 4L) {
+            assertEquals(1, probe.itemMounts[id])
+            assertEquals(1, probe.itemUnmounts[id])
+        }
+    }
+}
+
+internal class InputProbe {
+    val unrelated = state(0)
+    val local = state(0)
+    val leafLocal = state(0)
+    val first = state(10)
+    val second = state(20)
+    val firstBinding = first.binding()
+    val secondBinding = second.binding()
+    val useSecond = state(false)
+    val newRule = state(false)
+    val mutable = state(MutableInput())
+    val items = state<Array<Long>>([1L, 2L])
+    val source = state<ItemSource>(CountingSource(0L))
+    val direction = state(LayoutDirection.Ltr)
+    val firstRule = InputComparison<DisplayInput> { a, b -> a.number == b.number }
+    val secondRule = InputComparison<DisplayInput> { a, b -> a.number == b.number }
+    val shared = state(0)
+    val alternate = state(100)
+    val useAlternate = state(false)
+    val showRows = state(true)
+    val rows = Array<RowRecord>(256L) { _ -> RowRecord() }
+    val itemMounts = MutableArray<Int>(4L) { _ -> 0 }
+    val itemUnmounts = MutableArray<Int>(4L) { _ -> 0 }
+    var acceptedOrder: Array<Long> = []
+    var parent: ReusedParent? = None
+    var binding: CurrentBinding? = None
+    var parentRenders = 0
+    var parentObserved = 0
+    var leafRenders = 0
+    var leafObserved = 0
+    var bindingRenders = 0
+    var bindingObserved = 0
+    var mutableObserved = 0
+    var orderUpdates = 0
+    var lazyUpdates = 0
+    var lazyCount = 0L
+    var clicked = -1
+    var window: Window? = None
+    var step = 0
+    var logicDone = false
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "UI input reuse"
+                            visible = false
+                            size = LogicalSize(240.0, 160.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { mount -> InputScene(this, active, scope = mount) })
+                post(active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"input reuse deadline at ${step}"))
+            else -> {}
+        }
+    }
+    private fun post(active: ActiveApplication) {
+        assertTrue(active.proxy().post { application -> advance(application) })
+    }
+    private fun expectRows(evenRenders: Int, oddRenders: Int, evenValue: Int, oddValue: Int) {
+        for (index in 0L ..< rows.size) {
+            val even = index % 2L == 0L
+            assertEquals(
+                if (even)
+                    evenRenders
+                else
+                    oddRenders,
+                rows[index].renders
+            )
+            assertEquals(
+                if (even)
+                    evenValue
+                else
+                    oddValue,
+                rows[index].observed
+            )
+        }
+    }
+    private fun advance(active: ActiveApplication) {
+        when (step) {
+            case 0 -> {
+                assertEquals(1, parentRenders)
+                assertEquals(1, leafRenders)
+                assertEquals(1, orderUpdates)
+                assertEquals(1, lazyUpdates)
+                expectRows(1, 1, 0, 0)
+                unrelated.value = 1
+                mutable.value.number = 12
+                mutable.value = mutable.value
+                items.value = [2L, 3L, 1L]
+                source.value = CountingSource(3L)
+            }
+            case 1 -> {
+                assertEquals(1, parentRenders)
+                assertEquals(1, leafRenders)
+                assertEquals(1, bindingRenders)
+                assertEquals(1, orderUpdates)
+                assertEquals(1, lazyUpdates)
+                assertEquals(12, mutableObserved)
+                assertEquals(1, itemMounts[3L])
+                parent!!.click()
+                assertEquals(1, clicked)
+                expectRows(1, 1, 0, 0)
+                unrelated.value = 2
+                local.value = 4
+                leafLocal.value = 8
+            }
+            case 2 -> {
+                assertEquals(2, parentRenders)
+                assertEquals(14, parentObserved)
+                assertEquals(2, leafRenders)
+                assertEquals(8, leafObserved)
+                parent!!.click()
+                assertEquals(2, clicked)
+                leafLocal.value = 9
+                unrelated.value = 3
+            }
+            case 3 -> {
+                assertEquals(2, parentRenders)
+                assertEquals(3, leafRenders)
+                assertEquals(9, leafObserved)
+                useSecond.value = true
+            }
+            case 4 -> {
+                assertEquals(2, bindingRenders)
+                assertEquals(20, bindingObserved)
+                binding!!.write(21)
+                first.value = 99
+            }
+            case 5 -> {
+                assertEquals(3, bindingRenders)
+                assertEquals(21, bindingObserved)
+                assertEquals(99, first.value)
+                unrelated.value = 4
+                newRule.value = true
+            }
+            case 6 -> {
+                assertEquals(3, parentRenders)
+                assertEquals(3, leafRenders)
+                parent!!.click()
+                assertEquals(4, clicked)
+                direction.value = LayoutDirection.Rtl
+            }
+            case 7 -> {
+                assertEquals(4, parentRenders)
+                assertEquals(4, leafRenders)
+                assertEquals(2, orderUpdates)
+                assertEquals(2, lazyUpdates)
+                expectRows(2, 2, 0, 0)
+                shared.value = 1
+                shared.value = 2
+            }
+            case 8 -> {
+                expectRows(3, 3, 2, 2)
+                useAlternate.value = true
+            }
+            case 9 -> {
+                expectRows(4, 3, 100, 2)
+                shared.value = 3
+                alternate.value = 101
+            }
+            case 10 -> {
+                expectRows(5, 4, 101, 3)
+                showRows.value = false
+                items.value = [3L, 2L]
+                unrelated.value = 5
+            }
+            case 11 -> {
+                assertEquals(4, parentRenders)
+                assertEquals(2, orderUpdates)
+                for (row in rows)
+                    assertEquals(1, row.unmounts)
+                assertEquals(1, itemUnmounts[1L])
+                shared.value = 4
+                alternate.value = 102
+            }
+            case 12 -> {
+                expectRows(5, 4, 101, 3)
+                logicDone = true
+                window!!.setVisible(true)
+            }
+            else -> fail(Some("unexpected input reuse step"))
+        }
+        step += 1
+        if (!logicDone)
+            post(active)
+    }
+    fun finish(active: ActiveApplication) {
+        assertEquals(2L, acceptedOrder.size)
+        assertEquals(3L, acceptedOrder[0L])
+        assertEquals(2L, acceptedOrder[1L])
+        assertEquals(3L, lazyCount)
+        assertEquals(2, orderUpdates)
+        assertEquals(2, lazyUpdates)
+        finished = true
+        active.requestExit()
+    }
+}

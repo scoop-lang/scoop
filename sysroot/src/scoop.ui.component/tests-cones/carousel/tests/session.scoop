@@ -1,0 +1,205 @@
+package scoop.tests.ui.carousel
+
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class CarouselWindowTest {
+    @Test
+    fun `native carousel preserves slides through snapping dragging cancellation and timer pauses`() {
+        val p = CarouselProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(8, p.mounts);
+            assertEquals(8, p.unmounts)
+            assertEquals(1, p.clicks);
+            assertEquals(3, p.cancels)
+            assertEquals("Persistent slide", p.text.text)
+            assertFalse(p.handle.isAttached);
+            assertFalse(p.viewport.isAttached);
+            assertFalse(p.editor.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"carousel phase=${p.phase}, selected=${p.handle.snapshot.index}, position=${
+                    p.handle.position
+                }, selections=${p.selections}, cancels=${p.cancels}"
+            )
+            reportCarouselFailure(error)
+            for (entry in p.pointerTrace)
+                println(entry)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class CarouselProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val handle = CarouselHandle()
+    val viewport = FocusHandle()
+    val buttons = Array<FocusHandle>(4L) { _ -> FocusHandle() }
+    val editor = FocusHandle()
+    val lead = FocusHandle()
+    val selected = state(0L)
+    val generation = state(0)
+    val text = TextEditorState("Persistent slide")
+    val pointerTrace = ArrayList<String>()
+    var rtl = false
+    var beforeIndex = 0L
+    var phase = 0
+    var rendered = -1
+    var mounts = 0
+    var unmounts = 0
+    var clicks = 0
+    var cancels = 0
+    var selections = 0
+    var beforeAuto = 0
+    var reject = false
+    var loop = false
+    var enabled = true
+    var controlled = true
+    var reordered = false
+    var vertical = false
+    var narrow = false
+    var zero = false
+    var empty = false
+    var gone = false
+    var autoplay = false
+    var motion = false
+    var hidden = false
+    var finished = false
+    var waitAfter = Duration.milliseconds(150L)
+    var next = MonotonicTimeSource.markNow()
+    val deadline = next + Duration.seconds(70L)
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop carousel test";
+                            size = LogicalSize(540.0, 500.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> CarouselScene(this, scope = mount) });
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + waitAfter
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < deadline, Some("carousel timeout"))
+                if (now >= next && settled()) {
+                    waitAfter = Duration.milliseconds(150L)
+                    advanceCarousel(this);
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + waitAfter
+                } else
+                    if (!hidden && !native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 53)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 53;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean =
+        hidden ||
+            (
+                native!!.isFocused &&
+                    rendered >=
+                    generation.value &&
+                    !frames!!.snapshot().required &&
+                    !viewport.isPending &&
+                    !lead.isPending &&
+                    !editor.isPending
+            )
+    fun refresh() {
+        generation.value += 1
+    }
+    fun key(code: Int) {
+        assertTrue(sendSurfaceKey(native!!, code, true));
+        assertTrue(sendSurfaceKey(native!!, code, false))
+    }
+    fun move(x: Double, y: Double) {
+        pointerTrace.add(f"phase ${phase}: send ${x}, ${y}");
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun press(x: Double, y: Double, down: Boolean) {
+        move(x, y);
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun expect(index: Long, position: Double) {
+        assertEquals(index, handle.snapshot.index)
+        assertTrue(
+            abs(handle.position - position) < 1.0e-7,
+            Some(f"expected position ${position}, actual ${handle.position}")
+        )
+    }
+}
+
+private fun reportCarouselFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportCarouselFailure(error.primaryFailure);
+        reportCarouselFailure(error.cleanupFailure)
+    }
+    else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        }
+}

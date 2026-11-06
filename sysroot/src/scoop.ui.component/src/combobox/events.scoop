@@ -1,0 +1,180 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun <T: Equals<T>> comboKey(
+    control: ComboboxControl<T>,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (context.defaultPrevented || !control.props.value.mutable)
+        return
+    val key =
+        when (event) {
+            case Keyboard(key) -> key;
+            else -> return
+        }
+    if (!menuKeyAllowed(key, true))
+        return
+    val input = control.props.value
+    if (input.query.isComposing)
+        return
+    if (key.logicalKey == LogicalKey.Named(NamedKey.Tab) && control.open.value) {
+        context.consume();
+        control.tab(key.modifiers.shift);
+        return
+    }
+    if (key.modifiers.shift)
+        return
+    val logical = key.logicalKey
+    if (
+        !control.open.value &&
+            (control.editor.hasFocus || control.trigger.hasFocus) &&
+            (
+                logical ==
+                    LogicalKey.Named(NamedKey.ArrowDown) ||
+                    logical ==
+                    LogicalKey.Named(NamedKey.ArrowUp)
+            )
+    ) {
+        context.consume()
+        control.show(true, logical == LogicalKey.Named(NamedKey.ArrowUp))
+        return
+    }
+    if (!input.multiple)
+        return
+    val chips = control.chips
+    val rtl = control.owner.layoutDirection == LayoutDirection.Rtl
+    val previous =
+        logical ==
+            LogicalKey.Named(
+                if (rtl)
+                    NamedKey.ArrowRight
+                else
+                    NamedKey.ArrowLeft
+            )
+    val next =
+        logical ==
+            LogicalKey.Named(
+                if (rtl)
+                    NamedKey.ArrowLeft
+                else
+                    NamedKey.ArrowRight
+            )
+    if (control.editor.hasFocus && input.query.text.byteLength == 0L && chips.size > 0L) {
+        if (logical == LogicalKey.Named(NamedKey.Backspace)) {
+            context.consume();
+            control.remove(chips[chips.size - 1L].value);
+            return
+        }
+        if (previous) {
+            context.consume();
+            chips[chips.size - 1L].focus.requestFocus(FocusOrigin.Keyboard);
+            return
+        }
+    }
+    for (index in 0L ..< chips.size) {
+        val chip = chips[index]
+        if (!chip.focus.hasFocus)
+            continue
+        if (
+            logical ==
+                LogicalKey.Named(NamedKey.Backspace) ||
+                logical ==
+                LogicalKey.Named(NamedKey.Delete)
+        ) {
+            context.consume();
+            control.remove(chip.value, true);
+            return
+        }
+        if (
+            previous ||
+                next ||
+                logical ==
+                LogicalKey.Named(NamedKey.Home) ||
+                logical ==
+                LogicalKey.Named(NamedKey.End)
+        ) {
+            context.consume()
+            val target =
+                if (logical == LogicalKey.Named(NamedKey.Home))
+                    0L
+                else
+                    if (logical == LogicalKey.Named(NamedKey.End))
+                        chips.size - 1L
+                    else
+                        if (previous)
+                            index - 1L
+                        else
+                            index + 1L
+            if (target >= chips.size)
+                control.editor.requestFocus(FocusOrigin.Keyboard)
+            else
+                if (target >= 0L)
+                    chips[target].focus.requestFocus(FocusOrigin.Keyboard)
+            return
+        }
+    }
+}
+
+internal class ComboboxRoot<T: Equals<T>>(
+    private val props: Props<ComboboxControl<T>>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.layoutAnchor(props.value.anchor)
+        scope.input.captureHandler = { context, event -> comboKey(props.value, context, event) }
+    }
+    public override fun update(): UiInvalidation {
+        props.value.updated()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val control = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(control, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.anchor(props.value.anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+
+internal class ComboEditorEvents<T: Equals<T>>(
+    private val props: Props<ComboboxControl<T>>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> if (!context.defaultPrevented)
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                        ) -> {
+                            if (!props.value.open.value)
+                                props.value.show()
+                        }
+                        else -> {}
+                    }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

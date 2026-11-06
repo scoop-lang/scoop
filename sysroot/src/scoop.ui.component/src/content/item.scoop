@@ -1,0 +1,102 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ItemVariant {
+    Default, Outline, Muted
+}
+
+public enum ItemSize {
+    Default, Sm, Xs
+}
+
+public enum ItemMediaVariant {
+    Default, Icon, Image
+}
+
+public class ItemProps public constructor(
+    public val content: View? = None,
+    public val title: PanelContent? = None,
+    public val description: PanelContent? = None,
+    public val media: View? = None,
+    public val actions: View? = None,
+    public val header: View? = None,
+    public val footer: View? = None,
+    public val variant: ItemVariant = ItemVariant.Default,
+    public val size: ItemSize = ItemSize.Default,
+    public val mediaVariant: ItemMediaVariant = ItemMediaVariant.Default,
+    public val onClick: (() -> Unit)? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val focusOutline: OutlineStyle? = None,
+    public val states: InteractionStyles = interactionStyles(),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+/** Action presence chooses one complete mount, just as it does for Badge. */
+public class Item public constructor(
+    private val props: Props<ItemProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        return when (input.onClick) {
+            case Some(action) -> component(
+                ItemActionProps(input, action),
+                { current, mount -> ItemAction(current, scope = mount) }
+            )
+            case None -> component(input, { current, mount -> ItemDisplay(current, scope = mount) })
+        }
+    }
+}
+
+private class ItemActionProps(val value: ItemProps, val action: () -> Unit)
+
+private class ItemAction(
+    private val props: Props<ItemActionProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.value.enabled),
+            props.value.value.focus,
+            { props.value.action() }
+        )
+    private val renderer = ItemRenderer(scope)
+    public override fun onMount() {
+        renderer.mount(props.value.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val interaction = control.press.interaction
+        return renderer.render(
+            input.value,
+            interaction,
+            ActionBehavior.Press(control, input.action, input.value.focus)
+        )
+    }
+}
+
+private class ItemDisplay(private val props: Props<ItemProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private val renderer = ItemRenderer(scope)
+    public override fun onMount() {
+        renderer.mount(props.value.theme)
+    }
+    public override fun render(): View =
+        renderer.render(props.value, InteractionState(), ActionBehavior.Passive)
+}
+
+public fun item(configure: ItemBuilder.() -> Unit = {}): View =
+    makeItem(None, ItemSize.Default, configure)
+
+public fun item(content: View, configure: ItemBuilder.() -> Unit = {}): View =
+    makeItem(Some(content), ItemSize.Default, configure)

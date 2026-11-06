@@ -37,6 +37,11 @@ public class InputScope internal constructor(
         owner.checkThread()
         return owner.allows(this)
     }
+    /** Logical admission to both the current focus and pointer domains. */
+    public val isFocusAllowed: Boolean get() {
+        owner.checkThread()
+        return owner.allowsFocus(this)
+    }
     public val activity: InputActivity get() = owner.activityFor(this).value
     public val isHovered: Boolean get() {
         owner.checkThread()

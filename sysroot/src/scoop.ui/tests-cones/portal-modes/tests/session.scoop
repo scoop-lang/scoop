@@ -1,0 +1,261 @@
+package scoop.tests.ui.portal_modes
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class PortalModesTest {
+    @Test
+    fun `live portal modes retain editing and nested priority through discarded frames and interrupted close`() {
+        val probe = ModeProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(2, probe.mounts)
+            assertEquals(2, probe.unmounts)
+            assertEquals(2, probe.closeRequests)
+            assertEquals(2, probe.closes)
+            assertEquals(1, probe.innerCloses)
+            assertEquals(2, probe.discarded)
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal class ModeProbe {
+    val open = state(false)
+    val innerOpen = state(false)
+    val mode = state(OverlayMode.NonModal)
+    val revision = state(0)
+    val layer = OverlayHandle()
+    val inner = OverlayHandle()
+    val focus = Array<FocusHandle>(4L) { _ -> FocusHandle() }
+    var background: InputArea? = None
+    var proxy: InputArea? = None
+    var originalProxy: InputArea? = None
+    var model: TextEditorState? = None
+    var editor: TextEditHost? = None
+    var original: TextEditHost? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var view: ViewProbe? = None
+    var mounts = 0
+    var unmounts = 0
+    var closeRequests = 0
+    var closes = 0
+    var innerCloses = 0
+    var backgroundClicks = 0
+    var committed = -1
+    var phase = 0
+    var waiting = false
+    var finished = false
+    var discard = false
+    var reopenAfterDiscard = false
+    var discarded = 0
+    var frames = 0
+    var paneFrame = -1
+    fun next() {
+        phase += 1
+        revision.value += 1
+    }
+    fun retained() {
+        assertEquals(1, mounts)
+        assertEquals(0, unmounts)
+        assertTrue(editor!! === original!!)
+        assertTrue(proxy!! === originalProxy!!)
+        assertEquals("Ada Lovelace", model!!.text)
+        assertTrue(model!!.canUndo)
+        assertEquals(0, closes)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop dynamic portal modes"
+                            size = LogicalSize(400.0, 260.0)
+                        }
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = host.attach(native, { scope -> ModeRoot(this, scope) })
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+            }
+            case AboutToWait -> if (
+                !finished && !waiting && committed == revision.value && window!!.isFocused
+            )
+                advance(active)
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"portal modes timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    private fun clickBackground(active: ActiveApplication, count: Int) {
+        waiting = true
+        assertTrue(moveSurfacePointer(window!!, 20.0, 210.0))
+        assertTrue(view!!.button(20.0, 210.0, true))
+        assertTrue(view!!.button(20.0, 210.0, false))
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                assertEquals(count, backgroundClicks)
+                assertFalse(focus[0L].hasFocus)
+                waiting = false
+                next()
+            }
+        )
+    }
+    private fun tabCycle(active: ActiveApplication) {
+        waiting = true
+        assertTrue(focus[1L].requestFocus())
+        assertTrue(sendSurfaceKey(window!!, 48, true))
+        assertTrue(sendSurfaceKey(window!!, 48, false))
+        assertTrue(
+            active.proxy().post {
+                owner ->
+                assertTrue(focus[2L].hasFocus)
+                assertTrue(sendSurfaceKey(window!!, 48, true, false, false, true))
+                assertTrue(sendSurfaceKey(window!!, 48, false, false, false, true))
+                assertTrue(
+                    owner.proxy().post {
+                        _ ->
+                        assertTrue(focus[1L].hasFocus)
+                        mode.value = OverlayMode.Modal
+                        waiting = false
+                        next()
+                    }
+                )
+            }
+        )
+    }
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertTrue(focus[0L].hasFocus)
+                open.value = true
+                next()
+            }
+            case 1 -> {
+                assertTrue(focus[0L].hasFocus)
+                assertFalse(proxy!!.focusable)
+                original = editor
+                originalProxy = proxy
+                assertTrue(model!!.replace(Utf8Range(3L, 3L), " Lovelace"))
+                mode.value = OverlayMode.FocusContained
+                discard = true
+                next()
+            }
+            case 2 -> {
+                retained()
+                assertEquals(1, discarded)
+                assertTrue(focus[1L].hasFocus)
+                assertTrue(proxy!!.focusable)
+                assertTrue(background!!.scope.isInputAllowed)
+                assertFalse(background!!.scope.isFocusAllowed)
+                clickBackground(active, 1)
+            }
+            case 3 -> tabCycle(active)
+            case 4 -> {
+                retained()
+                assertTrue(focus[1L].hasFocus)
+                assertFalse(background!!.scope.isInputAllowed)
+                clickBackground(active, 1)
+            }
+            case 5 -> {
+                innerOpen.value = true
+                next()
+            }
+            case 6 -> {
+                assertTrue(focus[3L].hasFocus)
+                mode.value = OverlayMode.NonModal
+                next()
+            }
+            case 7 -> {
+                retained()
+                assertTrue(focus[3L].hasFocus)
+                assertFalse(background!!.scope.isInputAllowed)
+                assertFalse(proxy!!.focusable)
+                mode.value = OverlayMode.FocusContained
+                next()
+            }
+            case 8 -> {
+                assertTrue(focus[3L].hasFocus)
+                assertFalse(background!!.scope.isInputAllowed)
+                mode.value = OverlayMode.Modal
+                next()
+            }
+            case 9 -> {
+                assertTrue(focus[3L].hasFocus)
+                inner.requestClose()
+                assertFalse(background!!.scope.isInputAllowed)
+                mode.value = OverlayMode.NonModal
+                next()
+            }
+            case 10 -> {
+                retained()
+                assertEquals(1, innerCloses)
+                assertTrue(focus[1L].hasFocus)
+                assertTrue(background!!.scope.isInputAllowed)
+                mode.value = OverlayMode.Modal
+                next()
+            }
+            case 11 -> {
+                retained()
+                layer.requestClose()
+                assertFalse(background!!.scope.isInputAllowed)
+                mode.value = OverlayMode.NonModal
+                discard = true
+                reopenAfterDiscard = true
+                next()
+            }
+            case 12 -> {
+                retained()
+                assertEquals(2, discarded)
+                assertEquals(1, closeRequests)
+                assertTrue(layer.isOpen)
+                assertTrue(focus[1L].hasFocus)
+                assertTrue(background!!.scope.isInputAllowed)
+                assertFalse(background!!.scope.isFocusAllowed)
+                layer.requestClose()
+                mode.value = OverlayMode.NonModal
+                next()
+            }
+            case 13 -> {
+                if (closes == 0) {
+                    return
+                }
+                assertEquals(1, closes)
+                assertEquals(1, unmounts)
+                assertTrue(original!!.isClosed)
+                assertTrue(focus[0L].hasFocus)
+                open.value = true
+                next()
+            }
+            case 14 -> {
+                assertEquals(2, mounts)
+                assertFalse(editor!! === original!!)
+                assertEquals("Ada", model!!.text)
+                finished = true
+                ui!!.close()
+                window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected portal mode phase"))
+        }
+    }
+}

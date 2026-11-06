@@ -6,8 +6,8 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class ModalScene(private val probe: ModalProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+internal class ModalScene(private val probe: ModalProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         probe.rootScope = Some(scope)
         assertTrue(
             scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.focus[0L]))).requestFocus()
@@ -30,7 +30,11 @@ internal class ModalScene(private val probe: ModalProbe): Component {
         children.add(layer(0L, [layer(1L), layer(2L)]))
         for (index in 3L ..< 6L)
             children.add(layer(index))
-        return element(revision, { props -> ModalCanvas(probe, props) }, children.toArray())
+        return element(
+            revision,
+            { props, mount -> ModalCanvas(probe, props, scope = mount) },
+            children.toArray()
+        )
     }
     private fun layer(index: Long, children: Array<View> = []): View {
         val modal = index == 1L || index == 4L || (index == 0L && !probe.plainOuter)
@@ -61,17 +65,22 @@ internal class ModalScene(private val probe: ModalProbe): Component {
             ),
             element(
                 PaneProps(index, index == 0L && probe.emptyOuter),
-                { props -> ModalPane(probe, props) },
+                { props, mount -> ModalPane(probe, props, scope = mount) },
                 children
             )
         ) {
             this.options {
                 this.placement = placement
                 this.handle = Some(this @ModalScene.probe.layers[index])
-                this.modal =
+                this.mode =
+                    if (modal)
+                        OverlayMode.Modal
+                    else
+                        OverlayMode.NonModal
+                this.focus =
                     if (modal)
                         Some(
-                            ModalOptions(
+                            OverlayFocusOptions(
                                 initialFocus =
                                     if (index == 0L)
                                         Some(this @ModalScene.probe.focus[3L])
@@ -96,8 +105,12 @@ internal class ModalScene(private val probe: ModalProbe): Component {
     }
 }
 
-private class ModalCanvas(private val probe: ModalProbe, private val props: Props<Int>): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class ModalCanvas(
+    private val probe: ModalProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         for (index in 0L ..< 2L) {
             val area =
                 scope.createArea(focusable = true) {
@@ -108,14 +121,16 @@ private class ModalCanvas(private val probe: ModalProbe, private val props: Prop
             scope.focusTarget(area, FocusOptions(Some(probe.focus[index])))
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints())
             context.placeChild(index, Point(0.0, 0.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(400.0, 260.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(400.0, 260.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         probe.paintOrder = ""
         context.draw { paint -> paint.canvas.clear(Color.White) }
@@ -156,11 +171,12 @@ private struct PaneProps(val index: Long, val empty: Boolean)
 
 private class ModalPane(
     private val probe: ModalProbe,
-    private val props: Props<PaneProps>
-): Element {
+    private val props: Props<PaneProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var panel: InputArea? = None
     private var targets: Array<Long> = []
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = props.value
         val index = input.index
         probe.mounts[index] += 1
@@ -217,7 +233,9 @@ private class ModalPane(
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints())
             context.placeChild(index, Point(0.0, 0.0))
@@ -231,9 +249,9 @@ private class ModalPane(
                 case 4L -> Size(90.0, 60.0)
                 else -> Size(300.0, 180.0)
             }
-        return LayoutMetrics(constraints.constrain(size))
+        return LayoutResult(LayoutMetrics(constraints.constrain(size)), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val index = props.value.index
         probe.paintOrder += index.toString()
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)

@@ -1,0 +1,219 @@
+package scoop.tests.ui.resizable
+
+import scoop.collections.HashMap
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class ResizableWindowTest {
+    @Test
+    fun `native splitters preserve keyed content and constrained state through drag and keyboard cancellation`() {
+        val p = SplitProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(8, p.mounts);
+            assertEquals(8, p.unmounts)
+            assertEquals(11, p.commits);
+            assertEquals(7, p.cancels);
+            assertEquals(1, p.nestedCommits)
+            assertEquals("Persistent editor", p.text.text)
+            for (handle in p.handles)
+                assertFalse(handle.isAttached)
+            assertFalse(p.editor.isAttached);
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"resizable phase=${p.phase}, commits=${p.commits}, cancels=${p.cancels}, mounts=${
+                    p.mounts
+                }"
+            )
+            for (index in 0L ..< p.sizes.value.size) {
+                val value = p.sizes.value[index]
+                println(
+                    f"pane ${index}: fraction=${value.fraction}, collapsed=${
+                        value.collapsed
+                    }, extent=${p.extents[value.key] ?: -1.0}"
+                )
+            }
+            reportSplitFailure(error)
+            for (entry in p.pointerTrace)
+                println(entry)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class SplitProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val sizes = state<Array<ResizableSize>>(splitInitial())
+    val nested = state<Array<ResizableSize>>([])
+    var beforeUnmount: Array<ResizableSize> = []
+    val text = TextEditorState("Persistent editor")
+    val handles = [FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle()]
+    val editor = FocusHandle()
+    val lead = FocusHandle()
+    val generation = state(0)
+    val extents = HashMap<ViewKey, Double>()
+    val pointerTrace = ArrayList<String>()
+    var rendered = -1
+    var phase = 0
+    var mounts = 0
+    var unmounts = 0
+    var commits = 0
+    var nestedCommits = 0
+    var cancels = 0
+    var reject = false
+    var enabled = true
+    var vertical = false
+    var rtl = false
+    var narrow = false
+    var zero = false
+    var gone = false
+    var reordered = false
+    var preventRelease = false
+    var finished = false
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop resizable test";
+                            size = LogicalSize(560.0, 610.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> SplitScene(this, scope = mount) });
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("resizable timeout"))
+                if (settled()) {
+                    splitAdvance(this)
+                    if (phase < 53)
+                        generation.value += 1
+                    phase += 1
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 57)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 57;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean {
+        if (
+            !native!!.isFocused ||
+                rendered <
+                generation.value ||
+                frames!!.snapshot().required ||
+                editor.isPending ||
+                lead.isPending
+        )
+            return false
+        for (handle in handles)
+            if (handle.isPending)
+                return false
+        return true
+    }
+    fun key(code: Int, shift: Boolean = false) {
+        assertTrue(sendSurfaceKey(native!!, code, true, shift = shift))
+        assertTrue(sendSurfaceKey(native!!, code, false, shift = shift))
+    }
+    fun press(x: Double, down: Boolean, y: Double = 170.0) {
+        move(x, y);
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun move(x: Double, y: Double = 170.0) {
+        pointerTrace.add(f"phase ${phase}: send ${x}, ${y}")
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun expect(a: Double, b: Double, c: Double) {
+        val expected = [a, b, c]
+        for (index in 0L ..< 3L) {
+            if (expected[index] == 0.0)
+                continue
+            val key = [ViewKey.Text("a"), ViewKey.Text("b"), ViewKey.Text("c")][index]
+            val actual = extents[key] ?: -1.0
+            assertTrue(
+                abs(expected[index] - actual) < 1.0e-7,
+                Some(f"pane ${index}: expected ${expected[index]}, actual ${actual}")
+            )
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}
+
+internal fun splitInitial(): Array<ResizableSize> =
+    [
+        ResizableSize(ViewKey.Text("a"), 0.25),
+        ResizableSize(ViewKey.Text("b"), 0.5),
+        ResizableSize(ViewKey.Text("c"), 0.25)
+    ]
+
+private fun reportSplitFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportSplitFailure(error.primaryFailure);
+        reportSplitFailure(error.cleanupFailure)
+    }
+    else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "resizable failure")
+}

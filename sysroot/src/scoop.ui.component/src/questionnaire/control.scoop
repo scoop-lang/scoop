@@ -1,0 +1,267 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+internal class QuestionnaireMember(
+    val key: QuestionChoiceKey?,
+    val focus: FocusHandle,
+    val enabled: Boolean,
+    val selected: Boolean,
+    val shortcut: String
+)
+
+internal class QuestionnaireScene(
+    val state: QuestionnaireState,
+    val question: QuestionKey?,
+    val revision: Long,
+    val delivery: Long,
+    val members: Array<QuestionnaireMember>,
+    val editor: TextEditorState?,
+    val inputFocus: FocusHandle,
+    val showsInput: Boolean,
+    val composing: Boolean
+)
+
+internal class QuestionnaireControl(
+    val props: Props<QuestionnaireProps>,
+    private val scope: ComponentScope
+) {
+    private var accepted: QuestionnaireScene? = None
+    private var previousState = props.value.state
+    private var revision = props.value.state.focusRevision
+    private var initial = true
+    private var textRequested = false
+    private var submitting = false
+    private var deliveryPending = false
+    private val delivery = state(0L)
+    val deliveryRevision: Long get() = delivery.value
+    private var usable = false
+    val fallback = FocusHandle()
+    private val continueChord =
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)),
+            ShortcutModifiers(primary = true)
+        )
+    private fun enabled(): Boolean =
+        scope.isMounted && props.value.enabled && !props.value.busy && !submitting
+    fun select(key: QuestionKey, choice: QuestionChoiceKey?) {
+        if (!enabled())
+            return
+        val state = props.value.state
+        val changed =
+            when (choice) {
+                case Some(value) -> state.select(key, value)
+                case None -> state.selectText(key)
+            }
+        if (choice == None && state.usesText(key)) {
+            textRequested = true;
+            scope.requestFrame()
+        }
+        if (changed)
+            props.value.onAnswerChange(key)
+    }
+    fun edited(key: QuestionKey) {
+        if (!enabled())
+            return
+        props.value.state.textEdited(key)
+        props.value.onAnswerChange(key)
+    }
+    fun previous() {
+        if (enabled())
+            props.value.state.previous()
+    }
+    fun skip() {
+        if (!enabled())
+            return
+        val key = props.value.state.activeKey ?: return
+        if (props.value.state.skip())
+            props.value.onAnswerChange(key)
+    }
+    fun proceed() {
+        if (!enabled() || deliveryPending || !props.value.continueEnabled)
+            return
+        val value = props.value
+        val progress = value.state.progress
+        if (progress.position < progress.total) {
+            value.state.next();
+            return
+        }
+        submitting = true
+        try {
+            when (value.state.submit()) {
+                case Some(result) -> {
+                    // A second activation may arrive before the caller's busy prop is rendered.
+                    deliveryPending = true
+                    delivery.value += 1L
+                    value.onSubmit(result)
+                }
+                case None -> {}
+            }
+        } finally {
+            submitting = false
+        }
+    }
+    fun accept(snapshot: QuestionnaireScene, visible: Boolean) {
+        if (
+            !scope.isMounted ||
+                snapshot.state !==
+                props.value.state ||
+                snapshot.question !=
+                props.value.state.activeKey ||
+                snapshot.revision !=
+                props.value.state.focusRevision
+        )
+            return
+        accepted = Some(snapshot)
+        if (snapshot.delivery == delivery.value)
+            deliveryPending = false
+        usable = visible && enabled()
+        if (snapshot.state !== previousState) {
+            previousState = snapshot.state;
+            initial = true;
+            revision = snapshot.revision
+        }
+        val shouldFocus =
+            revision != snapshot.revision || textRequested || (initial && props.value.autoFocus)
+        initial = false
+        revision = snapshot.revision
+        val preferText = textRequested
+        textRequested = false
+        if (!usable || !shouldFocus)
+            return
+        val issue =
+            when (snapshot.question) {
+                case Some(key) -> snapshot.state.issue(key);
+                case None -> None
+            }
+        if (
+            snapshot.showsInput &&
+                (preferText || panelPresent(issue) || snapshot.members.size == 0L)
+        ) {
+            snapshot.inputFocus.requestFocus(FocusOrigin.Keyboard);
+            return
+        }
+        for (member in snapshot.members)
+            if (member.enabled && member.selected) {
+                member.focus.requestFocus(FocusOrigin.Keyboard);
+                return
+            }
+        for (member in snapshot.members)
+            if (member.enabled) {
+                member.focus.requestFocus(FocusOrigin.Keyboard);
+                return
+            }
+        if (snapshot.showsInput)
+            snapshot.inputFocus.requestFocus(FocusOrigin.Keyboard)
+        else
+            fallback.requestFocus(FocusOrigin.Keyboard)
+    }
+    fun key(context: RoutedEventContext, event: InputEvent) {
+        if (context.defaultPrevented || !usable || !enabled())
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value;
+                else -> return
+            }
+        if (key.state != ElementState.Pressed || key.synthetic)
+            return
+        val scene = accepted ?: return
+        if (scene.state !== props.value.state || scene.question != props.value.state.activeKey)
+            return
+        val editing = scene.showsInput && scene.inputFocus.hasFocus
+        val composing = editing && (scene.composing || (scene.editor?.isComposing ?: false))
+        if (continueChord.matches(key)) {
+            context.consume()
+            if (!key.isRepeat && !composing)
+                proceed()
+            return
+        }
+        if (editing || composing || !menuKeyAllowed(key) || !props.value.shortcuts)
+            return
+        val question = scene.question ?: return
+        for (member in scene.members)
+            if (
+                member.enabled &&
+                    member.shortcut !=
+                    "" &&
+                    LogicalKey.Character(member.shortcut).matchesShortcut(key.logicalKey)
+            ) {
+                context.consume()
+                if (!key.isRepeat) {
+                    member.focus.requestFocus(FocusOrigin.Keyboard);
+                    select(question, member.key)
+                }
+                return
+            }
+        for (member in scene.members)
+            if (member.focus.hasFocus)
+                return
+        val forward = key.logicalKey == LogicalKey.Named(NamedKey.ArrowRight)
+        if (forward || key.logicalKey == LogicalKey.Named(NamedKey.ArrowLeft)) {
+            context.consume()
+            if (!key.isRepeat) {
+                if (forward != (scope.layoutDirection == LayoutDirection.Rtl))
+                    proceed()
+                else
+                    previous()
+            }
+        }
+    }
+    fun close() {
+        accepted = None;
+        usable = false;
+        textRequested = false
+        deliveryPending = false
+    }
+}
+
+internal class QuestionnaireEventsProps(
+    val owner: QuestionnaireControl,
+    val scene: QuestionnaireScene
+)
+
+internal class QuestionnaireEvents(
+    private val props: Props<QuestionnaireEventsProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var presented = false
+    init {
+        scope.input.captureHandler = { context, event -> props.value.owner.key(context, event) }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value.owner.props.value
+        scope.input.enabled = presented && input.enabled && !input.busy
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val visible = context.size.width > 0.0 && context.size.height > 0.0
+        context.children()
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    scope.isMounted &&
+                    props.value ===
+                    input
+            ) {
+                presented = visible
+                scope.input.enabled =
+                    presented && input.owner.props.value.enabled && !input.owner.props.value.busy
+                input.owner.accept(input.scene, visible)
+            }
+        }
+    }
+}

@@ -1,0 +1,114 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class MenuRowLayoutProps(
+    val anchor: LayoutAnchor,
+    val link: HoverPopupLink,
+    val open: Binding<Boolean>,
+    val focus: FocusHandle,
+    val hover: HoverOptions,
+    val highlight: (Boolean) -> Unit,
+    val enter: () -> Unit,
+    val submenu: Boolean,
+    val pointerOpen: () -> Unit
+)
+
+internal class MenuRowLayout(
+    private val props: Props<MenuRowLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var hover: Hover? = None
+    private fun refresh() {
+        val input = area!!.scope
+        props.value.highlight(input.activity.hasFocus)
+    }
+    public override fun onMount() {
+        val target = scope.createArea()
+        area = Some(target)
+        scope.routeChildren(target)
+        scope.layoutAnchor(props.value.anchor)
+        val open =
+            binding(
+                { props.value.open.value },
+                {
+                    value ->
+                    if (value)
+                        props.value.pointerOpen()
+                    props.value.open.value = value
+                }
+            )
+        hover = Some(scope.hover(target, open, props.value.hover))
+        props.value.link.bind(hover!!)
+        target.scope.observeActivity { refresh() }
+        target.scope.addEventHandler {
+            context, event ->
+            if (props.value.link.containsContent(context.target))
+                return@addEventHandler
+            when (event) {
+                case Pointer(InputPointerEvent.Entered(_)) -> {
+                    props.value.focus.requestFocus(FocusOrigin.Pointer);
+                    refresh()
+                }
+                case Pointer(InputPointerEvent.Moved(_)) -> props.value.focus.requestFocus(
+                    FocusOrigin.Pointer
+                )
+                case Pointer(InputPointerEvent.Left(_)) -> refresh()
+                else -> {}
+            }
+        }
+        target.scope.addDefaultAction {
+            context, event ->
+            if (!props.value.submenu || props.value.link.containsContent(context.target))
+                return@addDefaultAction
+            val key =
+                when (event) {
+                    case Keyboard(value) -> value;
+                    else -> return@addDefaultAction
+                }
+            if (menuKeyAllowed(key) && menuBackward(key, scope.layoutDirection) == Some(false)) {
+                context.consume();
+                props.value.enter()
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        hover!!.update(
+            binding(
+                { props.value.open.value },
+                {
+                    value ->
+                    if (value)
+                        props.value.pointerOpen()
+                    props.value.open.value = value
+                }
+            ),
+            Some(input.hover)
+        )
+        refresh()
+        return UiInvalidation.Layout
+    }
+    public override fun onUnmount() {
+        props.value.link.unbind(hover!!)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.anchor(props.value.anchor, bounds)
+        context.place(area!!, bounds)
+        context.children()
+    }
+}

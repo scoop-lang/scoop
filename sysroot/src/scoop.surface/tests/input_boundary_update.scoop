@@ -1,0 +1,118 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputBoundaryUpdateTest {
+    @Test
+    fun `mode updates preserve nested priority and disabled boundaries own no activity`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.router.createScope(None) { _, _ -> }
+            val child = rig.router.createScope(Some(parent)) { _, _ -> }
+            val outside = rig.area("outside", true)
+            val inner = rig.area("inner", true, parent = Some(child))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, outside, Rect(0.0, 0.0, 50.0, 40.0))
+                frame.place(canvas, inner, Rect(100.0, 0.0, 50.0, 40.0))
+            }
+            InputBoundary(parent, enabled = false).use {
+                outer ->
+                assertFalse(parent.activity.hasBoundary)
+                assertTrue(outside.requestFocus())
+                InputBoundary(child).use {
+                    nested ->
+                    assertFalse(outside.hasFocus)
+                    assertTrue(inner.requestFocus())
+                    for (mode in [InputBoundaryMode.FocusOnly, InputBoundaryMode.AllInput]) {
+                        outer.update(mode, true)
+                        assertTrue(nested.isCurrent)
+                        assertFalse(outer.isCurrent)
+                        assertTrue(inner.hasFocus)
+                        assertFalse(outside.scope.isInputAllowed)
+                    }
+                    nested.update(InputBoundaryMode.AllInput, false)
+                    assertTrue(outer.isCurrent)
+                    assertFalse(child.activity.hasBoundary)
+                    outer.update(InputBoundaryMode.FocusOnly, true)
+                    assertTrue(outside.scope.isInputAllowed)
+                    assertFalse(outside.requestFocus())
+                    assertTrue(inner.hasFocus)
+                    outer.update(InputBoundaryMode.FocusOnly, false)
+                    assertFalse(parent.activity.hasBoundary)
+                    assertTrue(outside.requestFocus())
+                    assertFalse(inner.hasFocus)
+                    outer.update(InputBoundaryMode.AllInput, false)
+                    assertTrue(outside.hasFocus)
+                    assertFalse(outer.enabled)
+                    assertEquals(InputBoundaryMode.AllInput, outer.mode)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `focus-only updates preserve pointer sessions while changing the pointer domain cancels them`() {
+        InputRig().use {
+            rig ->
+            val outside = rig.area("outside")
+            val parent = rig.router.createScope(None) { _, _ -> }
+            rig.frame { frame, canvas -> frame.place(canvas, outside, Rect(0.0, 0.0, 50.0, 40.0)) }
+            InputBoundary(parent, enabled = false).use {
+                barrier ->
+                rig.move(10.0, 10.0)
+                rig.button(10.0, 10.0, ElementState.Pressed)
+                rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+                assertTrue(outside.scope.activity.hasPress)
+                assertTrue(outside.scope.activity.hasScrollRoute)
+                barrier.update(InputBoundaryMode.FocusOnly, true)
+                assertTrue(outside.scope.activity.hasPress)
+                assertTrue(outside.scope.activity.hasScrollRoute)
+                rig.log.events.clear()
+                barrier.update(InputBoundaryMode.AllInput, true)
+                assertFalse(outside.scope.activity.hasPress)
+                assertFalse(outside.scope.activity.hasScrollRoute)
+                var pressCancels = 0
+                var scrollCancels = 0
+                for (record in rig.log.events) {
+                    when (record.event) {
+                        case Pointer(InputPointerEvent.Cancelled(_, _)) -> pressCancels += 1
+                        case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> scrollCancels += 1
+                        else -> {}
+                    }
+                }
+                assertEquals(1, pressCancels)
+                assertEquals(1, scrollCancels)
+                barrier.update(InputBoundaryMode.AllInput, false)
+                assertTrue(outside.scope.isInputAllowed)
+            }
+        }
+    }
+
+    @Test
+    fun `focus capability can change on a stable area while active text input remains focusable`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("proxy")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 40.0)) }
+            assertFalse(area.requestFocus())
+            area.focusable = true
+            assertTrue(area.requestFocus())
+            area.focusable = false
+            assertFalse(area.hasFocus)
+            assertFalse(area.canFocus)
+            area.textInput = true
+            assertTrue(area.focusable)
+            assertFailsWith<IllegalArgumentException> { area.focusable = false }
+            assertTrue(area.focusable)
+            assertTrue(area.textInput)
+            area.textInput = false
+            area.focusable = false
+            area.close()
+            assertFailsWith<IllegalStateException> { area.focusable = true }
+        }
+    }
+}

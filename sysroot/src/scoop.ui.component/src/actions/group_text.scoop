@@ -1,0 +1,168 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun groupText(
+    content: PanelContent,
+    fonts: FontCollection?,
+    style: StyleOverride,
+    group: GroupPosition?,
+    theme: Theme
+): View {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val base =
+        theme.tokens.typography.body.copy {
+            this.lineHeight = Some(20.0 / 14.0)
+            this.weight = 500
+            this.color = theme.tokens.palette.background.foreground
+        }
+    val options =
+        surfaceOptions {
+            this.suggestedSize = Some(Size(0.0, 0.0))
+            this.minimumSize = Some(Size(0.0, 0.0))
+            this.padding = Some(Insets(10.0 * density, 0.0, 10.0 * density, 0.0))
+            this.style =
+                styleOverride {
+                    this.background(Some(Paint(theme.tokens.palette.muted.background)))
+                    this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
+                    this.corners(Corners.all(theme.tokens.corners.large))
+                }.then(style)
+        }
+    return element(
+        GroupTextProps(theme, options, group, groupEndRadius(theme, style)),
+        { current, mount -> GroupTextInk(current, scope = mount) },
+        [panelCaption(content, base, fonts)]
+    )
+}
+
+private class GroupTextProps(
+    val theme: Theme,
+    val options: SurfaceOptions,
+    val group: GroupPosition?,
+    val endRadius: Double?
+)
+
+private class GroupTextInk(
+    private val props: Props<GroupTextProps>,
+    scope: ComponentScope
+): Element<SurfaceGeometry>(scope) {
+    private var painters: ThemePainterCache? = None
+    private var content: StylePainter? = None
+    public override fun onMount() {
+        painters = Some(scope.resource { ThemePainterCache() })
+        content = Some(scope.resource { StylePainter() })
+    }
+    public override fun update(): UiInvalidation {
+        painters!!.get(props.value.theme)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SurfaceGeometry
+    > {
+        val input = props.value
+        val visual = SurfaceVisual(SurfaceKind.Plain)
+        val metrics =
+            groupSurfaceMetrics(
+                input.theme.surfaceMetrics(visual, input.options, context.layoutDirection),
+                input.group,
+                input.endRadius,
+                context.layoutDirection
+            )
+        val insets = metrics.contentInsets.totals()
+        val natural = context.measureChild(0L, Constraints())
+        val width = constraints.constrain(Size(natural.size.width + insets.width, 0.0)).width
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(
+                    maxWidth =
+                        Some(upperBound(natural.size.width, lowerBound(width - insets.width, 0.0))),
+                    maxHeight = insetMaximum(constraints.maxHeight, insets.height)
+                )
+            )
+        val size = constraints.constrain(Size(width, child.size.height + insets.height))
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        val surface =
+            groupSurfaceGeometry(
+                input.theme.surfaceGeometry(bounds, visual, input.options, context.layoutDirection),
+                metrics,
+                input.group,
+                context.layoutDirection
+            )
+        val origin =
+            Point(
+                surface.content.x + (surface.content.width - child.size.width) / 2.0,
+                surface.content.y + (surface.content.height - child.size.height) / 2.0
+            )
+        context.placeChild(0L, origin)
+        return LayoutResult(offsetMetrics(child, size, origin.y), surface)
+    }
+    public override fun scene(context: SceneContext, surface: SurfaceGeometry) {
+        val visual = SurfaceVisual(SurfaceKind.Plain)
+        val painter = painters!!.get(props.value.theme)
+        if (surface.opacity < 1.0)
+            context.saveLayer(surface.opacity)
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, surface, visual, SurfaceLayer.Background)
+        }
+        content!!.scene(context, surface.bounds, surface.contentStyle) {
+            children -> children.children()
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, surface, visual, SurfaceLayer.Foreground)
+        }
+        if (surface.opacity < 1.0)
+            context.restore()
+    }
+}
+
+internal fun groupSeparator(axis: FlexAxis, color: Color): View =
+    element(
+        GroupSeparatorProps(axis, color),
+        { current, mount -> GroupSeparator(current, scope = mount) }
+    )
+
+private struct GroupSeparatorProps(val axis: FlexAxis, val color: Color)
+
+private class GroupSeparator(
+    private val props: Props<GroupSeparatorProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (props.value.axis == FlexAxis.Horizontal)
+                        Size(1.0, constraints.minHeight)
+                    else
+                        Size(constraints.minWidth, 1.0)
+                )
+            ),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val size = context.size
+        val line =
+            if (input.axis == FlexAxis.Horizontal)
+                Rect(
+                    0.0,
+                    upperBound(1.0, size.height / 2.0),
+                    size.width,
+                    lowerBound(size.height - 2.0, 0.0)
+                )
+            else
+                Rect(
+                    upperBound(1.0, size.width / 2.0),
+                    0.0,
+                    lowerBound(size.width - 2.0, 0.0),
+                    size.height
+                )
+        context.draw { paint -> paint.canvas.drawRect(line, Paint(input.color)) }
+    }
+}

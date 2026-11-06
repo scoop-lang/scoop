@@ -113,7 +113,7 @@ internal class TextProbe(val fonts: FontCollection) {
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 view = Some(observeWindow(native))
-                ui = Some(host.attach(native, { TextScene(this) }))
+                ui = host.attach(native, { mount -> TextScene(this, scope = mount) })
                 deadline(application)
             }
             case AboutToWait -> advance(application)
@@ -188,7 +188,7 @@ internal class TextProbe(val fonts: FontCollection) {
                     for (item in layout!!.inlineObjects)
                         assertEquals(None, item.box)
                     assertEquals(hiddenPaints, inks[0L].paints)
-                    assertTrue(inks[0L].scope!!.isMounted)
+                    assertTrue(inks[0L].scope.isMounted)
                     assertFalse(inks[0L].area!!.hasFocus)
                     assertFalse(inks[0L].area!!.requestFocus())
                     counters[0L].count = 2

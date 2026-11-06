@@ -105,7 +105,11 @@ private class ShowcaseProbe {
                 model.systemTheme(native.observedTheme)
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                host.attach(native, { ObservedShowcase(this) })
+                host.attach(
+                    native,
+                    { mount -> ObservedShowcase(this, scope = mount) },
+                    fonts = Some(fonts)
+                )
                 waitFor(active, 25000L)
             }
             case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)
@@ -127,7 +131,7 @@ private class ShowcaseProbe {
     private fun ready(): Boolean {
         if (paints <= afterPaint || pixel < 0L)
             return false
-        val color = model.source.current.value.tokens.palette.canvas
+        val color = model.source.current.value.tokens.palette.background.background
         val channels = [pixel % 256L, pixel / 256L % 256L, pixel / 65536L]
         val values = [color.red, color.green, color.blue]
         for (i in 0L until 3L) {
@@ -252,29 +256,36 @@ private class ShowcaseProbe {
     }
 }
 
-private class ObservedShowcase(private val probe: ShowcaseProbe): Component {
+private class ObservedShowcase(private val probe: ShowcaseProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
         element(
-            { ShowcaseCanvas(probe) },
+            { mount -> ShowcaseCanvas(probe, scope = mount) },
             [
                 component(
                     {
+                        mount ->
                         probe.creates += 1
-                        Showcase(probe.model, probe.fonts)
+                        Showcase(probe.model, scope = mount)
                     }
                 )
             ]
         )
 }
 
-private class ShowcaseCanvas(private val probe: ShowcaseProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ShowcaseCanvas(private val probe: ShowcaseProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         probe.paints += 1
         context.draw {

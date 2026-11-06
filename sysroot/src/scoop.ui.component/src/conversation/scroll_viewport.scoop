@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class MessageViewportInput(
+    val props: MessageScrollerProps,
+    val density: Double,
+    val epoch: Long,
+    val presentation: MessagePresentation
+)
+
+/** Observes input and accepted child frames without owning another scroll or layout engine. */
+internal class MessageViewport(
+    private val props: Props<MessageViewportInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var bound: MessageScrollState? = None
+    private var intent: Closeable? = None
+    private var presented = false
+    private val area = scope.createArea { context, event -> inputEvent(context, event) }
+    init {
+        area.scope.captureHandler = { context, event -> inputEvent(context, event) }
+        scope.routeChildren(area)
+    }
+    val active: Boolean get() = scope.isMounted
+    val input: MessageViewportInput get() = props.value
+    public override fun update(): UiInvalidation {
+        val next = input.props.state
+        val same =
+            when (bound) {
+                case Some(old) -> old === next;
+                case None -> false
+            }
+        if (!same) {
+            intent?.close()
+            bound?.unbind(this)
+            next.bind(this)
+            bound = Some(next)
+            intent = Some(next.scroll.observeIntent { event -> observeIntent(event) })
+        }
+        area.scope.enabled = input.props.enabled && input.presentation.ready && presented
+        return UiInvalidation.Layout
+    }
+    fun cancelPosition() {
+        if (!active)
+            return
+        val model = input.props.state
+        model.internalRequest = true
+        try {
+            model.scroll.beginLayoutRequest()
+        }
+        finally {
+            model.internalRequest = false
+        }
+    }
+    private fun observeIntent(event: ScrollIntent) {
+        val model = input.props.state
+        if (!active || model.internalRequest)
+            return
+        when (event) {
+            case LayoutCorrection(_) -> return
+            case User(revision) -> model.userRevision = Some(revision)
+            case Programmatic(_) -> model.userRevision = None
+        }
+        model.epoch += 1L
+        model.request = None
+        model.present(MessageScrollMode.Holding, model.presentation.value.padding, true)
+        model.changed()
+    }
+    private fun inputEvent(context: RoutedEventContext, event: InputEvent) {
+        if (!active)
+            return
+        val model = input.props.state
+        when (event) {
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> model.selecting = false
+            else -> {}
+        }
+        if (context.phase != RoutedPhase.Capture && context.phase != RoutedPhase.Target)
+            return
+        when (event) {
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+            ) -> {
+                model.selecting = true
+                model.hold()
+            }
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+            ) -> model.selecting = false
+            case Keyboard(key) -> {
+                if (key.state == ElementState.Pressed)
+                    model.hold()
+            }
+            else -> {}
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val frame = input
+        val revision = frame.props.state.scroll.requestRevision
+        val visible =
+            frame.presentation.ready && context.size.width > 0.0 && context.size.height > 0.0
+        if (frame.presentation.ready) {
+            context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+            context.children()
+        } else {
+            context.saveLayer(0.0)
+            context.children()
+            context.restore()
+        }
+        context.onFrameComplete {
+            result -> if (
+                result.submission == FrameSubmission.Accepted && active && props.value === frame
+            ) {
+                presented = visible
+                area.scope.enabled = frame.props.enabled && presented
+                if (
+                    frame.epoch ==
+                        frame.props.state.epoch &&
+                        revision ==
+                        frame.props.state.scroll.requestRevision
+                )
+                    messageAccepted(this, frame)
+            }
+        }
+    }
+    public override fun onUnmount() {
+        try {
+            intent?.close()
+        }
+        finally {
+            intent = None
+            bound?.unbind(this)
+            bound = None
+        }
+    }
+}

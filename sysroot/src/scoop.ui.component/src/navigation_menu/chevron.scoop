@@ -1,0 +1,93 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+
+internal class NavChevronProps(
+    val opened: Boolean,
+    val enabled: Boolean,
+    val size: Double,
+    val color: Color,
+    val transition: AnimationSpec?,
+    val vertical: Boolean
+)
+
+internal class NavChevron(
+    private val props: Props<NavChevronProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var progress: Animatable<Double>? = None
+    private var chevron: Path? = None
+    private var visible = false
+    public override fun onMount() {
+        progress =
+            Some(
+                scope.animation(
+                    if (props.value.opened)
+                        1.0
+                    else
+                        0.0
+                )
+            )
+        chevron =
+            Some(
+                scope.resource {
+                    path {
+                        moveTo(Point(6.0, 9.0));
+                        lineTo(Point(12.0, 15.0));
+                        lineTo(Point(18.0, 9.0))
+                    }
+                }
+            )
+    }
+    public override fun update(): UiInvalidation {
+        changeProgress(
+            progress!!,
+            if (props.value.opened)
+                1.0
+            else
+                0.0,
+            if (props.value.enabled)
+                props.value.transition
+            else
+                None
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val turn =
+            progress!!.value *
+                3.141592653589793 +
+                if (!input.vertical)
+                    0.0
+                else
+                    if (context.layoutDirection == LayoutDirection.Rtl)
+                        1.5707963267948966
+                    else
+                        -1.5707963267948966
+        context.draw {
+            paint ->
+            visible = loadingVisible(paint.canvas, bounds, input.color.alpha)
+            if (visible)
+                paint.canvas.withState {
+                    canvas ->
+                    canvas.scale(bounds.width / 24.0, bounds.height / 24.0)
+                    canvas.translate(12.0, 12.0);
+                    canvas.rotate(turn);
+                    canvas.translate(-12.0, -12.0)
+                    canvas.drawPath(chevron!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
+                }
+        }
+        loadingParticipation(context, progress!!, visible)
+    }
+}

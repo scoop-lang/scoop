@@ -79,35 +79,11 @@ public class RangeSpec public constructor(
         validate(values)
         requireComponent(index >= 0L && index < values.size, "range thumb index is out of bounds")
         requireComponent(value.isFinite(), "range value must be finite")
-        val selected =
-            when (steps) {
-                case Some(last) -> {
-                    val low =
-                        if (index == 0L)
-                            0L
-                        else
-                            stepIndex(values[index - 1L]) + gapSteps
-                    val high =
-                        if (index + 1L == values.size)
-                            last
-                        else
-                            stepIndex(values[index + 1L]) - gapSteps
-                    fromStep(min(max(stepIndex(value), low), high))
-                }
-                case None -> {
-                    val low =
-                        if (index == 0L)
-                            minimum
-                        else
-                            values[index - 1L] + minimumGap
-                    val high =
-                        if (index + 1L == values.size)
-                            maximum
-                        else
-                            values[index + 1L] - minimumGap
-                    bound(value, low, high)
-                }
-            }
+        return moveValidated(values, index, value)
+    }
+    internal fun moveValidated(values: Array<Double>, index: Long, value: Double): Array<Double> {
+        val limits = thumbLimits(values, index)
+        val selected = bound(clamp(value), limits.minimum, limits.maximum)
         return Array<Double>(values.size) {
             position -> if (position == index)
                 selected
@@ -115,6 +91,33 @@ public class RangeSpec public constructor(
                 values[position]
         }
     }
+    internal fun thumbLimits(values: Array<Double>, index: Long): ThumbLimits =
+        when (steps) {
+            case Some(last) -> ThumbLimits(
+                fromStep(
+                    if (index == 0L)
+                        0L
+                    else
+                        stepIndex(values[index - 1L]) + gapSteps
+                ),
+                fromStep(
+                    if (index + 1L == values.size)
+                        last
+                    else
+                        stepIndex(values[index + 1L]) - gapSteps
+                )
+            )
+            case None -> ThumbLimits(
+                if (index == 0L)
+                    minimum
+                else
+                    values[index - 1L] + minimumGap,
+                if (index + 1L == values.size)
+                    maximum
+                else
+                    values[index + 1L] - minimumGap
+            )
+        }
     public fun validate(values: Array<Double>) {
         val count =
             if (values.size == 0L)
@@ -147,11 +150,26 @@ public class RangeSpec public constructor(
                             "range thumbs violate their minimum gap"
                         )
                 }
-                case None -> if (index > 0L)
+                case None -> if (index > 0L) {
+                    val previous = values[index - 1L]
                     requireComponent(
-                        value - values[index - 1L] >= minimumGap,
+                        value >=
+                            previous &&
+                            (minimumGap == 0.0 || value > previous) &&
+                            (
+                                value -
+                                    previous >=
+                                    minimumGap ||
+                                    value ==
+                                    previous +
+                                    minimumGap ||
+                                    previous ==
+                                    value -
+                                    minimumGap
+                            ),
                         "range thumbs violate their minimum gap"
                     )
+                }
             }
         }
     }
@@ -203,3 +221,5 @@ private fun rangeGapSteps(quotient: Double): Long {
             ceil(quotient)
     )
 }
+
+internal struct ThumbLimits(val minimum: Double, val maximum: Double)

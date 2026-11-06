@@ -1,0 +1,132 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+
+public struct QuestionKey(val value: String): Equals<QuestionKey>, Hash {
+    public override operator fun equals(other: QuestionKey): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct QuestionChoiceKey(val value: String): Equals<QuestionChoiceKey>, Hash {
+    public override operator fun equals(other: QuestionChoiceKey): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public enum QuestionKind {
+    Single, Multiple, Freeform
+}
+
+public class QuestionChoice public constructor(
+    public val key: QuestionChoiceKey,
+    public val title: String,
+    public val description: String = "",
+    public val enabled: Boolean = true
+)
+
+public class QuestionFreeform public constructor(
+    public val title: String = "Other",
+    public val placeholder: String = "Type your answer",
+    public val allowBlank: Boolean = false
+)
+
+public enum QuestionAnswer {
+    Choice(QuestionChoiceKey), Text(String)
+}
+
+public enum QuestionnaireAnswer {
+    Unanswered, Skipped, Single(QuestionAnswer), Multiple(Array<QuestionAnswer>)
+}
+
+public class Question public constructor(
+    public val key: QuestionKey,
+    public val title: String,
+    public val kind: QuestionKind,
+    public val description: String = "",
+    public val required: Boolean = true,
+    public val enabled: Boolean = true,
+    public val choices: Array<QuestionChoice> = [],
+    public val freeform: QuestionFreeform? = None,
+    public val validate: (QuestionnaireAnswer) -> String? = { _ -> None }
+) {
+    init {
+        val seen = HashSet<QuestionChoiceKey>()
+        for (choice in choices)
+            requireComponent(seen.add(choice.key), "question choice keys must be unique")
+        requireComponent(
+            if (kind == QuestionKind.Freeform)
+                choices.size == 0L && panelPresent(freeform)
+            else
+                choices.size > 0L || panelPresent(freeform),
+            "question kind requires matching choices or freeform"
+        )
+    }
+}
+
+/** Text snapshots are made only for persistence; live editing has one TextEditorState. */
+public class QuestionDraft public constructor(
+    public val key: QuestionKey,
+    public val kind: QuestionKind,
+    public val choices: Array<QuestionChoiceKey> = [],
+    public val useText: Boolean = false,
+    public val text: String? = None,
+    public val skipped: Boolean = false
+)
+
+public class QuestionnaireSnapshot public constructor(
+    public val drafts: Array<QuestionDraft>,
+    public val active: QuestionKey? = None
+)
+
+public class QuestionResponse public constructor(
+    public val key: QuestionKey,
+    public val answer: QuestionnaireAnswer
+)
+
+public class QuestionnaireResult public constructor(public val answers: Array<QuestionResponse>)
+
+public enum QuestionnaireIssueKind {
+    AnswerRequired, TextRequired, Message(String)
+}
+
+public class QuestionnaireIssue public constructor(
+    public val key: QuestionKey,
+    public val kind: QuestionnaireIssueKind
+)
+
+public class QuestionnaireError public constructor(
+    public val key: QuestionKey,
+    public val text: String
+)
+
+public struct QuestionnaireProgress(val position: Long, val total: Long)
+
+internal fun questionHasChoice(question: Question, key: QuestionChoiceKey): Boolean {
+    for (choice in question.choices)
+        if (choice.key == key && choice.enabled)
+            return true
+    return false
+}
+
+internal fun questionContains(keys: Array<QuestionChoiceKey>, key: QuestionChoiceKey): Boolean {
+    for (value in keys)
+        if (value == key)
+            return true
+    return false
+}
+
+internal fun questionFirst(records: Array<QuestionRecord>): QuestionKey? {
+    for (record in records)
+        if (record.question.enabled)
+            return Some(record.question.key)
+    return None
+}
+
+internal fun questionRecords(questions: Array<Question>): Array<QuestionRecord> {
+    val seen = HashSet<QuestionKey>()
+    return Array<QuestionRecord>(questions.size) {
+        index ->
+        val question = questions[index]
+        requireComponent(seen.add(question.key), "question keys must be unique")
+        QuestionRecord(question)
+    }
+}

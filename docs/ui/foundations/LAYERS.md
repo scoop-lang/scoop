@@ -52,7 +52,7 @@ Portal 的逻辑位置按普通 empty 的约束规则返回占位 metrics，不�
 
 ## 4. 同窗口模态
 
-模态是 `InputBoundary + FocusScope + Layer` 的组合，遮罩只是外观。公开入口为 PortalOptions.modal = Some(ModalOptions(initialFocus=None, restoreFocus=true))，一次 Portal 挂载拥有内部模态会话。循环焦点组包含一个不可命中、tabStop=false 的窗口视口区域，供无子目标时程序化聚焦；不用另一套公开 Layer 或 ModalScope 管理器。模态必须同时做到：
+模态是 `InputBoundary + FocusScope + Layer` 的组合，遮罩只是外观。公开入口为 PortalOptions.mode = OverlayMode.Modal，focus = Some(OverlayFocusOptions(initialFocus=None, restoreFocus=true))，一次 Portal 挂载拥有内部模态会话。循环焦点组包含一个不可命中、tabStop=false 的窗口视口区域，供无子目标时程序化聚焦；不用另一套公开 Layer 或 ModalScope 管理器。模态必须同时做到：
 
 - 指针不能命中背景，包括背景已经捕获的按下序列；激活屏障时向旧路径发送 Cancelled，不补发 click。
 - Tab／Shift+Tab 和组导航受当前域限制；背景的程序化 focus 请求也不能越过域。

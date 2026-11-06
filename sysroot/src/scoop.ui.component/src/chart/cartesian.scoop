@@ -1,0 +1,349 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun chartCartesian(plan: ChartPlan, size: Size): ChartGeometry {
+    val input = plan.input
+    val prepared = plan.prepared
+    val a = plan.appearance
+    val d = a.density
+    val horizontal = input.orientation == Orientation.Horizontal
+    val rtl = a.direction == LayoutDirection.Rtl
+    val count = plan.snapshot.data.datums.size
+    val labels = ArrayList<ChartLabel>()
+    val grid = ArrayList<ChartGrid>()
+    val valueTicks = chartTicks(prepared.yRange, input.yAxis.tickCount)
+    var valueWidth = 0.0
+    val valueLabels =
+        Array<String>(valueTicks.size) { i -> chartFormat(input.yAxis, valueTicks[i]) }
+    for (text in valueLabels)
+        valueWidth = lowerBound(valueWidth, a.measure(text).width)
+    var categoryWidth = 0.0
+    for (datum in plan.snapshot.data.datums)
+        categoryWidth = lowerBound(categoryWidth, a.measure(datum.label).width)
+    val line = a.measure("0").height
+    val side =
+        if (horizontal) {
+            if (input.xAxis.shown)
+                upperBound(categoryWidth, size.width / 3.0) + 12.0 * d
+            else
+                12.0 * d
+        } else
+            if (input.yAxis.shown)
+                valueWidth + 12.0 * d
+            else
+                12.0 * d
+    val bottom =
+        if (
+            if (horizontal)
+                input.yAxis.shown
+            else
+                input.xAxis.shown
+        )
+            line + 12.0 * d
+        else
+            12.0 * d
+    val top =
+        if (input.labels)
+            line + 12.0 * d
+        else
+            12.0 * d
+    val plot =
+        Rect(
+            if (rtl)
+                12.0 * d
+            else
+                side,
+            top,
+            lowerBound(size.width - side - 12.0 * d, 0.0),
+            lowerBound(size.height - top - bottom, 0.0)
+        )
+    if (plot.width == 0.0 || plot.height == 0.0)
+        return ChartGeometry(size, plot, [], [], [])
+    val extent =
+        if (horizontal)
+            plot.height
+        else
+            plot.width
+    val band =
+        if (count > 0L)
+            extent / count.toDouble()
+        else
+            extent
+    fun category(index: Long): Double {
+        val unit =
+            if (input.xAxis.kind == ChartAxisKind.Category)
+                (index.toDouble() + 0.5) / lowerBound(count.toDouble(), 1.0)
+            else
+                prepared.xRange.unit(prepared.x[index])
+        return if (horizontal)
+            plot.y + unit * plot.height
+        else
+            plot.x +
+                (
+                    if (rtl)
+                        1.0 - unit
+                    else
+                        unit
+                ) *
+                plot.width
+    }
+    fun value(number: Double): Double {
+        val unit = prepared.yRange.unit(number)
+        return if (horizontal)
+            plot.x +
+                (
+                    if (rtl)
+                        1.0 - unit
+                    else
+                        unit
+                ) *
+                plot.width
+        else
+            plot.y + (1.0 - unit) * plot.height
+    }
+    for (at in 0L ..< valueTicks.size) {
+        val text = valueLabels[at]
+        val measured = a.measure(text)
+        val position = value(valueTicks[at])
+        if (input.yAxis.grid)
+            grid.add(
+                if (horizontal)
+                    ChartGrid(Point(position, plot.y), Point(position, plot.y + plot.height))
+                else
+                    ChartGrid(Point(plot.x, position), Point(plot.x + plot.width, position))
+            )
+        if (input.yAxis.shown)
+            labels.add(
+                ChartLabel(
+                    text,
+                    if (horizontal)
+                        Point(
+                            chartClamp(
+                                position - measured.width / 2.0,
+                                0.0,
+                                lowerBound(size.width - measured.width, 0.0)
+                            ),
+                            plot.y + plot.height + 8.0 * d
+                        )
+                    else
+                        Point(
+                            if (rtl)
+                                plot.x + plot.width + 8.0 * d
+                            else
+                                plot.x - measured.width - 8.0 * d,
+                            position - measured.height / 2.0
+                        )
+                )
+            )
+    }
+    if (input.xAxis.kind == ChartAxisKind.Category) {
+        val stride =
+            lowerBound(
+                ceil(
+                    (
+                        (
+                            if (horizontal)
+                                line
+                            else
+                                categoryWidth
+                        ) +
+                            8.0 *
+                            d
+                    ) /
+                        lowerBound(band, 1.0)
+                ),
+                1.0
+            ).toLong()
+        for (at in 0L ..< count)
+            if (at % stride == 0L) {
+                val text = plan.snapshot.data.datums[at].label
+                val measured = a.measure(text)
+                val position = category(at)
+                if (input.xAxis.grid)
+                    grid.add(
+                        if (horizontal)
+                            ChartGrid(Point(plot.x, position), Point(plot.x + plot.width, position))
+                        else
+                            ChartGrid(
+                                Point(position, plot.y),
+                                Point(position, plot.y + plot.height)
+                            )
+                    )
+                if (input.xAxis.shown)
+                    labels.add(
+                        ChartLabel(
+                            text,
+                            if (horizontal)
+                                Point(
+                                    if (rtl)
+                                        plot.x + plot.width + 8.0 * d
+                                    else
+                                        plot.x - measured.width - 8.0 * d,
+                                    position - measured.height / 2.0
+                                )
+                            else
+                                Point(
+                                    chartClamp(
+                                        position - measured.width / 2.0,
+                                        0.0,
+                                        lowerBound(size.width - measured.width, 0.0)
+                                    ),
+                                    plot.y + plot.height + 8.0 * d
+                                )
+                        )
+                    )
+            }
+    } else {
+        val ticks = chartTicks(prepared.xRange, input.xAxis.tickCount)
+        for (tick in ticks) {
+            val unit = prepared.xRange.unit(tick)
+            val position =
+                if (horizontal)
+                    plot.y + unit * plot.height
+                else
+                    plot.x +
+                        (
+                            if (rtl)
+                                1.0 - unit
+                            else
+                                unit
+                        ) *
+                        plot.width
+            val text = chartFormat(input.xAxis, tick)
+            val measured = a.measure(text)
+            if (input.xAxis.grid)
+                grid.add(
+                    if (horizontal)
+                        ChartGrid(Point(plot.x, position), Point(plot.x + plot.width, position))
+                    else
+                        ChartGrid(Point(position, plot.y), Point(position, plot.y + plot.height))
+                )
+            if (input.xAxis.shown)
+                labels.add(
+                    ChartLabel(
+                        text,
+                        if (horizontal)
+                            Point(
+                                if (rtl)
+                                    plot.x + plot.width + 8.0 * d
+                                else
+                                    plot.x - measured.width - 8.0 * d,
+                                position - measured.height / 2.0
+                            )
+                        else
+                            Point(
+                                chartClamp(
+                                    position - measured.width / 2.0,
+                                    0.0,
+                                    lowerBound(size.width - measured.width, 0.0)
+                                ),
+                                plot.y + plot.height + 8.0 * d
+                            )
+                    )
+                )
+        }
+    }
+    var bars = 0L
+    for (series in prepared.series)
+        if (series.mark == ChartMark.Bar)
+            bars += 1L
+    var bar = 0L
+    val result = ArrayList<ChartSeriesGeometry>()
+    for (series in prepared.series) {
+        val groupCount =
+            if (input.stack == ChartStack.None)
+                lowerBound(bars.toDouble(), 1.0)
+            else
+                1.0
+        val groupWidth = band * (1.0 - input.barGap)
+        val width = groupWidth / groupCount
+        val offset =
+            if (input.stack == ChartStack.None)
+                -groupWidth / 2.0 + (bar.toDouble() + 0.5) * width
+            else
+                0.0
+        val samples =
+            Array<ChartSample?>(count) {
+                at -> when (series.samples[at]) {
+                    case None -> None
+                    case Some(sample) -> {
+                        val center =
+                            category(at) +
+                                (
+                                    if (series.mark == ChartMark.Bar)
+                                        (
+                                            if (!horizontal && rtl)
+                                                -offset
+                                            else
+                                                offset
+                                        )
+                                    else
+                                        0.0
+                                )
+                        val end = value(sample.end)
+                        val start = value(sample.base)
+                        val point =
+                            if (horizontal)
+                                Point(end, center)
+                            else
+                                Point(center, end)
+                        val base =
+                            if (horizontal)
+                                Point(start, center)
+                            else
+                                Point(center, start)
+                        val shape: ChartShape =
+                            if (series.mark == ChartMark.Bar)
+                                ChartShape.Rectangle(
+                                    if (horizontal)
+                                        Rect(
+                                            upperBound(start, end),
+                                            center - width / 2.0,
+                                            abs(end - start),
+                                            width
+                                        )
+                                    else
+                                        Rect(
+                                            center - width / 2.0,
+                                            upperBound(start, end),
+                                            width,
+                                            abs(end - start)
+                                        )
+                                )
+                            else
+                                ChartShape.Point
+                        val visible =
+                            when (shape) {
+                                case Rectangle(rect) -> rect.width >
+                                    0.0 &&
+                                    rect.height >
+                                    0.0 &&
+                                    chartOverlap(plot, rect);
+                                else -> chartInside(plot, point)
+                            }
+                        Some(
+                            ChartSample(
+                                ChartSelection(
+                                    plan.snapshot.data.series[series.source].key,
+                                    plan.snapshot.data.datums[at].key
+                                ),
+                                sample.value,
+                                point,
+                                base,
+                                shape,
+                                visible
+                            )
+                        )
+                    }
+                }
+            }
+        result.add(ChartSeriesGeometry(series, samples))
+        if (series.mark == ChartMark.Bar)
+            bar += 1L
+    }
+    return ChartGeometry(size, plot, result.toArray(), labels.toArray(), grid.toArray(), input.kind)
+}

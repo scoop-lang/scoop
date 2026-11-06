@@ -1,0 +1,106 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class TraceLineLayoutProps(
+    val icon: Boolean,
+    val description: Boolean,
+    val arrow: Boolean,
+    val density: Double
+)
+
+internal class TraceLineLayout(
+    private val props: Props<TraceLineLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val side = 16.0 * input.density
+        val gap = 8.0 * input.density
+        val iconSpace =
+            if (input.icon)
+                side + gap
+            else
+                0.0
+        val arrowSpace =
+            if (input.arrow)
+                side + gap / 2.0
+            else
+                0.0
+        val descriptionMax =
+            when (constraints.maxWidth) {
+                case Some(width) -> Some(lowerBound(0.0, width - iconSpace - arrowSpace) * 0.4)
+                case None -> None
+            }
+        val description =
+            if (input.description)
+                conversationMeasure(context, 2L, descriptionMax)
+            else {
+                context.skipChild(2L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val detailSpace =
+            if (input.description)
+                description.size.width + gap
+            else
+                0.0
+        val title =
+            conversationMeasure(
+                context,
+                1L,
+                insetMaximum(constraints.maxWidth, iconSpace + arrowSpace + detailSpace)
+            )
+        if (input.icon)
+            context.measureChild(0L, Constraints.tight(Size(side, side)))
+        else
+            context.skipChild(0L)
+        if (input.arrow)
+            context.measureChild(3L, Constraints.tight(Size(side, side)))
+        else
+            context.skipChild(3L)
+        val height = lowerBound(side, lowerBound(title.size.height, description.size.height))
+        val size =
+            constraints.constrain(
+                Size(iconSpace + title.size.width + detailSpace + arrowSpace, height)
+            )
+        if (input.icon)
+            place(context, 0L, 0.0, side, height, side, size.width)
+        place(context, 1L, iconSpace, title.size.width, height, title.size.height, size.width)
+        if (input.description)
+            place(
+                context,
+                2L,
+                iconSpace + title.size.width + gap,
+                description.size.width,
+                height,
+                description.size.height,
+                size.width
+            )
+        if (input.arrow)
+            place(context, 3L, size.width - side, side, height, side, size.width)
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    private fun place(
+        context: MeasureContext,
+        index: Long,
+        x: Double,
+        width: Double,
+        height: Double,
+        childHeight: Double,
+        total: Double
+    ) {
+        context.placeChild(
+            index,
+            Point(
+                logicalX(lowerBound(0.0, x), width, total, context.layoutDirection),
+                lowerBound(0.0, (height - childHeight) / 2.0)
+            )
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

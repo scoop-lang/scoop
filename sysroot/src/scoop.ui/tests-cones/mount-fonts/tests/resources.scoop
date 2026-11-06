@@ -1,0 +1,84 @@
+package scoop.tests.ui.mountfonts
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.test.*
+import scoop.ui.*
+
+internal class MountResource(
+    private val p: FontProbe,
+    private val fonts: FontCollection
+): Closeable {
+    var closed = false
+    public override fun close() {
+        assertFalse(closed)
+        assertFalse(fonts.isClosed)
+        closed = true
+        p.disposals += 1
+    }
+}
+
+internal class ReadyComponent(private val p: FontProbe, scope: ComponentScope): Component(scope) {
+    private val resource = scope.resource { MountResource(p, scope.defaultFonts) }
+    public override fun render(): View {
+        assertFalse(resource.closed);
+        p.batchRenders += 1;
+        return empty()
+    }
+    public override fun onMount() {
+        assertFalse(resource.closed);
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        assertFalse(scope.isMounted);
+        assertFalse(resource.closed);
+        p.unmounts += 1
+    }
+}
+
+internal class ReadyElement(private val p: FontProbe, scope: ComponentScope): Element<Unit>(scope) {
+    private val resource = scope.resource { MountResource(p, scope.defaultFonts) }
+    public override fun onMount() {
+        assertFalse(resource.closed);
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        assertFalse(scope.isMounted);
+        assertFalse(resource.closed);
+        p.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {}
+}
+
+internal class ReadyLazy(private val p: FontProbe, scope: ComponentScope): LazyElement<Unit>(
+    scope
+) {
+    private val resource = scope.resource { MountResource(p, scope.defaultFonts) }
+    private val viewport = scope.scrollViewport(ScrollState())
+    private val focus = scope.lazyFocus(viewport)
+    public override fun onMount() {
+        assertFalse(resource.closed);
+        assertFalse(focus.isPending);
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        assertFalse(scope.isMounted);
+        assertFalse(resource.closed);
+        p.unmounts += 1
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {}
+}
+
+internal class NoItems: ItemSource {
+    public override val count: Long get() = 0L
+    public override fun keyAt(index: Long): ViewKey = throw IndexOutOfBoundsException()
+    public override fun indexOfKey(key: ViewKey): Long? = None
+    public override fun build(index: Long): View = throw IndexOutOfBoundsException()
+}

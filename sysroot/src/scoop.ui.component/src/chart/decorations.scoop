@@ -1,0 +1,260 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.button as chartLegendButton
+import scoop.ui.component.row as chartDecorationRow
+import scoop.ui.component.column as chartDecorationColumn
+
+public class ChartTooltipEntry public constructor(
+    public val series: ChartSeries,
+    public val value: Double,
+    public val color: Color
+)
+
+public class ChartTooltipPayload public constructor(
+    public val datum: ChartDatum,
+    public val entries: Array<ChartTooltipEntry>
+)
+
+internal fun chartPayload(plan: ChartPlan, selection: ChartSelection?): ChartTooltipPayload? {
+    val key = selection ?: return None
+    val data = plan.snapshot.data
+    val at = data.indexOfDatum(key.datum) ?: return None
+    val selected = data.indexOfSeries(key.series) ?: return None
+    var visible = false
+    for (index in plan.snapshot.visible)
+        if (index == selected)
+            visible = true
+    if (!visible || data.series[selected].values[at] == None)
+        return None
+    val entries = ArrayList<ChartTooltipEntry>()
+    for (series in plan.prepared.series)
+        when (data.series[series.source].values[at]) {
+            case Some(value) -> entries.add(
+                ChartTooltipEntry(
+                    data.series[series.source],
+                    value,
+                    if (plan.input.kind == ChartKind.Pie || plan.input.kind == ChartKind.Radial)
+                        data.datums[at].color ?: series.color
+                    else
+                        series.color
+                )
+            );
+            case None -> {}
+        }
+    return Some(ChartTooltipPayload(data.datums[at], entries.toArray()))
+}
+
+internal fun chartViewText(
+    text: String,
+    appearance: ChartAppearance,
+    strong: Boolean = false
+): View =
+    component(
+        LabelProps(
+            LabelText.Plain(text, None),
+            Some(appearance.fonts),
+            Some(appearance.paragraph),
+            baseStyle =
+                Some(
+                    if (strong)
+                        appearance.foreground
+                    else
+                        appearance.text
+                )
+        ),
+        { props, scope -> Label(props, scope) }
+    )
+
+private class ChartSwatchProps(val color: Color, val size: Double, val kind: ChartIndicator)
+
+private class ChartSwatch(
+    private val props: Props<ChartSwatchProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, value: Unit) {
+        val input = props.value
+        val size = context.size
+        context.draw {
+            paint -> when (input.kind) {
+                case Dot -> paint.canvas.drawRoundRect(
+                    Rect(0.0, 0.0, size.width, size.height),
+                    2.0,
+                    2.0,
+                    Paint(input.color)
+                )
+                case Line -> paint.canvas.drawRect(
+                    Rect(size.width * 0.3, 0.0, size.width * 0.4, size.height),
+                    Paint(input.color)
+                )
+                case Dashed -> {
+                    paint.canvas.drawRect(
+                        Rect(0.0, size.height * 0.3, size.width * 0.4, size.height * 0.4),
+                        Paint(input.color)
+                    )
+                    paint.canvas.drawRect(
+                        Rect(
+                            size.width * 0.6,
+                            size.height * 0.3,
+                            size.width * 0.4,
+                            size.height * 0.4
+                        ),
+                        Paint(input.color)
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun chartSwatch(
+    color: Color,
+    size: Double,
+    kind: ChartIndicator = ChartIndicator.Dot
+): View =
+    element(ChartSwatchProps(color, size, kind), { props, scope -> ChartSwatch(props, scope) })
+
+internal fun chartLegend(input: ChartProps, plan: ChartPlan): View {
+    val data = plan.snapshot.data
+    val a = plan.appearance
+    val d = a.density
+    val options = input.legendOptions
+    val model = input.model
+    return wrap {
+        this.spacing = 8.0 * d;
+        this.lineSpacing = 4.0 * d
+        this.justify = MainAlignment.Center;
+        this.alignment = CrossAlignment.Center
+        this.padding = Insets(4.0 * d, 8.0 * d, 4.0 * d, 4.0 * d)
+        for (index in 0L ..< data.series.size) {
+            val series = data.series[index]
+            val visible = model.isVisible(series.key)
+            val color = a.color(plan.snapshot, index)
+            val text =
+                when (options.formatter) {
+                    case Some(format) -> format(series);
+                    case None -> series.label
+                }
+            val content =
+                chartDecorationRow {
+                    this.spacing = 6.0 * d;
+                    this.alignment = CrossAlignment.Center
+                    if (!options.hideIcon)
+                        this.add(
+                            series.icon ?:
+                                chartSwatch(
+                                    color.withAlpha(
+                                        if (visible)
+                                            color.alpha
+                                        else
+                                            color.alpha * 0.35
+                                    ),
+                                    8.0 * d
+                                )
+                        )
+                    this.add(chartViewText(text, a, visible))
+                }
+            this.add(
+                chartLegendButton(
+                    content,
+                    { model.showSeries(series.key, !model.isVisible(series.key)) }
+                ) {
+                    this.variant = ButtonVariant.Ghost;
+                    this.size = ButtonSize.Sm;
+                    this.enabled = input.enabled;
+                    this.theme = input.theme
+                    this.key = ViewKey.Text(series.key.value)
+                    this.style {
+                        this.surface {
+                            this.padding = Some(Insets(4.0 * d, 2.0 * d, 4.0 * d, 2.0 * d))
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+internal fun chartTooltip(
+    payload: ChartTooltipPayload,
+    options: ChartTooltipOptions,
+    a: ChartAppearance
+): View {
+    val d = a.density
+    val title =
+        when (options.labelFormatter) {
+            case Some(format) -> format(payload.datum);
+            case None -> payload.datum.label
+        }
+    val values =
+        Array<String>(payload.entries.size) {
+            at ->
+            val entry = payload.entries[at];
+            when (options.formatter) {
+                case Some(format) -> format(entry);
+                case None -> chartNumber(entry.value)
+            }
+        }
+    var width = 128.0 * d
+    if (!options.hideLabel)
+        width = lowerBound(width, a.measure(title).width + 20.0 * d)
+    for (at in 0L ..< payload.entries.size)
+        width =
+            lowerBound(
+                width,
+                a.measure(payload.entries[at].series.label).width +
+                    a.measure(values[at]).width +
+                    (
+                        if (options.hideIndicator)
+                            36.0
+                        else
+                            54.0
+                    ) *
+                    d
+            )
+    val content =
+        chartDecorationColumn {
+            this.spacing = 6.0 * d;
+            this.alignment = CrossAlignment.Stretch
+            if (!options.hideLabel)
+                this.add(chartViewText(title, a, true))
+            for (at in 0L ..< payload.entries.size) {
+                val entry = payload.entries[at]
+                this.add(
+                    chartDecorationRow {
+                        this.spacing = 8.0 * d;
+                        this.alignment = CrossAlignment.Center
+                        if (!options.hideIndicator)
+                            this.item(
+                                entry.series.icon ?:
+                                    chartSwatch(entry.color, 10.0 * d, options.indicator)
+                            ) { this.shrink = 0.0 }
+                        this.item(chartViewText(entry.series.label, a)) { this.grow = 1.0 }
+                        this.item(chartViewText(values[at], a, true)) { this.shrink = 0.0 }
+                    }
+                )
+            }
+        }
+    return panelFrame(
+        content,
+        Insets(10.0 * d, 6.0 * d, 10.0 * d, 6.0 * d),
+        styleOverride {
+            background(Some(Paint(a.theme.tokens.palette.background.background)))
+            border(Some(Border.all(d, a.theme.tokens.palette.border.withAlpha(0.5))))
+            corners(Corners.all(8.0 * d));
+            boxShadows(a.theme.tokens.effects.floating)
+        },
+        Some(upperBound(width, 320.0 * d))
+    )
+}

@@ -1,0 +1,145 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ChoiceGroupTest {
+    @Test
+    fun `keyed local handles survive reorder without retaining a removed external handle`() {
+        val cache = ChoiceHandles()
+        val a = ViewKey.Text("a")
+        val b = ViewKey.Text("b")
+        val first = cache.resolve([a, b], [FocusOptions(), FocusOptions()])
+        val external = FocusHandle()
+        val reordered = cache.resolve([b, a], [FocusOptions(), FocusOptions(Some(external))])
+        assertSame(first[1L], reordered[0L])
+        assertSame(external, reordered[1L])
+        val local = cache.resolve([a], [FocusOptions()])
+        assertSame(first[0L], local[0L])
+        assertFalse(local[0L] === external)
+    }
+
+    @Test
+    fun `metadata rejects ambiguous keys and values while allowing empty groups and unknown selections`() {
+        val selected = state<Int?>(Some(99))
+        val a = Choice(ViewKey.Text("a"), 1, "One")
+        val sameValue = Choice(ViewKey.Text("b"), 1, "Another one")
+        val sameKey = Choice(ViewKey.Text("a"), 2, "Two")
+        for (other in [sameValue, sameKey, Choice(ViewKey.Position, 3, "Three")]) {
+            assertFailsWith<IllegalArgumentException> {
+                RadioGroupProps([RadioGroupEntry(a), RadioGroupEntry(other)], selected.binding())
+            }
+            assertFailsWith<IllegalArgumentException> {
+                ToggleGroupProps(
+                    [ToggleGroupEntry(a), ToggleGroupEntry(other)],
+                    ToggleGroupSelection.Single(selected.binding())
+                )
+            }
+        }
+        assertEquals(0L, RadioGroupProps<Int>([], selected.binding()).entries.size)
+        assertEquals(
+            0L,
+            ToggleGroupProps<Int>([], ToggleGroupSelection.Single(selected.binding())).entries.size
+        )
+        assertEquals(Some(99), selected.value)
+        assertFailsWith<IllegalArgumentException> {
+            RadioGroupProps<Int>([], selected.binding(), spacing = -1.0)
+        }
+    }
+
+    @Test
+    fun `single and multiple selection read current bindings and preserve unrelated values`() {
+        val single = state<Int?>(None)
+        val mode = ToggleGroupSelection.Single(single.binding())
+        setChoice(mode, 2, true)
+        assertTrue(choiceSelected(mode, 2))
+        setChoice(mode, 3, false)
+        assertEquals(Some(2), single.value)
+        setChoice(mode, 2, false)
+        assertEquals<Int?>(None, single.value)
+        val multiple = state<Array<Int>>([99, 2, 2, 1])
+        val multi = ToggleGroupSelection.Multiple(multiple.binding())
+        setChoice(multi, 2, false)
+        assertEquals(2L, multiple.value.size)
+        assertEquals(99, multiple.value[0L])
+        assertEquals(1, multiple.value[1L])
+        setChoice(multi, 4, true)
+        assertEquals(4, multiple.value[2L])
+        assertFalse(choiceSelected(multi, 2))
+        val rejected = ToggleGroupSelection.Single(binding<Int?>({ Some(5) }, { _ -> }))
+        setChoice(rejected, 1, true)
+        assertTrue(choiceSelected(rejected, 5))
+        assertFalse(choiceSelected(rejected, 1))
+    }
+
+    @Test
+    fun `connected toggles retain one logical seam and radio uses the shared circle and focus geometry`() {
+        val theme = shadcnTheme()
+        val visual = InteractionVisual(focusVisible = true)
+        val marker =
+            theme.radioGeometry(
+                Rect(0.0, 0.0, 16.0, 16.0),
+                RadioVisual(true, visual),
+                radioOptions()
+            )
+        assertEquals(8.0, marker.outer.radius)
+        assertEquals(4.0, marker.dot.radius)
+        assertTrue(marker.ring != None)
+        val style = buttonStyle { this.kind = SurfaceKind.Plain }
+        for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl])
+            for (axis in [FlexAxis.Horizontal, FlexAxis.Vertical]) {
+                val options =
+                    toggleOptions(
+                        theme,
+                        ToggleVariant.Outline,
+                        ToggleSize.Default,
+                        true,
+                        style,
+                        visual
+                    )
+                val base =
+                    theme.surfaceMetrics(
+                        SurfaceVisual(SurfaceKind.Plain, visual),
+                        options,
+                        direction
+                    )
+                val joined =
+                    groupSurfaceMetrics(
+                        base,
+                        Some(GroupPosition(axis, false, true)),
+                        Some(theme.tokens.corners.large),
+                        direction
+                    )
+                val original =
+                    theme.surfaceGeometry(
+                        Rect(0.0, 0.0, 80.0, 32.0),
+                        SurfaceVisual(SurfaceKind.Plain, visual),
+                        options,
+                        direction
+                    )
+                val result =
+                    groupSurfaceGeometry(
+                        original,
+                        joined,
+                        Some(GroupPosition(axis, false, true)),
+                        direction
+                    )
+                val border = result.style.border!!.resolve(direction)
+                if (axis == FlexAxis.Vertical) {
+                    assertEquals(0.0, border.top.width)
+                    assertEquals(1.0, border.bottom.width)
+                } else
+                    if (direction == LayoutDirection.Ltr) {
+                        assertEquals(0.0, border.left.width)
+                        assertEquals(1.0, border.right.width)
+                    } else {
+                        assertEquals(0.0, border.right.width)
+                        assertEquals(1.0, border.left.width)
+                    }
+            }
+    }
+}

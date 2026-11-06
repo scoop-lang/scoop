@@ -1,0 +1,192 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+internal class SelectPopupProps(
+    val open: Binding<Boolean>,
+    val content: MenuContent,
+    val selected: ViewKey?,
+    val focus: MenuFocus,
+    val chain: MenuChain,
+    val anchor: LayoutAnchor,
+    val handle: OverlayHandle,
+    val options: MenuOptions,
+    val initial: OverlayFocusOptions,
+    val position: SelectPosition,
+    val maxHeight: Double,
+    val scrollButtons: Boolean,
+    val scroll: ScrollState,
+    val style: StyleOverride,
+    val transition: StyleValue<AnimationSpec?>,
+    val onCloseRequest: (OverlayCloseReason) -> Boolean,
+    val onClosed: (OverlayCloseReason) -> Unit
+)
+
+internal class SelectPopup(
+    private val props: Props<SelectPopupProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.options.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.options.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val panel =
+            component(
+                SelectPanelProps(input, theme),
+                { current, mount -> SelectPanel(current, scope = mount) }
+            )
+        val motion =
+            theme.tokens.motion.resolve(
+                input.transition.resolve(
+                    if (input.position == SelectPosition.ItemAligned)
+                        None
+                    else
+                        Some(AnimationSpec.Tween(Duration.milliseconds(100L)))
+                )
+            )
+        val inputs = props
+        return portal(
+            input.open,
+            element(
+                PopupMotionProps(input.options.enabled, 8.0 * density),
+                { current, mount -> PopupMotion(current, scope = mount) },
+                [panel]
+            )
+        ) {
+            placement =
+                if (input.position == SelectPosition.ItemAligned)
+                    OverlayPlacement.ContentAligned(input.anchor)
+                else
+                    OverlayPlacement.Anchored(
+                        input.anchor,
+                        alignment = OverlayAlignment.Center,
+                        matchAnchorWidth = true
+                    )
+            handle = Some(input.handle);
+            mode = input.options.mode;
+            focus = Some(input.initial)
+            dismiss =
+                OverlayDismiss(
+                    true,
+                    if (input.options.mode == OverlayMode.Modal)
+                        OutsidePress.CloseAndConsume
+                    else
+                        OutsidePress.CloseAndContinue,
+                    true
+                )
+            transition = PresenceOptions(motion, motion)
+            onCloseRequest = { reason -> inputs.value.onCloseRequest(reason) }
+            onClosed = { reason -> inputs.value.onClosed(reason) }
+        }
+    }
+}
+
+internal class SelectPanelProps(val popup: SelectPopupProps, val theme: Theme)
+
+/** Alignment follows the opening selection, including reopening a retained exit transition. */
+internal class SelectPanel(
+    private val props: Props<SelectPanelProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private var aligned = props.value.popup.selected
+    private var opened = true
+    public override fun render(): View {
+        val input = props.value
+        val popup = input.popup
+        val current = popup.open.value
+        if (current && !opened)
+            aligned = popup.selected
+        opened = current
+        val rows =
+            Array<View>(popup.content.entries.size) {
+                index ->
+                val entry = popup.content.entries[index]
+                component(
+                    MenuRowProps(
+                        entry,
+                        popup.options,
+                        input.theme,
+                        when (menuItem(entry)) {
+                            case Some(item) -> Some(popup.focus.handle(item.key));
+                            case None -> None
+                        },
+                        binding({ false }, { _ -> }),
+                        popup.chain,
+                        true
+                    ),
+                    { current, mount -> MenuRow(current, scope = mount) },
+                    menuKey(entry)
+                )
+            }
+        val list =
+            element(
+                SelectListProps(popup.content, aligned),
+                { current, mount -> SelectList(current, scope = mount) },
+                rows
+            )
+        val body =
+            element(
+                MenuNavigationProps(popup.focus, popup.options, popup.chain),
+                { current, mount -> MenuNavigation(current, scope = mount) },
+                [list]
+            )
+        val viewport =
+            element(input, { current, mount -> SelectViewport(current, scope = mount) }, [body])
+        val theme = input.theme
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val decoration =
+            styleOverride {
+                background(Some(Paint(theme.tokens.palette.popover.background)))
+                border(
+                    Some(Border.all(1.0, theme.tokens.palette.background.foreground.withAlpha(0.1)))
+                )
+                corners(Corners.all(8.0 * density));
+                boxShadows(theme.tokens.effects.floating)
+            }.then(popup.style).resolve(style())
+        return component(
+            StyledProps(viewport, decoration),
+            { current, mount -> Styled(current, scope = mount) }
+        )
+    }
+}
+
+private class SelectListProps(val content: MenuContent, val aligned: ViewKey?)
+
+/** Measures each finite candidate once and translates the selected row into list coordinates. */
+private class SelectList(private val props: Props<SelectListProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        var y = 0.0
+        var width = constraints.minWidth
+        var anchor: Rect? = None
+        for (index in 0L ..< context.childCount) {
+            val metrics =
+                context.measureChild(index, Constraints(constraints.minWidth, constraints.maxWidth))
+            context.placeChild(index, Point(0.0, y))
+            val entry = props.value.content.entries[index]
+            if (Some(menuKey(entry)) == props.value.aligned && (menuItem(entry)?.enabled ?: false))
+                anchor = Some(Rect(0.0, y, metrics.size.width, metrics.size.height))
+            y += metrics.size.height;
+            width = lowerBound(width, metrics.size.width)
+        }
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, y)), overlayAnchor = anchor),
+            Unit
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

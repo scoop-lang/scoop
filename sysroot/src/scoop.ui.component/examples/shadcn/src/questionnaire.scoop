@@ -1,0 +1,149 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as questionnaireColumn
+import scoop.ui.component.frame as questionnaireFrame
+import scoop.ui.component.questionnaire as makeQuestionnaire
+
+internal class QuestionnaireExamples(
+    private val model: QuestionnaireExamplesModel,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onUnmount() {
+        model.stop()
+    }
+    public override fun render(): View {
+        val model = this.model
+        val chinese = model.chinese.value
+        val content =
+            makeQuestionnaire(model.survey, { result -> model.submit(result) }) {
+                this.enabled = model.enabled.value
+                this.busy = model.busy.value
+                this.strings = questionnaireExampleStrings(chinese)
+                this.onAnswerChange = { _ -> model.definitions(model.survey) }
+            }
+        return questionnaireColumn {
+            this.typography("Questionnaire", TypographyRole.H2)
+            this.typography(
+                if (chinese)
+                    "逐题回答、保留草稿，并在提交前检查所有有效题目。"
+                else
+                    "Answer one question at a time, keep your drafts, and review every active question before submitting.",
+                TypographyRole.Muted
+            )
+            this.wrap {
+                this.button(
+                    if (chinese)
+                        "English"
+                    else
+                        "简体中文",
+                    { model.language() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.narrow.value)
+                        "Full width"
+                    else
+                        "Narrow",
+                    { model.narrow.value = !model.narrow.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (chinese)
+                        "保存草稿"
+                    else
+                        "Save draft",
+                    { model.save() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (chinese)
+                        "恢复草稿"
+                    else
+                        "Restore draft",
+                    { model.restore() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (chinese)
+                        "重置回答"
+                    else
+                        "Reset",
+                    { model.reset() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (chinese)
+                        "显示外部错误"
+                    else
+                        "Show external error",
+                    { model.reject() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.empty.value)
+                        "Restore questions"
+                    else
+                        "Disable all questions",
+                    { model.toggleEmpty() }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.enabled.value)
+                        "Disable form"
+                    else
+                        "Enable form",
+                    { model.enabled.value = !model.enabled.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.spacing = 8.0;
+                this.lineSpacing = 8.0
+            }
+            this.item(
+                questionnaireFrame(content) {
+                    this.width =
+                        Some(
+                            if (model.narrow.value)
+                                330.0
+                            else
+                                720.0
+                        )
+                    this.padding = Some(Insets.all(12.0))
+                }
+            ) { this.align = Some(CrossAlignment.Start) }
+            this.typography(model.status.value, TypographyRole.Muted)
+            this.label(
+                if (chinese)
+                    f"提交次数：${model.submitted.value}"
+                else
+                    f"Submissions: ${model.submitted.value}"
+            )
+            this.button(
+                if (chinese)
+                    "在对话框中填写另一份问卷"
+                else
+                    "Open another questionnaire in a dialog",
+                { model.opened.value = true }
+            ) { this.variant = ButtonVariant.Outline }
+            this.dialog(
+                model.opened.binding(),
+                makeQuestionnaire(model.modal, { result -> model.submit(result) }) {
+                    this.autoFocus = true
+                    this.busy = model.busy.value
+                    this.strings = questionnaireExampleStrings(chinese)
+                    this.onAnswerChange = { _ -> model.definitions(model.modal) }
+                }
+            ) {
+                this.title(
+                    if (chinese)
+                        "项目参与问卷"
+                    else
+                        "Join the project"
+                )
+                this.description(
+                    if (chinese)
+                        "关闭窗口会保留这里的回答，不会自动提交。"
+                    else
+                        "Closing keeps these answers without submitting them."
+                )
+            }
+            this.spacing = 16.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}
