@@ -1,0 +1,6 @@
+schema = 1
+[cone]
+group = "test.context"
+name = "query-provider"
+version = "0.1.0"
+kind = "library"

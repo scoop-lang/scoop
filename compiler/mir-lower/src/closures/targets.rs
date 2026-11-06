@@ -4,6 +4,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ReferenceDefinition {
     Primitive(PrimitiveReference),
+    ContextOrNone(hir::TypeId),
     MaybeUninit(hir::MaybeUninitIntrinsic),
     NativeFunctionPointer(mir::CAbiCallMode),
     Direct(mir::Callee),

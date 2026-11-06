@@ -391,6 +391,13 @@ pub const INTRINSIC_REGISTRY: &[IntrinsicSpec] = &[
         effects: IntrinsicEffects::UNSAFE,
     },
     IntrinsicSpec {
+        name: "context_or_none",
+        stage: IntrinsicStage::Mir,
+        kind: IntrinsicFunctionKind::ContextOrNone,
+        target: IntrinsicTarget::TopLevel,
+        effects: IntrinsicEffects::NONE,
+    },
+    IntrinsicSpec {
         name: "coroutine_start",
         stage: IntrinsicStage::Mir,
         kind: IntrinsicFunctionKind::CoroutineStart,

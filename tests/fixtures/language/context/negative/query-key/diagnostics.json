@@ -1,0 +1,67 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "dependency function `contextOrNone`: type argument `T` for `T` must satisfy `ref`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 66,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 48
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "dependency function `contextOrNone`: type argument `T` for `T` must satisfy `ref`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 126,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 108
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "dependency function `contextOrNone`: type argument `Int` for `T` must satisfy `ref`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 171,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 151
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "dependency function `contextOrNone`: type argument `Option<String>` for `T` must satisfy `ref`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 227,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 203
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "dependency function `contextOrNone`: type argument `Ptr<Int>` for `T` must satisfy `ref`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 284,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 259
+    },
+    "severity": "error"
+  }
+]

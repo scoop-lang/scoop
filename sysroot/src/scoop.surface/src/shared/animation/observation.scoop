@@ -10,15 +10,7 @@ public interface AnimationReadObserver {
     public fun read(source: AnimationSource)
 }
 
-context(observer: AnimationReadObserver)
-private fun boundAnimationObserver(): AnimationReadObserver = observer
-
 internal fun observeAnimation(source: AnimationSource) {
-    val observer =
-        try {
-            boundAnimationObserver()
-        } catch (_: MissingContextException) {
-            return
-        }
+    val observer = contextOrNone<AnimationReadObserver>() ?: return
     observer.read(source)
 }

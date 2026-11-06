@@ -19,6 +19,7 @@ fn intrinsic_function_roles_have_a_closed_canonical_wire_identity() {
         (IntrinsicFunctionKind::ThrowablePrintStackTrace, 30),
         (IntrinsicFunctionKind::CompileEnv, 34),
         (IntrinsicFunctionKind::CoroutineYield, 37),
+        (IntrinsicFunctionKind::ContextOrNone, 38),
     ] {
         assert_eq!(encode(&kind).unwrap(), vec![0xa1, 0x00, 0x18, tag]);
     }

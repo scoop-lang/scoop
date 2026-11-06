@@ -96,20 +96,10 @@ public class CoroutineScope internal constructor(
         startStructuredTask(Some(job), Some(executor), parentRegistration(), true, true, block)
 }
 
-context(job: Job)
-private fun boundCoroutineJob(): Job = job
-
 /**
  * Returns the job installed for the currently running coroutine, or None outside a job context.
  */
-public fun currentJobOrNone(): Job? {
-    try {
-        return Some(boundCoroutineJob())
-    }
-    catch (_: MissingContextException) {
-        return None
-    }
-}
+public fun currentJobOrNone(): Job? = contextOrNone<Job>()
 
 /**
  * Checks cancellation of the current job. With no current job, this operation does nothing.

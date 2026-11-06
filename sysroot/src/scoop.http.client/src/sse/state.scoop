@@ -9,14 +9,23 @@ import scoop.url.Url
 
 internal class ClientSseInfo(var url: Url, var head: HttpResponseHead)
 
-internal class ClientSseState(val client: ClientState, val original: HttpRequest, val options: HttpSseOptions, initialId: String) {
+internal class ClientSseState(
+    val client: ClientState,
+    val original: HttpRequest,
+    val options: HttpSseOptions,
+    initialId: String
+) {
     var sequence: ClientRequestSequence = ClientRequestSequence(client.config, original)
     var lastCall: ClientCall? = None
     var response: HttpResponse? = None
     var reader: SseSource? = None
     var info: ClientSseInfo? = None
     var lastEventId: String = initialId
-    var delay: Duration = when (options.reconnect) { case Some(value) -> value.initialDelay; case None -> Duration.ZERO }
+    var delay: Duration =
+        when (options.reconnect) {
+            case Some(value) -> value.initialDelay;
+            case None -> Duration.ZERO
+        }
     var reconnects: Long = 0L
     var registered: Boolean = false
     var running: Boolean = false
@@ -33,17 +42,20 @@ internal class ClientSseState(val client: ClientState, val original: HttpRequest
 
     fun requireActive() {
         client.lock.withLock {
-            if (clientPresent(failure)) throw failure!!
-            if (closing && !finished) throw IoClosedException()
+            if (clientPresent(failure))
+                throw failure!!
+            if (closing && !finished)
+                throw IoClosedException()
             Unit
         }
         ensureActive()
         val limit = sequence.timeouts.total
-        if (clientPresent(limit) && MonotonicTimeSource.markNow() - sequence.started!! >= limit!!) throw timeout()
+        if (clientPresent(limit) && MonotonicTimeSource.markNow() - sequence.started!! >= limit!!)
+            throw timeout()
     }
 
     fun timeout(): HttpTimeoutException {
-        val (current, last) = client.lock.withLock { (sequence, lastCall) }
+        val(current, last) = client.lock.withLock { (sequence, lastCall) }
         return clientSequenceTimeout(client, current, last)
     }
 }
@@ -55,24 +67,36 @@ internal fun recordClientSseFailure(state: ClientSseState, error: Throwable) {
         if (!clientPresent(primary)) {
             if (error is ResourceUseException) {
                 state.failure = Some(error.primaryFailure)
-                state.cleanupFailure = collectClientSecondary(error.primaryFailure, state.cleanupFailure, error.cleanupFailure)
-            } else state.failure = Some(error)
-        } else state.cleanupFailure = collectClientSecondary(primary!!, state.cleanupFailure, error)
+                state.cleanupFailure =
+                    collectClientSecondary(
+                        error.primaryFailure,
+                        state.cleanupFailure,
+                        error.cleanupFailure
+                    )
+            } else
+                state.failure = Some(error)
+        } else
+            state.cleanupFailure = collectClientSecondary(primary!!, state.cleanupFailure, error)
         state.closing = true
     }
 }
 
-internal fun clientSseFailure(state: ClientSseState): Throwable? = when (state.cleanupFailure) {
-    case Some(cleanup) -> Some(clientCombined(state.failure, cleanup))
-    case None -> state.failure
-}
-
-context(source: ClientSseState)
-private fun boundClientSse(): ClientSseState = source
+internal fun clientSseFailure(state: ClientSseState): Throwable? =
+    when (state.cleanupFailure) {
+        case Some(cleanup) -> Some(clientCombined(state.failure, cleanup))
+        case None -> state.failure
+    }
 
 internal fun checkClientSseClose(client: ClientState, source: ClientSseState? = None) {
-    val bound = try { Some(boundClientSse()) } catch (_: MissingContextException) { None }
-    if (clientPresent(bound) && bound!!.client === client && (!clientPresent(source) || bound!! === source!!) &&
-        client.lock.withLock { bound!!.running })
-        throw IllegalStateException(Some("cannot await SSE or client close from an active event-source operation"))
+    val bound = contextOrNone<ClientSseState>()
+    if (
+        clientPresent(bound) &&
+            bound!!.client ===
+            client &&
+            (!clientPresent(source) || bound!! === source!!) &&
+            client.lock.withLock { bound!!.running }
+    )
+        throw IllegalStateException(
+            Some("cannot await SSE or client close from an active event-source operation")
+        )
 }

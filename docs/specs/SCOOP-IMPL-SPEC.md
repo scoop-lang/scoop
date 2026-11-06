@@ -772,7 +772,7 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/92`、`cross-cone-type-semantics/32` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/93`、`cross-cone-type-semantics/32` |
 | MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
 | LIR / `org.scoop-lang.lir` | `identity-foundation/15`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/18`、`link-identity-closure/22`、`link-support/1` |
 
@@ -1640,7 +1640,9 @@ ArrayList 以普通 MutableArray<MaybeUninit<T>> 实现容量存储，elementCou
 
 ### 2.16 Task-local Context
 
-Context 的语言行为见语言规范 8.3.5，运行时 key、scope、task 与 callback ABI 见运行时规范第 9 章。HIR 保存 exact key、完整绑定值类型及已选 Context 操作；泛型条件在实际 application 中替换，不按运行期对象类型猜 key。
+Context 的语言行为见语言规范 8.3，运行时 key、scope、task 与 callback ABI 见运行时规范第 9 章。HIR 保存 exact key、完整绑定值类型及已选 Context 操作；泛型条件在实际 application 中替换，不按运行期对象类型猜 key。
+
+`contextOrNone<T : ref>(): Option<T>` 由 core 的顶层 `context_or_none` intrinsic 声明提供，intrinsic wire tag 为 38，`cross-cone-interface` 升至 93；core 与依赖产物按正常输入更新重建。HIR 先按普通调用规则解析声明、类型实参与结果，跨 Cone 复用实际泛型声明；MIR 在具体化后以载荷 `T` 的 PersistentExactTypeId 生成已有 TryGet、IsPresent 和命中路径的 UnwrapBinding，并构造普通 Some／None。查询及返回值构造无分配、无异常边，接口还原复用已有静态接口路径；不添加新的 HIR 表达式、MIR Context 操作或 runtime ABI。函数引用按普通 intrinsic adapter 在实际调用时查询。查询保留读取当前 Context 的内存效果，不得跨 push／restore 或任务切换复用旧结果。
 
 Context runtime 的擦除 binding 槽保存单字 object；compiler-owned `context-binding-ref` 使用与 Any 相同的 managed-pointer 表示及独立 generated identity，不冒充源码空接口。绑定接口时提取 object，按 exact key 取出后为静态接口重建 itab；该重建为 NoGC。用户可见的参数、结果和字段仍保存完整双字接口。
 

@@ -270,6 +270,27 @@ impl Lowerer {
                     ),
                     Vec::new(),
                 ),
+                ReferenceDefinition::ContextOrNone(result) => {
+                    let mut lowerer = self.body_lowerer(
+                        module,
+                        function,
+                        materialization,
+                        mir::ImmortalObjectOwner::Callable(materialization),
+                    );
+                    lowerer.locals = locals;
+                    let call = lowerer.lower_context_or_none(result);
+                    locals = lowerer.locals;
+                    let statements = lowerer
+                        .prelude
+                        .into_iter()
+                        .map(|kind| smir::Statement {
+                            debug_origin: Default::default(),
+                            kind,
+                            span: reference.span,
+                        })
+                        .collect();
+                    (call, statements)
+                }
                 ReferenceDefinition::MaybeUninit(kind) => {
                     let operation = match kind {
                         hir::MaybeUninitIntrinsic::Uninit => mir::MaybeUninitOperation::Uninit,

@@ -3,7 +3,32 @@
 use super::*;
 
 impl BodyLowerer<'_> {
+    pub(crate) fn lower_context_or_none(&mut self, result: hir::TypeId) -> smir::Expr {
+        let hir::TypeKind::Enum(enumeration) = self.module.types[result].kind else {
+            unreachable!("the context query returns the core Option type")
+        };
+        let payload = self
+            .module
+            .option_core(enumeration)
+            .expect("the context query returns the core Option type")
+            .some_payload();
+        let payload_ty = self.module.enums[enumeration].variants
+            [payload.variant().variant().into_raw() as usize]
+            .fields[payload.local_index() as usize]
+            .ty;
+        let key = mir::ContextKey(self.module.exact_type_identities[payload_ty].id());
+        self.lower_optional_context_binding(result, mir::ContextOperation::TryGet { key })
+    }
+
     pub(super) fn lower_current_execution(&mut self, result: hir::TypeId) -> smir::Expr {
+        self.lower_optional_context_binding(result, mir::ContextOperation::CurrentExecution)
+    }
+
+    fn lower_optional_context_binding(
+        &mut self,
+        result: hir::TypeId,
+        operation: mir::ContextOperation<smir::Expr>,
+    ) -> smir::Expr {
         let result_ty = self.lower_type(result);
         let option = option_core_for_type(self.module, self.enums, &result_ty);
         let payload_ty = option
@@ -13,14 +38,11 @@ impl BodyLowerer<'_> {
             .ty
             .clone();
         let binding_ty = self.context_type(mir::ContextStorageRole::Binding);
-        let binding = self.new_hidden("current_execution", binding_ty.clone(), false);
-        let result = self.new_hidden("execution_option", result_ty.clone(), false);
+        let binding = self.new_hidden("context_binding", binding_ty.clone(), false);
+        let result = self.new_hidden("context_option", result_ty.clone(), false);
         self.prelude.push(smir::StatementKind::ValDecl {
             local: binding,
-            init: smir::Expr::new(
-                binding_ty.clone(),
-                smir::ExprKind::Context(mir::ContextOperation::CurrentExecution),
-            ),
+            init: smir::Expr::new(binding_ty.clone(), smir::ExprKind::Context(operation)),
         });
         let statement = |variant, fields| smir::Statement {
             debug_origin: Default::default(),

@@ -1,0 +1,41 @@
+package test.context.runner
+
+import test.context.provider.QueryService
+import test.context.consumer.*
+
+class Service: QueryService {
+    public override fun number(): Int = 42
+}
+
+fun <T> absent(value: T?): Boolean =
+    when (value) {
+        case None -> true
+        case Some(_) -> false
+    }
+
+fun main(): Int {
+    if (!absent(optionalService()) || !absent(optionalString()) || !absent(optionalFunction()))
+        return 1
+    val service: QueryService = Service()
+    val text = "context"
+    val callback: () -> Int = { 21 }
+    context(service) {
+        val found = optionalService() ?: return 2
+        if (found !== service || found.number() != 42)
+            return 3
+        context(text) {
+            if (optionalString()!! !== text)
+                return 4
+            Unit
+        }
+        context(callback) {
+            if (optionalFunction()!!() != 21)
+                return 5
+            Unit
+        }
+    }
+    return if (absent(optionalService()) && absent(optionalString()) && absent(optionalFunction()))
+        0
+    else
+        6
+}
