@@ -1,6 +1,8 @@
 # shadcn 全套自绘控件设计
 
-日期：2026-11-04。状态：设计，尚未实施。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。本文中的新增类型、签名和批次均是拟议合同，不表示仓库已经提供这些 API。
+设计日期：2026-11-04；完成日期：2026-11-06。状态：P0～P9 已交付，实际 macOS 验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。公开类型、签名和默认值以现行 UI、组件与主题规范为准。
+
+2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。P1～P8 的组件目录已交付 **64／64**；P9 的设置、工作区、数据管理、会话与问卷四个应用组合通过 aarch64 与 x86_64 Rosetta release 实窗验证。Windows／Linux 留待各自基础设施完成后验收。
 
 ## 1. 交付目标与复刻基线
 
@@ -9,6 +11,8 @@
 范围以 2026-11-04 的 [shadcn Components](https://ui.shadcn.com/docs/components) 为准：66 项，明确排除 **Code Block、Native Select**，交付 **64 项**。自绘 Select、Combobox、Typography 的行内 code，以及目录中的 Attachment、Bubble、Marker、Message、Message Scroller、Questionnaire、Trace 均包含在内。完整映射与逐项完成条件见 [CATALOG.md](CATALOG.md)。
 
 复刻包含默认外观、公开变体、可组合部件及核心交互。单个静态截图、只有占位外观的类、用通用容器替代复杂控件，都不算该项完成。Scoop 使用自身的 View、Binding、模型与接收者 DSL；React props、DOM 属性、CSS selector、`render`／`asChild`、浏览器表单与 JS 包管理不逐字移植。
+
+按实际使用反馈，Neutral 作为参考配色保留，并允许向 shadcnTheme 传入完整语义配色。macOS Gallery 默认选择系统配色，使用 AppKit 实际语义色，提供 System／Neutral 切换并保留独立的明暗选择。系统取色由 macOS 主题的平台适配负责，控件仍为同一份平台无关 Scoop 实现；不以换成另一套主题尺寸代替配色切换。
 
 参考风格选 **Base / Nova + Neutral，Light／Dark 两种模式**。以官方 [base-nova registry](https://ui.shadcn.com/r/styles/base-nova/button.json) 的实现和[主题 token](https://ui.shadcn.com/docs/theming)为外观基线；部分新增组件文档展示 base-rhea，使用对应 base-nova 源码统一视觉。控件目录完整性与皮肤数量分开：本轮实现这一套可定制皮肤，不把所有 shadcn preset、Blocks 和独立 AI Elements 示例另算一批控件。当前 Drawer 已改用 Base UI，Toast 也是当前 Base 版本；不按旧 Vaul／Sonner 教程推定现行行为。
 
@@ -43,14 +47,14 @@
 
 ## 3. 已有能力与剩余工作
 
-现有 [组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)已经覆盖 Flex／Wrap／Grid、共享固定列宽、方向与图像、RangeSpec／resizePair／snapTarget；[UI 规范](../../specs/SCOOP-UI-SPEC.md)已有活动项导航、悬浮走廊、受控退出、文本策略／投影、滚动意图及阅读恢复。它们是直接实施控件的基础，不再开一轮笼统的“补齐基础设施”。
+现有 [组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)已经覆盖 Flex／Wrap／Grid、共享固定列宽、方向与图像、RangeSpec／resizePair／snapTarget；[UI 规范](../../specs/SCOOP-UI-SPEC.md)已有活动项导航、悬浮走廊、受控退出、文本策略／投影、滚动意图及阅读恢复。这些已交付能力继续作为控件基础；2026-11-06 的整改针对已复核的测量、更新、生命周期和错误隔离问题，范围与验收按整改方案闭合。
 
 以下差距必须随实际使用批次闭合，不能把现有近似能力当作完整支持：
 
 | 差距 | 具体原因与落点 | 使用批次 |
 | --- | --- | --- |
-| 焦点可见性 | 当前 InteractionState 只有 focused；增加统一的键盘／程序焦点显示判定，区分指针聚焦，不让每个控件自行记最近按键 | P0／P1，UI 焦点与样式视觉输入 |
-| 弹层焦点合同独立于屏障 | 现有 Portal 的初始／恢复焦点依附 ModalOptions；非模态 Popover 的恢复和 Drawer 的 FocusContained 模式需要同一焦点会话可独立使用 | P4，UI Portal／FocusScope |
+| 焦点可见性（P0b 已交付） | 同一 Surface 聚焦入口记录来源，FocusOptions 提供指示策略；InteractionState 保留实际 focused，样式消费 focusVisible，延迟显露与模态恢复保留来源 | P0／P1，UI 焦点与样式视觉输入 |
+| 弹层焦点合同独立于屏障 | P4a 已把初始／恢复焦点迁移到 OverlayFocusOptions；NonModal／FocusContained／Modal 共用焦点会话，焦点边界独立于指针屏障 | P4，UI Portal／FocusScope |
 | Select 内容锚点定位 | 现有 Anchored 只围绕外框定位；选中项对齐 trigger 需要内容测量产生的定位点及统一碰撞处理 | P5，UI 定位协议与 Select 布局 |
 | OTP 固定槽几何 | 现有文本投影能映射正文，不能单凭插入空格保证任意字体下的等宽槽、间隙命中和 IME caret；补共享编辑宿主的实际几何适配 | P2，UI 文本宿主与 OTP Element |
 | 回合起点与末尾留白 | 现有 FollowEnd／restore 不包含新回合顶部定位、上一项 peek 和可收缩尾部空间；补 VirtualList 的逻辑末端留白及定位 margin | P8，component 虚拟布局／消息模型 |
@@ -99,9 +103,9 @@ P2 的 OTP、P4 的弹层焦点、P5 的 Select／Combobox、P7 的图表以及 
 
 ## 6. Spec 落点
 
-本次提交是设计文档，不改写现行 API 为“已实现”。开始相应批次时，先更新下列合同，再同步源码和实际调用方：
+各批次已按 spec 先行完成以下合同、实现和实际调用方的同步；验收范围记录在 [PROGRESS.md](PROGRESS.md)：
 
-| 规范 | 需要演进的内容 |
+| 规范 | 已同步的内容 |
 | --- | --- |
 | [SCOOP-UI-COMPONENT-SPEC](../../specs/SCOOP-UI-COMPONENT-SPEC.md) | 第 2 节入口与 builder；Button 变体、Checkbox 三态、Input／Textarea 组合；虚拟列表留白与定位；新增控件及具体模型章节 |
 | [SCOOP-UI-THEME-SPEC](../../specs/SCOOP-UI-THEME-SPEC.md) | 第 3 节完整语义颜色／尺寸／文字／动画；新增 shadcn 主题；按实际需求扩展共享几何和视觉状态 |

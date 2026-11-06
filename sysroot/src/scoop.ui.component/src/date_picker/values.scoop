@@ -1,0 +1,104 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+/** A draft is the text editor itself, plus its last explicit validation result. */
+public class DatePickerDraft public constructor(
+    public val editor: TextEditorState = TextEditorState()
+) {
+    internal val problem = state<String?>(None)
+    public val error: String? get() = problem.value
+    public fun reset(text: String): Boolean {
+        if (editor.isComposing)
+            return false
+        editor.replaceAll(text)
+        if (problem.value != None)
+            problem.value = None
+        return true
+    }
+}
+
+public enum DatePickerParse {
+    Date(LocalDate), Range(DateRange), Empty, Invalid(String)
+}
+
+public class DatePickerPreset public constructor(
+    public val label: String,
+    public val value: CalendarValue
+)
+
+public class DatePickerProps public constructor(
+    public val selection: CalendarSelection,
+    public val initialPage: LocalDate,
+    public val draft: DatePickerDraft? = None,
+    public val open: Binding<Boolean>? = None,
+    public val calendar: CalendarOptions = CalendarOptions(),
+    public val referenceDate: LocalDate? = None,
+    public val parser: ((String, LocalDate, CalendarLocale) -> DatePickerParse)? = None,
+    public val format: ((CalendarValue, CalendarLocale) -> String)? = None,
+    public val presets: Array<DatePickerPreset> = [],
+    public val placeholder: String = "Pick a date",
+    public val enabled: Boolean = true,
+    public val readOnly: Boolean = false,
+    public val invalid: Boolean = false,
+    public val commitOnBlur: Boolean = false,
+    public val closeOnSelect: Boolean = true,
+    public val handle: DatePickerHandle? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val labelTarget: FieldTarget? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val inputStyle: TextFieldStyle = textFieldStyle(),
+    public val buttonStyle: ButtonStyle = buttonStyle(),
+    public val popupStyle: StyleOverride = styleOverride(),
+    public val mode: OverlayMode = OverlayMode.NonModal,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val day: ((CalendarDay, ActionContentStyle) -> View)? = None,
+    public val footer: View? = None,
+    public val onValueChange: (CalendarValue) -> Unit = {},
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {}
+) {
+    init {
+        when (selection) {
+            case Multiple(_) -> throw IllegalArgumentException(
+                Some("date picker supports single dates and ranges")
+            );
+            else -> {}
+        }
+    }
+    internal val mutable: Boolean get() = enabled && !readOnly
+}
+
+public class DatePickerHandle public constructor() {
+    internal var owner: DatePickerControl? = None
+    public val isAttached: Boolean get() = owner?.active ?: false
+    public val isOpen: Boolean get() = owner?.open?.value ?: false
+    public fun commit(): Boolean = owner?.commit() ?: false
+    public fun reset(): Boolean = owner?.reset() ?: false
+    public fun openCalendar(): Boolean = owner?.show() ?: false
+    public fun closeCalendar(): Boolean = owner?.close() ?: false
+    internal fun bind(control: DatePickerControl) {
+        when (owner) {
+            case Some(previous) -> requireComponent(
+                previous === control || !previous.active,
+                "date picker handle is already attached"
+            );
+            case None -> {}
+        }
+        owner = Some(control)
+    }
+    internal fun release(control: DatePickerControl) {
+        when (owner) {
+            case Some(previous) -> if (previous === control)
+                owner = None;
+            case None -> {}
+        }
+    }
+}

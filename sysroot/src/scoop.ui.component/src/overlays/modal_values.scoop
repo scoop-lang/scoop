@@ -1,0 +1,174 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Shared immutable configuration for modal content families. */
+public class ModalOptions public constructor(
+    public val trigger: PopupTriggerSpec? = None,
+    public val title: PanelContent? = None,
+    public val description: PanelContent? = None,
+    public val header: View? = None,
+    public val scrollable: Boolean = false,
+    public val scrollState: ScrollState? = None,
+    public val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val handle: OverlayHandle? = None,
+    public val enabled: Boolean = true,
+    public val viewportPadding: Double = 16.0,
+    public val backdrop: Paint? = Some(Paint(Color.Black.withAlpha(0.1))),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val contentPadding: Double = 16.0
+) {
+    init {
+        nonnegative(viewportPadding, "invalid modal viewport padding")
+        nonnegative(contentPadding, "invalid modal content padding")
+    }
+}
+
+public enum AlertDialogSize {
+    Default, Sm
+}
+
+public enum SheetSide {
+    Top, Bottom, Start, End
+}
+
+internal enum ModalKind {
+    Dialog, Alert(AlertDialogSize), Sheet(SheetSide), Drawer(DrawerProps, DrawerOwner)
+}
+
+/** Only supplied values are captured here; reading a binding belongs to the mounted component. */
+internal class ModalInput(
+    val kind: ModalKind,
+    val open: Binding<Boolean>,
+    val content: View,
+    val options: ModalOptions,
+    val width: Double?,
+    val height: Double?,
+    val footer: View?,
+    val showClose: Boolean,
+    val close: PopupTriggerSpec?,
+    val dismiss: OverlayDismiss,
+    val media: View? = None,
+    val action: View? = None,
+    val cancel: PopupTriggerSpec? = None
+)
+
+public class DialogProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val options: ModalOptions = ModalOptions(),
+    public val width: Double = 384.0,
+    public val footer: View? = None,
+    public val showCloseButton: Boolean = true,
+    public val close: PopupTriggerSpec? = None,
+    public val dismiss: OverlayDismiss = OverlayDismiss(true, OutsidePress.CloseAndConsume)
+) {
+    init {
+        nonnegative(width, "invalid dialog width")
+        modalDismiss(dismiss)
+    }
+    internal val input =
+        ModalInput(
+            ModalKind.Dialog,
+            open,
+            content,
+            options,
+            Some(width),
+            None,
+            footer,
+            showCloseButton,
+            close,
+            dismiss
+        )
+}
+
+public class AlertDialogProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val options: ModalOptions = ModalOptions(),
+    public val size: AlertDialogSize = AlertDialogSize.Default,
+    public val media: View? = None,
+    public val action: View? = None,
+    public val cancel: PopupTriggerSpec =
+        PopupTriggerSpec(ButtonContent.Label(LabelProps(LabelText.Plain("Cancel", None))))
+) {
+    internal val input =
+        ModalInput(
+            ModalKind.Alert(size),
+            open,
+            content,
+            options,
+            Some(
+                if (size == AlertDialogSize.Sm)
+                    320.0
+                else
+                    384.0
+            ),
+            None,
+            None,
+            false,
+            None,
+            OverlayDismiss(true, OutsidePress.Ignore),
+            media,
+            action,
+            Some(cancel)
+        )
+}
+
+public class SheetProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val options: ModalOptions = ModalOptions(viewportPadding = 0.0),
+    public val side: SheetSide = SheetSide.End,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val footer: View? = None,
+    public val showCloseButton: Boolean = true,
+    public val close: PopupTriggerSpec? = None,
+    public val dismiss: OverlayDismiss = OverlayDismiss(true, OutsidePress.CloseAndConsume)
+) {
+    init {
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid sheet width")
+            case None -> {}
+        }
+        when (height) {
+            case Some(value) -> nonnegative(value, "invalid sheet height")
+            case None -> {}
+        }
+        modalDismiss(dismiss)
+    }
+    internal val input =
+        ModalInput(
+            ModalKind.Sheet(side),
+            open,
+            content,
+            options,
+            width,
+            height,
+            footer,
+            showCloseButton,
+            close,
+            dismiss
+        )
+}
+
+internal fun defaultDialogCancel(): PopupTriggerSpec =
+    PopupTriggerSpec(ButtonContent.Label(LabelProps(LabelText.Plain("Cancel", None))))
+
+private fun modalDismiss(value: OverlayDismiss) {
+    requireComponent(
+        value.outsidePress != OutsidePress.CloseAndContinue,
+        "modal outside presses cannot continue to the background"
+    )
+}

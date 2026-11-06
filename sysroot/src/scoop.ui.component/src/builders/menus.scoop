@@ -1,0 +1,144 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public open class MenuOptionsBuilder internal constructor() {
+    public var width: Double = 192.0
+    public var mode: OverlayMode = OverlayMode.NonModal
+    public var loop: Boolean = true
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var typeahead: TypeaheadOptions = TypeaheadOptions(matches = ::menuPrefix)
+    public var submenuHover: HoverOptions =
+        HoverOptions(openDelay = Duration.milliseconds(100L), focus = false)
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun options(): MenuOptions =
+        MenuOptions(
+            width,
+            mode,
+            loop,
+            enabled,
+            fonts,
+            theme,
+            style,
+            transition,
+            Some(typeahead),
+            submenuHover
+        )
+}
+
+public open class MenuRootBuilder internal constructor(): MenuOptionsBuilder() {
+    public var viewportPadding: Double = 8.0
+    public var focus: OverlayFocusOptions = OverlayFocusOptions()
+    public var handle: OverlayHandle? = None
+    public var dismiss: OverlayDismiss? = None
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public fun focus(configure: OverlayFocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+}
+
+public class DropdownMenuBuilder internal constructor(): MenuRootBuilder() {
+    public var trigger: PopupTriggerSpec? = None
+    public var anchor: LayoutAnchor? = None
+    public var side: OverlaySide = OverlaySide.Bottom
+    public var alignment: OverlayAlignment = OverlayAlignment.Start
+    public var gap: Double = 4.0
+    public var anchorVisibility: AnchorVisibility = AnchorVisibility.Close
+    public var group: GroupPosition? = None
+    public fun trigger(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        setTrigger(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), configure)
+    }
+    public fun trigger(text: StyledText, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        setTrigger(ButtonContent.Label(LabelProps(LabelText.Styled(text))), configure)
+    }
+    public fun trigger(content: View, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        setTrigger(ButtonContent.Custom(content), configure)
+    }
+    private fun setTrigger(content: ButtonContent, configure: PopupTriggerBuilder.() -> Unit) {
+        val builder = PopupTriggerBuilder()
+        builder.configure()
+        trigger = Some(builder.snapshot(content))
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: MenuContent): DropdownMenuProps =
+        DropdownMenuProps(
+            open,
+            content,
+            options(),
+            trigger,
+            anchor,
+            side,
+            alignment,
+            gap,
+            viewportPadding,
+            anchorVisibility,
+            focus,
+            handle,
+            dismiss,
+            group,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+public class ContextMenuBuilder internal constructor(): MenuRootBuilder() {
+    public var open: Binding<Boolean>? = None
+    internal fun snapshot(content: View, menu: MenuContent): ContextMenuProps =
+        ContextMenuProps(
+            content,
+            menu,
+            open,
+            options(),
+            viewportPadding,
+            focus,
+            handle,
+            dismiss,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+internal fun makeDropdownMenu(
+    open: Binding<Boolean>,
+    content: MenuContent,
+    configure: DropdownMenuBuilder.() -> Unit
+): View {
+    val builder = DropdownMenuBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> DropdownMenu(current, scope = mount) },
+        builder.key
+    )
+}
+
+internal fun makeContextMenu(
+    content: View,
+    menu: MenuContent,
+    configure: ContextMenuBuilder.() -> Unit
+): View {
+    val builder = ContextMenuBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(content, menu),
+        { current, mount -> ContextMenu(current, scope = mount) },
+        builder.key
+    )
+}

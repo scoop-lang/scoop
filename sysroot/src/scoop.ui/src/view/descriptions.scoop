@@ -1,66 +1,92 @@
 package scoop.ui
 
 internal interface ComponentDescriptionBase {
-    val shape: ViewShape
-    fun create(): ComponentInstance
+    fun sameType(other: ComponentDescriptionBase): Boolean
+    fun create(scope: ComponentScope): ComponentInstance
 }
 
 internal interface ElementDescriptionBase {
-    val shape: ViewShape
-    fun create(): ElementInstance
+    fun sameType(other: ElementDescriptionBase): Boolean
+    fun create(scope: ComponentScope): ElementInstance
 }
 
 internal interface ComponentInstance {
     val value: Component
-    fun replace(description: ComponentDescriptionBase)
+    fun replace(description: ComponentDescriptionBase): Boolean
 }
 
 internal interface ElementInstance {
-    val value: Element
-    fun replace(description: ElementDescriptionBase)
+    val value: Any
+    fun measure(context: MeasureContext, constraints: Constraints): ElementLayout
+    fun onMount()
+    fun update(): UiInvalidation
+    fun onUnmount()
+    fun replace(description: ElementDescriptionBase): Boolean
 }
 
 internal interface LazyDescriptionBase {
-    val shape: ViewShape
-    fun create(): LazyInstance
+    fun sameType(other: LazyDescriptionBase): Boolean
+    fun create(scope: ComponentScope): LazyInstance
 }
 
 internal interface LazyInstance {
-    val value: LazyElement
-    fun replace(description: LazyDescriptionBase)
+    val value: Any
+    fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout
+    fun onMount()
+    fun update(): UiInvalidation
+    fun onUnmount()
+    fun replace(description: LazyDescriptionBase): Boolean
 }
 
-internal class LazyDescription<P, E: LazyElement>(
+internal class LazyDescription<P, L, E: LazyElement<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E
+    private val factory: (Props<P>, ComponentScope) -> E,
+    val comparison: InputComparison<P>? = None
 ): LazyDescriptionBase {
-    override val shape = ViewShape.Lazy(typeInfo<E>().type, typeInfo<P>().type)
-    override fun create(): LazyInstance {
-        requireClassInstance<E>()
-        val props = Props(input)
-        return TypedLazyInstance<P, E>(props, factory(props))
+    override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, L, E>
+    override fun create(scope: ComponentScope): LazyInstance {
+        val props = Props(input, comparison)
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedLazyInstance<P, L, E>(props, instance)
     }
 }
 
-private class TypedLazyInstance<P, E: LazyElement>(
+private class TypedLazyInstance<P, L, E: LazyElement<L>>(
     private val props: Props<P>,
     private val instance: E
 ): LazyInstance {
-    override val value: LazyElement get() = instance
-    override fun replace(description: LazyDescriptionBase) {
-        props.replace((description as LazyDescription<P, E>).input)
+    override val value: Any get() = instance
+    override fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout =
+        TypedElementLayout(
+            instance.measure(context, constraints),
+            { scene, layout -> instance.scene(scene, layout) }
+        )
+    override fun onMount() {
+        instance.onMount()
+    }
+    override fun update(): UiInvalidation = instance.update()
+    override fun onUnmount() {
+        instance.onUnmount()
+    }
+    override fun replace(description: LazyDescriptionBase): Boolean {
+        val next = description as LazyDescription<P, L, E>
+        return props.replace(next.input, next.comparison)
     }
 }
 
 internal class ComponentDescription<P, C: Component>(
     val input: P,
-    private val factory: (Props<P>) -> C
+    private val factory: (Props<P>, ComponentScope) -> C,
+    val comparison: InputComparison<P>? = None
 ): ComponentDescriptionBase {
-    override val shape = ViewShape.Component(typeInfo<C>().type, typeInfo<P>().type)
-    override fun create(): ComponentInstance {
-        requireClassInstance<C>()
-        val props = Props(input)
-        return TypedComponentInstance<P, C>(props, factory(props))
+    override fun sameType(other: ComponentDescriptionBase): Boolean =
+        other is ComponentDescription<P, C>
+    override fun create(scope: ComponentScope): ComponentInstance {
+        val props = Props(input, comparison)
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedComponentInstance<P, C>(props, instance)
     }
 }
 
@@ -69,38 +95,46 @@ private class TypedComponentInstance<P, C: Component>(
     private val instance: C
 ): ComponentInstance {
     override val value: Component get() = instance
-    override fun replace(description: ComponentDescriptionBase) {
-        props.replace((description as ComponentDescription<P, C>).input)
+    override fun replace(description: ComponentDescriptionBase): Boolean {
+        val next = description as ComponentDescription<P, C>
+        return props.replace(next.input, next.comparison)
     }
 }
 
-internal class ElementDescription<P, E: Element>(
+internal class ElementDescription<P, L, E: Element<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E
+    private val factory: (Props<P>, ComponentScope) -> E,
+    val comparison: InputComparison<P>? = None
 ): ElementDescriptionBase {
-    override val shape = ViewShape.Element(typeInfo<E>().type, typeInfo<P>().type)
-    override fun create(): ElementInstance {
-        requireClassInstance<E>()
-        val props = Props(input)
-        return TypedElementInstance<P, E>(props, factory(props))
+    override fun sameType(other: ElementDescriptionBase): Boolean =
+        other is ElementDescription<P, L, E>
+    override fun create(scope: ComponentScope): ElementInstance {
+        val props = Props(input, comparison)
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedElementInstance<P, L, E>(props, instance)
     }
 }
 
-private class TypedElementInstance<P, E: Element>(
+private class TypedElementInstance<P, L, E: Element<L>>(
     private val props: Props<P>,
     private val instance: E
 ): ElementInstance {
-    override val value: Element get() = instance
-    override fun replace(description: ElementDescriptionBase) {
-        props.replace((description as ElementDescription<P, E>).input)
-    }
-}
-
-private fun <T> requireClassInstance() {
-    when (typeInfo<T>().describe().shape) {
-        case Class(_) -> {}
-        else -> throw IllegalArgumentException(
-            Some("component and element factories must retain a concrete class type")
+    override val value: Any get() = instance
+    override fun measure(context: MeasureContext, constraints: Constraints): ElementLayout =
+        TypedElementLayout(
+            instance.measure(context, constraints),
+            { scene, layout -> instance.scene(scene, layout) }
         )
+    override fun onMount() {
+        instance.onMount()
+    }
+    override fun update(): UiInvalidation = instance.update()
+    override fun onUnmount() {
+        instance.onUnmount()
+    }
+    override fun replace(description: ElementDescriptionBase): Boolean {
+        val next = description as ElementDescription<P, L, E>
+        return props.replace(next.input, next.comparison)
     }
 }

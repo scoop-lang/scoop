@@ -1,0 +1,190 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum BubbleVariant {
+    Default, Secondary, Muted, Tinted, Outline, Ghost, Destructive
+}
+
+public enum BubbleReactionSide {
+    Top, Bottom
+}
+
+public class BubbleReactions public constructor(
+    public val content: View,
+    public val side: BubbleReactionSide = BubbleReactionSide.Bottom,
+    public val align: MessageAlignment = MessageAlignment.End
+)
+
+public class BubbleProps public constructor(
+    public val content: ButtonContent,
+    public val variant: BubbleVariant = BubbleVariant.Default,
+    public val align: MessageAlignment = MessageAlignment.Start,
+    public val maxWidthFraction: Double? = None,
+    public val reactions: BubbleReactions? = None,
+    public val actions: View? = None,
+    public val onClick: (() -> Unit)? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val focusOutline: OutlineStyle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        when (maxWidthFraction) {
+            case Some(value) -> requireComponent(
+                value.isFinite() && value > 0.0 && value <= 1.0,
+                "bubble width fraction must be in (0, 1]"
+            )
+            case None -> {}
+        }
+    }
+}
+
+public class BubbleBuilder internal constructor(): ConversationActionBuilder() {
+    public var variant: BubbleVariant = BubbleVariant.Default
+    public var align: MessageAlignment = MessageAlignment.Start
+    public var maxWidthFraction: Double? = None
+    public var reactions: BubbleReactions? = None
+    public var actions: View? = None
+    public fun reactions(
+        content: View,
+        side: BubbleReactionSide = BubbleReactionSide.Bottom,
+        align: MessageAlignment = MessageAlignment.End
+    ) {
+        reactions = Some(BubbleReactions(content, side, align))
+    }
+    internal fun snapshot(content: ButtonContent): BubbleProps =
+        BubbleProps(
+            content,
+            variant,
+            align,
+            maxWidthFraction,
+            reactions,
+            actions,
+            onClick,
+            enabled,
+            focus,
+            focusOutline,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class Bubble(private val props: Props<BubbleProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private val themes = ThemeAccess()
+    private val text = ActionTextStyle()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val colors = bubbleColors(input.variant, theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val ghost = input.variant == BubbleVariant.Ghost
+        val body =
+            conversationSurface(
+                ConversationSurfaceProps(
+                    input.content,
+                    theme,
+                    text.resolve(
+                        theme.tokens.typography.body,
+                        colors.foreground,
+                        None,
+                        lineHeight = Some(1.625)
+                    ),
+                    conversationStyle(
+                        colors.background,
+                        colors.foreground,
+                        if (ghost)
+                            Insets()
+                        else
+                            Insets(12.0 * density, 8.0 * density, 12.0 * density, 8.0 * density),
+                        if (ghost)
+                            0.0
+                        else
+                            12.0 * density,
+                        colors.border,
+                        colors.hover,
+                        input.focusOutline,
+                        if (ghost)
+                            styleOverride { this.border(None) }.then(input.style)
+                        else
+                            input.style
+                    ),
+                    input.onClick,
+                    input.enabled,
+                    input.focus,
+                    input.fonts
+                )
+            )
+        val reactionInset =
+            lowerBound(
+                2.0 * density,
+                theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Plain)).focusOutset
+            )
+        val reactions =
+            when (input.reactions) {
+                case Some(value) -> panelFrame(
+                    value.content,
+                    Insets(6.0 * density, reactionInset, 6.0 * density, reactionInset),
+                    styleOverride {
+                        this.background(Some(Paint(theme.tokens.palette.muted.background)))
+                        this.border(
+                            Some(Border.all(3.0 * density, theme.tokens.palette.card.background))
+                        )
+                        this.corners(Corners.all(999.0))
+                    }
+                )
+                case None -> empty()
+            }
+        return element(
+            BubbleLayoutProps(
+                input.align,
+                input.maxWidthFraction ?:
+                    if (ghost)
+                        1.0
+                    else
+                        0.8,
+                input.reactions,
+                panelPresent(input.actions),
+                input.enabled,
+                density
+            ),
+            { current, mount -> BubbleLayout(current, mount) },
+            [panelSlot(body, 0L), panelSlot(reactions, 1L), panelSlot(input.actions ?: empty(), 2L)]
+        )
+    }
+}
+
+public fun bubble(text: String, configure: BubbleBuilder.() -> Unit = {}): View =
+    makeBubble(conversationText(text), configure)
+
+public fun bubble(text: StyledText, configure: BubbleBuilder.() -> Unit = {}): View =
+    makeBubble(conversationText(text), configure)
+
+public fun bubble(content: View, configure: BubbleBuilder.() -> Unit = {}): View =
+    makeBubble(ButtonContent.Custom(content), configure)
+
+public fun bubble(
+    content: (ActionContentStyle) -> View,
+    configure: BubbleBuilder.() -> Unit = {}
+): View = makeBubble(ButtonContent.Resolved(content), configure)
+
+internal fun makeBubble(content: ButtonContent, configure: BubbleBuilder.() -> Unit): View {
+    val builder = BubbleBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(content),
+        { current, scope -> Bubble(current, scope) },
+        builder.key
+    )
+}

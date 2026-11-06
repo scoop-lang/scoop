@@ -1,0 +1,327 @@
+package scoop.tests.ui.sidebar
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.sidebarMenu as makeMenu
+import scoop.ui.component.sidebarMenuAction as makeAction
+import scoop.ui.component.sidebarMenuBadge as makeBadge
+
+internal class SidebarScene(private val p: SidebarProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val revision = p.generation.value
+        val contents =
+            if (p.gone)
+                empty()
+            else
+                sidebar(
+                    binding(
+                        { p.open.value },
+                        {
+                            next -> if (!p.reject)
+                                p.open.value = next
+                        }
+                    ),
+                    {
+                        shown -> component(
+                            shown,
+                            { current, mount -> SidebarNavigation(p, current, scope = mount) }
+                        )
+                    }
+                ) {
+                    variant = p.variant;
+                    collapsible = p.collapse;
+                    side = p.side;
+                    enabled = p.enabled
+                    scrollState = Some(p.scroll);
+                    rail = true;
+                    fonts = Some(p.fonts)
+                    if (!p.shortcut)
+                        shortcut = None
+                    focus =
+                        OverlayFocusOptions(
+                            initialFocus = Some(p.first),
+                            restoreTarget = Some(p.mainEditor)
+                        )
+                    transition(
+                        if (p.motion)
+                            Some(AnimationSpec.Tween(Duration.milliseconds(180L)))
+                        else
+                            None
+                    )
+                    onOpenChange = { _ -> p.notifications += 1 }
+                    onCloseRequest =
+                        {
+                            _ ->
+                            p.closeRequests += 1;
+                            !p.veto
+                        }
+                    onClosed = { _ -> p.closed += 1 }
+                    header {
+                        shown -> if (shown.collapsed)
+                            empty()
+                        else
+                            observeSidebar(
+                                p,
+                                2L,
+                                sidebarInput(p.search) {
+                                    fonts = Some(p.fonts);
+                                    caretBlink = Duration.ZERO;
+                                    focus = FocusOptions(Some(p.navEditor))
+                                }
+                            )
+                    }
+                    footer(
+                        observeSidebar(
+                            p,
+                            6L,
+                            sidebarTrigger(p.open.binding()) {
+                                focus = FocusOptions(Some(p.trigger))
+                            }
+                        )
+                    )
+                    inset(component(Unit, { _, mount -> SidebarWorkspace(p, scope = mount) }))
+                }
+        return direction(
+            element(
+                revision,
+                { current, mount -> SidebarRoot(p, current, scope = mount) },
+                [contents]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class SidebarNavigation(
+    private val p: SidebarProbe,
+    private val props: Props<SidebarPresentation>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        p.navMounts += 1
+    }
+    public override fun onUnmount() {
+        p.navUnmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p;
+        val shown = props.value
+        val contents =
+            sidebarGroup(
+                makeColumn {
+                    add(
+                        makeMenu {
+                            collapsed = shown.collapsed;
+                            fonts = Some(p.fonts)
+                            for (
+                                key in if (p.reverse)
+                                    [2L, 1L]
+                                else
+                                    [1L, 2L]
+                            ) {
+                                item(
+                                    ViewKey.Number(key),
+                                    if (key == 1L)
+                                        "Inbox"
+                                    else
+                                        "Projects",
+                                    { p.clicks += 1 }
+                                ) {
+                                    icon(
+                                        makeLabel(
+                                            if (key == 1L)
+                                                "I"
+                                            else
+                                                "P"
+                                        ) { fonts = Some(p.fonts) }
+                                    )
+                                    if (key == 1L) {
+                                        focus = FocusOptions(Some(p.first));
+                                        active = true
+                                        badge(
+                                            observeSidebar(
+                                                p,
+                                                5L,
+                                                makeBadge("12") { fonts = Some(p.fonts) }
+                                            )
+                                        )
+                                        action(
+                                            observeSidebar(
+                                                p,
+                                                4L,
+                                                makeAction(
+                                                    makeLabel("+") { fonts = Some(p.fonts) },
+                                                    { p.actions += 1 }
+                                                ) { focus = FocusOptions(Some(p.action)) }
+                                            )
+                                        )
+                                        actionOnHover = true
+                                    } else {
+                                        submenu(
+                                            p.subopen.binding(),
+                                            makeMenu {
+                                                fonts = Some(p.fonts)
+                                                item(ViewKey.Number(3L), "Design system", {}) {
+                                                    focus = FocusOptions(Some(p.sub))
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    )
+                    if (p.loading)
+                        sidebarMenuSkeleton {
+                            collapsed = shown.collapsed;
+                            showIcon = true
+                        }
+                    spacing = 4.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                collapsed = shown.collapsed;
+                label("Workspace");
+                fonts = Some(p.fonts)
+            }
+        return element(
+            shown,
+            { current, mount -> SidebarPresentationProbe(p, current, scope = mount) },
+            [observeSidebar(p, 0L, contents)]
+        )
+    }
+}
+
+private class SidebarWorkspace(private val p: SidebarProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        p.mainMounts += 1
+    }
+    public override fun onUnmount() {
+        p.mainUnmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        return observeSidebar(
+            p,
+            1L,
+            makeColumn {
+                add(
+                    observeSidebar(
+                        p,
+                        3L,
+                        makeInput(p.draft) {
+                            fonts = Some(p.fonts);
+                            caretBlink = Duration.ZERO;
+                            focus = FocusOptions(Some(p.mainEditor))
+                        }
+                    )
+                )
+                label("The workspace remains mounted") { fonts = Some(p.fonts) }
+                padding = Insets.all(20.0);
+                spacing = 16.0;
+                alignment = CrossAlignment.Stretch
+            }
+        )
+    }
+}
+
+private fun observeSidebar(p: SidebarProbe, slot: Long, content: View): View =
+    element(slot, { current, mount -> SidebarObservation(p, current, scope = mount) }, [content])
+
+internal class SidebarCapture(var bounds: Rect, var ring: Boolean = false)
+
+private class SidebarObservation(
+    private val p: SidebarProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val capture = SidebarCapture(rect)
+        val ring = Rect(-4.0, -4.0, rect.width + 8.0, rect.height + 8.0)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, rect).use {
+                    geometry -> capture.bounds = geometry.toWindow(rect)
+                }
+                captureGeometry(paint.canvas, ring).use {
+                    geometry -> capture.ring = geometry.visibleBounds == Some(geometry.bounds)
+                }
+            }
+        }
+        val slot = props.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.geometry[slot].bounds = capture.bounds;
+                p.geometry[slot].ring = capture.ring
+            }
+        }
+    }
+}
+
+private class SidebarPresentationProbe(
+    private val p: SidebarProbe,
+    private val props: Props<SidebarPresentation>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children();
+        val shown = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.shown = shown
+        }
+    }
+}
+
+private class SidebarRoot(
+    private val p: SidebarProbe,
+    private val revision: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children();
+        val value = revision.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = value
+        }
+    }
+}

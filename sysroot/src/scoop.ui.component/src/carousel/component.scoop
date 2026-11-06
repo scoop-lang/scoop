@@ -1,0 +1,263 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.surface.InputArea
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class CarouselOwner(initialIndex: Long) {
+    var group: InputArea? = None
+    val key = state<ViewKey?>(None)
+    val snapshot = state(CarouselSnapshot())
+    var fallback = initialIndex
+    var control: CarouselControl? = None
+}
+
+internal class CarouselInput(
+    val props: CarouselProps,
+    val keys: Array<ViewKey>,
+    val selected: Long,
+    val theme: Theme,
+    val owner: CarouselOwner
+) {
+    val items = Array<CarouselItemOwner>(keys.size) { _ -> CarouselItemOwner() }
+}
+
+public class Carousel public constructor(
+    private val props: Props<CarouselProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val owner = CarouselOwner(props.value.initialIndex)
+    private var source: ItemSource? = None
+    private var keys: Array<ViewKey> = []
+    private var content: Array<View> = []
+    public override fun onMount() {
+        themes.mount(props.value.theme);
+    }
+    public override fun render(): View {
+        val value = props.value
+        val same =
+            when (source) {
+                case Some(old) -> old === value.source;
+                case None -> false
+            }
+        if (!same) {
+            val used = HashMap<ViewKey, Boolean>()
+            keys =
+                Array<ViewKey>(value.source.count) {
+                    index ->
+                    val key = value.source.keyAt(index)
+                    requireComponent(
+                        key != ViewKey.Position && used[key] == None,
+                        "carousel requires unique explicit item keys"
+                    )
+                    used.put(key, true);
+                    key
+                }
+            content = Array<View>(keys.size) { index -> value.source.build(index) }
+            source = Some(value.source)
+        }
+        val selected =
+            carouselSelected(keys, value.selected?.value, owner.key.value, owner.fallback)
+        val input = CarouselInput(value, keys, selected, themes.read(value.theme), owner)
+        val items =
+            Array<View>(keys.size) {
+                index -> element(
+                    input.items[index],
+                    { current, mount -> CarouselItemLayout(current, scope = mount) },
+                    [content[index]],
+                    key = keys[index]
+                )
+            }
+        val state = owner.snapshot.value
+        return element(
+            input,
+            { current, mount -> CarouselLayout(current, scope = mount) },
+            [
+                element(
+                    input,
+                    { current, mount -> CarouselViewport(current, scope = mount) },
+                    items,
+                    key = ViewKey.Text("viewport")
+                ),
+                carouselButton(input, false, state.canPrevious),
+                carouselButton(input, true, state.canNext)
+            ]
+        )
+    }
+}
+
+private fun carouselButton(input: CarouselInput, next: Boolean, available: Boolean): View {
+    val options =
+        if (next)
+            input.props.next
+        else
+            input.props.previous
+    val appearance =
+        options.style.copy {
+            surface {
+                style =
+                    styleOverride { corners(Corners.all(999.0)) }.then(options.style.surface.style)
+            }
+        }
+    return component(
+        ButtonProps(
+            when (options.content) {
+                case Some(view) -> ButtonContent.Custom(view)
+                case None -> ButtonContent.Resolved {
+                    resolved -> navigationIcon(
+                        if (input.props.orientation == Orientation.Vertical)
+                            if (next)
+                                NavigationGlyph.Down
+                            else
+                                NavigationGlyph.Up
+                        else
+                            if (next)
+                                NavigationGlyph.End
+                            else
+                                NavigationGlyph.Start,
+                        resolved.iconSize,
+                        resolved.text.color
+                    )
+                }
+            },
+            { input.owner.control?.step(next, true) },
+            input.props.enabled && available,
+            appearance,
+            input.props.theme,
+            options.focus,
+            variant = ButtonVariant.Outline,
+            size = ButtonSize.IconSm
+        ),
+        { current, mount -> Button(current, scope = mount) },
+        key =
+            ViewKey.Text(
+                if (next)
+                    "next"
+                else
+                    "previous"
+            )
+    )
+}
+
+private class CarouselLayout(
+    private val props: Props<CarouselInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var painter: StylePainter? = None
+    public override fun onMount() {
+        painter = Some(scope.resource { StylePainter() })
+        val owner = props.value.owner
+        val area = scope.createArea { _, _ -> owner.control?.refreshAutoplay() }
+        scope.routeChildren(area)
+        owner.group = Some(area)
+        scope.resource { area.scope.observeActivity { owner.control?.refreshAutoplay() } }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val horizontal = input.props.orientation == Orientation.Horizontal
+        val density = input.theme.tokens.typography.body.fontSize / 14.0
+        val previous =
+            if (input.props.previous.visible)
+                48.0 * density
+            else
+                0.0
+        val next =
+            if (input.props.next.visible)
+                48.0 * density
+            else
+                0.0
+        val preferred =
+            input.props.length ?:
+                (
+                    if (horizontal)
+                        constraints.maxWidth
+                    else
+                        constraints.maxHeight
+                ) ?:
+                320.0
+        val constrained = constraints.constrain(resizableSize(preferred, 0.0, horizontal))
+        val main =
+            if (horizontal)
+                constrained.width
+            else
+                constrained.height
+        val available = lowerBound(0.0, main - previous - next)
+        val measured =
+            context.measureChild(
+                0L,
+                if (horizontal)
+                    Constraints(
+                        available,
+                        Some(available),
+                        constraints.minHeight,
+                        constraints.maxHeight
+                    )
+                else
+                    Constraints(
+                        constraints.minWidth,
+                        constraints.maxWidth,
+                        available,
+                        Some(available)
+                    )
+            )
+        val cross =
+            if (horizontal)
+                measured.size.height
+            else
+                measured.size.width
+        val size = constraints.constrain(resizableSize(main, cross, horizontal))
+        val actualCross =
+            if (horizontal)
+                size.height
+            else
+                size.width
+        context.placeChild(
+            0L,
+            if (horizontal)
+                Point(logicalX(previous, available, main, context.layoutDirection), 0.0)
+            else
+                Point(0.0, previous)
+        )
+        for (index in 1L .. 2L) {
+            val visible =
+                if (index == 1L)
+                    input.props.previous.visible
+                else
+                    input.props.next.visible
+            val side = 32.0 * density
+            if (!visible || main < previous + next || actualCross == 0.0) {
+                context.skipChild(index);
+                continue
+            }
+            context.measureChild(index, Constraints.tight(Size(side, side)))
+            val along =
+                if (index == 1L)
+                    0.0
+                else
+                    main - side
+            val across = lowerBound(0.0, (actualCross - side) / 2.0)
+            context.placeChild(
+                index,
+                if (horizontal)
+                    Point(logicalX(along, side, main, context.layoutDirection), across)
+                else
+                    Point(across, along)
+            )
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(
+            props.value.owner.group!!,
+            Rect(0.0, 0.0, context.size.width, context.size.height)
+        )
+        painter!!.scene(context, props.value.props.style.resolve(style())) {
+            local -> local.children()
+        }
+    }
+}

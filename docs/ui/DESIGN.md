@@ -4,7 +4,9 @@
 
 弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。
 
-2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。Linux GNU 已通过 Wayland／X11 对接这些公共合同，范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已完成范围、API、模型与分批规划，尚未实施：扩展现有 component 并新增独立 shadcn 主题，覆盖排除 Code Block／Native Select 后的 64 项。Windows native 和 accessibility 继续按独立工作推进。
+2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。Linux GNU 已通过 Wayland／X11 对接这些公共合同，范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已实施到 Sidebar，实际交付见[组件实施记录](shadcn/PROGRESS.md)：扩展现有 component 并新增独立 shadcn 主题，目标覆盖排除 Code Block／Native Select 后的 64 项。Windows native 和 accessibility 继续按独立工作推进。
+
+2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-完整布局与更新合同汇总)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 
 ## 1. 分层目标
 
@@ -25,7 +27,7 @@ UI 框架提供构建完全自绘控件的能力，应用可以只使用框架�
 
 这是当前分层；基础字体、布局、StyledText／SpanStyle 和行内对象已在 graphics.text 实现，UI 接入及控件组合已按实施批次完成。`scoop.ui.text` 是 UI Cone 中的公共适配包，不是额外的库或控件集合。它复用 graphics.text 的段落算法，连接子项测量与放置，第三方自绘元素可以直接使用。
 
-Row／Column／Stack 的布局策略也放在控件库。框架提供约束、基线、子项测量和放置协议；文字换行由 graphics.text 处理，点击语义、默认字体、背景、边框和主题不进入框架。`empty` 只表示结构上的空内容。
+Row／Column／Stack 的布局策略也放在控件库。框架提供约束、基线、子项测量和放置协议；文字换行由 graphics.text 处理，根提供共享的默认 FontCollection；点击语义、背景、边框和主题保留在控件与样式库。`empty` 只表示结构上的空内容。
 
 ## 2. 保留 class 组件的使用方式
 
@@ -33,14 +35,14 @@ Row／Column／Stack 的布局策略也放在控件库。框架提供约束、�
 import scoop.ui.*
 import scoop.ui.component.button
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
 
     public override fun render(): View = button(f"Count: ${this @Counter.count}", { count += 1 })
 }
 ```
 
-Component 是普通接口，Counter 是有持久身份的 class。挂载期间只初始化一次成员，状态变化后再次调用同一对象的 render。button 是控件库中的普通函数，最终通过公开框架能力实现。
+Component 是持有当前 ComponentScope 的普通抽象基类，Counter 是有持久身份的 class。挂载期间只初始化一次成员，状态变化后再次调用同一对象的 render。button 是控件库中的普通函数，最终通过公开框架能力实现。
 
 这里分别看挂载实例、状态、描述与内部节点：
 
@@ -57,9 +59,9 @@ View 采用不可变 class；Point、Size、Constraints 等小型数据继续采
 
 Component 负责声明式组合，返回 View。Element 负责实际测量、子项放置、绘制和输入接入。两者都由框架按挂载位置持有，并通过 ComponentScope 管理资源。
 
-Element 的必需操作是 `measure(context, constraints): LayoutMetrics` 与 `paint(context): Unit`，生命周期包括 onMount、update 和 onUnmount。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
+Element 的必需操作是 `measure(context, constraints): LayoutResult<L>` 与 `scene(context, layout: L): Unit`，生命周期包括 onMount、update 和 onUnmount；`update(): UiInvalidation` 报告 None／Scene／Layout，默认 Layout。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
 
-框架的 View 仍可以是封闭描述类型，仅保存空内容、Component 和 Element 三种形状。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
+框架的 View 是封闭描述类型，当前包含 Empty／Component／Element／Portal／Lazy／Direction 六种形状，各自承担既有职责。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
 
 例如，应用自己的颜色块完全不依赖控件库：
 
@@ -67,11 +69,11 @@ Element 的必需操作是 `measure(context, constraints): LayoutMetrics` 与 `p
 import scoop.graphics.*
 import scoop.ui.*
 
-class ColorTile(private val props: Props<Color>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(48.0, 48.0)))
+class ColorTile(private val props: Props<Color>, scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<Unit> =
+        LayoutResult(LayoutMetrics(constraints.constrain(Size(48.0, 48.0))), Unit)
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, layout: Unit) {
         context.draw {
             paint -> paint.canvas.drawRect(
                 Rect(0.0, 0.0, paint.size.width, paint.size.height),
@@ -81,7 +83,7 @@ class ColorTile(private val props: Props<Color>): Element {
     }
 }
 
-class Indicator: Component {
+class Indicator(scope: ComponentScope): Component(scope) {
     private var active: Boolean by state(false)
 
     fun setActive(value: Boolean) {
@@ -102,6 +104,8 @@ class Indicator: Component {
 
 State 在 Indicator.render 中读取，新的颜色经 Props 更新到原 ColorTile。paint 直接使用 Surface 帧借用的 graphics Canvas，框架保留 ColorTile 的实例、布局和生命周期。创建闭包只在首次挂载时调用。
 
+工厂接收当前 ComponentScope；实例在构造中登记首次 render 所需的输入区域和资源，onMount() 保留业务启动通知。根以 scope.defaultFonts 提供共享默认字体，显式字体优先；更换默认集合保持节点身份，根在后代退休后只释放自有集合。
+
 Element 可以单独成为自绘叶子，也可以接收显式 children 实现容器。普通无状态组合函数仍返回 View；需要独立状态时使用 Component，需要测量和绘制时使用 Element，两者按实际需要组合。
 
 每个 Element 的绘制使用 FrameContext.withState 的独立子 Canvas，坐标与 clip 随同一份帧状态进入输入收集；子级结束后画布失效，并在正常及异常退出时恢复父级状态。底层 Canvas.withState 已接入真实 Skia／Metal，自绘框架无需访问 graphics 的内部句柄或维护第二套变换。
@@ -110,15 +114,15 @@ Element 可以单独成为自绘叶子，也可以接收显式 children 实现�
 
 state 就是普通 State class。成员属性委托的 getValue／setValue 执行读追踪和写失效，不扫描私有字段，不依赖属性名，也不按 hook 调用序号保存状态。闭包捕获组件 this 时保存 class 引用，符合现有语言规则。
 
-状态依赖通过现有同步 Context 收集，只围绕 Component.render 建立和替换订阅。首期写入即通知，包括同值写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
+状态依赖通过现有同步 Context 收集，只围绕 Component.render 维护订阅。成功 render 后保留交集关系，只添加和移除真实变化；来源用库内类型化序号索引，订阅保存可常数时间解除的登记。写入即通知，包括同值或同引用写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
 
-Element 的 Props 由框架更新。measure／scene／draw 的读取不另外建立依赖图；自绘组件在 render 中读取业务 State 并将数据传入 Props。元素自己的普通交互字段可以在输入处理中修改，随后显式 requestFrame。Surface 动画使用现有采样通路。
+Element 的 Props 由框架更新。业务 State 依赖仍只在 render 收集，并通过 Props 传给自绘元素；measure／scene 的动画与字体读取另外登记实际布局或场景用途。普通交互字段只影响像素时调用 requestFrame，影响尺寸或放置时调用 requestLayout。Surface 仍是唯一动画采样与帧调度通路。
 
-component 和 element 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架复用实例、替换 Props，执行 Component.render 或 Element.update。
+component、element 和 lazyElement 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架总是替换当前 Props；显式且稳定的 InputComparison 可在输入等价、没有自身 State 失效或方向变化时跳过 render／update。任意用户输入默认保守更新。Element children、Lazy source／retention 和已排队后代分别处理；忽略回调变化的比较必须配合读取当前 Props 的稳定事件转发。
 
-匹配采用直接父级下的 key／位置，再比较节点类别、C／E 与 P 的完整 TypeRef。工厂函数引用、描述对象引用、FQN 和地址都不作为身份。具体实例类型须保留 class，使用现有 TypeShape 在库边界检查，不增加 compiler 特判。类型或 key 改变时卸载并重建。
+匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 保持各自职责；同一父级与 key 的 Portal 更新 NonModal／FocusContained／Modal 配置时保留内容挂载、编辑模型和最初保存的焦点目标。模式变化更新屏障与焦点约束，不触发关闭回调；退出中的约束保留到 Accepted 移除。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议为持有构造作用域的抽象基类，实际实例自身保存单次挂载归属。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
 
-同一实例只能占据一个活动挂载位置，工厂为新挂载创建新实例。只检查当前活动的重复实例，不保留退休对象历史。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
+实例保存单次挂载归属，同一个实例不能再次挂载；每次新挂载由工厂创建新实例。不再使用全局实例表或退休对象登记表。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
 
 不引入关联类型、不透明返回类型或 result builder。所有协议方法都是普通固定签名方法；泛型工厂、Props 和具体 ComponentNode／ElementNode class 通过普通泛型实现跨 Cone 承载。
 
@@ -146,19 +150,19 @@ Checkbox.checked 与 Button.enabled 的联动由一个共同 State 完成：Chec
 
 内部保留一棵持久树。Component 节点连接 render 返回的子描述；Element 节点持有自绘实例、子项、布局结果和资源作用域。该树同时表达身份与资源归属，不并行维护组件树、布局树、渲染树三套结构。
 
-Constraints 明确区分有限最大值与无界，最终尺寸是有限非负逻辑值。MeasureContext 让 Element 测量每个直接子项、取得尺寸和基线、给出子项位置，并返回自身 LayoutMetrics。Component 透传结果；单子项装饰和 Button 将子项基线加上实际偏移，没有基线时明确返回 None。
+Constraints 明确区分有限最大值与无界，最终尺寸是有限非负逻辑值。MeasureContext 让 Element 测量每个直接子项、取得尺寸和基线、给出子项位置，并将自身 LayoutMetrics 和不可变类型化数据包装为 LayoutResult。Component 透传结果；单子项装饰和 Button 将子项基线加上实际偏移，没有基线时明确返回 None。
 
-首期每个子项每帧只测量一次，可以放置零次或一次。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
+每个子项在放置前允许以不同约束重测，同一布局轮次中相同有效约束复用完整结果，跨回调和 A→B→A 也适用；可以放置零次或一次，也可以在未测量时显式 skipChild。元素的 scene 显式取得所选布局数据；子项结果通过引用共享，释放由框架统一收尾。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
 
 SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入和子项呈现。元素通过 draw 提交只有 Canvas／size／time 的纯绘图块，通过 children 在背景和前景之间呈现已放置子项。draw 的 Canvas 状态独立于后续输入几何；影响整个子树的几何通过 SceneContext 设置。未放置子树不进入 scene，父子关系不自动裁剪或建立输入区域。
 
-文本内容、样式继承、shaping、TextLayout 和行内对象几何属于 graphics.text。公共 ParagraphHost 复用 Element 的协议管理段落缓存及行内子项接入，UI 核心不需要识别文本类型或提供特殊 TextNode。Label 每帧可以收到 measure，但内容、字体、宽度和行内 metrics 不变时复用布局。
+文本内容、样式继承、shaping、TextLayout 和行内对象几何属于 graphics.text。公共 ParagraphHost 复用 Element 的协议管理段落缓存及行内子项接入，UI 核心不需要识别文本类型或提供特殊 TextNode。Label 的有效完整结果跨帧复用；需要重新测量时，段落缓存仍按内容、字体、宽度和行内 metrics 复用原生排版。共享字体的 revision 由根在已请求帧入口统一检查，不为检查字体产生周期帧。
 
 ### 5.1 公共文本宿主与行内对象
 
 StyledText 由普通文字、带局部样式的 Span 和带 InlineKey 的行内对象组成。Span 共同参与段落排版，不分别生成 Label；行内图片和控件作为不可拆分盒子参与断行和行高。文本层只接收对象尺寸、基线与对齐，不持有组件。
 
-`scoop.ui.text` 的 InlineView 将对象 key 关联到普通 View，inlineChildren 生成正常 keyed 子描述。ParagraphHost 是 Element 登记的 Closeable 辅助对象，不是额外控件或挂载树。它先通过 measureChild 测量对象，再调用 Paragraph.layout，最后按同一 TextLayout 的 key／box 放置可见对象。
+`scoop.ui.text` 的 InlineView 将对象 key 关联到普通 View，inlineChildren 生成正常 keyed 子描述。ParagraphHost 是 Element 登记的 Closeable 辅助对象，不是额外控件或挂载树。它先通过 measureChild 测量对象，再调用 Paragraph.layout，最后按同一 TextLayout 的 key／box 放置可见对象。返回的 ParagraphMeasurement 独立持有排版，保存在元素的 LayoutResult 中并由 dispose 关闭；scene 显式接收所选 measurement。
 
 自然尺寸子项在段落最大宽度及无界高度内测量；固定尺寸使用显式 tight 约束。不根据最终行剩余宽度反复协商。默认基线取子项 alphabetic baseline，缺失时使用底边，调用方可选择 ideographic 或明确的其他对齐。
 
@@ -168,7 +172,7 @@ Label 与第三方自绘 Element 使用相同宿主。文字光标、selection �
 
 ## 6. 输入和动画使用 Surface 的现有能力
 
-Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
+Element 在构造中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
 
 scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas 当时的变换和 clip。容器可将自己的已放置区域传给 children，成为子区域的输入父级。布局树本身不等于输入区域树，没有交互的 Label 和 Row 可以不创建区域。
 
@@ -178,7 +182,11 @@ scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas �
 
 scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable 登记为当前挂载的资源。元素调用 Surface 已有的 animateTo／snapTo／pause 等方法，在 measure／scene／draw 中读 value。UI 不提供平行的动画类型、timer 或帧时钟。
 
-每个真实帧由 Surface 先统一采样动画，UI 再测量、放置和绘制当前挂载树。首期每帧遍历布局，昂贵计算由具体元素缓存，因此尺寸或位置动画自然进入同帧测量，无须额外的动画依赖图。只改变绘制值的动画不重跑未失效的 Component.render。
+每个真实帧由 Surface 先统一采样动画，UI 再检查已登记依赖并取得有效布局。节点按版本、约束和方向直接复用上一轮选中的完整结果；失效沿父级传播，路径外的兄弟仍可命中。动画在 measure 中读取时使布局依赖其 revision，在 scene／draw 中读取时只影响场景，读取布局时间的元素每个实际帧重新测量。ActionInk、Frame、选择标记等从 scene 取得当前像素数据；Progress、Spinner、caret 和颜色过渡可复用布局，Disclosure 高度、Sidebar 宽度等真实几何动画继续重新布局。
+
+`cachedScene(content, revision)` 是沿普通 Element 协议实现的显式边界。有效布局与场景输入未变化时，内部节点可以复用稳定的局部变换、矩形 clip、区域、锚点、子项顺序和有限绘图记录；每帧仍按当前祖先状态装配候选几何，只有 Accepted 后发布。边界 revision 覆盖未由正常更新通路表达的外部场景输入，外层变化也使嵌套边界失效。raw draw、借用 Path／滤镜、滚动视口、时间／动画和帧完成通知继续执行相应场景工作，不保存用户回调供后续重放。
+
+有限 `drawLayer` 独立维护完整内容版本；`PaintCachePolicy.None` 复用 Drawing 而不保留像素，Tiles 另外复用可见范围的图像。像素缩放或缓存参数变化只替换瓦片，内容或后端不兼容才替换记录；两条路径保持独立合成的 Clear／Src 语义。公共文字没有缓存需求时直接绘制，显式场景或像素缓存内才录制版本化图层。场景跳过、记录复用、光栅化和合成分别验收，见 [UI 规范 §7.2](../specs/SCOOP-UI-SPEC.md#72-场景装配与纯绘制)。
 
 ## 7. 逻辑更新独立于 drawable
 
@@ -238,9 +246,9 @@ Label 的文字元素委托公共 ParagraphHost，接受 String 或 StyledText �
 
 ## 9. 生命周期与宿主关闭
 
-Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame，以及直接复用 Surface 的 createArea／animation。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
+Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame／requestLayout，以及直接复用 Surface 的 createArea／animation 和原生 createDeadline。deadline 回调在所属根的失败边界内执行，随挂载退休关闭。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
 
-长寿命资源在 onMount 中创建并登记。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
+长寿命资源在构造中创建并登记，onMount 用于业务挂载通知。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
 
 卸载先取消业务交互、订阅和排队工作，再按子先父顺序退休区域／动画、调用已成功挂载实例的 onUnmount，并逆序释放登记资源。首次 onMount 失败仍清理已取得资源；清理失败继续处理剩余对象并按 ResourceUseException 汇总。
 
@@ -256,7 +264,7 @@ SurfaceContent 已在 macOS 两架构验证正常、原生和异常关闭，并�
 
 ### 9.1 多窗口与窗口层前置
 
-scoop.window 已实现多个独立的非模态顶层窗口，共享一个 Application 和原生主循环，按 WindowId 区分事件，默认 LastWindowPolicy.KeepRunning。UiHost 对每个 Window 分别 attach 独立 UI 根；普通关闭一个窗口只卸载该根，同一 owner 上共享的业务 State 可以继续供其他根使用。组件、输入区域和挂载身份不跨窗口共用。
+scoop.window 已实现多个独立的非模态顶层窗口，共享一个 Application 和原生主循环，按 WindowId 区分事件，默认 LastWindowPolicy.KeepRunning。UiHost 对每个 Window 分别 attach 独立 UI 根；普通关闭一个窗口只卸载该根，同一 owner 上共享的业务 State 可以继续供其他根使用。UiWindow 关闭和已处理的根错误都不销毁调用方的原生 Window；LastWindowPolicy 只由实际原生窗口的关闭触发。组件、输入区域和挂载身份不跨窗口共用。
 
 窗口装饰／缩放、按钮和层级已有属性入口；macOS 另有 TitlebarOptions。Win32 在关闭 decorations 但保留 resizable 时仍使用 WS_THICKFRAME，完全自绘窗框的系统拖移／边缘缩放接口尚未实现。
 
@@ -331,7 +339,7 @@ Context 传播 Store 引用，不改变线程和任务归属。协程的 executi
 
 ## 10. 失败与退出
 
-构造、render、update、measure、paint、动画业务完成回调和输入处理均可能抛错。首期沿 SurfaceHost 的现有异常通路关闭所管理的根和 Surface；不继续使用半更新树，不提供自动重试或错误边界。
+UiHost 的 onRootError(WindowId, Throwable) 在失败窗口的输入、内容、renderer／lease 清理后收到一次报告。正常返回允许其他窗口继续；默认重新抛出。构造、render、update、measure、scene／draw、输入、作用域 deadline、动画及帧完成回调共用 SurfaceWindow.dispatch 的安全退休边界。初次挂载失败并已处理时 attach 返回 None，成功返回 Some(UiWindow)。处理器自身抛错、应用事件回调、共享 renderer 和消息投递失败关闭宿主并传播错误。已发生的共享 State 写入保留，不自动重试或重新挂载。
 
 框架恢复绘制状态并中止失败帧，丢弃未提交 placement；新建但未完成挂载的节点也须清理。控件自己的缓存遵守创建失败回滚及替换时及时关闭旧值的合同，错误不能留下未登记 native 资源。
 
@@ -385,7 +393,7 @@ Context 传播 Store 引用，不改变线程和任务归属。协程的 executi
 | --- | --- | --- |
 | 向外部 GPU 目标绘制 Canvas | graphics.native 的 MetalContext.target／D3DContext.target 返回 RenderTarget；draw 借出 Canvas，submit 提交 GPU 工作 | 按实际应用补充外部目标与采样方的交付规则；GL／GLES／Vulkan 需要各自的后端接入 |
 | 把外部 GPU 结果画入 Canvas | Image 目前从 RGBA 像素或 PNG／JPEG 创建；RenderTarget.snapshot 对 GPU 目标进行显式读回 | 原生纹理／图像导入、格式转换、使用完成通知及资源释放规则 |
-| 完整 UI 离屏运行 | 当前拟实施的 UiHost.attach 绑定 Window，InputArea 与动画属于 SurfaceWindow | 可由外部宿主持有的 UI 根，以及目标、尺寸、时间、输入和关闭的适配 |
+| 完整 UI 离屏运行 | 当前 UiHost.attach 绑定 Window，InputArea 与动画属于 SurfaceWindow | 可由外部宿主持有的 UI 根，以及目标、尺寸、时间、输入和关闭的适配 |
 | 3D 与媒体处理 | Canvas 提供 2D 绘图；组件可以使用普通库并管理其资源 | 3D 渲染和媒体解码／音频由独立库或应用接入，不进入 UI 核心 |
 
 源码依据为 [MetalContext](../../sysroot/src/scoop.graphics/src/platform/darwin/metal.scoop)、[D3DContext](../../sysroot/src/scoop.graphics/src/platform/windows/d3d.scoop)、[RenderTarget](../../sysroot/src/scoop.graphics/src/native/target.scoop)及 [Image](../../sysroot/src/scoop.graphics/src/drawing/image.scoop)。现有 [Metal 测试](../../sysroot/src/scoop.graphics/tests/metal.scoop)使用的[原生目标](../../sysroot/src/scoop.graphics/test-native/native/metal.m)是同时可绘制和采样的离屏纹理；这证明目标包装已有基础，不代表完整 3D 合成或视频路径已经验证。

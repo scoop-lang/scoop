@@ -1,0 +1,181 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.virtualList as transcriptList
+
+public class MessageScroller public constructor(
+    private val props: Props<MessageScrollerProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private var spaced: SpacedTranscript? = None
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val model = input.state
+        val display = model.presentation.value
+        val options = model.options
+        val density = themes.read(input.theme).tokens.typography.body.fontSize / 14.0
+        val spacing = input.spacing * density
+        val same =
+            when (spaced) {
+                case Some(old) -> old.source === input.source && old.spacing == spacing
+                case None -> false
+            }
+        if (!same)
+            spaced = Some(SpacedTranscript(input.source, spacing))
+        val previous = model.previousSource
+        val prepend =
+            when (previous) {
+                case Some(old) -> old !==
+                    input.source &&
+                    old.count >
+                    0L &&
+                    (input.source.indexOfKey(old.keyAt(0L)) ?: 0L) >
+                    0L
+                case None -> false
+            }
+        val list =
+            transcriptList(
+                spaced!!,
+                when (input.itemExtent) {
+                    case Fixed(value) -> ItemExtent.Fixed(value * density)
+                    case Variable(value) -> ItemExtent.Variable(value * density)
+                }
+            ) {
+                this.state = Some(model.scroll)
+                this.handle = Some(model.list)
+                this.width =
+                    when (input.width) {
+                        case Some(value) -> Some(value * density);
+                        case None -> None
+                    }
+                this.height =
+                    when (input.height) {
+                        case Some(value) -> Some(value * density);
+                        case None -> None
+                    }
+                this.overscan = input.overscan * density
+                this.endPadding =
+                    if (display.mode == MessageScrollMode.Anchoring)
+                        VirtualListEndPadding.FillViewport
+                    else
+                        VirtualListEndPadding.Fixed(display.padding)
+                this.anchor =
+                    if (display.mode == MessageScrollMode.Following)
+                        VirtualListAnchor.FollowEnd
+                    else
+                        if (prepend && !options.preserveOnPrepend)
+                            VirtualListAnchor.None
+                        else
+                            VirtualListAnchor.KeepVisible
+                this.enabled = input.enabled
+                this.focus = input.focus
+                this.theme = input.theme
+                this.scrollbars = input.scrollbars
+                this.scrollbar = input.scrollbar
+                this.chain = ScrollChain.Contain
+            }
+        val viewport =
+            element(
+                MessageViewportInput(input, density, model.epoch, display),
+                { current, mount -> MessageViewport(current, mount) },
+                [list],
+                ViewKey.Text("viewport")
+            )
+        val controls =
+            input.controls ?:
+                messageScrollButton(model) {
+                    this.enabled = input.enabled
+                    this.theme = input.theme
+                }
+        return element(
+            MessageScrollerLayoutInput(
+                density,
+                display.ready && input.showControls && input.source.count > 0L,
+                !display.ready || input.source.count == 0L
+            ),
+            { current, mount -> MessageScrollerLayout(current, mount) },
+            [viewport, controls, input.placeholder ?: empty()]
+        )
+    }
+}
+
+public fun messageScroller(
+    source: TranscriptSource,
+    state: MessageScrollState,
+    configure: MessageScrollerBuilder.() -> Unit = {}
+): View {
+    val builder = MessageScrollerBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(source, state),
+        { current, mount -> MessageScroller(current, mount) },
+        builder.key
+    )
+}
+
+private class MessageScrollButtonInput(
+    val state: MessageScrollState,
+    val direction: MessageScrollDirection,
+    val button: ButtonProps
+)
+
+private class MessageScrollButton(
+    private val props: Props<MessageScrollButtonInput>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        val reading = input.state.reading
+        val pending = input.state.isPending
+        val visible =
+            when (reading) {
+                case Some(value) -> input.state.isAttached &&
+                    !pending &&
+                    value.visibleKeys.size >
+                    0L &&
+                    if (input.direction == MessageScrollDirection.End)
+                        !value.atEnd
+                    else
+                        !value.atStart
+                case None -> false
+            }
+        return if (visible)
+            component(input.button, { current, mount -> Button(current, mount) })
+        else
+            empty()
+    }
+}
+
+public fun messageScrollButton(
+    state: MessageScrollState,
+    direction: MessageScrollDirection = MessageScrollDirection.End,
+    configure: ButtonBuilder.() -> Unit = {}
+): View {
+    val builder = ButtonBuilder()
+    builder.variant = ButtonVariant.Secondary
+    builder.size = ButtonSize.Sm
+    builder.configure()
+    val button =
+        builder.snapshot(
+            if (direction == MessageScrollDirection.End)
+                "Jump to latest"
+            else
+                "Jump to start",
+            {
+                if (direction == MessageScrollDirection.End)
+                    state.scrollToEnd()
+                else
+                    state.scrollToStart()
+            }
+        )
+    return component(
+        MessageScrollButtonInput(state, direction, button),
+        { current, mount -> MessageScrollButton(current, mount) },
+        builder.key
+    )
+}

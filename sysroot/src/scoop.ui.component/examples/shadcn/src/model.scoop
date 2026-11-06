@@ -1,0 +1,367 @@
+package scoop.examples.ui.shadcn
+
+import scoop.charset.unicodeCasefold
+import scoop.graphics.Image
+import scoop.surface.ShortcutScope
+import scoop.text.contains
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+internal enum Demo {
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle, InputOtp, RadioGroup, ToggleGroup, Slider, Textarea, InputGroup, Field, Direction, ScrollArea, Collapsible, Accordion, Tabs, Breadcrumb, Pagination, Popover, Tooltip, HoverCard, Dialog, AlertDialog, Sheet, DropdownMenu, ContextMenu, Menubar, Select, Command, Combobox, NavigationMenu, Resizable, Carousel, Drawer, Sidebar, Toast, Calendar, DatePicker, Table, DataTable, Chart, MessageScroller, Bubble, Message, Marker, Attachment, Trace, Questionnaire, AppSettings, AppWorkspace, AppData, AppConversation
+}
+
+internal enum ControlDemo {
+    Button, Input, Checkbox
+}
+
+internal enum GalleryColors {
+    Neutral, System
+}
+
+internal fun demoTitle(value: Demo): String =
+    when (value) {
+        case Button -> "Button"
+        case Input -> "Input"
+        case Checkbox -> "Checkbox"
+        case Badge -> "Badge"
+        case Spinner -> "Spinner"
+        case Card -> "Card"
+        case Separator -> "Separator"
+        case AspectRatio -> "Aspect Ratio"
+        case Alert -> "Alert"
+        case Empty -> "Empty"
+        case Avatar -> "Avatar"
+        case Skeleton -> "Skeleton"
+        case Progress -> "Progress"
+        case Typography -> "Typography"
+        case Kbd -> "Kbd"
+        case Label -> "Label"
+        case ButtonGroup -> "Button Group"
+        case Item -> "Item"
+        case Switch -> "Switch"
+        case Toggle -> "Toggle"
+        case InputOtp -> "Input OTP"
+        case RadioGroup -> "Radio Group"
+        case ToggleGroup -> "Toggle Group"
+        case Slider -> "Slider"
+        case Textarea -> "Textarea"
+        case InputGroup -> "Input Group"
+        case Field -> "Field"
+        case Direction -> "Direction"
+        case ScrollArea -> "Scroll Area"
+        case Collapsible -> "Collapsible"
+        case Accordion -> "Accordion"
+        case Tabs -> "Tabs"
+        case Breadcrumb -> "Breadcrumb"
+        case Pagination -> "Pagination"
+        case Popover -> "Popover"
+        case Tooltip -> "Tooltip"
+        case HoverCard -> "Hover Card"
+        case Dialog -> "Dialog"
+        case AlertDialog -> "Alert Dialog"
+        case Sheet -> "Sheet"
+        case DropdownMenu -> "Dropdown Menu"
+        case ContextMenu -> "Context Menu"
+        case Menubar -> "Menubar"
+        case Select -> "Select"
+        case Command -> "Command"
+        case Combobox -> "Combobox"
+        case NavigationMenu -> "Navigation Menu"
+        case Resizable -> "Resizable"
+        case Carousel -> "Carousel"
+        case Drawer -> "Drawer"
+        case Sidebar -> "Sidebar"
+        case Toast -> "Toast"
+        case Calendar -> "Calendar"
+        case DatePicker -> "Date Picker"
+        case Table -> "Table"
+        case DataTable -> "Data Table"
+        case Chart -> "Chart"
+        case MessageScroller -> "Message Scroller"
+        case Bubble -> "Bubble"
+        case Message -> "Message"
+        case Marker -> "Marker"
+        case Attachment -> "Attachment"
+        case Trace -> "Trace"
+        case Questionnaire -> "Questionnaire"
+        case AppSettings -> "Settings app"
+        case AppWorkspace -> "Workspace app"
+        case AppData -> "Data app"
+        case AppConversation -> "Conversation app"
+    }
+
+internal fun applicationDemo(value: Demo): Boolean =
+    when (value) {
+        case AppSettings -> true
+        case AppWorkspace -> true
+        case AppData -> true
+        case AppConversation -> true
+        else -> false
+    }
+
+internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePalette)? = None) {
+    val source = ThemeSource(shadcnTheme())
+    val colors =
+        state(
+            when (systemPalette) {
+                case Some(_) -> GalleryColors.System
+                case None -> GalleryColors.Neutral
+            }
+        )
+    val hasSystemColors: Boolean get() =
+        when (systemPalette) {
+            case Some(_) -> true
+            case None -> false
+        }
+    val usesSystemColors: Boolean get() = colors.value == GalleryColors.System
+    val fields = FieldExamplesModel()
+    val groups = ButtonGroupExamplesModel()
+    val items = ItemExamplesModel()
+    val selection = SelectionExamplesModel()
+    val otp = OtpExamplesModel()
+    val choices = ChoiceExamplesModel()
+    val sliders = SliderExamplesModel()
+    val textFields = TextExamplesModel()
+    val inputGroups = InputGroupExamplesModel()
+    val settings = SettingsModel()
+    val directions = DirectionExamplesModel()
+    val scrolling = ScrollExamplesModel()
+    val disclosures = DisclosureExamplesModel()
+    val tabs = TabsExamplesModel()
+    val navigation = NavigationExamplesModel()
+    val popover = PopoverExamplesModel()
+    val hints = HoverExamplesModel()
+    val previews = HoverExamplesModel()
+    val dialogs = ModalExamplesModel()
+    val confirmations = ModalExamplesModel()
+    val sheets = ModalExamplesModel(true)
+    val menus = MenuExamplesModel()
+    val selects = SelectExamplesModel()
+    val commands = CommandExamplesModel()
+    val comboboxes = ComboboxExamplesModel()
+    val navigationMenus = NavigationMenuExamplesModel()
+    val resizables = ResizableExamplesModel()
+    val carousels = CarouselExamplesModel()
+    val drawers = DrawerExamplesModel()
+    val sidebars = SidebarExamplesModel()
+    val toasts = ToastExamplesModel()
+    val dates = DateExamplesModel()
+    val tables = TableExamplesModel()
+    val charts = ChartExamplesModel()
+    val messages = MessageScrollerExamplesModel()
+    val conversations = ConversationExamplesModel()
+    val questionnaires = QuestionnaireExamplesModel()
+    val appSettings = SettingsModel()
+    val appWorkspace = WorkspaceAppModel()
+    val appData = DataAppModel()
+    val appConversation = ConversationAppModel()
+    val mode = state(ThemeMode.Light)
+    val direction = state(LayoutDirection.Ltr)
+    val selected = state(Demo.Button)
+    val query = TextEditorState()
+    val name = TextEditorState("Scoop")
+    val invalidName = TextEditorState("not-an-email")
+    val disabledName = TextEditorState("Read only while disabled")
+    val clicks = state(0)
+    val checked = state(false)
+    val invalidChecked = state(false)
+    val busy = state(false)
+    val spinnerScroll = ScrollState()
+    val reduced = state(false)
+    val badgeEnabled = state(true)
+    val badgeAction = state(true)
+    val badgeStep = state(1)
+    val badgeClicks = state(0)
+    val badgeFocus = FocusHandle()
+    val buttonFocus = FocusHandle()
+    val inputFocus = FocusHandle()
+    val checkboxFocus = FocusHandle()
+    val panelExpanded = state(true)
+    val panelNarrow = state(false)
+    val panelCompact = state(false)
+    val panelStep = state(1)
+    val panelClicks = state(0)
+    val cardFocus = FocusHandle()
+    val alertFocus = FocusHandle()
+    val emptyFocus = FocusHandle()
+    val emptyQuery = TextEditorState()
+    val avatarMode = state(2)
+    var avatarImages: Array<Image> = []
+    val skeletonLoading = state(true)
+    val skeletonAnimated = state(true)
+    val skeletonChildRunning = state(false)
+    val skeletonFocus = FocusHandle()
+    val loadingExtent = state(520.0)
+    val loadingTransparent = state(false)
+    val skeletonScroll = ScrollState()
+    val progressScroll = ScrollState()
+    val progressValue = state<Double?>(None)
+    var skeletonCreates = 0
+    var skeletonCount = 0
+    val typographyNarrow = state(false)
+    val typographySelectable = state(true)
+    val typographyFocus = FocusHandle()
+    val typographyActionFocus = FocusHandle()
+    var typographySelection = Utf8Selection(0L, 0L)
+    val typographyActions = state(0)
+    val shortcut =
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character("i")),
+            ShortcutModifiers(primary = true)
+        )
+    val shortcutActions = state(0)
+    val shortcutFocus = FocusHandle()
+    var shortcutScope: ShortcutScope? = None
+
+    init {
+        if (hasSystemColors)
+            refreshTheme()
+    }
+
+    fun toggleColors() {
+        if (!hasSystemColors)
+            return
+        colors.value =
+            if (usesSystemColors)
+                GalleryColors.Neutral
+            else
+                GalleryColors.System
+        refreshTheme()
+    }
+
+    fun toggleTheme() {
+        val next =
+            if (mode.value == ThemeMode.Light)
+                ThemeMode.Dark
+            else
+                ThemeMode.Light
+        mode.value = next
+        refreshTheme()
+    }
+    fun refreshTheme() {
+        val preference =
+            if (reduced.value)
+                MotionPreference.Reduced
+            else
+                MotionPreference.Full
+        val palette =
+            when (systemPalette) {
+                case Some(read) -> if (usesSystemColors)
+                    Some(read(mode.value))
+                else
+                    None
+                case None -> None
+            }
+        source.current.value =
+            shadcnTheme(mode.value, palette) { tokens { motion { this.preference = preference } } }
+    }
+    fun toggleMotion() {
+        reduced.value = !reduced.value
+        refreshTheme()
+    }
+    fun toggleDirection() {
+        direction.value =
+            if (direction.value == LayoutDirection.Ltr)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+    }
+    fun entries(): Array<Demo> {
+        val search = unicodeCasefold(query.text)
+        val result = ArrayList<Demo>()
+        for (
+            entry in [
+                Demo.AppSettings,
+                Demo.AppWorkspace,
+                Demo.AppData,
+                Demo.AppConversation,
+                Demo.Button,
+                Demo.Input,
+                Demo.Checkbox,
+                Demo.Badge,
+                Demo.Spinner,
+                Demo.Card,
+                Demo.Separator,
+                Demo.AspectRatio,
+                Demo.Alert,
+                Demo.Empty,
+                Demo.Avatar,
+                Demo.Skeleton,
+                Demo.Progress,
+                Demo.Typography,
+                Demo.Kbd,
+                Demo.Label,
+                Demo.ButtonGroup,
+                Demo.Item,
+                Demo.Switch,
+                Demo.Toggle,
+                Demo.InputOtp,
+                Demo.RadioGroup,
+                Demo.ToggleGroup,
+                Demo.Slider,
+                Demo.Textarea,
+                Demo.InputGroup,
+                Demo.Field,
+                Demo.Direction,
+                Demo.ScrollArea,
+                Demo.Collapsible,
+                Demo.Accordion,
+                Demo.Tabs,
+                Demo.Breadcrumb,
+                Demo.Pagination,
+                Demo.Popover,
+                Demo.Tooltip,
+                Demo.HoverCard,
+                Demo.Dialog,
+                Demo.AlertDialog,
+                Demo.Sheet,
+                Demo.DropdownMenu,
+                Demo.ContextMenu,
+                Demo.Menubar,
+                Demo.Select,
+                Demo.Command,
+                Demo.Combobox,
+                Demo.NavigationMenu,
+                Demo.Resizable,
+                Demo.Carousel,
+                Demo.Drawer,
+                Demo.Sidebar,
+                Demo.Toast,
+                Demo.Calendar,
+                Demo.DatePicker,
+                Demo.Table,
+                Demo.DataTable,
+                Demo.Chart,
+                Demo.MessageScroller,
+                Demo.Bubble,
+                Demo.Message,
+                Demo.Marker,
+                Demo.Attachment,
+                Demo.Trace,
+                Demo.Questionnaire
+            ]
+        )
+            if (unicodeCasefold(demoTitle(entry)).contains(search))
+                result.add(entry)
+        return result.toArray()
+    }
+    fun current(entries: Array<Demo>): Demo? {
+        for (entry in entries)
+            if (entry == selected.value)
+                return Some(entry)
+        return if (entries.size == 0L)
+            None
+        else
+            Some(entries[0L])
+    }
+    fun focus(value: ControlDemo): FocusHandle =
+        when (value) {
+            case Button -> buttonFocus
+            case Input -> inputFocus
+            case Checkbox -> checkboxFocus
+        }
+}

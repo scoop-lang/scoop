@@ -1,0 +1,196 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.InputArea
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum FieldLabelContent {
+    Text(LabelText), Custom(View)
+}
+
+public class FieldLabelProps public constructor(
+    public val content: FieldLabelContent,
+    public val target: FieldTarget,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val textStyle: SpanStyle? = None,
+    public val settings: ParagraphStyle? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class FieldLabel public constructor(
+    private val props: Props<FieldLabelProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val base =
+            theme.tokens.typography.body.copy {
+                this.lineHeight = Some(1.0)
+                this.weight = 500
+                this.color = theme.tokens.palette.background.foreground
+            }
+        val child =
+            when (input.content) {
+                case Custom(view) -> view
+                case Text(value) -> {
+                    val content =
+                        when (value) {
+                            case Plain(value, local) -> LabelText.Styled(
+                                typographyContent(
+                                    TypographyContent.Plain(value),
+                                    local?.resolve(base) ?: base,
+                                    input.textStyle
+                                )
+                            )
+                            case Styled(value) -> LabelText.Styled(
+                                typographyContent(
+                                    TypographyContent.Styled(value),
+                                    base,
+                                    input.textStyle
+                                )
+                            )
+                        }
+                    component(
+                        LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
+                        { current, mount -> Label(current, scope = mount) }
+                    )
+                }
+            }
+        val decorated =
+            frame(child) {
+                this.padding = Some(Insets())
+                this.style = input.style
+            }
+        return element(
+            FieldLabelInkProps(input.target, input.target.connection, input.target.isEnabled),
+            { current, mount -> FieldLabelInk(current, scope = mount) },
+            [decorated]
+        )
+    }
+}
+
+private class FieldLabelInkProps(
+    val target: FieldTarget,
+    val connection: FieldLink?,
+    val enabled: Boolean
+)
+
+private class FieldLabelInk(
+    private val props: Props<FieldLabelInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var press: Press? = None
+    private var previous: FieldLabelInkProps? = None
+    public override fun onMount() {
+        val input = scope.createArea()
+        area = Some(input)
+        press = Some(scope.press(input, PressOptions(false, false)) {})
+        scope.routeChildren(input)
+    }
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        when (previous) {
+            case Some(old) -> if (
+                old.target !== value.target || !sameFieldLink(old.connection, value.connection)
+            )
+                press!!.update(PressOptions(false, false)) {}
+            case None -> {}
+        }
+        previous = Some(value)
+        area!!.scope.enabled = value.enabled
+        press!!.update(PressOptions(value.enabled, false)) {
+            val current = props.value
+            current.connection?.activate(scope, current.target)
+        }
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val enabled = props.value.enabled
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        if (!enabled)
+            context.saveLayer(0.5)
+        context.children()
+        if (!enabled)
+            context.restore()
+    }
+}
+
+private fun sameFieldLink(left: FieldLink?, right: FieldLink?): Boolean =
+    when (left) {
+        case Some(a) -> when (right) {
+            case Some(b) -> a === b
+            case None -> false
+        }
+        case None -> when (right) {
+            case Some(_) -> false
+            case None -> true
+        }
+    }
+
+public class FieldLabelBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var textStyle: SpanStyle? = None
+    public var settings: ParagraphStyle? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun textStyle(configure: SpanStyleBuilder.() -> Unit): Unit {
+        textStyle = Some((textStyle ?: spanStyle()).copy(configure))
+    }
+    public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
+        settings = Some((settings ?: paragraphStyle()).copy(configure))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: FieldLabelContent, target: FieldTarget): FieldLabelProps =
+        FieldLabelProps(content, target, fonts, theme, textStyle, settings, style)
+}
+
+public fun fieldLabel(
+    text: String,
+    target: FieldTarget,
+    configure: FieldLabelBuilder.() -> Unit = {}
+): View = makeFieldLabel(FieldLabelContent.Text(LabelText.Plain(text, None)), target, configure)
+
+public fun fieldLabel(
+    text: StyledText,
+    target: FieldTarget,
+    configure: FieldLabelBuilder.() -> Unit = {}
+): View = makeFieldLabel(FieldLabelContent.Text(LabelText.Styled(text)), target, configure)
+
+public fun fieldLabel(
+    content: View,
+    target: FieldTarget,
+    configure: FieldLabelBuilder.() -> Unit = {}
+): View = makeFieldLabel(FieldLabelContent.Custom(content), target, configure)
+
+internal fun makeFieldLabel(
+    content: FieldLabelContent,
+    target: FieldTarget,
+    configure: FieldLabelBuilder.() -> Unit
+): View {
+    val builder = FieldLabelBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(content, target),
+        { current, mount -> FieldLabel(current, scope = mount) },
+        builder.key
+    )
+}

@@ -1,0 +1,31 @@
+package scoop.ui
+
+import scoop.graphics.text.FontCollection
+
+/** A root owns only the fallback it creates, including after selecting a borrowed replacement. */
+internal class RootFonts(initial: FontCollection?): Closeable {
+    private val owned =
+        when (initial) {
+            case None -> Some(FontCollection())
+            case Some(_) -> None
+        }
+    var value: FontCollection = initial ?: owned!!
+    val signal = StateSignal()
+    var revision = 0L
+    fun replace(next: FontCollection) {
+        when (currentEvaluation()) {
+            case Some(_) -> throw IllegalStateException(
+                Some("default fonts cannot change during render, measure, scene or draw")
+            )
+            case None -> {}
+        }
+        if (value === next)
+            return
+        value = next
+        revision += 1L
+        signal.changed(UiInvalidation.Layout)
+    }
+    public override fun close() {
+        owned?.close()
+    }
+}

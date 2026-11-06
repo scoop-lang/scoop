@@ -1,0 +1,199 @@
+package scoop.tests.ui.inputgroup
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class InputGroupWindowTest {
+    @Test
+    fun `one editor survives addon reorder composition focus rebinding and chrome changes`() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard()!!
+            val probe = GroupProbe()
+            val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+            try {
+                context(probe.theme) {
+                    host.use { owner -> Application().run(owner) }
+                }
+                assertTrue(probe.finished)
+                assertEquals(1, probe.mounts)
+                assertEquals(1, probe.customMounts)
+                for (index in 0L ..< 4L) {
+                    assertEquals(1, probe.addonMounts[index])
+                    assertEquals(1, probe.addonUnmounts[index])
+                }
+                for (focus in probe.focus)
+                    assertFalse(focus.isAttached)
+                assertFalse(probe.button.isAttached)
+                assertFalse(probe.target.isAttached)
+                assertFalse(probe.fonts.isClosed)
+                assertFalse(probe.frames!!.snapshot().attached)
+            } catch (error: Throwable) {
+                println(
+                    f"input group phase=${probe.phase}, text=${probe.model.text}, edits=${
+                        probe.edits
+                    }"
+                )
+                groupFailure(error)
+                throw error
+            } finally {
+                host.close()
+                probe.view?.close()
+                probe.frames?.close()
+                probe.fonts.close()
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+}
+
+internal class GroupProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val primary = TextEditorState("draft")
+    val replacement = TextEditorState("new")
+    val focus = [FocusHandle(), FocusHandle()]
+    val button = FocusHandle()
+    val target = FieldTarget()
+    val generation = state(0)
+    val addonMounts = MutableArray<Int>(4L) { _ -> 0 }
+    val addonUnmounts = MutableArray<Int>(4L) { _ -> 0 }
+    val addonBounds = MutableArray<Rect>(4L) { _ -> Rect(0.0, 0.0, 0.0, 0.0) }
+    var groupSize = Size(0.0, 0.0)
+    var rendered = -1
+    var renderedRevision = -1L
+    var mounts = 0
+    var customMounts = 0
+    var edits = 0
+    var clicks = 0
+    var submits = 0
+    var callback = 0
+    var lastCallback = -1
+    var enabled = true
+    var readonly = false
+    var invalid = false
+    var rtl = false
+    var reorder = false
+    var masked = false
+    var rebound = false
+    var framed = false
+    var zero = false
+    var gone = false
+    var control = 0
+    var handle = 0
+    var width = 360.0
+    var phase = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(50L)
+    val model: TextEditorState get() =
+        if (rebound)
+            replacement
+        else
+            primary
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop input group test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(420.0, 300.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> GroupScene(this, scope = mount) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("input group timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        renderedRevision ==
+                        model.revision &&
+                        !focus[0L].isPending &&
+                        !focus[1L].isPending &&
+                        !frames!!.snapshot().required
+                )
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 48)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 48;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        when (phase / 8) {
+            case 0 -> groupBegin(this)
+            case 1 -> groupEdit(this)
+            case 2 -> groupFocus(this)
+            case 3 -> groupMultiline(this)
+            case 4 -> groupCustom(this)
+            case 5 -> groupFinish(this)
+            else -> fail(Some("unexpected input group phase"))
+        }
+        if (phase < 44)
+            generation.value += 1
+        phase += 1
+    }
+    internal fun clickAddon(index: Long) {
+        val bounds = addonBounds[index]
+        val x = bounds.x + bounds.width / 2.0
+        val y = bounds.y + bounds.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+    }
+    internal fun key(code: Int, text: String, flags: Int = 0) {
+        assertEquals(0, groupKey(native!!, code, text, flags))
+    }
+    internal fun text(value: String, marked: Boolean = false) {
+        assertEquals(0, groupText(native!!, value, marked))
+    }
+    internal fun retained() {
+        assertEquals(1, mounts)
+        for (count in addonMounts)
+            assertEquals(1, count)
+        for (count in addonUnmounts)
+            assertEquals(0, count)
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}

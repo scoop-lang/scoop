@@ -1,0 +1,186 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+
+/** A control's explicit position in a connected group, independent of its mount. */
+public struct GroupPosition(val axis: FlexAxis, val first: Boolean, val last: Boolean)
+
+internal fun groupEndRadius(theme: Theme, local: StyleOverride): Double? =
+    when (local.corners) {
+        case Inherit -> Some(theme.tokens.corners.large)
+        case Set(_) -> None
+    }
+
+internal fun groupSurfaceMetrics(
+    base: SurfaceMetrics,
+    position: GroupPosition?,
+    endRadius: Double?,
+    direction: LayoutDirection
+): SurfaceMetrics {
+    val group = position ?: return base
+    val vertical = group.axis == FlexAxis.Vertical
+    val leadingLeft = !vertical && direction == LayoutDirection.Ltr
+    val edges = base.borderInsets
+    val inset =
+        if (group.first)
+            edges
+        else
+            if (vertical)
+                Insets(edges.left, 0.0, edges.right, edges.bottom)
+            else
+                if (leadingLeft)
+                    Insets(0.0, edges.top, edges.right, edges.bottom)
+                else
+                    Insets(edges.left, edges.top, 0.0, edges.bottom)
+    val corners = base.corners
+    val zero = Size(0.0, 0.0)
+    val end =
+        when (endRadius) {
+            case Some(value) -> Some(Size(value, value))
+            case None -> None
+        }
+    val startLeft = group.first && (vertical || leadingLeft)
+    val startRight = group.first && (vertical || !leadingLeft)
+    val endLeft = group.last && (vertical || !leadingLeft)
+    val endRight = group.last && (vertical || leadingLeft)
+    val radii =
+        if (vertical)
+            CornerRadii(
+                if (startLeft)
+                    corners.topLeft
+                else
+                    zero,
+                if (startRight)
+                    corners.topRight
+                else
+                    zero,
+                if (endRight)
+                    end ?: corners.bottomRight
+                else
+                    zero,
+                if (endLeft)
+                    end ?: corners.bottomLeft
+                else
+                    zero
+            )
+        else
+            CornerRadii(
+                if (leadingLeft) {
+                    if (group.first)
+                        corners.topLeft
+                    else
+                        zero
+                }
+                else {
+                    if (group.last)
+                        end ?: corners.topLeft
+                    else
+                        zero
+                },
+                if (leadingLeft) {
+                    if (group.last)
+                        end ?: corners.topRight
+                    else
+                        zero
+                }
+                else {
+                    if (group.first)
+                        corners.topRight
+                    else
+                        zero
+                },
+                if (leadingLeft) {
+                    if (group.last)
+                        end ?: corners.bottomRight
+                    else
+                        zero
+                }
+                else {
+                    if (group.first)
+                        corners.bottomRight
+                    else
+                        zero
+                },
+                if (leadingLeft) {
+                    if (group.first)
+                        corners.bottomLeft
+                    else
+                        zero
+                }
+                else {
+                    if (group.last)
+                        end ?: corners.bottomLeft
+                    else
+                        zero
+                }
+            )
+    return SurfaceMetrics(
+        base.suggestedSize,
+        base.minimumSize,
+        base.padding,
+        inset,
+        radii,
+        base.focusOutset
+    )
+}
+
+internal fun groupSurfaceGeometry(
+    original: SurfaceGeometry,
+    metrics: SurfaceMetrics,
+    position: GroupPosition?,
+    direction: LayoutDirection
+): SurfaceGeometry {
+    if (!panelPresent(position))
+        return original
+    val outline = RoundedOutline(original.bounds, metrics.corners).normalized()
+    val border =
+        when (original.style.border) {
+            case Some(value) -> {
+                val edge = value.resolve(direction)
+                Some(
+                    Border.Physical(
+                        BorderEdges(
+                            BorderEdge(metrics.borderInsets.left, edge.left.color),
+                            BorderEdge(metrics.borderInsets.top, edge.top.color),
+                            BorderEdge(metrics.borderInsets.right, edge.right.color),
+                            BorderEdge(metrics.borderInsets.bottom, edge.bottom.color)
+                        )
+                    )
+                )
+            }
+            case None -> None
+        }
+    val edges = metrics.borderInsets
+    val inset = metrics.contentInsets
+    val ring =
+        when (original.ring) {
+            case Some(value) -> Some(
+                OutlineRing(
+                    outline.expanded(
+                        lowerBound(original.outline.bounds.x - value.outline.bounds.x, 0.0)
+                    ),
+                    value.border
+                )
+            )
+            case None -> None
+        }
+    return SurfaceGeometry(
+        original.bounds,
+        outline,
+        outline.inset(edges.left, edges.top, edges.right, edges.bottom),
+        RoundedOutline(original.bounds).inset(
+            inset.left,
+            inset.top,
+            inset.right,
+            inset.bottom
+        ).bounds,
+        ring,
+        original.style.copy {
+            this.border = border
+            this.corners = Corners.Physical(outline.radii)
+        },
+        original.opacity
+    )
+}

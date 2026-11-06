@@ -29,19 +29,19 @@ internal class LazyFailureSource(private val record: FailureRecord): ItemSource 
     public override fun build(index: Long): View {
         if (index == 1L && record.mode == FailureMode.LazyBuild)
             throw record.primary
-        return element({ LazyFailureItem(record, index) })
+        return element({ mount -> LazyFailureItem(record, index, scope = mount) })
     }
 }
 
-internal class LazyFailureContainer(private val record: FailureRecord): LazyElement {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-    }
+internal class LazyFailureContainer(
+    private val record: FailureRecord,
+    scope: ComponentScope
+): LazyElement<Unit>(scope) {
+    public override fun onMount() {}
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
-    ): LayoutMetrics {
+    ): LayoutResult<Unit> {
         record.lazyContext = Some(context)
         for (index in 0L ..< 2L) {
             if (index == 0L && record.lazySkip)
@@ -49,9 +49,9 @@ internal class LazyFailureContainer(private val record: FailureRecord): LazyElem
             context.measureItem(index, Constraints.tight(Size(40.0, 30.0)))
             context.placeItem(index, Point(index.toDouble() * 45.0, 0.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(100.0, 60.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 60.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (record.mode != FailureMode.LazyMissingPaint)
             context.children()
         if (record.mode == FailureMode.LazyMissingPinned && !record.lazySkip)
@@ -59,31 +59,37 @@ internal class LazyFailureContainer(private val record: FailureRecord): LazyElem
                 frame -> if (frame.submission == FrameSubmission.Accepted) {
                     assertTrue(record.lazyItems[0L].area!!.requestFocus())
                     record.lazySkip = true
-                    scope!!.requestFrame()
+                    scope.requestLayout()
                 }
             }
     }
 }
 
-internal class LazyFailureItem(private val record: FailureRecord, val index: Long): Element {
+internal class LazyFailureItem(
+    private val record: FailureRecord,
+    val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     var area: InputArea? = None
     var unmounts = 0
     private var resource: FailureImage? = None
     init {
         record.lazyItems.add(this)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         resource = Some(scope.resource { FailureImage(record, "lazy " + index.toString()) })
         area = Some(scope.createArea(focusable = true))
         if (index == 1L && record.mode == FailureMode.LazyMount)
             throw record.primary
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (index == 1L && record.mode == FailureMode.LazyMeasure)
             throw record.primary
-        return LayoutMetrics(constraints.constrain(Size(40.0, 30.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 30.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
     }
     public override fun onUnmount() {

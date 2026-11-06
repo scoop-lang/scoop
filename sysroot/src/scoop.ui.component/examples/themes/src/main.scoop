@@ -1,8 +1,5 @@
 package scoop.examples.ui.themes
 
-import scoop.ui.component.column as makeColumn
-import scoop.ui.component.label as makeLabel
-
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
@@ -11,236 +8,52 @@ import scoop.ui.style.*
 import scoop.ui.text.TextEditorState
 import scoop.window.*
 
-internal class Showcase(
-    private val model: ShowcaseModel,
-    private val fonts: FontCollection
-): Component {
+internal class Showcase(private val model: ShowcaseModel, scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
     private val name = TextEditorState("Scoop")
     private val notes = TextEditorState()
     private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
+        val items = Array<NavigationItem>(choices.size) { index -> NavigationItem(choices[index]) }
         scope.keyNavigation(
             navigationOptions {
-                this.addAll(
-                    Array<NavigationItem>(this @Showcase.choices.size) {
-                        index -> NavigationItem(this @Showcase.choices[index])
-                    }
-                )
-                this.layout = NavigationLayout.Horizontal
-                this.loop = true
+                addAll(items)
+                layout = NavigationLayout.Horizontal
+                loop = true
             }
         )
     }
-    public override fun render(): View {
-        val theme = model.source.current.value
-        val effects = ArrayList<ContentEffect>()
-        if (model.shadow.value)
-            effects.add(
-                ContentEffect.DropShadow(Point(4.0, 4.0), 3.0, 3.0, Color.Black.withAlpha(0.45))
-            )
-        if (model.glow.value)
-            effects.add(ContentEffect.Glow(3.0, 3.0, theme.tokens.palette.accent.withAlpha(0.75)))
-        if (model.blur.value)
-            effects.add(ContentEffect.Blur(2.0, 2.0))
-        val preview =
-            row {
-                this.stack {
-                    this.frame(
-                        makeLabel("S") {
-                            this.style =
-                                Some(
-                                    spanStyle {
-                                        this.fontSize = Some(22.0)
-                                        this.weight = Some(700)
-                                    }
-                                )
-                            this.fonts = Some(this @Showcase.fonts)
-                        }
-                    ) {
-                        this.width = Some(42.0)
-                        this.height = Some(42.0)
-                        this.surface = Some(SurfaceKind.Plain)
-                    }
-                    this.frame(empty()) {
-                        this.width = Some(10.0)
-                        this.height = Some(10.0)
-                        this.style =
-                            styleOverride {
-                                this.background(Some(Paint(theme.tokens.palette.accent)))
-                                this.corners(Corners.all(5.0))
-                            }
-                    }
-                    this.alignment = Alignment(AxisAlignment.End, AxisAlignment.End)
-                }
-                this.label("Live controls") { this.fonts = Some(this @Showcase.fonts) }
-                this.button(f"Count: ${this @Showcase.count}", { this @Showcase.count += 1 }) {
-                    this.enabled = this @Showcase.model.enabled.value
-                    this.fonts = Some(this @Showcase.fonts)
-                }
-                this.button("Disabled", {}) {
-                    this.enabled = false
-                    this.fonts = Some(this @Showcase.fonts)
-                }
-                this.checkbox(initialChecked = true)
-                this.label("Owned state") { this.fonts = Some(this @Showcase.fonts) }
-                this.spacing = 14.0
-                this.alignment = CrossAlignment.Center
-            }
-        return frame(
-            column {
-                this.label("Scoop themes") {
-                    this.style =
-                        Some(
-                            spanStyle {
-                                this.fontSize = Some(22.0)
-                                this.weight = Some(700)
-                            }
-                        )
-                    this.fonts = Some(this @Showcase.fonts)
-                }
-                this.label("Surface, selection marks, scrollbars, and live controls") {
-                    this.fonts = Some(this @Showcase.fonts)
-                }
-                this.row {
-                    this.add(this @Showcase.choiceButton("macOS", ThemeChoice.MacOS, 0L))
-                    this.add(this @Showcase.choiceButton("Material", ThemeChoice.Material, 1L))
-                    this.add(this @Showcase.choiceButton("Fluent", ThemeChoice.Fluent, 2L))
-                    this.label("/") { this.fonts = Some(this @Showcase.fonts) }
-                    this.add(this @Showcase.modeButton("Light", ModeChoice.Light, 3L))
-                    this.add(this @Showcase.modeButton("Dark", ModeChoice.Dark, 4L))
-                    this.add(this @Showcase.modeButton("Follow system", ModeChoice.System, 5L))
-                    this.label(
-                        if (theme.tokens.mode == ThemeMode.Dark)
-                            "Dark palette"
-                        else
-                            "Light palette"
-                    ) { this.fonts = Some(this @Showcase.fonts) }
-                    this.spacing = 10.0
-                    this.alignment = CrossAlignment.Center
-                }
-                this.frame(element(theme, { props -> Gallery(props, this @Showcase.fonts) })) {
-                    this.padding = Some(Insets.all(6.0))
-                    this.surface = Some(SurfaceKind.Elevated)
-                }
-                this.frame(preview) {
-                    this.padding = Some(Insets.all(10.0))
-                    this.surface = Some(SurfaceKind.Plain)
-                    this.style = styleOverride { this.contentEffects(effects.toArray()) }
-                }
-                this.row {
-                    this.add(
-                        this @Showcase.option(this @Showcase.model.enabled.binding(), "Enabled")
-                    )
-                    this.add(
-                        this @Showcase.option(this @Showcase.model.shadow.binding(), "Drop shadow")
-                    )
-                    this.add(this @Showcase.option(this @Showcase.model.glow.binding(), "Glow"))
-                    this.add(this @Showcase.option(this @Showcase.model.blur.binding(), "Blur"))
-                    this.spacing = 18.0
-                    this.alignment = CrossAlignment.Center
-                }
-                this.label(
-                    "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur."
-                ) {
-                    this.style = Some(spanStyle { this.fontSize = Some(12.0) })
-                    this.fonts = Some(this @Showcase.fonts)
-                }
-                this.row {
-                    this.frame(
-                        makeColumn {
-                            this.label("Project name") { this.fonts = Some(this @Showcase.fonts) }
-                            this.input(this @Showcase.name) {
-                                this.placeholder = "Enter a name"
-                                this.enabled = this @Showcase.model.enabled.value
-                                this.invalid = this @Showcase.name.text.byteLength == 0L
-                                this.description =
-                                    if (this @Showcase.name.text.byteLength == 0L)
-                                        "This field is required."
-                                    else
-                                        "Enter submits the name."
-                                this.fonts = Some(this @Showcase.fonts)
-                                this.onSubmit = { _ -> this @Showcase.count += 1 }
-                            }
-                            this.spacing = 4.0
-                        }
-                    ) { this.width = Some(350.0) }
-                    this.frame(
-                        makeColumn {
-                            this.label("Notes") { this.fonts = Some(this @Showcase.fonts) }
-                            this.textarea(this @Showcase.notes) {
-                                this.placeholder = "Add a note"
-                                this.rows = 3L
-                                this.enabled = this @Showcase.model.enabled.value
-                                this.description =
-                                    "Enter adds a line. Ctrl+Enter (⌘Enter on macOS) submits."
-                                this.fonts = Some(this @Showcase.fonts)
-                                this.onSubmit = { _ -> this @Showcase.count += 1 }
-                            }
-                            this.spacing = 4.0
-                        }
-                    ) { this.width = Some(600.0) }
-                    this.spacing = 16.0
-                }
-                this.spacing = 5.0
-            }
-        ) {
-            this.padding = Some(Insets.all(12.0))
-            this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
-            this.style =
-                styleOverride {
-                    this.background(Some(Paint(theme.tokens.palette.canvas)))
-                    this.clipContent(true)
-                }
-        }
-    }
-    private fun choiceButton(text: String, value: ThemeChoice, index: Long): View =
-        button(text, { model.select(value) }) {
-            this.style =
-                buttonStyle {
-                    this.kind =
-                        if (this @Showcase.model.choice.value == value)
-                            SurfaceKind.Action
-                        else
-                            SurfaceKind.Plain
-                }
-            this.fonts = Some(this @Showcase.fonts)
-            this.focus = FocusOptions(Some(this @Showcase.choices[index]))
-        }
-    private fun modeButton(text: String, value: ModeChoice, index: Long): View =
-        button(text, { model.selectMode(value) }) {
-            this.style =
-                buttonStyle {
-                    this.kind =
-                        if (this @Showcase.model.mode.value == value)
-                            SurfaceKind.Action
-                        else
-                            SurfaceKind.Plain
-                }
-            this.fonts = Some(this @Showcase.fonts)
-            this.focus = FocusOptions(Some(this @Showcase.choices[index]))
-        }
-    private fun option(value: Binding<Boolean>, text: String): View =
-        row {
-            this.checkbox(value)
-            this.label(text) { this.fonts = Some(this @Showcase.fonts) }
-            this.spacing = 4.0
-            this.alignment = CrossAlignment.Center
-        }
+    public override fun render(): View =
+        showcaseView(model, count, name, notes, choices, { count += 1 })
 }
 
-private class Gallery(
+internal class Gallery(
     private val props: Props<scoop.ui.style.Theme>,
-    private val fonts: FontCollection
-): Element {
-    private var painter: GalleryPainter? = None
-    public override fun onMount(scope: ComponentScope) {
-        painter = Some(scope.resource { GalleryPainter(fonts) })
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var fonts = scope.defaultFonts
+    private var painter = GalleryPainter(fonts)
+    init {
+        scope.onDispose { painter.close() }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0)))
-    public override fun scene(context: SceneContext) {
-        context.draw { paint -> painter!!.paint(paint.canvas, props.value, paint.size.width) }
+    public override fun update(): UiInvalidation {
+        val current = scope.defaultFonts
+        if (current !== fonts) {
+            painter.close()
+            painter = GalleryPainter(current)
+            fonts = current
+        }
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> painter.paint(paint.canvas, props.value, paint.size.width) }
     }
 }
 
@@ -262,7 +75,11 @@ fun main() {
                                 }
                             )
                         model.systemTheme(window.observedTheme)
-                        host.attach(window, { Showcase(model, fonts) })
+                        host.attach(
+                            window,
+                            { mount -> Showcase(model, scope = mount) },
+                            fonts = Some(fonts)
+                        )
                         window.requestFocus()
                     }
                     case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)

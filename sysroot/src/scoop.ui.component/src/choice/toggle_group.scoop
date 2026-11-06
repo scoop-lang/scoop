@@ -1,0 +1,135 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ToggleGroupEntry<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val content: ButtonContent? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val invalid: Boolean = false,
+    public val style: ButtonStyle? = None
+)
+
+public class ToggleGroupProps<T: Equals<T>> public constructor(
+    public val entries: Array<ToggleGroupEntry<T>>,
+    public val selected: ToggleGroupSelection<T>,
+    public val axis: FlexAxis = FlexAxis.Horizontal,
+    public val spacing: Double = 8.0,
+    public val loop: Boolean = true,
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val variant: ToggleVariant = ToggleVariant.Default,
+    public val size: ToggleSize = ToggleSize.Default,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(spacing, "toggle group spacing must be finite and nonnegative")
+        validateChoices(Array<Choice<T>>(entries.size) { index -> entries[index].choice })
+    }
+}
+
+public class ToggleGroup<T: Equals<T>> public constructor(
+    private val props: Props<ToggleGroupProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val handles = ChoiceHandles()
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
+        val focus =
+            handles.resolve(
+                keys,
+                Array<FocusOptions>(keys.size) { index -> input.entries[index].focus }
+            )
+        val children =
+            Array<View>(keys.size) {
+                index ->
+                val entry = input.entries[index]
+                val pressed =
+                    binding(
+                        { choiceSelected(props.value.selected, entry.choice.value) },
+                        {
+                            next ->
+                            val latest = props.value
+                            for (candidate in latest.entries)
+                                if (
+                                    candidate.choice.key ==
+                                        entry.choice.key &&
+                                        latest.enabled &&
+                                        candidate.choice.enabled
+                                )
+                                    setChoice(latest.selected, candidate.choice.value, next)
+                        }
+                    )
+                val base = entry.style ?: buttonStyle { this.kind = SurfaceKind.Plain }
+                val style =
+                    if (input.spacing == 0.0)
+                        base.copy {
+                            surface {
+                                if (this.padding == None)
+                                    this.padding =
+                                        Some(
+                                            Insets(
+                                                8.0 *
+                                                    theme.tokens.typography.action.fontSize /
+                                                    14.0,
+                                                0.0,
+                                                8.0 *
+                                                    theme.tokens.typography.action.fontSize /
+                                                    14.0,
+                                                0.0
+                                            )
+                                        )
+                            }
+                        }
+                    else
+                        base
+                val content =
+                    entry.content ?:
+                        ButtonContent.Label(
+                            LabelProps(
+                                LabelText.Plain(entry.choice.label, None),
+                                input.fonts,
+                                Some(paragraphStyle { this.alignment = TextAlignment.Center })
+                            )
+                        )
+                component(
+                    ToggleProps(
+                        content,
+                        pressed,
+                        input.enabled && entry.choice.enabled,
+                        input.invalid || entry.invalid,
+                        input.variant,
+                        input.size,
+                        style,
+                        input.theme,
+                        choiceFocus(entry.focus, focus[index]),
+                        if (input.spacing == 0.0)
+                            Some(GroupPosition(input.axis, index == 0L, index == keys.size - 1L))
+                        else
+                            None
+                    ),
+                    { current, mount -> Toggle(current, scope = mount) }
+                )
+            }
+        return choiceLayout(
+            children,
+            keys,
+            focus,
+            input.axis,
+            input.spacing,
+            input.loop,
+            input.enabled,
+            input.style
+        )
+    }
+}

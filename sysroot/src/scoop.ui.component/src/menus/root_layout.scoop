@@ -1,0 +1,141 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class MenuRootLayoutProps(
+    val anchor: LayoutAnchor,
+    val link: HoverPopupLink,
+    val contextMenu: Boolean,
+    val enabled: Boolean,
+    val show: (Point?, Boolean) -> Unit,
+    val hovered: () -> Unit,
+    val updated: () -> Unit
+)
+
+internal class MenuRootLayout(
+    private val props: Props<MenuRootLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var fallback: FocusTarget? = None
+    public override fun onMount() {
+        val target = scope.createArea(focusable = props.value.contextMenu)
+        area = Some(target)
+        if (props.value.contextMenu)
+            fallback = Some(scope.focusTarget(target, FocusOptions(tabStop = false)))
+        scope.routeChildren(target)
+        scope.layoutAnchor(props.value.anchor)
+        target.scope.captureHandler =
+            {
+                context, event ->
+                val input = props.value
+                if (input.enabled && !input.link.containsContent(context.target))
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(
+                                pointer,
+                                MouseButton.Right,
+                                ElementState.Pressed,
+                                _
+                            )
+                        ) -> {
+                            if (input.contextMenu && target.visibleBounds != None) {
+                                context.consume()
+                                if (!target.scope.activity.hasFocus)
+                                    fallback!!.handle.requestFocus(FocusOrigin.Pointer)
+                                input.show(
+                                    Some(
+                                        Point(
+                                            pointer.state.logicalPosition.x,
+                                            pointer.state.logicalPosition.y
+                                        )
+                                    ),
+                                    false
+                                )
+                            }
+                        }
+                        else -> {}
+                    }
+            }
+        target.scope.addEventHandler {
+            context,
+            event -> if (props.value.enabled && !props.value.link.containsContent(context.target))
+                when (event) {
+                    case Pointer(InputPointerEvent.Entered(_)) -> props.value.hovered()
+                    else -> {}
+                }
+        }
+        target.scope.addDefaultAction {
+            context, event ->
+            val input = props.value
+            if (!input.enabled || input.link.containsContent(context.target))
+                return@addDefaultAction
+            val key =
+                when (event) {
+                    case Keyboard(value) -> value;
+                    else -> return@addDefaultAction
+                }
+            if (!menuKeyAllowed(key, true))
+                return@addDefaultAction
+            if (input.contextMenu) {
+                val request =
+                    key.logicalKey ==
+                        LogicalKey.Named(NamedKey.ContextMenu) ||
+                        (key.logicalKey == LogicalKey.Named(NamedKey.F10) && key.modifiers.shift)
+                if (request)
+                    when (target.visibleBounds) {
+                        case Some(bounds) -> {
+                            context.consume()
+                            input.show(
+                                Some(
+                                    Point(
+                                        if (scope.layoutDirection == LayoutDirection.Rtl)
+                                            bounds.x + bounds.width
+                                        else
+                                            bounds.x,
+                                        bounds.y + bounds.height
+                                    )
+                                ),
+                                false
+                            )
+                        }
+                        case None -> {}
+                    }
+            } else
+                if (
+                    !key.modifiers.shift &&
+                        (
+                            key.logicalKey ==
+                                LogicalKey.Named(NamedKey.ArrowDown) ||
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.ArrowUp)
+                        )
+                ) {
+                    context.consume()
+                    input.show(None, key.logicalKey == LogicalKey.Named(NamedKey.ArrowUp))
+                }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        props.value.updated()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.anchor(props.value.anchor, bounds)
+        context.place(area!!, bounds)
+        context.children()
+    }
+}

@@ -1,0 +1,308 @@
+package scoop.tests.ui.conversation
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.button as conversationButton
+
+internal class ConversationScene(
+    private val p: ConversationProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val content =
+            if (!p.shown)
+                empty()
+            else
+                when (p.mode) {
+                    case 0 -> bubbleScene(p)
+                    case 1 -> messageScene(p)
+                    case 2 -> attachmentScene(p)
+                    case 3 -> groupScene(p)
+                    case 4 -> markerScene(p)
+                    case 5 -> traceScene(p)
+                    else -> messageScroller(p.source.value, p.reading) {
+                        this.height = Some(260.0);
+                        this.spacing = 12.0;
+                        this.showControls = false
+                    }
+                }
+        return direction(
+            element(
+                generation,
+                { current, mount -> ConversationRoot(p, current, mount) },
+                [
+                    button("Outside", {}) { this.focus = FocusOptions(Some(p.otherFocus)) },
+                    track(p, "root", content)
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class ConversationRoot(
+    private val p: ConversationProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.maxWidth ?: 760.0
+        context.measureChild(0L, Constraints.tight(Size(100.0, 32.0)));
+        context.placeChild(0L, Point(20.0, 15.0))
+        context.measureChild(
+            1L,
+            if (p.zero)
+                Constraints.tight(Size(0.0, 0.0))
+            else
+                Constraints(maxWidth = Some(width - 40.0), maxHeight = Some(500.0))
+        )
+        context.placeChild(1L, Point(20.0, 70.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, 620.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val current = generation.value
+        context.draw {
+            paint ->
+            paint.canvas.clear(Color.White);
+            p.draws += 1
+        }
+        context.children()
+        if (p.mode == 2 && p.vertical && !p.zero)
+            context.draw {
+                paint -> @Unsafe
+                {
+                    paint.canvas.withSkiaCanvas {
+                        native -> @Unsafe
+                        {
+                            p.mediaTopPixel = readNativePixel(native, 83.0, 111.0)
+                            p.mediaBottomPixel = readNativePixel(native, 83.0, 165.0)
+                        }
+                    }
+                }
+            }
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = current
+        }
+    }
+}
+
+internal fun track(p: ConversationProbe, name: String, content: View): View =
+    element(name, { current, scope -> ConversationTrack(p, current, scope) }, [content])
+
+private class ConversationTrack(
+    private val p: ConversationProbe,
+    private val name: Props<String>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        scope.routeChildren(area)
+    }
+    public override fun onMount() {
+        p.mounts += 1;
+        val record = p.record(name.value);
+        record.mounts += 1;
+        record.area = Some(area)
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1;
+        p.record(name.value).unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height));
+        context.children()
+    }
+}
+
+internal fun editor(p: ConversationProbe): View =
+    track(p, "editor", input(p.edit) { this.focus = FocusOptions(Some(p.editFocus)) })
+
+internal fun bubbleScene(p: ConversationProbe): View =
+    bubble(track(p, "bubble-body", frame(editor(p)) { this.width = Some(p.bodyWidth) })) {
+        this.variant = p.variant;
+        this.align = p.align
+        this.enabled = p.enabled
+        this.onClick =
+            if (p.actionable)
+                Some({ p.clicks += p.clickScale })
+            else
+                None
+        this.focus = FocusOptions(Some(p.mainFocus))
+        this.focusOutline = Some(OutlineStyle(Color(0.1, 0.3, 0.9), 7.0, 7.0))
+        this.reactions(
+            track(
+                p,
+                "reaction",
+                button("React", { p.reactions += 1 }) {
+                    this.size = ButtonSize.Xs;
+                    this.variant = ButtonVariant.Ghost
+                    this.focus = FocusOptions(Some(p.reactionFocus))
+                }
+            ),
+            if (p.reactionTop)
+                BubbleReactionSide.Top
+            else
+                BubbleReactionSide.Bottom
+        )
+    }
+
+internal fun messageScene(p: ConversationProbe): View =
+    message(track(p, "message-body", frame(editor(p)) { this.height = Some(60.0) })) {
+        this.align = p.align
+        this.avatar = Some(track(p, "avatar", avatar("S")))
+        if (p.showHeader)
+            this.header("Sender · Now")
+        if (p.showFooter)
+            this.footer(
+                track(
+                    p,
+                    "footer",
+                    frame(label("Two lines of footer actions")) { this.height = Some(50.0) }
+                )
+            )
+    }
+
+internal fun attachmentScene(p: ConversationProbe): View =
+    attachment("A long project filename with notes and details.txt") {
+        this.description("Plain text · 2.4 MB")
+        this.content = Some(editor(p))
+        this.image(p.picture, Size(240.0, 160.0))
+        this.size = p.attachmentSize
+        this.state = p.attachmentState
+        this.orientation =
+            if (p.vertical)
+                Orientation.Vertical
+            else
+                Orientation.Horizontal
+        this.enabled = p.enabled
+        this.onClick =
+            if (p.actionable)
+                Some({ p.clicks += p.clickScale })
+            else
+                None
+        this.focus = FocusOptions(Some(p.mainFocus))
+        this.focusOutline = Some(OutlineStyle(Color(0.1, 0.3, 0.9), 7.0, 7.0))
+        this.actions =
+            Some(
+                track(
+                    p,
+                    "attachment-action",
+                    button("Remove", { p.reactions += 1 }) {
+                        this.variant = ButtonVariant.Ghost;
+                        this.size = ButtonSize.Xs
+                        this.focus = FocusOptions(Some(p.reactionFocus))
+                    }
+                )
+            )
+    }
+
+internal fun groupScene(p: ConversationProbe): View =
+    attachmentGroup {
+        for (at in 0L ..< 5L)
+            this.item(
+                ViewKey.Number(at),
+                track(
+                    p,
+                    "file-" + at.toString(),
+                    attachment("Source " + at.toString()) {
+                        this.description("Local image")
+                        this.image(p.picture, Size(240.0, 160.0))
+                        this.orientation = Orientation.Vertical
+                        this.onClick = Some({ p.clicks += 1 })
+                        this.focus = FocusOptions(Some(p.files[at]))
+                    }
+                )
+            )
+        this.length = Some(320.0);
+        this.handle = Some(p.carousel)
+        this.focus = FocusOptions(Some(p.carouselFocus));
+        this.enabled = p.enabled
+    }
+
+internal fun markerScene(p: ConversationProbe): View =
+    marker("A status line that remains readable when the available width becomes narrow") {
+        this.variant = p.markerVariant
+        this.loading = p.status == TraceStatus.Running
+        this.onClick =
+            if (p.actionable)
+                Some({ p.clicks += 1 })
+            else
+                None
+        this.enabled = p.enabled
+        this.focus = FocusOptions(Some(p.mainFocus))
+    }
+
+internal fun traceScene(p: ConversationProbe): View =
+    trace(
+        "Review the source and its detailed notes",
+        track(
+            p,
+            "trace-body",
+            column {
+                this.label(p.bodyText)
+                this.add(editor(p))
+                this.trace(
+                    "Nested step",
+                    track(
+                        p,
+                        "inner-body",
+                        conversationButton("Nested action", { p.reactions += 1 }) {
+                            this.focus = FocusOptions(Some(p.nestedFocus))
+                        }
+                    )
+                ) { this.open = Some(p.innerOpened.binding()) }
+                this.spacing = 8.0
+            }
+        )
+    ) {
+        this.description("6 sources · 0.4 s")
+        this.status = p.status;
+        this.enabled = p.enabled
+        this.open =
+            if (p.controlled)
+                Some(p.traceOpen)
+            else
+                None
+        this.focus = FocusOptions(Some(p.mainFocus))
+        this.onOpenChange = { _ -> p.changes += 1 }
+        this.onClick = Some({ p.activations += 1 })
+    }
+
+internal fun conversationTranscript(p: ConversationProbe): TranscriptList =
+    TranscriptList(
+        [
+            TranscriptItem(
+                ViewKey.Number(0L),
+                { frame(label("Earlier message")) { this.height = Some(180.0) } }
+            ),
+            TranscriptItem(
+                ViewKey.Number(1L),
+                { frame(label("Question")) { this.height = Some(180.0) } }
+            ),
+            TranscriptItem(ViewKey.Number(2L), { traceScene(p) }, true),
+            TranscriptItem(
+                ViewKey.Number(3L),
+                { frame(label("Later message")) { this.height = Some(400.0) } }
+            )
+        ]
+    )

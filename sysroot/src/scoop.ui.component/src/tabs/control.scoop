@@ -1,0 +1,73 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class TabControlProps(
+    val content: ButtonContent,
+    val selected: Boolean,
+    val enabled: Boolean,
+    val variant: TabsVariant,
+    val axis: FlexAxis,
+    val style: ButtonStyle,
+    val focus: FocusOptions,
+    val theme: Theme,
+    val activate: () -> Unit
+)
+
+internal class TabControl(
+    private val props: Props<TabControlProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.enabled),
+            props.value.focus,
+            { props.value.activate() }
+        )
+    private val text = ActionTextStyle()
+
+    public override fun render(): View {
+        val input = props.value
+        val interaction = control.press.interaction
+        val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, false))
+        val shape = ActionShape.Tab(input.variant, input.selected)
+        val base =
+            text.resolve(
+                input.theme.tokens.typography.action,
+                actionTextColor(input.theme, shape, ButtonVariant.Ghost, visual),
+                input.style.text,
+                actionFontScale(shape),
+                actionLineHeight(shape)
+            )
+        return element(
+            TabIndicatorProps(
+                input.selected && input.variant == TabsVariant.Line,
+                input.axis,
+                input.theme,
+                input.enabled
+            ),
+            { current, mount -> TabIndicator(current, scope = mount) },
+            [
+                element(
+                    ActionInkProps(
+                        input.theme,
+                        shape,
+                        ButtonVariant.Ghost,
+                        input.style,
+                        visual,
+                        ActionBehavior.Press(control, input.activate, input.focus)
+                    ),
+                    { current, mount -> ActionInk(current, scope = mount) },
+                    [
+                        actionContent(
+                            input.content,
+                            actionContentStyle(base, shape, ButtonVariant.Ghost, visual.interaction)
+                        )
+                    ]
+                )
+            ]
+        )
+    }
+}

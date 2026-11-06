@@ -1,0 +1,90 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartRadial(plan: ChartPlan, size: Size): ChartGeometry {
+    val layout = ChartPolarLayout(plan, size)
+    val input = plan.input
+    val result = ArrayList<ChartSeriesGeometry>()
+    val tracks = ArrayList<ChartSector>()
+    val count = plan.snapshot.data.datums.size
+    var rings = 0L
+    for (series in plan.prepared.series)
+        for (sample in series.samples)
+            when (sample) {
+                case Some(_) -> rings += 1L;
+                case None -> {}
+            }
+    val band = (layout.radius - layout.hole) / lowerBound(rings.toDouble(), 1.0)
+    val gap = upperBound(3.0 * plan.appearance.density, band * 0.25)
+    val start = chartAngle(input.startAngle)
+    val sweep = input.endAngle - input.startAngle
+    val zero = chartClamp(plan.prepared.yRange.unit(0.0), 0.0, 1.0)
+    var ring = 0L
+    for (series in plan.prepared.series) {
+        val samples = ArrayList<ChartSample?>()
+        for (at in 0L ..< count) {
+            samples.add(
+                when (series.samples[at]) {
+                    case None -> None
+                    case Some(value) -> {
+                        val outer = layout.radius - ring.toDouble() * band
+                        val inner = lowerBound(layout.hole, outer - band + gap)
+                        ring += 1L
+                        val end = chartClamp(plan.prepared.yRange.unit(value.value), 0.0, 1.0)
+                        val color = chartSectorColor(plan, series, at)
+                        tracks.add(
+                            ChartSector(
+                                layout.center,
+                                inner,
+                                outer,
+                                start,
+                                sweep,
+                                plan.appearance.theme.tokens.palette.muted.background.withAlpha(
+                                    0.65
+                                ),
+                                0.0
+                            )
+                        )
+                        val arc =
+                            ChartSector(
+                                layout.center,
+                                inner,
+                                outer,
+                                start + zero * sweep,
+                                (end - zero) * sweep,
+                                color,
+                                0.0
+                            )
+                        Some(
+                            ChartSample(
+                                chartPolarSelection(plan, series, at),
+                                value.value,
+                                chartPolarPoint(
+                                    layout.center,
+                                    (inner + outer) / 2.0,
+                                    arc.start + arc.sweep / 2.0
+                                ),
+                                chartPolarPoint(layout.center, (inner + outer) / 2.0, arc.start),
+                                ChartShape.Sector(arc),
+                                end != zero && outer > inner
+                            )
+                        )
+                    }
+                }
+            )
+        }
+        result.add(ChartSeriesGeometry(series, samples.toArray()))
+    }
+    return ChartGeometry(
+        size,
+        layout.plot,
+        result.toArray(),
+        [],
+        [],
+        ChartKind.Radial,
+        tracks.toArray(),
+        layout.content
+    )
+}

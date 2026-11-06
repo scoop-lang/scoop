@@ -1,0 +1,53 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.LocalDate
+import scoop.test.*
+
+internal fun advanceCaption(p: DateProbe) {
+    when (p.phase) {
+        case 63 -> {
+            assertTrue(p.calendar.showDate(p.base))
+            p.changed()
+        }
+        case 64 -> {
+            p.click(p.cell(p.base).bounds)
+            p.clickCaption(LocalDate(2024, 3, 1), false)
+        }
+        case 65 -> p.key(126)
+        case 66 -> p.key(36, "\r")
+        case 67 -> {
+            assertEquals(Some(LocalDate(2024, 1, 1)), p.calendar.page)
+            p.key(53)
+        }
+        case 68 -> {
+            // An open Select would consume Escape before the caption observer.
+            assertEquals(1, p.captionEscapes)
+            assertTrue(p.calendar.cancelRange())
+            assertEquals(None, p.range.value)
+            p.click(p.cell(p.base).bounds)
+            p.clickCaption(LocalDate(2024, 2, 1), true)
+        }
+        case 69 -> p.key(126)
+        case 70 -> p.key(36, "\r")
+        case 71 -> {
+            assertEquals(Some(LocalDate(2023, 1, 1)), p.calendar.page)
+            p.key(53)
+        }
+        case 72 -> {
+            assertEquals(2, p.captionEscapes)
+            assertTrue(p.calendar.cancelRange())
+            assertEquals(None, p.range.value)
+            p.shown = false
+            p.changed()
+            p.outsideFocus.requestFocus()
+        }
+        case 73 -> {
+            assertFalse(p.calendar.isAttached)
+            assertFalse(p.picker.isAttached)
+            assertFalse(p.frames!!.snapshot().required)
+            assertEquals("Unchanged background draft", p.background.text)
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unknown calendar caption test phase"))
+    }
+}

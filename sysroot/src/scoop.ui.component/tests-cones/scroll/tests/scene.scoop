@@ -7,33 +7,59 @@ import scoop.test.*
 import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.ui.component.*
+import scoop.ui.style.*
 import scoop.window.*
 
-internal class AreaScene(private val probe: AreaProbe): Component {
+internal class AreaScene(private val probe: AreaProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
-        return element(
-            generation,
-            { props -> AreaPanel(probe, props) },
-            [
-                if (generation < 4)
-                    scrollArea(component(generation, { props -> AreaContent(probe, props) })) {
-                        this.state = Some(this @AreaScene.probe.outer)
-                        this.axes = ScrollAxes.Both
-                        this.lineStep = 20.0
-                        this.focus = FocusOptions(Some(this @AreaScene.probe.outerFocus))
-                        this.theme = Some(this @AreaScene.probe.theme)
-                    }
-                else
-                    empty()
-            ]
+        return direction(
+            element(
+                AreaPanelProps(generation, probe.zero.value),
+                { props, mount -> AreaPanel(probe, props, scope = mount) },
+                [
+                    if (generation < 4)
+                        scrollArea(
+                            component(
+                                generation,
+                                { props, mount -> AreaContent(probe, props, scope = mount) }
+                            )
+                        ) {
+                            this.state = Some(this @AreaScene.probe.current)
+                            this.axes = this @AreaScene.probe.axes.value
+                            this.enabled = this @AreaScene.probe.enabled.value
+                            this.scrollbars = this @AreaScene.probe.bars.value
+                            if (this @AreaScene.probe.styled.value)
+                                style {
+                                    this.corners(Corners.all(12.0))
+                                    this.border(Some(Border.all(1.0, Color.Black)))
+                                }
+                            this.lineStep = 20.0
+                            this.focus =
+                                FocusOptions(
+                                    Some(this @AreaScene.probe.outerFocus),
+                                    visibility = this @AreaScene.probe.visibility.value
+                                )
+                            this.theme = Some(this @AreaScene.probe.theme)
+                        }
+                    else
+                        empty()
+                ]
+            ),
+            probe.direction.value
         )
     }
 }
 
-private class AreaPanel(private val probe: AreaProbe, private val props: Props<Int>): Element {
-    public override fun onMount(scope: ComponentScope) {
+private struct AreaPanelProps(val generation: Int, val zero: Boolean)
+
+private class AreaPanel(
+    private val probe: AreaProbe,
+    private val props: Props<AreaPanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.resource { probe.outer.observeIntent { event -> probe.outerIntents.add(event) } }
         scope.resource { probe.inner.observeIntent { event -> probe.innerIntents.add(event) } }
         scope.input.captureHandler =
@@ -52,12 +78,22 @@ private class AreaPanel(private val probe: AreaProbe, private val props: Props<I
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        context.measureChild(0L, Constraints.tight(Size(200.0, 120.0)))
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(
+            0L,
+            Constraints.tight(
+                if (props.value.zero)
+                    Size(0.0, 0.0)
+                else
+                    Size(200.0, 120.0)
+            )
+        )
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 180.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -68,11 +104,13 @@ private class AreaPanel(private val probe: AreaProbe, private val props: Props<I
                     native -> @Unsafe
                     {
                         probe.outsidePixel = readNativePixel(native, 250.0, 120.0)
+                        probe.ringPixel = readNativePixel(native, 18.0, 80.0)
+                        probe.cornerPixel = readNativePixel(native, 20.0, 20.0)
                     }
                 }
             }
         }
-        val generation = props.value
+        val generation = props.value.generation
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
                 probe.committed = generation
@@ -80,8 +118,12 @@ private class AreaPanel(private val probe: AreaProbe, private val props: Props<I
     }
 }
 
-private class AreaContent(private val probe: AreaProbe, private val props: Props<Int>): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class AreaContent(
+    private val probe: AreaProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         probe.mounts += 1
     }
     public override fun onUnmount() {
@@ -91,9 +133,9 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
         probe.contentRenders += 1
         return element(
             props.value,
-            { current -> ContentLayout(probe, current) },
+            { current, mount -> ContentLayout(probe, current, scope = mount) },
             [
-                scrollArea(element({ ContentInput(probe, true) })) {
+                scrollArea(element({ mount -> ContentInput(probe, true, scope = mount) })) {
                     this.state = Some(this @AreaContent.probe.inner)
                     this.lineStep = 10.0
                     this.chain =
@@ -103,37 +145,50 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
                             ScrollChain.Chain
                     this.theme = Some(this @AreaContent.probe.theme)
                 },
-                element({ ContentInput(probe, false) })
+                element({ mount -> ContentInput(probe, false, scope = mount) })
             ]
         )
     }
 }
 
-private class ContentLayout(private val probe: AreaProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ContentLayout(
+    private val probe: AreaProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(100.0, 60.0)))
         context.placeChild(0L, Point(40.0, 30.0))
         context.measureChild(1L, Constraints.tight(Size(50.0, 30.0)))
         context.placeChild(1L, Point(240.0, 400.0))
-        return LayoutMetrics(
-            constraints.constrain(
-                if (props.value == 3)
-                    Size(150.0, 80.0)
-                else
-                    Size(400.0, 600.0)
-            )
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (props.value == 3)
+                        Size(150.0, 80.0)
+                    else
+                        Size(400.0, 600.0)
+                )
+            ),
+            Unit
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.9, 0.9, 0.9))) }
         context.children()
     }
 }
 
-private class ContentInput(private val probe: AreaProbe, private val inner: Boolean): Element {
+private class ContentInput(
+    private val probe: AreaProbe,
+    private val inner: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = scope.createArea(focusable = true)
         area = Some(input)
         if (inner)
@@ -173,16 +228,21 @@ private class ContentInput(private val probe: AreaProbe, private val inner: Bool
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                if (inner)
-                    Size(100.0, 240.0)
-                else
-                    Size(50.0, 30.0)
-            )
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (inner)
+                        Size(100.0, 240.0)
+                    else
+                        Size(50.0, 30.0)
+                )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, rect)
         context.draw {

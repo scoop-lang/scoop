@@ -1,0 +1,273 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class MessageProps public constructor(
+    public val content: (MessageAlignment) -> View,
+    public val align: MessageAlignment = MessageAlignment.Start,
+    public val avatar: View? = None,
+    public val reserveAvatar: Boolean = false,
+    public val header: PanelContent? = None,
+    public val footer: PanelContent? = None,
+    public val captionInset: Double = 12.0,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(captionInset, "invalid message caption inset")
+    }
+}
+
+public class MessageBuilder internal constructor() {
+    public var align: MessageAlignment = MessageAlignment.Start
+    public var avatar: View? = None
+    public var reserveAvatar: Boolean = false
+    public var header: PanelContent? = None
+    public var footer: PanelContent? = None
+    public var captionInset: Double = 12.0
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun header(text: String) {
+        header = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun header(text: StyledText) {
+        header = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun header(content: View) {
+        header = Some(PanelContent.Custom(content))
+    }
+    public fun footer(text: String) {
+        footer = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun footer(text: StyledText) {
+        footer = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun footer(content: View) {
+        footer = Some(PanelContent.Custom(content))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: (MessageAlignment) -> View): MessageProps =
+        MessageProps(
+            content,
+            align,
+            avatar,
+            reserveAvatar,
+            header,
+            footer,
+            captionInset,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class Message(private val props: Props<MessageProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private val themes = ThemeAccess()
+    private val captions = ActionTextStyle()
+    private val medium = spanStyle { this.weight = Some(500) }
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val caption =
+            captions.resolve(
+                theme.tokens.typography.body,
+                theme.tokens.palette.muted.foreground,
+                Some(medium),
+                12.0 / 14.0
+            )
+        val header =
+            messageCaption(input.header, caption, input.fonts, input.captionInset * density)
+        val footer =
+            messageCaption(input.footer, caption, input.fonts, input.captionInset * density)
+        return panelFrame(
+            element(
+                MessageLayoutProps(
+                    input.align,
+                    panelPresent(input.avatar) || input.reserveAvatar,
+                    panelPresent(input.header),
+                    panelPresent(input.footer),
+                    density
+                ),
+                { current, mount -> MessageLayout(current, mount) },
+                [
+                    panelSlot(input.avatar ?: empty(), 0L),
+                    panelSlot(header, 1L),
+                    panelSlot(input.content(input.align), 2L),
+                    panelSlot(footer, 3L)
+                ]
+            ),
+            visual = input.style
+        )
+    }
+}
+
+private fun messageCaption(
+    content: PanelContent?,
+    style: TextStyle,
+    fonts: FontCollection?,
+    inset: Double
+): View =
+    when (content) {
+        case Some(value) -> panelFrame(
+            panelCaption(value, style, fonts),
+            Insets(inset, 0.0, inset, 0.0)
+        )
+        case None -> empty()
+    }
+
+public fun message(content: View, configure: MessageBuilder.() -> Unit = {}): View =
+    makeMessage({ _ -> content }, configure)
+
+public fun message(
+    content: (MessageAlignment) -> View,
+    configure: MessageBuilder.() -> Unit = {}
+): View = makeMessage(content, configure)
+
+internal fun makeMessage(
+    content: (MessageAlignment) -> View,
+    configure: MessageBuilder.() -> Unit
+): View {
+    val builder = MessageBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(content),
+        { current, mount -> Message(current, mount) },
+        builder.key
+    )
+}
+
+internal class MessageLayoutProps(
+    val align: MessageAlignment,
+    val avatar: Boolean,
+    val header: Boolean,
+    val footer: Boolean,
+    val density: Double
+)
+
+internal class MessageLayout(
+    private val props: Props<MessageLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val avatarSide =
+            if (input.avatar)
+                upperBound(32.0 * input.density, constraints.maxWidth ?: 32.0 * input.density)
+            else
+                0.0
+        if (input.avatar)
+            context.measureChild(0L, Constraints.tight(Size(avatarSide, avatarSide)))
+        else
+            context.skipChild(0L)
+        val avatarSpace =
+            if (input.avatar)
+                avatarSide + 8.0 * input.density
+            else
+                0.0
+        val maximum = insetMaximum(constraints.maxWidth, avatarSpace)
+        val header =
+            if (input.header)
+                conversationMeasure(context, 1L, maximum)
+            else {
+                context.skipChild(1L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val body = context.measureChild(2L, Constraints(maxWidth = maximum))
+        val footer =
+            if (input.footer)
+                conversationMeasure(context, 3L, maximum)
+            else {
+                context.skipChild(3L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val top =
+            if (input.header)
+                header.size.height + 10.0 * input.density
+            else
+                0.0
+        val bodyBottom = lowerBound(avatarSide, top + body.size.height)
+        val total =
+            bodyBottom +
+                if (input.footer)
+                    10.0 * input.density + footer.size.height
+                else
+                    0.0
+        val naturalWidth =
+            avatarSpace +
+                lowerBound(body.size.width, lowerBound(header.size.width, footer.size.width))
+        val size = constraints.constrain(Size(constraints.maxWidth ?: naturalWidth, total))
+        val columnWidth = lowerBound(0.0, size.width - avatarSpace)
+        val start =
+            if (input.align == MessageAlignment.Start)
+                avatarSpace
+            else
+                0.0
+        if (input.avatar) {
+            val along =
+                if (input.align == MessageAlignment.Start)
+                    0.0
+                else
+                    size.width - avatarSide
+            context.placeChild(
+                0L,
+                Point(
+                    logicalX(along, avatarSide, size.width, context.layoutDirection),
+                    bodyBottom - avatarSide
+                )
+            )
+        }
+        if (input.header)
+            place(context, 1L, header.size.width, start, columnWidth, size.width, 0.0)
+        place(
+            context,
+            2L,
+            body.size.width,
+            start,
+            columnWidth,
+            size.width,
+            bodyBottom - body.size.height
+        )
+        if (input.footer)
+            place(
+                context,
+                3L,
+                footer.size.width,
+                start,
+                columnWidth,
+                size.width,
+                bodyBottom + 10.0 * input.density
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    private fun place(
+        context: MeasureContext,
+        index: Long,
+        width: Double,
+        start: Double,
+        column: Double,
+        total: Double,
+        y: Double
+    ) {
+        val x = start + conversationOffset(props.value.align, column, width)
+        context.placeChild(index, Point(logicalX(x, width, total, context.layoutDirection), y))
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

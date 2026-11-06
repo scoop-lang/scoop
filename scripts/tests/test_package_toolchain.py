@@ -1,4 +1,4 @@
-"""Check the installation archive layout and publication failure behavior."""
+"""Check the component archive layout and publication failure behavior."""
 
 import os
 import shutil
@@ -15,12 +15,20 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_toolchain
-from package_toolchain import archive, assemble
+from package_toolchain import (
+    archive,
+    assemble_bin,
+    assemble_libraries,
+    assemble_llvm,
+    assemble_sources,
+    stage_binaries,
+)
+from prepare_sysroot import cone_order
 from target_catalog import WINDOWS_TARGETS, host_definition
 
 
-class ToolchainArchiveTests(unittest.TestCase):
-    def test_tooling_and_commands_are_assembled_and_archived(self):
+class ComponentArchiveTests(unittest.TestCase):
+    def test_component_packages_are_assembled_and_archived(self):
         release = tomllib.loads(package_toolchain.RELEASE_CONFIG.read_text())
         hosts = ("x86_64-pc-windows-gnullvm", "aarch64-apple-darwin", "x86_64-unknown-linux-gnu")
         for host, populated in product(hosts, (False, True)):
@@ -41,14 +49,12 @@ class ToolchainArchiveTests(unittest.TestCase):
                     "sysroot/src/library/main.scoop": "fun main() {}",
                     "sysroot/src/library/README.md": (
                         "[Contract](../../../docs/specs/LIBRARY.md#api)\n"
-                        "[Build](../../../scripts/README.md)\n"
+                        "[Build](../../../scripts/README.md)\n[Source](main.scoop)\n"
                         "[Peer](../../../tests/fixtures/libraries/client-network/peer.py)\n"
-                        "[Source](main.scoop)\n"
                     ),
                     "sysroot/src/library/examples/README.md": "[Build](../../../../scripts/README.md)\n",
                     "docs/specs/LIBRARY.md": "# API\n",
                     "scripts/README.md": "Build instructions\n",
-                    "tests/fixtures/libraries/client-network/peer.py": "print('HTTP peer')\n",
                     "sysroot/src/library/Cone.toml": (
                         '[cone]\ngroup = "scoop"\nname = "library"\nversion = "0.1.0"\n'
                     ),
@@ -136,11 +142,24 @@ class ToolchainArchiveTests(unittest.TestCase):
                     (sysroot / "commands/target/data").write_text("command data")
                 extension = work / "extension.vsix"
                 extension.write_bytes(b"extension")
+                llvm_prefix = work / "llvm-prefix"
+                (llvm_prefix / "bin").mkdir(parents=True)
+                (llvm_prefix / "bin" / f"clang{suffix}").write_text("clang")
+                (llvm_prefix / "bin" / f"llvm-config{suffix}").write_text("llvm-config")
+                resource = llvm_prefix / "lib/clang/22/include/stddef.h"
+                resource.parent.mkdir(parents=True)
+                resource.write_text("Clang resource header")
+                dylib = llvm_prefix / "lib" / "libLLVM.dylib"
+                dylib.write_text("LLVM library")
+                if os.name != "nt":
+                    (llvm_prefix / "lib" / "libLLVM-22.dylib").symlink_to("libLLVM.dylib")
+                (llvm_prefix / "include/llvm-c").mkdir(parents=True)
+                (llvm_prefix / "include/llvm-c/Core.h").write_text("LLVM development header")
                 args = SimpleNamespace(
                     version="1.2.3",
                     revision="abc123",
                     host=host,
-                    llvm_prefix=work / "llvm",
+                    llvm_prefix=llvm_prefix,
                     llvm_source=work / "llvm-source",
                     prepared_sysroot=sysroot if populated else None,
                     debugger_prefix=work / "lldb",
@@ -149,85 +168,91 @@ class ToolchainArchiveTests(unittest.TestCase):
                     mingw_ucrt=work / "mingw-ucrt",
                     work_dir=work,
                 )
-                if "windows" in host:
-                    (args.llvm_prefix / "bin").mkdir(parents=True)
-                    for name in package_toolchain.package_windows.TOOLS:
-                        (args.llvm_prefix / "bin" / (name + suffix)).write_text(name)
-                    header = args.llvm_prefix / "lib/clang/22/include/stddef.h"
-                    header.parent.mkdir(parents=True)
-                    header.write_text("Clang resource header")
-                root = work / "installation"
                 binaries = [work / (name + suffix) for name in package_toolchain.TOOLS]
                 for binary in binaries:
                     binary.write_text(f"#!/bin/sh\necho {binary.name}\n")
                     binary.chmod(0o755)
+                selection = work / "cones" / target
+                selection.mkdir(parents=True)
+                orders = {target: cone_order(sysroot, selection, target)}
+                host_system = host_definition(host)["system"]
+                roots = {name: work / "roots" / name for name in ("bin", "llvm", "sources", "lib")}
                 with (
                     patch.object(package_toolchain, "ROOT", repository),
-                    patch.object(package_toolchain.package_native, "darwin", return_value=[]),
-                    patch.object(package_toolchain.package_native, "linux", return_value=[]),
-                    patch.object(package_toolchain.package_native, "windows", return_value=[]),
                     patch.object(
                         package_toolchain.package_debugger,
                         "stage",
                         return_value=({}, "3.14", work / "LICENSE.txt"),
                     ),
-                    patch.object(package_toolchain.package_licenses, "collect"),
+                    patch.object(package_toolchain.package_licenses, "collect_bin"),
+                    patch.object(package_toolchain.package_licenses, "collect_llvm"),
+                    patch.object(package_toolchain.package_licenses, "collect_sources"),
+                    patch.object(package_toolchain.package_licenses, "collect_libraries"),
                 ):
-                    assemble(root, [target], binaries, args, release, extension)
-                destination = work / "toolchain.tar.xz"
-                archive(root, destination)
-                installed = work / "extracted"
-                with tarfile.open(destination) as package:
-                    package.extractall(installed, filter="data")
+                    assemble_llvm(roots["llvm"], args, host_system)
+                    stage_binaries(roots["bin"], binaries, host_system)
+                    assemble_bin(
+                        roots["bin"], [target], args, release, extension, orders, "3.14", []
+                    )
+                    assemble_sources(roots["sources"], args)
+                    assemble_libraries(roots["lib"], target, args, orders[target])
+                output = work / "dist" / f"scoop-{args.version}"
+                output.mkdir(parents=True)
+                names = {
+                    "bin": f"scoop-1.2.3-bin-{host}",
+                    "llvm": f"scoop-1.2.3-llvm-{host}",
+                    "sources": "scoop-1.2.3-sources",
+                    "lib": f"scoop-1.2.3-lib-{target}",
+                }
+                installed = {}
+                for component, root in roots.items():
+                    destination = output / f"{names[component]}.tar.xz"
+                    archive(root, destination)
+                    with tarfile.open(destination) as package:
+                        members = package.getnames()
+                        self.assertFalse(any("/docs/" in name for name in members))
+                        if component == "lib":
+                            self.assertIn(f"./lib/{target}/scoop.core.slib", members)
+                            self.assertIn(f"./lib/{target}/library.slib", members)
+                        else:
+                            self.assertFalse(any(name.endswith(".slib") for name in members))
+                        extracted = work / "extracted" / component
+                        package.extractall(extracted, filter="data")
+                        installed[component] = extracted
+
+                bin_root = installed["bin"]
                 driver = "sco.exe" if "windows" in host else "scoop"
-                names = [
+                names_in_bin = [
                     driver,
                     *(name + suffix for name in ("scoopc", "scoop-link", "scoop-lsp", "scoop-pm")),
                 ]
-                self.assertEqual({path.name for path in (installed / "bin").iterdir()}, set(names))
-                for name, binary in zip(names, binaries, strict=True):
-                    self.assertEqual((installed / "bin" / name).read_bytes(), binary.read_bytes())
+                self.assertEqual(
+                    {path.name for path in (bin_root / "bin").iterdir()}, set(names_in_bin)
+                )
+                for name, binary in zip(names_in_bin, binaries, strict=True):
+                    self.assertEqual((bin_root / "bin" / name).read_bytes(), binary.read_bytes())
                     if os.name != "nt":
-                        self.assertTrue((installed / "bin" / name).stat().st_mode & 0o111)
-                if "windows" in host:
-                    self.assertEqual(
-                        (installed / "libexec/llvm/bin/clang.exe").read_text(), "clang"
-                    )
-                    self.assertEqual(
-                        (installed / "libexec/llvm/lib/clang/22/include/stddef.h").read_bytes(),
-                        header.read_bytes(),
-                    )
-                metadata = tomllib.loads((installed / "share/scoop/toolchain.toml").read_text())
+                        self.assertTrue((bin_root / "bin" / name).stat().st_mode & 0o111)
+                self.assertEqual(
+                    (bin_root / "VERSION").read_text(),
+                    f"1.2.3\nrevision: abc123\nhost: {host}\n",
+                )
+                metadata = tomllib.loads((bin_root / "share/scoop/toolchain.toml").read_text())
                 self.assertEqual(metadata["default_target"], target)
                 self.assertEqual(metadata["targets"][target]["cones"], ["scoop.core", "library"])
-                self.assertEqual(list(installed.rglob("*.slib")), [])
-                self.assertFalse((installed / "docs").exists())
                 installer = "post-install.ps1" if "windows" in host else "post-install.sh"
-                self.assertTrue((installed / installer).is_file())
+                self.assertTrue((bin_root / installer).is_file())
                 self.assertEqual(
-                    (installed / "share/scoop/install/targets.list").read_text().splitlines(),
+                    (bin_root / "share/scoop/install/targets.list").read_text().splitlines(),
                     [target],
                 )
                 self.assertEqual(
-                    (installed / f"share/scoop/install/{target}.list").read_text().splitlines(),
+                    (bin_root / f"share/scoop/install/{target}.list").read_text().splitlines(),
                     metadata["targets"][target]["cones"],
-                )
-                self.assertEqual(
-                    (installed / "lib" / target / "libscoop_text_backend.a").read_text(),
-                    "libscoop_text_backend.a",
                 )
                 self.assertEqual(metadata["liburing"], "2.15")
                 if target in package_toolchain.SKIA_TARGETS:
                     self.assertEqual(metadata["skia"], release["skia"])
-                    self.assertEqual(
-                        (installed / "lib" / target / package_toolchain.SKIA_LIBRARY).read_text(),
-                        package_toolchain.SKIA_LIBRARY,
-                    )
-                    self.assertTrue(
-                        (
-                            installed / "lib" / target / "include/skia/include/core/SkCanvas.h"
-                        ).is_file()
-                    )
                 for name in ("rust_windows", "llvm_mingw"):
                     if "windows" in host:
                         self.assertEqual(metadata[name], release[name])
@@ -235,6 +260,7 @@ class ToolchainArchiveTests(unittest.TestCase):
                         self.assertNotIn(name, metadata)
                 self.assertEqual(metadata["debugger_python"], "3.14")
                 self.assertEqual(metadata["lldb"], release["llvm"])
+                self.assertEqual(metadata["host_libraries"], [])
                 self.assertNotIn("libuv", metadata)
                 self.assertEqual(
                     metadata["cones"],
@@ -243,30 +269,13 @@ class ToolchainArchiveTests(unittest.TestCase):
                         {"coordinate": "scoop:scoop.core:0.1.0"},
                     ],
                 )
-                self.assertEqual(
-                    (installed / "src/library/main.scoop").read_text(), "fun main() {}"
-                )
-                self.assertFalse((installed / "src/library/Cone.lock").exists())
-                self.assertFalse((installed / "src/library/target").exists())
-                repository_url = "https://github.com/windoze/scoop/blob/abc123/"
-                self.assertEqual(
-                    (installed / "src/library/README.md").read_text(),
-                    f"[Contract]({repository_url}docs/specs/LIBRARY.md#api)\n"
-                    f"[Build]({repository_url}scripts/README.md)\n"
-                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n"
-                    "[Source](main.scoop)\n",
-                )
-                self.assertEqual(
-                    (installed / "src/library/examples/README.md").read_text(),
-                    f"[Build]({repository_url}scripts/README.md)\n",
-                )
                 self.assertEqual(metadata["programming_skill"], skill_path.as_posix())
                 skill_files = {
                     path.relative_to(skill_source): path.read_bytes()
                     for path in skill_source.rglob("*")
                     if path.is_file()
                 }
-                installed_skill = installed / metadata["programming_skill"]
+                installed_skill = bin_root / metadata["programming_skill"]
                 self.assertEqual(
                     {
                         path.relative_to(installed_skill): path.read_bytes()
@@ -276,16 +285,7 @@ class ToolchainArchiveTests(unittest.TestCase):
                     skill_files,
                 )
                 self.assertIn(Path("SKILL.md"), skill_files)
-                commands = installed / "commands"
-                for relative in (
-                    "catalog.toml",
-                    "topics/start/hello.md",
-                    "programs/start/hello/main.scoop",
-                ):
-                    self.assertEqual(
-                        (installed / "share/scoop/examples" / relative).read_bytes(),
-                        (sysroot / "share/scoop/examples" / relative).read_bytes(),
-                    )
+                commands = bin_root / "commands"
                 self.assertTrue(commands.is_dir())
                 self.assertFalse((commands / ".gitkeep").exists())
                 if populated:
@@ -296,7 +296,71 @@ class ToolchainArchiveTests(unittest.TestCase):
                 else:
                     self.assertEqual(list(commands.iterdir()), [])
 
-    def test_packaging_prepares_only_native_resources_and_runtime(self):
+                llvm_root = installed["llvm"]
+                self.assertEqual(
+                    (llvm_root / "libexec/llvm/bin" / f"clang{suffix}").read_text(), "clang"
+                )
+                self.assertEqual(
+                    (llvm_root / "libexec/llvm/lib/clang/22/include/stddef.h").read_bytes(),
+                    resource.read_bytes(),
+                )
+                self.assertEqual(
+                    (llvm_root / "libexec/llvm/include/llvm-c/Core.h").read_text(),
+                    "LLVM development header",
+                )
+                if os.name != "nt":
+                    symlink = llvm_root / "libexec/llvm/lib/libLLVM-22.dylib"
+                    self.assertTrue(symlink.is_symlink())
+                    self.assertEqual(os.readlink(symlink), "libLLVM.dylib")
+
+                sources_root = installed["sources"]
+                self.assertEqual(
+                    (sources_root / "src/library/main.scoop").read_text(), "fun main() {}"
+                )
+                self.assertFalse((sources_root / "src/library/Cone.lock").exists())
+                self.assertFalse((sources_root / "src/library/target").exists())
+                repository_url = "https://github.com/windoze/scoop/blob/abc123/"
+                self.assertEqual(
+                    (sources_root / "src/library/README.md").read_text(),
+                    f"[Contract]({repository_url}docs/specs/LIBRARY.md#api)\n"
+                    f"[Build]({repository_url}scripts/README.md)\n[Source](main.scoop)\n"
+                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n",
+                )
+                self.assertEqual(
+                    (sources_root / "src/library/examples/README.md").read_text(),
+                    f"[Build]({repository_url}scripts/README.md)\n",
+                )
+                for relative in (
+                    "catalog.toml",
+                    "topics/start/hello.md",
+                    "programs/start/hello/main.scoop",
+                ):
+                    self.assertEqual(
+                        (sources_root / "share/scoop/examples" / relative).read_bytes(),
+                        (sysroot / "share/scoop/examples" / relative).read_bytes(),
+                    )
+
+                lib_root = installed["lib"] / "lib" / target
+                self.assertEqual((lib_root / "scoop.core.slib").read_text(), "scoop.core.slib")
+                self.assertEqual((lib_root / "library.slib").read_text(), "library.slib")
+                self.assertEqual(
+                    (lib_root / "libscoop_text_backend.a").read_text(), "libscoop_text_backend.a"
+                )
+                if target in package_toolchain.SKIA_TARGETS:
+                    self.assertEqual(
+                        (lib_root / package_toolchain.SKIA_LIBRARY).read_text(),
+                        package_toolchain.SKIA_LIBRARY,
+                    )
+                    self.assertTrue((lib_root / "include/skia/include/core/SkCanvas.h").is_file())
+                for variant in (
+                    "runtime",
+                    "runtime-stress",
+                    "runtime-startup-stats",
+                    "runtime-stress-startup-stats",
+                ):
+                    self.assertTrue((lib_root / variant / "index.cbor").is_file())
+
+    def test_packaging_builds_system_libraries_and_runtime(self):
         for target in (
             "aarch64-apple-darwin",
             *WINDOWS_TARGETS,
@@ -323,14 +387,16 @@ class ToolchainArchiveTests(unittest.TestCase):
                     unwind_cxx="clang++",
                     musl_include=work / "musl/include",
                 )
+                binaries = [work / "scoop", work / "scoopc"]
                 with patch.object(package_toolchain, "run_script") as run:
-                    package_toolchain.prepare_targets(args, [target], {})
+                    package_toolchain.prepare_targets(args, [target], binaries, {})
                 scripts = [call.args[0] for call in run.call_args_list]
                 self.assertIn("build_openssl.py", scripts)
                 self.assertIn("build_text_backends.py", scripts)
                 self.assertEqual(scripts[-1], "prepare_sysroot.py")
-                self.assertIn("--runtime-only", run.call_args.args[1])
-                self.assertNotIn("--scoop", run.call_args.args[1])
+                arguments = run.call_args.args[1]
+                self.assertNotIn("--runtime-only", arguments)
+                self.assertEqual(arguments[arguments.index("--scoop") + 1], binaries[0])
                 if target == "x86_64-unknown-linux-musl":
                     self.assertNotIn("build_skia.py", scripts)
                     continue
@@ -350,7 +416,7 @@ class ToolchainArchiveTests(unittest.TestCase):
     def test_extract_directly_into_installation_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             work = Path(temporary)
-            source = work / "scoop-1.2.3-host"
+            source = work / "scoop-1.2.3-bin-host"
             files = {
                 "VERSION": "1.2.3\nrevision: abc123\nhost: aarch64-apple-darwin\n",
                 "bin/scoop": "#!/bin/sh\nexit 0\n",

@@ -1,0 +1,227 @@
+package scoop.tests.ui.chart
+
+import scoop.test.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+internal fun advanceChart(p: ChartProbe) {
+    when (p.phase) {
+        case 0 -> assertTrue(p.focus.requestFocus())
+        case 1 -> {
+            assertTrue(p.focus.hasFocus);
+            p.key(124)
+        }
+        case 2 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.key(124)
+        }
+        case 3 -> {
+            assertEquals("feb", p.selection.value!!.datum.value);
+            p.key(125)
+        }
+        case 4 -> {
+            assertEquals("mobile", p.selection.value!!.series.value);
+            p.key(119)
+        }
+        case 5 -> {
+            assertEquals("jun", p.selection.value!!.datum.value);
+            p.key(115)
+        }
+        case 6 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.reject = true;
+            p.key(124)
+        }
+        case 7 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.reject = false;
+            p.key(53)
+        }
+        case 8 -> {
+            assertEquals(None, p.selection.value);
+            p.savedCalls = p.axisCalls;
+            p.move(350.0, 180.0)
+        }
+        case 9 -> {
+            assertTrue(p.selection.value != None);
+            assertEquals(p.savedCalls, p.axisCalls);
+            p.move(550.0, 220.0)
+        }
+        case 10 -> {
+            assertEquals(p.savedCalls, p.axisCalls);
+            p.move(710.0, 180.0)
+        }
+        case 11 -> {
+            assertTrue(p.selection.value != None);
+            assertEquals(p.savedCalls, p.axisCalls);
+            p.move(10.0, 10.0)
+        }
+        case 12 -> {
+            assertEquals(None, p.selection.value);
+            p.model.showSeries(ChartSeriesKey("mobile"), false)
+        }
+        case 13 -> {
+            assertFalse(p.model.isVisible(ChartSeriesKey("mobile")));
+            p.rtl = true;
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { preference = MotionPreference.Reduced } }
+                };
+            p.native!!.requestSize(LogicalSize(480.0, 540.0));
+            p.changed()
+        }
+        case 14 -> {
+            assertTrue(p.focus.requestFocus());
+            p.key(123)
+        }
+        case 15 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.kind = ChartKind.Area;
+            p.stack = ChartStack.Normalized;
+            p.model.showSeries(ChartSeriesKey("mobile"), true);
+            p.changed()
+        }
+        case 16 -> {
+            p.key(119)
+        }
+        case 17 -> {
+            assertEquals("jun", p.selection.value!!.datum.value);
+            p.kind = ChartKind.Bar;
+            p.orientation = Orientation.Horizontal;
+            p.stack = ChartStack.Stacked;
+            p.changed()
+        }
+        case 18 -> {
+            p.kind = ChartKind.Pie;
+            p.inner = 0.5;
+            p.selection.value = None;
+            p.changed()
+        }
+        case 19 -> {
+            assertTrue(p.focus.requestFocus());
+            p.key(123)
+        }
+        case 20 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.move(240.0, 215.0)
+        }
+        case 21 -> {
+            assertEquals(None, p.selection.value);
+            p.move(355.0, 215.0)
+        }
+        case 22 -> {
+            assertTrue(p.selection.value != None)
+            p.kind = ChartKind.Radar;
+            p.inner = 0.0;
+            p.selection.value = None;
+            p.changed()
+        }
+        case 23 -> {
+            assertTrue(p.focus.requestFocus());
+            p.key(115)
+        }
+        case 24 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.key(125)
+        }
+        case 25 -> {
+            assertEquals("mobile", p.selection.value!!.series.value);
+            p.move(350.0, 180.0)
+        }
+        case 26 -> {
+            assertTrue(p.selection.value != None)
+            p.kind = ChartKind.Radial;
+            p.inner = 0.25;
+            p.selection.value = None;
+            p.changed()
+        }
+        case 27 -> {
+            assertTrue(p.focus.requestFocus());
+            p.key(115)
+        }
+        case 28 -> {
+            assertEquals("jan", p.selection.value!!.datum.value);
+            p.move(240.0, 215.0)
+        }
+        case 29 -> {
+            assertEquals(None, p.selection.value)
+            p.kind = ChartKind.Pie
+            p.model.replaceData(
+                ChartData(
+                    [ChartDatum(ChartDatumKey("zero"), "Zero")],
+                    [ChartSeries(ChartSeriesKey("zero"), "Zero", [Some(0.0)])]
+                )
+            )
+            p.changed()
+        }
+        case 30 -> {
+            assertFalse(p.focus.requestFocus())
+            p.model.replaceData(chartData());
+            p.inner = 0.7;
+            p.center = true;
+            p.changed()
+        }
+        case 31 -> assertTrue(p.centerFocus.requestFocus())
+        case 32 -> {
+            assertTrue(p.centerFocus.hasFocus)
+            assertEquals(0, chartNativeText(p.native!!, "tu", true))
+        }
+        case 33 -> {
+            assertTrue(p.editor.isComposing)
+            assertEquals(0, chartNativeText(p.native!!, "图表", false))
+        }
+        case 34 -> {
+            assertFalse(p.editor.isComposing);
+            assertEquals("图表", p.editor.text)
+            p.key(123)
+        }
+        case 35 -> {
+            assertEquals(None, p.selection.value)
+            p.center = false;
+            p.changed()
+        }
+        case 36 -> {
+            p.enabled = false;
+            p.changed()
+        }
+        case 37 -> {
+            assertFalse(p.focus.requestFocus());
+            p.enabled = true;
+            p.zero = true;
+            p.changed()
+        }
+        case 38 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            assertFalse(p.focus.requestFocus());
+            p.savedDraws = p.draws
+        }
+        case 39 -> {
+            assertEquals(p.savedDraws, p.draws);
+            p.zero = false;
+            p.model.replaceData(ChartData([], []));
+            p.changed()
+        }
+        case 40 -> {
+            assertFalse(p.focus.requestFocus());
+            p.model.replaceData(chartData());
+            p.changed()
+        }
+        case 41 -> {
+            p.shown = false;
+            p.changed()
+        }
+        case 42 -> {
+            assertFalse(p.focus.isAttached);
+            assertFalse(p.frames!!.snapshot().required);
+            p.savedDraws = p.draws
+        }
+        case 43 -> {
+            assertEquals(p.savedDraws, p.draws);
+            assertTrue(p.outside.requestFocus())
+        }
+        case 44 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected chart phase"))
+    }
+}

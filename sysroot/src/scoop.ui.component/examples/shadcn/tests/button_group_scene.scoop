@@ -1,0 +1,237 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.input as makeInput
+import scoop.ui.style.*
+
+internal class ButtonGroupScene(
+    private val probe: ButtonGroupProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        if (probe.gone)
+            return element(
+                generation,
+                { current, mount -> ButtonGroupTestLayout(probe, current, scope = mount) }
+            )
+        val entries =
+            if (probe.reordered)
+                [2L, 1L, 0L]
+            else
+                [0L, 1L, 2L]
+        val group =
+            buttonGroup {
+                this.axis =
+                    if (this @ButtonGroupScene.probe.vertical)
+                        FlexAxis.Vertical
+                    else
+                        FlexAxis.Horizontal
+                for (index in entries)
+                    if (!(index == 2L && this @ButtonGroupScene.probe.removed))
+                        this.item(
+                            { position -> this @ButtonGroupScene.member(index, position) },
+                            ViewKey.Number(index)
+                        ) {
+                            this.grow =
+                                if (index == 1L)
+                                    1.0
+                                else
+                                    0.0
+                        }
+            }
+        val typed =
+            buttonGroup {
+                this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                this.text("https://") {}
+                this.input(this @ButtonGroupScene.probe.measurementEditor) {
+                    this.caretBlink = Duration.ZERO
+                }
+                this.button("Go", {}) {}
+            }
+        val nested =
+            buttonGroup {
+                this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                this.button("One", {}) {
+                    this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                }
+                this.group {
+                    this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                    this.button("Two", {}) {
+                        this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                    }
+                }
+            }
+        val text =
+            buttonGroup {
+                this.fonts = Some(this @ButtonGroupScene.probe.fonts);
+                this.text("Text") {}
+            }
+        val vertical =
+            buttonGroup {
+                this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                this.axis = FlexAxis.Vertical
+                this.button("One", {}) {
+                    this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                }
+                this.button("Two", {}) {
+                    this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                }
+            }
+        return direction(
+            element(
+                generation,
+                { current, mount -> ButtonGroupTestLayout(probe, current, scope = mount) },
+                [group, typed, nested, text, vertical]
+            ),
+            if (probe.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+    private fun member(index: Long, position: GroupPosition): View {
+        val step = probe.step
+        val view =
+            if (index == 1L)
+                makeInput(probe.editor) {
+                    this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                    this.focus { this.handle = Some(this @ButtonGroupScene.probe.focus[index]) }
+                    this.caretBlink = Duration.ZERO
+                    this.group = Some(position)
+                }
+            else
+                makeButton(
+                    if (index == 0L)
+                        "First"
+                    else
+                        "Last",
+                    {
+                        probe.actions[index] += step
+                        probe.change()
+                    }
+                ) {
+                    this.fonts = Some(this @ButtonGroupScene.probe.fonts)
+                    this.focus { this.handle = Some(this @ButtonGroupScene.probe.focus[index]) }
+                    this.enabled = index != 0L || this @ButtonGroupScene.probe.enabled
+                    this.variant = ButtonVariant.Outline
+                    this.group = Some(position)
+                    this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
+                }
+        return element(
+            index,
+            { current, mount -> ButtonGroupChildMarker(probe, current, scope = mount) },
+            [view]
+        )
+    }
+}
+
+private class ButtonGroupTestLayout(
+    private val probe: ButtonGroupProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (context.childCount > 0L) {
+            val first =
+                context.measureChild(
+                    0L,
+                    Constraints(
+                        maxWidth = Some(320.0),
+                        maxHeight =
+                            if (probe.vertical)
+                                Some(160.0)
+                            else
+                                None
+                    )
+                )
+            assertEquals(
+                if (probe.vertical)
+                    240.0
+                else
+                    320.0,
+                first.size.width
+            )
+            assertEquals(
+                if (probe.vertical)
+                    160.0
+                else
+                    32.0,
+                first.size.height
+            )
+            context.placeChild(0L, Point(20.0, 20.0))
+            val typed = context.measureChild(1L, Constraints(maxWidth = Some(400.0)))
+            assertEquals(Size(400.0, 32.0), typed.size)
+            assertEquals(
+                80.0,
+                context.measureChild(1L, Constraints(maxWidth = Some(80.0))).size.width
+            )
+            assertEquals(
+                Size(0.0, 0.0),
+                context.measureChild(1L, Constraints.tight(Size(0.0, 0.0))).size
+            )
+            assertEquals(Size(168.0, 32.0), context.measureChild(2L, Constraints()).size)
+            val natural = context.measureChild(3L, Constraints())
+            assertTrue(natural.size.width > 20.0 && natural.size.width < 100.0)
+            assertEquals(
+                natural.size,
+                context.measureChild(3L, Constraints(maxWidth = Some(320.0))).size
+            )
+            assertTrue(natural.alphabeticBaseline!! > 0.0)
+            assertEquals(
+                Size(80.0, 64.0),
+                context.measureChild(4L, Constraints(maxWidth = Some(320.0))).size
+            )
+            assertEquals(
+                Size(100.0, 64.0),
+                context.measureChild(4L, Constraints.tight(Size(100.0, 64.0))).size
+            )
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 280.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.painted.clear()
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, 520.0, 280.0),
+                Paint(probe.theme.current.value.tokens.palette.background.background)
+            )
+        }
+        context.children()
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.paints += 1
+        }
+    }
+}
+
+private class ButtonGroupChildMarker(
+    private val probe: ButtonGroupProbe,
+    private val index: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        val id = index.value
+        probe.mounts[id] += 1
+        scope.onDispose { probe.disposals[id] += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.painted.add(index.value)
+        context.children()
+    }
+}

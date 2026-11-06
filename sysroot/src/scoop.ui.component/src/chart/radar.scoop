@@ -1,0 +1,121 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartRadar(plan: ChartPlan, size: Size): ChartGeometry {
+    val layout = ChartPolarLayout(plan, size, true)
+    val a = plan.appearance
+    val input = plan.input
+    val count = plan.snapshot.data.datums.size
+    val grid = ArrayList<ChartGrid>()
+    val labels = ArrayList<ChartLabel>()
+    val series = ArrayList<ChartSeriesGeometry>()
+    fun angle(index: Long): Double =
+        -PI / 2.0 + TAU * index.toDouble() / lowerBound(count.toDouble(), 1.0)
+    for (at in 0L ..< count) {
+        val outer = chartPolarPoint(layout.center, layout.radius, angle(at))
+        if (input.yAxis.grid)
+            grid.add(ChartGrid(layout.center, outer))
+        val label = plan.snapshot.data.datums[at].label
+        val text = a.measure(label)
+        val point = chartPolarPoint(layout.center, layout.radius + 8.0 * a.density, angle(at))
+        val x =
+            if (cos(angle(at)) > 0.1)
+                point.x
+            else
+                if (cos(angle(at)) < -0.1)
+                    point.x - text.width
+                else
+                    point.x - text.width / 2.0
+        labels.add(
+            ChartLabel(
+                label,
+                Point(
+                    chartClamp(x, 0.0, lowerBound(size.width - text.width, 0.0)),
+                    chartClamp(
+                        point.y - text.height / 2.0,
+                        0.0,
+                        lowerBound(size.height - text.height, 0.0)
+                    )
+                )
+            )
+        )
+    }
+    for (tick in chartTicks(plan.prepared.yRange, input.yAxis.tickCount)) {
+        val unit = plan.prepared.yRange.unit(tick)
+        if (unit >= 0.0 && unit <= 1.0) {
+            val radius = unit * layout.radius
+            if (input.yAxis.grid && count > 1L)
+                for (at in 0L ..< count)
+                    grid.add(
+                        ChartGrid(
+                            chartPolarPoint(layout.center, radius, angle(at)),
+                            chartPolarPoint(layout.center, radius, angle((at + 1L) % count))
+                        )
+                    )
+            if (input.yAxis.shown) {
+                val text = chartFormat(input.yAxis, tick)
+                val measured = a.measure(text)
+                val halfStep =
+                    if (count > 2L)
+                        PI / count.toDouble()
+                    else
+                        0.0
+                val point =
+                    chartPolarPoint(layout.center, radius * cos(halfStep), -PI / 2.0 + halfStep)
+                labels.add(
+                    ChartLabel(
+                        text,
+                        Point(point.x + 4.0 * a.density, point.y - measured.height / 2.0)
+                    )
+                )
+            }
+        }
+    }
+    for (item in plan.prepared.series) {
+        val samples =
+            Array<ChartSample?>(count) {
+                at -> when (item.samples[at]) {
+                    case None -> None
+                    case Some(value) -> {
+                        val unit = plan.prepared.yRange.unit(value.value)
+                        Some(
+                            ChartSample(
+                                chartPolarSelection(plan, item, at),
+                                value.value,
+                                chartPolarPoint(layout.center, layout.radius * unit, angle(at)),
+                                layout.center,
+                                ChartShape.Point,
+                                unit >= 0.0 && unit <= 1.0 && layout.radius > 0.0
+                            )
+                        )
+                    }
+                }
+            }
+        series.add(ChartSeriesGeometry(item, samples))
+    }
+    return ChartGeometry(
+        size,
+        layout.plot,
+        series.toArray(),
+        labels.toArray(),
+        grid.toArray(),
+        ChartKind.Radar
+    )
+}
+
+/** Rotate an incomplete polygon to its first gap, so the last/first edge remains an ordinary edge. */
+internal fun chartRadarRuns(samples: Array<ChartSample?>): Array<Array<ChartSample>> {
+    var gap = -1L
+    for (at in 0L ..< samples.size)
+        when (samples[at]) {
+            case None -> gap = at;
+            case Some(_) -> {}
+        }
+    if (gap < 0L)
+        return chartRuns(samples, false)
+    val start = gap + 1L
+    val rotated = Array<ChartSample?>(samples.size) { at -> samples[(start + at) % samples.size] }
+    return chartRuns(rotated, false)
+}

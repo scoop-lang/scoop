@@ -1,0 +1,242 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.TextAlignment
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class DropdownMenu public constructor(
+    private val props: Props<DropdownMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val root = MenuRoot(scope, { dropdownInput(props.value) })
+    public override fun onMount() {
+        root.mount()
+    }
+    public override fun render(): View = root.render()
+}
+
+public class ContextMenu public constructor(
+    private val props: Props<ContextMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val root =
+        MenuRoot(
+            scope,
+            {
+                val value = props.value
+                MenuRootInput(
+                    value.open,
+                    value.menu,
+                    value.options,
+                    MenuRootTrigger.Context(value.content),
+                    gap = 0.0,
+                    viewportPadding = value.viewportPadding,
+                    focus = value.focus,
+                    handle = value.handle,
+                    dismiss = value.dismiss,
+                    onOpenChange = value.onOpenChange,
+                    onCloseRequest = value.onCloseRequest,
+                    onClosed = value.onClosed
+                )
+            }
+        )
+    public override fun onMount() {
+        root.mount()
+    }
+    public override fun render(): View = root.render()
+}
+
+/** Root state is limited to optional uncontrolled open, opening position and a pending Tab. */
+internal class MenuRoot(private val scope: ComponentScope, private val read: () -> MenuRootInput) {
+    private val local = state(false)
+    private val anchor = LayoutAnchor()
+    private val link = HoverPopupLink()
+    private val handle = OverlayHandle()
+    private val triggerFocus = FocusHandle()
+    private val candidates = MenuFocus()
+    private val themes = ThemeAccess()
+    private val last = state(false)
+    private val point = state<Point?>(None)
+    private var pendingTab: Boolean? = None
+    private val open = binding({ read().open?.value ?: local.value }, { value -> setOpen(value) })
+    private val chain =
+        MenuChain(
+            { close() },
+            { reverse -> tab(reverse) },
+            Some(
+                {
+                    reverse -> when (read().horizontal) {
+                        case Some(move) -> move(reverse);
+                        case None -> {}
+                    }
+                }
+            )
+        )
+    fun mount() {
+        themes.mount(read().options.theme)
+    }
+    private fun setOpen(value: Boolean) {
+        val previous = open.value
+        if (value)
+            pendingTab = None
+        if (previous == value)
+            return
+        when (read().open) {
+            case Some(binding) -> binding.value = value
+            case None -> local.value = value
+        }
+        val accepted = open.value
+        if (accepted != previous)
+            read().onOpenChange(accepted)
+    }
+    private fun close() {
+        (read().handle ?: handle).requestClose()
+    }
+    private fun tab(reverse: Boolean) {
+        pendingTab = Some(reverse)
+        close()
+        if (open.value)
+            pendingTab = None
+    }
+    private fun closed(reason: OverlayCloseReason) {
+        val next = pendingTab
+        pendingTab = None
+        when (next) {
+            case Some(reverse) -> if (scope.isMounted)
+                scope.moveFocus(reverse);
+            case None -> {}
+        }
+        read().onClosed(reason)
+    }
+    private fun show(at: Point?, backwards: Boolean) {
+        if (!read().options.enabled)
+            return
+        point.value = at
+        last.value = backwards
+        setOpen(true)
+        if (open.value)
+            candidates.edge(backwards)?.requestFocus(FocusOrigin.Keyboard)
+    }
+    private fun toggle() {
+        if (!read().options.enabled)
+            return
+        if (open.value)
+            close()
+        else
+            show(None, false)
+    }
+    fun render(): View {
+        val input = read()
+        val theme = themes.read(input.options.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val contextMenu =
+            when (input.trigger) {
+                case Context(_) -> true;
+                else -> false
+            }
+        val child =
+            when (input.trigger) {
+                case Button(value, group) -> component(
+                    ButtonProps(
+                        navigationLabel(
+                            value.content,
+                            when (value.fonts) {
+                                case Some(_) -> value.fonts;
+                                case None -> input.options.fonts
+                            },
+                            TextAlignment.Center
+                        ),
+                        { toggle() },
+                        input.options.enabled && value.enabled,
+                        value.style,
+                        input.options.theme,
+                        choiceFocus(value.focus, value.focus.handle ?: triggerFocus),
+                        variant = value.variant,
+                        size = value.size,
+                        group = group
+                    ),
+                    { current, mount -> Button(current, scope = mount) }
+                )
+                case Anchor(_) -> empty()
+                case Context(view) -> view
+            }
+        val position =
+            when (point.value) {
+                case Some(value) -> OverlayPlacement.AtPoint(
+                    value,
+                    input.side,
+                    input.alignment,
+                    input.gap * density,
+                    input.viewportPadding * density
+                )
+                case None -> OverlayPlacement.Anchored(
+                    input.anchor ?: anchor,
+                    input.side,
+                    input.alignment,
+                    input.gap * density,
+                    input.viewportPadding * density
+                )
+            }
+        val dismissal =
+            input.dismiss ?:
+                OverlayDismiss(
+                    true,
+                    if (input.options.mode == OverlayMode.Modal)
+                        OutsidePress.CloseAndConsume
+                    else
+                        OutsidePress.CloseAndContinue,
+                    true
+                )
+        val popup =
+            component(
+                MenuPopupProps(
+                    open,
+                    input.menu,
+                    input.options,
+                    position,
+                    input.handle ?: handle,
+                    candidates,
+                    chain,
+                    root = true,
+                    last = last.value,
+                    initial = input.focus,
+                    dismiss = dismissal,
+                    anchorVisibility = input.anchorVisibility,
+                    link = Some(link),
+                    onCloseRequest = { reason -> read().onCloseRequest(reason) },
+                    onClosed = { reason -> closed(reason) }
+                ),
+                { current, mount -> MenuPopup(current, scope = mount) }
+            )
+        return element(
+            MenuRootLayoutProps(
+                anchor,
+                link,
+                contextMenu,
+                input.options.enabled,
+                { at, backwards -> show(at, backwards) },
+                { read().hovered() },
+                {
+                    if (open.value)
+                        pendingTab = None
+                }
+            ),
+            { current, mount -> MenuRootLayout(current, scope = mount) },
+            [child, popup]
+        )
+    }
+}
+
+public fun dropdownMenu(
+    open: Binding<Boolean>,
+    content: MenuContent,
+    configure: DropdownMenuBuilder.() -> Unit = {}
+): View = makeDropdownMenu(open, content, configure)
+
+public fun contextMenu(
+    content: View,
+    menu: MenuContent,
+    configure: ContextMenuBuilder.() -> Unit = {}
+): View = makeContextMenu(content, menu, configure)

@@ -1,0 +1,80 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+private class ToastIconInput(val kind: ToastKind, val size: Double, val color: Color)
+
+internal fun toastIcon(kind: ToastKind, size: Double, color: Color): View =
+    element(ToastIconInput(kind, size, color), { value, mount -> ToastIcon(value, mount) })
+
+private class ToastIcon(private val props: Props<ToastIconInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    // Lucide circle-check, info, triangle-alert and octagon-x (ISC), 24-unit grid.
+    private val triangle =
+        scope.resource {
+            path {
+                moveTo(Point(12.0, 3.0));
+                lineTo(Point(22.0, 21.0));
+                lineTo(Point(2.0, 21.0));
+                closeContour()
+            }
+        }
+    private val octagon =
+        scope.resource {
+            path {
+                moveTo(Point(7.0, 2.0));
+                lineTo(Point(17.0, 2.0));
+                lineTo(Point(22.0, 7.0));
+                lineTo(Point(22.0, 17.0));
+                lineTo(Point(17.0, 22.0));
+                lineTo(Point(7.0, 22.0));
+                lineTo(Point(2.0, 17.0));
+                lineTo(Point(2.0, 7.0));
+                closeContour()
+            }
+        }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val size = context.size;
+        val input = props.value
+        context.draw {
+            output ->
+            val canvas = output.canvas
+            canvas.scale(size.width / 24.0, size.height / 24.0)
+            val stroke =
+                Paint(input.color, PaintingStyle.Stroke, 2.0, StrokeCap.Round, StrokeJoin.Round)
+            when (input.kind) {
+                case Success -> {
+                    canvas.drawCircle(Point(12.0, 12.0), 10.0, stroke)
+                    canvas.drawLine(Point(8.0, 12.0), Point(11.0, 15.0), stroke)
+                    canvas.drawLine(Point(11.0, 15.0), Point(16.0, 9.0), stroke)
+                }
+                case Info -> {
+                    canvas.drawCircle(Point(12.0, 12.0), 10.0, stroke)
+                    canvas.drawLine(Point(12.0, 11.0), Point(12.0, 16.0), stroke)
+                    canvas.drawCircle(Point(12.0, 7.0), 1.0, Paint(input.color))
+                }
+                case Warning -> {
+                    canvas.drawPath(triangle, stroke)
+                    canvas.drawLine(Point(12.0, 9.0), Point(12.0, 13.0), stroke)
+                    canvas.drawCircle(Point(12.0, 17.0), 1.0, Paint(input.color))
+                }
+                case Error -> {
+                    canvas.drawPath(octagon, stroke)
+                    canvas.drawLine(Point(9.0, 9.0), Point(15.0, 15.0), stroke)
+                    canvas.drawLine(Point(9.0, 15.0), Point(15.0, 9.0), stroke)
+                }
+                case Default -> {}
+                case Loading -> {}
+            }
+        }
+    }
+}

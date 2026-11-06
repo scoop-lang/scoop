@@ -1,0 +1,277 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as workspaceColumn
+import scoop.ui.component.frame as workspaceFrame
+import scoop.ui.component.input as workspaceInput
+import scoop.ui.component.typography as workspaceText
+import scoop.ui.component.sidebar as workspaceSidebar
+import scoop.ui.component.sidebarMenu as workspaceMenu
+import scoop.ui.component.resizable as workspaceResizable
+import scoop.ui.component.textarea as workspaceEditor
+import scoop.ui.component.command as workspaceCommand
+
+internal fun workspaceApplication(model: WorkspaceAppModel, theme: Theme): View =
+    workspaceColumn {
+        this.typography("Project workspace", TypographyRole.H2)
+        this.typography(
+            "Write, preview and inspect your project without leaving the workspace.",
+            TypographyRole.Muted
+        )
+        this.add(
+            workspaceFrame(
+                workspaceSidebar(
+                    model.navigation.binding(),
+                    {
+                        shown -> workspaceMenu {
+                            this.collapsed = shown.collapsed
+                            this.item(
+                                ViewKey.Text("document"),
+                                "Document",
+                                { model.tab.value = Some(0) }
+                            ) {
+                                this.active = model.tab.value == Some(0)
+                                this.icon {
+                                    appearance -> workspaceText("D", TypographyRole.Small) {
+                                        this.textStyle { this.color = Some(appearance.text.color) }
+                                    }
+                                }
+                            }
+                            this.item(
+                                ViewKey.Text("preview"),
+                                "Preview",
+                                { model.tab.value = Some(1) }
+                            ) {
+                                this.active = model.tab.value == Some(1)
+                                this.icon {
+                                    appearance -> workspaceText("P", TypographyRole.Small) {
+                                        this.textStyle { this.color = Some(appearance.text.color) }
+                                    }
+                                }
+                            }
+                            this.item(
+                                ViewKey.Text("activity"),
+                                "Activity",
+                                { model.activityOpen.value = true }
+                            ) {
+                                this.icon {
+                                    appearance -> workspaceText("A", TypographyRole.Small) {
+                                        this.textStyle { this.color = Some(appearance.text.color) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    this.variant = SidebarVariant.Inset
+                    this.collapsible = SidebarCollapse.Icon
+                    this.breakpoint = 640.0
+                    this.rail = true
+                    this.header {
+                        shown -> workspaceColumn {
+                            this.sidebarTrigger(model.navigation.binding())
+                            if (!shown.collapsed)
+                                this.typography(model.name.value, TypographyRole.Small)
+                            this.spacing = 12.0
+                        }
+                    }
+                    this.footer {
+                        shown -> workspaceText(
+                            if (shown.collapsed)
+                                "AL"
+                            else
+                                "Ada Lovelace",
+                            TypographyRole.Muted
+                        )
+                    }
+                    this.inset(workspaceContent(model))
+                }
+            ) {
+                this.height = Some(530.0)
+                this.style {
+                    this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
+                    this.corners(Corners.all(12.0))
+                }
+            }
+        )
+        this.add(workspaceOverlays(model))
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Stretch
+    }
+
+private fun workspaceContent(model: WorkspaceAppModel): View =
+    workspaceColumn {
+        this.wrap {
+            this.sidebarTrigger(model.navigation.binding())
+            this.menubar(model.bar.binding()) {
+                this.menu(
+                    ViewKey.Text("file"),
+                    "File",
+                    menu {
+                        this.item(ViewKey.Text("rename"), "Rename project", { model.rename() })
+                        this.submenu(
+                            ViewKey.Text("panels"),
+                            "Open panel",
+                            menu {
+                                this.item(
+                                    ViewKey.Text("details"),
+                                    "Project details",
+                                    { model.detailsOpen.value = true }
+                                )
+                                this.submenu(
+                                    ViewKey.Text("more"),
+                                    "More",
+                                    menu {
+                                        this.item(
+                                            ViewKey.Text("activity"),
+                                            "Recent activity",
+                                            { model.activityOpen.value = true }
+                                        )
+                                    }
+                                )
+                            }
+                        )
+                    }
+                ) { this.focus = FocusOptions(Some(model.menuFocus)) }
+                this.width = 220.0
+            }
+            this.button("Commands", { model.command() }) {
+                this.variant = ButtonVariant.Outline
+                this.focus = FocusOptions(Some(model.commandTrigger))
+            }
+            this.spacing = 8.0
+            this.lineSpacing = 8.0
+        }
+        this.typography(model.name.value, TypographyRole.H3)
+        this.tabs(model.tab.binding()) {
+            this.variant = TabsVariant.Line
+            this.retention = ContentRetention.KeepMounted
+            this.item(
+                Choice(ViewKey.Text("edit"), 0, "Document"),
+                workspaceFrame(
+                    workspaceResizable(model.sizes.binding()) {
+                        this.panel(
+                            ViewKey.Text("editor"),
+                            workspaceFrame(
+                                workspaceEditor(model.draft) {
+                                    this.focus = FocusOptions(Some(model.editorFocus))
+                                    this.rows = 10L
+                                }
+                            ) {
+                                this.padding = Some(Insets.all(8.0))
+                                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+                            }
+                        ) { this.minimum = 180.0 }
+                        this.panel(
+                            ViewKey.Text("inspector"),
+                            workspaceColumn {
+                                this.typography("Inspector", TypographyRole.Small)
+                                this.typography(
+                                    "Project notes stay with this document.",
+                                    TypographyRole.Muted
+                                )
+                                this.button("Details", { model.detailsOpen.value = true }) {
+                                    this.variant = ButtonVariant.Outline
+                                }
+                                this.spacing = 12.0
+                                this.padding = Insets.all(8.0)
+                            }
+                        ) { this.minimum = 110.0 }
+                        this.handle(ViewKey.Text("editor")) {
+                            this.focus = FocusOptions(Some(model.resizeFocus))
+                        }
+                        this.withHandle = true
+                        this.onSizesCommit = { _ -> model.commits.value += 1 }
+                    }
+                ) { this.height = Some(330.0) }
+            ) { this.focus = FocusOptions(Some(model.editorTabFocus)) }
+            this.item(
+                Choice(ViewKey.Text("preview"), 1, "Preview"),
+                workspaceFrame(workspaceText(model.draft.text)) {
+                    this.padding = Some(Insets.all(12.0))
+                }
+            ) { this.focus = FocusOptions(Some(model.previewTabFocus)) }
+        }
+        this.spacing = 12.0
+        this.padding = Insets.all(12.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+
+private fun workspaceOverlays(model: WorkspaceAppModel): View =
+    workspaceColumn {
+        this.dialog(
+            model.commandsOpen.binding(),
+            workspaceCommand(model.commands, model.query) {
+                this.focus = FocusOptions(Some(model.commandFocus))
+                this.width = 360.0
+                this.onSelect = { _ -> model.commandsOpen.value = false }
+            }
+        ) {
+            this.title("Workspace commands")
+            this.description("Search for a project action.")
+            this.width = 420.0
+            this.focus { this.initialFocus = Some(model.commandFocus) }
+            this.onClosed =
+                {
+                    _ -> if (model.focusEditorAfterCommand) {
+                        model.focusEditorAfterCommand = false
+                        model.editorFocus.requestFocus()
+                    }
+                }
+        }
+        this.dialog(
+            model.renameOpen.binding(),
+            workspaceColumn {
+                this.input(model.nameDraft) { this.focus = FocusOptions(Some(model.nameFocus)) }
+                this.button("Review details", { model.nestedOpen.value = true }) {
+                    this.variant = ButtonVariant.Outline
+                    this.focus = FocusOptions(Some(model.nestedTrigger))
+                }
+                this.sheet(
+                    model.nestedOpen.binding(),
+                    workspaceInput(model.nestedNote) {
+                        this.focus = FocusOptions(Some(model.nestedFocus))
+                    }
+                ) {
+                    this.title("Rename details")
+                    this.description("Close this sheet to return to the rename draft.")
+                    this.focus { this.initialFocus = Some(model.nestedFocus) }
+                }
+                this.spacing = 16.0
+            }
+        ) {
+            this.title("Rename project")
+            this.description("Your document remains in place while you edit the name.")
+            this.focus { this.initialFocus = Some(model.nameFocus) }
+            this.footer(workspaceColumn { this.button("Save name", { model.saveName() }) })
+        }
+        this.sheet(
+            model.detailsOpen.binding(),
+            workspaceEditor(model.note) {
+                this.rows = 6L
+                this.focus = FocusOptions(Some(model.detailsFocus))
+            }
+        ) {
+            this.title("Project details")
+            this.description(model.name.value)
+            this.focus { this.initialFocus = Some(model.detailsFocus) }
+        }
+        this.drawer(
+            model.activityOpen.binding(),
+            workspaceColumn {
+                this.typography("Document opened · Just now")
+                this.typography(f"Panel adjustments · ${model.commits.value}")
+                this.typography(
+                    "Drafts remain available when you close this panel.",
+                    TypographyRole.Muted
+                )
+                this.spacing = 16.0
+            }
+        ) {
+            this.title("Recent activity")
+            this.description(model.name.value)
+        }
+    }

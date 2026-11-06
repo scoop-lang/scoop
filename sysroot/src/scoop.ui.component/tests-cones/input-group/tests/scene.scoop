@@ -1,0 +1,250 @@
+package scoop.tests.ui.inputgroup
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Insets
+import scoop.ui.text.*
+
+internal class GroupScene(private val probe: GroupProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = probe
+        val generation = p.generation.value
+        val callback = p.callback
+        val focus =
+            if (p.handle < 0)
+                FocusOptions()
+            else
+                FocusOptions(Some(p.focus[p.handle.toLong()]))
+        val input =
+            InputProps(
+                p.model,
+                fonts = Some(p.fonts),
+                focus = focus,
+                readOnly = p.readonly,
+                caretBlink = Duration.milliseconds(0L),
+                labelTarget = Some(p.target),
+                projection =
+                    if (p.masked)
+                        textMask()
+                    else
+                        textProjection(),
+                onEdited =
+                    {
+                        _ ->
+                        p.edits += 1;
+                        p.lastCallback = callback
+                    },
+                onSubmit = { _ -> p.submits += 1 },
+                chrome =
+                    if (p.framed)
+                        TextFieldChrome.Framed
+                    else
+                        TextFieldChrome.Bare
+            )
+        val control =
+            when (p.control) {
+                case 0 -> InputGroupControl.Input(input)
+                case 1 -> InputGroupControl.Textarea(
+                    TextareaProps(
+                        p.model,
+                        fonts = Some(p.fonts),
+                        focus = focus,
+                        readOnly = p.readonly,
+                        rows = 3L,
+                        wrap = false,
+                        tab = TextTabBehavior.Insert,
+                        labelTarget = Some(p.target),
+                        caretBlink = Duration.milliseconds(0L),
+                        onEdited =
+                            {
+                                _ ->
+                                p.edits += 1;
+                                p.lastCallback = callback
+                            },
+                        onSubmit = { _ -> p.submits += 1 }
+                    )
+                )
+                else -> InputGroupControl.Custom(
+                    component(
+                        input,
+                        {
+                            current, mount ->
+                            p.customMounts += 1
+                            Input(current, scope = mount)
+                        }
+                    ),
+                    p.focus[0L]
+                )
+            }
+        val addons = ArrayList<InputGroupAddon>()
+        for (
+            id in if (p.reorder)
+                [3, 1, 0, 2]
+            else
+                [0, 1, 2, 3]
+        ) {
+            val align =
+                when (id) {
+                    case 0 -> if (p.reorder)
+                        InputGroupAlign.BlockStart
+                    else
+                        InputGroupAlign.InlineStart
+                    case 1 -> InputGroupAlign.InlineEnd
+                    case 2 -> if (p.reorder)
+                        InputGroupAlign.InlineStart
+                    else
+                        InputGroupAlign.BlockStart
+                    else -> InputGroupAlign.BlockEnd
+                }
+            addons.add(
+                InputGroupAddon(
+                    component(id, { current, mount -> TrackedAddon(p, current, scope = mount) }),
+                    align,
+                    ViewKey.Number(id.toLong()),
+                    Some(Insets())
+                )
+            )
+        }
+        val children: Array<View> =
+            if (p.gone)
+                []
+            else
+                [
+                    component(
+                        InputGroupProps(
+                            control,
+                            addons.toArray(),
+                            p.enabled,
+                            p.invalid,
+                            Some(p.fonts)
+                        ),
+                        {
+                            current, mount ->
+                            p.mounts += 1;
+                            InputGroup(current, scope = mount)
+                        }
+                    )
+                ]
+        return direction(
+            element(
+                generation,
+                { current, mount -> GroupLayout(p, current, scope = mount) },
+                children
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class TrackedAddon(
+    private val probe: GroupProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
+    private val original = props.value
+    private val local = state(props.value * 11)
+    public override fun onMount() {
+        probe.addonMounts[original.toLong()] += 1
+    }
+    public override fun onUnmount() {
+        probe.addonUnmounts[original.toLong()] += 1
+    }
+    public override fun render(): View {
+        assertEquals(original, props.value)
+        assertEquals(original * 11, local.value)
+        val p = probe
+        val content: Array<View> =
+            if (original == 1)
+                [
+                    button("Go", { p.clicks += 1 }) {
+                        this.fonts = Some(p.fonts)
+                        this.variant = ButtonVariant.Ghost
+                        this.size = ButtonSize.Xs
+                        this.focus = FocusOptions(Some(p.button))
+                    }
+                ]
+            else
+                []
+        return element(original, { current, mount -> AddonBox(p, current, scope = mount) }, content)
+    }
+}
+
+private class AddonBox(
+    private val probe: GroupProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size =
+            constraints.constrain(
+                Size(
+                    if (props.value == 1)
+                        60.0
+                    else
+                        40.0,
+                    24.0
+                )
+            )
+        if (context.childCount > 0L) {
+            context.measureChild(0L, Constraints.tight(size))
+            context.placeChild(0L, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val id = props.value.toLong()
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, bounds).use {
+                    value -> probe.addonBounds[id] = value.toWindow(bounds)
+                }
+            }
+        }
+        context.children()
+    }
+}
+
+private class GroupLayout(
+    private val probe: GroupProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (context.childCount > 0L) {
+            val limit =
+                if (probe.zero)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    Constraints(maxWidth = Some(probe.width))
+            val measured = context.measureChild(0L, limit)
+            probe.groupSize = measured.size
+            context.placeChild(0L, Point(20.0, 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(420.0, 300.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val current = generation.value
+        val revision = probe.model.revision
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted) {
+                probe.rendered = current
+                probe.renderedRevision = revision
+            }
+        }
+    }
+}

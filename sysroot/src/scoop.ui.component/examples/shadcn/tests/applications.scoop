@@ -1,0 +1,295 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.window.asyncio.runWithAsyncio
+
+@Test
+private class ApplicationWindowTest {
+    @Test
+    fun `four applications preserve native editing focus reading and resource lifetimes`() {
+        val p = ApplicationProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.model.source) {
+                host.use { owner -> Application().runWithAsyncio(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(4, p.completed)
+            for (frame in p.allFrames)
+                assertFalse(frame.snapshot().attached)
+        } catch (error: Throwable) {
+            println(f"application=${demoTitle(p.kind)}, phase=${p.phase}, draws=${p.draws}")
+            galleryFailure(error)
+            throw error
+        } finally {
+            host.close()
+            p.fonts.close()
+        }
+    }
+}
+
+internal class ApplicationProbe {
+    var kind = Demo.AppSettings
+    var completed = 0
+    val allFrames = ArrayList<FrameProbe>()
+    private val steps: Int get() =
+        when (kind) {
+            case AppSettings -> 32
+            case AppWorkspace -> 43
+            case AppData -> 30
+            case AppConversation -> 40
+            else -> 0
+        }
+    val model = GalleryModel()
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val outside = FocusHandle()
+    val payment = model.appData.records[1L]
+    val messageNote = model.appConversation.messages.rows[3L].note
+    val repository = model.appConversation.questions.survey.editor(QuestionKey("repository"))!!
+    var shown = true
+    var phase = 0
+    var rendered = -1
+    var draws = 0
+    var savedDraws = 0
+    var savedLength = 0L
+    var offset = 0.0
+    var reading: VirtualReadingAnchor? = None
+    var finished = false
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private var timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        model.reduced.value = true
+        model.refreshTheme()
+        for (family in model.source.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+        fonts.register(testSansBytes, "monospace")
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun focus(handle: FocusHandle) {
+        assertTrue(handle.requestFocus())
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, galleryKey(native!!, code, text, flags))
+    }
+    fun text(value: String, marked: Boolean = false) {
+        assertEquals(0, galleryText(native!!, value, marked))
+    }
+    fun selectAll() {
+        key(0, "a", 8)
+    }
+    fun enter() {
+        key(36, "\r")
+    }
+    fun primary() {
+        key(36, "\r", 8)
+    }
+    fun escape() {
+        key(53)
+    }
+    fun space() {
+        key(49, " ")
+    }
+    fun darkRtl(width: Double) {
+        model.toggleTheme()
+        model.direction.value = LayoutDirection.Rtl
+        native!!.requestSize(LogicalSize(width, 820.0))
+        changed()
+    }
+    private fun advance() {
+        if (phase < steps) {
+            when (kind) {
+                case AppSettings -> advanceSettingsApplication(this)
+                case AppWorkspace -> advanceWorkspaceApplication(this)
+                case AppData -> advanceDataApplication(this)
+                case AppConversation -> advanceConversationApplication(this)
+                else -> fail(Some("unexpected application"))
+            }
+            return
+        }
+        if (phase == steps) {
+            shown = false
+            changed()
+        } else
+            if (phase == steps + 1) {
+                assertFalse(model.appSettings.nameFocus.isAttached)
+                assertFalse(model.appWorkspace.editorFocus.isAttached)
+                assertFalse(model.appData.filterFocus.isAttached)
+                assertFalse(model.appConversation.composerFocus.isAttached)
+                assertFalse(model.appConversation.messages.scroll.isAttached)
+                assertFalse(model.appConversation.messages.running.value)
+                assertFalse(model.appConversation.questions.busy.value)
+                savedDraws = draws
+                val rows = model.appConversation.messages.rows
+                savedLength = rows[rows.size - 1L].text.value.charLength
+                model.appSettings.name.replaceAll("Detached draft")
+            } else {
+                assertEquals(savedDraws, draws)
+                assertFalse(frames!!.snapshot().required)
+                val rows = model.appConversation.messages.rows
+                assertEquals(savedLength, rows[rows.size - 1L].text.value.charLength)
+                if (phase == steps + 6)
+                    native!!.requestDestroy()
+            }
+    }
+    private fun openWindow(host: UiHost, active: ActiveApplication) {
+        model.mode.value = ThemeMode.Light
+        model.direction.value = LayoutDirection.Ltr
+        model.refreshTheme()
+        shown = true
+        phase = 0
+        rendered = -1
+        draws = 0
+        generation.value = 0
+        timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+
+        val window =
+            active.createWindow(
+                windowAttributes {
+                    this.title = "Scoop application integration"
+                    this.size = LogicalSize(1120.0, 820.0)
+                }
+            )
+        native = Some(window)
+        frames = Some(observeFrames(window))
+        window.setWindowLevel(WindowLevel.AlwaysOnTop)
+        host.attach(window, { scope -> ApplicationTestScene(this, scope) }, fonts = Some(fonts))
+        window.requestFocus()
+        next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+        active.setControlFlow(ControlFlow.WaitUntil(next))
+        allFrames.add(frames!!)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> openWindow(host, active)
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(
+                    now < timeout,
+                    Some(
+                        f"application timeout: phase=${phase}, focus=${
+                            native!!.isFocused
+                        }, rendered=${rendered}, generation=${generation.value}, required=${
+                            frames!!.snapshot().required
+                        }"
+                    )
+                )
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !frames!!.snapshot().required
+                ) {
+                    advance()
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < steps + 7)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                assertEquals(steps + 7, phase)
+                println(f"${demoTitle(kind)}: ${phase} phases passed")
+                completed += 1
+                if (kind == Demo.AppConversation) {
+                    finished = true
+                    active.requestExit()
+                } else {
+                    kind =
+                        when (kind) {
+                            case AppSettings -> Demo.AppWorkspace
+                            case AppWorkspace -> Demo.AppData
+                            else -> Demo.AppConversation
+                        }
+                    openWindow(host, active)
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+private class ApplicationTestScene(
+    private val p: ApplicationProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val current = p.generation.value
+        val content =
+            if (p.shown)
+                galleryDemo(p.model, p.kind)
+            else
+                empty()
+        return direction(
+            element(
+                current,
+                { value, mount -> ApplicationTestRoot(p, value, mount) },
+                [
+                    button("Outside", {}) { this.focus = FocusOptions(Some(p.outside)) },
+                    scrollArea(frame(content) { this.padding = Some(Insets.all(8.0)) })
+                ]
+            ),
+            p.model.direction.value
+        )
+    }
+}
+
+private class ApplicationTestRoot(
+    private val p: ApplicationProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size =
+            constraints.constrain(
+                Size(constraints.maxWidth ?: 1120.0, constraints.maxHeight ?: 820.0)
+            )
+        context.measureChild(0L, Constraints.tight(Size(100.0, 32.0)))
+        context.placeChild(0L, Point(20.0, 12.0))
+        context.measureChild(1L, Constraints.tight(Size(size.width - 32.0, size.height - 68.0)))
+        context.placeChild(1L, Point(16.0, 52.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val current = generation.value
+        context.draw {
+            paint ->
+            paint.canvas.clear(p.model.source.current.value.tokens.palette.background.background)
+            p.draws += 1
+        }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = current
+        }
+    }
+}

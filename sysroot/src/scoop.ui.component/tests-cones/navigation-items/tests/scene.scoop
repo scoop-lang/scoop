@@ -8,14 +8,17 @@ import scoop.ui.component.*
 import scoop.ui.style.Orientation
 import scoop.window.*
 
-internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Component {
+internal class ItemNavigationScene(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         element(
-            { NavigationPanel(probe) },
+            { mount -> NavigationPanel(probe, scope = mount) },
             [
-                element({ NavigationEdge(probe.lead, true) }),
+                element({ mount -> NavigationEdge(probe.lead, true, scope = mount) }),
                 element(
-                    { NavigationGroup(probe) },
+                    { mount -> NavigationGroup(probe, scope = mount) },
                     [
                         virtualList(
                             probe.data!!.value,
@@ -38,13 +41,16 @@ internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Comp
                         }
                     ]
                 ),
-                element({ NavigationEdge(probe.tail, false) })
+                element({ mount -> NavigationEdge(probe.tail, false, scope = mount) })
             ]
         )
 }
 
-private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class NavigationPanel(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,
@@ -77,16 +83,18 @@ private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(40.0, 20.0)))
         context.measureChild(1L, Constraints.tight(Size(144.0, 76.0)))
         context.measureChild(2L, Constraints.tight(Size(40.0, 20.0)))
         context.placeChild(0L, Point(8.0, 8.0))
         context.placeChild(1L, Point(12.0, 40.0))
         context.placeChild(2L, Point(8.0, 135.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 220.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -97,19 +105,24 @@ private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
     }
 }
 
-private class NavigationGroup(private val probe: ItemNavigationProbe): Element {
+private class NavigationGroup(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(probe.fallback), false, -1))
         probe.group = Some(scope.focusScope(FocusScopeOptions(fallback = Some(probe.fallback))))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(144.0, 48.0)))
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(144.0, 76.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(144.0, 76.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 56.0, 50.0, 14.0))
         context.children()
     }
@@ -117,18 +130,20 @@ private class NavigationGroup(private val probe: ItemNavigationProbe): Element {
 
 private class NavigationEdge(
     private val handle: FocusHandle,
-    private val initial: Boolean
-): Element {
+    private val initial: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(handle)))
         if (initial)
             assertTrue(handle.requestFocus())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 20.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 0.0, 40.0, 20.0))
     }
 }

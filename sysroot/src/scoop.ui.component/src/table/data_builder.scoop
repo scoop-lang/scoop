@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+
+public class DataTableProps<Row> public constructor(
+    public val state: DataTableState<Row>,
+    public val bodyHeight: Double = 320.0,
+    public val itemExtent: ItemExtent = ItemExtent.Variable(48.0),
+    public val selection: Boolean = true,
+    public val pagination: Boolean = true,
+    public val columnMenu: Boolean = true,
+    public val additiveSort: Boolean = false,
+    public val pageSizes: Array<Long> = [10L, 20L, 50L, 100L],
+    public val toolbar: View? = None,
+    public val footer: View? = None,
+    public val empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results.", None))),
+    public val horizontal: ScrollState? = None,
+    public val vertical: ScrollState? = None,
+    public val handle: VirtualListHandle? = None,
+    public val width: Double? = None,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None
+) {
+    init {
+        nonnegative(bodyHeight, "invalid data table height")
+        itemEstimate(itemExtent)
+        for (index in 0L ..< pageSizes.size) {
+            requireComponent(pageSizes[index] > 0L, "invalid table page size option")
+            for (previous in 0L ..< index)
+                requireComponent(
+                    pageSizes[index] != pageSizes[previous],
+                    "duplicate table page size option"
+                )
+        }
+    }
+}
+
+public class DataTableBuilder internal constructor() {
+    public var bodyHeight: Double = 320.0
+    public var itemExtent: ItemExtent = ItemExtent.Variable(48.0)
+    public var selection: Boolean = true
+    public var pagination: Boolean = true
+    public var columnMenu: Boolean = true
+    public var additiveSort: Boolean = false
+    public var pageSizes: Array<Long> = [10L, 20L, 50L, 100L]
+    public var toolbar: View? = None
+    public var footer: View? = None
+    public var empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results.", None)))
+    public var horizontal: ScrollState? = None
+    public var vertical: ScrollState? = None
+    public var handle: VirtualListHandle? = None
+    public var width: Double? = None
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    public fun toolbar(view: View) {
+        toolbar = Some(view)
+    }
+    public fun footer(view: View) {
+        footer = Some(view)
+    }
+    public fun empty(text: String) {
+        empty = tableText(text)
+    }
+    public fun empty(view: View) {
+        empty = PanelContent.Custom(view)
+    }
+    internal fun <Row> snapshot(state: DataTableState<Row>): DataTableProps<Row> =
+        DataTableProps(
+            state,
+            bodyHeight,
+            itemExtent,
+            selection,
+            pagination,
+            columnMenu,
+            additiveSort,
+            pageSizes,
+            toolbar,
+            footer,
+            empty,
+            horizontal,
+            vertical,
+            handle,
+            width,
+            enabled,
+            fonts,
+            theme
+        )
+}
+
+public fun <Row> dataTable(
+    state: DataTableState<Row>,
+    configure: DataTableBuilder.() -> Unit = {}
+): View {
+    val builder = DataTableBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(state),
+        { props, scope -> DataTable(props, scope) },
+        builder.key
+    )
+}

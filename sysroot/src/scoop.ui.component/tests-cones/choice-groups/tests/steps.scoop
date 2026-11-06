@@ -1,0 +1,204 @@
+package scoop.tests.ui.choices
+
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun radioKeys(p: ChoiceProbe) {
+    when (p.phase) {
+        case 0 -> p.focus(p.lead)
+        case 1 -> p.key(48)
+        case 2 -> {
+            assertTrue(p.radioHandles[2L].hasFocus);
+            assertEquals(0, p.radioWrites);
+            p.key(126)
+        }
+        case 3 -> {
+            assertTrue(p.radioHandles[0L].hasFocus);
+            assertEquals(Some(0), p.radio.value);
+            p.key(125)
+        }
+        case 4 -> {
+            assertTrue(p.radioHandles[2L].hasFocus);
+            assertEquals(Some(2), p.radio.value);
+            p.key(36)
+        }
+        case 5 -> {
+            assertEquals(2, p.radioWrites);
+            p.key(49)
+        }
+        case 6 -> {
+            assertEquals(2, p.radioWrites);
+            p.focus(p.radioHandles[0L])
+        }
+        case 7 -> {
+            assertTrue(p.radioHandles[0L].hasFocus);
+            assertEquals(Some(2), p.radio.value);
+            p.key(48)
+        }
+        else -> fail()
+    }
+}
+
+internal fun toggleKeys(p: ChoiceProbe) {
+    when (p.phase) {
+        case 8 -> {
+            assertTrue(p.toggles[0L].hasFocus);
+            p.key(124)
+        }
+        case 9 -> {
+            assertTrue(p.toggles[2L].hasFocus);
+            assertEquals<Int?>(None, p.single.value);
+            p.key(49)
+        }
+        case 10 -> {
+            assertEquals(Some(2), p.single.value);
+            assertEquals(1, p.singleWrites);
+            p.key(36)
+        }
+        case 11 -> {
+            assertEquals<Int?>(None, p.single.value);
+            assertEquals(2, p.singleWrites);
+            p.focus(p.multiHandles[0L])
+        }
+        case 12 -> p.key(124)
+        case 13 -> {
+            assertTrue(p.multiHandles[1L].hasFocus);
+            assertEquals(1L, p.multiple.value.size);
+            p.key(49)
+        }
+        case 14 -> {
+            assertEquals(2L, p.multiple.value.size);
+            assertEquals(1, p.multiple.value[1L]);
+            p.key(115)
+        }
+        case 15 -> {
+            assertTrue(p.multiHandles[0L].hasFocus);
+            p.key(49)
+        }
+        else -> fail()
+    }
+}
+
+internal fun selectionChanges(p: ChoiceProbe) {
+    when (p.phase) {
+        case 16 -> {
+            assertEquals(1L, p.multiple.value.size);
+            assertEquals(1, p.multiple.value[0L]);
+            p.radio.value = None;
+            p.focus(p.lead)
+        }
+        case 17 -> p.key(48)
+        case 18 -> {
+            assertTrue(p.radioHandles[0L].hasFocus);
+            p.reject = true;
+            p.key(125)
+        }
+        case 19 -> {
+            assertTrue(p.radioHandles[2L].hasFocus);
+            assertEquals<Int?>(None, p.radio.value);
+            assertEquals(3, p.radioWrites);
+            p.radio.value = Some(0);
+            p.focus(p.lead)
+        }
+        case 20 -> p.key(48)
+        case 21 -> {
+            assertTrue(p.radioHandles[0L].hasFocus);
+            p.reversed = true;
+            p.reject = false
+        }
+        case 22 -> {
+            assertTrue(p.radioHandles[0L].hasFocus)
+            for (count in p.mounts)
+                assertEquals(1, count)
+            p.key(126)
+        }
+        case 23 -> {
+            assertTrue(p.radioHandles[2L].hasFocus);
+            assertEquals(Some(2), p.radio.value);
+            p.replaced = true
+        }
+        else -> fail()
+    }
+}
+
+internal fun replacementAndPointer(p: ChoiceProbe) {
+    when (p.phase) {
+        case 24 -> {
+            assertFalse(p.radioHandles[2L].isAttached)
+            assertFalse(p.target.isAttached)
+            assertTrue(p.newTarget.isAttached)
+            p.focus(p.replacement)
+        }
+        case 25 -> p.key(49)
+        case 26 -> {
+            assertEquals(Some(2), p.second.value);
+            assertEquals(1, p.secondWrites);
+            p.press(70.0, 390.0, true);
+            p.press(70.0, 390.0, false)
+        }
+        case 27 -> {
+            assertEquals(Some(0), p.second.value);
+            assertTrue(p.radioHandles[0L].hasFocus);
+            p.press(35.0, 70.0, true)
+        }
+        case 28 -> p.press(460.0, 360.0, false)
+        case 29 -> {
+            assertEquals(Some(0), p.second.value);
+            assertEquals(2, p.secondWrites);
+            p.reversed = false;
+            p.focus(p.radioHandles[0L])
+        }
+        case 30 -> {
+            assertTrue(sendSurfaceKey(p.native!!, 49, true));
+            p.enabled = false
+        }
+        case 31 -> {
+            assertTrue(sendSurfaceKey(p.native!!, 49, false));
+            assertEquals(2, p.secondWrites);
+            p.enabled = true
+        }
+        else -> fail()
+    }
+}
+
+internal fun cancellationAndRtl(p: ChoiceProbe) {
+    when (p.phase) {
+        case 32 -> p.focus(p.radioHandles[0L])
+        case 33 -> {
+            assertTrue(sendSurfaceKey(p.native!!, 49, true));
+            p.gone = true
+        }
+        case 34 -> {
+            assertFalse(p.radioHandles[0L].isAttached)
+            assertTrue(sendSurfaceKey(p.native!!, 49, false))
+            assertEquals(2, p.secondWrites)
+            p.gone = false;
+            p.rtl = true;
+            p.second.value = Some(99)
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark)
+        }
+        case 35 -> {
+            assertEquals(Some(99), p.second.value);
+            p.focus(p.radioHandles[0L])
+        }
+        case 36 -> p.key(123)
+        case 37 -> {
+            assertTrue(p.replacement.hasFocus);
+            assertEquals(Some(2), p.second.value)
+            p.multiple.value = [99, 1];
+            p.focus(p.multiHandles[0L])
+        }
+        case 38 -> p.key(49)
+        case 39 -> {
+            assertEquals(3L, p.multiple.value.size)
+            assertEquals(99, p.multiple.value[0L]);
+            assertEquals(0, p.multiple.value[2L])
+            p.gone = true;
+            p.generation.value += 1
+        }
+        else -> fail()
+    }
+}

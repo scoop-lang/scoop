@@ -1,0 +1,175 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class TableViewportInput(
+    val tracks: TableTracks,
+    val controls: ScrollControlProps,
+    val width: Double?
+)
+
+internal class TableViewport(
+    private val props: Props<TableViewportInput>,
+    scope: ComponentScope
+): Element<Size>(scope) {
+    private val control = ScrollControl(scope) { props.value.controls }
+    public override fun update(): UiInvalidation {
+        control.update();
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Size
+    > {
+        val input = props.value
+        val proposed = input.width ?: constraints.maxWidth ?: input.tracks.resolve(0.0).total
+        nonnegative(proposed, "invalid table width")
+        val viewport = constraints.constrain(Size(proposed, 0.0)).width
+        if (viewport <= 0.0 || constraints.maxHeight == Some(0.0)) {
+            context.skipChild(0L)
+            return LayoutResult(
+                LayoutMetrics(constraints.constrain(Size(0.0, 0.0))),
+                Size(0.0, 0.0)
+            )
+        }
+        val widths = input.tracks.resolve(viewport)
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(widths.total, Some(widths.total), maxHeight = constraints.maxHeight)
+            )
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(viewport, child.size.height))),
+            child.size
+        )
+    }
+    public override fun scene(context: SceneContext, content: Size) {
+        control.scene(context, control.layout(context.size, content))
+    }
+}
+
+internal class TableRowInput(
+    val row: TableRowProps,
+    val tracks: TableTracks,
+    val appearance: TableAppearance,
+    val border: Boolean = true
+)
+
+internal class TableRowInk(private val props: Props<TableRowInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val area =
+        scope.createArea {
+            context,
+            _ -> if (context.phase == RoutedPhase.Notification && scope.isMounted)
+                scope.requestFrame()
+        }
+    init {
+        scope.routeChildren(area)
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val widths = input.tracks.resolve(constraints.maxWidth ?: constraints.minWidth)
+        var at = 0L
+        var height =
+            if (input.row.section == TableSection.Header)
+                40.0 * input.appearance.density
+            else
+                0.0
+        val sizes = ArrayList<Size>()
+        val offsets = ArrayList<Double>()
+        var x = 0.0
+        for (index in 0L ..< input.row.cells.size) {
+            var width = 0.0
+            for (_ in 0L ..< input.row.cells[index].span) {
+                width += widths.values[at];
+                at += 1L
+            }
+            val child =
+                context.measureChild(
+                    index,
+                    Constraints(width, Some(width), maxHeight = constraints.maxHeight)
+                )
+            sizes.add(child.size)
+            offsets.add(x)
+            x += width
+            height = lowerBound(height, child.size.height)
+        }
+        val size = constraints.constrain(Size(widths.total, height))
+        for (index in 0L ..< sizes.size)
+            context.placeChild(
+                index,
+                Point(
+                    if (scope.layoutDirection == LayoutDirection.Rtl)
+                        widths.total - offsets[index] - sizes[index].width
+                    else
+                        offsets[index],
+                    lowerBound((size.height - sizes[index].height) / 2.0, 0.0)
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        val input = props.value
+        val color = input.appearance.theme.tokens.palette.muted.background
+        val background =
+            if (input.row.selected)
+                Some(color)
+            else
+                if (area.scope.isHovered || input.row.section == TableSection.Footer)
+                    Some(color.withAlpha(color.alpha * 0.5))
+                else
+                    None
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw {
+            paint ->
+            when (background) {
+                case Some(color) -> paint.canvas.drawRect(bounds, Paint(color));
+                case None -> {}
+            }
+            if (input.border)
+                paint.canvas.drawRect(
+                    Rect(
+                        0.0,
+                        lowerBound(bounds.height - input.appearance.density, 0.0),
+                        bounds.width,
+                        input.appearance.density
+                    ),
+                    Paint(input.appearance.theme.tokens.palette.border)
+                )
+        }
+        context.place(area, bounds)
+        context.children()
+    }
+}
+
+internal fun tableRowView(
+    row: TableRowProps,
+    tracks: TableTracks,
+    appearance: TableAppearance,
+    key: ViewKey,
+    border: Boolean = true,
+    prepared: Array<View>? = None
+): View {
+    val children =
+        prepared ?:
+            Array<View>(row.cells.size) {
+                index -> appearance.cell(
+                    row.cells[index],
+                    row.cells[index].key,
+                    row.section == TableSection.Footer
+                )
+            }
+    return element(
+        TableRowInput(row, tracks, appearance, border),
+        { props, scope -> TableRowInk(props, scope) },
+        children,
+        key
+    )
+}

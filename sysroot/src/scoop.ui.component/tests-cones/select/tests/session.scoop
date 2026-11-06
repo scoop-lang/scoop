@@ -1,0 +1,165 @@
+package scoop.tests.ui.select
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class SelectWindowTest {
+    @Test
+    fun `select aligns selected rows and shares native focus navigation scrolling and lifecycle`() {
+        val p = SelectProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished);
+            assertFalse(p.trigger.isAttached);
+            assertFalse(p.layer.isAttached)
+            assertFalse(p.labelTarget.isAttached);
+            assertFalse(p.scroll.isAttached)
+        } catch (error: Throwable) {
+            println(
+                f"select phase=${p.phase}, rendered=${p.rendered}, generation=${p.generation.value}"
+            )
+            selectFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class SelectProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val selected = state<Int?>(Some(1))
+    val open = state(false)
+    val scroll = ScrollState()
+    val trigger = FocusHandle()
+    val before = FocusHandle()
+    val after = FocusHandle()
+    val items = Array<FocusHandle>(80L) { _ -> FocusHandle() }
+    val rows = MutableArray<Rect>(80L) { _ -> Rect(0.0, 0.0, 0.0, 0.0) }
+    val layer = OverlayHandle()
+    val labelTarget = FieldTarget()
+    var popup = Rect(0.0, 0.0, 0.0, 0.0)
+    var savedPopup = popup
+    var triggerBounds = popup
+    var labelBounds = popup
+    var side: OverlaySide? = None
+    var savedOffset = 0.0
+    var long = false
+    var popupMode = false
+    var veto = false
+    var reject = false
+    var rtl = false
+    var small = false
+    var narrow = false
+    var shown = true
+    var slow = false
+    var omitted: Int? = None
+    var delay = 180L
+    var savedClosed = 0
+    var version = 1
+    var callbackVersion = 0
+    var changes = 0
+    var closed = 0
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(75L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, selectKey(native!!, code, text, flags))
+    }
+    fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun show(last: Boolean = false) {
+        assertTrue(trigger.requestFocus(FocusOrigin.Keyboard));
+        key(
+            if (last)
+                126
+            else
+                125
+        )
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Select test";
+                            position = Some(DesktopPosition(160.0, 100.0));
+                            size = LogicalSize(680.0, 540.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> SelectScene(this, scope = mount) });
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("select timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    selectStep(this);
+                    phase += 1;
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(delay)
+                    delay = 180L
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 41)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 41;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ConversationComponentsModelTest {
+    @Test
+    fun `relative bubble tints keep the specified lightness and bounded channels`() {
+        val light = bubbleTint(Color.Black, 0.93, 0.4)
+        val dark = bubbleTint(Color.White, 0.3, 0.4)
+        assertTrue(abs(light.red - 0.90850982) < 0.000001)
+        assertTrue(abs(dark.red - 0.1792362) < 0.000001)
+        for (color in [Color(1.0, 0.0, 0.0), Color(0.0, 0.0, 1.0), Color(0.1, 0.7, 0.4, 0.5)])
+            for (lightness in [0.3, 0.35, 0.88, 0.93]) {
+                val value = bubbleTint(color, lightness, 0.4)
+                assertEquals(color.alpha, value.alpha)
+                for (channel in [value.red, value.green, value.blue])
+                    assertTrue(channel.isFinite() && channel >= 0.0 && channel <= 1.0)
+            }
+    }
+
+    @Test
+    fun `all bubble variants use their semantic foreground and independent surface`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val palette = theme.tokens.palette
+            assertEquals(
+                palette.primary.foreground,
+                bubbleColors(BubbleVariant.Default, theme).foreground
+            )
+            assertEquals(
+                palette.secondary.foreground,
+                bubbleColors(BubbleVariant.Secondary, theme).foreground
+            )
+            assertEquals(
+                palette.destructive.background,
+                bubbleColors(BubbleVariant.Destructive, theme).foreground
+            )
+            assertEquals(palette.border, bubbleColors(BubbleVariant.Outline, theme).border)
+            assertEquals(Color.Transparent, bubbleColors(BubbleVariant.Ghost, theme).background)
+            assertEquals(
+                palette.muted.background,
+                bubbleColors(BubbleVariant.Muted, theme).background
+            )
+            assertEquals(
+                palette.background.foreground,
+                bubbleColors(BubbleVariant.Tinted, theme).foreground
+            )
+        }
+    }
+
+    @Test
+    fun `manual trace expansion survives status and streaming updates`() {
+        val expansion = TraceExpansion()
+        assertFalse(expansion.read(TraceStatus.Complete))
+        assertTrue(expansion.read(TraceStatus.Running))
+        expansion.choose(false)
+        for (
+            status in [
+                TraceStatus.Running,
+                TraceStatus.Error,
+                TraceStatus.Pending,
+                TraceStatus.Complete
+            ]
+        )
+            assertFalse(expansion.read(status))
+        expansion.choose(true)
+        assertTrue(expansion.read(TraceStatus.Complete))
+        assertTrue(expansion.read(TraceStatus.Running))
+    }
+
+    @Test
+    fun `conversation builders publish immutable inputs and reject unusable bounds`() {
+        val builder = BubbleBuilder()
+        val first = builder.snapshot(conversationText("first"))
+        builder.variant = BubbleVariant.Ghost
+        builder.align = MessageAlignment.End
+        assertEquals(BubbleVariant.Default, first.variant)
+        assertEquals(MessageAlignment.Start, first.align)
+        for (value in [0.0, -1.0, 1.1, Double.NaN])
+            assertFailsWith<IllegalArgumentException> {
+                BubbleProps(conversationText("test"), maxWidthFraction = Some(value))
+            }
+        assertFailsWith<IllegalArgumentException> {
+            MessageProps({ _ -> empty() }, captionInset = -1.0)
+        }
+        val group = AttachmentGroupBuilder()
+        group.item(ViewKey.Text("a"), attachment("a.txt"))
+        assertEquals(1L, group.snapshot(None).source.count)
+        assertFailsWith<IllegalArgumentException> { group.snapshot(Some(TranscriptList([]))) }
+    }
+}

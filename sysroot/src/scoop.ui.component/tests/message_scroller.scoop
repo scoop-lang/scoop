@@ -1,0 +1,151 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+private class TranscriptBuildCounter {
+    var count = 0
+}
+
+@Test
+private class MessageScrollerModelTest {
+    @Test
+    fun `transcript indexes stable keys and explicit anchors without constructing views`() {
+        val calls = TranscriptBuildCounter()
+        val source =
+            transcript {
+                this.item(ViewKey.Text("a"), true) {
+                    calls.count += 1;
+                    empty()
+                }
+                this.item(ViewKey.Text("b")) {
+                    calls.count += 1;
+                    empty()
+                }
+                this.item(ViewKey.Text("c"), true) {
+                    calls.count += 1;
+                    empty()
+                }
+                this.item(ViewKey.Text("d")) {
+                    calls.count += 1;
+                    empty()
+                }
+            }
+        assertEquals(0, calls.count)
+        assertEquals(4L, source.count)
+        assertEquals(Some(2L), source.indexOfKey(ViewKey.Text("c")))
+        assertEquals(None, source.indexOfKey(ViewKey.Text("missing")))
+        assertEquals(None, source.anchorAtOrBefore(-1L))
+        assertEquals(Some(0L), source.anchorAtOrBefore(1L))
+        assertEquals(Some(2L), source.anchorAtOrBefore(3L))
+        source.build(2L)
+        assertEquals(1, calls.count)
+        assertFailsWith<IllegalArgumentException> {
+            TranscriptList([TranscriptItem(ViewKey.Position, { empty() })])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TranscriptList(
+                [
+                    TranscriptItem(ViewKey.Text("a"), { empty() }),
+                    TranscriptItem(ViewKey.Text("a"), { empty() })
+                ]
+            )
+        }
+    }
+
+    @Test
+    fun `virtual end space affects range without inventing items and peek uses measured predecessor`() {
+        val index = ItemExtentIndex(3L, ItemExtent.Variable(40.0))
+        index.record(0L, 20.0)
+        index.record(1L, 30.0)
+        index.record(2L, 60.0)
+        val geometry =
+            ListGeometry(index, Orientation.Vertical, 0.0, Size(100.0, 80.0), endPadding = 80.0)
+        val snapshot = ScrollSnapshot(Point(0.0, 0.0), Size(100.0, 80.0), geometry.content)
+        assertEquals(Size(100.0, 190.0), geometry.content)
+        assertEquals(110.0, geometry.maximum)
+        assertEquals(
+            Point(0.0, 16.0),
+            geometry.alignedOffset(snapshot, 2L, ScrollAlignment.Start, 4.0, 64.0)
+        )
+        assertEquals(
+            Point(0.0, 0.0),
+            geometry.alignedOffset(snapshot, 0L, ScrollAlignment.Start, 4.0, 64.0)
+        )
+        assertEquals(VirtualRange(3L, 3L), geometry.visibleRange(120.0))
+        val rtl =
+            ListGeometry(
+                index,
+                Orientation.Horizontal,
+                0.0,
+                Size(80.0, 100.0),
+                LayoutDirection.Rtl,
+                80.0
+            )
+        assertEquals(Point(170.0, 0.0), rtl.origin(0L))
+        assertEquals(
+            Point(94.0, 0.0),
+            rtl.alignedOffset(
+                ScrollSnapshot(Point(0.0, 0.0), Size(80.0, 100.0), rtl.content),
+                2L,
+                ScrollAlignment.Start,
+                4.0,
+                64.0
+            )
+        )
+        assertFailsWith<IllegalArgumentException> {
+            ListGeometry(index, Orientation.Vertical, 0.0, Size(100.0, 80.0), endPadding = -1.0)
+        }
+    }
+
+    @Test
+    fun `viewport fill preserves the requested start when content shrinks and the viewport grows`() {
+        val index = ItemExtentIndex(3L, ItemExtent.Variable(40.0))
+        index.record(0L, 20.0)
+        index.record(1L, 30.0)
+        index.record(2L, 60.0)
+        val initial = ListGeometry(index, Orientation.Vertical, 0.0, Size(100.0, 80.0))
+        initial.fillViewportFrom(16.0)
+        assertEquals(0.0, initial.padding)
+        index.record(2L, 20.0)
+        initial.fillViewportFrom(16.0)
+        assertEquals(26.0, initial.padding)
+        assertEquals(16.0, initial.maximum)
+        val resized = ListGeometry(index, Orientation.Vertical, 0.0, Size(100.0, 120.0))
+        resized.fillViewportFrom(16.0)
+        assertEquals(66.0, resized.padding)
+        assertEquals(16.0, resized.maximum)
+        assertEquals(VirtualRange(0L, 3L), resized.visibleRange(16.0))
+    }
+
+    @Test
+    fun `message defaults and explicit requests preserve separate holding and initial policies`() {
+        val model = MessageScrollState()
+        assertFalse(model.options.autoScroll)
+        assertEquals(MessageInitialPosition.End, model.options.initialPosition)
+        assertEquals(8.0, model.options.edgeThreshold)
+        assertEquals(0.0, model.options.scrollMargin)
+        assertEquals(64.0, model.options.previousItemPeek)
+        assertTrue(model.options.preserveOnPrepend)
+        assertTrue(model.isPending)
+        assertFalse(model.isAttached)
+        assertEquals(0L, model.visibleKeys.size)
+        model.hold()
+        assertFalse(model.isPending)
+        assertEquals(MessageScrollMode.Holding, model.mode)
+        model.beginTurn(ViewKey.Text("turn"))
+        assertTrue(model.isPending)
+        model.reset(MessageInitialPosition.LastAnchor)
+        assertTrue(model.isPending)
+        assertFailsWith<IllegalArgumentException> { model.scrollToMessage(ViewKey.Position) }
+        assertFailsWith<IllegalArgumentException> { MessageScrollOptions(previousItemPeek = -1.0) }
+        assertFailsWith<IllegalArgumentException> {
+            MessageScrollOptions(scrollMargin = Double.NaN)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            model.restore(VirtualReadingAnchor(ViewKey.Text("turn"), -1.0))
+        }
+    }
+}

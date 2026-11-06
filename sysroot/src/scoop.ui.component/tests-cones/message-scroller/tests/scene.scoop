@@ -1,0 +1,150 @@
+package scoop.tests.ui.messages
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal class MessageScene(private val p: MessageProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val content =
+            if (p.shown)
+                messageScroller(p.source.value, p.model) {
+                    this.height = None
+                    this.spacing = 0.0
+                    this.itemExtent = ItemExtent.Variable(60.0)
+                    this.overscan = 80.0
+                    this.focus = FocusOptions(Some(p.focus))
+                    this.enabled = p.enabled
+                }
+            else
+                empty()
+        return direction(
+            element(
+                generation,
+                { current, mount -> MessageRoot(p, current, mount) },
+                [button("Outside", {}), content]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class MessageRoot(
+    private val p: MessageProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.maxWidth ?: 760.0
+        context.measureChild(0L, Constraints.tight(Size(110.0, 32.0)))
+        context.placeChild(0L, Point(20.0, 15.0))
+        context.measureChild(
+            1L,
+            Constraints.tight(
+                if (p.zero)
+                    Size(0.0, 0.0)
+                else
+                    Size(width - 40.0, p.viewportHeight)
+            )
+        )
+        context.placeChild(1L, Point(20.0, 70.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, 540.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val generation = props.value
+        val before = p.model.reading
+        val discard = p.discardNext
+        context.draw {
+            paint ->
+            paint.canvas.clear(Color.White);
+            p.draws += 1
+        }
+        context.children()
+        if (discard) {
+            p.discardNext = false
+            p.native!!.requestSize(LogicalSize(520.0, 540.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> p.rendered = generation
+                case Discarded -> {
+                    assertTrue(discard)
+                    assertTrue(p.model.reading!! === before!!)
+                    p.discarded += 1
+                    scope.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+internal class MessageRow(
+    private val props: Props<MessageTestRow>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val row = props.value
+        val content =
+            if (row.id == 7L)
+                input(row.editor) { this.focus = FocusOptions(Some(row.focus)) }
+            else
+                typography(f"Message ${row.id}")
+        return element(
+            row.height.value,
+            { current, mount -> MessageRowInk(row, current, mount) },
+            [content]
+        )
+    }
+}
+
+private class MessageRowInk(
+    private val row: MessageTestRow,
+    private val height: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        row.area = Some(area);
+        scope.routeChildren(area)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.maxWidth ?: 720.0
+        context.measureChild(
+            0L,
+            Constraints(
+                maxWidth =
+                    Some(
+                        if (width > 16.0)
+                            width - 16.0
+                        else
+                            0.0
+                    ),
+                maxHeight =
+                    Some(
+                        if (height.value > 16.0)
+                            height.value - 16.0
+                        else
+                            0.0
+                    )
+            )
+        )
+        context.placeChild(0L, Point(8.0, 8.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, height.value))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

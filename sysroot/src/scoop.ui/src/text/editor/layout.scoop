@@ -6,28 +6,26 @@ import scoop.math.max
 import scoop.surface.*
 import scoop.ui.*
 
-internal class EditorInputLayout(val layout: TextLayout, val display: TextDisplay)
-
-internal class EditorMeasure(
-    val snapshot: ScrollSnapshot,
-    val width: Double?,
-    val revision: Long,
-    val display: TextDisplay
-)
+internal class EditorInputLayout(val layout: TextEditLayout, val display: TextDisplay)
 
 internal class EditorFrame(
-    private val retained: RetainedParagraphLayout,
+    private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
     val revision: Long,
-    val display: TextDisplay
+    val display: TextDisplay,
+    val cells: TextEditCells?
 ): Closeable {
-    val layout: TextLayout get() = retained.layout
+    val layout: TextEditLayout get() = retained.layout
     public override fun close() {
         retained.close()
     }
 }
 
-private fun editorLayout(host: TextEditHost, width: Double?): EditorInputLayout {
+private fun editorLayout(
+    host: TextEditHost,
+    width: Double?,
+    cells: TextEditCells?
+): EditorInputLayout {
     host.checkDocument(host.current.committedText)
     val input = editorSnapshot(host.current.storage.value)
     val cached = host.currentDisplay
@@ -58,7 +56,7 @@ private fun editorLayout(host: TextEditHost, width: Double?): EditorInputLayout 
             }
         }
     host.content = Some(content)
-    val layout =
+    val paragraph =
         host.body.update(
             host.appearance.fonts,
             content,
@@ -70,6 +68,7 @@ private fun editorLayout(host: TextEditHost, width: Double?): EditorInputLayout 
             width,
             []
         )
+    val layout = editorGeometry(host, paragraph, cells)
     host.currentProjection = host.options.projection
     host.currentDisplay = Some(display)
     return EditorInputLayout(layout, display)
@@ -123,25 +122,51 @@ private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
     }
 }
 
-internal fun editorMeasure(host: TextEditHost, constraints: Constraints): LayoutMetrics {
+internal fun editorMeasure(
+    host: TextEditHost,
+    constraints: Constraints,
+    cells: TextEditCells?
+): TextEditMeasurement {
     constraints.check()
     val width = editorWidth(host, constraints.maxWidth)
-    val text = editorLayout(host, width)
+    val text = editorLayout(host, width, cells)
     val layout = text.layout
-    val hint = editorHint(host, width)
-    val naturalWidth = max(layout.size.width, hint?.size?.width ?: 0.0) + host.appearance.caretWidth
+    val paragraphMode =
+        when (cells) {
+            case None -> true;
+            case Some(_) -> false
+        }
+    val hint =
+        if (paragraphMode)
+            editorHint(host, width)
+        else
+            None
+    val caretPadding =
+        if (paragraphMode)
+            host.appearance.caretWidth
+        else
+            0.0
+    val naturalWidth = max(layout.size.width, hint?.size?.width ?: 0.0) + caretPadding
     val size = constraints.constrain(Size(naturalWidth, layout.size.height))
     var contentWidth = layout.size.width
     for (line in layout.lines)
         contentWidth = max(contentWidth, line.rect.x + line.rect.width)
     val content =
-        Size(
-            max(size.width, contentWidth + host.appearance.caretWidth),
-            max(size.height, layout.size.height)
-        )
-    val snapshot = host.viewport.layout(size, content)
-    host.measured = Some(EditorMeasure(snapshot, width, host.current.revision, text.display))
-    return LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline))
+        Size(max(size.width, contentWidth + caretPadding), max(size.height, layout.size.height))
+    val scroll = host.viewport.layout(size, content)
+    return TextEditMeasurement(
+        LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline)),
+        layout.retain(),
+        scroll,
+        host.current.revision,
+        text.display,
+        cells,
+        when (hint) {
+            case Some(_) -> Some(host.hint.retainLayout());
+            case None -> None
+        },
+        host.hint.generation
+    )
 }
 
 /** Pointer geometry stays paired with the last successful frame, even after a failed resize. */
@@ -150,9 +175,13 @@ internal fun editorInputText(host: TextEditHost): EditorInputLayout {
         case Some(frame) -> {
             if (frame.display.source.text == host.current.text)
                 return EditorInputLayout(frame.layout, frame.display)
-            return editorLayout(host, editorWidth(host, Some(frame.snapshot.viewport.width)))
+            return editorLayout(
+                host,
+                editorWidth(host, Some(frame.snapshot.viewport.width)),
+                frame.cells
+            )
         }
-        case None -> return editorLayout(host, None)
+        case None -> return editorLayout(host, None, None)
     }
 }
 
@@ -162,11 +191,15 @@ internal fun editorCaret(host: TextEditHost, text: EditorInputLayout): Rect? =
         host.appearance.caretWidth
     )
 
-internal fun editorScene(host: TextEditHost, context: SceneContext) {
-    val measure =
-        host.measured ?: throw IllegalStateException(Some("text editor has not been measured"))
+internal fun editorScene(host: TextEditHost, context: SceneContext, measure: TextEditMeasurement) {
     val frame =
-        EditorFrame(host.body.retainLayout(), measure.snapshot, measure.revision, measure.display)
+        EditorFrame(
+            measure.retained.layout.retain(),
+            measure.scrollSnapshot,
+            measure.revision,
+            measure.display,
+            measure.cells
+        )
     host.staged?.close()
     host.staged = Some(frame)
     val layout = frame.layout
@@ -187,6 +220,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext) {
             appearance.inactiveSelectionColor
     host.viewport.present(
         context,
+        measure.scroll,
         Some {
             content ->
             val snapshot = frame.snapshot
@@ -205,15 +239,22 @@ internal fun editorScene(host: TextEditHost, context: SceneContext) {
                     paint.canvas.drawRect(box.rect, Paint(color))
             }
             val bounds = layout.paintBounds
-            content.drawLayer(host.bodyKey, editorInkBounds(bounds), host.body.generation) {
+            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), layout.generation) {
                 paint -> paint.canvas.drawText(layout)
             }
-            if (input.surroundingText.byteLength == 0L && host.placeholder.byteLength > 0L) {
-                val hint = host.hint.layout
-                content.drawLayer(
+            if (
+                frame.layout.cellRects.size ==
+                    0L &&
+                    input.surroundingText.byteLength ==
+                    0L &&
+                    host.placeholder.byteLength >
+                    0L
+            ) {
+                val hint = measure.hint!!.layout
+                content.drawTextLayer(
                     host.hintKey,
                     editorInkBounds(hint.paintBounds),
-                    host.hint.generation
+                    measure.hintGeneration
                 ) { paint -> paint.canvas.drawText(hint) }
             }
             content.draw {

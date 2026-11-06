@@ -1,0 +1,205 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class SidebarTriggerProps public constructor(
+    public val open: Binding<Boolean>,
+    public val button: ButtonProps,
+    public val onOpenChange: (Boolean) -> Unit = {}
+)
+
+public class SidebarTriggerBuilder internal constructor(): ContentButtonBuilder() {
+    public var content: View? = None
+    public var onOpenChange: (Boolean) -> Unit = {}
+    init {
+        variant = ButtonVariant.Ghost;
+        size = ButtonSize.IconSm
+    }
+}
+
+public fun sidebarTrigger(
+    open: Binding<Boolean>,
+    configure: SidebarTriggerBuilder.() -> Unit = {}
+): View {
+    val b = SidebarTriggerBuilder();
+    b.configure()
+    val content =
+        when (b.content) {
+            case Some(value) -> ButtonContent.Custom(value)
+            case None -> ButtonContent.Resolved(
+                { appearance -> sidebarIcon(appearance.iconSize, appearance.text.color) }
+            )
+        }
+    return component(
+        SidebarTriggerProps(
+            open,
+            ButtonProps(
+                content,
+                {},
+                b.enabled,
+                b.style,
+                b.theme,
+                b.focus,
+                b.invalid,
+                b.variant,
+                b.size,
+                b.group,
+                b.labelTarget
+            ),
+            b.onOpenChange
+        ),
+        { current, mount -> SidebarTrigger(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarTrigger public constructor(
+    private val props: Props<SidebarTriggerProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value;
+        val b = input.button
+        return component(
+            ButtonProps(
+                b.content,
+                {
+                    val current = props.value
+                    if (current.button.enabled)
+                        sidebarWrite(current.open, !current.open.value, current.onOpenChange)
+                },
+                b.enabled,
+                b.style,
+                b.theme,
+                b.focus,
+                b.invalid,
+                b.variant,
+                b.size,
+                b.group,
+                b.labelTarget
+            ),
+            { current, mount -> Button(current, scope = mount) }
+        )
+    }
+}
+
+public fun sidebarMenuAction(
+    content: View,
+    onClick: () -> Unit,
+    configure: ContentButtonBuilder.() -> Unit = {}
+): View {
+    val b = ContentButtonBuilder();
+    b.variant = ButtonVariant.Ghost;
+    b.size = ButtonSize.IconXs;
+    b.configure()
+    return component(
+        ButtonProps(
+            ButtonContent.Custom(content),
+            onClick,
+            b.enabled,
+            b.style,
+            b.theme,
+            b.focus,
+            b.invalid,
+            b.variant,
+            b.size,
+            b.group,
+            b.labelTarget
+        ),
+        { current, mount -> SidebarMenuAction(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarMenuAction public constructor(
+    private val props: Props<ButtonProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val b = props.value;
+        val theme = themes.read(b.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val style =
+            b.style.copy {
+                surface {
+                    if (suggestedSize == None)
+                        suggestedSize = Some(Size(20.0 * d, 20.0 * d))
+                    if (minimumSize == None)
+                        minimumSize = Some(Size(0.0, 0.0))
+                    if (padding == None)
+                        padding = Some(Insets())
+                    if (focus == None)
+                        focus =
+                            Some(
+                                OutlineStyle(
+                                    theme.tokens.palette.sidebar.ring.withAlpha(0.5),
+                                    2.0 * d,
+                                    0.0
+                                )
+                            )
+                }
+            }
+        return component(
+            ButtonProps(
+                b.content,
+                b.onClick,
+                b.enabled,
+                style,
+                b.theme,
+                b.focus,
+                b.invalid,
+                b.variant,
+                b.size,
+                b.group,
+                b.labelTarget
+            ),
+            { current, mount -> Button(current, scope = mount) }
+        )
+    }
+}
+
+private class SidebarIconInput(val size: Double, val color: Color)
+
+internal fun sidebarIcon(size: Double, color: Color): View =
+    element(
+        SidebarIconInput(size, color),
+        { current, mount -> SidebarIcon(current, scope = mount) }
+    )
+
+private class SidebarIcon(
+    private val props: Props<SidebarIconInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val rtl = context.layoutDirection == LayoutDirection.Rtl
+        val size = context.size
+        // Lucide panel-left (ISC), on its original 24-unit grid.
+        context.draw {
+            paint -> paint.canvas.withState {
+                canvas ->
+                canvas.scale(size.width / 24.0, size.height / 24.0)
+                if (rtl) {
+                    canvas.translate(24.0, 0.0);
+                    canvas.scale(-1.0, 1.0)
+                }
+                val pen = Paint(input.color, PaintingStyle.Stroke, 2.0)
+                canvas.drawRoundRect(Rect(3.0, 3.0, 18.0, 18.0), 2.0, 2.0, pen)
+                canvas.drawLine(Point(9.0, 3.0), Point(9.0, 21.0), pen)
+            }
+        }
+    }
+}

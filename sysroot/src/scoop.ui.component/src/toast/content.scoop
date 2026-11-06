@@ -1,0 +1,259 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.TextAlignment
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as toastColumn
+
+internal fun toastContents(input: ToastItemInput): View {
+    val entry = input.entry
+    val data = entry.data.value
+    val colors = input.theme.tokens.palette
+    val titleStyle = input.theme.tokens.typography.action.copy { color = colors.popover.foreground }
+    val descriptionStyle =
+        input.theme.tokens.typography.body.copy { color = colors.muted.foreground }
+    val icon =
+        data.icon ?:
+            when (data.kind) {
+                case Default -> empty()
+                case Loading -> spinner {
+                    size = Some(16.0 * input.density);
+                    color = Some(colors.popover.foreground);
+                    theme = input.props.theme
+                }
+                else -> toastIcon(
+                    data.kind,
+                    16.0 * input.density,
+                    if (data.kind == ToastKind.Error)
+                        colors.destructive.background
+                    else
+                        colors.popover.foreground
+                )
+            }
+    val text =
+        toastColumn {
+            spacing = 4.0 * input.density
+            alignment = CrossAlignment.Stretch
+            add(panelSlot(panelCaption(data.title, titleStyle, input.props.fonts), 0L))
+            when (data.description) {
+                case Some(value) -> add(
+                    panelSlot(panelCaption(value, descriptionStyle, input.props.fonts), 1L)
+                )
+                case None -> {}
+            }
+        }
+    val action =
+        when (data.action) {
+            case Some(value) -> component(
+                ButtonProps(
+                    navigationLabel(value.content, input.props.fonts, TextAlignment.Center),
+                    { toastRunAction(entry, input.host) },
+                    value.enabled && input.props.enabled,
+                    value.style,
+                    input.props.theme,
+                    value.focus,
+                    variant = value.variant,
+                    size = value.size
+                ),
+                { current, mount -> Button(current, mount) }
+            )
+            case None -> empty()
+        }
+    val close =
+        if (data.dismiss.closeButton)
+            component(
+                ButtonProps(
+                    ButtonContent.Resolved(
+                        { appearance -> modalCloseIcon(appearance.iconSize, appearance.text.color) }
+                    ),
+                    { entry.model.close(entry.id, ToastCloseReason.Explicit) },
+                    input.props.enabled,
+                    theme = input.props.theme,
+                    focus = data.closeFocus,
+                    variant = ButtonVariant.Ghost,
+                    size = ButtonSize.IconSm
+                ),
+                { current, mount -> Button(current, mount) }
+            )
+        else
+            empty()
+    return element(input, { value, mount -> ToastPanel(value, mount) }, [icon, text, action, close])
+}
+
+/** Layout uses one set of columns and wraps the action below on narrow viewports. */
+private class ToastPanel(private val props: Props<ToastItemInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val painter = scope.resource { StylePainter() }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value;
+        val data = input.entry.data.value;
+        val d = input.density
+        val width = constraints.maxWidth ?: input.props.width * d
+        val padding = min(16.0 * d, width / 2.0)
+        val inner = max(0.0, width - padding * 2.0)
+        val gap = min(12.0 * d, inner)
+        val close = context.measureChild(3L, Constraints(maxWidth = Some(min(32.0 * d, inner))))
+        val hasClose = data.dismiss.closeButton
+        val closeSpace =
+            if (hasClose)
+                close.size.width + gap
+            else
+                0.0
+        val hasIcon = panelPresent(data.icon) || data.kind != ToastKind.Default
+        val iconWidth =
+            if (hasIcon)
+                min(16.0 * d, max(0.0, inner - closeSpace))
+            else
+                0.0
+        val icon =
+            context.measureChild(
+                0L,
+                Constraints(maxWidth = Some(iconWidth), maxHeight = Some(16.0 * d))
+            )
+        val iconSpace =
+            if (hasIcon && iconWidth > 0.0)
+                icon.size.width + gap
+            else
+                0.0
+        val preferredAction = context.measureChild(2L, Constraints())
+        val actionWidth = max(0.0, inner - iconSpace)
+        val action =
+            if (preferredAction.size.width > actionWidth)
+                context.measureChild(2L, Constraints(maxWidth = Some(actionWidth)))
+            else
+                preferredAction
+        val hasAction = panelPresent(data.action)
+        val actionSpace =
+            if (hasAction)
+                action.size.width + gap
+            else
+                0.0
+        val below = hasAction && inner - iconSpace - closeSpace - actionSpace < 96.0 * d
+        val textWidth =
+            max(
+                0.0,
+                inner -
+                    iconSpace -
+                    closeSpace -
+                    if (below)
+                        0.0
+                    else
+                        actionSpace
+            )
+        val text =
+            context.measureChild(
+                1L,
+                Constraints(
+                    textWidth,
+                    Some(textWidth),
+                    maxHeight =
+                        when (constraints.maxHeight) {
+                            case Some(value) -> Some(
+                                max(
+                                    0.0,
+                                    value -
+                                        padding *
+                                        2.0 -
+                                        if (below)
+                                            gap + action.size.height
+                                        else
+                                            0.0
+                                )
+                            )
+                            case None -> None
+                        }
+                )
+            )
+        val rowHeight =
+            max(
+                max(icon.size.height, text.size.height),
+                max(
+                    close.size.height,
+                    if (below)
+                        0.0
+                    else
+                        action.size.height
+                )
+            )
+        val natural =
+            padding *
+                2.0 +
+                rowHeight +
+                if (below)
+                    gap + action.size.height
+                else
+                    0.0
+        val size = constraints.constrain(Size(width, natural))
+        if (input.front || input.expanded) {
+            val rtl = context.layoutDirection == LayoutDirection.Rtl
+            val x =
+                {
+                    start: Double,
+                    child: Double -> if (rtl)
+                        width - padding - start - child
+                    else
+                        padding + start
+                }
+            if (iconWidth > 0.0)
+                context.placeChild(
+                    0L,
+                    Point(
+                        x(0.0, icon.size.width),
+                        padding + min(4.0 * d, max(0.0, rowHeight - icon.size.height) / 2.0)
+                    )
+                )
+            if (textWidth > 0.0)
+                context.placeChild(1L, Point(x(iconSpace, text.size.width), padding))
+            if (hasAction)
+                context.placeChild(
+                    2L,
+                    Point(
+                        x(
+                            if (below)
+                                iconSpace
+                            else
+                                max(0.0, inner - closeSpace - action.size.width),
+                            action.size.width
+                        ),
+                        padding +
+                            if (below)
+                                rowHeight + gap
+                            else
+                                max(0.0, (rowHeight - action.size.height) / 2.0)
+                    )
+                )
+            if (hasClose)
+                context.placeChild(
+                    3L,
+                    Point(x(max(0.0, inner - close.size.width), close.size.width), padding)
+                )
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val input = props.value;
+        val colors = input.theme.tokens.palette
+        val visual =
+            styleOverride {
+                background(Some(Paint(colors.popover.background)))
+                border(Some(Border.all(1.0, colors.background.foreground.withAlpha(0.1))))
+                corners(Corners.all(16.0 * input.density))
+                boxShadows(input.theme.tokens.effects.floating)
+            }.then(input.props.style).then(input.entry.data.value.style).resolve(style())
+        painter.scene(context, visual) { local -> local.children() }
+    }
+}
+
+private fun toastRunAction(entry: ToastEntry, host: ToasterControl) {
+    val action = entry.data.value.action ?: return
+    if (entry.closing.value != None || !action.enabled || !host.read().enabled)
+        return
+    if (action.dismiss)
+        entry.model.close(entry.id, ToastCloseReason.Action)
+    action.onClick()
+}

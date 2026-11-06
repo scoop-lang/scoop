@@ -34,7 +34,7 @@ public class LazyFocus internal constructor(
 
     internal val active: Boolean get() =
         !closed && node.active && node.root.isOpen && viewport.active && !input.isClosed
-    internal val available: Boolean get() = active && node.scope.forChildren().isInputAllowed
+    internal val available: Boolean get() = active && node.scope.forChildren().isFocusAllowed
     internal val usesItems: Boolean get() = active && current.navigation != ItemNavigation.None
     internal val count: Long get() = items.count
     public var options: LazyFocusOptions

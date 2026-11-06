@@ -1,0 +1,160 @@
+package scoop.tests.ui.toast
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.graphics.text.TextAlignment
+import scoop.surface.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as toastColumn
+import scoop.ui.component.stack as toastStack
+
+internal class ToastScene(private val p: ToastProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        p.generation.value
+        return element(
+            p.generation.value,
+            { value, mount -> ToastRoot(p, value, mount) },
+            [
+                direction(
+                    toastStack {
+                        add(
+                            toastColumn {
+                                input(p.draft) {
+                                    focus = FocusOptions(handle = Some(p.main));
+                                    caretBlink = Duration.ZERO
+                                }
+                                button("Other focus", {}) {
+                                    focus = FocusOptions(handle = Some(p.other))
+                                }
+                                spacing = 12.0;
+                                padding = Insets.all(24.0)
+                            }
+                        )
+                        if (!p.gone)
+                            toaster(
+                                if (p.replacement)
+                                    p.otherModel
+                                else
+                                    p.model
+                            ) {
+                                visibleCount = p.visible;
+                                expanded = p.expanded;
+                                order = p.order;
+                                width = p.width
+                                enabled = p.enabled
+                            }
+                    },
+                    if (p.rtl)
+                        LayoutDirection.Rtl
+                    else
+                        LayoutDirection.Ltr
+                )
+            ]
+        )
+    }
+}
+
+internal fun toastTitle(p: ToastProbe, slot: Long): View =
+    element(
+        slot,
+        { current, mount -> ToastMeasuredContent(p, current, mount) },
+        [label(f"Notification ${slot} / ${p.items[slot].version}")]
+    )
+
+internal fun toastAction(p: ToastProbe, slot: Long): View =
+    element(
+        slot,
+        { current, mount -> ToastMeasuredContent(p, current, mount, true) },
+        [
+            label(
+                if (slot == 10L)
+                    "Undo the last workspace update"
+                else
+                    "Undo"
+            ) {
+                settings {
+                    alignment = TextAlignment.Center;
+                    maxLines = Some(1L)
+                }
+            }
+        ]
+    )
+
+private class ToastMeasuredContent(
+    private val p: ToastProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope,
+    private val action: Boolean = false
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        if (!action)
+            p.items[props.value].mounts += 1
+    }
+    public override fun onUnmount() {
+        if (!action)
+            p.items[props.value].unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val capture = ToastCapture()
+        val ring = Rect(-4.0, -4.0, rect.width + 8.0, rect.height + 8.0)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, rect).use {
+                    geometry -> capture.bounds = geometry.toWindow(rect)
+                }
+                captureGeometry(paint.canvas, ring).use {
+                    geometry -> capture.ring = geometry.visibleBounds == Some(geometry.bounds)
+                }
+            }
+        }
+        val slot = props.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                if (action)
+                    p.items[slot].actionBounds = capture.bounds
+                else {
+                    p.items[slot].bounds = capture.bounds;
+                    p.items[slot].ring = capture.ring;
+                    p.items[slot].draws += 1
+                }
+            }
+        }
+    }
+}
+
+private class ToastRoot(
+    private val p: ToastProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children();
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

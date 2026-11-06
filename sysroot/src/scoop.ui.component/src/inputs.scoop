@@ -1,0 +1,110 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+
+internal val labelComparison = InputComparison<LabelProps> { a, b -> sameLabelInputs(a, b) }
+
+internal val buttonComparison = InputComparison<ButtonProps> { a, b -> sameButtonInputs(a, b) }
+
+internal val defaultButtonStyle = buttonStyle()
+
+/** Only known text inputs can opt out of rendering; arbitrary child Views stay conservative. */
+internal fun sameLabelInputs(a: LabelProps, b: LabelProps): Boolean {
+    if (a.inlines.size != 0L || b.inlines.size != 0L)
+        return false
+    val text =
+        when ((a.text, b.text)) {
+            case(Plain(left, leftStyle), Plain(right, rightStyle)) ->
+            left == right && sameSpanStyle(leftStyle, rightStyle)
+            case(Styled(left), Styled(right)) -> left === right
+            else -> false
+        }
+    val fonts =
+        when ((a.fonts, b.fonts)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    val theme =
+        when ((a.theme, b.theme)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    val base =
+        when ((a.baseStyle, b.baseStyle)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    return text &&
+        fonts &&
+        theme &&
+        base &&
+        sameLabelParagraph(a.settings, b.settings) &&
+        a.underline ==
+        b.underline
+}
+
+internal fun sameLabelParagraph(a: ParagraphStyle?, b: ParagraphStyle?): Boolean =
+    when ((a, b)) {
+        case(None, None) -> true
+        case(Some(left), Some(right)) -> left.alignment ==
+            right.alignment &&
+            left.direction ==
+            right.direction &&
+            left.maxLines ==
+            right.maxLines &&
+            left.ellipsis ==
+            right.ellipsis
+        else -> false
+    }
+
+private fun sameButtonInputs(a: ButtonProps, b: ButtonProps): Boolean {
+    val content =
+        when ((a.content, b.content)) {
+            case(Label(left), Label(right)) -> sameLabelInputs(left, right)
+            else -> false
+        }
+    val theme =
+        when ((a.theme, b.theme)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    val target =
+        when ((a.labelTarget, b.labelTarget)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    val focus =
+        when ((a.focus.handle, b.focus.handle)) {
+            case(None, None) -> true
+            case(Some(left), Some(right)) -> left === right
+            else -> false
+        }
+    return content &&
+        theme &&
+        target &&
+        focus &&
+        a.style ===
+        b.style &&
+        a.enabled ==
+        b.enabled &&
+        a.invalid ==
+        b.invalid &&
+        a.variant ==
+        b.variant &&
+        a.size ==
+        b.size &&
+        a.group ==
+        b.group &&
+        a.focus.tabStop ==
+        b.focus.tabStop &&
+        a.focus.order ==
+        b.focus.order &&
+        a.focus.visibility ==
+        b.focus.visibility
+}

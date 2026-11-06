@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public open class HoverPopupBuilder internal constructor() {
+    public var open: Binding<Boolean>? = None
+    public var side: OverlaySide = OverlaySide.Top
+    public var alignment: OverlayAlignment = OverlayAlignment.Center
+    public var gap: Double = 4.0
+    public var viewportPadding: Double = 8.0
+    public var openDelay: Duration = Duration.ZERO
+    public var closeDelay: Duration = Duration.ZERO
+    public var transitDelay: Duration = Duration.milliseconds(350L)
+    public var corridorPadding: Double = 6.0
+    public var focus: Boolean = true
+    public var enabled: Boolean = true
+    public var arrow: PopupArrow? = Some(PopupArrow())
+    public var handle: OverlayHandle? = None
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+}
+
+public class TooltipBuilder internal constructor(): HoverPopupBuilder() {
+    public var maxWidth: Double = 320.0
+    internal fun snapshot(trigger: View, content: PanelContent): TooltipProps =
+        TooltipProps(
+            trigger,
+            content,
+            open,
+            side,
+            alignment,
+            gap,
+            viewportPadding,
+            maxWidth,
+            openDelay,
+            closeDelay,
+            transitDelay,
+            corridorPadding,
+            focus,
+            enabled,
+            arrow,
+            handle,
+            transition,
+            onOpenChange,
+            onClosed,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class HoverCardBuilder internal constructor(): HoverPopupBuilder() {
+    public var width: Double = 256.0
+    init {
+        side = OverlaySide.Bottom
+        openDelay = Duration.milliseconds(600L)
+        closeDelay = Duration.milliseconds(300L)
+        arrow = None
+    }
+    internal fun snapshot(trigger: View, content: View): HoverCardProps =
+        HoverCardProps(
+            trigger,
+            content,
+            open,
+            side,
+            alignment,
+            gap,
+            viewportPadding,
+            width,
+            openDelay,
+            closeDelay,
+            transitDelay,
+            corridorPadding,
+            focus,
+            enabled,
+            arrow,
+            handle,
+            transition,
+            onOpenChange,
+            onClosed,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun tooltip(trigger: View, text: String, configure: TooltipBuilder.() -> Unit = {}): View =
+    makeTooltip(trigger, PanelContent.Label(LabelProps(LabelText.Plain(text, None))), configure)
+
+public fun tooltip(
+    trigger: View,
+    text: StyledText,
+    configure: TooltipBuilder.() -> Unit = {}
+): View = makeTooltip(trigger, PanelContent.Label(LabelProps(LabelText.Styled(text))), configure)
+
+public fun tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}): View =
+    makeTooltip(trigger, PanelContent.Custom(content), configure)
+
+internal fun makeTooltip(
+    trigger: View,
+    content: PanelContent,
+    configure: TooltipBuilder.() -> Unit
+): View {
+    val builder = TooltipBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(trigger, content),
+        { current, mount -> Tooltip(current, scope = mount) },
+        builder.key
+    )
+}
+
+public fun hoverCard(
+    trigger: View,
+    content: View,
+    configure: HoverCardBuilder.() -> Unit = {}
+): View = makeHoverCard(trigger, content, configure)
+
+internal fun makeHoverCard(
+    trigger: View,
+    content: View,
+    configure: HoverCardBuilder.() -> Unit
+): View {
+    val builder = HoverCardBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(trigger, content),
+        { current, mount -> HoverCard(current, scope = mount) },
+        builder.key
+    )
+}

@@ -1,0 +1,111 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.ShortcutChord
+
+public class SidebarBuilder internal constructor() {
+    public var header: SidebarContent? = None
+    public var footer: SidebarContent? = None
+    public var inset: View? = None
+    public var variant: SidebarVariant = SidebarVariant.Sidebar
+    public var collapsible: SidebarCollapse = SidebarCollapse.Offcanvas
+    public var side: SidebarSide = SidebarSide.Start
+    public var layout: SidebarLayout = SidebarLayout.Auto
+    public var width: Double = 256.0
+    public var iconWidth: Double = 48.0
+    public var mobileWidth: Double = 288.0
+    public var breakpoint: Double = 768.0
+    public var rail: Boolean = false
+    public var enabled: Boolean = true
+    public var scrollState: ScrollState? = None
+    public var focus: OverlayFocusOptions = OverlayFocusOptions()
+    public var shortcut: ShortcutChord? = Some(sidebarShortcut())
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var insetStyle: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun header(content: View) {
+        header = Some(SidebarContent.Custom(content))
+    }
+    public fun header(content: (SidebarPresentation) -> View) {
+        header = Some(SidebarContent.Resolved(content))
+    }
+    public fun footer(content: View) {
+        footer = Some(SidebarContent.Custom(content))
+    }
+    public fun footer(content: (SidebarPresentation) -> View) {
+        footer = Some(SidebarContent.Resolved(content))
+    }
+    public fun inset(content: View) {
+        inset = Some(content)
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: SidebarContent): SidebarProps =
+        SidebarProps(
+            open,
+            content,
+            header,
+            footer,
+            inset,
+            variant,
+            collapsible,
+            side,
+            layout,
+            width,
+            iconWidth,
+            mobileWidth,
+            breakpoint,
+            rail,
+            enabled,
+            scrollState,
+            focus,
+            shortcut,
+            transition,
+            onOpenChange,
+            onCloseRequest,
+            onClosed,
+            fonts,
+            theme,
+            style,
+            insetStyle
+        )
+}
+
+public fun sidebar(
+    open: Binding<Boolean>,
+    content: View,
+    configure: SidebarBuilder.() -> Unit = {}
+): View = makeSidebar(open, SidebarContent.Custom(content), configure)
+
+public fun sidebar(
+    open: Binding<Boolean>,
+    content: (SidebarPresentation) -> View,
+    configure: SidebarBuilder.() -> Unit = {}
+): View = makeSidebar(open, SidebarContent.Resolved(content), configure)
+
+private fun makeSidebar(
+    open: Binding<Boolean>,
+    content: SidebarContent,
+    configure: SidebarBuilder.() -> Unit
+): View {
+    val builder = SidebarBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Sidebar(current, scope = mount) },
+        builder.key
+    )
+}

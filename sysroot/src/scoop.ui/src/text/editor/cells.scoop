@@ -1,0 +1,240 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.window.Utf8Range
+
+/** Logical cell order and spacing; component-specific borders stay with the caller. */
+public class TextEditCells public constructor(
+    public val count: Long,
+    public val cellSize: Size,
+    public val gaps: Array<Double> = [],
+    public val direction: LayoutDirection = LayoutDirection.Ltr
+) {
+    init {
+        requireUi(count > 0L, "cell count must be positive")
+        requireUi(
+            cellSize.width.isFinite() &&
+                cellSize.height.isFinite() &&
+                cellSize.width >
+                0.0 &&
+                cellSize.height >
+                0.0,
+            "invalid text cell size"
+        )
+        requireUi(gaps.size == 0L || gaps.size == count - 1L, "text cell gaps must match count")
+        for (gap in gaps)
+            requireUi(gap.isFinite() && gap >= 0.0, "invalid text cell gap")
+    }
+}
+
+internal class EditorCells(
+    val paragraph: TextLayout,
+    val glyphs: Array<TextLayout>,
+    val plan: TextEditCells
+) {
+    private val bytes = paragraph.text.toByteArray()
+    private val boundaries = paragraph.graphemeBoundaries
+    private val count = max(plan.count, glyphs.size)
+    private val rtl = plan.direction == LayoutDirection.Rtl
+    val size = Size(width(), plan.cellSize.height)
+    val rects = rectangles()
+    val origins = Array<Point>(glyphs.size) { index -> origin(index) }
+    private val lineHeight = paragraph.lines[0L].rect.height
+    private val textTop = (size.height - lineHeight) / 2.0
+    val alphabeticBaseline = textTop + paragraph.alphabeticBaseline
+    val ideographicBaseline = textTop + paragraph.ideographicBaseline
+    val lines =
+        [
+            TextLine(
+                TextRange(0L, paragraph.text.byteLength),
+                TextRange(0L, paragraph.text.byteLength),
+                TextRange(0L, paragraph.text.byteLength),
+                Rect(0.0, 0.0, size.width, size.height),
+                alphabeticBaseline,
+                paragraph.lines[0L].ascent,
+                paragraph.lines[0L].descent,
+                false
+            )
+        ]
+    private fun width(): Double {
+        var result = plan.cellSize.width * count.toDouble()
+        for (gap in plan.gaps)
+            result += gap
+        requireUi(result.isFinite(), "text cell extent is not finite")
+        return result
+    }
+    private fun rectangles(): Array<Rect> {
+        val result = ArrayList<Rect>()
+        var offset = 0.0
+        for (index in 0L ..< count) {
+            val x =
+                if (rtl)
+                    size.width - offset - plan.cellSize.width
+                else
+                    offset
+            result.add(Rect(x, 0.0, plan.cellSize.width, plan.cellSize.height))
+            offset += plan.cellSize.width
+            if (index < plan.gaps.size)
+                offset += plan.gaps[index]
+        }
+        return result.toArray()
+    }
+    private fun origin(index: Long): Point {
+        val cell = rects[index]
+        val glyph = glyphs[index]
+        return Point(
+            cell.x + (cell.width - glyph.size.width) / 2.0,
+            cell.y + (cell.height - glyph.size.height) / 2.0
+        )
+    }
+    fun checkPosition(position: TextPosition) {
+        checkEditorRange(bytes, Utf8Range(position.byteOffset, position.byteOffset))
+    }
+    fun index(position: TextPosition): Long {
+        checkPosition(position)
+        val boundary = editorBoundaryPosition(boundaries, position).byteOffset
+        var index = 0L
+        while (index + 1L < boundaries.size && boundaries[index] < boundary)
+            index += 1L
+        return min(index, count - 1L)
+    }
+    fun caret(position: TextPosition, thickness: Double): Rect {
+        checkPosition(position)
+        requireUi(
+            editorBoundaryPosition(boundaries, position) == position,
+            "caret must be a grapheme boundary"
+        )
+        val index = index(position)
+        val cell = rects[index]
+        val end = position.byteOffset == paragraph.text.byteLength
+        val empty = end && glyphs.size < count
+        val width =
+            if (empty)
+                0.0
+            else
+                min(cell.width, glyphs[index].size.width)
+        val edge =
+            if (end && !empty)
+                1.0
+            else
+                -1.0
+        val x =
+            cell.x +
+                cell.width /
+                2.0 +
+                width /
+                2.0 *
+                edge *
+                (
+                    if (rtl)
+                        -1.0
+                    else
+                        1.0
+                )
+        val height = min(cell.height, lineHeight)
+        val stroke = min(thickness, cell.width)
+        return Rect(
+            min(max(x - stroke / 2.0, cell.x), cell.x + cell.width - stroke),
+            (cell.height - height) / 2.0,
+            stroke,
+            height
+        )
+    }
+    fun hitTest(point: Point): TextPosition {
+        var selected = TextPosition(0L)
+        var distance = abs(point.x - caret(selected, 0.0).x)
+        for (boundary in boundaries) {
+            val candidate = TextPosition(boundary)
+            val location = caret(candidate, 0.0)
+            val delta = abs(point.x - location.x)
+            if (delta < distance) {
+                selected = candidate
+                distance = delta
+            }
+        }
+        return selected
+    }
+    fun selection(range: TextRange): Array<TextBox> {
+        checkEditorRange(bytes, Utf8Range(range.start, range.end))
+        val result = ArrayList<TextBox>()
+        for (index in 0L ..< glyphs.size) {
+            if (boundaries[index] < range.end && boundaries[index + 1L] > range.start)
+                result.add(
+                    TextBox(
+                        rects[index],
+                        if (rtl)
+                            TextDirection.Rtl
+                        else
+                            TextDirection.Ltr
+                    )
+                )
+        }
+        return result.toArray()
+    }
+    fun move(
+        source: TextLayout,
+        position: TextPosition,
+        movement: CaretMovement,
+        preferredX: Double?
+    ): CaretMove {
+        checkPosition(position)
+        val current = editorBoundaryPosition(boundaries, position)
+        val next =
+            when (movement) {
+                case Left -> source.moveGrapheme(current.byteOffset, rtl)
+                case Right -> source.moveGrapheme(current.byteOffset, !rtl)
+                case WordLeft -> source.moveWord(current.byteOffset, rtl)
+                case WordRight -> source.moveWord(current.byteOffset, !rtl)
+                case LineStart -> 0L
+                case LineEnd -> source.text.byteLength
+                case DocumentStart -> 0L
+                case DocumentEnd -> source.text.byteLength
+                case LineLeft -> if (rtl)
+                    source.text.byteLength
+                else
+                    0L
+                case LineRight -> if (rtl)
+                    0L
+                else
+                    source.text.byteLength
+                case Up -> current.byteOffset
+                case Down -> current.byteOffset
+            }
+        val target = TextPosition(next)
+        return CaretMove(target, preferredX ?: caret(target, 0.0).x)
+    }
+}
+
+internal fun sameEditorCells(left: TextEditCells?, right: TextEditCells?): Boolean {
+    return when (left) {
+        case None -> when (right) {
+            case None -> true;
+            case Some(_) -> false
+        }
+        case Some(a) -> when (right) {
+            case None -> false
+            case Some(b) -> {
+                if (
+                    a.count !=
+                        b.count ||
+                        a.cellSize !=
+                        b.cellSize ||
+                        a.direction !=
+                        b.direction ||
+                        a.gaps.size !=
+                        b.gaps.size
+                )
+                    return false
+                for (index in 0L ..< a.gaps.size)
+                    if (a.gaps[index] != b.gaps[index])
+                        return false
+                true
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+package scoop.ui
+
+import scoop.graphics.Point
+
+private val sceneRevisionComparison = InputComparison<Long> { before, after -> before == after }
+
+/** Explicitly reuses stable scene operations; revision covers external, unobserved inputs. */
+public fun cachedScene(content: View, revision: Long = 0L, key: ViewKey = ViewKey.Position): View =
+    element(revision, ::SceneCacheElement, [content], key, Some(sceneRevisionComparison))
+
+private class SceneCacheElement(private val props: Props<Long>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private var revision = props.value
+    private var epoch = SceneEpoch()
+    public override fun update(): UiInvalidation {
+        if (revision == props.value)
+            return UiInvalidation.None
+        revision = props.value
+        epoch = SceneEpoch()
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.presentChildren(None, Some(epoch))
+    }
+}

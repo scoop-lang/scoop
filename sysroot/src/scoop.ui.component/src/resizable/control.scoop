@@ -1,0 +1,250 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class ResizableGesture(
+    val index: Long,
+    val initial: Array<ResizableSize>,
+    val lengths: Array<Double>,
+    val geometry: ResizableGeometry,
+    val drag: Drag
+) {
+    var expected = initial
+}
+
+internal class ResizableControl(
+    private val scope: ComponentScope,
+    private val input: () -> ResizableInput
+) {
+    private var geometry: ResizableGeometry? = None
+    private var gesture: ResizableGesture? = None
+    private var configured = input().props
+    private var direction = scope.layoutDirection
+    private fun compatible(shape: ResizableGeometry): Boolean =
+        sameResizablePanels(shape.input.panels, input().props.panels) &&
+            shape.input.orientation ==
+            input().props.orientation &&
+            shape.direction ==
+            (
+                if (scope.isMounted)
+                    scope.layoutDirection
+                else
+                    direction
+            )
+    private fun enabled(index: Long): Boolean =
+        input().props.enabled &&
+            index +
+            1L <
+            input().props.panels.size &&
+            resizableHandle(input().props, index).enabled
+    fun update() {
+        val props = input().props
+        when (gesture) {
+            case Some(active) -> {
+                if (
+                    !compatible(active.geometry) ||
+                        props.dragThreshold !=
+                        active.geometry.input.dragThreshold ||
+                        !sameResizableSizes(active.expected, props.sizes.value)
+                )
+                    cancel(DragCancelReason.ConfigurationChanged)
+                else
+                    if (!enabled(active.index))
+                        cancel(DragCancelReason.Disabled)
+            }
+            case None -> {}
+        }
+        if (!scope.isMounted)
+            return
+        if (
+            !sameResizablePanels(configured.panels, props.panels) ||
+                configured.orientation !=
+                props.orientation ||
+                direction !=
+                scope.layoutDirection
+        )
+            geometry = None
+        configured = props
+        direction = scope.layoutDirection
+    }
+    fun accept(shape: ResizableGeometry) {
+        if (!scope.isMounted || !compatible(shape))
+            return
+        geometry = Some(shape)
+        when (gesture) {
+            case Some(active) -> if (
+                shape.size !=
+                    active.geometry.size ||
+                    shape.size.width ==
+                    0.0 ||
+                    shape.size.height ==
+                    0.0
+            )
+                cancel(DragCancelReason.GeometryUnavailable)
+            case None -> {}
+        }
+    }
+    fun available(index: Long): Boolean =
+        when (geometry) {
+            case Some(shape) -> enabled(index) &&
+                compatible(shape) &&
+                shape.size.width >
+                0.0 &&
+                shape.size.height >
+                0.0
+            case None -> false
+        }
+    fun handle(index: Long, drag: Drag, focus: FocusTarget, event: DragEvent) {
+        when (event) {
+            case Started(sample) -> {
+                if (!available(index)) {
+                    drag.cancel();
+                    return
+                }
+                cancel(DragCancelReason.Explicit)
+                if (!scope.isMounted)
+                    return
+                if (!focus.handle.requestFocus(FocusOrigin.Pointer)) {
+                    drag.cancel();
+                    return
+                }
+                if (!scope.isMounted)
+                    return
+                val shape = geometry!!
+                val initial = input().props.sizes.value
+                val lengths =
+                    resizableAllocation(
+                        input().props.panels,
+                        resizableValues(initial),
+                        shape.target
+                    )
+                gesture = Some(ResizableGesture(index, initial, lengths, shape, drag))
+                move(sample.displacement)
+            }
+            case Moved(sample) -> move(sample.displacement)
+            case Ended(sample) -> {
+                move(sample.displacement)
+                val active = gesture ?: return
+                gesture = None
+                val props = input().props
+                if (scope.isMounted && !sameResizableSizes(active.initial, props.sizes.value))
+                    props.onSizesCommit(props.sizes.value)
+            }
+            case Cancelled(_, reason) -> cancel(reason)
+        }
+    }
+    private fun move(displacement: Double) {
+        val active = gesture ?: return
+        val props = input().props
+        if (
+            !compatible(active.geometry) || !sameResizableSizes(active.expected, props.sizes.value)
+        ) {
+            cancel(DragCancelReason.ConfigurationChanged);
+            return
+        }
+        val index = active.index
+        val delta =
+            if (
+                props.orientation ==
+                    Orientation.Horizontal &&
+                    scope.layoutDirection ==
+                    LayoutDirection.Rtl
+            )
+                -displacement
+            else
+                displacement
+        val pair =
+            resizablePair(
+                active.lengths[index],
+                active.lengths[index + 1L],
+                delta,
+                props.panels[index],
+                props.panels[index + 1L]
+            )
+        val next =
+            Array<Double>(active.lengths.size) {
+                i -> if (i == index)
+                    pair.first
+                else
+                    if (i == index + 1L)
+                        pair.second
+                    else
+                        active.lengths[i]
+            }
+        val before =
+            resizableAllocation(
+                props.panels,
+                resizableValues(props.sizes.value),
+                active.geometry.target
+            )
+        if (sameSliderValues(before, next))
+            return
+        apply(resizableModel(props.panels, props.sizes.value, before, next), Some(active))
+    }
+    fun apply(next: Array<ResizableSize>, active: ResizableGesture? = None) {
+        val props = input().props
+        val previous = props.sizes.value
+        if (sameResizableSizes(previous, next))
+            return
+        props.sizes.value = next
+        val accepted = props.sizes.value
+        resizableValues(accepted)
+        when (active) {
+            case Some(value) -> value.expected = accepted
+            case None -> {}
+        }
+        if (scope.isMounted && !sameResizableSizes(previous, accepted))
+            props.onSizesChange(accepted)
+    }
+    fun cancel(reason: DragCancelReason) {
+        val active = gesture ?: return
+        gesture = None
+        active.drag.cancel()
+        val props = input().props
+        if (compatible(active.geometry) && sameResizableSizes(props.sizes.value, active.expected))
+            apply(active.initial)
+        props.onSizesCancel(props.sizes.value, reason)
+    }
+    fun lostFocus(key: ViewKey) {
+        when (gesture) {
+            case Some(active) -> if (active.geometry.input.panels[active.index].key == key)
+                cancel(DragCancelReason.Explicit)
+            case None -> {}
+        }
+    }
+    fun key(index: Long, context: RoutedEventContext, event: KeyEvent) {
+        if (!available(index) || !sliderKeyAllowed(event))
+            return
+        if (event.logicalKey == LogicalKey.Named(NamedKey.Escape)) {
+            when (gesture) {
+                case Some(_) -> {
+                    context.consume();
+                    cancel(DragCancelReason.Explicit)
+                }
+                case None -> {}
+            }
+            return
+        }
+        val props = input().props
+        val command =
+            resizableKey(props.orientation, scope.layoutDirection, event.logicalKey) ?: return
+        context.consume()
+        cancel(DragCancelReason.Explicit)
+        if (!scope.isMounted)
+            return
+        val shape = geometry ?: return
+        val before = props.sizes.value
+        val next = resizableKeyboard(props, before, shape.target, index, command)
+        apply(next)
+        if (scope.isMounted && !sameResizableSizes(before, props.sizes.value))
+            props.onSizesCommit(props.sizes.value)
+    }
+    fun retire() {
+        cancel(DragCancelReason.Closed);
+        geometry = None
+    }
+}

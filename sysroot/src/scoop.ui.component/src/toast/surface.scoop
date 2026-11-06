@@ -1,0 +1,178 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+
+/** Each card shares its transform between pixels, hit testing and focus geometry. */
+internal class ToastSurface(
+    private val props: Props<ToastItemInput>,
+    scope: ComponentScope
+): Element<ToastGeometry>(scope) {
+    private val control = ToastCardControl(scope, { props.value })
+    public override fun update(): UiInvalidation {
+        control.update()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ToastGeometry
+    > {
+        val input = props.value;
+        val d = input.density
+        val viewport =
+            Size(
+                constraints.maxWidth ?: constraints.minWidth,
+                constraints.maxHeight ?: constraints.minHeight
+            )
+        val pad = input.props.offset * d
+        val width = min(input.props.width * d, max(0.0, viewport.width - pad * 2.0))
+        val maxHeight = max(0.0, viewport.height - pad * 2.0)
+        val natural =
+            context.measureChild(0L, Constraints(width, Some(width), maxHeight = Some(maxHeight)))
+        val entries = input.host.group(input.position)
+        var depth = 0L
+        var before = 0.0
+        for (entry in entries) {
+            if (entry === input.entry)
+                break
+            depth += 1L
+            before += entry.height + input.props.gap * d
+        }
+        val expanded = input.expanded
+        val frontHeight =
+            if (entries.size > 0L && entries[0L].height > 0.0)
+                entries[0L].height
+            else
+                natural.size.height
+        val height =
+            if (expanded || depth == 0L)
+                natural.size.height
+            else
+                min(maxHeight, frontHeight)
+        if (height != natural.size.height)
+            context.measureChild(0L, Constraints(width, Some(width), height, Some(height)))
+        val top = toastTop(input.position)
+        val position = input.position
+        val side = toastSide(position, context.layoutDirection)
+        val center = position == ToastPosition.TopCenter || position == ToastPosition.BottomCenter
+        val x =
+            if (center)
+                (viewport.width - width) / 2.0
+            else
+                if (side == OverlaySide.Left)
+                    min(pad, viewport.width)
+                else
+                    max(0.0, viewport.width - pad - width)
+        val distance =
+            if (expanded)
+                before
+            else
+                depth.toDouble() * 12.0 * d
+        val y =
+            if (top)
+                min(pad, viewport.height) + distance
+            else
+                viewport.height - pad - height - distance
+        val zoom =
+            if (expanded)
+                1.0
+            else
+                max(0.1, 1.0 - depth.toDouble() * 0.1)
+        val geometry =
+            ToastGeometry(viewport, Rect(x, y, width, height), natural.size.height, zoom, side)
+        if (width > 0.0 && height > 0.0)
+            context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(viewport), geometry)
+    }
+    public override fun scene(context: SceneContext, layout: ToastGeometry) {
+        val input = props.value;
+        val shape = layout;
+        val card = control
+        val presence = context.overlayLayout!!.presence
+        val sampled = panelPresent(card.geometry)
+        val origin =
+            if (sampled)
+                card.origin.value
+            else
+                Point(shape.bounds.x, shape.bounds.y)
+        val zoom =
+            if (sampled)
+                card.zoom.value
+            else
+                shape.zoom
+        val shift = card.offset.value
+        val swiping = input.entry.closing.value == Some(ToastCloseReason.Swipe)
+        val exitVertical = !swiping || shape.vertical
+        val outward =
+            if (swiping)
+                shape.outward
+            else
+                if (toastTop(input.position))
+                    -1.0
+                else
+                    1.0
+        val extent =
+            if (exitVertical)
+                shape.bounds.height
+            else
+                shape.bounds.width
+        val travel =
+            (extent + input.props.offset * input.density) *
+                1.5 *
+                (1.0 - presence.progress) *
+                outward
+        val x =
+            origin.x +
+                (
+                    if (!shape.vertical)
+                        shift
+                    else
+                        0.0
+                ) +
+                (
+                    if (!exitVertical)
+                        travel
+                    else
+                        0.0
+                )
+        val y =
+            origin.y +
+                (
+                    if (shape.vertical)
+                        shift
+                    else
+                        0.0
+                ) +
+                (
+                    if (exitVertical)
+                        travel
+                    else
+                        0.0
+                )
+        context.saveLayer(presence.progress)
+        context.translate(x, y)
+        val pivot =
+            Point(
+                shape.bounds.width / 2.0,
+                if (toastTop(input.position))
+                    0.0
+                else
+                    shape.bounds.height
+            )
+        context.translate(pivot.x, pivot.y);
+        context.scale(zoom, zoom);
+        context.translate(-pivot.x, -pivot.y)
+        if (shape.bounds.width > 0.0 && shape.bounds.height > 0.0)
+            context.place(card.area, Rect(0.0, 0.0, shape.bounds.width, shape.bounds.height))
+        context.children()
+        context.restore()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                card.accept(shape, presence.phase)
+        }
+    }
+    public override fun onUnmount() {
+        control.retire()
+    }
+}

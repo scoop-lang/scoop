@@ -1,13 +1,23 @@
 package scoop.ui
 
 import scoop.collections.HashMap
+import scoop.collections.sortedBy
 import scoop.graphics.Point
 import scoop.time.TimeMark
 
 internal class LazyItemMeasure {
     var constraints: Constraints? = None
-    var result: LayoutMetrics? = None
+    var result: NodeLayout? = None
+    var entry: LazyItemEntry? = None
     var origin: Point? = None
+    val placed: Boolean get() = origin != None
+}
+
+internal class LazyLayoutItem(
+    val entry: LazyItemEntry,
+    val result: NodeLayout,
+    val origin: Point?
+) {
     val placed: Boolean get() = origin != None
 }
 
@@ -26,6 +36,7 @@ public class LazyMeasureContext internal constructor(
     private val measured = HashMap<Long, LazyItemMeasure>()
     public val time: TimeMark get() {
         checkActive()
+        observeFrameTime()
         return mark
     }
     public val itemCount: Long get() {
@@ -54,8 +65,13 @@ public class LazyMeasureContext internal constructor(
         if (entry.placed)
             throw IllegalStateException(Some("item was already placed"))
         when (entry.result) {
-            case Some(result) -> if (entry.constraints == Some(constraints))
-                return result
+            case Some(result) -> if (
+                entry.constraints ==
+                    Some(constraints) &&
+                    result.version ==
+                    result.node.layoutVersion
+            )
+                return result.metrics
             case None -> {}
         }
         entry.result = None
@@ -67,7 +83,8 @@ public class LazyMeasureContext internal constructor(
             val result = item.node.measure(constraints, mark)
             entry.constraints = Some(constraints)
             entry.result = Some(result)
-            return result
+            entry.entry = Some(item)
+            return result.metrics
         } finally {
             borrowed = false
         }
@@ -86,14 +103,17 @@ public class LazyMeasureContext internal constructor(
             throw IllegalStateException(Some("item was already placed"))
         entry.origin = Some(origin)
     }
-    internal fun finish() {
+    internal fun finish(): Array<LazyLayoutItem> {
         checkActive()
         for (entry in measured.values)
             when (entry.result) {
                 case None -> throw IllegalStateException(Some("item measurement did not complete"))
                 case Some(_) -> {}
             }
-        items.stage(measured)
+        val selected = ArrayList<LazyLayoutItem>()
+        for (value in measured.values)
+            selected.add(LazyLayoutItem(value.entry!!, value.result!!, value.origin))
+        return selected.sortedBy<LazyLayoutItem, Long> { value -> value.entry.index }.toArray()
     }
     internal fun end() {
         active = false

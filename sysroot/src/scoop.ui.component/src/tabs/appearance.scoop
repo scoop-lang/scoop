@@ -1,0 +1,69 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+internal fun tabTextColor(theme: Theme, selected: Boolean, visual: InteractionVisual): Color {
+    val colors = theme.tokens.palette
+    if (!visual.enabled && theme.tokens.disabledOpacity >= 1.0)
+        return colors.disabledText
+    if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
+        return colors.background.foreground
+    return if (theme.tokens.mode == ThemeMode.Dark)
+        colors.muted.foreground
+    else
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.6)
+}
+
+internal fun tabOptions(
+    theme: Theme,
+    variant: TabsVariant,
+    selected: Boolean,
+    style: ButtonStyle,
+    visual: InteractionVisual
+): SurfaceOptions {
+    val colors = theme.tokens.palette
+    val dark = theme.tokens.mode == ThemeMode.Dark
+    val density = theme.tokens.typography.action.fontSize / 14.0
+    val filled = selected && variant == TabsVariant.Default
+    val normal =
+        if (!filled)
+            Color.Transparent
+        else
+            if (dark)
+                colors.input.withAlpha(colors.input.alpha * 0.3)
+            else
+                colors.background.background
+    val pressed =
+        if (!filled)
+            colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.08)
+        else
+            mixThemeColor(normal, colors.background.foreground, 0.08)
+    val fill = StateColors(normal, normal, pressed, normal).resolve(visual)
+    val local =
+        styleOverride {
+            this.background(Some(Paint(fill)))
+            this.border(
+                Some(
+                    Border.all(
+                        density,
+                        if (filled && dark)
+                            colors.input
+                        else
+                            Color.Transparent
+                    )
+                )
+            )
+            this.corners(Corners.all(theme.tokens.corners.medium))
+            this.boxShadows([])
+        }.then(style.surface.style)
+    return style.surface.copy {
+        if (this.suggestedSize == None)
+            this.suggestedSize = Some(Size(0.0, 26.0 * density))
+        if (this.minimumSize == None)
+            this.minimumSize = Some(Size(0.0, 0.0))
+        if (this.padding == None)
+            this.padding = Some(Insets(6.0 * density, 2.0 * density, 6.0 * density, 2.0 * density))
+        this.style = style.states.apply(local, visual)
+    }
+}

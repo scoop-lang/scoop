@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class SelectModelTest {
+    @Test
+    fun `dark select fill composes token opacity and preserves local hover overrides`() {
+        val theme = shadcnTheme(ThemeMode.Dark)
+        val normal = selectTriggerStyle(buttonStyle(), theme, SelectSize.Default, false)
+        assertEquals(0.045, normal.surface.style.background.resolve(None)!!.color.alpha)
+        assertEquals(0.075, normal.states.hovered.background.resolve(None)!!.color.alpha)
+        val color = Color(0.6, 0.2, 0.1, 0.4)
+        val local = buttonStyle { surface { style { background(Some(Paint(color))) } } }
+        val custom = selectTriggerStyle(local, theme, SelectSize.Sm, false)
+        assertEquals(color, custom.surface.style.background.resolve(None)!!.color)
+        assertEquals(color, custom.states.hovered.background.resolve(None)!!.color)
+    }
+    @Test
+    fun `typed choices preserve unknown disabled rejected and transformed selections`() {
+        val value = state<Int?>(Some(99))
+        val reported = state<Int?>(None)
+        val content =
+            SelectContent<Int>(
+                [
+                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(1L), 1, "Same"))),
+                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(2L), 2, "Same", false))),
+                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(3L), 3, "Third")))
+                ]
+            )
+        val input =
+            SelectProps(value.binding(), content, onValueChange = { next -> reported.value = next })
+        assertFalse(panelPresent(selectedChoice(content, value.value)))
+        selectChoice(input, ViewKey.Number(2L));
+        assertEquals(Some(99), value.value)
+        selectChoice(input, ViewKey.Number(1L));
+        assertEquals(Some(1), value.value);
+        assertEquals(Some(1), reported.value)
+        selectChoice(SelectProps(binding({ value.value }, { _ -> }), content), ViewKey.Number(3L))
+        assertEquals(Some(1), value.value)
+        selectChoice(
+            SelectProps(
+                binding({ value.value }, { _ -> value.value = None }),
+                content,
+                onValueChange = { next -> reported.value = next }
+            ),
+            ViewKey.Number(3L)
+        )
+        assertEquals(None, value.value);
+        assertEquals(None, reported.value)
+        value.value = Some(2)
+        assertFalse(selectedChoice(content, value.value)!!.enabled)
+    }
+    @Test
+    fun `select content rejects ambiguous keys and values across group decorations`() {
+        val item = SelectEntry.Item(SelectItem(Choice(ViewKey.Text("one"), 1, "One")))
+        assertFailsWith<IllegalArgumentException> { SelectContent([item, item]) }
+        assertFailsWith<IllegalArgumentException> {
+            SelectContent([item, SelectEntry.Separator(ViewKey.Text("one"))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SelectContent(
+                [item, SelectEntry.Item(SelectItem(Choice(ViewKey.Text("two"), 1, "Same value")))]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SelectContent<Int>([SelectEntry.Separator(ViewKey.Position)])
+        }
+        val b = SelectBuilder<Int>()
+        b.group(ViewKey.Text("group"), "Values") { item(Choice(ViewKey.Text("one"), 1, "One")) }
+        b.separator(ViewKey.Text("separator"))
+        val selected = state<Int?>(None)
+        val input = b.snapshot(selected.binding())
+        assertEquals(3L, input.content.entries.size)
+        assertEquals(None, input.value.value)
+    }
+    @Test
+    fun `select options and child DSL remain typed and reject invalid extents`() {
+        val value = state<Int?>(None)
+        val choices = [Choice(ViewKey.Number(1L), 1, "First")]
+        val children = ChildrenBuilder()
+        children.select(value.binding(), choices) { width = Some(120.0) }
+        children.select(value.binding()) { item(choices[0L]) }
+        assertEquals(2L, children.childrenSnapshot().size)
+        val content = SelectContent<Int>([])
+        assertFailsWith<IllegalArgumentException> {
+            SelectProps(value.binding(), content, maxHeight = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SelectProps(value.binding(), content, width = Some(0.0 / 0.0))
+        }
+    }
+}

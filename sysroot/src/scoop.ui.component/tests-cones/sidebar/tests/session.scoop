@@ -1,0 +1,208 @@
+package scoop.tests.ui.sidebar
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class SidebarWindowTest {
+    @Test
+    fun `native sidebar preserves workspace state through collapse menus and responsive drawers`() {
+        val p = SidebarProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(1, p.mainMounts);
+            assertEquals(1, p.mainUnmounts)
+            assertEquals(p.navMounts, p.navUnmounts)
+            assertEquals("Workspace draft!", p.draft.text)
+            assertEquals("Search", p.search.text)
+            assertEquals(1, p.clicks);
+            assertEquals(1, p.actions)
+            assertFalse(p.mainEditor.isAttached);
+            assertFalse(p.first.isAttached)
+            assertFalse(p.scroll.isAttached);
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"sidebar phase=${p.phase}, open=${p.open.value}, mobile=${
+                    p.shown.mobile
+                }, collapsed=${p.shown.collapsed}, nav mounts=${p.navMounts}/${
+                    p.navUnmounts
+                }, main mounts=${p.mainMounts}/${p.mainUnmounts}"
+            )
+            reportSidebarFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class SidebarProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val open = state(true)
+    val subopen = state(true)
+    val generation = state(0)
+    val draft = TextEditorState("Workspace draft")
+    val search = TextEditorState("Search")
+    val mainEditor = FocusHandle()
+    val navEditor = FocusHandle()
+    val first = FocusHandle()
+    val action = FocusHandle()
+    val sub = FocusHandle()
+    val trigger = FocusHandle()
+    val scroll = ScrollState()
+    val geometry = Array<SidebarCapture>(7L) { _ -> SidebarCapture(Rect(0.0, 0.0, 0.0, 0.0)) }
+    var shown = SidebarPresentation(false, false, true)
+    var variant = SidebarVariant.Sidebar
+    var collapse = SidebarCollapse.Icon
+    var side = SidebarSide.Start
+    var rtl = false
+    var enabled = true
+    var shortcut = true
+    var reject = false
+    var veto = false
+    var reverse = false
+    var motion = false
+    var loading = false
+    var gone = false
+    var mainMounts = 0
+    var mainUnmounts = 0
+    var navMounts = 0
+    var navUnmounts = 0
+    var clicks = 0
+    var actions = 0
+    var notifications = 0
+    var closeRequests = 0
+    var closed = 0
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    var waitAfter = Duration.milliseconds(150L)
+    var next = MonotonicTimeSource.markNow()
+    val deadline = next + Duration.seconds(60L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop sidebar test";
+                            size = LogicalSize(900.0, 560.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> SidebarScene(this, scope = mount) });
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + waitAfter
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < deadline, Some("sidebar timeout"))
+                if (now >= next && settled()) {
+                    waitAfter = Duration.milliseconds(150L)
+                    advanceSidebar(this);
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + waitAfter
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 41)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 41;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean =
+        native!!.isFocused &&
+            rendered >=
+            generation.value &&
+            (loading || !frames!!.snapshot().required) &&
+            !first.isPending &&
+            !mainEditor.isPending
+    fun refresh() {
+        generation.value += 1
+    }
+    fun key(code: Int) {
+        assertTrue(sendSurfaceKey(native!!, code, true));
+        assertTrue(sendSurfaceKey(native!!, code, false))
+    }
+    fun toggle() {
+        sidebarNativeKey(native!!, 11, "b", 8)
+    }
+    fun click(slot: Long, down: Boolean) {
+        val rect = geometry[slot].bounds
+        val x = rect.x + rect.width / 2.0;
+        val y = rect.y + rect.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y));
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun near(expected: Double, actual: Double) {
+        assertTrue(abs(expected - actual) < 0.01, Some(f"expected ${expected}, actual ${actual}"))
+    }
+}
+
+private fun reportSidebarFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportSidebarFailure(error.primaryFailure);
+        reportSidebarFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "sidebar failure")
+}

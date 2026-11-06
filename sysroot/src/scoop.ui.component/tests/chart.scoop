@@ -1,0 +1,255 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.math.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun chartNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.00000001, Some(f"expected ${expected}, actual ${actual}"))
+}
+
+internal fun chartTestData(values: Array<Array<Double?>>): ChartData =
+    ChartData(
+        Array<ChartDatum>(
+            if (values.size == 0L)
+                0L
+            else
+                values[0L].size
+        ) { at -> ChartDatum(ChartDatumKey(f"d${at}"), "Repeated label", Some(at.toDouble())) },
+        Array<ChartSeries>(values.size) {
+            at -> ChartSeries(ChartSeriesKey(f"s${at}"), "Repeated series", values[at])
+        }
+    )
+
+internal fun chartWithAppearance(body: (ChartAppearance) -> Unit) {
+    val theme = shadcnTheme(ThemeMode.Light)
+    FontCollection(false).use {
+        fonts ->
+        for (family in theme.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+        body(ChartAppearance(theme, fonts, LayoutDirection.Ltr))
+    }
+}
+
+@Test
+private class ChartModelTest {
+    @Test
+    fun `stable identity retains colors and visibility while removed keys are pruned`() {
+        val first = chartTestData([[Some(3.0)], [Some(5.0)], [None]])
+        val model = ChartModel(first)
+        assertTrue(model.showSeries(ChartSeriesKey("s1"), false))
+        assertFalse(model.showSeries(ChartSeriesKey("unknown"), false))
+        val hidden = model.snapshot
+        model.showSeries(ChartSeriesKey("s1"), false)
+        assertTrue(hidden === model.snapshot)
+        model.replaceData(
+            ChartData(first.datums, [first.series[2L], first.series[1L], first.series[0L]])
+        )
+        assertEquals(2, model.snapshot.colors[0L])
+        assertEquals(1, model.snapshot.colors[1L])
+        assertEquals(0, model.snapshot.colors[2L])
+        assertFalse(model.isVisible(ChartSeriesKey("s1")))
+        model.replaceData(
+            ChartData(
+                first.datums,
+                [first.series[0L], ChartSeries(ChartSeriesKey("new"), "New", [Some(8.0)])]
+            )
+        )
+        assertEquals(0L, model.hiddenSeries.size)
+        assertEquals(3, model.snapshot.colors[1L])
+        assertEquals(Some(0L), model.data.indexOfDatum(ChartDatumKey("d0")))
+        assertEquals(None, model.data.indexOfSeries(ChartSeriesKey("s1")))
+    }
+
+    @Test
+    fun `data rejects malformed identities values and axes without treating NaN as missing`() {
+        val first = chartTestData([[Some(3.0)]])
+        assertFailsWith<IllegalArgumentException> {
+            ChartData([first.datums[0L], first.datums[0L]], [])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ChartData(first.datums, [first.series[0L], first.series[0L]])
+        }
+        assertFailsWith<IllegalArgumentException> { ChartData([], first.series) }
+        assertFailsWith<IllegalArgumentException> { chartTestData([[Some(Double.NaN)]]) }
+        assertFailsWith<IllegalArgumentException> {
+            chartTestData([[Some(Double.POSITIVE_INFINITY)]])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ChartDatum(ChartDatumKey("x"), "X", Some(Double.NEGATIVE_INFINITY))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ChartAxis(domain = ChartDomain.Fixed(1.0, 1.0))
+        }
+        assertFailsWith<IllegalArgumentException> { ChartAxis(tickCount = 0) }
+        assertFailsWith<IllegalArgumentException> { ChartProps(ChartModel(first), barGap = 1.0) }
+        assertFailsWith<IllegalArgumentException> {
+            ChartProps(ChartModel(first), pointRadius = -1.0)
+        }
+    }
+
+    @Test
+    fun `linear domains and decimal ticks handle constants zero negative and extreme values`() {
+        val axis = ChartAxis(nice = false)
+        val constant = chartDomain(axis, Some(5.0), Some(5.0))
+        chartNear(4.5, constant.minimum);
+        chartNear(5.5, constant.maximum)
+        val empty = chartDomain(axis, None, None)
+        chartNear(0.0, empty.minimum);
+        chartNear(1.0, empty.maximum)
+        val zero = chartDomain(axis, Some(0.0), Some(0.0))
+        chartNear(0.0, zero.minimum);
+        chartNear(1.0, zero.maximum)
+        val nice = chartDomain(ChartAxis(), Some(-3.0), Some(9.4))
+        chartNear(-4.0, nice.minimum);
+        chartNear(10.0, nice.maximum)
+        val ticks = chartTicks(ChartRange(0.0, 1.0), 5)
+        assertEquals(6L, ticks.size)
+        for (at in 0L ..< ticks.size)
+            chartNear(at.toDouble() / 5.0, ticks[at])
+        val manual =
+            chartDomain(ChartAxis(domain = ChartDomain.Fixed(10.0, 20.0)), Some(-50.0), Some(50.0))
+        chartNear(10.0, manual.minimum);
+        chartNear(20.0, manual.maximum)
+        chartNear(-1.0, manual.unit(0.0))
+        val wide = ChartRange(-Double.MAX_VALUE, Double.MAX_VALUE)
+        chartNear(0.0, wide.unit(-Double.MAX_VALUE));
+        chartNear(0.5, wide.unit(0.0));
+        chartNear(1.0, wide.unit(Double.MAX_VALUE))
+        for (value in chartTicks(wide, 5))
+            assertTrue(value.isFinite())
+        val tiny = chartDomain(axis, Some(Double.MIN_VALUE), Some(Double.MIN_VALUE))
+        assertTrue(
+            tiny.minimum.isFinite() && tiny.maximum.isFinite() && tiny.maximum > tiny.minimum
+        )
+    }
+
+    @Test
+    fun `diverging stacks normalize signs independently and preserve original tooltip values`() {
+        chartWithAppearance {
+            appearance ->
+            val source =
+                chartTestData([[Some(3.0), Some(-2.0), None], [Some(2.0), Some(-6.0), Some(4.0)]])
+            val model = ChartModel(source)
+            val stacked =
+                ChartPlan(
+                    ChartProps(model, kind = ChartKind.Bar, stack = ChartStack.Stacked),
+                    model.snapshot,
+                    appearance
+                )
+            chartNear(3.0, stacked.prepared.series[1L].samples[0L]!!.base)
+            chartNear(5.0, stacked.prepared.series[1L].samples[0L]!!.end)
+            chartNear(-2.0, stacked.prepared.series[1L].samples[1L]!!.base)
+            chartNear(-8.0, stacked.prepared.series[1L].samples[1L]!!.end)
+            val normalized =
+                ChartPlan(
+                    ChartProps(model, kind = ChartKind.Area, stack = ChartStack.Normalized),
+                    model.snapshot,
+                    appearance
+                )
+            chartNear(0.6, normalized.prepared.series[0L].samples[0L]!!.end)
+            chartNear(1.0, normalized.prepared.series[1L].samples[0L]!!.end)
+            chartNear(-0.25, normalized.prepared.series[0L].samples[1L]!!.end)
+            chartNear(-1.0, normalized.prepared.series[1L].samples[1L]!!.end)
+            chartNear(1.0, normalized.prepared.series[1L].samples[2L]!!.end)
+            val payload =
+                chartPayload(
+                    normalized,
+                    Some(ChartSelection(ChartSeriesKey("s1"), ChartDatumKey("d1")))
+                )!!
+            assertEquals(2L, payload.entries.size)
+            chartNear(-2.0, payload.entries[0L].value);
+            chartNear(-6.0, payload.entries[1L].value)
+            model.showSeries(ChartSeriesKey("s0"), false)
+            val hidden =
+                ChartPlan(
+                    ChartProps(model, kind = ChartKind.Area, stack = ChartStack.Normalized),
+                    model.snapshot,
+                    appearance
+                )
+            chartNear(-1.0, hidden.prepared.series[0L].samples[1L]!!.end)
+            assertEquals(
+                1L,
+                chartPayload(
+                    hidden,
+                    Some(ChartSelection(ChartSeriesKey("s1"), ChartDatumKey("d1")))
+                )!!.entries.size
+            )
+        }
+    }
+
+    @Test
+    fun `geometry uses the declared scale for drawing hits RTL and cache reuse`() {
+        chartWithAppearance {
+            appearance ->
+            val model = ChartModel(chartTestData([[Some(0.0), Some(5.0), Some(10.0)]]))
+            val input = ChartProps(model, yAxis = ChartAxis(domain = ChartDomain.Fixed(0.0, 10.0)))
+            val plan = ChartPlan(input, model.snapshot, appearance)
+            val shape = plan.cache.resolve(Size(480.0, 270.0))
+            val middle = shape.series[0L].samples[1L]!!
+            chartNear(shape.plot.x + shape.plot.width * 0.5, middle.point.x)
+            chartNear(shape.plot.y + shape.plot.height * 0.5, middle.point.y)
+            assertEquals(Some(middle.selection), chartHit(shape, middle.point, false))
+            assertEquals(None, chartHit(shape, Point(-1.0, 50.0), false))
+            assertTrue(shape === plan.cache.resolve(shape.size))
+            assertFalse(shape === plan.cache.resolve(Size(400.0, 270.0)))
+            val rtl =
+                ChartPlan(
+                    input,
+                    model.snapshot,
+                    ChartAppearance(appearance.theme, appearance.fonts, LayoutDirection.Rtl)
+                ).cache.resolve(shape.size)
+            val first = rtl.series[0L].samples[0L]!!
+            chartNear(rtl.plot.x + rtl.plot.width * 5.0 / 6.0, first.point.x)
+            val clipped =
+                ChartPlan(
+                    ChartProps(model, yAxis = ChartAxis(domain = ChartDomain.Fixed(2.0, 8.0))),
+                    model.snapshot,
+                    appearance
+                ).cache.resolve(shape.size)
+            assertFalse(clipped.series[0L].samples[0L]!!.visible)
+            assertFalse(clipped.series[0L].samples[2L]!!.visible)
+            assertEquals(Some(middle.selection), chartNavigate(clipped, None, edge = -1))
+            val zero = plan.cache.resolve(Size(0.0, 0.0))
+            assertEquals(0L, zero.series.size)
+        }
+    }
+
+    @Test
+    fun `monotone curves preserve extrema and explicit missing values split runs`() {
+        chartNear(0.0, chartSlope(Point(0.0, 0.0), Point(1.0, 1.0), Point(2.0, 1.0)))
+        chartNear(1.0, chartSlope(Point(0.0, 0.0), Point(1.0, 1.0), Point(2.0, 2.0)))
+        val points = [Point(0.0, 0.0), Point(20.0, 10.0), Point(40.0, 0.0)]
+        path { chartTrace(this, points, ChartCurve.Monotone, false) }.use {
+            curve ->
+            chartNear(0.0, curve.bounds.x);
+            chartNear(0.0, curve.bounds.y)
+            chartNear(40.0, curve.bounds.width);
+            chartNear(10.0, curve.bounds.height)
+        }
+        chartWithAppearance {
+            appearance ->
+            val model = ChartModel(chartTestData([[Some(1.0), None, Some(3.0)]]))
+            val shape =
+                ChartPlan(ChartProps(model), model.snapshot, appearance).cache.resolve(
+                    Size(400.0, 250.0)
+                )
+            assertEquals(2L, chartRuns(shape.series[0L].samples, false).size)
+            assertEquals(1L, chartRuns(shape.series[0L].samples, true).size)
+            assertEquals(2L, chartRuns(shape.series[0L].samples, true)[0L].size)
+            assertEquals(
+                Some(ChartSelection(ChartSeriesKey("s0"), ChartDatumKey("d2"))),
+                chartNavigate(
+                    shape,
+                    Some(ChartSelection(ChartSeriesKey("s0"), ChartDatumKey("d0"))),
+                    datumStep = 1L
+                )
+            )
+        }
+    }
+}

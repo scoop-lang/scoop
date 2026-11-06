@@ -1,0 +1,205 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.component.scrollArea as makeScrollArea
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class ScrollExamplesModel {
+    val vertical = ScrollState()
+    val horizontal = ScrollState()
+    val both = ScrollState()
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val focus = FocusHandle()
+    val destination = FocusHandle()
+    val text = TextEditorState("Edit me, then scroll away and return")
+    val enabled = state(true)
+    val narrow = state(false)
+    val contain = state(false)
+    val visibility = state(ScrollbarVisibility.Auto)
+    fun nextVisibility() {
+        visibility.value =
+            when (visibility.value) {
+                case Auto -> ScrollbarVisibility.Always
+                case Always -> ScrollbarVisibility.Hidden
+                case Hidden -> ScrollbarVisibility.Auto
+            }
+    }
+}
+
+internal fun scrollExamples(model: ScrollExamplesModel, theme: Theme): View {
+    val decoration =
+        styleOverride {
+            this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
+            this.corners(Corners.all(theme.tokens.corners.large))
+        }
+    return makeColumn {
+        this.add(panelHeading("Scroll Area"))
+        this.typography(
+            "Native wheel, keyboard and focus reveal share one scroll position. Drag either thumb; use the toolbar to compare RTL and themes.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button(
+                "Focus viewport",
+                {
+                    model.focus.requestFocus();
+                    Unit
+                }
+            )
+            this.button(
+                "Reveal last field",
+                {
+                    model.destination.requestFocus();
+                    Unit
+                }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button("Return to top", { model.vertical.scrollTo(Point(0.0, 0.0)) }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.row {
+            this.button(
+                if (model.enabled.value)
+                    "Disable viewport"
+                else
+                    "Enable viewport",
+                { model.enabled.value = !model.enabled.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button("Toggle width", { model.narrow.value = !model.narrow.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                when (model.visibility.value) {
+                    case Auto -> "Bars: Auto";
+                    case Always -> "Bars: Always";
+                    case Hidden -> "Bars: Hidden"
+                },
+                { model.nextVisibility() }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.frame(
+            makeScrollArea(
+                makeColumn {
+                    for (index in 1 .. 12) {
+                        this.label(f"Release ${index} — UI component updates")
+                        this.separator()
+                    }
+                    this.input(model.text) { this.focus = FocusOptions(Some(model.destination)) }
+                    this.spacing = 10.0
+                    this.padding = Insets(16.0, 16.0, 16.0, 16.0)
+                    this.alignment = CrossAlignment.Stretch
+                }
+            ) {
+                this.state = Some(model.vertical)
+                this.height = Some(210.0)
+                this.width =
+                    if (model.narrow.value)
+                        Some(300.0)
+                    else
+                        None
+                this.focus = FocusOptions(Some(model.focus))
+                this.enabled = model.enabled.value
+                this.scrollbars = model.visibility.value
+                this.style = decoration
+            }
+        ) { this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start) }
+        this.typography("Horizontal · Home / End follow reading direction", TypographyRole.H3)
+        this.scrollArea(
+            makeRow {
+                for (index in 1 .. 6)
+                    this.frame(makeLabel(f"Collection ${index}", {})) {
+                        this.width = Some(180.0)
+                        this.height = Some(90.0)
+                        style {
+                            this.background(Some(Paint(theme.tokens.palette.muted.background)))
+                            this.corners(Corners.all(6.0))
+                        }
+                    }
+                this.spacing = 12.0
+                this.padding = Insets(12.0, 12.0, 12.0, 18.0)
+            }
+        ) {
+            this.state = Some(model.horizontal)
+            this.axes = ScrollAxes.Horizontal
+            this.height = Some(120.0)
+            this.scrollbars = model.visibility.value
+            this.style = decoration
+        }
+        this.typography("Two axes", TypographyRole.H3)
+        this.scrollArea(
+            makeFrame(
+                makeColumn {
+                    for (index in 1 .. 8)
+                        this.row {
+                            this.label(f"${index} · Planning")
+                            this.item(empty()) { this.grow = 1.0 }
+                            this.badge("In progress")
+                            this.label("Updated today")
+                            this.spacing = 80.0
+                        }
+                    this.spacing = 20.0
+                    this.padding = Insets(16.0, 16.0, 16.0, 16.0)
+                    this.alignment = CrossAlignment.Stretch
+                }
+            ) { this.width = Some(900.0) }
+        ) {
+            this.state = Some(model.both)
+            this.axes = ScrollAxes.Both
+            this.height = Some(180.0)
+            this.scrollbars = model.visibility.value
+            this.style = decoration
+        }
+        this.typography("Nested scrolling", TypographyRole.H3)
+        this.button(
+            if (model.contain.value)
+                "Inner: contain wheel"
+            else
+                "Inner: pass remaining wheel",
+            { model.contain.value = !model.contain.value }
+        ) { this.variant = ButtonVariant.Outline }
+        this.scrollArea(
+            makeColumn {
+                this.label("The inner viewport hands remaining motion to this one.")
+                this.scrollArea(
+                    makeColumn {
+                        for (index in 1 .. 12)
+                            this.label(f"Nested item ${index}")
+                        this.spacing = 10.0
+                        this.padding = Insets(12.0, 12.0, 12.0, 12.0)
+                    }
+                ) {
+                    this.state = Some(model.inner)
+                    this.height = Some(100.0)
+                    this.chain =
+                        if (model.contain.value)
+                            ScrollChain.Contain
+                        else
+                            ScrollChain.Chain
+                    this.style = decoration
+                }
+                for (index in 1 .. 8)
+                    this.label(f"Outer item ${index}")
+                this.spacing = 12.0
+                this.padding = Insets(16.0, 16.0, 16.0, 16.0)
+                this.alignment = CrossAlignment.Stretch
+            }
+        ) {
+            this.state = Some(model.outer)
+            this.height = Some(190.0)
+            this.style = decoration
+        }
+        this.spacing = 16.0
+        this.padding = Insets(16.0, 8.0, 16.0, 8.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+}

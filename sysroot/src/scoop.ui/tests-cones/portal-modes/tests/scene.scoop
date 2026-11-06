@@ -1,0 +1,203 @@
+package scoop.tests.ui.portal_modes
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class ModeRoot(private val probe: ModeProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        assertTrue(probe.focus[0L].requestFocus())
+    }
+    public override fun render(): View {
+        val probe = this.probe
+        val mode = probe.mode.value
+        val version = probe.revision.value
+        val layer =
+            portal(probe.open.binding(), component({ mount -> ModeContent(probe, mount) })) {
+                key = ViewKey.Text("stable-mode")
+                options {
+                    this.mode = mode
+                    handle = Some(probe.layer)
+                    focus {
+                        autoFocus = mode != OverlayMode.NonModal
+                        initialFocus = Some(probe.focus[1L])
+                    }
+                    transition =
+                        PresenceOptions(
+                            exit = Some(AnimationSpec.Tween(Duration.milliseconds(80L)))
+                        )
+                    onCloseRequest =
+                        {
+                            _ ->
+                            probe.closeRequests += 1;
+                            true
+                        }
+                    onClosed = { _ -> probe.closes += 1 }
+                }
+            }
+        return element(version, { props, mount -> ModeCanvas(probe, props, mount) }, [layer])
+    }
+}
+
+private class ModeCanvas(
+    private val probe: ModeProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area =
+        scope.createArea(focusable = true) {
+            _,
+            event -> when (event) {
+                case Pointer(
+                    InputPointerEvent.Button(_, _, ElementState.Pressed, _)
+                ) -> probe.backgroundClicks += 1
+                else -> {}
+            }
+        }
+    init {
+        probe.background = Some(area)
+        scope.focusTarget(area, FocusOptions(Some(probe.focus[0L])))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints())
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(400.0, 260.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.frames += 1
+        val frameNumber = probe.frames
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.place(area, Rect(10.0, 200.0, 50.0, 40.0))
+        context.children()
+        val version = props.value
+        if (probe.discard) {
+            probe.discard = false
+            probe.window!!.requestSize(LogicalSize(context.size.width + 10.0, 260.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> {
+                    probe.committed = version
+                    if (probe.phase == 13)
+                        assertEquals(
+                            probe.paneFrame != frameNumber,
+                            probe.background!!.scope.isFocusAllowed
+                        )
+                }
+                case Discarded -> {
+                    probe.discarded += 1
+                    assertFalse(probe.focus[0L].hasFocus || probe.focus[1L].hasFocus)
+                    if (probe.reopenAfterDiscard) {
+                        assertFalse(probe.background!!.scope.isInputAllowed)
+                        probe.reopenAfterDiscard = false
+                        probe.open.value = true
+                        probe.mode.value = OverlayMode.FocusContained
+                        probe.revision.value += 1
+                    }
+                    scope.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+private class ModeContent(private val probe: ModeProbe, scope: ComponentScope): Component(scope) {
+    private val model = TextEditorState("Ada")
+    init {
+        probe.model = Some(model)
+        probe.proxy = scope.input.parent!!.area
+    }
+    public override fun onMount() {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View {
+        val probe = this.probe
+        val input = model.inputState
+        val child =
+            portal(probe.innerOpen.binding(), element({ mount -> InnerPane(probe, mount) })) {
+                options {
+                    mode = OverlayMode.Modal
+                    handle = Some(probe.inner)
+                    onClosed = { _ -> probe.innerCloses += 1 }
+                }
+            }
+        return element(
+            { mount -> ModePane(probe, mount) },
+            [element(input, { _, mount -> ModeEditor(probe, model, mount) }), child]
+        )
+    }
+}
+
+private class ModePane(private val probe: ModeProbe, scope: ComponentScope): Element<Unit>(scope) {
+    private val area = scope.createArea(focusable = true)
+    init {
+        scope.focusTarget(area, FocusOptions(Some(probe.focus[2L])))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(180.0, 34.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(200.0, 100.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.paneFrame = probe.frames
+        context.place(area, Rect(10.0, 60.0, 50.0, 30.0))
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, 200.0, 100.0),
+                Paint(Color(0.9, 0.9, 0.9))
+            )
+        }
+        context.children()
+    }
+}
+
+private class ModeEditor(
+    private val probe: ModeProbe,
+    private val model: TextEditorState,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val appearance = TextEditAppearance(scope.defaultFonts)
+    private val host = scope.resource { TextEditHost(scope, model, appearance) }
+    init {
+        probe.editor = Some(host)
+    }
+    public override fun update(): UiInvalidation {
+        host.update(model, appearance, TextEditOptions(), FocusOptions(Some(probe.focus[1L])))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        host.scene(context, measured)
+    }
+}
+
+private class InnerPane(private val probe: ModeProbe, scope: ComponentScope): Element<Unit>(scope) {
+    private val area = scope.createArea(focusable = true)
+    init {
+        scope.focusTarget(area, FocusOptions(Some(probe.focus[3L])))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 60.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+}

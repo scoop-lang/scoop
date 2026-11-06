@@ -1,0 +1,189 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+@Test
+private class CalendarModelTest {
+    @Test
+    fun `Gregorian pages align complete weeks and retain leap dates and explicit outside cells`() {
+        val source = GregorianCalendarPages()
+        val request = CalendarPageRequest(LocalDate(2024, 2, 20))
+        val page = source.page(request)
+        assertEquals(LocalDate(2024, 2, 1), page.anchor)
+        assertEquals("February 2024", page.caption)
+        assertEquals("Feb", page.months[1L].label)
+        val local = CalendarLocale(shortMonths = Array<String>(12L) { index -> f"${index + 1L}月" })
+        assertEquals(
+            "2月",
+            source.page(CalendarPageRequest(request.anchor, locale = local)).months[1L].label
+        )
+        assertEquals(5L, page.weeks.size)
+        assertEquals(Some(LocalDate(2024, 1, 28)), page.weeks[0L].days[0L]?.date)
+        assertTrue(page.weeks[0L].days[0L]!!.outside)
+        assertEquals(Some(LocalDate(2024, 2, 29)), page.weeks[4L].days[4L]?.date)
+        assertEquals(29L, calendarPrimaryDates(page).size)
+        val fixed =
+            source.page(
+                CalendarPageRequest(request.anchor, fixedWeeks = true, showOutsideDays = false)
+            )
+        assertEquals(6L, fixed.weeks.size)
+        assertFalse(panelPresent(fixed.weeks[0L].days[0L]))
+        assertFalse(panelPresent(fixed.weeks[5L].days[6L]))
+        assertEquals(Some(LocalDate(2024, 3, 1)), page.next)
+        assertEquals(Some(LocalDate(2023, 2, 1)), page.previousYear)
+    }
+    @Test
+    fun `ISO and locale week rules remain separate around a year boundary`() {
+        val first = LocalDate(2021, 1, 1)
+        val iso = CalendarPageRequest(first, weekNumbers = CalendarWeekNumbers.Iso)
+        assertEquals(DayOfWeek.Monday, iso.weekStart)
+        assertEquals(53, calendarWeekNumber(first, iso))
+        assertEquals(1, calendarWeekNumber(LocalDate(2021, 1, 4), iso))
+        val local = CalendarPageRequest(first, weekNumbers = CalendarWeekNumbers.Locale)
+        assertEquals(DayOfWeek.Sunday, local.weekStart)
+        assertEquals(1, calendarWeekNumber(first, local))
+        assertEquals(1, calendarWeekNumber(LocalDate(2020, 12, 27), local))
+        val source = GregorianCalendarPages()
+        assertEquals(Some("53"), source.page(iso).weeks[0L].number)
+        assertEquals(None, source.page(CalendarPageRequest(first)).weeks[0L].number)
+    }
+    @Test
+    fun `representable date edges and malformed pages have finite outcomes`() {
+        val source = GregorianCalendarPages()
+        val first = source.page(CalendarPageRequest(LocalDate.MIN, fixedWeeks = true))
+        val last = source.page(CalendarPageRequest(LocalDate.MAX, fixedWeeks = true))
+        assertEquals(None, first.previous)
+        assertEquals(None, last.next)
+        assertEquals(None, calendarShiftDay(LocalDate.MIN, -1L))
+        assertEquals(None, calendarShiftMonth(LocalDate.MAX, 1L))
+        assertTrue(calendarPrimaryDates(first).size > 0L)
+        assertTrue(calendarPrimaryDates(last).size > 0L)
+        assertFailsWith<IllegalArgumentException> { CalendarOptions(monthCount = 0L) }
+        assertFailsWith<IllegalArgumentException> { CalendarOptions(years = [2020, 2020]) }
+        assertFailsWith<IllegalArgumentException> { CalendarLocale(weekdays = []) }
+        assertFailsWith<IllegalArgumentException> { CalendarLocale(shortMonths = []) }
+        assertFailsWith<IllegalArgumentException> { CalendarWeek([]) }
+        assertFailsWith<IllegalArgumentException> {
+            val day = CalendarDayData(LocalDate(2026, 11, 4), "4")
+            CalendarPage(
+                day.date,
+                "Invalid",
+                [CalendarWeek([Some(day), Some(day), None, None, None, None, None])]
+            )
+        }
+    }
+    @Test
+    fun `single and multiple activation respect required bounds and controlled refusal`() {
+        val a = LocalDate(2026, 11, 4)
+        val b = a.plusDays(1L)
+        val c = b.plusDays(1L)
+        val single = state<LocalDate?>(Some(a))
+        val clear = calendarActivate(CalendarValue.Single(Some(a)), None, a, CalendarRules())
+        when (clear) {
+            case Commit(value) -> assertTrue(
+                calendarWrite(CalendarSelection.Single(single.binding()), value)
+            );
+            else -> fail(Some("expected a clear"))
+        }
+        assertEquals(None, single.value)
+        when (
+            calendarActivate(CalendarValue.Single(Some(a)), None, a, CalendarRules(required = true))
+        ) {
+            case Commit(Single(value)) -> assertEquals(Some(a), value)
+            else -> fail(Some("required selected date must be retained"))
+        }
+        val rules = CalendarRules(minimumDates = 1L, maximumDates = Some(2L))
+        when (calendarActivate(CalendarValue.Multiple([a]), None, a, rules)) {
+            case Rejected -> {};
+            else -> fail(Some("cannot remove the last date"))
+        }
+        when (calendarActivate(CalendarValue.Multiple([a, b]), None, c, rules)) {
+            case Rejected -> {};
+            else -> fail(Some("cannot exceed maximum"))
+        }
+        when (calendarActivate(CalendarValue.Multiple([a, b]), None, a, rules)) {
+            case Commit(Multiple(values)) -> {
+                assertEquals(1L, values.size);
+                assertEquals(b, values[0L]);
+            };
+            else -> fail(Some("expected removal"))
+        }
+        val refusal = CalendarSelection.Single(binding<LocalDate?>({ Some(a) }, { _ -> Unit }))
+        assertFalse(calendarWrite(refusal, CalendarValue.Single(Some(b))))
+        assertFailsWith<IllegalArgumentException> {
+            calendarRead(CalendarSelection.Multiple(state([a, a]).binding()))
+        }
+    }
+    @Test
+    fun `range first click stays tentative and disabled interiors do not shift endpoints`() {
+        val a = LocalDate(2026, 11, 4)
+        val b = a.plusDays(4L)
+        val blocked = a.plusDays(2L)
+        val rules =
+            CalendarRules(
+                minimumNights = 2L,
+                maximumNights = Some(8L),
+                disabled = Some({ date -> date == blocked })
+            )
+        when (calendarActivate(CalendarValue.Range(None), None, b, rules)) {
+            case Pending(date) -> assertEquals(b, date);
+            else -> fail(Some("range must remain tentative"))
+        }
+        when (calendarActivate(CalendarValue.Range(None), Some(b), a, rules)) {
+            case Rejected -> {};
+            else -> fail(Some("disabled interior must reject the whole range"))
+        }
+        val permissive =
+            CalendarRules(
+                minimumNights = 2L,
+                disabled = Some({ date -> date == blocked }),
+                allowDisabledInside = true
+            )
+        when (calendarActivate(CalendarValue.Range(None), Some(b), a, permissive)) {
+            case Commit(Range(value)) -> assertEquals(Some(DateRange(a, b)), value);
+            else -> fail(Some("expected ordered complete range"))
+        }
+        assertFalse(permissive.allows(DateRange(a, a)))
+        assertTrue(CalendarRules().allows(DateRange(a, a)))
+        assertFailsWith<IllegalArgumentException> { DateRange(b, a) }
+        assertFailsWith<IllegalArgumentException> {
+            CalendarRules(minDate = Some(b), maxDate = Some(a))
+        }
+    }
+    @Test
+    fun `date drafts parse only complete ISO values and preserve failed source text`() {
+        val draft = DatePickerDraft(TextEditorState("2026-02-30"))
+        when (datePickerParse(draft.editor.text, false)) {
+            case Invalid(_) -> {};
+            else -> fail(Some("invalid date must not be guessed"))
+        }
+        assertEquals("2026-02-30", draft.editor.text)
+        when (datePickerParse(" 2024-02-29 ", false)) {
+            case Date(date) -> assertEquals(LocalDate(2024, 2, 29), date);
+            else -> fail(Some("valid leap date"))
+        }
+        when (datePickerParse("2026-11-04 .. 2026-11-08", true)) {
+            case Range(range) -> assertEquals(4L, range.nights);
+            else -> fail(Some("valid ISO range"))
+        }
+        when (datePickerParse("2026-11-08 .. 2026-11-04", true)) {
+            case Invalid(_) -> {};
+            else -> fail(Some("reverse ranges must retain their error"))
+        }
+        assertFalse(
+            panelPresent(datePickerValue(DatePickerParse.Date(LocalDate(2026, 11, 4)), true))
+        )
+        assertTrue(draft.reset("2026-11-04"))
+        assertEquals("2026-11-04", draft.editor.text)
+        val value = state<LocalDate?>(None)
+        column {
+            calendar(value.binding(), LocalDate(2026, 11, 4))
+            datePicker(value.binding(), LocalDate(2026, 11, 4)) { this.draft = Some(draft) }
+        }
+        assertFalse(CalendarHandle().focusDate(LocalDate(2026, 11, 4)))
+        assertFalse(DatePickerHandle().commit())
+    }
+}

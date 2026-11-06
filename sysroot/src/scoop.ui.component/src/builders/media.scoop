@@ -35,7 +35,7 @@ internal fun makeImageView(
             builder.sampling,
             builder.opacity
         ),
-        { props -> ImageView(props) },
+        { props, mount -> ImageView(props, scope = mount) },
         key = builder.key
     )
 }
@@ -65,7 +65,7 @@ internal fun makePathView(path: Path, viewBox: Rect, configure: PathViewBuilder.
             builder.alignment,
             builder.clip
         ),
-        { props -> PathView(props) },
+        { props, mount -> PathView(props, scope = mount) },
         key = builder.key
     )
 }

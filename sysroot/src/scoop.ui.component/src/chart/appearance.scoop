@@ -1,0 +1,52 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class ChartAppearance(
+    val theme: Theme,
+    val fonts: FontCollection,
+    val direction: LayoutDirection
+) {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val text =
+        theme.tokens.typography.body.copy {
+            fontSize = theme.tokens.typography.body.fontSize * 12.0 / 14.0;
+            weight = 400;
+            color = theme.tokens.palette.muted.foreground
+        }
+    val foreground = text.copy { color = theme.tokens.palette.background.foreground }
+    val paragraph =
+        paragraphStyle {
+            maxLines = Some(1L);
+            ellipsis = "…"
+        }
+    fun measure(value: String): Size =
+        Paragraph(fonts, value, text, paragraph).use {
+            p -> p.layoutUnwrapped().use { layout -> layout.size }
+        }
+    fun draw(canvas: Canvas, value: String, origin: Point, strong: Boolean = false) {
+        Paragraph(
+            fonts,
+            value,
+            if (strong)
+                foreground
+            else
+                text,
+            paragraph
+        ).use { p -> p.layoutUnwrapped().use { layout -> canvas.drawText(layout, origin) } }
+    }
+    fun color(snapshot: ChartSnapshot, index: Long): Color {
+        val palette = theme.tokens.palette.chart
+        return snapshot.data.series[index].color ?:
+            when (snapshot.colors[index]) {
+                case 0 -> palette.one;
+                case 1 -> palette.two;
+                case 2 -> palette.three;
+                case 3 -> palette.four;
+                else -> palette.five
+            }
+    }
+}

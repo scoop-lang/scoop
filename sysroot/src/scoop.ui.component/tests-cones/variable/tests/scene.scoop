@@ -7,11 +7,13 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.*
 
-internal class VariableScene(private val probe: VariableProbe): Component {
+internal class VariableScene(private val probe: VariableProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
         element(
             probe.width.value,
-            { props -> VariablePanel(probe, props) },
+            { props, mount -> VariablePanel(probe, props, scope = mount) },
             [
                 if (probe.show.value)
                     virtualList(probe.data!!.value, ItemExtent.Variable(20.0)) {
@@ -23,16 +25,17 @@ internal class VariableScene(private val probe: VariableProbe): Component {
                     }
                 else
                     empty(),
-                component({ ReadingObserver(probe) })
+                component({ mount -> ReadingObserver(probe, scope = mount) })
             ]
         )
 }
 
 private class VariablePanel(
     private val probe: VariableProbe,
-    private val width: Props<Double>
-): Element {
-    public override fun onMount(scope: ComponentScope) {
+    private val width: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         assertEquals(None, probe.handle.value.reading)
         scope.resource {
@@ -53,14 +56,16 @@ private class VariablePanel(
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(width.value, 60.0)))
         context.placeChild(0L, Point(20.0, 20.0))
         context.measureChild(1L, Constraints.tight(Size(0.0, 0.0)))
         context.placeChild(1L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(220.0, 140.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 140.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val ticket = probe.ticket
         val discard = probe.discardNext
         val before = probe.scroll.offset
@@ -132,7 +137,10 @@ internal class VariableSource(
                 case 3L -> 30.0
                 else -> 20.0
             }
-        return component(VariableRowInput(id, height), { props -> VariableRow(probe, props) })
+        return component(
+            VariableRowInput(id, height),
+            { props, mount -> VariableRow(probe, props, scope = mount) }
+        )
     }
 }
 
@@ -148,8 +156,9 @@ internal class VariableRecord(val key: Long) {
 
 private class VariableRow(
     private val probe: VariableProbe,
-    private val props: Props<VariableRowInput>
-): Component {
+    private val props: Props<VariableRowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = VariableRecord(props.value.key)
     init {
         probe.rows.add(record)
@@ -161,9 +170,13 @@ private class VariableRow(
                 [imageView(probe.image, Size(160.0, height))]
             else
                 []
-        return element(height, { value -> VariableInk(record, value) }, children)
+        return element(
+            height,
+            { value, mount -> VariableInk(record, value, scope = mount) },
+            children
+        )
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounts += 1
         record.area = Some(scope.createArea(focusable = true))
         scope.onDispose { record.disposed += 1 }
@@ -176,13 +189,16 @@ private class VariableRow(
 
 private class VariableInk(
     private val record: VariableRecord,
-    private val height: Props<Double>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    private val height: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             val image = context.measureChild(0L, constraints)
             context.placeChild(0L, Point(0.0, 0.0))
-            return image
+            return LayoutResult(image, Unit)
         }
         val width = constraints.maxWidth!!
         val factor =
@@ -190,9 +206,12 @@ private class VariableInk(
                 2.0
             else
                 1.0
-        return LayoutMetrics(constraints.constrain(Size(width, height.value * factor)))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, height.value * factor))),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
@@ -200,7 +219,9 @@ private class VariableInk(
     }
 }
 
-private class ReadingObserver(private val probe: VariableProbe): Component {
+private class ReadingObserver(private val probe: VariableProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         probe.readingRenders += 1
         probe.observed = probe.handle.value.reading

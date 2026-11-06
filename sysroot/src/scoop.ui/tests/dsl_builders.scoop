@@ -18,19 +18,23 @@ private class UiReceiverDslTests {
                 captured.add(this)
                 anchored(anchor) { gap = 12.0 }
                 anchored(anchor) { matchAnchorWidth = true }
-                modal { restoreFocus = false }
-                modal {}
+                mode = OverlayMode.Modal
+                focus { restoreFocus = false }
+                mode = OverlayMode.Modal
+                focus {}
                 dismiss { escape = true }
                 onClosed = { reason -> closes.add(reason) }
                 key = ViewKey.Text("portal")
             }
-        captured[0L].modal = None
+        captured[0L].mode = OverlayMode.NonModal
+        captured[0L].focus = None
         captured[0L].placement = OverlayPlacement.Viewport()
         assertEquals(ViewKey.Text("portal"), view.key)
         when (view.body) {
             case Portal(content, _, options) -> {
                 assertSame(child, content)
-                assertFalse(options.modal!!.restoreFocus)
+                assertEquals(OverlayMode.Modal, options.mode)
+                assertFalse(options.focus!!.restoreFocus)
                 assertTrue(options.dismiss.escape)
                 when (options.placement) {
                     case Anchored(value, _, _, gap, _, matchWidth) -> {
@@ -48,7 +52,8 @@ private class UiReceiverDslTests {
         assertEquals(1L, closes.size)
         assertFailsWith<IllegalArgumentException> {
             portal(state(true).binding(), child) {
-                modal {};
+                mode = OverlayMode.Modal
+                focus {};
                 dismiss { outsidePress = OutsidePress.CloseAndContinue }
             }
         }

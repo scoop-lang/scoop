@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.charset.unicodeCasefold
+import scoop.collections.HashMap
+import scoop.text.*
+import scoop.ui.*
+
+/** A filtered subset reuses the input's key/value validity instead of revalidating it. */
+private class FilteredChoices<T: Equals<T>>(val entries: Array<ChoiceEntry<T>>): ChoiceSource<T> {
+    private val indices = HashMap<ViewKey, Long>()
+    private var choices = 0L
+    init {
+        for (index in 0L ..< entries.size) {
+            indices.put(choiceEntryKey(entries[index]), index)
+            if (panelPresent(choiceEntryItem(entries[index])))
+                choices += 1L
+        }
+    }
+    public override val count: Long get() = entries.size
+    public override val choiceCount: Long get() = choices
+    public override fun entryAt(index: Long): ChoiceEntry<T> = entries[index]
+    public override fun indexOfKey(key: ViewKey): Long? = indices[key]
+    public override fun indexOfValue(value: T): Long? {
+        for (index in 0L ..< entries.size)
+            when (choiceEntryItem(entries[index])) {
+                case Some(item) -> if (item.choice.value == value)
+                    return Some(index)
+                case None -> {}
+            }
+        return None
+    }
+}
+
+private class ExtraChoice<T: Equals<T>>(
+    val source: ChoiceSource<T>,
+    val choice: Choice<T>
+): ChoiceSource<T> {
+    public override val count: Long get() = source.count + 1L
+    public override val choiceCount: Long get() = source.choiceCount + 1L
+    public override fun entryAt(index: Long): ChoiceEntry<T> =
+        if (index == source.count)
+            ChoiceEntry.Item(ChoiceItem(choice))
+        else
+            source.entryAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        if (key == choice.key)
+            Some(source.count)
+        else
+            source.indexOfKey(key)
+    public override fun indexOfValue(value: T): Long? =
+        if (value == choice.value)
+            Some(source.count)
+        else
+            source.indexOfValue(value)
+}
+
+internal fun <T: Equals<T>> comboMatches(item: ChoiceItem<T>, foldedQuery: String): Boolean {
+    if (unicodeCasefold(item.choice.label).contains(foldedQuery))
+        return true
+    for (keyword in item.keywords)
+        if (unicodeCasefold(keyword).contains(foldedQuery))
+            return true
+    return false
+}
+
+internal fun <T: Equals<T>> comboFilter(
+    source: ChoiceSource<T>,
+    query: String,
+    filter: ComboboxFilter<T>
+): ChoiceSource<T> {
+    if (query.byteLength == 0L)
+        return source
+    when (filter) {
+        case Provided -> return source;
+        else -> {}
+    }
+    val folded = unicodeCasefold(query)
+    val entries = ArrayList<ChoiceEntry<T>>()
+    var label: ChoiceEntry<T>? = None
+    var separator: ChoiceEntry<T>? = None
+    for (index in 0L ..< source.count) {
+        val entry = source.entryAt(index)
+        when (entry) {
+            case Label(_, _) -> label = Some(entry)
+            case Separator(_) -> {
+                separator = Some(entry);
+                label = None
+            }
+            case Item(item) -> {
+                val matches =
+                    when (filter) {
+                        case Contains -> comboMatches(item, folded)
+                        case Custom(test) -> test(item, query)
+                        case Provided -> true
+                    }
+                if (!matches)
+                    continue
+                when (separator) {
+                    case Some(value) -> if (entries.size > 0L)
+                        entries.add(value);
+                    case None -> {}
+                }
+                when (label) {
+                    case Some(value) -> entries.add(value);
+                    case None -> {}
+                }
+                separator = None;
+                label = None
+                entries.add(entry)
+            }
+        }
+    }
+    return FilteredChoices(entries.toArray())
+}
+
+internal fun <T: Equals<T>> comboResults(input: ComboboxProps<T>, query: String): ChoiceSource<T> {
+    val result = comboFilter(input.source, query, input.filter)
+    if (query.byteLength == 0L)
+        return result
+    val create = input.customChoice ?: return result
+    val choice = create(query) ?: return result
+    requireComponent(choice.key != ViewKey.Position, "custom choice requires an explicit key")
+    if (input.source.indexOfValue(choice.value) != None)
+        return result
+    requireComponent(input.source.indexOfKey(choice.key) == None, "duplicate custom choice key")
+    return ExtraChoice(result, choice)
+}

@@ -1,0 +1,86 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun itemMediaSide(variant: ItemMediaVariant, size: ItemSize, density: Double): Double? =
+    when (variant) {
+        case Default -> None
+        case Icon -> Some(16.0 * density)
+        case Image -> Some(
+            (
+                when (size) {
+                    case Default -> 40.0
+                    case Sm -> 32.0
+                    case Xs -> 24.0
+                }
+            ) *
+                density
+        )
+    }
+
+private struct ItemMediaProps(val side: Double?, val offset: Double, val radius: Double?)
+
+internal fun itemMedia(
+    content: View,
+    variant: ItemMediaVariant,
+    size: ItemSize,
+    radius: Double,
+    density: Double,
+    description: Boolean
+): View =
+    element(
+        ItemMediaProps(
+            itemMediaSide(variant, size, density),
+            if (description)
+                2.0 * density
+            else
+                0.0,
+            if (variant == ItemMediaVariant.Image)
+                Some(radius)
+            else
+                None
+        ),
+        { current, mount -> ItemMedia(current, scope = mount) },
+        [content]
+    )
+
+/** Translation changes painting and hit geometry without adding a layout gap. */
+private class ItemMedia(private val props: Props<ItemMediaProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private var painter: StylePainter? = None
+    public override fun onMount() {
+        painter = Some(scope.resource { StylePainter() })
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val child =
+            context.measureChild(
+                0L,
+                when (input.side) {
+                    case Some(side) -> Constraints.tight(constraints.constrain(Size(side, side)))
+                    case None -> constraints
+                }
+            )
+        context.placeChild(0L, Point(0.0, input.offset))
+        return LayoutResult(offsetMetrics(child, child.size, input.offset), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        when (input.radius) {
+            case Some(radius) -> painter!!.scene(
+                context,
+                Rect(0.0, input.offset, context.size.width, context.size.height),
+                style {
+                    this.corners = Corners.all(radius);
+                    this.clipContent = true
+                }
+            ) { scene -> scene.children() }
+            case None -> context.children()
+        }
+    }
+}

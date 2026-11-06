@@ -1,0 +1,83 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.frame as makeFrame
+
+internal enum NavigationGlyph {
+    Start, End, More, Up, Down
+}
+
+internal class NavigationIconProps(val glyph: NavigationGlyph, val size: Double, val color: Color)
+
+internal fun navigationIcon(glyph: NavigationGlyph, size: Double, color: Color): View =
+    element(
+        NavigationIconProps(glyph, size, color),
+        { current, mount -> NavigationIcon(current, scope = mount) }
+    )
+
+internal fun navigationEllipsis(size: Double, iconSize: Double, color: Color): View =
+    makeFrame(navigationIcon(NavigationGlyph.More, iconSize, color)) {
+        this.width = Some(size);
+        this.height = Some(size)
+    }
+
+private class NavigationIcon(
+    private val props: Props<NavigationIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var chevron: Path? = None
+    public override fun onMount() {
+        // Lucide chevron-right and ellipsis (ISC), on their original 24-unit grid.
+        chevron =
+            Some(
+                scope.resource {
+                    path {
+                        this.moveTo(Point(9.0, 18.0));
+                        this.lineTo(Point(15.0, 12.0));
+                        this.lineTo(Point(9.0, 6.0))
+                    }
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val size = context.size
+        val flip =
+            (input.glyph == NavigationGlyph.Start) !=
+                (context.layoutDirection == LayoutDirection.Rtl)
+        context.draw {
+            paint -> paint.canvas.withState {
+                canvas ->
+                canvas.scale(size.width / 24.0, size.height / 24.0)
+                if (input.glyph == NavigationGlyph.More) {
+                    for (x in [4.0, 12.0, 20.0])
+                        canvas.drawCircle(Point(x, 12.0), 1.5, Paint(input.color))
+                } else {
+                    if (input.glyph == NavigationGlyph.Up || input.glyph == NavigationGlyph.Down) {
+                        canvas.translate(12.0, 12.0)
+                        canvas.rotate(
+                            if (input.glyph == NavigationGlyph.Up)
+                                -1.5707963267948966
+                            else
+                                1.5707963267948966
+                        )
+                        canvas.translate(-12.0, -12.0)
+                    } else
+                        if (flip) {
+                            canvas.translate(24.0, 0.0);
+                            canvas.scale(-1.0, 1.0)
+                        }
+                    canvas.drawPath(chevron!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
+                }
+            }
+        }
+    }
+}

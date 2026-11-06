@@ -1,0 +1,271 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class ChartInkProps(
+    val input: ChartProps,
+    val plan: ChartPlan,
+    val active: Binding<ChartSelection?>
+)
+
+private class ChartAccepted(val plan: ChartPlan, val geometry: ChartGeometry)
+
+internal class ChartInk(private val props: Props<ChartInkProps>, scope: ComponentScope): Element<
+    ChartGeometry
+>(scope) {
+    private val layer = PaintKey()
+    private var revision = 0L
+    private var drawn: ChartGeometry? = None
+    private var accepted: ChartAccepted? = None
+    private var pointer = false
+    private val area =
+        scope.createArea(focusable = true) { context, event -> notify(context, event) }
+    private val focus = scope.focusTarget(area, props.value.input.focus)
+    init {
+        scope.routeChildren(area)
+        area.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> keyboard(context, key)
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (context.target === area.scope && props.value.input.enabled)
+                            focus.handle.requestFocus(FocusOrigin.Pointer)
+                    }
+                    else -> {}
+                }
+            }
+    }
+    private fun valid(): ChartGeometry? {
+        val value = accepted ?: return None
+        return if (value.plan === props.value.plan && props.value.input.enabled)
+            Some(value.geometry)
+        else
+            None
+    }
+    private fun notify(context: RoutedEventContext, event: InputEvent) {
+        if (!scope.isMounted)
+            return
+        when (event) {
+            case Pointer(InputPointerEvent.Moved(_)) -> hover(context)
+            case Pointer(InputPointerEvent.Entered(_)) -> hover(context)
+            case Pointer(InputPointerEvent.Left(_)) -> {
+                if (pointer && context.phase == RoutedPhase.Notification) {
+                    pointer = false;
+                    select(None)
+                }
+            }
+            case FocusChanged(focused) -> {
+                if (context.phase == RoutedPhase.Notification) {
+                    if (!focused) {
+                        pointer = false;
+                        select(None)
+                    };
+                    scope.requestFrame()
+                }
+            }
+            case FocusVisibilityChanged(_) -> {
+                if (context.phase == RoutedPhase.Notification)
+                    scope.requestFrame()
+            }
+            else -> {}
+        }
+    }
+    private fun hover(context: RoutedEventContext) {
+        if (context.phase != RoutedPhase.Target && context.phase != RoutedPhase.Notification)
+            return
+        val geometry = valid() ?: return
+        val point = context.localPosition ?: return
+        pointer = true
+        select(
+            chartHit(
+                geometry,
+                point,
+                props.value.input.orientation == Orientation.Horizontal,
+                props.value.active.value
+            )
+        )
+    }
+    private fun select(value: ChartSelection?) {
+        if (props.value.active.value != value)
+            props.value.active.value = value
+    }
+    private fun keyboard(context: RoutedEventContext, key: KeyEvent) {
+        if (!area.isFocusActive || !sliderKeyAllowed(key))
+            return
+        val geometry = valid() ?: return
+        val current = props.value.active.value
+        val direction =
+            if (scope.layoutDirection == LayoutDirection.Rtl)
+                -1L
+            else
+                1L
+        val selected =
+            when (key.logicalKey) {
+                case Named(NamedKey.ArrowRight) -> chartNavigate(
+                    geometry,
+                    current,
+                    datumStep = direction
+                )
+                case Named(NamedKey.ArrowLeft) -> chartNavigate(
+                    geometry,
+                    current,
+                    datumStep = -direction
+                )
+                case Named(NamedKey.ArrowUp) -> chartNavigate(geometry, current, seriesStep = -1L)
+                case Named(NamedKey.ArrowDown) -> chartNavigate(geometry, current, seriesStep = 1L)
+                case Named(NamedKey.Home) -> chartNavigate(geometry, current, edge = -1)
+                case Named(NamedKey.End) -> chartNavigate(geometry, current, edge = 1)
+                case Named(NamedKey.Escape) -> None
+                else -> return
+            }
+        pointer = false;
+        select(selected);
+        context.consume()
+    }
+    public override fun update(): UiInvalidation {
+        area.scope.enabled = props.value.input.enabled
+        focus.options = props.value.input.focus
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ChartGeometry
+    > {
+        val input = props.value.input
+        val d = props.value.plan.appearance.density
+        val width =
+            when (input.width) {
+                case Some(value) -> value * d;
+                case None -> constraints.maxWidth ?: 480.0 * d
+            }
+        val height =
+            when (input.height) {
+                case Some(value) -> value * d;
+                case None -> width * 9.0 / 16.0
+            }
+        val size = constraints.constrain(Size(width, height))
+        val geometry = props.value.plan.cache.resolve(size)
+        val active =
+            when (props.value.active.value) {
+                case Some(key) -> geometry.find(key);
+                case None -> None
+            }
+        if (
+            (active?.visible ?: false) &&
+                input.tooltip &&
+                input.enabled &&
+                geometry.plot.width >
+                0.0 &&
+                geometry.plot.height >
+                0.0
+        ) {
+            val child =
+                context.measureChild(
+                    0L,
+                    Constraints(maxWidth = Some(size.width), maxHeight = Some(size.height))
+                )
+            val point = active!!.point
+            val origin =
+                Point(
+                    chartClamp(
+                        point.x + 12.0 * d,
+                        0.0,
+                        lowerBound(size.width - child.size.width, 0.0)
+                    ),
+                    chartClamp(
+                        point.y - child.size.height - 12.0 * d,
+                        0.0,
+                        lowerBound(size.height - child.size.height, 0.0)
+                    )
+                )
+            context.placeChild(0L, origin)
+        } else
+            context.skipChild(0L)
+        val content = geometry.contentBounds
+        if (content.width > 0.0 && content.height > 0.0) {
+            val child =
+                context.measureChild(
+                    1L,
+                    Constraints(maxWidth = Some(content.width), maxHeight = Some(content.height))
+                )
+            context.placeChild(
+                1L,
+                Point(
+                    content.x + (content.width - child.size.width) / 2.0,
+                    content.y + (content.height - child.size.height) / 2.0
+                )
+            )
+        } else
+            context.skipChild(1L)
+        return LayoutResult(LayoutMetrics(size), geometry)
+    }
+    public override fun scene(context: SceneContext, geometry: ChartGeometry) {
+        val plan = props.value.plan
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val presented = geometry.plot.width > 0.0 && geometry.plot.height > 0.0
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                accepted =
+                    if (presented && geometry.interactive)
+                        Some(ChartAccepted(plan, geometry))
+                    else
+                        None
+                area.scope.enabled = props.value.input.enabled && presented && geometry.interactive
+            }
+        }
+        val same =
+            when (drawn) {
+                case Some(value) -> value === geometry;
+                case None -> false
+            }
+        if (!same) {
+            revision += 1L;
+            drawn = Some(geometry)
+        }
+        if (presented) {
+            context.drawLayer(layer, bounds, revision) {
+                paint -> chartDraw(paint.canvas, plan, geometry)
+            }
+            context.draw {
+                paint ->
+                chartDrawActive(paint.canvas, plan, geometry, props.value.active.value)
+                if (area.isFocusVisible)
+                    paint.canvas.drawRoundRect(
+                        Rect(
+                            2.0,
+                            2.0,
+                            lowerBound(bounds.width - 4.0, 0.0),
+                            lowerBound(bounds.height - 4.0, 0.0)
+                        ),
+                        8.0,
+                        8.0,
+                        Paint(plan.appearance.theme.tokens.palette.ring, PaintingStyle.Stroke, 2.0)
+                    )
+                if (plan.prepared.series.size == 0L || plan.snapshot.data.datums.size == 0L) {
+                    val text = "No data"
+                    val size = plan.appearance.measure(text)
+                    plan.appearance.draw(
+                        paint.canvas,
+                        text,
+                        Point(
+                            (bounds.width - size.width) / 2.0,
+                            (bounds.height - size.height) / 2.0
+                        )
+                    )
+                }
+            }
+            if (geometry.interactive)
+                context.place(area, bounds)
+        }
+        context.children([1L, 0L])
+    }
+    public override fun onUnmount() {
+        accepted = None
+    }
+}

@@ -1,0 +1,88 @@
+package scoop.ui.style.macos
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Reads the current AppKit semantic colors in the requested appearance, on the main thread. */
+public fun macosSystemPalette(mode: ThemeMode = ThemeMode.Light): ThemePalette {
+    @Unsafe
+    {
+        val values = systemColors(mode == ThemeMode.Dark)
+        if (values.status == -1)
+            throw IllegalStateException(Some("macOS system colors require the main thread"))
+        if (values.status != 1)
+            throw IllegalStateException(Some("cannot resolve macOS system colors as sRGB"))
+        val foreground = values.label.color()
+        val background = ColorPair(values.background.color(), foreground)
+        val primary = ColorPair(values.accent.color(), values.selectedText.color())
+        val selection = ColorPair(values.selection.color(), values.selectedText.color())
+        val border = values.separator.color()
+        val ring = values.focus.color()
+        return ThemePalette(
+            background,
+            ColorPair(values.contentBackground.color(), foreground),
+            ColorPair(values.contentBackground.color(), foreground),
+            primary,
+            ColorPair(values.control.color(), values.controlText.color()),
+            ColorPair(values.unemphasizedSelection.color(), values.secondaryLabel.color()),
+            selection,
+            ColorPair(values.red.color(), values.selectedText.color()),
+            border,
+            border,
+            ring,
+            ChartPalette(
+                values.blue.color(),
+                values.teal.color(),
+                values.green.color(),
+                values.orange.color(),
+                values.purple.color()
+            ),
+            SidebarPalette(background, primary, selection, border, ring),
+            values.disabled.color(),
+            values.shadow.color().withAlpha(
+                if (mode == ThemeMode.Dark)
+                    0.4
+                else
+                    0.1
+            )
+        )
+    }
+}
+
+@CLayout
+private struct SystemColor(
+    val red: Double,
+    val green: Double,
+    val blue: Double,
+    val alpha: Double
+) {
+    fun color(): Color = Color(red, green, blue, alpha)
+}
+
+@CLayout
+private struct SystemColors(
+    val status: Int,
+    val background: SystemColor,
+    val label: SystemColor,
+    val contentBackground: SystemColor,
+    val control: SystemColor,
+    val controlText: SystemColor,
+    val secondaryLabel: SystemColor,
+    val accent: SystemColor,
+    val selectedText: SystemColor,
+    val selection: SystemColor,
+    val unemphasizedSelection: SystemColor,
+    val separator: SystemColor,
+    val focus: SystemColor,
+    val disabled: SystemColor,
+    val red: SystemColor,
+    val blue: SystemColor,
+    val green: SystemColor,
+    val orange: SystemColor,
+    val purple: SystemColor,
+    val teal: SystemColor,
+    val shadow: SystemColor
+)
+
+@Extern(name = "scoop_ui_macos_system_colors")
+private fun systemColors(dark: Boolean): SystemColors

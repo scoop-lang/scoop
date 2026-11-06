@@ -1,0 +1,150 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ToastActionBuilder internal constructor() {
+    public var dismiss: Boolean = true
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var style: ButtonStyle = buttonStyle()
+    public var variant: ButtonVariant = ButtonVariant.Outline
+    public var size: ButtonSize = ButtonSize.Sm
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: ButtonContent, onClick: () -> Unit): ToastAction =
+        ToastAction(content, onClick, dismiss, enabled, focus, style, variant, size)
+}
+
+public class ToastBuilder internal constructor(private val title: PanelContent) {
+    public var description: PanelContent? = None
+    public var kind: ToastKind = ToastKind.Default
+    public var position: ToastPosition? = None
+    public var duration: Duration? = Some(Duration.seconds(5L))
+    public var dismiss: ToastDismiss = ToastDismiss()
+    public var icon: View? = None
+    public var action: ToastAction? = None
+    public var closeFocus: FocusOptions = FocusOptions()
+    public var style: StyleOverride = styleOverride()
+    public var onClosed: (ToastId, ToastCloseReason) -> Unit = { _, _ -> Unit }
+    public fun description(text: String) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun description(text: StyledText) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun description(content: View) {
+        description = Some(PanelContent.Custom(content))
+    }
+    public fun action(
+        text: String,
+        onClick: () -> Unit,
+        configure: ToastActionBuilder.() -> Unit = {}
+    ) {
+        val b = ToastActionBuilder();
+        b.configure()
+        action =
+            Some(b.snapshot(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), onClick))
+    }
+    public fun action(
+        content: View,
+        onClick: () -> Unit,
+        configure: ToastActionBuilder.() -> Unit = {}
+    ) {
+        val b = ToastActionBuilder();
+        b.configure()
+        action = Some(b.snapshot(ButtonContent.Custom(content), onClick))
+    }
+    public fun action(
+        content: (ActionContentStyle) -> View,
+        onClick: () -> Unit,
+        configure: ToastActionBuilder.() -> Unit = {}
+    ) {
+        val b = ToastActionBuilder();
+        b.configure()
+        action = Some(b.snapshot(ButtonContent.Resolved(content), onClick))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(): ToastProps =
+        ToastProps(
+            title,
+            description,
+            kind,
+            position,
+            duration,
+            dismiss,
+            icon,
+            action,
+            closeFocus,
+            style,
+            onClosed
+        )
+}
+
+public fun toastProps(title: String, configure: ToastBuilder.() -> Unit = {}): ToastProps =
+    makeToastProps(PanelContent.Label(LabelProps(LabelText.Plain(title, None))), configure)
+
+public fun toastProps(title: StyledText, configure: ToastBuilder.() -> Unit = {}): ToastProps =
+    makeToastProps(PanelContent.Label(LabelProps(LabelText.Styled(title))), configure)
+
+public fun toastProps(title: View, configure: ToastBuilder.() -> Unit = {}): ToastProps =
+    makeToastProps(PanelContent.Custom(title), configure)
+
+private fun makeToastProps(title: PanelContent, configure: ToastBuilder.() -> Unit): ToastProps {
+    val b = ToastBuilder(title);
+    b.configure();
+    return b.snapshot()
+}
+
+public class ToasterBuilder internal constructor() {
+    public var position: ToastPosition = ToastPosition.BottomEnd
+    public var visibleCount: Long = 3L
+    public var order: ToastOrder = ToastOrder.OldestFirst
+    public var expanded: Boolean = false
+    public var width: Double = 384.0
+    public var offset: Double = 16.0
+    public var gap: Double = 12.0
+    public var enabled: Boolean = true
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(state: ToastState): ToasterProps =
+        ToasterProps(
+            state,
+            position,
+            visibleCount,
+            order,
+            expanded,
+            width,
+            offset,
+            gap,
+            enabled,
+            transition,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): View {
+    val b = ToasterBuilder();
+    b.configure()
+    return component(b.snapshot(state), { value, mount -> Toaster(value, mount) }, b.key)
+}

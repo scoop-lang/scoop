@@ -1,0 +1,283 @@
+package scoop.ui.component
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.observePointer
+import scoop.time.TimeMark
+import scoop.ui.*
+import scoop.window.WindowState
+
+/** Admission, stack activity and one earliest deadline belong to this explicit host. */
+internal class ToasterControl(val scope: ComponentScope, val read: () -> ToasterProps) {
+    val visible = state<Array<ToastEntry>>([])
+    val regions = ArrayList<ToastRegion>()
+    val interacting = state<Array<ToastPosition>>([])
+    private val timer = scope.createDeadline { expired() }
+    private var bound = read().state
+    private var windowActivity = scope.nativeWindow.activity
+    private var scheduled: TimeMark? = None
+    private var sequence = 0L
+    private var refreshing = false
+    private var again = false
+    private var retired = false
+    val active: Boolean get() =
+        !retired && scope.isMounted && scope.nativeWindow.state == WindowState.Open
+    init {
+        scope.onDispose { retire() }
+        bound.attach(this)
+        scope.resource {
+            scope.input.observePointer {
+                _ -> if (active)
+                    refresh()
+            }
+        }
+        scope.observeWindowActivity {
+            value -> if (active) {
+                windowActivity = value
+                refresh()
+            }
+        }
+        refresh()
+    }
+    fun heightChanged(position: ToastPosition) {
+        for (entry in group(position)) {
+            val card = entry.card ?: continue
+            if (card.active)
+                card.scope.requestLayout()
+        }
+    }
+    fun position(entry: ToastEntry): ToastPosition = entry.data.value.position ?: read().position
+    fun group(position: ToastPosition): Array<ToastEntry> {
+        val result = ArrayList<ToastEntry>()
+        val all = visible.value
+        var at = all.size
+        while (at > 0L) {
+            at -= 1L
+            if (this.position(all[at]) == position)
+                result.add(all[at])
+        }
+        return result.toArray()
+    }
+    fun expanded(position: ToastPosition): Boolean = read().expanded || busy(position)
+    private fun busy(position: ToastPosition): Boolean {
+        for (value in interacting.value)
+            if (value == position)
+                return true
+        return false
+    }
+    fun refresh() {
+        if (!active)
+            return
+        if (refreshing) {
+            again = true;
+            return
+        }
+        refreshing = true
+        try {
+            do {
+                again = false
+                if (bound !== read().state) {
+                    val previous = bound
+                    val next = read().state
+                    next.attach(this)
+                    bound = next
+                    previous.detach(this)
+                }
+                scope.input.enabled = read().enabled
+                admit()
+                activity()
+                deadlines()
+            } while (again && active)
+        } finally {
+            refreshing = false
+        }
+    }
+    private fun admit() {
+        val input = read()
+        val records = bound.entries.value
+        val previous = visible.value
+        val chosen = ArrayList<ToastEntry>()
+        for (position in toastPositions) {
+            var used = 0L
+            for (entry in previous)
+                if (
+                    entry.model ===
+                        bound &&
+                        panelPresent(bound.find(entry.id)) &&
+                        this.position(entry) ==
+                        position &&
+                        entry.closing.value !=
+                        None
+                ) {
+                    chosen.add(entry);
+                    used += 1L
+                }
+            for (entry in previous)
+                if (
+                    used <
+                        input.visibleCount &&
+                        entry.model ===
+                        bound &&
+                        panelPresent(bound.find(entry.id)) &&
+                        this.position(entry) ==
+                        position &&
+                        entry.closing.value ==
+                        None
+                ) {
+                    chosen.add(entry);
+                    used += 1L
+                }
+            for (at in 0L ..< records.size) {
+                val index =
+                    if (input.order == ToastOrder.OldestFirst)
+                        at
+                    else
+                        records.size - 1L - at
+                val entry = records[index]
+                if (
+                    used <
+                        input.visibleCount &&
+                        this.position(entry) ==
+                        position &&
+                        entry.closing.value ==
+                        None &&
+                        !toastIncludes(chosen.toArray(), entry)
+                ) {
+                    chosen.add(entry);
+                    used += 1L
+                }
+            }
+        }
+        val wanted = chosen.toArray()
+        val now = MonotonicTimeSource.markNow()
+        for (entry in previous)
+            if (!toastIncludes(wanted, entry)) {
+                entry.clock.pause(now)
+                if (entry.admitted.value)
+                    entry.admitted.value = false
+            }
+        for (entry in wanted)
+            if (!entry.admitted.value) {
+                entry.sequence = sequence;
+                sequence += 1L
+                entry.admitted.value = true
+            }
+        // Existing cards stay before later admissions, so the newest card paints last.
+        val ordered = ArrayList<ToastEntry>()
+        for (entry in previous)
+            if (toastIncludes(wanted, entry))
+                ordered.add(entry)
+        for (entry in wanted)
+            if (!toastIncludes(previous, entry))
+                ordered.add(entry)
+        val next = ordered.toArray()
+        if (!toastSameEntries(previous, next))
+            visible.value = next
+    }
+    private fun activity() {
+        val positions = ArrayList<ToastPosition>()
+        for (position in toastPositions) {
+            var busy = false
+            for (region in regions)
+                if (
+                    region.position ==
+                        position &&
+                        !region.area.isClosed &&
+                        region.area.scope.isHovered
+                )
+                    busy = true
+            for (entry in group(position)) {
+                val card = entry.card ?: continue
+                if (
+                    card.active &&
+                        (
+                            card.area.scope.isHovered ||
+                                card.area.scope.activity.hasFocus ||
+                                card.dragging
+                        )
+                )
+                    busy = true
+            }
+            if (busy)
+                positions.add(position)
+        }
+        val next = positions.toArray()
+        val old = interacting.value
+        var same = old.size == next.size
+        if (same)
+            for (at in 0L ..< old.size)
+                if (old[at] != next[at])
+                    same = false
+        if (!same)
+            interacting.value = next
+    }
+    private fun deadlines() {
+        val now = MonotonicTimeSource.markNow()
+        val windowReady =
+            windowActivity.focused && windowActivity.visible && !windowActivity.occluded
+        var first: TimeMark? = None
+        for (entry in visible.value) {
+            val card = entry.card
+            val allowed =
+                read().enabled &&
+                    windowReady &&
+                    entry.closing.value ==
+                    None &&
+                    !busy(position(entry)) &&
+                    (card?.ready ?: false) &&
+                    (card?.area?.scope?.isInputAllowed ?: false)
+            if (allowed)
+                entry.clock.resume(now)
+            else
+                entry.clock.pause(now)
+            when (entry.clock.deadline) {
+                case Some(end) -> if (first == None || end < first!!)
+                    first = Some(end)
+                case None -> {}
+            }
+        }
+        if (first == scheduled)
+            return
+        scheduled = first
+        when (first) {
+            case Some(end) -> timer.schedule(end)
+            case None -> timer.cancel()
+        }
+    }
+    private fun expired() {
+        if (!active)
+            return
+        scheduled = None
+        refresh()
+        val now = MonotonicTimeSource.markNow()
+        for (entry in visible.value)
+            when (entry.clock.deadline) {
+                case Some(end) -> if (end <= now)
+                    entry.model.close(entry.id, ToastCloseReason.Timeout)
+                case None -> {}
+            }
+        refresh()
+    }
+    fun retire() {
+        if (retired)
+            return
+        retired = true
+        scheduled = None
+        timer.use { _ -> bound.detach(this) }
+    }
+}
+
+private fun toastIncludes(values: Array<ToastEntry>, entry: ToastEntry): Boolean {
+    for (value in values)
+        if (value === entry)
+            return true
+    return false
+}
+
+private fun toastSameEntries(a: Array<ToastEntry>, b: Array<ToastEntry>): Boolean {
+    if (a.size != b.size)
+        return false
+    for (at in 0L ..< a.size)
+        if (a[at] !== b[at])
+            return false
+    return true
+}

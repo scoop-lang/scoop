@@ -1,0 +1,155 @@
+package scoop.tests.ui.navigation
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.style.*
+
+internal class NavigationScene(private val p: NavigationProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val swapped = p.rebound
+        val model =
+            if (swapped)
+                p.alternate
+            else
+                p.page
+        val version = p.version
+        val body =
+            makeColumn {
+                this.breadcrumb {
+                    for (
+                        id in if (p.reverse)
+                            [2, 1, 0, 3]
+                        else
+                            [0, 1, 2, 3]
+                    ) {
+                        when (id) {
+                            case 0 -> this.item("Home", { p.actions += version }) {
+                                this.key = ViewKey.Text("home");
+                                this.focus = FocusOptions(Some(p.home))
+                            }
+                            case 1 -> this.item(
+                                "A very long documentation section",
+                                { p.actions += version }
+                            ) {
+                                this.key = ViewKey.Text("docs");
+                                this.focus = FocusOptions(Some(p.docs));
+                                this.maxWidth = Some(160.0)
+                            }
+                            case 2 -> this.custom(
+                                component(
+                                    {
+                                        mount ->
+                                        p.factories += 1;
+                                        NavigationCounter(p, scope = mount)
+                                    }
+                                )
+                            ) { this.key = ViewKey.Text("custom") }
+                            else -> this.current("Current") { this.key = ViewKey.Text("current") }
+                        }
+                    }
+                    this.enabled = p.enabled;
+                    this.fonts = Some(p.fonts)
+                }
+                this.pagination(
+                    binding(
+                        { model.value },
+                        {
+                            value -> if (!p.deny)
+                                model.value = value
+                        }
+                    ),
+                    p.count
+                ) {
+                    this.enabled = p.enabled;
+                    this.compact = p.compact
+                    this.fonts = Some(p.fonts)
+                    this.previousFocus = FocusOptions(Some(p.previous))
+                    this.nextFocus = FocusOptions(Some(p.next))
+                    this.pageFocus = { number -> FocusOptions(Some(p.pages[number])) }
+                    this.onValueChange =
+                        {
+                            actual ->
+                            assertEquals(model.value, actual)
+                            if (swapped)
+                                p.alternateCallbacks += 1
+                            else
+                                p.callbacks += 1
+                        }
+                }
+                this.spacing = 24.0;
+                this.alignment = CrossAlignment.Stretch
+            }
+        return direction(
+            element(
+                generation,
+                { current, mount -> NavigationRoot(p, current, scope = mount) },
+                [
+                    if (p.gone)
+                        empty()
+                    else
+                        body
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class NavigationCounter(private val p: NavigationProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val value = state(1)
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val value = this.value
+        p.observed = value.value
+        return button(f"Local ${value.value}", { value.value += 1 }) {
+            this.fonts = Some(p.fonts);
+            this.variant = ButtonVariant.Ghost
+            this.focus = FocusOptions(Some(p.custom))
+        }
+    }
+}
+
+private class NavigationRoot(
+    private val p: NavigationProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(
+            0L,
+            if (p.zero)
+                Constraints.tight(Size(0.0, 0.0))
+            else
+                Constraints(maxWidth = Some(p.width))
+        )
+        if (!p.zero)
+            context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(640.0, 320.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

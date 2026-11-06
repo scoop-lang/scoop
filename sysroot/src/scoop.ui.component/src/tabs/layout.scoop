@@ -1,0 +1,93 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class TabsLayoutProps(val axis: FlexAxis, val spacing: Double)
+
+/** Axis changes keep the list and panels under the same two logical parents. */
+internal class TabsLayout(
+    private val props: Props<TabsLayoutProps>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
+        val sideBySide = props.value.axis == FlexAxis.Vertical
+        val header = context.measureChild(0L, Constraints(maxWidth = constraints.maxWidth))
+        val spacing = props.value.spacing
+        val remaining =
+            if (sideBySide)
+                insetMaximum(constraints.maxWidth, header.size.width + spacing)
+            else
+                constraints.maxWidth
+        val panel =
+            context.measureChild(1L, Constraints(minWidth = remaining ?: 0.0, maxWidth = remaining))
+        val width =
+            if (sideBySide)
+                header.size.width + spacing + panel.size.width
+            else
+                lowerBound(header.size.width, panel.size.width)
+        val height =
+            if (sideBySide)
+                lowerBound(header.size.height, panel.size.height)
+            else
+                header.size.height + spacing + panel.size.height
+        val size = constraints.constrain(Size(width, height))
+        val clipped = width > size.width || height > size.height
+        if (size.width > 0.0 && size.height > 0.0) {
+            val rtl = context.layoutDirection == LayoutDirection.Rtl
+            context.placeChild(
+                0L,
+                Point(
+                    if (rtl)
+                        size.width - header.size.width
+                    else
+                        0.0,
+                    0.0
+                )
+            )
+            context.placeChild(
+                1L,
+                Point(
+                    if (sideBySide && !rtl)
+                        header.size.width + spacing
+                    else
+                        0.0,
+                    if (sideBySide)
+                        0.0
+                    else
+                        header.size.height + spacing
+                )
+            )
+        }
+        return LayoutResult(LayoutMetrics(size), clipped)
+    }
+    public override fun scene(context: SceneContext, clipped: Boolean) {
+        if (clipped)
+            context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+
+internal class TabPanels(private val selected: Props<Long?>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        var size = Size(constraints.maxWidth ?: constraints.minWidth, 0.0)
+        for (index in 0L ..< context.childCount) {
+            if (selected.value == Some(index)) {
+                size = context.measureChild(index, constraints).size
+                if (size.width > 0.0 && size.height > 0.0)
+                    context.placeChild(index, Point(0.0, 0.0))
+            } else
+                context.skipChild(index)
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(size)), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

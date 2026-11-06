@@ -1,0 +1,124 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+
+/** Phantom arguments deliberately share layouts while retaining different static types. */
+internal class ReuseInput<T>(val version: Int)
+
+internal class ReuseRecord(val id: Long, val factoryVersion: Int, val read: () -> Int): Closeable {
+    val local = state(0)
+    var observed = -1
+    var observedLocal = -1
+    var mounts = 0
+    var unmounts = 0
+    var closes = 0
+    var scope: ComponentScope? = None
+    fun mounted(scope: ComponentScope) {
+        this.scope = Some(scope)
+        mounts += 1
+        scope.resource { this }
+    }
+    fun updated() {
+        observed = read()
+        observedLocal = local.value
+    }
+    fun unmounted() {
+        assertFalse(scope!!.isMounted)
+        assertEquals(0, closes)
+        unmounts += 1
+    }
+    public override fun close() {
+        closes += 1
+    }
+}
+
+internal class ReuseRecords {
+    val values = ArrayList<ReuseRecord>()
+    fun create(id: Long, version: Int, read: () -> Int): ReuseRecord {
+        val value = ReuseRecord(id, version, read)
+        values.add(value)
+        return value
+    }
+}
+
+internal class ReuseComponent<A, B>(
+    private val record: ReuseRecord,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        record.updated()
+        return empty()
+    }
+    public override fun onMount() {
+        record.mounted(scope)
+    }
+    public override fun onUnmount() {
+        record.unmounted()
+    }
+}
+
+internal class ReuseElement<A, B>(private val record: ReuseRecord, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun update(): UiInvalidation {
+        record.updated()
+        return UiInvalidation.Layout
+    }
+    public override fun onMount() {
+        record.mounted(scope)
+    }
+    public override fun onUnmount() {
+        record.unmounted()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class ReuseLazy<A, B>(private val record: ReuseRecord, scope: ComponentScope): LazyElement<
+    Unit
+>(scope) {
+    public override fun update(): UiInvalidation {
+        record.updated()
+        return UiInvalidation.Layout
+    }
+    public override fun onMount() {
+        record.mounted(scope)
+    }
+    public override fun onUnmount() {
+        record.unmounted()
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class ReuseEmptyItems: ItemSource {
+    public override val count = 0L
+    public override fun keyAt(index: Long): ViewKey = throw IndexOutOfBoundsException()
+    public override fun indexOfKey(key: ViewKey): Long? = None
+    public override fun build(index: Long): View = throw IndexOutOfBoundsException()
+}
+
+internal class ReuseLayout(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints())
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

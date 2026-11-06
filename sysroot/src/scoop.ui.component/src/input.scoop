@@ -25,46 +25,50 @@ public class InputProps public constructor(
     public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
-    public val copy: TextCopyPolicy = TextCopyPolicy.Default
+    public val copy: TextCopyPolicy = TextCopyPolicy.Default,
+    public val labelTarget: FieldTarget? = None,
+    public val group: GroupPosition? = None,
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed
 )
 
 /** A themed single-line view of the caller's editing model. */
-public class Input public constructor(private val props: Props<InputProps>): Component {
-    private val field = TextFieldRenderer()
-    public override fun onMount(scope: ComponentScope) {
-        field.mount(props.value.theme)
-    }
-    public override fun render(): View {
-        val input = props.value
-        return field.render(
-            TextFieldInput(
-                input.state,
-                input.placeholder,
-                input.invalid,
-                input.description,
-                input.fonts,
-                input.style,
-                input.theme,
-                input.focus,
-                TextEditOptions(
-                    readOnly = input.readOnly,
-                    enabled = input.enabled,
-                    direction = input.direction,
-                    alignment = input.alignment,
-                    paintCache = input.paintCache,
-                    caretBlink = input.caretBlink,
-                    policy = input.policy,
-                    projection = input.projection,
-                    copy = input.copy
-                ),
-                1L,
-                ScrollbarVisibility.Hidden,
-                input.onEdited,
-                input.onSubmit
-            )
-        )
-    }
+public class Input public constructor(
+    private val props: Props<InputProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val field = TextFieldRenderer(scope)
+    public override fun render(): View = field.render(singleLineInput(props.value))
 }
+
+private fun singleLineInput(input: InputProps): TextFieldInput =
+    TextFieldInput(
+        input.state,
+        input.placeholder,
+        input.invalid,
+        input.description,
+        input.fonts,
+        input.style,
+        input.theme,
+        input.focus,
+        TextEditOptions(
+            readOnly = input.readOnly,
+            enabled = input.enabled,
+            direction = input.direction,
+            alignment = input.alignment,
+            paintCache = input.paintCache,
+            caretBlink = input.caretBlink,
+            policy = input.policy,
+            projection = input.projection,
+            copy = input.copy
+        ),
+        1L,
+        ScrollbarVisibility.Hidden,
+        input.onEdited,
+        input.onSubmit,
+        input.labelTarget,
+        input.group,
+        input.chrome
+    )
 
 public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View =
     makeInput(state, configure)

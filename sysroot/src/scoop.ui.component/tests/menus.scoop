@@ -1,0 +1,195 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MenuModelTest {
+    @Test
+    fun `menu snapshots reject ambiguous keys but allow duplicate labels and nested keys`() {
+        val item = MenuEntry.Action(MenuItemSpec(ViewKey.Text("item"), "Same"), {})
+        val other = MenuEntry.Action(MenuItemSpec(ViewKey.Text("other"), "Same"), {})
+        val content =
+            MenuContent(
+                [
+                    item,
+                    other,
+                    MenuEntry.Submenu(
+                        MenuItemSpec(ViewKey.Text("sub"), "More"),
+                        MenuContent([item])
+                    )
+                ]
+            )
+        assertEquals(3L, content.entries.size)
+        assertFailsWith<IllegalArgumentException> { MenuContent([item, item]) }
+        assertFailsWith<IllegalArgumentException> {
+            MenuContent([MenuEntry.Separator(ViewKey.Position)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            MenuContent([item, MenuEntry.Separator(ViewKey.Text("item"))])
+        }
+        val focus = MenuFocus()
+        focus.resolve(content)
+        val first = focus.handle(ViewKey.Text("item"))
+        focus.resolve(MenuContent([other, item]))
+        assertTrue(first === focus.handle(ViewKey.Text("item")))
+        assertEquals(Some(1L), focus.indexOfKey(ViewKey.Text("item")))
+    }
+    @Test
+    fun `selection closes only after an accepted value or a completed action`() {
+        val actions = state(0)
+        val checked = state(false)
+        val calls = state(0)
+        val item = MenuItemSpec(ViewKey.Number(1L), "Checkbox")
+        assertFalse(
+            activateMenu(
+                MenuEntry.Checkbox(
+                    item,
+                    checked.binding(),
+                    onCheckedChange = { _ -> calls.value += 1 }
+                )
+            )
+        )
+        assertTrue(checked.value)
+        assertEquals(1, calls.value)
+        assertFalse(
+            activateMenu(MenuEntry.Checkbox(item, binding({ checked.value }, { _ -> }), true))
+        )
+        assertTrue(activateMenu(MenuEntry.Checkbox(item, checked.binding(), true)))
+        assertFalse(checked.value)
+        assertTrue(activateMenu(MenuEntry.Action(item, { actions.value += 1 })))
+        assertEquals(1, actions.value)
+        assertFalse(
+            activateMenu(
+                MenuEntry.Action(
+                    MenuItemSpec(ViewKey.Number(2L), "Disabled", false),
+                    { actions.value += 1 }
+                )
+            )
+        )
+        assertEquals(1, actions.value)
+        assertFailsWith<IllegalStateException> {
+            activateMenu(
+                MenuEntry.Action(item, { throw IllegalStateException(Some("action failed")) })
+            )
+        }
+    }
+    @Test
+    fun `typed radio entries preserve rejected and transformed domain values`() {
+        val selected = state(1)
+        val reported = state(0)
+        val content =
+            menu {
+                radioItem(
+                    ViewKey.Number(1L),
+                    "Two",
+                    2,
+                    selected.binding(),
+                    { value -> reported.value = value }
+                )
+                radioItem(
+                    ViewKey.Number(2L),
+                    "Three",
+                    3,
+                    binding({ selected.value }, { _ -> selected.value = 4 }),
+                    { value -> reported.value = value }
+                ) { closeOnSelect = Some(true) }
+            }
+        assertFalse(activateMenu(content.entries[0L]))
+        assertEquals(2, selected.value)
+        assertEquals(2, reported.value)
+        assertTrue(menuChecked(content.entries[0L]))
+        assertFalse(activateMenu(content.entries[1L]))
+        assertEquals(4, selected.value)
+        assertEquals(4, reported.value)
+        assertFalse(menuChecked(content.entries[1L]))
+    }
+    @Test
+    fun `menu DSL snapshots do not read application bindings and reject invalid popup options`() {
+        val reads = state(0)
+        val value =
+            binding(
+                {
+                    reads.value += 1;
+                    false
+                },
+                { _ -> }
+            )
+        val content =
+            menu {
+                label(ViewKey.Number(0L), "Actions")
+                item(ViewKey.Number(1L), "Open", {}) {
+                    shortcut =
+                        Some(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("o")),
+                                ShortcutModifiers(primary = true)
+                            )
+                        )
+                }
+                checkboxItem(ViewKey.Number(2L), "Checked", value)
+                separator(ViewKey.Number(3L))
+                submenu(ViewKey.Number(4L), "More", MenuContent([]))
+            }
+        val captured = ArrayList<DropdownMenuBuilder>()
+        column {
+            dropdownMenu(value, content) {
+                captured.add(this);
+                trigger("Menu")
+            }
+            contextMenu(empty(), content) { open = Some(value) }
+            menubar(state<ViewKey?>(None).binding()) { menu(ViewKey.Text("file"), "File", content) }
+        }
+        val snapshot = captured[0L].snapshot(value, content)
+        captured[0L].width = 400.0
+        assertEquals(192.0, snapshot.options.width)
+        assertEquals(0, reads.value)
+        assertFailsWith<IllegalArgumentException> { DropdownMenuProps(value, content) }
+        assertFailsWith<IllegalArgumentException> { MenuOptions(width = Double.NaN) }
+        assertFailsWith<IllegalArgumentException> {
+            ContextMenuProps(
+                empty(),
+                content,
+                options = MenuOptions(mode = OverlayMode.Modal),
+                dismiss = Some(OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue))
+            )
+        }
+    }
+    @Test
+    fun `menu matching and themed row overrides follow the published rules`() {
+        assertTrue(menuPrefix("ÉCLAIR", "écl"))
+        assertTrue(menuPrefix("Straße", "STRASS"))
+        assertFalse(menuPrefix("Open settings", "settings"))
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val normal = menuRowStyle(buttonStyle(), theme, false, false)
+            val active = menuRowStyle(buttonStyle(), theme, false, true)
+            assertEquals(Some(Size(0.0, 28.0)), normal.surface.suggestedSize)
+            assertEquals(Some(Insets(6.0, 4.0, 6.0, 4.0)), active.surface.padding)
+            val trigger = menubarTriggerStyle(buttonStyle(), theme, true)
+            assertEquals(Some(Size(0.0, 24.0)), trigger.surface.suggestedSize)
+            assertEquals(Some(Insets(6.0, 2.0, 6.0, 2.0)), trigger.surface.padding)
+            assertEquals(
+                theme.tokens.palette.accent.background,
+                active.surface.style.background.resolve(None)!!.color
+            )
+            val custom =
+                menuRowStyle(
+                    buttonStyle {
+                        surface { style { background(Some(Paint(Color(1.0, 0.0, 0.0)))) } }
+                    },
+                    theme,
+                    true,
+                    true
+                )
+            assertEquals(
+                Color(1.0, 0.0, 0.0),
+                custom.surface.style.background.resolve(None)!!.color
+            )
+        }
+    }
+}

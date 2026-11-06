@@ -4,7 +4,6 @@ import os
 import shutil
 from pathlib import Path
 
-from build_llvm import TOOLS
 from target_catalog import llvm_mingw_resource_triple, native_configuration
 
 
@@ -69,19 +68,13 @@ def mingw_resource_filter(selected):
     return ignore
 
 
-def install(root, targets, args):
-    private = root / "libexec/llvm"
-    (private / "bin").mkdir(parents=True)
-    for name in TOOLS:
-        shutil.copy2(args.llvm_prefix / "bin" / (name + ".exe"), private / "bin")
-    shutil.copytree(args.llvm_prefix / "lib/clang", private / "lib/clang")
-    for target in targets:
-        prefix = mingw_prefix(args, target)
-        if prefix is None:
-            continue
-        selected = llvm_mingw_resource_triple(native_configuration(target)["arch"])
-        shutil.copytree(
-            prefix,
-            root / "lib" / target / "toolchain",
-            ignore=mingw_resource_filter(selected),
-        )
+def install_toolchain(root, target, args):
+    prefix = mingw_prefix(args, target)
+    if prefix is None:
+        return
+    selected = llvm_mingw_resource_triple(native_configuration(target)["arch"])
+    shutil.copytree(
+        prefix,
+        root / "lib" / target / "toolchain",
+        ignore=mingw_resource_filter(selected),
+    )

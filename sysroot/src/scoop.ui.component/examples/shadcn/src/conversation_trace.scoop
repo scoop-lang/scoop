@@ -1,0 +1,133 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as conversationColumn
+import scoop.ui.component.input as conversationInput
+import scoop.ui.component.typography as conversationText
+
+internal fun conversationMarkerExamples(model: ConversationExamplesModel): View =
+    conversationColumn {
+        this.marker("Conversation started · Today at 10:24")
+        this.marker("New messages") { this.variant = MarkerVariant.Separator }
+        this.marker("These notes are visible to everyone in the conversation.") {
+            this.variant = MarkerVariant.Border
+        }
+        this.marker(
+            if (model.status.value == TraceStatus.Running)
+                "Preparing the next part of the answer…"
+            else
+                "All caught up"
+        ) {
+            this.loading = model.status.value == TraceStatus.Running
+            this.enabled = model.enabled.value
+        }
+        this.marker("Show earlier messages") {
+            this.onClick =
+                if (model.actions.value)
+                    Some({ model.clicks.value += 1 })
+                else
+                    None
+            this.enabled = model.enabled.value
+        }
+        this.spacing = 20.0;
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun conversationTraceExamples(model: ConversationExamplesModel): View =
+    conversationColumn {
+        this.wrap {
+            this.button(
+                if (model.traceControlled.value)
+                    "Use default expansion"
+                else
+                    "Control expansion",
+                { model.traceControlled.value = !model.traceControlled.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button("External toggle", { model.opened.value = !model.opened.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.reject.value)
+                    "Accept changes"
+                else
+                    "Reject changes",
+                { model.reject.value = !model.reject.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0;
+            this.lineSpacing = 8.0
+        }
+        this.traceLine("Read project notes") {
+            this.description("0.2 s");
+            this.enabled = model.enabled.value
+        }
+        this.traceLine("Waiting for the next tool") {
+            this.status = TraceStatus.Pending;
+            this.enabled = model.enabled.value
+        }
+        this.traceLine("Could not read the remote source") {
+            this.status = TraceStatus.Error
+            this.description("Retry")
+            this.onClick =
+                if (model.actions.value)
+                    Some({ model.start() })
+                else
+                    None
+            this.enabled = model.enabled.value
+        }
+        this.trace(
+            "Review the decision and its supporting context",
+            conversationColumn {
+                this.typography(model.body.value, TypographyRole.Muted)
+                this.trace(
+                    "Inspect the detail",
+                    conversationColumn {
+                        this.input(model.note)
+                        this.typography(
+                            "Edit this note, collapse the step, and reopen it.",
+                            TypographyRole.Muted
+                        )
+                        this.spacing = 8.0
+                    }
+                ) {
+                    this.status = TraceStatus.Complete;
+                    this.enabled = model.enabled.value
+                }
+                this.spacing = 12.0
+            }
+        ) {
+            this.status = model.status.value
+            this.description("6 sources")
+            this.enabled = model.enabled.value
+            this.open =
+                if (model.traceControlled.value)
+                    Some(model.open)
+                else
+                    None
+            this.onOpenChange = { _ -> model.clicks.value += 1 }
+        }
+        this.traceLine("Open source details in a dialog") {
+            this.onClick = Some({ model.dialog.value = true });
+            this.enabled = model.enabled.value
+        }
+        this.traceLine("Edit the note in a side sheet") {
+            this.onClick = Some({ model.sheet.value = true });
+            this.enabled = model.enabled.value
+        }
+        this.dialog(
+            model.dialog.binding(),
+            conversationText(
+                "The source is ordinary application content. Closing returns to the same trace."
+            )
+        ) {
+            this.title("Source details")
+            this.description("Project notes · 10:24")
+        }
+        this.sheet(model.sheet.binding(), conversationInput(model.sheetNote)) {
+            this.title("Trace note")
+            this.description("The same draft remains available when this sheet closes.")
+        }
+        this.spacing = 18.0;
+        this.alignment = CrossAlignment.Stretch
+    }

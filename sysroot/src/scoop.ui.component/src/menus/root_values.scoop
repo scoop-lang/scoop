@@ -1,0 +1,110 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+public class DropdownMenuProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: MenuContent,
+    public val options: MenuOptions = MenuOptions(),
+    public val trigger: PopupTriggerSpec? = None,
+    public val anchor: LayoutAnchor? = None,
+    public val side: OverlaySide = OverlaySide.Bottom,
+    public val alignment: OverlayAlignment = OverlayAlignment.Start,
+    public val gap: Double = 4.0,
+    public val viewportPadding: Double = 8.0,
+    public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
+    public val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val handle: OverlayHandle? = None,
+    public val dismiss: OverlayDismiss? = None,
+    public val group: GroupPosition? = None,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {}
+) {
+    init {
+        requireComponent(
+            panelPresent(trigger) || panelPresent(anchor),
+            "menu needs a trigger or anchor"
+        )
+        nonnegative(gap, "invalid menu gap")
+        nonnegative(viewportPadding, "invalid menu viewport padding")
+        validateMenuDismiss(options, dismiss)
+    }
+}
+
+public class ContextMenuProps public constructor(
+    public val content: View,
+    public val menu: MenuContent,
+    public val open: Binding<Boolean>? = None,
+    public val options: MenuOptions = MenuOptions(),
+    public val viewportPadding: Double = 8.0,
+    public val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val handle: OverlayHandle? = None,
+    public val dismiss: OverlayDismiss? = None,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {}
+) {
+    init {
+        nonnegative(viewportPadding, "invalid menu viewport padding")
+        validateMenuDismiss(options, dismiss)
+    }
+}
+
+private fun validateMenuDismiss(options: MenuOptions, dismiss: OverlayDismiss?) {
+    requireComponent(
+        options.mode !=
+            OverlayMode.Modal ||
+            dismiss?.outsidePress !=
+            Some(OutsidePress.CloseAndContinue),
+        "modal outside presses cannot continue to the background"
+    )
+}
+
+internal enum MenuRootTrigger {
+    Button(PopupTriggerSpec, GroupPosition?), Anchor(LayoutAnchor), Context(View)
+}
+
+internal class MenuRootInput(
+    val open: Binding<Boolean>?,
+    val menu: MenuContent,
+    val options: MenuOptions,
+    val trigger: MenuRootTrigger,
+    val anchor: LayoutAnchor? = None,
+    val side: OverlaySide = OverlaySide.Bottom,
+    val alignment: OverlayAlignment = OverlayAlignment.Start,
+    val gap: Double = 4.0,
+    val viewportPadding: Double = 8.0,
+    val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
+    val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    val handle: OverlayHandle? = None,
+    val dismiss: OverlayDismiss? = None,
+    val onOpenChange: (Boolean) -> Unit = {},
+    val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    val onClosed: (OverlayCloseReason) -> Unit = {},
+    val horizontal: ((Boolean) -> Unit)? = None,
+    val hovered: () -> Unit = {}
+)
+
+internal fun dropdownInput(value: DropdownMenuProps): MenuRootInput =
+    MenuRootInput(
+        Some(value.open),
+        value.content,
+        value.options,
+        when (value.trigger) {
+            case Some(trigger) -> MenuRootTrigger.Button(trigger, value.group)
+            case None -> MenuRootTrigger.Anchor(value.anchor!!)
+        },
+        value.anchor,
+        value.side,
+        value.alignment,
+        value.gap,
+        value.viewportPadding,
+        value.anchorVisibility,
+        value.focus,
+        value.handle,
+        value.dismiss,
+        value.onOpenChange,
+        value.onCloseRequest,
+        value.onClosed
+    )

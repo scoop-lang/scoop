@@ -1,0 +1,240 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as sidebarColumn
+
+public class SidebarMenu public constructor(
+    private val props: Props<SidebarMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        return panelFrame(
+            sidebarColumn {
+                for (item in input.items)
+                    add(
+                        component(
+                            SidebarItemInput(input, item),
+                            { current, mount -> SidebarMenuItem(current, scope = mount) },
+                            item.key
+                        )
+                    )
+                spacing = 0.0;
+                alignment = CrossAlignment.Stretch
+            },
+            visual = input.style
+        )
+    }
+}
+
+internal class SidebarItemInput(val menu: SidebarMenuProps, val item: SidebarMenuItemProps)
+
+internal class SidebarRowSpace {
+    var highlighted = false
+}
+
+internal class SidebarRowInput(
+    val input: SidebarItemInput,
+    val density: Double,
+    val space: SidebarRowSpace
+)
+
+private class SidebarMenuItem(
+    private val props: Props<SidebarItemInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val space = SidebarRowSpace()
+    public override fun onMount() {
+        themes.mount(props.value.menu.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val menu = input.menu;
+        val item = input.item
+        val theme = themes.read(menu.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val direction = scope.layoutDirection.textDirection()
+        val row = SidebarRowInput(input, density, space)
+        val button =
+            makeResolvedButton(
+                {
+                    appearance ->
+                    val text =
+                        appearance.text.copy {
+                            color =
+                                if (
+                                    item.active ||
+                                        appearance.interaction.hovered ||
+                                        appearance.interaction.pressed
+                                )
+                                    theme.tokens.palette.sidebar.accent.foreground
+                                else
+                                    theme.tokens.palette.sidebar.background.foreground
+                        }
+                    val resolved =
+                        ActionContentStyle(
+                            text,
+                            16.0 * density,
+                            8.0 * density,
+                            appearance.interaction,
+                            appearance.underline
+                        )
+                    val label =
+                        item.content ?:
+                            component(
+                                LabelProps(
+                                    LabelText.Plain(item.label, None),
+                                    menu.fonts,
+                                    Some(
+                                        paragraphStyle {
+                                            this.direction = direction;
+                                            maxLines = Some(1L);
+                                            ellipsis = "…"
+                                        }
+                                    ),
+                                    baseStyle = Some(text)
+                                ),
+                                { current, mount -> Label(current, scope = mount) }
+                            )
+                    element(
+                        row,
+                        { current, mount -> SidebarCaption(current, scope = mount) },
+                        [
+                            sidebarAdornment(item.icon, resolved),
+                            label,
+                            sidebarGate(
+                                sidebarAdornment(item.badge, resolved),
+                                menu.enabled,
+                                !menu.collapsed && panelPresent(item.badge)
+                            )
+                        ]
+                    )
+                },
+                item.onClick
+            ) {
+                enabled = menu.enabled && item.enabled;
+                focus = item.focus;
+                this.theme = menu.theme
+                variant = ButtonVariant.Ghost
+                style = sidebarMenuStyle(theme, item, menu.collapsed)
+            }
+        val main =
+            tooltip(button, item.label) {
+                enabled = menu.collapsed && menu.enabled && item.enabled
+                side = OverlaySide.End;
+                this.fonts = menu.fonts;
+                this.theme = menu.theme
+            }
+        val submenu =
+            when (item.submenu) {
+                case Some(value) -> {
+                    val content = sidebarSubmenu(value) { this.theme = menu.theme }
+                    when (item.submenuOpen) {
+                        case Some(open) -> collapsible(open, content) {
+                            retention = ContentRetention.KeepMounted;
+                            spacing = 0.0;
+                            this.theme = menu.theme
+                        }
+                        case None -> content
+                    }
+                }
+                case None -> empty()
+            }
+        return element(
+            row,
+            { current, mount -> SidebarRow(current, scope = mount) },
+            [
+                main,
+                sidebarGate(
+                    element(
+                        row,
+                        { current, mount -> SidebarActionVisibility(current, scope = mount) },
+                        [item.action ?: empty()]
+                    ),
+                    menu.enabled && item.enabled && !menu.collapsed,
+                    !menu.collapsed && panelPresent(item.action)
+                ),
+                sidebarGate(
+                    submenu,
+                    menu.enabled && !menu.collapsed,
+                    !menu.collapsed && panelPresent(item.submenu)
+                )
+            ]
+        )
+    }
+}
+
+internal fun sidebarMenuStyle(
+    theme: Theme,
+    input: SidebarMenuItemProps,
+    collapsed: Boolean
+): ButtonStyle {
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val colors = theme.tokens.palette.sidebar
+    val local = input.style
+    val hover = styleOverride { background(Some(Paint(colors.accent.background))) }
+    return local.copy {
+        surface {
+            if (suggestedSize == None)
+                suggestedSize = Some(Size(0.0, sidebarRowHeight(input.size, collapsed) * d))
+            if (minimumSize == None)
+                minimumSize = Some(Size(0.0, 0.0))
+            if (padding == None)
+                padding = Some(Insets(8.0 * d, 0.0, 8.0 * d, 0.0))
+            if (focus == None)
+                focus = Some(OutlineStyle(colors.ring.withAlpha(0.5), 2.0 * d, 0.0))
+            style =
+                styleOverride {
+                    border(
+                        if (input.variant == SidebarMenuVariant.Outline)
+                            Some(Border.all(d, colors.border))
+                        else
+                            None
+                    )
+                    background(
+                        if (input.active)
+                            Some(Paint(colors.accent.background))
+                        else
+                            if (input.variant == SidebarMenuVariant.Outline)
+                                Some(Paint(theme.tokens.palette.background.background))
+                            else
+                                None
+                    )
+                    corners(Corners.all(6.0 * d));
+                    boxShadows([])
+                }.then(local.surface.style)
+        }
+        text =
+            Some(
+                (local.text ?: spanStyle()).copy {
+                    if (fontSize == None)
+                        fontSize =
+                            Some(
+                                (
+                                    if (input.size == SidebarMenuSize.Sm && !collapsed)
+                                        12.0
+                                    else
+                                        14.0
+                                ) *
+                                    d
+                            )
+                    if (weight == None)
+                        weight =
+                            Some(
+                                if (input.active)
+                                    500
+                                else
+                                    400
+                            )
+                }
+            )
+        states {
+            hovered = hover.then(local.surface.style).then(local.states.hovered)
+            pressed = hover.then(local.surface.style).then(local.states.pressed)
+        }
+    }
+}

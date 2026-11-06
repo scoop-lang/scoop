@@ -1,0 +1,182 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class SelectionScene(private val probe: SelectionProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        if (probe.gone)
+            return element(
+                generation,
+                { current, mount -> SelectionLayout(probe, current, scope = mount) }
+            )
+        val index =
+            if (probe.alternate)
+                1L
+            else
+                0L
+        val checked =
+            binding(
+                { probe.checks[index].value },
+                {
+                    next ->
+                    probe.checkWrites += 1
+                    if (!probe.reject)
+                        probe.checks[index].value = next
+                }
+            )
+        val switched =
+            binding(
+                { probe.switches[index].value },
+                {
+                    next ->
+                    probe.switchWrites += 1
+                    if (!probe.reject)
+                        probe.switches[index].value = next
+                }
+            )
+        val toggled =
+            binding(
+                { probe.toggles[index].value },
+                {
+                    next ->
+                    probe.toggleWrites += 1
+                    if (!probe.reject)
+                        probe.toggles[index].value = next
+                }
+            )
+        val children =
+            [
+                component(
+                    CheckboxProps(
+                        checked,
+                        enabled = probe.enabled,
+                        focus = FocusOptions(Some(probe.currentFocus(0L))),
+                        labelTarget = Some(probe.targets[0L])
+                    ),
+                    {
+                        current, mount ->
+                        probe.checkMounts += 1;
+                        Checkbox(current, scope = mount)
+                    }
+                ),
+                checkbox(probe.bool.binding()),
+                component(
+                    SwitchProps(
+                        switched,
+                        enabled = probe.enabled,
+                        focus = FocusOptions(Some(probe.currentFocus(1L))),
+                        labelTarget = Some(probe.targets[index + 1L])
+                    ),
+                    {
+                        current, mount ->
+                        probe.switchMounts += 1;
+                        Switch(current, scope = mount)
+                    }
+                ),
+                fieldLabel("Original switch", probe.targets[1L]) {
+                    this.fonts = Some(this @SelectionScene.probe.fonts)
+                },
+                fieldLabel("Current switch", probe.targets[2L]) {
+                    this.fonts = Some(this @SelectionScene.probe.fonts)
+                },
+                component(
+                    ToggleProps(
+                        ButtonContent.Label(
+                            LabelProps(LabelText.Plain("Bold", None), Some(probe.fonts))
+                        ),
+                        toggled,
+                        enabled = probe.enabled,
+                        focus = FocusOptions(Some(probe.currentFocus(2L)))
+                    ),
+                    {
+                        current, mount ->
+                        probe.toggleMounts += 1;
+                        Toggle(current, scope = mount)
+                    }
+                ),
+                toggle(
+                    button("Child", { probe.childWrites += 1 }) {
+                        this.fonts = Some(this @SelectionScene.probe.fonts)
+                    },
+                    probe.nested.binding()
+                ) { this.variant = ToggleVariant.Outline },
+                fieldLabel("Select all", probe.targets[0L]) {
+                    this.fonts = Some(this @SelectionScene.probe.fonts)
+                },
+                switchControl(switched) { this.size = SwitchSize.Sm },
+                switchControl(switched),
+                switchControl(switched),
+                toggle(empty(), toggled) { this.size = ToggleSize.Sm },
+                toggle(empty(), toggled) { this.size = ToggleSize.Lg }
+            ]
+        return direction(
+            element(
+                generation,
+                { current, mount -> SelectionLayout(probe, current, scope = mount) },
+                children
+            ),
+            probe.direction
+        )
+    }
+}
+
+private class SelectionLayout(
+    private val probe: SelectionProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val points =
+            [
+                Point(40.0, 40.0),
+                Point(40.0, 90.0),
+                Point(40.0, 145.0),
+                Point(100.0, 145.0),
+                Point(100.0, 175.0),
+                Point(40.0, 205.0),
+                Point(40.0, 265.0),
+                Point(100.0, 45.0)
+            ]
+        for (index in 0L ..< context.childCount) {
+            val childConstraints =
+                when (index) {
+                    case 9L -> Constraints.tight(Size(10.0, 8.0))
+                    case 10L -> Constraints.tight(Size(0.0, 0.0))
+                    else -> Constraints()
+                }
+            val metrics = context.measureChild(index, childConstraints)
+            when (index) {
+                case 0L -> assertEquals(Size(24.0, 24.0), metrics.size)
+                case 2L -> assertEquals(Size(32.0, 18.4), metrics.size)
+                case 5L -> assertEquals(32.0, metrics.size.height)
+                case 8L -> assertEquals(Size(24.0, 14.0), metrics.size)
+                case 9L -> assertEquals(Size(10.0, 8.0), metrics.size)
+                case 10L -> assertEquals(Size(0.0, 0.0), metrics.size)
+                case 11L -> assertEquals(Size(28.0, 28.0), metrics.size)
+                case 12L -> assertEquals(Size(36.0, 36.0), metrics.size)
+                else -> {}
+            }
+            if (index < points.size)
+                context.placeChild(index, points[index])
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(700.0, 500.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val current = generation.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                probe.rendered = current
+        }
+    }
+}

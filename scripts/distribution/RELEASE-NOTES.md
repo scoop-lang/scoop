@@ -1,14 +1,14 @@
 # 安装包布局与编辑器扩展
 
-安装包不再包含 `.slib` 和生成的 API 文档。内置库源码、vendor 输入、预构建 native 库／头文件、runtime、编译器及配套工具随包提供。解压后运行 `post-install.sh`（macOS／Linux）或 `post-install.ps1`（Windows），直接调用随包编译器为本机默认目标构建 release 系统库，再生成离线 API 文档。其他目标用 `--target` 或 `--all-targets` 显式准备；普通编译继续直接复用准备好的库。LLDB 及其匹配的 Python 继续随包提供。
+发行形态改为组件包：同一 release 提供每宿主的 `scoop-<version>-bin-<host>.tar.xz`（五个命令、commands、post-install、tooling、发行说明）与 `scoop-<version>-llvm-<host>.tar.xz`（含开发文件的完整 LLVM prefix、LLDB 与随包 Python、`scoop-` 前缀启动器），全局一份的 `scoop-<version>-sources.tar.xz`（内置库源码、vendor 输入、公开头文件、示例主题），以及每目标的 `scoop-<version>-lib-<target>.tar.xz`（预编译系统 `.slib`、native 库、四种 runtime 配置）。各归档以安装根内容为顶层，并集解压到 `~/.scoop` 即为完整安装；同一 release 的包按相同版本号成组安装，bin 包的运行依赖 llvm 包。系统库改为发布侧预编译 `.slib` 随 lib 包交付，post-install 仅为已安装目标生成离线 API 文档；追加目标只需再解压对应的 lib 包并重跑 post-install。普通编译继续直接复用安装好的库。LLDB 及其匹配的 Python 继续随 llvm 包提供。
 
-版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 宿主包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成下载、解压、post-install 和 shell PATH 配置。
+版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
 
 Windows 工具包的主驱动安装为 `sco.exe`，例如 `sco build`、`sco run`、`sco pm` 和 `sco example`，避免与 Windows Scoop 包管理器重名。其他 Scoop 可执行程序保留原名，外部命令仍为 `scoop-<command>.exe`。macOS／Linux 的主驱动继续使用 `scoop`，交叉编译目标不影响宿主命令名称。
 
 Windows 包包含 Microsoft UCRT、LLVM-MinGW MSVCRT 和 LLVM-MinGW UCRT 三套独立目标资源。`Cone.toml` 的 `[windows]` 支持 `subsystem = "console" | "gui"`（默认 console）和可选的 `rc` 资源脚本。Windows 调试使用相邻 PDB；随包 LLDB 在 PE 同时包含 CRT DWARF 时优先使用匹配 PDB。当前 runtime ABI 为 30，编译器、runtime 与预编译系统库须配套更新。数学库保留所选系统库的行为，平台差异见库文档。
 
-完整构建入口为 `scripts/package_toolchain.py`。工具包现以安装根内容为归档顶层，可直接解压到 `~/.scoop`，不再包含额外版本目录。安装根新增 `VERSION`，记录发行版本、源码 revision 与宿主平台；`tooling/` 包含同次构建的 VS Code 扩展 VSIX。Darwin 包交付 Darwin/AArch64 资源，Linux 包交付 GNU／musl 两套资源；系统库默认从 `lib/<target-triple>/*.slib` 读取，空缓存及 debug 应用不会触发系统库重编。
+完整构建入口为 `scripts/package_toolchain.py`。各组件归档以安装根内容为归档顶层，可直接解压到 `~/.scoop`，不再包含额外版本目录。安装根新增 `VERSION`，记录发行版本、源码 revision 与宿主平台；`tooling/` 包含同次构建的 VS Code 扩展 VSIX。Darwin 包交付 Darwin/AArch64 资源，Linux 包交付 GNU／musl 两套资源；系统库默认从 `lib/<target-triple>/*.slib` 读取，空缓存及 debug 应用不会触发系统库重编。
 
 VS Code 扩展接入 `scoop-lsp`，提供诊断、补全、签名、导航、符号、引用、重命名与快速修复。默认启动 `~/.scoop/bin/scoop-lsp`；Tree-sitter 继续提供高亮、折叠和缩进。
 
@@ -24,7 +24,7 @@ VS Code 扩展接入 `scoop-lsp`，提供诊断、补全、签名、导航、符
 
 新增纯 Scoop 的 `scoop.http.server`，提供显式路由、请求 Context、middleware、结果执行及 H1／H2／TLS 接入。公开便利能力包括 SSE、multipart 上传、query DTO 与静态 extractor、协商响应压缩、有限请求解压、条件文件／单 Range 响应，以及 HTTP/1.1 WebSocket／WSS 和 permessage-deflate。请求与会话沿结构化任务完成取消、排空及资源清理；WebSocket 在 HTTP 管线清理后启动独立会话。服务端 mTLS／动态 SNI、HTTP/3 和 H2 WebSocket 不在本次范围。
 
-该 Cone 由现有准备、打包与文档流程自动发现，源码随包提供，目标 `.slib` 在 post-install 中生成。入口和公开 API consumer 见 `src/scoop.http.server/README.md`；本次跨平台验证范围见仓库内的 `docs/http-server/PROGRESS.md`。
+该 Cone 由现有准备、打包与文档流程自动发现，源码随 sources 包提供，目标 `.slib` 随对应 lib 包预编译交付。入口和公开 API consumer 见 `src/scoop.http.server/README.md`；本次跨平台验证范围见仓库内的 `docs/http-server/PROGRESS.md`。
 
 ## M60 API 文档与内置库文档交付
 

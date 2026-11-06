@@ -29,7 +29,7 @@ internal fun makeFlex(configure: FlexBuilder.() -> Unit): View {
     builder.configure()
     return component(
         FlexProps(builder.axis, builder.snapshot()),
-        { props -> Flex(props) },
+        { props, mount -> Flex(props, scope = mount) },
         builder.key
     )
 }

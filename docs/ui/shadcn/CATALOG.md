@@ -1,6 +1,6 @@
 # shadcn 64 项控件覆盖表
 
-日期：2026-11-04。状态：设计，未实施。范围与架构见 [DESIGN.md](DESIGN.md)，公共使用合同见 [API.md](API.md)，复杂模型见 [MODELS.md](MODELS.md)。
+目录日期：2026-11-04；完成日期：2026-11-06。状态：**64／64 已交付**，四个应用组合已通过 macOS aarch64 与 x86_64 Rosetta 验证；逐批范围见 [实施记录](PROGRESS.md)。范围与架构见 [DESIGN.md](DESIGN.md)，公共使用合同见 [API.md](API.md)，复杂模型见 [MODELS.md](MODELS.md)。
 
 逐行对应当日官方 Components 目录，以下 64 项均为交付要求。Code Block、Native Select 是仅有的目录排除项。官方示例中的独立业务服务和第三方引擎不自动扩大为库依赖；对应 UI 和调用方接入必须实际可用。表中的组成部件是需要可组合的结构，不要求为无行为的每一层 Web `div` 另造一个持久 Component。
 
@@ -68,7 +68,7 @@
 | [Alert Dialog](https://ui.shadcn.com/docs/components/alert-dialog) | `alertDialog(open, content)`；action／cancel／media | 响应式尺寸、媒体、破坏性确认；默认聚焦取消，外部点击不关闭，Escape 走取消；提交中保持打开由应用决定 | P4 |
 | [Sheet](https://ui.shadcn.com/docs/components/sheet) | `sheet(open, content)`；header／footer／close | Top／Bottom／Start／End 侧边面板、不同宽高、滚动、模态与退出；RTL 下逻辑侧正确，区别于有拖动／snap 的 Drawer | P4 |
 | [Drawer](https://ui.shadcn.com/docs/components/drawer) | `drawer(open, content)`；swipeHandle／viewport／popup | 四方向拖动、垂直 snap points、嵌套、受控 snap、Modal／NonModal／FocusContained；滚动内容与拖动接管、取消回弹、窗口缩放重新定位 | P6 |
-| [Dropdown Menu](https://ui.shadcn.com/docs/components/dropdown-menu) | `dropdownMenu`；trigger／item／checkboxItem／radioGroup／sub／label／separator／shortcut | 动作、disabled、destructive、勾选／单选、子菜单；typeahead、roving 焦点、关闭策略、层间键盘与悬浮通路 | P5 |
+| [Dropdown Menu](https://ui.shadcn.com/docs/components/dropdown-menu) | `dropdownMenu`；trigger／item／checkboxItem／radioItem／submenu／label／separator／shortcut | 动作、disabled、destructive、勾选／单选、子菜单；typeahead、roving 焦点、关闭策略、层间键盘与悬浮通路 | P5 |
 | [Context Menu](https://ui.shadcn.com/docs/components/context-menu) | `contextMenu(content, menu)` | 共享菜单模型，以右键坐标或键盘菜单键／Shift+F10 打开；无可用几何不猜坐标；右键不触发内容主动作 | P5 |
 | [Menubar](https://ui.shadcn.com/docs/components/menubar) | `menubar`；menu／trigger／content | 多个共享菜单根、横向切换、纵向菜单、子菜单、checkbox／radio／快捷键；一次 Escape 关闭正确层，随后焦点回到正确入口 | P5 |
 | [Toast](https://ui.shadcn.com/docs/components/toast) | `toaster(state)`；ToastState.show／update／dismiss；title／description／action | Default／Success／Info／Warning／Error／Loading、六位置、堆叠／排队、动作／滑动关闭、定时暂停及异步状态更新；每窗口显式宿主，无全局总线 | P6 |
@@ -80,10 +80,10 @@
 | [Select](https://ui.shadcn.com/docs/components/select) | `select(value, choices)`；trigger／value／content／group／item／indicator／scrollButton | 自绘单选、placeholder、分组、disabled／invalid、长列表、typeahead；默认选中项对齐 trigger，可切普通 popup 定位；开关与选择各有独立状态 | P5 |
 | [Combobox](https://ui.shadcn.com/docs/components/combobox) | `combobox(value, choices, query)`；input／trigger／clear／list／item／chips | 单／多选、过滤、自定义项、分组、autoHighlight、清空、chips、popup 内输入、InputGroup；查询与选择分开，焦点留输入，IME preedit 不触发筛选或选项提交 | P5 |
 | [Command](https://ui.shadcn.com/docs/components/command) | `command(source, query)`；input／list／group／item／empty／shortcut；Dialog 组合 | 命令搜索、分组、disabled、active item、空结果与快捷键标签；支持调用方排序／过滤；不充当应用全局命令注册中心 | P5 |
-| [Calendar](https://ui.shadcn.com/docs/components/calendar) | `calendar(selection)`；header／monthGrid／day／weekNumber | Single／Multiple／Range、单／多月、翻月／年与下拉、禁用日期、周起点／周号／locale、键盘日期导航、范围预览；默认 LocalDate 公历，其他历法使用明确的月页数据接入 | P7 |
+| [Calendar](https://ui.shadcn.com/docs/components/calendar) | `calendar(selection, initialPage)`；header／monthGrid／day／weekNumber | Single／Multiple／Range、单／多月、翻月／年与下拉、禁用日期、周起点／周号／locale、键盘日期导航、范围预览；默认 LocalDate 公历，其他历法使用明确的月页数据接入 | P7 |
 | [Date Picker](https://ui.shadcn.com/docs/components/date-picker) | `datePicker`、`dateRangePicker`，复用 Popover／Calendar／Input | 日期／范围、生日、preset、可编辑日期、时间输入与自然语言输入组合；文本草稿、解析失败、提交／取消明确，外部解析器不能在 render 中运行 | P7 |
 | [Table](https://ui.shadcn.com/docs/components/table) | `table`；caption／header／body／footer／row／head／cell | 同一份列轨道、对齐、横向溢出、footer／actions、RTL；数据表仅负责呈现，不隐式排序和虚拟化 | P7 |
-| [Data Table](https://ui.shadcn.com/docs/components/data-table) | `dataTable(source, columns, state)`，复用 Table 布局／VirtualList | 本地及外部结果模式、稳定排序／筛选／分页／列可见性／行选择、行操作与空结果、共用列宽、虚拟正文；不用 Any 值包或通用插件框架 | P7 |
+| [Data Table](https://ui.shadcn.com/docs/components/data-table) | `dataTable(state)`，显式 DataTableState／TableSource／TableColumn，复用 Table 布局／VirtualList | 本地及外部结果模式、稳定排序／筛选／分页／列可见性／行选择、行操作与空结果、共用列宽、虚拟正文；不用 Any 值包或通用插件框架 | P7 |
 | [Chart](https://ui.shadcn.com/docs/components/chart) | `chart(model)`；container／axis／grid／series／tooltip／legend | Area、Bar、Line、Pie／Donut、Radar、Radial 六类；实际数据、轴／刻度／图例／tooltip、堆叠及规定的组合；明暗／缩放／空值处理，交付真实绘图而非图片 | P7 |
 
 ## 6. 会话与问卷：7 项

@@ -17,11 +17,17 @@ internal class ListGeometry(
     private val orientation: Orientation,
     private val overscan: Double,
     private val viewport: Size,
-    direction: LayoutDirection = LayoutDirection.Ltr
+    direction: LayoutDirection = LayoutDirection.Ltr,
+    endPadding: Double = 0.0
 ) {
+    var padding = endPadding
     private val vertical = orientation == Orientation.Vertical
     val reversed = !vertical && direction == LayoutDirection.Rtl
-    val total: Double get() = index.total
+    val total: Double get() {
+        val value = index.total + padding
+        requireComponent(value.isFinite(), "virtual content extent overflow")
+        return value
+    }
     private val visible =
         if (vertical)
             viewport.height
@@ -29,6 +35,7 @@ internal class ListGeometry(
             viewport.width
     init {
         nonnegative(overscan, "invalid virtual overscan")
+        nonnegative(endPadding, "invalid virtual end padding")
     }
     val content: Size get() =
         if (vertical)
@@ -73,6 +80,10 @@ internal class ListGeometry(
         else
             Point(position, 0.0)
     val maximum: Double get() = lowerBound(total - visible, 0.0)
+    fun fillViewportFrom(offset: Double) {
+        nonnegative(offset, "invalid virtual fill offset")
+        padding = lowerBound(offset + visible - index.total, 0.0)
+    }
     fun logicalOffset(offset: Point): Double {
         val physical = scrollbarAxis(orientation, offset)
         return if (reversed)
@@ -94,7 +105,16 @@ internal class ListGeometry(
             else
                 index.prefix(item)
         )
-    fun alignedOffset(snapshot: ScrollSnapshot, item: Long, alignment: ScrollAlignment): Point {
+    fun alignedOffset(
+        snapshot: ScrollSnapshot,
+        item: Long,
+        alignment: ScrollAlignment,
+        margin: Double = 0.0,
+        previousPeek: Double = 0.0
+    ): Point {
+        if (alignment == ScrollAlignment.Start) {
+            return scrollOffset(upperBound(startOffset(item, margin, previousPeek), maximum))
+        }
         val physical =
             if (reversed)
                 when (alignment) {
@@ -104,8 +124,14 @@ internal class ListGeometry(
                 }
             else
                 alignment
+        val target = bounds(item)
+        val expanded =
+            if (vertical)
+                Rect(target.x, target.y - margin, target.width, target.height + 2.0 * margin)
+            else
+                Rect(target.x - margin, target.y, target.width + 2.0 * margin, target.height)
         return snapshot.revealedOffset(
-            bounds(item),
+            expanded,
             if (vertical)
                 ScrollAlignment.Nearest
             else
@@ -115,6 +141,14 @@ internal class ListGeometry(
             else
                 ScrollAlignment.Nearest
         )
+    }
+    fun startOffset(item: Long, margin: Double, previousPeek: Double): Double {
+        val peek =
+            if (item > 0L)
+                upperBound(previousPeek, index.extent(item - 1L))
+            else
+                0.0
+        return lowerBound(index.prefix(item) - margin - peek, 0.0)
     }
     fun bounds(item: Long): Rect {
         val origin = origin(item)

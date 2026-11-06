@@ -1,0 +1,193 @@
+package scoop.tests.ui.mountfonts
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.ActiveApplication
+
+internal enum FontRead {
+    Supplied, Update, Measure
+}
+
+internal class FontInput(val index: Long, val reading: FontRead, val fonts: FontCollection? = None)
+
+internal class FontRoot(
+    private val p: FontProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
+    private val resource = scope.resource { MountResource(p, scope.defaultFonts) }
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area)
+    init {
+        scope.routeChildren(area);
+        p.scope = Some(scope)
+    }
+    public override fun render(): View {
+        assertFalse(resource.closed)
+        assertFalse(area.isClosed)
+        assertTrue(focus.handle.isAttached)
+        p.rootRenders += 1
+        val children = ArrayList<View>()
+        children.add(component({ scope -> RenderFonts(p, scope) }))
+        children.add(
+            element(FontInput(1L, FontRead.Update), { props, scope -> FontBlock(props, p, scope) })
+        )
+        children.add(
+            element(FontInput(2L, FontRead.Measure), { props, scope -> FontBlock(props, p, scope) })
+        )
+        children.add(
+            element(
+                FontInput(3L, FontRead.Supplied, Some(p.external)),
+                { props, scope -> FontBlock(props, p, scope) }
+            )
+        )
+        children.add(lazyElement(FontItems(p), { scope -> LazyFonts(p, scope) }))
+        for (index in 0 ..< 64) {
+            children.add(component({ scope -> ReadyComponent(p, scope) }))
+            children.add(element({ scope -> ReadyElement(p, scope) }))
+            children.add(lazyElement(NoItems(), { scope -> ReadyLazy(p, scope) }))
+        }
+        return element({ scope -> FontFrame(p, active, scope) }, children.toArray())
+    }
+}
+
+private class FontFrame(
+    private val p: FontProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            val size =
+                if (index < 5L)
+                    Size(220.0, 30.0)
+                else
+                    Size(0.0, 0.0)
+            context.measureChild(index, Constraints.tight(size))
+            context.placeChild(
+                index,
+                Point(
+                    0.0,
+                    if (index < 5L)
+                        index.toDouble() * 30.0
+                    else
+                        0.0
+                )
+            )
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 150.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.accepted(active)
+        }
+    }
+}
+
+private class RenderFonts(private val p: FontProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        p.fontRenders += 1
+        return element(
+            FontInput(0L, FontRead.Supplied, Some(scope.defaultFonts)),
+            { props, scope -> FontBlock(props, p, scope) }
+        )
+    }
+}
+
+private class FontBlock(
+    private val props: Props<FontInput>,
+    private val p: FontProbe,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
+    private val paragraph = scope.resource { ParagraphHost() }
+    private val content = fontContent()
+    private var fonts = props.value.fonts ?: scope.defaultFonts
+    public override fun update(): UiInvalidation {
+        when (props.value.reading) {
+            case Supplied -> fonts = props.value.fonts!!
+            case Update -> fonts = scope.defaultFonts
+            case Measure -> {}
+        }
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val current =
+            if (props.value.reading == FontRead.Measure)
+                scope.defaultFonts
+            else
+                fonts
+        val measured = paragraph.measure(context, constraints, current, content)
+        p.measured[props.value.index] += 1
+        p.seen[props.value.index] = Some(current)
+        p.layouts.add(measured)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
+        paragraph.scene(context, layout)
+    }
+}
+
+private class LazyFonts(private val p: FontProbe, scope: ComponentScope): LazyElement<Unit>(scope) {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        val fonts = scope.defaultFonts
+        val measured = context.measureItem(0L, constraints)
+        context.placeItem(0L, Point(0.0, 0.0))
+        p.measured[4L] += 1
+        p.seen[4L] = Some(fonts)
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+    }
+}
+
+private class FontItems(private val p: FontProbe): ItemSource {
+    public override val count: Long get() = 1L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(0L)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        if (key == ViewKey.Number(0L))
+            Some(0L)
+        else
+            None
+    public override fun build(index: Long): View = element({ scope -> LazyText(p, scope) })
+}
+
+private class LazyText(private val p: FontProbe, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val paragraph = scope.resource { ParagraphHost() }
+    private val content = fontContent()
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured = paragraph.measure(context, constraints, scope.defaultFonts, content)
+        p.layouts.add(measured)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, layout: ParagraphMeasurement) {
+        paragraph.scene(context, layout)
+    }
+}
+
+private fun fontContent(): StyledText =
+    styledText {
+        style =
+            textStyle {
+                families = ["Mount Fonts"];
+                fontSize = 14.0
+            }
+        text("Root font collection")
+    }

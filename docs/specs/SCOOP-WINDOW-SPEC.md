@@ -42,6 +42,12 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Linux 通过第 12 节的原生 selection 协议接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
 
+### 2.3 窗口活动状态观察
+
+`Window.activity` 返回自有 `WindowActivity(focused, visible, occluded)` 快照；`observeActivity(callback)` 返回 Closeable 登记，创建时记录当前快照，不内联调用 callback。窗口 owner 线程在原生 Focused／Occluded／GeometryChanged 事件派发前、setVisible 实际操作后比较当前快照，仅值变化时同步通知。回调可以读取状态、取消自身登记或关闭窗口；取消后不再接收当前批次余下通知，后注册的观察者不加入正在派发的批次。回调异常遵守所在普通业务调用的失败处理。
+
+观察不增加窗口 lease、线程、定时器或 redraw。close 幂等；窗口进入 Closing 时撤销全部登记并释放回调，不再读取已销毁窗口。此入口服务需要准确暂停剩余时间的 UI 通知，不能用焦点控件或绘制是否发生来推测窗口活动状态。
+
 ## 3. 事件模型
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。

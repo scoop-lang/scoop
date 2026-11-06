@@ -1,0 +1,173 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum PaginationItem {
+    Page(Long), Ellipsis
+}
+
+public class PaginationProps public constructor(
+    public val page: Binding<Long>,
+    public val pageCount: Long,
+    public val siblings: Long = 1L,
+    public val boundaries: Long = 1L,
+    public val items: Array<PaginationItem>? = None,
+    public val enabled: Boolean = true,
+    public val showPrevious: Boolean = true,
+    public val showNext: Boolean = true,
+    public val compact: Boolean = false,
+    public val previousText: String = "Previous",
+    public val nextText: String = "Next",
+    public val pageLabel: (Long) -> String = { value -> f"${value}" },
+    public val pageContent: ((Long, ActionContentStyle) -> View)? = None,
+    public val ellipsis: View? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val buttonStyle: ButtonStyle = buttonStyle(),
+    public val style: StyleOverride = styleOverride(),
+    public val previousFocus: FocusOptions = FocusOptions(),
+    public val nextFocus: FocusOptions = FocusOptions(),
+    public val pageFocus: (Long) -> FocusOptions = { _ -> FocusOptions() },
+    public val onValueChange: (Long) -> Unit = {}
+) {
+    init {
+        validatePagination(pageCount, siblings, boundaries)
+        when (items) {
+            case Some(entries) -> for (index in 0L ..< entries.size) {
+                when (entries[index]) {
+                    case Page(number) -> {
+                        requireComponent(
+                            number > 0L && number <= pageCount,
+                            "pagination item is outside the page range"
+                        )
+                        for (previous in 0L ..< index)
+                            requireComponent(
+                                entries[previous] != entries[index],
+                                "duplicate pagination page"
+                            )
+                    }
+                    case Ellipsis -> {}
+                }
+            }
+            case None -> {}
+        }
+    }
+}
+
+internal fun validatePagination(count: Long, siblings: Long, boundaries: Long) {
+    requireComponent(
+        count >= 0L && siblings >= 0L && boundaries >= 0L,
+        "pagination counts must be nonnegative"
+    )
+}
+
+public fun paginationItems(
+    page: Long,
+    pageCount: Long,
+    siblings: Long = 1L,
+    boundaries: Long = 1L
+): Array<PaginationItem> {
+    validatePagination(pageCount, siblings, boundaries)
+    if (pageCount == 0L)
+        return []
+    val anchor =
+        if (page < 1L)
+            1L
+        else
+            if (page > pageCount)
+                pageCount
+            else
+                page
+    val edge =
+        if (boundaries > pageCount)
+            pageCount
+        else
+            boundaries
+    val start =
+        if (siblings >= anchor - 1L)
+            1L
+        else
+            anchor - siblings
+    val end =
+        if (siblings >= pageCount - anchor)
+            pageCount
+        else
+            anchor + siblings
+    val result = ArrayList<PaginationItem>()
+    var last = 0L
+    if (edge > 0L)
+        last = appendPaginationRange(result, 1L, edge, last)
+    last = appendPaginationRange(result, start, end, last)
+    if (edge > 0L)
+        last = appendPaginationRange(result, pageCount - edge + 1L, pageCount, last)
+    val tail = pageCount - last
+    if (tail == 1L)
+        result.add(PaginationItem.Page(pageCount))
+    else
+        if (tail > 1L)
+            result.add(PaginationItem.Ellipsis)
+    return result.toArray()
+}
+
+private fun appendPaginationRange(
+    result: ArrayList<PaginationItem>,
+    start: Long,
+    end: Long,
+    previous: Long
+): Long {
+    if (end <= previous)
+        return previous
+    var next =
+        if (start <= previous)
+            previous + 1L
+        else
+            start
+    val gap = next - previous - 1L
+    if (gap == 1L)
+        result.add(PaginationItem.Page(previous + 1L))
+    else
+        if (gap > 1L)
+            result.add(PaginationItem.Ellipsis)
+    while (true) {
+        result.add(PaginationItem.Page(next))
+        if (next == end)
+            return end
+        next += 1L
+    }
+}
+
+internal fun paginationNeighbor(page: Long, count: Long, forward: Boolean): Long? {
+    if (count == 0L)
+        return None
+    if (forward)
+        return if (page >= count)
+            None
+        else
+            Some(
+                if (page < 1L)
+                    1L
+                else
+                    page + 1L
+            )
+    return if (page <= 1L)
+        None
+    else
+        Some(
+            if (page > count)
+                count
+            else
+                page - 1L
+        )
+}
+
+internal fun selectPage(input: PaginationProps, desired: Long): Boolean {
+    if (!input.enabled || desired < 1L || desired > input.pageCount)
+        return false
+    val previous = input.page.value
+    if (previous == desired)
+        return false
+    input.page.value = desired
+    return input.page.value != previous
+}

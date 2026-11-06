@@ -1,0 +1,60 @@
+package scoop.ui.component
+
+import scoop.ui.text.*
+import scoop.window.Utf8Range
+
+internal fun otpPolicy(pattern: InputOtpPattern, length: Long): TextEditPolicy {
+    return when (pattern) {
+        case Custom(policy) -> policy.copy {
+            this.singleLine = true
+            val limit = this.maxLength ?: length
+            this.maxLength =
+                Some(
+                    if (limit < length)
+                        limit
+                    else
+                        length
+                )
+        }
+        else -> textEditPolicy {
+            this.singleLine = true
+            this.maxLength = Some(length)
+            paste { candidate -> otpPaste(candidate) }
+            accepts { text -> otpAccepts(text, pattern) }
+        }
+    }
+}
+
+private fun otpAccepts(text: String, pattern: InputOtpPattern): Boolean {
+    val letters =
+        when (pattern) {
+            case Alphanumeric -> true;
+            else -> false
+        }
+    for (character in text) {
+        val code = character.code
+        if (
+            !(code >= 48 && code <= 57) &&
+                !(letters && ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)))
+        )
+            return false
+    }
+    return true
+}
+
+private fun otpPaste(candidate: TextEditCandidate): TextEditDecision {
+    val changes = ArrayList<TextEditReplacement>()
+    var offset = 0L
+    for (character in candidate.after.text) {
+        val code = character.code
+        if (code == 45 || code == 32 || (code >= 9 && code <= 13)) {
+            for (range in candidate.insertedRanges)
+                if (offset >= range.start && offset < range.end) {
+                    changes.add(TextEditReplacement(Utf8Range(offset, offset + 1L), ""))
+                    break
+                }
+        }
+        offset += character.toString().byteLength
+    }
+    return TextEditDecision.Transform(changes.toArray())
+}

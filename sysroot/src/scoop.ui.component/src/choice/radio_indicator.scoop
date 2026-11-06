@@ -1,0 +1,110 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.Animatable
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class RadioIndicatorProps(
+    val theme: Theme,
+    val options: RadioOptions,
+    val visual: RadioVisual
+)
+
+internal class RadioIndicator(
+    private val props: Props<RadioIndicatorProps>,
+    scope: ComponentScope
+): Element<Rect>(scope) {
+    private var previousMetrics: RadioMetrics? = None
+    private var previousTheme: Theme? = None
+    private var motion: InteractionMotion? = None
+    private var selection: Animatable<Double>? = None
+    private var painters: ThemePainterCache? = None
+    public override fun onMount() {
+        painters = Some(scope.resource { ThemePainterCache() })
+        motion = Some(InteractionMotion(scope, props.value.visual.interaction))
+        selection =
+            Some(
+                scope.animation(
+                    if (props.value.visual.selected)
+                        1.0
+                    else
+                        0.0
+                )
+            )
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        val specs = input.theme.tokens.motion
+        motion!!.update(
+            input.visual.interaction,
+            specs.resolve(specs.hover),
+            specs.resolve(specs.press)
+        )
+        changeProgress(
+            selection!!,
+            if (input.visual.selected)
+                1.0
+            else
+                0.0,
+            if (input.visual.interaction.enabled)
+                specs.resolve(specs.selection)
+            else
+                None
+        )
+        painters!!.get(input.theme)
+        val metrics = input.theme.radioMetrics(input.options)
+        val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, input.theme)
+        previousMetrics = Some(metrics)
+        previousTheme = Some(input.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Rect
+    > {
+        val input = props.value
+        val metrics = input.theme.radioMetrics(input.options)
+        val size =
+            constraints.constrain(
+                Size(
+                    lowerBound(metrics.suggestedSize.width, metrics.minimumSize.width),
+                    lowerBound(metrics.suggestedSize.height, metrics.minimumSize.height)
+                )
+            )
+        val side = upperBound(size.width, size.height)
+        return LayoutResult(
+            LayoutMetrics(size),
+            Rect((size.width - side) / 2.0, (size.height - side) / 2.0, side, side)
+        )
+    }
+    public override fun scene(context: SceneContext, bounds: Rect) {
+        val input = props.value
+        val visual =
+            RadioVisual(
+                input.visual.selected,
+                motion!!.sample(input.visual.interaction),
+                Some(selection!!.value)
+            )
+        val resolved = input.theme.radioGeometry(bounds, visual, input.options)
+        // The item applies disabled opacity once to its indicator and arbitrary content together.
+        val geometry =
+            RadioGeometry(
+                resolved.bounds,
+                resolved.outer,
+                resolved.interior,
+                resolved.dot,
+                resolved.ring,
+                resolved.style,
+                resolved.dotColor,
+                resolved.selection,
+                1.0
+            )
+
+        context.draw {
+            paint -> painters!!.get(props.value.theme).drawRadio(paint.canvas, geometry, visual)
+        }
+    }
+}

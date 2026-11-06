@@ -106,9 +106,10 @@ internal class InputFrame(val owner: InputRouter): Closeable {
     }
 }
 
-internal fun InputRouter.path(scope: InputScope): Array<InputScope> {
+internal fun InputRouter.path(scope: InputScope, boundary: InputScope = inputRoot): Array<
+    InputScope
+> {
     val result = ArrayList<InputScope>()
-    val boundary = inputRoot
     var reached = false
     var next: InputScope? = Some(scope)
     while (true) {

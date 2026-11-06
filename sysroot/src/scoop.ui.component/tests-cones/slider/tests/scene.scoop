@@ -1,0 +1,193 @@
+package scoop.tests.ui.slider
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class SliderScene(private val probe: SliderProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val p = probe
+        val current = p.generation.value
+        val children = ArrayList<View>()
+        children.add(
+            button("Before", {}) {
+                this.fonts = Some(p.fonts);
+                focus { this.handle = Some(p.lead) }
+            }
+        )
+        if (!p.gone) {
+            val options =
+                Array<SliderThumbOptions>(p.values.value.size) {
+                    index -> SliderThumbOptions(
+                        FocusOptions(
+                            Some(
+                                if (index == 0L)
+                                    p.first()
+                                else
+                                    p.handles[index]
+                            )
+                        )
+                    )
+                }
+            val properties =
+                SliderProps(
+                    binding(
+                        { p.values.value },
+                        {
+                            next -> if (!p.reject)
+                                p.values.value = next
+                        }
+                    ),
+                    p.range,
+                    p.orientation,
+                    p.enabled,
+                    invalid = p.rtl,
+                    keyboardStep = Some(0.01),
+                    thumbs = options,
+                    labelTarget =
+                        Some(
+                            if (p.replaced)
+                                p.newTarget
+                            else
+                                p.target
+                        ),
+                    onValueCommit = { _ -> p.commits += 1 },
+                    onValueCancel =
+                        {
+                            _, reason ->
+                            p.cancels += 1;
+                            p.lastCancel = Some(reason)
+                        }
+                )
+            children.add(
+                component(
+                    properties,
+                    {
+                        current, mount ->
+                        p.mounts += 1;
+                        Slider(current, scope = mount)
+                    }
+                )
+            )
+            children.add(
+                fieldLabel(
+                    "Adjust the first value",
+                    if (p.replaced)
+                        p.newTarget
+                    else
+                        p.target
+                ) { this.fonts = Some(p.fonts) }
+            )
+            children.add(slider(p.values.binding(), p.range) { this.keyboardStep = Some(0.01) })
+        }
+        return direction(
+            element(
+                current,
+                { current, mount -> SliderTestLayout(p, current, scope = mount) },
+                children.toArray()
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class SliderTestLayout(
+    private val p: SliderProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Moved(point)) -> {
+                        p.lastX = point.state.logicalPosition.x;
+                        p.lastY = point.state.logicalPosition.y;
+                        p.moves += 1
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (p.preventRelease) {
+                            p.preventRelease = false;
+                            context.preventDefault()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            val size =
+                if (index == 1L) {
+                    if (p.zero)
+                        Size(0.0, 0.0)
+                    else
+                        if (p.orientation == Orientation.Horizontal)
+                            Size(
+                                if (p.narrow)
+                                    112.0
+                                else
+                                    212.0,
+                                12.0
+                            )
+                        else
+                            Size(12.0, 212.0)
+                } else
+                    Size(0.0, 0.0)
+            val limits =
+                if (index == 1L || index == 3L)
+                    Constraints.tight(size)
+                else
+                    Constraints()
+            val measured = context.measureChild(index, limits)
+            if (index == 1L || index == 3L)
+                assertEquals(size, measured.size)
+            context.placeChild(
+                index,
+                Point(
+                    20.0,
+                    if (index == 0L)
+                        20.0
+                    else
+                        if (index == 1L)
+                            70.0
+                        else
+                            320.0
+                )
+            )
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(500.0, 420.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val rejected = p.discard
+        if (rejected) {
+            p.discard = false;
+            p.native!!.requestSize(LogicalSize(520.0, 420.0))
+        }
+        val current = generation.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = current
+            else {
+                assertTrue(rejected);
+                p.discarded += 1;
+                scope.requestFrame()
+            }
+        }
+    }
+}

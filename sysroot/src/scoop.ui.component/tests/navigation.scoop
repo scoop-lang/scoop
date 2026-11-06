@@ -1,0 +1,219 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class NavigationTest {
+    @Test
+    fun `pagination ranges merge one page gaps and handle empty and extreme inputs`() {
+        assertPaginationRange([], paginationItems(1L, 0L))
+        assertPaginationRange([PaginationItem.Page(1L)], paginationItems(0L, 1L))
+        assertPaginationRange(
+            [
+                PaginationItem.Page(1L),
+                PaginationItem.Page(2L),
+                PaginationItem.Ellipsis,
+                PaginationItem.Page(10L)
+            ],
+            paginationItems(1L, 10L)
+        )
+        assertPaginationRange(
+            [
+                PaginationItem.Page(1L),
+                PaginationItem.Ellipsis,
+                PaginationItem.Page(4L),
+                PaginationItem.Page(5L),
+                PaginationItem.Page(6L),
+                PaginationItem.Ellipsis,
+                PaginationItem.Page(10L)
+            ],
+            paginationItems(5L, 10L)
+        )
+        assertPaginationRange(
+            Array<PaginationItem>(7L) { index -> PaginationItem.Page(index + 1L) },
+            paginationItems(4L, 7L)
+        )
+        assertPaginationRange(
+            [PaginationItem.Ellipsis, PaginationItem.Page(5L), PaginationItem.Ellipsis],
+            paginationItems(5L, 10L, 0L, 0L)
+        )
+        assertPaginationRange(
+            [
+                PaginationItem.Page(1L),
+                PaginationItem.Ellipsis,
+                PaginationItem.Page(Long.MAX_VALUE - 1L),
+                PaginationItem.Page(Long.MAX_VALUE)
+            ],
+            paginationItems(Long.MAX_VALUE, Long.MAX_VALUE)
+        )
+        assertPaginationRange(
+            [
+                PaginationItem.Page(1L),
+                PaginationItem.Page(2L),
+                PaginationItem.Ellipsis,
+                PaginationItem.Page(Long.MAX_VALUE)
+            ],
+            paginationItems(Long.MIN_VALUE, Long.MAX_VALUE)
+        )
+        assertPaginationRange(
+            [],
+            paginationItems(Long.MAX_VALUE, 0L, Long.MAX_VALUE, Long.MAX_VALUE)
+        )
+    }
+
+    @Test
+    fun `pagination only writes accepted valid changes and never normalizes external state`() {
+        val page = state(99L)
+        val input = PaginationProps(page.binding(), 10L)
+        assertEquals(99L, page.value)
+        assertEquals(Some(10L), paginationNeighbor(page.value, 10L, false))
+        assertEquals(None, paginationNeighbor(page.value, 10L, true))
+        assertEquals(Some(1L), paginationNeighbor(Long.MIN_VALUE, 10L, true))
+        assertEquals(None, paginationNeighbor(Long.MIN_VALUE, 10L, false))
+        assertEquals(None, paginationNeighbor(Long.MAX_VALUE, Long.MAX_VALUE, true))
+        assertEquals(None, paginationNeighbor(1L, 0L, false))
+        assertFalse(selectPage(input, 0L));
+        assertFalse(selectPage(input, 11L))
+        assertTrue(selectPage(input, 10L));
+        assertFalse(selectPage(input, 10L))
+        assertFalse(selectPage(PaginationProps(page.binding(), 10L, enabled = false), 9L))
+        assertFalse(selectPage(PaginationProps(binding({ page.value }, { _ -> }), 10L), 9L))
+        assertTrue(
+            selectPage(PaginationProps(binding({ page.value }, { _ -> page.value = -1L }), 10L), 9L)
+        )
+        assertEquals(-1L, page.value)
+    }
+
+    @Test
+    fun `navigation configuration validates metadata without evaluating user code`() {
+        val reads = state(0)
+        val binding =
+            binding<Long>(
+                {
+                    reads.value += 1;
+                    1L
+                },
+                { _ -> }
+            )
+        val builder = PaginationBuilder()
+        builder.pageLabel =
+            {
+                _ ->
+                reads.value += 1;
+                "page"
+            }
+        builder.pageFocus =
+            {
+                _ ->
+                reads.value += 1;
+                FocusOptions()
+            }
+        builder.item(1L);
+        builder.ellipsis();
+        builder.item(8L)
+        val first = builder.snapshot(binding, 8L)
+        builder.items = Some([])
+        assertEquals(3L, first.items!!.size)
+        assertEquals(0L, builder.snapshot(binding, 8L).items!!.size)
+        assertEquals(0, reads.value)
+        for ((count, siblings, boundaries) in [(-1L, 1L, 1L), (1L, -1L, 1L), (1L, 1L, -1L)])
+            assertFailsWith<IllegalArgumentException> {
+                paginationItems(1L, count, siblings, boundaries)
+            }
+        for (
+            items in [
+                [PaginationItem.Page(0L)],
+                [PaginationItem.Page(9L)],
+                [PaginationItem.Page(1L), PaginationItem.Page(1L)]
+            ]
+        )
+            assertFailsWith<IllegalArgumentException> {
+                PaginationProps(binding, 8L, items = Some(items))
+            }
+        assertFailsWith<IllegalArgumentException> {
+            BreadcrumbEntry(BreadcrumbContent.Ellipsis, maxWidth = Some(-1.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            BreadcrumbProps(spacing = Double.POSITIVE_INFINITY)
+        }
+        val crumbs = BreadcrumbBuilder()
+        crumbs.item("Home", { reads.value += 1 }) { this.key = ViewKey.Text("home") }
+        crumbs.current("Current")
+        val snapshot = crumbs.snapshot()
+        crumbs.ellipsis()
+        assertEquals(2L, snapshot.entries.size)
+        assertEquals(3L, crumbs.snapshot().entries.size)
+        assertEquals(0, reads.value)
+    }
+
+    @Test
+    fun `breadcrumb feedback keeps ordinary focus geometry and honors explicit styling`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val style = breadcrumbButtonStyle(theme, None)
+            val bounds = Rect(0.0, 0.0, 80.0, 20.0)
+            val normal = InteractionVisual()
+            val pressed = InteractionVisual(hovered = true, pressed = true)
+            val focus = InteractionVisual(focusVisible = true)
+            val idle =
+                theme.surfaceGeometry(
+                    bounds,
+                    SurfaceVisual(style.kind, normal),
+                    actionOptions(
+                        theme,
+                        ActionShape.Button(ButtonSize.Default),
+                        ButtonVariant.Ghost,
+                        style,
+                        normal
+                    )
+                )
+            val down =
+                theme.surfaceGeometry(
+                    bounds,
+                    SurfaceVisual(style.kind, pressed),
+                    actionOptions(
+                        theme,
+                        ActionShape.Button(ButtonSize.Default),
+                        ButtonVariant.Ghost,
+                        style,
+                        pressed
+                    )
+                )
+            val focused =
+                theme.surfaceGeometry(
+                    bounds,
+                    SurfaceVisual(style.kind, focus),
+                    actionOptions(
+                        theme,
+                        ActionShape.Button(ButtonSize.Default),
+                        ButtonVariant.Ghost,
+                        style,
+                        focus
+                    )
+                )
+            assertTrue(idle.style.background!!.color != down.style.background!!.color)
+            assertEquals(idle.content, focused.content);
+            assertTrue(focused.ring != None)
+            val custom =
+                breadcrumbButtonStyle(
+                    theme,
+                    Some(
+                        buttonStyle {
+                            this.surface = surfaceOptions { this.padding = Some(Insets.all(4.0)) }
+                        }
+                    )
+                )
+            assertEquals(Some(Insets.all(4.0)), custom.surface.padding)
+        }
+    }
+}
+
+private fun assertPaginationRange(expected: Array<PaginationItem>, actual: Array<PaginationItem>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertTrue(expected[index] == actual[index])
+}

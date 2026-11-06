@@ -1,0 +1,341 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as sidebarColumn
+
+public class SidebarGroupProps public constructor(
+    public val content: View,
+    public val label: PanelContent? = None,
+    public val action: View? = None,
+    public val collapsed: Boolean = false,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class SidebarGroupBuilder internal constructor() {
+    public var label: PanelContent? = None
+    public var action: View? = None
+    public var collapsed: Boolean = false
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun label(text: String) {
+        label =
+            Some(
+                PanelContent.Label(
+                    LabelProps(
+                        LabelText.Plain(text, None),
+                        settings =
+                            Some(
+                                paragraphStyle {
+                                    maxLines = Some(1L);
+                                    ellipsis = "…"
+                                }
+                            )
+                    )
+                )
+            )
+    }
+    public fun label(content: View) {
+        label = Some(PanelContent.Custom(content))
+    }
+    public fun action(content: View) {
+        action = Some(content)
+    }
+}
+
+public fun sidebarGroup(content: View, configure: SidebarGroupBuilder.() -> Unit = {}): View {
+    val b = SidebarGroupBuilder();
+    b.configure()
+    return component(
+        SidebarGroupProps(content, b.label, b.action, b.collapsed, b.fonts, b.theme, b.style),
+        { current, mount -> SidebarGroup(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarGroup public constructor(
+    private val props: Props<SidebarGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value;
+        val theme = themes.read(input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val label =
+            when (input.label) {
+                case Some(value) -> panelCaption(
+                    sidebarGroupDirection(value, scope.layoutDirection.textDirection()),
+                    theme.tokens.typography.body.copy {
+                        fontSize = 12.0 * d;
+                        weight = 500;
+                        color = theme.tokens.palette.sidebar.background.foreground.withAlpha(0.7)
+                    },
+                    input.fonts
+                )
+                case None -> empty()
+            }
+        val present = !input.collapsed && (panelPresent(input.label) || panelPresent(input.action))
+        return panelFrame(
+            sidebarColumn {
+                add(
+                    sidebarGate(
+                        element(
+                            d,
+                            { value, mount -> SidebarGroupHeading(value, scope = mount) },
+                            [label, input.action ?: empty()]
+                        ),
+                        present,
+                        present
+                    )
+                )
+                add(input.content);
+                spacing = 0.0;
+                alignment = CrossAlignment.Stretch
+            },
+            Insets.all(8.0 * d),
+            input.style
+        )
+    }
+}
+
+private fun sidebarGroupDirection(content: PanelContent, direction: TextDirection): PanelContent =
+    when (content) {
+        case Label(value) -> PanelContent.Label(
+            LabelProps(
+                value.text,
+                value.fonts,
+                Some((value.settings ?: paragraphStyle()).copy { this.direction = direction }),
+                value.inlines,
+                value.theme,
+                value.baseStyle,
+                value.underline
+            )
+        )
+        case Custom(_) -> content
+    }
+
+private class SidebarGroupHeading(
+    private val density: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val d = density.value
+        val action =
+            context.measureChild(
+                1L,
+                Constraints(maxWidth = Some(20.0 * d), maxHeight = Some(20.0 * d))
+            )
+        val gap =
+            if (action.size.width > 0.0)
+                8.0 * d
+            else
+                0.0
+        val maximum =
+            when (constraints.maxWidth) {
+                case Some(value) -> Some(max(0.0, value - action.size.width - gap));
+                case None -> None
+            }
+        val label =
+            context.measureChild(0L, Constraints(maxWidth = maximum, maxHeight = Some(32.0 * d)))
+        val size =
+            constraints.constrain(
+                Size(constraints.maxWidth ?: (label.size.width + gap + action.size.width), 32.0 * d)
+            )
+        context.placeChild(
+            0L,
+            Point(
+                logicalX(0.0, label.size.width, size.width, context.layoutDirection),
+                (size.height - label.size.height) / 2.0
+            )
+        )
+        context.placeChild(
+            1L,
+            Point(
+                logicalX(
+                    size.width - action.size.width,
+                    action.size.width,
+                    size.width,
+                    context.layoutDirection
+                ),
+                (size.height - action.size.height) / 2.0
+            )
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+public class SidebarSubmenuProps public constructor(
+    public val content: View,
+    public val collapsed: Boolean = false,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class SidebarSubmenuBuilder internal constructor() {
+    public var collapsed: Boolean = false
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun sidebarSubmenu(content: View, configure: SidebarSubmenuBuilder.() -> Unit = {}): View {
+    val b = SidebarSubmenuBuilder();
+    b.configure()
+    return component(
+        SidebarSubmenuProps(content, b.collapsed, b.theme, b.style),
+        { current, mount -> SidebarSubmenu(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarSubmenu public constructor(
+    private val props: Props<SidebarSubmenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value;
+        val theme = themes.read(input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        return sidebarGate(
+            panelFrame(
+                panelFrame(
+                    input.content,
+                    Insets(10.0 * d, 2.0 * d, 10.0 * d, 2.0 * d),
+                    styleOverride {
+                        border(
+                            Some(
+                                Border.Logical(
+                                    start = BorderEdge(d, theme.tokens.palette.sidebar.border)
+                                )
+                            )
+                        )
+                    }.then(input.style)
+                ),
+                Insets(14.0 * d, 0.0, 14.0 * d, 0.0)
+            ),
+            !input.collapsed,
+            !input.collapsed
+        )
+    }
+}
+
+public class SidebarBadgeProps public constructor(
+    public val text: String,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val color: Color? = None
+)
+
+public class SidebarBadgeBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var color: Color? = None
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun sidebarMenuBadge(text: String, configure: SidebarBadgeBuilder.() -> Unit = {}): View {
+    val b = SidebarBadgeBuilder();
+    b.configure()
+    return component(
+        SidebarBadgeProps(text, b.fonts, b.theme, b.style, b.color),
+        { current, mount -> SidebarBadge(current, scope = mount) },
+        b.key
+    )
+}
+
+public class SidebarBadge public constructor(
+    private val props: Props<SidebarBadgeProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value;
+        val theme = themes.read(input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val text =
+            theme.tokens.typography.body.copy {
+                fontSize = 12.0 * d;
+                weight = 500;
+                color = input.color ?: theme.tokens.palette.sidebar.background.foreground
+            }
+        return panelFrame(
+            element(
+                d,
+                { value, mount -> SidebarBadgeLayout(value, scope = mount) },
+                [
+                    component(
+                        LabelProps(
+                            LabelText.Plain(input.text, None),
+                            input.fonts,
+                            Some(
+                                paragraphStyle {
+                                    maxLines = Some(1L);
+                                    ellipsis = "…"
+                                }
+                            ),
+                            baseStyle = Some(text)
+                        ),
+                        { current, mount -> Label(current, scope = mount) }
+                    )
+                ]
+            ),
+            visual = input.style
+        )
+    }
+}
+
+private class SidebarBadgeLayout(
+    private val density: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val d = density.value
+        val natural = context.measureChild(0L, Constraints(maxHeight = Some(20.0 * d)))
+        val size =
+            constraints.constrain(Size(max(20.0 * d, natural.size.width + 8.0 * d), 20.0 * d))
+        val available = max(0.0, size.width - 8.0 * d)
+        val child =
+            if (natural.size.width > available)
+                context.measureChild(
+                    0L,
+                    Constraints(maxWidth = Some(available), maxHeight = Some(20.0 * d))
+                )
+            else
+                natural
+        context.placeChild(
+            0L,
+            Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

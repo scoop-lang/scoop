@@ -1,0 +1,37 @@
+package scoop.ui.text
+
+import scoop.graphics.text.TextLayout
+import scoop.ui.*
+
+/** Owns one immutable paragraph layout independently of later host measurements. */
+public class ParagraphMeasurement internal constructor(
+    public val metrics: LayoutMetrics,
+    private val retained: RetainedParagraphLayout,
+    internal val generation: Long
+): Closeable {
+    public val layout: TextLayout get() = retained.layout
+    internal fun retainLayout(): RetainedParagraphLayout = retained.retain()
+    public override fun close() {
+        retained.close()
+    }
+}
+
+/** Keeps the body, placeholder and scroll plan selected by a particular measurement. */
+public class TextEditMeasurement internal constructor(
+    public val metrics: LayoutMetrics,
+    internal val retained: RetainedEditorLayout,
+    internal val scroll: ScrollLayout,
+    internal val revision: Long,
+    public val display: TextDisplay,
+    internal val cells: TextEditCells?,
+    internal val hint: RetainedParagraphLayout?,
+    internal val hintGeneration: Long
+): Closeable {
+    public val layout: TextEditLayout get() = retained.layout
+    public val scrollSnapshot: ScrollSnapshot get() = scroll.snapshot
+    public override fun close() {
+        var failure = cleanupUi(None) { retained.close() }
+        failure = cleanupUi(failure) { hint?.close() }
+        throwUi(failure)
+    }
+}

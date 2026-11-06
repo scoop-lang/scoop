@@ -9,7 +9,10 @@ public class StyledProps public constructor(
 )
 
 /** The wrapper exists even for an empty style, preserving the content's mount position. */
-public class Styled public constructor(private val props: Props<StyledProps>): Component {
+public class Styled public constructor(
+    private val props: Props<StyledProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         element(props.value.style, ::StyledInk, [props.value.content])
 }
@@ -20,17 +23,21 @@ public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): View
     return component(StyledProps(content, builder.style), ::Styled, builder.key)
 }
 
-private class StyledInk(private val props: Props<Style>): Element {
+private class StyledInk(private val props: Props<Style>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         painter!!.scene(context, props.value) { content -> content.children() }
     }
 }

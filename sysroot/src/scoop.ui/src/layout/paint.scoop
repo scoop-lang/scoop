@@ -23,6 +23,7 @@ public class PaintContext internal constructor(
     }
     public val time: TimeMark get() {
         checkActive()
+        observeFrameTime()
         return sample
     }
     private fun checkActive() {

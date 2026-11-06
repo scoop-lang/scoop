@@ -1,0 +1,250 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.*
+
+internal struct ChartInterval(val value: Double, val base: Double, val end: Double)
+
+internal class ChartPreparedSeries(
+    val source: Long,
+    val mark: ChartMark,
+    val color: Color,
+    val samples: Array<ChartInterval?>
+)
+
+internal class ChartPrepared(
+    val x: Array<Double>,
+    val xRange: ChartRange,
+    val yRange: ChartRange,
+    val series: Array<ChartPreparedSeries>
+)
+
+internal fun chartMark(kind: ChartKind): ChartMark =
+    when (kind) {
+        case Area -> ChartMark.Area;
+        case Bar -> ChartMark.Bar;
+        case Line -> ChartMark.Line;
+        case Pie -> ChartMark.Area;
+        case Radar -> ChartMark.Area;
+        case Radial -> ChartMark.Bar
+    }
+
+internal fun chartIsCartesian(kind: ChartKind): Boolean =
+    when (kind) {
+        case Area -> true;
+        case Bar -> true;
+        case Line -> true;
+        else -> false
+    }
+
+internal fun chartPrepare(
+    input: ChartProps,
+    snapshot: ChartSnapshot,
+    appearance: ChartAppearance
+): ChartPrepared {
+    val data = snapshot.data
+    val count = data.datums.size
+    val cartesian = chartIsCartesian(input.kind)
+    val x =
+        Array<Double>(count) {
+            index -> if (!cartesian || input.xAxis.kind == ChartAxisKind.Category)
+                index.toDouble()
+            else
+                data.datums[index].x ?:
+                    throw IllegalArgumentException(
+                        Some("linear chart axis requires an x coordinate for every datum")
+                    )
+        }
+    var minX: Double? = None;
+    var maxX: Double? = None
+    for (value in x) {
+        minX = Some(upperBound(minX ?: value, value));
+        maxX = Some(lowerBound(maxX ?: value, value))
+    }
+    val positive = MutableArray<Double>(count) { _ -> 0.0 }
+    val negative = MutableArray<Double>(count) { _ -> 0.0 }
+    val totals = MutableArray<Double>(count) { _ -> 0.0 }
+    val negativeTotals = MutableArray<Double>(count) { _ -> 0.0 }
+    if (cartesian && input.stack == ChartStack.Normalized) {
+        for (index in snapshot.visible) {
+            val series = data.series[index]
+            if ((series.mark ?: chartMark(input.kind)) != ChartMark.Line)
+                for (at in 0L ..< count)
+                    when (series.values[at]) {
+                        case Some(value) -> if (value >= 0.0)
+                            totals[at] += value
+                        else
+                            negativeTotals[at] -= value
+                        case None -> {}
+                    }
+        }
+        for (at in 0L ..< count)
+            requireComponent(
+                totals[at].isFinite() && negativeTotals[at].isFinite(),
+                "normalized chart total must be finite"
+            )
+    }
+    val result = ArrayList<ChartPreparedSeries>()
+    var minY: Double? = None;
+    var maxY: Double? = None
+    var baseline = false
+    for (index in snapshot.visible) {
+        val series = data.series[index]
+        val mark =
+            if (cartesian)
+                series.mark ?: chartMark(input.kind)
+            else
+                chartMark(input.kind)
+        baseline = baseline || mark != ChartMark.Line
+        val values = ArrayList<ChartInterval?>()
+        for (at in 0L ..< count)
+            when (series.values[at]) {
+                case None -> values.add(None)
+                case Some(raw) -> {
+                    if (input.kind == ChartKind.Pie)
+                        requireComponent(raw >= 0.0, "pie values must be nonnegative")
+                    var value = raw
+                    var base = 0.0
+                    if (cartesian && mark != ChartMark.Line && input.stack != ChartStack.None) {
+                        if (input.stack == ChartStack.Normalized) {
+                            val total =
+                                if (value >= 0.0)
+                                    totals[at]
+                                else
+                                    negativeTotals[at]
+                            value =
+                                if (total == 0.0)
+                                    0.0
+                                else
+                                    value / total
+                        }
+                        if (value >= 0.0) {
+                            base = positive[at];
+                            positive[at] += value
+                        }
+                        else {
+                            base = negative[at];
+                            negative[at] += value
+                        }
+                    }
+                    val end = base + value
+                    requireComponent(end.isFinite(), "stacked chart total must be finite")
+                    values.add(Some(ChartInterval(raw, base, end)))
+                    minY =
+                        Some(
+                            upperBound(
+                                minY ?: end,
+                                if (mark == ChartMark.Line)
+                                    end
+                                else
+                                    upperBound(base, end)
+                            )
+                        )
+                    maxY =
+                        Some(
+                            lowerBound(
+                                maxY ?: end,
+                                if (mark == ChartMark.Line)
+                                    end
+                                else
+                                    lowerBound(base, end)
+                            )
+                        )
+                }
+            }
+        result.add(
+            ChartPreparedSeries(index, mark, appearance.color(snapshot, index), values.toArray())
+        )
+    }
+    return ChartPrepared(
+        x,
+        chartDomain(input.xAxis, minX, maxX),
+        chartDomain(input.yAxis, minY, maxY, baseline),
+        result.toArray()
+    )
+}
+
+internal class ChartPlan(
+    val input: ChartProps,
+    val snapshot: ChartSnapshot,
+    val appearance: ChartAppearance
+) {
+    val prepared = chartPrepare(input, snapshot, appearance)
+    val cache = ChartGeometryCache(this)
+}
+
+internal fun chartPlanMatches(
+    plan: ChartPlan,
+    input: ChartProps,
+    snapshot: ChartSnapshot,
+    theme: scoop.ui.style.Theme,
+    fonts: scoop.graphics.text.FontCollection,
+    direction: LayoutDirection
+): Boolean {
+    val old = plan.input
+    return plan.snapshot ===
+        snapshot &&
+        plan.appearance.theme ===
+        theme &&
+        plan.appearance.fonts ===
+        fonts &&
+        plan.appearance.direction ==
+        direction &&
+        old.kind ==
+        input.kind &&
+        old.orientation ==
+        input.orientation &&
+        old.curve ==
+        input.curve &&
+        old.stack ==
+        input.stack &&
+        old.connectMissing ==
+        input.connectMissing &&
+        chartSameAxis(old.xAxis, input.xAxis) &&
+        chartSameAxis(old.yAxis, input.yAxis) &&
+        old.pointRadius ==
+        input.pointRadius &&
+        old.barRadius ==
+        input.barRadius &&
+        old.barGap ==
+        input.barGap &&
+        old.labels ==
+        input.labels &&
+        old.startAngle ==
+        input.startAngle &&
+        old.endAngle ==
+        input.endAngle &&
+        old.innerRadius ==
+        input.innerRadius
+}
+
+private fun chartSameAxis(left: ChartAxis, right: ChartAxis): Boolean {
+    if (left === right)
+        return true
+    val formatter =
+        when (left.formatter) {
+            case Some(a) -> when (right.formatter) {
+                case Some(b) -> a === b;
+                case None -> false
+            };
+            case None -> when (right.formatter) {
+                case Some(_) -> false;
+                case None -> true
+            }
+        }
+    return left.kind ==
+        right.kind &&
+        left.domain ==
+        right.domain &&
+        left.includeZero ==
+        right.includeZero &&
+        left.nice ==
+        right.nice &&
+        left.tickCount ==
+        right.tickCount &&
+        left.shown ==
+        right.shown &&
+        left.grid ==
+        right.grid &&
+        formatter
+}

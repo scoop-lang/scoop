@@ -1,5 +1,7 @@
 # Scoop 自绘 UI 框架规范
 
+2026-11-06 整改：按 [UI 框架与组件库整改方案](../ui/REMEDIATION-PLAN.md)先整改现有实现，再继续扩展组件。第 11 节集中规定布局结果、失效及构造作用域的目标协议；P0 只完成合同与基线，尚未交付的目标不能作为当前 API 使用。各批完成时将合同并入对应现行章节并同步全部调用方，实际结果见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
+
 后续测量、方向、公共交互、portal 退出及文本策略的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述对应批次的现行合同。
 
 日期：2026-11-03。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
@@ -30,12 +32,12 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 | `scoop.surface` | SurfaceHost／SurfaceWindow、窗口呈现、帧机会、动画、InputArea 和区域焦点 |
 | `scoop.ui` | Component／Element／LazyElement、State／Props／Binding、挂载树、测量与绘制接入、输入／动画的挂载归属；text 子包提供公共段落适配 |
 | `scoop.ui.style` | 公共主题绘图／几何、视觉状态及语义参数；通用 Style、外框装饰与内容效果 |
-| `scoop.ui.style.macos／material／fluent` | 三套公共协议实现与各自 Light／Dark |
+| `scoop.ui.style.macos／material／fluent／shadcn` | 四套公共协议实现与各自 Light／Dark |
 | `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame、Absolute、ScrollArea、VirtualList、控件专用样式及交互外观 |
 
 表中是目标分层；字体与 Paragraph／TextLayout 已迁入 graphics.text，富文本／行内对象、独立自绘框架及公共适配 `scoop.ui.text` 已完成。适配直接依赖 graphics.text，只连接文本排版与正常子项，不提供 Label 或默认样式，也不改变 View 的基础形状。
 
-组件、状态及描述使用普通 class／interface／泛型／属性委托。首期不增加 `@Composable`、result builder、属性宏、关联类型、UI 专用 IR 或 runtime 入口。`scoop.ui` 的类型身份查询复用语言规范 9.6 的 `typeInfo<T>()`，不遍历组件字段，不按名称访问私有属性。
+组件、状态及描述使用普通 class／interface／泛型／属性委托。首期不增加 `@Composable`、result builder、属性宏、关联类型、UI 专用 IR 或 runtime 入口。`scoop.ui` 使用语言的普通泛型类型检查判断描述类型，不直接依赖反射描述，不遍历组件字段，不按名称访问私有属性。
 
 主题来源复用 State／Context，见[主题规范](SCOOP-UI-THEME-SPEC.md)。主题更新作为普通 Props 和布局输入进入原节点，不改变框架描述形状；局部主题通过显式参数传递，临时 Context 不成为挂载树环境。主题绘图不读取 State，也不注册输入。
 
@@ -46,10 +48,10 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 组件的公开协议为：
 
 ```kotlin
-public interface Component {
-    fun render(): View
-    fun onMount(scope: ComponentScope): Unit = Unit
-    fun onUnmount(): Unit = Unit
+public abstract class Component protected constructor(public val scope: ComponentScope) {
+    public abstract fun render(): View
+    public open fun onMount(): Unit = Unit
+    public open fun onUnmount(): Unit = Unit
 }
 ```
 
@@ -59,7 +61,7 @@ public interface Component {
 import scoop.ui.*
 import scoop.ui.component.button
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
 
     public override fun render(): View = button(f"Count: ${this @Counter.count}", { count += 1 })
@@ -74,25 +76,25 @@ fun main() {
 
 无状态组合可以写成普通的返回 View 的函数；这种调用不创建独立的挂载身份，其间的 State 读取归调用者当前的 render。需要独立本地状态和生命周期时使用 Component 及第 5 节的 component 入口。
 
-`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其形状包括空内容、Component、Element、LazyElement 和 Portal 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
+`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其类别包括空内容、Component、Element、LazyElement、Direction 和 Portal 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
 
 Component 负责组合描述。完全自绘及自定义子项布局通过普通公开接口 Element 实现，外部库不需要继承内部挂载节点或修改 View 的分支：
 
 ```kotlin
-public interface Element {
-    fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics
-    fun scene(context: SceneContext): Unit
-    fun onMount(scope: ComponentScope): Unit = Unit
-    fun update(): Unit = Unit
-    fun onUnmount(): Unit = Unit
+public abstract class Element<L> protected constructor(public val scope: ComponentScope) {
+    public abstract fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
+    public abstract fun scene(context: SceneContext, layout: L): Unit
+    public open fun onMount(): Unit = Unit
+    public open fun update(): UiInvalidation = UiInvalidation.Layout
+    public open fun onUnmount(): Unit = Unit
 }
 ```
 
-Element 同样采用持久 class。measure／scene 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及每次 Props 或子描述更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
+Element 同样采用持久 class。measure／scene 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及需要求值的输入更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。第 4.1 节的显式输入比较可跳过 update，但 children 仍独立协调并在结构变化时失效布局。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
 
 同一描述值可被使用多次；每个出现位置分别挂载，不能按描述对象引用相等而合并挂载。描述不可变指保存的属性槽及子序列不可修改，不承诺其所引用的业务模型深度不可变。子序列以不可变 Array<View> 保存，允许复用该数组，不因重建描述而强制复制。
 
-`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／scene／draw 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／scene／draw 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component、Element 与 LazyElement 的构造器只初始化托管状态和保存输入；资源取得放在挂载回调或元素所属的测量缓存中，归属见第 8 节。
+`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／scene／draw 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／scene／draw 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component、Element 与 LazyElement 的构造器接收当前 ComponentScope，可以取得并登记所属输入区域、控制器及显示资源。启动业务任务、请求聚焦或播放动画仍在 onMount 或 Accepted 回调执行，归属与失败清理见第 8 节。
 
 ## 3. State、变化通知与依赖
 
@@ -107,15 +109,17 @@ State 的持有者与 UI 订阅者分别确定。一个 State 可以在任何组
 一次 `render` 使用一个库内、同步的依赖收集作用域：
 
 1. State getter 将当前组件节点记入本次读取集合，同一 State 的重复读取只登记一次。
-2. 成功执行后，以本次集合替换该组件的旧订阅；不再读取的 State 不再使它失效。
+2. 成功执行后，仅解除不再读取的依赖并登记新依赖，保留交集中的原订阅关系。render 失败不发布半套关系，关闭时仍可解除旧订阅。
 3. setter 先保存新值，再将当前订阅者标记为 dirty；不在 setter 内递归调用 render。
 4. 组件卸载时解除所有订阅，并从待更新集合移除；共享 State 本身仍然可用。
 
 首期每次合法 setter 调用都发出变化通知，包括写回相同值。调度器合并同一轮更新，不为任意 T 引入隐式相等、深比较或接口约束。相等策略和专用集合增量通知以后由实际性能需求决定。
 
-同一同步业务操作中的多次写入分别立即生效，UI 工作在既有安全边界合并；这不提供跨挂起点的事务或状态快照。直接订阅粒度是实际读取的 State；父组件生成新的子描述时仍沿第 4 节更新子项，不承诺只执行直接订阅者的 render。
+同一同步业务操作中的多次写入分别立即生效，UI 工作在既有安全边界合并；这不提供跨挂起点的事务或状态快照。直接订阅粒度是实际读取的 State；父组件生成新的子描述时沿第 4 节替换输入，并按显式比较规则决定是否执行子项。State 写入始终通知，包括相等值或相同引用写回，不根据 Equals 自动抑制。
 
-普通 getter／函数调用中的间接 State 读取，同样归当前活动 render。render 之外的读取只是取值，不产生永久订阅。首期不自动建立 update／measure／scene／draw 阶段的独立依赖图；声明式自绘组件在 render 中读取 State，再通过 Element 的 Props 传入本次绘制数据。Element 自己在输入处理中修改的普通交互字段，通过 scope.requestFrame 显式请求呈现。Surface Animatable 的采样走第 7 节的帧通路，不需要先转换成 State。
+依赖收集与差量对比使用 StateSignal 的库内类型化序号，不使用对象地址或新增 runtime 身份。每条订阅保存可常数时间解除的登记；稳定关系不反复拆建。通知只访问当前实际观察者，解除后清除节点和来源引用。
+
+普通 getter／函数调用中的间接 State 读取，同样归当前活动 render。render 之外的读取只是取值，不产生永久订阅。除第 8.1 节明确的根字体读取和帧依赖外，不自动建立 update／measure／scene／draw 阶段的任意 State 依赖图；声明式自绘组件在 render 中读取 State，再通过 Element 的 Props 传入本次绘制数据。Element 自己在输入处理中修改的普通交互字段，通过 scope.requestFrame 显式请求呈现。Surface Animatable 的采样走第 7 节的帧通路，不需要先转换成 State。
 
 普通 class 字段不是可观察属性。对 `modelState.value.name` 赋值不会经过 `modelState.value` 的 setter；`name` 应有自己的可观察属性，或调用方显式赋回状态值。默认 setter 不按引用相等跳过通知。对普通可变集合的原地修改也遵循此规则。
 
@@ -134,7 +138,7 @@ Store 是应用定义的普通 class，按业务组织一组 State 或可观察�
 
 ### 3.3 Context 与挂载时绑定
 
-应用可用语言已有的 [Task-local Context](SCOOP-SPEC.md#83-task-local-context) 提供 Store，通过计算属性或普通辅助函数声明依赖。Component／Element 的协议和构造器语法不变；不在 override 上增加与接口不同的 Context requirement。以下示例同时使用共享与组件自有 State：
+应用可用语言已有的 [Task-local Context](SCOOP-SPEC.md#83-task-local-context) 提供 Store，通过计算属性或普通辅助函数声明依赖。Component／Element 使用普通基类构造并接收 ComponentScope；不在 override 上增加与基类不同的 Context requirement。以下示例同时使用共享与组件自有 State：
 
 ```kotlin
 import scoop.ui.*
@@ -148,7 +152,7 @@ context(store: AppStore)
 val currentAppStore: AppStore
 get() = store
 
-class SharedCounter: Component {
+class SharedCounter(scope: ComponentScope): Component(scope) {
     private var count: Int by currentAppStore.count
     private var localClicks: Int by state(0)
 
@@ -187,11 +191,11 @@ import scoop.ui.*
 import scoop.ui.component.label
 import scoop.ui.component.column
 
-class Greeting(private val props: Props<String>): Component {
+class Greeting(private val props: Props<String>, scope: ComponentScope): Component(scope) {
     public override fun render(): View = label(props.value)
 }
 
-class Screen: Component {
+class Screen(scope: ComponentScope): Component(scope) {
     private var name: String by state("Scoop")
 
     public override fun render(): View =
@@ -205,7 +209,11 @@ class Screen: Component {
 
 `Props<P>` 由组件节点持有，不允许子组件替换父级输入。它是当前输入的入口，不是自动保存旧版本的快照。需要异步操作使用启动时的参数时，应先复制需要的值到局部 `val`；要在调用时读取最新输入的回调，则在回调体内访问 `props.value`。
 
-父组件产生新的子描述时，框架更新 Props 并执行对应的 render 或 update；初期不根据 P 的相等或引用身份跳过。每个节点在同一逻辑更新轮中至多执行一次；与该轮处理同时登记的新失效留到下一轮。只读输入本身不产生第二套可观察模型。
+父组件产生新的子描述时，框架总是先替换当前 Props。描述可显式提供 `InputComparison<P>(equivalent: (P, P) -> Boolean)`；只有前后描述持有同一个比较规则实例，且它确认输入等价、节点自身没有待处理的 State 失效、方向没有变化时，才跳过对应 render／update。比较规则缺省为 None，任意用户输入保守更新；更换规则实例也重新求值。每个节点在同一逻辑更新轮中至多执行一次；与该轮处理同时登记的新失效留到下一轮。只读输入本身不产生第二套可观察模型。
+
+比较器是同步纯输入判定，不创建订阅，不得写 State 或产生业务副作用。它须覆盖 render／update 实际消费的输入；普通可变对象不能仅凭引用相同视为不变。可观察模型仍依靠实际 State 读取失效；也可比较显式不可变快照或变化版本，不进行自动深比较或反射遍历。
+
+Element 的 children 始终独立协调，LazyElement 的 source／retention 继续独立更新；相同 Unit 输入不能屏蔽子项增删或重排。Component 跳过 render 时保留原子描述，但不取消后代已排队的独立状态更新。当前 Props 在跳过时仍可供事件读取；比较器若忽略回调变化，实际派发必须通过稳定转发入口读取当前 Props，不能向后代继续复制旧闭包。Binding 更换通常要求重新 render 以切换读取依赖，不能仅凭当前绑定值相等跳过。
 
 ### 4.2 可写绑定
 
@@ -227,18 +235,21 @@ Checkbox 与 Button 联动时，组合组件在 render 中读取 checked 的 Sta
 
 ```text
 fun <C : Component> component(
-    create: () -> C, key: ViewKey = ViewKey.Position
+    create: (ComponentScope) -> C, key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<Unit>? = None
 ): View
 fun <P, C : Component> component(
-    props: P, create: (Props<P>) -> C, key: ViewKey = ViewKey.Position
+    props: P, create: (Props<P>, ComponentScope) -> C, key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
 ): View
-fun <E : Element> element(
-    create: () -> E, children: Array<View> = [],
-    key: ViewKey = ViewKey.Position
+fun <L, E : Element<L>> element(
+    create: (ComponentScope) -> E, children: Array<View> = [],
+    key: ViewKey = ViewKey.Position, comparison: InputComparison<Unit>? = None
 ): View
-fun <P, E : Element> element(
-    props: P, create: (Props<P>) -> E,
-    children: Array<View> = [], key: ViewKey = ViewKey.Position
+fun <P, L, E : Element<L>> element(
+    props: P, create: (Props<P>, ComponentScope) -> E,
+    children: Array<View> = [], key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
 ): View
 fun portal(
     open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}
@@ -247,30 +258,34 @@ fun portal(
 
 `ViewKey` 是包含 Position、Text(String)、Number(Long) 的值类型。Position 表示采用同一父级子序列中的位置；另外两个分支是显式 key。
 
-`component`／`element` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
+`component`／`element`／`lazyElement` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
 
-节点形状包含 Component／Element／LazyElement 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+三类工厂的最后一个可选参数均为 `comparison: InputComparison<P>? = None`，无 Props 重载使用 `InputComparison<Unit>?`。Lazy 工厂在 source、Props、create、retention、key 之后接收该参数；比较只决定其 update，source／retention 的变更继续独立决定已实现子项及布局。
+
+节点类型匹配同时区分 Component／Element／LazyElement 描述类别、具体实例静态类型 C／E 和输入类型 P，保留每个类型的完整泛型实参。内部描述通过普通泛型类型检查判断，例如 `other is ComponentDescription<P, C>`；ElementDescription 与 LazyDescription 同理。类型匹配仅返回判断结果，不能提前更新 Props、调用工厂或改变挂载状态。P 是描述类型的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+
+Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值和 Portal 的 OverlayMode 都是可更新配置，不属于类型身份。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
-C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒绝接口、object 或值类型作为具体实例类型，不要求新的编译器诊断。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责初次创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
+工厂的静态返回类型 C／E 须保留具体 class 类型及其完整泛型实参，这是 API 使用约定。库不通过运行时反射诊断接口、object 或值类型等违反此约定的调用，也不承诺此类调用会抛出特定参数错误。Component／Element／LazyElement 是公开抽象基类，子类把工厂收到的当前 scope 传给基类；不继承 MountedNode 等内部节点。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责新挂载的创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
-同一个 Component、Element 或 LazyElement 实例只能属于一个挂载位置。工厂必须为新挂载创建新实例，不能返回某个已挂载的单例。框架检查当前活动实例的重复挂载，不为已经退休的对象保留全局历史表；为新挂载返回新实例是 create 的使用合同。共享业务状态应通过普通模型／Props／Binding 表达。
+同一个 Component、Element 或 LazyElement 实例只服务一次挂载。基类在实际实例内保存私有挂载归属，工厂返回时验证它来自本次 scope 且未被使用；返回其他挂载的实例、重复实例或已卸载实例均报告状态错误。检查为常数时间，不维护全局活动实例表或历史表。可以重复使用 View 描述；共享业务状态通过普通模型／Props／Binding 表达。
 
 匹配规则如下：
 
 | 情况 | 结果 |
 | --- | --- |
-| 同一父级、同一显式 key、同一组件形状 | 复用原实例；允许在兄弟间移动 |
-| 没有显式 key、同一父级及位置、同一组件形状 | 复用原实例 |
-| 组件形状或显式 key 改变 | 卸载旧实例，挂载新实例 |
+| 同一父级、同一显式 key、同一描述类型 | 复用原实例；允许在兄弟间移动 |
+| 没有显式 key、同一父级及位置、同一描述类型 | 复用原实例 |
+| 描述类型或显式 key 改变 | 卸载旧实例，挂载新实例 |
 | 离开父级，或本轮描述中消失 | 卸载；之后出现时创建新实例 |
 | 仅尺寸、布局位置或绘制属性改变 | 保留实例与状态 |
 | 同一父级出现重复的显式 key | 报参数错误，不能任意复用其中一个 |
 
 key 的有效范围仅为直接父级，不是全局 ID；移动到另一父级不保留挂载。同一兄弟序列中显式 key 必须唯一，不因节点类型不同而允许重复。Position 以完整兄弟序列的索引计算；混用 keyed／unkeyed 节点时，插入前方兄弟仍会改变后者的位置。
 
-列表示例应以稳定业务 ID 构造 `ViewKey.Number(item.id)` 或 `ViewKey.Text(item.id)`。普通 `if`／循环没有隐式源码身份：两个分支在同一位置返回相同组件形状及 key 时保留状态；需要区分时显式使用不同 key。容器的插入、删除或替换可能改变父级身份，不能承诺跨该结构变化保留子状态。
+列表示例应以稳定业务 ID 构造 `ViewKey.Number(item.id)` 或 `ViewKey.Text(item.id)`。普通 `if`／循环没有隐式源码身份：两个分支在同一位置返回相同描述类型及 key 时保留状态；需要区分时显式使用不同 key。容器的插入、删除或替换可能改变父级身份，不能承诺跨该结构变化保留子状态。
 
 ## 6. 重建、布局与呈现
 
@@ -286,7 +301,7 @@ UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 新描述中的事件处理器随逻辑更新替换。尚未提交新的画面时，保留最近已提交的几何与节点身份，派发使用节点最新的处理器。新节点在首次成功放置前不能命中；已卸载节点立即退出交互，不能为了等下一帧而继续接收事件。这里承诺几何对应最近提交的帧，不承诺处理器保留旧帧捕获的输入值。
 
-普通元素在每次实际呈现中测量其直接子项，LazyElement 则按第 7.8 节只准备和测量所需项；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
+普通元素在布局失效或约束变化时测量其直接子项，或用 skipChild 明确保留但跳过本轮不呈现的子树；LazyElement 则按第 7.8 节只准备和测量所需项。有效的完整结果跨帧复用。动画读取在 measure／scene 边界登记用途，Surface 仍统一采样和请求帧；仅用于场景的动画不使布局失效。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
 
 所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。普通元素的子序列使用显式 `Array<View>`，按需元素使用 ItemSource；不把普通 lambda 的未使用表达式冒充 result builder。
 
@@ -315,7 +330,7 @@ UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈�
 
 ### 7.1 测量及子项布局
 
-`Constraints` 按轴保存有限非负最小值和可选的有限最大值，最大值存在时不得小于最小值。缺少最大值表达无界，不把 Infinity 传给 graphics 或 graphics.text。`constrain(size: Size): Size` 将一个有限非负期望尺寸收敛到约束。Element.measure 返回 LayoutMetrics，其 size 必须满足收到的约束：
+`Constraints` 按轴保存有限非负最小值和可选的有限最大值，最大值存在时不得小于最小值。缺少最大值表达无界，不把 Infinity 传给 graphics 或 graphics.text。`constrain(size: Size): Size` 将一个有限非负期望尺寸收敛到约束。Element<L>.measure 返回 LayoutResult<L>，其中 metrics.size 必须满足收到的约束：
 
 公开字段为 minWidth、maxWidth、minHeight、maxHeight，默认最小值为 0.0，最大值为 None；`Constraints.tight(size)` 同时固定两轴。与 graphics 的几何值一样，在测量或 constrain 操作边界检查值的合法性。
 
@@ -323,27 +338,46 @@ UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈�
 public struct LayoutMetrics(
     val size: Size,
     val alphabeticBaseline: Option<Double> = None,
-    val ideographicBaseline: Option<Double> = None
+    val ideographicBaseline: Option<Double> = None,
+    val overlayAnchor: Option<Rect> = None
 )
 ```
 
 基线是相对元素顶边的有限有符号偏移，文本采用首行基线；None 表示元素没有该基线。外框裁剪不要求基线落在其高度范围内。空内容采用约束下限尺寸和两项 None。Component 原样透传子描述的尺寸与基线；容器可以根据子项偏移给出自己的基线，未定义时返回 None，不隐式扫描后代。框架不扩展成通用 alignment-line 系统。
 
-MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics` 和 `placeChild(index, origin: Point)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项至少成功测量一次，尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
+`overlayAnchor` 是本次测量返回的弹层内容局部矩形，用于第 7.6.2 节 ContentAligned。坐标与端点须有限、宽高非负；可以位于布局外。透明包装原样透传，改变子项位置或滚动坐标的容器必须明确转换后返回，否则为 None，不扫描后代或保存窗口坐标。
 
-子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
+MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics`、`placeChild(index, origin: Point)` 和 `skipChild(index)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项须成功测量，或在尚未测量时显式 skipChild 一次。skipChild 保留挂载与逻辑更新，本轮不调用该子树的 measure／scene、不复用旧尺寸或放置；同轮随后测量、放置或再次跳过均为状态错误。普通测量尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 同一布局轮次中，同节点的相同有效约束请求复用完整结果，即使中间使用了其他约束或跨越多个父级测量回调。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败不缓存本次请求，也不能凭上一次请求继续放置；此前成功结果的既有持有关系不因失败被提前释放。
 
-根约束的最小值和最大值均为当前 FrameContext.size，使根填满窗口内容区。Component 将约束原样传给 render 返回的描述，并透明转交绘制；它本身不增加 padding 或对齐策略。子项数量和索引使用 Long，位置为有限 Point，允许显式负偏移。越界、遗漏或重复测量、未测量就放置、重复放置按状态／参数错误报告；测量后不放置是合法结果。
+子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。普通 Element 的子树放置资格在 Accepted 帧后更新既有 AnimationGroup 的继承开关；未放置时不请求动画帧，重新放置沿原时间轴恢复，失败帧保持上次资格。没有子项放置时即使省略 children() 也执行此收尾，不新增独立时钟或可见性扫描。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
+
+根约束的最小值和最大值均为当前 FrameContext.size，使根填满窗口内容区。Component 将约束原样传给 render 返回的描述，并透明转交绘制；它本身不增加 padding 或对齐策略。子项数量和索引使用 Long，位置为有限 Point，允许显式负偏移。越界、既未测量也未显式跳过、跳过后又测量或放置、重复跳过、未测量就放置、重复放置按状态／参数错误报告；测量后不放置是合法结果。
 
 测量允许更新由本 Element 拥有的缓存，例如按宽度替换 TextLayout。创建、替换和失败清理必须由同一个所有者完成；不得把待关闭资源存入临时 View。文字 shaping 与断行由 graphics.text 完成，通用段落缓存及行内子项接入见第 7.5 节；Label 选择自己的输入、外观和裁剪策略。
 
+#### 7.1.1 完整布局结果与帧内复用
+
+`LayoutResult<L>(metrics: LayoutMetrics, data: L, dispose: () -> Unit = {})` 保存一次成功测量的不可变几何与类型化数据。框架同时保存该回调选择的直接子结果和放置，子结果通过引用共享；无需数据时使用 Unit。scene 显式接收被选中的 data，不能依赖试测覆盖的最近 drawing 字段。布局结果和 data 发布后不得改写；可变输入缓存可以保留，绘制颜色等仅像素值仍在 scene 采样。
+
+成功返回把该结果释放责任转交框架；校验／组装失败时释放已返回的结果，返回前失败由元素清理本次新取得的资源。所选结果及同轮成功请求表保留需要的资源，不再引用时只调用一次 dispose。父结果不关闭共享子结果，独立的已接受编辑帧继续持有自己的段落／编辑布局。测量失败不关闭仍有持有者的旧结果。
+
+结果表保存在节点，当前轮次内以有效布局版本、Constraints、方向及本轮采样查找；不复制整棵子树，不按每个 context 重建独立缓存。下一轮仅保留当前选择，释放历史约束结果；未失效的当前选择可以直接命中。元素的构造作用域与结果释放遵守第 8 节的同一挂载协议。
+
+`UiInvalidation` 为 None／Scene／Layout。Element／LazyElement.update 默认返回 Layout；明确仅更新颜色、透明度或输入呈现时可返回 Scene，仅替换不影响输入资格的处理器可返回 None。返回 Scene 的实现必须从当前输入生成像素，不能继续使用布局数据里冻结的旧颜色。子项结构与方向变化独立使布局失效；布局失效保守沿父级传播，有效兄弟结果继续复用。
+
+`ComponentScope.requestLayout()` 显式使本节点及其祖先布局失效并请求帧；`requestFrame()` 只请求场景。measure 中读取动画的值／目标／速度／状态，会把该动画版本登记到这份布局结果；scene／draw 的读取只登记场景依赖。直接读取布局 context.time 的结果在下一次实际帧重新测量，读取场景时间只影响场景。登记不产生额外时钟或周期帧，只有 Surface 已请求的帧才检查变化。
+
+公共段落及编辑宿主自动登记实际使用的 FontCollection；每个已请求帧入口只读取每个共享集合的一次 revision，变化时失效实际使用它的布局。Image 的像素与固有尺寸不可变，更换对象通过 Props／update 或 requestLayout 失效；自定义可变尺寸资源由其通知调用 requestLayout。依赖只保留当前结果及当前场景的实际读取，卸载解除登记。
+
+最终选择 A→B→A 中的 A 时，必须使用其对应 data、子结果、段落与滚动快照。Lazy 每次试测保存独立项集合，所有已准备 key 在本轮复用，仅依据最终选择执行保留与卸载。未选中的试测不得发布输入、锚点或帧参与；呈现资格仍在 Accepted 后提交。
+
 ### 7.2 场景装配与纯绘制
 
-Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入区域放置和子项呈现。它不暴露 Canvas。`concat／translate／scale／rotate`、`clipRect／clipPath`、`save／saveLayer／restore` 是影响本场景画面与输入的共同操作，交由 graphics 的同一 Canvas 状态维护，不另建坐标计算实现。原点为元素左上角，DPI 仍只由渲染目标根部施加一次。
+Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 提供本帧 time、最终 size、输入区域放置和子项呈现。它不暴露 Canvas。`concat／translate／scale／rotate`、`clipRect／clipPath`、`save／saveLayer／restore` 是影响本场景画面与输入的共同操作，交由 graphics 的同一 Canvas 状态维护，不另建坐标计算实现。原点为元素左上角，DPI 仍只由渲染目标根部施加一次。
 
 `SceneContext.draw(block: (PaintContext) -> Unit)` 提交并同步执行一个直接绘图块；块只负责像素和自身绘制缓存，不登记 InputArea、呈现子项或修改 State。PaintContext 提供 size、time 和隔离借用的 Canvas；块中增加的 transform／clip 仅影响该块的画面，退出后不影响场景中后续区域或子项。场景几何与绘制块的调用分开，省略一个绘图块不会省略已声明的区域。可缓存的有限图层使用第 7.2.1 节的独立入口。
 
-场景操作在同一个实际帧内流式提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。真正的跨帧绘制记录／图像缓存另按其拥有关系持有资源。当前还不承诺自动跳过未失效绘图块。
+场景操作在同一个实际帧内提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。跨帧绘制记录／图像缓存另按其拥有关系持有资源；显式场景缓存边界按第 7.2.2 节复用稳定的局部操作。
 
 `SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
 
@@ -363,19 +397,35 @@ Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入�
 
 drawLayer 的回调始终在独立局部记录 Canvas 中执行，不继承目标变换、clip 或 DPI；同一内容在缓存开关两种状态下使用同一坐标语义。调用方为影响输出的输入提供 revision；相同 key、revision、size、bounds 和 samplingOutset 表示可复用相同内容。State、时间、动画采样和绘图资源改变须反映在 revision 中，框架不猜测任意可变闭包的依赖。不能提供可靠版本或有限范围，以及需要直接作用于背景的绘图，继续使用 draw。
 
-`PaintCachePolicy.None` 每帧执行、重放并释放图层记录，不保留绘制记录或图像。`Tiles(tileSize = 256, overscan = 1)` 保留未变化的记录，并把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
+`PaintCachePolicy.None` 不保留像素图像，未变化的有限 Drawing 仍可复用，每帧独立合成重放。`Tiles(tileSize = 256, overscan = 1)` 在同一绘制记录上把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
 
 samplingOutset 是有限非负逻辑长度，描述插值及已声明命令需要的采样边缘；每轴至少保留一个设备像素。bounds 必须包含完整输出，不能直接用布局盒子截断字形、阴影或光晕。缓存块先绘制扩展范围，再用 drawImageRegion 合成核心区。无法给出可靠范围时使用 draw；扩大边缘不能把底层不可独立裁剪的效果变成可分块记录。正的轴对齐缩放按实际像素变换选择分辨率；旋转、错切、反射、不可表示的块坐标或尺寸使用不保留像素的图层重放。
 
-缓存也遵守 Graphics 的 Drawing.canRasterizeTiles。记录内部含 ImageFilter 或未声明可独立裁剪的原生命令时，同一回调产生的记录直接隔离重放并释放；不保留记录或图像，不用修改像素容差掩盖裁剪引起的效果差异。可以把滤镜放在 SceneContext.saveLayer 的合成阶段，使正文等输入块保持可缓存，同时在本帧完整内容上执行滤镜。
+缓存也遵守 Graphics 的 Drawing.canRasterizeTiles。记录内部含 ImageFilter 或未声明可独立裁剪的原生命令时，保留完整 Drawing 并隔离重放，不保留分块图像，不用修改像素容差掩盖裁剪引起的效果差异。可以把滤镜放在 SceneContext.saveLayer 的合成阶段，使正文等输入块保持可缓存，同时在本帧完整内容上执行滤镜。
 
-revision、size、bounds、samplingOutset、像素缩放或缓存参数改变时仅重建对应绘图层；后端 context 不兼容时重建该层的记录和图像。单纯滚动平移、最终 clip、父级合成效果改变不作废仍在缓存范围内的内容块。离开范围的块及时释放；未在本次 scene 使用的 key、不参与帧的子树、None 策略和卸载均释放相应缓存。图像和记录不持有 Component、输入处理器或用户绘图回调。
+revision、size、bounds 或 samplingOutset 改变时重建对应记录和图像；像素缩放或缓存参数改变只重建像素块，后端 context 不兼容时重建该层记录和图像。单纯滚动平移、最终 clip、父级合成效果改变不作废仍在缓存范围内的内容块。离开范围、完全裁剪或改为 None 时及时释放像素块；未在本次 scene 使用的 key、不参与帧的子树和卸载释放完整缓存。图像和记录不保存用户绘图回调。
 
-ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后请求必要帧。其 present 内容回调把策略传给所呈现的子场景；嵌套视口采用自身策略，Portal 在独立呈现场景中处理。缓存命中仍执行 scene、输入／anchor 登记、子项呈现与帧完成通知，不影响逻辑更新、焦点、IME 或实例生命周期，也不产生持续帧需求。Discarded 的图像只作为对应内容版本的内部缓存，不能发布该帧输入几何或布局状态。
+记录回调中的时间、动画及已登记字体读取随记录保存，命中时继续归入本节点的场景依赖；相应依赖变化使记录重新生成，不能因回调跳过而丢失失效来源。任意普通可变对象仍由调用方的 revision 表达。公共段落及编辑宿主集中维护内容／字体／排版版本；普通文字在没有场景或像素缓存需求时直接 draw，在显式缓存内使用带该版本的有限图层。
+
+ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后请求必要帧。其 present 内容回调把策略传给所呈现的子场景；嵌套视口采用自身策略，Portal 在独立呈现场景中处理。像素缓存本身不跳过 scene；场景缓存边界按下节处理。输入／anchor 登记、子项呈现与当前帧完成通知保持正确，不影响逻辑更新、焦点、IME 或实例生命周期，也不产生持续帧需求。Discarded 的图像只作为对应内容版本的内部缓存，不能发布该帧输入几何或布局状态。
+
+### 7.2.2 显式场景缓存边界
+
+`cachedScene(content: View, revision: Long = 0L, key: ViewKey = ViewKey.Position): View` 通过普通 Element 包装一个子项，原样转交约束、尺寸与基线，不增加 ViewBody 形状。边界内仍使用相同的 Element／LazyElement 协议；当前布局、场景输入版本和边界 revision 未变化时，可以复用已记录的稳定局部场景操作，跳过相应节点的 scene 回调。Props、children、State 引起的更新及显式 requestFrame／requestLayout 仍按原合同失效。未通过这些通路表达的外部数据由调用方改变边界 revision；不猜测任意可变闭包的依赖。外层 revision 变化也使嵌套边界下的场景记录失效；有限 drawLayer 的内容版本仍由其自身 revision 声明，边界版本不替代绘图版本。
+
+缓存保存值类型的变换、矩形裁剪、矩形输入放置、锚点、子项顺序、隔离作用域和已拥有的有限 Drawing 引用；不保存 SceneContext、FrameContext 或借用 Canvas，也不复制整棵布局树。每帧将局部操作装配到当前祖先变换、clip、图层顺序及当前输入收集器，子项仍按最终选中的结果呈现。输入、焦点、编辑与锚点不能复用上一帧的已提交几何作为本帧候选；Accepted／Discarded 的发布边界不变。禁用资格取当前区域状态，隐藏或卸载移除相应记录。
+
+需要同步借用 Path／ImageFilter、执行任意 draw、读取 overlayLayout、时间或动画、呈现滚动视口，或登记 onFrameComplete 的节点继续执行 scene；其稳定子项仍可独立复用。raw draw 的目标变换、clip、像素混合和资源使用不变；框架不把任意绘图闭包保存到后续帧。一次性帧完成回调从不进入场景缓存，滚动、caret、输入显露与动画帧参与仍登记当前帧所需工作。有限 drawLayer 的记录、像素命中和 scene 回调跳过分别验收。
 
 ### 7.3 输入与焦点接入
 
-Element 在 onMount 中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
+`ComponentScope.moveFocus(reverse: Boolean = false): Boolean` 从本作用域内当前逻辑焦点继续一次 Tab／Shift+Tab 遍历。没有本作用域内的有效焦点时返回 false；有效时从目标最近的 FocusScope 开始，沿用其 loop、父级续行、roving、lazy 显露、唯一 pending 与 FocusOrigin.Keyboard。它不合成键盘事件，不激活 OS 窗口，也不跨越当前焦点域；返回 true 表示请求已被接受。只能在逻辑／输入／完成回调阶段调用。菜单在 Portal 的 onClosed（焦点域已释放且正常恢复已尝试）中消费保存的 Tab 方向；新焦点已离开原 owner 时不抢回焦点。
+
+Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
+
+`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
+
+`ComponentScope.observeWindowActivity(action: (WindowActivity) -> Unit): Closeable` 管理所属 Window 的活动状态观察，沿用 Window.observeActivity 的快照、变化通知和取消规则。回调只在挂载有效时通过同一根错误边界执行；作用域退休自动撤销登记，不创建轮询、帧请求或独立状态源。Toast 用它在窗口失活、隐藏或遮蔽时准确暂停剩余时长。
 
 ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
@@ -393,9 +443,13 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应
 
 #### 7.3.1 FocusHandle、FocusScope 与 Tab
 
+FocusOptions 增加 `visibility: FocusVisibility = Automatic`，其 builder 同步提供该属性并写入所属 Surface InputArea。FocusHandle 的 `isFocusVisible` 查询同一区域；`requestFocus(origin: FocusOrigin = Programmatic)` 保留来源，延迟显露的 PendingFocus 保存来源直到 Accepted 后兑现。Tab、roving 和 lazy 键盘导航传 Keyboard；Portal 恢复沿目标的既有来源，不把指针触发器恢复成键盘指示。真实焦点与其视觉指示独立，Never 不妨碍键盘输入或 IME。
+
+InteractionState 和 TextEditInteraction 同时包含 focused 与 focusVisible。Press／TextEditHost 订阅 Surface 的统一指示变化，不各自保存最近输入设备。TextEditHost 将 Automatic 解析为 Always，使可编辑及只读正文的指针聚焦均有明确指示；调用者的 Always／Never 原样保留。仅 focusVisible 变化不得重新建立编辑会话、改变选区或结束 composition。
+
 FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点状态。isAttached 表示当前仍登记到活动挂载且区域未关闭；hasFocus／isFocusActive 查询所属 Surface 区域；isPending 表示等待提交的当前请求。requestFocus 返回是否接受请求：已显露目标立即聚焦，滚动内容中的目标先按第 7.7 节显露，再在成功帧聚焦；已登记但等待首次／恢复放置的目标请求一帧并等待成功提交。未登记、已退休或逻辑禁用的目标返回 false。clearFocus 取消该 handle 的待处理请求，并在它是当前焦点时清除焦点。提前关闭 InputArea 使其旧句柄失效；随后可将同一句柄登记到新的活动目标，旧登记的晚到清理不能解除新绑定。
 
-ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
+ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0、visibility=Automatic；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
 
 `FocusTarget.reveal(rect: Rect): Boolean` 显露该区域局部坐标中的子矩形，不改变键盘焦点或激活 OS 窗口。它用于文本光标等小于整个控件的目标，沿第 7.7 节相同的成功场景及滚动路径逐层处理；矩形必须有限且非负，空矩形返回 false。该请求与普通聚焦共用一个待处理位置意图，handle.isPending 也反映尚未完成的局部显露。更新的显式焦点／显露、已调整视口的新滚动、目标退休或输入域变化取消旧请求；Discarded 不兑现。首次尚无几何时等待一次成功放置，之后仍不可达则结束，不轮询。
 
@@ -409,15 +463,15 @@ UiRoot 在 Surface 的 Accepted 完成边界先发布本帧的滚动内容路径
 
 #### 7.3.2 KeyNavigation 与组内导航
 
-ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有的无样式导航组，返回随挂载退休的 KeyNavigation；每个挂载至多一个活动组。NavigationOptions 包含不可变 items: Array<NavigationItem>、layout: NavigationLayout = Vertical、direction: LayoutDirection? = None（继承当前挂载方向）、loop=false、roving=true。NavigationItem 包含稳定 FocusHandle 及 row=0、column=0；Horizontal／Vertical 使用数组顺序，Grid 使用显式行列位置。
+ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有的无样式导航组，返回随挂载退休的 KeyNavigation；每个挂载至多一个活动组。NavigationOptions 包含不可变 items: Array<NavigationItem>、layout: NavigationLayout = Vertical、direction: LayoutDirection? = None（继承当前挂载方向）、loop=false、roving=true、preferredTab: FocusHandle? = None、onNavigate: (FocusHandle) -> Unit = {}。NavigationItem 包含稳定 FocusHandle 及 row=0、column=0；Horizontal／Vertical 使用数组顺序，Grid 使用显式行列位置。
 
-options 在逻辑阶段整体更新；重复 handle、同一个 handle 属于两个活动导航组、Grid 重复行列坐标均报告配置错误，并保留旧配置。允许先配置尚未挂载的 handle，但它随后只能绑定到该导航组的逻辑子树。关闭组解除成员关系；替换目标的外部 handle 后，旧 handle 不会继续控制新引用。enabled 和可聚焦性仍来自原区域与逻辑祖先，没有另一份成员禁用状态。
+options 在逻辑阶段整体更新；重复 handle、同一个 handle 属于两个活动导航组、Grid 重复行列坐标、preferredTab 不属于 items 均报告配置错误，并保留旧配置。允许先配置尚未挂载的 handle，但它随后只能绑定到该导航组的逻辑子树。关闭组解除成员关系；替换目标的外部 handle 后，旧 handle 不会继续控制新引用。enabled 和可聚焦性仍来自原区域与逻辑祖先，没有另一份成员禁用状态。
 
-roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab 条件的成员，然后选择最近成功聚焦的有效成员，未有历史则选数组中首个。历史使用 Surface 的聚焦请求记录，包含鼠标及直接 InputArea 请求；当前持有焦点不等于必须有 OS 活动焦点。显式 tabStop=false 始终退出 Tab，但仍可通过箭头聚焦。roving=false 恢复成员各自的普通 Tab 条件，组内导航仍有效。已放置的滚动内容可以通过相同显露流程成为目标；未挂载、禁用或不能显露的成员不作为新的导航目标。
+roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab 条件的成员，其次选择显式 preferredTab（若满足 Tab 条件），然后选择最近成功聚焦的有效成员，未有历史则选数组中首个。历史使用 Surface 的聚焦请求记录，包含鼠标及直接 InputArea 请求；当前持有焦点不等于必须有 OS 活动焦点。显式 tabStop=false 始终退出 Tab，但仍可通过箭头聚焦。roving=false 恢复成员各自的普通 Tab 条件，组内导航仍有效。已放置的滚动内容可以通过相同显露流程成为目标；未挂载、禁用或不能显露的成员不作为新的导航目标。
 
 组的默认行为仅在当前 focusedArea 就是成员区域时处理方向键和 Home／End，不替代成员内部另一个编辑目标的按键行为。Horizontal 左右按 direction 映射，Vertical 上下不因 RTL 反转；列表 Home／End 到首末有效成员。Grid 的左右只在同一行、上下只在同一列按逻辑坐标查找，越过缺失／禁用项；Home／End 到当前行的逻辑首末。loop 只在当前导航轴循环，不依据像素距离寻找邻居。
 
-仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space 或改变选择状态。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；未挂载条目的导航与显露见第 7.8.2 节。
+仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space。方向／Home／End 找到有效目标且 FocusHandle 接受请求后，若组仍活动，调用本次 onNavigate 一次；回调表示请求被接受，可能仍在等待成功帧，不承诺目标已经呈现。Tab、鼠标或直接焦点请求不调用回调；选择策略由调用方实现，默认不改变选择。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；未挂载条目的导航与显露见第 7.8.2 节。
 
 FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：位于当前 InputBoundary 之外的请求直接失败，不能在模态关闭后意外兑现。逻辑 enabled 状态查询与当前输入域资格分开；已有 pending 仍受新请求、目标退休和成功帧检查约束。
 
@@ -429,7 +483,13 @@ FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：
 
 退出挂载时退休登记动画，停止其后续业务完成回调，并在资源清理阶段关闭。完成回调的挂载有效性遵守与输入相同的规则。Element 普通字段的变化若未经过 State 或 Animatable，应调用 scope.requestFrame；同一轮请求由 Surface 合并。
 
+ComponentScope.isFrameEnabled 是默认 true 的局部帧参与开关，只能在普通更新、输入或完成回调中修改，不能在 render／measure／scene／draw 中修改。false 立即停止此作用域及逻辑后代的动画帧请求和显式 requestFrame；不卸载、不取消逻辑更新、不隐藏当前绘图，也不替代 input.enabled。有效资格同时受祖先开关及 Accepted 放置状态约束，局部 true 不能绕过它们；再次启用沿既有时间轴采样，不另建时钟。折叠退出将该开关放在内容作用域，退出 Presence 的 owner 保留在外层。
+
 ### 7.5 公共文本接入
+
+整改 P1：ParagraphHost.measure 返回自有 ParagraphMeasurement（metrics、layout），其持有对应 TextLayout；scene(context, measurement) 显式消费这一份结果。元素把 measurement 保存在 LayoutResult.data 并以 dispose 关闭，不能继续从宿主读取另一约束的最近布局。SelectableTextHost 使用同一 ParagraphMeasurement；其 layout 查询改为最近 Accepted 的排版。
+
+TextEditHost.measure 返回自有 TextEditMeasurement，保存 metrics、layout、display、scrollSnapshot 及正文／提示文字持有者；scene(context, measurement) 只消费该结果。公开宿主 layout／display／scrollSnapshot 查询对应最近 Accepted 帧，尚无已接受帧时报告状态错误。测量期间的查询使用返回的 measurement；输入在正文变化时仍按既有投影与导航合同取得当前文本，不把试测几何发布为可交互位置。
 
 `scoop.ui.text` 是本 Cone 的公共子包，依赖 [scoop.graphics.text](SCOOP-GRAPHICS-TEXT-SPEC.md)，提供 InlineView、inlineChildren 和 ParagraphHost。它是自绘 Element 的复用能力，不是控件库或新的 View 分支；第三方控件与 Label 使用相同入口。
 
@@ -439,28 +499,28 @@ InlineView 是不拥有资源的描述，保存 InlineKey、View、自然或固�
 
 `inlineChildren(content, inlines): Array<View>` 按 StyledText 中对象的逻辑顺序生成普通 keyed 子描述。它根据 InlineKey 建立对应，不根据文字偏移、视觉顺序或数组下标推断身份；缺失、重复或多余绑定报告参数错误。每个对象用普通 keyed 包装节点保存其出现身份，传入 View 自己的 key 继续作用于包装节点内的子位置。包装只使用普通 Component／Props；Span 不生成挂载节点，同段落的全部对象共享该 Element 的直接父级。
 
-ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在 onMount 中通过 scope.resource 登记。它不拥有子组件，也不自行调用工厂或创建输入区域。创建 Element 描述的 Component 或普通组合函数把 inlineChildren 的结果传入 element.children，并通过 Props 传入同一份内容和绑定；Element 的 measure／scene 分别委托给宿主：
+ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在构造中通过 scope.resource 登记。它不拥有子组件，也不自行调用工厂或创建输入区域。创建 Element 描述的 Component 或普通组合函数把 inlineChildren 的结果传入 element.children，并通过 Props 传入同一份内容和绑定；Element 的 measure／scene 分别委托给宿主：
 
 ```text
-ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): LayoutMetrics
-ParagraphHost.scene(context): Unit
+ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): ParagraphMeasurement
+ParagraphHost.scene(context, measurement: ParagraphMeasurement): Unit
 ```
 
-measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。所有子项仍只测量一次，包括本次最终被截掉的对象。
+measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。每次宿主测量只对每个子项发出一次请求，包括本次最终被截掉的对象；相同有效请求可复用本轮已有结果。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 draw 使用同一 TextLayout 先画文字，再调用 children 呈现已放置对象；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；普通路径直接 draw，显式场景／像素缓存内通过 drawLayer 复用版本化的有限记录；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 
 缓存以不可变 StyledText 的对象身份、FontCollection 的身份及 revision、ParagraphStyle 的字段值识别段落输入；新的 StyledText 描述可以触发重建，不要求 UI 重新解析或比较文本层私有的规范化结果。相同段落的宽度和按逻辑 key 排列的 InlineMetrics 按值比较。只改变约束下限或父级放置不重排，仍按本次 Constraints 返回外框。调用方可复用内容描述；String 便利控件负责在自身输入不变时保留该描述。
 
-`ParagraphHost.layout` 借出最近一次成功测量的 TextLayout，以供自绘控件命中、caret、selection 或位置查询；首次测量前或关闭后访问报告状态错误。调用方不关闭该借用；下次替换或宿主关闭后旧布局资源失效。新 Paragraph／TextLayout 成功取得后才替换缓存；失败时释放新取得的资源并保留原缓存，随后仍遵守框架的回调失败与关闭规则。ParagraphHost 只能在创建它的 owner 线程使用，close 幂等；不关闭传入的字体来源。
+ParagraphMeasurement.layout 借出该测量持有的 TextLayout，供自绘控件的 caret、selection 和位置查询。测量快照独立持有排版：后续试测或宿主缓存替换不会关闭仍由结果持有的对象。元素在 LayoutResult.dispose 中关闭 measurement；调用方不另行关闭 layout。measurement 关闭后查询报告状态错误；宿主关闭只释放自己的缓存持有，独立结果按其所有者继续收尾。新 Paragraph／TextLayout 成功取得后才替换缓存，构造失败释放本次新资源并保留原缓存。ParagraphHost 只能在创建它的 owner 线程使用，close 幂等，不关闭传入的字体来源。
 
 所有内容查询、metrics 和 placement 通过文本库的 public API 取得。公共适配不读取 graphics.text 的 internal 缓存，不把无匹配 box 的对象悄悄移除出 children，也不需要基础控件库来实现。
 
 #### 7.5.1 公共纯文本编辑状态
 
-`scoop.ui.text.TextEditorState(text = "", selection: Utf8Selection? = None)` 是 owner 线程上的可观察纯文本模型，可以独立于挂载存在。初始选区缺省位于文档末尾；显式范围沿 Window 的 UTF-8 标量边界规则验证。内部只有一份规范 TextInputState，公开 inputState／text／selection／markedRange／revision／isComposing 和 anchor／cursor（TextPosition）读取同一 State；canUndo／canRedo 也参与普通依赖观察。没有另一份可写字符串 binding 或另建订阅系统。
+`scoop.ui.text.TextEditorState(text = "", selection: Utf8Selection? = None)` 是 owner 线程上的可观察纯文本模型，可以独立于挂载存在。初始选区缺省位于文档末尾；显式范围沿 Window 的 UTF-8 标量边界规则验证。内部只有一份规范 TextInputState，公开 inputState／text／selection／markedRange／revision／isComposing 和 anchor／cursor（TextPosition）读取同一 State；canUndo／canRedo 也参与普通依赖观察。只读 committedText 同样观察当前 State；存在 composition 时返回组合开始前的已提交基线，否则返回当前正文，供搜索候选等消费方忽略临时 preedit。没有另一份可写字符串 binding 或另建订阅系统。
 
 `setSelection(Utf8Selection)` 或 `setSelection(anchor: TextPosition, cursor: TextPosition)` 保留方向与 affinity；`replace(range, text)` 完成一次可撤销替换。两者先明确结束已有组合并保留其显示文本，再操作当前文档。`replaceAll(text, selection = None)` 是外部整体替换，清除组合和旧历史，缺省把选区收敛到新文档末尾。修改正文／选区／marked range 单调推进 revision；只改变 affinity 不改变原生文档修订。非法参数、错误线程以及 render／measure／scene／draw 中的修改在改变历史之前拒绝。
 
@@ -470,7 +530,7 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
 
-`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
+`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
 
 paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文、anchor／cursor TextPosition 及可选 markedRange）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
 
@@ -482,15 +542,19 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 #### 7.5.2 公共纯文本编辑宿主
 
-`TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
+`TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
+
+`onInteractionChanged: (TextEditInteraction) -> Unit` 仅在真实交互值变化并更新 interaction 后同步通知，不为初始默认值补发一次。组合组件可据此保存用于外观的交互 State，使宿主及滚动视口仍归实际呈现的 Element 所有；该 State 保存 focused／hovered／focusVisible，不发布 scope、宿主或其他资源引用。回调沿当前 UI 错误通路处理，宿主初始化不触发编辑、提交或交互通知。
 
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
-TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+
+update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主接受的操作改变已提交正文且本次结束后没有活动 preedit 时调用；选择、临时 preedit、取消／拒绝后恢复原基线及外部模型更新不触发。它在 onEdited 之后执行；若前一个回调已关闭宿主、替换绑定或改写该次结果，则不回放过期完成通知。该入口供 OTP 的完整长度通知使用，不另建完成状态镜像。
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
 
-`scrollSnapshot` 返回最近一次 measure 为本帧确定的 ScrollSnapshot；测量前访问拒绝。组合滚动条在 scene 使用它，与正文共享本帧 viewport、content 和收敛后的 offset。持久 scroll 的可观察 snapshot 仍遵守 ScrollState 的发布边界，不用旧的已发布尺寸拼凑本帧滚动条。
+TextEditMeasurement.scrollSnapshot 返回本次测量确定的 ScrollSnapshot。组合滚动条在 scene 使用所选 measurement 的快照，与正文共享 viewport、content 和 offset。TextEditHost.scrollSnapshot 与持久 ScrollState 的公开 snapshot 对应最近 Accepted 的结果；测量过程中不使用旧的已发布尺寸拼凑本帧滚动条。
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
@@ -510,9 +574,21 @@ caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠
 
 TextEditOptions 的 projection 缺省恒等投影，copy 为 TextCopyPolicy.Default／Allow／Deny。Default 在内置遮罩时禁止 Copy／Cut，其他投影允许；Allow 明确允许复制原文，Deny 消费命令但不改剪贴板或文档。Paste 与正常编辑不受复制策略影响，允许的 Cut 继续遵守第 7.5.2 节发布原子性。显示开关只更新 projection，不替换 TextEditorState、不追加历史、不重建 IME 连接，也不声称提供平台 secure-input 能力。
 
-TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。RTL 视觉次序由 TextLayout 决定。
+TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。普通段落的 RTL 视觉次序由 TextLayout 决定；固定槽按第 7.5.3.1 节的明确方向排列。
 
 Native surrounding text、selection、marked range、策略过滤和 undo／redo 始终使用真实正文。成功帧只将投影后的 caret 几何反馈原生，不以遮罩文字替换输入法文档；活动 preedit 继续保留一份原文模型。
+
+##### 7.5.3.1 固定槽排版
+
+`TextEditHost.measure(constraints, cells: TextEditCells? = None)` 在同一宿主中选择普通段落或水平固定槽。TextEditCells 是不可变的几何输入，包含正的 count、有限正 cellSize、相邻槽间的非负 gaps（空数组表示全零，否则恰为 count−1 项）和明确的 LayoutDirection。它不包含主题、边框、分组语义、编辑策略或回调；OTP 在 component 层把 group／separator 布局换算为这些间距。固定槽仅用于单行宿主。
+
+`TextEditHost.layout` 直接演进为借用的 TextEditLayout，提供 text、size、paintBounds、基线、lines、graphemeBoundaries、caret／selection／hitTest、词／grapheme／方向导航及 isClosed；段落模式适配同一 TextLayout，不改变其布局结果。cells 模式另提供按逻辑顺序排列的 cellRects 和 cellIndex(position)，普通段落的 cellRects 为空、cellIndex 为 None。`Canvas.drawText(TextEditLayout)` 绘制同一结果；调用方不能关闭借用布局。
+
+每个显示 grapheme 使用真实字体单独 shaping，在等宽槽中居中并裁剪到槽内；布局与绘图共享同一槽矩形。单行槽按显式方向排列，不根据字符的 bidi 分类交换槽的逻辑身份。caret 位于相应字符前沿，正文末尾位于第一个空槽中心；已填满时位于最后字符后沿。间隙命中选择最近的合法插入点，空槽命中映射到正文末尾；选区与 marked 装饰使用同一槽几何，逻辑字词操作仍使用文本库的 Unicode 边界。标量位置在显示时按原有 affinity 规则收敛到 grapheme 边界，不重写原生选区。
+
+count 是配置的可见槽数，不是模型修改入口。原始 preedit 或外部正文超过槽数时，临时按相同槽尺寸向逻辑末尾扩展，后续间隙为零；实际内容、边框装饰和输入沿同一 ScrollSnapshot 显露，不能截断或隐藏输入法的临时文档。提交长度由 TextEditPolicy 处理。窄宽／零尺寸约束只改变视口，槽几何仍有效，沿既有裁剪与滚动处理。
+
+测量、当前借用布局、staged 和 Accepted 帧各自持有所需不可变布局资源；发布后输入只消费对应帧的槽、投影与滚动快照。新字体／间距／正文排版失败时释放新取得的资源，保留前一成功组合。选择、闪烁和未变输入不重新 shaping；没有第二个文本输入区域、renderer 工厂或编辑插件链。
 
 #### 7.5.4 可选择的 StyledText
 
@@ -530,7 +606,9 @@ SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活
 
 `portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {})` 在逻辑父级保留零内容占位，内容交给窗口层出口。open Binding 是期望打开状态的唯一来源；框架在普通逻辑更新中收集 getter 的 State 依赖，随后在纯求值之外同步呈现阶段。普通 Binding 的非 State 数据仍由调用方以 Props 更新通知。初始 false 不挂载内容、不安装模态屏障；容器只按约束下限测量 Portal 占位，不测量或重复呈现层内容。
 
-PortalOptions 包含 placement、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。modal 有无是挂载形状，改变时退休旧会话；其他选项可正常更新。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
+PortalOptions 包含 placement、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。mode 为 NonModal／FocusContained／Modal，是普通可更新配置；同一逻辑父级、key 与 Portal 类别下切换模式保留内容实例、本地状态、编辑模型和焦点会话。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
+
+模式更新先验证完整 PortalOptions，再在普通逻辑安全边界整体更新输入屏障、代理的焦点资格、FocusScope 与后代所属模态域。边界保留建立次序，父层切换不能覆盖后来打开的嵌套层；退出中的会话保留实际关闭时的屏障直到 Accepted 移除，新的配置只在真正重开时生效。模式切换不触发 onCloseRequest／onClosed，不运行关闭／重开或重置 Presence。进入约束模式时，如果当前焦点已在面板内则保留；否则等本次配置的 Accepted 场景后取得焦点，更新的显式聚焦意图仍优先。解除约束不主动搬移现有焦点。原打开时保存的恢复目标不被每次模式切换覆盖，实际恢复按当前有效焦点域检查，不能使用已退役的边界快照拒绝仍合法的目标。
 
 Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受后写 open=false，并读取 setter 实际采纳的值。拒绝或 setter 不采纳时保持打开，但不撤回既有输入消费。外部直接写 false 不经过 veto。关闭／退出中的请求合并；请求开始即保存焦点 revision，回调内的更新请求不能被后续退出过程重新记为恢复基线。回调可以同步替换内容或关闭根，回到框架后须检查当前实例。渲染、测量、scene、draw 期间不允许发出关闭请求或修改 Binding。
 
@@ -538,7 +616,7 @@ Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受�
 
 transition 使用第 7.12 节的 Presence。进入／呈现阶段正常布局，退出阶段保留同一内容及绘制资源，立即禁用根输入资格、取消内部按下与 IME／焦点活动。退出不能通过提前 deactivate 子树破坏绘制资源。Presence 变为 Absent 后在逻辑更新中卸载内容；确认移除的 Accepted 帧后才通知 onClosed，至多一次。没有动画时直接走同一最终移除边界。
 
-退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，不重放原始 initialFocus。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
+退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，并按 §7.6.3 的当前焦点选项重新尝试初始聚焦；重开后的显式焦点请求仍优先。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
 
 owner 在窗口仍存活时退休，立即停止动画并收束内容，根保留屏障及完成通知到 Accepted 移除。根关闭先停用输入、停止动画及释放屏障，安全退出当前场景借用并卸载子树后直接通知，不等待未来帧。窗口隐藏／没有 drawable 时复用 Surface 时间轴的 owner deadline 推进，退出可以结束，模态屏障仍等实际画面移除。
 
@@ -556,15 +634,19 @@ SceneContext.overlayLayout 返回最近层的本帧值：bounds、available、an
 
 AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现；Hide 保留内容等待当前几何恢复；KeepVisible 使用有效包围盒并把位置限制在视口。没有当前几何时 Hide 等待，其余关闭。解绑／owner 退休使依赖层强制结束。AnchorUnavailable 请求把 Binding 置为 false；setter 未采纳也收尾当前呈现，直到实际 false→true 或重新挂载才重开，不能每帧重复请求。强制关闭不经过 veto，回调仍在纯求值退出后运行。
 
+`ContentAligned(anchor, preferredSide=Bottom, alignment=Center, gap=4, viewportPadding=8, matchAnchorWidth=true)` 使用与 Anchored 相同的一次有界测量。若弹层根返回 overlayAnchor，将其垂直中心与外部 anchor 中心对齐，横向按 alignment 对齐两矩形的逻辑边／中心，再将完整弹层收敛到视口留白内；此时 OverlayLayout.available 为完整留白视口，side 为 None。根未返回内容锚点时，沿同一次测量结果执行普通 Anchored 的侧边定位。PortalOptionsBuilder.contentAligned 提供对应真正成员，copy 保留其参数。局部锚点只影响此帧位置，不注册输入区域、不改变测量次数和焦点规则。
+
 #### 7.6.3 输入关闭策略与模态
 
-OverlayDismiss 为 escape=false、outsidePress=Ignore；另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
+OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-ModalOptions 为 initialFocus=None、restoreFocus=true。一次实际打开建立 InputBoundary、循环 FocusScope 和不可命中的焦点代理，保存原有效 FocusHandle、前驱域和焦点意图序号。新区域按已有首个 Accepted 几何规则取得焦点，先 initialFocus，再首个 Tab stop，再代理；较新的显式请求优先。后台模态不抢当前域焦点，程序请求不激活 OS 窗口。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受当前有效焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 的登记处于禁用状态，允许 Tab 离开；FocusContained 启用 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 启用 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
 
-退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前域尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
+退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，为原当前焦点会话或关闭前实际包含焦点的会话尝试一次恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。多个 NonModal 同时打开时，较早的层仍可实际获得焦点，关闭它的恢复资格不能被后来登记但未取得焦点的层覆盖。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
 ### 7.7 滚动状态与视口登记
+
+整改 P1：ScrollViewport.layout 返回不可变 ScrollLayout，其中 snapshot 为该请求的 ScrollSnapshot，内部保留本视口、绑定与请求 revision。present(context, layout, content=None, contentOrigin=Point(0,0)) 显式接收所选结果；不读取或消耗最近一次试测的可变槽。一个视口在同一场景中只呈现一次，跨帧可继续呈现有效结果；换绑后的旧结果不能发布到新状态，跨视口使用报告参数错误。内容坐标、clip 与 Accepted 发布沿原合同。
 
 `ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回最近 Accepted 的 `ScrollSnapshot(offset: Point, viewport: Size, content: Size)`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，hasSnapshot 区分首个 Accepted 前的零值，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
 
@@ -572,7 +654,7 @@ ModalOptions 为 initialFocus=None、restoreFocus=true。一次实际打开建�
 
 `observeIntent(handler: (ScrollIntent) -> Unit): Closeable` 登记线程内观察，通常经 `ComponentScope.resource` 管理；独立 close 后不再通知。ScrollIntent 为 `User(requestRevision)`、`Programmatic(requestRevision)`、`LayoutCorrection(requestRevision)`，并提供统一的 requestRevision 读取。前两种在实际请求时交付，即使已经到达边界；布局保持阅读锚点或范围收敛引起的位移在 Accepted 后交付 LayoutCorrection，不推进意图序号。仅尺寸改变、动画采样及一个新定位请求的首次呈现不伪造布局修正。登记和关闭遵守 owner 线程及纯度约束；同一次通知使用订阅快照，关闭立即生效，回调中的新请求依发生顺序继续交付。回调可以关闭挂载或发起更新的请求，旧动作不得随后覆盖它；通知异常不撤销已经生效的位置请求。
 
-`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
+`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 `layout(viewport, content): ScrollLayout` 与 `present(context, layout, content = None, contentOrigin = Point(0, 0))`：自绘容器在使用偏移选择子项的 measure，或只施加滚动变换的 scene 中取得不可变滚动布局，并在自己的 scene 显式选择它并登记提交。位置请求使曾在 measure 使用该视口的节点布局失效；只在 scene 使用的视口保留已有子项布局。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext 和同一视口、同一绑定产生的 ScrollLayout；每个视口在一次场景中至多登记一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
 
 present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
@@ -580,7 +662,7 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
 
-`animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
+`animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，按视口实际使用阶段采样、Accepted 发布；isAnimating 包括等待首布局的动画。首个 Accepted 后启动、重新定向或终止滚动动画时，按已登记的视口用途请求布局或场景，使未读过动画值的初始结果也能失效。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
 布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。`ScrollState.beginLayoutRequest(origin = Programmatic): ULong` 为这些尚需布局解析的主动定位登记一次新意图，停止旧动画并保留 Accepted 位置作为基点，返回该请求的序号；调用方在通知返回后检查它仍为最新，再保存待解析目标。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、beginLayoutRequest、动画定位及取消活动动画推进序号，范围发布不推进。hasPositionRequest 查询是否已经登记构造或主动位置请求，同样不建立订阅；默认零构造位置尚未登记显式请求，非零构造位置已登记请求。不得依赖序号的具体数值或增量。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
 
@@ -590,11 +672,11 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 `ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
 
-`LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
+`LazyElement<L>(scope)` 与 Element<L>(scope) 同为持有构造作用域的公开抽象基类，公开 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`、`scene(SceneContext, L)`、onMount()、`update(): UiInvalidation` 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
-LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量且相邻同约束复用最后结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
+LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量，同一轮的相同有效约束复用完整结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
 
-同一布局中，lazy 只暂存最后一次测量的选中集合与 placements；普通根或 portal 的最终测量结束后才检查 pinned 项、更新帧参与和执行 retention。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。每次新测量都替换该节点待收尾的集合；最终收尾仍沿现有关闭／卸载规则执行。
+LazyElement 的每份布局结果分别保存已测项、所选子结果和放置。普通根或 Portal 选择最终结果后才沿该结果检查 pinned 项、选择 retention 集合并收尾；帧参与资格仍等 Accepted 发布。A→B→A 直接选择 A 保存的集合，不能继续使用 B 的最后一次试测。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。最终收尾仍沿现有关闭／卸载规则执行。
 
 measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再运行其 build／render、onMount 和 update，随后恢复普通纯测量。生命周期可以沿既有规则登记资源和写 State，其产生的其他失效留到下一逻辑更新轮，不递归 flush；build／render 和父子 measure 仍禁止 State 写入。每项使用普通挂载子树保存依赖、Props 与资源，滚动复用已实现项时不重跑其 build。真实 source 替换在逻辑更新阶段通过 indexOfKey 更新已实现项、退休删除项，再更新存活项；即使没有 drawable 也完成删除和输入取消。source.build 返回描述的 shape／key 改变时按普通子树规则替换。
 
@@ -616,7 +698,7 @@ LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelReques
 
 请求与普通 FocusHandle 共用 UiRoot 的唯一 pending 及 Surface.focusRevision，并通过该 viewport 的 ScrollState 登记一次新位置意图，取消旧动画。pendingItem 仅在尚需实现／初次定位条目时返回 key；容器据此使用自身 extent 和 ScrollAdjustment 显露整项。选出具体 FocusTarget 后 pendingItem 变为 None，isPending 可以继续为 true，后续目标显露复用第 7.7 节，避免整项定位反复覆盖行内目标的精确显露。
 
-LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
+LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。待聚焦开始、目标切换、完成或取消会使所涉 Lazy 容器及其布局依赖路径失效，使跨帧复用仍能准备或淘汰对应保留项；普通非惰性焦点变化只请求场景。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
 
 较新的焦点、该 viewport 上较新的滚动、动画、换绑或关闭取消旧请求。source 替换按 key 跟随存活项；目标 key 被删除时在逻辑更新中取消，即使窗口隐藏也不继续保留旧请求。登记关闭和 owner 退休同样取消。隐藏／遮挡沿普通按需帧机制等待恢复，不轮询。按 key 请求本身不改变普通 Tab 顺序，键盘策略由第 7.8.2 节的显式配置控制。
 
@@ -646,7 +728,7 @@ ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以�
 
 ### 7.10 公共 Press 与交互状态
 
-`InteractionState(hovered=false, pressed=false, focused=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
+`InteractionState(hovered=false, pressed=false, focused=false, focusVisible=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
 
 Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
 
@@ -668,7 +750,7 @@ Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到
 
 `ComponentScope.presence(open=false, options=PresenceOptions())` 创建随 scope 关闭的 Presence。PresenceOptions 包含 enter／exit: AnimationSpec?=None，无 repeat 或动画编排图；update(open, options) 从当前 Animatable 值转向新目标，相同目标更新不重新开始。phase 为 Absent／Entering／Present／Exiting，isPresent 表示非 Absent，snapshot 为 PresenceSnapshot(phase, progress)，progress 在 0–1 内；phase 的读取通过普通 State 建立依赖，连续进度在 measure／scene 采样。
 
-Presence.update(open, options=None) 中省略的 options 保留当前配置。
+Presence.update(open, options=None) 中省略的 options 保留当前配置。相同目标不会重启动画；若正在 Entering／Exiting，而新配置把当前方向的动画改为 None，则立即采纳终值并收束到 Present／Absent。这使减少动态的热切换能够停止正在进行的过渡。
 
 Presence 只管理呈现值，资源、输入和子树由组合调用方管理，Portal 使用第 7.6 节的规则。默认无动画直接变化；动画复用 scope 的 Surface AnimationGroup、帧参与和 deadline，没有第二个时钟。关闭及 retarget 取消旧完成回调；隐藏窗口也能收束阶段，不留下周期定时器。owner 强制收尾幂等，底层时间轴已经关闭时直接结束内部阶段，不再采样。
 
@@ -686,7 +768,7 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 `ComponentScope.hover(trigger, open: Binding<Boolean>, options=HoverOptions())` 借用本挂载的 trigger，返回 Hover。setContent(areas) 接入同一逻辑 owner 后代的 portal 内容区域，形成悬浮组；update 接收当前 Binding 与配置，options=None 保留当前配置。选项为 openDelay=300ms、closeDelay=150ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true，时间非负、padding 有限且非负。
 
-组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。
+组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。离开点只由位于悬浮组内的真实指针位置建立；焦点保持期间的组外指针不形成通过区域，焦点随后离开时使用普通 closeDelay。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。如果 dismiss 时组内仍有 hover／有效焦点，则抑制再次打开，直到两者都离开；更新 Props、移动鼠标或卸载内容不解除仍在触发区的抑制。之后重新进入遵守当前延迟，避免 Escape 关闭后立即重开。普通离开延迟不设置此抑制。
 
 观察通过 Surface.observePointer 和普通区域事件／activity 组合，只在打开或等待期间登记当前窗口观察；没有 OS 全局监听、捕获、常驻 timer 或独立命中树。失去有效内容几何时使用普通短延迟收束，不能根据未确认的 scene 位置继续延迟。
 
@@ -698,22 +780,25 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 - `resource<R : Closeable>(create: () -> R): R`：成功取得后立即登记为本组件拥有的资源。
 - `onDispose(action: () -> Unit)`：登记卸载时同步执行的清理动作，例如解除外部订阅或发出任务取消。
-- `isMounted`：当前挂载是否仍可接收业务工作。
+- `isMounted`：本次作用域是否仍有效；工厂构造期间已有效，退休后为 false。所属 Surface 开始 Closing 时立即为 false，即使 UI 资源尚在等待安全退休；输入关闭的完成通知不能继续提交新的挂载工作。
+- `defaultFonts: FontCollection`：借用所属根的当前默认字体。需要跟随替换时，在 render／update／measure 中读取当前值，不把一次读取的结果当作自动换绑的字段。
 - `nativeWindow`：当前挂载所属的 Window，供公共适配接入窗口剪贴板、文本快照和一次性 deadline；不转移窗口所有权，挂载退休后读取报告状态错误。
 - `requestFrame()`：请求所属根再次呈现；不立即执行 render、measure 或 paint。
 - `createArea(...)`：创建并登记第 7 节的稳定 InputArea。
 - `animation(...)`：在所属 Surface 时间轴创建并登记第 7 节的 Animatable。
 - `scrollViewport(state)`：登记第 7.7 节的视口范围、位置提交与平滑滚动。
 
-首轮逻辑提交建立节点和订阅后，按父先子后的顺序调用 onMount，后续 render 不再调用。Element 的首次 update 在其 onMount 成功后执行；全轮挂载完成才可能进入测量／绘制，因此元素的资源在首帧可用。onMount 或 update 中的 State 写入排到下一轮，不递归重建。外部订阅和初始资源在此建立；不提供每次 render 自动重跑的 effect API。
+创建顺序是准备本次挂载的 root／parent／方向和 scope，运行接收 `(Props<P>, ComponentScope)` 或 `(ComponentScope)` 的工厂，验证实际实例归属并接入树，再执行首次 render／子项构造，最后按父先子顺序调用无参数 onMount。局部组装记录不对外发布；工厂取得的资源立即属于本次 scope。基类的只读 scope 在构造和后续回调中指向同一作用域，必需资源无需通过 State 在 onMount 后补发布。
+
+后续 render 不再次调用 onMount。Element／LazyElement 的首次 update 在其 onMount 成功后执行；全轮挂载完成才可能进入测量／绘制。onMount 保留为业务挂载通知，任务启动、聚焦及动画播放使用该边界或 Accepted 回调。合法业务 State 写入排到下一轮，不递归重建；不提供每次 render 自动重跑的 effect API。
 
 卸载先把整棵子树标为不活动并解除依赖／排队工作，然后按子先父后的顺序处理各节点：退休登记输入和动画，调用已成功完成 onMount 的实例的 onUnmount，最后逆登记顺序执行 ComponentScope 清理及元素资源关闭。onUnmount 执行时 scope 已不再允许新增资源或请求帧；除已退休的输入外，其余待清理资源在各自释放前仍属于该实例。没有自定义 onMount 的实例同样完成默认挂载并获得 onUnmount。
 
 原生窗口或 Surface 先进入 Closing 时，仍会向尚未卸载的控件交付失焦／取消通知。UI 在这些通知中继续允许正常的控件状态收尾，但不把新的帧需求送给已经停止呈现的 Surface；根随后按同一关闭路径退休。已经卸载的 ComponentScope 仍拒绝 requestFrame，不改变 SurfaceWindow 自身的关闭后调用规则。
 
-构造器或首轮 render 失败的实例没有完成挂载，不调用 onUnmount；已经建立的节点资源仍须释放。onMount 自身失败时，其 scope 中已登记的资源同样全部清理，不要求失败的回调再自行释放它们。Element 的 update、measure 或 paint 失败时，已完成挂载的实例按通常卸载规则收尾。所有清理分支继续处理剩余资源，错误合并遵守现有 ResourceUseException。
+工厂、构造器或首轮 render 失败的实例没有完成挂载，不调用 onUnmount；本次 scope 已登记的资源与已创建子项仍须全部释放。onMount 自身失败时，其 scope 中已登记的资源同样全部清理，不要求失败的回调再自行释放它们。Element 的 update、measure 或 paint 失败时，已完成挂载的实例按通常卸载规则收尾。所有清理分支继续处理剩余资源，错误合并遵守现有 ResourceUseException。
 
-框架管理自己创建的挂载结构及登记资源。控件库和第三方 Element 负责声明自己拥有的 Path、字体或缓存，并通过相同的 ComponentScope 登记。公共 ParagraphHost 管理自己的 Paragraph／TextLayout；其他可变绘图缓存同样可以实现普通 Closeable，在 onMount 时登记一次，由缓存对象替换和关闭旧值，不得每帧追加旧资源直至卸载才释放。测量中创建新缓存值失败时保留或正确关闭原值，成功替换后及时关闭旧值。缓存不拥有行内子组件，截断可见性不触发 scope 清理。
+框架管理自己创建的挂载结构及登记资源。控件库和第三方 Element 负责声明自己拥有的 Path、字体或缓存，并通过相同的 ComponentScope 登记。公共 ParagraphHost 管理自己的 Paragraph／TextLayout；其他可变绘图缓存同样可以实现普通 Closeable，在构造时通过 scope 登记一次，由缓存对象替换和关闭旧值，不得每帧追加旧资源直至卸载才释放。测量中创建新缓存值失败时保留或正确关闭原值，成功替换后及时关闭旧值。缓存不拥有行内子组件，截断可见性不触发 scope 清理。
 
 传入的 Image、Path、FontCollection 或外部模型默认借用；需要跨调用保留 native 使用时遵循 graphics／graphics.text 的持有合同，不能擅自关闭调用方拥有的包装对象。作用域不拥有 Surface 的整条时间轴或窗口，只拥有为本挂载登记的对象。关闭动画和区域会从 Surface 的集合中移除，Surface 最终关闭继续作为窗口级收尾。
 
@@ -727,9 +812,19 @@ ComponentScope 同步发出取消，异步 finally 和实际 I/O 收尾由既有
 
 预期网络失败在业务任务正文内转换为错误状态，取消保留 CancellationException 的传播；未捕获失败继续沿既有任务树与宿主异常路径处理，不增加 UI 错误边界或自动重试。需要显式识别连续任务时，由业务对象保存当前任务身份；旧任务的迟到进度／结果不能覆盖新任务。普通托管状态、任务取消与原生资源释放各自遵守已有合同。
 
+### 8.1 根默认字体
+
+`UiHost.attach(window, create, fonts: FontCollection? = None)` 和单窗 `runUiApplication(title, create, fonts: FontCollection? = None)` 接收可选的借用字体。没有提供时，根创建并拥有一份启用系统 fallback 的 FontCollection；全体默认文字消费者共享它。根在后代、布局、编辑与绘制资源退休后关闭自己创建的集合。外部集合仅借用，关闭一个根不能关闭其他窗口共享的集合。
+
+`UiWindow.defaultFonts: FontCollection` 读取当前默认值，setter 借用新的集合并失效真实读取路径；根仍在最终关闭时释放原有自有集合，不把替换进来的外部集合转为自有。ComponentScope.defaultFonts 在 Component render 中形成普通输入依赖，在 Element／LazyElement update 中仅收集这一明确的显示依赖，不扩大为 update 的任意 State 追踪；measure／scene 的读取随完整结果记录默认来源版本。切换默认值或其 FontCollection revision 后重新取得实际需要的布局，保留挂载身份；显式字体的消费者不依赖根默认值。
+
+Label、Typography、Button 内容、可选择文字、Input／Textarea／OTP、菜单及公共自绘示例统一以显式 fonts 优先，否则读取 scope.defaultFonts。组合组件不为默认值逐层复制 FontCollection；标题／说明等明确的局部覆盖继续保留优先级。主题来源和方向维持既有协议，不增加通用 Ambient 或 Context 自动换绑。
+
 ## 9. 宿主、关闭与错误
 
-`UiHost` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create)` 返回管理根组件的 UiWindow。`runUiApplication(title, create)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；复杂窗口策略使用显式 UiHost。
+`UiHost(onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler = { _, _, _ -> })` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create, fonts = None): UiWindow?` 成功返回 Some(UiWindow)，初次构造／挂载失败则清理并交付根错误，处理器正常返回时返回 None；挂载回调主动关闭根同样返回 None。错误线程或已经关闭的宿主在开始附着前直接拒绝。处理器默认重新抛出，不默默丢弃错误；调用方可以提供正常返回的处理器，使其他根继续运行。
+
+`runUiApplication(title, create, fonts = None)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；根错误采用明确的重新抛出策略，退出事件循环并向调用方报告失败。复杂窗口策略使用显式 UiHost。UiWindow.close 及已处理的根错误均只关闭根和 Surface，原生 Window 仍由调用方持有，不隐式触发 LastWindowPolicy；错误处理器可按 WindowId 选择销毁原生窗口或退出应用。
 
 macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
 
@@ -749,7 +844,9 @@ SurfaceContent 的 close 必须幂等。通过 owner 线程检查后，attach �
 
 SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SPEC.md#4-surface-宿主与帧)，aarch64 实施及原生关闭／异常验证见 [UI 实施记录](../ui/PROGRESS.md#34-surface-内容根的所有权)。UI 根作为其 content 管理完整挂载树，逻辑回调内请求关闭同样延迟到回调返回后释放资源。
 
-参数、重复 key、重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。render、update、measure、paint、输入处理或挂载回调抛错时，停止新 UI 工作，通过宿主关闭其管理的相关根及 surface，按 SurfaceHost 既有异常通路传播。首期不保留一个继续接收输入的半更新树，不增加错误边界或自动重试次数。
+参数、重复 key、实例重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。窗口的构造、render、update、measure、scene／draw、输入、作用域 deadline、动画和帧完成回调失败时，只停止失败根的新工作、退休输入与资源并关闭其 Surface；全部同步借用退出、清理完成后向 onRootError 交付一次 WindowId 和 Throwable。其他根的更新队列、共享 State 订阅与有效场景保留。挂载与逻辑队列通过 SurfaceWindow.dispatch 接入同一回调和失败通路，不先触发 SurfaceHost 的整体关闭再尝试隔离。
+
+清理继续处理其余资源，原始错误及所有清理错误按 ResourceUseException 保留；不回滚已经写入的共享业务状态，也不重试、自动重新挂载或保留可交互的半更新树。根错误处理器自身抛错、宿主应用事件回调失败、共享 renderer 故障及消息投递失败关闭整个 UiHost／SurfaceHost，向调用方传播原始与后续错误。正常返回的错误处理器不能吞掉宿主级故障。
 
 ### 9.1 异步 I/O、下载进度与跨线程更新
 
@@ -775,8 +872,8 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 
 1. 只依赖框架的自绘组件连续更新复用实例和自有 State；两个挂载的自有状态各自独立，卸载后重新出现从初始值开始；同一组件同时委托外部 State，重挂载时保留 Store 中的值。
 2. 多组件共享 State、条件读取移除旧依赖、经普通模型 getter 间接读取、只读 val 委托、同轮合并，以及 render／measure／scene／draw 内写入的错误路径；卸载一个订阅者不影响其余订阅或共享值。
-3. Component／Element 的 Props 更新不重跑构造器；update 在隐藏时也更新输入；Binding 修改同一原状态、切换绑定后使用新写入路径并退订旧 State；普通 class 内部变更不会被伪装为自动可观察。
-4. keyed 列表插入／删除／重排、重复 key、位置身份、组件／Props 类型替换、分支与跨父级移动。
+3. Component／Element／LazyElement 的 Props 更新不重跑构造器；update 在隐藏时也更新输入；Binding 修改同一原状态、切换绑定后使用新写入路径并退订旧 State；普通 class 内部变更不会被伪装为自动可观察。
+4. keyed 列表插入／删除／重排、重复 key、位置身份、三类描述的组件／Props 类型及完整泛型实参替换、分支与跨父级移动；同类型工厂闭包替换保留实例与状态，类型判断本身无生命周期、工厂或 Props 更新副作用。
 5. 资源取得失败、首轮 render／onMount／update 失败、measure／scene／draw 失败、缓存替换、正常卸载、回调内关闭及清理异常下的剩余资源释放。
 6. 隐藏／零尺寸／Deferred 期间仍执行逻辑卸载；成功提交前新区域不命中，失败帧不发布几何，已卸载区域立即退出交互。
 7. 外部自绘 Element 的约束、子项测量／放置、背景／子项／前景顺序、变换与 clip、Rect／Path 输入命中和真实窗口关闭。
@@ -800,11 +897,11 @@ native 呈现和窗口行为使用现有真实后端，不为测试单独搭一�
 
 ### 接收者配置与行内装配
 
-上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}): View` 以受控打开绑定及完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、onCloseRequest={ _ -> true }、onClosed={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
+上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}): View` 以受控打开绑定及完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、onCloseRequest={ _ -> true }、onClosed={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
 
-PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。atPoint(point) 块配置 preferredSide=Bottom、alignment=Start、gap=0、viewportPadding=8，point 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onCloseRequest／onClosed。
+PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。atPoint(point) 块配置 preferredSide=Bottom、alignment=Start、gap=0、viewportPadding=8，point 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore、includeAnchor=false；focus 块从当前 Some 配置或 OverlayFocusOptions() 开始，None 赋值恢复相应模式的默认策略；mode 直接选择 OverlayMode。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onCloseRequest／onClosed。
 
-`focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
+`focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true、preferredTab=None、onNavigate={}，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 
 `inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。
 
@@ -813,3 +910,49 @@ PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewp
 Linux 的 Primary 为 Control。无额外 Alt／Super／Function 时，Ctrl+A/C/X/V 对应全选／复制／剪切／粘贴，Ctrl+Z 为撤销，Ctrl+Shift+Z 与 Ctrl+Y 为重做。左右键移动视觉字素，Ctrl+左右按词移动；Home／End 为行首／行尾，Ctrl+Home／End 为文档首尾，Ctrl+上下为段落边界。Shift 扩展移动选区；Backspace／Delete 删除前后字素，带 Ctrl 删除前后单词。普通 Enter 和 Ctrl+Enter 分别服从 Enter／PrimaryEnter 提交策略，其余换行、Tab 导航／插入和 Cancel 继续沿共享编辑合同。
 
 输入法正文仅消费 window 的有序文本批次；XKB 字符不在 UI 键盘回退中再次插入。剪贴板写入的原生错误保留，Cut 在成功写出后才改变正文。窗口等待首次配置或隐藏重显时保留已挂载树、状态和 dirty，配置与帧恢复后继续。三套主题均是可选择的普通 Scoop 绘图资源，Linux 不以主题名称推断原生 OS API 或系统字体存在。
+
+## 11. 完整布局与更新合同汇总
+
+本节汇总整改后的布局、构造与失效协议，详细接口见第 2～9 节。实际执行范围与结果见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。六种 View 职责、State 写入即通知、D0a receiver 边界和 Accepted 几何发布合同继续有效；不提供过渡接口或平行实现。
+
+### 11.1 类型化结果与构造协议
+
+公开协议为持有当前 ComponentScope 的抽象基类：`Component(scope)`、`Element<L>(scope)`、`LazyElement<L>(scope)`。Component 声明 `render(): View`；两个自绘基类分别声明 `measure(MeasureContext, Constraints): LayoutResult<L>` 与 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`，共同声明 `scene(SceneContext, layout: L): Unit`。`onMount(): Unit`／`onUnmount(): Unit` 保留默认空实现；自绘基类的 `update(): UiInvalidation` 默认返回 Layout。UiInvalidation 为 None／Scene／Layout，后者包含场景失效。
+
+`LayoutResult<L>(metrics: LayoutMetrics, data: L, dispose: () -> Unit = {})` 是一次成功测量的自有结果。metrics 与 data 只读，data 使用具体的普通 struct／class；不需要数据的元素使用 Unit。成功返回转移释放责任，框架在结果不再被所选布局或本轮有效结果表引用时只调用一次 dispose。构造结果前失败，由测量实现释放本次新取得的资源；结果返回后校验或组装失败，由框架释放。释放失败按原有清理错误合并规则保留，不掩盖原始异常。
+
+工厂接收 `(Props<P>, ComponentScope) -> C`，无输入简写接收 `(ComponentScope) -> C`；Element／LazyElement 的描述同时保留输入 P、具体实例类型和布局类型 L。内部包装通过普通泛型把具体实例和它产生的 L 保存在同一类型化封装，再调用对应 scene；不借助反射、Any 字段还原或额外 View 分支。
+
+scope 在工厂运行前具有根、逻辑父级、方向与资源归属。构造期间取得的输入区域、控制器与资源立即登记到 scope，首次 render 可以直接使用；业务任务、聚焦和动画启动仍留在挂载通知或 Accepted 回调。实际实例保存私有单次挂载归属，不能重复用于另一次挂载，卸载也不重置该资格；不再维护全局实例表。工厂、首次 render 或 onMount 失败，先停止本次工作并清理已创建子项与资源，仅对成功完成 onMount 的实例执行业务 onUnmount。
+
+### 11.2 完整布局选择
+
+框架为每个成功结果保存本节点 metrics、类型化 data、直接子项选中的完整结果及其放置。子选择是不可变快照，分别表达显式跳过、已测量但未放置、已测量并放置。Component／Direction 透传一个选中结果，Empty／Portal 占位没有正文布局；Portal 出口独立选择其内容结果。
+
+measureChild／measureItem 继续向容器返回 LayoutMetrics，context 内部保存完整结果引用。放置选择最后一次成功请求的结果；A→B→A 必须选择原 A 的 data 和子结果，不能只恢复尺寸，也不能递归把成员字段改回旧值。place 后再测量、无成功结果就放置等状态错误沿现有边界报告；context 仅在当前同步回调有效。
+
+发布后的 data 与子选择不得通过别名改写。测量仍可维护输入相关缓存，但 scene 需要的几何、文字排版、裁剪和基线必须来自被选中的 data。像素颜色、透明度与仅绘制的动画值在 scene 采样；影响尺寸或位置的值属于布局输入。
+
+试测不发布焦点、命中、锚点、呈现资格或帧参与。最终选择后才处理 Lazy 保留与卸载：每次试测保存自己的已测项和放置，节点级 key 表复用本轮已构造的项；不按中间请求卸载后又重建，不枚举未请求的 ItemSource。隐藏项保留逻辑更新，恢复时按当前输入选择结果。帧参与与交互几何仍等待 Accepted；Discarded 保留上次已接受资格。
+
+### 11.3 结果表与资源持有
+
+结果表属于根的一次布局轮次，保存在节点，跨不同 MeasureContext／LazyMeasureContext 回调复用。有效键为节点的布局输入版本、Constraints 值、方向及相关环境／动画采样。同一轮相同有效请求只计算一次，失败不缓存。节点内只保存真实发生的小型请求表，不要求 Constraints 的 Hash 或对象地址身份，不以任意配额限制合法布局。
+
+子树布局变化使依赖它的祖先结果失效。Lazy 的实际子项准备可以在布局期间发生，已准备项及其有效版本纳入本次结果；不能使同一父请求无条件重试。下一轮仅保留仍可能复用的当前选择，其余历史约束结果释放。完整结果之间共享子结果引用，不复制整棵放置树；多个父结果不分别关闭同一个子结果。
+
+段落结果持有对应不可变 TextLayout，复用 RetainedParagraphLayout 的持有语义。替换 ParagraphCache 不关闭仍被 A 结果、最终选择或已接受编辑帧持有的排版；新布局失败只释放本次新引用。编辑／可选择文字的独立已接受帧继续持有自己的布局，输入不能读取试测临时替换的“最近布局”。不扩展成通用资源租约体系。
+
+### 11.4 失效与跨帧边界
+
+逻辑更新负责当前 Props、必要的 render／reconcile／update；布局失效负责重新测量及其依赖的祖先；场景失效只负责场景或合成。`ComponentScope.requestLayout()` 使本节点及实际布局依赖路径失效并请求帧，`requestFrame()` 只请求场景。未知输入变化保守返回 Layout，仅替换事件处理器且不改变输入资格时允许 None。children 的增删、重排及已排队后代更新独立处理，不能被 Unit 输入或父级跳过掩盖。
+
+框架复用未失效且约束、方向及布局依赖未变化的上一轮选中结果。初期失效沿布局依赖保守传播，路径外的有效兄弟可以命中。动画在实际读取阶段登记用途：布局阶段读取的值变化使布局失效，场景阶段读取仅使场景失效；两者都读取按布局处理。沿用 Surface 时间轴、完成回调与帧参与，不把逐帧值写入 State。
+
+字体、图像固有尺寸等可变资源使用实际通知或 revision。仅有 revision 的资源在已请求帧入口集中检查一次，失效实际依赖节点；不在每个节点扫描全部资源，也不为检查资源制造周期帧。根默认字体由 scope 明确提供，显式控件字体优先；根只关闭自己创建的 fallback 集合，多个窗口借用的外部集合由调用方关闭。
+
+场景缓存不能仅由尺寸相等推定有效。当前变换、clip、顺序、输入资格、焦点、锚点及 Portal 出口继续参与本帧组装。一次性帧完成回调不能作为跨帧记录重放；像素缓存、scene 跳过和几何复用分别验证。draw 保持直接绘图，drawLayer 保持有限独立记录与合成隔离，缓存开关不改变 Clear／Src 等混合结果。
+
+### 11.5 定向验收
+
+P0 在 release 下实测 Auto Grid 深度 1／3／6／10 与同深度 Frame 对照，记录调用数和不同约束数，源码推导不计作实测。P1 加入完整 A→B→A、段落持有、Lazy 最终选择及失败清理，并断言同节点同有效请求只计算一次。P2 以 Progress／Spinner／caret／纯颜色变化的零重复测量和 Disclosure／Sidebar／Resizable 的真实重排互为对照。其余更新、构造、场景和窗口矩阵按整改方案执行。普通 API 与组合测试属于各 Cone，只有必须由外部控制的帧／输入过程使用已有实窗组织；本轮 macOS 结果不代表 Windows／Linux 已通过。

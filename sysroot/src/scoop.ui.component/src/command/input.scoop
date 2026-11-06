@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme): View {
+    val field = input.input
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val editor =
+        InputProps(
+            field.state,
+            field.placeholder,
+            field.enabled,
+            field.readOnly,
+            field.invalid,
+            field.description,
+            field.fonts,
+            field.style,
+            field.theme,
+            field.focus.copy { handle = Some(focus) },
+            field.direction,
+            field.alignment,
+            field.paintCache,
+            field.caretBlink,
+            field.onEdited,
+            field.onSubmit,
+            field.policy,
+            field.projection,
+            field.copy,
+            field.labelTarget,
+            field.group,
+            field.chrome
+        )
+    val addons = ArrayList<InputGroupAddon>()
+    if (input.showSearchIcon)
+        addons.add(
+            InputGroupAddon(
+                input.searchIcon ?:
+                    element(
+                        CommandSearchIconProps(
+                            16.0 * density,
+                            theme.tokens.palette.muted.foreground
+                        ),
+                        { current, mount -> CommandSearchIcon(current, scope = mount) }
+                    ),
+                key = ViewKey.Text("search")
+            )
+        )
+    val ink = theme.tokens.palette.input
+    val group =
+        component(
+            InputGroupProps(
+                InputGroupControl.Input(editor),
+                addons.toArray(),
+                enabled = field.enabled,
+                invalid = field.invalid,
+                fonts = field.fonts,
+                theme = field.theme,
+                surface =
+                    field.style.surface.copy {
+                        style =
+                            styleOverride {
+                                background(Some(Paint(ink.withAlpha(ink.alpha * 0.3))))
+                                border(Some(Border.all(1.0, ink.withAlpha(ink.alpha * 0.3))))
+                                corners(Corners.all(8.0 * density))
+                                boxShadows([])
+                            }.then(field.style.surface.style)
+                    }
+            ),
+            { current, mount -> InputGroup(current, scope = mount) }
+        )
+    return panelFrame(group, Insets(16.0 * density, 16.0 * density, 16.0 * density, 4.0 * density))
+}
+
+private class CommandSearchIconProps(val size: Double, val color: Color)
+
+private class CommandSearchIcon(
+    private val props: Props<CommandSearchIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var handle: Path? = None
+    public override fun onMount() {
+        // Lucide search, ISC; see ../../LICENSE-LUCIDE.
+        handle =
+            Some(
+                scope.resource {
+                    path {
+                        moveTo(Point(16.65, 16.65));
+                        lineTo(Point(21.0, 21.0))
+                    }
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val value = props.value
+        val size = context.size
+        context.draw {
+            paint -> paint.canvas.withState {
+                canvas ->
+                canvas.scale(size.width / 24.0, size.height / 24.0)
+                val stroke = Paint(value.color, PaintingStyle.Stroke, 2.0)
+                canvas.drawCircle(Point(10.5, 10.5), 7.5, stroke)
+                canvas.drawPath(handle!!, stroke)
+            }
+        }
+    }
+}

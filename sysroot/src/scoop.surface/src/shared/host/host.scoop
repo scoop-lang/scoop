@@ -5,6 +5,7 @@ import scoop.window.*
 
 /** ApplicationHandler wrapper shared by Application.run and runWithAsyncio. */
 public class SurfaceHost public constructor(
+    private val onWindowError: (WindowId, Throwable) -> Unit = { _, error -> throw error },
     private val handler: (SurfaceHost, ActiveApplication, ApplicationEvent) -> Unit
 ): ApplicationHandler, Closeable {
     private val thread = currentThreadId()
@@ -15,6 +16,10 @@ public class SurfaceHost public constructor(
     private var renderer: RendererHost? = None
     private val windows = ArrayList<SurfaceWindow>()
     public val isClosed: Boolean get() = closing && windows.size == 0L
+    public val isClosing: Boolean get() {
+        checkThread()
+        return closing
+    }
     internal val callbackActive: Boolean get() = callbackDepth != 0
     internal val acceptsShortcuts: Boolean get() = !closing
     internal var shortcutAction: HostInputAction? = None
@@ -29,6 +34,7 @@ public class SurfaceHost public constructor(
         checkThread()
         var target: WindowRenderer? = None
         var attached: SurfaceWindow? = None
+        var sharedFailure = false
         try {
             if (
                 closing ||
@@ -50,7 +56,9 @@ public class SurfaceHost public constructor(
                 when (renderer) {
                     case Some(value) -> value
                     case None -> {
+                        sharedFailure = true
                         val value = createRendererHost()
+                        sharedFailure = false
                         renderer = Some(value)
                         value
                     }
@@ -60,7 +68,7 @@ public class SurfaceHost public constructor(
             val result = SurfaceWindow(this, window, content, created)
             attached = Some(result)
             windows.add(result)
-            result.refresh()
+            result.initialize()
             return result
         } catch (error: Throwable) {
             var failure: Throwable? = Some(error)
@@ -74,7 +82,10 @@ public class SurfaceHost public constructor(
                     }
                 }
             }
-            throwFailure(cleanupFailure(failure) { releaseUnusedRenderer() })
+            failure = cleanupFailure(failure) { releaseUnusedRenderer() }
+            if (sharedFailure)
+                failure = cleanupFailure(failure) { close() }
+            throwFailure(failure)
             throw error
         }
     }
@@ -126,6 +137,24 @@ public class SurfaceHost public constructor(
         if (callbackActive)
             pendingRetirement = true
     }
+    internal fun reportWindowError(id: WindowId, error: Throwable) {
+        if (closing)
+            throw error
+        try {
+            onWindowError(id, error)
+        } catch (reported: Throwable) {
+            val failure: Throwable? =
+                if (
+                    reported ===
+                        error ||
+                        (reported is ResourceUseException && reported.primaryFailure === error)
+                )
+                    Some(reported)
+                else
+                    Some(ResourceUseException(error, reported))
+            throwFailure(cleanupFailure(failure) { close() })
+        }
+    }
     internal fun checkThread() {
         if (thread != currentThreadId())
             throw IllegalStateException(Some("Surface requires its owner thread"))
@@ -152,8 +181,14 @@ public class SurfaceHost public constructor(
             return
         when (renderer) {
             case Some(value) -> {
-                renderer = None;
-                value.close()
+                renderer = None
+                try {
+                    value.close()
+                } catch (error: Throwable) {
+                    if (closing)
+                        throw error
+                    throwFailure(cleanupFailure(Some(error)) { close() })
+                }
             }
             case None -> {}
         }

@@ -22,10 +22,11 @@ internal class DownloadCounts {
 /** Observes the actual example subtree, without replacing its controls or progress painter. */
 internal class DownloadObservedRoot(
     private val probe: DownloadWindowProbe,
-    private val index: Long
-): Component {
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
     var clicks: Int by state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.counts[index].mounts += 1
         scope.onDispose { probe.counts[index].unmounts += 1 }
     }
@@ -50,6 +51,7 @@ internal class DownloadObservedRoot(
             if (index == 0L)
                 component(
                     {
+                        mount ->
                         probe.panelCreates += 1
                         val panel =
                             DownloadPanel(
@@ -60,7 +62,8 @@ internal class DownloadObservedRoot(
                                 probe.model,
                                 probe.server!!.request("/known"),
                                 probe.destination,
-                                probe.fonts
+                                probe.fonts,
+                                scope = mount
                             )
                         probe.panel = Some(panel)
                         panel
@@ -86,13 +89,17 @@ internal class DownloadObservedRoot(
                     this.style =
                         styleOverride {
                             this.background(
-                                Some(Paint(owner.probe.source.current.value.tokens.palette.canvas))
+                                Some(
+                                    Paint(
+                                        owner.probe.source.current.value.tokens.palette.background.background
+                                    )
+                                )
                             )
                         }
                 }
         return element(
             snapshot,
-            { props -> DownloadObservedCanvas(probe, index, props) },
+            { props, mount -> DownloadObservedCanvas(probe, index, props, scope = mount) },
             [content]
         )
     }
@@ -101,20 +108,24 @@ internal class DownloadObservedRoot(
 private class DownloadObservedCanvas(
     private val probe: DownloadWindowProbe,
     private val index: Long,
-    private val props: Props<DownloadSnapshot>
-): Element {
-    public override fun update() {
+    private val props: Props<DownloadSnapshot>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].updates += 1
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].measures += 1
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         assertEquals(probe.owner, currentThreadId())
         context.children()
         probe.counts[index].paints += 1

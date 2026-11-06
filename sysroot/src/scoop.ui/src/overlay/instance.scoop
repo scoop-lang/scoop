@@ -22,8 +22,8 @@ internal class PortalInstance(
     var closeReason: OverlayCloseReason? = None
     var included: OverlayFrame? = None
     var presented: OverlayFrame? = None
-    var modal: ModalSession? = None
-    var domain: ModalSession? = None
+    var focusSession: OverlayFocusSession? = None
+    var domain: OverlayFocusSession? = None
     var retirementRevision: ULong? = None
 
     val node: MountedNode get() =
@@ -90,10 +90,7 @@ internal class PortalInstance(
             current = value
             open = binding
             anchor?.addDependent(this)
-            when (value.modal) {
-                case Some(options) -> modal?.replace(options);
-                case None -> {}
-            }
+            focusSession?.replace(value)
         } else {
             current = value
             open = binding
@@ -121,7 +118,7 @@ internal class PortalInstance(
         retirementRevision = None
         awaitInput = reopening
         if (reopening)
-            modal?.reopen()
+            focusSession?.reopen()
         else
             if (!input.isClosed)
                 input.enabled = true
@@ -160,7 +157,7 @@ internal class PortalInstance(
     private fun stopInput() {
         val revision = retirementRevision ?: root.surface.focusRevision
         retirementRevision = Some(revision)
-        modal?.beginClose(revision)
+        focusSession?.beginClose(revision)
         when (route) {
             case Some(value) -> if (!value.isClosed)
                 value.enabled = false;

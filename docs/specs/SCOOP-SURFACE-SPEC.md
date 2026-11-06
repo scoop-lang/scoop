@@ -74,7 +74,13 @@ SurfaceHost 包装 ApplicationHandler，管理所附着的 SurfaceWindow，使�
 
 SurfaceHost 必须在 Closing／Exiting 及用户回调失败时关闭相关 Surface 资源；不能要求应用额外转发清理事件才能释放 lease。绘制和输入回调不挂起、不在内部锁中运行，也不从原生通知递归进入。
 
+`SurfaceHost(onWindowError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler)` 明确区分窗口内容失败和宿主失败。已附着窗口的 paint、输入、动画／deadline、帧完成及窗口资源清理失败，先停止该 Surface 的输入、动画和帧需求；退出当前回调与 Canvas／frame 借用后，依次关闭 content、窗口 renderer 和 lease，再向 onWindowError 交付一次合并后的错误。处理器正常返回时，其他窗口与共享 renderer 继续工作。默认处理器重新抛出，使未处理错误继续终止宿主；处理器自身失败也关闭整个宿主，原始错误与新的报告错误一并保留。同一个 Throwable 的重新抛出不重复包装自身。
+
+`SurfaceWindow.dispatch(block: () -> Unit): Boolean` 供 UI 等内容宿主把同步逻辑工作纳入同一窗口回调边界，保证其内部触发的关闭或失败也等整个 block 退出后再退休资源。只有 Open 窗口执行 block；返回时窗口仍为 Open 才返回 true，已停止的窗口不再执行新 block。异常按同一窗口错误通路报告，不重试或重新附着；清理期间的新错误合并到原错误，窗口清理和通知各至多一次。SurfaceHost 的应用事件处理器、共享 renderer 创建／释放及宿主投递故障仍走整体关闭出口，不被窗口错误处理器吞掉；isClosing 表示宿主已停止接收工作，isClosed 另要求窗口资源全部退休。
+
 `SurfaceContent : Closeable` 定义同步 `paint(FrameContext)` 及默认不执行操作的 `onFrameComplete(FrameCompletion)`，表示一个由 SurfaceWindow 拥有的内容根。`SurfaceHost.attach(window, content)` 在通过 owner 线程检查后接收新 content 的所有权；窗口状态、重复附着、renderer 创建或配置失败时，也负责关闭 content 并回滚本次取得的资源。错误线程调用在转移所有权前拒绝。一个 content 只能交给一个窗口，close 必须幂等。原有 painter 闭包重载通过不拥有额外资源的 SurfaceContent 适配，继续服务直接绘图。
+
+SurfaceHost.attach 成功返回 SurfaceWindow，未发布的附着失败完成回滚后向调用方抛出，由 UI 等实际调用者决定报告策略；拒绝一份重复附着的 content 不会关闭已经存在的内容。Surface 借用 native Window，关闭或处理窗口错误只释放自身资源，不请求销毁原生窗口；应用通过 WindowId 决定关闭窗口或退出。LastWindowPolicy 继续只响应真实原生窗口数量变化。
 
 关闭覆盖 SurfaceHost 的事件处理器、内容 paint／帧完成通知和输入回调。回调内部请求关闭时先进入 Closing 并停止新工作，当前回调栈及 Canvas／frame 借用退出后才关闭 content；随后释放 renderer 和 lease。最外层 `SurfaceHost.use` 因而同时覆盖内容根、原生窗口关闭和异常退出。attach 尚未暴露给调用方的失败结果立即回滚，不等待另一个原生事件。
 
@@ -128,13 +134,17 @@ SurfaceWindow 不可绘制时停止请求无效帧，但默认时间轴继续推
 
 SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近完成时间；窗口整体不可绘制时适用于全部有限动画。有限重复与 spring 的结束时间按原解析计划计算，纳秒取整不提前结束；无法表示的期限在启动或恢复时拒绝。零时长完成回调同样在后续采样边界交付。无限重复的离屏动画不安排周期定时器，其他必要采样或恢复可见时直接采样当前进度。定时采样与真实帧使用同一时间轴及完成队列；取消、重新启动和关闭阻止旧完成回调，完成回调新建的工作留到下一轮。这个机制不把正常暂停变成离屏策略，也不推测内容布局矩形是否覆盖全部绘制效果。
 
-本期不引入可观察属性系统。应用明确更新状态／请求帧，动画仅失效实际变化所需的绘制或文本布局。
+动画提供同步读取登记，供 UI 区分布局与场景依赖：`Animatable<T>` 实现 `AnimationSource`，公开单调的 `revision: Long`；值、目标、速度或播放状态改变时修订版本，相同时间的重复采样不改变版本。读取 value／target／velocity／state 时，若当前 Context 绑定了 `AnimationReadObserver`，调用其 `read(source: AnimationSource)`。revision 自身不登记读取。无 observer 时仍是普通直接读取；observer 不启动动画、不订阅周期任务、不改变帧时间和完成队列。
+
+这只表达已有动画的读取用途，不提供通用可观察属性系统。UI 在 measure／scene 的同步调用边界安装 observer，依赖原 Surface 时间轴推进和请求帧。
 
 `AnimationTimeline.group(frameEnabled = true)` 创建同一时间轴拥有的 AnimationGroup。group.value 与 timeline.value 支持相同值类型；组拥有这些值，close 关闭其剩余动画，时间轴关闭同时关闭组。组的 isFrameEnabled 与每个值的 isFrameEnabled 相与，不覆盖值的显式设置；恢复组时按同一个当前时间采样，完成回调仍排队。组没有独立时钟或嵌套调度器，供 UI 将一个挂载作用域的动画与平滑滚动一起退出离屏帧需求。创建、读写与关闭均使用时间轴 owner 线程。
 
 ## 6. 区域、输入与焦点
 
 InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
+
+InputArea.focusable 是可更新资格；设置 false 时按普通输入失效规则清理该区域的焦点，设置 true 不自动聚焦。textInput=true 必须保持 focusable=true，不能在文本输入仍启用时清除焦点能力。该入口供 Portal 模式切换复用原路由代理，不替换区域或其子树。
 
 parent 是稳定的逻辑关系，不由 FrameContext.place 决定。设置 parent 时检查同窗口、活动父节点和无祖先环；窗口根不能重新挂到其他节点。None 表示普通节点重新连接窗口根。更新立即影响后续事件和资格收尾，不等待下一帧。每帧 place 只提供区域及 shape，记录 Canvas 当前变换、有效 clip 及放置顺序；同一区域一帧至多放置一次，逻辑父区域不必先绘制。placement 随成功提交整体发布。
 
@@ -148,7 +158,7 @@ enabled = false 使节点及其后代退出交互；ignoreSelf 只忽略区域�
 
 主按钮按下的默认阶段先在当前 hover 路径中最内层可聚焦区域请求焦点，再执行该节点的 defaultAction，仍未消费时继续祖先；拖出后追加按键不会将焦点送到已离开的捕获目标。传播处理器可用 preventDefault 取消这次默认焦点变化；控件自己的按压、释放和激活由其默认行为实现。窗口活动但没有焦点区域时，Keyboard 从窗口根 scope 开始；窗口未获 OS 焦点时不执行键盘默认动作。指针没有命中区域时也向窗口根交付普通事件，根的 localPosition 为 None，供窗口级观察与默认动作使用。
 
-Entered／Left、FocusChanged、ModifiersChanged、Cancelled 和 TextInput 使用 Notification 阶段，不可取消。此时三个取消方法均不改变派发或状态收尾。Entered／Left 按 hover 路径差异通知；FocusChanged 与 TextInput 只交付所属区域；ModifiersChanged 完整通知当前焦点路径，缺省为活动窗口根。Cancel 向整条旧路径交付，不因中途节点消费或退休遗漏祖先收尾。close 或禁用发生在处理器内时，退出派发后再交付必要的 Cancel／Left／失焦通知。Left 与 Cancel 只有时间及终结原因，没有局部位置。
+Entered／Left、FocusChanged／FocusVisibilityChanged、ModifiersChanged、Cancelled 和 TextInput 使用 Notification 阶段，不可取消。此时三个取消方法均不改变派发或状态收尾。Entered／Left 按 hover 路径差异通知；FocusChanged 与 TextInput 只交付所属区域；ModifiersChanged 完整通知当前焦点路径，缺省为活动窗口根。Cancel 向整条旧路径交付，不因中途节点消费或退休遗漏祖先收尾。close 或禁用发生在处理器内时，退出派发后再交付必要的 Cancel／Left／失焦通知。Left 与 Cancel 只有时间及终结原因，没有局部位置。
 
 第一期沿用 window 的鼠标与滚轮模型，不虚构 touch contact。首次按钮按下固定该次鼠标按钮序列的目标与路径，未命中区域时固定窗口根路径，直到最后一个已按按钮释放或收到取消；中途移动／抬起继续送到该路径，使用最新有效 placement 换算局部坐标。区域移除／禁用、窗口失焦或捕获丢失结束序列，交付 Cancel，不能合成可能触发点击的正常 Up。
 
@@ -166,7 +176,7 @@ InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何
 
 InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
-InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的模态。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
+InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的 AllInput／FocusOnly。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
 
 `InputScope.observeActivity(handler: () -> Unit): Closeable` 订阅实际归属改变，在当前输入派发及路由收尾后通知，可在回调中读取新 activity。同一子树内起点 A 移到 B 也通知，即使活动标记没有改变；没有归属改变的移动和重绘不通知。登记时不回调，不为每个 InputScope 自动建立观察者。关闭登记或所属 scope 后停止通知，调用方可以在回调中关闭登记、变更焦点或禁用节点；后续变化仍经同一收尾通路处理，不递归交付未稳定的路由状态。UI 按需子项用它维护交互固定，不复制一套焦点／指针／IME 状态。
 
@@ -175,6 +185,10 @@ graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需�
 SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。reserveFocusRequest() 推进并返回同一个窗口序号，但不改变当前焦点，供上层登记尚未有可用几何的请求或记录被当前域拒绝的显式请求；不能为这些请求另设一套不可比较的版本。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。
 
 InputArea.focusRevision 保存该区域最近一次成功聚焦请求的窗口序号，初始及关闭后为 None。鼠标默认聚焦与程序化请求使用同一记录；失败请求、失焦、clearFocus 和 OS 激活变化不重写该区域的成功历史。导航组据此恢复最近使用的有效成员，不安装第二套焦点处理器。比较同窗口记录时使用当前窗口序号减去记录的无符号距离，最近者距离最小。
+
+`FocusOrigin.Pointer／Keyboard／Programmatic` 记录同一聚焦入口的来源。`InputArea.requestFocus(origin = Programmatic)` 仅在成功时更新 `focusOrigin`（初始为 Programmatic）；默认鼠标聚焦使用 Pointer，非 synthetic 的实际键盘按下将当前区域来源改为 Keyboard，失败请求及 OS 失焦／恢复不重写来源。按键引起的来源改变不推进 focusRevision，也不创建另一份焦点目标；显式聚焦请求沿原有修订号规则。相同目标且指示未变的重复请求不产生额外帧需求。
+
+`InputArea.focusVisibility: FocusVisibility = Automatic` 支持 Automatic／Always／Never。`isFocusVisible` 仅在未关闭且 isFocusActive 时为真：Automatic 对键盘／程序聚焦以及 textInput 区域显示，Pointer 聚焦普通区域不显示；Always／Never 显式覆盖。仅指示变化时发送不可取消的 `InputEvent.FocusVisibilityChanged(Boolean)` Notification，不重发 FocusChanged、不重建 IME。样式策略更新及真实按键都使用该通知，禁用、隐藏、卸载和 OS 失焦仍沿原焦点合同退出。
 
 每个区域用 `setCaret(rect: Rect?, revision: Long? = None)` 保存局部 caret 和可选文档修订；None 明确表示没有可用几何，初始为 None。应用可传入 TextLayout.caret 的结果，Surface 不保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
 
@@ -196,15 +210,17 @@ InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返�
 
 ### 6.2 输入边界与按下预处理
 
-InputBoundary(input: InputScope) 在该窗口安装输入域，按建立顺序叠放，最新未关闭边界生效；同一 scope 同时只登记一个边界。它是显式 Closeable，提供 input、isClosed、isCurrent。SurfaceWindow.inputBoundary 返回当前边界或 None。域改变不改变逻辑 parent，也不重新发布几何；关闭非当前边界不改变现有输入域，关闭当前边界恢复前一个未关闭边界或窗口根。
+InputBoundary(input: InputScope, mode: InputBoundaryMode = AllInput, enabled: Boolean = true) 在该窗口安装边界，按建立顺序叠放；同一 scope 同时只登记一个边界。AllInput 同时约束指针与焦点，FocusOnly 只约束焦点及键盘路由，背景 pointer／wheel 继续执行，其默认聚焦不得突破约束。两种模式共享登记与生命周期，不产生第二份焦点状态。它是显式 Closeable，提供 input、mode、enabled、isClosed、isCurrent；isCurrent 表示当前焦点边界。`update(mode, enabled)` 同步整体更新配置并保留登记次序；禁用登记不约束输入、阻止宿主快捷键或固定惰性条目，重新启用也不越过后来建立的嵌套边界。当前有效指针域变化时按原规则取消旧指针／滚动序列，只有焦点约束变化时不取消背景指针序列。
 
-新域立即限制可接受目标。命中、程序化 focus、Keyboard／ModifiersChanged 的缺省目标和普通 capture／target／bubble／default 均停在当前 input；没有命中或焦点时从该域根接收输入，不能落回背景窗口根。路径中的区域只在域内要求已提交的可逆几何，域外的区域几何不再成为 portal 模态的前提；逻辑祖先的关闭／禁用仍使后代失效。InputScope.isInputAllowed 查询这种不依赖几何的逻辑准入，isEnabledInHierarchy 仍只查询关闭／启用状态。UI 的待聚焦请求也必须先满足当前域准入。
+SurfaceWindow.inputBoundary 返回最新启用的 AllInput，focusBoundary 返回属于当前指针域的最新启用边界（背景 FocusOnly 不覆盖模态域）；焦点目标必须同时属于当前指针域与焦点域。域改变不改变逻辑 parent，也不重新发布几何。关闭或禁用恢复前一个有效边界或窗口根。InputScope.isFocusAllowed 是同时满足两域的逻辑可用性；isInputAllowed 仍只表示指针输入域可用性。保留次序的配置更新只服务实际模态切换，不另建边界身份或焦点状态。
 
-域切换结束旧按下路径，退出当前派发后向完整旧路径发送 InputCancelReason.BoundaryChanged；按键仍保持按下时使用空路径，直到全部释放，不能让剩余 Move／Up 或追加按钮落向新域。已失效焦点按普通规则退出并关闭旧 IME；终结通知和旧 IME 会话的队列收尾继续遵守原归属，不把它们当作新的背景用户输入。一次输入回调内安装边界后，后续域外传播与默认处理器立即跳过；冻结路径不会扩展成另一条新路径。
+新域立即限制可接受目标。命中和指针路由止于当前指针域根；程序化 focus、Keyboard／ModifiersChanged 的缺省目标与键盘 capture／target／bubble／default 止于当前焦点域根。没有命中或焦点时分别从相应域根接收输入，不越过相应约束回落背景窗口根。路径中的区域只在域内要求已提交的可逆几何，域外的区域几何不再成为 portal 模态的前提；逻辑祖先的关闭／禁用仍使后代失效。InputScope.isInputAllowed 查询这种不依赖几何的逻辑准入，isEnabledInHierarchy 仍只查询关闭／启用状态。UI 的待聚焦请求也必须先满足当前域准入。
 
-input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续阻止背景输入，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
+指针域切换结束旧按下路径，退出当前派发后向完整旧路径发送 InputCancelReason.BoundaryChanged；按键仍保持按下时使用空路径，直到全部释放，不能让剩余 Move／Up 或追加按钮落向新域。已失效焦点按普通规则退出并关闭旧 IME；终结通知和旧 IME 会话的队列收尾继续遵守原归属，不把它们当作新的背景用户输入。一次输入回调内安装边界后，后续域外传播与默认处理器立即跳过；冻结路径不会扩展成另一条新路径。
 
-InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前域根（无边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
+input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续保持其对应的输入／焦点约束，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
+
+InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前指针域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
@@ -214,7 +230,7 @@ ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输�
 
 HostShortcutScope(host: SurfaceHost, bindings: Array<ShortcutBinding> = []) 提供同一宿主各窗口共用的最后回退。每个宿主至多一个活动登记，关闭后可重新创建；可在 attach 窗口之前登记，后续附着窗口自动接入，关闭单个窗口不关闭宿主绑定。它提供与 ShortcutScope 相同的 enabled、bindings、isClosed 和 close；配置只在登记／整体更新时检查一次，不为每个窗口复制或重验集合。SurfaceHost.close 立即停用该登记，已进入 canExecute 的动作在执行前再次确认其仍有效。
 
-宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary 都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
+宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary（包括 FocusOnly）都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
 
 ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat、canExecute 和 action。key／modifiers 的描述、构造检查、Primary 解析、匹配及标签均由 window 提供；Surface 不保存平台键位表。绑定更新以 chord.equivalentTo 检查重复，派发以 chord.matches 匹配事件；通用作用域和派发位于共享源码。
 
@@ -262,7 +278,7 @@ graphics 与 graphics.text 的原生持有对象在创建线程串行使用和�
 
 native 薄层复制跨调用存活的数据，或取得明确的原生引用；不能保存移动 GC 对象的裸地址。回调使用已有 ForeignCallback 生命周期。C++／Objective-C 异常与用户异常均不得跨 C ABI 展开。
 
-关闭顺序为停止帧通知并退休回调、结束输入／动画、等待当前同步回调和帧借用退出、关闭 SurfaceContent、结束实际 GPU 使用、释放 surface／context 及平台引用、关闭 NativeWindowLease。已停止的 ApplicationProxy 不能成为资源释放的唯一途径。content.close 失败仍释放 renderer／lease，继续关闭其他窗口内容；清理失败遵循 ResourceUseException，不依赖后续一次事件或应用再调用 close 才完成收尾。
+关闭顺序为停止帧通知并退休回调、结束输入／动画、等待当前同步回调和帧借用退出、关闭 SurfaceContent、结束实际 GPU 使用、释放 surface／context 及平台引用、关闭 NativeWindowLease。已停止的 ApplicationProxy 不能成为资源释放的唯一途径。content.close 失败仍释放本窗口的 renderer／lease；关闭整个宿主时继续处理其他窗口内容。清理失败遵循 ResourceUseException，不依赖后续一次事件或应用再调用 close 才完成收尾。
 
 在当前业务回调或帧借用期间请求关闭时，先进入 Closing、停止新工作，待当前回调退出并中止帧后完成实际释放；owner 不得等待自身尚未退出的回调，也不得在 Canvas 仍借用时销毁其 surface。
 

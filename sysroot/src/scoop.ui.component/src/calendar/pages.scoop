@@ -1,0 +1,293 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+
+public enum CalendarWeekNumbers {
+    None, Iso, Locale
+}
+
+public enum CalendarCaption {
+    Label, Dropdowns
+}
+
+public class CalendarLocale public constructor(
+    public val months: Array<String> =
+        [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December"
+        ],
+    public val shortMonths: Array<String> =
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    public val weekdays: Array<String> = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+    public val weekStartsOn: DayOfWeek = DayOfWeek.Sunday,
+    public val firstWeekContainsDate: Int = 1,
+    public val number: (Int) -> String = { value -> value.toString() },
+    public val date: (LocalDate) -> String = { value -> value.toString() }
+) {
+    init {
+        requireComponent(
+            months.size == 12L && shortMonths.size == 12L && weekdays.size == 7L,
+            "calendar locale needs twelve month names and abbreviations and seven weekdays"
+        )
+        requireComponent(
+            firstWeekContainsDate >= 1 && firstWeekContainsDate <= 7,
+            "invalid calendar first week rule"
+        )
+    }
+}
+
+public class CalendarDayData public constructor(
+    public val date: LocalDate,
+    public val label: String,
+    public val outside: Boolean = false,
+    public val enabled: Boolean = true
+)
+
+public class CalendarWeek public constructor(
+    public val days: Array<CalendarDayData?>,
+    public val number: String? = None
+) {
+    init {
+        requireComponent(days.size == 7L, "calendar weeks need exactly seven cells")
+    }
+}
+
+public class CalendarPageChoice public constructor(
+    public val anchor: LocalDate,
+    public val label: String
+)
+
+public class CalendarPage public constructor(
+    public val anchor: LocalDate,
+    public val caption: String,
+    public val weeks: Array<CalendarWeek>,
+    public val previous: LocalDate? = None,
+    public val next: LocalDate? = None,
+    public val previousYear: LocalDate? = None,
+    public val nextYear: LocalDate? = None,
+    public val months: Array<CalendarPageChoice> = [],
+    public val years: Array<CalendarPageChoice> = []
+) {
+    init {
+        requireComponent(weeks.size > 0L, "calendar page needs at least one week")
+        var last: LocalDate? = None
+        var primary = false
+        for (week in weeks)
+            for (cell in week.days)
+                when (cell) {
+                    case Some(day) -> {
+                        requireComponent(
+                            (last?.compareTo(day.date) ?: -1L) < 0L,
+                            "calendar page dates must be unique and increasing"
+                        )
+                        last = Some(day.date)
+                        if (!day.outside)
+                            primary = true
+                    }
+                    case None -> {}
+                }
+        requireComponent(primary, "calendar page needs a date belonging to the page")
+        requireComponent(
+            previous != Some(anchor) && next != Some(anchor),
+            "calendar neighbor must be a different page"
+        )
+        for (choices in [months, years])
+            for (index in 0L ..< choices.size)
+                for (before in 0L ..< index)
+                    requireComponent(
+                        choices[index].anchor != choices[before].anchor,
+                        "calendar page choices must be unique"
+                    )
+    }
+}
+
+public class CalendarPageRequest public constructor(
+    public val anchor: LocalDate,
+    public val locale: CalendarLocale = CalendarLocale(),
+    public val showOutsideDays: Boolean = true,
+    public val fixedWeeks: Boolean = false,
+    public val weekNumbers: CalendarWeekNumbers = CalendarWeekNumbers.None,
+    public val years: Array<Int> = []
+) {
+    public val weekStart: DayOfWeek get() =
+        if (weekNumbers == CalendarWeekNumbers.Iso)
+            DayOfWeek.Monday
+        else
+            locale.weekStartsOn
+}
+
+public interface CalendarPageSource {
+    public fun page(request: CalendarPageRequest): CalendarPage
+}
+
+/** Calendar arithmetic comes from scoop.datetime; this source only lays dates into weeks. */
+public class GregorianCalendarPages public constructor(): CalendarPageSource {
+    public override fun page(request: CalendarPageRequest): CalendarPage {
+        val month = request.anchor.yearMonth
+        val first = month.atDay(1)
+        val offset = (first.dayOfWeek.isoDayNumber - request.weekStart.isoDayNumber + 7) % 7
+        val start = first.toEpochDays() - offset.toLong()
+        val count =
+            if (request.fixedWeeks)
+                6L
+            else
+                ((offset + month.lengthOfMonth + 6) / 7).toLong()
+        val weeks =
+            Array<CalendarWeek>(count) {
+                row ->
+                val cells =
+                    Array<CalendarDayData?>(7L) {
+                        column ->
+                        val epoch = start + row * 7L + column
+                        if (
+                            epoch <
+                                LocalDate.MIN.toEpochDays() ||
+                                epoch >
+                                LocalDate.MAX.toEpochDays()
+                        )
+                            None
+                        else {
+                            val date = LocalDate.fromEpochDays(epoch)
+                            val outside = date.yearMonth != month
+                            if (outside && !request.showOutsideDays)
+                                None
+                            else
+                                Some(
+                                    CalendarDayData(
+                                        date,
+                                        request.locale.number(date.dayOfMonth),
+                                        outside
+                                    )
+                                )
+                        }
+                    }
+                var representative: LocalDate? = None
+                for (cell in cells)
+                    if (representative == None)
+                        representative = cell?.date
+                val number =
+                    when (request.weekNumbers) {
+                        case None -> None
+                        else -> when (representative) {
+                            case Some(date) -> Some(
+                                request.locale.number(calendarWeekNumber(date, request))
+                            )
+                            case None -> None
+                        }
+                    }
+                CalendarWeek(cells, number)
+            }
+        val months =
+            Array<CalendarPageChoice>(12L) {
+                index -> CalendarPageChoice(
+                    LocalDate(month.year, (index + 1L).toInt(), 1),
+                    request.locale.shortMonths[index]
+                )
+            }
+        val years = ArrayList<CalendarPageChoice>()
+        if (request.years.size == 0L) {
+            val startYear =
+                if (month.year < -999999899)
+                    -999999999
+                else
+                    month.year - 100
+            val endYear =
+                if (month.year > 999999979)
+                    999999999
+                else
+                    month.year + 20
+            for (year in startYear ..< (endYear + 1))
+                years.add(
+                    CalendarPageChoice(
+                        LocalDate(year, month.monthNumber, 1),
+                        request.locale.number(year)
+                    )
+                )
+        } else
+            for (year in request.years)
+                years.add(
+                    CalendarPageChoice(
+                        LocalDate(year, month.monthNumber, 1),
+                        request.locale.number(year)
+                    )
+                )
+        return CalendarPage(
+            first,
+            request.locale.months[(month.monthNumber - 1).toLong()] +
+                " " +
+                request.locale.number(month.year),
+            weeks,
+            calendarShiftMonth(first, -1L),
+            calendarShiftMonth(first, 1L),
+            calendarShiftMonth(first, -12L),
+            calendarShiftMonth(first, 12L),
+            months,
+            years.toArray()
+        )
+    }
+}
+
+internal fun calendarShiftMonth(date: LocalDate, months: Long): LocalDate? =
+    try {
+        Some(date.plusMonths(months))
+    } catch (_: ArithmeticException) {
+        None
+    }
+
+internal fun calendarShiftDay(date: LocalDate, days: Long): LocalDate? =
+    try {
+        Some(date.plusDays(days))
+    } catch (_: ArithmeticException) {
+        None
+    }
+
+private fun weekStartEpoch(january: Long, day: Int, weekday: Int): Long {
+    val epoch = january + day.toLong() - 1L
+    val iso = ((epoch + 3L) % 7L + 7L) % 7L + 1L
+    return epoch - (iso - weekday.toLong() + 7L) % 7L
+}
+
+internal fun calendarWeekNumber(date: LocalDate, request: CalendarPageRequest): Int {
+    val iso = request.weekNumbers == CalendarWeekNumbers.Iso
+    val day =
+        if (iso)
+            4
+        else
+            request.locale.firstWeekContainsDate
+    val weekday = request.weekStart.isoDayNumber
+    val january = LocalDate(date.year, 1, 1).toEpochDays()
+    val epoch = date.toEpochDays()
+    val start = weekStartEpoch(january, day, weekday)
+    val nextJanuary = LocalDate(date.year, 12, 31).toEpochDays() + 1L
+    val next = weekStartEpoch(nextJanuary, day, weekday)
+    if (epoch >= next)
+        return 1
+    if (epoch >= start)
+        return ((epoch - start) / 7L + 1L).toInt()
+    // Week labels may refer to the preceding year even at the representable date boundary.
+    val previousYear = date.year - 1
+    val leap = previousYear % 4 == 0 && (previousYear % 100 != 0 || previousYear % 400 == 0)
+    val previous =
+        weekStartEpoch(
+            january -
+                (
+                    if (leap)
+                        366L
+                    else
+                        365L
+                ),
+            day,
+            weekday
+        )
+    return ((epoch - previous) / 7L + 1L).toInt()
+}

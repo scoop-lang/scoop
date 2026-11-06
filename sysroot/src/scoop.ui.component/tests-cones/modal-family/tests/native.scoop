@@ -1,0 +1,48 @@
+package scoop.tests.ui.modalfamily
+
+import scoop.test.*
+import scoop.tests.window.nativeEditorKey
+import scoop.window.Window
+import scoop.window.native.*
+
+internal fun modalFamilyKey(window: Window, code: Int, text: String, flags: Int = 0): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeEditorKey(view, code, bytes, length, flags)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun modalFamilyFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        modalFamilyFailure(error.primaryFailure)
+        modalFamilyFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "modal family failure")
+}

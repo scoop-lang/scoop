@@ -1,0 +1,234 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class ComponentMeasureReuseTest {
+    @Test
+    fun `nested auto grids and frames preserve geometry for every measured depth`() {
+        val probe = MeasureReuseProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        for (sample in probe.samples)
+            for (counter in sample.counters) {
+                assertEquals(1, counter.mounts)
+                assertEquals(1, counter.unmounts)
+                assertEquals(1, counter.paints)
+            }
+    }
+}
+
+private class MeasureRequestCount {
+    var calls = 0L
+    var paints = 0
+    var mounts = 0
+    var unmounts = 0
+    val requests = ArrayList<Constraints>()
+    fun record(constraints: Constraints) {
+        calls += 1L
+        for (previous in requests)
+            if (previous == constraints)
+                return
+        requests.add(constraints)
+    }
+    fun reset() {
+        calls = 0L
+        paints = 0
+        requests.clear()
+    }
+}
+
+private class MeasureSample(val depth: Long, val useGrid: Boolean) {
+    val counters = ArrayList<MeasureRequestCount>()
+    var elapsed = Duration.ZERO
+    fun view(): View {
+        val leaf = MeasureRequestCount()
+        counters.add(leaf)
+        var content = element({ mount -> MeasureReuseLeaf(leaf, scope = mount) })
+        for (_ in 0L ..< depth) {
+            val child = content
+            val counter = MeasureRequestCount()
+            counters.add(counter)
+            val container =
+                if (useGrid)
+                    grid { item(child) }
+                else
+                    frame(child)
+            content =
+                element({ mount -> MeasureReuseContainer(counter, scope = mount) }, [container])
+        }
+        return content
+    }
+    fun report() {
+        var total = 0L
+        var distinct = 0L
+        for (counter in counters) {
+            total += counter.calls
+            distinct += counter.requests.size
+        }
+        val kind =
+            if (useGrid)
+                "Auto Grid"
+            else
+                "Frame"
+        val leaf = counters[0L]
+        println(
+            f"${kind} depth=${depth}: leaf=${leaf.calls}, leaf requests=${leaf.requests.size}, " +
+                f"probe calls=${total}, probe requests=${distinct}, elapsed=${elapsed}"
+        )
+        for (counter in counters)
+            assertEquals(counter.requests.size, counter.calls)
+        assertEquals(leaf.requests.size, leaf.calls)
+        assertTrue(leaf.calls <= 3L)
+        assertTrue(total <= depth * 3L + 1L)
+        if (!useGrid) {
+            assertEquals(1L, leaf.calls)
+            assertEquals(depth + 1L, total)
+        }
+    }
+}
+
+private class MeasureReuseProbe {
+    val samples = ArrayList<MeasureSample>()
+    var finished = false
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val children = ArrayList<View>()
+                for (useGrid in [true, false])
+                    for (depth in [1L, 3L, 6L, 10L]) {
+                        val sample = MeasureSample(depth, useGrid)
+                        samples.add(sample)
+                        children.add(sample.view())
+                    }
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val view =
+                    element(
+                        { mount -> MeasureReuseRoot(this, active, scope = mount) },
+                        children.toArray()
+                    )
+                host.attach(
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop measurement baseline"
+                            size = LogicalSize(260.0, 240.0)
+                        }
+                    ),
+                    { mount -> MeasureReuseScene(view, scope = mount) }
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("measurement baseline timed out"))
+            else -> {}
+        }
+    }
+}
+
+private class MeasureReuseScene(private val content: View, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View = content
+}
+
+private class MeasureReuseRoot(
+    private val probe: MeasureReuseProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            val sample = probe.samples[index]
+            for (counter in sample.counters)
+                counter.reset()
+            val start = MonotonicTimeSource.markNow()
+            val measured =
+                context.measureChild(
+                    index,
+                    Constraints(maxWidth = Some(128.0), maxHeight = Some(64.0))
+                )
+            sample.elapsed = MonotonicTimeSource.markNow() - start
+            assertEquals(Size(24.0, 16.0), measured.size)
+            if (!sample.useGrid)
+                assertEquals(Some(12.0), measured.alphabeticBaseline)
+            context.placeChild(index, Point(12.0, 12.0 + index.toDouble() * 24.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 240.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        context.onFrameComplete {
+            completion -> if (
+                completion.submission == FrameSubmission.Accepted && !probe.finished
+            ) {
+                for (sample in probe.samples)
+                    sample.report()
+                probe.finished = true
+                active.requestExit()
+            }
+        }
+    }
+}
+
+private class MeasureReuseLeaf(
+    private val counter: MeasureRequestCount,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        counter.mounts += 1
+    }
+    public override fun onUnmount() {
+        counter.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        counter.record(constraints)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(24.0, 16.0)), Some(12.0)),
+            Unit
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        counter.paints += 1
+        assertEquals(Size(24.0, 16.0), context.size)
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 24.0, 16.0), Paint(Color.Black))
+        }
+    }
+}
+
+private class MeasureReuseContainer(
+    private val counter: MeasureRequestCount,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        counter.mounts += 1
+    }
+    public override fun onUnmount() {
+        counter.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        counter.record(constraints)
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        counter.paints += 1
+        assertEquals(Size(24.0, 16.0), context.size)
+        context.children()
+    }
+}

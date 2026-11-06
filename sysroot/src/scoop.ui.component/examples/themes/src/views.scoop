@@ -1,0 +1,246 @@
+package scoop.examples.ui.themes
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal fun showcaseView(
+    model: ShowcaseModel,
+    count: Int,
+    name: TextEditorState,
+    notes: TextEditorState,
+    choices: Array<FocusHandle>,
+    onIncrement: () -> Unit
+): View {
+    val theme = model.source.current.value
+    val enabled = model.enabled.value
+    val effects = ArrayList<ContentEffect>()
+    if (model.shadow.value)
+        effects.add(
+            ContentEffect.DropShadow(Point(4.0, 4.0), 3.0, 3.0, Color.Black.withAlpha(0.45))
+        )
+    if (model.glow.value)
+        effects.add(
+            ContentEffect.Glow(3.0, 3.0, theme.tokens.palette.primary.background.withAlpha(0.75))
+        )
+    if (model.blur.value)
+        effects.add(ContentEffect.Blur(2.0, 2.0))
+    return frame(
+        column {
+            spacing = 5.0
+            label("Scoop themes") {
+                style {
+                    fontSize = Some(22.0);
+                    weight = Some(700)
+                }
+            }
+            label("Surface, selection marks, scrollbars, and live controls")
+            add(themeChoices(model, choices, theme.tokens.mode))
+            frame(element(theme, { props, mount -> Gallery(props, mount) })) {
+                padding = Some(Insets.all(6.0))
+                surface = Some(SurfaceKind.Elevated)
+            }
+            frame(
+                counterPreview(theme.tokens.palette.primary.background, count, enabled, onIncrement)
+            ) {
+                padding = Some(Insets.all(10.0))
+                surface = Some(SurfaceKind.Plain)
+                style { contentEffects(effects.toArray()) }
+            }
+            row {
+                spacing = 18.0
+                alignment = CrossAlignment.Center
+                add(showcaseOption(model.enabled.binding(), "Enabled"))
+                add(showcaseOption(model.shadow.binding(), "Drop shadow"))
+                add(showcaseOption(model.glow.binding(), "Glow"))
+                add(showcaseOption(model.blur.binding(), "Blur"))
+            }
+            label(
+                "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur."
+            ) { style { fontSize = Some(12.0) } }
+            add(showcaseFields(name, notes, enabled, onIncrement))
+        }
+    ) {
+        padding = Some(Insets.all(12.0))
+        alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+        style {
+            background(Some(Paint(theme.tokens.palette.background.background)))
+            clipContent(true)
+        }
+    }
+}
+
+private fun counterPreview(
+    accent: Color,
+    value: Int,
+    enabled: Boolean,
+    onIncrement: () -> Unit
+): View =
+    row {
+        spacing = 14.0
+        alignment = CrossAlignment.Center
+        stack {
+            alignment = Alignment(AxisAlignment.End, AxisAlignment.End)
+            frame(
+                makeLabel("S") {
+                    style {
+                        fontSize = Some(22.0);
+                        weight = Some(700)
+                    }
+                }
+            ) {
+                width = Some(42.0)
+                height = Some(42.0)
+                surface = Some(SurfaceKind.Plain)
+            }
+            frame(empty()) {
+                width = Some(10.0)
+                height = Some(10.0)
+                style {
+                    background(Some(Paint(accent)));
+                    corners(Corners.all(5.0))
+                }
+            }
+        }
+        label("Live controls")
+        button(f"Count: ${value}", onIncrement) { this.enabled = enabled }
+        button("Disabled", {}) { this.enabled = false }
+        checkbox(initialChecked = true)
+        label("Owned state")
+    }
+
+private fun themeChoices(
+    model: ShowcaseModel,
+    handles: Array<FocusHandle>,
+    resolved: ThemeMode
+): View =
+    row {
+        spacing = 10.0
+        alignment = CrossAlignment.Center
+        add(
+            themeChoice(
+                "macOS",
+                model.choice.value == ThemeChoice.MacOS,
+                handles[0L],
+                { model.select(ThemeChoice.MacOS) }
+            )
+        )
+        add(
+            themeChoice(
+                "Material",
+                model.choice.value == ThemeChoice.Material,
+                handles[1L],
+                { model.select(ThemeChoice.Material) }
+            )
+        )
+        add(
+            themeChoice(
+                "Fluent",
+                model.choice.value == ThemeChoice.Fluent,
+                handles[2L],
+                { model.select(ThemeChoice.Fluent) }
+            )
+        )
+        label("/")
+        add(
+            themeChoice(
+                "Light",
+                model.mode.value == ModeChoice.Light,
+                handles[3L],
+                { model.selectMode(ModeChoice.Light) }
+            )
+        )
+        add(
+            themeChoice(
+                "Dark",
+                model.mode.value == ModeChoice.Dark,
+                handles[4L],
+                { model.selectMode(ModeChoice.Dark) }
+            )
+        )
+        add(
+            themeChoice(
+                "Follow system",
+                model.mode.value == ModeChoice.System,
+                handles[5L],
+                { model.selectMode(ModeChoice.System) }
+            )
+        )
+        label(
+            if (resolved == ThemeMode.Dark)
+                "Dark palette"
+            else
+                "Light palette"
+        )
+    }
+
+private fun themeChoice(
+    text: String,
+    selected: Boolean,
+    handle: FocusHandle,
+    action: () -> Unit
+): View =
+    button(text, action) {
+        style {
+            kind =
+                if (selected)
+                    SurfaceKind.Action
+                else
+                    SurfaceKind.Plain
+        }
+        focus { this.handle = Some(handle) }
+    }
+
+private fun showcaseOption(value: Binding<Boolean>, text: String): View =
+    row {
+        spacing = 4.0
+        alignment = CrossAlignment.Center
+        checkbox(value)
+        label(text)
+    }
+
+private fun showcaseFields(
+    name: TextEditorState,
+    notes: TextEditorState,
+    enabled: Boolean,
+    onSubmit: () -> Unit
+): View {
+    val invalid = name.text.byteLength == 0L
+    return row {
+        spacing = 16.0
+        frame(
+            makeColumn {
+                spacing = 4.0
+                label("Project name")
+                input(name) {
+                    placeholder = "Enter a name"
+                    this.enabled = enabled
+                    this.invalid = invalid
+                    description =
+                        if (invalid)
+                            "This field is required."
+                        else
+                            "Enter submits the name."
+                    this.onSubmit = { _ -> onSubmit() }
+                }
+            }
+        ) { width = Some(350.0) }
+        frame(
+            makeColumn {
+                spacing = 4.0
+                label("Notes")
+                textarea(notes) {
+                    placeholder = "Add a note"
+                    rows = 3L
+                    this.enabled = enabled
+                    description = "Enter adds a line. Ctrl+Enter (⌘Enter on macOS) submits."
+                    this.onSubmit = { _ -> onSubmit() }
+                }
+            }
+        ) { width = Some(600.0) }
+    }
+}

@@ -1,0 +1,114 @@
+package scoop.examples.ui.shadcn
+
+import scoop.datetime.LocalDate
+import scoop.test.*
+
+internal fun advanceSettingsApplication(p: ApplicationProbe) {
+    val m = p.model.appSettings
+    when (p.phase) {
+        case 0 -> p.focus(m.nameFocus)
+        case 1 -> {
+            assertTrue(m.nameFocus.hasFocus);
+            p.selectAll();
+            p.text("中文设置", true)
+        }
+        case 2 -> {
+            assertTrue(m.name.isComposing);
+            p.text("中文设置")
+        }
+        case 3 -> {
+            assertEquals("中文设置", m.name.text);
+            assertFalse(m.name.isComposing);
+            p.focus(m.saveFocus)
+        }
+        case 4 -> p.enter()
+        case 5 -> {
+            assertTrue(m.emailFocus.hasFocus);
+            assertEquals(1L, m.emailErrors.size);
+            p.text("ada@example.com")
+        }
+        case 6 -> {
+            assertEquals(0L, m.emailErrors.size);
+            p.focus(m.saveFocus)
+        }
+        case 7 -> p.enter()
+        case 8 -> {
+            assertTrue(m.codeFocus.hasFocus);
+            assertEquals(1L, m.codeErrors.size);
+            p.text("123456")
+        }
+        case 9 -> {
+            assertEquals("123456", m.code.text);
+            p.focus(m.birthdayFocus)
+        }
+        case 10 -> {
+            assertTrue(m.birthdayFocus.hasFocus);
+            p.key(125)
+        }
+        case 11 -> {
+            p.key(123);
+            p.enter()
+        }
+        case 12 -> {
+            assertTrue(m.birthday.value != None);
+            assertTrue(m.birthday.value!! <= LocalDate(2026, 11, 6));
+            p.focus(m.updatesFocus)
+        }
+        case 13 -> p.space()
+        case 14 -> {
+            assertFalse(m.updates.value);
+            p.focus(m.privateFocus)
+        }
+        case 15 -> p.space()
+        case 16 -> {
+            assertTrue(m.privateProfile.value);
+            p.focus(m.planFocus)
+        }
+        case 17 -> p.key(125)
+        case 18 -> {
+            assertEquals(Some(1), m.plan.value);
+            p.focus(m.storageFocus)
+        }
+        case 19 -> p.key(124)
+        case 20 -> {
+            assertEquals(45.0, m.storage.value[0L])
+            assertTrue(m.scroll.snapshot.offset.y > 0.0)
+            p.offset = m.scroll.snapshot.offset.y
+            m.email.replaceAll("broken")
+            p.focus(m.saveFocus)
+        }
+        case 21 -> p.enter()
+        case 22 -> {
+            assertTrue(m.emailFocus.hasFocus)
+            assertEquals(2L, m.emailErrors.size)
+            assertTrue(m.scroll.snapshot.offset.y < p.offset)
+            p.darkRtl(700.0)
+        }
+        case 23 -> {
+            assertEquals("中文设置", m.name.text)
+            assertEquals("123456", m.code.text)
+            assertTrue(m.emailFocus.hasFocus)
+            p.selectAll();
+            p.text("ada@example.com")
+        }
+        case 24 -> p.focus(m.saveFocus)
+        case 25 -> p.enter()
+        case 26 -> {
+            assertEquals(1, m.saved.value);
+            assertTrue(m.birthday.value != None);
+            m.enabled.value = false
+        }
+        case 27 -> assertFalse(m.updatesFocus.requestFocus())
+        case 28 -> m.enabled.value = true
+        case 29 -> p.focus(m.resetFocus)
+        case 30 -> p.enter()
+        case 31 -> {
+            assertEquals("Scoop", m.name.text)
+            assertEquals("", m.code.text)
+            assertEquals(0, m.saved.value)
+            assertEquals(None, m.birthday.value)
+            assertEquals(40.0, m.storage.value[0L])
+        }
+        else -> fail(Some("unexpected settings phase"))
+    }
+}

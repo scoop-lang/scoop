@@ -30,7 +30,7 @@ public class Typeahead internal constructor(
     private val buffer = state("")
     private var single = ""
     private var observation: Closeable? = None
-    private val timer = scope.nativeWindow.createDeadline { clear() }
+    private val timer = scope.createDeadline { clear() }
     private val defaults = input.addDefaultAction { context, event -> handle(context, event) }
     private val activity =
         input.observeActivity {

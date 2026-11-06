@@ -1,0 +1,298 @@
+package scoop.tests.ui.modalfamily
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.component.SheetSide
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun modalFamilyStep(p: ModalFamilyProbe) {
+    when (p.phase) {
+        case 0 -> assertTrue(p.background.requestFocus())
+        case 1 -> {
+            assertTrue(p.trigger.requestFocus());
+            p.key(49, " ")
+        }
+        case 2 -> {
+            assertTrue(p.layer.isOpen);
+            assertTrue(p.first.hasFocus)
+            assertTrue(p.bodyRingVisible, Some("body viewport must include the outer focus ring"))
+            assertTrue(p.footerRingVisible, Some("footer row must not clip the outer focus ring"))
+            assertEquals(1, p.factories);
+            assertFalse(p.background.requestFocus())
+            p.clickBackground()
+        }
+        case 3 -> {
+            assertFalse(p.layer.isOpen);
+            assertTrue(p.trigger.hasFocus)
+            assertEquals(0, p.backgroundActions)
+            p.savedChanges = p.changes;
+            p.deny = true;
+            p.key(49, " ")
+        }
+        case 4 -> {
+            assertFalse(p.layer.isOpen);
+            assertEquals(p.savedChanges, p.changes)
+            p.deny = false;
+            p.veto = true;
+            p.key(49, " ")
+        }
+        case 5 -> {
+            assertTrue(p.layer.isOpen);
+            p.key(53)
+        }
+        case 6 -> {
+            assertTrue(p.layer.isOpen)
+            p.veto = false;
+            p.version = 7;
+            p.changed()
+            assertTrue(p.first.requestFocus());
+            p.key(49, " ")
+        }
+        case 7 -> {
+            assertEquals(1, p.observed)
+            p.savedFactories = p.factories
+            p.width = 240.0;
+            p.scrollable = true;
+            p.longContent = true;
+            p.changed()
+        }
+        case 8 -> {
+            assertEquals(p.savedFactories, p.factories);
+            assertEquals(1, p.observed)
+            assertTrue(p.scroll.maximum.y > 200.0)
+            assertTrue(p.bodyRingVisible)
+            assertTrue(p.footerRingVisible)
+            assertTrue(p.actionRingVisible)
+            assertTrue(p.footerBounds.y > p.actionBounds.y)
+            p.savedFooter = p.footerBounds;
+            p.scroll.scrollTo(Point(0.0, 200.0))
+        }
+        case 9 -> {
+            assertTrue(p.scroll.offset.y > 0.0);
+            assertEquals(p.savedFooter, p.footerBounds)
+            p.layer.requestClose()
+        }
+        case 10 -> {
+            assertFalse(p.layer.isOpen);
+            assertTrue(p.trigger.hasFocus)
+            assertEquals(7, p.callbackVersion);
+            assertFalse(p.scroll.isAttached)
+            assertTrue(p.scroll.offset.y > 0.0)
+            p.width = 384.0;
+            p.scrollable = false;
+            p.longContent = false;
+            p.changed()
+            p.open.value = true
+        }
+        case 11 -> {
+            assertTrue(p.layer.isOpen);
+            assertEquals(0, p.observed)
+            p.savedFactories = p.factories
+            p.slow = true;
+            p.theme.current.value = shadcnTheme();
+            p.changed()
+        }
+        case 12 -> {
+            p.layer.requestClose();
+            p.hold = 80L
+        }
+        case 13 -> {
+            assertFalse(p.layer.isOpen);
+            assertTrue(p.first.isAttached)
+            assertFalse(p.background.requestFocus())
+            p.open.value = true;
+            p.hold = 420L
+        }
+        case 14 -> {
+            assertTrue(p.layer.isOpen);
+            assertTrue(p.first.hasFocus);
+            assertEquals(p.savedFactories, p.factories)
+            p.slow = false
+            p.theme.current.value =
+                shadcnTheme { tokens { motion { preference = MotionPreference.Reduced } } }
+            p.second = true;
+            p.other.value = true;
+            p.changed()
+        }
+        case 15 -> {
+            assertEquals(p.savedFactories, p.factories);
+            p.layer.requestClose()
+        }
+        case 16 -> {
+            assertFalse(p.layer.isOpen);
+            assertFalse(p.other.value);
+            assertTrue(p.open.value)
+            p.open.value = false;
+            p.second = false;
+            p.kind = 1;
+            p.changed()
+        }
+        case 17 -> {
+            assertTrue(p.trigger.requestFocus());
+            p.key(49, " ")
+        }
+        case 18 -> {
+            assertTrue(p.layer.isOpen);
+            assertTrue(p.cancel.hasFocus)
+            p.clickBackground()
+            p.key(48)
+        }
+        case 19 -> {
+            assertTrue(p.layer.isOpen);
+            assertEquals(0, p.backgroundActions);
+            assertEquals(0, p.actions)
+            assertTrue(p.action.hasFocus);
+            p.key(49, " ")
+        }
+        case 20 -> {
+            assertEquals(1, p.actions);
+            assertTrue(p.layer.isOpen);
+            p.key(53)
+        }
+        case 21 -> {
+            assertFalse(p.layer.isOpen);
+            assertTrue(p.trigger.hasFocus);
+            assertEquals(1, p.actions)
+            p.open.value = true
+        }
+        case 22 -> {
+            assertTrue(p.cancel.hasFocus);
+            p.key(49, " ")
+        }
+        case 23 -> {
+            assertFalse(p.layer.isOpen)
+            p.explicitFocus = true;
+            p.changed();
+            p.open.value = true
+        }
+        case 24 -> {
+            assertTrue(p.first.hasFocus)
+            assertTrue(p.nestedTrigger.requestFocus());
+            p.key(49, " ")
+        }
+        case 25 -> {
+            assertTrue(p.nestedLayer.isOpen);
+            assertTrue(p.nestedTarget.hasFocus)
+            assertFalse(p.background.requestFocus());
+            p.key(53)
+        }
+        case 26 -> {
+            assertFalse(p.nestedLayer.isOpen);
+            assertTrue(p.layer.isOpen)
+            assertTrue(p.nestedTrigger.hasFocus);
+            p.key(53)
+        }
+        case 27 -> {
+            assertFalse(p.layer.isOpen);
+            assertTrue(p.trigger.hasFocus)
+            p.kind = 2;
+            p.explicitFocus = false;
+            p.changed();
+            p.open.value = true
+        }
+        case 28 -> {
+            assertTrue(p.layer.isOpen);
+            assertEquals(272.0, p.bodyBounds.x)
+            assertEquals(352.0, p.bodyBounds.width)
+            assertTrue(p.bodyRingVisible)
+            p.savedFactories = p.factories;
+            p.side = SheetSide.Start;
+            p.sheetWidth = Some(280.0);
+            p.changed()
+        }
+        case 29 -> {
+            assertEquals(16.0, p.bodyBounds.x);
+            assertEquals(248.0, p.bodyBounds.width)
+            p.side = SheetSide.Top;
+            p.sheetHeight = Some(200.0);
+            p.changed()
+        }
+        case 30 -> {
+            assertEquals(16.0, p.bodyBounds.x);
+            assertEquals(608.0, p.bodyBounds.width)
+            assertEquals(184.0, p.footerBounds.y + p.footerBounds.height)
+            p.side = SheetSide.Bottom;
+            p.changed()
+        }
+        case 31 -> {
+            assertEquals(464.0, p.footerBounds.y + p.footerBounds.height)
+            p.side = SheetSide.End;
+            p.sheetHeight = None;
+            p.rtl = true;
+            p.changed()
+        }
+        case 32 -> {
+            assertEquals(16.0, p.bodyBounds.x);
+            assertEquals(p.savedFactories, p.factories)
+            p.sheetWidth = Some(0.0);
+            p.changed()
+        }
+        case 33 -> {
+            assertEquals(0.0, p.bodyBounds.width);
+            assertTrue(p.first.hasFocus);
+            p.first.clearFocus();
+            assertFalse(p.first.hasFocus);
+            assertTrue(p.first.requestFocus());
+            assertFalse(p.first.hasFocus);
+            assertTrue(p.first.isPending);
+            p.sheetWidth = Some(280.0);
+            p.changed()
+        }
+        case 34 -> {
+            assertEquals(16.0, p.bodyBounds.x);
+            assertTrue(p.first.hasFocus);
+            assertEquals(p.savedFactories, p.factories)
+            p.scrollable = true;
+            p.longContent = true;
+            p.changed()
+        }
+        case 35 -> {
+            assertTrue(p.scroll.maximum.y > 200.0)
+            p.savedFooter = p.footerBounds
+            p.nestedTrigger.requestFocus()
+        }
+        case 36 -> {
+            assertTrue(p.nestedTrigger.hasFocus);
+            assertEquals(p.savedFooter, p.footerBounds)
+            p.key(49, " ")
+        }
+        case 37 -> {
+            assertTrue(p.nestedLayer.isOpen);
+            assertTrue(p.nestedTarget.hasFocus);
+            p.layer.requestClose()
+        }
+        case 38 -> {
+            assertFalse(p.layer.isOpen);
+            assertFalse(p.nestedLayer.isOpen)
+            p.nestedOpen.value = false;
+            p.open.value = true
+        }
+        case 39 -> {
+            assertTrue(p.layer.isOpen);
+            p.enabled = false;
+            p.changed()
+        }
+        case 40 -> {
+            assertFalse(p.first.requestFocus());
+            p.layer.requestClose()
+        }
+        case 41 -> {
+            assertFalse(p.layer.isOpen);
+            p.enabled = true;
+            p.mounted.value = false;
+            p.changed()
+        }
+        case 42 -> {
+            assertFalse(p.layer.isAttached);
+            assertFalse(p.trigger.isAttached)
+            assertEquals(p.mounts, p.unmounts)
+        }
+        case 43 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            assertTrue(p.background.requestFocus());
+            p.native!!.requestDestroy()
+        }
+        else -> throw IllegalStateException(Some("unexpected modal family phase"))
+    }
+}

@@ -1,0 +1,116 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+import scoop.window.asyncio.currentApplicationScope
+
+internal class ConversationExamplesModel {
+    val narrow = state(false)
+    val end = state(false)
+    val enabled = state(true)
+    val actions = state(true)
+    val topReactions = state(false)
+    val footer = state(true)
+    val face = state(true)
+    val reacted = state(false)
+    val variant = state(BubbleVariant.Default)
+    val attachment = state(AttachmentState.Done)
+    val attachmentSize = state(AttachmentSize.Default)
+    val vertical = state(false)
+    val status = state(TraceStatus.Complete)
+    val traceControlled = state(false)
+    val reject = state(false)
+    val opened = state(false)
+    val dialog = state(false)
+    val sheet = state(false)
+    val clicks = state(0)
+    val removed = state(false)
+    val body = state("The plan keeps the message, its files, and the reasoning steps together.")
+    val note = TextEditorState("A draft that stays with this message")
+    val sheetNote = TextEditorState("Source notes for this trace")
+    private var task: Job? = None
+    private var revision = 0L
+    val open =
+        binding(
+            { opened.value },
+            {
+                value -> if (!reject.value)
+                    opened.value = value
+            }
+        )
+    fun nextVariant() {
+        val all =
+            [
+                BubbleVariant.Default,
+                BubbleVariant.Secondary,
+                BubbleVariant.Muted,
+                BubbleVariant.Tinted,
+                BubbleVariant.Outline,
+                BubbleVariant.Ghost,
+                BubbleVariant.Destructive
+            ]
+        for (at in 0L ..< all.size)
+            if (all[at] == variant.value) {
+                variant.value = all[(at + 1L) % all.size];
+                return
+            }
+    }
+    fun nextAttachment() {
+        val all =
+            [
+                AttachmentState.Idle,
+                AttachmentState.Uploading,
+                AttachmentState.Processing,
+                AttachmentState.Error,
+                AttachmentState.Done
+            ]
+        for (at in 0L ..< all.size)
+            if (all[at] == attachment.value) {
+                attachment.value = all[(at + 1L) % all.size];
+                return
+            }
+    }
+    fun nextSize() {
+        attachmentSize.value =
+            when (attachmentSize.value) {
+                case Default -> AttachmentSize.Sm
+                case Sm -> AttachmentSize.Xs
+                case Xs -> AttachmentSize.Default
+            }
+    }
+    fun start() {
+        stop()
+        val owner = this
+        val generation = revision
+        status.value = TraceStatus.Running
+        attachment.value = AttachmentState.Uploading
+        task =
+            Some(
+                currentApplicationScope().launch {
+                    try {
+                        for (at in 1 .. 6) {
+                            currentEventLoop().sleep(Duration.milliseconds(450L))
+                            owner.body.value += "\nMore detail arrived while the same message and controls remained mounted."
+                            if (at == 3)
+                                owner.attachment.value = AttachmentState.Processing
+                        }
+                    } finally {
+                        if (owner.revision == generation) {
+                            owner.status.value = TraceStatus.Complete
+                            owner.attachment.value = AttachmentState.Done
+                        }
+                    }
+                }
+            )
+    }
+    fun stop() {
+        revision += 1L;
+        task?.cancel();
+        task = None
+        status.value = TraceStatus.Complete
+        attachment.value = AttachmentState.Done
+    }
+}

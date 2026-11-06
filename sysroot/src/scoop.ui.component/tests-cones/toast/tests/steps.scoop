@@ -1,0 +1,415 @@
+package scoop.tests.ui.toast
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+internal fun advanceToast(p: ToastProbe) {
+    if (p.phase < 10)
+        toastQueueSteps(p)
+    else
+        if (p.phase < 20)
+            toastTimeSteps(p)
+        else
+            if (p.phase < 29)
+                toastDragSteps(p)
+            else
+                if (p.phase < 32)
+                    toastZeroSteps(p)
+                else
+                    toastLifetimeSteps(p)
+}
+
+private fun toastQueueSteps(p: ToastProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(p.model.isAttached);
+            p.main.requestFocus()
+            p.show(0L);
+            p.show(1L);
+            p.show(2L)
+        }
+        case 1 -> {
+            assertTrue(p.main.hasFocus)
+            assertEquals(1, p.items[0L].mounts);
+            assertEquals(1, p.items[1L].mounts);
+            assertEquals(0, p.items[2L].mounts)
+            p.expanded = true;
+            p.refresh()
+        }
+        case 2 -> {
+            assertTrue(p.items[0L].bounds.y < p.items[1L].bounds.y)
+            assertTrue(p.items[0L].ring);
+            assertTrue(p.items[1L].ring)
+            assertTrue(p.items[0L].actionBounds.width < 100.0)
+            p.items[0L].focus.requestFocus()
+        }
+        case 3 -> {
+            assertTrue(p.items[0L].focus.hasFocus);
+            p.key(49)
+        }
+        case 4 -> {
+            assertEquals(1, p.items[0L].actions);
+            assertEquals(Some(ToastCloseReason.Action), p.items[0L].closed)
+            assertEquals(1, p.items[0L].closeCount);
+            assertTrue(p.main.hasFocus)
+            assertFalse(p.model.update(p.items[0L].id!!, "Late result"))
+            assertEquals(1, p.items[2L].mounts)
+            p.items[1L].version += 1
+            assertTrue(p.model.update(p.items[1L].id!!, p.data(1L)))
+        }
+        case 5 -> {
+            assertEquals(1, p.items[1L].mounts)
+            p.visible = 1L;
+            p.order = ToastOrder.NewestFirst;
+            p.refresh()
+            p.show(3L);
+            p.show(4L)
+        }
+        case 6 -> {
+            assertEquals(0, p.items[3L].mounts);
+            assertEquals(0, p.items[4L].mounts)
+            assertTrue(p.model.dismiss(p.items[1L].id!!))
+        }
+        case 7 -> {
+            assertEquals(1, p.items[4L].mounts);
+            assertEquals(0, p.items[3L].mounts)
+            p.clear();
+            p.visible = 3L;
+            p.expanded = false;
+            p.order = ToastOrder.OldestFirst;
+            p.refresh()
+            p.show(5L, Some(Duration.milliseconds(700L)))
+        }
+        case 8 -> {
+            val rect = p.items[5L].bounds;
+            p.pointer(rect.x + 8.0, rect.y + 8.0)
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 9 -> {
+            assertTrue(
+                p.model.contains(p.items[5L].id!!),
+                Some("hover preserves remaining duration")
+            )
+            p.items[5L].focus.requestFocus();
+            p.pointer(30.0, 200.0)
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        else -> fail(Some("unknown queue step"))
+    }
+}
+
+private fun toastTimeSteps(p: ToastProbe) {
+    when (p.phase) {
+        case 10 -> {
+            assertTrue(p.items[5L].focus.hasFocus)
+            assertTrue(
+                p.model.contains(p.items[5L].id!!),
+                Some("focus preserves remaining duration")
+            )
+            p.main.requestFocus();
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 11 -> {
+            assertFalse(p.model.contains(p.items[5L].id!!));
+            assertEquals(Some(ToastCloseReason.Timeout), p.items[5L].closed)
+            p.show(6L, Some(Duration.milliseconds(100L)), ToastKind.Loading)
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 12 -> {
+            assertTrue(p.model.contains(p.items[6L].id!!), Some("loading does not expire"))
+            p.model.update(
+                p.items[6L].id!!,
+                p.data(6L, Some(Duration.milliseconds(700L)), ToastKind.Success)
+            )
+        }
+        case 13 -> {
+            p.activityCount = p.activities.size
+            p.native!!.setVisible(false);
+            p.hidden = true
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 14 -> {
+            assertTrue(
+                p.model.contains(p.items[6L].id!!),
+                Some("hidden window preserves remaining duration")
+            )
+            assertFalse(p.frames!!.snapshot().required)
+            assertTrue(p.activities.size > p.activityCount)
+            p.native!!.setVisible(true);
+            p.native!!.requestFocus();
+            p.hidden = false
+        }
+        case 15 -> {
+            assertTrue(p.model.contains(p.items[6L].id!!))
+            p.activityCount = p.activities.size;
+            p.native!!.setVisible(true)
+            assertEquals(p.activityCount, p.activities.size)
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 16 -> {
+            assertFalse(p.model.contains(p.items[6L].id!!));
+            assertEquals(Some(ToastCloseReason.Timeout), p.items[6L].closed)
+            p.width = 220.0;
+            p.refresh()
+            val positions =
+                [
+                    ToastPosition.TopStart,
+                    ToastPosition.TopCenter,
+                    ToastPosition.TopEnd,
+                    ToastPosition.BottomStart,
+                    ToastPosition.BottomCenter,
+                    ToastPosition.BottomEnd
+                ]
+            val kinds =
+                [
+                    ToastKind.Default,
+                    ToastKind.Success,
+                    ToastKind.Info,
+                    ToastKind.Warning,
+                    ToastKind.Error,
+                    ToastKind.Loading
+                ]
+            for (at in 0L ..< positions.size)
+                p.show(7L + at, kind = kinds[at], position = Some(positions[at]))
+        }
+        case 17 -> {
+            assertTrue(p.items[7L].bounds.x < p.items[8L].bounds.x)
+            assertTrue(p.items[8L].bounds.x < p.items[9L].bounds.x)
+            assertTrue(p.items[7L].bounds.y < p.items[10L].bounds.y)
+            val action = p.items[12L].actionBounds
+            assertTrue(action.width > 0.0 && action.width < 100.0)
+            assertTrue(action.x + action.width + 16.0 <= 884.0)
+            val longAction = p.items[10L].actionBounds
+            assertTrue(longAction.width > 100.0)
+            assertTrue(longAction.x + longAction.width + 16.0 <= 236.0)
+            p.rtl = true;
+            p.refresh()
+        }
+        case 18 -> {
+            assertTrue(p.items[7L].bounds.x > p.items[9L].bounds.x)
+            for (at in 7L ..< 13L)
+                assertEquals(1, p.items[at].mounts)
+            assertTrue(p.items[12L].actionBounds.x - 16.0 >= 16.0)
+            assertTrue(p.items[10L].actionBounds.x - 16.0 >= 664.0)
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { preference = MotionPreference.Reduced } }
+                }
+            p.width = 999.0;
+            p.native!!.requestSize(LogicalSize(400.0, 320.0));
+            p.refresh()
+        }
+        case 19 -> {
+            assertTrue(p.items[12L].bounds.x >= 0.0)
+            assertTrue(p.items[12L].bounds.x + p.items[12L].bounds.width <= 400.0)
+            p.clear();
+            p.native!!.requestSize(LogicalSize(900.0, 560.0));
+            p.rtl = false;
+            p.width = 320.0;
+            p.refresh()
+            p.show(13L)
+        }
+        else -> fail(Some("unknown time step"))
+    }
+}
+
+private fun toastDragSteps(p: ToastProbe) {
+    when (p.phase) {
+        case 20 -> {
+            val rect = p.items[13L].bounds;
+            p.swipeStart = Point(rect.x + 8.0, rect.y + 8.0)
+            p.button(p.swipeStart.x, p.swipeStart.y, true)
+        }
+        case 21 -> p.pointer(p.swipeStart.x + 60.0, p.swipeStart.y)
+        case 22 -> p.key(53)
+        case 23 -> {
+            p.button(p.swipeStart.x + 60.0, p.swipeStart.y, false)
+            assertTrue(p.model.contains(p.items[13L].id!!))
+        }
+        case 24 -> {
+            assertEquals(p.swipeStart.x - 8.0, p.items[13L].bounds.x)
+            p.button(p.swipeStart.x, p.swipeStart.y, true)
+        }
+        case 25 -> p.pointer(p.swipeStart.x + 180.0, p.swipeStart.y)
+        case 26 -> p.button(p.swipeStart.x + 180.0, p.swipeStart.y, false)
+        case 27 -> {
+            assertFalse(p.model.contains(p.items[13L].id!!))
+            assertEquals(Some(ToastCloseReason.Swipe), p.items[13L].closed);
+            assertEquals(1, p.items[13L].closeCount)
+            p.pointer(30.0, 200.0);
+            p.main.requestFocus()
+            p.enabled = false;
+            p.refresh();
+            p.show(14L, Some(Duration.milliseconds(400L)))
+            p.waitAfter = Duration.milliseconds(700L)
+        }
+        case 28 -> {
+            assertTrue(p.model.contains(p.items[14L].id!!))
+            p.enabled = true;
+            p.refresh();
+            p.waitAfter = Duration.milliseconds(700L)
+        }
+        else -> fail(Some("unknown drag step"))
+    }
+}
+
+private fun toastLifetimeSteps(p: ToastProbe) {
+    when (p.phase) {
+        case 32 -> {
+            assertTrue(p.model.contains(p.items[15L].id!!));
+            assertFalse(p.frames!!.snapshot().required)
+            p.items[15L].focus.requestFocus()
+        }
+        case 33 -> {
+            assertTrue(p.items[15L].focus.hasFocus)
+            p.model.dismiss(p.items[15L].id!!);
+            p.other.requestFocus()
+            p.waitAfter = Duration.milliseconds(650L)
+        }
+        case 34 -> {
+            assertEquals(1, p.items[15L].closeCount);
+            assertTrue(p.other.hasFocus)
+            p.theme.current.value =
+                shadcnTheme() { tokens { motion { preference = MotionPreference.Reduced } } }
+            p.startTask(16L, true);
+            p.waitAfter = Duration.milliseconds(900L)
+        }
+        case 35 -> {
+            assertEquals(1, p.jobsFinished);
+            assertFalse(p.lateAccepted)
+            assertFalse(p.model.contains(p.items[16L].id!!))
+            p.startTask(17L, false);
+            p.waitAfter = Duration.milliseconds(1000L)
+        }
+        case 36 -> {
+            assertEquals(2, p.jobsFinished);
+            assertTrue(p.liveAccepted)
+            assertEquals(Some(ToastCloseReason.Timeout), p.items[17L].closed)
+            p.show(18L)
+            p.items[19L].id = Some(p.otherModel.show(p.data(19L)))
+            p.replacement = true;
+            p.refresh()
+        }
+        case 37 -> {
+            assertFalse(p.model.isAttached);
+            assertTrue(p.otherModel.isAttached)
+            assertTrue(p.model.contains(p.items[18L].id!!))
+            p.replacement = false;
+            p.refresh()
+        }
+        case 38 -> {
+            assertTrue(p.model.isAttached);
+            assertFalse(p.otherModel.isAttached)
+            assertTrue(p.items[18L].mounts > 0)
+            p.model.dismiss(p.items[18L].id!!);
+            p.otherModel.dismiss(p.items[19L].id!!)
+            p.gone = true;
+            p.refresh()
+        }
+        case 39 -> {
+            assertFalse(p.model.isAttached);
+            assertFalse(p.otherModel.isAttached)
+            p.observer!!.close();
+            p.observer!!.close();
+            p.activityCount = p.activities.size
+            p.native!!.setVisible(false);
+            p.hidden = true
+        }
+        case 40 -> {
+            assertEquals(p.activityCount, p.activities.size)
+            p.native!!.setVisible(true);
+            p.native!!.requestFocus();
+            p.hidden = false
+        }
+        case 41 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            p.show(20L, Some(Duration.milliseconds(300L)))
+            p.waitAfter = Duration.milliseconds(700L)
+        }
+        case 42 -> {
+            assertTrue(p.model.contains(p.items[20L].id!!));
+            p.model.dismiss(p.items[20L].id!!)
+            assertEquals(Some(ToastCloseReason.Explicit), p.items[20L].closed)
+            assertEquals("Workspace draft", p.draft.text)
+            p.gone = false
+            p.theme.current.value = shadcnTheme()
+            p.refresh()
+            for (at in 22L ..< 24L) {
+                val item = p.items[at]
+                val fails = at == 22L
+                item.id =
+                    Some(
+                        p.model.show(
+                            toastProps(toastTitle(p, at)) {
+                                duration = None
+                                onClosed =
+                                    {
+                                        _, reason ->
+                                        item.closed = Some(reason)
+                                        item.closeCount += 1
+                                        if (fails)
+                                            throw p.callbackFailure
+                                    }
+                            }
+                        )
+                    )
+            }
+            p.waitAfter = Duration.milliseconds(650L)
+        }
+        case 43 -> {
+            assertTrue(p.model.isAttached)
+            for (at in 22L ..< 24L) {
+                assertEquals(1, p.items[at].mounts)
+                assertTrue(p.model.dismiss(p.items[at].id!!))
+            }
+            p.replacement = true
+            p.refresh()
+        }
+        case 44 -> {
+            assertEquals(1, p.rootErrors)
+            assertFalse(p.model.isAttached)
+            assertFalse(p.otherModel.isAttached)
+            for (at in 22L ..< 24L) {
+                assertEquals(1, p.items[at].closeCount)
+                assertEquals(Some(ToastCloseReason.Explicit), p.items[at].closed)
+            }
+            assertFalse(p.frames!!.snapshot().required)
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unknown lifetime step"))
+    }
+}
+
+private fun toastZeroSteps(p: ToastProbe) {
+    when (p.phase) {
+        case 29 -> {
+            assertFalse(p.model.contains(p.items[14L].id!!))
+            p.width = 0.0;
+            p.refresh();
+            p.show(21L, Some(Duration.milliseconds(300L)))
+            p.waitAfter = Duration.milliseconds(650L)
+        }
+        case 30 -> {
+            assertTrue(p.model.contains(p.items[21L].id!!))
+            assertEquals(0, p.items[21L].draws)
+            assertFalse(p.frames!!.snapshot().required)
+            p.width = 320.0;
+            p.refresh();
+            p.waitAfter = Duration.milliseconds(650L)
+        }
+        case 31 -> {
+            assertEquals(Some(ToastCloseReason.Timeout), p.items[21L].closed)
+            p.theme.current.value = shadcnTheme()
+            p.show(15L);
+            p.refresh();
+            p.waitAfter = Duration.milliseconds(650L)
+        }
+        else -> fail(Some("unknown zero size step"))
+    }
+}

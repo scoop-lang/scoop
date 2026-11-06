@@ -1,0 +1,181 @@
+package scoop.tests.ui.navigationmenu
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class NavigationMenuWindowTest {
+    @Test
+    fun `navigation panels preserve hover corridors ordinary focus and controlled lifetimes`() {
+        val p = NavProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.guides.isAttached);
+            assertFalse(p.docs.isAttached);
+            assertFalse(p.editor.isAttached)
+            assertEquals(p.factories, p.disposed)
+        } catch (error: Throwable) {
+            println(f"navigation menu phase=${p.phase}")
+            println(p.trace)
+            navigationMenuFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class NavProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val open = state<ViewKey?>(None)
+    val query = TextEditorState()
+    val guides = FocusHandle()
+    val docs = FocusHandle()
+    val home = FocusHandle()
+    val editor = FocusHandle()
+    val first = FocusHandle()
+    val second = FocusHandle()
+    val docFirst = FocusHandle()
+    val docSecond = FocusHandle()
+    val after = FocusHandle()
+    val bounds = HashMap<Long, Rect>()
+    var vertical = false
+    var rtl = false
+    var narrow = false
+    var viewport = true
+    var reverse = false
+    var reject = false
+    var veto = false
+    var enabled = true
+    var shown = true
+    var zero = false
+    var prevent = false
+    var animate = false
+    var actualWidth = 0.0
+    var actions = 0
+    var factories = 0
+    var disposed = 0
+    var phase = 0
+    var trace = ""
+    var rendered = -1
+    var finished = false
+    var quiet: FrameSnapshot? = None
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(60L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        val characters =
+            if (text.byteLength > 0L)
+                text
+            else
+                when (code) {
+                    case 125 -> "\uf701";
+                    case 126 -> "\uf700";
+                    case 123 -> "\uf702";
+                    case 124 -> "\uf703"
+                    case 115 -> "\uf729";
+                    case 119 -> "\uf72b";
+                    else -> text
+                }
+        assertEquals(0, navigationMenuKey(native!!, code, characters, flags))
+    }
+    fun pointer(x: Double, y: Double) {
+        trace += f"phase=${phase} request=${x},${y}\n"
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun hover(id: Long) {
+        val rect = bounds[id]!!;
+        pointer(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+    }
+    fun click(id: Long) {
+        val rect = bounds[id]!!
+        val x = rect.x + rect.width / 2.0;
+        val y = rect.y + rect.height / 2.0
+        pointer(x, y);
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun event(host: UiHost, app: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    app.createWindow(
+                        windowAttributes {
+                            title = "Scoop Navigation Menu test";
+                            position = Some(DesktopPosition(160.0, 100.0));
+                            size = LogicalSize(680.0, 540.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> NavScene(this, scope = mount) });
+                window.requestFocus();
+                wait(app)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(
+                    MonotonicTimeSource.markNow() < deadline,
+                    Some("navigation menu timeout")
+                )
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    navStep(this);
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(180L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 46)
+                    wait(app)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 46;
+                app.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(app: ActiveApplication) {
+        app.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

@@ -45,6 +45,7 @@ public class Hover internal constructor(
     private val input = scope.input
     private val window = scope.nativeWindow
     private var closed = false
+    private var dismissed = false
     private var content: Array<InputArea> = []
     private var registrations: Array<Closeable> = []
     private var observation: Closeable? = None
@@ -52,7 +53,7 @@ public class Hover internal constructor(
     private var departure: Point? = None
     private var previous: Point? = None
     private var transitEnd: TimeMark? = None
-    private val timer = window.createDeadline { expired() }
+    private val timer = scope.createDeadline { expired() }
     private val triggerEvents = trigger.scope.addEventHandler { _, event -> areaEvent(event) }
     private val triggerFocus = trigger.scope.observeActivity { refresh() }
 
@@ -151,12 +152,24 @@ public class Hover internal constructor(
             return
         }
         val focus = focused()
-        if (within() || focus) {
+        val inside = within()
+        if (dismissed) {
+            if (inside || focus) {
+                cancelWait()
+                stopObserving()
+                return
+            }
+            dismissed = false
+        }
+        if (inside || focus) {
             departure =
-                when (point) {
-                    case Some(_) -> point;
-                    case None -> previous
-                }
+                if (inside)
+                    when (point) {
+                        case Some(_) -> point;
+                        case None -> previous
+                    }
+                else
+                    None
             transitEnd = None
             if (open.value)
                 cancelWait()
@@ -276,6 +289,7 @@ public class Hover internal constructor(
     }
     public fun dismiss() {
         checkOverlayMutation()
+        dismissed = !isClosed && window.state == WindowState.Open && (within() || focused())
         cancelWait()
         stopObserving()
         departure = None

@@ -1,0 +1,147 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.Image
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.typography as makeTypography
+import scoop.ui.component.avatar as makeAvatar
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.*
+
+internal class ItemExamplesModel {
+    val narrow = state(false)
+    val enabled = state(true)
+    val details = state(true)
+    val actionable = state(true)
+    val rowClicks = state(0)
+    val actionClicks = state(0)
+}
+
+internal class ItemExamples(private val model: ItemExamplesModel, scope: ComponentScope): Component(
+    scope
+) {
+    private val image = scope.resource { avatarPortrait(false) }
+    public override fun render(): View {
+        val model = this.model
+
+        val picture = image
+        return makeColumn {
+            this.typography("Item", TypographyRole.H1)
+            this.typography(
+                "Content, media, and independent actions in a flexible row.",
+                TypographyRole.Lead
+            )
+            this.wrap {
+                this.button("Change width", { model.narrow.value = !model.narrow.value }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Toggle details", { model.details.value = !model.details.value }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button(
+                    "Toggle row action",
+                    { model.actionable.value = !model.actionable.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.button(
+                    if (model.enabled.value)
+                        "Disable"
+                    else
+                        "Enable",
+                    { model.enabled.value = !model.enabled.value }
+                ) { this.variant = ButtonVariant.Outline }
+                this.spacing = 8.0
+            }
+            this.frame(
+                makeColumn {
+                    this.contentItem(
+                        makeTypography(
+                            "Select and copy this text without activating the row.",
+                            TypographyRole.Small
+                        ) { this.selectable = true }
+                    ) {
+                        this.title("Project update")
+                        if (model.details.value) {
+                            this.description(
+                                "A flexible item keeps its contents mounted when actions move below the text."
+                            )
+                            this.header(makeTypography("WORKSPACE", TypographyRole.Muted))
+                            this.footer(makeTypography("Updated just now", TypographyRole.Muted))
+                        }
+                        this.media(makeAvatar("SC"))
+                        this.actions(
+                            makeButton("Open", { model.actionClicks.value += 1 }) {
+                                this.variant = ButtonVariant.Outline
+                            }
+                        )
+                        this.variant = ItemVariant.Outline
+                        this.enabled = model.enabled.value
+                        this.onClick =
+                            if (model.actionable.value)
+                                Some({ model.rowClicks.value += 1 })
+                            else
+                                None
+                        this.key = ViewKey.Text("interactive")
+                    }
+                    this.itemGroup(ItemSize.Sm) {
+                        this.item {
+                            this.title("Default item");
+                            this.description("An avatar keeps its natural size.")
+                            this.media(makeAvatar("AL"))
+                        }
+                        this.itemSeparator()
+                        this.item {
+                            this.title(
+                                "A medium image item with a title that truncates when the available space is narrow"
+                            )
+                            this.description(
+                                "Images fill their own frame and use a small rounded clip."
+                            )
+                            this.media(picture)
+                            this.variant = ItemVariant.Outline
+                        }
+                        this.item {
+                            this.title("Compact item");
+                            this.description("Muted, with compact description text.")
+                            this.media(picture)
+                            this.size = ItemSize.Xs;
+                            this.variant = ItemVariant.Muted
+                            this.actions(
+                                makeButton("View", { model.actionClicks.value += 1 }) {
+                                    this.size = ButtonSize.Xs;
+                                    this.variant = ButtonVariant.Ghost
+                                }
+                            )
+                        }
+                    }
+                    this.contentItem {
+                        this.title("Ready to go")
+                        this.media(makeLabel("+"));
+                        this.mediaVariant = ItemMediaVariant.Icon
+                        this.variant = ItemVariant.Muted
+                    }
+                    this.spacing = 20.0;
+                    this.alignment = CrossAlignment.Stretch
+                }
+            ) {
+                this.width =
+                    Some(
+                        if (model.narrow.value)
+                            240.0
+                        else
+                            720.0
+                    )
+            }
+            this.typography(
+                f"Row actions: ${model.rowClicks.value}. Button actions: ${
+                    model.actionClicks.value
+                }.",
+                TypographyRole.Muted
+            )
+            this.spacing = 20.0
+            this.padding = Insets(6.0, 6.0, 12.0, 12.0)
+            this.alignment = CrossAlignment.Start
+        }
+    }
+}

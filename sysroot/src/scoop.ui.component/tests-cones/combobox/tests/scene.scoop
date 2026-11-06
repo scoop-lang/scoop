@@ -1,0 +1,275 @@
+package scoop.tests.ui.combobox
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.combobox as makeCombo
+import scoop.ui.component.label as makeLabel
+
+internal class ComboScene(private val p: ComboProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val configure: ComboboxBuilder<Long>.() -> Unit =
+            {
+                fonts = Some(p.fonts);
+                focus = FocusOptions(Some(p.editor));
+                triggerFocus = FocusOptions(Some(p.trigger))
+                listHandle = Some(p.list);
+                scroll = Some(p.scroll);
+                active = Some(p.active.binding());
+                open = Some(p.open.binding())
+                filter =
+                    if (p.long)
+                        ComboboxFilter.Provided
+                    else
+                        ComboboxFilter.Custom {
+                            item, query ->
+                            p.filters += 1;
+                            commandScore(item.choice.label, query) > 0.0
+                        }
+                autoHighlight = p.auto;
+                enabled = p.enabled;
+                maxHeight = 160.0
+                width =
+                    if (p.zero)
+                        0.0
+                    else
+                        if (p.narrow)
+                            160.0
+                        else
+                            340.0
+                inputPlacement =
+                    if (p.popup)
+                        ComboboxInputPlacement.Popup
+                    else
+                        ComboboxInputPlacement.Inline
+                showClear = true;
+                caretBlink = Duration.milliseconds(0L)
+                onValueChange = { _ -> p.calls += 1 };
+                onValuesChange = { _ -> p.calls += 1 }
+                onSubmit = { _ -> p.submissions += 1 };
+                onCloseRequest = { _ -> !p.veto }
+            }
+        val body =
+            if (!p.shown)
+                makeLabel("Unmounted") { fonts = Some(p.fonts) }
+            else
+                if (p.multi)
+                    makeCombo(p.values.binding(), ProbeChoices(p), p.query, configure)
+                else
+                    makeCombo(
+                        binding(
+                            {
+                                if (p.rebind)
+                                    p.second.value
+                                else
+                                    p.single.value
+                            },
+                            {
+                                value -> if (!p.reject) {
+                                    if (p.rebind)
+                                        p.second.value = value
+                                    else
+                                        p.single.value = value
+                                }
+                            }
+                        ),
+                        ProbeChoices(p),
+                        p.query,
+                        configure
+                    )
+        return direction(
+            element(
+                generation,
+                { current, mount -> ComboRoot(p, current, scope = mount) },
+                [
+                    body,
+                    button("After", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.after))
+                    }
+                ]
+            ),
+            if (p.narrow)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class ProbeChoices(private val p: ComboProbe): ChoiceSource<Long> {
+    private val large = p.long
+    private val reversed = p.reverse
+    private val limit = p.limit
+    public override val count: Long get() =
+        if (large)
+            5000L
+        else
+            limit
+    public override val choiceCount: Long get() = count
+    public override fun keyAt(index: Long): ViewKey =
+        ViewKey.Number(
+            if (large)
+                index
+            else
+                if (reversed)
+                    limit - index
+                else
+                    index + 1L
+        )
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(value) -> indexOfValue(value);
+            else -> None
+        }
+    public override fun indexOfValue(value: Long): Long? =
+        if (large) {
+            if (value >= 0L && value < count)
+                Some(value)
+            else
+                None
+        } else
+            if (value >= 1L && value <= limit)
+                Some(
+                    if (reversed)
+                        limit - value
+                    else
+                        value - 1L
+                )
+            else
+                None
+    public override fun enabledAt(index: Long): Boolean =
+        large || keyAt(index) != ViewKey.Number(2L)
+    public override fun entryAt(index: Long): ChoiceEntry<Long> {
+        val number =
+            when (keyAt(index)) {
+                case Number(value) -> value;
+                else -> 0L
+            }
+        val label =
+            if (large)
+                f"Project ${number}"
+            else
+                when (number) {
+                    case 1L -> "Calendar";
+                    case 2L -> "Disabled";
+                    case 3L -> "Settings";
+                    case 4L -> "设置编辑器";
+                    else -> "About"
+                }
+        return ChoiceEntry.Item(
+            ChoiceItem(
+                Choice(ViewKey.Number(number), number, label, enabledAt(index)),
+                content =
+                    Some(
+                        component(
+                            number,
+                            { current, mount -> ObservedChoice(p, current, scope = mount) },
+                            ViewKey.Number(number)
+                        )
+                    )
+            )
+        )
+    }
+}
+
+private class ObservedChoice(
+    private val p: ComboProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
+    private val mounted = props.value
+    public override fun onMount() {
+        p.factories += 1
+    }
+    public override fun onUnmount() {
+        p.disposed += 1
+    }
+    public override fun render(): View =
+        element(
+            props.value,
+            { current, mount -> ChoiceObservation(p, current, scope = mount) },
+            [comboObservedLabel(p, f"Candidate ${props.value} / local ${mounted}")]
+        )
+}
+
+private class CapturedBounds(var value: Rect)
+
+private class ChoiceObservation(
+    private val p: ComboProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val bounds = CapturedBounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    shape -> bounds.value = shape.toWindow(local)
+                }
+            }
+        }
+        context.children()
+        val index = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rows.put(index, bounds.value)
+        }
+    }
+}
+
+private class ComboRoot(
+    private val p: ComboProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Size>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                _ -> if (p.prevent)
+                    context.preventDefault()
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Size
+    > {
+        val measured =
+            context.measureChild(
+                0L,
+                Constraints(maxWidth = Some(400.0), maxHeight = Some(400.0))
+            ).size
+        context.placeChild(0L, Point(80.0, 80.0));
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(500.0, 80.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 540.0))), measured)
+    }
+    public override fun scene(context: SceneContext, measured: Size) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.rendered = generation;
+                p.actualWidth = measured.width;
+                p.actualHeight = measured.height
+            }
+        }
+    }
+}
+
+private fun comboObservedLabel(p: ComboProbe, text: String): View =
+    makeLabel(text) { fonts = Some(p.fonts) }

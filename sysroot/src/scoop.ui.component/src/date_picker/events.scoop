@@ -1,0 +1,113 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class DatePickerRootInput(
+    val control: DatePickerControl,
+    val value: CalendarValue,
+    val open: Boolean
+)
+
+internal class DatePickerRoot(
+    private val props: Props<DatePickerRootInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    init {
+        scope.layoutAnchor(props.value.control.anchor)
+        scope.input.captureHandler =
+            {
+                context, event ->
+                val control = props.value.control
+                if (
+                    !context.defaultPrevented &&
+                        control.active &&
+                        control.focus.hasFocus &&
+                        !(control.props.value.draft?.editor?.isComposing ?: false)
+                )
+                    when (event) {
+                        case Keyboard(key) -> {
+                            if (
+                                menuKeyAllowed(key) &&
+                                    key.logicalKey ==
+                                    LogicalKey.Named(NamedKey.ArrowDown)
+                            ) {
+                                if (control.show())
+                                    context.consume()
+                            }
+                        }
+                        else -> {}
+                    }
+            }
+        scope.resource { scope.input.observeActivity { props.value.control.activity() } }
+        scope.resource {
+            scope.input.addDefaultAction {
+                context,
+                event -> datePickerKey(props.value.control, context, event)
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        input.control.synchronize(input.value, input.open)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.anchor(
+            props.value.control.anchor,
+            Rect(0.0, 0.0, context.size.width, context.size.height)
+        )
+        context.children()
+        val current = props.value.control
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                current.accept()
+        }
+    }
+}
+
+private fun datePickerKey(
+    control: DatePickerControl,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (
+        !control.active ||
+            context.defaultPrevented ||
+            (control.props.value.draft?.editor?.isComposing ?: false)
+    )
+        return
+    val key =
+        when (event) {
+            case Keyboard(value) -> value;
+            else -> return
+        }
+    if (!menuKeyAllowed(key))
+        return
+    if (key.logicalKey == LogicalKey.Named(NamedKey.ArrowDown) && control.focus.hasFocus) {
+        if (control.show())
+            context.consume()
+    }
+    if (key.logicalKey == LogicalKey.Named(NamedKey.Escape)) {
+        if (control.open.value) {
+            control.close();
+            context.consume()
+        }
+        else
+            if (control.focus.hasFocus && panelPresent(control.props.value.draft)) {
+                control.reset();
+                context.consume()
+            }
+    }
+}

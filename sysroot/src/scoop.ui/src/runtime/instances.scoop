@@ -1,63 +1,37 @@
 package scoop.ui
 
-// Window mounts are confined to the application owner thread.
-private object ActiveInstances {
-    val values = ArrayList<Any>()
-}
+internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): MountedNode =
+    MountedNode(root, parent, view)
 
-internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): MountedNode {
-    val body =
-        when (view.body) {
+/** All scope fields are initialized before a factory can acquire resources on this node. */
+internal fun createBody(node: MountedNode, view: View): NodeBody {
+    try {
+        return when (view.body) {
             case Empty -> NodeBody.Empty
             case Direction(_, _) -> NodeBody.Direction
-            case Component(description) -> NodeBody.Component(description.create())
-            case Element(description, _) -> NodeBody.Element(description.create())
-            case Portal(_, open, options) -> NodeBody.Portal(PortalInstance(root, open, options))
-            case Lazy(description, source, capacity) -> NodeBody.Lazy(
-                description.create(),
-                LazyChildren(source, capacity)
+            case Component(description) -> NodeBody.Component(description.create(node.scope))
+            case Element(description, _) -> NodeBody.Element(description.create(node.scope))
+            case Portal(_, open, options) -> NodeBody.Portal(
+                PortalInstance(node.root, open, options)
+            )
+            case Lazy(description, _, _) -> NodeBody.Lazy(
+                description.create(node.scope),
+                node.lazyItems!!
             )
         }
-    when (instanceIdentity(body)) {
-        case Some(value) -> {
-            for (current in ActiveInstances.values)
-                if (current === value)
-                    throw IllegalStateException(
-                        Some("component or element instance is already mounted")
-                    )
-            ActiveInstances.values.add(value)
-        }
-        case None -> {}
+    } catch (error: Throwable) {
+        node.active = false
+        var failure: Throwable? = Some(error)
+        failure = cleanupUi(failure) { node.scope.deactivate() }
+        failure = cleanupUi(failure) { throwUi(node.scope.retireInteraction()) }
+        failure = cleanupUi(failure) { throwUi(node.scope.release()) }
+        throw failure!!
     }
-    return MountedNode(root, parent, view, body)
 }
-
-private fun instanceIdentity(body: NodeBody): Any? =
-    when (body) {
-        case Empty -> None
-        case Direction -> None
-        case Component(instance) -> Some(instance.value)
-        case Element(instance) -> Some(instance.value)
-        case Portal(_) -> None
-        case Lazy(instance, _) -> Some(instance.value)
-    }
 
 internal fun releaseInstance(body: NodeBody) {
     when (body) {
         case Portal(instance) -> instance.dispose()
         else -> {}
-    }
-    when (instanceIdentity(body)) {
-        case Some(value) -> {
-            var index = 0L
-            while (index < ActiveInstances.values.size) {
-                if (ActiveInstances.values[index] === value) {
-                    ActiveInstances.values.removeAt(index)
-                    return
-                }
-                index += 1L
-            }
-        }
-        case None -> {}
     }
 }

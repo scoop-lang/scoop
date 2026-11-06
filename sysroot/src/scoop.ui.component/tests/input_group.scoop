@@ -1,0 +1,107 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+
+@Test
+private class InputGroupTest {
+    @Test
+    fun `a group requires one explicit editor and snapshots its addons`() {
+        val builder = InputGroupBuilder()
+        assertFailsWith<IllegalArgumentException> { builder.snapshot() }
+        val state = TextEditorState("draft")
+        builder.input(state) { this.readOnly = true }
+        assertFailsWith<IllegalArgumentException> { builder.textarea(state) }
+        assertFailsWith<IllegalArgumentException> { builder.control(empty(), FocusHandle()) }
+        builder.addon { this.text("https://") }
+        val first = builder.snapshot()
+        builder.addon(InputGroupAlign.BlockEnd) { this.text("Details") }
+        builder.invalid = true
+        val second = builder.snapshot()
+        assertEquals(1L, first.addons.size)
+        assertEquals(2L, second.addons.size)
+        assertFalse(first.invalid)
+        assertTrue(second.invalid)
+        when (second.control) {
+            case Input(value) -> {
+                assertSame(state, value.state)
+                assertTrue(value.readOnly)
+            }
+            else -> fail(Some("expected the original input"))
+        }
+        assertEquals(InputGroupAlign.BlockEnd, second.addons[1L].align)
+    }
+
+    @Test
+    fun `input and textarea preserve explicit focus while a custom control supplies its own`() {
+        val state = TextEditorState()
+        val local = FocusHandle()
+        val external = FocusHandle()
+        val controls =
+            [
+                InputGroupControl.Input(
+                    InputProps(
+                        state,
+                        enabled = false,
+                        invalid = true,
+                        focus = FocusOptions(Some(external))
+                    )
+                ),
+                InputGroupControl.Textarea(
+                    TextareaProps(
+                        state,
+                        enabled = false,
+                        invalid = true,
+                        focus = FocusOptions(Some(external))
+                    )
+                )
+            ]
+        for (control in controls) {
+            assertFalse(inputGroupControlEnabled(control))
+            assertTrue(inputGroupControlInvalid(control))
+            assertSame(external, inputGroupFocus(control, local))
+        }
+        assertSame(local, inputGroupFocus(InputGroupControl.Input(InputProps(state)), local))
+        assertSame(local, inputGroupFocus(InputGroupControl.Textarea(TextareaProps(state)), local))
+        val custom = InputGroupControl.Custom(empty(), external)
+        assertSame(external, inputGroupFocus(custom, local))
+        assertTrue(inputGroupControlEnabled(custom))
+        assertFalse(inputGroupControlInvalid(custom))
+    }
+
+    @Test
+    fun `bare geometry removes only the editor frame and its occupied insets`() {
+        val theme = shadcnTheme()
+        val visual =
+            SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(enabled = false, focusVisible = true, invalid = true)
+            )
+        val options = surfaceOptions { this.padding = Some(Insets(10.0, 8.0, 10.0, 8.0)) }
+        val base = theme.surfaceMetrics(visual, options)
+        val metrics = bareTextFieldMetrics(base)
+        assertEquals(base.padding, metrics.contentInsets)
+        assertEquals(0.0, metrics.suggestedSize.width)
+        val frame = theme.surfaceGeometry(Rect(0.0, 0.0, 200.0, 80.0), visual, options)
+        val bare = bareTextFieldGeometry(frame, metrics)
+        assertEquals(Rect(10.0, 8.0, 180.0, 64.0), bare.content)
+        assertEquals(None, bare.ring)
+        assertEquals(CornerRadii(), bare.outline.radii)
+        assertEquals(1.0, bare.opacity)
+        assertTrue(frame.opacity < bare.opacity)
+    }
+
+    @Test
+    fun `addon spacing rejects invalid geometry before publication`() {
+        val addon = InputGroupAddonBuilder(InputGroupAlign.InlineEnd)
+        addon.spacing = Some(-1.0)
+        assertFailsWith<IllegalArgumentException> { addon.snapshot(None, None) }
+        addon.spacing = Some(0.0)
+        addon.text("suffix")
+        assertEquals(InputGroupAlign.InlineEnd, addon.snapshot(None, None).align)
+    }
+}

@@ -1,0 +1,114 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class CalendarOptions public constructor(
+    public val rules: CalendarRules = CalendarRules(),
+    public val locale: CalendarLocale = CalendarLocale(),
+    public val source: CalendarPageSource = GregorianCalendarPages(),
+    public val monthCount: Long = 1L,
+    public val pagedNavigation: Boolean = false,
+    public val showOutsideDays: Boolean = true,
+    public val fixedWeeks: Boolean = false,
+    public val weekNumbers: CalendarWeekNumbers = CalendarWeekNumbers.None,
+    public val caption: CalendarCaption = CalendarCaption.Label,
+    public val cellSize: Double = 28.0,
+    public val monthGap: Double = 16.0,
+    public val syncSelection: Boolean = false,
+    public val today: LocalDate? = None,
+    public val years: Array<Int> = []
+) {
+    init {
+        requireComponent(monthCount > 0L, "calendar month count must be positive")
+        nonnegative(cellSize, "invalid calendar cell size")
+        nonnegative(monthGap, "invalid calendar month gap")
+        for (index in 0L ..< years.size) {
+            requireComponent(
+                years[index] >= -999999999 && years[index] <= 999999999,
+                "invalid calendar dropdown year"
+            )
+            for (before in 0L ..< index)
+                requireComponent(
+                    years[index] != years[before],
+                    "calendar dropdown years must be unique"
+                )
+        }
+    }
+    internal fun request(anchor: LocalDate): CalendarPageRequest =
+        CalendarPageRequest(anchor, locale, showOutsideDays, fixedWeeks, weekNumbers, years)
+}
+
+internal val defaultCalendarOptions = CalendarOptions()
+
+public class CalendarDay public constructor(
+    public val page: CalendarPage,
+    public val data: CalendarDayData,
+    public val selected: Boolean,
+    public val today: Boolean,
+    public val enabled: Boolean,
+    public val range: DateRange?,
+    public val preview: Boolean,
+    public val focus: FocusHandle
+) {
+    public val inRange: Boolean get() = range?.contains(data.date) ?: false
+    public val rangeStart: Boolean get() = range?.start == Some(data.date)
+    public val rangeEnd: Boolean get() = range?.end == Some(data.date)
+}
+
+public class CalendarHeaderParts public constructor(
+    public val page: CalendarPage,
+    public val previous: View,
+    public val next: View,
+    public val caption: View
+)
+
+public class CalendarProps public constructor(
+    public val selection: CalendarSelection,
+    public val initialPage: LocalDate,
+    public val options: CalendarOptions = CalendarOptions(),
+    public val enabled: Boolean = true,
+    public val handle: CalendarHandle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val dayStyle: ButtonStyle = buttonStyle(),
+    public val dayFocus: (CalendarPage, CalendarDayData) -> FocusOptions =
+        { _, _ -> FocusOptions() },
+    public val header: ((CalendarHeaderParts) -> View)? = None,
+    public val monthGrid: ((CalendarPage, View) -> View)? = None,
+    public val day: ((CalendarDay, ActionContentStyle) -> View)? = None,
+    public val weekNumber: ((String) -> View)? = None,
+    public val footer: View? = None,
+    public val onValueChange: (CalendarValue) -> Unit = {},
+    public val onPageChange: (LocalDate) -> Unit = {}
+)
+
+public class CalendarHandle public constructor() {
+    internal var owner: CalendarControl? = None
+    public val isAttached: Boolean get() = owner?.active ?: false
+    public val page: LocalDate? get() = owner?.currentPage
+    public fun showDate(date: LocalDate): Boolean = owner?.show(date, false) ?: false
+    public fun focusDate(date: LocalDate): Boolean = owner?.show(date, true) ?: false
+    public fun focusFirst(): Boolean = owner?.focusFirst() ?: false
+    public fun cancelRange(): Boolean = owner?.cancelRange() ?: false
+    internal fun bind(control: CalendarControl) {
+        when (owner) {
+            case Some(previous) -> requireComponent(
+                previous === control || !previous.active,
+                "calendar handle is already attached"
+            );
+            case None -> {}
+        }
+        owner = Some(control)
+    }
+    internal fun release(control: CalendarControl) {
+        when (owner) {
+            case Some(previous) -> if (previous === control)
+                owner = None;
+            case None -> {}
+        }
+    }
+}

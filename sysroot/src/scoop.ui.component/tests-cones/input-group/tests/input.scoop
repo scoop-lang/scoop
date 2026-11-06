@@ -1,0 +1,139 @@
+package scoop.tests.ui.inputgroup
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun groupBegin(p: GroupProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertEquals(360.0, p.groupSize.width)
+            assertTrue(p.addonBounds[2L].y < p.addonBounds[0L].y)
+            assertTrue(p.addonBounds[3L].y > p.addonBounds[0L].y)
+            assertTrue(p.addonBounds[1L].x > p.addonBounds[0L].x)
+            assertEquals(p.addonBounds[1L].y, p.addonBounds[0L].y)
+            assertTrue(p.target.isAttached)
+            p.clickAddon(0L)
+        }
+        case 1 -> {
+            assertTrue(p.focus[0L].hasFocus)
+            p.model.setSelection(Utf8Selection(0L, 5L))
+        }
+        case 2 -> p.text("12")
+        case 3 -> {
+            assertEquals("12", p.model.text);
+            p.text("ni", true)
+        }
+        case 4 -> {
+            assertTrue(p.model.isComposing)
+            assertEquals("12ni", p.model.text)
+            p.reorder = true;
+            p.rtl = true
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark)
+        }
+        case 5 -> {
+            p.retained()
+            assertTrue(p.model.isComposing)
+            assertEquals("12ni", p.model.text)
+            assertTrue(p.addonBounds[2L].x > p.addonBounds[1L].x)
+            p.width = 180.0
+        }
+        case 6 -> {
+            assertEquals(180.0, p.groupSize.width)
+            assertTrue(p.model.isComposing)
+            p.text("你")
+        }
+        case 7 -> {
+            assertEquals("12你", p.model.text)
+            assertFalse(p.model.isComposing)
+            p.key(0, "a", 8);
+            p.key(8, "c", 8)
+        }
+        else -> fail(Some("unexpected input phase"))
+    }
+}
+
+internal fun groupEdit(p: GroupProbe) {
+    when (p.phase) {
+        case 8 -> {
+            assertEquals(Some("12你"), p.native!!.clipboard.readText());
+            p.key(7, "x", 8)
+        }
+        case 9 -> {
+            assertEquals("", p.model.text);
+            p.key(6, "z", 8)
+        }
+        case 10 -> {
+            assertEquals("12你", p.model.text);
+            p.masked = true
+        }
+        case 11 -> {
+            p.native!!.clipboard.writeText("sentinel");
+            p.key(8, "c", 8)
+        }
+        case 12 -> {
+            assertEquals(Some("sentinel"), p.native!!.clipboard.readText());
+            p.readonly = true
+        }
+        case 13 -> assertEquals(1, groupText(p.native!!, "X", false))
+        case 14 -> {
+            assertEquals("12你", p.model.text)
+            p.masked = false;
+            p.readonly = false
+            p.clickAddon(1L)
+        }
+        case 15 -> {
+            assertTrue(p.button.hasFocus)
+            assertFalse(p.focus[0L].hasFocus)
+            assertEquals(1, p.clicks)
+            p.key(48, "\t", 1)
+        }
+        else -> fail(Some("unexpected edit phase"))
+    }
+}
+
+internal fun groupFocus(p: GroupProbe) {
+    when (p.phase) {
+        case 16 -> {
+            assertTrue(p.focus[0L].hasFocus);
+            p.handle = 1
+        }
+        case 17 -> {
+            assertFalse(p.focus[0L].isAttached)
+            assertTrue(p.focus[1L].isAttached)
+            assertTrue(p.focus[1L].requestFocus())
+        }
+        case 18 -> {
+            assertTrue(p.focus[1L].hasFocus);
+            p.handle = -1
+        }
+        case 19 -> {
+            assertFalse(p.focus[1L].isAttached)
+            p.model.setSelection(Utf8Selection(0L, p.model.text.byteLength))
+            p.clickAddon(0L)
+        }
+        case 20 -> p.text("Q")
+        case 21 -> {
+            assertEquals("Q", p.model.text)
+            p.control = 1;
+            p.handle = 0;
+            p.width = 360.0;
+            p.rtl = false
+        }
+        case 22 -> {
+            assertTrue(p.focus[0L].isAttached)
+            assertTrue(p.focus[0L].requestFocus())
+            p.model.replaceAll("line")
+        }
+        case 23 -> {
+            assertTrue(p.focus[0L].hasFocus);
+            p.key(36, "\r", 8)
+        }
+        else -> fail(Some("unexpected focus phase"))
+    }
+}

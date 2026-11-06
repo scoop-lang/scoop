@@ -1,0 +1,109 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class DisclosureTest {
+    @Test
+    fun `single selection respects refusal and collapse policy without cleaning external values`() {
+        val selected = state<Int?>(Some(99))
+        val selection = AccordionSelection.Single(selected.binding(), false)
+        assertFalse(accordionOpen(selection, 1))
+        setAccordionOpen(selection, 1, false)
+        assertEquals(Some(99), selected.value)
+        setAccordionOpen(selection, 1, true)
+        assertEquals(Some(1), selected.value)
+        setAccordionOpen(selection, 1, false)
+        assertEquals(Some(1), selected.value)
+        setAccordionOpen(selection, 2, true)
+        assertEquals(Some(2), selected.value)
+        setAccordionOpen(AccordionSelection.Single(selected.binding()), 2, false)
+        assertEquals(None, selected.value)
+        val requests = state(0)
+        val refused =
+            AccordionSelection.Single(binding<Int?>({ Some(3) }, { _ -> requests.value += 1 }))
+        setAccordionOpen(refused, 4, true)
+        assertEquals(1, requests.value)
+        assertTrue(accordionOpen(refused, 3))
+        assertFalse(accordionOpen(refused, 4))
+    }
+
+    @Test
+    fun `multiple selection preserves unknown values and order and removes all target duplicates`() {
+        val selected = state<Array<Int>>([9, 2, 4, 2, 8])
+        val selection = AccordionSelection.Multiple(selected.binding())
+        setAccordionOpen(selection, 2, true)
+        assertEquals(5L, selected.value.size)
+        setAccordionOpen(selection, 2, false)
+        assertEquals(3L, selected.value.size)
+        assertEquals(9, selected.value[0L])
+        assertEquals(4, selected.value[1L])
+        assertEquals(8, selected.value[2L])
+        setAccordionOpen(selection, 3, true)
+        assertEquals(4L, selected.value.size)
+        assertEquals(3, selected.value[3L])
+        assertFalse(accordionOpen(selection, 2))
+        assertTrue(accordionOpen(selection, 9))
+    }
+
+    @Test
+    fun `disclosure descriptions do not create content and snapshots keep explicit retention`() {
+        val creations = state(0)
+        val content =
+            component(
+                {
+                    mount ->
+                    creations.value += 1;
+                    DisclosureTestContent(scope = mount)
+                }
+            )
+        val open = state(false)
+        val builder = CollapsibleBuilder()
+        builder.trigger("Details") { this.indicator = false }
+        val first = builder.snapshot(open.binding(), content)
+        builder.retention = ContentRetention.KeepMounted
+        builder.spacing = 0.0
+        val second = builder.snapshot(open.binding(), content)
+        assertEquals(ContentRetention.Dispose, first.retention)
+        assertEquals(ContentRetention.KeepMounted, second.retention)
+        assertFalse(first.trigger!!.indicator)
+        assertEquals(8.0, first.spacing)
+        assertEquals(0.0, second.spacing)
+        collapsible(open.binding(), content)
+        val single = state<Int?>(None)
+        accordion(single.binding()) { this.item(Choice(ViewKey.Number(1L), 1, "One"), content) }
+        val multiple = state<Array<Int>>([])
+        accordion(multiple.binding()) { this.item(Choice(ViewKey.Number(1L), 1, "One"), content) }
+        assertEquals(0, creations.value)
+        assertFalse(open.value)
+        assertEquals(None, single.value)
+        assertEquals(0L, multiple.value.size)
+    }
+
+    @Test
+    fun `disclosures reject ambiguous keys values and invalid spacing`() {
+        val selected = AccordionSelection.Single(state<Int?>(None).binding())
+        val first = AccordionEntry(Choice(ViewKey.Number(1L), 1, "One"), empty())
+        val duplicateKey = AccordionEntry(Choice(ViewKey.Number(1L), 2, "Two"), empty())
+        val duplicateValue = AccordionEntry(Choice(ViewKey.Number(2L), 1, "Again"), empty())
+        val positional = AccordionEntry(Choice(ViewKey.Position, 3, "Three"), empty())
+        assertFailsWith<IllegalArgumentException> {
+            AccordionProps([first, duplicateKey], selected)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AccordionProps([first, duplicateValue], selected)
+        }
+        assertFailsWith<IllegalArgumentException> { AccordionProps([positional], selected) }
+        assertFailsWith<IllegalArgumentException> {
+            CollapsibleProps(state(false).binding(), empty(), spacing = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            CollapsibleProps(state(false).binding(), empty(), spacing = Double.NaN)
+        }
+    }
+}
+
+private class DisclosureTestContent(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = empty()
+}

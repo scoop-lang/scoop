@@ -11,7 +11,8 @@ internal class OverlayMeasurePlan(
 ) {
     fun layout(
         size: Size,
-        presence: PresenceSnapshot = PresenceSnapshot(PresencePhase.Present, 1.0)
+        presence: PresenceSnapshot = PresenceSnapshot(PresencePhase.Present, 1.0),
+        contentAnchor: Rect? = None
     ): OverlayLayout =
         when (placement) {
             case Viewport(horizontal, vertical) -> OverlayLayout(
@@ -26,70 +27,96 @@ internal class OverlayMeasurePlan(
                 None,
                 presence
             )
-            case Anchored(anchor, side, alignment, preferred, opposite) -> {
-                val vertical = verticalSide(side)
-                val extent =
-                    if (vertical)
-                        size.height
-                    else
-                        size.width
-                val first =
-                    if (vertical)
-                        preferred.height
-                    else
-                        preferred.width
-                val second =
-                    if (vertical)
-                        opposite.height
-                    else
-                        opposite.width
-                val keep = extent <= first || (extent > second && first >= second)
-                val actual =
-                    if (keep)
-                        side
-                    else
-                        reverseSide(side)
-                val space =
-                    if (keep)
-                        preferred
-                    else
-                        opposite
-                val x =
-                    when (actual) {
-                        case Left -> space.x + space.width - size.width
-                        case Right -> space.x
-                        else -> clampPosition(
-                            aligned(anchor.x, anchor.width, size.width, alignment),
-                            available.x,
-                            available.width,
-                            size.width
-                        )
-                    }
-                val y =
-                    when (actual) {
-                        case Top -> space.y + space.height - size.height
-                        case Bottom -> space.y
-                        else -> clampPosition(
-                            aligned(anchor.y, anchor.height, size.height, alignment),
-                            available.y,
-                            available.height,
+            case Anchored(anchor, side, alignment, preferred, opposite, contentAligned) -> {
+                if (contentAligned && contentAnchor != None) {
+                    val local = contentAnchor!!
+                    OverlayLayout(
+                        Rect(
+                            clampPosition(
+                                aligned(anchor.x, anchor.width, local.width, alignment) - local.x,
+                                available.x,
+                                available.width,
+                                size.width
+                            ),
+                            clampPosition(
+                                anchor.y + anchor.height / 2.0 - local.y - local.height / 2.0,
+                                available.y,
+                                available.height,
+                                size.height
+                            ),
+                            size.width,
                             size.height
-                        )
-                    }
-                OverlayLayout(
-                    Rect(x, y, size.width, size.height),
-                    space,
-                    Some(anchor),
-                    Some(actual.publicSide()),
-                    presence
-                )
+                        ),
+                        available,
+                        Some(anchor),
+                        None,
+                        presence
+                    )
+                } else {
+                    val vertical = verticalSide(side)
+                    val extent =
+                        if (vertical)
+                            size.height
+                        else
+                            size.width
+                    val first =
+                        if (vertical)
+                            preferred.height
+                        else
+                            preferred.width
+                    val second =
+                        if (vertical)
+                            opposite.height
+                        else
+                            opposite.width
+                    val keep = extent <= first || (extent > second && first >= second)
+                    val actual =
+                        if (keep)
+                            side
+                        else
+                            reverseSide(side)
+                    val space =
+                        if (keep)
+                            preferred
+                        else
+                            opposite
+                    val x =
+                        when (actual) {
+                            case Left -> space.x + space.width - size.width
+                            case Right -> space.x
+                            else -> clampPosition(
+                                aligned(anchor.x, anchor.width, size.width, alignment),
+                                available.x,
+                                available.width,
+                                size.width
+                            )
+                        }
+                    val y =
+                        when (actual) {
+                            case Top -> space.y + space.height - size.height
+                            case Bottom -> space.y
+                            else -> clampPosition(
+                                aligned(anchor.y, anchor.height, size.height, alignment),
+                                available.y,
+                                available.height,
+                                size.height
+                            )
+                        }
+                    OverlayLayout(
+                        Rect(x, y, size.width, size.height),
+                        space,
+                        Some(anchor),
+                        Some(actual.publicSide()),
+                        presence
+                    )
+                }
             }
         }
 }
 
 internal enum OverlayPlanPlacement {
     Viewport(OverlayAlignment, OverlayAlignment),
-    Anchored(Rect, PhysicalOverlaySide, OverlayAlignment, Rect, Rect)
+    Anchored(Rect, PhysicalOverlaySide, OverlayAlignment, Rect, Rect, Boolean)
 }
 
 internal fun planOverlay(
@@ -118,6 +145,17 @@ internal fun planOverlay(
             viewport,
             direction
         )
+        case ContentAligned(_, side, alignment, gap, padding, matchWidth) -> pointOverlayPlan(
+            anchor ?: throw IllegalStateException(Some("anchor has no current geometry")),
+            side,
+            alignment,
+            gap,
+            padding,
+            matchWidth,
+            viewport,
+            direction,
+            true
+        )
         case AtPoint(point, side, alignment, gap, padding) -> pointOverlayPlan(
             Rect(point.x, point.y, 0.0, 0.0),
             side,
@@ -139,7 +177,8 @@ private fun pointOverlayPlan(
     padding: Double,
     matchWidth: Boolean,
     viewport: Size,
-    direction: LayoutDirection
+    direction: LayoutDirection,
+    contentAligned: Boolean = false
 ): OverlayMeasurePlan {
     val physical = physicalOverlaySide(side, direction)
     requireUi(
@@ -172,12 +211,13 @@ private fun pointOverlayPlan(
         OverlayPlanPlacement.Anchored(
             bounds,
             physical,
-            if (verticalSide(physical))
+            if (contentAligned || verticalSide(physical))
                 overlayHorizontal(alignment, direction)
             else
                 alignment,
             preferred,
-            opposite
+            opposite,
+            contentAligned
         )
     )
 }

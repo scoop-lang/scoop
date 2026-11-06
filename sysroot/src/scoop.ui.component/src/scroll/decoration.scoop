@@ -1,0 +1,91 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Overlay bars share the same resolved bounds for painting and input. */
+internal class ScrollBarsLayout(
+    snapshot: ScrollSnapshot,
+    axes: ScrollAxes,
+    visibility: ScrollbarVisibility,
+    thickness: Double,
+    direction: LayoutDirection
+) {
+    private val size = snapshot.viewport
+    private val width = upperBound(thickness, size.width)
+    private val height = upperBound(thickness, size.height)
+    private val hasX =
+        axes.horizontal &&
+            showScrollbar(visibility, snapshot.maximum.x) &&
+            height >
+            0.0 &&
+            size.width >
+            0.0
+    private val hasY =
+        axes.vertical &&
+            showScrollbar(visibility, snapshot.maximum.y) &&
+            width >
+            0.0 &&
+            size.height >
+            0.0
+    val horizontal: Rect? =
+        if (hasX)
+            Some(
+                Rect(
+                    if (hasY && direction == LayoutDirection.Rtl)
+                        width
+                    else
+                        0.0,
+                    size.height - height,
+                    size.width -
+                        (
+                            if (hasY)
+                                width
+                            else
+                                0.0
+                        ),
+                    height
+                )
+            )
+        else
+            None
+    val vertical: Rect? =
+        if (hasY)
+            Some(
+                Rect(
+                    if (direction == LayoutDirection.Rtl)
+                        0.0
+                    else
+                        size.width - width,
+                    0.0,
+                    width,
+                    size.height -
+                        (
+                            if (hasX)
+                                height
+                            else
+                                0.0
+                        )
+                )
+            )
+        else
+            None
+}
+
+internal fun scrollSurfaceOptions(local: StyleOverride, outline: OutlineStyle?): SurfaceOptions {
+    val decoration =
+        styleOverride {
+            this.background(None)
+            this.border(None)
+            this.corners(Corners.all(0.0))
+            this.boxShadows([])
+        }.then(local).then(styleOverride { this.clipContent(true) })
+    return surfaceOptions {
+        this.minimumSize = Some(Size(0.0, 0.0))
+        this.suggestedSize = Some(Size(0.0, 0.0))
+        this.padding = Some(Insets(0.0, 0.0, 0.0, 0.0))
+        this.style = decoration
+        this.focus = outline
+    }
+}

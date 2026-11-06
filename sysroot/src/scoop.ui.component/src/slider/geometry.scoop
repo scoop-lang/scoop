@@ -1,0 +1,182 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class SliderGeometry(
+    val size: Size,
+    val track: Rect,
+    val fill: Rect,
+    val thumbs: Array<Rect>,
+    val hit: Rect,
+    val range: RangeSpec,
+    val orientation: Orientation,
+    val direction: LayoutDirection,
+    val thumbSize: Double,
+    val start: Double,
+    val travel: Double
+) {
+    fun coordinate(point: Point): Double =
+        if (orientation == Orientation.Horizontal)
+            point.x
+        else
+            point.y
+    fun center(index: Long): Double {
+        val thumb = thumbs[index]
+        return if (orientation == Orientation.Horizontal)
+            thumb.x + thumb.width / 2.0
+        else
+            thumb.y + thumb.height / 2.0
+    }
+    fun position(point: Point, grab: Double): Double {
+        val fraction = (coordinate(point) - grab * thumbSize - start) / travel
+        return if (orientation == Orientation.Vertical || direction == LayoutDirection.Rtl)
+            1.0 - fraction
+        else
+            fraction
+    }
+}
+
+internal fun sliderGeometry(
+    input: SliderProps,
+    values: Array<Double>,
+    theme: Theme,
+    size: Size,
+    direction: LayoutDirection
+): SliderGeometry {
+    val horizontal = input.orientation == Orientation.Horizontal
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val main =
+        if (horizontal)
+            size.width
+        else
+            size.height
+    val cross =
+        if (horizontal)
+            size.height
+        else
+            size.width
+    val thumb = min(input.style.thumbSize ?: 12.0 * density, min(main, cross))
+    val thickness = min(input.style.thickness ?: 4.0 * density, cross)
+    val start = thumb / 2.0
+    val travel = max(0.0, main - thumb)
+    val positions =
+        Array<Double>(values.size) {
+            index ->
+            val fraction = input.range.positionOf(values[index])
+            start +
+                travel *
+                (
+                    if (!horizontal || direction == LayoutDirection.Rtl)
+                        1.0 - fraction
+                    else
+                        fraction
+                )
+        }
+    val rects =
+        Array<Rect>(values.size) {
+            index -> if (horizontal)
+                Rect(positions[index] - start, (cross - thumb) / 2.0, thumb, thumb)
+            else
+                Rect((cross - thumb) / 2.0, positions[index] - start, thumb, thumb)
+        }
+    var low = 0.0
+    var high = 0.0
+    if (values.size > 1L) {
+        low = min(positions[0L], positions[values.size - 1L])
+        high = max(positions[0L], positions[values.size - 1L])
+    } else
+        if (values.size == 1L) {
+            val minimumAtEnd =
+                (!horizontal || direction == LayoutDirection.Rtl) != input.range.reversed
+            low =
+                if (minimumAtEnd)
+                    positions[0L]
+                else
+                    0.0
+            high =
+                if (minimumAtEnd)
+                    main
+                else
+                    positions[0L]
+        }
+    val track =
+        if (horizontal)
+            Rect(0.0, (cross - thickness) / 2.0, main, thickness)
+        else
+            Rect((cross - thickness) / 2.0, 0.0, thickness, main)
+    val fill =
+        if (horizontal)
+            Rect(low, track.y, high - low, track.height)
+        else
+            Rect(track.x, low, track.width, high - low)
+    val hit =
+        switchHitBounds(
+            Rect(0.0, 0.0, size.width, size.height),
+            input.style.hitInsets ?: Insets.all(8.0 * density)
+        )
+    return SliderGeometry(
+        size,
+        track,
+        fill,
+        rects,
+        hit,
+        input.range,
+        input.orientation,
+        direction,
+        thumb,
+        start,
+        travel
+    )
+}
+
+internal fun sameSliderValues(a: Array<Double>, b: Array<Double>): Boolean {
+    if (a === b)
+        return true
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+internal fun sameSliderRange(a: RangeSpec, b: RangeSpec): Boolean =
+    a.minimum ==
+        b.minimum &&
+        a.maximum ==
+        b.maximum &&
+        a.step ==
+        b.step &&
+        a.minimumGap ==
+        b.minimumGap &&
+        a.reversed ==
+        b.reversed
+
+internal fun nearestSliderThumb(
+    shape: SliderGeometry,
+    range: RangeSpec,
+    values: Array<Double>,
+    point: Point,
+    focused: Long?
+): Long? {
+    var best: Long? = None
+    var distance = 0.0
+    for (index in 0L ..< values.size) {
+        val limits = range.thumbLimits(values, index)
+        if (limits.minimum == limits.maximum)
+            continue
+        val next = abs(shape.coordinate(point) - shape.center(index))
+        val tolerance =
+            max(1.0, max(abs(shape.coordinate(point)), abs(shape.center(index)))) *
+                8.881784197001252e-16
+        val tied = abs(next - distance) <= tolerance
+        if (best == None || (next < distance && !tied) || (tied && focused == Some(index))) {
+            best = Some(index)
+            distance = next
+        }
+    }
+    return best
+}

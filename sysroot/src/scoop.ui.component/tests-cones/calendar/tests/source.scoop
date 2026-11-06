@@ -1,0 +1,44 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.*
+import scoop.ui.component.*
+
+/** This consumer supplies actual period dates; no Gregorian month arithmetic is used to turn a page. */
+internal class NativePlanningPages: CalendarPageSource {
+    public override fun page(request: CalendarPageRequest): CalendarPage {
+        val start = LocalDate(2026, 11, 2)
+        val delta = start.daysUntil(request.anchor) / 28L
+        val index =
+            if (delta < 0L)
+                0L
+            else
+                if (delta > 2L)
+                    2L
+                else
+                    delta
+        val first = start.plusDays(index * 28L)
+        val weeks =
+            Array<CalendarWeek>(4L) {
+                week -> CalendarWeek(
+                    Array<CalendarDayData?>(7L) {
+                        day ->
+                        val number = week * 7L + day
+                        Some(CalendarDayData(first.plusDays(number), f"${number + 1L}"))
+                    }
+                )
+            }
+        return CalendarPage(
+            first,
+            f"Period ${index + 1L}",
+            weeks,
+            if (index == 0L)
+                None
+            else
+                Some(first.plusDays(-28L)),
+            if (index == 2L)
+                None
+            else
+                Some(first.plusDays(28L))
+        )
+    }
+}

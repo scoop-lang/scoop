@@ -1,0 +1,133 @@
+package scoop.ui.component
+
+import scoop.charset.unicodeCasefold
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.text.startsWith
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.ShortcutChord
+
+/** A command's identity and presentation; custom content has no independent input behavior. */
+public class MenuItemSpec public constructor(
+    public val key: ViewKey,
+    public val label: String,
+    public val enabled: Boolean = true,
+    public val destructive: Boolean = false,
+    public val inset: Boolean = false,
+    public val content: View? = None,
+    public val icon: View? = None,
+    public val shortcut: ShortcutChord? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: ButtonStyle = buttonStyle()
+)
+
+public enum MenuEntry {
+    Action(val item: MenuItemSpec, val onSelect: () -> Unit, val closeOnSelect: Boolean = true),
+    Checkbox(
+        val item: MenuItemSpec,
+        val checked: Binding<Boolean>,
+        val closeOnSelect: Boolean = false,
+        val onCheckedChange: (Boolean) -> Unit = {}
+    ),
+    Radio(
+        val item: MenuItemSpec,
+        val isSelected: () -> Boolean,
+        val onSelect: () -> Unit,
+        val closeOnSelect: Boolean = false
+    ),
+    Submenu(val item: MenuItemSpec, val content: MenuContent),
+    Label(val key: ViewKey, val content: PanelContent, val inset: Boolean = false),
+    Separator(val key: ViewKey)
+}
+
+public class MenuContent public constructor(public val entries: Array<MenuEntry>) {
+    init {
+        for (index in 0L ..< entries.size) {
+            val key = menuKey(entries[index])
+            requireComponent(key != ViewKey.Position, "menu entry requires an explicit key")
+            for (previous in 0L ..< index)
+                requireComponent(menuKey(entries[previous]) != key, "duplicate menu entry key")
+        }
+    }
+}
+
+public class MenuOptions public constructor(
+    public val width: Double = 192.0,
+    public val mode: OverlayMode = OverlayMode.NonModal,
+    public val loop: Boolean = true,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    typeahead: TypeaheadOptions? = None,
+    public val submenuHover: HoverOptions =
+        HoverOptions(openDelay = Duration.milliseconds(100L), focus = false)
+) {
+    public val typeahead: TypeaheadOptions = typeahead ?: menuTypeahead()
+    init {
+        nonnegative(width, "invalid menu width")
+    }
+}
+
+internal fun menuTypeahead(): TypeaheadOptions = TypeaheadOptions(matches = ::menuPrefix)
+
+internal fun menuPrefix(text: String, query: String): Boolean =
+    unicodeCasefold(text).startsWith(unicodeCasefold(query))
+
+internal fun menuItem(entry: MenuEntry): MenuItemSpec? =
+    when (entry) {
+        case Action(item, _, _) -> Some(item)
+        case Checkbox(item, _, _, _) -> Some(item)
+        case Radio(item, _, _, _) -> Some(item)
+        case Submenu(item, _) -> Some(item)
+        else -> None
+    }
+
+internal fun menuKey(entry: MenuEntry): ViewKey =
+    when (entry) {
+        case Label(key, _, _) -> key
+        case Separator(key) -> key
+        else -> menuItem(entry)!!.key
+    }
+
+internal fun menuEntry(menu: MenuContent, key: ViewKey): MenuEntry? {
+    for (entry in menu.entries)
+        if (menuKey(entry) == key)
+            return Some(entry)
+    return None
+}
+
+/** Returns whether a successfully completed selection requests closing the chain. */
+internal fun activateMenu(entry: MenuEntry): Boolean {
+    if (!(menuItem(entry)?.enabled ?: false))
+        return false
+    return when (entry) {
+        case Action(_, action, close) -> {
+            action();
+            close
+        }
+        case Checkbox(_, checked, close, changed) -> {
+            val previous = checked.value
+            checked.value = !previous
+            val accepted = checked.value
+            if (accepted != previous)
+                changed(accepted)
+            close && accepted != previous
+        }
+        case Radio(_, selected, action, close) -> {
+            action();
+            close && selected()
+        }
+        else -> false
+    }
+}
+
+internal fun menuChecked(entry: MenuEntry): Boolean =
+    when (entry) {
+        case Checkbox(_, checked, _, _) -> checked.value
+        case Radio(_, selected, _, _) -> selected()
+        else -> false
+    }

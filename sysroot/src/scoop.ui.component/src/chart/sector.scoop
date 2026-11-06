@@ -1,0 +1,129 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartAngle(value: Double): Double {
+    val angle = value % TAU
+    return if (angle < 0.0)
+        angle + TAU
+    else
+        angle
+}
+
+internal fun chartPolarPoint(center: Point, radius: Double, angle: Double): Point =
+    Point(center.x + cos(angle) * radius, center.y + sin(angle) * radius)
+
+/** Drawing and picking share the complete annular sector, including its active outset. */
+internal class ChartSector(
+    val center: Point,
+    val inner: Double,
+    val outer: Double,
+    val start: Double,
+    val sweep: Double,
+    val color: Color,
+    val outset: Double
+) {
+    fun expanded(): ChartSector =
+        ChartSector(center, inner, outer + outset, start, sweep, color, outset)
+    fun contains(point: Point): Boolean {
+        if (outer <= inner || sweep == 0.0)
+            return false
+        val dx = point.x - center.x;
+        val dy = point.y - center.y
+        val distance = dx * dx + dy * dy
+        if (distance < inner * inner || distance > outer * outer)
+            return false
+        if (abs(sweep) >= TAU - 0.0000000001)
+            return true
+        val angle = atan2(dy, dx)
+        val offset =
+            if (sweep > 0.0)
+                chartAngle(angle - start)
+            else
+                chartAngle(start - angle)
+        return offset <= abs(sweep) + 0.0000000001
+    }
+    fun outline(): Path {
+        val arc = this
+        return path {
+            this.arcTo(
+                Rect(
+                    arc.center.x - arc.outer,
+                    arc.center.y - arc.outer,
+                    arc.outer * 2.0,
+                    arc.outer * 2.0
+                ),
+                arc.start,
+                arc.sweep,
+                true
+            )
+            if (arc.inner > 0.0)
+                this.arcTo(
+                    Rect(
+                        arc.center.x - arc.inner,
+                        arc.center.y - arc.inner,
+                        arc.inner * 2.0,
+                        arc.inner * 2.0
+                    ),
+                    arc.start + arc.sweep,
+                    -arc.sweep
+                )
+            else
+                this.lineTo(arc.center)
+            this.closeContour()
+        }
+    }
+}
+
+internal class ChartPolarLayout(plan: ChartPlan, size: Size, radar: Boolean = false) {
+    private val a = plan.appearance
+    private val line = a.measure("0").height
+    private val labelWidth =
+        if (radar)
+            chartPolarLabelWidth(plan)
+        else
+            0.0
+    private val horizontal =
+        if (radar)
+            upperBound(labelWidth + 8.0 * a.density, size.width / 4.0)
+        else
+            12.0 * a.density
+    private val vertical =
+        if (radar)
+            line + 10.0 * a.density
+        else
+            12.0 * a.density
+    val center = Point(size.width / 2.0, size.height / 2.0)
+    val radius =
+        lowerBound(
+            upperBound(size.width / 2.0 - horizontal, size.height / 2.0 - vertical) -
+                4.0 *
+                a.density,
+            0.0
+        )
+    val plot = Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
+    val hole = radius * plan.input.innerRadius
+    private val side = lowerBound(sqrt(2.0) * hole - 8.0 * a.density, 0.0)
+    val content = Rect(center.x - side / 2.0, center.y - side / 2.0, side, side)
+}
+
+private fun chartPolarLabelWidth(plan: ChartPlan): Double {
+    var width = 0.0
+    for (datum in plan.snapshot.data.datums)
+        width = lowerBound(width, plan.appearance.measure(datum.label).width)
+    return width
+}
+
+internal fun chartPolarSelection(
+    plan: ChartPlan,
+    series: ChartPreparedSeries,
+    index: Long
+): ChartSelection =
+    ChartSelection(
+        plan.snapshot.data.series[series.source].key,
+        plan.snapshot.data.datums[index].key
+    )
+
+internal fun chartSectorColor(plan: ChartPlan, series: ChartPreparedSeries, index: Long): Color =
+    plan.snapshot.data.datums[index].color ?: series.color

@@ -1,0 +1,247 @@
+package scoop.tests.ui.questionnaire
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class QuestionnaireWindowTest {
+    @Test
+    fun `native questionnaire preserves keyed answers focus IME validation and cancel through layout changes`() {
+        val p = QuestionnaireProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertFalse(p.frames!!.snapshot().attached)
+            assertFalse(p.inputFocus.isAttached)
+            assertFalse(p.modalFocus.isAttached)
+        } catch (error: Throwable) {
+            println("questionnaire phase=" + p.phase.toString())
+            questionnaireNativeFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class QuestionnaireProbe {
+    val theme =
+        ThemeSource(shadcnTheme() { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val survey = QuestionnaireState(questionnaireTestQuestions())
+    val modal = QuestionnaireState(questionnaireTestQuestions())
+    val inputFocus = FocusHandle()
+    val modalFocus = FocusHandle()
+    val outside = FocusHandle()
+    val choices = HashMap<String, FocusHandle>()
+    val areas = HashMap<String, InputArea>()
+    val dialog = state(false)
+    val busy = state(false)
+    val originalEditor = survey.editor(QuestionKey("note"))!!
+    var saved = survey.snapshot()
+    var shown = true
+    var zero = false
+    var enabled = true
+    var rtl = false
+    var chinese = false
+    var readPixels = false
+    var leftPixel = 0L
+    var rightPixel = 0L
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var mounts = 0
+    var unmounts = 0
+    var draws = 0
+    var savedDraws = 0
+    var submissions = 0
+    var answerCount = -1L
+    var changedAnswers = 0
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    private var next = MonotonicTimeSource.markNow()
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun focus(name: String): FocusHandle {
+        when (choices.get(name)) {
+            case Some(value) -> return value;
+            case None -> {}
+        }
+        val value = FocusHandle();
+        choices.put(name, value);
+        return value
+    }
+    fun bounds(name: String): Rect = areas[name]!!.windowBounds!!
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String, flags: Int = 0) {
+        assertEquals(0, questionnaireNativeKey(native!!, code, text, flags))
+    }
+    fun primary() {
+        key(36, "\r", 8)
+    }
+    fun text(value: String, marked: Boolean = false) {
+        assertEquals(0, questionnaireNativeText(native!!, value, marked))
+    }
+    fun clickFirst() {
+        val box = bounds("Choices")
+        val x = box.x + box.width / 2.0
+        val y = box.y + 25.0
+        assertEquals(0, questionnaireNativePointer(native!!, x, y, true))
+        assertEquals(0, questionnaireNativePointer(native!!, x, y, false))
+    }
+    fun submit(result: QuestionnaireResult) {
+        submissions += 1;
+        answerCount = result.answers.size;
+        busy.value = true
+    }
+    fun resizeAndTheme() {
+        rtl = true;
+        chinese = true
+        theme.current.value =
+            shadcnTheme(ThemeMode.Dark) {
+                tokens {
+                    motion { preference = MotionPreference.Reduced };
+                    typography {
+                        body { fontSize = 19.6 };
+                        action { fontSize = 19.6 }
+                    }
+                }
+            }
+        native!!.requestSize(LogicalSize(480.0, 800.0))
+        changed()
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop questionnaire test";
+                            size = LogicalSize(760.0, 720.0)
+                        }
+                    )
+                native = Some(window);
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(
+                    window,
+                    { scope -> QuestionnaireTestScene(this, scope) },
+                    fonts = Some(fonts)
+                )
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(
+                    now < timeout,
+                    Some(
+                        f"questionnaire timeout: focused=${native!!.isFocused}, rendered=${
+                            rendered
+                        }, generation=${generation.value}, frames=${frames!!.snapshot().required}"
+                    )
+                )
+                if (
+                    now >=
+                        next &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !frames!!.snapshot().required
+                ) {
+                    advanceQuestionnaire(this)
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 53)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 53;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
+
+internal fun questionnaireTestQuestions(
+    reordered: Boolean = false,
+    noteEnabled: Boolean = true,
+    allDisabled: Boolean = false
+): Array<Question> {
+    val plan =
+        Question(
+            QuestionKey("plan"),
+            "Choose a plan for this project",
+            QuestionKind.Single,
+            description = "Fixed choices and a freeform answer share one question.",
+            enabled = !allDisabled,
+            choices =
+                [
+                    QuestionChoice(QuestionChoiceKey("basic"), "Basic"),
+                    QuestionChoice(QuestionChoiceKey("disabled"), "Unavailable", enabled = false),
+                    QuestionChoice(QuestionChoiceKey("pro"), "Pro")
+                ],
+            freeform = Some(QuestionFreeform("Other plan"))
+        )
+    val files =
+        Question(
+            QuestionKey("files"),
+            "Attach the supporting material",
+            QuestionKind.Multiple,
+            required = false,
+            enabled = !allDisabled,
+            choices =
+                [
+                    QuestionChoice(QuestionChoiceKey("logs"), "Logs"),
+                    QuestionChoice(QuestionChoiceKey("images"), "Images")
+                ],
+            freeform = Some(QuestionFreeform("Other files"))
+        )
+    val note =
+        Question(
+            QuestionKey("note"),
+            "留下说明与下一步安排 · A longer question title wraps at the available width",
+            QuestionKind.Freeform,
+            enabled = noteEnabled && !allDisabled,
+            freeform = Some(QuestionFreeform())
+        )
+    return if (reordered)
+        [note, plan, files]
+    else
+        [plan, files, note]
+}

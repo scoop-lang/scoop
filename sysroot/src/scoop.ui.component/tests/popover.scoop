@@ -1,0 +1,77 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class PopoverTest {
+    @Test
+    fun `popover metadata and DSL do not evaluate bindings or register handles`() {
+        val reads = state(0)
+        val open =
+            binding(
+                {
+                    reads.value += 1;
+                    false
+                },
+                { _ -> }
+            )
+        val focus = FocusHandle()
+        val anchor = LayoutAnchor()
+        val captured = ArrayList<PopoverBuilder>()
+        val view =
+            popover(open, empty()) {
+                captured.add(this)
+                trigger("Open") { this.focus = FocusOptions(Some(focus)) }
+                title("Details")
+                focus { restoreFocus = false }
+                mode = OverlayMode.FocusContained
+                key = ViewKey.Text("popup")
+            }
+        val first = captured[0L].snapshot(open, empty())
+        captured[0L].width = 500.0
+        captured[0L].mode = OverlayMode.Modal
+        assertEquals(288.0, first.width)
+        assertEquals(OverlayMode.FocusContained, first.mode)
+        assertFalse(first.focus.restoreFocus)
+        assertEquals(ViewKey.Text("popup"), captured[0L].key)
+        assertFalse(focus.isAttached)
+        assertFalse(anchor.isAttached)
+        column { popover(open, empty()) { this.anchor = Some(anchor) } }
+        assertEquals(0, reads.value)
+    }
+    @Test
+    fun `popover rejects unusable anchors and incompatible dismissal without opening`() {
+        val open = state(false).binding()
+        assertFailsWith<IllegalArgumentException> { PopoverProps(open, empty()) }
+        val anchor = Some(LayoutAnchor())
+        assertFailsWith<IllegalArgumentException> {
+            PopoverProps(open, empty(), anchor = anchor, width = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PopoverProps(open, empty(), anchor = anchor, gap = Double.POSITIVE_INFINITY)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PopoverProps(
+                open,
+                empty(),
+                anchor = anchor,
+                mode = OverlayMode.Modal,
+                dismiss = Some(OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue))
+            )
+        }
+        val input = PopoverProps(open, empty(), anchor = anchor)
+        assertTrue(input.dismissal.includeAnchor)
+        assertEquals(OutsidePress.CloseAndContinue, input.dismissal.outsidePress)
+        assertEquals(
+            OutsidePress.CloseAndConsume,
+            PopoverProps(
+                open,
+                empty(),
+                anchor = anchor,
+                mode = OverlayMode.Modal
+            ).dismissal.outsidePress
+        )
+        assertFalse(open.value)
+    }
+}

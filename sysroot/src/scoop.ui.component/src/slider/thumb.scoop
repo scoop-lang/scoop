@@ -1,0 +1,179 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class SliderThumbProps(
+    val input: SliderInput,
+    val index: Long,
+    val pressed: Boolean,
+    val control: SliderControl
+)
+
+internal class SliderThumb(
+    private val props: Props<SliderThumbProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var previousSide: Double? = None
+    private var area: InputArea? = None
+    private var focus: FocusTarget? = None
+    private var field: FieldLink? = None
+    private var painters: ThemePainterCache? = None
+    private var motion: InteractionMotion? = None
+    private fun options(): SliderThumbOptions {
+        val input = props.value
+        return if (input.input.props.thumbs.size == 0L)
+            SliderThumbOptions()
+        else
+            input.input.props.thumbs[input.index]
+    }
+    public override fun onMount() {
+        area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
+        focus = Some(scope.focusTarget(area!!, options().focus))
+        field = Some(scope.resource { FieldLink(scope, area!!, focus!!) })
+        painters = Some(scope.resource { ThemePainterCache() })
+        motion = Some(InteractionMotion(scope, visual()))
+        scope.resource {
+            area!!.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (area!!.isFocusActive)
+                            props.value.control.key(props.value.index, context, key)
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    private fun visual(): InteractionVisual =
+        InteractionVisual(
+            props.value.input.props.enabled,
+            area!!.scope.isHovered,
+            props.value.pressed,
+            area!!.isFocusVisible,
+            invalid = props.value.input.props.invalid
+        )
+    private fun refresh() {
+        val input = props.value.input
+        val specs = input.theme.tokens.motion
+        motion!!.update(
+            visual(),
+            specs.resolve(input.props.style.transition.resolve(specs.hover)),
+            specs.resolve(input.props.style.transition.resolve(specs.press))
+        )
+        if (scope.isMounted)
+            scope.requestFrame()
+    }
+    private fun notify(context: RoutedEventContext, event: InputEvent) {
+        if (context.phase != RoutedPhase.Notification || !scope.isMounted)
+            return
+        when (event) {
+            case FocusChanged(false) -> props.value.control.lostFocus(props.value.index)
+            else -> {}
+        }
+        when (motion) {
+            case Some(_) -> refresh();
+            case None -> {}
+        }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value.input
+        val local = options()
+        val slot = input.slots[props.value.index]
+        slot.area = area
+        slot.focus = focus
+        focus!!.options = local.focus
+        area!!.scope.enabled = input.props.enabled
+        field!!.update(
+            when (local.labelTarget) {
+                case Some(_) -> local.labelTarget
+                case None -> if (props.value.index == 0L)
+                    input.props.labelTarget
+                else
+                    None
+            },
+            input.props.enabled
+        )
+        refresh()
+        painters!!.get(input.theme)
+        val side =
+            input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
+        val changed = previousSide != Some(side)
+        previousSide = Some(side)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value.input
+        val side =
+            input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
+        val size = constraints.constrain(Size(side, side))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value.input
+        val size = context.size
+        val base = motion!!.sample(visual())
+        val ring =
+            base.focusVisible ||
+                (base.hoverProgress ?: 0.0) >
+                0.0 ||
+                (base.pressProgress ?: 0.0) >
+                0.0
+        val sampled =
+            SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(
+                    base.enabled,
+                    base.hovered,
+                    base.pressed,
+                    ring,
+                    base.hoverProgress,
+                    base.pressProgress,
+                    base.invalid
+                )
+            )
+        val shape =
+            input.theme.surfaceGeometry(
+                Rect(0.0, 0.0, size.width, size.height),
+                sampled,
+                sliderThumbOptions(input.theme, input.props.style, base),
+                context.layoutDirection
+            )
+        val geometry =
+            SurfaceGeometry(
+                shape.bounds,
+                shape.outline,
+                shape.borderInner,
+                shape.content,
+                shape.ring,
+                shape.style,
+                1.0
+            )
+
+        context.draw {
+            paint -> painters!!.get(input.theme).drawSurface(paint.canvas, geometry, sampled)
+        }
+        if (context.size.width > 0.0 && context.size.height > 0.0)
+            context.place(
+                area!!,
+                switchHitBounds(
+                    shape.bounds,
+                    input.props.style.hitInsets ?:
+                        Insets.all(8.0 * input.theme.tokens.typography.body.fontSize / 14.0)
+                )
+            )
+    }
+    public override fun onUnmount() {
+        val slot = props.value.input.slots[props.value.index]
+        slot.area = None
+        slot.focus = None
+    }
+}

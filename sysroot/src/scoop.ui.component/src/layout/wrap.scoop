@@ -25,14 +25,21 @@ internal fun makeWrap(configure: WrapBuilder.() -> Unit): View {
     builder.configure()
     return component(
         WrapProps(builder.axis, builder.snapshot(), builder.lineSpacing),
-        { props -> Wrap(props) },
+        { props, mount -> Wrap(props, scope = mount) },
         builder.key
     )
 }
 
-public class Wrap public constructor(private val props: Props<WrapProps>): Component {
+public class Wrap public constructor(
+    private val props: Props<WrapProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
-        element(props.value, { input -> WrapInk(input) }, props.value.layout.children)
+        element(
+            props.value,
+            { input, mount -> WrapInk(input, scope = mount) },
+            props.value.layout.children
+        )
 }
 
 private class WrapMeasuredLine(
@@ -42,8 +49,12 @@ private class WrapMeasuredLine(
     val cross: FlexCrossMetrics
 )
 
-private class WrapInk(private val props: Props<WrapProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class WrapInk(private val props: Props<WrapProps>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val layout = input.layout
         val vertical = input.axis == FlexAxis.Vertical
@@ -182,10 +193,10 @@ private class WrapInk(private val props: Props<WrapProps>): Element {
             }
             lineOrigin += line.cross.extent + input.lineSpacing
         }
-        return LayoutMetrics(size, alphabetic, ideographic)
+        return LayoutResult(LayoutMetrics(size, alphabetic, ideographic), Unit)
     }
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.layout.clip)
     }
 }

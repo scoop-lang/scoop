@@ -1,0 +1,64 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class CandidateRowInkProps(
+    val key: ViewKey,
+    val enabled: Boolean,
+    val highlight: (ViewKey) -> Unit,
+    val select: (ViewKey) -> Unit
+)
+
+internal class CandidateRowInk(
+    private val props: Props<CandidateRowInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var press: Press? = None
+    public override fun onMount() {
+        val area = scope.createArea(focusable = false)
+        this.area = Some(area)
+        scope.routeChildren(area)
+        press =
+            Some(
+                scope.press(area, PressOptions(props.value.enabled)) {
+                    props.value.select(props.value.key)
+                }
+            )
+        area.scope.addEventHandler {
+            context, event ->
+            if (!props.value.enabled || context.phase == RoutedPhase.Capture)
+                return@addEventHandler
+            when (event) {
+                case Pointer(InputPointerEvent.Moved(_)) -> props.value.highlight(props.value.key)
+                case Pointer(
+                    InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                ) -> props.value.highlight(props.value.key)
+                else -> {}
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        area!!.scope.enabled = props.value.enabled
+        press!!.update(PressOptions(props.value.enabled)) { props.value.select(props.value.key) }
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        if (!props.value.enabled)
+            context.saveLayer(0.5)
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        if (!props.value.enabled)
+            context.restore()
+    }
+}

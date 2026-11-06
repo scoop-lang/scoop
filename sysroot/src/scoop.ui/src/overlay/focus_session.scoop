@@ -1,0 +1,268 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.surface.*
+
+/** Retains the boundary until a frame has removed this layer, even after its node retires. */
+internal class OverlayFocusSession(
+    private val portal: PortalInstance,
+    initial: PortalOptions,
+    private val previous: OverlayFocusSession?
+) {
+    private val root = portal.root
+    private val node = portal.node
+    private val saved = root.focus.capture()
+    private val input = node.scope.input
+    private var mode = initial.mode
+    private val constrained: Boolean get() = mode != OverlayMode.NonModal
+    private var focusOptions = initial.focusOptions
+    private val proxy = node.scope.createArea(focusable = constrained)
+    private var fallbackTarget: FocusTarget? =
+        if (constrained)
+            Some(node.scope.focusTarget(proxy, FocusOptions(tabStop = false)))
+        else
+            None
+    private val fallback: FocusHandle? get() =
+        if (constrained)
+            fallbackTarget?.handle
+        else
+            None
+    private var dismissal: Closeable? = None
+    private var finished = false
+    val group =
+        node.scope.focusScope(
+            FocusScopeOptions(
+                loop = constrained,
+                defaultFocus = initial.focusOptions?.initialFocus ?: None,
+                fallback = fallback
+            )
+        )
+    private var openingRevision = root.surface.focusRevision
+    private val barrier = InputBoundary(input, boundaryMode(), constrained)
+    val boundary: InputBoundary? get() =
+        if (constrained)
+            Some(barrier)
+        else
+            None
+    private var initialPending = true
+    private var constraintPending = false
+    private var restoreOnClose = initial.focusOptions?.restoreFocus ?: false
+    private var restoreTarget = initial.focusOptions?.restoreTarget ?: None
+    private var closingRevision: ULong? = None
+    private var focusLeftBeforeClose = false
+    var heldFocusOnClose = false
+    var presented: OverlayFrame? = None
+    val isClosing: Boolean get() = closingRevision != None
+
+    init {
+        try {
+            proxy.ignoreSelf = true
+            node.scope.routeChildren(proxy)
+            input.beforePointerPress = { press -> root.overlays.beforePress(press) }
+            dismissal =
+                Some(
+                    input.addDefaultAction {
+                        context,
+                        event -> root.overlays.dismiss(context, event)
+                    }
+                )
+        } catch (error: Throwable) {
+            throwUi(cleanupUi(Some(error)) { barrier.close() })
+            throw error
+        }
+    }
+    private fun boundaryMode(): InputBoundaryMode =
+        if (mode == OverlayMode.FocusContained)
+            InputBoundaryMode.FocusOnly
+        else
+            InputBoundaryMode.AllInput
+    fun replace(options: PortalOptions) {
+        if (isClosing || finished)
+            return
+        val changed = mode != options.mode
+        val wasConstrained = constrained
+        mode = options.mode
+        focusOptions = options.focusOptions
+        if (changed) {
+            proxy.focusable = constrained
+            if (!portal.active || finished)
+                return
+            if (constrained) {
+                when (fallbackTarget) {
+                    case None -> fallbackTarget =
+                        Some(node.scope.focusTarget(proxy, FocusOptions(tabStop = false)))
+                    case Some(_) -> {}
+                }
+            } else
+                constraintPending = false
+            if (!wasConstrained && constrained) {
+                constraintPending = true
+                openingRevision = root.surface.focusRevision
+            }
+        }
+        restoreOnClose = options.focusOptions?.restoreFocus ?: false
+        restoreTarget = options.focusOptions?.restoreTarget ?: None
+        group.options =
+            FocusScopeOptions(
+                loop = constrained,
+                defaultFocus = options.focusOptions?.initialFocus ?: None,
+                fallback = fallback
+            )
+        if (changed) {
+            barrier.update(boundaryMode(), constrained)
+            root.overlays.reclassify()
+            node.request(UiInvalidation.Scene)
+        }
+    }
+    fun place(context: FrameContext) {
+        context.place(proxy, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+    fun beginClose(revision: ULong) {
+        if (isClosing)
+            return
+        heldFocusOnClose = input.activity.hasFocus
+        focusLeftBeforeClose =
+            !constrained && root.surface.input.activity.hasFocus && !heldFocusOnClose
+        closingRevision = Some(revision)
+        initialPending = false
+        constraintPending = false
+        if (!input.isClosed)
+            input.enabled = false
+    }
+    fun reopen() {
+        closingRevision = None
+        heldFocusOnClose = false
+        initialPending = true
+        openingRevision = root.surface.focusRevision
+        replace(portal.options)
+    }
+    fun finish() {
+        if (finished)
+            return
+        finished = true
+        var failure = cleanupUi(None) { barrier.close() }
+        failure = cleanupUi(failure) { dismissal?.close() }
+        dismissal = None
+        failure = cleanupUi(failure) { group.close() }
+        failure = cleanupUi(failure) { fallbackTarget?.close() }
+        failure = cleanupUi(failure) { proxy.close() }
+        when (portal.focusSession) {
+            case Some(current) -> if (current === this) {
+                portal.focusSession = None
+                portal.domain = containingModal(node.parent)
+            }
+            case None -> {}
+        }
+        throwUi(failure)
+    }
+    fun wasPresented(frame: OverlayFrame): Boolean =
+        when (presented) {
+            case Some(value) -> value === frame
+            case None -> false
+        }
+    val isModal: Boolean get() = mode == OverlayMode.Modal
+    val inCurrentDomain: Boolean get() =
+        when (boundary) {
+            case Some(value) -> value.isCurrent
+            case None -> withinCurrentFocusDomain()
+        }
+    private fun withinCurrentFocusDomain(): Boolean {
+        val boundary = root.surface.focusBoundary ?: return true
+        var cursor: InputScope? = Some(input)
+        while (true) {
+            val current = cursor ?: return false
+            if (current === boundary.input)
+                return true
+            cursor = current.parent
+        }
+    }
+    val acceptsFocus: Boolean get() =
+        when (focusOptions) {
+            case Some(_) -> true
+            case None -> false
+        }
+    private val isCurrentFocus: Boolean get() =
+        when (root.overlays.currentFocus) {
+            case Some(value) -> value === this
+            case None -> false
+        }
+    fun complete(frame: OverlayFrame) {
+        if (
+            (!initialPending && !constraintPending) ||
+                isClosing ||
+                !wasPresented(frame) ||
+                !isCurrentFocus
+        )
+            return
+        val preserve = constraintPending && input.activity.hasFocus
+        initialPending = false
+        constraintPending = false
+        if (
+            !preserve &&
+                (focusOptions?.autoFocus ?: false) &&
+                openingRevision ==
+                root.surface.focusRevision
+        )
+            group.requestFocus()
+    }
+    val canRestoreFocus: Boolean get() =
+        root.isOpen &&
+            restoreOnClose &&
+            !focusLeftBeforeClose &&
+            closingRevision ==
+            Some(root.surface.focusRevision)
+    fun restore() {
+        if (!canRestoreFocus)
+            return
+        val candidates = ArrayList<FocusHandle>()
+        when (restoreTarget) {
+            case Some(handle) -> candidates.add(handle)
+            case None -> {}
+        }
+        when (saved) {
+            case Some(handle) -> candidates.add(handle)
+            case None -> {}
+        }
+        var cursor = previous
+        while (true) {
+            val prior = cursor ?: break
+            if (!prior.finished)
+                break
+            if (prior.restoreOnClose) {
+                when (prior.restoreTarget) {
+                    case Some(handle) -> candidates.add(handle)
+                    case None -> {}
+                }
+                when (prior.saved) {
+                    case Some(handle) -> candidates.add(handle)
+                    case None -> {}
+                }
+            }
+            cursor = prior.previous
+        }
+        root.focus.restore(candidates.toArray(), root.overlays.currentFocus?.group)
+    }
+}
+
+internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
+    var cursor = owner
+    while (true) {
+        val node = cursor ?: return None
+        when (node.body) {
+            case Portal(value) -> when (value.focusSession) {
+                case Some(modal) -> if (modal.isModal)
+                    return Some(modal)
+                case None -> {}
+            }
+            else -> {}
+        }
+        cursor = node.parent
+    }
+}
+
+internal fun sameModal(left: OverlayFocusSession?, right: OverlayFocusSession?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }

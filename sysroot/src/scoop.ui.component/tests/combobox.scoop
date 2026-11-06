@@ -1,0 +1,203 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+@Test
+private class ComboboxModelTest {
+    @Test
+    fun `choice metadata separates identity domain values labels and decorative rows`() {
+        val content = sampleChoices()
+        assertEquals(8L, content.count)
+        assertEquals(5L, content.choiceCount)
+        assertEquals(Some(1L), content.indexOfValue(10L))
+        assertEquals(Some(4L), content.indexOfKey(ViewKey.Text("german")))
+        assertFalse(content.enabledAt(4L))
+        assertEquals(None, content.indexOfValue(99L))
+        val duplicates =
+            choiceSource(
+                [Choice(ViewKey.Number(1L), 1L, "same"), Choice(ViewKey.Number(2L), 2L, "same")]
+            )
+        assertEquals(2L, duplicates.choiceCount)
+        assertFailsWith<IllegalArgumentException> {
+            choiceSource([Choice(ViewKey.Position, 1L, "bad")])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            choiceSource([Choice(ViewKey.Number(1L), 1L, "a"), Choice(ViewKey.Number(1L), 2L, "b")])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            choiceSource([Choice(ViewKey.Number(1L), 1L, "a"), Choice(ViewKey.Number(2L), 1L, "b")])
+        }
+    }
+
+    @Test
+    fun `contains filtering preserves group order unicode aliases and disabled results`() {
+        val source = sampleChoices()
+        val expanded = comboFilter(source, "STRASSE", ComboboxFilter.Contains)
+        assertEquals(2L, expanded.count)
+        assertEquals(ViewKey.Text("languages"), expanded.keyAt(0L))
+        assertEquals(ViewKey.Text("german"), expanded.keyAt(1L))
+        assertFalse(expanded.enabledAt(1L))
+        val keyword = comboFilter(source, "设置", ComboboxFilter.Contains)
+        assertEquals(1L, keyword.choiceCount)
+        assertEquals(ViewKey.Text("preferences"), keyword.keyAt(keyword.count - 1L))
+        val all = comboFilter(source, "x", ComboboxFilter.Custom { _, _ -> true })
+        assertEquals(source.count, all.count)
+        for (index in 0L ..< all.count)
+            assertEquals(source.keyAt(index), all.keyAt(index))
+        val empty = comboFilter(source, "missing", ComboboxFilter.Contains)
+        assertEquals(0L, empty.count)
+        assertEquals(0L, empty.choiceCount)
+        assertTrue(comboFilter(source, "", ComboboxFilter.Contains) === source)
+    }
+
+    @Test
+    fun `provided choices and custom rows keep large sources lazy`() {
+        val source = LazyModelChoices()
+        val selected = state<Long?>(None)
+        val base =
+            ComboboxProps(
+                ComboboxSelection.Single(selected.binding()),
+                source,
+                InputProps(TextEditorState("anything")),
+                filter = ComboboxFilter.Provided
+            )
+        assertTrue(comboResults(base, "anything") === source)
+        assertEquals(0, source.reads)
+        val custom =
+            ComboboxProps(
+                ComboboxSelection.Single(selected.binding()),
+                source,
+                base.input,
+                filter = ComboboxFilter.Provided,
+                customChoice =
+                    Some({ _ -> Some(Choice(ViewKey.Number(1000000L), 1000000L, "Custom")) })
+            )
+        val result = comboResults(custom, "new")
+        assertEquals(1000001L, result.count)
+        assertEquals(Some(1000000L), result.indexOfValue(1000000L))
+        assertEquals(0, source.reads)
+        assertEquals("Custom", choiceEntryItem(result.entryAt(1000000L))!!.choice.label)
+        val repeated =
+            ComboboxProps(
+                ComboboxSelection.Single(selected.binding()),
+                source,
+                base.input,
+                filter = ComboboxFilter.Provided,
+                customChoice = Some({ _ -> Some(Choice(ViewKey.Number(0L), 0L, "Existing")) })
+            )
+        assertTrue(comboResults(repeated, "existing") === source)
+        val bad =
+            ComboboxProps(
+                ComboboxSelection.Single(selected.binding()),
+                source,
+                base.input,
+                filter = ComboboxFilter.Provided,
+                customChoice = Some({ _ -> Some(Choice(ViewKey.Number(0L), -1L, "Duplicate")) })
+            )
+        assertFailsWith<IllegalArgumentException> { comboResults(bad, "new") }
+    }
+
+    @Test
+    fun `selection notifications describe accepted changes without rewriting query or unavailable values`() {
+        val selected = state<Long?>(Some(99L))
+        val query = TextEditorState("draft")
+        val calls = state(0)
+        val accept = state(false)
+        val target =
+            binding(
+                { selected.value },
+                {
+                    value -> if (accept.value)
+                        selected.value = value
+                }
+            )
+        val input =
+            ComboboxProps(
+                ComboboxSelection.Single(target),
+                sampleChoices(),
+                InputProps(query),
+                onValueChange = { _ -> calls.value += 1 }
+            )
+        assertEquals("Unavailable selection", comboValueText(input, 99L))
+        assertFalse(comboWrite(input, [10L]))
+        assertEquals(0, calls.value)
+        assertEquals(Some(99L), selected.value)
+        accept.value = true
+        assertTrue(comboWrite(input, [10L]))
+        assertFalse(comboWrite(input, [10L]))
+        assertEquals(1, calls.value)
+        assertEquals("draft", query.text)
+        assertEquals("Calendar", comboValueText(input, 10L))
+        assertTrue(comboWrite(input, []))
+        assertEquals(None, selected.value)
+    }
+
+    @Test
+    fun `multiple selection retains order and reports normalized external results`() {
+        val selected = state<Array<Long>>([30L, 10L])
+        val calls = state(0)
+        val input =
+            ComboboxProps(
+                ComboboxSelection.Multiple(
+                    binding(
+                        { selected.value },
+                        {
+                            value -> selected.value =
+                                if (value.size > 2L)
+                                    [10L]
+                                else
+                                    value
+                        }
+                    )
+                ),
+                sampleChoices(),
+                InputProps(TextEditorState()),
+                onValuesChange = { _ -> calls.value += 1 }
+            )
+        assertFalse(comboWrite(input, [30L, 10L]))
+        assertTrue(comboWrite(input, [10L, 30L]))
+        assertEquals(10L, selected.value[0L])
+        assertTrue(comboWrite(input, [10L, 30L, 40L]))
+        assertEquals(1L, selected.value.size)
+        assertEquals(2, calls.value)
+        assertFailsWith<IllegalArgumentException> {
+            ComboboxProps(input.selection, input.source, input.input, maxHeight = -1.0)
+        }
+    }
+}
+
+private fun sampleChoices(): ChoiceContent<Long> =
+    choiceItems<Long> {
+        group(ViewKey.Text("actions"), "Actions") {
+            item(Choice(ViewKey.Text("calendar"), 10L, "Calendar"))
+            item(Choice(ViewKey.Text("preferences"), 20L, "Preferences")) { keywords = ["设置"] }
+        }
+        group(ViewKey.Text("languages"), "Languages") {
+            item(Choice(ViewKey.Text("german"), 30L, "Straße", false))
+            item(Choice(ViewKey.Text("chinese"), 40L, "中文"))
+        }
+        separator(ViewKey.Text("separator"))
+        item(Choice(ViewKey.Text("last"), 50L, "Last"))
+    }
+
+private class LazyModelChoices: ChoiceSource<Long> {
+    var reads = 0
+    public override val count: Long get() = 1000000L
+    public override val choiceCount: Long get() = count
+    public override fun entryAt(index: Long): ChoiceEntry<Long> {
+        reads += 1
+        return ChoiceEntry.Item(ChoiceItem(Choice(ViewKey.Number(index), index, f"Item ${index}")))
+    }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> indexOfValue(index);
+            else -> None
+        }
+    public override fun indexOfValue(value: Long): Long? =
+        if (value >= 0L && value < count)
+            Some(value)
+        else
+            None
+}

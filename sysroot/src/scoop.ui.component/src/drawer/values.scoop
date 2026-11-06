@@ -1,0 +1,120 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum DrawerSnapPoint {
+    Fraction(Double), Length(Double)
+}
+
+public class DrawerSwipeHandleOptions public constructor(
+    public val visible: Boolean = false,
+    public val only: Boolean = false,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: StyleOverride = styleOverride(),
+    public val content: View? = None
+) {
+    init {
+        requireComponent(!only || visible, "handle-only drawers require a visible swipe handle")
+    }
+}
+
+public struct DrawerSnapshot(
+    val snapIndex: Long = -1L,
+    val extent: Double = 0.0,
+    val visibleExtent: Double = 0.0,
+    val dragging: Boolean = false,
+    val nestedDepth: Long = 0L
+)
+
+public class DrawerProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val options: ModalOptions = ModalOptions(viewportPadding = 0.0),
+    public val side: SheetSide = SheetSide.Bottom,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val footer: View? = None,
+    public val showCloseButton: Boolean = false,
+    public val close: PopupTriggerSpec? = None,
+    public val dismiss: OverlayDismiss = OverlayDismiss(true, OutsidePress.CloseAndConsume),
+    public val mode: OverlayMode = OverlayMode.Modal,
+    public val snapPoints: Array<DrawerSnapPoint> = [],
+    public val snap: Binding<Long>? = None,
+    public val initialSnap: Long = 0L,
+    public val swipeToClose: Boolean = true,
+    public val dragThreshold: Double = 4.0,
+    public val projectionSeconds: Double = 0.15,
+    public val swipeHandle: DrawerSwipeHandleOptions = DrawerSwipeHandleOptions(),
+    public val controller: DrawerHandle? = None,
+    public val parent: DrawerHandle? = None,
+    public val viewportGap: Double = 96.0,
+    public val viewportStyle: StyleOverride = styleOverride(),
+    public val onSnapChange: (Long) -> Unit = {},
+    public val onDragCancel: (DragCancelReason) -> Unit = {}
+) {
+    init {
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid drawer width");
+            case None -> {}
+        }
+        when (height) {
+            case Some(value) -> nonnegative(value, "invalid drawer height");
+            case None -> {}
+        }
+        nonnegative(viewportGap, "invalid drawer viewport gap")
+        nonnegative(dragThreshold, "invalid drawer drag threshold")
+        nonnegative(projectionSeconds, "invalid drawer projection duration")
+        requireComponent(
+            snapPoints.size == 0L || side == SheetSide.Top || side == SheetSide.Bottom,
+            "drawer snap points require a vertical side"
+        )
+        requireComponent(
+            mode != OverlayMode.Modal || dismiss.outsidePress != OutsidePress.CloseAndContinue,
+            "modal outside presses cannot continue to the background"
+        )
+        for (point in snapPoints)
+            when (point) {
+                case Fraction(value) -> requireComponent(
+                    value.isFinite() && value > 0.0 && value <= 1.0,
+                    "drawer snap fractions must be in (0, 1]"
+                )
+                case Length(value) -> requireComponent(
+                    value.isFinite() && value > 0.0,
+                    "drawer snap lengths must be positive and finite"
+                )
+            }
+    }
+    internal fun input(owner: DrawerOwner): ModalInput =
+        ModalInput(
+            ModalKind.Drawer(this, owner),
+            open,
+            content,
+            options,
+            width,
+            height,
+            footer,
+            showCloseButton,
+            close,
+            dismiss
+        )
+}
+
+internal class DrawerOwner(initialSnap: Long) {
+    val localSnap = state(initialSnap)
+    val scroll = ScrollState()
+    var control: DrawerControl? = None
+    var bodyArea: scoop.surface.InputArea? = None
+    var handleArea: scoop.surface.InputArea? = None
+}
+
+internal class DrawerInput(
+    val props: DrawerProps,
+    val theme: Theme,
+    val owner: DrawerOwner,
+    val overlay: OverlayHandle
+) {
+    val density: Double get() = theme.tokens.typography.body.fontSize / 14.0
+    val scroll: ScrollState get() = props.options.scrollState ?: owner.scroll
+}

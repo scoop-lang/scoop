@@ -155,7 +155,10 @@ internal fun ApplicationOwner.deliverWindow(window: WindowOwner, event: WindowEv
                 case GeometryChanged(value) -> {
                     window.metrics = Some(value)
                     window.phase = WindowState.Open
+                    window.notifyActivity()
                 }
+                case Focused(_) -> window.notifyActivity()
+                case Occluded(_) -> window.notifyActivity()
                 case RedrawRequested -> {
                     val value = window.snapshot()
                     ready =
@@ -172,7 +175,7 @@ internal fun ApplicationOwner.deliverWindow(window: WindowOwner, event: WindowEv
                 }
                 else -> {}
             }
-            if (ready)
+            if (ready && window.phase == WindowState.Open)
                 handler!!.onEvent(active, ApplicationEvent.Window(window.id, event))
         }
     }

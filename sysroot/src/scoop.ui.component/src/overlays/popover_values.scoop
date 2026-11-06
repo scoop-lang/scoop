@@ -1,0 +1,74 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Non-interactive content and options for the popup's single trigger button. */
+public class PopupTriggerSpec public constructor(
+    public val content: ButtonContent,
+    public val enabled: Boolean = true,
+    public val variant: ButtonVariant = ButtonVariant.Outline,
+    public val size: ButtonSize = ButtonSize.Default,
+    public val style: ButtonStyle = buttonStyle(),
+    public val focus: FocusOptions = FocusOptions(),
+    public val fonts: FontCollection? = None
+)
+
+public class PopoverProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val trigger: PopupTriggerSpec? = None,
+    public val anchor: LayoutAnchor? = None,
+    public val title: PanelContent? = None,
+    public val description: PanelContent? = None,
+    public val width: Double = 288.0,
+    public val side: OverlaySide = OverlaySide.Bottom,
+    public val alignment: OverlayAlignment = OverlayAlignment.Center,
+    public val gap: Double = 4.0,
+    public val viewportPadding: Double = 8.0,
+    public val matchAnchorWidth: Boolean = false,
+    public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
+    public val mode: OverlayMode = OverlayMode.NonModal,
+    public val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val handle: OverlayHandle? = None,
+    public val enabled: Boolean = true,
+    public val dismiss: OverlayDismiss? = None,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val arrow: PopupArrow? = None
+) {
+    init {
+        if (!panelPresent(trigger) && !panelPresent(anchor))
+            throw IllegalArgumentException(Some("popover needs a trigger or anchor"))
+        nonnegative(width, "invalid popover width")
+        nonnegative(gap, "invalid popover gap")
+        nonnegative(viewportPadding, "invalid popover viewport padding")
+        if (
+            mode ==
+                OverlayMode.Modal &&
+                dismiss?.outsidePress ==
+                Some(OutsidePress.CloseAndContinue)
+        )
+            throw IllegalArgumentException(
+                Some("modal outside presses cannot continue to the background")
+            )
+    }
+    internal val dismissal: OverlayDismiss get() =
+        dismiss ?:
+            OverlayDismiss(
+                escape = true,
+                outsidePress =
+                    if (mode == OverlayMode.Modal)
+                        OutsidePress.CloseAndConsume
+                    else
+                        OutsidePress.CloseAndContinue,
+                includeAnchor = true
+            )
+}

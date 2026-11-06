@@ -1,0 +1,318 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+/** Keyed application state. Rendering never mutates answers or runs business validation. */
+public class QuestionnaireState public constructor(
+    questions: Array<Question>,
+    initial: QuestionnaireSnapshot? = None
+) {
+    internal val records = state(questionRecords(questions))
+    private val active = state(questionFirst(records.value))
+    private val localIssues = state<Array<QuestionnaireIssue>>([])
+    private val externalIssues = state<Array<QuestionnaireIssue>>([])
+    private val focusRequest = state(0L)
+    private var baseline = QuestionnaireSnapshot([])
+    init {
+        when (initial) {
+            case Some(value) -> restore(value)
+            case None -> baseline = snapshot()
+        }
+    }
+    public val questions: Array<Question> get() =
+        Array<Question>(records.value.size) { index -> records.value[index].question }
+    public val activeKey: QuestionKey? get() = active.value
+    public val current: Question? get() =
+        when (active.value) {
+            case Some(key) -> Some(record(key).question);
+            case None -> None
+        }
+    internal val focusRevision: Long get() = focusRequest.value
+    public val progress: QuestionnaireProgress get() {
+        var count = 0L
+        var at = 0L
+        for (entry in records.value)
+            if (entry.question.enabled) {
+                count += 1L
+                if (active.value == Some(entry.question.key))
+                    at = count
+            }
+        return QuestionnaireProgress(at, count)
+    }
+    internal fun record(key: QuestionKey): QuestionRecord {
+        for (entry in records.value)
+            if (entry.question.key == key)
+                return entry
+        throw IllegalArgumentException(Some("unknown question key"))
+    }
+    public fun editor(key: QuestionKey): TextEditorState? = record(key).editor
+    public fun answer(key: QuestionKey): QuestionnaireAnswer = record(key).answer()
+    public fun isSelected(key: QuestionKey, choice: QuestionChoiceKey): Boolean {
+        val entry = record(key)
+        return !entry.selected.value.skipped &&
+            questionContains(entry.selected.value.choices, choice)
+    }
+    public fun usesText(key: QuestionKey): Boolean = record(key).usesText()
+    public fun select(key: QuestionKey, choice: QuestionChoiceKey): Boolean {
+        val entry = record(key)
+        val question = entry.question
+        if (!question.enabled || !questionHasChoice(question, choice))
+            return false
+        val before = entry.selected.value
+        if (
+            question.kind ==
+                QuestionKind.Single &&
+                !before.skipped &&
+                !before.useText &&
+                questionContains(before.choices, choice)
+        )
+            return false
+        val next = ArrayList<QuestionChoiceKey>()
+        if (question.kind == QuestionKind.Multiple && !before.skipped)
+            for (old in before.choices)
+                if (old != choice)
+                    next.add(old)
+        if (
+            question.kind !=
+                QuestionKind.Multiple ||
+                !questionContains(before.choices, choice) ||
+                before.skipped
+        )
+            next.add(choice)
+        entry.selected.value =
+            QuestionSelection(
+                next.toArray(),
+                question.kind == QuestionKind.Multiple && before.useText && !before.skipped
+            )
+        clearError(key)
+        return true
+    }
+    public fun selectText(key: QuestionKey): Boolean {
+        val entry = record(key)
+        if (!entry.question.enabled || !panelPresent(entry.editor))
+            return false
+        val before = entry.selected.value
+        val multiple = entry.question.kind == QuestionKind.Multiple
+        if (!multiple && before.useText && !before.skipped)
+            return false
+        entry.selected.value =
+            QuestionSelection(
+                if (multiple && !before.skipped)
+                    before.choices
+                else
+                    [],
+                !multiple || !before.useText || before.skipped
+            )
+        clearError(key)
+        return true
+    }
+    /** Call after a programmatic edit as well as from an input's onEdited callback. */
+    public fun textEdited(key: QuestionKey) {
+        val entry = record(key)
+        if (!entry.question.enabled || !panelPresent(entry.editor))
+            return
+        val before = entry.selected.value
+        entry.selected.value =
+            QuestionSelection(
+                if (entry.question.kind == QuestionKind.Multiple && !before.skipped)
+                    before.choices
+                else
+                    [],
+                true
+            )
+        clearError(key)
+    }
+    public fun activate(key: QuestionKey): Boolean {
+        if (!record(key).question.enabled)
+            return false
+        active.value = Some(key)
+        focusRequest.value += 1L
+        return true
+    }
+    public fun previous(): Boolean = advance(-1L)
+    public fun next(): Boolean {
+        if (!validateCurrent())
+            return false
+        return advance(1L)
+    }
+    private fun advance(direction: Long): Boolean {
+        val keys = ArrayList<QuestionKey>()
+        for (entry in records.value)
+            if (entry.question.enabled)
+                keys.add(entry.question.key)
+        for (index in 0L ..< keys.size)
+            if (active.value == Some(keys[index])) {
+                val target = index + direction
+                return if (target >= 0L && target < keys.size)
+                    activate(keys[target])
+                else
+                    false
+            }
+        return false
+    }
+    public fun skip(): Boolean {
+        val key = active.value ?: return false
+        val entry = record(key)
+        if (entry.question.required)
+            return false
+        entry.selected.value = entry.selected.value.{skipped: true}
+        clearError(key)
+        advance(1L)
+        return true
+    }
+    public fun issue(key: QuestionKey): QuestionnaireIssueKind? {
+        for (entry in externalIssues.value)
+            if (entry.key == key)
+                return Some(entry.kind)
+        for (entry in localIssues.value)
+            if (entry.key == key)
+                return Some(entry.kind)
+        return None
+    }
+    private fun clearError(key: QuestionKey) {
+        localIssues.value = questionWithoutIssue(localIssues.value, key)
+        externalIssues.value = questionWithoutIssue(externalIssues.value, key)
+    }
+    public fun validateCurrent(): Boolean {
+        val key = active.value ?: return true
+        val next = ArrayList<QuestionnaireIssue>()
+        for (old in localIssues.value)
+            if (old.key != key)
+                next.add(old)
+        when (record(key).issue()) {
+            case Some(value) -> next.add(QuestionnaireIssue(key, value));
+            case None -> {}
+        }
+        localIssues.value = next.toArray()
+        if (panelPresent(issue(key))) {
+            activate(key);
+            return false
+        }
+        return true
+    }
+    public fun submit(): QuestionnaireResult? {
+        val next = ArrayList<QuestionnaireIssue>()
+        for (entry in records.value)
+            if (entry.question.enabled)
+                when (entry.issue()) {
+                    case Some(value) -> next.add(QuestionnaireIssue(entry.question.key, value))
+                    case None -> {}
+                }
+        localIssues.value = next.toArray()
+        val result = ArrayList<QuestionResponse>()
+        for (entry in records.value)
+            if (entry.question.enabled) {
+                if (panelPresent(issue(entry.question.key))) {
+                    activate(entry.question.key);
+                    return None
+                }
+                result.add(QuestionResponse(entry.question.key, entry.answer()))
+            }
+        return Some(QuestionnaireResult(result.toArray()))
+    }
+    public fun setErrors(errors: Array<QuestionnaireError>, focusFirst: Boolean = true) {
+        val seen = HashSet<QuestionKey>()
+        val next =
+            Array<QuestionnaireIssue>(errors.size) {
+                index ->
+                val error = errors[index]
+                record(error.key)
+                requireComponent(seen.add(error.key), "question errors must have unique keys")
+                QuestionnaireIssue(error.key, QuestionnaireIssueKind.Message(error.text))
+            }
+        externalIssues.value = next
+        if (focusFirst)
+            for (entry in records.value)
+                if (entry.question.enabled && seen.contains(entry.question.key)) {
+                    activate(entry.question.key);
+                    return
+                }
+    }
+    public fun replaceQuestions(questions: Array<Question>) {
+        val seen = HashSet<QuestionKey>()
+        for (question in questions)
+            requireComponent(seen.add(question.key), "question keys must be unique")
+        val resolved =
+            Array<QuestionRecord>(questions.size) {
+                index ->
+                val question = questions[index]
+                var previous: QuestionRecord? = None
+                for (entry in records.value)
+                    if (entry.question.key == question.key)
+                        previous = Some(entry)
+                when (previous) {
+                    case Some(entry) -> entry.replace(question);
+                    case None -> QuestionRecord(question)
+                }
+            }
+        val before = active.value
+        var keep = false
+        for (entry in resolved)
+            if (entry.question.enabled && before == Some(entry.question.key))
+                keep = true
+        records.value = resolved
+        localIssues.value = []
+        val external = ArrayList<QuestionnaireIssue>()
+        for (old in externalIssues.value)
+            for (entry in resolved)
+                if (entry.question.key == old.key)
+                    external.add(old)
+        externalIssues.value = external.toArray()
+        if (!keep) {
+            active.value = questionFirst(resolved)
+            focusRequest.value += 1L
+        }
+    }
+    public fun snapshot(): QuestionnaireSnapshot =
+        QuestionnaireSnapshot(
+            Array<QuestionDraft>(records.value.size) { index -> records.value[index].snapshot() },
+            active.value
+        )
+    public fun restore(snapshot: QuestionnaireSnapshot) {
+        questionnaireValidateSnapshot(records.value, snapshot)
+        applySnapshot(snapshot)
+        baseline = this.snapshot()
+    }
+    public fun reset() {
+        applySnapshot(baseline)
+    }
+    private fun applySnapshot(snapshot: QuestionnaireSnapshot) {
+        for (entry in records.value) {
+            var draft: QuestionDraft? = None
+            for (candidate in snapshot.drafts)
+                if (candidate.key == entry.question.key && candidate.kind == entry.question.kind)
+                    draft = Some(candidate)
+            val value = draft ?: QuestionDraft(entry.question.key, entry.question.kind)
+            val choices = ArrayList<QuestionChoiceKey>()
+            for (choice in value.choices)
+                if (questionHasChoice(entry.question, choice))
+                    choices.add(choice)
+            entry.selected.value =
+                QuestionSelection(
+                    choices.toArray(),
+                    value.useText && panelPresent(entry.editor),
+                    value.skipped && !entry.question.required
+                )
+            entry.editor?.replaceAll(value.text ?: "")
+        }
+        active.value = questionFirst(records.value)
+        for (entry in records.value)
+            if (entry.question.enabled && snapshot.active == Some(entry.question.key))
+                active.value = snapshot.active
+        localIssues.value = []
+        externalIssues.value = []
+        focusRequest.value += 1L
+    }
+}
+
+private fun questionWithoutIssue(values: Array<QuestionnaireIssue>, key: QuestionKey): Array<
+    QuestionnaireIssue
+> {
+    val next = ArrayList<QuestionnaireIssue>()
+    for (value in values)
+        if (value.key != key)
+            next.add(value)
+    return next.toArray()
+}

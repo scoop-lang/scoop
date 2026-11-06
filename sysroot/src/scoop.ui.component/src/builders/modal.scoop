@@ -1,0 +1,199 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public open class ModalBuilder internal constructor(): PanelBuilder() {
+    public var trigger: PopupTriggerSpec? = None
+    public var header: View? = None
+    public var scrollable: Boolean = false
+    public var scrollState: ScrollState? = None
+    public var focus: OverlayFocusOptions = OverlayFocusOptions()
+    public var handle: OverlayHandle? = None
+    public var enabled: Boolean = true
+    public var viewportPadding: Double = 16.0
+    public var contentPadding: Double = 16.0
+    public var backdrop: Paint? = Some(Paint(Color.Black.withAlpha(0.1)))
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public fun trigger(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                modalButtonSpec(
+                    ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                    configure
+                )
+            )
+    }
+    public fun trigger(text: StyledText, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                modalButtonSpec(ButtonContent.Label(LabelProps(LabelText.Styled(text))), configure)
+            )
+    }
+    public fun trigger(content: View, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        trigger = Some(modalButtonSpec(ButtonContent.Custom(content), configure))
+    }
+    public fun header(content: View) {
+        header = Some(content)
+    }
+    public fun focus(configure: OverlayFocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun options(): ModalOptions =
+        ModalOptions(
+            trigger,
+            title,
+            description,
+            header,
+            scrollable,
+            scrollState,
+            focus,
+            handle,
+            enabled,
+            viewportPadding,
+            backdrop,
+            transition,
+            onOpenChange,
+            onCloseRequest,
+            onClosed,
+            fonts,
+            theme,
+            style,
+            contentPadding
+        )
+}
+
+public open class DismissibleModalBuilder internal constructor(): ModalBuilder() {
+    public var footer: View? = None
+    public var showCloseButton: Boolean = true
+    public var close: PopupTriggerSpec? = None
+    public var dismiss: OverlayDismiss = OverlayDismiss(true, OutsidePress.CloseAndConsume)
+    public fun footer(content: View) {
+        footer = Some(content)
+    }
+    public fun close(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        close =
+            Some(
+                modalButtonSpec(
+                    ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                    configure
+                )
+            )
+    }
+    public fun close(content: View, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        close = Some(modalButtonSpec(ButtonContent.Custom(content), configure))
+    }
+}
+
+public class DialogBuilder internal constructor(): DismissibleModalBuilder() {
+    public var width: Double = 384.0
+    internal fun snapshot(open: Binding<Boolean>, content: View): DialogProps =
+        DialogProps(open, content, options(), width, footer, showCloseButton, close, dismiss)
+}
+
+public class AlertDialogBuilder internal constructor(): ModalBuilder() {
+    public var size: AlertDialogSize = AlertDialogSize.Default
+    public var media: View? = None
+    public var action: View? = None
+    public var cancel: PopupTriggerSpec = defaultDialogCancel()
+    public fun media(content: View) {
+        media = Some(content)
+    }
+    public fun action(content: View) {
+        action = Some(content)
+    }
+    public fun action(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = {}) {
+        action = Some(makeTextButton(text, onClick, configure))
+    }
+    public fun cancel(text: String, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        cancel =
+            modalButtonSpec(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))), configure)
+    }
+    public fun cancel(content: View, configure: PopupTriggerBuilder.() -> Unit = {}) {
+        cancel = modalButtonSpec(ButtonContent.Custom(content), configure)
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: View): AlertDialogProps =
+        AlertDialogProps(open, content, options(), size, media, action, cancel)
+}
+
+public class SheetBuilder internal constructor(): DismissibleModalBuilder() {
+    public var side: SheetSide = SheetSide.End
+    public var width: Double? = None
+    public var height: Double? = None
+    init {
+        viewportPadding = 0.0
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: View): SheetProps =
+        SheetProps(
+            open,
+            content,
+            options(),
+            side,
+            width,
+            height,
+            footer,
+            showCloseButton,
+            close,
+            dismiss
+        )
+}
+
+internal fun modalButtonSpec(
+    content: ButtonContent,
+    configure: PopupTriggerBuilder.() -> Unit
+): PopupTriggerSpec {
+    val builder = PopupTriggerBuilder()
+    builder.configure()
+    return builder.snapshot(content)
+}
+
+public fun dialog(
+    open: Binding<Boolean>,
+    content: View,
+    configure: DialogBuilder.() -> Unit = {}
+): View {
+    val builder = DialogBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Dialog(current, scope = mount) },
+        builder.key
+    )
+}
+
+public fun alertDialog(
+    open: Binding<Boolean>,
+    content: View,
+    configure: AlertDialogBuilder.() -> Unit = {}
+): View {
+    val builder = AlertDialogBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> AlertDialog(current, scope = mount) },
+        builder.key
+    )
+}
+
+public fun sheet(
+    open: Binding<Boolean>,
+    content: View,
+    configure: SheetBuilder.() -> Unit = {}
+): View {
+    val builder = SheetBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Sheet(current, scope = mount) },
+        builder.key
+    )
+}

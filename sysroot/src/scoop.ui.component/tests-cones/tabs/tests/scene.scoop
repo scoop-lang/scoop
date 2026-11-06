@@ -1,0 +1,208 @@
+package scoop.tests.ui.tabs
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.tabs as makeTabs
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class TabsScene(private val p: TabsProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val generation = p.generation.value
+        val p = this.p
+        val rebound = p.rebound
+        val model =
+            if (rebound)
+                p.alternate
+            else
+                p.selected
+        val body =
+            makeTabs(
+                binding(
+                    { model.value },
+                    {
+                        value -> if (!p.deny)
+                            model.value = value
+                    }
+                )
+            ) {
+                for (
+                    id in if (p.reorder)
+                        [1L, 0L, 2L]
+                    else
+                        [0L, 1L, 2L]
+                ) {
+                    this.item(
+                        Choice(ViewKey.Number(id), id.toInt(), f"Tab ${id}", id != 2L),
+                        component(
+                            generation,
+                            {
+                                current, mount ->
+                                p.factories[id] += 1
+                                val record = TabRecord(p, id)
+                                p.records[id] = Some(record)
+                                TabContent(record, current, scope = mount)
+                            }
+                        )
+                    ) {
+                        this.focus = FocusOptions(Some(p.headers[id]))
+                        this.trigger(
+                            element(
+                                id,
+                                { current, mount -> TabBounds(p, current, scope = mount) },
+                                [makeLabel(f"Tab ${id}") { this.fonts = Some(p.fonts) }]
+                            )
+                        )
+                    }
+                }
+                this.retention = p.retention
+                this.activation = p.activation
+                this.axis = p.axis
+                this.variant = p.variant
+                this.enabled = p.enabled
+                this.loop = p.loop
+                this.fonts = Some(p.fonts)
+                this.onValueChange =
+                    {
+                        actual ->
+                        if (rebound)
+                            p.reboundCallbacks += 1
+                        else
+                            p.callbacks += 1
+                        assertEquals(model.value, actual)
+                    }
+            }
+        return direction(
+            element(
+                generation,
+                { current, mount -> TabsRoot(p, current, scope = mount) },
+                if (p.gone)
+                    []
+                else
+                    [body]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+internal class TabRecord(val p: TabsProbe, val id: Long) {
+    val local = state(7)
+    val model = TextEditorState("draft")
+    val focus = FocusHandle()
+    var scope: ComponentScope? = None
+    var motion: Animatable<Double>? = None
+    var observed = -1
+    var version = -1
+    var measures = 0
+}
+
+private class TabContent(
+    private val record: TabRecord,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        record.scope = Some(scope)
+        record.p.mounts[record.id] += 1
+        record.motion = Some(scope.animation(0.0))
+        record.motion!!.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+    }
+    public override fun onUnmount() {
+        record.p.unmounts[record.id] += 1
+    }
+    public override fun render(): View {
+        record.observed = record.local.value
+        record.version = props.value
+        return element(
+            props.value,
+            { _, mount -> TabInk(record, scope = mount) },
+            [
+                makeInput(record.model) {
+                    this.fonts = Some(this @TabContent.record.p.fonts)
+                    this.focus = FocusOptions(Some(this @TabContent.record.focus))
+                }
+            ]
+        )
+    }
+}
+
+private class TabInk(private val record: TabRecord, scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        record.measures += 1
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+private class TabBounds(
+    private val p: TabsProbe,
+    private val id: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, bounds).use {
+                    value -> p.bounds[id.value] = value.toWindow(bounds)
+                }
+            }
+        }
+        context.children()
+    }
+}
+
+private class TabsRoot(
+    private val p: TabsProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (context.childCount > 0L) {
+            context.measureChild(
+                0L,
+                if (p.zero)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    Constraints(maxWidth = Some(p.width))
+            )
+            context.placeChild(0L, Point(20.0, 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 400.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

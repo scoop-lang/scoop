@@ -1,0 +1,115 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum MessageInitialPosition {
+    Start, End, LastAnchor
+}
+
+public enum MessageScrollMode {
+    Holding, Anchoring, Following
+}
+
+public enum MessageScrollDirection {
+    Start, End
+}
+
+public class MessageScrollOptions public constructor(
+    public val autoScroll: Boolean = false,
+    public val initialPosition: MessageInitialPosition = MessageInitialPosition.End,
+    public val edgeThreshold: Double = 8.0,
+    public val scrollMargin: Double = 0.0,
+    public val previousItemPeek: Double = 64.0,
+    public val preserveOnPrepend: Boolean = true
+) {
+    init {
+        nonnegative(edgeThreshold, "invalid message edge threshold")
+        nonnegative(scrollMargin, "invalid message scroll margin")
+        nonnegative(previousItemPeek, "invalid message previous item peek")
+    }
+}
+
+public class MessageReadingSnapshot public constructor(
+    public val visibleKeys: Array<ViewKey>,
+    public val anchor: VirtualReadingAnchor?,
+    public val currentAnchor: ViewKey?,
+    public val atStart: Boolean,
+    public val atEnd: Boolean
+)
+
+public class MessageScrollerProps public constructor(
+    public val source: TranscriptSource,
+    public val state: MessageScrollState,
+    public val itemExtent: ItemExtent = ItemExtent.Variable(160.0),
+    public val spacing: Double = 24.0,
+    public val overscan: Double = 160.0,
+    public val width: Double? = None,
+    public val height: Double? = Some(480.0),
+    public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val scrollbar: ScrollbarOptions = scrollbarOptions(),
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val theme: ThemeSource? = None,
+    public val controls: View? = None,
+    public val showControls: Boolean = true,
+    public val placeholder: View? = None
+) {
+    init {
+        nonnegative(spacing, "invalid message spacing")
+        nonnegative(overscan, "invalid message overscan")
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid message width");
+            case None -> {}
+        }
+        when (height) {
+            case Some(value) -> nonnegative(value, "invalid message height");
+            case None -> {}
+        }
+        itemEstimate(itemExtent)
+    }
+}
+
+public class MessageScrollerBuilder internal constructor() {
+    public var itemExtent: ItemExtent = ItemExtent.Variable(160.0)
+    public var spacing: Double = 24.0
+    public var overscan: Double = 160.0
+    public var width: Double? = None
+    public var height: Double? = Some(480.0)
+    public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+    public var scrollbar: ScrollbarOptions = scrollbarOptions()
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var theme: ThemeSource? = None
+    public var controls: View? = None
+    public var showControls: Boolean = true
+    public var placeholder: View? = None
+    public var key: ViewKey = ViewKey.Position
+    public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit) {
+        scrollbar = scrollbar.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(
+        source: TranscriptSource,
+        state: MessageScrollState
+    ): MessageScrollerProps =
+        MessageScrollerProps(
+            source,
+            state,
+            itemExtent,
+            spacing,
+            overscan,
+            width,
+            height,
+            scrollbars,
+            scrollbar,
+            enabled,
+            focus,
+            theme,
+            controls,
+            showControls,
+            placeholder
+        )
+}

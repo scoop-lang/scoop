@@ -6,6 +6,8 @@
 
 A–F 之后的平台抽象、布局与控件公共能力已按 [控件基础补齐设计](../component-foundations/DESIGN.md)完成 macOS 实施与两架构验收，范围见[后续实施记录](../component-foundations/PROGRESS.md)。新一轮沿用本轮的场景、输入、焦点、滚动和文本模型，并同步演进相关 spec；本文的历史单次测量或 macOS 键位设计不构成兼容限制。
 
+2026-11-06 的 [UI 整改方案](../REMEDIATION-PLAN.md)规定现有能力的后续迁移；完整布局结果、帧失效、Portal 动态模式及窗口错误隔离按新批次验收。本文的历史单次测量和整体关闭路径不构成保留旧接口的要求。
+
 ## 1. 缺口结论
 
 以下记录开始实施前的调研基线；后续补齐情况按批次记入 [实施记录](PROGRESS.md)，不把剩余设计当作已交付能力。
@@ -21,7 +23,7 @@ A–F 之后的平台抽象、布局与控件公共能力已按 [控件基础补
 
 关键源码依据：
 
-- [MeasureContext](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)要求每个直接子项测量一次；[MountedNode](../../../sysroot/src/scoop.ui/src/runtime/node.scoop)在布局前匹配、挂载整个显式子数组。clip 或不放置不等于虚拟化。
+- 初始 MeasureContext 要求每个直接子项测量一次。当前 [MeasureContext](../../../sysroot/src/scoop.ui/src/layout/measure.scoop) 保存类型化完整结果，允许同轮不同约束请求，相同有效请求复用；当前有效布局还可跨帧复用。显式子数组仍按普通身份匹配；clip／未放置与 Lazy 按需实现是不同职责。
 - 原 PaintContext 在绘制时登记 InputArea，直接跳过 paint 会丢失本帧区域。A1 将区域放置迁入 [SceneContext](../../../sysroot/src/scoop.ui/src/layout/scene.scoop)，[PaintContext](../../../sysroot/src/scoop.ui/src/layout/paint.scoop)只保留纯绘制；[输入场景](../../../sysroot/src/scoop.surface/src/shared/input/scene.scoop)仍保存成功帧的 Canvas 几何与输入父关系。
 - [指针派发](../../../sysroot/src/scoop.surface/src/shared/input/pointer.scoop)已有冒泡；[焦点派发](../../../sysroot/src/scoop.surface/src/shared/input/focus.scoop)只向当前焦点路径发送键盘事件，没有 Tab 遍历和无焦点快捷键根入口。
 - [RenderTarget.snapshot](../../../sysroot/src/scoop.graphics/src/native/target.scoop)明确会把 GPU 目标读回成 CPU 图像，不能直接当作高效 GPU 滚动缓存。

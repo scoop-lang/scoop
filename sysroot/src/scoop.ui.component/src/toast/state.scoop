@@ -1,0 +1,148 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.platform.time.MonotonicTimeSource
+import scoop.ui.*
+
+internal class ToastEntry(val model: ToastState, val id: ToastId, initial: ToastProps) {
+    val data = state(initial)
+    val closing = state<ToastCloseReason?>(None)
+    val admitted = state(false)
+    val clock = ToastClock(toastDuration(initial))
+    val layer = OverlayHandle()
+    var sequence = 0L
+    var height = 0.0
+    var card: ToastCardControl? = None
+}
+
+public class ToastState public constructor() {
+    internal val entries = state<Array<ToastEntry>>([])
+    private var next = 0L
+    private var owner: ToasterControl? = None
+    public val count: Long get() = entries.value.size
+    public val isAttached: Boolean get() {
+        entries.value;
+        return panelPresent(owner)
+    }
+    public fun contains(id: ToastId): Boolean {
+        val entry = find(id) ?: return false
+        return entry.closing.value == None
+    }
+    internal fun find(id: ToastId): ToastEntry? {
+        for (entry in entries.value)
+            if (entry.id === id)
+                return Some(entry)
+        return None
+    }
+    public fun show(props: ToastProps): ToastId {
+        val old = entries.value
+        requireComponent(next < 9223372036854775807L, "toast identity overflow")
+        val entry = ToastEntry(this, ToastId(next), props)
+        entries.value =
+            Array<ToastEntry>(old.size + 1L) {
+                at -> if (at < old.size)
+                    old[at]
+                else
+                    entry
+            }
+        next += 1L
+        owner?.refresh()
+        return entry.id
+    }
+    public fun show(title: String, configure: ToastBuilder.() -> Unit = {}): ToastId =
+        show(toastProps(title, configure))
+    public fun show(title: StyledText, configure: ToastBuilder.() -> Unit = {}): ToastId =
+        show(toastProps(title, configure))
+    public fun show(title: View, configure: ToastBuilder.() -> Unit = {}): ToastId =
+        show(toastProps(title, configure))
+    public fun update(id: ToastId, props: ToastProps): Boolean {
+        val entry = find(id) ?: return false
+        if (entry.closing.value != None)
+            return false
+        entry.data.value = props
+        entry.clock.reset(toastDuration(props))
+        owner?.refresh()
+        return true
+    }
+    public fun update(
+        id: ToastId,
+        title: String,
+        configure: ToastBuilder.() -> Unit = {}
+    ): Boolean = update(id, toastProps(title, configure))
+    public fun update(
+        id: ToastId,
+        title: StyledText,
+        configure: ToastBuilder.() -> Unit = {}
+    ): Boolean = update(id, toastProps(title, configure))
+    public fun update(id: ToastId, title: View, configure: ToastBuilder.() -> Unit = {}): Boolean =
+        update(id, toastProps(title, configure))
+    public fun dismiss(id: ToastId): Boolean = close(id, ToastCloseReason.Explicit)
+    internal fun close(id: ToastId, reason: ToastCloseReason): Boolean {
+        val entry = find(id) ?: return false
+        if (entry.closing.value != None)
+            return false
+        beginClose(entry, reason)
+        if (entry.layer.isOpen)
+            entry.layer.requestClose()
+        else
+            complete(entry)
+        return true
+    }
+    internal fun beginClose(entry: ToastEntry, reason: ToastCloseReason) {
+        if (entry.closing.value != None)
+            return
+        entry.closing.value = Some(reason)
+        entry.clock.pause(MonotonicTimeSource.markNow())
+        owner?.refresh()
+    }
+    internal fun complete(entry: ToastEntry) {
+        val reason = entry.closing.value ?: return
+        if (!panelPresent(find(entry.id)))
+            return
+        val kept = ArrayList<ToastEntry>()
+        for (value in entries.value)
+            if (value !== entry)
+                kept.add(value)
+        entries.value = kept.toArray()
+        owner?.refresh()
+        entry.data.value.onClosed(entry.id, reason)
+    }
+    internal fun attach(value: ToasterControl) {
+        entries.value
+        when (owner) {
+            case Some(current) -> requireComponent(
+                current === value,
+                "toast state already has an active toaster"
+            )
+            case None -> owner = Some(value)
+        }
+    }
+    internal fun detach(value: ToasterControl) {
+        val current = owner ?: return
+        if (current !== value)
+            return
+        owner = None
+        val now = MonotonicTimeSource.markNow()
+        val records = entries.value
+        for (entry in records) {
+            entry.clock.pause(now)
+            if (entry.admitted.value)
+                entry.admitted.value = false
+        }
+        var failure: Throwable? = None
+        for (entry in records)
+            try {
+                complete(entry)
+            } catch (error: Throwable) {
+                failure =
+                    when (failure) {
+                        case Some(previous) -> Some(ResourceUseException(previous, error))
+                        case None -> Some(error)
+                    }
+            }
+        when (failure) {
+            case Some(error) -> throw error
+            case None -> {}
+        }
+    }
+}

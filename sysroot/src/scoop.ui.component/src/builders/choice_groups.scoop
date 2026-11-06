@@ -1,0 +1,162 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class RadioItemBuilder internal constructor() {
+    public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public var invalid: Boolean = false
+    public var marker: RadioOptions = radioOptions()
+    public var content: ((RadioItemContent) -> View)? = None
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun marker(configure: RadioOptionsBuilder.() -> Unit) {
+        marker = marker.copy(configure)
+    }
+}
+
+public class RadioGroupBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<RadioGroupEntry<T>>()
+    public var axis: FlexAxis = FlexAxis.Vertical
+    public var spacing: Double = 8.0
+    public var loop: Boolean = true
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun add(entry: RadioGroupEntry<T>) {
+        entries.add(entry)
+    }
+    public fun item(choice: Choice<T>, configure: RadioItemBuilder.() -> Unit = {}) {
+        val builder = RadioItemBuilder()
+        builder.configure()
+        add(
+            RadioGroupEntry(
+                choice,
+                builder.focus,
+                builder.labelTarget,
+                builder.invalid,
+                builder.marker,
+                builder.content
+            )
+        )
+    }
+    internal fun snapshot(selected: Binding<T?>): RadioGroupProps<T> =
+        RadioGroupProps(
+            entries.toArray(),
+            selected,
+            axis,
+            spacing,
+            loop,
+            enabled,
+            invalid,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun <T: Equals<T>> radioGroup(
+    selected: Binding<T?>,
+    configure: RadioGroupBuilder<T>.() -> Unit = {}
+): View = makeRadioGroup(selected, configure)
+
+internal fun <T: Equals<T>> makeRadioGroup(
+    selected: Binding<T?>,
+    configure: RadioGroupBuilder<T>.() -> Unit
+): View {
+    val builder = RadioGroupBuilder<T>()
+    builder.configure()
+    return component(
+        builder.snapshot(selected),
+        { current, mount -> RadioGroup(current, scope = mount) },
+        builder.key
+    )
+}
+
+public class ToggleGroupItemBuilder internal constructor() {
+    public var content: ButtonContent? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var invalid: Boolean = false
+    public var style: ButtonStyle? = None
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = Some((style ?: buttonStyle { this.kind = SurfaceKind.Plain }).copy(configure))
+    }
+}
+
+public class ToggleGroupBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<ToggleGroupEntry<T>>()
+    public var axis: FlexAxis = FlexAxis.Horizontal
+    public var spacing: Double = 8.0
+    public var loop: Boolean = true
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var variant: ToggleVariant = ToggleVariant.Default
+    public var size: ToggleSize = ToggleSize.Default
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun add(entry: ToggleGroupEntry<T>) {
+        entries.add(entry)
+    }
+    public fun item(choice: Choice<T>, configure: ToggleGroupItemBuilder.() -> Unit = {}) {
+        val builder = ToggleGroupItemBuilder()
+        builder.configure()
+        add(
+            ToggleGroupEntry(choice, builder.content, builder.focus, builder.invalid, builder.style)
+        )
+    }
+    internal fun snapshot(selected: ToggleGroupSelection<T>): ToggleGroupProps<T> =
+        ToggleGroupProps(
+            entries.toArray(),
+            selected,
+            axis,
+            spacing,
+            loop,
+            enabled,
+            invalid,
+            variant,
+            size,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun <T: Equals<T>> toggleGroup(
+    selected: Binding<T?>,
+    configure: ToggleGroupBuilder<T>.() -> Unit = {}
+): View = makeToggleGroup(ToggleGroupSelection.Single(selected), configure)
+
+public fun <T: Equals<T>> toggleGroup(
+    selected: Binding<Array<T>>,
+    configure: ToggleGroupBuilder<T>.() -> Unit = {}
+): View = makeToggleGroup(ToggleGroupSelection.Multiple(selected), configure)
+
+internal fun <T: Equals<T>> makeToggleGroup(
+    selected: ToggleGroupSelection<T>,
+    configure: ToggleGroupBuilder<T>.() -> Unit
+): View {
+    val builder = ToggleGroupBuilder<T>()
+    builder.configure()
+    return component(
+        builder.snapshot(selected),
+        { current, mount -> ToggleGroup(current, scope = mount) },
+        builder.key
+    )
+}

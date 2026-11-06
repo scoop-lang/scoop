@@ -1,0 +1,425 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class CarouselGesture(val origin: Double, val geometry: CarouselGeometry)
+
+internal class CarouselControl(val scope: ComponentScope, val read: () -> CarouselInput) {
+    val area =
+        scope.createArea(focusable = true) {
+            context,
+            event -> if (context.phase == RoutedPhase.Notification && active) {
+                when (event) {
+                    case FocusChanged(false) -> when (gesture) {
+                        case Some(_) -> cancel(DragCancelReason.Explicit)
+                        case None -> {}
+                    }
+                    else -> {}
+                }
+                if (!active)
+                    return@createArea
+                refreshAutoplay();
+                scope.requestFrame()
+            }
+        }
+    val focus = scope.focusTarget(area, read().props.viewport.focus)
+    val motion = scope.animation(0.0)
+    val timer = scope.createDeadline { autoplayTick() }
+    var geometry: CarouselGeometry? = None
+    var gesture: CarouselGesture? = None
+    private var handle: CarouselHandle? = None
+    private var index = read().selected
+    private var observed = read().props.selected?.value
+    private var retired = false
+    private val drag =
+        scope.drag(
+            area,
+            dragOptions(),
+            { _ -> available() && geometry!!.track.maximum > 0.0 },
+            { event -> carouselDrag(this, event) }
+        )
+    val active: Boolean get() = !retired && scope.isMounted
+    val position: Double get() =
+        if (active)
+            motion.value
+        else
+            0.0
+    val snaps: Array<Double> get() = geometry?.track?.snaps ?: []
+    init {
+        scope.routeChildren(area)
+        scope.resource {
+            area.scope.observeActivity {
+                if (active)
+                    refreshAutoplay()
+            }
+        }
+        scope.resource {
+            area.scope.observePointer {
+                _ -> if (active)
+                    refreshAutoplay()
+            }
+        }
+        scope.resource {
+            area.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> carouselKeyboard(this, context, key)
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (context.target === area.scope && read().props.enabled)
+                            focus.handle.requestFocus(FocusOrigin.Pointer)
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    private fun dragOptions(): DragOptions =
+        DragOptions(
+            if (read().props.orientation == Orientation.Horizontal)
+                DragAxis.Horizontal
+            else
+                DragAxis.Vertical,
+            read().props.dragThreshold,
+            read().props.enabled
+        )
+    fun current(): Long {
+        val input = read()
+        return carouselSelected(
+            input.keys,
+            input.props.selected?.value,
+            input.owner.key.value,
+            input.owner.fallback
+        )
+    }
+    private fun matches(shape: CarouselGeometry): Boolean {
+        val input = read()
+        if (
+            shape.orientation !=
+                input.props.orientation ||
+                shape.direction !=
+                scope.layoutDirection ||
+                shape.keys.size !=
+                input.keys.size
+        )
+            return false
+        for (at in 0L ..< shape.keys.size)
+            if (shape.keys[at] != input.keys[at])
+                return false
+        return true
+    }
+    fun available(): Boolean =
+        active &&
+            read().props.enabled &&
+            when (geometry) {
+                case Some(shape) -> matches(shape) &&
+                    shape.inner.width >
+                    0.0 &&
+                    shape.inner.height >
+                    0.0 &&
+                    shape.keys.size >
+                    0L;
+                case None -> false
+            }
+    fun update() {
+        val input = read()
+        val sameHandle =
+            when ((handle, input.props.handle)) {
+                case(Some(old), Some(next)) -> old === next
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameHandle) {
+            handle?.unbind(this);
+            handle = input.props.handle;
+            handle?.bind(this)
+        }
+        val selected = current()
+        if (index != selected || observed != input.props.selected?.value || !input.props.enabled) {
+            cancel(DragCancelReason.ConfigurationChanged)
+            if (!active)
+                return
+            index = selected;
+            observed = input.props.selected?.value
+            when (geometry) {
+                case Some(shape) -> if (matches(shape)) {
+                    val position = anchor(shape)
+                    if (motion.value != position || motion.state == AnimationState.Running)
+                        motion.snapTo(position)
+                } else
+                    geometry = None
+                case None -> {}
+            }
+        }
+        focus.options =
+            input.props.viewport.focus.copy {
+                tabStop = input.props.viewport.focus.tabStop && input.props.enabled
+            }
+        if (!active)
+            return
+        drag.update(
+            dragOptions(),
+            { _ -> available() && geometry!!.track.maximum > 0.0 },
+            { event -> carouselDrag(this, event) }
+        )
+        if (!active)
+            return
+        when (transition()) {
+            case None -> if (motion.state == AnimationState.Running)
+                motion.snapTo(motion.target)
+            case Some(_) -> {}
+        }
+        publish();
+        refreshAutoplay()
+    }
+    private fun anchor(shape: CarouselGeometry): Double {
+        val selected = current()
+        return if (selected >= 0L && selected < shape.track.snaps.size)
+            shape.track.snaps[selected]
+        else
+            0.0
+    }
+    fun visualPosition(shape: CarouselGeometry): Double =
+        when (geometry) {
+            case Some(old) -> if (sameCarouselGeometry(old, shape))
+                motion.value
+            else
+                anchor(shape)
+            case None -> anchor(shape)
+        }
+    fun accept(shape: CarouselGeometry) {
+        if (!active || !matches(shape))
+            return
+        val changed =
+            when (geometry) {
+                case Some(old) -> !sameCarouselGeometry(old, shape);
+                case None -> true
+            }
+        if (changed) {
+            cancel(DragCancelReason.GeometryUnavailable)
+            if (!active)
+                return
+            geometry = Some(shape);
+            motion.snapTo(anchor(shape))
+        }
+        index = current()
+        val owner = read().owner
+        if (index >= 0L) {
+            owner.fallback = index
+            when (read().props.selected) {
+                case None -> if (owner.key.value != Some(shape.keys[index]))
+                    owner.key.value = Some(shape.keys[index])
+                case Some(_) -> {}
+            }
+        }
+        publish();
+        refreshAutoplay()
+    }
+    fun select(request: Long, animated: Boolean, destination: Double? = None): Boolean {
+        if (!available())
+            return false
+        val shape = geometry!!
+        if (request < 0L || request >= shape.keys.size)
+            return false
+        cancel(DragCancelReason.Explicit)
+        if (!active)
+            return false
+        val input = read()
+        val before = current()
+        when (input.props.selected) {
+            case Some(binding) -> if (binding.value != request)
+                binding.value = request
+            case None -> input.owner.key.value = Some(input.keys[request])
+        }
+        if (!active)
+            return false
+        val accepted = current()
+        observed = read().props.selected?.value;
+        index = accepted
+        if (accepted >= 0L && matches(shape)) {
+            val base = shape.track.snaps[accepted]
+            val target =
+                if (destination != None && accepted == request)
+                    destination!!
+                else
+                    nearestPosition(shape.track, base)
+            moveTo(target, animated)
+        }
+        timer.cancel();
+        publish()
+        if (before != accepted && accepted >= 0L)
+            read().props.onSelect(accepted, read().keys[accepted])
+        if (active)
+            refreshAutoplay()
+        return before != accepted
+    }
+    private fun nearestPosition(track: CarouselTrack, base: Double): Double {
+        if (!track.looping)
+            return base
+        val current = carouselModulo(motion.value, track.cycle)
+        if (motion.value != current)
+            motion.snapTo(current)
+        var best = base
+        for (candidate in [base - track.cycle, base + track.cycle])
+            if (abs(candidate - current) < abs(best - current))
+                best = candidate
+        return best
+    }
+    fun step(next: Boolean, animated: Boolean): Boolean {
+        if (!available())
+            return false
+        val target = carouselAdjacent(geometry!!.track, current(), next) ?: return false
+        return select(target, animated)
+    }
+    fun transition(): AnimationSpec? {
+        val input = read()
+        return input.theme.tokens.motion.resolve(
+            input.props.transition.resolve(
+                Some(AnimationSpec.Tween(Duration.milliseconds(300L), Easing.EaseOut))
+            )
+        )
+    }
+    fun moveTo(value: Double, animated: Boolean) {
+        if (!active)
+            return
+        val spec =
+            if (animated)
+                transition()
+            else
+                None
+        val immediate =
+            when (spec) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        if (motion.value == value || immediate) {
+            val destination =
+                when (geometry) {
+                    case Some(shape) -> if (shape.track.looping)
+                        carouselModulo(value, shape.track.cycle)
+                    else
+                        value
+                    case None -> value
+                }
+            if (motion.value != destination || motion.state == AnimationState.Running)
+                motion.snapTo(destination)
+            return
+        }
+        motion.animateTo(
+            value,
+            spec!!,
+            onFinished =
+                Some(
+                    {
+                        _ -> if (active) {
+                            when (geometry) {
+                                case Some(shape) -> if (shape.track.looping)
+                                    motion.snapTo(carouselModulo(motion.value, shape.track.cycle));
+                                case None -> {}
+                            }
+                            refreshAutoplay()
+                        }
+                    }
+                )
+        )
+    }
+    fun cancel(reason: DragCancelReason) {
+        when (gesture) {
+            case None -> {
+                drag.cancel();
+                return
+            }
+            case Some(_) -> {}
+        }
+        gesture = None;
+        drag.cancel()
+        if (active) {
+            when (geometry) {
+                case Some(shape) -> moveTo(anchor(shape), true);
+                case None -> {}
+            }
+            publish();
+            refreshAutoplay()
+        }
+        read().props.onDragCancel(reason)
+    }
+    fun publish() {
+        if (!active)
+            return
+        val shape = geometry
+        val selected = current()
+        val allowed = available()
+        val next =
+            CarouselSnapshot(
+                selected,
+                if (selected >= 0L)
+                    Some(read().keys[selected])
+                else
+                    None,
+                read().keys.size,
+                allowed && carouselAdjacent(shape!!.track, selected, false) != None,
+                allowed && carouselAdjacent(shape!!.track, selected, true) != None,
+                shape?.track?.looping ?: false,
+                drag.isDragging
+            )
+        if (read().owner.snapshot.value != next)
+            read().owner.snapshot.value = next
+        handle?.publish(next)
+    }
+    fun refreshAutoplay() {
+        if (!active)
+            return
+        val options = read().props.autoplay
+        val configured =
+            when (options) {
+                case Some(_) -> true;
+                case None -> false
+            }
+        val allowed =
+            available() &&
+                configured &&
+                !drag.isDragging &&
+                motion.state !=
+                AnimationState.Running &&
+                scope.nativeWindow.isFocused &&
+                scope.nativeWindow.isVisible &&
+                !scope.nativeWindow.isOccluded &&
+                area.visibleBounds !=
+                None &&
+                area.scope.isInputAllowed &&
+                !(options!!.pauseOnFocus && read().owner.group!!.scope.activity.hasFocus) &&
+                !(options!!.pauseOnHover && read().owner.group!!.scope.isHovered) &&
+                carouselAdjacent(geometry!!.track, current(), true) !=
+                None
+        if (!allowed)
+            timer.cancel()
+        else
+            if (!timer.isScheduled)
+                timer.schedule(MonotonicTimeSource.markNow() + options!!.interval)
+    }
+    private fun autoplayTick() {
+        if (!active)
+            return
+        refreshAutoplay()
+        if (!timer.isScheduled)
+            return
+        timer.cancel();
+        step(true, true);
+        refreshAutoplay()
+    }
+    fun retire() {
+        cancel(DragCancelReason.Closed)
+        retired = true;
+        timer.cancel();
+        handle?.unbind(this)
+        read().owner.control = None
+    }
+}

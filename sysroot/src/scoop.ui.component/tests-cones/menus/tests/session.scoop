@@ -1,0 +1,179 @@
+package scoop.tests.ui.menus
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class MenuWindowTest {
+    @Test
+    fun `menu families share real keyboard pointer focus and retained popup behavior`() {
+        val p = MenuProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertFalse(p.trigger.isAttached)
+            assertFalse(p.layer.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"menu phase=${p.phase}, rendered=${p.rendered}, generation=${p.generation.value}"
+            )
+            menuFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class MenuProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val open = state(false)
+    val alternate = state(false)
+    val contextOpen = state(false)
+    val barOpen = state<ViewKey?>(None)
+    val checked = state(false)
+    val selected = state(1)
+    val layer = OverlayHandle()
+    val before = FocusHandle()
+    val trigger = FocusHandle()
+    val after = FocusHandle()
+    val contextFocus = FocusHandle()
+    val alpha = FocusHandle()
+    val beta = FocusHandle()
+    val check = FocusHandle()
+    val list = FocusHandle()
+    val grid = FocusHandle()
+    val share = FocusHandle()
+    val save = FocusHandle()
+    val team = FocusHandle()
+    val deep = FocusHandle()
+    val zulu = FocusHandle()
+    val contextItem = FocusHandle()
+    val file = FocusHandle()
+    val edit = FocusHandle()
+    val fileItem = FocusHandle()
+    val editItem = FocusHandle()
+    var mode = OverlayMode.NonModal
+    var loop = true
+    var enabled = true
+    var veto = false
+    var reject = false
+    var replace = false
+    var reverse = false
+    var slow = false
+    var zero = false
+    var rtl = false
+    var long = false
+    var version = 1
+    var callbacks = 0
+    var actions = 0
+    var actionVersion = 0
+    var closed = 0
+    var mounts = 0
+    var unmounts = 0
+    var mountedBefore = 0
+    var checkedCalls = 0
+    var contextClicks = 0
+    var betaBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var popupBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var shareBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var saveBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var fileBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var editBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, menuKey(native!!, code, text, flags))
+    }
+    fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun focusMenu() {
+        assertTrue(trigger.requestFocus(FocusOrigin.Keyboard));
+        key(125)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop menu test";
+                            position = Some(DesktopPosition(160.0, 100.0))
+                            size = LogicalSize(680.0, 480.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> MenuScene(this, scope = mount) });
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("menu timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    menuStep(this);
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 72)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 72;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

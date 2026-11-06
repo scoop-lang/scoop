@@ -1,0 +1,434 @@
+package scoop.tests.ui.conversation
+
+import scoop.math.abs
+import scoop.test.*
+import scoop.tests.surface.sendSurfaceScroll
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal fun advanceConversation(p: ConversationProbe) {
+    when (p.phase) {
+        case 0 -> {
+            val root = p.bounds("root")
+            val body = p.bounds("bubble-body")
+            assertTrue(body.width <= root.width * 0.8 - 14.0)
+            assertTrue(body.x >= root.x + 7.0)
+            assertTrue(p.bounds("reaction").y + p.bounds("reaction").height <= root.y + root.height)
+            p.savedMount = p.record("editor").mounts
+            assertTrue(p.editFocus.requestFocus())
+        }
+        case 1 -> {
+            assertTrue(p.editFocus.hasFocus)
+            assertEquals(0, conversationNativeText(p.native!!, "tu", true))
+        }
+        case 2 -> {
+            assertTrue(p.edit.isComposing)
+            p.variant = BubbleVariant.Tinted;
+            p.align = MessageAlignment.End
+            p.rtl = true;
+            p.reactionTop = true
+            p.native!!.requestSize(LogicalSize(400.0, 620.0));
+            p.changed()
+        }
+        case 3 -> {
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertTrue(p.editFocus.hasFocus);
+            assertTrue(p.edit.isComposing)
+            assertTrue(p.bounds("reaction").y < p.bounds("bubble-body").y)
+            assertEquals(0, conversationNativeText(p.native!!, "图表", false))
+        }
+        case 4 -> {
+            assertEquals("图表", p.edit.text);
+            assertFalse(p.edit.isComposing)
+            p.savedWidth = p.bounds("bubble-body").width
+            p.variant = BubbleVariant.Ghost;
+            p.changed()
+        }
+        case 5 -> {
+            assertTrue(p.bounds("bubble-body").width > p.savedWidth)
+            assertEquals(p.bounds("root").width - 14.0, p.bounds("bubble-body").width)
+            assertEquals(p.bounds("root").x + 7.0, p.bounds("bubble-body").x)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertTrue(p.mainFocus.requestFocus())
+        }
+        case 6 -> {
+            assertTrue(p.mainFocus.hasFocus);
+            p.key(49, " ")
+        }
+        case 7 -> {
+            assertEquals(1, p.clicks)
+            p.clickScale = 7;
+            p.changed();
+            p.press("reaction", true)
+        }
+        case 8 -> p.press("reaction", false)
+        case 9 -> {
+            assertEquals(1, p.reactions);
+            assertEquals(1, p.clicks)
+            assertTrue(p.mainFocus.requestFocus())
+        }
+        case 10 -> p.key(49, " ")
+        case 11 -> {
+            assertEquals(8, p.clicks)
+            p.actionable = false;
+            p.changed();
+            assertTrue(p.otherFocus.requestFocus())
+        }
+        case 12 -> {
+            assertTrue(p.otherFocus.hasFocus)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertEquals("图表", p.edit.text)
+            p.key(48, "")
+        }
+        case 13 -> {
+            assertTrue(p.editFocus.hasFocus)
+            assertFalse(p.mainFocus.hasFocus)
+            p.enabled = false
+            p.changed()
+        }
+        case 14 -> {
+            assertTrue(p.bounds("root").width > 0.0)
+            assertFalse(p.editFocus.requestFocus());
+            assertFalse(p.reactionFocus.requestFocus())
+            p.enabled = true;
+            p.zero = false;
+            p.mode = 1;
+            p.rtl = false
+            p.align = MessageAlignment.Start;
+            p.changed()
+        }
+        case 15 -> {
+            checkMessageGeometry(p)
+            p.savedMount = p.record("editor").mounts
+            assertTrue(p.editFocus.requestFocus())
+        }
+        case 16 -> {
+            assertTrue(p.editFocus.hasFocus)
+            p.showHeader = false;
+            p.showFooter = false;
+            p.changed()
+        }
+        case 17 -> {
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertTrue(p.editFocus.hasFocus)
+            p.align = MessageAlignment.End;
+            p.rtl = true;
+            p.setTheme(true, scale = 1.4)
+        }
+        case 18 -> {
+            assertTrue(
+                abs(p.bounds("avatar").width - 44.8) < 0.001,
+                Some("scaled avatar width=" + p.bounds("avatar").width.toString())
+            )
+            assertTrue(p.editFocus.hasFocus)
+            p.showHeader = true;
+            p.showFooter = true;
+            p.changed()
+        }
+        case 19 -> {
+            checkMessageGeometry(p)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            p.mode = 2;
+            p.actionable = true;
+            p.rtl = false
+            p.native!!.requestSize(LogicalSize(760.0, 620.0));
+            p.setTheme(false)
+        }
+        case 20 -> {
+            assertTrue(p.bounds("editor").x >= p.bounds("root").x + 7.0)
+            assertFalse(p.picture.isClosed)
+            p.savedMount = p.record("editor").mounts
+            p.savedWidth = p.bounds("root").width
+            assertTrue(p.mainFocus.requestFocus())
+        }
+        case 21 -> p.key(49, " ")
+        case 22 -> {
+            assertEquals(15, p.clicks);
+            p.press("attachment-action", true)
+        }
+        case 23 -> p.press("attachment-action", false)
+        case 24 -> {
+            assertEquals(2, p.reactions);
+            assertEquals(15, p.clicks)
+            p.attachmentState = AttachmentState.Uploading;
+            p.attachmentSize = AttachmentSize.Sm
+            p.rtl = true;
+            p.changed();
+            assertTrue(p.editFocus.requestFocus())
+        }
+        case 25 -> {
+            assertTrue(p.editFocus.hasFocus)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertFalse(p.frames!!.snapshot().required)
+            p.attachmentState = AttachmentState.Processing;
+            p.attachmentSize = AttachmentSize.Xs
+            p.vertical = true;
+            p.changed()
+        }
+        case 26 -> {
+            assertTrue(p.bounds("root").width < p.savedWidth)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertTrue(
+                p.mediaTopPixel / 65536L - p.mediaTopPixel % 256L > 40L,
+                Some(
+                    f"media contains the blue image: top=${p.mediaTopPixel}, bottom=${
+                        p.mediaBottomPixel
+                    }"
+                )
+            )
+            assertEquals(
+                p.mediaTopPixel,
+                p.mediaBottomPixel,
+                Some("image fills the square media area")
+            )
+            p.attachmentState = AttachmentState.Error;
+            p.attachmentSize = AttachmentSize.Default
+            p.vertical = false;
+            p.actionable = false;
+            p.changed()
+        }
+        case 27 -> {
+            assertFalse(p.mainFocus.hasFocus);
+            assertTrue(p.editFocus.hasFocus)
+            assertFalse(p.picture.isClosed)
+            p.attachmentState = AttachmentState.Idle;
+            p.zero = true;
+            p.changed()
+        }
+        case 28 -> {
+            assertEquals(0.0, p.bounds("root").width)
+            p.zero = false;
+            p.mode = 3;
+            p.rtl = false;
+            p.changed()
+        }
+        case 29 -> {
+            assertTrue(p.carousel.isAttached);
+            assertEquals(320.0, p.bounds("root").width)
+            assertEquals(5L, p.carousel.snapPositions.size)
+            p.savedMount = p.record("file-0").mounts
+            assertTrue(p.carouselFocus.requestFocus())
+        }
+        case 30 -> p.key(119, "")
+        case 31 -> {
+            assertEquals(4L, p.carousel.snapshot.index)
+            assertFalse(p.files[0L].requestFocus());
+            assertTrue(p.files[4L].requestFocus())
+            assertTrue(p.carouselFocus.requestFocus());
+            p.key(115, "")
+        }
+        case 32 -> {
+            assertEquals(0.0, p.carousel.position)
+            val root = p.bounds("root")
+            assertTrue(sendSurfaceScroll(p.native!!, root.x + 150.0, root.y + 40.0, -5, 0))
+        }
+        case 33 -> {
+            assertTrue(p.carousel.position > 0.0);
+            assertTrue(p.carousel.snapshot.index > 0L)
+            p.rtl = true;
+            p.changed()
+        }
+        case 34 -> {
+            assertEquals(p.savedMount, p.record("file-0").mounts)
+            p.enabled = false;
+            p.changed()
+        }
+        case 35 -> {
+            assertFalse(p.carouselFocus.requestFocus());
+            assertFalse(p.files[4L].requestFocus())
+            p.mode = 4;
+            p.actionable = false;
+            p.enabled = true;
+            p.status = TraceStatus.Complete
+            p.changed()
+        }
+        case 36 -> {
+            assertFalse(p.mainFocus.hasFocus);
+            assertTrue(p.otherFocus.requestFocus())
+            p.key(48, "")
+            p.markerVariant = MarkerVariant.Separator
+            p.native!!.requestSize(LogicalSize(300.0, 620.0));
+            p.changed()
+        }
+        case 37 -> {
+            assertTrue(p.otherFocus.hasFocus)
+            assertTrue(p.bounds("root").width <= 260.0)
+            p.markerVariant = MarkerVariant.Border;
+            p.status = TraceStatus.Running
+            p.streaming = true;
+            p.savedFrames = p.draws;
+            p.setTheme(true, true)
+        }
+        case 38 -> {
+            assertTrue(p.draws > p.savedFrames);
+            assertTrue(p.frames!!.snapshot().required)
+            p.native!!.setVisible(false);
+            p.hidden = true
+        }
+        case 39 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            p.native!!.setVisible(true);
+            p.hidden = false;
+            p.streaming = false
+            p.status = TraceStatus.Complete;
+            p.setTheme(false)
+        }
+        case 40 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            p.savedFrames = p.draws
+        }
+        case 41 -> {
+            assertEquals(p.savedFrames, p.draws)
+            p.mode = 5;
+            p.status = TraceStatus.Running;
+            p.rtl = false
+            p.native!!.requestSize(LogicalSize(760.0, 620.0));
+            p.changed()
+        }
+        case 42 -> {
+            assertTrue(p.bounds("trace-body").height > 0.0)
+            p.savedMount = p.record("editor").mounts
+            assertTrue(p.mainFocus.requestFocus())
+        }
+        case 43 -> p.key(49, " ")
+        case 44 -> {
+            assertFalse(p.editFocus.requestFocus());
+            assertEquals(1, p.changes)
+            assertEquals(1, p.activations)
+            p.bodyText += "\nMore output";
+            p.changed()
+        }
+        case 45 -> {
+            assertFalse(p.editFocus.requestFocus())
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            p.status = TraceStatus.Complete;
+            p.changed()
+        }
+        case 46 -> {
+            assertFalse(p.editFocus.requestFocus())
+            p.status = TraceStatus.Running;
+            p.controlled = true;
+            p.reject = true
+            p.opened.value = false;
+            p.changed()
+        }
+        case 47 -> assertTrue(p.mainFocus.requestFocus())
+        case 48 -> p.key(49, " ")
+        case 49 -> {
+            assertFalse(p.opened.value);
+            assertEquals(1, p.changes);
+            assertEquals(2, p.activations)
+            p.reject = false;
+            p.key(49, " ")
+        }
+        case 50 -> {
+            assertTrue(p.opened.value);
+            assertEquals(2, p.changes);
+            assertEquals(3, p.activations)
+            assertTrue(p.editFocus.requestFocus())
+        }
+        case 51 -> {
+            assertTrue(p.editFocus.hasFocus)
+            assertEquals(0, conversationNativeText(p.native!!, "ce", true))
+        }
+        case 52 -> {
+            assertTrue(p.edit.isComposing)
+            p.bodyText += "\nAdditional detail while typing";
+            p.rtl = true
+            p.innerOpened.value = false
+            p.native!!.requestSize(LogicalSize(400.0, 620.0));
+            p.changed()
+        }
+        case 53 -> {
+            assertTrue(p.edit.isComposing);
+            assertTrue(p.editFocus.hasFocus)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertEquals(0, conversationNativeText(p.native!!, "测试", false))
+        }
+        case 54 -> {
+            assertFalse(p.edit.isComposing);
+            assertEquals("图表测试", p.edit.text)
+            assertFalse(p.nestedFocus.requestFocus());
+            p.innerOpened.value = true
+        }
+        case 55 -> assertTrue(p.nestedFocus.requestFocus())
+        case 56 -> {
+            assertTrue(p.nestedFocus.hasFocus);
+            p.key(49, " ")
+        }
+        case 57 -> {
+            assertEquals(3, p.reactions)
+            p.enabled = false;
+            p.changed()
+        }
+        case 58 -> {
+            assertFalse(p.editFocus.requestFocus());
+            assertFalse(p.nestedFocus.requestFocus())
+            p.enabled = true;
+            p.mode = 6;
+            p.opened.value = false
+            p.status = TraceStatus.Complete;
+            p.rtl = false
+            p.source.value = conversationTranscript(p)
+            p.reading.reset(MessageInitialPosition.Start);
+            p.changed()
+        }
+        case 59 -> {
+            assertTrue(p.reading.isAttached)
+            assertTrue(p.reading.scrollToMessage(ViewKey.Number(2L), ScrollAlignment.Start))
+        }
+        case 60 -> {
+            assertEquals(MessageScrollMode.Holding, p.reading.mode)
+            p.savedOffset = p.reading.scroll.offset.y
+            p.savedMount = p.record("editor").mounts
+            p.opened.value = true
+        }
+        case 61 -> {
+            assertEquals(p.savedOffset, p.reading.scroll.offset.y)
+            p.bodyText += "\nOne more result\nA second result\nA final result"
+            p.source.value = conversationTranscript(p)
+        }
+        case 62 -> {
+            assertEquals(p.savedOffset, p.reading.scroll.offset.y)
+            assertEquals(p.savedMount, p.record("editor").mounts)
+            assertTrue(p.reading.scrollToEnd())
+        }
+        case 63 -> {
+            assertTrue(p.reading.atEnd)
+            p.bodyText += "\nThe response has completed with another line."
+            p.source.value = conversationTranscript(p)
+        }
+        case 64 -> {
+            assertTrue(p.reading.atEnd);
+            p.shown = false;
+            p.changed()
+        }
+        case 65 -> {
+            assertFalse(p.reading.isAttached);
+            assertFalse(p.carousel.isAttached)
+            assertFalse(p.picture.isClosed);
+            assertFalse(p.frames!!.snapshot().required)
+            p.savedFrames = p.draws
+            p.reading.beginTurn(ViewKey.Number(999L));
+            assertFalse(p.carousel.next())
+        }
+        case 66 -> {
+            assertEquals(p.savedFrames, p.draws);
+            assertFalse(p.frames!!.snapshot().required)
+            assertFalse(p.editFocus.isAttached)
+        }
+        case 67 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected conversation phase"))
+    }
+}
+
+private fun checkMessageGeometry(p: ConversationProbe) {
+    val avatar = p.bounds("avatar")
+    val body = p.bounds("message-body")
+    val footer = p.bounds("footer")
+    assertTrue(abs(avatar.y + avatar.height - body.y - body.height) < 0.001)
+    assertTrue(abs(footer.height - 50.0) < 0.001)
+    assertTrue(footer.y > body.y + body.height)
+    assertTrue(footer.y + footer.height <= p.bounds("root").y + p.bounds("root").height + 0.001)
+}

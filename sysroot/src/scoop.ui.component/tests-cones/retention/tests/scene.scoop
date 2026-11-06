@@ -5,10 +5,12 @@ import scoop.surface.FrameSubmission
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class RetentionScene(private val probe: RetentionProbe): Component {
+internal class RetentionScene(private val probe: RetentionProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
         element(
-            { RetentionPanel(probe) },
+            { mount -> RetentionPanel(probe, scope = mount) },
             [
                 virtualList(probe.data!!.value, ItemExtent.Fixed(24.0)) {
                     this.state = Some(this @RetentionScene.probe.scroll)
@@ -21,13 +23,17 @@ internal class RetentionScene(private val probe: RetentionProbe): Component {
         )
 }
 
-private class RetentionPanel(private val probe: RetentionProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class RetentionPanel(private val probe: RetentionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(160.0, 24.0)))
         context.placeChild(0L, Point(16.0, 16.0))
-        return LayoutMetrics(constraints.constrain(Size(220.0, 160.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 160.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -66,8 +72,8 @@ internal class RetentionSource(
     public override fun build(index: Long): View {
         val input = RowInput(order?.get(index) ?: index, index, variant)
         return if (variant == 0)
-            component(input, { props -> RetainedRow(probe, props) })
+            component(input, { props, mount -> RetainedRow(probe, props, scope = mount) })
         else
-            element(input, { props -> AlternateRow(probe, props) })
+            element(input, { props, mount -> AlternateRow(probe, props, scope = mount) })
     }
 }

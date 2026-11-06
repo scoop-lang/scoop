@@ -1,0 +1,114 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.style.*
+
+public class InputOtpStyle internal constructor(
+    public val cellSize: Size? = None,
+    public val gap: Double = 8.0,
+    public val surface: StyleOverride = styleOverride(),
+    public val text: SpanStyle? = None,
+    public val focusOutline: OutlineStyle? = None,
+    public val validation: OutlineStyle? = None,
+    public val selectionColor: Color? = None,
+    public val inactiveSelectionColor: Color? = None,
+    public val caretColor: Color? = None,
+    public val markedColor: Color? = None,
+    public val caretWidth: Double = 1.0
+) {
+    init {
+        nonnegative(gap, "invalid OTP gap")
+        nonnegative(caretWidth, "invalid OTP caret width")
+        when (cellSize) {
+            case Some(size) -> requireComponent(
+                size.width.isFinite() &&
+                    size.height.isFinite() &&
+                    size.width >
+                    0.0 &&
+                    size.height >
+                    0.0,
+                "invalid OTP cell size"
+            )
+            case None -> {}
+        }
+    }
+    public fun copy(configure: InputOtpStyleBuilder.() -> Unit = {}): InputOtpStyle {
+        val builder = InputOtpStyleBuilder(this)
+        builder.configure()
+        return builder.snapshot()
+    }
+}
+
+public fun inputOtpStyle(configure: InputOtpStyleBuilder.() -> Unit = {}): InputOtpStyle =
+    InputOtpStyle().copy(configure)
+
+public class InputOtpStyleBuilder internal constructor(initial: InputOtpStyle) {
+    public var cellSize: Size? = initial.cellSize
+    public var gap: Double = initial.gap
+    public var surface: StyleOverride = initial.surface
+    public var text: SpanStyle? = initial.text
+    public var focusOutline: OutlineStyle? = initial.focusOutline
+    public var validation: OutlineStyle? = initial.validation
+    public var selectionColor: Color? = initial.selectionColor
+    public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
+    public var caretColor: Color? = initial.caretColor
+    public var markedColor: Color? = initial.markedColor
+    public var caretWidth: Double = initial.caretWidth
+    public fun surface(configure: StyleOverrideBuilder.() -> Unit) {
+        surface = surface.copy(configure)
+    }
+    public fun text(configure: SpanStyleBuilder.() -> Unit) {
+        text = Some(configureOptionalSpanStyle(text, configure))
+    }
+    internal fun snapshot(): InputOtpStyle =
+        InputOtpStyle(
+            cellSize,
+            gap,
+            surface,
+            text,
+            focusOutline,
+            validation,
+            selectionColor,
+            inactiveSelectionColor,
+            caretColor,
+            markedColor,
+            caretWidth
+        )
+}
+
+internal fun otpOptions(
+    theme: Theme,
+    style: InputOtpStyle,
+    visual: InteractionVisual
+): SurfaceOptions {
+    val options =
+        surfaceOptions {
+            this.focus = style.focusOutline;
+            this.validation = style.validation
+        }
+    val color = controlBorder(theme, options, visual, theme.tokens.palette.input)
+    val base =
+        styleOverride {
+            this.background(
+                Some(
+                    Paint(
+                        if (theme.tokens.mode == ThemeMode.Dark)
+                            theme.tokens.palette.input.withAlpha(
+                                theme.tokens.palette.input.alpha * 0.3
+                            )
+                        else
+                            Color.Transparent
+                    )
+                )
+            )
+            this.border(Some(Border.all(1.0, color)))
+            this.corners(Corners.all(theme.tokens.corners.medium))
+            this.boxShadows([])
+        }
+    return options.copy {
+        this.style = base.then(style.surface)
+        this.padding = Some(Insets.all(0.0))
+        this.minimumSize = Some(Size(0.0, 0.0))
+    }
+}

@@ -1,0 +1,79 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosSystemPalette
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class SystemPaletteTest {
+    @Test
+    fun `AppKit colors resolve both appearances and feed shadcn parts without replacing its geometry`() {
+        val light = macosSystemPalette()
+        val dark = macosSystemPalette(ThemeMode.Dark)
+        assertTrue(light.background.background != dark.background.background)
+        assertTrue(light.background.foreground != dark.background.foreground)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val colors =
+                if (mode == ThemeMode.Light)
+                    light
+                else
+                    dark
+            val theme = shadcnTheme(mode, Some(colors))
+            val neutral = shadcnTheme(mode)
+            val action = SurfaceVisual(SurfaceKind.Action)
+            val bounds = Rect(0.0, 0.0, 100.0, 32.0)
+            val geometry = theme.surfaceGeometry(bounds, action)
+            assertTrue(theme.tokens.palette === colors)
+            assertEquals(colors.primary.background, geometry.style.background!!.color)
+            assertEquals(colors.primary.foreground, theme.surfaceTextColor(action))
+            assertEquals(colors.background.foreground, theme.tokens.typography.body.color)
+            assertEquals(
+                neutral.surfaceMetrics(action).suggestedSize,
+                theme.surfaceMetrics(action).suggestedSize
+            )
+            assertEquals(neutral.surfaceGeometry(bounds, action).content, geometry.content)
+            val marker =
+                theme.checkboxGeometry(Rect(0.0, 0.0, 16.0, 16.0), CheckboxVisual(CheckMark.On))
+            assertEquals(colors.primary.background, marker.style.background!!.color)
+            for (
+                color in [
+                    colors.background.background,
+                    colors.background.foreground,
+                    colors.card.background,
+                    colors.popover.background,
+                    colors.primary.background,
+                    colors.primary.foreground,
+                    colors.secondary.background,
+                    colors.secondary.foreground,
+                    colors.muted.background,
+                    colors.muted.foreground,
+                    colors.accent.background,
+                    colors.accent.foreground,
+                    colors.destructive.background,
+                    colors.destructive.foreground,
+                    colors.border,
+                    colors.input,
+                    colors.ring,
+                    colors.disabledText,
+                    colors.shadow,
+                    colors.chart.one,
+                    colors.chart.two,
+                    colors.chart.three,
+                    colors.chart.four,
+                    colors.chart.five
+                ]
+            ) {
+                for (channel in [color.red, color.green, color.blue, color.alpha])
+                    assertTrue(channel.isFinite() && channel >= 0.0 && channel <= 1.0)
+            }
+            assertTrue(
+                if (mode == ThemeMode.Light)
+                    colors.background.foreground.red < colors.background.background.red
+                else
+                    colors.background.foreground.red > colors.background.background.red
+            )
+        }
+    }
+}
