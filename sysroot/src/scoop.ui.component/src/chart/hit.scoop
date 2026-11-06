@@ -1,0 +1,173 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.math.sqrt
+import scoop.ui.style.Orientation
+
+internal fun chartHit(
+    geometry: ChartGeometry,
+    point: Point,
+    horizontal: Boolean,
+    active: ChartSelection? = None
+): ChartSelection? {
+    val bounds =
+        if (geometry.kind == ChartKind.Pie)
+            Rect(0.0, 0.0, geometry.size.width, geometry.size.height)
+        else
+            geometry.plot
+    if (!chartInside(bounds, point))
+        return None
+    if (geometry.kind == ChartKind.Radar) {
+        val dx = point.x - geometry.plot.x - geometry.plot.width / 2.0
+        val dy = point.y - geometry.plot.y - geometry.plot.height / 2.0
+        if (dx * dx + dy * dy > geometry.plot.width * geometry.plot.width / 4.0)
+            return None
+    }
+    if (geometry.kind == ChartKind.Pie) {
+        val selected =
+            when (active) {
+                case Some(key) -> geometry.find(key);
+                case None -> None
+            }
+        when (selected) {
+            case Some(sample) -> when (sample.shape) {
+                case Sector(arc) -> {
+                    if (arc.expanded().contains(point))
+                        return Some(sample.selection)
+                }
+                else -> {}
+            }
+            case None -> {}
+        }
+    }
+    var best: ChartSample? = None
+    var primary = 0.0;
+    var secondary = 0.0
+    for (series in geometry.series)
+        for (entry in series.samples)
+            when (entry) {
+                case Some(sample) -> if (sample.visible) {
+                    when (sample.shape) {
+                        case Sector(arc) -> {
+                            if (arc.contains(point))
+                                return Some(sample.selection)
+                        }
+                        case Rectangle(bounds) -> if (
+                            bounds.width > 0.0 && bounds.height > 0.0 && chartInside(bounds, point)
+                        )
+                            return Some(sample.selection);
+                        case Point -> {}
+                    }
+                    if (geometry.kind == ChartKind.Pie || geometry.kind == ChartKind.Radial)
+                        continue
+                    val dx = abs(sample.point.x - point.x);
+                    val dy = abs(sample.point.y - point.y)
+                    val first =
+                        if (geometry.kind == ChartKind.Radar)
+                            sqrt(dx * dx + dy * dy)
+                        else
+                            if (horizontal)
+                                dy
+                            else
+                                dx;
+                    val second =
+                        if (horizontal)
+                            dx
+                        else
+                            dy
+                    val replace =
+                        when (best) {
+                            case None -> true;
+                            case Some(_) -> first <
+                                primary ||
+                                (first == primary && second < secondary)
+                        }
+                    if (replace) {
+                        best = Some(sample);
+                        primary = first;
+                        secondary = second
+                    }
+                }
+                case None -> {}
+            }
+    return best?.selection
+}
+
+internal fun chartNavigate(
+    geometry: ChartGeometry,
+    selection: ChartSelection?,
+    datumStep: Long = 0L,
+    seriesStep: Long = 0L,
+    edge: Int = 0
+): ChartSelection? {
+    var selectedSeries = 0L;
+    var selectedDatum = -1L
+    when (selection) {
+        case Some(key) -> for (s in 0L ..< geometry.series.size) {
+            val series = geometry.series[s]
+            for (at in 0L ..< series.samples.size)
+                when (series.samples[at]) {
+                    case Some(value) -> if (value.selection == key) {
+                        selectedSeries = s;
+                        selectedDatum = at
+                    };
+                    case None -> {}
+                }
+        };
+        case None -> {}
+    }
+    if (geometry.series.size == 0L)
+        return None
+    if (seriesStep != 0L && selectedDatum >= 0L) {
+        var at = selectedSeries + seriesStep
+        while (at >= 0L && at < geometry.series.size) {
+            when (geometry.series[at].samples[selectedDatum]) {
+                case Some(value) -> if (value.visible)
+                    return Some(value.selection);
+                case None -> {}
+            }
+            at += seriesStep
+        }
+        return selection
+    }
+    val count = geometry.series[selectedSeries].samples.size
+    var step =
+        if (edge < 0 || datumStep >= 0L)
+            1L
+        else
+            -1L
+    var at =
+        if (edge > 0)
+            count - 1L
+        else
+            if (edge < 0)
+                0L
+            else
+                if (selectedDatum < 0L) {
+                    if (step > 0L)
+                        0L
+                    else
+                        count - 1L
+                } else
+                    selectedDatum + datumStep
+    if (edge > 0)
+        step = -1L
+    while (at >= 0L && at < count) {
+        val candidates =
+            if (selectedDatum >= 0L)
+                1L
+            else
+                geometry.series.size
+        for (offset in 0L ..< candidates) {
+            val s = (selectedSeries + offset) % geometry.series.size
+            when (geometry.series[s].samples[at]) {
+                case Some(value) -> if (value.visible)
+                    return Some(value.selection);
+                case None -> {}
+            }
+        }
+        at += step
+    }
+    return selection
+}

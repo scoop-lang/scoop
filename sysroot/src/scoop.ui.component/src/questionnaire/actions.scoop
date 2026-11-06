@@ -1,0 +1,203 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun questionnaireActions(
+    input: QuestionnaireProps,
+    owner: QuestionnaireControl,
+    theme: Theme,
+    direction: LayoutDirection,
+    density: Double
+): View {
+    val progress = input.state.progress
+    val enabled = input.enabled && !input.busy
+    val hasSkip =
+        when (input.state.current) {
+            case Some(question) -> !question.required;
+            case None -> false
+        }
+    val previous =
+        questionAction(
+            input.strings.previous,
+            { owner.previous() },
+            input,
+            theme,
+            ButtonVariant.Outline,
+            enabled && progress.position > 1L,
+            direction
+        )
+    val skip =
+        questionAction(
+            input.strings.skip,
+            { owner.skip() },
+            input,
+            theme,
+            ButtonVariant.Ghost,
+            enabled && hasSkip,
+            direction
+        )
+    val next =
+        questionAction(
+            if (input.busy)
+                input.strings.busy
+            else
+                if (progress.position < progress.total)
+                    input.strings.next
+                else
+                    input.strings.submit,
+            { owner.proceed() },
+            input,
+            theme,
+            ButtonVariant.Default,
+            enabled && input.continueEnabled,
+            direction,
+            FocusOptions(handle = Some(owner.fallback))
+        )
+    return element(
+        QuestionnaireActionsProps(hasSkip, 8.0 * density),
+        { value, mount -> QuestionnaireActions(value, mount) },
+        [panelSlot(previous, 0L), panelSlot(skip, 1L), panelSlot(next, 2L)]
+    )
+}
+
+private fun questionAction(
+    label: String,
+    click: () -> Unit,
+    input: QuestionnaireProps,
+    theme: Theme,
+    variant: ButtonVariant,
+    enabled: Boolean,
+    direction: LayoutDirection,
+    focus: FocusOptions = FocusOptions()
+): View {
+    val style = buttonStyle { this.surface { this.focus = input.focusOutline } }
+    val visual = SurfaceVisual(SurfaceKind.Action)
+    val ring =
+        theme.surfaceMetrics(
+            visual,
+            actionOptions(
+                theme,
+                ActionShape.Button(ButtonSize.Default),
+                variant,
+                style,
+                InteractionVisual()
+            ),
+            direction
+        ).focusOutset
+    return panelFrame(
+        button(label, click) {
+            this.enabled = enabled;
+            this.variant = variant;
+            this.theme = input.theme;
+            this.focus = focus
+            this.style = style
+            this.fonts = input.fonts
+        },
+        Insets.all(ring)
+    )
+}
+
+internal class QuestionnaireActionsProps(val skip: Boolean, val gap: Double)
+
+internal class QuestionnaireActions(
+    private val props: Props<QuestionnaireActionsProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val previous = conversationMeasure(context, 0L, constraints.maxWidth)
+        val skip =
+            if (input.skip)
+                conversationMeasure(context, 1L, constraints.maxWidth)
+            else {
+                context.skipChild(1L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val next = conversationMeasure(context, 2L, constraints.maxWidth)
+        val endWidth =
+            next.size.width +
+                if (input.skip)
+                    skip.size.width + input.gap
+                else
+                    0.0
+        val natural = previous.size.width + input.gap + endWidth
+        val width = constraints.maxWidth ?: natural
+        val wrapped = natural > width
+        val endWrapped = endWidth > width
+        val topHeight =
+            lowerBound(
+                previous.size.height,
+                if (wrapped)
+                    0.0
+                else
+                    lowerBound(skip.size.height, next.size.height)
+            )
+        val endY =
+            if (wrapped)
+                topHeight + input.gap
+            else
+                0.0
+        val nextY =
+            endY +
+                if (endWrapped)
+                    skip.size.height + input.gap
+                else
+                    0.0
+        val height =
+            if (wrapped)
+                nextY +
+                    lowerBound(
+                        next.size.height,
+                        if (endWrapped)
+                            0.0
+                        else
+                            skip.size.height
+                    )
+            else
+                topHeight
+        val size = constraints.constrain(Size(width, height))
+        place(context, 0L, 0.0, 0.0, previous.size, size.width)
+        if (input.skip)
+            place(
+                context,
+                1L,
+                lowerBound(
+                    0.0,
+                    size.width -
+                        if (endWrapped)
+                            skip.size.width
+                        else
+                            endWidth
+                ),
+                endY,
+                skip.size,
+                size.width
+            )
+        place(
+            context,
+            2L,
+            lowerBound(0.0, size.width - next.size.width),
+            nextY,
+            next.size,
+            size.width
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    private fun place(
+        context: MeasureContext,
+        index: Long,
+        x: Double,
+        y: Double,
+        size: Size,
+        total: Double
+    ) {
+        context.placeChild(index, Point(logicalX(x, size.width, total, context.layoutDirection), y))
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}

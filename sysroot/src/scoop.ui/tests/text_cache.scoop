@@ -7,7 +7,7 @@ import scoop.test.*
 import scoop.tests.textfonts.testSansBytes
 import scoop.ui.*
 
-private class UnbuiltInline: Component {
+private class UnbuiltInline(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }
 
@@ -20,7 +20,10 @@ private class UiTextCacheTest {
                 this.inlineObject(InlineKey.Text("a"), "A")
                 this.inlineObject(InlineKey.Number(1L), "B")
             }
-        val view = component<UnbuiltInline>({ throw IllegalStateException(Some("must stay lazy")) })
+        val view =
+            component<UnbuiltInline>(
+                { mount -> throw IllegalStateException(Some("must stay lazy")) }
+            )
         val first = inlineView(InlineKey.Text("a"), view)
         val second = inlineView(InlineKey.Number(1L), view)
         assertEquals(2L, inlineChildren(content, [second, first]).size)
@@ -145,19 +148,16 @@ private class UiTextCacheTest {
     }
 
     @Test
-    fun `public paragraph host has explicit owner and borrowed layout lifetime`() {
+    fun `public paragraph host has an explicit owner and idempotent close`() {
         val host = ParagraphHost()
         assertFalse(host.isClosed)
-        assertFailsWith<IllegalStateException> { host.layout }
         Thread.start {
             assertFailsWith<IllegalStateException> { host.isClosed }
-            assertFailsWith<IllegalStateException> { host.layout }
             assertFailsWith<IllegalStateException> { host.close() }
         }.use { thread -> thread.join() }
         host.close()
         host.close()
         assertTrue(host.isClosed)
-        assertFailsWith<IllegalStateException> { host.layout }
     }
 
     @Test

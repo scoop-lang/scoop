@@ -1,0 +1,130 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public open class CalendarOptionsBuilder internal constructor(value: CalendarOptions) {
+    public var rules: CalendarRules = value.rules
+    public var locale: CalendarLocale = value.locale
+    public var source: CalendarPageSource = value.source
+    public var monthCount: Long = value.monthCount
+    public var pagedNavigation: Boolean = value.pagedNavigation
+    public var showOutsideDays: Boolean = value.showOutsideDays
+    public var fixedWeeks: Boolean = value.fixedWeeks
+    public var weekNumbers: CalendarWeekNumbers = value.weekNumbers
+    public var caption: CalendarCaption = value.caption
+    public var cellSize: Double = value.cellSize
+    public var monthGap: Double = value.monthGap
+    public var syncSelection: Boolean = value.syncSelection
+    public var today: LocalDate? = value.today
+    public var years: Array<Int> = value.years
+    internal fun options(): CalendarOptions =
+        CalendarOptions(
+            rules,
+            locale,
+            source,
+            monthCount,
+            pagedNavigation,
+            showOutsideDays,
+            fixedWeeks,
+            weekNumbers,
+            caption,
+            cellSize,
+            monthGap,
+            syncSelection,
+            today,
+            years
+        )
+}
+
+public fun calendarOptions(configure: CalendarOptionsBuilder.() -> Unit = {}): CalendarOptions =
+    defaultCalendarOptions.copy(configure)
+
+public fun CalendarOptions.copy(
+    configure: CalendarOptionsBuilder.() -> Unit = {}
+): CalendarOptions {
+    val b = CalendarOptionsBuilder(this)
+    b.configure()
+    return b.options()
+}
+
+public class CalendarBuilder internal constructor(): CalendarOptionsBuilder(
+    defaultCalendarOptions
+) {
+    public var key: ViewKey = ViewKey.Position
+    public var enabled: Boolean = true
+    public var handle: CalendarHandle? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var dayStyle: ButtonStyle = defaultButtonStyle
+    public var dayFocus: (CalendarPage, CalendarDayData) -> FocusOptions =
+        { _, _ -> FocusOptions() }
+    public var header: ((CalendarHeaderParts) -> View)? = None
+    public var monthGrid: ((CalendarPage, View) -> View)? = None
+    public var day: ((CalendarDay, ActionContentStyle) -> View)? = None
+    public var weekNumber: ((String) -> View)? = None
+    public var footer: View? = None
+    public var onValueChange: (CalendarValue) -> Unit = {}
+    public var onPageChange: (LocalDate) -> Unit = {}
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun dayStyle(configure: ButtonStyleBuilder.() -> Unit) {
+        dayStyle = dayStyle.copy(configure)
+    }
+    internal fun snapshot(selection: CalendarSelection, initialPage: LocalDate): CalendarProps =
+        CalendarProps(
+            selection,
+            initialPage,
+            options(),
+            enabled,
+            handle,
+            fonts,
+            theme,
+            style,
+            dayStyle,
+            dayFocus,
+            header,
+            monthGrid,
+            day,
+            weekNumber,
+            footer,
+            onValueChange,
+            onPageChange
+        )
+}
+
+public fun calendar(
+    selection: CalendarSelection,
+    initialPage: LocalDate,
+    configure: CalendarBuilder.() -> Unit = {}
+): View {
+    val b = CalendarBuilder()
+    b.configure()
+    return component(
+        b.snapshot(selection, initialPage),
+        { props, scope -> Calendar(props, scope) },
+        b.key
+    )
+}
+
+public fun calendar(
+    value: Binding<LocalDate?>,
+    initialPage: LocalDate,
+    configure: CalendarBuilder.() -> Unit = {}
+): View = calendar(CalendarSelection.Single(value), initialPage, configure)
+
+public fun calendarMultiple(
+    value: Binding<Array<LocalDate>>,
+    initialPage: LocalDate,
+    configure: CalendarBuilder.() -> Unit = {}
+): View = calendar(CalendarSelection.Multiple(value), initialPage, configure)
+
+public fun calendarRange(
+    value: Binding<DateRange?>,
+    initialPage: LocalDate,
+    configure: CalendarBuilder.() -> Unit = {}
+): View = calendar(CalendarSelection.Range(value), initialPage, configure)

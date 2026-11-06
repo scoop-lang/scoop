@@ -14,9 +14,9 @@ import scoop.window.TextInputEvent
 internal fun activeScene(probe: InteractionProbe): View =
     element(
         probe.source.value,
-        { props -> ActiveCanvas(probe, props) },
+        { props, mount -> ActiveCanvas(probe, props, scope = mount) },
         [
-            element({ ComboEditor(probe) }),
+            element({ mount -> ComboEditor(probe, scope = mount) }),
             portal(
                 probe.candidatesOpen.binding(),
                 virtualList(probe.source.value, ItemExtent.Fixed(24.0)) {
@@ -35,11 +35,10 @@ internal fun activeScene(probe: InteractionProbe): View =
 
 private class ActiveCanvas(
     private val probe: InteractionProbe,
-    private val props: Props<NavigationRows>
-): Element {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    private val props: Props<NavigationRows>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.shortcuts =
             Some(
                 scope.resource {
@@ -90,7 +89,7 @@ private class ActiveCanvas(
                     probe.navigation!!.handle(context, event)
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.navigation!!.update(props.value, probe.activeBinding)
         probe.search!!.update(
             props.value,
@@ -101,8 +100,11 @@ private class ActiveCanvas(
                 Unit
             }
         )
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(220.0, 36.0)))
         context.placeChild(0L, Point(20.0, 20.0))
         context.measureChild(1L, Constraints())
@@ -111,9 +113,9 @@ private class ActiveCanvas(
         assertTrue(shortcut.size.width > 0.0 && shortcut.size.height > 0.0)
         context.placeChild(2L, Point(270.0, 20.0))
         probe.shortcutMeasured = true
-        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(460.0, 300.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             if (probe.closeDuringDraw) {
@@ -135,8 +137,10 @@ private class ActiveCanvas(
     }
 }
 
-private class ComboEditor(private val probe: InteractionProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class ComboEditor(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    public override fun onMount() {
         val text = probe.theme.current.value.tokens.typography.body
         val host =
             scope.resource {
@@ -163,10 +167,14 @@ private class ComboEditor(private val probe: InteractionProbe): Element {
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        probe.editorHost!!.measure(constraints)
-    public override fun scene(context: SceneContext) {
-        probe.editorHost!!.scene(context)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = probe.editorHost!!.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        probe.editorHost!!.scene(context, measured)
     }
 }
 

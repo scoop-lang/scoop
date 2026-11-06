@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal enum ChartShape {
+    Point, Rectangle(val bounds: Rect), Sector(val arc: ChartSector)
+}
+
+internal class ChartSample(
+    val selection: ChartSelection,
+    val value: Double,
+    val point: Point,
+    val base: Point,
+    val shape: ChartShape,
+    val visible: Boolean
+)
+
+internal class ChartSeriesGeometry(
+    val series: ChartPreparedSeries,
+    val samples: Array<ChartSample?>
+)
+
+internal class ChartLabel(val text: String, val origin: Point)
+
+internal struct ChartGrid(val start: Point, val end: Point)
+
+internal class ChartGeometry(
+    val size: Size,
+    val plot: Rect,
+    val series: Array<ChartSeriesGeometry>,
+    val labels: Array<ChartLabel>,
+    val grid: Array<ChartGrid>,
+    val kind: ChartKind = ChartKind.Line,
+    val tracks: Array<ChartSector> = [],
+    val contentBounds: Rect = Rect(0.0, 0.0, 0.0, 0.0)
+) {
+    val interactive: Boolean = chartHasSamples(series)
+    fun find(selection: ChartSelection): ChartSample? {
+        for (series in series)
+            for (value in series.samples)
+                when (value) {
+                    case Some(sample) -> if (sample.selection == selection && sample.visible)
+                        return Some(sample);
+                    case None -> {}
+                }
+        return None
+    }
+}
+
+private fun chartHasSamples(series: Array<ChartSeriesGeometry>): Boolean {
+    for (line in series)
+        for (value in line.samples)
+            when (value) {
+                case Some(sample) -> if (sample.visible)
+                    return true;
+                case None -> {}
+            }
+    return false
+}
+
+internal class ChartGeometryCache(private val plan: ChartPlan) {
+    private var previous: ChartGeometry? = None
+    fun resolve(size: Size): ChartGeometry {
+        when (previous) {
+            case Some(value) -> if (value.size == size)
+                return value;
+            case None -> {}
+        }
+        val next = chartGeometry(plan, size);
+        previous = Some(next);
+        return next
+    }
+}
+
+internal fun chartInside(bounds: Rect, point: Point): Boolean =
+    point.x >=
+        bounds.x &&
+        point.x <=
+        bounds.x +
+        bounds.width &&
+        point.y >=
+        bounds.y &&
+        point.y <=
+        bounds.y +
+        bounds.height
+
+internal fun chartOverlap(a: Rect, b: Rect): Boolean =
+    a.x + a.width >= b.x && b.x + b.width >= a.x && a.y + a.height >= b.y && b.y + b.height >= a.y
+
+internal fun chartGeometry(plan: ChartPlan, size: Size): ChartGeometry =
+    when (plan.input.kind) {
+        case Pie -> chartPie(plan, size);
+        case Radar -> chartRadar(plan, size);
+        case Radial -> chartRadial(plan, size);
+        else -> chartCartesian(plan, size)
+    }

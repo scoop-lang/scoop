@@ -1,0 +1,281 @@
+package scoop.tests.ui.questionnaire
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun advanceQuestionnaire(p: QuestionnaireProbe) {
+    val plan = QuestionKey("plan")
+    val files = QuestionKey("files")
+    val note = QuestionKey("note")
+    when (p.phase) {
+        case 0 -> {
+            assertEquals(p.bounds("Actions").width, p.bounds("Choices").width)
+            assertTrue(p.focus("plan:basic").hasFocus)
+            assertFalse(p.focus("plan:disabled").isFocusActive)
+            p.primary()
+        }
+        case 1 -> {
+            assertEquals(Some(plan), p.survey.activeKey)
+            assertTrue(p.survey.issue(plan) != None)
+            assertTrue(p.focus("plan:basic").hasFocus)
+            p.key(19, "2")
+        }
+        case 2 -> {
+            assertTrue(p.survey.isSelected(plan, QuestionChoiceKey("pro")))
+            assertEquals(Some(plan), p.survey.activeKey)
+            p.focus("plan:basic").requestFocus()
+        }
+        case 3 -> p.key(125, "")
+        case 4 -> {
+            assertTrue(p.focus("plan:pro").hasFocus)
+            assertTrue(p.survey.isSelected(plan, QuestionChoiceKey("pro")))
+            p.focus("plan:text").requestFocus()
+        }
+        case 5 -> p.key(49, " ")
+        case 6 -> {
+            assertTrue(p.inputFocus.hasFocus)
+            assertTrue(p.survey.usesText(plan))
+            p.text("候选", true)
+        }
+        case 7 -> {
+            assertTrue(p.survey.editor(plan)!!.isComposing);
+            p.primary()
+        }
+        case 8 -> {
+            assertEquals(Some(plan), p.survey.activeKey)
+            assertTrue(p.survey.editor(plan)!!.isComposing)
+            p.text("中文计划")
+            p.primary()
+        }
+        case 9 -> {
+            assertEquals(Some(plan), p.survey.activeKey)
+            assertEquals("中文计划", p.survey.editor(plan)!!.text)
+            p.primary()
+        }
+        case 10 -> {
+            assertEquals(Some(files), p.survey.activeKey);
+            assertTrue(p.focus("files:logs").hasFocus);
+            p.primary()
+        }
+        case 11 -> {
+            assertTrue(p.survey.issue(files) != None);
+            p.key(18, "1")
+        }
+        case 12 -> {
+            assertTrue(p.survey.isSelected(files, QuestionChoiceKey("logs")));
+            p.key(19, "2")
+        }
+        case 13 -> {
+            assertTrue(p.survey.isSelected(files, QuestionChoiceKey("images")));
+            p.key(48, "\t")
+        }
+        case 14 -> {
+            assertTrue(p.focus("files:text").hasFocus);
+            p.key(48, "\t")
+        }
+        case 15 -> p.key(48, "\t")
+        case 16 -> p.key(49, " ")
+        case 17 -> {
+            assertEquals(Some(note), p.survey.activeKey)
+            assertTrue(questionnaireSkipped(p.survey.answer(files)))
+            assertTrue(p.inputFocus.hasFocus)
+            p.primary()
+        }
+        case 18 -> {
+            assertTrue(p.survey.issue(note) != None);
+            p.text("Initial note")
+        }
+        case 19 -> {
+            p.primary();
+            p.primary()
+        }
+        case 20 -> {
+            assertEquals(1, p.submissions);
+            assertEquals(3L, p.answerCount);
+            assertTrue(p.busy.value);
+            p.primary();
+            p.primary()
+        }
+        case 21 -> {
+            assertEquals(1, p.submissions);
+            p.busy.value = false;
+            p.survey.previous()
+        }
+        case 22 -> {
+            assertEquals(Some(files), p.survey.activeKey);
+            assertTrue(questionnaireSkipped(p.survey.answer(files)));
+            p.survey.activate(plan)
+        }
+        case 23 -> p.clickFirst()
+        case 24 -> {
+            assertTrue(p.survey.isSelected(plan, QuestionChoiceKey("basic")))
+            assertEquals("中文计划", p.survey.editor(plan)!!.text)
+            p.survey.replaceQuestions(questionnaireTestQuestions(true))
+        }
+        case 25 -> {
+            assertEquals(QuestionnaireProgress(2L, 3L), p.survey.progress);
+            p.survey.activate(note)
+        }
+        case 26 -> {
+            assertTrue(p.survey.editor(note)!! === p.originalEditor)
+            assertEquals("Initial note", p.originalEditor.text)
+            p.text("组合", true)
+        }
+        case 27 -> {
+            assertTrue(p.originalEditor.isComposing);
+            p.resizeAndTheme()
+        }
+        case 28 -> {
+            assertTrue(p.originalEditor.isComposing)
+            assertTrue(p.inputFocus.hasFocus)
+            assertTrue(p.bounds("Input").width <= 440.001)
+            assertTrue(p.bounds("Title").height > 28.0)
+            p.primary()
+            p.originalEditor.cancelComposition()
+            p.readPixels = true
+            p.changed()
+        }
+        case 29 -> {
+            assertEquals(Some(note), p.survey.activeKey)
+            assertTrue(
+                p.leftPixel % 256L > 180L && (p.leftPixel / 256L) % 256L < 100L,
+                Some(f"left focus pixel ${p.leftPixel}")
+            )
+            assertEquals(p.leftPixel, p.rightPixel)
+            p.zero = true;
+            p.changed()
+        }
+        case 30 -> {
+            assertFalse(p.inputFocus.isFocusActive);
+            p.survey.activate(note)
+        }
+        case 31 -> {
+            assertFalse(p.inputFocus.isFocusActive);
+            p.zero = false;
+            p.changed()
+        }
+        case 32 -> {
+            assertFalse(p.inputFocus.hasFocus);
+            p.survey.activate(note)
+        }
+        case 33 -> {
+            assertTrue(p.inputFocus.hasFocus)
+            p.text("续写")
+            p.saved = p.survey.snapshot()
+            p.survey.setErrors(
+                [
+                    QuestionnaireError(plan, "Plan rejected"),
+                    QuestionnaireError(note, "Note rejected")
+                ]
+            )
+        }
+        case 34 -> {
+            assertEquals(Some(note), p.survey.activeKey)
+            p.text("Corrected")
+            assertTrue(questionnaireMissing(p.survey.submit()))
+        }
+        case 35 -> {
+            assertEquals(Some(plan), p.survey.activeKey)
+            assertTrue(p.survey.issue(plan) != None)
+            p.survey.select(plan, QuestionChoiceKey("pro"))
+            p.primary()
+        }
+        case 36 -> {
+            assertEquals(Some(files), p.survey.activeKey);
+            p.primary()
+        }
+        case 37 -> {
+            assertEquals(2, p.submissions);
+            p.busy.value = false;
+            p.survey.restore(p.saved)
+        }
+        case 38 -> {
+            assertEquals(Some(note), p.survey.activeKey)
+            assertFalse(p.originalEditor.canUndo)
+            assertFalse(p.originalEditor.isComposing)
+            p.text("重置候选", true)
+        }
+        case 39 -> {
+            assertTrue(p.originalEditor.isComposing)
+            p.survey.reset()
+            assertFalse(p.originalEditor.isComposing)
+        }
+        case 40 -> {
+            assertFalse(p.originalEditor.isComposing)
+            assertFalse(p.originalEditor.canUndo)
+            assertTrue(p.survey.issue(plan) == None)
+            p.enabled = false;
+            p.changed()
+        }
+        case 41 -> {
+            assertFalse(p.inputFocus.isFocusActive)
+            p.primary()
+            assertEquals(2, p.submissions)
+            p.enabled = true
+            p.survey.replaceQuestions(questionnaireTestQuestions(allDisabled = true))
+            p.changed()
+        }
+        case 42 -> {
+            assertEquals(QuestionnaireProgress(0L, 0L), p.survey.progress);
+            p.primary()
+        }
+        case 43 -> {
+            assertEquals(3, p.submissions)
+            assertEquals(0L, p.answerCount)
+            p.busy.value = false
+            p.survey.replaceQuestions(questionnaireTestQuestions())
+            p.dialog.value = true
+        }
+        case 44 -> {
+            assertTrue(p.dialog.value);
+            p.focus("modal-plan:text").requestFocus()
+        }
+        case 45 -> p.key(49, " ")
+        case 46 -> {
+            assertTrue(p.modalFocus.hasFocus);
+            p.text("取消仍保留");
+            p.key(53, "\u{001b}")
+        }
+        case 47 -> {
+            assertFalse(p.dialog.value)
+            assertEquals("取消仍保留", p.modal.editor(plan)!!.text)
+            assertEquals(3, p.submissions)
+        }
+        case 48 -> p.dialog.value = true
+        case 49 -> {
+            assertEquals("取消仍保留", p.modal.editor(plan)!!.text);
+            p.key(53, "\u{001b}")
+        }
+        case 50 -> {
+            assertFalse(p.dialog.value);
+            assertEquals(3, p.submissions);
+            p.shown = false;
+            p.changed()
+        }
+        case 51 -> {
+            assertFalse(p.inputFocus.isAttached)
+            assertFalse(p.focus("plan:basic").isAttached)
+            p.savedDraws = p.draws
+            p.survey.reset()
+        }
+        case 52 -> {
+            assertEquals(p.savedDraws, p.draws);
+            assertFalse(p.frames!!.snapshot().required);
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unknown questionnaire test phase"))
+    }
+}
+
+private fun questionnaireSkipped(answer: QuestionnaireAnswer): Boolean =
+    when (answer) {
+        case Skipped -> true;
+        else -> false
+    }
+
+private fun questionnaireMissing(result: QuestionnaireResult?): Boolean =
+    when (result) {
+        case None -> true;
+        case Some(_) -> false
+    }

@@ -1,0 +1,59 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as appColumn
+import scoop.ui.component.frame as appFrame
+import scoop.ui.component.fieldGroup as appFields
+import scoop.ui.component.scrollArea as appScroll
+
+internal fun settingsApplication(model: SettingsModel, theme: Theme): View =
+    appColumn {
+        this.typography("Profile settings", TypographyRole.H2)
+        this.typography(
+            "Update your profile and workspace preferences. Save checks the required fields and brings the first error into view.",
+            TypographyRole.Muted
+        )
+        this.add(
+            appFrame(
+                appScroll(
+                    appFrame(
+                        appFields {
+                            this.add(settingsAccount(model))
+                            this.fieldSeparator("Preferences")
+                            this.add(settingsPreferences(model, theme))
+                        }
+                    ) { this.padding = Some(Insets.all(16.0)) }
+                ) { this.state = Some(model.scroll) }
+            ) {
+                this.height = Some(460.0)
+                this.style {
+                    this.border(Some(Border.all(1.0, theme.tokens.palette.border)))
+                    this.corners(Corners.all(12.0))
+                }
+            }
+        )
+        this.wrap {
+            this.button("Save settings", { model.submit() }) {
+                this.enabled = model.enabled.value
+                this.focus = FocusOptions(Some(model.saveFocus))
+            }
+            this.button("Reset changes", { model.reset() }) {
+                this.variant = ButtonVariant.Outline
+                this.focus = FocusOptions(Some(model.resetFocus))
+            }
+            this.spacing = 8.0
+            this.lineSpacing = 8.0
+        }
+        this.typography(
+            if (model.saved.value > 0)
+                f"Saved ${model.saved.value} time(s). Your profile is up to date."
+            else
+                "Changes remain in this window until you save.",
+            TypographyRole.Muted
+        )
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Stretch
+    }

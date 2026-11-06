@@ -1,0 +1,123 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class DrawerGeometry(
+    val viewport: Size,
+    val bounds: Rect,
+    val side: OverlaySide,
+    val snaps: Array<Double>
+) {
+    val vertical: Boolean get() = side == OverlaySide.Top || side == OverlaySide.Bottom
+    val extent: Double get() =
+        if (vertical)
+            bounds.height
+        else
+            bounds.width
+    val outward: Double get() =
+        if (side == OverlaySide.Top || side == OverlaySide.Left)
+            -1.0
+        else
+            1.0
+}
+
+internal fun sameDrawerGeometry(a: DrawerGeometry, b: DrawerGeometry): Boolean {
+    if (
+        a.viewport !=
+            b.viewport ||
+            a.bounds !=
+            b.bounds ||
+            a.side !=
+            b.side ||
+            a.snaps.size !=
+            b.snaps.size
+    )
+        return false
+    for (index in 0L ..< a.snaps.size)
+        if (a.snaps[index] != b.snaps[index])
+            return false
+    return true
+}
+
+internal fun drawerPhysicalSide(side: SheetSide, direction: LayoutDirection): OverlaySide =
+    when (side) {
+        case Top -> OverlaySide.Top
+        case Bottom -> OverlaySide.Bottom
+        case Start -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Right
+        else
+            OverlaySide.Left
+        case End -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Left
+        else
+            OverlaySide.Right
+    }
+
+internal fun drawerSnaps(points: Array<DrawerSnapPoint>, extent: Double, density: Double): Array<
+    Double
+> {
+    if (points.size == 0L)
+        return [extent]
+    return Array<Double>(points.size) {
+        index -> min(
+            extent,
+            when (points[index]) {
+                case Fraction(value) -> extent * value
+                case Length(value) -> value * density
+            }
+        )
+    }
+}
+
+internal fun drawerIndex(value: Long, count: Long): Long = max(0L, min(value, count - 1L))
+
+internal fun drawerAdjacent(snaps: Array<Double>, index: Long, expand: Boolean): Long? {
+    if (index < 0L || index >= snaps.size)
+        return None
+    val current = snaps[index]
+    var best: Long? = None
+    for (candidate in 0L ..< snaps.size) {
+        val next = snaps[candidate]
+        if ((expand && next > current) || (!expand && next < current)) {
+            when (best) {
+                case Some(old) -> if (abs(next - current) < abs(snaps[old] - current))
+                    best = Some(candidate)
+                case None -> best = Some(candidate)
+            }
+        }
+    }
+    return best
+}
+
+internal fun drawerReleased(
+    shape: DrawerGeometry,
+    position: Double,
+    velocity: Double,
+    projection: Double,
+    close: Boolean
+): SnapTarget? {
+    if (!close)
+        return snapTarget(position, velocity, shape.snaps, projection)
+    val anchors =
+        Array<Double>(shape.snaps.size + 1L) {
+            index -> if (index == 0L)
+                0.0
+            else
+                shape.snaps[index - 1L]
+        }
+    val target = snapTarget(position, velocity, anchors, projection) ?: return None
+    return Some(SnapTarget(target.index - 1L, target.position))
+}
+
+internal fun drawerCorners(side: SheetSide, radius: Double): Corners {
+    val corner = Size(radius, radius)
+    return when (side) {
+        case Top -> Corners.Logical(bottomStart = corner, bottomEnd = corner)
+        case Bottom -> Corners.Logical(topStart = corner, topEnd = corner)
+        case Start -> Corners.Logical(topEnd = corner, bottomEnd = corner)
+        case End -> Corners.Logical(topStart = corner, bottomStart = corner)
+    }
+}

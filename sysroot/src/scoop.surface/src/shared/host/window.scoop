@@ -17,6 +17,7 @@ public class SurfaceWindow internal constructor(
     private val renderer: WindowRenderer
 ): Closeable {
     private var phase = SurfaceWindowState.Open
+    private var failure: Throwable? = None
     private var depth = 0
     private var configured: WindowMetrics? = None
     private val scheduler = FrameScheduler()
@@ -42,6 +43,10 @@ public class SurfaceWindow internal constructor(
     }
     /** Records a deferred or rejected focus intent without changing the current target. */
     public fun reserveFocusRequest(): ULong = inputs.reserveFocusRequest()
+    public val focusBoundary: InputBoundary? get() {
+        host.checkThread()
+        return inputs.currentFocusBoundary
+    }
     public val inputBoundary: InputBoundary? get() {
         host.checkThread()
         return inputs.currentBoundary
@@ -76,6 +81,12 @@ public class SurfaceWindow internal constructor(
         host.checkThread()
         if (phase != SurfaceWindowState.Open)
             return
+        callback { refreshWindow() }
+    }
+    internal fun initialize() {
+        refreshWindow()
+    }
+    private fun refreshWindow() {
         if (nativeWindow.state != WindowState.Open) {
             close();
             return
@@ -212,48 +223,75 @@ public class SurfaceWindow internal constructor(
     }
     private fun callback(block: () -> Unit) {
         depth += 1
-        var failure: Throwable? = None
+        var error: Throwable? = None
         try {
             block()
-        } catch (error: Throwable) {
-            failure = Some(error)
+        } catch (caught: Throwable) {
+            error = Some(caught)
         }
         depth -= 1
-        when (failure) {
-            case Some(_) -> failure = cleanupFailure(failure) { close() }
-            case None -> {}
+        when (error) {
+            case Some(value) -> fail(value)
+            case None -> finishClosing()
         }
-        failure = cleanupFailure(failure) { finishClosing() }
-        throwFailure(failure)
+    }
+    /** Runs synchronous logical work under this window's callback and retirement boundary. */
+    public fun dispatch(block: () -> Unit): Boolean {
+        host.checkThread()
+        if (phase != SurfaceWindowState.Open)
+            return false
+        callback(block)
+        return phase == SurfaceWindowState.Open
+    }
+    private fun fail(error: Throwable) {
+        failure = cleanupFailure(failure) { throw error }
+        stop()
+        finishClosing()
     }
     public override fun close() {
         host.checkThread()
+        stop()
+        finishClosing()
+    }
+    private fun stop() {
         if (phase != SurfaceWindowState.Open)
             return
         phase = SurfaceWindowState.Closing
         host.requestRetirement()
-        var failure = cleanupFailure(None) { renderer.setFrameDemand(false) }
+        failure = cleanupFailure(failure) { renderer.setFrameDemand(false) }
         failure = cleanupFailure(failure) { animationDeadline?.close() }
         failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }
-        throwFailure(cleanupFailure(failure) { finishClosing() })
     }
     internal fun finishClosing() {
-        if (phase == SurfaceWindowState.Closing && depth == 0 && !host.callbackActive)
-            retire()
+        if (phase == SurfaceWindowState.Closing && depth == 0 && !host.callbackActive) {
+            val error = retire()
+            when (error) {
+                case Some(value) -> host.reportWindowError(nativeWindow.id, value)
+                case None -> {}
+            }
+        }
     }
     internal fun rollbackAttach() {
-        val failure = cleanupFailure(None) { close() }
+        stop()
         // A failed attach has not exposed this window or entered its content callbacks.
-        throwFailure(cleanupFailure(failure) { retire() })
+        throwFailure(retire())
     }
-    private fun retire() {
+    private fun retire(): Throwable? {
         if (phase == SurfaceWindowState.Closed)
-            return
+            return None
         phase = SurfaceWindowState.Closed
-        var failure = cleanupFailure(None) { content.close() }
+        failure = cleanupFailure(failure) { content.close() }
         failure = cleanupFailure(failure) { renderer.close() }
-        throwFailure(cleanupFailure(failure) { host.detached(this) })
+        val error = failure
+        failure = None
+        // Releasing a failed shared renderer remains a host-level error.
+        try {
+            host.detached(this)
+        } catch (shared: Throwable) {
+            throw cleanupFailure(error) { throw shared }!!
+        }
+        return error
     }
 }
 

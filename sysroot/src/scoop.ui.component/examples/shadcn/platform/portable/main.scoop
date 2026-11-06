@@ -1,0 +1,5 @@
+package scoop.examples.ui.shadcn
+
+fun main() {
+    runGallery(GalleryModel())
+}

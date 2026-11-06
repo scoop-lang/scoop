@@ -172,7 +172,7 @@ internal class LayoutProbe {
                 native.requestFocus()
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                ui = Some(host.attach(native, { LayoutScene(this) }))
+                ui = host.attach(native, { mount -> LayoutScene(this, scope = mount) })
                 waitFor(active, 25000L)
             }
             case AboutToWait -> advance(active)

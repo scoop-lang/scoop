@@ -35,14 +35,20 @@ public class TextEditPolicy internal constructor(
     internal val paste: ((TextEditCandidate) -> TextEditDecision)?,
     internal val transform: ((TextEditCandidate) -> TextEditDecision)?,
     internal val accepts: ((String) -> Boolean)?
-)
+) {
+    public fun copy(configure: TextEditPolicyBuilder.() -> Unit = {}): TextEditPolicy {
+        val builder = TextEditPolicyBuilder(this)
+        builder.configure()
+        return builder.snapshot()
+    }
+}
 
-public class TextEditPolicyBuilder internal constructor() {
-    public var singleLine: Boolean = false
-    public var maxLength: Long? = None
-    private var pasteTransform: ((TextEditCandidate) -> TextEditDecision)? = None
-    private var editTransform: ((TextEditCandidate) -> TextEditDecision)? = None
-    private var acceptance: ((String) -> Boolean)? = None
+public class TextEditPolicyBuilder internal constructor(initial: TextEditPolicy) {
+    public var singleLine: Boolean = initial.singleLine
+    public var maxLength: Long? = initial.maxLength
+    private var pasteTransform: ((TextEditCandidate) -> TextEditDecision)? = initial.paste
+    private var editTransform: ((TextEditCandidate) -> TextEditDecision)? = initial.transform
+    private var acceptance: ((String) -> Boolean)? = initial.accepts
     public fun paste(value: (TextEditCandidate) -> TextEditDecision) {
         pasteTransform = Some(value)
     }
@@ -62,9 +68,7 @@ public class TextEditPolicyBuilder internal constructor() {
 }
 
 public fun textEditPolicy(configure: TextEditPolicyBuilder.() -> Unit = {}): TextEditPolicy {
-    val builder = TextEditPolicyBuilder()
-    builder.configure()
-    return builder.snapshot()
+    return TextEditPolicy(false, None, None, None, None).copy(configure)
 }
 
 internal fun editorSnapshot(value: EditorValue): TextEditSnapshot =

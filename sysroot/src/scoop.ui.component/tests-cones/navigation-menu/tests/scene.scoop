@@ -1,0 +1,279 @@
+package scoop.tests.ui.navigationmenu
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.surface.observePointer
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as navColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.input as makeInput
+import scoop.ui.style.*
+
+internal class NavScene(private val p: NavProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val guides =
+            navObserved(
+                p,
+                100L,
+                navColumn {
+                    navigationMenuLink("Getting started", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.first))
+                    }
+                    navigationMenuLink("Language guide", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.second))
+                    }
+                    spacing = 4.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            )
+        val docs =
+            navObserved(
+                p,
+                200L,
+                navColumn {
+                    add(
+                        navObserved(
+                            p,
+                            201L,
+                            makeInput(p.query) {
+                                fonts = Some(p.fonts);
+                                focus = FocusOptions(Some(p.editor));
+                                caretBlink = Duration.milliseconds(0L)
+                            }
+                        )
+                    )
+                    navigationMenuLink("API", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.docFirst))
+                    }
+                    navigationMenuLink("Examples", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.docSecond))
+                    }
+                    spacing = 4.0;
+                    padding = Insets.all(4.0);
+                    alignment = CrossAlignment.Stretch
+                }
+            )
+        val guideItem =
+            NavigationMenuEntry.Panel(
+                ViewKey.Text("guides"),
+                NavigationMenuPanelProps(
+                    PopupTriggerSpec(
+                        ButtonContent.Custom(navObserved(p, 1L, navLabel(p, "Guides"))),
+                        focus = FocusOptions(Some(p.guides))
+                    ),
+                    guides,
+                    if (p.narrow)
+                        190.0
+                    else
+                        300.0
+                )
+            )
+        val docItem =
+            NavigationMenuEntry.Panel(
+                ViewKey.Text("docs"),
+                NavigationMenuPanelProps(
+                    PopupTriggerSpec(
+                        ButtonContent.Custom(navObserved(p, 2L, navLabel(p, "Docs"))),
+                        focus = FocusOptions(Some(p.docs))
+                    ),
+                    docs,
+                    if (p.narrow)
+                        190.0
+                    else
+                        300.0,
+                    Some(p.editor)
+                )
+            )
+        val bar =
+            if (!p.shown)
+                empty()
+            else
+                navigationMenu(
+                    Some(
+                        binding(
+                            { p.open.value },
+                            {
+                                key -> if (!p.reject)
+                                    p.open.value = key
+                            }
+                        )
+                    )
+                ) {
+                    fonts = Some(p.fonts);
+                    enabled = p.enabled;
+                    viewport = p.viewport
+                    orientation =
+                        if (p.vertical)
+                            FlexAxis.Vertical
+                        else
+                            FlexAxis.Horizontal
+                    hover =
+                        HoverOptions(
+                            openDelay = Duration.milliseconds(70L),
+                            closeDelay = Duration.milliseconds(70L),
+                            transitDelay = Duration.milliseconds(400L),
+                            focus = false
+                        )
+                    onCloseRequest =
+                        {
+                            _, reason ->
+                            p.closeRequested(reason);
+                            !p.veto
+                        }
+                    if (!p.animate)
+                        transition(None)
+                    add(
+                        if (p.reverse)
+                            docItem
+                        else
+                            guideItem
+                    )
+                    link(ViewKey.Text("disabled"), "Disabled", {}) { enabled = false }
+                    add(
+                        if (p.reverse)
+                            guideItem
+                        else
+                            docItem
+                    )
+                    link(ViewKey.Text("home"), "Home", { p.actions += 1 }) {
+                        focus = FocusOptions(Some(p.home))
+                    }
+                }
+        return direction(
+            element(
+                generation,
+                { current, mount -> NavRoot(p, current, scope = mount) },
+                [
+                    navObserved(p, 0L, bar),
+                    button("After", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.after))
+                    }
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private fun navLabel(p: NavProbe, text: String): View = makeLabel(text) { fonts = Some(p.fonts) }
+
+private fun navObserved(p: NavProbe, id: Long, content: View): View =
+    element(id, { current, mount -> NavObservation(p, current, scope = mount) }, [content])
+
+private class Captured(var rect: Rect)
+
+private class NavObservation(
+    private val p: NavProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        p.factories += 1
+    }
+    public override fun onUnmount() {
+        p.disposed += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val captured = Captured(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    geometry -> captured.rect = geometry.toWindow(local)
+                }
+            }
+        }
+        context.children()
+        val id = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.bounds[id] = captured.rect
+        }
+    }
+}
+
+private class NavRoot(
+    private val p: NavProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Size>(scope) {
+    public override fun onMount() {
+        scope.resource { scope.input.observePointer { event -> p.pointerObserved(event) } }
+        scope.input.captureHandler =
+            {
+                context,
+                _ -> if (p.prevent)
+                    context.preventDefault()
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Size
+    > {
+        val measured =
+            context.measureChild(
+                0L,
+                Constraints(
+                    minWidth =
+                        if (p.vertical)
+                            200.0
+                        else
+                            0.0,
+                    maxWidth =
+                        Some(
+                            if (p.zero)
+                                0.0
+                            else
+                                if (p.vertical)
+                                    200.0
+                                else
+                                    480.0
+                        ),
+                    maxHeight = Some(400.0)
+                )
+            ).size
+        context.placeChild(
+            0L,
+            Point(
+                if (p.vertical)
+                    340.0
+                else
+                    80.0,
+                80.0
+            )
+        )
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(560.0, 80.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 540.0))), measured)
+    }
+    public override fun scene(context: SceneContext, measured: Size) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.rendered = generation;
+                p.actualWidth = measured.width
+            }
+        }
+    }
+}

@@ -1,0 +1,153 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum QuestionnairePart {
+    Item, Title, Description, Choice, Choices, Input, Error, Progress, Actions
+}
+
+public class QuestionnaireStrings public constructor(
+    public val previous: String = "Previous",
+    public val next: String = "Next",
+    public val skip: String = "Skip",
+    public val submit: String = "Submit",
+    public val busy: String = "Submitting…",
+    public val optional: String = "Optional",
+    public val skipped: String = "Skipped",
+    public val answerRequired: String = "Answer this question to continue.",
+    public val textRequired: String = "Enter an answer to continue.",
+    public val progress: (Long, Long) -> String =
+        { position, total -> f"Question ${position} of ${total}" }
+) {
+    public fun issue(value: QuestionnaireIssueKind): String =
+        when (value) {
+            case AnswerRequired -> answerRequired;
+            case TextRequired -> textRequired;
+            case Message(text) -> text
+        }
+}
+
+public class QuestionnaireProps public constructor(
+    public val state: QuestionnaireState,
+    public val onSubmit: (QuestionnaireResult) -> Unit,
+    public val enabled: Boolean = true,
+    public val busy: Boolean = false,
+    public val continueEnabled: Boolean = true,
+    public val autoFocus: Boolean = false,
+    public val shortcuts: Boolean = true,
+    public val strings: QuestionnaireStrings = QuestionnaireStrings(),
+    public val onAnswerChange: (QuestionKey) -> Unit = { _ -> Unit },
+    public val part: (QuestionnairePart, View) -> View = { _, content -> content },
+    public val inputFocus: FocusOptions = FocusOptions(),
+    public val choiceFocus: (QuestionKey, QuestionChoiceKey?) -> FocusOptions =
+        { _, _ -> FocusOptions() },
+    public val focusOutline: OutlineStyle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class QuestionnaireBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var busy: Boolean = false
+    public var continueEnabled: Boolean = true
+    public var autoFocus: Boolean = false
+    public var shortcuts: Boolean = true
+    public var strings: QuestionnaireStrings = QuestionnaireStrings()
+    public var onAnswerChange: (QuestionKey) -> Unit = { _ -> Unit }
+    public var part: (QuestionnairePart, View) -> View = { _, content -> content }
+    public var inputFocus: FocusOptions = FocusOptions()
+    public var choiceFocus: (QuestionKey, QuestionChoiceKey?) -> FocusOptions =
+        { _, _ -> FocusOptions() }
+    public var focusOutline: OutlineStyle? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(
+        state: QuestionnaireState,
+        submit: (QuestionnaireResult) -> Unit
+    ): QuestionnaireProps =
+        QuestionnaireProps(
+            state,
+            submit,
+            enabled,
+            busy,
+            continueEnabled,
+            autoFocus,
+            shortcuts,
+            strings,
+            onAnswerChange,
+            part,
+            inputFocus,
+            choiceFocus,
+            focusOutline,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public fun questionnaire(
+    state: QuestionnaireState,
+    onSubmit: (QuestionnaireResult) -> Unit,
+    configure: QuestionnaireBuilder.() -> Unit = {}
+): View {
+    val builder = QuestionnaireBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(state, onSubmit),
+        { current, scope -> Questionnaire(current, scope) },
+        builder.key
+    )
+}
+
+internal fun questionShortcut(index: Long): String {
+    val labels =
+        [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "q",
+            "r",
+            "s",
+            "t",
+            "u",
+            "v",
+            "w",
+            "x",
+            "y",
+            "z"
+        ]
+    return if (index >= 0L && index < labels.size)
+        labels[index]
+    else
+        ""
+}

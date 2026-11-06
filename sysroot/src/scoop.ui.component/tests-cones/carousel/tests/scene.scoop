@@ -1,0 +1,233 @@
+package scoop.tests.ui.carousel
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class CarouselScene(private val p: CarouselProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val p = this.p
+        val revision = p.generation.value
+        val keys =
+            if (p.empty)
+                []
+            else
+                if (p.reordered)
+                    [3L, 1L, 2L, 0L]
+                else
+                    [0L, 1L, 2L, 3L]
+        val source = CarouselTestSource(p, keys)
+        val contents =
+            if (p.gone)
+                empty()
+            else
+                carousel(source) {
+                    selected =
+                        if (p.controlled)
+                            Some(
+                                binding(
+                                    { p.selected.value },
+                                    {
+                                        value -> if (!p.reject)
+                                            p.selected.value = value
+                                    }
+                                )
+                            )
+                        else
+                            None
+                    itemSize = { _ -> CarouselItemSize.Content }
+                    orientation =
+                        if (p.vertical)
+                            Orientation.Vertical
+                        else
+                            Orientation.Horizontal
+                    loop = p.loop;
+                    enabled = p.enabled;
+                    spacing = 10.0
+                    handle = Some(p.handle)
+                    viewport {
+                        padding = 0.0;
+                        focus = FocusOptions(Some(p.viewport))
+                    }
+                    previous { visible = false };
+                    next { visible = false }
+                    autoplay =
+                        if (p.autoplay)
+                            Some(CarouselAutoplay(Duration.milliseconds(250L)))
+                        else
+                            None
+                    transition(
+                        if (p.motion)
+                            Some(AnimationSpec.Tween(Duration.milliseconds(70L)))
+                        else
+                            None
+                    )
+                    onSelect = { _, _ -> p.selections += 1 }
+                    onDragCancel = { _ -> p.cancels += 1 }
+                }
+        val result =
+            element(
+                revision,
+                { value, mount -> CarouselTestLayout(p, value, scope = mount) },
+                [
+                    button("Before", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.lead))
+                    },
+                    contents
+                ]
+            )
+        return direction(
+            scrollArea(result) {
+                scrollbars = ScrollbarVisibility.Hidden
+                focus = FocusOptions(tabStop = false)
+            },
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class CarouselTestSource(
+    private val p: CarouselProbe,
+    private val keys: Array<Long>
+): ItemSource {
+    public override val count: Long get() = keys.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(keys[index])
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< keys.size)
+            if (ViewKey.Number(keys[index]) == key)
+                return Some(index)
+        return None
+    }
+    public override fun build(index: Long): View =
+        component(keys[index], { value, mount -> CarouselTile(p, value, scope = mount) })
+}
+
+private class CarouselTile(
+    private val p: CarouselProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val key = props.value
+        return element(
+            key,
+            { value, mount -> CarouselTileLayout(p, value, scope = mount) },
+            [
+                button(f"Open ${key}", { p.clicks += 1 }) {
+                    fonts = Some(p.fonts)
+                    focus = FocusOptions(Some(p.buttons[key]))
+                },
+                if (key == 0L)
+                    input(p.text) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.editor))
+                    }
+                else
+                    empty()
+            ]
+        )
+    }
+}
+
+private class CarouselTileLayout(
+    private val p: CarouselProbe,
+    private val key: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val extent = [100.0, 140.0, 80.0, 160.0][key.value]
+        val natural =
+            if (p.vertical)
+                Size(200.0, extent)
+            else
+                Size(extent, 200.0)
+        val size = constraints.constrain(natural)
+        val inner =
+            Constraints(
+                maxWidth =
+                    Some(
+                        if (size.width >= 16.0)
+                            size.width - 16.0
+                        else
+                            0.0
+                    )
+            )
+        context.measureChild(0L, inner);
+        context.placeChild(0L, Point(8.0, 8.0))
+        context.measureChild(1L, inner);
+        context.placeChild(1L, Point(8.0, 48.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+private class CarouselTestLayout(
+    private val p: CarouselProbe,
+    private val revision: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                _,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Moved(point)) -> p.pointerTrace.add(
+                        f"phase ${p.phase}: move ${point.state.logicalPosition.x}, ${
+                            point.state.logicalPosition.y
+                        }"
+                    )
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints());
+        context.placeChild(0L, Point(20.0, 20.0))
+        val main =
+            if (p.narrow)
+                80.0
+            else
+                240.0
+        val size =
+            if (p.zero)
+                Size(0.0, 0.0)
+            else
+                if (p.vertical)
+                    Size(220.0, main)
+                else
+                    Size(main, 220.0)
+        context.measureChild(1L, Constraints.tight(size));
+        context.placeChild(1L, Point(30.0, 90.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(540.0, 500.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val value = revision.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = value
+        }
+    }
+}

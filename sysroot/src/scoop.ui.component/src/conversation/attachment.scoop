@@ -1,0 +1,334 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.Image as GraphicsImage
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum AttachmentState {
+    Idle, Uploading, Processing, Error, Done
+}
+
+public enum AttachmentSize {
+    Default, Sm, Xs
+}
+
+public enum AttachmentMedia {
+    Icon(ButtonContent), Image(GraphicsImage, Size)
+}
+
+public class AttachmentProps public constructor(
+    public val title: ButtonContent,
+    public val description: PanelContent? = None,
+    public val content: View? = None,
+    public val media: AttachmentMedia? = None,
+    public val actions: View? = None,
+    public val state: AttachmentState = AttachmentState.Done,
+    public val size: AttachmentSize = AttachmentSize.Default,
+    public val orientation: Orientation = Orientation.Horizontal,
+    public val shimmer: Boolean = true,
+    public val onClick: (() -> Unit)? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val focusOutline: OutlineStyle? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class AttachmentBuilder internal constructor(): ConversationActionBuilder() {
+    public var description: PanelContent? = None
+    public var content: View? = None
+    public var media: AttachmentMedia? = None
+    public var actions: View? = None
+    public var state: AttachmentState = AttachmentState.Done
+    public var size: AttachmentSize = AttachmentSize.Default
+    public var orientation: Orientation = Orientation.Horizontal
+    public var shimmer: Boolean = true
+    public fun description(text: String) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun description(text: StyledText) {
+        description = Some(PanelContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun description(content: View) {
+        description = Some(PanelContent.Custom(content))
+    }
+    public fun media(content: View) {
+        media = Some(AttachmentMedia.Icon(ButtonContent.Custom(content)))
+    }
+    public fun media(content: (ActionContentStyle) -> View) {
+        media = Some(AttachmentMedia.Icon(ButtonContent.Resolved(content)))
+    }
+    public fun image(image: GraphicsImage, naturalSize: Size) {
+        media = Some(AttachmentMedia.Image(image, naturalSize))
+    }
+    internal fun snapshot(title: ButtonContent): AttachmentProps =
+        AttachmentProps(
+            title,
+            description,
+            content,
+            media,
+            actions,
+            state,
+            size,
+            orientation,
+            shimmer,
+            onClick,
+            enabled,
+            focus,
+            focusOutline,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class Attachment(
+    private val props: Props<AttachmentProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val titles = ActionTextStyle()
+    private val descriptions = ActionTextStyle()
+    private val medium = spanStyle { this.weight = Some(500) }
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val p = theme.tokens.palette
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val metrics = attachmentMetrics(input.size)
+        val busy =
+            input.state == AttachmentState.Uploading || input.state == AttachmentState.Processing
+        val error = input.state == AttachmentState.Error
+        val color =
+            if (error)
+                p.destructive.background
+            else
+                p.card.foreground
+        val titleStyle =
+            titles.resolve(
+                theme.tokens.typography.body,
+                p.card.foreground,
+                Some(medium),
+                metrics.fontSize / 14.0,
+                Some(1.25)
+            )
+        val detailStyle =
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                if (error)
+                    color.withAlpha(0.8)
+                else
+                    p.muted.foreground,
+                None,
+                12.0 / 14.0,
+                Some(1.25)
+            )
+        val title =
+            conversationCaption(
+                input.title,
+                titleStyle,
+                input.fonts,
+                scope.layoutDirection,
+                Some(1L)
+            )
+        val detail =
+            when (input.description) {
+                case Some(PanelContent.Label(value)) -> conversationCaption(
+                    ButtonContent.Label(value),
+                    detailStyle,
+                    input.fonts,
+                    scope.layoutDirection,
+                    Some(1L)
+                )
+                case Some(value) -> panelCaption(value, detailStyle, input.fonts)
+                case None -> empty()
+            }
+        val text =
+            makeColumn {
+                this.add(
+                    panelSlot(
+                        conversationShimmer(title, busy && input.shimmer && input.enabled, theme),
+                        0L
+                    )
+                )
+                if (panelPresent(input.description))
+                    this.add(panelSlot(detail, 1L))
+                if (panelPresent(input.content))
+                    this.add(panelSlot(input.content!!, 2L))
+                this.spacing = 2.0 * d
+                this.alignment = CrossAlignment.Stretch
+            }
+        val iconSide =
+            if (input.orientation == Orientation.Vertical)
+                24.0 * d
+            else
+                if (input.size == AttachmentSize.Xs)
+                    14.0 * d
+                else
+                    16.0 * d
+        val media =
+            when (input.media) {
+                case Some(AttachmentMedia.Image(image, natural)) -> imageView(image, natural) {
+                    this.fit = ContentFit.Cover
+                    this.opacity =
+                        if (
+                            input.state ==
+                                AttachmentState.Done ||
+                                input.state ==
+                                AttachmentState.Idle
+                        )
+                            1.0
+                        else
+                            0.6
+                }
+                case Some(AttachmentMedia.Icon(value)) -> actionContent(
+                    value,
+                    ActionContentStyle(
+                        titleStyle.copy { this.color = color },
+                        iconSide,
+                        8.0 * d,
+                        InteractionVisual(),
+                        false
+                    )
+                )
+                case None -> if (busy)
+                    spinner {
+                        this.size = Some(iconSide);
+                        this.color = Some(color);
+                        this.running = input.enabled;
+                        this.theme = input.theme
+                    }
+                else
+                    if (error)
+                        toastIcon(ToastKind.Error, iconSide, color)
+                    else
+                        attachmentFileIcon(iconSide, color)
+            }
+        val mediaFrame =
+            element(
+                AttachmentMediaFrameProps(
+                    when (input.media) {
+                        case Some(AttachmentMedia.Image(_, _)) -> true
+                        else -> false
+                    },
+                    if (error)
+                        p.destructive.background.withAlpha(0.1)
+                    else
+                        p.muted.background,
+                    if (input.size == AttachmentSize.Xs)
+                        6.0 * d
+                    else
+                        8.0 * d
+                ),
+                { current, mount -> AttachmentMediaFrame(current, mount) },
+                [media],
+                key = ViewKey.Number(0L)
+            )
+        val body =
+            element(
+                AttachmentLayoutProps(
+                    input.orientation,
+                    metrics.media * d,
+                    metrics.gap * d,
+                    panelPresent(input.actions),
+                    d
+                ),
+                { current, mount -> AttachmentLayout(current, mount) },
+                [mediaFrame, panelSlot(text, 1L), panelSlot(input.actions ?: empty(), 2L)]
+            )
+        val style =
+            conversationStyle(
+                p.card.background,
+                color,
+                Insets.all(metrics.padding * d),
+                if (input.size == AttachmentSize.Xs)
+                    8.0 * d
+                else
+                    12.0 * d,
+                if (input.state == AttachmentState.Idle)
+                    Color.Transparent
+                else
+                    if (error)
+                        p.destructive.background.withAlpha(0.3)
+                    else
+                        p.border,
+                mixThemeColor(p.card.background, p.muted.background, 0.5),
+                input.focusOutline,
+                input.style
+            )
+        val ring =
+            if (!panelPresent(input.onClick))
+                0.0
+            else
+                theme.surfaceMetrics(
+                    SurfaceVisual(SurfaceKind.Plain),
+                    style.surface,
+                    scope.layoutDirection
+                ).focusOutset
+        return element(
+            AttachmentOutlineProps(
+                input.state == AttachmentState.Idle,
+                p.border,
+                if (input.size == AttachmentSize.Xs)
+                    8.0 * d
+                else
+                    12.0 * d,
+                ring
+            ),
+            { current, mount -> AttachmentOutline(current, mount) },
+            [
+                conversationSurface(
+                    ConversationSurfaceProps(
+                        ButtonContent.Custom(body),
+                        theme,
+                        titleStyle,
+                        style,
+                        input.onClick,
+                        input.enabled,
+                        input.focus,
+                        input.fonts
+                    )
+                )
+            ]
+        )
+    }
+}
+
+internal struct AttachmentMetrics(
+    val media: Double,
+    val gap: Double,
+    val padding: Double,
+    val fontSize: Double
+)
+
+internal fun attachmentMetrics(size: AttachmentSize): AttachmentMetrics =
+    when (size) {
+        case Default -> AttachmentMetrics(40.0, 8.0, 8.0, 14.0)
+        case Sm -> AttachmentMetrics(32.0, 10.0, 6.0, 12.0)
+        case Xs -> AttachmentMetrics(28.0, 6.0, 4.0, 12.0)
+    }
+
+public fun attachment(title: String, configure: AttachmentBuilder.() -> Unit = {}): View =
+    makeAttachment(conversationText(title), configure)
+
+public fun attachment(title: StyledText, configure: AttachmentBuilder.() -> Unit = {}): View =
+    makeAttachment(conversationText(title), configure)
+
+public fun attachment(title: View, configure: AttachmentBuilder.() -> Unit = {}): View =
+    makeAttachment(ButtonContent.Custom(title), configure)
+
+internal fun makeAttachment(title: ButtonContent, configure: AttachmentBuilder.() -> Unit): View {
+    val builder = AttachmentBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(title),
+        { current, mount -> Attachment(current, mount) },
+        builder.key
+    )
+}

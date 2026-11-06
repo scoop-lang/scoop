@@ -1,0 +1,231 @@
+package scoop.tests.ui.table
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal fun nativeTableColumns(p: TableProbe): Array<TableColumn<Long>> =
+    [
+        TableColumn(
+            "name",
+            "Name",
+            { id -> observedTableCell(p, id, 0, label(f"Row ${id % 3L}")) },
+            TableColumnSize(GridTrack.Fixed(160.0), minimum = 80.0, maximum = Some(300.0)),
+            compare = Some { a, b -> (a % 3L - b % 3L).toInt() },
+            filter = Some { id, query -> f"${id % 3L}" == query }
+        ),
+        TableColumn(
+            "edit",
+            "Notes",
+            {
+                id -> observedTableCell(
+                    p,
+                    id,
+                    1,
+                    if (id == 0L)
+                        input(p.editor) {
+                            this.focus = FocusOptions(Some(p.fieldFocus))
+                            this.style {
+                                this.surface {
+                                    this.focus = Some(OutlineStyle(Color(0.1, 0.4, 0.9), 7.0, 7.0))
+                                }
+                            }
+                        }
+                    else
+                        button(f"Action ${id}", { p.actions += 1 }) { this.size = ButtonSize.Sm }
+                )
+            },
+            TableColumnSize(GridTrack.Fixed(220.0), minimum = 140.0)
+        ),
+        TableColumn(
+            "amount",
+            "Amount",
+            { id -> observedTableCell(p, id, 2, label(f"${id}")) },
+            TableColumnSize(GridTrack.Fixed(180.0), minimum = 100.0),
+            alignment = AxisAlignment.End
+        ),
+        TableColumn(
+            "menu",
+            "",
+            {
+                id -> observedTableCell(
+                    p,
+                    id,
+                    3,
+                    if (id == 0L)
+                        dropdownMenu(
+                            p.menuOpen.binding(),
+                            menu {
+                                this.item(ViewKey.Text("action"), "Run action", { p.actions += 1 })
+                            }
+                        ) {
+                            this.trigger("Menu") {
+                                this.size = ButtonSize.Sm;
+                                this.variant = ButtonVariant.Ghost
+                            }
+                        }
+                    else
+                        label("—")
+                )
+            },
+            TableColumnSize(GridTrack.Fixed(80.0), minimum = 60.0),
+            resizable = false
+        )
+    ]
+
+internal class TableScene(private val p: TableProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val content =
+            if (!p.shown)
+                empty()
+            else
+                if (p.finite)
+                    finiteTable(p)
+                else
+                    dataTable(p.model) {
+                        this.bodyHeight = 260.0
+                        this.selection = p.selection
+                        this.columnMenu = false
+                        this.pagination = false
+                        this.horizontal = Some(p.horizontal)
+                        this.vertical = Some(p.vertical)
+                        this.handle = Some(p.handle)
+                        this.enabled = !p.disabled
+                    }
+        return direction(
+            element(
+                generation,
+                { props, scope -> TableRoot(p, props, scope) },
+                [
+                    input(p.filter) {
+                        this.focus = FocusOptions(Some(p.filterFocus));
+                        this.onEdited = { _ -> p.model.setFilter("name", p.filter.committedText) }
+                    },
+                    button("Outside", {}) { this.focus = FocusOptions(Some(p.outsideFocus)) },
+                    observedTableCell(p, -1L, -1, content)
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private fun finiteTable(p: TableProbe): View =
+    table {
+        this.columns =
+            Some(
+                [
+                    TableColumnSize(GridTrack.Auto, samples = ["Invoice"]),
+                    TableColumnSize(GridTrack.Fraction(1.0), minimum = 120.0)
+                ]
+            )
+        this.header {
+            this.row {
+                this.head("Invoice");
+                this.head("Amount") { this.alignment = AxisAlignment.End }
+            }
+        }
+        this.body {
+            this.row(ViewKey.Number(0L)) {
+                this.cell(observedTableCell(p, 100L, 0, label("INV001")));
+                this.cell(observedTableCell(p, 100L, 1, label("25"))) {
+                    this.alignment = AxisAlignment.End
+                }
+            }
+            this.row(ViewKey.Number(1L)) {
+                this.cell(observedTableCell(p, 101L, 0, label("INV002")));
+                this.cell(observedTableCell(p, 101L, 1, button("Pay", { p.actions += 1 })))
+            }
+        }
+        this.footer { this.row { this.cell("Total 50") { this.span = 2L } } }
+        this.caption("Recent invoices")
+    }
+
+private class WindowTableBounds(var rect: Rect)
+
+internal fun observedTableCell(p: TableProbe, row: Long, column: Int, view: View): View =
+    element(Unit, { _, scope -> TableCellProbe(p, row, column, scope) }, [view])
+
+private class TableCellProbe(
+    private val p: TableProbe,
+    row: Long,
+    column: Int,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val record = TableCellObservation(row, column)
+    init {
+        p.cells.add(record);
+        record.mounts += 1;
+        scope.onDispose { record.unmounts += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val observed = WindowTableBounds(rect)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, rect).use {
+                    geometry -> observed.rect = geometry.toWindow(rect)
+                }
+            }
+        }
+        context.children()
+        val generation = p.generation.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                record.bounds = observed.rect
+                record.seen = generation
+                if (record.row == -1L)
+                    p.rootBounds = observed.rect
+            }
+        }
+    }
+}
+
+private class TableRoot(
+    private val p: TableProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(760.0, 640.0))
+        context.measureChild(0L, Constraints(maxWidth = Some(230.0)))
+        context.placeChild(0L, Point(20.0, 15.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(280.0, 15.0))
+        val width =
+            if (p.zero)
+                0.0
+            else
+                size.width - 40.0
+        context.measureChild(2L, Constraints(width, Some(width)))
+        context.placeChild(2L, Point(20.0, 70.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.draw { _ -> p.draws += 1 }
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

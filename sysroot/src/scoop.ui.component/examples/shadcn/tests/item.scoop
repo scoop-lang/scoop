@@ -1,0 +1,287 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ItemWindowTest {
+    @Test
+    fun `items preserve slots and selection while row and child actions keep separate input ownership`() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard()!!
+            try {
+                runItems()
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+    private fun runItems() {
+        val probe = ItemProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.fonts.isClosed)
+            assertFalse(probe.image.isClosed)
+            assertFalse(probe.frames!!.snapshot().attached)
+            for (focus in probe.focus)
+                assertFalse(focus.isAttached)
+            assertEquals(3, probe.mounts)
+            assertEquals(3, probe.disposals)
+        } catch (error: Throwable) {
+            println(
+                f"item phase=${probe.phase}, paints=${probe.paints}, rows=${probe.rows}, actions=${
+                    probe.actions
+                }"
+            )
+            galleryFailure(error)
+            throw error
+        } finally {
+            host.close();
+            probe.view?.close();
+            probe.frames?.close();
+            probe.image.close();
+            probe.fonts.close()
+        }
+    }
+}
+
+internal class ItemProbe {
+    val theme =
+        ThemeSource(
+            shadcnTheme() { tokens { motion { this.preference = MotionPreference.Reduced } } }
+        )
+    val fonts = FontCollection(false)
+    val image = avatarPortrait(false)
+    val focus = [FocusHandle(), FocusHandle(), FocusHandle(), FocusHandle()]
+    val generation = state(0)
+    var selection = Utf8Selection(0L, 0L)
+    var naturalBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var actionBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var footerBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var fillHeaderBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var fillFooterBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var extras = false
+    var narrow = false
+    var rtl = false
+    var actionable = true
+    var enabled = true
+    var alternate = false
+    var gone = false
+    var step = 1
+    var rows = 0
+    var actions = 0
+    var mounts = 0
+    var disposals = 0
+    var phase = 0
+    var paints = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var afterPaint = 0
+    private var quiet: FrameSnapshot? = None
+    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun currentFocus(): FocusHandle =
+        if (alternate)
+            focus[3L]
+        else
+            focus[0L]
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop item test";
+                            this.position = Some(DesktopPosition(80.0, 80.0));
+                            this.size = LogicalSize(520.0, 360.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> ItemScene(this, scope = mount) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("item timeout"))
+                if (native!!.isFocused && (paints > afterPaint || phase == 22))
+                    advance()
+                if (phase < 23)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 23;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        afterPaint = paints
+        when (phase) {
+            case 0 -> {
+                assertTrue(actionBounds.height > 0.0)
+                assertTrue(actionBounds.y >= naturalBounds.y)
+                assertTrue(
+                    actionBounds.y + actionBounds.height <= naturalBounds.y + naturalBounds.height
+                )
+                assertTrue(actionBounds.y + actionBounds.height <= footerBounds.y)
+                assertTrue(fillHeaderBounds.width > 0.0)
+                assertEquals(fillHeaderBounds.width, fillFooterBounds.width)
+                assertTrue(currentFocus().requestFocus())
+            }
+            case 1 -> {
+                assertTrue(currentFocus().hasFocus);
+                assertTrue(currentFocus().isFocusVisible);
+                key(49, " ")
+            }
+            case 2 -> {
+                assertEquals(1, rows);
+                click(420.0, 47.0)
+            }
+            case 3 -> {
+                assertEquals(1, rows);
+                assertEquals(1, actions);
+                click(22.0, 25.0)
+            }
+            case 4 -> {
+                assertEquals(2, rows)
+                assertTrue(moveSurfacePointer(native!!, 34.0, 45.0))
+                assertTrue(view!!.button(34.0, 45.0, true))
+            }
+            case 5 -> assertTrue(moveSurfacePointer(native!!, 170.0, 45.0))
+            case 6 -> assertTrue(view!!.button(170.0, 45.0, false))
+            case 7 -> {
+                assertEquals(2, rows)
+                assertTrue(selection.range.end > selection.range.start)
+                assertTrue(focus[1L].hasFocus)
+                key(0, "a", 8);
+                key(8, "c", 8)
+            }
+            case 8 -> {
+                assertEquals(Some(itemSelectionText), native!!.clipboard.readText())
+                step = 10;
+                alternate = true;
+                extras = true;
+                narrow = true;
+                rtl = true
+                theme.current.value =
+                    shadcnTheme(ThemeMode.Dark) {
+                        tokens { motion { this.preference = MotionPreference.Reduced } }
+                    }
+            }
+            case 9 -> {
+                assertEquals(1, mounts)
+                assertEquals(0L, selection.range.start);
+                assertEquals(itemSelectionText.byteLength, selection.range.end)
+                assertTrue(focus[1L].hasFocus);
+                assertFalse(focus[0L].isAttached)
+                assertTrue(currentFocus().requestFocus())
+            }
+            case 10 -> {
+                assertTrue(currentFocus().hasFocus);
+                key(36, "\r")
+            }
+            case 11 -> {
+                assertEquals(12, rows);
+                enabled = false
+            }
+            case 12 -> {
+                for (handle in focus)
+                    assertFalse(handle.hasFocus)
+                assertFalse(focus[2L].requestFocus());
+                click(22.0, 25.0)
+            }
+            case 13 -> {
+                assertEquals(12, rows);
+                actionable = false;
+                enabled = true
+            }
+            case 14 -> {
+                assertFalse(currentFocus().isAttached);
+                assertEquals(2, mounts);
+                assertTrue(focus[2L].requestFocus())
+            }
+            case 15 -> {
+                assertTrue(focus[2L].hasFocus);
+                key(49, " ")
+            }
+            case 16 -> {
+                assertEquals(11, actions);
+                assertEquals(12, rows);
+                enabled = false
+            }
+            case 17 -> {
+                assertFalse(focus[2L].hasFocus);
+                assertFalse(focus[2L].requestFocus());
+                enabled = true;
+                actionable = true
+            }
+            case 18 -> {
+                assertEquals(3, mounts);
+                assertTrue(currentFocus().requestFocus())
+            }
+            case 19 -> {
+                assertTrue(currentFocus().hasFocus);
+                assertTrue(sendSurfaceKey(native!!, 49, true));
+                enabled = false
+            }
+            case 20 -> {
+                assertTrue(sendSurfaceKey(native!!, 49, false));
+                assertEquals(12, rows);
+                gone = true
+            }
+            case 21 -> {
+                assertEquals(3, disposals)
+                for (handle in focus)
+                    assertFalse(handle.isAttached)
+                assertFalse(frames!!.snapshot().required)
+                quiet = Some(frames!!.snapshot())
+            }
+            case 22 -> {
+                assertEquals(quiet!!, frames!!.snapshot());
+                native!!.requestDestroy()
+            }
+            else -> fail(Some("invalid item phase"))
+        }
+        if (phase < 21)
+            generation.value += 1
+        phase += 1
+    }
+    private fun key(code: Int, text: String, flags: Int = 0) {
+        assertEquals(0, galleryKey(native!!, code, text, flags))
+    }
+    private fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y));
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(70L))
+        )
+    }
+}

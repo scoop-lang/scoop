@@ -1,0 +1,250 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as navMenuRow
+
+internal class NavPanelInput(
+    val root: NavMenuControl,
+    val key: ViewKey,
+    val panel: NavigationMenuPanelProps,
+    val focus: FocusHandle
+)
+
+internal class NavPanelControl(val props: Props<NavPanelInput>) {
+    val anchor = LayoutAnchor()
+    val layer = OverlayHandle()
+    val link = HoverPopupLink()
+    val keyboard = state(false)
+    val contentFocused = state(false)
+    var contentFocus: FocusScope? = None
+    var wasOpen = false
+    private var hoverSession = false
+    val input: NavigationMenuProps get() = props.value.root.props.value
+    val enabled: Boolean get() = input.enabled && props.value.panel.trigger.enabled
+    val opened: Boolean get() = enabled && props.value.root.open == Some(props.value.key)
+    val hoverOpen =
+        binding(
+            { opened && hoverSession },
+            {
+                value -> if (value)
+                    show(false)
+                else
+                    if (opened)
+                        layer.requestClose()
+            }
+        )
+    val portalOpen =
+        binding(
+            { opened },
+            {
+                value -> if (value)
+                    show(false)
+                else
+                    if (props.value.root.open == Some(props.value.key)) {
+                        props.value.root.setOpen(None)
+                        if (!opened)
+                            link.dismiss()
+                    }
+            }
+        )
+    fun show(focus: Boolean) {
+        if (!enabled)
+            return
+        if (!focus)
+            hoverSession = true
+        if (!opened)
+            keyboard.value = focus
+        props.value.root.setOpen(Some(props.value.key))
+        if (opened && focus)
+            contentFocus?.requestFocus()
+    }
+    fun toggle() {
+        if (!enabled)
+            return
+        if (opened)
+            layer.requestClose()
+        else
+            show(props.value.focus.isFocusVisible)
+    }
+    fun update() {
+        if (wasOpen && !opened) {
+            keyboard.value = false
+            hoverSession = false
+            link.dismiss()
+        }
+        wasOpen = opened
+    }
+    fun hoverOptions(): HoverOptions {
+        val base = input.hover
+        return HoverOptions(
+            base.openDelay,
+            base.closeDelay,
+            base.transitDelay,
+            base.corridorPadding,
+            base.focus || contentFocused.value,
+            base.enabled && enabled
+        )
+    }
+}
+
+internal class NavMenuPanel(
+    private val props: Props<NavPanelInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control = NavPanelControl(props)
+    public override fun render(): View {
+        val control = this.control
+        val p = props.value
+        val root = control.input
+        val theme = p.root.themes.read(root.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val opened = control.opened
+        val input = p.panel
+        val spec = input.trigger
+        val motion =
+            theme.tokens.motion.resolve(
+                root.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(350L))))
+            )
+        val exit =
+            theme.tokens.motion.resolve(
+                root.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(150L))))
+            )
+        val turn =
+            theme.tokens.motion.resolve(
+                root.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(300L))))
+            )
+        val label =
+            navigationLabel(
+                spec.content,
+                if (panelPresent(spec.fonts))
+                    spec.fonts
+                else
+                    root.fonts
+            )
+        val trigger =
+            component(
+                ButtonProps(
+                    ButtonContent.Resolved {
+                        content -> navMenuRow {
+                            this.item(actionContent(label, content))
+                            this.item(
+                                element(
+                                    NavChevronProps(
+                                        opened,
+                                        control.enabled,
+                                        12.0 * d,
+                                        content.text.color,
+                                        turn,
+                                        root.orientation == FlexAxis.Vertical
+                                    ),
+                                    { current, mount -> NavChevron(current, scope = mount) }
+                                )
+                            ) { shrink = 0.0 }
+                            spacing = 4.0 * d;
+                            alignment = CrossAlignment.Center
+                        }
+                    },
+                    { control.toggle() },
+                    control.enabled,
+                    navMenuStyle(theme, spec.style, opened, false, true),
+                    root.theme,
+                    choiceFocus(spec.focus, p.focus),
+                    variant = spec.variant,
+                    size = spec.size
+                ),
+                { current, mount -> Button(current, scope = mount) }
+            )
+        val palette = theme.tokens.palette
+        val popup =
+            portal(
+                control.portalOpen,
+                element(
+                    PopupMotionProps(control.enabled, 0.0, minimumScale = 0.9),
+                    { current, mount -> PopupMotion(current, scope = mount) },
+                    [
+                        element(
+                            control,
+                            { current, mount -> NavPanelContent(current, scope = mount) },
+                            [
+                                panelFrame(
+                                    input.content,
+                                    Insets.all(4.0 * d),
+                                    styleOverride {
+                                        background(Some(Paint(palette.popover.background)))
+                                        border(
+                                            Some(
+                                                Border.all(
+                                                    1.0,
+                                                    palette.background.foreground.withAlpha(0.1)
+                                                )
+                                            )
+                                        )
+                                        corners(Corners.all(8.0 * d));
+                                        boxShadows(theme.tokens.effects.floating)
+                                    }.then(root.popupStyle).then(input.style),
+                                    Some(input.width * d)
+                                )
+                            ]
+                        )
+                    ]
+                )
+            ) {
+                placement =
+                    OverlayPlacement.Anchored(
+                        if (root.viewport)
+                            p.root.anchor
+                        else
+                            control.anchor,
+                        if (root.orientation == FlexAxis.Horizontal)
+                            OverlaySide.Bottom
+                        else
+                            OverlaySide.End,
+                        root.alignment,
+                        root.gap * d,
+                        root.viewportPadding * d
+                    )
+                handle = Some(control.layer)
+                focus =
+                    Some(
+                        OverlayFocusOptions(
+                            input.initialFocus,
+                            autoFocus = control.keyboard.value,
+                            restoreTarget = Some(p.focus)
+                        )
+                    )
+                dismiss = OverlayDismiss(true, OutsidePress.CloseAndContinue, true)
+                transition =
+                    PresenceOptions(
+                        motion,
+                        if (p.root.open != None && !opened)
+                            None
+                        else
+                            exit
+                    )
+                onCloseRequest =
+                    { reason -> control.input.onCloseRequest(control.props.value.key, reason) }
+                onClosed = { reason -> control.input.onClosed(control.props.value.key, reason) }
+            }
+        return element(
+            control,
+            { current, mount -> NavPanelEvents(current, scope = mount) },
+            [
+                element(
+                    HoverPopupLayoutProps(
+                        control.anchor,
+                        control.link,
+                        control.hoverOpen,
+                        control.hoverOptions(),
+                        false
+                    ),
+                    { current, mount -> HoverPopupLayout(current, scope = mount) },
+                    [trigger, popup]
+                )
+            ]
+        )
+    }
+}

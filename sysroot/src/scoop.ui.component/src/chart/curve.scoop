@@ -1,0 +1,113 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartRuns(samples: Array<ChartSample?>, connect: Boolean): Array<Array<ChartSample>> {
+    val result = ArrayList<Array<ChartSample>>()
+    var run = ArrayList<ChartSample>()
+    for (sample in samples)
+        when (sample) {
+            case Some(value) -> run.add(value)
+            case None -> if (!connect && run.size > 0L) {
+                result.add(run.toArray());
+                run = ArrayList<ChartSample>()
+            }
+        }
+    if (run.size > 0L)
+        result.add(run.toArray())
+    return result.toArray()
+}
+
+/** Steffen tangents as used by d3-shape's monotone curve. See LICENSE-D3. */
+internal fun chartSlope(left: Point, middle: Point, right: Point): Double {
+    val h0 = middle.x - left.x;
+    val h1 = right.x - middle.x
+    if (h0 == 0.0 || h1 == 0.0 || h0 + h1 == 0.0)
+        return 0.0
+    val s0 = (middle.y - left.y) / h0;
+    val s1 = (right.y - middle.y) / h1
+    val p = (s0 * h1 + s1 * h0) / (h0 + h1)
+    val sign0 =
+        if (s0 < 0.0)
+            -1.0
+        else
+            1.0
+    val sign1 =
+        if (s1 < 0.0)
+            -1.0
+        else
+            1.0
+    return (sign0 + sign1) * upperBound(upperBound(abs(s0), abs(s1)), abs(p) * 0.5)
+}
+
+internal fun chartTrace(
+    path: PathBuilder,
+    points: Array<Point>,
+    curve: ChartCurve,
+    horizontal: Boolean,
+    move: Boolean = true
+) {
+    if (points.size == 0L)
+        return
+    val values =
+        Array<Point>(points.size) {
+            at -> if (horizontal)
+                Point(points[at].y, points[at].x)
+            else
+                points[at]
+        }
+    fun mapped(point: Point): Point =
+        if (horizontal)
+            Point(point.y, point.x)
+        else
+            point
+    if (move)
+        path.moveTo(points[0L])
+    else
+        path.lineTo(points[0L])
+    var monotone = curve == ChartCurve.Monotone && values.size > 2L
+    val delta =
+        if (values.size > 1L)
+            values[1L].x - values[0L].x
+        else
+            0.0
+    for (at in 1L ..< values.size)
+        if ((values[at].x - values[at - 1L].x) * delta <= 0.0)
+            monotone = false
+    val slopes = MutableArray<Double>(values.size) { _ -> 0.0 }
+    if (monotone) {
+        for (at in 1L ..< values.size - 1L)
+            slopes[at] = chartSlope(values[at - 1L], values[at], values[at + 1L])
+        slopes[0L] =
+            (3.0 * (values[1L].y - values[0L].y) / (values[1L].x - values[0L].x) - slopes[1L]) / 2.0
+        val last = values.size - 1L
+        slopes[last] =
+            (
+                3.0 *
+                    (values[last].y - values[last - 1L].y) /
+                    (values[last].x - values[last - 1L].x) -
+                    slopes[last - 1L]
+            ) /
+                2.0
+    }
+    for (at in 1L ..< values.size) {
+        val left = values[at - 1L];
+        val right = values[at]
+        if (monotone) {
+            val dx = (right.x - left.x) / 3.0
+            path.cubicTo(
+                mapped(Point(left.x + dx, left.y + dx * slopes[at - 1L])),
+                mapped(Point(right.x - dx, right.y - dx * slopes[at])),
+                mapped(right)
+            )
+        } else
+            if (curve == ChartCurve.Step) {
+                val middle = left.x / 2.0 + right.x / 2.0
+                path.lineTo(mapped(Point(middle, left.y)))
+                path.lineTo(mapped(Point(middle, right.y)))
+                path.lineTo(mapped(right))
+            } else
+                path.lineTo(mapped(right))
+    }
+}

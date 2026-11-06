@@ -1,0 +1,242 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.style.*
+
+internal class SelectionExamplesModel {
+    val choices = [state(true), state(false), state(false)]
+    val checkTargets = [FieldTarget(), FieldTarget(), FieldTarget(), FieldTarget()]
+    val switches = [state(false), state(true), state(false), state(true), state(false), state(true)]
+    val switchTargets =
+        [FieldTarget(), FieldTarget(), FieldTarget(), FieldTarget(), FieldTarget(), FieldTarget()]
+    val toggles =
+        [
+            state(false),
+            state(true),
+            state(false),
+            state(true),
+            state(false),
+            state(true),
+            state(false),
+            state(false),
+            state(true)
+        ]
+    val enabled = state(true)
+    fun all(): Binding<CheckState> =
+        binding(
+            {
+                var selected = 0
+                for (choice in choices)
+                    if (choice.value)
+                        selected += 1
+                if (selected == 0)
+                    CheckState.Unchecked
+                else
+                    if (selected == 3)
+                        CheckState.Checked
+                    else
+                        CheckState.Indeterminate
+            },
+            {
+                next -> for (choice in choices)
+                    choice.value = next == CheckState.Checked
+            }
+        )
+}
+
+internal fun checkboxGroupExamples(model: SelectionExamplesModel): View =
+    makeColumn {
+        this.typography("Select notifications", TypographyRole.H3)
+        this.row {
+            this.checkbox(model.all()) {
+                this.labelTarget = Some(model.checkTargets[0L]);
+                this.enabled = model.enabled.value
+            }
+            this.fieldLabel("Select all", model.checkTargets[0L])
+            this.alignment = CrossAlignment.Center
+            this.spacing = 8.0
+        }
+        val titles = ["Product updates", "Security reports", "Weekly digest"]
+        for (index in 0L ..< 3L)
+            this.row {
+                this.checkbox(model.choices[index].binding()) {
+                    this.labelTarget = Some(model.checkTargets[index + 1L]);
+                    this.enabled = model.enabled.value
+                }
+                this.fieldLabel(titles[index], model.checkTargets[index + 1L])
+                this.alignment = CrossAlignment.Center
+                this.padding = Insets(24.0, 0.0, 0.0, 0.0)
+                this.spacing = 8.0
+            }
+        this.button(
+            if (model.enabled.value)
+                "Disable group"
+            else
+                "Enable group",
+            { model.enabled.value = !model.enabled.value }
+        ) { this.variant = ButtonVariant.Outline }
+        this.typography(
+            "A partial selection shows Mixed. Activate Select all to check every option; activate it again to clear them.",
+            TypographyRole.Muted
+        )
+        this.spacing = 12.0
+    }
+
+internal fun switchExamples(model: GalleryModel): View =
+    makeColumn {
+        this.typography("Switch", TypographyRole.H1)
+        this.typography(
+            "A shared value drives the track and thumb. Click its label or press Space.",
+            TypographyRole.Lead
+        )
+        for (index in 0L ..< 6L)
+            this.row {
+                this.switchControl(model.selection.switches[index].binding()) {
+                    this.size =
+                        if (index == 1L || index == 3L || index == 5L)
+                            SwitchSize.Sm
+                        else
+                            SwitchSize.Default
+                    this.invalid = index == 2L || index == 3L
+                    this.enabled = index < 4L
+                    this.labelTarget = Some(model.selection.switchTargets[index])
+                }
+                this.fieldLabel(
+                    [
+                        "Airplane mode · default",
+                        "Notifications · small",
+                        "Invalid · default",
+                        "Invalid · small",
+                        "Disabled · default",
+                        "Disabled · small"
+                    ][index],
+                    model.selection.switchTargets[index]
+                )
+                this.spacing = 20.0
+                this.alignment = CrossAlignment.Center
+                this.padding = Insets.all(8.0)
+            }
+        this.button(
+            if (model.reduced.value)
+                "Use full motion"
+            else
+                "Reduce motion",
+            { model.toggleMotion() }
+        ) { this.variant = ButtonVariant.Outline }
+        this.typography(
+            "Theme and RTL changes preserve every value. The hit area extends beyond the track without changing its layout size.",
+            TypographyRole.Muted
+        )
+        this.spacing = 24.0
+        this.padding = Insets.all(12.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun toggleExamples(model: SelectionExamplesModel): View =
+    makeColumn {
+        this.typography("Toggle", TypographyRole.H1)
+        this.typography(
+            "Selected state survives pointer release. Space and Enter change the same binding.",
+            TypographyRole.Lead
+        )
+        for (variantIndex in 0L ..< 2L)
+            this.row {
+                for (sizeIndex in 0L ..< 3L)
+                    this.toggle(
+                        ["Small", "Default", "Large"][sizeIndex],
+                        model.toggles[variantIndex * 3L + sizeIndex].binding()
+                    ) {
+                        this.variant =
+                            if (variantIndex == 0L)
+                                ToggleVariant.Default
+                            else
+                                ToggleVariant.Outline
+                        this.size = [ToggleSize.Sm, ToggleSize.Default, ToggleSize.Lg][sizeIndex]
+                    }
+                this.spacing = 12.0
+                this.alignment = CrossAlignment.Center
+            }
+        this.row {
+            this.toggle(
+                { appearance: ActionContentStyle -> visibilityIcon(appearance) },
+                model.toggles[6L].binding()
+            ) { this.variant = ToggleVariant.Outline }
+            this.toggle(
+                {
+                    appearance: ActionContentStyle -> makeRow {
+                        this.add(visibilityIcon(appearance))
+                        this.label(
+                            styledText {
+                                this.style = appearance.text;
+                                this.text("Show preview")
+                            }
+                        )
+                        this.spacing = appearance.spacing
+                        this.alignment = CrossAlignment.Center
+                    }
+                },
+                model.toggles[7L].binding()
+            ) { this.variant = ToggleVariant.Outline }
+            this.toggle("Invalid", model.toggles[8L].binding()) {
+                this.invalid = true;
+                this.variant = ToggleVariant.Outline
+            }
+            this.toggle("Disabled", model.toggles[8L].binding()) { this.enabled = false }
+            this.spacing = 12.0
+            this.alignment = CrossAlignment.Center
+        }
+        this.card(
+            makeColumn {
+                if (model.toggles[7L].value)
+                    this.label("This content follows the same selected value.")
+            }
+        ) {
+            this.title("Preview")
+            this.description(
+                if (model.toggles[7L].value)
+                    "The preview is visible."
+                else
+                    "Use Show preview to reveal the content."
+            )
+        }
+        this.spacing = 24.0
+        this.padding = Insets.all(12.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+internal fun visibilityIcon(appearance: ActionContentStyle): View =
+    element(appearance, { current, mount -> VisibilityIcon(current, scope = mount) })
+
+private class VisibilityIcon(
+    private val props: Props<ActionContentStyle>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.iconSize, props.value.iconSize))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        val color = props.value.text.color
+        context.draw {
+            paint ->
+            paint.canvas.drawOval(
+                Rect(1.0, size.height * 0.2, size.width - 2.0, size.height * 0.6),
+                Paint(color, PaintingStyle.Stroke, 1.5)
+            )
+            paint.canvas.drawCircle(
+                Point(size.width / 2.0, size.height / 2.0),
+                size.width * 0.15,
+                Paint(color)
+            )
+        }
+    }
+}

@@ -1,0 +1,151 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+/** Editing controls use this route owner; active metadata never becomes a focus owner. */
+internal class CandidateNavigationProps(
+    val source: () -> NavigationSource,
+    val query: TextEditorState,
+    val active: Binding<ViewKey?>,
+    val focus: FocusHandle,
+    val enabled: Boolean,
+    val loop: Boolean,
+    val autoHighlight: Boolean,
+    val reveal: (ViewKey) -> Boolean,
+    val select: (ViewKey) -> Unit,
+    val navigationEnabled: Boolean = true
+)
+
+internal class CandidateNavigation(
+    private val props: Props<CandidateNavigationProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var navigation: ActiveItems? = None
+    private var owner: ComponentScope? = None
+    private var previous: NavigationSource? = None
+    private var revealed: ViewKey? = None
+    private fun options(): ActiveItemOptions {
+        val input = props.value
+        return ActiveItemOptions(
+            loop = input.loop,
+            enabled =
+                input.enabled &&
+                    input.navigationEnabled &&
+                    input.focus.hasFocus &&
+                    !input.query.isComposing
+        )
+    }
+    public override fun onMount() {
+        owner = Some(scope)
+        val input = props.value
+        navigation =
+            Some(
+                scope.activeItems(input.source(), input.active, options()) {
+                    key -> props.value.reveal(key)
+                }
+            )
+        scope.input.captureHandler = { context, event -> handle(context, event) }
+        reconcile()
+    }
+    private fun reconcile() {
+        val input = props.value
+        val source = input.source()
+        when (previous) {
+            case Some(value) -> if (value !== source)
+                revealed = None;
+            case None -> {}
+        }
+        previous = Some(source)
+        navigation!!.update(source, input.active, Some(options()))
+        if (
+            input.enabled &&
+                input.navigationEnabled &&
+                input.autoHighlight &&
+                input.active.value ==
+                None
+        ) {
+            for (index in 0L ..< source.count)
+                if (source.enabledAt(index)) {
+                    navigation!!.setActive(Some(source.keyAt(index)))
+                    break
+                }
+        }
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (context.defaultPrevented)
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value;
+                else -> return
+            }
+        reconcile()
+        val input = props.value
+        if (!input.enabled || !input.focus.hasFocus || !menuKeyAllowed(key))
+            return
+        if (input.query.isComposing) {
+            // Native IME interpretation already ran. Do not turn a forwarded candidate key
+            // into an editor movement/submission that commits the still-active preedit.
+            val logical = key.logicalKey
+            if (
+                logical ==
+                    LogicalKey.Named(NamedKey.Enter) ||
+                    logical ==
+                    LogicalKey.Named(NamedKey.ArrowUp) ||
+                    logical ==
+                    LogicalKey.Named(NamedKey.ArrowDown) ||
+                    logical ==
+                    LogicalKey.Named(NamedKey.Home) ||
+                    logical ==
+                    LogicalKey.Named(NamedKey.End)
+            )
+                context.consume()
+            return
+        }
+        if (!input.navigationEnabled)
+            return
+        if (key.logicalKey == LogicalKey.Named(NamedKey.Enter)) {
+            context.consume()
+            if (!key.isRepeat)
+                when (input.active.value) {
+                    case Some(active) -> input.select(active)
+                    case None -> {}
+                }
+        } else
+            navigation!!.handle(context, event)
+    }
+    public override fun update(): UiInvalidation {
+        reconcile()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val active = props.value.active.value
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    owner!!.isMounted &&
+                    active !=
+                    revealed
+            ) {
+                when (active) {
+                    case Some(key) -> if (props.value.reveal(key))
+                        revealed = active
+                    case None -> revealed = None
+                }
+            }
+        }
+        context.children()
+    }
+}

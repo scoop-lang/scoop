@@ -1,0 +1,335 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+private fun questionOne(enabled: Boolean = true): Question =
+    Question(
+        QuestionKey("plan"),
+        "Plan",
+        QuestionKind.Single,
+        enabled = enabled,
+        choices =
+            [
+                QuestionChoice(QuestionChoiceKey("basic"), "Basic"),
+                QuestionChoice(QuestionChoiceKey("disabled"), "Unavailable", enabled = false),
+                QuestionChoice(QuestionChoiceKey("pro"), "Pro")
+            ],
+        freeform = Some(QuestionFreeform())
+    )
+
+private fun questionTwo(): Question =
+    Question(
+        QuestionKey("files"),
+        "Files",
+        QuestionKind.Multiple,
+        required = false,
+        choices =
+            [
+                QuestionChoice(QuestionChoiceKey("logs"), "Logs"),
+                QuestionChoice(QuestionChoiceKey("images"), "Images")
+            ],
+        freeform = Some(QuestionFreeform())
+    )
+
+private fun questionThree(enabled: Boolean = true, allowBlank: Boolean = false): Question =
+    Question(
+        QuestionKey("note"),
+        "Note",
+        QuestionKind.Freeform,
+        enabled = enabled,
+        freeform = Some(QuestionFreeform(allowBlank = allowBlank))
+    )
+
+private fun questionText(state: QuestionnaireState, key: String, text: String) {
+    state.editor(QuestionKey(key))!!.replaceAll(text)
+    state.textEdited(QuestionKey(key))
+}
+
+private fun singleQuestionChoice(answer: QuestionnaireAnswer): String =
+    when (answer) {
+        case Single(QuestionAnswer.Choice(key)) -> key.value;
+        else -> ""
+    }
+
+@Test
+private class QuestionnaireModelTest {
+    @Test
+    fun `required optional and explicitly skipped are distinct throughout navigation and submission`() {
+        val state = QuestionnaireState([questionOne(), questionTwo(), questionThree()])
+        assertEquals(QuestionnaireProgress(1L, 3L), state.progress)
+        assertFalse(state.skip())
+        assertFalse(state.next())
+        assertTrue(state.issue(QuestionKey("plan")) != None)
+        assertFalse(state.select(QuestionKey("plan"), QuestionChoiceKey("disabled")))
+        assertTrue(state.select(QuestionKey("plan"), QuestionChoiceKey("basic")))
+        assertFalse(state.select(QuestionKey("plan"), QuestionChoiceKey("basic")))
+        assertTrue(state.next())
+        assertEquals(Some(QuestionKey("files")), state.activeKey)
+        assertFalse(state.next())
+        assertTrue(state.previous())
+        assertEquals("basic", singleQuestionChoice(state.answer(QuestionKey("plan"))))
+        state.next()
+        assertTrue(state.skip())
+        assertTrue(questionSkipped(state.answer(QuestionKey("files"))))
+        assertFalse(panelPresent(state.submit()))
+        assertEquals(Some(QuestionKey("note")), state.activeKey)
+        questionText(state, "note", "保留草稿")
+        val result = state.submit()!!
+        assertEquals(3L, result.answers.size)
+        assertEquals(QuestionKey("note"), result.answers[2L].key)
+        assertTrue(questionSkipped(result.answers[1L].answer))
+    }
+
+    @Test
+    fun `single freeform is exclusive and multiple answers keep declaration order without losing drafts`() {
+        val state = QuestionnaireState([questionOne(), questionTwo()])
+        state.select(QuestionKey("plan"), QuestionChoiceKey("pro"))
+        state.selectText(QuestionKey("plan"))
+        assertFalse(state.isSelected(QuestionKey("plan"), QuestionChoiceKey("pro")))
+        assertFalse(state.validateCurrent())
+        questionText(state, "plan", "Custom plan")
+        state.select(QuestionKey("plan"), QuestionChoiceKey("basic"))
+        assertFalse(state.usesText(QuestionKey("plan")))
+        assertEquals("Custom plan", state.editor(QuestionKey("plan"))!!.text)
+        state.next()
+        state.select(QuestionKey("files"), QuestionChoiceKey("images"))
+        state.select(QuestionKey("files"), QuestionChoiceKey("logs"))
+        state.selectText(QuestionKey("files"))
+        questionText(state, "files", "  ")
+        assertFalse(panelPresent(state.submit()))
+        questionText(state, "files", "音频")
+        val result = state.submit()!!
+        when (result.answers[1L].answer) {
+            case Multiple(answers) -> {
+                assertEquals(3L, answers.size)
+                assertTrue(answers[0L] == QuestionAnswer.Choice(QuestionChoiceKey("logs")))
+                assertTrue(answers[1L] == QuestionAnswer.Choice(QuestionChoiceKey("images")))
+                assertTrue(answers[2L] == QuestionAnswer.Text("音频"))
+            }
+            else -> fail(Some("expected multiple answer"))
+        }
+        state.selectText(QuestionKey("files"))
+        assertFalse(state.usesText(QuestionKey("files")))
+        assertEquals("音频", state.editor(QuestionKey("files"))!!.text)
+    }
+
+    @Test
+    fun `reordering and conditional questions preserve their own editor and exclude disabled results`() {
+        val state = QuestionnaireState([questionOne(), questionTwo(), questionThree()])
+        state.select(QuestionKey("plan"), QuestionChoiceKey("pro"))
+        questionText(state, "note", "中文备注")
+        val editor = state.editor(QuestionKey("note"))!!
+        state.activate(QuestionKey("note"))
+        state.replaceQuestions([questionThree(false), questionTwo(), questionOne()])
+        assertTrue(state.editor(QuestionKey("note"))!! === editor)
+        assertEquals(Some(QuestionKey("files")), state.activeKey)
+        assertEquals(QuestionnaireProgress(1L, 2L), state.progress)
+        state.skip()
+        val result = state.submit()!!
+        assertEquals(2L, result.answers.size)
+        assertEquals("pro", singleQuestionChoice(result.answers[1L].answer))
+        state.replaceQuestions([questionThree(), questionOne()])
+        assertEquals("中文备注", editor.text)
+        assertTrue(state.editor(QuestionKey("note"))!! === editor)
+        assertEquals(2L, state.submit()!!.answers.size)
+        assertFailsWith<IllegalArgumentException> { state.editor(QuestionKey("files")) }
+    }
+
+    @Test
+    fun `snapshot excludes preedit and restore becomes reset baseline with fresh edit history`() {
+        val state = QuestionnaireState([questionOne(), questionTwo()])
+        state.select(QuestionKey("plan"), QuestionChoiceKey("pro"))
+        val editor = state.editor(QuestionKey("plan"))!!
+        editor.replace(Utf8Range(0L, 0L), "未选中的草稿")
+        editor.applyInput(
+            TextInputBatch(
+                None,
+                [TextInputOperation.Preedit("候选", None, TextReplacement.CurrentSelection)]
+            )
+        )
+        assertTrue(editor.isComposing)
+        val saved = state.snapshot()
+        assertEquals(Some("未选中的草稿"), saved.drafts[0L].text)
+        assertFalse(saved.drafts[0L].useText)
+        state.restore(saved)
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        state.selectText(QuestionKey("plan"))
+        questionText(state, "plan", "changed")
+        state.activate(QuestionKey("files"))
+        state.skip()
+        state.reset()
+        assertEquals(Some(QuestionKey("plan")), state.activeKey)
+        assertEquals("pro", singleQuestionChoice(state.answer(QuestionKey("plan"))))
+        assertEquals("未选中的草稿", editor.text)
+        assertTrue(questionUnanswered(state.answer(QuestionKey("files"))))
+        assertFalse(editor.canRedo)
+    }
+
+    @Test
+    fun `invalid restore is atomic and reset projects its baseline onto current definitions`() {
+        val state = QuestionnaireState([questionOne(), questionTwo()])
+        state.select(QuestionKey("plan"), QuestionChoiceKey("basic"))
+        state.restore(state.snapshot())
+        for (
+            draft in [
+                QuestionDraft(QuestionKey("missing"), QuestionKind.Single),
+                QuestionDraft(QuestionKey("plan"), QuestionKind.Multiple),
+                QuestionDraft(QuestionKey("plan"), QuestionKind.Single, skipped = true),
+                QuestionDraft(
+                    QuestionKey("plan"),
+                    QuestionKind.Single,
+                    [QuestionChoiceKey("disabled")]
+                ),
+                QuestionDraft(
+                    QuestionKey("plan"),
+                    QuestionKind.Single,
+                    [QuestionChoiceKey("basic"), QuestionChoiceKey("pro")]
+                ),
+                QuestionDraft(
+                    QuestionKey("plan"),
+                    QuestionKind.Single,
+                    [QuestionChoiceKey("basic")],
+                    true,
+                    Some("both")
+                )
+            ]
+        ) {
+            assertFailsWith<IllegalArgumentException> {
+                state.restore(QuestionnaireSnapshot([draft]))
+            }
+            assertEquals("basic", singleQuestionChoice(state.answer(QuestionKey("plan"))))
+        }
+        state.replaceQuestions([questionThree(), questionOne()])
+        questionText(state, "note", "new")
+        state.select(QuestionKey("plan"), QuestionChoiceKey("pro"))
+        state.reset()
+        assertEquals("basic", singleQuestionChoice(state.answer(QuestionKey("plan"))))
+        assertEquals("", state.editor(QuestionKey("note"))!!.text)
+        assertTrue(state.issue(QuestionKey("plan")) == None)
+    }
+
+    @Test
+    fun `external errors locate the first enabled question and editing only clears that question`() {
+        val state = QuestionnaireState([questionOne(), questionThree()])
+        state.select(QuestionKey("plan"), QuestionChoiceKey("basic"))
+        questionText(state, "note", "ready")
+        state.setErrors(
+            [
+                QuestionnaireError(QuestionKey("note"), "Try another note"),
+                QuestionnaireError(QuestionKey("plan"), "Plan is full")
+            ]
+        )
+        assertEquals(Some(QuestionKey("plan")), state.activeKey)
+        state.select(QuestionKey("plan"), QuestionChoiceKey("pro"))
+        assertTrue(state.issue(QuestionKey("plan")) == None)
+        assertFalse(panelPresent(state.submit()))
+        assertEquals(Some(QuestionKey("note")), state.activeKey)
+        state.replaceQuestions([questionOne(), questionThree(false)])
+        assertEquals(1L, state.submit()!!.answers.size)
+        state.replaceQuestions([questionOne(), questionThree()])
+        assertFalse(panelPresent(state.submit()))
+        questionText(state, "note", "corrected")
+        assertEquals(2L, state.submit()!!.answers.size)
+    }
+
+    @Test
+    fun `blank rules local validators removed choices and kind changes use current definitions`() {
+        val state = QuestionnaireState([questionThree(allowBlank = true)])
+        assertEquals(1L, state.submit()!!.answers.size)
+        state.replaceQuestions(
+            [
+                Question(
+                    QuestionKey("note"),
+                    "Validated",
+                    QuestionKind.Freeform,
+                    freeform = Some(QuestionFreeform()),
+                    validate =
+                        {
+                            answer -> when (answer) {
+                                case Single(QuestionAnswer.Text("yes")) -> None;
+                                else -> Some("Enter yes")
+                            }
+                        }
+                )
+            ]
+        )
+        questionText(state, "note", "no")
+        assertFalse(panelPresent(state.submit()))
+        assertTrue(
+            state.issue(QuestionKey("note")) == Some(QuestionnaireIssueKind.Message("Enter yes"))
+        )
+        questionText(state, "note", "yes")
+        assertEquals(1L, state.submit()!!.answers.size)
+        state.replaceQuestions(
+            [
+                Question(
+                    QuestionKey("note"),
+                    "Different kind",
+                    QuestionKind.Single,
+                    choices = [QuestionChoice(QuestionChoiceKey("a"), "A")]
+                )
+            ]
+        )
+        assertTrue(questionUnanswered(state.answer(QuestionKey("note"))))
+        state.select(QuestionKey("note"), QuestionChoiceKey("a"))
+        state.replaceQuestions(
+            [
+                Question(
+                    QuestionKey("note"),
+                    "Unavailable answer",
+                    QuestionKind.Single,
+                    choices = [QuestionChoice(QuestionChoiceKey("a"), "A", enabled = false)]
+                )
+            ]
+        )
+        assertFalse(panelPresent(state.submit()))
+    }
+
+    @Test
+    fun `empty enabled set submits an empty result and malformed definitions fail at their boundary`() {
+        val state = QuestionnaireState([questionOne(false), questionThree(false)])
+        assertEquals(QuestionnaireProgress(0L, 0L), state.progress)
+        assertTrue(state.activeKey == None)
+        assertEquals(0L, state.submit()!!.answers.size)
+        assertFalse(state.previous())
+        assertFalse(state.next())
+        assertFalse(state.skip())
+        assertFailsWith<IllegalArgumentException> {
+            QuestionnaireState([questionOne(), questionOne()])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            Question(QuestionKey("bad"), "Bad", QuestionKind.Freeform)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            Question(
+                QuestionKey("bad"),
+                "Bad",
+                QuestionKind.Single,
+                choices =
+                    [
+                        QuestionChoice(QuestionChoiceKey("a"), "A"),
+                        QuestionChoice(QuestionChoiceKey("a"), "Again")
+                    ]
+            )
+        }
+        assertEquals("1", questionShortcut(0L))
+        assertEquals("a", questionShortcut(9L))
+        assertEquals("z", questionShortcut(34L))
+        assertEquals("", questionShortcut(35L))
+    }
+}
+
+private fun questionSkipped(answer: QuestionnaireAnswer): Boolean =
+    when (answer) {
+        case Skipped -> true;
+        else -> false
+    }
+
+private fun questionUnanswered(answer: QuestionnaireAnswer): Boolean =
+    when (answer) {
+        case Unanswered -> true;
+        else -> false
+    }

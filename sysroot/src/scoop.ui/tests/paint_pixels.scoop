@@ -45,10 +45,11 @@ private class PaintPixelsTest {
                                 paintShadow(record, filter)
                             }
                         }
-                        assertEquals(0L, layers.entries.size)
+                        assertEquals(1L, layers.entries.size)
+                        assertEquals(0L, cachedPaint(layers, key).tiles.size)
                         results.add(surface.readPixels())
                     }
-                    assertEquals(3L, calls.size)
+                    assertEquals(1L, calls.size)
                     assertPaintPixels(results[0L], results[1L], 192, 128, 0)
                     assertPaintPixels(results[0L], results[2L], 192, 128, 0)
                 }

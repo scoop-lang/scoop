@@ -1,0 +1,117 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Toaster public constructor(
+    private val props: Props<ToasterProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val control = ToasterControl(scope, { props.value })
+    init {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        input.state.entries.value
+        val theme = themes.read(input.theme)
+        val owner = control
+        owner.interacting.value
+        val views = ArrayList<View>()
+        for (at in 0L ..< toastPositions.size)
+            views.add(toastRegion(owner, toastPositions[at], -1L - at))
+        for (entry in owner.visible.value)
+            views.add(
+                component(
+                    ToastItemInput(owner, entry, input, theme),
+                    { value, mount -> ToastItem(value, mount) },
+                    ViewKey.Number(entry.sequence)
+                )
+            )
+        return element(owner, { value, mount -> ToasterHost(value, mount) }, views.toArray())
+    }
+    public override fun onUnmount() {
+        control.retire()
+    }
+}
+
+internal class ToasterHost(
+    private val props: Props<ToasterControl>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
+        props.value.refresh()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (at in 0L ..< context.childCount) {
+            context.measureChild(at, Constraints());
+            context.placeChild(at, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+    }
+}
+
+internal class ToastItemInput(
+    val host: ToasterControl,
+    val entry: ToastEntry,
+    val props: ToasterProps,
+    val theme: Theme
+) {
+    val density: Double get() = theme.tokens.typography.body.fontSize / 14.0
+    val position: ToastPosition get() = entry.data.value.position ?: props.position
+    val expanded: Boolean get() = host.expanded(position)
+    val front: Boolean get() {
+        val group = host.group(position)
+        return group.size > 0L && group[0L] === entry
+    }
+}
+
+private class ToastItem(private val props: Props<ToastItemInput>, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val input = props.value
+        val entry = input.entry
+        val transition = toastTransition(input)
+        return portal(
+            binding(
+                { entry.closing.value == None && entry.admitted.value },
+                {
+                    value -> if (!value)
+                        entry.model.beginClose(entry, ToastCloseReason.Explicit)
+                }
+            ),
+            element(input, { value, mount -> ToastSurface(value, mount) }, [toastContents(input)])
+        ) {
+            placement = OverlayPlacement.Viewport(viewportPadding = 0.0)
+            mode = OverlayMode.NonModal
+            handle = Some(entry.layer)
+            focus = Some(OverlayFocusOptions(autoFocus = false))
+            dismiss = OverlayDismiss()
+            this.transition = PresenceOptions(transition, transition)
+            onClosed = { _ -> entry.model.complete(entry) }
+        }
+    }
+}
+
+internal fun toastTransition(input: ToastItemInput): AnimationSpec? =
+    input.theme.tokens.motion.resolve(
+        input.props.transition.resolve(
+            Some(
+                AnimationSpec.Tween(
+                    Duration.milliseconds(500L),
+                    Easing.cubicBezier(0.22, 1.0, 0.36, 1.0)
+                )
+            )
+        )
+    )

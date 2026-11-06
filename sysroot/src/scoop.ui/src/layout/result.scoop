@@ -1,0 +1,153 @@
+package scoop.ui
+
+import scoop.graphics.Point
+
+/** Immutable layout data; returning it transfers its disposal to the mounted layout. */
+public class LayoutResult<L> public constructor(
+    public val metrics: LayoutMetrics,
+    public val data: L,
+    dispose: () -> Unit = {}
+) {
+    private var cleanup: (() -> Unit)? = Some(dispose)
+    internal fun release() {
+        val action = cleanup ?: return
+        cleanup = None
+        action()
+    }
+}
+
+/** Keeps the layout type paired with its element without restoring member fields. */
+internal interface ElementLayout: Closeable {
+    val metrics: LayoutMetrics
+    fun scene(context: SceneContext)
+}
+
+internal class TypedElementLayout<L>(
+    private val result: LayoutResult<L>,
+    private val draw: (SceneContext, L) -> Unit
+): ElementLayout {
+    override val metrics: LayoutMetrics get() = result.metrics
+    override fun scene(context: SceneContext) {
+        draw(context, result.data)
+    }
+    public override fun close() {
+        result.release()
+    }
+}
+
+internal class LayoutRound
+
+/** An absent result means skipped; a measured child may intentionally remain unplaced. */
+internal class ChildLayout(val node: MountedNode, val result: NodeLayout?, val origin: Point?)
+
+internal enum LayoutBody {
+    Empty, Transparent, Portal(PortalInstance), Element(ElementLayout),
+    Lazy(ElementLayout, Array<LazyLayoutItem>)
+}
+
+internal class NodeLayout(
+    val node: MountedNode,
+    val constraints: Constraints,
+    val version: Long,
+    val direction: LayoutDirection,
+    val round: LayoutRound,
+    val metrics: LayoutMetrics,
+    val children: Array<ChildLayout>,
+    val body: LayoutBody,
+    val inputs: FrameInputs = FrameInputs()
+): Closeable {
+    var selected: LayoutRound? = None
+    var sceneCache: CachedScene? = None
+    private var closed = false
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        sceneCache = None
+        when (body) {
+            case Element(value) -> value.close()
+            case Lazy(value, _) -> value.close()
+            else -> {}
+        }
+    }
+}
+
+/** Owns each result once, while parent results only share child references. */
+internal class LayoutStore: Closeable {
+    var round = LayoutRound()
+    private var results = ArrayList<NodeLayout>()
+    private val touched = ArrayList<MountedNode>()
+
+    fun begin() {
+        round = LayoutRound()
+        touched.clear()
+    }
+    fun touch(node: MountedNode) {
+        node.layoutRound = Some(round)
+        node.layoutRequests.clear()
+        when (node.currentLayout) {
+            case Some(value) -> node.layoutRequests.add(value)
+            case None -> {}
+        }
+        touched.add(node)
+    }
+    fun add(result: NodeLayout) {
+        results.add(result)
+        result.node.layoutRequests.add(result)
+    }
+    fun finish(success: Boolean) {
+        val keep = ArrayList<NodeLayout>()
+        var failure: Throwable? = None
+        for (result in results) {
+            val retained =
+                if (success)
+                    sameLayoutRound(result.selected, round)
+                else
+                    result.round !== round
+            if (retained && result.node.active) {
+                keep.add(result)
+                if (success) {
+                    result.node.currentLayout = Some(result)
+                    result.node.frameInputs.setLayout(result.inputs)
+                }
+            } else {
+                if (sameNodeLayout(result.node.currentLayout, result)) {
+                    result.node.currentLayout = None
+                    result.node.frameInputs.setLayout(FrameInputs())
+                }
+                failure = cleanupUi(failure) { result.close() }
+            }
+        }
+        results = keep
+        for (node in touched) {
+            node.layoutRequests.clear()
+            when (node.currentLayout) {
+                case Some(value) -> node.layoutRequests.add(value)
+                case None -> {}
+            }
+        }
+        touched.clear()
+        throwUi(failure)
+    }
+    public override fun close() {
+        val previous = results
+        results = ArrayList<NodeLayout>()
+        touched.clear()
+        var failure: Throwable? = None
+        for (result in previous)
+            failure = cleanupUi(failure) { result.close() }
+        throwUi(failure)
+    }
+}
+
+internal fun sameLayoutRound(previous: LayoutRound?, current: LayoutRound): Boolean =
+    when (previous) {
+        case Some(value) -> value === current
+        case None -> false
+    }
+
+private fun sameNodeLayout(previous: NodeLayout?, current: NodeLayout): Boolean =
+    when (previous) {
+        case Some(value) -> value === current
+        case None -> false
+    }

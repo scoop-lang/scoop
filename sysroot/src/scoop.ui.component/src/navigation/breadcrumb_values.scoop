@@ -1,0 +1,41 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum BreadcrumbContent {
+    Link(ButtonContent, () -> Unit), Current(ButtonContent), Ellipsis, Custom(View)
+}
+
+public class BreadcrumbEntry public constructor(
+    public val content: BreadcrumbContent,
+    public val key: ViewKey = ViewKey.Position,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val maxWidth: Double? = None,
+    public val style: ButtonStyle? = None
+) {
+    init {
+        when (maxWidth) {
+            case Some(value) -> nonnegative(value, "invalid breadcrumb maximum width");
+            case None -> {}
+        }
+    }
+}
+
+public class BreadcrumbProps public constructor(
+    public val entries: Array<BreadcrumbEntry> = [],
+    public val separator: View? = None,
+    public val spacing: Double = 6.0,
+    public val lineSpacing: Double = 6.0,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(spacing, "invalid breadcrumb spacing")
+        nonnegative(lineSpacing, "invalid breadcrumb line spacing")
+    }
+}

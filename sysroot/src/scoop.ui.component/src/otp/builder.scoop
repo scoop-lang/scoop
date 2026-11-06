@@ -1,0 +1,110 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+public class InputOtpGroupBuilder internal constructor() {
+    private val slots = ArrayList<InputOtpSlot>()
+    public fun slot(index: Long, invalid: Boolean = false) {
+        slots.add(InputOtpSlot(index, invalid))
+    }
+    internal fun snapshot(): InputOtpGroup = InputOtpGroup(slots.toArray())
+}
+
+public class InputOtpBuilder internal constructor() {
+    public var pattern: InputOtpPattern = InputOtpPattern.Digits
+    public var enabled: Boolean = true
+    public var readOnly: Boolean = false
+    public var invalid: Boolean = false
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var labelTarget: FieldTarget? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var style: InputOtpStyle = inputOtpStyle()
+    public var caretBlink: Duration = Duration.milliseconds(500L)
+    public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
+    public var onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+    public var key: ViewKey = ViewKey.Position
+    private val parts = ArrayList<(ThemeSource?) -> InputOtpPart>()
+    public fun group(configure: InputOtpGroupBuilder.() -> Unit) {
+        val builder = InputOtpGroupBuilder()
+        builder.configure()
+        val group = builder.snapshot()
+        parts.add { _ -> InputOtpPart.Group(group) }
+    }
+    public fun separator(content: View) {
+        parts.add { _ -> InputOtpPart.Separator(content) }
+    }
+    public fun separator() {
+        parts.add {
+            source -> InputOtpPart.Separator(
+                component(source, { current, mount -> OtpSeparator(current, scope = mount) })
+            )
+        }
+    }
+    public fun style(configure: InputOtpStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(state: TextEditorState, length: Long): InputOtpProps =
+        InputOtpProps(
+            state,
+            length,
+            Array<InputOtpPart>(parts.size) { index -> parts[index](theme) },
+            pattern,
+            enabled,
+            readOnly,
+            invalid,
+            fonts,
+            theme,
+            labelTarget,
+            focus,
+            style,
+            caretBlink,
+            onEdited,
+            onComplete
+        )
+}
+
+internal fun makeInputOtp(
+    state: TextEditorState,
+    length: Long,
+    configure: InputOtpBuilder.() -> Unit
+): View {
+    val builder = InputOtpBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(state, length),
+        { props, mount -> InputOtp(props, scope = mount) },
+        builder.key
+    )
+}
+
+private class OtpSeparator(
+    private val source: Props<ThemeSource?>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(source.value)
+    }
+    public override fun render(): View {
+        val theme = themes.read(source.value)
+        return frame(
+            makeSeparator {
+                this.length = Some(10.0)
+                this.thickness = 2.0
+                this.color = Some(theme.tokens.palette.background.foreground)
+            }
+        ) {
+            this.width = Some(16.0);
+            this.height = Some(16.0)
+        }
+    }
+}

@@ -1,0 +1,283 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class AttachmentMediaFrameProps(
+    val image: Boolean,
+    val background: Color,
+    val radius: Double
+)
+
+internal class AttachmentMediaFrame(
+    private val props: Props<AttachmentMediaFrameProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val painter = scope.resource { StylePainter() }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(0.0, 0.0))
+        val child =
+            context.measureChild(
+                0L,
+                if (props.value.image)
+                    Constraints.tight(size)
+                else
+                    Constraints(maxWidth = Some(size.width), maxHeight = Some(size.height))
+            )
+        context.placeChild(
+            0L,
+            Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
+        )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        painter.scene(
+            context,
+            style {
+                this.background = Some(Paint(input.background))
+                this.corners = Corners.all(input.radius)
+                this.clipContent = true
+            }
+        ) { scene -> scene.children() }
+    }
+}
+
+internal class AttachmentLayoutProps(
+    val orientation: Orientation,
+    val media: Double,
+    val gap: Double,
+    val actions: Boolean,
+    val density: Double
+)
+
+internal class AttachmentLayout(
+    private val props: Props<AttachmentLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        if (input.orientation == Orientation.Vertical)
+            return vertical(context, constraints)
+        val mediaSide = upperBound(input.media, constraints.maxWidth ?: input.media)
+        context.measureChild(0L, Constraints.tight(Size(mediaSide, mediaSide)))
+        val action =
+            if (input.actions)
+                conversationMeasure(context, 2L, constraints.maxWidth)
+            else {
+                context.skipChild(2L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val hasActions = input.actions && action.size.width > 0.0
+        val stack =
+            hasActions &&
+                (constraints.maxWidth ?: Double.MAX_VALUE) -
+                mediaSide -
+                input.gap *
+                2.0 -
+                action.size.width <
+                64.0 *
+                input.density
+        val extra =
+            mediaSide +
+                input.gap +
+                if (hasActions && !stack)
+                    action.size.width + input.gap
+                else
+                    0.0
+        val text = conversationMeasure(context, 1L, insetMaximum(constraints.maxWidth, extra))
+        val naturalWidth =
+            lowerBound(
+                140.0 * input.density,
+                lowerBound(
+                    text.size.width + extra,
+                    if (stack)
+                        action.size.width
+                    else
+                        0.0
+                )
+            )
+        val rowHeight =
+            lowerBound(
+                mediaSide,
+                lowerBound(
+                    text.size.height,
+                    if (!stack)
+                        action.size.height
+                    else
+                        0.0
+                )
+            )
+        val size =
+            constraints.constrain(
+                Size(
+                    naturalWidth,
+                    rowHeight +
+                        if (stack)
+                            input.gap + action.size.height
+                        else
+                            0.0
+                )
+            )
+        context.placeChild(
+            0L,
+            Point(
+                logicalX(0.0, mediaSide, size.width, context.layoutDirection),
+                (rowHeight - mediaSide) / 2.0
+            )
+        )
+        context.placeChild(
+            1L,
+            Point(
+                logicalX(
+                    mediaSide + input.gap,
+                    text.size.width,
+                    size.width,
+                    context.layoutDirection
+                ),
+                (rowHeight - text.size.height) / 2.0
+            )
+        )
+        if (hasActions)
+            context.placeChild(
+                2L,
+                Point(
+                    logicalX(
+                        lowerBound(0.0, size.width - action.size.width),
+                        action.size.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    if (stack)
+                        rowHeight + input.gap
+                    else
+                        (rowHeight - action.size.height) / 2.0
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    private fun vertical(context: MeasureContext, constraints: Constraints): LayoutResult<Unit> {
+        val input = props.value
+        val width = constraints.constrain(Size(102.0 * input.density, 0.0)).width
+        context.measureChild(0L, Constraints.tight(Size(width, width)))
+        val body = context.measureChild(1L, Constraints(maxWidth = Some(width)))
+        val action =
+            if (input.actions)
+                conversationMeasure(context, 2L, Some(width))
+            else {
+                context.skipChild(2L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val size = constraints.constrain(Size(width, width + input.gap + body.size.height))
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.placeChild(
+            1L,
+            Point(
+                logicalX(0.0, body.size.width, size.width, context.layoutDirection),
+                width + input.gap
+            )
+        )
+        if (input.actions)
+            context.placeChild(
+                2L,
+                Point(
+                    logicalX(
+                        lowerBound(0.0, width - action.size.width - 4.0 * input.density),
+                        action.size.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    upperBound(4.0 * input.density, lowerBound(0.0, width - action.size.height))
+                )
+            )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class AttachmentOutlineProps(
+    val idle: Boolean,
+    val color: Color,
+    val radius: Double,
+    val inset: Double
+)
+
+internal class AttachmentOutline(
+    private val props: Props<AttachmentOutlineProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val outline = scope.resource { EmptyBorderCache() }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val size = context.size
+        context.children()
+        val bounds =
+            Rect(
+                input.inset + 0.5,
+                input.inset + 0.5,
+                lowerBound(0.0, size.width - input.inset * 2.0 - 1.0),
+                lowerBound(0.0, size.height - input.inset * 2.0 - 1.0)
+            )
+        if (input.idle && bounds.width > 0.0 && bounds.height > 0.0) {
+            val path =
+                outline.get(
+                    RoundedOutline(bounds, CornerRadii.all(lowerBound(0.0, input.radius - 0.5)))
+                )
+            context.draw {
+                paint -> paint.canvas.drawPath(path, Paint(input.color, PaintingStyle.Stroke, 1.0))
+            }
+        }
+    }
+}
+
+private class AttachmentFileIconProps(val size: Double, val color: Color)
+
+internal fun attachmentFileIcon(size: Double, color: Color): View =
+    element(
+        AttachmentFileIconProps(size, color),
+        { current, scope -> AttachmentFileIcon(current, scope) }
+    )
+
+private class AttachmentFileIcon(
+    private val props: Props<AttachmentFileIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size;
+        val color = props.value.color
+        context.draw {
+            paint ->
+            val canvas = paint.canvas
+            canvas.scale(size.width / 24.0, size.height / 24.0)
+            val stroke = Paint(color, PaintingStyle.Stroke, 1.7, StrokeCap.Round, StrokeJoin.Round)
+            canvas.drawLine(Point(6.0, 3.0), Point(14.0, 3.0), stroke)
+            canvas.drawLine(Point(14.0, 3.0), Point(19.0, 8.0), stroke)
+            canvas.drawLine(Point(19.0, 8.0), Point(19.0, 21.0), stroke)
+            canvas.drawLine(Point(19.0, 21.0), Point(6.0, 21.0), stroke)
+            canvas.drawLine(Point(6.0, 21.0), Point(6.0, 3.0), stroke)
+            canvas.drawLine(Point(14.0, 3.0), Point(14.0, 8.0), stroke)
+            canvas.drawLine(Point(14.0, 8.0), Point(19.0, 8.0), stroke)
+        }
+    }
+}

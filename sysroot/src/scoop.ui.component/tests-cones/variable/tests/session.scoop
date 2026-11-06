@@ -98,7 +98,7 @@ internal class VariableProbe {
                 window = Some(native)
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                ui = Some(host.attach(native, { VariableScene(this) }))
+                ui = host.attach(native, { mount -> VariableScene(this, scope = mount) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

@@ -1,0 +1,75 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+
+internal class DisclosureBodyProps(
+    val presence: Presence?,
+    val open: Boolean,
+    val shown: Boolean,
+    val enabled: Boolean
+)
+
+internal struct DisclosureBodyLayout(val clipped: Boolean, val placed: Boolean)
+
+internal class DisclosureBody(
+    private val props: Props<DisclosureBodyProps>,
+    scope: ComponentScope
+): Element<DisclosureBodyLayout>(scope) {
+    private var revision = 0UL
+    public override fun onMount() {
+        scope.input.enabled = false
+    }
+    public override fun update(): UiInvalidation {
+        revision += 1UL
+        val input = props.value
+        if (!input.open || !input.enabled)
+            scope.input.enabled = false
+        scope.isFrameEnabled = input.open
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        DisclosureBodyLayout
+    > {
+        val input = props.value
+        if (!input.shown) {
+            for (index in 0L ..< context.childCount)
+                context.skipChild(index)
+            return LayoutResult(
+                LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 0.0, 0.0))),
+                DisclosureBodyLayout(false, false)
+            )
+        }
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(minWidth = constraints.minWidth, maxWidth = constraints.maxWidth)
+            )
+        val progress = disclosureProgress(input.presence, input.open)
+        val size = constraints.constrain(Size(child.size.width, child.size.height * progress))
+        val clipped =
+            progress < 1.0 || size.width < child.size.width || size.height < child.size.height
+        val placed = size.width > 0.0 && size.height > 0.0
+        if (placed)
+            context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(size), DisclosureBodyLayout(clipped, placed))
+    }
+    public override fun scene(context: SceneContext, layout: DisclosureBodyLayout) {
+        if (layout.clipped)
+            context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        val current = revision
+        val visible = layout.placed
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    scope.isMounted &&
+                    revision ==
+                    current
+            )
+                scope.input.enabled = visible && props.value.open && props.value.enabled
+        }
+    }
+}

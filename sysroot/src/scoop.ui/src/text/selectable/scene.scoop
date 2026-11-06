@@ -20,14 +20,18 @@ internal class SelectableFrame(
     }
 }
 
-internal fun selectableScene(host: SelectableTextHost, context: SceneContext) {
+internal fun selectableScene(
+    host: SelectableTextHost,
+    context: SceneContext,
+    measurement: ParagraphMeasurement
+) {
     val ranges =
         Array<SelectableRange>(host.actions.size) {
             index ->
             val input = host.actions[index].input
             SelectableRange(input.key, input.range)
         }
-    val frame = SelectableFrame(host.paragraph.retainLayout(), host.content, ranges)
+    val frame = SelectableFrame(measurement.retainLayout(), host.content, ranges)
     host.staged?.close()
     host.staged = Some(frame)
     val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
@@ -67,7 +71,7 @@ internal fun selectableScene(host: SelectableTextHost, context: SceneContext) {
             frame.paths.add(shape)
             scene.place(action.area, shape)
         }
-        host.paragraph.scene(scene)
+        host.paragraph.scene(scene, measurement)
         for (decoration in host.decorations) {
             val regions = frame.layout.selection(decoration.range)
             when (decoration.underline) {

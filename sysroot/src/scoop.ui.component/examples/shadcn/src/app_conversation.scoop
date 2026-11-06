@@ -1,0 +1,298 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.column as chatColumn
+import scoop.ui.component.frame as chatFrame
+import scoop.ui.component.bubble as chatBubble
+import scoop.ui.component.typography as chatText
+import scoop.ui.component.questionnaire as chatQuestionnaire
+
+internal class ConversationAppModel {
+    val messages = MessageScrollerExamplesModel()
+    val questions = QuestionnaireExamplesModel()
+    val composer = TextEditorState()
+    val composerFocus = FocusHandle()
+    val sendFocus = FocusHandle()
+    val questionFocus = FocusHandle()
+    val roleFocus = FocusHandle()
+    val traceFocus = FocusHandle()
+    val nestedFocus = FocusHandle()
+    val noteFocus = FocusHandle()
+    val traceOpen = state(false)
+    val nestedOpen = state(false)
+    fun send() {
+        if (composer.committedText.charLength == 0L || composer.isComposing)
+            return
+        messages.send(composer.committedText)
+        composer.replaceAll("")
+        messages.streamReply()
+        messages.loadImage()
+    }
+    fun stop() {
+        messages.stop();
+        questions.stop()
+    }
+}
+
+internal class ConversationApplication(
+    private val model: ConversationAppModel,
+    scope: ComponentScope
+): Component(scope) {
+    private val artwork = scope.resource { panelArtwork() }
+    private var seen = -1
+    private var source: TranscriptSource? = None
+    public override fun onUnmount() {
+        model.stop()
+    }
+    public override fun render(): View {
+        val model = this.model
+        val revision = model.messages.revision.value
+        if (seen != revision) {
+            val rows = model.messages.rows
+            val picture = artwork
+            source =
+                Some(
+                    TranscriptList(
+                        Array<TranscriptItem>(rows.size + 1L) {
+                            at -> if (at == rows.size)
+                                TranscriptItem(
+                                    ViewKey.Text("questionnaire"),
+                                    {
+                                        component(
+                                            { mount -> ConversationQuestionnaire(model, mount) }
+                                        )
+                                    }
+                                )
+                            else {
+                                val row = rows[at]
+                                TranscriptItem(
+                                    ViewKey.Number(row.id),
+                                    {
+                                        component(
+                                            row,
+                                            {
+                                                current,
+                                                mount -> ConversationAppMessage(
+                                                    current,
+                                                    model,
+                                                    picture,
+                                                    mount
+                                                )
+                                            }
+                                        )
+                                    },
+                                    row.user
+                                )
+                            }
+                        }
+                    )
+                )
+            seen = revision
+        }
+        val transcript = source!!
+        return chatColumn {
+            this.typography("Project conversation", TypographyRole.H2)
+            this.typography(
+                "Keep decisions, source files and the next questions together.",
+                TypographyRole.Muted
+            )
+            this.wrap {
+                this.button("Older messages", { model.messages.history() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Save reading", { model.messages.remember() }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Restore reading", { model.messages.restore() }) {
+                    this.variant = ButtonVariant.Outline
+                    this.enabled = model.messages.saved.value != None
+                }
+                this.button(
+                    "Answer questions",
+                    {
+                        model.messages.scroll.scrollToMessage(
+                            ViewKey.Text("questionnaire"),
+                            ScrollAlignment.Start
+                        );
+                        Unit
+                    }
+                ) { this.variant = ButtonVariant.Secondary }
+                this.spacing = 8.0
+                this.lineSpacing = 8.0
+            }
+            this.messageScroller(transcript, model.messages.scroll) {
+                this.height = Some(360.0)
+                this.spacing = 18.0
+            }
+            this.inputGroup {
+                this.textarea(model.composer) {
+                    this.rows = 2L
+                    this.placeholder = "Write a message…"
+                    this.focus = FocusOptions(Some(model.composerFocus))
+                }
+                this.addon(InputGroupAlign.BlockEnd) {
+                    this.button("Send", { model.send() }) {
+                        this.focus = FocusOptions(Some(model.sendFocus))
+                        this.enabled =
+                            model.composer.committedText.charLength >
+                                0L &&
+                                !model.composer.isComposing
+                    }
+                    this.button("Stop reply", { model.messages.stop() }) {
+                        this.variant = ButtonVariant.Outline
+                        this.enabled = model.messages.running.value
+                    }
+                }
+            }
+            this.typography(model.messages.status.value, TypographyRole.Muted)
+            this.spacing = 12.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}
+
+private class ConversationAppMessage(
+    private val props: Props<TranscriptExampleRow>,
+    private val model: ConversationAppModel,
+    private val image: Image,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val row = props.value
+        val model = this.model
+        val picture = image
+        return chatFrame(
+            chatColumn {
+                if (row.id == 0L)
+                    this.marker("Project Atlas · Today")
+                this.message(
+                    {
+                        align -> chatColumn {
+                            this.add(
+                                chatBubble(
+                                    {
+                                        appearance -> chatText(row.text.value) {
+                                            this.textStyle {
+                                                this.color = Some(appearance.text.color)
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    this.align = align
+                                    this.variant =
+                                        if (row.user)
+                                            BubbleVariant.Secondary
+                                        else
+                                            BubbleVariant.Ghost
+                                }
+                            )
+                            if (!row.user && (row.id == 1L || row.image.value))
+                                this.attachment("Project plan.png") {
+                                    this.description("Local illustration · Project Atlas")
+                                    if (row.image.value)
+                                        this.image(picture, Size(320.0, 180.0))
+                                }
+                            if (row.editable)
+                                this.trace(
+                                    "Review the supporting context",
+                                    chatColumn {
+                                        this.traceLine("Read the project notes")
+                                        this.trace(
+                                            "Decision notes",
+                                            chatColumn {
+                                                this.input(row.note) {
+                                                    this.focus = FocusOptions(Some(model.noteFocus))
+                                                }
+                                                this.typography(
+                                                    "This note remains with the same message.",
+                                                    TypographyRole.Muted
+                                                )
+                                                this.spacing = 8.0
+                                            }
+                                        ) {
+                                            this.open = Some(model.nestedOpen.binding())
+                                            this.focus = FocusOptions(Some(model.nestedFocus))
+                                        }
+                                        this.spacing = 8.0
+                                    }
+                                ) {
+                                    this.open = Some(model.traceOpen.binding())
+                                    this.focus = FocusOptions(Some(model.traceFocus))
+                                }
+                            this.spacing = 10.0
+                            this.alignment = CrossAlignment.Stretch
+                        }
+                    }
+                ) {
+                    this.align =
+                        if (row.user)
+                            MessageAlignment.End
+                        else
+                            MessageAlignment.Start
+                    this.header(
+                        if (row.user)
+                            "You"
+                        else
+                            "Scoop"
+                    )
+                }
+                this.spacing = 16.0
+                this.alignment = CrossAlignment.Stretch
+            }
+        ) { this.padding = Some(Insets.all(12.0)) }
+    }
+}
+
+private class ConversationQuestionnaire(
+    private val model: ConversationAppModel,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val owner = model
+        val model = owner.questions
+        return chatFrame(
+            chatColumn {
+                this.marker("Choose the next step") { this.variant = MarkerVariant.Separator }
+                this.wrap {
+                    this.button("Save answers", { model.save() }) {
+                        this.variant = ButtonVariant.Outline
+                    }
+                    this.button("Restore answers", { model.restore() }) {
+                        this.variant = ButtonVariant.Outline
+                    }
+                    this.button("Review availability", { model.reject() }) {
+                        this.variant = ButtonVariant.Outline
+                    }
+                    this.spacing = 8.0
+                    this.lineSpacing = 8.0
+                }
+                this.add(
+                    chatQuestionnaire(model.survey, { result -> model.submit(result) }) {
+                        this.busy = model.busy.value
+                        this.inputFocus = FocusOptions(Some(owner.questionFocus))
+                        this.choiceFocus =
+                            {
+                                question,
+                                choice -> if (
+                                    question ==
+                                        QuestionKey("role") &&
+                                        choice ==
+                                        Some(QuestionChoiceKey("developer"))
+                                )
+                                    FocusOptions(Some(owner.roleFocus))
+                                else
+                                    FocusOptions()
+                            }
+                        this.onAnswerChange = { _ -> model.definitions(model.survey) }
+                    }
+                )
+                this.typography(model.status.value, TypographyRole.Muted)
+                this.spacing = 16.0
+            }
+        ) { this.padding = Some(Insets.all(12.0)) }
+    }
+}

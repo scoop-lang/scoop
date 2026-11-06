@@ -1,0 +1,134 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum SelectSize {
+    Default, Sm
+}
+
+public enum SelectPosition {
+    ItemAligned, Popup
+}
+
+public class SelectItem<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val content: View? = None,
+    public val icon: View? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: ButtonStyle = buttonStyle()
+)
+
+public enum SelectEntry<T: Equals<T>> {
+    Item(SelectItem<T>), Label(ViewKey, PanelContent), Separator(ViewKey)
+}
+
+public class SelectContent<T: Equals<T>> public constructor(
+    public val entries: Array<SelectEntry<T>>
+) {
+    init {
+        val choices = ArrayList<Choice<T>>()
+        for (index in 0L ..< entries.size) {
+            val key = selectKey(entries[index])
+            requireComponent(key != ViewKey.Position, "select entry requires an explicit key")
+            for (previous in 0L ..< index)
+                requireComponent(selectKey(entries[previous]) != key, "duplicate select entry key")
+            when (entries[index]) {
+                case Item(item) -> choices.add(item.choice)
+                else -> {}
+            }
+        }
+        validateChoices(choices.toArray())
+    }
+}
+
+public class SelectValue<T: Equals<T>> internal constructor(
+    public val value: T?,
+    public val choice: Choice<T>?,
+    public val style: ActionContentStyle
+)
+
+public class SelectProps<T: Equals<T>> public constructor(
+    public val value: Binding<T?>,
+    public val content: SelectContent<T>,
+    public val open: Binding<Boolean>? = None,
+    public val placeholder: String = "Select an option",
+    public val unavailableText: String = "Unavailable selection",
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val size: SelectSize = SelectSize.Default,
+    public val position: SelectPosition = SelectPosition.ItemAligned,
+    public val width: Double? = None,
+    public val maxHeight: Double = 320.0,
+    public val scrollButtons: Boolean = true,
+    public val scroll: ScrollState? = None,
+    public val style: ButtonStyle = buttonStyle(),
+    public val popupStyle: StyleOverride = styleOverride(),
+    public val theme: ThemeSource? = None,
+    public val fonts: FontCollection? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val labelTarget: FieldTarget? = None,
+    public val popupFocus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val mode: OverlayMode = OverlayMode.NonModal,
+    public val loop: Boolean = true,
+    typeahead: TypeaheadOptions? = None,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val handle: OverlayHandle? = None,
+    public val group: GroupPosition? = None,
+    public val valueContent: ((SelectValue<T>) -> View)? = None,
+    public val icon: View? = None,
+    public val onValueChange: (T?) -> Unit = {},
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {}
+) {
+    public val typeahead: TypeaheadOptions = typeahead ?: menuTypeahead()
+    init {
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid select width");
+            case None -> {}
+        }
+        nonnegative(maxHeight, "invalid select max height")
+    }
+}
+
+internal fun <T: Equals<T>> selectKey(entry: SelectEntry<T>): ViewKey =
+    when (entry) {
+        case Item(item) -> item.choice.key
+        case Label(key, _) -> key
+        case Separator(key) -> key
+    }
+
+internal fun <T: Equals<T>> selectedChoice(content: SelectContent<T>, value: T?): Choice<T>? {
+    for (entry in content.entries)
+        when (entry) {
+            case Item(item) -> {
+                if (Some(item.choice.value) == value)
+                    return Some(item.choice)
+            }
+            else -> {}
+        }
+    return None
+}
+
+internal fun <T: Equals<T>> selectChoice(input: SelectProps<T>, key: ViewKey) {
+    if (!input.enabled)
+        return
+    for (entry in input.content.entries)
+        when (entry) {
+            case Item(item) -> {
+                if (item.choice.key == key && item.choice.enabled) {
+                    val previous = input.value.value
+                    if (previous != Some(item.choice.value))
+                        input.value.value = Some(item.choice.value)
+                    val accepted = input.value.value
+                    if (accepted != previous)
+                        input.onValueChange(accepted)
+                    return
+                }
+            }
+            else -> {}
+        }
+}

@@ -7,54 +7,59 @@ import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class CacheScene(private val probe: CacheProbe): Component {
+internal class CacheScene(private val probe: CacheProbe, scope: ComponentScope): Component(scope) {
     private val sources = Array<ItemSource>(4L) { index -> PaintSource(probe, index.toInt()) }
     public override fun render(): View {
         val mode = probe.mode.value
         val policy = probe.policy.value
-        return element(
-            probe.placed.value,
-            { props -> CachePanel(probe, props) },
-            [
-                virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
-                    this.state = Some(this @CacheScene.probe.scroll)
-                    this.scrollbars = ScrollbarVisibility.Hidden
-                    this.theme = Some(this @CacheScene.probe.theme)
-                    this.retention =
-                        if (mode >= 2)
-                            ItemRetention.KeepAlive(3L)
-                        else
-                            ItemRetention.Dispose
-                    this.paintCache = policy
-                },
-                scrollArea(paintRow(probe, mode, -1L)) {
-                    this.state = Some(this @CacheScene.probe.eagerScroll)
-                    this.scrollbars = ScrollbarVisibility.Hidden
-                    this.theme = Some(this @CacheScene.probe.theme)
-                    this.paintCache = policy
-                }
-            ],
-            ViewKey.Number(mode.toLong())
+        return cachedScene(
+            element(
+                probe.placed.value,
+                { props, mount -> CachePanel(probe, props, scope = mount) },
+                [
+                    virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
+                        this.state = Some(this @CacheScene.probe.scroll)
+                        this.scrollbars = ScrollbarVisibility.Hidden
+                        this.theme = Some(this @CacheScene.probe.theme)
+                        this.retention =
+                            if (mode >= 2)
+                                ItemRetention.KeepAlive(3L)
+                            else
+                                ItemRetention.Dispose
+                        this.paintCache = policy
+                    },
+                    scrollArea(paintRow(probe, mode, -1L)) {
+                        this.state = Some(this @CacheScene.probe.eagerScroll)
+                        this.scrollbars = ScrollbarVisibility.Hidden
+                        this.theme = Some(this @CacheScene.probe.theme)
+                        this.paintCache = policy
+                    }
+                ],
+                ViewKey.Number(mode.toLong())
+            )
         )
     }
 }
 
 private class CachePanel(
     private val probe: CacheProbe,
-    private val props: Props<Boolean>
-): Element {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(144.0, 48.0)))
         if (props.value)
             context.placeChild(0L, Point(16.0, 16.0))
         context.measureChild(1L, Constraints.tight(Size(120.0, 48.0)))
         context.placeChild(1L, Point(180.0, 16.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 120.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 120.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -73,7 +78,7 @@ private class CachePanel(
         val ticket = probe.ticket
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
-                probe.committed = ticket
+                probe.accepted(ticket)
         }
     }
 }

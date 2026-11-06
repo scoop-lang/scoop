@@ -1,0 +1,145 @@
+package scoop.examples.ui.shadcn
+
+import scoop.datetime.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as datesColumn
+import scoop.ui.component.frame as datesFrame
+
+internal fun calendarExamples(model: DateExamplesModel): View {
+    val content =
+        calendar(model.selection, model.reference) {
+            this.handle = Some(model.calendar)
+            this.monthCount =
+                if (model.months.value)
+                    2L
+                else
+                    1L
+            this.caption =
+                if (model.dropdowns.value)
+                    CalendarCaption.Dropdowns
+                else
+                    CalendarCaption.Label
+            this.weekNumbers =
+                if (model.numbers.value)
+                    CalendarWeekNumbers.Locale
+                else
+                    CalendarWeekNumbers.None
+            this.showOutsideDays = model.outside.value
+            this.locale =
+                if (model.custom.value)
+                    CalendarLocale(weekStartsOn = DayOfWeek.Monday)
+                else
+                    model.locale
+            this.source =
+                if (model.custom.value)
+                    model.planning
+                else
+                    model.defaultPages
+            this.today = Some(model.reference)
+            this.enabled = !model.disabled.value
+            this.rules =
+                if (model.weekends.value)
+                    CalendarRules(
+                        disabled =
+                            Some(
+                                {
+                                    date -> date.dayOfWeek ==
+                                        DayOfWeek.Saturday ||
+                                        date.dayOfWeek ==
+                                        DayOfWeek.Sunday
+                                }
+                            )
+                    )
+                else
+                    CalendarRules()
+            this.onValueChange = { _ -> model.changes.value += 1 }
+            this.style {
+                this.border(
+                    Some(Border.all(1.0, currentThemeSource().current.value.tokens.palette.border))
+                )
+            }
+        }
+    return datesColumn {
+        this.add(panelHeading("Calendar"))
+        this.typography(
+            "Choose dates with the pointer or arrow keys. Page Up/Down changes the page; Shift also changes the year.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button("Single", { model.selectionMode.value = 0 }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Multiple", { model.selectionMode.value = 1 }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Range", { model.selectionMode.value = 2 }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Two months", { model.months.value = !model.months.value }) {
+                this.variant = ButtonVariant.Secondary
+            }
+            this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                this.variant = ButtonVariant.Secondary
+            }
+            this.spacing = 6.0
+        }
+        this.row {
+            this.button("Month / year", { model.dropdowns.value = !model.dropdowns.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Week numbers", { model.numbers.value = !model.numbers.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Outside days", { model.outside.value = !model.outside.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("中文", { model.chinese.value = !model.chinese.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 6.0
+        }
+        this.row {
+            this.button("Disable weekends", { model.weekends.value = !model.weekends.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Enabled", { model.disabled.value = !model.disabled.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Planning cycles", { model.custom.value = !model.custom.value }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                "Reference date",
+                {
+                    model.calendar.showDate(model.reference);
+                    Unit
+                }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 6.0
+        }
+        this.add(
+            datesFrame(content) {
+                this.width =
+                    Some(
+                        if (model.narrow.value)
+                            272.0
+                        else
+                            610.0
+                    );
+                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            }
+        )
+        this.typography(model.selectedText(), TypographyRole.Lead)
+        this.typography(
+            if (model.custom.value)
+                "Three four-week planning cycles, using the same date selection."
+            else
+                "Reference date: 6 November 2026. Range selection commits after the second date.",
+            TypographyRole.Muted
+        )
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Start
+    }
+}

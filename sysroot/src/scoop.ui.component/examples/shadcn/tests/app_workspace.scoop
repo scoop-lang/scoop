@@ -1,0 +1,137 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+
+internal fun advanceWorkspaceApplication(p: ApplicationProbe) {
+    val m = p.model.appWorkspace
+    when (p.phase) {
+        case 0 -> p.focus(m.editorFocus)
+        case 1 -> {
+            p.selectAll();
+            p.text("中文项目正文", true)
+        }
+        case 2 -> {
+            assertTrue(m.draft.isComposing);
+            p.text("中文项目正文")
+        }
+        case 3 -> {
+            assertEquals("中文项目正文", m.draft.text);
+            p.focus(m.resizeFocus)
+        }
+        case 4 -> p.key(124)
+        case 5 -> {
+            assertEquals(1, m.commits.value)
+            assertTrue(m.sizes.value[0L].fraction > 0.7)
+            p.focus(m.previewTabFocus)
+        }
+        case 6 -> p.space()
+        case 7 -> {
+            assertEquals(Some(1), m.tab.value)
+            assertEquals("中文项目正文", m.draft.text)
+            p.focus(m.editorTabFocus)
+        }
+        case 8 -> p.space()
+        case 9 -> {
+            assertEquals(Some(0), m.tab.value);
+            p.focus(m.commandTrigger)
+        }
+        case 10 -> p.enter()
+        case 11 -> {
+            assertTrue(m.commandsOpen.value);
+            assertTrue(m.commandFocus.hasFocus);
+            p.text("rename")
+        }
+        case 12 -> p.enter()
+        case 13 -> {
+            assertFalse(m.commandsOpen.value)
+            assertTrue(m.renameOpen.value)
+            assertTrue(m.nameFocus.hasFocus)
+            p.selectAll();
+            p.text("中文项目名称", true)
+        }
+        case 14 -> {
+            assertTrue(m.nameDraft.isComposing);
+            p.text("中文项目名称")
+        }
+        case 15 -> p.focus(m.nestedTrigger)
+        case 16 -> p.enter()
+        case 17 -> {
+            assertTrue(m.nestedOpen.value);
+            assertTrue(m.nestedFocus.hasFocus);
+            p.text("嵌套说明")
+        }
+        case 18 -> p.escape()
+        case 19 -> {
+            assertFalse(m.nestedOpen.value)
+            assertTrue(m.renameOpen.value)
+            assertTrue(m.nestedTrigger.hasFocus)
+            assertEquals("中文项目名称", m.nameDraft.text)
+        }
+        case 20 -> p.escape()
+        case 21 -> {
+            assertFalse(m.renameOpen.value)
+            assertTrue(m.commandTrigger.hasFocus)
+            assertEquals("中文项目正文", m.draft.text)
+        }
+        case 22 -> p.focus(m.menuFocus)
+        case 23 -> p.key(125)
+        case 24 -> p.key(125)
+        case 25 -> p.key(124)
+        case 26 -> p.key(125)
+        case 27 -> p.key(124)
+        case 28 -> p.enter()
+        case 29 -> {
+            assertTrue(m.activityOpen.value);
+            assertEquals(None, m.bar.value);
+            p.escape()
+        }
+        case 30 -> {
+            assertFalse(m.activityOpen.value);
+            assertTrue(m.menuFocus.hasFocus);
+            p.focus(m.editorFocus)
+        }
+        case 31 -> p.darkRtl(640.0)
+        case 32 -> {
+            assertTrue(m.navigation.value);
+            assertFalse(m.editorFocus.hasFocus);
+            p.escape()
+        }
+        case 33 -> {
+            assertFalse(m.navigation.value);
+            assertEquals("中文项目正文", m.draft.text);
+            p.focus(m.editorFocus)
+        }
+        case 34 -> {
+            assertTrue(m.editorFocus.hasFocus);
+            p.key(11, "b", 8)
+        }
+        case 35 -> {
+            assertTrue(m.navigation.value);
+            p.escape()
+        }
+        case 36 -> {
+            assertFalse(m.navigation.value);
+            p.focus(m.commandTrigger)
+        }
+        case 37 -> p.enter()
+        case 38 -> {
+            assertTrue(m.commandFocus.hasFocus);
+            p.text("details")
+        }
+        case 39 -> p.enter()
+        case 40 -> {
+            assertFalse(m.commandsOpen.value)
+            assertTrue(m.detailsOpen.value)
+            assertTrue(m.detailsFocus.hasFocus)
+            p.text("详情")
+        }
+        case 41 -> p.escape()
+        case 42 -> {
+            assertFalse(m.detailsOpen.value)
+            assertTrue(m.commandTrigger.hasFocus)
+            assertEquals("中文项目正文", m.draft.text)
+            assertEquals("中文项目名称", m.nameDraft.text)
+        }
+        else -> fail(Some("unexpected workspace phase"))
+    }
+}

@@ -4,6 +4,8 @@
 
 ## 1. 建议
 
+2026-11-06 补充：按 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)第 7 节整理 Showcase、Gallery 与现有 shadcn 示例。常规文字省略字体配置，使用根的 defaultFonts；工具栏、表单、预览等普通 View 函数接收显示值、模型和动作。普通函数不增加挂载层，D0a 与第 6 节的名称查找边界保持不变。
+
 将 builder 作为 UI 的常用声明入口。一次 builder 调用同步收集属性和子 View，结束时生成现有的不可变 Props／View；框架继续使用同一 Component、Element、状态观察、key、挂载和测量／场景流程。所需新增代码主要位于控件库的构建入口，不需要改变底层渲染模型。
 
 这一层解决两个现有问题：Row／Column／Stack 目前需要显式组织 Array<View>；Input／Textarea／VirtualList 等入口有较长的命名参数列表。简单的 `label("Hello")` 仍适合直接使用，完整 Props 和 Component 构造入口继续服务自定义组合。
@@ -35,25 +37,26 @@ fun stack(configure: StackBuilder.() -> Unit): View {
 builder 每次 render 都可能执行，持久模型由组件或应用保存。Input／Textarea 必须接收现有 TextEditorState；VirtualList 必须接收 ItemSource 与 ItemExtent。这些必需值可以继续放在前置参数，避免先构建一个没有模型的配置，再补运行时缺失检查。
 
 ```kotlin
-// nameEditor and accepted are fields of the mounted component.
-val owner = this
-column {
+private fun nameForm(
+    editor: TextEditorState,
+    enabled: Boolean,
+    onSave: (String) -> Unit,
+    onAccept: () -> Unit
+): View = column {
     spacing = 12.0
-    input(owner.nameEditor) {
+    input(editor) {
         placeholder = "Name"
-        onSubmit = { model -> owner.saveName(model.text) }
+        onSubmit = { current -> onSave(current.text) }
     }
-    button("OK", onClick = { owner.accepted.value = true }) {
-        enabled = owner.nameEditor.text.byteLength > 0L
-    }
+    button("OK", onAccept) { this.enabled = enabled }
 }
 ```
 
-上述示例为建议 API。render 中对 State 的读取仍由现有依赖收集观察；事件回调随后修改应用 State，由框架安排更新。回调若捕获并修改短命的 builder，只会修改那次构建器，不会更新已发布 Props，也不会自动触发 render，应在 API 文档和示例中明确这一点。
+函数内 State 读取归调用者本轮 render。显示参数是本轮快照；动作通过当前 State／Binding／模型执行读改写，输入可替换时读取当前 Props。builder 只生成描述，不能通过保存并修改已经发布的 builder 更新界面。`style { ... }`、`focus { ... }` 等已有配置入口省去额外包装；不合并字段的继承、清除与显式赋值语义。
 
 ScrollState、TextEditorState、FocusHandle、VirtualListHandle、LayoutAnchor 等保持原有所有权和身份。builder 只引用它们，不因声明一次控件而创建另一份状态。原来已有组件内部默认状态的入口继续沿用原规则。
 
-字体、painter、订阅和原生输入连接仍由挂载作用域管理。builder 执行只生成描述，不负责订阅事件、建立 native session 或逐帧创建资源。UI 线程和 render 阶段的现有读写规则不变。
+painter、订阅和原生输入连接由构造时取得的挂载作用域管理；默认字体由根拥有，显式字体仅借用。Showcase 与 Gallery 在根附着时指定字体，后代无逐层字体参数。builder 执行只生成描述，不负责订阅事件、建立 native session 或逐帧创建资源。UI 线程和 render 阶段的现有读写规则不变。
 
 ## 4. UI 中适合同时调整的入口
 

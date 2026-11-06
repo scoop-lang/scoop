@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LazyBuild, LazyMount, LazyMeasure, LazyMissingPaint, LazyMissingPinned, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, RetiredComponent, RetiredElement, RetiredLazy, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LazyBuild, LazyMount, LazyMeasure, LazyMissingPaint, LazyMissingPinned, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -24,7 +24,11 @@ internal class FailureImage(private val record: FailureRecord, val name: String)
         closes += 1
         image.close()
         record.log.add("close " + name)
-        if (record.mode == FailureMode.Mount)
+        when (record.factoryFonts) {
+            case Some(fonts) -> assertFalse(fonts.isClosed)
+            case None -> {}
+        }
+        if (record.mode == FailureMode.Mount || record.mode == FailureMode.Factory)
             throw record.cleanupA
         if (record.mode == FailureMode.LateUpdate) {
             if (name == "leaf")
@@ -35,34 +39,45 @@ internal class FailureImage(private val record: FailureRecord, val name: String)
     }
 }
 
-internal struct ValueComponent(val marker: Int = 0): Component {
+internal class SmallComponent(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }
 
-internal class SmallComponent: Component {
-    public override fun render(): View = empty()
-}
-
-internal class FailureRoot(private val record: FailureRecord): Component {
-    private var resource: FailureImage? = None
+internal class FailureRoot(private val record: FailureRecord, scope: ComponentScope): Component(
+    scope
+) {
+    private val resource = scope.resource { FailureImage(record, "root") }
     public override fun render(): View {
         if (record.mode == FailureMode.Render)
             throw record.primary
         if (record.mode.isLazy)
-            return lazyElement(LazyFailureSource(record), { LazyFailureContainer(record) })
+            return lazyElement(
+                LazyFailureSource(record),
+                { mount -> LazyFailureContainer(record, scope = mount) }
+            )
         val late = record.trigger.value
         val children: Array<View> =
             when (record.mode) {
                 case DuplicateKey -> [
-                    component({ SmallComponent() }, ViewKey.Text("same")),
-                    component({ SmallComponent() }, ViewKey.Text("same"))
+                    component({ mount -> SmallComponent(scope = mount) }, ViewKey.Text("same")),
+                    component({ mount -> SmallComponent(scope = mount) }, ViewKey.Text("same"))
                 ]
                 case DuplicateInstance -> {
-                    val shared = SmallComponent()
-                    [component({ shared }), component({ shared })]
+                    val shared = MutableArray<SmallComponent?>(1L) { _ -> None }
+                    [
+                        component(
+                            {
+                                mount ->
+                                val value = SmallComponent(mount)
+                                shared[0L] = Some(value)
+                                value
+                            }
+                        ),
+                        component({ _ -> shared[0L]!! })
+                    ]
                 }
-                case MissingMeasure -> [component({ SmallComponent() })]
-                case MissingPaint -> [component({ SmallComponent() })]
+                case MissingMeasure -> [component({ mount -> SmallComponent(scope = mount) })]
+                case MissingPaint -> [component({ mount -> SmallComponent(scope = mount) })]
                 case ModalMount -> failureModal(record)
                 case ModalClose -> failureModal(record)
                 case PortalHandle -> [
@@ -80,7 +95,7 @@ internal class FailureRoot(private val record: FailureRecord): Component {
                 case PortalCycle -> [
                     portal(
                         record.overlayOpen.binding(),
-                        element({ FailurePortalAnchor(record.anchor) })
+                        element({ mount -> FailurePortalAnchor(record.anchor, scope = mount) })
                     ) {
                         this.options {
                             this.placement =
@@ -93,11 +108,14 @@ internal class FailureRoot(private val record: FailureRecord): Component {
                 ]
                 else -> []
             }
-        return element(late, { props -> FailureLeaf(props, record) }, children)
+        return element(
+            late,
+            { props, mount -> FailureLeaf(props, record, scope = mount) },
+            children
+        )
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.rootMounts += 1
-        resource = Some(scope.resource { FailureImage(record, "root") })
         if (record.mode == FailureMode.Mount) {
             scope.onDispose { record.log.add("dispose root") }
             scope.resource<FailureImage> { throw record.primary }
@@ -105,68 +123,80 @@ internal class FailureRoot(private val record: FailureRecord): Component {
     }
     public override fun onUnmount() {
         record.rootUnmounts += 1
-        assertFalse(resource!!.image.isClosed)
+        assertFalse(resource.image.isClosed)
         record.log.add("unmount root")
     }
 }
 
-private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class FailurePortalAnchor(private val anchor: LayoutAnchor, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         scope.layoutAnchor(anchor)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-    public override fun scene(context: SceneContext) {}
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
 private fun failureModal(record: FailureRecord): Array<View> =
     [
-        portal(record.overlayOpen.binding(), element({ FailureModal(record) })) {
+        portal(
+            record.overlayOpen.binding(),
+            element({ mount -> FailureModal(record, scope = mount) })
+        ) {
             this.options {
                 this.handle = Some(record.overlay)
-                this.modal = Some(ModalOptions())
+                this.mode = OverlayMode.Modal
+                this.focus = Some(OverlayFocusOptions())
                 this.onClosed = { reason -> record.overlayClosed(reason) }
             }
         }
     ]
 
-private class FailureModal(private val record: FailureRecord): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class FailureModal(private val record: FailureRecord, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         record.modalRoot = scope.input.parent!!.area
         if (record.mode == FailureMode.ModalMount)
             throw record.primary
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.onFrameComplete { _ -> record.overlay.requestClose() }
     }
 }
 
 internal class FailureLeaf(
     private val props: Props<Boolean>,
-    private val record: FailureRecord
-): Element {
+    private val record: FailureRecord,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var resource: FailureImage? = None
-    private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var motion: Animatable<Double>? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.leafMounts += 1
-        this.scope = Some(scope)
         resource = Some(scope.resource { FailureImage(record, "leaf") })
         area = Some(scope.createArea { _, _ -> Unit })
         motion = Some(scope.animation(0.0))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         if (
             record.mode ==
                 FailureMode.Update ||
                 (record.mode == FailureMode.LateUpdate && props.value)
         )
             throw record.primary
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (record.mode == FailureMode.Measure)
             throw record.primary
         if (record.mode != FailureMode.MissingMeasure) {
@@ -177,9 +207,9 @@ internal class FailureLeaf(
                 index += 1L
             }
         }
-        return LayoutMetrics(constraints.constrain(Size(80.0, 50.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 50.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (record.mode == FailureMode.FrameComplete) {
             context.onFrameComplete { _ -> throw record.primary }
             context.onFrameComplete { _ -> fail(Some("notification after a failed completion")) }
@@ -197,7 +227,7 @@ internal class FailureLeaf(
     }
     public override fun onUnmount() {
         record.leafUnmounts += 1
-        assertFalse(scope!!.isMounted)
+        assertFalse(scope.isMounted)
         assertTrue(area!!.isClosed)
         assertEquals(AnimationState.Closed, motion!!.state)
         assertFalse(resource!!.image.isClosed)
@@ -205,9 +235,11 @@ internal class FailureLeaf(
     }
 }
 
-internal class SecondRoot(private val record: FailureRecord): Component {
+internal class SecondRoot(private val record: FailureRecord, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View = empty()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         scope.resource { FailureImage(record, "second") }
     }
 }

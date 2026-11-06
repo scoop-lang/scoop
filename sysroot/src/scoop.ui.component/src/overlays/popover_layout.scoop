@@ -1,0 +1,92 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.InputArea
+import scoop.ui.*
+
+/** The portal is a zero-sized sibling of the persistent trigger. */
+internal class PopoverLayout(private val anchor: LayoutAnchor, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
+        scope.layoutAnchor(anchor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val trigger = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(trigger, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.anchor(anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+
+internal class PopupMotionProps(
+    val enabled: Boolean,
+    val distance: Double,
+    val arrow: PopupArrowInk? = None,
+    val minimumScale: Double = 0.95
+)
+
+/** One published transform supplies drawing, hit testing and editor caret geometry. */
+internal class PopupMotion(
+    private val props: Props<PopupMotionProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var arrow: Path? = None
+    public override fun onMount() {
+        val value = scope.createArea()
+        area = Some(value)
+        scope.routeChildren(value)
+        arrow = Some(scope.resource { popupArrowPath() })
+    }
+    public override fun update(): UiInvalidation {
+        area!!.scope.enabled = props.value.enabled
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val layout = context.overlayLayout!!
+        val progress = layout.presence.progress
+        val size = context.size
+        val offset = props.value.distance * (1.0 - progress)
+        val side = layout.side ?: OverlaySide.Bottom
+        val pivot =
+            when (side) {
+                case Top -> Point(size.width / 2.0, size.height)
+                case Bottom -> Point(size.width / 2.0, 0.0)
+                case Left -> Point(size.width, size.height / 2.0)
+                else -> Point(0.0, size.height / 2.0)
+            }
+        context.saveLayer(progress)
+        when (side) {
+            case Top -> context.translate(0.0, offset)
+            case Bottom -> context.translate(0.0, -offset)
+            case Left -> context.translate(offset, 0.0)
+            else -> context.translate(-offset, 0.0)
+        }
+        context.translate(pivot.x, pivot.y)
+        val zoom = props.value.minimumScale + (1.0 - props.value.minimumScale) * progress
+        context.scale(zoom, zoom)
+        context.translate(-pivot.x, -pivot.y)
+        context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
+        context.children()
+        when (props.value.arrow) {
+            case Some(ink) -> drawPopupArrow(context, arrow!!, ink)
+            case None -> {}
+        }
+        context.restore()
+    }
+}

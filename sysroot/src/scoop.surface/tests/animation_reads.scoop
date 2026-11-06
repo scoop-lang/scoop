@@ -1,0 +1,61 @@
+package scoop.surface
+
+import scoop.test.*
+import scoop.time.*
+
+private class ReadClock: TimeSource {
+    var time = Duration.ZERO
+    public override fun markNow(): TimeMark = TimeMark(this, time)
+}
+
+private class ReadObserver: AnimationReadObserver {
+    val sources = ArrayList<AnimationSource>()
+    public override fun read(source: AnimationSource) {
+        sources.add(source)
+    }
+}
+
+@Test
+private class AnimationReadTest {
+    @Test
+    fun `reads identify timeline inputs without sampling and revisions follow motion`() {
+        val clock = ReadClock()
+        AnimationTimeline(clock).use {
+            timeline ->
+            val value = timeline.value(0.0)
+            value.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)))
+            val start = value.revision
+            val observer = ReadObserver()
+            val binding: AnimationReadObserver = observer
+            context(binding) {
+                assertEquals(0.0, value.value)
+                assertEquals(1.0, value.target)
+                assertEquals(AnimationState.Running, value.state)
+                val velocity = value.velocity
+                assertTrue(velocity.x.isFinite())
+                assertEquals(start, value.revision)
+            }
+            assertEquals(4L, observer.sources.size)
+            for (source in observer.sources)
+                assertTrue(source === value)
+            clock.time = Duration.milliseconds(500L)
+            timeline.advanceTo(clock.markNow())
+            assertEquals(0.5, value.value)
+            assertTrue(value.revision > start)
+            val middle = value.revision
+            timeline.advanceTo(clock.markNow())
+            assertEquals(middle, value.revision)
+            clock.time = Duration.seconds(1L)
+            timeline.advanceTo(clock.markNow())
+            assertEquals(1.0, value.value)
+            assertEquals(AnimationState.Finished, value.state)
+            assertTrue(value.revision > middle)
+            val finished = value.revision
+            clock.time = Duration.seconds(2L)
+            timeline.advanceTo(clock.markNow())
+            assertEquals(finished, value.revision)
+            assertFalse(timeline.hasWork)
+            assertEquals(4L, observer.sources.size)
+        }
+    }
+}

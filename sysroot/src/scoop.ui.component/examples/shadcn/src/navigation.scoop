@@ -1,0 +1,222 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.breadcrumb as makeBreadcrumb
+import scoop.ui.component.pagination as makePagination
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.style.*
+
+internal class NavigationExamplesModel {
+    val destination = state("No navigation yet")
+    val expanded = state(false)
+    val narrow = state(false)
+    val slash = state(false)
+    val enabled = state(true)
+    val page = state(5L)
+    val pageCount = state(10L)
+    val compact = state(false)
+    val reject = state(false)
+    val changes = state(0)
+}
+
+internal fun breadcrumbExamples(model: NavigationExamplesModel): View =
+    makeColumn {
+        this.add(panelHeading("Breadcrumb"))
+        this.typography(
+            "Follow a path with the pointer or Tab and Enter. The current page has no navigation action.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button(
+                if (model.slash.value)
+                    "Chevron separator"
+                else
+                    "Slash separator",
+                { model.slash.value = !model.slash.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.narrow.value)
+                    "Widen path"
+                else
+                    "Narrow path",
+                { model.narrow.value = !model.narrow.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.enabled.value)
+                    "Disable links"
+                else
+                    "Enable links",
+                { model.enabled.value = !model.enabled.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.item(
+            makeFrame(
+                makeBreadcrumb {
+                    this.item("Home", { model.destination.value = "Home" }) {
+                        this.key = ViewKey.Text("home")
+                    }
+                    this.item(
+                        "Workspace and project documentation",
+                        { model.destination.value = "Documentation" }
+                    ) {
+                        this.key = ViewKey.Text("docs");
+                        this.maxWidth = Some(240.0)
+                    }
+                    this.current("Breadcrumb")
+                    if (model.slash.value)
+                        this.separator(makeLabel("/"))
+                    this.enabled = model.enabled.value;
+                }
+            ) {
+                this.width =
+                    Some(
+                        if (model.narrow.value)
+                            320.0
+                        else
+                            680.0
+                    );
+                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            }
+        ) { this.align = Some(CrossAlignment.Start) }
+        this.separator()
+        this.typography("Collapsed path", TypographyRole.H3)
+        this.breadcrumb {
+            this.item("Home", { model.destination.value = "Home" }) {
+                this.key = ViewKey.Text("home")
+            }
+            this.custom(
+                makeButton(
+                    if (model.expanded.value)
+                        "−"
+                    else
+                        "…",
+                    { model.expanded.value = !model.expanded.value }
+                ) {
+                    this.variant = ButtonVariant.Ghost;
+                    this.size = ButtonSize.IconXs;
+                    this.enabled = model.enabled.value
+                }
+            ) { this.key = ViewKey.Text("more") }
+            if (model.expanded.value) {
+                this.item("Workspace", { model.destination.value = "Workspace" }) {
+                    this.key = ViewKey.Text("workspace")
+                }
+                this.item("Components", { model.destination.value = "Components" }) {
+                    this.key = ViewKey.Text("components")
+                }
+            }
+            this.current("Overview") { this.key = ViewKey.Text("current") }
+            this.enabled = model.enabled.value;
+        }
+        this.typography("Non-interactive ellipsis", TypographyRole.Small)
+        this.breadcrumb {
+            this.item("Home", { model.destination.value = "Home" })
+            this.ellipsis();
+            this.current("Overview")
+            this.enabled = model.enabled.value;
+        }
+        this.typography(model.destination.value, TypographyRole.Muted)
+        this.spacing = 20.0;
+        this.padding = Insets.all(16.0);
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun paginationExamples(model: NavigationExamplesModel): View =
+    makeColumn {
+        this.add(panelHeading("Pagination"))
+        this.typography(
+            "Choose a page to update the records below. Empty data and an external page outside the range remain explicit.",
+            TypographyRole.Muted
+        )
+        this.row {
+            this.button(
+                if (model.compact.value)
+                    "Show edge labels"
+                else
+                    "Compact arrows",
+                { model.compact.value = !model.compact.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.reject.value)
+                    "Accept changes"
+                else
+                    "Reject changes",
+                { model.reject.value = !model.reject.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.enabled.value)
+                    "Disable paging"
+                else
+                    "Enable paging",
+                { model.enabled.value = !model.enabled.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.row {
+            for (count in [0L, 1L, 10L])
+                this.button(f"${count} pages", { model.pageCount.value = count }) {
+                    this.variant = ButtonVariant.Outline
+                }
+            this.button("First page", { model.page.value = 1L }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("External page 99", { model.page.value = 99L }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.add(
+            makePagination(
+                binding(
+                    { model.page.value },
+                    {
+                        value -> if (!model.reject.value)
+                            model.page.value = value
+                    }
+                ),
+                model.pageCount.value
+            ) {
+                this.enabled = model.enabled.value;
+                this.compact = model.compact.value
+                this.onValueChange = { _ -> model.changes.value += 1 }
+            }
+        )
+        this.typography(
+            f"Page ${model.page.value} / ${model.pageCount.value}  ·  Accepted changes: ${
+                model.changes.value
+            }",
+            TypographyRole.Small
+        )
+        this.card(
+            makeColumn {
+                if (model.page.value >= 1L && model.page.value <= model.pageCount.value) {
+                    for (offset in 0L ..< 3L) {
+                        this.typography(
+                            f"Record ${(model.page.value - 1L) * 3L + offset + 1L}",
+                            TypographyRole.P
+                        )
+                    }
+                } else
+                    this.typography("No records on this page.", TypographyRole.Muted)
+                this.spacing = 8.0
+            }
+        )
+        this.typography("Explicit links · 10 pages · localized labels", TypographyRole.H3)
+        this.pagination(model.page.binding(), 10L) {
+            this.item(1L);
+            this.item(2L);
+            this.ellipsis();
+            this.item(10L)
+            this.previousText = "上一页";
+            this.nextText = "下一页"
+            this.enabled = model.enabled.value;
+        }
+        this.spacing = 20.0;
+        this.padding = Insets.all(16.0);
+        this.alignment = CrossAlignment.Stretch
+    }

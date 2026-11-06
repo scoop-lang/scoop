@@ -11,7 +11,7 @@ internal class HostInputAction(
     fun accepts(input: InputScope): Boolean {
         if (!active || input.owner.path(input).size == 0L)
             return false
-        return when (input.owner.currentBoundary) {
+        return when (input.owner.currentFocusBoundary) {
             case Some(_) -> false
             case None -> true
         }

@@ -1,0 +1,197 @@
+package scoop.tests.ui.questionnaire
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class QuestionnaireTestScene(
+    private val p: QuestionnaireProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val main =
+            if (p.shown)
+                questionnaireTestView(p, false)
+            else
+                empty()
+        val modal =
+            dialog(p.dialog.binding(), questionnaireTestView(p, true)) {
+                this.title("Questionnaire dialog")
+                this.description("Cancel keeps the draft.")
+            }
+        return direction(
+            element(
+                generation,
+                { current, mount -> QuestionnaireRoot(p, current, mount) },
+                [button("Outside", {}) { this.focus = FocusOptions(Some(p.outside)) }, main, modal]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private fun questionnaireTestView(p: QuestionnaireProbe, modal: Boolean): View {
+    val state =
+        if (modal)
+            p.modal
+        else
+            p.survey
+    val prefix =
+        if (modal)
+            "modal-"
+        else
+            ""
+    return questionnaire(state, { result -> p.submit(result) }) {
+        this.autoFocus = true
+        this.enabled = p.enabled
+        this.busy = p.busy.value
+        this.inputFocus =
+            FocusOptions(
+                Some(
+                    if (modal)
+                        p.modalFocus
+                    else
+                        p.inputFocus
+                )
+            )
+        this.choiceFocus =
+            {
+                question,
+                choice -> FocusOptions(
+                    Some(p.focus(prefix + question.value + ":" + (choice?.value ?: "text")))
+                )
+            }
+        this.focusOutline = Some(OutlineStyle(Color(0.9, 0.1, 0.7), 7.0, 7.0))
+        this.onAnswerChange = { _ -> p.changedAnswers += 1 }
+        this.part =
+            { part, content -> questionTrack(p, prefix + questionnairePartName(part), content) }
+        if (p.chinese)
+            this.strings =
+                QuestionnaireStrings(
+                    "返回上一道题",
+                    "校验并继续",
+                    "明确跳过这道题",
+                    "提交全部回答",
+                    "正在提交…",
+                    "可选",
+                    "已跳过",
+                    "请回答这道题。",
+                    "请填写回答。",
+                    { position, total -> f"第 ${position} 题，共 ${total} 题" }
+                )
+    }
+}
+
+private fun questionnairePartName(part: QuestionnairePart): String =
+    when (part) {
+        case Item -> "Item";
+        case Title -> "Title";
+        case Description -> "Description";
+        case Choice -> "Choice";
+        case Choices -> "Choices"
+        case Input -> "Input";
+        case Error -> "Error";
+        case Progress -> "Progress";
+        case Actions -> "Actions"
+    }
+
+private class QuestionnaireRoot(
+    private val p: QuestionnaireProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val width = constraints.maxWidth ?: 760.0
+        val height = constraints.maxHeight ?: 720.0
+        context.measureChild(0L, Constraints.tight(Size(100.0, 32.0)))
+        context.placeChild(0L, Point(20.0, 15.0))
+        context.measureChild(
+            1L,
+            if (p.zero)
+                Constraints.tight(Size(0.0, 0.0))
+            else
+                Constraints(maxWidth = Some(width - 40.0), maxHeight = Some(height - 90.0))
+        )
+        context.placeChild(1L, Point(20.0, 70.0))
+        context.measureChild(2L, constraints)
+        context.placeChild(2L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, height))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val generation = generation.value
+        context.draw {
+            paint ->
+            paint.canvas.clear(p.theme.current.value.tokens.palette.background.background);
+            p.draws += 1
+        }
+        context.children()
+        if (p.readPixels && !p.zero && p.shown && p.inputFocus.hasFocus)
+            context.draw {
+                paint ->
+                val box = p.bounds("Input")
+                @Unsafe
+                {
+                    paint.canvas.withSkiaCanvas {
+                        native -> @Unsafe
+                        {
+                            p.leftPixel =
+                                readNativePixel(native, box.x + 2.0, box.y + box.height / 2.0)
+                            p.rightPixel =
+                                readNativePixel(
+                                    native,
+                                    box.x + box.width - 2.0,
+                                    box.y + box.height / 2.0
+                                )
+                        }
+                    }
+                }
+            }
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}
+
+private fun questionTrack(p: QuestionnaireProbe, name: String, content: View): View =
+    element(name, { current, scope -> QuestionTrack(p, current, scope) }, [content])
+
+private class QuestionTrack(
+    private val p: QuestionnaireProbe,
+    private val name: Props<String>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        scope.routeChildren(area)
+    }
+    public override fun onMount() {
+        p.mounts += 1;
+        p.areas.put(name.value, area)
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

@@ -1,0 +1,132 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.ShortcutChord
+
+public class CommandItemBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var keywords: Array<String> = []
+    public var content: View? = None
+    public var icon: View? = None
+    public var shortcut: ShortcutChord? = None
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(key: ViewKey, label: String, action: () -> Unit): CommandItem =
+        CommandItem(key, label, action, enabled, keywords, content, icon, shortcut, style)
+}
+
+public class CommandContentBuilder internal constructor() {
+    private val entries = ArrayList<CommandEntry>()
+    public fun add(entry: CommandEntry) {
+        entries.add(entry)
+    }
+    public fun item(
+        key: ViewKey,
+        label: String,
+        onSelect: () -> Unit = {},
+        configure: CommandItemBuilder.() -> Unit = {}
+    ) {
+        val builder = CommandItemBuilder()
+        builder.configure()
+        entries.add(CommandEntry.Item(builder.snapshot(key, label, onSelect)))
+    }
+    public fun group(key: ViewKey, title: String, configure: CommandContentBuilder.() -> Unit) {
+        group(key, PanelContent.Label(LabelProps(LabelText.Plain(title, None))), configure)
+    }
+    public fun group(key: ViewKey, title: StyledText, configure: CommandContentBuilder.() -> Unit) {
+        group(key, PanelContent.Label(LabelProps(LabelText.Styled(title))), configure)
+    }
+    public fun group(key: ViewKey, title: View, configure: CommandContentBuilder.() -> Unit) {
+        group(key, PanelContent.Custom(title), configure)
+    }
+    private fun group(
+        key: ViewKey,
+        title: PanelContent,
+        configure: CommandContentBuilder.() -> Unit
+    ) {
+        entries.add(CommandEntry.Label(key, title))
+        val builder = CommandContentBuilder()
+        builder.configure()
+        for (entry in builder.entries)
+            entries.add(entry)
+    }
+    public fun separator(key: ViewKey) {
+        entries.add(CommandEntry.Separator(key))
+    }
+    internal fun snapshot(): CommandContent = CommandContent(entries.toArray())
+}
+
+public fun commandItems(configure: CommandContentBuilder.() -> Unit): CommandContent {
+    val builder = CommandContentBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class CommandBuilder internal constructor(): InputBuilder() {
+    public var active: Binding<ViewKey?>? = None
+    public var filter: CommandFilter = CommandFilter.Ranked
+    public var autoHighlight: Boolean = true
+    public var loop: Boolean = true
+    public var width: Double = 320.0
+    public var maxHeight: Double = 288.0
+    public var empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results found.", None)))
+    public var showSearchIcon: Boolean = true
+    public var searchIcon: View? = None
+    public var scroll: ScrollState? = None
+    public var listHandle: VirtualListHandle? = None
+    public var panelStyle: StyleOverride = styleOverride()
+    public var onSelect: (ViewKey) -> Unit = { _ -> Unit }
+    init {
+        placeholder = "Type a command or search…"
+    }
+    public fun empty(text: String) {
+        empty = PanelContent.Label(LabelProps(LabelText.Plain(text, None)))
+    }
+    public fun empty(text: StyledText) {
+        empty = PanelContent.Label(LabelProps(LabelText.Styled(text)))
+    }
+    public fun empty(content: View) {
+        empty = PanelContent.Custom(content)
+    }
+    public fun panelStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        panelStyle = panelStyle.copy(configure)
+    }
+    internal fun snapshot(source: CommandSource, query: TextEditorState): CommandProps =
+        CommandProps(
+            source,
+            inputProps(query),
+            active,
+            filter,
+            autoHighlight,
+            loop,
+            width,
+            maxHeight,
+            empty,
+            showSearchIcon,
+            searchIcon,
+            scroll,
+            listHandle,
+            panelStyle,
+            onSelect
+        )
+}
+
+public fun command(
+    source: CommandSource,
+    query: TextEditorState,
+    configure: CommandBuilder.() -> Unit = {}
+): View {
+    val builder = CommandBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(source, query),
+        { current, mount -> Command(current, scope = mount) },
+        builder.key
+    )
+}

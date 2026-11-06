@@ -7,23 +7,25 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.LogicalSize
 
-internal class RevealScene(private val probe: RevealProbe): Component {
+internal class RevealScene(private val probe: RevealProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val portalOpen = state(true)
     public override fun render(): View {
         val revision = probe.revision.value
         return element(
             revision,
-            { props -> RevealPanel(probe, props) },
+            { props, mount -> RevealPanel(probe, props, scope = mount) },
             [
                 tile(probe, 0L),
                 scrollArea(
                     element(
                         revision,
-                        { props -> OuterDocument(probe, props) },
+                        { props, mount -> OuterDocument(probe, props, scope = mount) },
                         [
                             scrollArea(
                                 element(
-                                    { InnerDocument(probe) },
+                                    { mount -> InnerDocument(probe, scope = mount) },
                                     [
                                         tile(probe, 4L),
                                         tile(probe, 1L),
@@ -62,22 +64,28 @@ internal class RevealScene(private val probe: RevealProbe): Component {
 }
 
 private fun tile(probe: RevealProbe, index: Long): View =
-    element({ RevealTile(probe, index) }, key = ViewKey.Number(index))
+    element({ mount -> RevealTile(probe, index, scope = mount) }, key = ViewKey.Number(index))
 
-private class RevealPanel(private val probe: RevealProbe, private val props: Props<Int>): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class RevealPanel(
+    private val probe: RevealProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(40.0, 24.0)))
         context.placeChild(0L, Point(10.0, 10.0))
         context.measureChild(1L, Constraints.tight(Size(200.0, 100.0)))
         context.placeChild(1L, Point(20.0, 50.0))
         context.measureChild(2L, Constraints.tight(Size(40.0, 24.0)))
         context.placeChild(2L, Point(350.0, 10.0))
-        return LayoutMetrics(constraints.constrain(Size(480.0, 360.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(480.0, 360.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -124,20 +132,25 @@ private class RevealPanel(private val probe: RevealProbe, private val props: Pro
 
 private class OuterDocument(
     private val probe: RevealProbe,
-    private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(120.0, probe.innerHeight)))
         context.placeChild(0L, Point(280.0, 360.0))
-        return LayoutMetrics(constraints.constrain(Size(600.0, 600.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(600.0, 600.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class InnerDocument(private val probe: RevealProbe): Element {
-    public override fun onMount(scope: ComponentScope) {
+private class InnerDocument(private val probe: RevealProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         probe.group =
             Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[1L]))))
         scope.keyNavigation(
@@ -153,24 +166,30 @@ private class InnerDocument(private val probe: RevealProbe): Element {
             }
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val positions =
             [Point(380.0, 420.0), Point(380.0, 360.0), Point(10.0, 10.0), Point(0.0, 0.0)]
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints.tight(Size(40.0, 24.0)))
             context.placeChild(index, positions[index])
         }
-        return LayoutMetrics(constraints.constrain(Size(500.0, 500.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(500.0, 500.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class RevealTile(private val probe: RevealProbe, private val index: Long): Element {
+private class RevealTile(
+    private val probe: RevealProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var owner: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         owner = Some(scope)
         assertSame(probe.window!!, scope.nativeWindow)
         probe.mounts += 1
@@ -190,9 +209,10 @@ private class RevealTile(private val probe: RevealProbe, private val index: Long
         if (index == 0L)
             assertTrue(probe.handles[0L].requestFocus())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 24.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 24.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         assertFailsWith<IllegalStateException> {
             probe.targets[index]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0))
         }

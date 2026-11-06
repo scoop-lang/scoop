@@ -84,7 +84,7 @@ private class PaintCacheTest {
     }
 
     @Test
-    fun `content bounds extent outset and quality changes retire only the affected layer`() {
+    fun `content changes retire recordings while raster quality changes retain their commands`() {
         PaintLayers().use {
             layers -> RasterSurface(64, 32).use {
                 surface ->
@@ -107,10 +107,14 @@ private class PaintCacheTest {
                     old = Some(cachedPaint(layers, probe.key))
                     assertSame(unchanged, cachedPaint(layers, sibling.key))
                 }
+                val oldPixels = old!!.tiles[PaintTileIndex(0L, 0L)]!!.image
                 paintFrame(surface, layers, probe, variants[4L], scale = 2.0)
-                assertTrue(old!!.drawing.isClosed)
+                assertFalse(old!!.drawing.isClosed)
+                assertTrue(oldPixels.isClosed)
                 val scaled = cachedPaint(layers, probe.key)
-                assertEquals(2.0, scaled.grid.scaleX)
+                assertSame(old!!, scaled)
+                assertEquals(2.0, scaled.grid!!.scaleX)
+                val scaledPixels = scaled.tiles[PaintTileIndex(0L, 0L)]!!.image
                 paintFrame(
                     surface,
                     layers,
@@ -119,8 +123,10 @@ private class PaintCacheTest {
                     PaintCachePolicy.Tiles(48, 1),
                     scale = 2.0
                 )
-                assertTrue(scaled.drawing.isClosed)
-                assertEquals(7, probe.records)
+                assertFalse(scaled.drawing.isClosed)
+                assertTrue(scaledPixels.isClosed)
+                assertSame(scaled, cachedPaint(layers, probe.key))
+                assertEquals(5, probe.records)
                 assertEquals(1, sibling.records)
                 val keys = ArrayList<PaintKey>()
                 keys.add(probe.key)
@@ -132,15 +138,18 @@ private class PaintCacheTest {
     }
 
     @Test
-    fun `uncached and unsupported transforms execute independent recordings without retained images`() {
+    fun `no pixel cache and unsupported transforms reuse isolated recordings without retained images`() {
         PaintLayers().use {
             layers -> RasterSurface(64, 32).use {
                 surface ->
                 val probe = PaintProbe()
                 paintFrame(surface, layers, probe)
                 val previous = cachedPaint(layers, probe.key)
+                val pixels = previous.tiles[PaintTileIndex(0L, 0L)]!!.image
                 paintFrame(surface, layers, probe, policy = PaintCachePolicy.None)
-                assertTrue(previous.drawing.isClosed)
+                assertFalse(previous.drawing.isClosed)
+                assertTrue(pixels.isClosed)
+                assertEquals(0L, previous.tiles.size)
                 paintFrame(surface, layers, probe, policy = PaintCachePolicy.None)
                 for (
                     transform in [
@@ -159,15 +168,17 @@ private class PaintCacheTest {
                             PaintCachePolicy.Tiles(32, 0)
                         ) { record -> probe.paint(record, paintInput().bounds) }
                     }
-                    assertEquals(0L, layers.entries.size)
+                    assertEquals(1L, layers.entries.size)
+                    assertSame(previous, cachedPaint(layers, probe.key))
+                    assertEquals(0L, previous.tiles.size)
                 }
-                assertEquals(6, probe.records)
+                assertEquals(1, probe.records)
             }
         }
     }
 
     @Test
-    fun `large content allocates visible tiles and fully clipped layers release their resources`() {
+    fun `large content allocates visible tiles and fully clipped layers release only raster resources`() {
         PaintLayers().use {
             layers -> RasterSurface(32, 32).use {
                 surface ->
@@ -188,11 +199,14 @@ private class PaintCacheTest {
                         _ -> fail(Some("invisible retained layer should not record"))
                     }
                 }
-                assertTrue(previous.drawing.isClosed)
-                assertEquals(0L, layers.entries.size)
+                assertFalse(previous.drawing.isClosed)
+                assertEquals(0L, previous.tiles.size)
+                assertEquals(1L, layers.entries.size)
                 val overflow = PaintLayerInput(Size(64.0, 32.0), paintInput().bounds, 0L, 1.0e30)
                 paintFrame(surface, layers, probe, overflow)
-                assertEquals(0L, layers.entries.size)
+                assertTrue(previous.drawing.isClosed)
+                assertEquals(1L, layers.entries.size)
+                assertEquals(0L, cachedPaint(layers, probe.key).tiles.size)
                 assertEquals(2, probe.records)
             }
         }
@@ -224,6 +238,54 @@ private class PaintCacheTest {
                     assertEquals(255, paintChannel(pixels, 64, 30, 12, 3))
                     assertEquals(0, paintChannel(pixels, 64, 4, 4, 0))
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `source blending inside a retained layer preserves the backdrop outside its group`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val key = PaintKey()
+                val input = PaintLayerInput(Size(64.0, 32.0), Rect(0.0, 0.0, 64.0, 32.0), 0L, 1.0)
+                val records = ArrayList<Int>()
+                val frames = ArrayList<Array<Byte>>()
+                for (
+                    policy in [
+                        PaintCachePolicy.None,
+                        PaintCachePolicy.Tiles(16, 0),
+                        PaintCachePolicy.None
+                    ]
+                ) {
+                    surface.draw {
+                        canvas ->
+                        canvas.clear(Color.White)
+                        layers.draw(canvas, key, input, policy) {
+                            record ->
+                            records.add(1)
+                            record.drawRect(input.bounds, Paint(Color.Black))
+                            record.withState {
+                                source ->
+                                source.clipRect(Rect(16.0, 8.0, 32.0, 16.0))
+                                source.saveLayer(blendMode = BlendMode.Src)
+                                source.drawRect(
+                                    Rect(24.0, 8.0, 16.0, 16.0),
+                                    Paint(Color(1.0, 0.0, 0.0))
+                                )
+                            }
+                        }
+                    }
+                    frames.add(surface.readPixels())
+                }
+                assertEquals(1L, records.size)
+                assertPaintPixels(frames[0L], frames[1L], 64, 32, 0)
+                assertPaintPixels(frames[0L], frames[2L], 64, 32, 0)
+                assertEquals(0, paintChannel(frames[0L], 64, 4, 4, 0))
+                assertEquals(255, paintChannel(frames[0L], 64, 18, 12, 0))
+                assertEquals(255, paintChannel(frames[0L], 64, 18, 12, 3))
+                assertEquals(255, paintChannel(frames[0L], 64, 30, 12, 0))
+                assertEquals(0, paintChannel(frames[0L], 64, 30, 12, 1))
             }
         }
     }

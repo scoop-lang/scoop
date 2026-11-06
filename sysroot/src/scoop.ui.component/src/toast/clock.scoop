@@ -1,0 +1,35 @@
+package scoop.ui.component
+
+import scoop.time.*
+
+/** A paused clock retains the unused portion, independent of host mounting. */
+internal class ToastClock(duration: Duration?) {
+    var remaining: Duration? = duration
+    private var started: TimeMark? = None
+    val deadline: TimeMark? get() =
+        when ((started, remaining)) {
+            case(Some(time), Some(value)) -> Some(time + value)
+            else -> None
+        }
+    fun reset(duration: Duration?) {
+        remaining = duration;
+        started = None
+    }
+    fun pause(now: TimeMark) {
+        when (deadline) {
+            case Some(end) -> remaining =
+                Some(
+                    if (end > now)
+                        end - now
+                    else
+                        Duration.ZERO
+                )
+            case None -> {}
+        }
+        started = None
+    }
+    fun resume(now: TimeMark) {
+        if (started == None && panelPresent(remaining))
+            started = Some(now)
+    }
+}

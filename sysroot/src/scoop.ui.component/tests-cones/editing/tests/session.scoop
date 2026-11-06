@@ -192,7 +192,7 @@ internal class FieldProbe {
                             assertTrue(application.proxy().post { _ -> current() })
                         }
                     )
-                ui = Some(host.attach(window, { FieldScene(this) }))
+                ui = host.attach(window, { mount -> FieldScene(this, scope = mount) })
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(50L))
                 )

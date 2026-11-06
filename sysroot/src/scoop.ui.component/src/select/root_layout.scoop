@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class SelectRootProps(
+    val anchor: LayoutAnchor,
+    val width: Double?,
+    val enabled: Boolean,
+    val open: Boolean,
+    val show: (Boolean) -> Unit,
+    val updated: () -> Unit
+)
+
+internal class SelectRootLayout(
+    private val props: Props<SelectRootProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.layoutAnchor(props.value.anchor)
+        scope.input.addDefaultAction {
+            context, event ->
+            if (!props.value.enabled || props.value.open)
+                return@addDefaultAction
+            val key =
+                when (event) {
+                    case Keyboard(value) -> value;
+                    else -> return@addDefaultAction
+                }
+            if (!menuKeyAllowed(key))
+                return@addDefaultAction
+            if (
+                key.logicalKey ==
+                    LogicalKey.Named(NamedKey.ArrowDown) ||
+                    key.logicalKey ==
+                    LogicalKey.Named(NamedKey.ArrowUp)
+            ) {
+                context.consume()
+                props.value.show(key.logicalKey == LogicalKey.Named(NamedKey.ArrowUp))
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        props.value.updated()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val limits =
+            when (props.value.width) {
+                case Some(width) -> {
+                    val constrained =
+                        constraints.constrain(Size(width, constraints.minHeight)).width
+                    Constraints(
+                        constrained,
+                        Some(constrained),
+                        constraints.minHeight,
+                        constraints.maxHeight
+                    )
+                }
+                case None -> constraints
+            }
+        val result = context.measureChild(0L, limits)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.anchor(props.value.anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

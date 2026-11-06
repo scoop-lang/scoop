@@ -1,0 +1,276 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+private class TableTestRow(val group: Int, val score: Int, val enabled: Boolean = true)
+
+private class TableCalls {
+    var compare = 0;
+    var filter = 0;
+    var query = 0
+}
+
+private fun tableTestRows(values: Array<TableTestRow>): TableRows<TableTestRow> =
+    TableRows(
+        Array<TableRecord<TableTestRow>>(values.size) {
+            index -> TableRecord(ViewKey.Number(index), values[index])
+        }
+    )
+
+private fun tableTestColumns(calls: TableCalls): Array<TableColumn<TableTestRow>> =
+    [
+        TableColumn(
+            "group",
+            "Group",
+            { _ -> empty() },
+            compare =
+                Some {
+                    left, right ->
+                    calls.compare += 1;
+                    left.group - right.group
+                },
+            filter =
+                Some {
+                    value, text ->
+                    calls.filter += 1;
+                    f"${value.group}" == text
+                }
+        ),
+        TableColumn(
+            "score",
+            "Score",
+            { _ -> empty() },
+            size = TableColumnSize(minimum = 50.0, maximum = Some(200.0)),
+            compare =
+                Some {
+                    left, right ->
+                    calls.compare += 1;
+                    left.score - right.score
+                }
+        )
+    ]
+
+@Test
+private class TableModelTest {
+    @Test
+    fun `additive direction changes keep sort priority and automatic row keys stay positional`() {
+        val model =
+            DataTableState(
+                TableData.Local(tableTestRows([TableTestRow(1, 2)])),
+                tableTestColumns(TableCalls())
+            )
+        model.toggleSort("group")
+        model.toggleSort("score", true)
+        model.toggleSort("group", true)
+        assertEquals("group", model.query.sorting[0L].column)
+        assertEquals(TableSortDirection.Descending, model.query.sorting[0L].direction)
+        assertEquals("score", model.query.sorting[1L].column)
+        model.toggleSort("group", true)
+        assertEquals(1L, model.query.sorting.size)
+        assertEquals("score", model.query.sorting[0L].column)
+        val cells = [TableCellProps(tableText("Cell"))]
+        tableCheckRows(
+            [
+                TableRowProps(cells),
+                TableRowProps(cells, key = ViewKey.Number(0L)),
+                TableRowProps(cells)
+            ],
+            1L
+        )
+    }
+    @Test
+    fun `local filtering stable multi sorting and pagination reuse one result order`() {
+        val calls = TableCalls()
+        val source =
+            tableTestRows(
+                [
+                    TableTestRow(1, 4),
+                    TableTestRow(2, 5),
+                    TableTestRow(1, 3),
+                    TableTestRow(1, 4),
+                    TableTestRow(2, 1)
+                ]
+            )
+        val model =
+            DataTableState(
+                TableData.Local(source),
+                tableTestColumns(calls),
+                TableQuery(pageSize = 2L)
+            )
+        model.setQuery(
+            TableQuery(
+                [TableSort("group"), TableSort("score", TableSortDirection.Descending)],
+                [TableFilter("group", "1")],
+                pageSize = 2L
+            )
+        )
+        assertEquals(3L, model.result.totalRows)
+        assertEquals(ViewKey.Number(0L), model.result.rows.keyAt(0L))
+        assertEquals(ViewKey.Number(3L), model.result.rows.keyAt(1L))
+        assertEquals(Some(1L), model.result.rows.indexOfKey(ViewKey.Number(3L)))
+        val compared = calls.compare
+        val filtered = calls.filter
+        model.setPage(1L)
+        assertEquals(ViewKey.Number(2L), model.result.rows.keyAt(0L))
+        model.setSelected(ViewKey.Number(2L), true)
+        model.showColumn("score", false)
+        model.resizeColumn("score", 180.0)
+        assertEquals(compared, calls.compare)
+        assertEquals(filtered, calls.filter)
+        model.setFilter("group", "2")
+        assertEquals(0L, model.query.pageIndex)
+        assertEquals(2L, model.result.totalRows)
+    }
+    @Test
+    fun `page selection excludes disabled rows retains other pages and removes deleted local keys`() {
+        val calls = TableCalls()
+        val rows =
+            [TableTestRow(1, 0), TableTestRow(1, 1, false), TableTestRow(1, 2), TableTestRow(1, 3)]
+        val model =
+            DataTableState(
+                TableData.Local(tableTestRows(rows)),
+                tableTestColumns(calls),
+                TableQuery(pageSize = 3L),
+                { row -> row.enabled }
+            )
+        model.setSelected(ViewKey.Number(0L), true)
+        assertEquals(CheckState.Indeterminate, model.pageSelection)
+        model.selectPage(true)
+        assertEquals(CheckState.Checked, model.pageSelection)
+        assertEquals(2L, model.selectedKeys.size)
+        model.setSelected(ViewKey.Number(1L), true)
+        assertEquals(2L, model.selectedKeys.size)
+        model.setPage(1L)
+        model.selectPage(true)
+        assertEquals(3L, model.selectedKeys.size)
+        model.replaceData(TableData.Local(tableTestRows([rows[0L], rows[1L], rows[2L]])))
+        assertEquals(0L, model.query.pageIndex)
+        assertEquals(2L, model.selectedKeys.size)
+        assertEquals(CheckState.Checked, model.pageSelection)
+        model.selectPage(false)
+        assertEquals(0L, model.selectedKeys.size)
+        model.replaceData(TableData.Local(tableTestRows([])))
+        assertEquals(0L, model.result.pageCount)
+        assertEquals(0L, model.result.rows.count)
+        assertEquals(CheckState.Unchecked, model.pageSelection)
+    }
+    @Test
+    fun `provided pages notify queries without applying local callbacks or pruning absent keys`() {
+        val calls = TableCalls()
+        val first = tableTestRows([TableTestRow(1, 1), TableTestRow(2, 2)])
+        val model =
+            DataTableState(
+                TableData.Provided(first, 20L),
+                tableTestColumns(calls),
+                TableQuery(pageSize = 2L),
+                onQueryChange = Some { _ -> calls.query += 1 }
+            )
+        model.selectPage(true)
+        model.setQuery(TableQuery([TableSort("score")], [TableFilter("group", "9")], pageSize = 2L))
+        model.setPage(3L)
+        val second = TableRows([TableRecord(ViewKey.Number(8L), TableTestRow(9, 9))])
+        model.replaceData(TableData.Provided(second, 20L))
+        assertEquals(0, calls.compare)
+        assertEquals(0, calls.filter)
+        assertEquals(2, calls.query)
+        assertEquals(2L, model.selectedKeys.size)
+        assertEquals(1L, model.result.rows.count)
+        assertEquals(ViewKey.Number(8L), model.result.rows.keyAt(0L))
+        assertEquals(CheckState.Unchecked, model.pageSelection)
+        model.selectPage(true)
+        assertEquals(3L, model.selectedKeys.size)
+        model.replaceData(TableData.Provided(second, 1L))
+        assertEquals(0L, model.query.pageIndex)
+        assertEquals(3, calls.query)
+    }
+    @Test
+    fun `fixed auto fraction tracks share immutable widths across overflow and capped distribution`() {
+        val tracks =
+            TableTracks(
+                [
+                    TableColumnSize(GridTrack.Fixed(80.0), minimum = 40.0),
+                    TableColumnSize(GridTrack.Auto, minimum = 50.0),
+                    TableColumnSize(GridTrack.Fraction(1.0), minimum = 40.0, maximum = Some(60.0)),
+                    TableColumnSize(GridTrack.Fraction(2.0), minimum = 40.0)
+                ],
+                [0.0, 100.0, 0.0, 0.0],
+                2.0
+            )
+        val narrow = tracks.resolve(100.0)
+        assertEquals(520.0, narrow.total)
+        assertTrue(narrow === tracks.resolve(narrow.total))
+        val wide = tracks.resolve(800.0)
+        assertEquals(800.0, wide.total)
+        assertEquals(160.0, wide.values[0L])
+        assertEquals(200.0, wide.values[1L])
+        assertEquals(120.0, wide.values[2L])
+        assertEquals(320.0, wide.values[3L])
+        assertTrue(wide === tracks.resolve(800.0))
+    }
+    @Test
+    fun `row identities column queries sizes and finite table spans fail at their input boundaries`() {
+        val source = tableTestRows([TableTestRow(1, 1)])
+        val columns = tableTestColumns(TableCalls())
+        assertFailsWith<IllegalArgumentException> { TableRows([TableRecord(ViewKey.Position, 1)]) }
+        assertFailsWith<IllegalArgumentException> {
+            TableRows([TableRecord(ViewKey.Text("a"), 1), TableRecord(ViewKey.Text("a"), 2)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DataTableState(TableData.Local(source), [columns[0L], columns[0L]])
+        }
+        assertFailsWith<IllegalArgumentException> { TableQuery(pageSize = 0L) }
+        val model = DataTableState(TableData.Local(source), columns)
+        assertFailsWith<IllegalArgumentException> {
+            model.setQuery(TableQuery([TableSort("missing")]))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            model.setQuery(TableQuery([TableSort("score"), TableSort("score")]))
+        }
+        assertFailsWith<IllegalArgumentException> { model.setFilter("score", "1") }
+        assertEquals(0L, model.query.filters.size)
+        assertFailsWith<IllegalArgumentException> { TableColumnSize(maximum = Some(10.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            tableCheckRows([TableRowProps([TableCellProps(tableText("x"), span = 2L)])], 1L)
+        }
+        model.resizeColumn("score", 900.0)
+        assertEquals(Some(200.0), model.columnWidth("score"))
+        model.resetColumnWidth("score")
+        assertEquals(None, model.columnWidth("score"))
+        model.showColumn("score", false)
+        model.showColumn("group", false)
+        assertTrue(model.isColumnVisible("group"))
+    }
+    @Test
+    fun `builder appends finite table sections and data table as real children`() {
+        val model =
+            DataTableState(TableData.Local(tableTestRows([])), tableTestColumns(TableCalls()))
+        var content: View? = None
+        content =
+            Some(
+                column {
+                    this.table {
+                        this.header {
+                            this.row {
+                                this.head("Name");
+                                this.head("Amount")
+                            }
+                        }
+                        this.body {
+                            this.row(ViewKey.Text("same display")) {
+                                this.cell("Ada");
+                                this.cell("10")
+                            }
+                        }
+                        this.footer { this.row { this.cell("Total") { this.span = 2L } } }
+                        this.caption("Finite data")
+                    }
+                    this.dataTable(model) {
+                        this.empty("Nothing matches");
+                        this.selection = false
+                    }
+                }
+            )
+        assertTrue(panelPresent(content))
+    }
+}

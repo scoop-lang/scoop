@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.text.*
@@ -15,14 +16,18 @@ public class LabelProps public constructor(
     public val settings: ParagraphStyle? = None,
     public val inlines: Array<InlineView> = [],
     public val theme: ThemeSource? = None,
-    public val baseStyle: TextStyle? = None
+    public val baseStyle: TextStyle? = None,
+    public val underline: Color? = None
 )
 
 /** A normal component; text measurement and ownership belong to the public ParagraphHost. */
-public class Label public constructor(private val props: Props<LabelProps>): Component {
+public class Label public constructor(
+    private val props: Props<LabelProps>,
+    scope: ComponentScope
+): Component(scope) {
     private var plain: PlainLabel? = None
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         when (props.value.text) {
             case Plain(_, _) -> when (props.value.baseStyle) {
                 case None -> themes.mount(props.value.theme)
@@ -44,7 +49,7 @@ public class Label public constructor(private val props: Props<LabelProps>): Com
             }
         return element(
             LabelInkProps(content, input),
-            { current -> LabelInk(current) },
+            { current, mount -> LabelInk(current, scope = mount) },
             inlineChildren(content, input.inlines)
         )
     }
@@ -97,45 +102,71 @@ private class PlainLabel(
 
 private class LabelInkProps(val content: StyledText, val input: LabelProps)
 
-private class LabelInk(private val props: Props<LabelInkProps>): Element {
-    private var scope: ComponentScope? = None
-    private var paragraph: ParagraphHost? = None
-    private var ownedFonts: FontCollection? = None
-    private var fonts: FontCollection? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-        paragraph = Some(scope.resource { ParagraphHost() })
-    }
-    public override fun update() {
-        fonts =
-            Some(
-                when (props.value.input.fonts) {
-                    case Some(value) -> value
-                    case None -> {
-                        when (ownedFonts) {
-                            case Some(value) -> value
-                            case None -> {
-                                val value = scope!!.resource { FontCollection() }
-                                ownedFonts = Some(value)
-                                value
-                            }
-                        }
-                    }
-                }
-            )
-    }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class LabelInk(private val props: Props<LabelInkProps>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private var previous: LabelInkProps? = None
+    private val paragraph = scope.resource { ParagraphHost() }
+    private var fonts = props.value.input.fonts ?: scope.defaultFonts
+    public override fun update(): UiInvalidation {
+        val previousFonts = fonts
+        fonts = props.value.input.fonts ?: scope.defaultFonts
         val value = props.value
-        return paragraph!!.measure(
-            context,
-            constraints,
-            fonts!!,
-            value.content,
-            value.input.settings,
-            value.input.inlines
-        )
+        val fontChanged = previousFonts !== fonts
+        val changed =
+            fontChanged ||
+                when (previous) {
+                    case Some(old) -> old.content !==
+                        value.content ||
+                        !sameLabelParagraph(old.input.settings, value.input.settings) ||
+                        !(
+                            old.input.inlines ===
+                                value.input.inlines ||
+                                (old.input.inlines.size == 0L && value.input.inlines.size == 0L)
+                        )
+                    case None -> true
+                }
+        previous = Some(value)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
-    public override fun scene(context: SceneContext) {
-        paragraph!!.scene(context)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val value = props.value
+        val measured =
+            paragraph.measure(
+                context,
+                constraints,
+                fonts,
+                value.content,
+                value.input.settings,
+                value.input.inlines
+            )
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        paragraph.scene(context, measured)
+        when (props.value.input.underline) {
+            case Some(color) -> {
+                val boxes =
+                    measured.layout.selection(TextRange(0L, props.value.content.text.byteLength))
+                context.draw {
+                    paint -> for (box in boxes)
+                        paint.canvas.drawRect(
+                            Rect(
+                                box.rect.x,
+                                box.rect.y + box.rect.height - 1.0,
+                                box.rect.width,
+                                1.0
+                            ),
+                            Paint(color)
+                        )
+                }
+            }
+            case None -> {}
+        }
     }
 }

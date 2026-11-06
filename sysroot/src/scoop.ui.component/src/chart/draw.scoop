@@ -1,0 +1,211 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+internal fun chartDraw(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry) {
+    if (!chartIsCartesian(plan.input.kind)) {
+        chartDrawPolar(canvas, plan, geometry)
+        return
+    }
+    val appearance = plan.appearance
+    val input = plan.input
+    val d = appearance.density
+    for (line in geometry.grid)
+        canvas.drawLine(
+            line.start,
+            line.end,
+            Paint(appearance.theme.tokens.palette.border.withAlpha(0.5), strokeWidth = d)
+        )
+    canvas.withState {
+        canvas ->
+        canvas.clipRect(geometry.plot)
+        for (series in geometry.series) {
+            val color = series.series.color
+            if (series.series.mark == ChartMark.Bar) {
+                for (sample in series.samples)
+                    when (sample) {
+                        case Some(value) -> when (value.shape) {
+                            case Rectangle(bounds) -> canvas.drawRoundRect(
+                                bounds,
+                                input.barRadius * d,
+                                input.barRadius * d,
+                                Paint(color)
+                            );
+                            else -> {}
+                        }
+                        case None -> {}
+                    }
+            } else {
+                for (run in chartRuns(series.samples, input.connectMissing)) {
+                    val points = Array<Point>(run.size) { at -> run[at].point }
+                    if (series.series.mark == ChartMark.Area && geometry.plot.height > 0.0) {
+                        path {
+                            chartTrace(
+                                this,
+                                points,
+                                input.curve,
+                                input.orientation == Orientation.Horizontal
+                            )
+                            val base = Array<Point>(run.size) { at -> run[run.size - 1L - at].base }
+                            chartTrace(
+                                this,
+                                base,
+                                input.curve,
+                                input.orientation == Orientation.Horizontal,
+                                false
+                            )
+                            this.closeContour()
+                        }.use {
+                            path -> canvas.drawPath(
+                                path,
+                                Paint(
+                                    color,
+                                    gradient =
+                                        Some(
+                                            Gradient.linear(
+                                                Point(geometry.plot.x, geometry.plot.y),
+                                                Point(
+                                                    geometry.plot.x,
+                                                    geometry.plot.y + geometry.plot.height
+                                                ),
+                                                [
+                                                    GradientStop(
+                                                        0.0,
+                                                        color.withAlpha(color.alpha * 0.45)
+                                                    ),
+                                                    GradientStop(
+                                                        1.0,
+                                                        color.withAlpha(color.alpha * 0.04)
+                                                    )
+                                                ]
+                                            )
+                                        )
+                                )
+                            )
+                        }
+                    }
+                    path {
+                        chartTrace(
+                            this,
+                            points,
+                            input.curve,
+                            input.orientation == Orientation.Horizontal
+                        )
+                    }.use {
+                        path -> canvas.drawPath(
+                            path,
+                            Paint(
+                                color,
+                                PaintingStyle.Stroke,
+                                2.0 * d,
+                                StrokeCap.Round,
+                                StrokeJoin.Round
+                            )
+                        )
+                    }
+                }
+                if (input.pointRadius > 0.0)
+                    for (sample in series.samples)
+                        when (sample) {
+                            case Some(value) -> canvas.drawCircle(
+                                value.point,
+                                input.pointRadius * d,
+                                Paint(color)
+                            );
+                            case None -> {}
+                        }
+            }
+        }
+    }
+    for (label in geometry.labels)
+        appearance.draw(canvas, label.text, label.origin)
+    if (input.labels)
+        for (series in geometry.series)
+            for (sample in series.samples)
+                when (sample) {
+                    case Some(value) -> if (value.visible) {
+                        val text = chartNumber(value.value)
+                        val extent = appearance.measure(text)
+                        val origin =
+                            Point(
+                                chartClamp(
+                                    value.point.x - extent.width / 2.0,
+                                    0.0,
+                                    lowerBound(geometry.size.width - extent.width, 0.0)
+                                ),
+                                chartClamp(
+                                    value.point.y - extent.height - 6.0 * d,
+                                    0.0,
+                                    lowerBound(geometry.size.height - extent.height, 0.0)
+                                )
+                            )
+                        appearance.draw(canvas, text, origin, true)
+                    }
+                    case None -> {}
+                }
+}
+
+internal fun chartDrawActive(
+    canvas: Canvas,
+    plan: ChartPlan,
+    geometry: ChartGeometry,
+    selection: ChartSelection?
+) {
+    if (!chartIsCartesian(plan.input.kind)) {
+        chartDrawPolarActive(canvas, plan, geometry, selection)
+        return
+    }
+    val active =
+        when (selection) {
+            case Some(key) -> geometry.find(key);
+            case None -> None
+        }
+    when (active) {
+        case None -> {}
+        case Some(sample) -> {
+            val d = plan.appearance.density
+            val color = plan.appearance.theme.tokens.palette.ring
+            canvas.withState {
+                canvas ->
+                canvas.clipRect(geometry.plot)
+                when (sample.shape) {
+                    case Rectangle(bounds) -> canvas.drawRoundRect(
+                        bounds,
+                        plan.input.barRadius * d,
+                        plan.input.barRadius * d,
+                        Paint(color, PaintingStyle.Stroke, 2.0 * d)
+                    )
+                    else -> {
+                        val line =
+                            if (plan.input.orientation == Orientation.Horizontal)
+                                ChartGrid(
+                                    Point(geometry.plot.x, sample.point.y),
+                                    Point(geometry.plot.x + geometry.plot.width, sample.point.y)
+                                )
+                            else
+                                ChartGrid(
+                                    Point(sample.point.x, geometry.plot.y),
+                                    Point(sample.point.x, geometry.plot.y + geometry.plot.height)
+                                )
+                        canvas.drawLine(
+                            line.start,
+                            line.end,
+                            Paint(plan.appearance.theme.tokens.palette.border, strokeWidth = d)
+                        )
+                        canvas.drawCircle(
+                            sample.point,
+                            lowerBound(plan.input.pointRadius, 4.0) * d,
+                            Paint(plan.appearance.theme.tokens.palette.background.background)
+                        )
+                        canvas.drawCircle(
+                            sample.point,
+                            lowerBound(plan.input.pointRadius, 4.0) * d,
+                            Paint(color, PaintingStyle.Stroke, 2.0 * d)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

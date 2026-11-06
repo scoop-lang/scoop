@@ -1,0 +1,75 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+private class ConversationShimmerProps(val active: Boolean, val opacity: Double)
+
+/** Only display content uses the moving alpha band; its layout and input remain unchanged. */
+internal fun conversationShimmer(
+    content: View,
+    active: Boolean,
+    theme: Theme,
+    opacity: Double = 1.0
+): View =
+    element(
+        ConversationShimmerProps(
+            active && theme.tokens.motion.preference == MotionPreference.Full,
+            opacity
+        ),
+        { current, scope -> ConversationShimmer(current, scope) },
+        [content]
+    )
+
+private class ConversationShimmer(
+    private val props: Props<ConversationShimmerProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val motion = LoadingMotion(scope)
+    private var visible = false
+    public override fun update(): UiInvalidation {
+        motion.update(props.value.active && props.value.opacity > 0.0, Duration.milliseconds(1600L))
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val size = context.size
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        visible = false
+        context.draw { paint -> visible = loadingVisible(paint.canvas, bounds, input.opacity) }
+        val animated = input.active && visible
+        if (input.opacity < 1.0 || animated)
+            context.saveLayer(input.opacity)
+        context.children()
+        if (animated) {
+            val center = (-0.3 + 1.6 * motion.phase.value) * size.width
+            val band = lowerBound(1.0, size.width * 0.35)
+            val mask =
+                Gradient.linear(
+                    Point(center - band, 0.0),
+                    Point(center + band, 0.0),
+                    [
+                        GradientStop(0.0, Color.White.withAlpha(0.5)),
+                        GradientStop(0.5, Color.White),
+                        GradientStop(1.0, Color.White.withAlpha(0.5))
+                    ]
+                )
+            context.saveLayer(blendMode = BlendMode.DstIn)
+            context.draw { paint -> paint.canvas.drawRect(bounds, Paint(gradient = Some(mask))) }
+            context.restore()
+        }
+        if (input.opacity < 1.0 || animated)
+            context.restore()
+        loadingParticipation(context, motion.phase, animated)
+    }
+}

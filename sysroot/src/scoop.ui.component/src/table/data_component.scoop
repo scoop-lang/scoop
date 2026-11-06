@@ -1,0 +1,234 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class DataTablePlan<Row>(
+    val state: DataTableState<Row>,
+    val hidden: Array<String>,
+    val widths: Array<TableColumnWidth>,
+    val selection: Boolean,
+    val appearance: TableAppearance
+) {
+    val columns: Array<TableColumn<Row>> = visible()
+    val tracks = makeTracks()
+    private fun visible(): Array<TableColumn<Row>> {
+        val result = ArrayList<TableColumn<Row>>()
+        for (column in state.columns)
+            if (state.isColumnVisible(column.id))
+                result.add(column)
+        return result.toArray()
+    }
+    private fun makeTracks(): TableTracks {
+        val sizes = ArrayList<TableColumnSize>()
+        val headers = ArrayList<String>()
+        if (selection) {
+            sizes.add(TableColumnSize(GridTrack.Fixed(40.0), minimum = 40.0));
+            headers.add("")
+        }
+        for (column in columns) {
+            val size = column.size
+            sizes.add(
+                when (state.columnWidth(column.id)) {
+                    case Some(width) -> TableColumnSize(
+                        GridTrack.Fixed(width),
+                        size.minimum,
+                        size.maximum,
+                        size.samples
+                    );
+                    case None -> size
+                }
+            )
+            headers.add(column.header)
+        }
+        val values = sizes.toArray()
+        return TableTracks(
+            values,
+            appearance.natural(values, headers.toArray(), 32.0),
+            appearance.density
+        )
+    }
+}
+
+public class DataTable<Row> public constructor(
+    private val props: Props<DataTableProps<Row>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val horizontal = ScrollState()
+    private val vertical = ScrollState()
+    private val menuOpen = state(false)
+    private var plan: DataTablePlan<Row>? = None
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val model = input.state
+        val menuOpen = this.menuOpen
+        val theme = themes.read(input.theme)
+        val fonts = input.fonts ?: scope.defaultFonts
+        val hidden = model.hiddenColumns
+        val widths = model.widths
+        val reusable =
+            when (plan) {
+                case Some(old) -> old.state ===
+                    model &&
+                    old.hidden ===
+                    hidden &&
+                    old.widths ===
+                    widths &&
+                    old.selection ==
+                    input.selection &&
+                    old.appearance.theme ===
+                    theme &&
+                    old.appearance.fonts ===
+                    fonts &&
+                    old.appearance.direction ==
+                    scope.layoutDirection
+                case None -> false
+            }
+        if (!reusable)
+            plan =
+                Some(
+                    DataTablePlan(
+                        model,
+                        hidden,
+                        widths,
+                        input.selection,
+                        TableAppearance(theme, fonts, input.theme, scope.layoutDirection)
+                    )
+                )
+        val geometry = plan!!
+        val appearance = geometry.appearance
+        val density = appearance.density
+        val rows = model.result.rows
+        val selected = model.selectedKeys
+        val items = DataTableItems(input, geometry, rows, selected)
+        val body =
+            if (rows.count == 0L)
+                frame(appearance.content(input.empty, dim = true)) {
+                    this.height = Some(input.bodyHeight * density)
+                    this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
+                    this.padding = Some(Insets.all(appearance.padding))
+                }
+            else
+                virtualList(
+                    items,
+                    when (input.itemExtent) {
+                        case Fixed(value) -> ItemExtent.Fixed(value * density);
+                        case Variable(value) -> ItemExtent.Variable(value * density)
+                    }
+                ) {
+                    this.height = Some(input.bodyHeight * density)
+                    this.state = Some(input.vertical ?: this @DataTable.vertical)
+                    this.handle = input.handle
+                    this.overscan = 48.0 * density
+                    this.enabled = input.enabled
+                    this.theme = input.theme
+                }
+        val content =
+            column {
+                this.spacing = 0.0
+                this.alignment = CrossAlignment.Stretch
+                this.add(dataTableHeader(input, geometry))
+                this.add(body)
+            }
+        val controls =
+            ScrollControlProps(
+                input.horizontal ?: horizontal,
+                ScrollAxes.Horizontal,
+                40.0,
+                ScrollChain.Chain,
+                ScrollbarVisibility.Auto,
+                scrollbarOptions(),
+                input.enabled,
+                FocusOptions(tabStop = false),
+                PaintCachePolicy.None,
+                theme
+            )
+        val viewport =
+            element(
+                TableViewportInput(geometry.tracks, controls, input.width),
+                { props, scope -> TableViewport(props, scope) },
+                [content]
+            )
+        return column {
+            this.spacing = 12.0 * density
+            this.alignment = CrossAlignment.Stretch
+            if (input.columnMenu || panelPresent(input.toolbar))
+                this.row {
+                    this.spacing = 8.0 * density
+                    this.alignment = CrossAlignment.Center
+                    when (input.toolbar) {
+                        case Some(view) -> this.item(view) { this.grow = 1.0 };
+                        case None -> this.item(empty()) { this.grow = 1.0 }
+                    }
+                    if (input.columnMenu)
+                        this.add(dataTableColumnMenu(input, menuOpen.binding()))
+                }
+            this.add(viewport)
+            if (input.pagination)
+                this.add(dataTablePagination(input, appearance))
+            when (input.footer) {
+                case Some(view) -> this.add(view);
+                case None -> {}
+            }
+        }
+    }
+}
+
+private class DataTableItems<Row>(
+    private val input: DataTableProps<Row>,
+    private val plan: DataTablePlan<Row>,
+    private val rows: TableSource<Row>,
+    selected: Array<ViewKey>
+): ItemSource {
+    private val selected = HashSet<ViewKey>()
+    init {
+        for (key in selected)
+            this.selected.add(key)
+    }
+    public override val count: Long get() = rows.count
+    public override fun keyAt(index: Long): ViewKey = rows.keyAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? = rows.indexOfKey(key)
+    public override fun build(index: Long): View {
+        val input = this.input
+        val row = rows.rowAt(index)
+        val key = rows.keyAt(index)
+        val cells = ArrayList<TableCellProps>()
+        if (input.selection)
+            cells.add(
+                TableCellProps(
+                    PanelContent.Custom(
+                        checkbox(
+                            binding(
+                                { input.state.isSelected(key) },
+                                { value -> input.state.setSelected(key, value) }
+                            )
+                        ) {
+                            this.enabled = input.enabled && input.state.selectable(row);
+                            this.theme = input.theme
+                        }
+                    ),
+                    key = ViewKey.Text("selection")
+                )
+            )
+        for (column in plan.columns)
+            cells.add(
+                TableCellProps(
+                    PanelContent.Custom(column.cell(row)),
+                    alignment = column.alignment,
+                    key = ViewKey.Text(f"column:${column.id}")
+                )
+            )
+        return tableRowView(
+            TableRowProps(cells.toArray(), selected = selected.contains(key)),
+            plan.tracks,
+            plan.appearance,
+            key
+        )
+    }
+}

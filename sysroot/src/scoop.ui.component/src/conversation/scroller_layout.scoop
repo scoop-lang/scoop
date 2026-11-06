@@ -1,0 +1,55 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class MessageScrollerLayoutInput(
+    val density: Double,
+    val controls: Boolean,
+    val placeholder: Boolean
+)
+
+internal class MessageScrollerLayout(
+    private val props: Props<MessageScrollerLayoutInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val viewport = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        val size = viewport.size
+        val margin = 16.0 * props.value.density
+        val limit =
+            Constraints(
+                maxWidth = Some(lowerBound(size.width - margin * 2.0, 0.0)),
+                maxHeight = Some(lowerBound(size.height - margin * 2.0, 0.0))
+            )
+        if (props.value.controls && size.width > margin * 2.0 && size.height > margin * 2.0) {
+            val child = context.measureChild(1L, limit)
+            context.placeChild(
+                1L,
+                Point(
+                    (size.width - child.size.width) / 2.0,
+                    size.height - margin - child.size.height
+                )
+            )
+        } else
+            context.skipChild(1L)
+        if (props.value.placeholder && size.width > 0.0 && size.height > 0.0) {
+            val child = context.measureChild(2L, limit)
+            context.placeChild(
+                2L,
+                Point(
+                    (size.width - child.size.width) / 2.0,
+                    (size.height - child.size.height) / 2.0
+                )
+            )
+        } else
+            context.skipChild(2L)
+        return LayoutResult(viewport, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children([0L, 2L, 1L])
+    }
+}

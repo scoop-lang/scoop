@@ -1,0 +1,89 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class SidebarModelTest {
+    @Test
+    fun `responsive boundaries and never collapsed navigation use declared lengths`() {
+        val open = state(false)
+        val input =
+            SidebarProps(
+                open.binding(),
+                SidebarContent.Custom(empty()),
+                collapsible = SidebarCollapse.Icon
+            )
+        assertFalse(sidebarIsMobile(input, Some(768.0), 1.0))
+        assertTrue(sidebarIsMobile(input, Some(767.0), 1.0))
+        assertTrue(sidebarIsMobile(input, Some(1000.0), 2.0))
+        assertFalse(sidebarIsMobile(input, None, 1.0))
+        assertEquals(SidebarPresentation(false, true, false), sidebarPresentation(input, false))
+        assertEquals(48.0, sidebarWidth(input, sidebarPresentation(input, false)))
+        open.value = true
+        assertEquals(256.0, sidebarWidth(input, sidebarPresentation(input, false)))
+        assertEquals(0.0, sidebarWidth(input, sidebarPresentation(input, true)))
+        val fixed =
+            SidebarProps(
+                open.binding(),
+                SidebarContent.Custom(empty()),
+                collapsible = SidebarCollapse.None,
+                layout = SidebarLayout.Mobile
+            )
+        open.value = false
+        assertFalse(sidebarIsMobile(fixed, Some(1.0), 1.0))
+        assertTrue(sidebarPresentation(fixed, false).expanded)
+    }
+    @Test
+    fun `rejected and normalized writes notify only the accepted state`() {
+        val open = state(false);
+        val count = state(0)
+        val denied = binding({ open.value }, { _ -> })
+        sidebarWrite(denied, true, { _ -> count.value += 1 })
+        assertFalse(open.value);
+        assertEquals(0, count.value)
+        sidebarWrite(open.binding(), true, { _ -> count.value += 1 })
+        sidebarWrite(open.binding(), true, { _ -> count.value += 1 })
+        assertTrue(open.value);
+        assertEquals(1, count.value)
+        assertFailsWith<IllegalArgumentException> { SidebarSkeletonProps(textFraction = 1.1) }
+        assertFailsWith<IllegalArgumentException> {
+            SidebarProps(open.binding(), SidebarContent.Custom(empty()), width = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> { ModalOptions(contentPadding = -1.0) }
+    }
+    @Test
+    fun `builders snapshot configuration without reading bindings and enforce stable keys`() {
+        val reads = state(0)
+        val open =
+            binding(
+                {
+                    reads.value += 1;
+                    false
+                },
+                { _ -> }
+            )
+        val builder = SidebarBuilder()
+        builder.width = 280.0
+        val value = builder.snapshot(open, SidebarContent.Custom(empty()))
+        builder.width = 360.0
+        assertEquals(280.0, value.width);
+        assertEquals(0, reads.value)
+        column {
+            sidebar(open, empty()) { rail = true }
+            sidebarTrigger(open)
+            sidebarGroup(empty()) { label("Group") }
+            sidebarMenu { item(ViewKey.Number(1L), "Item", {}) }
+            sidebarMenuBadge("12")
+            sidebarMenuSkeleton { showIcon = true }
+            sidebarSubmenu(empty())
+            sidebarMenuAction(empty(), {})
+        }
+        assertEquals(0, reads.value)
+        val entry = SidebarMenuItemProps(ViewKey.Number(1L), "Item", {})
+        assertFailsWith<IllegalArgumentException> { SidebarMenuProps([entry, entry]) }
+        assertFailsWith<IllegalArgumentException> {
+            SidebarMenuProps([SidebarMenuItemProps(ViewKey.Position, "Item", {})])
+        }
+    }
+}

@@ -1,0 +1,56 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.Color
+import scoop.test.*
+import scoop.ui.state
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.macos.macosTheme
+
+@Test
+private class GalleryPaletteTest {
+    @Test
+    fun `palette selection keeps component state and rereads current system colors on refresh`() {
+        val reads = state(0)
+        val accent = state(Color(0.2, 0.4, 0.8))
+        val model =
+            GalleryModel(
+                Some(
+                    {
+                        mode ->
+                        reads.value += 1
+                        macosTheme(mode).tokens.palette.copy {
+                            this.primary = ColorPair(accent.value, Color.White)
+                        }
+                    }
+                )
+            )
+        assertTrue(model.usesSystemColors)
+        assertEquals(1, reads.value)
+        assertEquals(accent.value, model.source.current.value.tokens.palette.primary.background)
+        model.name.replaceAll("Keep this name")
+        model.clicks.value = 7
+        model.selected.value = Demo.Card
+        model.toggleColors()
+        assertFalse(model.usesSystemColors)
+        assertEquals(1, reads.value)
+        assertEquals(
+            shadcnTheme().tokens.palette.primary.background,
+            model.source.current.value.tokens.palette.primary.background
+        )
+        model.toggleTheme()
+        model.toggleColors()
+        assertTrue(model.usesSystemColors)
+        assertEquals(2, reads.value)
+        assertEquals(ThemeMode.Dark, model.source.current.value.tokens.mode)
+        accent.value = Color(0.5, 0.3, 0.7)
+        model.refreshTheme()
+        assertEquals(3, reads.value)
+        assertEquals(accent.value, model.source.current.value.tokens.palette.primary.background)
+        assertEquals("Keep this name", model.name.text)
+        assertEquals(7, model.clicks.value)
+        assertEquals(Demo.Card, model.selected.value)
+        model.toggleMotion()
+        assertEquals(MotionPreference.Reduced, model.source.current.value.tokens.motion.preference)
+    }
+}

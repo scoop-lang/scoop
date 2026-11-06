@@ -1,0 +1,249 @@
+package scoop.ui.component
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.*
+
+internal struct MessagePresentation(
+    val mode: MessageScrollMode,
+    val padding: Double,
+    val ready: Boolean,
+    val generation: Long
+)
+
+internal enum MessageDestination {
+    Initial(val position: MessageInitialPosition), Start, End,
+    Turn(val key: ViewKey), Item(val key: ViewKey, val alignment: ScrollAlignment),
+    Reading(val anchor: VirtualReadingAnchor)
+}
+
+internal class MessageRequest(val destination: MessageDestination) {
+    var issued: ULong? = None
+    var source: TranscriptSource? = None
+}
+
+/** Owns reading intent, while ScrollState and VirtualList own physical positioning. */
+public class MessageScrollState public constructor(
+    options: MessageScrollOptions = MessageScrollOptions()
+) {
+    private val thread = currentThreadId()
+    private val settings = state(options)
+    private val observed = state<MessageReadingSnapshot?>(None)
+    private val sourceSignal = state<TranscriptSource?>(None)
+    private val pending =
+        state<MessageRequest?>(
+            Some(MessageRequest(MessageDestination.Initial(options.initialPosition)))
+        )
+    internal val presentation =
+        state(MessagePresentation(MessageScrollMode.Holding, 0.0, false, 0L))
+    public val scroll: ScrollState = ScrollState()
+    public val list: VirtualListHandle = VirtualListHandle()
+    internal var owner: MessageViewport? = None
+    internal var request: MessageRequest?
+    get() = pending.value
+    set(value) {
+        pending.value = value
+    }
+    internal val hasRequest: Boolean get() =
+        when (request) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    internal var epoch = 0L
+    internal var internalRequest = false
+    internal var userRevision: ULong? = None
+    internal var selecting = false
+    internal var previousSource: TranscriptSource?
+    get() = sourceSignal.value
+    set(value) {
+        sourceSignal.value = value
+    }
+    internal var lastVirtual: VirtualReadingSnapshot? = None
+    internal var lastScroll: ScrollSnapshot? = None
+    private var mounted = false
+
+    private fun checkThread() {
+        requireComponent(
+            currentThreadId() == thread,
+            "message scroll state used from another thread"
+        )
+    }
+    public var options: MessageScrollOptions
+    get() = settings.value
+    set(value) {
+        checkThread()
+        settings.value = value
+        if (!value.autoScroll && mode == MessageScrollMode.Following)
+            hold()
+    }
+    public val mode: MessageScrollMode get() = presentation.value.mode
+    public val isAttached: Boolean get() {
+        checkThread();
+        return owner?.active ?: false
+    }
+    public val isPending: Boolean get() {
+        checkThread()
+        return hasRequest || list.isPending
+    }
+    public val reading: MessageReadingSnapshot? get() = observed.value
+    public val visibleKeys: Array<ViewKey> get() = reading?.visibleKeys ?: []
+    public val currentAnchor: ViewKey? get() = reading?.currentAnchor ?: None
+    public val atStart: Boolean get() = reading?.atStart ?: true
+    public val atEnd: Boolean get() = reading?.atEnd ?: true
+
+    private fun canQueue(): Boolean = !mounted || (owner?.active ?: false)
+    private fun known(key: ViewKey): Boolean {
+        requireComponent(key != ViewKey.Position, "message positioning requires an explicit key")
+        val source = owner?.input?.props?.source ?: return !mounted
+        return source.count == 0L || virtualIndex(source, source.count, key) != None
+    }
+    internal fun present(mode: MessageScrollMode, padding: Double, ready: Boolean) {
+        val old = presentation.value
+        if (old.mode != mode || old.padding != padding || old.ready != ready)
+            presentation.value = MessagePresentation(mode, padding, ready, old.generation + 1L)
+    }
+    internal fun changed() {
+        val old = presentation.value
+        presentation.value =
+            MessagePresentation(old.mode, old.padding, old.ready, old.generation + 1L)
+    }
+    private fun queue(destination: MessageDestination): Boolean {
+        checkThread()
+        if (!canQueue())
+            return false
+        epoch += 1L
+        userRevision = None
+        val next = MessageRequest(destination)
+        when (destination) {
+            case Reading(_) -> next.source = owner?.input?.props?.source
+            else -> {}
+        }
+        request = Some(next)
+        owner?.cancelPosition()
+        changed()
+        return true
+    }
+    public fun beginTurn(key: ViewKey) {
+        requireComponent(key != ViewKey.Position, "message positioning requires an explicit key")
+        queue(MessageDestination.Turn(key))
+    }
+    public fun scrollToMessage(
+        key: ViewKey,
+        alignment: ScrollAlignment = ScrollAlignment.Nearest
+    ): Boolean {
+        checkThread()
+        return known(key) && queue(MessageDestination.Item(key, alignment))
+    }
+    public fun scrollToStart(): Boolean = queue(MessageDestination.Start)
+    public fun scrollToEnd(): Boolean = queue(MessageDestination.End)
+    public fun restore(anchor: VirtualReadingAnchor): Boolean {
+        checkThread()
+        nonnegative(anchor.offset, "invalid message reading offset")
+        return known(anchor.key) && queue(MessageDestination.Reading(anchor))
+    }
+    public fun hold() {
+        checkThread()
+        val value = presentation.value
+        val moving = value.mode != MessageScrollMode.Holding || hasRequest || scroll.isAnimating
+        epoch += 1L
+        request = None
+        userRevision = None
+        present(MessageScrollMode.Holding, value.padding, true)
+        changed()
+        if (moving)
+            owner?.cancelPosition()
+    }
+    public fun reset(initialPosition: MessageInitialPosition = MessageInitialPosition.End) {
+        checkThread()
+        epoch += 1L
+        request = Some(MessageRequest(MessageDestination.Initial(initialPosition)))
+        userRevision = None
+        selecting = false
+        previousSource = None
+        lastVirtual = None
+        lastScroll = None
+        observed.value = None
+        owner?.cancelPosition()
+        val old = presentation.value
+        presentation.value =
+            MessagePresentation(MessageScrollMode.Holding, 0.0, false, old.generation + 1L)
+    }
+    internal fun bind(value: MessageViewport) {
+        checkThread()
+        when (owner) {
+            case Some(old) -> requireComponent(
+                old === value || !old.active,
+                "message scroll state already has a host"
+            )
+            case None -> {}
+        }
+        owner = Some(value)
+        mounted = true
+    }
+    internal fun unbind(value: MessageViewport) {
+        when (owner) {
+            case Some(old) -> if (old === value) {
+                owner = None
+                request = None
+                userRevision = None
+                selecting = false
+                present(
+                    MessageScrollMode.Holding,
+                    presentation.value.padding,
+                    presentation.value.ready
+                )
+            }
+            case None -> {}
+        }
+    }
+    internal fun publish(
+        source: TranscriptSource,
+        virtual: VirtualReadingSnapshot,
+        physical: ScrollSnapshot,
+        density: Double
+    ) {
+        val sameSource =
+            when (previousSource) {
+                case Some(old) -> old === source
+                case None -> false
+            }
+        val threshold = options.edgeThreshold * density
+        val start = physical.offset.y <= threshold
+        val end = physical.maximum.y - physical.offset.y <= threshold
+        if (
+            sameSource &&
+                lastVirtual ==
+                Some(virtual) &&
+                lastScroll ==
+                Some(physical) &&
+                reading?.atStart ==
+                Some(start) &&
+                reading?.atEnd ==
+                Some(end)
+        )
+            return
+        if (!sameSource)
+            previousSource = Some(source)
+        lastVirtual = Some(virtual)
+        lastScroll = Some(physical)
+        val range = virtual.visible
+        val keys = Array<ViewKey>(range.end - range.start) { at -> source.keyAt(range.start + at) }
+        val anchor =
+            if (range.start < source.count)
+                transcriptAnchor(source, range.start)
+            else
+                None
+        observed.value =
+            Some(
+                MessageReadingSnapshot(
+                    keys,
+                    virtual.anchor,
+                    when (anchor) {
+                        case Some(at) -> Some(source.keyAt(at));
+                        case None -> None
+                    },
+                    start,
+                    end
+                )
+            )
+    }
+}

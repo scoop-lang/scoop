@@ -1,0 +1,97 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.Utf8Range
+
+internal class EditorGlyphCache: Closeable {
+    val body = ParagraphCache()
+    private var content: StyledText? = None
+    fun update(fonts: FontCollection, text: String, style: TextStyle, direction: TextDirection) {
+        val previous = content
+        val next =
+            when (previous) {
+                case Some(value) -> if (value.text == text && value.style === style)
+                    value
+                else
+                    styledText {
+                        this.text(text);
+                        this.style = style
+                    }
+                case None -> styledText {
+                    this.text(text);
+                    this.style = style
+                }
+            }
+        body.update(fonts, next, paragraphStyle { this.direction = direction }, None, [])
+        content = Some(next)
+    }
+    public override fun close() {
+        body.close()
+    }
+}
+
+internal fun editorGeometry(
+    host: TextEditHost,
+    paragraph: TextLayout,
+    plan: TextEditCells?
+): TextEditLayout {
+    when (host.currentLayout) {
+        case Some(previous) -> if (
+            previous.paragraph === paragraph && sameEditorCells(previous.cells?.plan, plan)
+        )
+            return previous
+        case None -> {}
+    }
+    val retained = ArrayList<RetainedParagraphLayout>()
+    val next =
+        try {
+            retained.add(host.body.retainLayout())
+            val cells =
+                when (plan) {
+                    case None -> None
+                    case Some(value) -> {
+                        val bytes = paragraph.text.toByteArray()
+                        val boundaries = paragraph.graphemeBoundaries
+                        val count = boundaries.size - 1L
+                        while (host.glyphs.size < count)
+                            host.glyphs.add(EditorGlyphCache())
+                        val layouts = ArrayList<TextLayout>()
+                        for (index in 0L ..< count) {
+                            val glyph = host.glyphs[index]
+                            glyph.update(
+                                host.appearance.fonts,
+                                editorSlice(
+                                    bytes,
+                                    Utf8Range(boundaries[index], boundaries[index + 1L])
+                                ),
+                                host.appearance.textStyle,
+                                value.direction.textDirection()
+                            )
+                            val saved = glyph.body.retainLayout()
+                            retained.add(saved)
+                            layouts.add(saved.layout)
+                        }
+                        Some(EditorCells(paragraph, layouts.toArray(), value))
+                    }
+                }
+            TextEditLayout(paragraph, cells, retained.toArray(), host.geometryGeneration + 1L)
+        } catch (error: Throwable) {
+            var failure: Throwable? = Some(error)
+            for (resource in retained)
+                failure = cleanupUi(failure) { resource.close() }
+            throwUi(failure)
+            throw error
+        }
+    val previous = host.currentLayout
+    host.currentLayout = Some(next)
+    host.geometryGeneration += 1L
+    previous?.release()
+    val count = next.cells?.glyphs?.size ?: 0L
+    while (host.glyphs.size > count) {
+        val last = host.glyphs[host.glyphs.size - 1L]
+        host.glyphs.removeAt(host.glyphs.size - 1L)
+        last.close()
+    }
+    return next
+}

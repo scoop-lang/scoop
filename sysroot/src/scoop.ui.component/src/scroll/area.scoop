@@ -24,21 +24,26 @@ public class ScrollAreaProps public constructor(
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
     public val theme: ThemeSource? = None,
-    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    public val style: StyleOverride = styleOverride(),
+    public val focusOutline: OutlineStyle? = None
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
-public class ScrollArea public constructor(private val props: Props<ScrollAreaProps>): Component {
+public class ScrollArea public constructor(
+    private val props: Props<ScrollAreaProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val local = ScrollState()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
         val input = props.value
         return element(
             ScrollAreaInkProps(input, input.state ?: local, themes.read(input.theme)),
-            { value -> ScrollAreaInk(value) },
+            { value, mount -> ScrollAreaInk(value, scope = mount) },
             [input.content]
         )
     }
@@ -63,6 +68,8 @@ internal class ScrollAreaInkProps(
             input.enabled,
             input.focus,
             input.paintCache,
-            theme
+            theme,
+            input.style,
+            input.focusOutline
         )
 }

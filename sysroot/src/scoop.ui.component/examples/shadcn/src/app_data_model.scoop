@@ -1,0 +1,123 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+internal class DataAppModel {
+    var records = Array<Payment>(24L) { at -> makePayment(at) }
+    val filter = TextEditorState()
+    val filterFocus = FocusHandle()
+    val confirmFocus = FocusHandle()
+    val cancelFocus = FocusHandle()
+    var undoFocus = FocusHandle()
+    val confirming = state(false)
+    val pending = state<Payment?>(None)
+    val status = state("Select a payment to review it, or use its row menu.")
+    val notifications = ToastState()
+    val chart = ChartModel(paymentChart(records))
+    val table =
+        DataTableState(
+            TableData.Local(paymentRows(records)),
+            paymentColumns(
+                {
+                    row -> status.value =
+                        f"Payment ${row.id + 1L}: ${row.email}, USD ${row.amount}."
+                },
+                { row -> askDelete(row) }
+            ),
+            selectable = { row -> row.enabled }
+        )
+    init {
+        table.setPageSize(5L)
+    }
+
+    fun askDelete(row: Payment) {
+        pending.value = Some(row)
+        confirming.value = true
+    }
+    fun refresh() {
+        table.replaceData(TableData.Local(paymentRows(records)))
+        chart.replaceData(paymentChart(records))
+    }
+    fun confirmDelete() {
+        val row = pending.value ?: return
+        val next = ArrayList<Payment>()
+        var position = -1L
+        for (at in 0L ..< records.size) {
+            if (records[at] === row)
+                position = at
+            else
+                next.add(records[at])
+        }
+        confirming.value = false
+        pending.value = None
+        if (position < 0L)
+            return
+        records = next.toArray()
+        refresh()
+        status.value = f"Payment ${row.id + 1L} deleted."
+        val model = this
+        val originalPosition = position
+        val focus = FocusHandle()
+        undoFocus = focus
+        notifications.show("Payment deleted") {
+            this.kind = ToastKind.Success
+            this.description(f"${row.email} · USD ${row.amount}")
+            this.action("Undo", { model.restore(row, originalPosition) }) {
+                this.focus = FocusOptions(Some(focus))
+            }
+        }
+    }
+    private fun restore(row: Payment, position: Long) {
+        for (current in records)
+            if (current.id == row.id)
+                return
+        val previous = records
+        val at =
+            if (position < previous.size)
+                position
+            else
+                previous.size
+        records =
+            Array<Payment>(previous.size + 1L) {
+                index -> if (index < at)
+                    previous[index]
+                else
+                    if (index == at)
+                        row
+                    else
+                        previous[index - 1L]
+            }
+        refresh()
+        status.value = f"Payment ${row.id + 1L} restored with its note."
+    }
+}
+
+private fun paymentRows(records: Array<Payment>): TableRows<Payment> =
+    TableRows(
+        Array<TableRecord<Payment>>(records.size) {
+            at -> TableRecord(ViewKey.Number(records[at].id), records[at])
+        }
+    )
+
+private fun paymentChart(records: Array<Payment>): ChartData {
+    val names = ["Success", "Processing", "Pending"]
+    return ChartData(
+        Array<ChartDatum>(names.size) { at -> ChartDatum(ChartDatumKey(names[at]), names[at]) },
+        [
+            ChartSeries(
+                ChartSeriesKey("payments"),
+                "Payments",
+                Array<Double?>(names.size) {
+                    at ->
+                    var count = 0.0
+                    for (row in records)
+                        if (row.status == names[at])
+                            count += 1.0
+                    Some(count)
+                }
+            )
+        ]
+    )
+}

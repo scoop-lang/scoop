@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum AccordionVariant {
+    Default, Card
+}
+
+public enum AccordionSelection<T: Equals<T>> {
+    Single(val binding: Binding<T?>, val allowCollapse: Boolean = true),
+    Multiple(val binding: Binding<Array<T>>)
+}
+
+public class AccordionEntry<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val content: View,
+    public val trigger: TriggerSpec? = None,
+    public val retention: ContentRetention? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+internal fun <T: Equals<T>> accordionOpen(selection: AccordionSelection<T>, value: T): Boolean =
+    when (selection) {
+        case Single(binding, _) -> binding.value == Some(value)
+        case Multiple(binding) -> {
+            var found = false
+            for (entry in binding.value)
+                if (entry == value)
+                    found = true
+            found
+        }
+    }
+
+internal fun <T: Equals<T>> setAccordionOpen(
+    selection: AccordionSelection<T>,
+    value: T,
+    open: Boolean
+) {
+    if (accordionOpen(selection, value) == open)
+        return
+    when (selection) {
+        case Single(binding, allowCollapse) -> if (open)
+            binding.value = Some(value)
+        else
+            if (allowCollapse)
+                binding.value = None
+        case Multiple(binding) -> {
+            val next = ArrayList<T>()
+            for (entry in binding.value)
+                if (entry != value)
+                    next.add(entry)
+            if (open)
+                next.add(value)
+            binding.value = next.toArray()
+        }
+    }
+}
+
+internal fun <T: Equals<T>> accordionEntry(
+    entries: Array<AccordionEntry<T>>,
+    key: ViewKey
+): AccordionEntry<T>? {
+    for (entry in entries)
+        if (entry.choice.key == key)
+            return Some(entry)
+    return None
+}

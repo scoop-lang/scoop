@@ -1,0 +1,237 @@
+package scoop.ui.component
+
+import scoop.datetime.LocalDate
+import scoop.ui.Binding
+
+public class DateRange public constructor(
+    public val start: LocalDate,
+    public val end: LocalDate
+): Equals<DateRange> {
+    init {
+        requireComponent(start <= end, "date range start must not follow its end")
+    }
+    public val nights: Long get() = start.daysUntil(end)
+    public fun contains(date: LocalDate): Boolean = date >= start && date <= end
+    public override operator fun equals(other: DateRange): Boolean =
+        start == other.start && end == other.end
+}
+
+public enum CalendarSelection {
+    Single(Binding<LocalDate?>), Multiple(Binding<Array<LocalDate>>), Range(Binding<DateRange?>)
+}
+
+public enum CalendarValue {
+    Single(LocalDate?), Multiple(Array<LocalDate>), Range(DateRange?)
+}
+
+public class CalendarRules public constructor(
+    public val required: Boolean = false,
+    public val minimumDates: Long = 0L,
+    public val maximumDates: Long? = None,
+    public val minimumNights: Long = 0L,
+    public val maximumNights: Long? = None,
+    public val minDate: LocalDate? = None,
+    public val maxDate: LocalDate? = None,
+    public val disabled: ((LocalDate) -> Boolean)? = None,
+    public val allowDisabledInside: Boolean = false
+) {
+    init {
+        requireComponent(
+            minimumDates >= 0L && (maximumDates ?: minimumDates) >= minimumDates,
+            "invalid calendar selection count"
+        )
+        requireComponent(
+            minimumNights >= 0L && (maximumNights ?: minimumNights) >= minimumNights,
+            "invalid calendar range length"
+        )
+        requireComponent(
+            (minDate ?: LocalDate.MIN) <= (maxDate ?: LocalDate.MAX),
+            "invalid calendar date bounds"
+        )
+    }
+    public fun allows(date: LocalDate): Boolean {
+        if (date < (minDate ?: LocalDate.MIN) || date > (maxDate ?: LocalDate.MAX))
+            return false
+        return when (disabled) {
+            case Some(test) -> !test(date);
+            case None -> true
+        }
+    }
+    public fun allows(range: DateRange): Boolean {
+        if (
+            !allows(range.start) ||
+                !allows(range.end) ||
+                range.nights <
+                minimumNights ||
+                range.nights >
+                (maximumNights ?: range.nights)
+        )
+            return false
+        if (!allowDisabledInside)
+            when (disabled) {
+                case Some(test) -> {
+                    var day = range.start
+                    while (day < range.end) {
+                        if (test(day))
+                            return false
+                        day = day.plusDays(1L)
+                    }
+                }
+                case None -> {}
+            }
+        return true
+    }
+}
+
+internal fun calendarRead(selection: CalendarSelection): CalendarValue =
+    when (selection) {
+        case Single(value) -> CalendarValue.Single(value.value)
+        case Multiple(value) -> {
+            val dates = value.value
+            for (index in 0L ..< dates.size)
+                for (previous in 0L ..< index)
+                    requireComponent(
+                        dates[index] != dates[previous],
+                        "calendar multiple dates must be unique"
+                    )
+            CalendarValue.Multiple(dates)
+        }
+        case Range(value) -> CalendarValue.Range(value.value)
+    }
+
+internal fun sameCalendarValue(a: CalendarValue, b: CalendarValue): Boolean =
+    when ((a, b)) {
+        case(Single(left), Single(right)) -> left == right
+        case(Range(left), Range(right)) -> left == right
+        case(Multiple(left), Multiple(right)) -> {
+            var same = left.size == right.size
+            if (same)
+                for (index in 0L ..< left.size)
+                    if (left[index] != right[index])
+                        same = false
+            same
+        }
+        else -> false
+    }
+
+internal fun calendarFirst(value: CalendarValue): LocalDate? =
+    when (value) {
+        case Single(date) -> date
+        case Multiple(dates) -> if (dates.size == 0L)
+            None
+        else
+            Some(dates[0L])
+        case Range(range) -> range?.start
+    }
+
+internal fun calendarContains(dates: Array<LocalDate>, date: LocalDate): Boolean {
+    for (value in dates)
+        if (value == date)
+            return true
+    return false
+}
+
+internal fun calendarSelected(value: CalendarValue, date: LocalDate): Boolean =
+    when (value) {
+        case Single(current) -> current == Some(date)
+        case Multiple(dates) -> calendarContains(dates, date)
+        case Range(range) -> range?.contains(date) ?: false
+    }
+
+internal fun calendarWrite(selection: CalendarSelection, next: CalendarValue): Boolean {
+    when ((selection, next)) {
+        case(Single(target), Single(value)) -> target.value = value
+        case(Multiple(target), Multiple(value)) -> target.value = value
+        case(Range(target), Range(value)) -> target.value = value
+        else -> throw IllegalArgumentException(
+            Some("calendar selection mode does not match its value")
+        )
+    }
+    return sameCalendarValue(calendarRead(selection), next)
+}
+
+internal enum CalendarActivation {
+    Rejected, Pending(LocalDate), Commit(CalendarValue)
+}
+
+internal fun calendarActivate(
+    value: CalendarValue,
+    pending: LocalDate?,
+    date: LocalDate,
+    rules: CalendarRules
+): CalendarActivation {
+    if (!rules.allows(date))
+        return CalendarActivation.Rejected
+    return when (value) {
+        case Single(selected) -> if (selected == Some(date) && !rules.required)
+            CalendarActivation.Commit(CalendarValue.Single(None))
+        else
+            CalendarActivation.Commit(CalendarValue.Single(Some(date)))
+        case Multiple(dates) -> {
+            val removing = calendarContains(dates, date)
+            val minimum =
+                if (rules.required && rules.minimumDates == 0L)
+                    1L
+                else
+                    rules.minimumDates
+            if (
+                (removing && dates.size <= minimum) ||
+                    (!removing && dates.size >= (rules.maximumDates ?: (dates.size + 1L)))
+            )
+                CalendarActivation.Rejected
+            else {
+                val next = ArrayList<LocalDate>()
+                for (item in dates)
+                    if (item != date)
+                        next.add(item)
+                if (!removing)
+                    next.add(date)
+                CalendarActivation.Commit(CalendarValue.Multiple(next.toArray()))
+            }
+        }
+        case Range(_) -> when (pending) {
+            case None -> CalendarActivation.Pending(date)
+            case Some(start) -> {
+                val range = orderedDateRange(start, date)
+                if (rules.allows(range))
+                    CalendarActivation.Commit(CalendarValue.Range(Some(range)))
+                else
+                    CalendarActivation.Rejected
+            }
+        }
+    }
+}
+
+internal fun orderedDateRange(a: LocalDate, b: LocalDate): DateRange =
+    if (a <= b)
+        DateRange(a, b)
+    else
+        DateRange(b, a)
+
+internal fun calendarValueAllowed(value: CalendarValue, rules: CalendarRules): Boolean =
+    when (value) {
+        case Single(date) -> when (date) {
+            case Some(day) -> rules.allows(day);
+            case None -> !rules.required
+        }
+        case Range(range) -> when (range) {
+            case Some(dates) -> rules.allows(dates);
+            case None -> !rules.required
+        }
+        case Multiple(dates) -> {
+            var valid =
+                (!rules.required || dates.size > 0L) &&
+                    dates.size >=
+                    rules.minimumDates &&
+                    dates.size <=
+                    (rules.maximumDates ?: dates.size)
+            for (index in 0L ..< dates.size) {
+                if (!rules.allows(dates[index]))
+                    valid = false
+                for (previous in 0L ..< index)
+                    if (dates[index] == dates[previous])
+                        valid = false
+            }
+            valid
+        }
+    }

@@ -8,7 +8,9 @@ import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.window.*
 
-internal class OverlayScene(private val probe: OverlayProbe): Component {
+internal class OverlayScene(private val probe: OverlayProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = probe.generation.value
         val main =
@@ -40,16 +42,18 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
             children.add(child)
         for (child in relationProbes(probe))
             children.add(child)
-        return element(
-            CanvasInput(
-                generation,
-                probe.anchorRect,
-                probe.smallClip,
-                probe.omitAnchor,
-                probe.discardHidden
-            ),
-            { props -> OverlayCanvas(probe, props) },
-            children.toArray()
+        return cachedScene(
+            element(
+                CanvasInput(
+                    generation,
+                    probe.anchorRect,
+                    probe.smallClip,
+                    probe.omitAnchor,
+                    probe.discardHidden
+                ),
+                { props, mount -> OverlayCanvas(probe, props, scope = mount) },
+                children.toArray()
+            )
         )
     }
     private fun layer(
@@ -63,7 +67,11 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
     ): View =
         portal(
             probe.open[index].binding(),
-            element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children)
+            element(
+                LayerInput(index, handle),
+                { props, mount -> OverlayBox(probe, props, scope = mount) },
+                children
+            )
         ) {
             this.options {
                 this.placement =
@@ -97,10 +105,11 @@ private struct CanvasInput(
 
 private class OverlayCanvas(
     private val probe: OverlayProbe,
-    private val props: Props<CanvasInput>
-): Element {
+    private val props: Props<CanvasInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.rootScope = Some(scope)
         probe.anchorBinding = Some(scope.layoutAnchor(probe.anchor))
         assertFailsWith<IllegalArgumentException> { scope.layoutAnchor(probe.anchor) }
@@ -123,16 +132,18 @@ private class OverlayCanvas(
         scope.focusTarget(region, FocusOptions(Some(probe.focus[3L])))
         scope.routeChildren(region)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             val placeholder =
                 context.measureChild(index, Constraints(7.0, Some(15.0), 9.0, Some(15.0)))
             assertEquals(Size(7.0, 9.0), placeholder.size)
             context.placeChild(index, Point(900.0, 900.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 220.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         probe.passes += 1
         probe.order = ""
@@ -188,11 +199,11 @@ private struct LayerInput(val index: Long, val handle: OverlayHandle)
 
 private class OverlayBox(
     private val probe: OverlayProbe,
-    private val props: Props<LayerInput>
-): Element {
+    private val props: Props<LayerInput>,
+    scope: ComponentScope
+): Element<Size>(scope) {
     private var area: InputArea? = None
-    private var measuredAt = -1
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val index = props.value.index
         probe.mounts[index] += 1
         if (index == 0L)
@@ -225,9 +236,9 @@ private class OverlayBox(
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        assertTrue(measuredAt != probe.passes)
-        measuredAt = probe.passes
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Size
+    > {
         probe.measures[props.value.index] += 1
         for (index in 0L ..< context.childCount) {
             assertEquals(Size(0.0, 0.0), context.measureChild(index, Constraints()).size)
@@ -238,15 +249,16 @@ private class OverlayBox(
                 Size(30.0, 20.0)
             else
                 Size(80.0, 40.0)
-        return LayoutMetrics(constraints.constrain(desired))
+        val size = constraints.constrain(desired)
+        return LayoutResult(LayoutMetrics(size), size)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Size) {
         val index = props.value.index
-        assertEquals(measuredAt, probe.passes)
+        assertEquals(measured, context.size)
         probe.scenes[index] += 1
-        assertEquals(probe.measures[index], probe.scenes[index])
         probe.order += index.toString()
         val layout = context.overlayLayout!!
+        assertEquals(measured, Size(layout.bounds.width, layout.bounds.height))
         probe.layouts[index] = Some(layout)
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, rect)

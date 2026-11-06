@@ -1,0 +1,66 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+
+internal class ToastGeometry(
+    val viewport: Size,
+    val bounds: Rect,
+    val naturalHeight: Double,
+    val zoom: Double,
+    val side: OverlaySide
+) {
+    val vertical: Boolean get() = side == OverlaySide.Top || side == OverlaySide.Bottom
+    val extent: Double get() =
+        if (vertical)
+            bounds.height
+        else
+            bounds.width
+    val outward: Double get() =
+        if (side == OverlaySide.Top || side == OverlaySide.Left)
+            -1.0
+        else
+            1.0
+}
+
+internal fun toastTop(position: ToastPosition): Boolean =
+    position ==
+        ToastPosition.TopStart ||
+        position ==
+        ToastPosition.TopCenter ||
+        position ==
+        ToastPosition.TopEnd
+
+internal fun toastSide(position: ToastPosition, direction: LayoutDirection): OverlaySide =
+    when (position) {
+        case TopCenter -> OverlaySide.Top
+        case BottomCenter -> OverlaySide.Bottom
+        case TopStart -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Right
+        else
+            OverlaySide.Left
+        case BottomStart -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Right
+        else
+            OverlaySide.Left
+        case BottomEnd -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Left
+        else
+            OverlaySide.Right
+        case TopEnd -> if (direction == LayoutDirection.Rtl)
+            OverlaySide.Left
+        else
+            OverlaySide.Right
+    }
+
+internal fun toastReleased(
+    shape: ToastGeometry,
+    displacement: Double,
+    velocity: Double,
+    density: Double
+): Boolean =
+    (displacement + velocity * 0.15) * shape.outward >= max(40.0 * density, shape.extent * 0.4)
+
+internal fun toastSameGeometry(a: ToastGeometry, b: ToastGeometry): Boolean =
+    a.viewport == b.viewport && a.bounds == b.bounds && a.zoom == b.zoom && a.side == b.side

@@ -1,0 +1,160 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+internal class CalendarAppearance(
+    val input: CalendarProps,
+    val theme: Theme,
+    direction: LayoutDirection
+) {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val normal = makeStyle(false, false, false)
+    val selected = makeStyle(true, false, false)
+    val outside = makeStyle(false, true, false)
+    val today = makeStyle(false, false, true)
+    val metrics =
+        theme.surfaceMetrics(
+            SurfaceVisual(SurfaceKind.Action),
+            actionOptions(
+                theme,
+                ActionShape.Button(ButtonSize.Icon),
+                ButtonVariant.Ghost,
+                normal,
+                InteractionVisual()
+            ),
+            direction
+        )
+    val ring = metrics.focusOutset
+    val cell =
+        lowerBound(
+            input.options.cellSize * density,
+            lowerBound(metrics.minimumSize.width, metrics.suggestedSize.width)
+        ) +
+            ring *
+            2.0
+    val body =
+        theme.tokens.typography.body.copy {
+            this.color = theme.tokens.palette.background.foreground
+            this.weight = 400
+            this.lineHeight = Some(20.0 / 14.0)
+        }
+    val caption = body.copy { this.weight = 500 }
+    val weekday =
+        body.copy {
+            this.fontSize = 12.8 * this @CalendarAppearance.density;
+            this.color = theme.tokens.palette.muted.foreground
+        }
+
+    private fun makeStyle(selected: Boolean, outside: Boolean, today: Boolean): ButtonStyle {
+        val input = this.input
+        val theme = this.theme
+        val density = this.density
+        val palette = theme.tokens.palette
+        val color =
+            if (selected)
+                palette.primary.foreground
+            else
+                if (outside)
+                    palette.muted.foreground
+                else
+                    palette.background.foreground
+        val base =
+            buttonStyle {
+                this.text {
+                    this.color = Some(color);
+                    this.weight = Some(400)
+                }
+                this.surface {
+                    this.suggestedSize =
+                        Some(
+                            Size(input.options.cellSize * density, input.options.cellSize * density)
+                        )
+                    this.minimumSize = Some(Size(0.0, 0.0))
+                    this.padding = Some(Insets.all(density))
+                    this.style =
+                        styleOverride {
+                            this.border(None)
+                            this.boxShadows([])
+                            this.corners(Corners.all(theme.tokens.corners.medium))
+                            if (selected)
+                                this.background(Some(Paint(palette.primary.background)))
+                            else
+                                if (today)
+                                    this.background(Some(Paint(palette.muted.background)))
+                        }.then(input.dayStyle.surface.style)
+                    this.focus = input.dayStyle.surface.focus
+                    this.validation = input.dayStyle.surface.validation
+                    when (input.dayStyle.surface.padding) {
+                        case Some(value) -> this.padding = Some(value);
+                        case None -> {}
+                    }
+                    when (input.dayStyle.surface.suggestedSize) {
+                        case Some(value) -> this.suggestedSize = Some(value);
+                        case None -> {}
+                    }
+                    when (input.dayStyle.surface.minimumSize) {
+                        case Some(value) -> this.minimumSize = Some(value);
+                        case None -> {}
+                    }
+                }
+                when (input.dayStyle.text) {
+                    case Some(value) -> this.text = Some(value);
+                    case None -> {}
+                }
+                this.states = input.dayStyle.states
+                this.transition = input.dayStyle.transition
+            }
+        return base
+    }
+    fun style(day: CalendarDay): ButtonStyle =
+        if (day.rangeStart || day.rangeEnd || (day.selected && !day.inRange))
+            selected
+        else
+            if (day.data.outside)
+                outside
+            else
+                if (day.today)
+                    today
+                else
+                    normal
+}
+
+internal class CalendarAppearanceCache {
+    private var cached: CalendarAppearance? = None
+    private var direction = LayoutDirection.Ltr
+    fun resolve(input: CalendarProps, theme: Theme, current: LayoutDirection): CalendarAppearance {
+        when (cached) {
+            case Some(value) -> if (
+                value.theme ===
+                    theme &&
+                    value.input.dayStyle ===
+                    input.dayStyle &&
+                    value.input.options.cellSize ==
+                    input.options.cellSize &&
+                    direction ==
+                    current
+            )
+                return value
+            case None -> {}
+        }
+        val result = CalendarAppearance(input, theme, current)
+        cached = Some(result)
+        direction = current
+        return result
+    }
+}
+
+internal fun calendarLabel(text: String, style: TextStyle, fonts: FontCollection?): View =
+    component(
+        LabelProps(
+            LabelText.Plain(text, None),
+            fonts,
+            Some(paragraphStyle { this.alignment = TextAlignment.Center }),
+            baseStyle = Some(style)
+        ),
+        { props, scope -> Label(props, scope) }
+    )

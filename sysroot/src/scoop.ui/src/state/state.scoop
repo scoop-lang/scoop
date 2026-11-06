@@ -61,16 +61,29 @@ public class Binding<T> internal constructor(
 
 public fun <T> binding(get: () -> T, set: (T) -> Unit): Binding<T> = Binding(get, set)
 
-/** The latest parent input, replaced by the framework before render or update. */
-public class Props<P> internal constructor(initial: P) {
+/** An explicit, stable rule for comparing inputs consumed by render or update. */
+public class InputComparison<P> public constructor(internal val equivalent: (P, P) -> Boolean)
+
+/** The latest parent input, replaced even when the input comparison skips evaluation. */
+public class Props<P> internal constructor(initial: P, comparison: InputComparison<P>? = None) {
     private val thread = currentThreadId()
     private var current = initial
+    private var comparison = comparison
     public val value: P get() {
         checkUiThread(thread)
         return current
     }
-    internal fun replace(next: P) {
+    internal fun replace(next: P, rule: InputComparison<P>? = None): Boolean {
         checkUiThread(thread)
+        val previous = current
+        val previousRule = comparison
         current = next
+        comparison = rule
+        return when ((previousRule, rule)) {
+            case(Some(before), Some(after)) -> before ===
+                after &&
+                evaluateUi<Boolean>(None) { after.equivalent(previous, next) }
+            else -> false
+        }
     }
 }

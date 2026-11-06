@@ -1,0 +1,40 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+@Test
+private class LabelInputComparisonTest {
+    @Test
+    fun `fresh plain labels compare display values and keep style and inline boundaries explicit`() {
+        val plain = LabelProps(LabelText.Plain("Same text", None))
+        assertTrue(sameLabelInputs(plain, LabelProps(LabelText.Plain("Same text", None))))
+        assertFalse(sameLabelInputs(plain, LabelProps(LabelText.Plain("Different", None))))
+        assertFalse(sameLabelInputs(plain, LabelProps(plain.text, underline = Some(Color.Black))))
+        val a = LabelProps(plain.text, settings = Some(paragraphStyle { maxLines = Some(1L) }))
+        val b = LabelProps(plain.text, settings = Some(paragraphStyle { maxLines = Some(1L) }))
+        assertTrue(sameLabelInputs(a, b))
+        assertFalse(sameLabelInputs(a, plain))
+        val styled = styledText { text("Same text") }
+        assertTrue(
+            sameLabelInputs(
+                LabelProps(LabelText.Styled(styled)),
+                LabelProps(LabelText.Styled(styled))
+            )
+        )
+        assertFalse(sameLabelInputs(plain, LabelProps(LabelText.Styled(styled))))
+        FontCollection().use {
+            fonts ->
+            assertFalse(sameLabelInputs(plain, LabelProps(plain.text, Some(fonts))))
+            assertTrue(
+                sameLabelInputs(
+                    LabelProps(plain.text, Some(fonts)),
+                    LabelProps(plain.text, Some(fonts))
+                )
+            )
+        }
+    }
+}

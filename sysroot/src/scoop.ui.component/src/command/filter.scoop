@@ -1,0 +1,84 @@
+package scoop.ui.component
+
+import scoop.collections.sortedWith
+import scoop.comparisons.comparatorOf
+
+private class RankedCommand(val entry: CommandEntry, val score: Double)
+
+private class CommandSection(val label: CommandEntry?, val separator: CommandEntry?) {
+    val items = ArrayList<RankedCommand>()
+    var score = 0.0
+}
+
+/** Pure snapshot transformation; a provided source is returned without enumeration. */
+internal fun commandResults(
+    source: CommandSource,
+    query: String,
+    filter: CommandFilter
+): CommandSource {
+    if (query.byteLength == 0L)
+        return source
+    when (filter) {
+        case Provided -> return source;
+        else -> {}
+    }
+    val sections = ArrayList<CommandSection>()
+    var current = CommandSection(None, None)
+    sections.add(current)
+    var separator: CommandEntry? = None
+    for (index in 0L ..< source.count) {
+        val entry = source.entryAt(index)
+        when (entry) {
+            case Label(_, _) -> {
+                current = CommandSection(Some(entry), separator)
+                separator = None
+                sections.add(current)
+            }
+            case Separator(_) -> {
+                separator = Some(entry)
+                current = CommandSection(None, separator)
+                sections.add(current)
+            }
+            case Item(item) -> {
+                val score =
+                    when (filter) {
+                        case Ranked -> commandScore(item.label, query, item.keywords)
+                        case Custom(score) -> score(item, query)
+                        case Provided -> 1.0
+                    }
+                requireComponent(score.isFinite() && score >= 0.0, "invalid command score")
+                if (score > 0.0) {
+                    current.items.add(RankedCommand(entry, score))
+                    if (score > current.score)
+                        current.score = score
+                }
+                separator = None
+            }
+        }
+    }
+    val result = ArrayList<CommandEntry>()
+    val sorted =
+        sections.sortedWith(
+            comparatorOf<CommandSection> { left, right -> right.score.compareTo(left.score) }
+        )
+    for (section in sorted) {
+        if (section.items.size == 0L)
+            continue
+        when (section.separator) {
+            case Some(entry) -> if (result.size > 0L)
+                result.add(entry)
+            case None -> {}
+        }
+        when (section.label) {
+            case Some(entry) -> result.add(entry);
+            case None -> {}
+        }
+        for (
+            item in section.items.sortedWith(
+                comparatorOf<RankedCommand> { left, right -> right.score.compareTo(left.score) }
+            )
+        )
+            result.add(item.entry)
+    }
+    return CommandContent(result.toArray())
+}

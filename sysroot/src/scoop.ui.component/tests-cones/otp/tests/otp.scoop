@@ -1,0 +1,413 @@
+package scoop.tests.ui.otp
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class OtpWindowTest {
+    @Test
+    fun `one native editor handles grouped cells completion composition policy changes and teardown`() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard()!!
+            val probe = OtpProbe()
+            val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+            try {
+                context(probe.theme) {
+                    host.use { owner -> Application().run(owner) }
+                }
+                assertTrue(probe.finished)
+                assertEquals(1, probe.mounts)
+                assertFalse(probe.focus.isAttached)
+                assertFalse(probe.target.isAttached)
+                assertFalse(probe.frames!!.snapshot().attached)
+                assertFalse(probe.fonts.isClosed)
+            } catch (error: Throwable) {
+                println(
+                    f"OTP phase=${probe.phase}, text=${probe.model.text}, complete=${
+                        probe.completions
+                    }"
+                )
+                otpFailure(error)
+                throw error
+            } finally {
+                host.close();
+                probe.view?.close();
+                probe.frames?.close();
+                probe.fonts.close()
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+}
+
+internal class OtpProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val model = TextEditorState()
+    val focus = FocusHandle()
+    val target = FieldTarget()
+    val generation = state(0)
+    var rendered = -1
+    var renderedRevision = -1L
+    var mounts = 0
+    var edits = 0
+    var completions = 0
+    var enabled = true
+    var readonly = false
+    var narrow = false
+    var rtl = false
+    var custom = false
+    var gone = false
+    var regroup = false
+    var discard = false
+    var discarded = 0
+    var clearOnEdit = false
+    var phase = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(40L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop OTP test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(460.0, 240.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> OtpScene(this, scope = mount) })
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("OTP timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        renderedRevision ==
+                        model.revision &&
+                        !focus.isPending &&
+                        !frames!!.snapshot().required
+                )
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 32)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 32;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        when (phase / 8) {
+            case 0 -> beginInput()
+            case 1 -> editComposition()
+            case 2 -> changePolicy()
+            case 3 -> finishInput()
+            else -> fail(Some("unexpected OTP phase"))
+        }
+        if (phase < 29)
+            generation.value += 1
+        phase += 1
+    }
+    private fun beginInput() {
+        when (phase) {
+            case 0 -> {
+                assertTrue(target.isAttached)
+                assertTrue(moveSurfacePointer(native!!, 55.0, 27.0))
+                assertTrue(view!!.button(55.0, 27.0, true));
+                assertTrue(view!!.button(55.0, 27.0, false))
+            }
+            case 1 -> {
+                assertTrue(focus.hasFocus)
+                assertCaret(false, 0L)
+                assertEquals(0, otpText(native!!, "12", false))
+            }
+            case 2 -> {
+                assertEquals("12", model.text);
+                assertEquals(0, completions)
+                assertTrue(moveSurfacePointer(native!!, 170.0, 76.0))
+                assertTrue(view!!.button(170.0, 76.0, true))
+                assertTrue(view!!.button(170.0, 76.0, false))
+            }
+            case 3 -> {
+                assertEquals(Utf8Selection(2L, 2L), model.selection)
+                assertEquals(0, otpText(native!!, "34", false))
+            }
+            case 4 -> {
+                assertEquals("1234", model.text);
+                assertEquals(1, completions)
+                theme.current.value = shadcnTheme(ThemeMode.Dark)
+                rtl = true;
+                regroup = true
+            }
+            case 5 -> {
+                assertEquals(1, mounts);
+                assertEquals(1, completions)
+                assertEquals(Utf8Selection(4L, 4L), model.selection)
+                model.replaceAll("9876")
+            }
+            case 6 -> {
+                assertEquals(1, completions)
+                key(0, "a", 8);
+                key(8, "c", 8)
+            }
+            case 7 -> {
+                assertEquals(Some("9876"), native!!.clipboard.readText())
+                key(51, "\u0008")
+            }
+            else -> fail(Some("unexpected OTP phase"))
+        }
+    }
+    private fun editComposition() {
+        when (phase) {
+            case 8 -> {
+                assertEquals("", model.text)
+                native!!.clipboard.writeText("12- 34 56")
+                key(9, "v", 8)
+            }
+            case 9 -> {
+                assertEquals("1234", model.text);
+                assertEquals(2, completions)
+                key(6, "z", 8)
+            }
+            case 10 -> {
+                assertEquals("", model.text);
+                assertEquals(2, completions)
+                key(6, "z", 9)
+            }
+            case 11 -> {
+                assertEquals("1234", model.text);
+                assertEquals(3, completions)
+                model.replaceAll("");
+                narrow = true;
+                rtl = false
+            }
+            case 12 -> {
+                otpNativeText(native!!, "123456789", 1, 9L)
+            }
+            case 13 -> {
+                assertTrue(model.isComposing);
+                assertEquals("123456789", model.text)
+                assertEquals(3, completions)
+                assertCaret(true, 9L)
+                assertEquals(0, otpText(native!!, "98765", false))
+            }
+            case 14 -> {
+                assertEquals("9876", model.text);
+                assertFalse(model.isComposing)
+                assertEquals(4, completions)
+                otpNativeText(native!!, "仮", 1, 1L, 0L, 4L)
+            }
+            case 15 -> {
+                assertTrue(model.isComposing);
+                assertEquals("仮", model.text)
+                assertEquals(0, otpText(native!!, "字", false))
+            }
+            else -> fail(Some("unexpected OTP phase"))
+        }
+    }
+    private fun changePolicy() {
+        when (phase) {
+            case 16 -> {
+                assertEquals("9876", model.text);
+                assertEquals(4, completions)
+                otpNativeText(native!!, "仮", 1, 1L)
+                otpNativeText(native!!, "", 2, 0L)
+            }
+            case 17 -> {
+                assertEquals("9876", model.text);
+                assertEquals(4, completions)
+                readonly = true
+            }
+            case 18 -> {
+                key(0, "a", 8);
+                key(8, "c", 8)
+                assertEquals(1, otpText(native!!, "1111", false))
+            }
+            case 19 -> {
+                assertEquals(Some("9876"), native!!.clipboard.readText())
+                assertEquals("9876", model.text)
+                enabled = false
+            }
+            case 20 -> {
+                assertFalse(target.isEnabled);
+                assertFalse(focus.hasFocus)
+                enabled = true;
+                readonly = false;
+                custom = true;
+                narrow = false;
+                rtl = true
+                model.replaceAll("")
+            }
+            case 21 -> {
+                assertTrue(focus.requestFocus())
+            }
+            case 22 -> {
+                assertTrue(focus.hasFocus)
+                assertEquals(0, otpText(native!!, "é😀abZ", false))
+            }
+            case 23 -> {
+                assertEquals("é😀ab", model.text);
+                assertEquals(5, completions)
+                model.setSelection(Utf8Selection(3L, 3L))
+                key(124, "\uf703")
+            }
+            else -> fail(Some("unexpected OTP phase"))
+        }
+    }
+    private fun finishInput() {
+        when (phase) {
+            case 24 -> {
+                assertEquals(Utf8Selection(0L, 0L), model.selection)
+                key(123, "\uf702")
+            }
+            case 25 -> {
+                assertEquals(Utf8Selection(3L, 3L), model.selection)
+                discard = true;
+                narrow = true;
+                regroup = false
+            }
+            case 26 -> {
+                assertEquals(1, discarded);
+                assertEquals(1, mounts)
+                assertEquals(Utf8Selection(3L, 3L), model.selection)
+                model.replaceAll("");
+                clearOnEdit = true
+            }
+            case 27 -> {
+                assertEquals(0, otpText(native!!, "ABCD", false))
+            }
+            case 28 -> {
+                assertEquals("", model.text);
+                assertEquals(5, completions)
+                gone = true
+            }
+            case 29 -> {
+                assertFalse(focus.isAttached);
+                assertFalse(target.isAttached)
+                assertFalse(frames!!.snapshot().required)
+            }
+            case 30 -> {
+                quiet = Some(frames!!.snapshot())
+            }
+            case 31 -> {
+                assertEquals(quiet!!, frames!!.snapshot());
+                native!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected OTP phase"))
+        }
+    }
+    private fun assertCaret(scrolled: Boolean, cursor: Long) {
+        val current = theme.current.value
+        val margin = current.surfaceMetrics(SurfaceVisual()).focusOutset
+        val lineHeight =
+            Paragraph(fonts, model.text, current.tokens.typography.body).use {
+                paragraph -> paragraph.layoutUnwrapped().use {
+                    layout -> layout.lines[0L].rect.height
+                }
+            }
+        val height =
+            if (lineHeight < 32.0)
+                lineHeight
+            else
+                32.0
+        val x =
+            if (scrolled)
+                20.0 + 80.0 - margin - 1.0
+            else
+                20.0 + margin + 15.5
+        assertTrue(
+            surfaceDocumentCaret(
+                native!!,
+                Some(
+                    LogicalRect(
+                        LogicalPosition(x, 60.0 + margin + (32.0 - height) / 2.0),
+                        LogicalSize(1.0, height)
+                    )
+                ),
+                cursor
+            )
+        )
+    }
+    private fun key(code: Int, text: String, flags: Int = 0) {
+        assertEquals(0, otpKey(native!!, code, text, flags))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}
+
+private fun otpNativeText(
+    window: Window,
+    text: String,
+    kind: Int,
+    selection: Long,
+    replacement: Long = -1L,
+    replaced: Long = 0L
+) {
+    @Unsafe
+    {
+        assertEquals(
+            0,
+            window.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    return@use when (lease.handle) {
+                        case AppKit(_, view) -> text.withUtf8Bytes {
+                            bytes,
+                            length -> @Unsafe
+                            {
+                                return@withUtf8Bytes nativeEditorText(
+                                    view,
+                                    kind,
+                                    bytes,
+                                    length,
+                                    selection,
+                                    0L,
+                                    replacement,
+                                    replaced
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+}

@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+private enum InputAddonPart {
+    Text(String), Button(ButtonProps, ViewKey), Custom(View)
+}
+
+public class InputGroupAddonBuilder internal constructor(private val align: InputGroupAlign) {
+    private val parts = ArrayList<InputAddonPart>()
+    public var key: ViewKey = ViewKey.Position
+    public var padding: Insets? = None
+    public var spacing: Double? = None
+    public var style: StyleOverride = styleOverride()
+    public fun add(view: View) {
+        parts.add(InputAddonPart.Custom(view))
+    }
+    public fun text(value: String) {
+        parts.add(InputAddonPart.Text(value))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun button(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = {}) {
+        val builder = ButtonBuilder()
+        builder.variant = ButtonVariant.Ghost
+        builder.size = ButtonSize.Xs
+        builder.configure()
+        parts.add(InputAddonPart.Button(builder.snapshot(text, onClick), builder.key))
+    }
+    public fun button(
+        text: StyledText,
+        onClick: () -> Unit,
+        configure: StyledButtonBuilder.() -> Unit = {}
+    ) {
+        val builder = StyledButtonBuilder()
+        builder.variant = ButtonVariant.Ghost
+        builder.size = ButtonSize.Xs
+        builder.configure()
+        parts.add(InputAddonPart.Button(builder.snapshot(text, onClick), builder.key))
+    }
+    public fun button(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ) {
+        contentButton(ButtonContent.Custom(content), onClick, configure)
+    }
+    public fun button(
+        content: (ActionContentStyle) -> View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ) {
+        contentButton(ButtonContent.Resolved(content), onClick, configure)
+    }
+    private fun contentButton(
+        content: ButtonContent,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit
+    ) {
+        val builder = ContentButtonBuilder()
+        builder.variant = ButtonVariant.Ghost
+        builder.size = ButtonSize.Xs
+        builder.configure()
+        parts.add(
+            InputAddonPart.Button(
+                ButtonProps(
+                    content,
+                    onClick,
+                    builder.enabled,
+                    builder.style,
+                    builder.theme,
+                    builder.focus,
+                    builder.invalid,
+                    builder.variant,
+                    builder.size,
+                    builder.group,
+                    builder.labelTarget
+                ),
+                builder.key
+            )
+        )
+    }
+    internal fun snapshot(fonts: FontCollection?, theme: ThemeSource?): InputGroupAddon {
+        when (spacing) {
+            case Some(value) -> nonnegative(value, "invalid input group addon spacing")
+            case None -> {}
+        }
+        padding?.totals()
+        val children = ArrayList<View>()
+        for (part in parts)
+            children.add(
+                when (part) {
+                    case Text(value) -> typography(value, TypographyRole.Muted) {
+                        this.fonts = fonts
+                        this.theme = theme
+                        this.selectable = false
+                    }
+                    case Button(value, key) -> component(
+                        groupButtonProps(value, None, fonts, theme),
+                        { current, mount -> Button(current, scope = mount) },
+                        key
+                    )
+                    case Custom(view) -> view
+                }
+            )
+        return InputGroupAddon(
+            component(
+                InputAddonBodyProps(children.toArray(), spacing, theme),
+                { current, mount -> InputAddonBody(current, scope = mount) }
+            ),
+            align,
+            key,
+            padding,
+            style
+        )
+    }
+}
+
+private class InputAddonBodyProps(
+    val children: Array<View>,
+    val spacing: Double?,
+    val theme: ThemeSource?
+)
+
+private class InputAddonBody(
+    private val props: Props<InputAddonBodyProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val value = props.value
+        val theme = themes.read(value.theme)
+        return row {
+            for (child in value.children)
+                this.add(child)
+            this.spacing = value.spacing ?: 8.0 * theme.tokens.typography.body.fontSize / 14.0
+            this.alignment = CrossAlignment.Center
+        }
+    }
+}

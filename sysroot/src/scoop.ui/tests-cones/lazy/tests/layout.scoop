@@ -6,17 +6,26 @@ import scoop.surface.FrameSubmission
 import scoop.test.*
 import scoop.ui.*
 
-internal class LazyScene(private val probe: LazyProbe): Component {
+internal class LazyScene(private val probe: LazyProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         return element(
-            { ProbeContainer(probe) },
-            [lazyElement(probe.source!!.value, { ProtocolContainer(probe) })]
+            { mount -> ProbeContainer(probe, scope = mount) },
+            [
+                lazyElement(
+                    probe.source!!.value,
+                    { mount -> ProtocolContainer(probe, scope = mount) }
+                )
+            ]
         )
     }
 }
 
-private class ProbeContainer(private val probe: LazyProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ProbeContainer(private val probe: LazyProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val first = context.measureChild(0L, Constraints.tight(Size(80.0, 160.0)))
         val calls = probe.layoutCalls
         assertEquals(first, context.measureChild(0L, Constraints.tight(Size(80.0, 160.0))))
@@ -24,24 +33,25 @@ private class ProbeContainer(private val probe: LazyProbe): Element {
         context.measureChild(0L, Constraints.tight(Size(60.0, 160.0)))
         val final = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return final
+        return LayoutResult(final, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
-    private var ticket = -1
-    public override fun onMount(scope: ComponentScope) {
+private class ProtocolContainer(private val probe: LazyProbe, scope: ComponentScope): LazyElement<
+    Int
+>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
-    ): LayoutMetrics {
+    ): LayoutResult<Int> {
         probe.layoutCalls += 1
-        ticket = probe.ticket
+        val ticket = probe.ticket
         probe.activeContext = Some(context)
         probe.savedContext = Some(context)
         val chosen = HashSet<Long>()
@@ -106,9 +116,9 @@ private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
             assertTrue(sawPending)
         }
         probe.activeContext = None
-        return LayoutMetrics(constraints.constrain(Size(240.0, 160.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 160.0))), ticket)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, ticket: Int) {
         probe.passes += 1
         probe.drawOrder.clear()
         context.draw { paint -> paint.canvas.clear(Color.White) }

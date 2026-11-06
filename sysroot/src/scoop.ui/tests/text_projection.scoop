@@ -239,7 +239,7 @@ private fun withProjectedText(
             }
         ).use {
             paragraph -> paragraph.layoutUnwrapped().use {
-                layout -> action(EditorInputLayout(layout, display))
+                layout -> action(EditorInputLayout(TextEditLayout(layout), display))
             }
         }
     }

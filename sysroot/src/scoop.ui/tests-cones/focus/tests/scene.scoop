@@ -6,8 +6,8 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class FocusScene(private val probe: FocusProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+internal class FocusScene(private val probe: FocusProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         probe.rootScope =
             Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[3L]))))
         assertTrue(probe.rootScope!!.requestFocus())
@@ -46,7 +46,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
         views.add(
             element(
                 PanelProps(true, revision),
-                { props -> FocusPanel(probe, props) },
+                { props, mount -> FocusPanel(probe, props, scope = mount) },
                 [cell(2L), cell(3L)],
                 ViewKey.Text("group")
             )
@@ -58,7 +58,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
         views.add(cell(7L))
         return element(
             PanelProps(false, revision),
-            { props -> FocusPanel(probe, props) },
+            { props, mount -> FocusPanel(probe, props, scope = mount) },
             views.toArray()
         )
     }
@@ -83,7 +83,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
                 index != 6L || probe.showHidden,
                 index == 7L
             ),
-            { props -> FocusCell(probe, props) },
+            { props, mount -> FocusCell(probe, props, scope = mount) },
             key = ViewKey.Number(index)
         )
 }
@@ -98,11 +98,12 @@ private class CellProps(
 
 private class FocusCell(
     private val probe: FocusProbe,
-    private val props: Props<CellProps>
-): Element {
+    private val props: Props<CellProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = props.value
         probe.mounts[input.index] += 1
         val region = scope.createArea(focusable = true)
@@ -135,16 +136,18 @@ private class FocusCell(
             assertFalse(probe.rootScope!!.isPending)
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.enabled
         focus!!.options = props.value.focus
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 40.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.placed)
             return
         if (props.value.clipped)
@@ -161,15 +164,18 @@ private class PanelProps(val group: Boolean, val revision: Int)
 
 private class FocusPanel(
     private val probe: FocusProbe,
-    private val props: Props<PanelProps>
-): Element {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<PanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         if (props.value.group)
             probe.group = Some(scope.focusScope())
         else
             probe.panelScope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         var x = 0.0
         for (index in 0L ..< context.childCount) {
             val width =
@@ -181,9 +187,9 @@ private class FocusPanel(
             context.placeChild(index, Point(x, 0.0))
             x += width
         }
-        return LayoutMetrics(constraints.constrain(Size(x, 40.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(x, 40.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.group)
             context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()

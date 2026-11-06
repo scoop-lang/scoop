@@ -1,0 +1,166 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.math.max
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ControlFeedbackTest {
+    @Test
+    fun `buttons and actionable badges have distinct pressed colors and bounded transition samples`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            for (shape in [ActionShape.Button(ButtonSize.Default), ActionShape.Badge]) {
+                for (
+                    variant in [
+                        ButtonVariant.Default,
+                        ButtonVariant.Outline,
+                        ButtonVariant.Secondary,
+                        ButtonVariant.Ghost,
+                        ButtonVariant.Destructive
+                    ]
+                ) {
+                    val color =
+                        {
+                            visual: InteractionVisual ->
+                            val options =
+                                actionOptions(theme, shape, variant, buttonStyle(), visual)
+                            theme.surfaceGeometry(
+                                Rect(0.0, 0.0, 100.0, 32.0),
+                                SurfaceVisual(SurfaceKind.Action, visual),
+                                options
+                            ).style.background!!.color
+                        }
+                    assertFeedback(theme.tokens.palette.background.background, color)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `item and toggle press feedback stays independent of passive and selected states`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val bounds = Rect(0.0, 0.0, 100.0, 32.0)
+            for (variant in [ItemVariant.Default, ItemVariant.Outline, ItemVariant.Muted]) {
+                val input = ItemProps(variant = variant)
+                val color =
+                    {
+                        visual: InteractionVisual -> theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, visual),
+                            itemOptions(input, theme, visual, true)
+                        ).style.background!!.color
+                    }
+                assertFeedback(theme.tokens.palette.background.background, color)
+                val normal =
+                    theme.surfaceGeometry(
+                        bounds,
+                        SurfaceVisual(),
+                        itemOptions(input, theme, InteractionVisual(), false)
+                    )
+                val press = InteractionVisual(hovered = true, pressed = true)
+                val passive =
+                    theme.surfaceGeometry(
+                        bounds,
+                        SurfaceVisual(SurfaceKind.Plain, press),
+                        itemOptions(input, theme, press, false)
+                    )
+                assertEquals(normal.style.background!!.color, passive.style.background!!.color)
+            }
+            for (selected in [false, true]) {
+                val color =
+                    {
+                        visual: InteractionVisual -> theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, visual),
+                            toggleOptions(
+                                theme,
+                                ToggleVariant.Outline,
+                                ToggleSize.Default,
+                                selected,
+                                buttonStyle(),
+                                visual
+                            )
+                        ).style.background!!.color
+                    }
+                assertFeedback(theme.tokens.palette.background.background, color)
+                assertEquals(
+                    if (selected)
+                        theme.tokens.palette.muted.background
+                    else
+                        Color.Transparent,
+                    color(InteractionVisual())
+                )
+            }
+        }
+    }
+}
+
+private fun assertFeedback(background: Color, color: (InteractionVisual) -> Color) {
+    val normal = color(InteractionVisual())
+    val hover = color(InteractionVisual(hovered = true))
+    val press = color(InteractionVisual(hovered = true, pressed = true))
+    val hoverOnBackground = feedbackComposite(hover, background)
+    val pressOnBackground = feedbackComposite(press, background)
+    assertTrue(
+        max(
+            abs(hoverOnBackground.red - pressOnBackground.red),
+            max(
+                abs(hoverOnBackground.green - pressOnBackground.green),
+                abs(hoverOnBackground.blue - pressOnBackground.blue)
+            )
+        ) >
+            0.015,
+        Some("hover and pressed must have visibly different composited colors")
+    )
+    assertEquals(press, color(InteractionVisual(pressed = true)))
+    for (t in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]) {
+        assertFeedbackRange(
+            normal,
+            hover,
+            background,
+            color(InteractionVisual(hovered = true, hoverProgress = Some(t)))
+        )
+        assertFeedbackRange(
+            hover,
+            press,
+            background,
+            color(InteractionVisual(hovered = true, pressed = true, pressProgress = Some(t)))
+        )
+        assertFeedbackRange(
+            hover,
+            press,
+            background,
+            color(InteractionVisual(hovered = true, pressProgress = Some(1.0 - t)))
+        )
+        assertFeedbackRange(
+            normal,
+            hover,
+            background,
+            color(InteractionVisual(hoverProgress = Some(1.0 - t)))
+        )
+    }
+}
+
+private fun assertFeedbackRange(from: Color, to: Color, background: Color, actual: Color) {
+    val a = feedbackComposite(from, background)
+    val b = feedbackComposite(to, background)
+    val value = feedbackComposite(actual, background)
+    assertTrue(
+        (value.red - a.red) * (value.red - b.red) < 0.000001,
+        Some(f"transition red ${value.red} outside ${a.red} to ${b.red}")
+    )
+    assertTrue((value.green - a.green) * (value.green - b.green) < 0.000001)
+    assertTrue((value.blue - a.blue) * (value.blue - b.blue) < 0.000001)
+}
+
+private fun feedbackComposite(color: Color, background: Color): Color =
+    Color(
+        color.red * color.alpha + background.red * (1.0 - color.alpha),
+        color.green * color.alpha + background.green * (1.0 - color.alpha),
+        color.blue * color.alpha + background.blue * (1.0 - color.alpha)
+    )

@@ -1,0 +1,152 @@
+package scoop.ui.component
+
+import scoop.math.*
+
+internal struct ChartRange(val minimum: Double, val maximum: Double) {
+    fun unit(value: Double): Double {
+        val span = maximum - minimum
+        return if (span.isFinite())
+            (value - minimum) / span
+        else
+            (value / 2.0 - minimum / 2.0) / (maximum / 2.0 - minimum / 2.0)
+    }
+}
+
+internal fun chartNumber(value: Double): String =
+    if (abs(value) < 9000000000000000.0 && floor(value) == value)
+        f"${value.toLong()}"
+    else
+        f"${value}"
+
+internal fun chartFormat(axis: ChartAxis, value: Double): String =
+    when (axis.formatter) {
+        case Some(format) -> format(value);
+        case None -> chartNumber(value)
+    }
+
+internal fun chartDomain(
+    axis: ChartAxis,
+    minimum: Double?,
+    maximum: Double?,
+    baseline: Boolean = false
+): ChartRange {
+    when (axis.domain) {
+        case Fixed(low, high) -> return ChartRange(low, high);
+        case Auto -> {}
+    }
+    var low = minimum ?: 0.0
+    var high = maximum ?: 1.0
+    if (axis.includeZero || baseline) {
+        low = upperBound(low, 0.0);
+        high = lowerBound(high, 0.0)
+    }
+    if (low == high) {
+        if (low == 0.0)
+            high = 1.0
+        else {
+            val pad = abs(low) * 0.1
+            val lower = low - pad
+            val upper = high + pad
+            low =
+                if (lower.isFinite() && lower < low)
+                    lower
+                else
+                    if (low > 0.0)
+                        0.0
+                    else
+                        low
+            high =
+                if (upper.isFinite() && upper > high)
+                    upper
+                else
+                    if (high < 0.0)
+                        0.0
+                    else
+                        high
+            if (low == high) {
+                low = upperBound(low, 0.0);
+                high = lowerBound(high, 1.0)
+            }
+        }
+    }
+    if (axis.nice) {
+        val step = chartTickStep(low, high, axis.tickCount)
+        if (step > 0.0 && step.isFinite()) {
+            val first = floor(low / step) * step
+            val last = ceil(high / step) * step
+            if (first.isFinite() && last.isFinite() && last > first) {
+                low = first;
+                high = last
+            }
+        }
+    }
+    return ChartRange(low, high)
+}
+
+/** D3-array's 1/2/5 tick thresholds, with a finite endpoint fallback. See LICENSE-D3. */
+internal fun chartTickStep(low: Double, high: Double, count: Int): Double {
+    val step = high / count.toDouble() - low / count.toDouble()
+    if (!step.isFinite() || step <= 0.0)
+        return step
+    val power = floor(log10(step))
+    val unit = pow(10.0, power)
+    val error = step / unit
+    val factor =
+        if (error >= sqrt(50.0))
+            10.0
+        else
+            if (error >= sqrt(10.0))
+                5.0
+            else
+                if (error >= sqrt(2.0))
+                    2.0
+                else
+                    1.0
+    return unit * factor
+}
+
+internal fun chartTicks(range: ChartRange, count: Int): Array<Double> {
+    val step = chartTickStep(range.minimum, range.maximum, count)
+    if (!step.isFinite() || step <= 0.0)
+        return [range.minimum, range.maximum]
+    // Integer indexes avoid accumulation drift for fractional decimal ticks.
+    val inverse =
+        if (step < 1.0)
+            1.0 / step
+        else
+            0.0
+    val first =
+        if (inverse > 0.0 && inverse.isFinite())
+            ceil(range.minimum * inverse)
+        else
+            ceil(range.minimum / step)
+    val last =
+        if (inverse > 0.0 && inverse.isFinite())
+            floor(range.maximum * inverse)
+        else
+            floor(range.maximum / step)
+    val size = last - first + 1.0
+    if (
+        !first.isFinite() ||
+            !last.isFinite() ||
+            !size.isFinite() ||
+            size <
+            1.0 ||
+            size >
+            count.toDouble() *
+            3.0 +
+            2.0
+    )
+        return [range.minimum, range.maximum]
+    return Array<Double>(size.toLong()) {
+        index ->
+        val tick = first + index.toDouble()
+        if (inverse > 0.0 && inverse.isFinite())
+            tick / inverse
+        else
+            tick * step
+    }
+}
+
+internal fun chartClamp(value: Double, minimum: Double, maximum: Double): Double =
+    upperBound(lowerBound(value, minimum), maximum)

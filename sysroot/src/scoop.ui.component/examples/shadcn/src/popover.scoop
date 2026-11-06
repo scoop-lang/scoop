@@ -1,0 +1,204 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.input as makeInput
+import scoop.ui.text.TextEditorState
+
+internal class PopoverExamplesModel {
+    val open = state(false)
+    val nested = state(false)
+    val mode = state(OverlayMode.NonModal)
+    val side = state(OverlaySide.Bottom)
+    val alignment = state(OverlayAlignment.Center)
+    val enabled = state(true)
+    val arrow = state(false)
+    val veto = state(false)
+    val reject = state(false)
+    val changes = state(0)
+    val closes = state(0)
+    val outside = state(0)
+    val saved = state("No changes saved")
+    val width = TextEditorState("300px")
+    val height = TextEditorState("25px")
+    val maxWidth = TextEditorState("100%")
+    val edit = FocusHandle()
+    val handle = OverlayHandle()
+}
+
+internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel): View =
+    makeColumn {
+        add(panelHeading("Popover"))
+        typography(
+            "Edit a real form in an anchored popup. Escape closes it; Tab follows the selected focus mode.",
+            TypographyRole.Muted
+        )
+        row {
+            for (mode in [OverlayMode.NonModal, OverlayMode.FocusContained, OverlayMode.Modal]) {
+                button(popoverModeName(mode), { model.mode.value = mode }) {
+                    variant =
+                        if (model.mode.value == mode)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+            }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (model.veto.value)
+                    "Allow close"
+                else
+                    "Veto close",
+                { model.veto.value = !model.veto.value }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.reject.value)
+                    "Accept binding"
+                else
+                    "Reject binding",
+                { model.reject.value = !model.reject.value }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.enabled.value)
+                    "Disable"
+                else
+                    "Enable",
+                { model.enabled.value = !model.enabled.value }
+            ) { variant = ButtonVariant.Outline }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (gallery.reduced.value)
+                    "Motion: Reduced"
+                else
+                    "Motion: Full",
+                { gallery.toggleMotion() }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                "Cycle side",
+                {
+                    model.side.value =
+                        when (model.side.value) {
+                            case Bottom -> OverlaySide.End
+                            case End -> OverlaySide.Top
+                            case Top -> OverlaySide.Start
+                            else -> OverlaySide.Bottom
+                        }
+                }
+            ) { variant = ButtonVariant.Ghost }
+            button(
+                "Cycle alignment",
+                {
+                    model.alignment.value =
+                        when (model.alignment.value) {
+                            case Start -> OverlayAlignment.Center
+                            case Center -> OverlayAlignment.End
+                            case End -> OverlayAlignment.Start
+                        }
+                }
+            ) { variant = ButtonVariant.Ghost }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (model.arrow.value)
+                    "Hide arrow"
+                else
+                    "Show arrow",
+                { model.arrow.value = !model.arrow.value }
+            ) { variant = ButtonVariant.Outline }
+        }
+        row {
+            popover(
+                binding(
+                    { model.open.value },
+                    {
+                        next -> if (!model.reject.value)
+                            model.open.value = next
+                    }
+                ),
+                makeColumn {
+                    typography("Width", TypographyRole.Small)
+                    add(makeInput(model.width) { focus = FocusOptions(Some(model.edit)) })
+                    typography("Max. width", TypographyRole.Small)
+                    add(makeInput(model.maxWidth))
+                    typography("Height", TypographyRole.Small)
+                    add(makeInput(model.height))
+                    button(
+                        "Save dimensions",
+                        {
+                            model.saved.value =
+                                f"${model.width.text} × ${model.height.text}, max ${
+                                    model.maxWidth.text
+                                }"
+                        }
+                    )
+                    popover(
+                        model.nested.binding(),
+                        makeColumn {
+                            typography(
+                                "Nested content keeps its logical parent.",
+                                TypographyRole.Small
+                            )
+                            button("Close nested", { model.nested.value = false }) {
+                                variant = ButtonVariant.Outline
+                            }
+                            spacing = 8.0;
+                            alignment = CrossAlignment.Stretch
+                        }
+                    ) {
+                        trigger("More options") { size = ButtonSize.Sm }
+
+                        side = OverlaySide.End;
+                        width = 220.0
+                    }
+                    button("Close", { model.handle.requestClose() }) {
+                        variant = ButtonVariant.Ghost
+                    }
+                    spacing = 8.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                trigger("Open popover")
+                title("Dimensions")
+                description("Set the dimensions for the layer.")
+                mode = model.mode.value;
+                side = model.side.value;
+                alignment = model.alignment.value
+                enabled = model.enabled.value
+                arrow =
+                    if (model.arrow.value)
+                        Some(PopupArrow())
+                    else
+                        None
+                focus = OverlayFocusOptions(Some(model.edit))
+                handle = Some(model.handle)
+                onOpenChange = { _ -> model.changes.value += 1 }
+                onCloseRequest = { _ -> !model.veto.value }
+                onClosed = { _ -> model.closes.value += 1 }
+            }
+        }
+        button(f"Outside action · ${model.outside.value}", { model.outside.value += 1 }) {
+            variant = ButtonVariant.Secondary
+        }
+        typography(model.saved.value, TypographyRole.Small)
+        typography(
+            f"Open: ${model.open.value} · binding changes: ${
+                model.changes.value
+            } · completed closes: ${model.closes.value}",
+            TypographyRole.Muted
+        )
+        spacing = 16.0
+        alignment = CrossAlignment.Start
+    }
+
+private fun popoverModeName(mode: OverlayMode): String =
+    when (mode) {
+        case NonModal -> "Non-modal"
+        case FocusContained -> "Contain focus"
+        case Modal -> "Modal"
+    }

@@ -38,8 +38,11 @@ public class TextEditorState public constructor(
         return true
     }
 
-    internal val committedText: String get() =
-        (composition?.baseline ?: storage.value).input.surroundingText
+    /** Observes the document while excluding an active composition's temporary text. */
+    public val committedText: String get() {
+        val current = storage.value
+        return (composition?.baseline ?: current).input.surroundingText
+    }
 
     public val inputState: TextInputState get() = storage.value.input
     public val text: String get() = inputState.surroundingText

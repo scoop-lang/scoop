@@ -22,14 +22,18 @@ public class VirtualListProps public constructor(
     public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
     public val retention: ItemRetention = ItemRetention.Dispose,
     public val navigation: ItemNavigation = ItemNavigation.None,
-    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    public val endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0)
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */
-public class VirtualList public constructor(private val props: Props<VirtualListProps>): Component {
+public class VirtualList public constructor(
+    private val props: Props<VirtualListProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val local = ScrollState()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -59,7 +63,7 @@ public class VirtualList public constructor(private val props: Props<VirtualList
         return lazyElement(
             input.source,
             VirtualListInkProps(input, controls),
-            { value -> VirtualListInk(value) },
+            { value, mount -> VirtualListInk(value, scope = mount) },
             retention = input.retention
         )
     }

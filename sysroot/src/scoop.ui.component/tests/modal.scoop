@@ -1,0 +1,104 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class ModalTest {
+    @Test
+    fun `modal builders snapshot configuration without reading or opening their model`() {
+        val reads = state(0)
+        val open =
+            binding(
+                {
+                    reads.value += 1;
+                    false
+                },
+                { _ -> }
+            )
+        val handle = OverlayHandle()
+        val saved = ArrayList<DialogBuilder>()
+        dialog(open, empty()) {
+            saved.add(this);
+            this.handle = Some(handle);
+            width = 420.0
+        }
+        val first = saved[0L].snapshot(open, empty())
+        saved[0L].width = 250.0
+        assertEquals(420.0, first.width)
+        assertEquals(OutsidePress.CloseAndConsume, first.dismiss.outsidePress)
+        assertTrue(first.showCloseButton)
+        assertFalse(first.options.scrollable)
+        assertEquals(16.0, first.options.viewportPadding)
+        val alert = AlertDialogProps(open, empty(), size = AlertDialogSize.Sm)
+        assertEquals(Some(320.0), alert.input.width)
+        assertEquals(OutsidePress.Ignore, alert.input.dismiss.outsidePress)
+        assertEquals(ButtonVariant.Outline, alert.cancel.variant)
+        val side = SheetProps(open, empty())
+        assertEquals(SheetSide.End, side.side)
+        assertEquals(0.0, side.options.viewportPadding)
+        column {
+            dialog(open, empty()) { trigger("Dialog") }
+            alertDialog(open, empty()) {
+                action("Confirm", {});
+                cancel("Back")
+            }
+            sheet(open, empty()) { this.side = SheetSide.Start }
+            dialogFooter {
+                button("Cancel", {});
+                button("Save", {})
+            }
+        }
+        assertEquals(0, reads.value)
+        assertFalse(handle.isAttached)
+    }
+    @Test
+    fun `modal sizes and dismiss policies reject invalid descriptions`() {
+        val open = state(false).binding()
+        assertFailsWith<IllegalArgumentException> { DialogProps(open, empty(), width = -1.0) }
+        assertFailsWith<IllegalArgumentException> {
+            SheetProps(open, empty(), width = Some(Double.NaN))
+        }
+        assertFailsWith<IllegalArgumentException> { SheetProps(open, empty(), height = Some(-1.0)) }
+        assertFailsWith<IllegalArgumentException> { ModalOptions(viewportPadding = Double.NaN) }
+        assertFailsWith<IllegalArgumentException> {
+            DialogProps(
+                open,
+                empty(),
+                dismiss = OverlayDismiss(true, OutsidePress.CloseAndContinue)
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SheetProps(open, empty(), dismiss = OverlayDismiss(true, OutsidePress.CloseAndContinue))
+        }
+    }
+    @Test
+    fun `sheet logical sides resolve with the current direction and centered modals have no side`() {
+        assertEquals(None, modalPhysicalSide(ModalKind.Dialog, LayoutDirection.Ltr))
+        assertEquals(
+            Some(OverlaySide.Left),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.Start), LayoutDirection.Ltr)
+        )
+        assertEquals(
+            Some(OverlaySide.Right),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.Start), LayoutDirection.Rtl)
+        )
+        assertEquals(
+            Some(OverlaySide.Right),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.End), LayoutDirection.Ltr)
+        )
+        assertEquals(
+            Some(OverlaySide.Left),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.End), LayoutDirection.Rtl)
+        )
+        assertEquals(
+            Some(OverlaySide.Top),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.Top), LayoutDirection.Rtl)
+        )
+        assertEquals(
+            Some(OverlaySide.Bottom),
+            modalPhysicalSide(ModalKind.Sheet(SheetSide.Bottom), LayoutDirection.Rtl)
+        )
+    }
+}

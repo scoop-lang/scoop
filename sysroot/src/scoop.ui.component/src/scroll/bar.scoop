@@ -45,11 +45,14 @@ internal class ScrollBarControl(
             }
         }
     }
+    fun cancel() {
+        drag!!.cancel()
+        release()
+    }
     fun update() {
         val value = props()
         if (value.state !== currentState) {
-            drag!!.cancel()
-            release()
+            cancel()
             geometry = None
             currentState = value.state
         }

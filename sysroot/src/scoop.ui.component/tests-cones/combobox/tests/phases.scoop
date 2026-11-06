@@ -1,0 +1,290 @@
+package scoop.tests.ui.combobox
+
+import scoop.test.*
+import scoop.surface.FocusOrigin
+import scoop.tests.surface.moveSurfacePointer
+import scoop.ui.*
+
+internal fun comboStep(p: ComboProbe) {
+    when (p.phase) {
+        case 0 -> {
+            moveSurfacePointer(p.native!!, 640.0, 490.0);
+            assertTrue(p.editor.requestFocus(FocusOrigin.Keyboard))
+        }
+        case 1 -> {
+            assertTrue(p.editor.hasFocus);
+            p.key(125)
+        }
+        case 2 -> {
+            assertTrue(p.open.value);
+            assertEquals(Some(ViewKey.Number(1L)), p.active.value);
+            p.key(125)
+        }
+        case 3 -> {
+            assertEquals(Some(ViewKey.Number(3L)), p.active.value);
+            assertEquals(None, p.single.value);
+            p.key(36, "\r")
+        }
+        case 4 -> {
+            assertEquals(Some(3L), p.single.value);
+            assertFalse(p.open.value);
+            assertEquals("", p.query.text);
+            assertTrue(p.editor.hasFocus)
+            p.text("she", true)
+        }
+        case 5 -> {
+            assertTrue(p.query.isComposing);
+            assertFalse(p.open.value);
+            p.key(125)
+        }
+        case 6 -> {
+            assertTrue(p.query.isComposing);
+            assertEquals(Some(3L), p.single.value);
+            assertFalse(p.open.value);
+            p.key(36, "\r")
+        }
+        case 7 -> {
+            assertTrue(p.query.isComposing);
+            assertEquals(1, p.calls);
+            p.text("设置")
+        }
+        case 8 -> {
+            assertEquals("设置", p.query.committedText);
+            assertFalse(p.query.isComposing);
+            assertTrue(p.open.value);
+            assertEquals(Some(ViewKey.Number(4L)), p.active.value);
+            p.key(36, "\r")
+        }
+        case 9 -> {
+            assertEquals(Some(4L), p.single.value);
+            assertEquals("", p.query.text);
+            assertFalse(p.open.value);
+            p.query.replaceAll("About")
+        }
+        case 10 -> {
+            assertFalse(p.open.value);
+            p.key(125)
+        }
+        case 11 -> {
+            assertEquals(Some(ViewKey.Number(5L)), p.active.value);
+            assertEquals(Some(4L), p.single.value);
+            p.reject = true;
+            p.key(36, "\r")
+        }
+        case 12 -> {
+            assertEquals(Some(4L), p.single.value);
+            assertTrue(p.open.value);
+            assertEquals("About", p.query.text);
+            assertEquals(2, p.calls);
+            p.reject = false;
+            p.key(36, "\r")
+        }
+        case 13 -> {
+            assertEquals(Some(5L), p.single.value);
+            assertFalse(p.open.value);
+            assertEquals(3, p.calls);
+            p.multi = true;
+            p.changed()
+        }
+        case 14 -> {
+            assertTrue(p.editor.requestFocus(FocusOrigin.Keyboard));
+            p.active.value = None
+        }
+        case 15 -> p.key(125)
+        case 16 -> {
+            assertEquals(Some(ViewKey.Number(1L)), p.active.value);
+            p.key(36, "\r")
+        }
+        case 17 -> {
+            assertValues(p, [1L]);
+            assertEquals(32.0, p.actualHeight);
+            assertTrue(p.open.value);
+            assertTrue(p.editor.hasFocus);
+            p.key(125)
+        }
+        case 18 -> {
+            assertEquals(Some(ViewKey.Number(3L)), p.active.value);
+            p.click(3L)
+        }
+        case 19 -> {
+            assertValues(p, [1L, 3L]);
+            assertTrue(p.editor.hasFocus);
+            moveSurfacePointer(p.native!!, 640.0, 490.0);
+            p.key(51)
+        }
+        case 20 -> {
+            assertValues(p, [1L]);
+            assertTrue(p.editor.hasFocus);
+            p.key(36, "\r")
+        }
+        case 21 -> {
+            assertValues(p, [1L, 3L]);
+            p.key(123)
+        }
+        case 22 -> {
+            assertFalse(p.editor.hasFocus);
+            p.key(123)
+        }
+        case 23 -> p.key(117)
+        case 24 -> {
+            assertValues(p, [3L]);
+            assertTrue(p.editor.hasFocus);
+            p.clickPoint(80.0 + p.actualWidth - 13.0, 80.0 + p.actualHeight / 2.0)
+        }
+        case 25 -> {
+            assertValues(p, []);
+            assertEquals("", p.query.text);
+            assertTrue(p.editor.hasFocus);
+            p.query.replaceAll("nothing")
+        }
+        case 26 -> {
+            assertEquals(None, p.active.value);
+            p.savedCalls = p.calls;
+            p.key(36, "\r")
+        }
+        case 27 -> {
+            assertValues(p, []);
+            assertEquals(p.savedCalls, p.calls);
+            assertEquals(0, p.submissions);
+            p.query.replaceAll("");
+            p.long = true;
+            p.auto = false;
+            p.preservedFactories = p.factories;
+            p.changed()
+        }
+        case 28 -> p.active.value = Some(ViewKey.Number(4999L))
+        case 29 -> {
+            assertTrue(p.factories - p.preservedFactories < 100);
+            assertTrue(
+                when (p.rows[4999L]) {
+                    case Some(_) -> true;
+                    case None -> false
+                }
+            );
+            assertTrue(p.editor.hasFocus);
+            p.key(36, "\r")
+        }
+        case 30 -> {
+            assertValues(p, [4999L]);
+            p.popup = true;
+            p.open.value = false;
+            p.long = false;
+            p.changed()
+        }
+        case 31 -> {
+            assertFalse(p.editor.isAttached);
+            assertTrue(p.trigger.requestFocus(FocusOrigin.Keyboard));
+            p.key(125)
+        }
+        case 32 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.editor.hasFocus);
+            assertValues(p, [4999L]);
+            p.key(119)
+        }
+        case 33 -> {
+            assertEquals(Some(ViewKey.Number(5L)), p.active.value);
+            p.key(36, "\r")
+        }
+        case 34 -> {
+            assertValues(p, [4999L, 5L]);
+            assertTrue(p.open.value);
+            p.key(53, "\u001b")
+        }
+        case 35 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.trigger.hasFocus);
+            p.key(125)
+        }
+        case 36 -> {
+            assertTrue(p.editor.hasFocus);
+            p.veto = true;
+            p.key(53, "\u001b")
+        }
+        case 37 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.editor.hasFocus);
+            p.veto = false;
+            p.key(48, "\t")
+        }
+        case 38 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.after.hasFocus);
+            p.rebind = true;
+            p.multi = false;
+            p.narrow = true;
+            p.changed()
+        }
+        case 39 -> {
+            assertEquals(Some(4L), p.second.value);
+            assertEquals(160.0, p.actualWidth);
+            assertTrue(p.trigger.requestFocus(FocusOrigin.Keyboard));
+            p.key(125)
+        }
+        case 40 -> {
+            assertTrue(p.editor.hasFocus);
+            assertEquals(Some(ViewKey.Number(4L)), p.active.value);
+            p.limit = 2L;
+            p.changed()
+        }
+        case 41 -> {
+            assertEquals(Some(4L), p.second.value);
+            assertEquals(None, p.active.value);
+            p.second.value = Some(1L)
+        }
+        case 42 -> {
+            assertTrue(p.open.value);
+            assertEquals("", p.query.text);
+            p.enabled = false;
+            p.changed()
+        }
+        case 43 -> {
+            assertFalse(p.editor.hasFocus);
+            p.shown = false;
+            p.changed()
+        }
+        case 44 -> {
+            assertFalse(p.editor.isAttached);
+            assertFalse(p.list.isAttached);
+            assertFalse(p.scroll.isAttached);
+            p.shown = true;
+            p.enabled = true;
+            p.open.value = false;
+            p.changed()
+        }
+        case 45 -> {
+            assertTrue(p.trigger.isAttached);
+            p.zero = true;
+            p.changed()
+        }
+        case 46 -> {
+            assertEquals(0.0, p.actualWidth);
+            p.zero = false;
+            p.changed()
+        }
+        case 47 -> {
+            assertEquals(160.0, p.actualWidth);
+            assertTrue(p.trigger.requestFocus(FocusOrigin.Keyboard))
+        }
+        case 48 -> p.key(125)
+        case 49 -> {
+            assertTrue(p.editor.hasFocus);
+            p.savedCalls = p.calls;
+            p.prevent = true;
+            p.key(36, "\r")
+        }
+        case 50 -> {
+            assertEquals(p.savedCalls, p.calls);
+            assertEquals(0, p.submissions);
+            assertEquals(Some(1L), p.second.value);
+            p.native!!.requestDestroy()
+        }
+        else -> throw IllegalStateException(Some("unexpected combobox phase"))
+    }
+}
+
+private fun assertValues(p: ComboProbe, values: Array<Long>) {
+    assertEquals(values.size, p.values.value.size)
+    for (index in 0L ..< values.size)
+        assertEquals(values[index], p.values.value[index])
+}

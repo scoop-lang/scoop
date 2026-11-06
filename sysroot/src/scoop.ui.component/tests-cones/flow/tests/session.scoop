@@ -68,7 +68,7 @@ internal class FlowProbe {
                         }
                     )
                 window = Some(native)
-                host.attach(native, { FlowRoot(this) })
+                host.attach(native, { mount -> FlowRoot(this, scope = mount) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

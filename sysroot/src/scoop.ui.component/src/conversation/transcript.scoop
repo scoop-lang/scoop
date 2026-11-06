@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+import scoop.ui.style.LogicalInsets
+import scoop.ui.component.frame as transcriptFrame
+
+/** Immutable item metadata; constructing the source does not construct its item views. */
+public interface TranscriptSource: ItemSource {
+    public fun anchorAtOrBefore(index: Long): Long?
+}
+
+public class TranscriptItem public constructor(
+    public val key: ViewKey,
+    public val content: () -> View,
+    public val scrollAnchor: Boolean = false
+)
+
+public class TranscriptList public constructor(
+    private val items: Array<TranscriptItem>
+): TranscriptSource {
+    private val indexes = HashMap<ViewKey, Long>()
+    private val anchors = buildIndex()
+    private fun buildIndex(): Array<Long> {
+        val found = ArrayList<Long>()
+        for (at in 0L ..< items.size) {
+            val item = items[at]
+            requireComponent(item.key != ViewKey.Position, "transcript requires explicit keys")
+            requireComponent(indexes.get(item.key) == None, "duplicate transcript key")
+            indexes.put(item.key, at)
+            if (item.scrollAnchor)
+                found.add(at)
+        }
+        return found.toArray()
+    }
+    public override val count: Long get() = items.size
+    public override fun keyAt(index: Long): ViewKey = items[index].key
+    public override fun indexOfKey(key: ViewKey): Long? = indexes.get(key)
+    public override fun build(index: Long): View = items[index].content()
+    public override fun anchorAtOrBefore(index: Long): Long? {
+        var low = 0L
+        var high = anchors.size
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (anchors[middle] <= index)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return if (low == 0L)
+            None
+        else
+            Some(anchors[low - 1L])
+    }
+}
+
+public class TranscriptBuilder internal constructor() {
+    private val values = ArrayList<TranscriptItem>()
+    public fun item(key: ViewKey, scrollAnchor: Boolean = false, content: () -> View) {
+        values.add(TranscriptItem(key, content, scrollAnchor))
+    }
+    public fun item(key: ViewKey, content: View, scrollAnchor: Boolean = false) {
+        values.add(TranscriptItem(key, { content }, scrollAnchor))
+    }
+    internal fun snapshot(): TranscriptList = TranscriptList(values.toArray())
+}
+
+public fun transcript(configure: TranscriptBuilder.() -> Unit): TranscriptList {
+    val builder = TranscriptBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+internal class SpacedTranscript(val source: TranscriptSource, val spacing: Double): ItemSource {
+    public override val count: Long get() = source.count
+    public override fun keyAt(index: Long): ViewKey = source.keyAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? = source.indexOfKey(key)
+    public override fun build(index: Long): View {
+        val bottom =
+            if (index + 1L < source.count)
+                spacing
+            else
+                0.0
+        return transcriptFrame(source.build(index)) {
+            this.logicalPadding = Some(LogicalInsets(bottom = bottom))
+        }
+    }
+}
+
+internal fun transcriptAnchor(source: TranscriptSource, index: Long): Long? {
+    val at = source.anchorAtOrBefore(index) ?: return None
+    requireComponent(
+        at >= 0L && at <= index && at < source.count,
+        "invalid transcript anchor index"
+    )
+    return Some(at)
+}

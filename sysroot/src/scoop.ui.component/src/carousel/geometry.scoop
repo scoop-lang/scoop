@@ -1,0 +1,170 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class CarouselTrack(
+    val extents: Array<Double>,
+    val starts: Array<Double>,
+    val snaps: Array<Double>,
+    val viewport: Double,
+    val maximum: Double,
+    val cycle: Double,
+    val looping: Boolean
+)
+
+internal fun carouselTrack(
+    extents: Array<Double>,
+    viewport: Double,
+    spacing: Double,
+    loop: Boolean
+): CarouselTrack {
+    nonnegative(viewport, "invalid carousel viewport extent")
+    nonnegative(spacing, "invalid carousel spacing")
+    var total = 0.0
+    val positions = ArrayList<Double>()
+    for (extent in extents) {
+        nonnegative(extent, "invalid measured carousel item")
+        positions.add(total)
+        total += extent + spacing
+        nonnegative(total, "carousel track extent overflow")
+    }
+    val starts = positions.toArray()
+    val content =
+        max(
+            0.0,
+            total -
+                if (extents.size > 0L)
+                    spacing
+                else
+                    0.0
+        )
+    var looping = loop && extents.size > 1L && viewport > 0.0 && content > viewport
+    for (extent in extents)
+        if (total - extent < viewport)
+            looping = false
+    val maximum = max(0.0, content - viewport)
+    val circular = looping
+    val snaps =
+        Array<Double>(starts.size) {
+            index -> if (circular)
+                starts[index]
+            else
+                min(starts[index], maximum)
+        }
+    return CarouselTrack(extents, starts, snaps, viewport, maximum, total, looping)
+}
+
+internal fun carouselModulo(value: Double, cycle: Double): Double {
+    val result = value % cycle
+    return if (result < 0.0)
+        result + cycle
+    else
+        result
+}
+
+internal fun carouselItemPosition(track: CarouselTrack, index: Long, offset: Double): Double {
+    val position = track.starts[index] - offset
+    if (!track.looping)
+        return position
+    val wrapped = carouselModulo(position, track.cycle)
+    return if (wrapped + track.extents[index] > track.cycle)
+        wrapped - track.cycle
+    else
+        wrapped
+}
+
+internal fun carouselAdjacent(track: CarouselTrack, index: Long, next: Boolean): Long? {
+    if (index < 0L || index >= track.snaps.size || track.maximum <= 0.0)
+        return None
+    val current = track.snaps[index]
+    var candidate = index
+    for (_ in 0L ..< track.snaps.size - 1L) {
+        candidate += if (next)
+            1L
+        else
+            -1L
+        if (candidate < 0L || candidate >= track.snaps.size) {
+            if (!track.looping)
+                return None
+            candidate =
+                if (next)
+                    0L
+                else
+                    track.snaps.size - 1L
+        }
+        if (track.snaps[candidate] != current)
+            return Some(candidate)
+    }
+    return None
+}
+
+internal fun carouselNearest(
+    track: CarouselTrack,
+    position: Double,
+    velocity: Double,
+    projection: Double
+): SnapTarget? {
+    if (!track.looping)
+        return snapTarget(position, velocity, track.snaps, projection)
+    val normalized = carouselModulo(position, track.cycle)
+    val count = track.snaps.size
+    val anchors =
+        Array<Double>(count * 3L) {
+            index -> track.snaps[index % count] + (index / count - 1L).toDouble() * track.cycle
+        }
+    val target = snapTarget(normalized, velocity, anchors, projection) ?: return None
+    return Some(SnapTarget(target.index % count, target.position))
+}
+
+internal fun carouselSelected(
+    keys: Array<ViewKey>,
+    controlled: Long?,
+    retained: ViewKey?,
+    fallback: Long
+): Long {
+    if (keys.size == 0L)
+        return -1L
+    when (controlled) {
+        case Some(index) -> return max(0L, min(index, keys.size - 1L))
+        case None -> for (index in 0L ..< keys.size)
+            if (Some(keys[index]) == retained)
+                return index
+    }
+    return max(0L, min(fallback, keys.size - 1L))
+}
+
+internal class CarouselGeometry(
+    val size: Size,
+    val inner: Rect,
+    val track: CarouselTrack,
+    val keys: Array<ViewKey>,
+    val orientation: Orientation,
+    val direction: LayoutDirection
+)
+
+internal fun sameCarouselGeometry(a: CarouselGeometry, b: CarouselGeometry): Boolean {
+    if (
+        a.size !=
+            b.size ||
+            a.inner !=
+            b.inner ||
+            a.orientation !=
+            b.orientation ||
+            a.direction !=
+            b.direction ||
+            a.track.looping !=
+            b.track.looping ||
+            a.track.cycle !=
+            b.track.cycle ||
+            a.keys.size !=
+            b.keys.size
+    )
+        return false
+    for (index in 0L ..< a.keys.size)
+        if (a.keys[index] != b.keys[index] || a.track.extents[index] != b.track.extents[index])
+            return false
+    return true
+}

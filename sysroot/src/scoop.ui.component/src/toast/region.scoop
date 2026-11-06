@@ -1,0 +1,89 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+
+internal class ToastRegionInput(val host: ToasterControl, val position: ToastPosition)
+
+internal class ToastRegion(val area: InputArea, val position: ToastPosition)
+
+/** A transparent region below the cards keeps hover continuous across expanded gaps. */
+internal class ToastRegionSurface(
+    private val props: Props<ToastRegionInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val host = props.value.host
+    private val area =
+        scope.createArea {
+            context,
+            _ -> if (context.phase == RoutedPhase.Notification && host.active)
+                host.refresh()
+        }
+    private val region = ToastRegion(area, props.value.position)
+    init {
+        scope.onDispose { remove() }
+        host.regions.add(region)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                Size(
+                    constraints.maxWidth ?: constraints.minWidth,
+                    constraints.maxHeight ?: constraints.minHeight
+                )
+            ),
+            Unit
+        )
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val input = props.value
+        var bounds: Rect? = None
+        for (entry in input.host.group(input.position)) {
+            val card = entry.card ?: continue
+            val box = card.area.visibleBounds ?: continue
+            bounds =
+                Some(
+                    when (bounds) {
+                        case None -> box
+                        case Some(old) -> {
+                            val x = min(old.x, box.x);
+                            val y = min(old.y, box.y)
+                            Rect(
+                                x,
+                                y,
+                                max(old.x + old.width, box.x + box.width) - x,
+                                max(old.y + old.height, box.y + box.height) - y
+                            )
+                        }
+                    }
+                )
+        }
+        when (bounds) {
+            case Some(box) -> context.place(region.area, box);
+            case None -> {}
+        }
+    }
+    private fun remove() {
+        for (at in 0L ..< host.regions.size)
+            if (host.regions[at] === region) {
+                host.regions.removeAt(at);
+                break
+            }
+        host.refresh()
+    }
+}
+
+internal fun toastRegion(host: ToasterControl, position: ToastPosition, key: Long): View =
+    portal(
+        binding({ host.group(position).size > 0L }, { _ -> Unit }),
+        element(
+            ToastRegionInput(host, position),
+            { value, mount -> ToastRegionSurface(value, mount) }
+        )
+    ) {
+        this.key = ViewKey.Number(key)
+        placement = OverlayPlacement.Viewport(viewportPadding = 0.0)
+    }

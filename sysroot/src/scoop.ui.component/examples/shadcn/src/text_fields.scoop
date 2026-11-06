@@ -1,0 +1,153 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class TextExamplesModel {
+    val password = TextEditorState("scoop-password")
+    val digits = TextEditorState("123")
+    val readonly = TextEditorState("Select and copy this read-only value")
+    val file = TextEditorState("No file selected")
+    val message = TextEditorState("Hello Scoop!\nWrite a message in your language.")
+    val code =
+        TextEditorState(
+            "fun greet(name: String) {\n\tprintln(name)\n}\n\ngreet(\"A long line: 水平 scrolling preserves the full text model and its selection.\")"
+        )
+    val disabled = TextEditorState("Editing is disabled")
+    val invalid = TextEditorState("Please add more detail")
+    val revealed = state(false)
+    val wrap = state(true)
+    val insertTab = state(false)
+    val submits = state(0)
+    val edits = state(0)
+    val selectedFiles = state(0)
+}
+
+internal fun inputExamples(model: TextExamplesModel): View =
+    makeColumn {
+        this.typography("Password and input policy", TypographyRole.H4)
+        this.input(model.password) {
+            this.placeholder = "Password"
+            this.projection =
+                if (model.revealed.value)
+                    textProjection()
+                else
+                    textMask()
+        }
+        this.button(
+            if (model.revealed.value)
+                "Hide password"
+            else
+                "Show password",
+            { model.revealed.value = !model.revealed.value }
+        ) { this.variant = ButtonVariant.Outline }
+        this.typography(
+            "Masked text blocks copy by default. Showing it preserves selection and undo history.",
+            TypographyRole.Muted
+        )
+        this.input(model.digits) {
+            this.placeholder = "Up to six digits"
+            this.policy =
+                textEditPolicy {
+                    this.maxLength = Some(6L)
+                    this.accepts {
+                        value ->
+                        var valid = true
+                        for (character in value)
+                            if (character.code < 48 || character.code > 57)
+                                valid = false
+                        valid
+                    }
+                }
+        }
+        this.input(model.readonly) { this.readOnly = true }
+        this.typography("Application-owned file selection", TypographyRole.H4)
+        this.inputGroup {
+            this.input(model.file) { this.readOnly = true }
+            this.addon {
+                this.button(
+                    "Choose example file",
+                    {
+                        model.file.replaceAll("report.csv")
+                        model.selectedFiles.value += 1
+                    }
+                )
+            }
+        }
+        this.typography(
+            f"Sample selection action called ${
+                model.selectedFiles.value
+            } times. Applications connect this action to their own file chooser.",
+            TypographyRole.Muted
+        )
+        this.spacing = 12.0
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun textareaExamples(model: TextExamplesModel): View =
+    makeColumn {
+        this.add(panelHeading("Textarea"))
+        this.typography(
+            "A shared editing model with native composition, selection, copy and undo. Primary+Enter submits.",
+            TypographyRole.Muted
+        )
+        this.textarea(model.message) {
+            this.rows = 4L
+            this.placeholder = "Write a message…"
+            this.wrap = model.wrap.value
+            this.tab =
+                if (model.insertTab.value)
+                    TextTabBehavior.Insert
+                else
+                    TextTabBehavior.Navigate
+            this.onEdited = { _ -> model.edits.value += 1 }
+            this.onSubmit = { _ -> model.submits.value += 1 }
+        }
+        this.row {
+            this.button(
+                if (model.wrap.value)
+                    "Wrap: on"
+                else
+                    "Wrap: off",
+                { model.wrap.value = !model.wrap.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.insertTab.value)
+                    "Tab: insert"
+                else
+                    "Tab: navigate",
+                { model.insertTab.value = !model.insertTab.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0
+        }
+        this.typography(
+            f"Edits: ${model.edits.value} · Submits: ${model.submits.value}",
+            TypographyRole.Small
+        )
+        this.typography("Horizontal and vertical scrolling", TypographyRole.H4)
+        this.textarea(model.code) {
+            this.rows = 3L
+            this.wrap = false
+            this.tab = TextTabBehavior.Insert
+        }
+        this.typography("Read only / invalid / disabled", TypographyRole.H4)
+        this.textarea(model.readonly) {
+            this.rows = 2L;
+            this.readOnly = true
+        }
+        this.textarea(model.invalid) {
+            this.rows = 2L;
+            this.invalid = true
+            this.description = "Describe the issue before submitting."
+        }
+        this.textarea(model.disabled) {
+            this.rows = 2L;
+            this.enabled = false
+        }
+        this.spacing = 12.0
+        this.alignment = CrossAlignment.Stretch
+        this.padding = Insets(6.0, 6.0, 12.0, 12.0)
+    }

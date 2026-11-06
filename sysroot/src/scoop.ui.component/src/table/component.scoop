@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Table public constructor(
+    private val props: Props<TableProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val horizontal = ScrollState()
+    private var checked: TableProps? = None
+    private var appearance: TableAppearance? = None
+    private var tracks: TableTracks? = None
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val fonts = input.fonts ?: scope.defaultFonts
+        val old = appearance
+        val changed =
+            when (old) {
+                case Some(value) -> value.theme !==
+                    theme ||
+                    value.fonts !==
+                    fonts ||
+                    value.direction !=
+                    scope.layoutDirection;
+                case None -> true
+            }
+        val sameInput =
+            when (checked) {
+                case Some(value) -> value === input;
+                case None -> false
+            }
+        if (changed || !sameInput) {
+            tableCheckRows(input.rows, input.columns.size)
+            val next = TableAppearance(theme, fonts, input.theme, scope.layoutDirection)
+            val headers = MutableArray<String>(input.columns.size) { _ -> "" }
+            for (row in input.rows)
+                if (row.section == TableSection.Header) {
+                    var at = 0L
+                    for (cell in row.cells) {
+                        if (cell.span == 1L)
+                            when (cell.content) {
+                                case Label(label) -> headers[at] =
+                                    when (label.text) {
+                                        case Plain(text, _) -> text;
+                                        case Styled(text) -> text.text
+                                    }
+                                else -> {}
+                            }
+                        at += cell.span
+                    }
+                }
+            appearance = Some(next)
+            tracks =
+                Some(
+                    TableTracks(
+                        input.columns,
+                        next.natural(
+                            input.columns,
+                            Array<String>(headers.size) { index -> headers[index] }
+                        ),
+                        next.density
+                    )
+                )
+            checked = Some(input)
+        }
+        val visuals = appearance!!
+        val sizes = tracks!!
+        val rows =
+            column {
+                this.spacing = 0.0
+                this.alignment = CrossAlignment.Stretch
+                for (index in 0L ..< input.rows.size)
+                    this.add(
+                        tableRowView(
+                            input.rows[index],
+                            sizes,
+                            visuals,
+                            input.rows[index].key,
+                            index + 1L < input.rows.size
+                        )
+                    )
+            }
+        val controls =
+            ScrollControlProps(
+                input.horizontal ?: horizontal,
+                ScrollAxes.Horizontal,
+                40.0,
+                ScrollChain.Chain,
+                ScrollbarVisibility.Auto,
+                scrollbarOptions(),
+                input.enabled,
+                FocusOptions(tabStop = false),
+                PaintCachePolicy.None,
+                theme
+            )
+        val viewport =
+            element(
+                TableViewportInput(sizes, controls, input.width),
+                { props, scope -> TableViewport(props, scope) },
+                [rows]
+            )
+        return column {
+            this.spacing = 16.0 * visuals.density
+            this.alignment = CrossAlignment.Stretch
+            this.add(viewport)
+            when (input.caption) {
+                case Some(value) -> this.add(visuals.content(value, dim = true));
+                case None -> {}
+            }
+        }
+    }
+}

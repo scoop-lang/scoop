@@ -1,17 +1,17 @@
 package scoop.ui
 
-/** Finalizes only the last layout; portal content has its own placement boundary. */
-internal fun MountedNode.finishMeasurement() {
-    if (!root.isOpen)
+/** Only the selected graph finalizes item retention; trials never publish geometry. */
+internal fun NodeLayout.finishMeasurement() {
+    if (!node.root.isOpen)
         throw UiLayoutEnded()
-    when (body) {
-        case Portal(_) -> return
-        case Lazy(_, items) -> {
-            items.finish(this);
-            return
-        }
+    val round = node.root.layouts.round
+    if (sameLayoutRound(selected, round))
+        return
+    selected = Some(round)
+    when ((body, node.body)) {
+        case(Lazy(_, selection), Lazy(_, items)) -> items.finish(node, selection)
         else -> {}
     }
     for (child in children)
-        child.finishMeasurement()
+        child.result?.finishMeasurement()
 }

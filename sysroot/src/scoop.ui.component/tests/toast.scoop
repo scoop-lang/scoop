@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.*
+import scoop.ui.*
+
+@Test
+private class ToastModelTest {
+    @Test
+    fun `paused time resumes the unused duration and replacement restarts it`() {
+        val start = ToastTestTime().markNow()
+        val clock = ToastClock(Some(Duration.seconds(5L)))
+        assertEquals(None, clock.deadline)
+        clock.resume(start)
+        clock.pause(start + Duration.seconds(2L))
+        assertEquals(Some(Duration.seconds(3L)), clock.remaining)
+        clock.pause(start + Duration.seconds(10L))
+        assertEquals(Some(Duration.seconds(3L)), clock.remaining)
+        clock.resume(start + Duration.seconds(20L))
+        assertEquals(Some(start + Duration.seconds(23L)), clock.deadline)
+        clock.pause(start + Duration.seconds(24L))
+        assertEquals(Some(Duration.ZERO), clock.remaining)
+        clock.reset(None);
+        clock.resume(start)
+        assertEquals(None, clock.deadline)
+        clock.reset(Some(Duration.seconds(1L)));
+        clock.resume(start)
+        assertEquals(Some(start + Duration.seconds(1L)), clock.deadline)
+    }
+    @Test
+    fun `notification identities reject late results and completion can enqueue new work`() {
+        val model = ToastState();
+        val other = ToastState();
+        val closed = state(0)
+        val id = model.show("Loading") { kind = ToastKind.Loading }
+        assertEquals(None, model.find(id)!!.clock.remaining)
+        assertTrue(model.contains(id));
+        assertFalse(other.contains(id))
+        assertTrue(
+            model.update(id, "Saved") {
+                kind = ToastKind.Success
+                onClosed =
+                    {
+                        current, reason ->
+                        assertTrue(current === id);
+                        assertEquals(ToastCloseReason.Explicit, reason)
+                        assertFalse(model.contains(current))
+                        closed.value += 1
+                        model.show("Follow-up")
+                    }
+            }
+        )
+        assertEquals(Some(Duration.seconds(5L)), model.find(id)!!.clock.remaining)
+        assertTrue(model.dismiss(id));
+        assertFalse(model.dismiss(id))
+        assertFalse(model.update(id, "Late result"));
+        assertFalse(other.update(id, "Wrong state"))
+        assertEquals(1L, model.count);
+        assertEquals(1, closed.value)
+        assertFalse(model.isAttached)
+    }
+    @Test
+    fun `configuration and release projection preserve logical edge semantics`() {
+        val action = state(0)
+        val data =
+            toastProps("Saved") {
+                description("Your changes are available")
+                action("Undo", { action.value += 1 }) { dismiss = false }
+            }
+        assertFalse(data.action!!.dismiss);
+        assertEquals(0, action.value)
+        val model = ToastState()
+        column { toaster(model) { visibleCount = 2L } }
+        assertFalse(model.isAttached)
+        assertFailsWith<IllegalArgumentException> {
+            toastProps("Bad") { duration = Some(Duration.ZERO) }
+        }
+        assertFailsWith<IllegalArgumentException> { ToasterProps(model, visibleCount = 0L) }
+        assertFailsWith<IllegalArgumentException> { ToasterProps(model, width = -1.0) }
+        assertEquals(OverlaySide.Left, toastSide(ToastPosition.BottomEnd, LayoutDirection.Rtl))
+        assertEquals(OverlaySide.Top, toastSide(ToastPosition.TopCenter, LayoutDirection.Rtl))
+        val right =
+            ToastGeometry(
+                Size(900.0, 560.0),
+                Rect(564.0, 480.0, 320.0, 64.0),
+                64.0,
+                1.0,
+                OverlaySide.Right
+            )
+        assertFalse(toastReleased(right, 60.0, 0.0, 1.0))
+        assertTrue(toastReleased(right, 60.0, 600.0, 1.0))
+        assertFalse(toastReleased(right, -200.0, -300.0, 1.0))
+    }
+}
+
+private class ToastTestTime: TimeSource {
+    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
+}

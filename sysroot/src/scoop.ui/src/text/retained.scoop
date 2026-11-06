@@ -25,6 +25,11 @@ internal class RetainedParagraphLayout(private val owner: ParagraphLayout): Clos
             throw IllegalStateException(Some("retained paragraph layout is closed"))
         return owner.layout
     }
+    fun retain(): RetainedParagraphLayout {
+        if (closed)
+            throw IllegalStateException(Some("retained paragraph layout is closed"))
+        return owner.retain()
+    }
     public override fun close() {
         if (closed)
             return

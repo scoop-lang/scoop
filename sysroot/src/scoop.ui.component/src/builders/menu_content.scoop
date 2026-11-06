@@ -1,0 +1,115 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.ShortcutChord
+
+public class MenuItemBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var destructive: Boolean = false
+    public var inset: Boolean = false
+    public var content: View? = None
+    public var icon: View? = None
+    public var shortcut: ShortcutChord? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var style: ButtonStyle = buttonStyle()
+    public var closeOnSelect: Boolean? = None
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(key: ViewKey, label: String): MenuItemSpec =
+        MenuItemSpec(key, label, enabled, destructive, inset, content, icon, shortcut, focus, style)
+}
+
+public class MenuBuilder internal constructor() {
+    private val entries = ArrayList<MenuEntry>()
+    public fun add(entry: MenuEntry) {
+        entries.add(entry)
+    }
+    public fun item(
+        key: ViewKey,
+        label: String,
+        onSelect: () -> Unit,
+        configure: MenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = MenuItemBuilder()
+        builder.configure()
+        add(MenuEntry.Action(builder.snapshot(key, label), onSelect, builder.closeOnSelect ?: true))
+    }
+    public fun checkboxItem(
+        key: ViewKey,
+        label: String,
+        checked: Binding<Boolean>,
+        onCheckedChange: (Boolean) -> Unit = {},
+        configure: MenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = MenuItemBuilder()
+        builder.configure()
+        add(
+            MenuEntry.Checkbox(
+                builder.snapshot(key, label),
+                checked,
+                builder.closeOnSelect ?: false,
+                onCheckedChange
+            )
+        )
+    }
+    public fun <T: Equals<T>> radioItem(
+        key: ViewKey,
+        label: String,
+        value: T,
+        selected: Binding<T>,
+        onValueChange: (T) -> Unit = {},
+        configure: MenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = MenuItemBuilder()
+        builder.configure()
+        add(
+            MenuEntry.Radio(
+                builder.snapshot(key, label),
+                { selected.value == value },
+                {
+                    val before = selected.value
+                    if (before != value) {
+                        selected.value = value
+                        val accepted = selected.value
+                        if (accepted != before)
+                            onValueChange(accepted)
+                    }
+                },
+                builder.closeOnSelect ?: false
+            )
+        )
+    }
+    public fun submenu(
+        key: ViewKey,
+        label: String,
+        content: MenuContent,
+        configure: MenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = MenuItemBuilder()
+        builder.configure()
+        add(MenuEntry.Submenu(builder.snapshot(key, label), content))
+    }
+    public fun label(key: ViewKey, text: String, inset: Boolean = false) {
+        add(
+            MenuEntry.Label(key, PanelContent.Label(LabelProps(LabelText.Plain(text, None))), inset)
+        )
+    }
+    public fun label(key: ViewKey, content: View, inset: Boolean = false) {
+        add(MenuEntry.Label(key, PanelContent.Custom(content), inset))
+    }
+    public fun separator(key: ViewKey) {
+        add(MenuEntry.Separator(key))
+    }
+    internal fun snapshot(): MenuContent = MenuContent(entries.toArray())
+}
+
+public fun menu(configure: MenuBuilder.() -> Unit): MenuContent {
+    val builder = MenuBuilder()
+    builder.configure()
+    return builder.snapshot()
+}

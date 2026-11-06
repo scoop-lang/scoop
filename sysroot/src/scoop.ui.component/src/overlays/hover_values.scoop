@@ -1,0 +1,133 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal enum HoverPopupKind {
+    Tooltip, Card
+}
+
+/** Immutable shared input; constructing it neither reads a binding nor registers resources. */
+internal class HoverPopupInput(
+    val kind: HoverPopupKind,
+    val trigger: View,
+    val content: PanelContent,
+    val open: Binding<Boolean>?,
+    val side: OverlaySide,
+    val alignment: OverlayAlignment,
+    val gap: Double,
+    val viewportPadding: Double,
+    val width: Double,
+    val hover: HoverOptions,
+    val arrow: PopupArrow?,
+    val handle: OverlayHandle?,
+    val transition: StyleValue<AnimationSpec?>,
+    val onOpenChange: (Boolean) -> Unit,
+    val onClosed: (OverlayCloseReason) -> Unit,
+    val fonts: FontCollection?,
+    val theme: ThemeSource?,
+    val style: StyleOverride
+) {
+    init {
+        nonnegative(width, "invalid hover popup width")
+        nonnegative(gap, "invalid hover popup gap")
+        nonnegative(viewportPadding, "invalid hover popup viewport padding")
+    }
+}
+
+public class TooltipProps public constructor(
+    public val trigger: View,
+    public val content: PanelContent,
+    public val open: Binding<Boolean>? = None,
+    public val side: OverlaySide = OverlaySide.Top,
+    public val alignment: OverlayAlignment = OverlayAlignment.Center,
+    public val gap: Double = 4.0,
+    public val viewportPadding: Double = 8.0,
+    public val maxWidth: Double = 320.0,
+    public val openDelay: Duration = Duration.ZERO,
+    public val closeDelay: Duration = Duration.ZERO,
+    public val transitDelay: Duration = Duration.milliseconds(350L),
+    public val corridorPadding: Double = 6.0,
+    public val focus: Boolean = true,
+    public val enabled: Boolean = true,
+    public val arrow: PopupArrow? = Some(PopupArrow()),
+    public val handle: OverlayHandle? = None,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    internal val input =
+        HoverPopupInput(
+            HoverPopupKind.Tooltip,
+            trigger,
+            content,
+            open,
+            side,
+            alignment,
+            gap,
+            viewportPadding,
+            maxWidth,
+            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            arrow,
+            handle,
+            transition,
+            onOpenChange,
+            onClosed,
+            fonts,
+            theme,
+            style
+        )
+}
+
+public class HoverCardProps public constructor(
+    public val trigger: View,
+    public val content: View,
+    public val open: Binding<Boolean>? = None,
+    public val side: OverlaySide = OverlaySide.Bottom,
+    public val alignment: OverlayAlignment = OverlayAlignment.Center,
+    public val gap: Double = 4.0,
+    public val viewportPadding: Double = 8.0,
+    public val width: Double = 256.0,
+    public val openDelay: Duration = Duration.milliseconds(600L),
+    public val closeDelay: Duration = Duration.milliseconds(300L),
+    public val transitDelay: Duration = Duration.milliseconds(350L),
+    public val corridorPadding: Double = 6.0,
+    public val focus: Boolean = true,
+    public val enabled: Boolean = true,
+    public val arrow: PopupArrow? = None,
+    public val handle: OverlayHandle? = None,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    internal val input =
+        HoverPopupInput(
+            HoverPopupKind.Card,
+            trigger,
+            PanelContent.Custom(content),
+            open,
+            side,
+            alignment,
+            gap,
+            viewportPadding,
+            width,
+            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            arrow,
+            handle,
+            transition,
+            onOpenChange,
+            onClosed,
+            fonts,
+            theme,
+            style
+        )
+}

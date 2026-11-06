@@ -1,0 +1,188 @@
+package scoop.ui.component
+
+import scoop.collections.*
+import scoop.graphics.Color
+import scoop.ui.*
+
+public struct ChartSeriesKey(val value: String): Equals<ChartSeriesKey>, Hash {
+    public override operator fun equals(other: ChartSeriesKey): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct ChartDatumKey(val value: String): Equals<ChartDatumKey>, Hash {
+    public override operator fun equals(other: ChartDatumKey): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct ChartSelection(val series: ChartSeriesKey, val datum: ChartDatumKey): Equals<
+    ChartSelection
+> {
+    public override operator fun equals(other: ChartSelection): Boolean =
+        series == other.series && datum == other.datum
+}
+
+public enum ChartKind {
+    Area, Bar, Line, Pie, Radar, Radial
+}
+
+public enum ChartMark {
+    Area, Bar, Line
+}
+
+public enum ChartCurve {
+    Linear, Step, Monotone
+}
+
+public enum ChartStack {
+    None, Stacked, Normalized
+}
+
+public enum ChartIndicator {
+    Dot, Line, Dashed
+}
+
+public class ChartDatum public constructor(
+    public val key: ChartDatumKey,
+    public val label: String,
+    public val x: Double? = None,
+    public val color: Color? = None
+) {
+    init {
+        when (x) {
+            case Some(value) -> requireComponent(
+                value.isFinite(),
+                "chart coordinate must be finite"
+            );
+            case None -> {}
+        }
+    }
+}
+
+public class ChartSeries public constructor(
+    public val key: ChartSeriesKey,
+    public val label: String,
+    public val values: Array<Double?>,
+    public val color: Color? = None,
+    public val icon: View? = None,
+    public val mark: ChartMark? = None
+) {
+    init {
+        for (sample in values)
+            when (sample) {
+                case Some(value) -> requireComponent(
+                    value.isFinite(),
+                    "chart value must be finite; use None for a missing value"
+                );
+                case None -> {}
+            }
+    }
+}
+
+/** Immutable data; validation and indexes are reused by every layout and pointer event. */
+public class ChartData public constructor(
+    public val datums: Array<ChartDatum>,
+    public val series: Array<ChartSeries>
+) {
+    private val datumIndex = HashMap<ChartDatumKey, Long>()
+    private val seriesIndex = HashMap<ChartSeriesKey, Long>()
+    init {
+        for (index in 0L ..< datums.size) {
+            requireComponent(datumIndex.get(datums[index].key) == None, "duplicate chart datum key")
+            datumIndex.put(datums[index].key, index)
+        }
+        for (index in 0L ..< series.size) {
+            val value = series[index]
+            requireComponent(seriesIndex.get(value.key) == None, "duplicate chart series key")
+            requireComponent(
+                value.values.size == datums.size,
+                "chart series must match datum count"
+            )
+            seriesIndex.put(value.key, index)
+        }
+    }
+    public fun indexOfDatum(key: ChartDatumKey): Long? = datumIndex.get(key)
+    public fun indexOfSeries(key: ChartSeriesKey): Long? = seriesIndex.get(key)
+}
+
+internal class ChartSnapshot(
+    val data: ChartData,
+    val hidden: Array<ChartSeriesKey>,
+    val colors: Array<Int>,
+    val nextColor: Int
+) {
+    val visible: Array<Long> = chartVisible(data, hidden)
+}
+
+private fun chartVisible(data: ChartData, hidden: Array<ChartSeriesKey>): Array<Long> {
+    val result = ArrayList<Long>()
+    for (index in 0L ..< data.series.size) {
+        var shown = true
+        for (key in hidden)
+            if (key == data.series[index].key)
+                shown = false
+        if (shown)
+            result.add(index)
+    }
+    return result.toArray()
+}
+
+/** Application-owned data and series visibility, without a parallel query or task runtime. */
+public class ChartModel public constructor(data: ChartData) {
+    private val current =
+        state(
+            ChartSnapshot(
+                data,
+                [],
+                Array<Int>(data.series.size) { index -> (index % 5L).toInt() },
+                (data.series.size % 5L).toInt()
+            )
+        )
+    public val data: ChartData get() = current.value.data
+    public val hiddenSeries: Array<ChartSeriesKey> get() = current.value.hidden
+    internal val snapshot: ChartSnapshot get() = current.value
+    public fun isVisible(key: ChartSeriesKey): Boolean {
+        if (data.indexOfSeries(key) == None)
+            return false
+        for (value in current.value.hidden)
+            if (value == key)
+                return false
+        return true
+    }
+    public fun showSeries(key: ChartSeriesKey, visible: Boolean): Boolean {
+        val previous = current.value
+        if (previous.data.indexOfSeries(key) == None)
+            return false
+        if (isVisible(key) == visible)
+            return true
+        val hidden = ArrayList<ChartSeriesKey>()
+        for (value in previous.hidden)
+            if (value != key)
+                hidden.add(value)
+        if (!visible)
+            hidden.add(key)
+        current.value =
+            ChartSnapshot(previous.data, hidden.toArray(), previous.colors, previous.nextColor)
+        return true
+    }
+    public fun replaceData(data: ChartData) {
+        val previous = current.value
+        if (previous.data === data)
+            return
+        var next = previous.nextColor
+        val colors = ArrayList<Int>()
+        for (series in data.series) {
+            when (previous.data.indexOfSeries(series.key)) {
+                case Some(index) -> colors.add(previous.colors[index])
+                case None -> {
+                    colors.add(next);
+                    next = (next + 1) % 5
+                }
+            }
+        }
+        val hidden = ArrayList<ChartSeriesKey>()
+        for (key in previous.hidden)
+            if (data.indexOfSeries(key) != None)
+                hidden.add(key)
+        current.value = ChartSnapshot(data, hidden.toArray(), colors.toArray(), next)
+    }
+}

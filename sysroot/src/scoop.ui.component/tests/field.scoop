@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class FieldTest {
+    @Test
+    fun `errors ignore empty entries and preserve the first occurrence order`() {
+        val errors = fieldErrors(["", "Required", "Invalid", "Required", "", "Invalid", " "])
+        assertEquals(3L, errors.size)
+        assertEquals("Required", errors[0L])
+        assertEquals("Invalid", errors[1L])
+        assertEquals(" ", errors[2L])
+        assertEquals(0L, fieldErrors(["", ""]).size)
+        val builder = FieldErrorBuilder()
+        builder.content("Business explanation")
+        assertTrue(panelPresent(builder.snapshot(["Other error"]).content))
+    }
+
+    @Test
+    fun `responsive orientation uses current finite content width and density`() {
+        val responsive = FieldProps(empty(), orientation = FieldOrientation.Responsive)
+        assertFalse(fieldHorizontal(responsive, 1.0, None))
+        assertFalse(fieldHorizontal(responsive, 1.0, Some(447.0)))
+        assertTrue(fieldHorizontal(responsive, 1.0, Some(448.0)))
+        assertFalse(fieldHorizontal(responsive, 2.0, Some(448.0)))
+        assertTrue(fieldHorizontal(responsive, 2.0, Some(896.0)))
+        assertTrue(
+            fieldHorizontal(
+                FieldProps(empty(), orientation = FieldOrientation.Horizontal),
+                1.0,
+                None
+            )
+        )
+        assertFalse(fieldHorizontal(FieldProps(empty()), 1.0, Some(900.0)))
+        val explicit =
+            FieldProps(empty(), orientation = FieldOrientation.Responsive, breakpoint = Some(240.0))
+        assertTrue(fieldHorizontal(explicit, 2.0, Some(240.0)))
+    }
+
+    @Test
+    fun `field snapshots retain control target custom content and localized required text`() {
+        val control = empty()
+        val target = FieldTarget()
+        val builder = FieldBuilder()
+        builder.label("Name", target)
+        builder.required = true
+        builder.requiredText = "必填"
+        builder.description("Visible to teammates")
+        val first = builder.snapshot(control)
+        builder.title(empty())
+        builder.errors = ["Enter a name"]
+        builder.invalid = true
+        val second = builder.snapshot(control)
+        assertTrue(first.required)
+        assertEquals("必填", first.requiredText)
+        assertFalse(first.invalid)
+        assertEquals(0L, first.errors.size)
+        assertTrue(second.invalid)
+        when (first.heading) {
+            case Some(FieldHeading.Label(_, value)) -> assertSame(target, value)
+            else -> fail(Some("expected associated label"))
+        }
+        when (second.heading) {
+            case Some(FieldHeading.Title(PanelContent.Custom(_))) -> {}
+            else -> fail(Some("expected custom title"))
+        }
+        val stack = FieldStackBuilder()
+        stack.field(control) { this.title("Nested field") }
+        stack.fieldError(["One", "Two"])
+        val snapshot = stack.snapshot(FieldStackKind.Group)
+        stack.fieldSeparator("or")
+        assertEquals(2L, snapshot.children.size)
+        assertEquals(3L, stack.snapshot(FieldStackKind.Content).children.size)
+    }
+
+    @Test
+    fun `field text roles share theme typography while geometry rejects invalid lengths`() {
+        val theme = shadcnTheme()
+        val title = fieldTextStyle(FieldTextRole.Title, theme)
+        val legend = fieldTextStyle(FieldTextRole.Legend, theme)
+        assertEquals(500, title.weight)
+        assertEquals(14.0, title.fontSize)
+        assertEquals(Some(20.0 / 14.0), title.lineHeight)
+        assertEquals(16.0, legend.fontSize)
+        assertEquals(Some(1.5), legend.lineHeight)
+        assertEquals(
+            theme.tokens.palette.muted.foreground,
+            fieldTextStyle(FieldTextRole.Description, theme).color
+        )
+        assertEquals(
+            theme.tokens.palette.destructive.background,
+            fieldTextStyle(FieldTextRole.Error, theme).color
+        )
+        assertFailsWith<IllegalArgumentException> { FieldProps(empty(), controlWidth = Some(-1.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            FieldProps(empty(), breakpoint = Some(Double.POSITIVE_INFINITY))
+        }
+        assertFailsWith<IllegalArgumentException> { FieldStackProps([], spacing = Some(-1.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            FieldSetProps(empty(), padding = Insets.all(-1.0))
+        }
+    }
+}

@@ -42,6 +42,9 @@ private class PublicTextEditHostTest {
                         assertTrue(probe.displayTest.host!!.isClosed)
                         for (host in probe.fields)
                             assertTrue(host!!.isClosed)
+                        assertTrue(probe.interactionCounts[0L] > 0)
+                        assertTrue(probe.interactionCounts[1L] > 0)
+                        assertEquals(0, probe.interactionCounts[2L])
                         for (focus in probe.focus)
                             assertFalse(focus.isAttached)
                         assertFalse(probe.frames!!.snapshot().required)
@@ -73,6 +76,8 @@ internal class EditProbe(val fonts: FontCollection) {
     val multiline = TextEditorState("one two\nthree")
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
     val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
+    val interactionCounts = MutableArray<Int>(3L) { _ -> 0 }
+    private val interactions = MutableArray<TextEditInteraction>(3L) { _ -> TextEditInteraction() }
     val revision = state(0)
     val appearance =
         TextEditAppearance(
@@ -100,7 +105,7 @@ internal class EditProbe(val fonts: FontCollection) {
     var checkSnapshot = false
     var discarded = 0
     var discardNext = false
-    var savedLayout: TextLayout? = None
+    var savedLayout: TextEditLayout? = None
     var expectedMove: TextPosition? = None
     var savedEdits = 0
     var savedPasses = 0
@@ -112,6 +117,8 @@ internal class EditProbe(val fonts: FontCollection) {
     var unmounts = 0
     var passes = 0
     var accepted = 0
+    var acceptedVersion = -1
+    var acceptedRevisions: Array<Long> = [-1L, -1L]
     var phase = 0
     var waiting = false
     var retriedFocus = false
@@ -151,6 +158,12 @@ internal class EditProbe(val fonts: FontCollection) {
         else
             primary
     fun field(index: Long): TextEditHost = fields[index]!!
+    fun interactionChanged(index: Long, value: TextEditInteraction) {
+        assertEquals(value, field(index).interaction)
+        assertFalse(interactions[index] == value)
+        interactions[index] = value
+        interactionCounts[index] += 1
+    }
     fun change() {
         revision.value += 1
     }
@@ -186,7 +199,7 @@ internal class EditProbe(val fonts: FontCollection) {
                             assertTrue(application.proxy().post { _ -> current() })
                         }
                     )
-                ui = Some(host.attach(native, { EditScene(this) }))
+                ui = host.attach(native, { mount -> EditScene(this, scope = mount) })
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
                 )
@@ -226,12 +239,16 @@ internal class EditProbe(val fonts: FontCollection) {
     private fun settled(): Boolean {
         if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
             return false
+        if (acceptedVersion != revision.value)
+            return false
         if (displayTest.focus.isPending || displayTest.actionFocus.isPending)
             return false
         for (target in focus)
             if (target.isPending)
                 return false
         for (index in 0L ..< 2L) {
+            if (acceptedRevisions[index] != model(index).revision)
+                return false
             val host = fields[index] ?: return false
             if (host.area.isFocusActive && !readonly && !editorDocument(window!!, model(index)))
                 return false

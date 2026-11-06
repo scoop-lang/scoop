@@ -1,0 +1,103 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+public class TableColumnSize public constructor(
+    public val track: GridTrack = GridTrack.Fraction(1.0),
+    public val minimum: Double = 48.0,
+    public val maximum: Double? = None,
+    public val samples: Array<String> = []
+) {
+    init {
+        checkGridTracks([track])
+        nonnegative(minimum, "invalid table minimum column width")
+        when (maximum) {
+            case Some(value) -> requireComponent(
+                value.isFinite() && value >= minimum,
+                "invalid table maximum column width"
+            )
+            case None -> {}
+        }
+    }
+    public fun constrain(width: Double): Double {
+        nonnegative(width, "invalid table column width")
+        return upperBound(lowerBound(width, minimum), maximum ?: lowerBound(width, minimum))
+    }
+}
+
+public enum TableSortDirection {
+    Ascending, Descending
+}
+
+public class TableSort public constructor(
+    public val column: String,
+    public val direction: TableSortDirection = TableSortDirection.Ascending
+): Equals<TableSort> {
+    public override operator fun equals(other: TableSort): Boolean =
+        column == other.column && direction == other.direction
+}
+
+public class TableFilter public constructor(
+    public val column: String,
+    public val text: String
+): Equals<TableFilter> {
+    public override operator fun equals(other: TableFilter): Boolean =
+        column == other.column && text == other.text
+}
+
+public class TableQuery public constructor(
+    public val sorting: Array<TableSort> = [],
+    public val filters: Array<TableFilter> = [],
+    public val pageIndex: Long = 0L,
+    public val pageSize: Long = 10L
+): Equals<TableQuery> {
+    init {
+        requireComponent(pageIndex >= 0L && pageSize > 0L, "invalid table page")
+    }
+    public override operator fun equals(other: TableQuery): Boolean =
+        pageIndex ==
+            other.pageIndex &&
+            pageSize ==
+            other.pageSize &&
+            tableCriteriaEqual(this, other)
+}
+
+public class TableColumn<Row> public constructor(
+    public val id: String,
+    public val header: String,
+    public val cell: (Row) -> View,
+    public val size: TableColumnSize = TableColumnSize(),
+    public val alignment: AxisAlignment = AxisAlignment.Start,
+    public val compare: ((Row, Row) -> Int)? = None,
+    public val filter: ((Row, String) -> Boolean)? = None,
+    public val remoteSort: Boolean = false,
+    public val hideable: Boolean = true,
+    public val resizable: Boolean = true
+) {
+    init {
+        requireComponent(id != "", "table column id must not be empty")
+    }
+    public val sortable: Boolean get() =
+        remoteSort ||
+            when (compare) {
+                case Some(_) -> true;
+                case None -> false
+            }
+}
+
+public class TableColumnWidth public constructor(
+    public val column: String,
+    public val width: Double
+)
+
+internal fun tableCriteriaEqual(left: TableQuery, right: TableQuery): Boolean {
+    if (left.sorting.size != right.sorting.size || left.filters.size != right.filters.size)
+        return false
+    for (index in 0L ..< left.sorting.size)
+        if (left.sorting[index] != right.sorting[index])
+            return false
+    for (index in 0L ..< left.filters.size)
+        if (left.filters[index] != right.filters[index])
+            return false
+    return true
+}

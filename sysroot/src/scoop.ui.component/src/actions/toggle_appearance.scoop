@@ -1,0 +1,64 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+internal fun toggleOptions(
+    theme: Theme,
+    variant: ToggleVariant,
+    size: ToggleSize,
+    selected: Boolean,
+    style: ButtonStyle,
+    visual: InteractionVisual
+): SurfaceOptions {
+    val colors = theme.tokens.palette
+    val density = theme.tokens.typography.action.fontSize / 14.0
+    val height =
+        when (size) {
+            case Sm -> 28.0;
+            case Default -> 32.0;
+            case Lg -> 36.0
+        } *
+            density
+    val normal =
+        if (selected)
+            colors.muted.background
+        else
+            Color.Transparent
+    val fill =
+        StateColors(
+            normal,
+            colors.muted.background,
+            mixThemeColor(colors.muted.background, colors.background.foreground, 0.08),
+            normal
+        ).resolve(visual)
+    val border = controlBorder(theme, style.surface, visual, colors.input)
+    val local =
+        styleOverride {
+            this.background(Some(Paint(fill)))
+            this.border(
+                if (variant == ToggleVariant.Outline)
+                    Some(Border.all(density, border))
+                else
+                    None
+            )
+            this.corners(
+                Corners.all(
+                    if (size == ToggleSize.Sm)
+                        upperBound(theme.tokens.corners.medium, 12.0)
+                    else
+                        theme.tokens.corners.large
+                )
+            )
+            this.boxShadows([])
+        }.then(style.surface.style)
+    return style.surface.copy {
+        if (this.suggestedSize == None)
+            this.suggestedSize = Some(Size(height, height))
+        if (this.minimumSize == None)
+            this.minimumSize = Some(Size(0.0, 0.0))
+        if (this.padding == None)
+            this.padding = Some(Insets(10.0 * density, 0.0, 10.0 * density, 0.0))
+        this.style = style.states.apply(local, visual)
+    }
+}

@@ -6,9 +6,9 @@ import scoop.ui.*
 import scoop.window.*
 
 /** A complete self-drawn control without importing the standard component library. */
-internal class Counter: Component {
+internal class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         scope.resource {
             ShortcutScope(
                 scope.input,
@@ -25,20 +25,24 @@ internal class Counter: Component {
         }
     }
     public override fun render(): View =
-        element(CounterInput(count, { count += 1 }), { props -> CounterDrawing(props) })
+        element(
+            CounterInput(count, { count += 1 }),
+            { props, mount -> CounterDrawing(props, scope = mount) }
+        )
 }
 
 private struct CounterInput(val count: Int, val increment: () -> Unit)
 
-private class CounterDrawing(private val props: Props<CounterInput>): Element {
+private class CounterDrawing(
+    private val props: Props<CounterInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var extent: Animatable<Double>? = None
     private var outline: Path? = None
     private var pressed = false
-    private var scope: ComponentScope? = None
     private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         outline =
             Some(
                 scope.resource {
@@ -124,14 +128,16 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
                 }
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val next = 84.0 + (props.value.count % 5).toDouble() * 16.0
         if (extent!!.target != next)
             extent!!.animateTo(next, AnimationSpec.Spring())
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(extent!!.value + 64.0, 240.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(extent!!.value + 64.0, 240.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val width = extent!!.value
         val left = (context.size.width - width) / 2.0
         val top = (context.size.height - 84.0) / 2.0
@@ -171,5 +177,5 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
 }
 
 fun main() {
-    runUiApplication("Scoop — self-drawn counter", { Counter() })
+    runUiApplication("Scoop — self-drawn counter", { mount -> Counter(scope = mount) })
 }

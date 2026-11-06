@@ -1,0 +1,163 @@
+package scoop.ui.component
+
+import scoop.datetime.*
+import scoop.graphics.Point
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class CalendarEventsInput(val owner: CalendarControl, val snapshot: CalendarSnapshot)
+
+internal class CalendarEvents(
+    private val props: Props<CalendarEventsInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val navigation = scope.keyNavigation(NavigationOptions([]))
+    init {
+        scope.input.captureHandler =
+            { context, event -> calendarKey(props.value, context, event, scope.layoutDirection) }
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        input.owner.synchronize(input.snapshot)
+        scope.input.enabled = input.owner.props.value.enabled
+        navigation.options =
+            NavigationOptions(
+                Array<NavigationItem>(input.snapshot.members.size) {
+                    index ->
+                    val item = input.snapshot.members[index]
+                    NavigationItem(item.focus, item.row, item.column)
+                },
+                NavigationLayout.Grid,
+                preferredTab = input.snapshot.preferred
+            )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        val current = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                current.owner.accept(current.snapshot)
+        }
+    }
+}
+
+private fun calendarKey(
+    input: CalendarEventsInput,
+    context: RoutedEventContext,
+    event: InputEvent,
+    direction: LayoutDirection
+) {
+    if (context.defaultPrevented || !input.owner.props.value.enabled)
+        return
+    val key =
+        when (event) {
+            case Keyboard(value) -> value;
+            else -> return
+        }
+    if (!menuKeyAllowed(key, true))
+        return
+    var active: CalendarMember? = None
+    for (item in input.snapshot.members)
+        if (item.focus.hasFocus)
+            active = Some(item)
+    val member = active ?: return
+    val logical = key.logicalKey
+    val owner = input.owner
+    if (logical == LogicalKey.Named(NamedKey.Escape)) {
+        if (owner.cancelRange())
+            context.consume()
+        return
+    }
+    val pageForward = logical == LogicalKey.Named(NamedKey.PageDown)
+    if (pageForward || logical == LogicalKey.Named(NamedKey.PageUp)) {
+        context.consume()
+        val target =
+            if (key.modifiers.shift) {
+                if (pageForward)
+                    member.page.nextYear
+                else
+                    member.page.previousYear
+            } else
+                if (pageForward)
+                    member.page.next
+                else
+                    member.page.previous
+        when (target) {
+            case Some(anchor) -> {
+                val options = owner.props.value.options
+                val nextPage = options.source.page(options.request(anchor))
+                val oldDays = calendarPrimaryDates(member.page)
+                val nextDays = calendarPrimaryDates(nextPage)
+                var index = 0L
+                for (i in 0L ..< oldDays.size)
+                    if (oldDays[i] == member.data.date)
+                        index = i
+                if (index >= nextDays.size)
+                    index = nextDays.size - 1L
+                owner.seek(nextDays[index], pageForward, Some(nextPage.anchor))
+            }
+            case None -> {}
+        }
+        return
+    }
+    if (key.modifiers.shift)
+        return
+    var step: Long? = None
+    if (logical == LogicalKey.Named(NamedKey.ArrowRight))
+        step =
+            Some(
+                if (direction == LayoutDirection.Rtl)
+                    -1L
+                else
+                    1L
+            )
+    if (logical == LogicalKey.Named(NamedKey.ArrowLeft))
+        step =
+            Some(
+                if (direction == LayoutDirection.Rtl)
+                    1L
+                else
+                    -1L
+            )
+    if (logical == LogicalKey.Named(NamedKey.ArrowDown))
+        step = Some(7L)
+    if (logical == LogicalKey.Named(NamedKey.ArrowUp))
+        step = Some(-7L)
+    val start = owner.props.value.options.request(member.data.date).weekStart.isoDayNumber
+    val offset = (member.data.date.dayOfWeek.isoDayNumber - start + 7) % 7
+    if (logical == LogicalKey.Named(NamedKey.Home))
+        step = Some(-offset.toLong())
+    if (logical == LogicalKey.Named(NamedKey.End))
+        step = Some(6L - offset.toLong())
+    when (step) {
+        case Some(days) -> {
+            context.consume()
+            when (calendarShiftDay(member.data.date, days)) {
+                case Some(date) -> owner.seek(date, days >= 0L)
+                case None -> {}
+            }
+        }
+        case None -> {}
+    }
+}
+
+internal fun calendarPrimaryDates(page: CalendarPage): Array<LocalDate> {
+    val dates = ArrayList<LocalDate>()
+    for (week in page.weeks)
+        for (cell in week.days)
+            when (cell) {
+                case Some(day) -> if (!day.outside)
+                    dates.add(day.date)
+                case None -> {}
+            }
+    return dates.toArray()
+}

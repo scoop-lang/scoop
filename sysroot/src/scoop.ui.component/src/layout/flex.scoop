@@ -3,30 +3,45 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-public class Flex public constructor(private val props: Props<FlexProps>): Component {
+public class Flex public constructor(
+    private val props: Props<FlexProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         flexElement(props.value.layout, props.value.axis == FlexAxis.Vertical)
 }
 
 internal fun flexElement(layout: LinearProps, vertical: Boolean): View =
-    element(LinearInput(layout, vertical), { props -> LinearInk(props) }, layout.children)
+    element(
+        LinearInput(layout, vertical),
+        { props, mount -> LinearInk(props, scope = mount) },
+        layout.children
+    )
 
 private class LinearInput(val value: LinearProps, val vertical: Boolean)
 
-private class LinearInk(private val props: Props<LinearInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureFlex(context, constraints, props.value.value, props.value.vertical)
+private class LinearInk(private val props: Props<LinearInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            measureFlex(context, constraints, props.value.value, props.value.vertical),
+            Unit
+        )
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.value.clip)
     }
 }
 
-private fun measureFlex(
+internal fun measureFlex(
     context: MeasureContext,
     constraints: Constraints,
     props: LinearProps,
-    vertical: Boolean
+    vertical: Boolean,
+    fitCross: Boolean = false
 ): LayoutMetrics {
     val edges = props.logicalPadding?.resolve(context.layoutDirection) ?: props.padding
     val padding = edges.totals()
@@ -57,6 +72,11 @@ private fun measureFlex(
         else
             constraints.maxHeight
     val fixedCross = parentCrossMaximum == Some(crossMinimum)
+    val initialCross =
+        if (fitCross && !fixedCross)
+            None
+        else
+            crossMaximum
     val options = Array<FlexItemOptions>(props.items.size) { index -> props.items[index].options }
     val aligns =
         Array<CrossAlignment>(options.size) { index -> options[index].align ?: props.alignment }
@@ -77,7 +97,7 @@ private fun measureFlex(
                         val measured =
                             context.measureChild(
                                 index,
-                                flexConstraints(None, crossMaximum, vertical)
+                                flexConstraints(None, initialCross, vertical)
                             )
                         content[index] = Some(measured)
                         flexMain(measured.size, vertical)
@@ -113,7 +133,7 @@ private fun measureFlex(
                     index,
                     flexConstraints(
                         Some(allocated[index]),
-                        crossMaximum,
+                        initialCross,
                         vertical,
                         fixedCross && aligns[index] == CrossAlignment.Stretch
                     )

@@ -1,0 +1,92 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+/** Ordered domain metadata shared by choice controls. */
+public class Choice<T: Equals<T>> public constructor(
+    public val key: ViewKey,
+    public val value: T,
+    public val label: String,
+    public val enabled: Boolean = true
+)
+
+internal fun <T: Equals<T>> validateChoices(items: Array<Choice<T>>) {
+    for (index in 0L ..< items.size) {
+        requireComponent(items[index].key != ViewKey.Position, "choice requires an explicit key")
+        for (previous in 0L ..< index) {
+            requireComponent(items[index].key != items[previous].key, "duplicate choice key")
+            requireComponent(items[index].value != items[previous].value, "duplicate choice value")
+        }
+    }
+}
+
+private class ChoiceHandle(val key: ViewKey, val handle: FocusHandle)
+
+/** Retains only handles for the current keyed items; it owns no focus registration. */
+internal class ChoiceHandles {
+    private var entries: Array<ChoiceHandle> = []
+    fun resolve(keys: Array<ViewKey>, options: Array<FocusOptions>): Array<FocusHandle> {
+        val next =
+            Array<ChoiceHandle>(keys.size) {
+                index ->
+                val key = keys[index]
+                var previous: FocusHandle? = None
+                for (entry in entries)
+                    if (entry.key == key)
+                        previous = Some(entry.handle)
+                ChoiceHandle(key, previous ?: FocusHandle())
+            }
+        entries = next
+        return Array<FocusHandle>(next.size) {
+            index -> options[index].handle ?: next[index].handle
+        }
+    }
+}
+
+internal fun choiceFocus(options: FocusOptions, handle: FocusHandle): FocusOptions =
+    options.copy { this.handle = Some(handle) }
+
+public enum ToggleGroupSelection<T: Equals<T>> {
+    Single(Binding<T?>), Multiple(Binding<Array<T>>)
+}
+
+internal fun <T: Equals<T>> choiceSelected(selection: ToggleGroupSelection<T>, value: T): Boolean =
+    when (selection) {
+        case Single(binding) -> binding.value == Some(value)
+        case Multiple(binding) -> {
+            var found = false
+            for (entry in binding.value)
+                if (entry == value)
+                    found = true
+            found
+        }
+    }
+
+internal fun <T: Equals<T>> setChoice(
+    selection: ToggleGroupSelection<T>,
+    value: T,
+    selected: Boolean
+) {
+    when (selection) {
+        case Single(binding) -> if (selected)
+            binding.value = Some(value)
+        else
+            if (binding.value == Some(value))
+                binding.value = None
+        case Multiple(binding) -> {
+            val entries = ArrayList<T>()
+            var found = false
+            for (entry in binding.value) {
+                if (entry == value) {
+                    found = true
+                    if (selected)
+                        entries.add(entry)
+                } else
+                    entries.add(entry)
+            }
+            if (selected && !found)
+                entries.add(value)
+            binding.value = entries.toArray()
+        }
+    }
+}

@@ -1,0 +1,154 @@
+package scoop.tests.ui.calendar
+
+import scoop.datetime.*
+import scoop.surface.FocusOrigin
+import scoop.test.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.LogicalSize
+
+internal fun advanceCalendar(p: DateProbe) {
+    val leap = LocalDate(2024, 2, 29)
+    val before = LocalDate(2024, 2, 27)
+    when (p.phase) {
+        case 0 -> assertTrue(p.calendar.focusDate(p.base))
+        case 1 -> {
+            p.focused(p.base);
+            p.key(124)
+        }
+        case 2 -> {
+            p.focused(leap);
+            assertEquals(Some(p.base), p.selected.value);
+            p.key(49, " ")
+        }
+        case 3 -> {
+            assertEquals(Some(leap), p.selected.value);
+            p.key(115)
+        }
+        case 4 -> {
+            p.focused(LocalDate(2024, 2, 25));
+            p.key(119)
+        }
+        case 5 -> {
+            p.focused(LocalDate(2024, 3, 2));
+            assertTrue(p.calendar.focusDate(leap))
+        }
+        case 6 -> p.key(121)
+        case 7 -> {
+            p.focused(LocalDate(2024, 3, 29));
+            p.key(116, flags = 1)
+        }
+        case 8 -> {
+            p.focused(LocalDate(2023, 3, 29))
+            p.mode = 1;
+            p.changed();
+            assertTrue(p.calendar.showDate(p.base))
+        }
+        case 9 -> assertTrue(p.calendar.focusDate(p.base))
+        case 10 -> {
+            p.focused(p.base);
+            p.key(49, " ")
+        }
+        case 11 -> {
+            assertEquals(1L, p.multiple.value.size);
+            assertEquals(p.base, p.multiple.value[0L]);
+            p.click(p.cell(before).bounds)
+        }
+        case 12 -> {
+            assertEquals(2L, p.multiple.value.size);
+            p.click(p.cell(before.plusDays(-1L)).bounds)
+        }
+        case 13 -> {
+            assertEquals(2L, p.multiple.value.size);
+            p.click(p.cell(p.base).bounds)
+        }
+        case 14 -> {
+            assertEquals(1L, p.multiple.value.size);
+            assertEquals(before, p.multiple.value[0L])
+            p.click(p.cell(before).bounds);
+            assertEquals(1L, p.multiple.value.size)
+            p.mode = 2;
+            p.disabledLeap = true;
+            p.changed()
+        }
+        case 15 -> p.click(p.cell(before).bounds)
+        case 16 -> {
+            assertEquals(None, p.range.value);
+            p.click(p.cell(LocalDate(2024, 3, 2)).bounds)
+        }
+        case 17 -> {
+            assertEquals(None, p.range.value);
+            p.click(p.cell(p.base).bounds)
+        }
+        case 18 -> {
+            assertEquals(Some(DateRange(before, p.base)), p.range.value)
+            p.click(p.cell(before.plusDays(-1L)).bounds);
+            p.key(53)
+        }
+        case 19 -> {
+            assertFalse(p.calendar.cancelRange())
+            assertEquals(Some(DateRange(before, p.base)), p.range.value)
+            p.mode = 0;
+            p.reject = true;
+            p.changed()
+        }
+        case 20 -> p.click(p.cell(LocalDate(2024, 2, 25)).bounds)
+        case 21 -> {
+            assertEquals(Some(leap), p.selected.value)
+            p.reject = false;
+            p.disabledLeap = false;
+            p.dropdowns = true
+            p.numbers = true;
+            p.months = true;
+            p.rtl = true;
+            p.changed()
+        }
+        case 22 -> {
+            assertTrue(p.cell(before).bounds.x > p.cell(p.base).bounds.x)
+            p.savedCell = Some(p.cell(LocalDate(2024, 2, 1)))
+            p.largeRing = true;
+            p.narrow = true
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { preference = MotionPreference.Reduced } }
+                }
+            p.native!!.requestSize(LogicalSize(420.0, 760.0));
+            p.changed()
+        }
+        case 23 -> {
+            assertTrue(p.savedCell!! === p.cell(LocalDate(2024, 2, 1)))
+            assertTrue(
+                p.cell(LocalDate(2024, 3, 15)).bounds.y >
+                    p.cell(LocalDate(2024, 2, 15)).bounds.y +
+                    150.0
+            )
+            val cell = p.cell(LocalDate(2024, 2, 1)).bounds
+            assertTrue(cell.x - 7.0 >= p.rootBounds.x)
+            assertTrue(cell.x + cell.width + 7.0 <= p.rootBounds.x + p.rootBounds.width)
+            assertTrue(p.rootBounds.width <= 320.0)
+            p.savedDraws = p.draws;
+            p.zero = true;
+            p.changed()
+        }
+        case 24 -> {
+            assertEquals(p.savedDraws, p.draws)
+            assertFalse(p.frames!!.snapshot().required)
+            p.zero = false;
+            p.mode = 3;
+            p.months = false;
+            p.rtl = false;
+            p.narrow = false;
+            p.largeRing = false
+            p.native!!.requestSize(LogicalSize(900.0, 760.0));
+            p.changed()
+        }
+        case 25 -> {
+            assertTrue(p.picker.isAttached);
+            assertFalse(p.calendar.isAttached)
+            assertEquals("2024-02-29", p.draft.editor.text)
+            assertTrue(p.pickerFocus.requestFocus(FocusOrigin.Keyboard))
+        }
+        else -> fail(Some("unknown calendar test phase"))
+    }
+}

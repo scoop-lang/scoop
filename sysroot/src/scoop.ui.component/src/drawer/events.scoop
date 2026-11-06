@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
+    when (event) {
+        case Started(sample) -> {
+            if (!control.available()) {
+                control.cancel(DragCancelReason.GeometryUnavailable);
+                return
+            }
+            control.motion.cancel()
+            control.gesture = Some(DrawerGesture(control.position, control.geometry!!))
+            control.focus.handle.requestFocus(FocusOrigin.Pointer)
+            if (!control.active)
+                return
+            drawerDragged(control, sample);
+            control.publish()
+        }
+        case Moved(sample) -> {
+            drawerDragged(control, sample);
+            control.publish()
+        }
+        case Ended(sample) -> {
+            val gesture = control.gesture ?: return
+            drawerDragged(control, sample)
+            if (!control.active)
+                return
+            control.gesture = None
+            val input = control.read()
+            val target =
+                drawerReleased(
+                    gesture.geometry,
+                    control.position,
+                    -sample.velocity * gesture.geometry.outward,
+                    input.props.projectionSeconds,
+                    input.props.swipeToClose
+                )
+            when (target) {
+                case Some(value) -> if (value.index < 0L)
+                    control.close()
+                else
+                    control.select(value.index, true)
+                case None -> {}
+            }
+            control.publish()
+        }
+        case Cancelled(_, reason) -> control.cancel(reason)
+    }
+}
+
+private fun drawerDragged(control: DrawerControl, sample: DragSample) {
+    val gesture = control.gesture ?: return
+    val extent = gesture.geometry.extent
+    var next = gesture.origin - sample.displacement * gesture.geometry.outward
+    if (!next.isFinite())
+        return
+    next = max(0.0, next)
+    if (next > extent)
+        next = extent + min(extent / 3.0, (next - extent) / 3.0)
+    if (control.motion.value != next)
+        control.motion.snapTo(next)
+}
+
+internal fun drawerKeyboard(
+    control: DrawerControl,
+    context: RoutedEventContext,
+    event: KeyEvent,
+    handle: Boolean
+) {
+    if (!control.active || !sliderKeyAllowed(event))
+        return
+    if (event.logicalKey == LogicalKey.Named(NamedKey.Escape)) {
+        when (control.gesture) {
+            case Some(_) -> {
+                context.consume();
+                control.cancel(DragCancelReason.Explicit)
+            }
+            case None -> {}
+        }
+        return
+    }
+    if (!handle || !control.available())
+        return
+    val shape = control.geometry!!
+    val key = event.logicalKey
+    val expand: Boolean? =
+        when (key) {
+            case Named(NamedKey.ArrowUp) -> if (shape.vertical)
+                Some(shape.outward > 0.0)
+            else
+                None
+            case Named(NamedKey.ArrowDown) -> if (shape.vertical)
+                Some(shape.outward < 0.0)
+            else
+                None
+            case Named(NamedKey.ArrowLeft) -> if (!shape.vertical)
+                Some(shape.outward > 0.0)
+            else
+                None
+            case Named(NamedKey.ArrowRight) -> if (!shape.vertical)
+                Some(shape.outward < 0.0)
+            else
+                None
+            else -> None
+        }
+    val endpoint = key == LogicalKey.Named(NamedKey.Home) || key == LogicalKey.Named(NamedKey.End)
+    if (expand == None && !endpoint)
+        return
+    context.consume()
+    var selected = control.current()
+    if (endpoint) {
+        for (index in 0L ..< shape.snaps.size) {
+            if (
+                if (key == LogicalKey.Named(NamedKey.End))
+                    shape.snaps[index] > shape.snaps[selected]
+                else
+                    shape.snaps[index] < shape.snaps[selected]
+            )
+                selected = index
+        }
+    } else
+        selected = drawerAdjacent(shape.snaps, selected, expand!!) ?: selected
+    control.select(selected, true)
+}

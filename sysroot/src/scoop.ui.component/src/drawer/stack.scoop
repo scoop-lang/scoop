@@ -1,0 +1,125 @@
+package scoop.ui.component
+
+import scoop.math.*
+import scoop.surface.AnimationState
+import scoop.ui.*
+
+internal fun drawerUpdateParent(control: DrawerControl) {
+    val requested =
+        if (control.read().props.open.value)
+            when (control.read().props.parent) {
+                case Some(handle) -> handle.target
+                case None -> None
+            }
+        else
+            None
+    val next =
+        when (requested) {
+            case Some(value) -> if (value.active)
+                Some(value)
+            else
+                None;
+            case None -> None
+        }
+    val same =
+        when ((control.parent, next)) {
+            case(Some(old), Some(value)) -> old === value
+            case(None, None) -> true
+            else -> false
+        }
+    if (same)
+        return
+    when (next) {
+        case Some(value) -> {
+            requireComponent(
+                value.scope.nativeWindow === control.scope.nativeWindow,
+                "drawer parent must share its window"
+            )
+            var ancestor: DrawerControl? = Some(value)
+            while (true)
+                when (ancestor) {
+                    case Some(current) -> {
+                        requireComponent(current !== control, "drawer parent cycle")
+                        ancestor = current.parent
+                    }
+                    case None -> break
+                }
+        }
+        case None -> {}
+    }
+    drawerDetachParent(control)
+    control.parent = next
+    when (next) {
+        case Some(value) -> {
+            value.children.add(control)
+            value.frontExtent = control.geometry?.extent ?: value.frontExtent
+            value.cancel(DragCancelReason.ConfigurationChanged)
+            drawerRefreshStack(value)
+        }
+        case None -> {}
+    }
+}
+
+internal fun drawerDetachParent(control: DrawerControl) {
+    val parent = control.parent ?: return
+    control.parent = None
+    var index = 0L
+    while (index < parent.children.size) {
+        if (parent.children[index] === control) {
+            parent.children.removeAt(index);
+            break
+        }
+        index += 1L
+    }
+    if (parent.active) {
+        if (parent.children.size > 0L)
+            parent.frontExtent =
+                parent.children[parent.children.size - 1L].geometry?.extent ?: parent.frontExtent
+        drawerRefreshStack(parent)
+    }
+}
+
+private fun drawerRefreshStack(control: DrawerControl) {
+    if (!control.active)
+        return
+    val amount = control.depth.toDouble()
+    when (control.transition()) {
+        case Some(spec) -> if (
+            control.stackMotion.target !=
+                amount ||
+                control.stackMotion.state !=
+                AnimationState.Running
+        )
+            if (control.stackMotion.value != amount)
+                control.stackMotion.animateTo(amount, spec)
+        case None -> if (
+            control.stackMotion.value !=
+                amount ||
+                control.stackMotion.state ==
+                AnimationState.Running
+        )
+            control.stackMotion.snapTo(amount)
+    }
+    control.publish();
+    control.scope.requestFrame()
+    when (control.parent) {
+        case Some(parent) -> drawerRefreshStack(parent);
+        case None -> {}
+    }
+}
+
+internal fun drawerStackAmount(control: DrawerControl): Double {
+    var amount = control.stackMotion.value
+    if (control.children.size > 0L) {
+        val child = control.children[control.children.size - 1L]
+        when (child.geometry) {
+            case Some(shape) -> {
+                val anchor = child.anchor(shape)
+                if (anchor > 0.0)
+                    amount -= min(1.0, max(0.0, 1.0 - child.position / anchor))
+            }
+            case None -> {}
+        }
+    }
+    return max(0.0, amount)
+}

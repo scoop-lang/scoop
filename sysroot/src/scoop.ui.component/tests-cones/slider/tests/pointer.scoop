@@ -1,0 +1,147 @@
+package scoop.tests.ui.slider
+
+import scoop.test.*
+import scoop.ui.*
+
+internal fun sliderKeyboard(p: SliderProbe) {
+    when (p.phase) {
+        case 0 -> assertTrue(p.lead.requestFocus())
+        case 1 -> p.key(48)
+        case 2 -> {
+            assertTrue(p.first().hasFocus);
+            p.key(124)
+        }
+        case 3 -> {
+            p.expect([25.0, 80.0]);
+            assertEquals(1, p.commits);
+            p.key(48)
+        }
+        case 4 -> {
+            assertTrue(p.handles[1L].hasFocus);
+            p.key(121)
+        }
+        case 5 -> {
+            p.expect([25.0, 35.0]);
+            assertEquals(2, p.commits);
+            p.key(115);
+            p.key(119)
+        }
+        case 6 -> {
+            p.expect([25.0, 100.0]);
+            assertEquals(3, p.commits);
+            p.key(48, shift = true)
+        }
+        case 7 -> {
+            assertTrue(p.first().hasFocus);
+            p.key(49);
+            p.key(36);
+            p.key(119)
+        }
+        else -> fail()
+    }
+}
+
+internal fun sliderDragging(p: SliderProbe) {
+    when (p.phase) {
+        case 8 -> {
+            p.expect([90.0, 100.0]);
+            assertEquals(4, p.commits);
+            p.values.value = [20.0, 80.0]
+        }
+        case 9 -> p.press(126.0, true)
+        case 10 -> {
+            p.expect([50.0, 80.0]);
+            assertEquals(4, p.commits);
+            p.move(156.0)
+        }
+        case 11 -> {
+            p.expect([65.0, 80.0]);
+            p.press(156.0, false)
+        }
+        case 12 -> {
+            assertEquals(5, p.commits);
+            p.press(160.0, true)
+        }
+        case 13 -> {
+            p.expect([65.0, 80.0]);
+            p.move(140.0)
+        }
+        case 14 -> {
+            p.expect([55.0, 80.0]);
+            p.press(140.0, false)
+        }
+        case 15 -> {
+            assertEquals(6, p.commits);
+            p.press(136.0, true)
+        }
+        else -> fail()
+    }
+}
+
+internal fun sliderCancellation(p: SliderProbe) {
+    when (p.phase) {
+        case 16 -> p.move(106.0)
+        case 17 -> {
+            p.expect([40.0, 80.0]);
+            p.key(53)
+        }
+        case 18 -> {
+            p.expect([55.0, 80.0]);
+            assertEquals(1, p.cancels);
+            p.press(106.0, false)
+        }
+        case 19 -> {
+            assertEquals(6, p.commits);
+            p.press(136.0, true)
+        }
+        case 20 -> p.move(116.0)
+        case 21 -> {
+            p.expect([45.0, 80.0]);
+            p.preventRelease = true;
+            p.press(116.0, false)
+        }
+        case 22 -> {
+            p.expect([55.0, 80.0]);
+            assertEquals(2, p.cancels)
+            assertTrue(
+                when (p.lastCancel) {
+                    case Some(DragCancelReason.PreventedRelease) -> true;
+                    else -> false
+                }
+            )
+            p.press(136.0, true)
+        }
+        case 23 -> p.move(86.0)
+        else -> fail()
+    }
+}
+
+internal fun sliderExternalValues(p: SliderProbe) {
+    when (p.phase) {
+        case 24 -> {
+            p.expect([30.0, 80.0]);
+            p.enabled = false
+        }
+        case 25 -> {
+            p.expect([55.0, 80.0]);
+            assertEquals(3, p.cancels);
+            p.press(86.0, false);
+            p.enabled = true
+        }
+        case 26 -> p.press(136.0, true)
+        case 27 -> p.move(106.0)
+        case 28 -> {
+            p.expect([40.0, 80.0]);
+            p.values.value = [10.0, 90.0]
+        }
+        case 29 -> {
+            p.expect([10.0, 90.0]);
+            assertEquals(4, p.cancels);
+            assertEquals(6, p.commits);
+            p.press(106.0, false)
+        }
+        case 30 -> p.press(46.0, true)
+        case 31 -> p.move(66.0)
+        else -> fail()
+    }
+}

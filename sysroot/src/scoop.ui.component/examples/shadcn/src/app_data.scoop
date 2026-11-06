@@ -1,0 +1,48 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as dataColumn
+import scoop.ui.component.input as dataInput
+import scoop.ui.component.typography as dataText
+
+internal fun dataApplication(model: DataAppModel): View =
+    dataColumn {
+        this.typography("Payments", TypographyRole.H2)
+        this.typography(
+            "Review local sample payments, keep notes and undo a deletion.",
+            TypographyRole.Muted
+        )
+        this.chart(model.chart) {
+            this.kind = ChartKind.Bar
+            this.height = Some(150.0)
+        }
+        this.dataTable(model.table) {
+            this.bodyHeight = 220.0
+            this.pageSizes = [5L, 10L, 20L]
+            this.toolbar(
+                dataInput(model.filter) {
+                    this.placeholder = "Filter emails…"
+                    this.focus = FocusOptions(Some(model.filterFocus))
+                    this.onEdited =
+                        { _ -> model.table.setFilter("email", model.filter.committedText) }
+                }
+            )
+        }
+        this.typography(model.status.value, TypographyRole.Muted)
+        this.alertDialog(
+            model.confirming.binding(),
+            dataText("You can restore this payment from the notification after deletion.")
+        ) {
+            this.title("Delete this payment?")
+            this.description(model.pending.value?.email ?: "")
+            this.cancel("Keep payment") { this.focus = FocusOptions(Some(model.cancelFocus)) }
+            this.action("Delete payment", { model.confirmDelete() }) {
+                this.variant = ButtonVariant.Destructive
+                this.focus = FocusOptions(Some(model.confirmFocus))
+            }
+        }
+        this.toaster(model.notifications)
+        this.spacing = 16.0
+        this.alignment = CrossAlignment.Stretch
+    }

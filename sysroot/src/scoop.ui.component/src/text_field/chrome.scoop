@@ -1,0 +1,57 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+public enum TextFieldChrome {
+    Framed, Bare
+}
+
+internal fun textFieldOptions(
+    input: TextFieldInput,
+    theme: Theme,
+    visual: InteractionVisual
+): SurfaceOptions {
+    val surface = input.style.options(visual)
+    if (!input.options.multiline || surface.padding != None)
+        return surface
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    return surface.copy {
+        this.padding = Some(Insets(10.0 * density, 8.0 * density, 10.0 * density, 8.0 * density))
+    }
+}
+
+internal fun bareTextFieldMetrics(base: SurfaceMetrics): SurfaceMetrics {
+    val border = base.borderInsets.totals()
+    return SurfaceMetrics(
+        Size(
+            lowerBound(base.suggestedSize.width - border.width, 0.0),
+            lowerBound(base.suggestedSize.height - border.height, 0.0)
+        ),
+        Size(
+            lowerBound(base.minimumSize.width - border.width, 0.0),
+            lowerBound(base.minimumSize.height - border.height, 0.0)
+        ),
+        base.padding,
+        Insets(),
+        CornerRadii(),
+        0.0
+    )
+}
+
+internal fun bareTextFieldGeometry(
+    base: SurfaceGeometry,
+    metrics: SurfaceMetrics
+): SurfaceGeometry {
+    val outline = RoundedOutline(base.bounds)
+    val inset = metrics.padding
+    return SurfaceGeometry(
+        base.bounds,
+        outline,
+        outline,
+        outline.inset(inset.left, inset.top, inset.right, inset.bottom).bounds,
+        None,
+        base.style.copy { this.corners = Corners.Physical(CornerRadii()) },
+        1.0
+    )
+}

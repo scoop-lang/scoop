@@ -16,6 +16,9 @@ public open class InputBuilder internal constructor() {
     public var style: TextFieldStyle = textFieldStyle()
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public var group: GroupPosition? = None
+    public var chrome: TextFieldChrome = TextFieldChrome.Framed
     public var direction: TextDirection? = None
     public var alignment: TextAlignment = TextAlignment.Start
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
@@ -53,7 +56,10 @@ public open class InputBuilder internal constructor() {
             onSubmit,
             policy,
             projection,
-            copy
+            copy,
+            labelTarget,
+            group,
+            chrome
         )
 }
 
@@ -89,18 +95,29 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             onSubmit,
             policy,
             projection,
-            copy
+            copy,
+            labelTarget,
+            group,
+            chrome
         )
 }
 
 internal fun makeInput(state: TextEditorState, configure: InputBuilder.() -> Unit): View {
     val builder = InputBuilder()
     builder.configure()
-    return component(builder.inputProps(state), { props -> Input(props) }, builder.key)
+    return component(
+        builder.inputProps(state),
+        { props, mount -> Input(props, scope = mount) },
+        builder.key
+    )
 }
 
 internal fun makeTextarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit): View {
     val builder = TextareaBuilder()
     builder.configure()
-    return component(builder.textareaProps(state), { props -> Textarea(props) }, builder.key)
+    return component(
+        builder.textareaProps(state),
+        { props, mount -> Textarea(props, scope = mount) },
+        builder.key
+    )
 }

@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+public enum ComboboxSelection<T: Equals<T>> {
+    Single(Binding<T?>), Multiple(Binding<Array<T>>)
+}
+
+public enum ComboboxFilter<T: Equals<T>> {
+    Contains, Provided, Custom((ChoiceItem<T>, String) -> Boolean)
+}
+
+public enum ComboboxInputPlacement {
+    Inline, Popup
+}
+
+public class ComboboxProps<T: Equals<T>> public constructor(
+    public val selection: ComboboxSelection<T>,
+    public val source: ChoiceSource<T>,
+    public val input: InputProps,
+    public val open: Binding<Boolean>? = None,
+    public val active: Binding<ViewKey?>? = None,
+    public val filter: ComboboxFilter<T> = ComboboxFilter.Contains,
+    public val autoHighlight: Boolean = false,
+    public val loop: Boolean = true,
+    public val clearQueryOnSelect: Boolean = true,
+    public val closeOnSelect: Boolean? = None,
+    public val customChoice: ((String) -> Choice<T>?)? = None,
+    public val valueText: ((T) -> String)? = None,
+    public val unavailableText: String = "Unavailable selection",
+    public val inputPlacement: ComboboxInputPlacement = ComboboxInputPlacement.Inline,
+    public val showTrigger: Boolean = true,
+    public val showClear: Boolean = false,
+    public val width: Double = 240.0,
+    public val popupWidth: Double? = None,
+    public val maxHeight: Double = 252.0,
+    public val empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results found.", None))),
+    public val triggerStyle: ButtonStyle = buttonStyle(),
+    public val triggerFocus: FocusOptions = FocusOptions(),
+    public val popupStyle: StyleOverride = styleOverride(),
+    public val scroll: ScrollState? = None,
+    public val listHandle: VirtualListHandle? = None,
+    public val handle: OverlayHandle? = None,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onValueChange: (T?) -> Unit = {},
+    public val onValuesChange: (Array<T>) -> Unit = {},
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {}
+) {
+    public val query: TextEditorState get() = input.state
+    public val mutable: Boolean get() = input.enabled && !input.readOnly
+    public val multiple: Boolean get() =
+        when (selection) {
+            case Multiple(_) -> true;
+            else -> false
+        }
+    init {
+        nonnegative(width, "invalid combobox width")
+        nonnegative(maxHeight, "invalid combobox list height")
+        when (popupWidth) {
+            case Some(width) -> nonnegative(width, "invalid combobox popup width");
+            case None -> {}
+        }
+        requireComponent(
+            source.count >= 0L && source.choiceCount >= 0L && source.choiceCount <= source.count,
+            "invalid choice source count"
+        )
+    }
+}
+
+internal fun <T: Equals<T>> comboValues(selection: ComboboxSelection<T>): Array<T> =
+    when (selection) {
+        case Single(binding) -> when (binding.value) {
+            case Some(value) -> [value];
+            case None -> []
+        }
+        case Multiple(binding) -> binding.value
+    }
+
+internal fun <T: Equals<T>> comboContains(values: Array<T>, value: T): Boolean {
+    for (entry in values)
+        if (entry == value)
+            return true
+    return false
+}
+
+internal fun <T: Equals<T>> comboSame(left: Array<T>, right: Array<T>): Boolean {
+    if (left.size != right.size)
+        return false
+    for (index in 0L ..< left.size)
+        if (left[index] != right[index])
+            return false
+    return true
+}
+
+/** Returns actual accepted changes; a controlled setter may reject or normalize the proposal. */
+internal fun <T: Equals<T>> comboWrite(input: ComboboxProps<T>, values: Array<T>): Boolean {
+    val previous = comboValues(input.selection)
+    if (comboSame(previous, values))
+        return false
+    when (input.selection) {
+        case Single(binding) -> binding.value =
+            if (values.size == 0L)
+                None
+            else
+                Some(values[0L])
+        case Multiple(binding) -> binding.value = values
+    }
+    val accepted = comboValues(input.selection)
+    if (comboSame(previous, accepted))
+        return false
+    when (input.selection) {
+        case Single(binding) -> input.onValueChange(binding.value)
+        case Multiple(binding) -> input.onValuesChange(binding.value)
+    }
+    return true
+}
+
+internal fun <T: Equals<T>> comboValueText(input: ComboboxProps<T>, value: T): String =
+    when (input.valueText) {
+        case Some(text) -> text(value)
+        case None -> sourceChoice(input.source, value)?.label ?: input.unavailableText
+    }

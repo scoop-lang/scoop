@@ -1,0 +1,149 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class TabsTest {
+    @Test
+    fun `tab selection keeps external values and reports only an accepted change`() {
+        val selected = state<Int?>(Some(99))
+        val entries =
+            [
+                TabEntry(Choice(ViewKey.Number(1L), 1, "One"), empty()),
+                TabEntry(Choice(ViewKey.Number(2L), 2, "Disabled", false), empty())
+            ]
+        val input = TabsProps(entries, selected.binding())
+        assertEquals(None, tabsIndex(entries, selected.value))
+        assertFalse(selectTab(input, ViewKey.Number(2L)))
+        assertFalse(selectTab(input, ViewKey.Number(99L)))
+        assertEquals(Some(99), selected.value)
+        assertTrue(selectTab(input, ViewKey.Number(1L)))
+        assertEquals(Some(1), selected.value)
+        assertFalse(selectTab(input, ViewKey.Number(1L)))
+        selected.value = Some(2)
+        assertEquals(Some(1L), tabsIndex(entries, selected.value))
+        assertFalse(
+            selectTab(TabsProps(entries, selected.binding(), enabled = false), ViewKey.Number(1L))
+        )
+        val rejected = TabsProps(entries, binding<Int?>({ Some(99) }, { _ -> }))
+        assertFalse(selectTab(rejected, ViewKey.Number(1L)))
+        val changed =
+            TabsProps(entries, binding({ selected.value }, { _ -> selected.value = None }))
+        assertTrue(selectTab(changed, ViewKey.Number(1L)))
+        assertEquals(None, selected.value)
+    }
+
+    @Test
+    fun `tab metadata rejects ambiguous identity and invalid spacing`() {
+        val selected = state<Int?>(None)
+        val first = TabEntry(Choice(ViewKey.Text("a"), 1, "A"), empty())
+        for (
+            choice in [
+                Choice(ViewKey.Text("a"), 2, "B"),
+                Choice(ViewKey.Text("b"), 1, "B"),
+                Choice(ViewKey.Position, 3, "C")
+            ]
+        ) {
+            assertFailsWith<IllegalArgumentException> {
+                TabsProps([first, TabEntry(choice, empty())], selected.binding())
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TabsProps<Int>([], selected.binding(), spacing = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TabsProps<Int>([], selected.binding(), spacing = Double.POSITIVE_INFINITY)
+        }
+        assertEquals(0L, TabsProps<Int>([], selected.binding()).entries.size)
+    }
+
+    @Test
+    fun `tab builders retain snapshots without reading selection or mounting panels`() {
+        val reads = state(0)
+        val mounts = state(0)
+        val selected =
+            binding<Int?>(
+                {
+                    reads.value += 1;
+                    Some(1)
+                },
+                { _ -> }
+            )
+        val body =
+            component(
+                {
+                    mount ->
+                    mounts.value += 1;
+                    TabsTestBody(scope = mount)
+                }
+            )
+        val builder = TabsBuilder<Int>()
+        builder.item(Choice(ViewKey.Text("one"), 1, "One"), body) {
+            this.retention = Some(ContentRetention.KeepMounted)
+            this.trigger("Custom")
+        }
+        val first = builder.snapshot(selected)
+        builder.activation = TabActivation.Manual
+        builder.axis = FlexAxis.Vertical
+        builder.variant = TabsVariant.Line
+        builder.item(Choice(ViewKey.Text("two"), 2, "Two"), body)
+        val second = builder.snapshot(selected)
+        tabs(selected) { this.add(first.entries[0L]) }
+        assertEquals(1L, first.entries.size)
+        assertEquals(2L, second.entries.size)
+        assertEquals(TabActivation.Auto, first.activation)
+        assertEquals(TabActivation.Manual, second.activation)
+        assertEquals(Some(ContentRetention.KeepMounted), second.entries[0L].retention)
+        assertEquals(0, reads.value)
+        assertEquals(0, mounts.value)
+    }
+
+    @Test
+    fun `tab variants keep focus geometry and distinguish selection hover and press`() {
+        val style = buttonStyle { this.kind = SurfaceKind.Plain }
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val foreground = theme.tokens.palette.background.foreground
+            assertEquals(foreground, tabTextColor(theme, true, InteractionVisual()))
+            assertEquals(foreground, tabTextColor(theme, false, InteractionVisual(hovered = true)))
+            assertTrue(foreground != tabTextColor(theme, false, InteractionVisual()))
+            for (variant in [TabsVariant.Default, TabsVariant.Line]) {
+                for (selected in [false, true]) {
+                    val normal = InteractionVisual()
+                    val pressed = InteractionVisual(hovered = true, pressed = true)
+                    val bounds = Rect(0.0, 0.0, 100.0, 26.0)
+                    val idle =
+                        theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, normal),
+                            tabOptions(theme, variant, selected, style, normal)
+                        )
+                    val down =
+                        theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, pressed),
+                            tabOptions(theme, variant, selected, style, pressed)
+                        )
+                    assertTrue(idle.style.background!!.color != down.style.background!!.color)
+                    val focus = InteractionVisual(focusVisible = true)
+                    val focused =
+                        theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, focus),
+                            tabOptions(theme, variant, selected, style, focus)
+                        )
+                    assertTrue(focused.ring != None)
+                    assertEquals(idle.content, focused.content)
+                }
+            }
+        }
+    }
+}
+
+private class TabsTestBody(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = empty()
+}

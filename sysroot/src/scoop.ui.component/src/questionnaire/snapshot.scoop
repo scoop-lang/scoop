@@ -1,0 +1,50 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+
+internal fun questionnaireValidateSnapshot(
+    records: Array<QuestionRecord>,
+    snapshot: QuestionnaireSnapshot
+) {
+    val seen = HashSet<QuestionKey>()
+    for (draft in snapshot.drafts) {
+        requireComponent(seen.add(draft.key), "question snapshot keys must be unique")
+        var found: Question? = None
+        for (record in records)
+            if (record.question.key == draft.key)
+                found = Some(record.question)
+        val question =
+            found ?: throw IllegalArgumentException(Some("snapshot refers to an unknown question"))
+        requireComponent(question.kind == draft.kind, "snapshot question kind does not match")
+        requireComponent(
+            !draft.skipped || !question.required,
+            "required questions cannot be skipped"
+        )
+        requireComponent(
+            panelPresent(question.freeform) || (!draft.useText && !panelPresent(draft.text)),
+            "snapshot text requires a freeform definition"
+        )
+        requireComponent(
+            question.kind ==
+                QuestionKind.Multiple ||
+                (draft.choices.size <= 1L && !(draft.useText && draft.choices.size > 0L)),
+            "single question snapshots cannot contain multiple answers"
+        )
+        val choices = HashSet<QuestionChoiceKey>()
+        for (choice in draft.choices)
+            requireComponent(
+                choices.add(choice) && questionHasChoice(question, choice),
+                "snapshot choices must be unique enabled choices of the question"
+            )
+    }
+    when (snapshot.active) {
+        case Some(key) -> {
+            var valid = false
+            for (entry in records)
+                if (entry.question.enabled && entry.question.key == key)
+                    valid = true
+            requireComponent(valid, "snapshot active question must be enabled")
+        }
+        case None -> {}
+    }
+}

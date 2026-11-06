@@ -37,24 +37,28 @@ internal class NavigationSource(
         probe.builds += 1
         val id = order?.get(index) ?: index
         if (nested && (id == 5L || id == 6L))
-            return component(id, { input -> NestedNavigationRow(probe, input) })
+            return component(
+                id,
+                { input, mount -> NestedNavigationRow(probe, input, scope = mount) }
+            )
         return component(
             NavigationRowInput(
                 id,
                 parts,
                 empty || id == 1L || id == 8L || id == 500L || id == 503L
             ),
-            { input -> NavigationRow(probe, input) }
+            { input, mount -> NavigationRow(probe, input, scope = mount) }
         )
     }
 }
 
 private class NestedNavigationRow(
     private val probe: ItemNavigationProbe,
-    private val props: Props<Long>
-): Component {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
     private val scroll = ScrollState()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         scope.focusScope()
     }
     public override fun render(): View {
@@ -94,13 +98,14 @@ private class NavigationRowInput(val id: Long, val parts: Int, val empty: Boolea
 
 private class NavigationRow(
     private val probe: ItemNavigationProbe,
-    private val props: Props<NavigationRowInput>
-): Component {
+    private val props: Props<NavigationRowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = NavigationRowRecord(props.value.id)
     init {
         probe.rows.add(record)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounts += 1
         scope.onDispose { record.disposals += 1 }
         if (props.value.empty)
@@ -141,7 +146,7 @@ private class NavigationRow(
         }
     }
     public override fun render(): View =
-        element(props.value, { input -> NavigationRowInk(record, input) })
+        element(props.value, { input, mount -> NavigationRowInk(record, input, scope = mount) })
     public override fun onUnmount() {
         record.unmounts += 1
         for (area in record.areas)
@@ -154,29 +159,36 @@ private class NavigationRow(
 
 private class NavigationRowInk(
     private val record: NavigationRowRecord,
-    private val props: Props<NavigationRowInput>
-): Element {
-    public override fun update() {
+    private val props: Props<NavigationRowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
                 case Some(area) -> area.scope.enabled =
                     record.id != 2L && index < props.value.parts.toLong()
                 case None -> {}
             }
+        return UiInvalidation.Layout
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                Size(
-                    144.0,
-                    if (record.id == 3L)
-                        0.0
-                    else
-                        24.0
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    Size(
+                        144.0,
+                        if (record.id == 3L)
+                            0.0
+                        else
+                            24.0
+                    )
                 )
-            )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val height =
             if (record.id == 3L || size.height <= 4.0)

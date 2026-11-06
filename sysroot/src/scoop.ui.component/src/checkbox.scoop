@@ -5,68 +5,108 @@ import scoop.surface.Animatable
 import scoop.ui.*
 import scoop.ui.style.*
 
+public enum CheckState {
+    Unchecked, Checked, Indeterminate
+}
+
+internal fun nextCheckState(value: CheckState): CheckState =
+    if (value == CheckState.Checked)
+        CheckState.Unchecked
+    else
+        CheckState.Checked
+
+internal fun checkboxStateBinding(value: Binding<Boolean>): Binding<CheckState> =
+    binding(
+        get =
+            {
+                if (value.value)
+                    CheckState.Checked
+                else
+                    CheckState.Unchecked
+            },
+        set = { next -> value.value = next == CheckState.Checked }
+    )
+
 public class CheckboxProps public constructor(
-    public val checked: Binding<Boolean>,
+    public val checked: Binding<CheckState>,
     public val enabled: Boolean = true,
     public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
-    public val focus: FocusOptions = FocusOptions()
+    public val focus: FocusOptions = FocusOptions(),
+    public val invalid: Boolean = false,
+    public val labelTarget: FieldTarget? = None
 )
 
-public class Checkbox public constructor(private val props: Props<CheckboxProps>): Component {
-    private val control = state<PressControl?>(None)
-    private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
-        themes.mount(props.value.theme)
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, props.value.focus)
-        val press =
-            scope.press(area, PressOptions(props.value.enabled, false)) {
-                val binding = props.value.checked
-                binding.value = !binding.value
+public class Checkbox public constructor(
+    private val props: Props<CheckboxProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.enabled, false),
+            props.value.focus,
+            {
+                val binding = props.value.checked;
+                binding.value = nextCheckState(binding.value)
             }
-        control.value = Some(PressControl(area, focus, press))
+        )
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
     }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
-        val interaction =
-            when (control.value) {
-                case Some(value) -> value.press.interaction
-                case None -> InteractionState()
-            }
-        val visual = interaction.asVisual(input.enabled)
+        val checked = input.checked.value
+        val interaction = control.press.interaction
+        val visual = interaction.asVisual(input.enabled, input.invalid)
         return element(
             CheckboxInkProps(
                 input,
                 theme,
-                input.checked.value,
+                checked,
                 control,
                 visual,
-                input.style.options(visual),
+                input.style.options(theme, visual, checked != CheckState.Unchecked),
                 input.style.padding ?: Insets.all(theme.tokens.spacing.small),
                 {
                     val binding = props.value.checked
-                    binding.value = !binding.value
+                    binding.value = nextCheckState(binding.value)
                 }
             ),
-            { current -> CheckboxInk(current) }
+            { current, mount -> CheckboxInk(current, scope = mount) }
         )
     }
 }
 
 public fun checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View =
-    makeCheckbox(checked, configure)
+    makeCheckbox(checkboxStateBinding(checked), configure)
+
+public fun checkbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit = {}
+): View = makeCheckbox(checked, configure)
 
 public fun checkbox(
     initialChecked: Boolean = false,
     configure: CheckboxBuilder.() -> Unit = {}
 ): View = makeOwnedCheckbox(initialChecked, configure)
 
-internal fun makeCheckbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit): View {
+internal fun makeCheckbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit): View =
+    makeCheckbox(checkboxStateBinding(checked), configure)
+
+internal fun makeCheckbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit
+): View {
     val builder = CheckboxBuilder()
     builder.configure()
-    return component(builder.snapshot(checked), { props -> Checkbox(props) }, builder.key)
+    return component(
+        builder.snapshot(checked),
+        { props, mount -> Checkbox(props, scope = mount) },
+        builder.key
+    )
 }
 
 internal fun makeOwnedCheckbox(
@@ -81,9 +121,11 @@ internal fun makeOwnedCheckbox(
             builder.enabled,
             builder.style,
             builder.theme,
-            builder.focus
+            builder.focus,
+            builder.invalid,
+            builder.labelTarget
         ),
-        { props -> OwnedCheckbox(props) },
+        { props, mount -> OwnedCheckbox(props, scope = mount) },
         builder.key
     )
 }
@@ -93,10 +135,15 @@ private class OwnedCheckboxProps(
     val enabled: Boolean,
     val style: CheckboxStyle,
     val theme: ThemeSource?,
-    val focus: FocusOptions
+    val focus: FocusOptions,
+    val invalid: Boolean,
+    val labelTarget: FieldTarget?
 )
 
-private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Component {
+private class OwnedCheckbox(
+    private val props: Props<OwnedCheckboxProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val checked = state(props.value.initial)
     public override fun render(): View =
         checkbox(checked.binding()) {
@@ -104,66 +151,91 @@ private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Compo
             this.style = this @OwnedCheckbox.props.value.style
             this.theme = this @OwnedCheckbox.props.value.theme
             this.focus = this @OwnedCheckbox.props.value.focus
+            this.invalid = this @OwnedCheckbox.props.value.invalid
+            this.labelTarget = this @OwnedCheckbox.props.value.labelTarget
         }
 }
 
 private class CheckboxInkProps(
     val input: CheckboxProps,
     val theme: Theme,
-    val checked: Boolean,
-    val control: State<PressControl?>,
+    val checked: CheckState,
+    val control: PressControl,
     val visual: InteractionVisual,
     val options: CheckboxOptions,
     val padding: Insets,
     val activate: () -> Unit
 )
 
-private class CheckboxDrawing(val geometry: CheckboxGeometry, val visual: CheckboxVisual)
-
-private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
+private class CheckboxInk(
+    private val props: Props<CheckboxInkProps>,
+    scope: ComponentScope
+): Element<Rect>(scope) {
+    private var previousMetrics: CheckboxMetrics? = None
+    private var previousPadding: Insets? = None
+    private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
-    private var drawing: CheckboxDrawing? = None
-    public override fun onMount(scope: ComponentScope) {
+    private var field: FieldLink? = None
+    public override fun onMount() {
+        val control = props.value.control
+        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, props.value.visual))
         selection =
             Some(
                 scope.animation(
-                    if (props.value.checked)
+                    if (props.value.checked != CheckState.Unchecked)
                         1.0
                     else
                         0.0
                 )
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
-        val control = value.control.value!!
+        val control = value.control
         control.press.update(PressOptions(value.input.enabled, false), value.activate)
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
+        field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,
-            value.input.style.transition.resolve(specs.hover),
-            value.input.style.transition.resolve(specs.press)
+            specs.resolve(value.input.style.transition.resolve(specs.hover)),
+            specs.resolve(value.input.style.transition.resolve(specs.press))
         )
         changeProgress(
             selection!!,
-            if (value.checked)
+            if (value.checked != CheckState.Unchecked)
                 1.0
             else
                 0.0,
             if (value.input.enabled)
-                value.input.style.selectionTransition.resolve(specs.selection)
+                specs.resolve(value.input.style.selectionTransition.resolve(specs.selection))
             else
                 None
         )
         painters!!.get(value.theme)
+        val metrics = value.theme.checkboxMetrics(value.options, scope.layoutDirection)
+        val changed =
+            previousMetrics !=
+                Some(metrics) ||
+                previousPadding !=
+                Some(value.padding) ||
+                !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousPadding = Some(value.padding)
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Rect
+    > {
         val value = props.value
         val metrics = value.theme.checkboxMetrics(value.options, context.layoutDirection)
         val padding = value.padding.totals()
@@ -187,31 +259,27 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
                 side,
                 side
             )
+        return LayoutResult(LayoutMetrics(size), bounds)
+    }
+    public override fun scene(context: SceneContext, bounds: Rect) {
+        val value = props.value
         val visual =
             CheckboxVisual(
-                if (value.checked)
-                    CheckMark.On
-                else
-                    CheckMark.Off,
+                when (value.checked) {
+                    case Unchecked -> CheckMark.Off
+                    case Checked -> CheckMark.On
+                    case Indeterminate -> CheckMark.Mixed
+                },
                 motion!!.sample(value.visual),
                 Some(selection!!.value)
             )
         val geometry =
             value.theme.checkboxGeometry(bounds, visual, value.options, context.layoutDirection)
-        drawing = Some(CheckboxDrawing(geometry, visual))
-        return LayoutMetrics(size)
-    }
-    public override fun scene(context: SceneContext) {
-        val value = drawing!!
         context.draw {
-            paint -> painters!!.get(props.value.theme).drawCheckbox(
-                paint.canvas,
-                value.geometry,
-                value.visual
-            )
+            paint -> painters!!.get(props.value.theme).drawCheckbox(paint.canvas, geometry, visual)
         }
         context.place(
-            props.value.control.value!!.area,
+            props.value.control.area,
             Rect(0.0, 0.0, context.size.width, context.size.height)
         )
     }

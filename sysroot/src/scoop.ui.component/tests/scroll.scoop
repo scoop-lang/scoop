@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.test.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
@@ -54,7 +55,15 @@ private class ScrollLayoutTest {
 
     @Test
     fun `themed thumb travel maps to the whole range even with minimum lengths and buttons`() {
-        for (theme in [macosTheme(), materialTheme(), fluentTheme()]) {
+        for (
+            theme in [
+                macosTheme(),
+                materialTheme(),
+                fluentTheme(),
+                shadcnTheme(),
+                shadcnTheme(ThemeMode.Dark)
+            ]
+        ) {
             for (orientation in [Orientation.Horizontal, Orientation.Vertical]) {
                 val bounds =
                     if (orientation == Orientation.Horizontal)

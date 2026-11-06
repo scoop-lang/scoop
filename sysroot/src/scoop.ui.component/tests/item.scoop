@@ -1,0 +1,150 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ItemTest {
+    @Test
+    fun `item variants share content geometry and apply local focus and interaction styles`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            for (variant in [ItemVariant.Default, ItemVariant.Outline, ItemVariant.Muted]) {
+                for (size in [ItemSize.Default, ItemSize.Sm, ItemSize.Xs]) {
+                    val input = ItemProps(variant = variant, size = size)
+                    val visual = SurfaceVisual(SurfaceKind.Plain)
+                    val geometry =
+                        theme.surfaceGeometry(
+                            Rect(0.0, 0.0, 200.0, 80.0),
+                            visual,
+                            itemOptions(input, theme, visual.interaction, false)
+                        )
+                    assertEquals(
+                        if (size == ItemSize.Xs)
+                            Rect(11.0, 9.0, 178.0, 62.0)
+                        else
+                            Rect(13.0, 11.0, 174.0, 58.0),
+                        geometry.content
+                    )
+                    val edge = geometry.style.border!!.resolve(LayoutDirection.Ltr).left
+                    assertEquals(1.0, edge.width)
+                    assertEquals(
+                        if (variant == ItemVariant.Outline)
+                            theme.tokens.palette.border
+                        else
+                            Color.Transparent,
+                        edge.color
+                    )
+                    assertEquals(
+                        if (variant == ItemVariant.Muted)
+                            theme.tokens.palette.muted.background.alpha * 0.5
+                        else
+                            0.0,
+                        geometry.style.background!!.color.alpha
+                    )
+                }
+            }
+            val focus = OutlineStyle(Color.Black, 2.0, 1.0, Some(Color.White))
+            val input =
+                ItemProps(
+                    focusOutline = Some(focus),
+                    style = styleOverride { this.corners(Corners.all(2.0)) },
+                    states =
+                        interactionStyles {
+                            this.hovered { this.background(Some(Paint(Color.Black))) }
+                        }
+                )
+            val visible =
+                SurfaceVisual(
+                    SurfaceKind.Plain,
+                    InteractionVisual(focusVisible = true, hovered = true)
+                )
+            val options = itemOptions(input, theme, visible.interaction, true)
+            val result = theme.surfaceGeometry(Rect(0.0, 0.0, 200.0, 80.0), visible, options)
+            assertEquals(Color.Black, result.style.background!!.color)
+            assertEquals(Color.White, result.style.border!!.resolve(LayoutDirection.Ltr).left.color)
+            assertEquals(CornerRadii.all(2.0), result.outline.radii)
+            assertEquals(result.outline.expanded(1.0), result.ring!!.outline)
+            assertEquals(BorderEdge(2.0, Color.Black), result.ring!!.border)
+            val disabled = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(enabled = false))
+            assertEquals(
+                theme.tokens.disabledOpacity,
+                theme.surfaceGeometry(
+                    Rect(0.0, 0.0, 200.0, 80.0),
+                    disabled,
+                    itemOptions(input, theme, disabled.interaction, true)
+                ).opacity
+            )
+        }
+    }
+
+    @Test
+    fun `item builders retain optional content and borrowed resources and append once`() {
+        val body = empty()
+        val focus = FocusHandle()
+        val calls = state(0)
+        val source = ThemeSource(shadcnTheme())
+        val fonts = FontCollection(false)
+        val image = RasterSurface(2, 2).use { surface -> surface.snapshot() }
+        try {
+            val builder = ItemBuilder()
+            builder.title("Title")
+            builder.description(styledText { this.text("Description") })
+            builder.media(image)
+            builder.actions(body)
+            builder.header(body)
+            builder.footer(body)
+            builder.onClick = Some({ calls.value += 1 })
+            builder.focus { this.handle = Some(focus) }
+            builder.fonts = Some(fonts)
+            builder.theme = Some(source)
+            builder.transition(None)
+            val input = builder.snapshot(Some(body))
+            assertSame(body, input.content!!)
+            assertSame(body, input.actions!!)
+            assertSame(body, input.header!!)
+            assertSame(body, input.footer!!)
+            assertSame(focus, input.focus.handle!!)
+            assertSame(fonts, input.fonts!!)
+            assertSame(source, input.theme!!)
+            assertEquals(ItemMediaVariant.Image, input.mediaVariant)
+            when (input.transition) {
+                case Set(value) -> assertFalse(panelPresent(value))
+                case Inherit -> fail(Some("explicit transition must override the default"))
+            }
+            assertEquals(0, calls.value)
+            input.onClick!!()
+            assertEquals(1, calls.value)
+            assertFalse(image.isClosed)
+            val sizes = ArrayList<ItemSize>()
+            val group = ItemGroupBuilder(ItemSize.Xs)
+            group.item {
+                sizes.add(this.size);
+                this.title("First")
+            }
+            group.item(body) {
+                sizes.add(this.size);
+                this.size = ItemSize.Sm
+            }
+            group.itemSeparator()
+            group.add(body)
+            assertEquals(4L, group.snapshot().children.size)
+            assertEquals(ItemSize.Xs, sizes[0L])
+            assertEquals(ItemSize.Xs, sizes[1L])
+            val children = ChildrenBuilder()
+            children.contentItem {}
+            children.contentItem(body) {}
+            children.itemGroup { this.item { this.title(body) } }
+            children.itemSeparator {}
+            assertEquals(4L, children.childCount)
+            assertFalse(fonts.isClosed)
+        } finally {
+            image.close();
+            fonts.close()
+        }
+    }
+}

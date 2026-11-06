@@ -1,0 +1,72 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class DrawerModelTest {
+    @Test
+    fun `snap points use measured extent retain indices and skip clamped duplicates`() {
+        val points =
+            [
+                DrawerSnapPoint.Fraction(0.5),
+                DrawerSnapPoint.Length(120.0),
+                DrawerSnapPoint.Length(900.0),
+                DrawerSnapPoint.Fraction(1.0)
+            ]
+        val snaps = drawerSnaps(points, 400.0, 2.0)
+        for (index in 0L ..< 4L)
+            assertEquals([200.0, 240.0, 400.0, 400.0][index], snaps[index])
+        assertEquals(Some(1L), drawerAdjacent(snaps, 0L, true))
+        assertEquals(Some(2L), drawerAdjacent(snaps, 1L, true))
+        assertEquals(None, drawerAdjacent(snaps, 2L, true))
+        assertEquals(Some(1L), drawerAdjacent(snaps, 3L, false))
+        assertEquals(0L, drawerIndex(-9L, 4L));
+        assertEquals(3L, drawerIndex(99L, 4L))
+        assertEquals(0.0, drawerSnaps(points, 0.0, 1.0)[0L])
+    }
+    @Test
+    fun `release projects to real anchors and close is an explicit zero target`() {
+        val shape =
+            DrawerGeometry(
+                Size(640.0, 480.0),
+                Rect(0.0, 80.0, 640.0, 400.0),
+                OverlaySide.Bottom,
+                [100.0, 250.0, 400.0]
+            )
+        assertEquals(Some(SnapTarget(1L, 250.0)), drawerReleased(shape, 150.0, 500.0, 0.15, true))
+        assertEquals(Some(SnapTarget(-1L, 0.0)), drawerReleased(shape, 100.0, -600.0, 0.15, true))
+        assertEquals(Some(SnapTarget(0L, 100.0)), drawerReleased(shape, 10.0, -600.0, 0.15, false))
+        assertEquals(OverlaySide.Right, drawerPhysicalSide(SheetSide.Start, LayoutDirection.Rtl))
+        assertEquals(OverlaySide.Left, drawerPhysicalSide(SheetSide.End, LayoutDirection.Rtl))
+        assertEquals(OverlaySide.Left, drawerPhysicalSide(SheetSide.Start, LayoutDirection.Ltr))
+    }
+    @Test
+    fun `drawer builders freeze options and reject incoherent geometry`() {
+        val open = state(false)
+        val builder = DrawerBuilder()
+        builder.swipeHandle {
+            visible = true;
+            only = true
+        }
+        builder.snapPoints = [DrawerSnapPoint.Length(200.0)]
+        val props = builder.snapshot(open.binding(), empty())
+        builder.side = SheetSide.Start
+        assertEquals(SheetSide.Bottom, props.side)
+        assertTrue(props.swipeHandle.only);
+        assertFalse(props.showCloseButton)
+        assertEquals(0.0, props.options.viewportPadding)
+        val handle = DrawerHandle()
+        assertFalse(handle.isAttached);
+        assertFalse(handle.snapTo(0L))
+        assertFailsWith<IllegalArgumentException> { builder.snapshot(open.binding(), empty()) }
+        assertFailsWith<IllegalArgumentException> { DrawerSwipeHandleOptions(only = true) }
+        assertFailsWith<IllegalArgumentException> {
+            DrawerProps(open.binding(), empty(), snapPoints = [DrawerSnapPoint.Fraction(1.1)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DrawerProps(open.binding(), empty(), height = Some(-1.0))
+        }
+    }
+}

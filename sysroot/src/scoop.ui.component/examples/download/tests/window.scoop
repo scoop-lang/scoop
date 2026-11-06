@@ -214,7 +214,8 @@ internal class DownloadWindowProbe {
             host.attach(
                 window,
                 {
-                    val root = DownloadObservedRoot(this, index)
+                    mount ->
+                    val root = DownloadObservedRoot(this, index, scope = mount)
                     if (index == 1L)
                         observer = Some(root)
                     root

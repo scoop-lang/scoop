@@ -2,14 +2,30 @@ package scoop.ui
 
 import scoop.collections.sortedBy
 import scoop.graphics.Point
+import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
 
 private class SceneCompletion(val node: MountedNode, val action: (FrameCompletion) -> Unit)
 
 /** Owns one root; closing it leaves the caller's native window intact. */
-public class UiWindow internal constructor(private val root: UiRoot): Closeable {
+public class UiWindow internal constructor(internal val root: UiRoot): Closeable {
     public val nativeWindow: Window get() = root.window
+    public var defaultFonts: FontCollection
+    get() {
+        checkOpen();
+        return root.fonts.value
+    }
+    set(value) {
+        checkOpen()
+        root.fonts.replace(value)
+        root.requestFrame()
+    }
+    private fun checkOpen() {
+        root.checkThread()
+        if (!root.isOpen)
+            throw IllegalStateException(Some("UI root is closed"))
+    }
     public val isClosed: Boolean get() {
         root.checkThread();
         return root.closed
@@ -22,10 +38,13 @@ public class UiWindow internal constructor(private val root: UiRoot): Closeable 
 internal class UiRoot(
     val host: UiHost,
     val window: Window,
-    private val initial: View
+    private val initial: View,
+    defaultFonts: FontCollection? = None
 ): SurfaceContent {
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
+    val layouts = LayoutStore()
+    val frameDependencies = FrameDependencies()
     val focus = FocusController(this)
     val overlays = OverlayController(this)
     private val pending = ArrayList<MountedNode>()
@@ -35,6 +54,8 @@ internal class UiRoot(
     var closed = false
     val surface: SurfaceWindow get() =
         attached ?: throw IllegalStateException(Some("UI root is not attached"))
+
+    val fonts = RootFonts(defaultFonts)
 
     fun checkThread() {
         host.checkThread()
@@ -62,11 +83,8 @@ internal class UiRoot(
         val turn = UpdateTurn()
         val work = pending.toArray().sortedBy<MountedNode, Long> { value -> value.depth }
         pending.clear()
-        var repaint = false
         for (value in work) {
             value.queued = false
-            if (value.active && value.frameEnabled)
-                repaint = true
         }
         for (value in work) {
             if (value.active && isOpen && !sameTurn(value.updated, turn)) {
@@ -74,8 +92,6 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
-        if (isOpen && repaint)
-            requestFrame()
     }
     public override fun paint(frame: FrameContext) {
         if (!isOpen)
@@ -83,17 +99,25 @@ internal class UiRoot(
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         focus.beginFrame()
         overlays.beginFrame()
+        frameDependencies.check(frame.time)
+        layouts.begin()
+        var success = false
+        var failure: Throwable? = None
         try {
-            current.measure(Constraints.tight(frame.size), frame.time)
-            current.finishMeasurement()
-            current.scene(frame, Point(0.0, 0.0))
+            val result = current.measure(Constraints.tight(frame.size), frame.time)
+            result.finishMeasurement()
+            result.scene(frame, Point(0.0, 0.0))
             overlays.paint(frame)
-        } catch (error: UiLayoutEnded) {
-            if (isOpen)
-                throw error
-            return
+            success = true
+        } catch (error: Throwable) {
+            if (!(error is UiLayoutEnded) || isOpen)
+                failure = Some(error)
         }
+        val completed = success
+        failure = cleanupUi(failure) { layouts.finish(completed) }
+        throwUi(failure)
     }
+
     fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
         completions.add(SceneCompletion(node, action))
     }
@@ -129,8 +153,10 @@ internal class UiRoot(
         checkThread()
         if (!isOpen)
             return
-        stop()
-        host.retire(this)
+        surface.dispatch {
+            stop()
+            host.retire(this)
+        }
     }
     fun closeSurface() {
         when (attached) {
@@ -142,16 +168,18 @@ internal class UiRoot(
         checkThread()
         if (closed)
             return
-        stop()
+        var failure = cleanupUi(None) { stop() }
         closed = true
         val current = node
         node = None
-        var failure: Throwable? = None
         when (current) {
             case Some(value) -> failure = cleanupUi(failure) { value.unmount() }
             case None -> {}
         }
+        failure = cleanupUi(failure) { layouts.close() }
+        failure = cleanupUi(failure) { frameDependencies.close() }
         failure = cleanupUi(failure) { overlays.close() }
+        failure = cleanupUi(failure) { fonts.close() }
         host.detached(this)
         throwUi(failure)
     }

@@ -16,8 +16,9 @@ private class ReceiverDslConsumerTests {
         val custom =
             component(
                 {
+                    mount ->
                     created.add(Unit);
-                    CustomComponent()
+                    CustomComponent(scope = mount)
                 }
             )
         val rich =
@@ -51,6 +52,6 @@ private class ReceiverDslConsumerTests {
     }
 }
 
-private class CustomComponent: Component {
+private class CustomComponent(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }

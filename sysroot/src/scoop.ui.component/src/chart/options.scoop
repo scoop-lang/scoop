@@ -1,0 +1,183 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.math.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ChartAxisKind {
+    Category, Linear
+}
+
+public enum ChartDomain {
+    Auto, Fixed(val minimum: Double, val maximum: Double)
+}
+
+public class ChartAxis public constructor(
+    public val kind: ChartAxisKind = ChartAxisKind.Linear,
+    public val domain: ChartDomain = ChartDomain.Auto,
+    public val includeZero: Boolean = false,
+    public val nice: Boolean = true,
+    public val tickCount: Int = 5,
+    public val shown: Boolean = true,
+    public val grid: Boolean = true,
+    public val formatter: ((Double) -> String)? = None
+) {
+    init {
+        requireComponent(tickCount > 0, "chart tick count must be positive")
+        when (domain) {
+            case Fixed(low, high) -> requireComponent(
+                low.isFinite() && high.isFinite() && high > low,
+                "chart domain must be finite and increasing"
+            );
+            case Auto -> {}
+        }
+    }
+}
+
+internal val chartCategoryAxis = ChartAxis(ChartAxisKind.Category, grid = false)
+
+internal val chartValueAxis = ChartAxis()
+
+public class ChartTooltipOptions public constructor(
+    public val hideLabel: Boolean = false,
+    public val hideIndicator: Boolean = false,
+    public val indicator: ChartIndicator = ChartIndicator.Dot,
+    public val formatter: ((ChartTooltipEntry) -> String)? = None,
+    public val labelFormatter: ((ChartDatum) -> String)? = None
+)
+
+public class ChartLegendOptions public constructor(
+    public val hideIcon: Boolean = false,
+    public val formatter: ((ChartSeries) -> String)? = None
+)
+
+public class ChartProps public constructor(
+    public val model: ChartModel,
+    public val kind: ChartKind = ChartKind.Line,
+    public val orientation: Orientation = Orientation.Vertical,
+    public val curve: ChartCurve = ChartCurve.Linear,
+    public val stack: ChartStack = ChartStack.None,
+    public val connectMissing: Boolean = false,
+    public val xAxis: ChartAxis = ChartAxis(ChartAxisKind.Category, grid = false),
+    public val yAxis: ChartAxis = ChartAxis(),
+    public val pointRadius: Double = 3.0,
+    public val barRadius: Double = 4.0,
+    public val barGap: Double = 0.2,
+    public val labels: Boolean = false,
+    public val startAngle: Double = -PI / 2.0,
+    public val endAngle: Double = 3.0 * PI / 2.0,
+    public val innerRadius: Double = 0.0,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val legend: Boolean = true,
+    public val tooltip: Boolean = true,
+    public val legendOptions: ChartLegendOptions = ChartLegendOptions(),
+    public val tooltipOptions: ChartTooltipOptions = ChartTooltipOptions(),
+    public val tooltipContent: ((ChartTooltipPayload) -> View)? = None,
+    public val center: View? = None,
+    public val active: Binding<ChartSelection?>? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None
+) {
+    init {
+        nonnegative(pointRadius, "invalid chart point radius")
+        nonnegative(barRadius, "invalid chart bar radius")
+        requireComponent(
+            barGap.isFinite() && barGap >= 0.0 && barGap < 1.0,
+            "chart bar gap must be in [0, 1)"
+        )
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid chart width");
+            case None -> {}
+        }
+        when (height) {
+            case Some(value) -> nonnegative(value, "invalid chart height");
+            case None -> {}
+        }
+        requireComponent(yAxis.kind == ChartAxisKind.Linear, "chart value axis must be linear")
+        val sweep = endAngle - startAngle
+        requireComponent(
+            startAngle.isFinite() && endAngle.isFinite() && sweep != 0.0 && abs(sweep) <= TAU,
+            "chart angle span must be finite, nonzero and at most one turn"
+        )
+        requireComponent(
+            innerRadius.isFinite() && innerRadius >= 0.0 && innerRadius < 1.0,
+            "chart inner radius must be in [0, 1)"
+        )
+    }
+}
+
+public class ChartBuilder internal constructor() {
+    public var kind: ChartKind = ChartKind.Line
+    public var orientation: Orientation = Orientation.Vertical
+    public var curve: ChartCurve = ChartCurve.Linear
+    public var stack: ChartStack = ChartStack.None
+    public var connectMissing: Boolean = false
+    public var xAxis: ChartAxis = chartCategoryAxis
+    public var yAxis: ChartAxis = chartValueAxis
+    public var pointRadius: Double = 3.0
+    public var barRadius: Double = 4.0
+    public var barGap: Double = 0.2
+    public var labels: Boolean = false
+    public var startAngle: Double = -PI / 2.0
+    public var endAngle: Double = 3.0 * PI / 2.0
+    public var innerRadius: Double = 0.0
+    public var width: Double? = None
+    public var height: Double? = None
+    public var legend: Boolean = true
+    public var tooltip: Boolean = true
+    public var legendOptions: ChartLegendOptions = ChartLegendOptions()
+    public var tooltipOptions: ChartTooltipOptions = ChartTooltipOptions()
+    public var tooltipContent: ((ChartTooltipPayload) -> View)? = None
+    public var center: View? = None
+    public var active: Binding<ChartSelection?>? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    internal fun build(model: ChartModel): View =
+        component(
+            ChartProps(
+                model,
+                kind,
+                orientation,
+                curve,
+                stack,
+                connectMissing,
+                xAxis,
+                yAxis,
+                pointRadius,
+                barRadius,
+                barGap,
+                labels,
+                startAngle,
+                endAngle,
+                innerRadius,
+                width,
+                height,
+                legend,
+                tooltip,
+                legendOptions,
+                tooltipOptions,
+                tooltipContent,
+                center,
+                active,
+                focus,
+                enabled,
+                fonts,
+                theme
+            ),
+            { props, scope -> Chart(props, scope) },
+            key
+        )
+}
+
+public fun chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}): View {
+    val builder = ChartBuilder();
+    builder.configure();
+    return builder.build(model)
+}

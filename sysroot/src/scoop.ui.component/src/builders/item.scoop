@@ -1,0 +1,90 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ItemBuilder internal constructor(): PanelBuilder() {
+    public var media: View? = None
+    public var actions: View? = None
+    public var header: View? = None
+    public var footer: View? = None
+    public var variant: ItemVariant = ItemVariant.Default
+    public var size: ItemSize = ItemSize.Default
+    public var mediaVariant: ItemMediaVariant = ItemMediaVariant.Default
+    public var onClick: (() -> Unit)? = None
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var focusOutline: OutlineStyle? = None
+    public var states: InteractionStyles = interactionStyles()
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public fun media(content: View): Unit {
+        media = Some(content)
+    }
+    public fun media(image: Image): Unit {
+        media = Some(component(image, { current, mount -> ItemImage(current, scope = mount) }))
+        mediaVariant = ItemMediaVariant.Image
+    }
+    public fun actions(content: View): Unit {
+        actions = Some(content)
+    }
+    public fun header(content: View): Unit {
+        header = Some(content)
+    }
+    public fun footer(content: View): Unit {
+        footer = Some(content)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    public fun states(configure: InteractionStylesBuilder.() -> Unit): Unit {
+        states = states.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?): Unit {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(content: View?): ItemProps =
+        ItemProps(
+            content,
+            title,
+            description,
+            media,
+            actions,
+            header,
+            footer,
+            variant,
+            size,
+            mediaVariant,
+            onClick,
+            enabled,
+            focus,
+            focusOutline,
+            states,
+            transition,
+            fonts,
+            theme,
+            style
+        )
+}
+
+internal fun makeItem(content: View?, size: ItemSize, configure: ItemBuilder.() -> Unit): View {
+    val builder = ItemBuilder()
+    builder.size = size
+    builder.configure()
+    return component(
+        builder.snapshot(content),
+        { current, mount -> Item(current, scope = mount) },
+        builder.key
+    )
+}
+
+/** Image dimensions are read during rendering; builders retain only the borrowed reference. */
+private class ItemImage(private val props: Props<Image>, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val image = props.value
+        return imageView(image, Size(image.width.toDouble(), image.height.toDouble())) {
+            this.fit = ContentFit.Cover
+        }
+    }
+}

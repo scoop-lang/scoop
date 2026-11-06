@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.surface.*
 import scoop.window.*
 
-/** Composes focus-only member navigation with the existing routed defaults. */
+/** Composes member navigation with the existing routed defaults. */
 public class KeyNavigation internal constructor(
     internal val node: MountedNode,
     initial: NavigationOptions
@@ -46,8 +46,14 @@ public class KeyNavigation internal constructor(
             requireUi(withinFocusScope(member, node), "navigation member belongs to another scope")
     }
     private fun validate(value: NavigationOptions) {
+        var preferredFound = false
         for (index in 0L ..< value.items.size) {
             val item = value.items[index]
+            when (value.preferredTab) {
+                case Some(handle) -> if (handle === item.handle)
+                    preferredFound = true
+                case None -> preferredFound = true
+            }
             item.handle.checkThread()
             when (item.handle.navigation) {
                 case Some(group) -> requireUi(
@@ -74,6 +80,13 @@ public class KeyNavigation internal constructor(
                     "duplicate navigation grid position"
                 )
             }
+        }
+        when (value.preferredTab) {
+            case Some(_) -> requireUi(
+                preferredFound,
+                "preferred Tab handle is not a navigation member"
+            )
+            case None -> {}
         }
     }
     private fun bind() {
@@ -127,6 +140,14 @@ public class KeyNavigation internal constructor(
                 case None -> {}
             }
         }
+        when (current.preferredTab) {
+            case Some(handle) -> when (handle.target) {
+                case Some(target) -> if (target.tabCandidate)
+                    return Some(target)
+                case None -> {}
+            }
+            case None -> {}
+        }
         return when (recent) {
             case Some(_) -> recent
             case None -> first
@@ -170,7 +191,12 @@ public class KeyNavigation internal constructor(
             }
         context.consume()
         when (next) {
-            case Some(position) -> member(position)?.handle?.requestFocus()
+            case Some(position) -> {
+                val target = member(position) ?: return
+                val callback = current.onNavigate
+                if (target.handle.requestFocus(FocusOrigin.Keyboard) && active)
+                    callback(target.handle)
+            }
             case None -> {}
         }
     }

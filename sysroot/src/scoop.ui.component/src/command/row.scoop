@@ -1,0 +1,166 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.window.*
+import scoop.ui.component.row as commandRow
+import scoop.ui.component.label as commandLabel
+import scoop.ui.direction as commandDirection
+
+internal class CommandRows(
+    val source: CommandSource,
+    val input: CommandProps,
+    val theme: Theme,
+    private val active: Binding<ViewKey?>,
+    private val highlight: (ViewKey) -> Unit,
+    private val select: (ViewKey) -> Unit
+): ItemSource {
+    public override val count: Long get() = source.count
+    public override fun keyAt(index: Long): ViewKey = source.keyAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? = source.indexOfKey(key)
+    public override fun build(index: Long): View =
+        component(
+            CommandRowProps(source.entryAt(index), input, theme, active, highlight, select),
+            { current, mount -> CommandRow(current, scope = mount) }
+        )
+}
+
+internal class CommandRowProps(
+    val entry: CommandEntry,
+    val input: CommandProps,
+    val theme: Theme,
+    val active: Binding<ViewKey?>,
+    val highlight: (ViewKey) -> Unit,
+    val select: (ViewKey) -> Unit
+)
+
+private class CommandRow(
+    private val props: Props<CommandRowProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        val theme = input.theme
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val text =
+            theme.tokens.typography.body.copy {
+                fontSize = 14.0 * density;
+                lineHeight = Some(20.0 / 14.0);
+                weight = 400
+                color = theme.tokens.palette.popover.foreground
+            }
+        val fonts = input.input.input.fonts
+        when (input.entry) {
+            case Label(_, content) -> return panelFrame(
+                panelCaption(
+                    content,
+                    text.copy {
+                        fontSize = 12.0 * density;
+                        lineHeight = Some(16.0 / 12.0);
+                        weight = 500
+                        color = theme.tokens.palette.muted.foreground
+                    },
+                    fonts
+                ),
+                Insets(8.0 * density, 6.0 * density, 8.0 * density, 6.0 * density)
+            )
+            case Separator(_) -> return panelFrame(
+                separator { thickness = 1.0 },
+                Insets(0.0, 4.0 * density, 0.0, 4.0 * density)
+            )
+            else -> {}
+        }
+        val item = commandItem(input.entry)!!
+        val active = input.active.value == Some(item.key)
+        val enabled = input.input.input.enabled && item.enabled
+        val window = Some(scope.nativeWindow)
+        val textDirection = scope.layoutDirection.textDirection()
+        val body =
+            commandRow {
+                when (item.icon) {
+                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
+                    case None -> {}
+                }
+                this.item(
+                    panelSlot(
+                        item.content ?:
+                            commandLabel(
+                                styledText {
+                                    style = text;
+                                    this.text(item.label)
+                                }
+                            ) {
+                                this.fonts = fonts
+                                settings =
+                                    Some(
+                                        paragraphStyle {
+                                            direction = textDirection
+                                            maxLines = Some(1L);
+                                            ellipsis = "…"
+                                        }
+                                    )
+                            },
+                        1L
+                    )
+                ) { grow = 1.0 }
+                when (item.shortcut) {
+                    case Some(chord) -> when (window) {
+                        case Some(window) -> this.item(
+                            panelSlot(
+                                commandDirection(
+                                    commandLabel(
+                                        styledText {
+                                            style =
+                                                text.copy {
+                                                    fontSize = 12.0 * density;
+                                                    if (!active)
+                                                        color =
+                                                            theme.tokens.palette.muted.foreground
+                                                }
+                                            this.text(shortcutCaption(window.shortcutLabel(chord)))
+                                        }
+                                    ) {
+                                        this.fonts = fonts;
+                                        settings = Some(paragraphStyle { maxLines = Some(1L) })
+                                    },
+                                    LayoutDirection.Ltr
+                                ),
+                                2L
+                            )
+                        ) { shrink = 0.0 }
+                        case None -> {}
+                    }
+                    case None -> this.item(
+                        panelSlot(
+                            element(
+                                MenuCheckProps(active, 16.0 * density, text.color),
+                                { current, mount -> MenuCheck(current, scope = mount) }
+                            ),
+                            2L
+                        )
+                    ) { shrink = 0.0 }
+                }
+                spacing = 8.0 * density
+                alignment = CrossAlignment.Center
+            }
+        val decorated =
+            panelFrame(
+                body,
+                Insets(8.0 * density, 6.0 * density, 8.0 * density, 6.0 * density),
+                styleOverride {
+                    if (active && enabled)
+                        background(Some(Paint(theme.tokens.palette.muted.background)))
+                    corners(Corners.all(4.0 * density))
+                }.then(item.style)
+            )
+        return element(
+            CandidateRowInkProps(item.key, enabled, input.highlight, input.select),
+            { current, mount -> CandidateRowInk(current, scope = mount) },
+            [decorated]
+        )
+    }
+}

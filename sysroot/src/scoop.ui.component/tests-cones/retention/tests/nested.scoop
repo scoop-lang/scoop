@@ -23,32 +23,36 @@ internal class MiniSource(private val row: RowRecord): ItemSource {
             else -> None
         }
     public override fun build(index: Long): View =
-        component(index, { value -> MiniItem(row, value) })
+        component(index, { value, mount -> MiniItem(row, value, scope = mount) })
 }
 
-internal class MiniList(private val props: Props<Long>): LazyElement {
+internal class MiniList(private val props: Props<Long>, scope: ComponentScope): LazyElement<Unit>(
+    scope
+) {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
-    ): LayoutMetrics {
+    ): LayoutResult<Unit> {
         context.measureItem(props.value, constraints)
         context.placeItem(props.value, Point(0.0, 0.0))
         // A measured but unplaced item must not briefly resume frame demand on every layout.
         context.measureItem(2L, constraints)
-        return LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(1.0, 1.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class MiniItem(row: RowRecord, props: Props<Long>): Component {
+private class MiniItem(row: RowRecord, props: Props<Long>, scope: ComponentScope): Component(
+    scope
+) {
     private val record = MiniRecord(props.value)
     init {
         row.innerRows.add(record)
     }
-    public override fun render(): View = element({ MiniInk() })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun render(): View = element({ mount -> MiniInk(scope = mount) })
+    public override fun onMount() {
         record.motion = Some(scope.animation(0.0))
     }
     public override fun onUnmount() {
@@ -57,25 +61,29 @@ private class MiniItem(row: RowRecord, props: Props<Long>): Component {
     }
 }
 
-private class MiniInk: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
-    public override fun scene(context: SceneContext) {
+private class MiniInk(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(1.0, 1.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 1.0, 1.0), Paint(Color.Black))
         }
     }
 }
 
-internal class ExtraInk(private val record: RowRecord): Element {
-    public override fun onMount(scope: ComponentScope) {
+internal class ExtraInk(private val record: RowRecord, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         val motion = scope.animation(0.0)
         record.extraMotion = Some(motion)
         motion.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(1.0, 1.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 1.0, 1.0), Paint(Color.White))
         }

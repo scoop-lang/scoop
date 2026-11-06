@@ -1,0 +1,192 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.math.abs
+import scoop.ui.*
+
+internal fun resizableAllocation(
+    panels: Array<ResizablePanelProps>,
+    values: HashMap<ViewKey, ResizableSize>,
+    target: Double
+): Array<Double> {
+    var fixed = 0.0
+    var weight = 0.0
+    var expanded = 0L
+    for (panel in panels) {
+        val value = values[panel.key] ?: ResizableSize(panel.key, 1.0)
+        if (panel.collapsible && value.collapsed)
+            fixed += panel.collapsedSize
+        else {
+            weight += value.fraction
+            expanded += 1L
+        }
+    }
+    nonnegative(fixed, "collapsed panel total overflow")
+    val space = lowerBound(0.0, target - fixed)
+    val totalWeight = weight
+    val count = expanded
+    val bases =
+        Array<Double>(panels.size) {
+            index ->
+            val panel = panels[index]
+            val value = values[panel.key] ?: ResizableSize(panel.key, 1.0)
+            if (panel.collapsible && value.collapsed)
+                panel.collapsedSize
+            else
+                space *
+                    (
+                        if (totalWeight > 0.0)
+                            value.fraction / totalWeight
+                        else
+                            1.0 / count.toDouble()
+                    )
+        }
+    val options =
+        Array<FlexItemOptions>(panels.size) {
+            index ->
+            val panel = panels[index]
+            val value = values[panel.key] ?: ResizableSize(panel.key, 1.0)
+            if (panel.collapsible && value.collapsed)
+                FlexItemOptions(
+                    grow = 0.0,
+                    shrink = 0.0,
+                    min = panel.collapsedSize,
+                    max = Some(panel.collapsedSize)
+                )
+            else
+                FlexItemOptions(
+                    grow =
+                        if (value.fraction > 0.0)
+                            value.fraction
+                        else
+                            1.0,
+                    min = panel.minimum,
+                    max = panel.maximum
+                )
+        }
+    return allocateFlex(bases, options, target)
+}
+
+private fun resizableExtentAllowed(value: Double, panel: ResizablePanelProps): Boolean =
+    (panel.collapsible && value == panel.collapsedSize) ||
+        (value >= panel.minimum && value <= (panel.maximum ?: value))
+
+/** Projects the pair onto its actual allowed sizes, including discrete collapsed extents. */
+internal fun resizablePair(
+    first: Double,
+    second: Double,
+    delta: Double,
+    a: ResizablePanelProps,
+    b: ResizablePanelProps
+): SplitSizes {
+    val total = first + second
+    val lowA =
+        if (a.collapsible)
+            a.collapsedSize
+        else
+            a.minimum
+    val lowB =
+        if (b.collapsible)
+            b.collapsedSize
+        else
+            b.minimum
+    val raw = resizePair(first, second, delta, lowA, a.maximum, lowB, b.maximum)
+    val candidates =
+        [raw.first, a.minimum, a.collapsedSize, total - b.minimum, total - b.collapsedSize, first]
+    var selected = first
+    var distance = abs(first - raw.first)
+    for (candidate in candidates) {
+        if (!resizableExtentAllowed(candidate, a) || !resizableExtentAllowed(total - candidate, b))
+            continue
+        val next = abs(candidate - raw.first)
+        if (
+            next <
+                distance ||
+                (
+                    next ==
+                        distance &&
+                        (
+                            if (delta > 0.0)
+                                candidate > selected
+                            else
+                                candidate < selected
+                        )
+                )
+        ) {
+            selected = candidate
+            distance = next
+        }
+    }
+    // Keep the exact collapsed boundary; another delta round-trip can introduce a tiny extent.
+    return if (selected == first)
+        SplitSizes(first, second)
+    else
+        SplitSizes(selected, total - selected)
+}
+
+internal fun resizableModel(
+    panels: Array<ResizablePanelProps>,
+    initial: Array<ResizableSize>,
+    before: Array<Double>,
+    next: Array<Double>
+): Array<ResizableSize> {
+    val previous = resizableValues(initial)
+    var total = 0.0
+    for (extent in next)
+        total += extent
+    if (total == 0.0)
+        return initial
+    val changes = HashMap<ViewKey, ResizableSize>()
+    for (index in 0L ..< panels.size) {
+        val panel = panels[index]
+        val old = previous[panel.key]
+        val collapsed =
+            panel.collapsible &&
+                next[index] ==
+                panel.collapsedSize &&
+                (before[index] != next[index] || (old?.collapsed ?: false))
+        val fraction =
+            if (collapsed) {
+                if (old?.collapsed ?: false)
+                    old!!.fraction
+                else
+                    before[index] / total
+            } else
+                next[index] / total
+        changes[panel.key] =
+            ResizableSize(panel.key, upperBound(1.0, lowerBound(0.0, fraction)), collapsed)
+    }
+    val result = ArrayList<ResizableSize>()
+    for (value in initial)
+        result.add(changes[value.key] ?: value)
+    for (panel in panels)
+        if (previous[panel.key] == None)
+            result.add(changes[panel.key]!!)
+    return result.toArray()
+}
+
+internal fun sameResizablePanels(
+    a: Array<ResizablePanelProps>,
+    b: Array<ResizablePanelProps>
+): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size) {
+        val x = a[index];
+        val y = b[index]
+        if (
+            x.key !=
+                y.key ||
+                x.minimum !=
+                y.minimum ||
+                x.maximum !=
+                y.maximum ||
+                x.collapsible !=
+                y.collapsible ||
+                x.collapsedSize !=
+                y.collapsedSize
+        )
+            return false
+    }
+    return true
+}

@@ -1,0 +1,24 @@
+package scoop.surface
+
+/** The revision of one existing timeline value, without exposing its generic payload. */
+public interface AnimationSource {
+    public val revision: Long
+}
+
+/** Optional synchronous read tracking; the timeline remains the only animation scheduler. */
+public interface AnimationReadObserver {
+    public fun read(source: AnimationSource)
+}
+
+context(observer: AnimationReadObserver)
+private fun boundAnimationObserver(): AnimationReadObserver = observer
+
+internal fun observeAnimation(source: AnimationSource) {
+    val observer =
+        try {
+            boundAnimationObserver()
+        } catch (_: MissingContextException) {
+            return
+        }
+    observer.read(source)
+}

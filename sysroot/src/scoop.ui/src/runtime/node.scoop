@@ -1,6 +1,6 @@
 package scoop.ui
 
-import scoop.graphics.Point
+import scoop.collections.HashMap
 
 internal enum NodeBody {
     Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance),
@@ -9,12 +9,7 @@ internal enum NodeBody {
 
 internal class UpdateTurn
 
-internal class MountedNode(
-    val root: UiRoot,
-    val parent: MountedNode?,
-    var view: View,
-    val body: NodeBody
-) {
+internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view: View) {
     val depth: Long = (parent?.depth ?: -1L) + 1L
     var layoutDirection: LayoutDirection =
         view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
@@ -30,21 +25,45 @@ internal class MountedNode(
     var retired = false
     var queued = false
     var updated: UpdateTurn? = None
-    var dependencies: Array<StateSignal> = []
-    var metrics: LayoutMetrics? = None
-    var placements: Array<Point?> = []
+    val dependencies = HashMap<StateSignalId, StateSubscription>()
+    var inputChanged = true
+    var stateDirty = false
+    var layoutVersion = 0L
+    var sceneVersion = 0L
+    val frameInputs = NodeFrameInputs(this)
+    var layoutRound: LayoutRound? = None
+    var currentLayout: NodeLayout? = None
+    val layoutRequests = ArrayList<NodeLayout>()
+    private var framesAllowed = true
+    val localFrameEnabled: Boolean get() = framesAllowed
     private var participates = true
+    val participatesInFrame: Boolean get() = participates
     var frameEnabled: Boolean = parent?.frameEnabled ?: true
 
+    val lazyItems: LazyChildren? =
+        when (view.body) {
+            case Lazy(_, source, capacity) -> Some(LazyChildren(source, capacity))
+            else -> None
+        }
+    val body: NodeBody = createBody(this, view)
+
+    fun setFrameEnabled(value: Boolean) {
+        if (framesAllowed == value)
+            return
+        framesAllowed = value
+        invalidateScene()
+        inheritFrameParticipation(parent?.frameEnabled ?: true)
+    }
     fun setFrameParticipation(value: Boolean) {
         participates = value
         inheritFrameParticipation(parent?.frameEnabled ?: true)
     }
     private fun inheritFrameParticipation(parentEnabled: Boolean) {
-        val next = participates && parentEnabled
+        val next = framesAllowed && participates && parentEnabled
         if (next == frameEnabled)
             return
         frameEnabled = next
+        sceneVersion += 1L
         if (!next)
             paintLayers.close()
         scope.updateFrameParticipation()
@@ -53,6 +72,10 @@ internal class MountedNode(
     }
 
     fun clearPaintSubtree() {
+        when (currentLayout) {
+            case Some(value) -> value.sceneCache = None
+            case None -> {}
+        }
         var failure: Throwable? = None
         failure = cleanupUi(failure) { paintLayers.close() }
         for (child in children)
@@ -60,20 +83,55 @@ internal class MountedNode(
         throwUi(failure)
     }
 
+    fun invalidateLayout() {
+        layoutVersion += 1L
+        sceneVersion += 1L
+        if (mounted)
+            parent?.invalidateLayout()
+    }
+
+    fun invalidateScene() {
+        sceneVersion += 1L
+        if (mounted)
+            parent?.invalidateScene()
+    }
+
+    fun request(value: UiInvalidation) {
+        when (value) {
+            case None -> return
+            case Scene -> invalidateScene()
+            case Layout -> invalidateLayout()
+        }
+        if (active && root.isOpen && frameEnabled)
+            root.requestFrame()
+    }
+
     fun invalidate() {
-        if (active && root.isOpen && !queued) {
-            queued = true
-            root.enqueue(this)
+        if (active && root.isOpen) {
+            stateDirty = true
+            if (!queued) {
+                queued = true
+                root.enqueue(this)
+            }
         }
     }
     fun replace(next: View) {
         when ((body, next.body)) {
             case(Empty, Empty) -> {}
             case(Direction, Direction(_, _)) -> {}
-            case(Component(instance), Component(description)) -> instance.replace(description)
-            case(Element(instance), Element(description, _)) -> instance.replace(description)
+            case(Component(instance), Component(description)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
+            case(Element(instance), Element(description, _)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
             case(Portal(instance), Portal(_, open, options)) -> instance.replace(open, options)
-            case(Lazy(instance, _), Lazy(description, _, _)) -> instance.replace(description)
+            case(Lazy(instance, _), Lazy(description, _, _)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
         view = next
@@ -84,6 +142,11 @@ internal class MountedNode(
         updated = Some(turn)
         val previousDirection = layoutDirection
         layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
+        val shouldUpdate = inputChanged || stateDirty || layoutDirection != previousDirection
+        inputChanged = false
+        stateDirty = false
+        if (layoutDirection != previousDirection)
+            request(UiInvalidation.Layout)
         when (body) {
             case Empty -> {}
             case Direction -> when (view.body) {
@@ -103,7 +166,8 @@ internal class MountedNode(
                     Some("portal description was replaced by another shape")
                 )
             }
-            case Component(instance) -> rebuildComponent(instance, turn, false)
+            case Component(instance) -> if (shouldUpdate)
+                rebuildComponent(instance, turn, false)
             case Element(instance) -> {
                 when (view.body) {
                     case Element(_, descriptions) -> reconcile(descriptions, turn)
@@ -111,8 +175,8 @@ internal class MountedNode(
                         Some("element description was replaced by another shape")
                     )
                 }
-                if (active && root.isOpen && mounted)
-                    instance.value.update()
+                if (shouldUpdate && active && root.isOpen && mounted)
+                    request(updateInputs { instance.update() })
             }
             case Lazy(instance, items) -> {
                 when (view.body) {
@@ -124,8 +188,8 @@ internal class MountedNode(
                 if (layoutDirection != previousDirection)
                     for (child in children)
                         child.refreshDirection(turn)
-                if (active && root.isOpen && mounted)
-                    instance.value.update()
+                if (shouldUpdate && active && root.isOpen && mounted)
+                    request(updateInputs { instance.update() })
             }
         }
     }
@@ -136,18 +200,20 @@ internal class MountedNode(
             when (body) {
                 case Empty -> {}
                 case Direction -> {}
-                case Component(instance) -> instance.value.onMount(scope)
-                case Element(instance) -> instance.value.onMount(scope)
+                case Component(instance) -> instance.value.onMount()
+                case Element(instance) -> instance.onMount()
                 case Portal(instance) -> instance.mount(this)
-                case Lazy(instance, _) -> instance.value.onMount(scope)
+                case Lazy(instance, _) -> instance.onMount()
             }
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
-                    case Element(instance) -> instance.value.update()
+                    case Element(instance) -> {
+                        updateInputs { instance.update() }
+                    }
                     case Lazy(instance, items) -> {
                         items.mount(this)
-                        instance.value.update()
+                        updateInputs { instance.update() }
                     }
                     else -> {}
                 }
@@ -170,9 +236,10 @@ internal class MountedNode(
                 }
             }
         failure = cleanupUi(failure) { scope.deactivate() }
-        for (source in dependencies)
-            source.unsubscribe(this)
-        dependencies = []
+        failure = cleanupUi(failure) { frameInputs.close() }
+        for (subscription in dependencies.values)
+            subscription.close()
+        dependencies.clear()
         for (child in children)
             failure = cleanupUi(failure) { child.deactivate() }
         throwUi(failure)
@@ -194,17 +261,20 @@ internal class MountedNode(
                         case Empty -> {}
                         case Direction -> {}
                         case Component(instance) -> instance.value.onUnmount()
-                        case Element(instance) -> instance.value.onUnmount()
+                        case Element(instance) -> instance.onUnmount()
                         case Portal(_) -> {}
-                        case Lazy(instance, _) -> instance.value.onUnmount()
+                        case Lazy(instance, _) -> instance.onUnmount()
                     }
                 }
         }
         failure = cleanupUi(failure) { throwUi(scope.release()) }
         failure = cleanupUi(failure) { paintLayers.close() }
         failure = cleanupUi(failure) { releaseInstance(body) }
-        metrics = None
-        placements = []
+        failure = cleanupUi(failure) { currentLayout?.close() }
+        currentLayout = None
+        for (result in layoutRequests)
+            failure = cleanupUi(failure) { result.close() }
+        layoutRequests.clear()
         throwUi(failure)
     }
 }

@@ -16,11 +16,12 @@ public class FocusTarget internal constructor(
 
     init {
         reference.bind(this)
+        area.focusVisibility = initial.visibility
     }
 
     internal val active: Boolean get() =
         !closed && node.active && node.root.isOpen && !area.isClosed
-    internal val available: Boolean get() = active && area.scope.isInputAllowed
+    internal val available: Boolean get() = active && area.scope.isFocusAllowed
     internal val reachable: Boolean get() =
         available && (area.canFocus || node.root.focus.canReveal(this))
     internal val tabCandidate: Boolean get() = current.tabStop && reachable
@@ -53,6 +54,7 @@ public class FocusTarget internal constructor(
             next.bind(this)
         }
         current = value
+        area.focusVisibility = value.visibility
     }
     /** Reveals a local subregion through the submitted scroll path without moving focus. */
     public fun reveal(rect: Rect): Boolean {

@@ -1,0 +1,194 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.math.max
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Connects the persistent trigger behavior to its temporarily mounted portal area. */
+internal class HoverPopupLink {
+    private var behavior: Hover? = None
+    private var content: InputArea? = None
+    fun bind(value: Hover) {
+        behavior = Some(value)
+    }
+    fun unbind(value: Hover) {
+        when (behavior) {
+            case Some(current) -> if (current === value)
+                behavior = None
+            case None -> {}
+        }
+    }
+    fun setContent(value: InputArea?) {
+        content = value
+        val current = behavior ?: return
+        if (current.isClosed)
+            return
+        current.setContent(
+            when (value) {
+                case Some(area) -> [area]
+                case None -> []
+            }
+        )
+    }
+    fun containsContent(target: InputScope): Boolean {
+        val area = content ?: return false
+        var cursor: InputScope? = Some(target)
+        while (true) {
+            val current = cursor ?: return false
+            if (current === area.scope)
+                return true
+            cursor = current.parent
+        }
+    }
+    fun dismiss(fallback: () -> Unit = {}) {
+        when (behavior) {
+            case Some(current) -> if (!current.isClosed) {
+                current.dismiss();
+                return
+            }
+            case None -> {}
+        }
+        fallback()
+    }
+}
+
+internal class HoverPopupLayoutProps(
+    val anchor: LayoutAnchor,
+    val link: HoverPopupLink,
+    val open: Binding<Boolean>,
+    val hover: HoverOptions,
+    val closeOnPress: Boolean
+)
+
+internal class HoverPopupLayout(
+    private val props: Props<HoverPopupLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var hover: Hover? = None
+    private val space = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)))
+    private val enter = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)))
+    public override fun onMount() {
+        val input = props.value
+        val target = scope.createArea()
+        area = Some(target)
+        scope.routeChildren(target)
+        scope.layoutAnchor(input.anchor)
+        val behavior = scope.hover(target, input.open, input.hover)
+        hover = Some(behavior)
+        input.link.bind(behavior)
+        scope.input.captureHandler =
+            {
+                context,
+                event -> if (
+                    props.value.closeOnPress && !props.value.link.containsContent(context.target)
+                ) {
+                    val close =
+                        when (event) {
+                            case Pointer(
+                                InputPointerEvent.Button(
+                                    _,
+                                    MouseButton.Left,
+                                    ElementState.Pressed,
+                                    _
+                                )
+                            ) -> true
+                            case Keyboard(key) -> key.state ==
+                                ElementState.Pressed &&
+                                !key.synthetic &&
+                                (space.matches(key) || enter.matches(key))
+                            else -> false
+                        }
+                    if (close)
+                        props.value.link.dismiss()
+                }
+            }
+    }
+    public override fun update(): UiInvalidation {
+        hover!!.update(props.value.open, Some(props.value.hover))
+        return UiInvalidation.Layout
+    }
+    public override fun onUnmount() {
+        props.value.link.unbind(hover!!)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.anchor(props.value.anchor, bounds)
+        context.place(area!!, bounds)
+        context.children()
+    }
+}
+
+internal class HoverPopupContentProps(
+    val link: HoverPopupLink,
+    val passive: Boolean,
+    val maxWidth: Double?
+)
+
+/** Keeps hover geometry live while a tooltip's complete content input subtree is disabled. */
+internal class HoverPopupContent(
+    private val props: Props<HoverPopupContentProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var gate: InputArea? = None
+    public override fun onMount() {
+        val hit = scope.createArea()
+        val route = scope.createArea(parent = Some(hit))
+        route.ignoreSelf = true
+        area = Some(hit)
+        gate = Some(route)
+        scope.routeChildren(route)
+        props.value.link.setContent(Some(hit))
+    }
+    public override fun update(): UiInvalidation {
+        gate!!.scope.enabled = !props.value.passive
+        return UiInvalidation.Layout
+    }
+    public override fun onUnmount() {
+        props.value.link.setContent(None)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val limit = props.value.maxWidth
+        val bounded =
+            when (limit) {
+                case Some(width) -> {
+                    val natural =
+                        context.measureChild(0L, Constraints(maxHeight = constraints.maxHeight))
+                    val limit = min(width, constraints.maxWidth ?: width)
+                    val minimum = min(constraints.minWidth, limit)
+                    val maximum = max(minimum, min(natural.size.width, limit))
+                    Constraints(
+                        minimum,
+                        Some(maximum),
+                        constraints.minHeight,
+                        constraints.maxHeight
+                    )
+                }
+                case None -> constraints
+            }
+        val result = context.measureChild(0L, bounded)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(result, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.place(gate!!, bounds)
+        context.children()
+    }
+}

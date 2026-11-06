@@ -10,12 +10,14 @@ import scoop.ui.component.*
 import scoop.ui.style.Insets
 import scoop.window.*
 
-internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
+internal class AbsoluteScene(private val probe: AbsoluteProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = probe.generation.value
         return element(
             generation,
-            { props -> AbsoluteCanvas(probe, props) },
+            { props, mount -> AbsoluteCanvas(probe, props, scope = mount) },
             [
                 absolute {
                     this.item(this @AbsoluteScene.box(0L)) {
@@ -46,15 +48,20 @@ internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
         )
     }
     private fun box(index: Long): View =
-        element(index, { props -> AbsoluteBox(probe, props) }, key = ViewKey.Number(index))
+        element(
+            index,
+            { props, mount -> AbsoluteBox(probe, props, scope = mount) },
+            key = ViewKey.Number(index)
+        )
 }
 
 private class AbsoluteBox(
     private val probe: AbsoluteProbe,
-    private val props: Props<Long>
-): Element {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val index = props.value
         probe.mounts[index] += 1
         val region =
@@ -74,11 +81,13 @@ private class AbsoluteBox(
     public override fun onUnmount() {
         probe.unmounts[props.value] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures[props.value] += 1
-        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val index = props.value
         probe.scenes[index] += 1
         probe.order += f"${index}"
@@ -90,16 +99,19 @@ private class AbsoluteBox(
 
 private class AbsoluteCanvas(
     private val probe: AbsoluteProbe,
-    private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured =
             context.measureChild(0L, Constraints(maxWidth = Some(200.0), maxHeight = Some(100.0)))
         assertEquals(Size(200.0, 100.0), measured.size)
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 180.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.order = ""
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }

@@ -1,0 +1,118 @@
+package scoop.tests.ui.layoutresults
+
+import scoop.ui.*
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.text.*
+import scoop.test.*
+
+internal class LayoutResultSource(private val probe: LayoutResultProbe): ItemSource {
+    public override val count: Long get() = 100000000L
+    public override fun keyAt(index: Long): ViewKey {
+        assertTrue(index >= 0L && index < 3L)
+        return ViewKey.Number(index)
+    }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val record = LayoutItemRecord(index)
+        probe.items.add(record)
+        return element({ mount -> LayoutResultItem(probe, record, scope = mount) })
+    }
+}
+
+internal class LayoutResultLazy(
+    private val probe: LayoutResultProbe,
+    scope: ComponentScope
+): LazyElement<Long>(scope) {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Long> {
+        probe.current!!.lazyCalls += 1
+        val first =
+            if (constraints.minWidth == 160.0)
+                0L
+            else
+                1L
+        for (index in first ..< first + 2L) {
+            context.measureItem(index, Constraints.tight(Size(40.0, 20.0)))
+            context.placeItem(index, Point(0.0, (index - first).toDouble() * 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 60.0))), first)
+    }
+    public override fun scene(context: SceneContext, first: Long) {
+        assertEquals(0L, first)
+        context.children()
+    }
+}
+
+private class LayoutResultItem(
+    private val probe: LayoutResultProbe,
+    private val item: LayoutItemRecord,
+    scope: ComponentScope
+): Element<LayoutRecord>(scope) {
+    public override fun onMount() {
+        item.mounts += 1
+    }
+    public override fun onUnmount() {
+        item.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        LayoutRecord
+    > {
+        val record = probe.current!!.record(40.0, item.index)
+        probe.current!!.rows.add(record)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(40.0, 20.0))),
+            record,
+            { record.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, record: LayoutRecord) {
+        assertEquals(0, record.closes)
+        assertTrue(item.index < 2L)
+    }
+}
+
+internal class LayoutResultEditor(
+    private val probe: LayoutResultProbe,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private var host: TextEditHost? = None
+    public override fun onMount() {
+        val fonts = scope.resource { FontCollection() }
+        val text = textStyle { fontSize = 14.0 }
+        val state = TextEditorState("alpha beta gamma delta epsilon")
+        val editor =
+            scope.resource {
+                TextEditHost(
+                    scope,
+                    state,
+                    TextEditAppearance(fonts, text, text),
+                    TextEditOptions(multiline = true, caretBlink = Duration.ZERO)
+                )
+            }
+        host = Some(editor)
+        probe.editor = Some(editor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host!!.measure(constraints)
+        probe.current!!.editors.add(measured)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        assertTrue(measured === probe.current!!.editors[0L])
+        host!!.scene(context, measured)
+    }
+}

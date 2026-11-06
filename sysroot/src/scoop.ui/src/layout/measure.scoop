@@ -6,8 +6,9 @@ import scoop.time.TimeMark
 
 private class ChildMeasure(val node: MountedNode) {
     var measuring = false
+    var skipped = false
     var constraints: Constraints? = None
-    var result: LayoutMetrics? = None
+    var result: NodeLayout? = None
     var origin: Point? = None
 }
 
@@ -27,6 +28,7 @@ public class MeasureContext internal constructor(
         Array<ChildMeasure>(children.size) { index -> ChildMeasure(children[index]) }
     public val time: TimeMark get() {
         checkActive();
+        observeFrameTime()
         return mark
     }
     public val childCount: Long get() {
@@ -41,22 +43,26 @@ public class MeasureContext internal constructor(
     public fun measureChild(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
         val entry = entries[index]
+        if (entry.skipped)
+            throw IllegalStateException(Some("child was skipped for this layout"))
         if (entry.origin != None)
             throw IllegalStateException(Some("child was already placed"))
         if (entry.measuring)
             throw IllegalStateException(Some("child measurement is reentrant"))
         when (entry.result) {
-            case Some(result) -> if (entry.constraints == Some(constraints))
-                return result
+            case Some(result) -> if (
+                entry.constraints == Some(constraints) && result.version == entry.node.layoutVersion
+            )
+                return result.metrics
             case None -> {}
         }
         entry.result = None
+        entry.constraints = Some(constraints)
         entry.measuring = true
         try {
             val result = entry.node.measure(constraints, mark)
-            entry.constraints = Some(constraints)
             entry.result = Some(result)
-            return result
+            return result.metrics
         } finally {
             entry.measuring = false
         }
@@ -75,81 +81,167 @@ public class MeasureContext internal constructor(
             throw IllegalStateException(Some("child was already placed"))
         entry.origin = Some(origin)
     }
-    internal fun finish(): Array<Point?> {
+    /** Retains the mounted child without measuring or presenting it in this layout. */
+    public fun skipChild(index: Long) {
+        checkActive()
+        val entry = entries[index]
+        if (entry.skipped || entry.measuring || entry.constraints != None || entry.origin != None)
+            throw IllegalStateException(Some("child was already measured or skipped"))
+        entry.skipped = true
+    }
+    internal fun finish(): Array<ChildLayout> {
         for (entry in entries) {
             when (entry.result) {
-                case None -> throw IllegalStateException(
-                    Some("every child must be measured successfully")
-                )
+                case None -> if (!entry.skipped)
+                    throw IllegalStateException(
+                        Some("every child must be measured or explicitly skipped")
+                    )
                 case Some(_) -> {}
             }
         }
-        return Array<Point?>(entries.size) { index -> entries[index].origin }
+        return Array<ChildLayout>(entries.size) {
+            index ->
+            val entry = entries[index]
+            ChildLayout(entry.node, entry.result, entry.origin)
+        }
     }
     internal fun end() {
         active = false
     }
 }
 
-internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): LayoutMetrics {
+internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): NodeLayout {
     if (!root.isOpen)
         throw UiLayoutEnded()
-    metrics = None
-    placements = []
-    when (body) {
-        case Lazy(_, items) -> items.beginMeasure()
-        else -> {}
-    }
     constraints.check()
+    val store = root.layouts
+    if (!sameLayoutRound(layoutRound, store.round))
+        store.touch(this)
+    for (previous in layoutRequests)
+        if (
+            previous.version ==
+                layoutVersion &&
+                previous.direction ==
+                layoutDirection &&
+                previous.constraints ==
+                constraints
+        )
+            return previous
     val result =
         when (body) {
-            case Empty -> {
-                placements = []
-                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
-            }
-            case Portal(_) -> {
-                placements = []
-                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
-            }
-            case Direction -> {
-                val child = children[0L].measure(constraints, time)
-                placements = [Some(Point(0.0, 0.0))]
-                child
-            }
-            case Component(_) -> {
-                val child = children[0L].measure(constraints, time)
-                placements = [Some(Point(0.0, 0.0))]
-                child
-            }
-            case Element(instance) -> {
-                val context = MeasureContext(this, children, time)
-                try {
-                    val measured =
-                        evaluateUi<LayoutMetrics>(None) {
-                            instance.value.measure(context, constraints)
-                        }
-                    checkLayoutMetrics(measured, constraints)
-                    placements = context.finish()
-                    measured
-                } finally {
-                    context.end()
-                }
-            }
-            case Lazy(instance, items) -> {
-                val context = LazyMeasureContext(this, items, time)
-                try {
-                    val measured =
-                        evaluateUi<LayoutMetrics>(None) {
-                            instance.value.measure(context, constraints)
-                        }
-                    checkLayoutMetrics(measured, constraints)
-                    context.finish()
-                    measured
-                } finally {
-                    context.end()
-                }
-            }
+            case Empty -> layoutResult(
+                constraints,
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight)),
+                [],
+                LayoutBody.Empty
+            )
+            case Portal(instance) -> layoutResult(
+                constraints,
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight)),
+                [],
+                LayoutBody.Portal(instance)
+            )
+            case Direction -> transparentLayout(constraints, time)
+            case Component(_) -> transparentLayout(constraints, time)
+            case Element(instance) -> measureElement(instance, constraints, time)
+            case Lazy(instance, items) -> measureLazy(instance, items, constraints, time)
         }
-    metrics = Some(result)
+    store.add(result)
     return result
+}
+
+private fun MountedNode.layoutResult(
+    constraints: Constraints,
+    metrics: LayoutMetrics,
+    children: Array<ChildLayout>,
+    body: LayoutBody,
+    inputs: FrameInputs = FrameInputs()
+): NodeLayout =
+    NodeLayout(
+        this,
+        constraints,
+        layoutVersion,
+        layoutDirection,
+        root.layouts.round,
+        metrics,
+        children,
+        body,
+        inputs
+    )
+
+private fun MountedNode.transparentLayout(constraints: Constraints, time: TimeMark): NodeLayout {
+    val child = children[0L]
+    val result = child.measure(constraints, time)
+    return layoutResult(
+        constraints,
+        result.metrics,
+        [ChildLayout(child, Some(result), Some(Point(0.0, 0.0)))],
+        LayoutBody.Transparent
+    )
+}
+
+private fun MountedNode.measureElement(
+    instance: ElementInstance,
+    constraints: Constraints,
+    time: TimeMark
+): NodeLayout {
+    val context = MeasureContext(this, children, time)
+    val reads = FrameReads(this, time)
+    var result: ElementLayout? = None
+    try {
+        val measured =
+            evaluateUi<ElementLayout>(None, Some(reads)) { instance.measure(context, constraints) }
+        result = Some(measured)
+        checkLayoutMetrics(measured.metrics, constraints)
+        return layoutResult(
+            constraints,
+            measured.metrics,
+            context.finish(),
+            LayoutBody.Element(measured),
+            reads.finish()
+        )
+    } catch (error: Throwable) {
+        val failed = result
+        throwUi(cleanupUi(Some(error)) { failed?.close() })
+        throw error
+    } finally {
+        context.end()
+    }
+}
+
+private fun MountedNode.measureLazy(
+    instance: LazyInstance,
+    items: LazyChildren,
+    constraints: Constraints,
+    time: TimeMark
+): NodeLayout {
+    val context = LazyMeasureContext(this, items, time)
+    val reads = FrameReads(this, time)
+    var result: ElementLayout? = None
+    try {
+        val measured =
+            evaluateUi<ElementLayout>(None, Some(reads)) { instance.measure(context, constraints) }
+        result = Some(measured)
+        checkLayoutMetrics(measured.metrics, constraints)
+        val selected = context.finish()
+        val children =
+            Array<ChildLayout>(selected.size) {
+                index ->
+                val child = selected[index]
+                ChildLayout(child.entry.node, Some(child.result), child.origin)
+            }
+        return layoutResult(
+            constraints,
+            measured.metrics,
+            children,
+            LayoutBody.Lazy(measured, selected),
+            reads.finish()
+        )
+    } catch (error: Throwable) {
+        val failed = result
+        throwUi(cleanupUi(Some(error)) { failed?.close() })
+        throw error
+    } finally {
+        context.end()
+    }
 }

@@ -1,0 +1,163 @@
+package scoop.tests.ui.disclosure
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class DisclosureWindowTest {
+    @Test
+    fun `disclosures preserve controlled state and keyed editing while gating closed input and animation`() {
+        val p = DisclosureProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertTrue(p.skipChecked)
+            for (index in 0L ..< 5L) {
+                assertEquals(p.mounts[index], p.unmounts[index])
+                assertFalse(p.headers[index].isAttached)
+                assertFalse(p.records[index]!!.focus.isAttached)
+            }
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"disclosure phase=${p.phase}, rendered=${p.rendered}, generation=${
+                    p.generation.value
+                }"
+            )
+            disclosureFailure(error)
+            throw error
+        } finally {
+            host.close()
+            p.view?.close()
+            p.frames?.close()
+            p.fonts.close()
+        }
+    }
+}
+
+internal class DisclosureProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val open = [state(false), state(false)]
+    val alternate = state(false)
+    val selected = state<Int?>(None)
+    val many = state<Array<Int>>([])
+    val records = MutableArray<DisclosureRecord?>(5L) { _ -> None }
+    val factories = MutableArray<Int>(5L) { _ -> 0 }
+    val mounts = MutableArray<Int>(5L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(5L) { _ -> 0 }
+    val headers = Array<FocusHandle>(5L) { _ -> FocusHandle() }
+    val bounds = MutableArray<Rect>(5L) { _ -> Rect(0.0, 0.0, 0.0, 0.0) }
+    var deny = true
+    var rebound = false
+    var requests = 0
+    var callbacks = 0
+    var reboundCallbacks = 0
+    var accordionCallbacks = 0
+    var enabled = true
+    var multiple = false
+    var reorder = false
+    var zero = false
+    var gone = false
+    var measured = 0
+    var skipChecked = false
+    var rendered = -1
+    var phase = 0
+    var finished = false
+    var delay = 140L
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop disclosure test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(560.0, 680.0)
+                        }
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                host.attach(window, { mount -> DisclosureScene(this, scope = mount) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("disclosure timeout"))
+                val visible = native!!.isVisible
+                if (
+                    (!visible || (native!!.isFocused && rendered >= generation.value)) &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    delay = 140L
+                    when (phase / 8) {
+                        case 0 -> disclosureMounting(this)
+                        case 1 -> disclosureRetention(this)
+                        case 2 -> disclosureNavigation(this)
+                        case 3 -> disclosureReorder(this)
+                        case 4 -> disclosureFinish(this)
+                        else -> fail(Some("unexpected disclosure phase"))
+                    }
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(delay)
+                } else
+                    if (visible && !native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 35)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 35
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun click(index: Long) {
+        val b = bounds[index]
+        assertTrue(b.width > 0.0 && b.height > 0.0)
+        val x = b.x + b.width / 2.0
+        val y = b.y + b.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, disclosureKey(native!!, code, text, flags))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

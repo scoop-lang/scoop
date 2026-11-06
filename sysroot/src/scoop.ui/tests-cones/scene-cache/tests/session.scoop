@@ -1,0 +1,198 @@
+package scoop.tests.ui.scenecache
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiSceneCacheTest {
+    @Test
+    fun `cached local scenes retain drawings and reassemble current input anchors and clipping`() {
+        val probe = SceneCacheProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        assertEquals(1, probe.discarded)
+        assertEquals(probe.frames, probe.completed)
+        assertEquals(probe.frames, probe.dynamicScenes)
+        assertEquals(probe.frames, probe.dynamicCompleted)
+        for (area in probe.areas)
+            assertTrue(area!!.isClosed)
+        assertEquals(2, probe.mounts)
+        assertEquals(2, probe.unmounts)
+        println(
+            f"scene cache: frames=${probe.frames}, static scenes=${probe.scenes[0L]}, records=${
+                probe.records[0L]
+            }, dynamic records=${probe.dynamicRecords}"
+        )
+    }
+}
+
+internal class SceneCacheProbe {
+    val revision = state(0L)
+    val open = state(true)
+    val anchor = LayoutAnchor()
+    val areas = MutableArray<InputArea?>(2L) { _ -> None }
+    val measures = MutableArray<Int>(2L) { _ -> 0 }
+    val scenes = MutableArray<Int>(2L) { _ -> 0 }
+    val records = MutableArray<Int>(2L) { _ -> 0 }
+    var root: ComponentScope? = None
+    var group: ComponentScope? = None
+    var animation: Animatable<Double>? = None
+    var window: Window? = None
+    var groupScenes = 0
+    var frames = 0
+    var completed = 0
+    var dynamicScenes = 0
+    var dynamicCompleted = 0
+    var dynamicRecords = 0
+    var mounts = 0
+    var unmounts = 0
+    var phase = 0
+    var offset = 0.0
+    var clipWidth = 200.0
+    var hidden = false
+    var reverse = false
+    var alpha = 1.0
+    var overlap = -1L
+    var overlayX = -1.0
+    var discardNext = false
+    var discarded = 0
+    var restoredMeasures = 0
+    var restoredRecords = 0
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop scene cache"
+                            size = LogicalSize(320.0, 160.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { scope -> CachedTestScene(this, active, scope) })
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"scene cache timed out at ${phase}"))
+            else -> {}
+        }
+    }
+
+    fun accepted(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                for (index in 0L ..< 2L) {
+                    assertEquals(1, measures[index])
+                    assertEquals(1, scenes[index])
+                    assertEquals(1, records[index])
+                }
+                assertEquals(0x00ff00L, overlap)
+                next()
+            }
+            case 1 -> {
+                assertEquals(1, groupScenes)
+                assertEquals(1, scenes[0L])
+                assertEquals(1, scenes[1L])
+                assertEquals(1, dynamicRecords)
+                offset = 30.0
+                next()
+            }
+            case 2 -> {
+                assertEquals(Some(Rect(50.0, 20.0, 40.0, 30.0)), areas[0L]!!.visibleBounds)
+                assertEquals(Some(Point(25.0, 10.0)), areas[0L]!!.toLocal(Point(75.0, 30.0)))
+                assertEquals(50.0, overlayX)
+                assertEquals(1, groupScenes)
+                assertEquals(1, scenes[0L])
+                clipWidth = 55.0
+                next()
+            }
+            case 3 -> {
+                assertEquals(Some(Rect(50.0, 20.0, 35.0, 30.0)), areas[0L]!!.visibleBounds)
+                assertEquals(Some(Rect(70.0, 20.0, 15.0, 30.0)), areas[1L]!!.visibleBounds)
+                assertEquals(0x00ff00L, overlap)
+                assertEquals(1, scenes[1L])
+                reverse = true
+                phase += 1
+                group!!.requestFrame()
+            }
+            case 4 -> {
+                assertEquals(0x0000ffL, overlap)
+                assertEquals(2, groupScenes)
+                assertEquals(1, scenes[0L])
+                assertEquals(1, scenes[1L])
+                areas[0L]!!.scope.enabled = false
+                next()
+            }
+            case 5 -> {
+                assertFalse(areas[0L]!!.canFocus)
+                assertTrue(areas[1L]!!.canFocus)
+                assertEquals(1, scenes[0L])
+                areas[0L]!!.scope.enabled = true
+                hidden = true
+                phase += 1
+                root!!.requestLayout()
+            }
+            case 6 -> {
+                assertEquals(None, areas[0L]!!.visibleBounds)
+                assertEquals(None, areas[1L]!!.visibleBounds)
+                assertEquals(1, scenes[0L])
+                hidden = false
+                phase += 1
+                root!!.requestLayout()
+            }
+            case 7 -> {
+                assertTrue(areas[0L]!!.canFocus)
+                assertEquals(2, scenes[0L])
+                assertEquals(2, scenes[1L])
+                assertEquals(2, records[0L])
+                restoredMeasures = measures[0L]
+                restoredRecords = records[0L]
+                phase += 1
+                revision.value += 1L
+            }
+            case 8 -> {
+                assertEquals(3, scenes[0L])
+                assertEquals(3, scenes[1L])
+                assertEquals(restoredMeasures, measures[0L])
+                assertEquals(restoredRecords, records[0L])
+                assertEquals(1, dynamicRecords)
+                phase += 1
+                animation!!.snapTo(0.5)
+            }
+            case 9 -> {
+                assertEquals(0.5, alpha)
+                assertEquals(2, dynamicRecords)
+                assertEquals(3, scenes[0L])
+                assertEquals(3, scenes[1L])
+                offset = 45.0
+                discardNext = true
+                next()
+            }
+            case 10 -> {
+                assertEquals(1, discarded)
+                assertEquals(Some(Rect(65.0, 20.0, 35.0, 30.0)), areas[0L]!!.visibleBounds)
+                assertEquals(65.0, overlayX)
+                assertEquals(3, scenes[0L])
+                assertEquals(restoredRecords, records[0L])
+                finished = true
+                phase += 1
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun next() {
+        phase += 1
+        root!!.requestFrame()
+    }
+}

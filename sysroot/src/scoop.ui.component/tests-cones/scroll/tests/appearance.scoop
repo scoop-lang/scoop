@@ -1,0 +1,184 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+internal fun advanceAppearance(probe: AreaProbe, active: ActiveApplication) {
+    if (probe.phase < 32)
+        appearanceFocus(probe, active)
+    else
+        if (probe.phase < 40)
+            appearanceLifecycle(probe, active)
+        else
+            appearanceKeys(probe, active)
+}
+
+private fun appearanceFocus(probe: AreaProbe, active: ActiveApplication) {
+    when (probe.phase) {
+        case 24 -> {
+            probe.theme.current.value = shadcnTheme()
+            probe.styled.value = true
+            probe.direction.value = LayoutDirection.Rtl
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.phase += 1
+        }
+        case 25 -> {
+            assertEquals(1, probe.mounts)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertEquals(16777215L, probe.cornerPixel)
+            assertEquals(16777215L, probe.ringPixel)
+            assertEquals(0.0, probe.bar().track.bounds.x)
+            probe.input(active) { probe.click(25.0, 120.0) }
+        }
+        case 26 -> {
+            assertEquals(Point(0.0, 120.0), probe.outer.offset)
+            assertTrue(probe.leafFocus.hasFocus)
+            assertTrue(probe.outerFocus.requestFocus())
+            probe.phase += 1
+        }
+        case 27 -> {
+            assertTrue(probe.outerFocus.isFocusVisible)
+            assertTrue(probe.ringPixel != 16777215L)
+            probe.visibility.value = FocusVisibility.Never
+            probe.phase += 1
+        }
+        case 28 -> {
+            assertTrue(probe.outerFocus.hasFocus)
+            assertFalse(probe.outerFocus.isFocusVisible)
+            assertEquals(16777215L, probe.ringPixel)
+            probe.visibility.value = FocusVisibility.Automatic
+            probe.input(active) { probe.click(180.0, 30.0) }
+        }
+        case 29 -> {
+            assertTrue(probe.outerFocus.hasFocus)
+            assertFalse(probe.outerFocus.isFocusVisible)
+            assertEquals(16777215L, probe.ringPixel)
+            probe.input(active) { probe.key(121) }
+        }
+        case 30 -> {
+            assertTrue(probe.outerFocus.isFocusVisible)
+            assertTrue(probe.ringPixel != 16777215L)
+            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            probe.direction.value = LayoutDirection.Ltr
+            probe.phase += 1
+        }
+        case 31 -> {
+            assertTrue(probe.outerFocus.hasFocus)
+            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            val start = probe.at(probe.bar().thumb.bounds)
+            probe.input(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, start.x, start.y))
+                assertTrue(probe.view!!.button(start.x, start.y, true))
+            }
+        }
+        else -> fail(Some("unexpected focus appearance phase"))
+    }
+}
+
+private fun appearanceLifecycle(probe: AreaProbe, active: ActiveApplication) {
+    when (probe.phase) {
+        case 32 -> {
+            probe.direction.value = LayoutDirection.Rtl
+            probe.phase += 1
+        }
+        case 33 -> probe.input(active) {
+            assertTrue(moveSurfacePointer(probe.window!!, 25.0, 30.0))
+        }
+        case 34 -> {
+            assertEquals(Point(0.0, 240.0), probe.outer.offset)
+            probe.theme.current.value = shadcnTheme(ThemeMode.Dark)
+            probe.visibility.value = FocusVisibility.Always
+            probe.input(active) { assertTrue(probe.view!!.button(25.0, 30.0, false)) }
+        }
+        case 35 -> {
+            assertTrue(probe.outerFocus.hasFocus)
+            assertTrue(probe.outerFocus.isFocusVisible)
+            assertTrue(probe.ringPixel != 16777215L)
+            probe.replace.value = true
+            probe.phase += 1
+        }
+        case 36 -> {
+            assertFalse(probe.outer.isAttached)
+            assertTrue(probe.alternate.isAttached)
+            assertEquals(Point(30.0, 40.0), probe.alternate.offset)
+            assertEquals(1, probe.mounts)
+            probe.enabled.value = false
+            probe.phase += 1
+        }
+        case 37 -> {
+            assertFalse(probe.outerFocus.hasFocus)
+            assertEquals(16777215L, probe.ringPixel)
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 180.0, 30.0, 0, -3))
+            }
+        }
+        case 38 -> {
+            assertEquals(Point(30.0, 40.0), probe.alternate.offset)
+            probe.enabled.value = true
+            probe.zero.value = true
+            probe.phase += 1
+        }
+        case 39 -> {
+            assertEquals(Size(0.0, 0.0), probe.alternate.viewport)
+            assertFalse(probe.outerFocus.hasFocus)
+            assertEquals(1, probe.mounts)
+            probe.zero.value = false
+            probe.phase += 1
+        }
+        else -> fail(Some("unexpected lifecycle appearance phase"))
+    }
+}
+
+private fun appearanceKeys(probe: AreaProbe, active: ActiveApplication) {
+    when (probe.phase) {
+        case 40 -> {
+            assertEquals(Size(200.0, 120.0), probe.alternate.viewport)
+            probe.outerFocus.clearFocus()
+            probe.input(active) { probe.click(20.0, 20.0) }
+        }
+        case 41 -> {
+            assertFalse(probe.outerFocus.hasFocus)
+            probe.bars.value = ScrollbarVisibility.Hidden
+            probe.axes.value = ScrollAxes.Horizontal
+            probe.phase += 1
+        }
+        case 42 -> {
+            assertEquals(Point(200.0, 0.0), probe.alternate.maximum)
+            assertTrue(probe.outerFocus.requestFocus())
+            probe.input(active) { probe.key(115) }
+        }
+        case 43 -> {
+            assertEquals(Point(200.0, 0.0), probe.alternate.offset)
+            probe.input(active) { probe.key(121) }
+        }
+        case 44 -> {
+            assertEquals(Point(0.0, 0.0), probe.alternate.offset)
+            probe.input(active) { probe.key(116) }
+        }
+        case 45 -> {
+            assertEquals(Point(200.0, 0.0), probe.alternate.offset)
+            probe.input(active) { probe.key(119) }
+        }
+        case 46 -> {
+            assertEquals(Point(0.0, 0.0), probe.alternate.offset)
+            probe.input(active) { probe.click(25.0, 120.0) }
+        }
+        case 47 -> {
+            assertEquals(Point(0.0, 0.0), probe.alternate.offset)
+            assertEquals(1, probe.mounts)
+            probe.replace.value = false
+            probe.axes.value = ScrollAxes.Both
+            probe.bars.value = ScrollbarVisibility.Auto
+            probe.direction.value = LayoutDirection.Ltr
+            probe.phase += 1
+        }
+        else -> fail(Some("unexpected keyboard appearance phase"))
+    }
+}

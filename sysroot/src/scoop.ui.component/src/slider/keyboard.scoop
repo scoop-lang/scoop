@@ -1,0 +1,87 @@
+package scoop.ui.component
+
+import scoop.ui.LayoutDirection
+import scoop.ui.style.Orientation
+import scoop.window.*
+
+internal enum SliderKey {
+    Minimum, Maximum, Step(Double)
+}
+
+internal fun sliderKeyAllowed(key: KeyEvent): Boolean {
+    val modifiers = key.modifiers
+    return key.state ==
+        ElementState.Pressed &&
+        !key.synthetic &&
+        !modifiers.control &&
+        !modifiers.alt &&
+        !modifiers.shift &&
+        !modifiers.superKey &&
+        !modifiers.function
+}
+
+internal fun sliderKeyCommand(
+    input: SliderProps,
+    direction: LayoutDirection,
+    key: LogicalKey
+): SliderKey? {
+    val sign =
+        if (input.range.reversed)
+            -1.0
+        else
+            1.0
+    val horizontal = input.orientation == Orientation.Horizontal
+    val forward =
+        sign *
+            (
+                if (horizontal && direction == LayoutDirection.Rtl)
+                    -1.0
+                else
+                    1.0
+            )
+    return when (key) {
+        case Named(NamedKey.Home) -> Some(SliderKey.Minimum)
+        case Named(NamedKey.End) -> Some(SliderKey.Maximum)
+        case Named(NamedKey.PageUp) -> Some(SliderKey.Step(10.0))
+        case Named(NamedKey.PageDown) -> Some(SliderKey.Step(-10.0))
+        case Named(NamedKey.ArrowLeft) -> if (horizontal)
+            Some(SliderKey.Step(-forward))
+        else
+            None
+        case Named(NamedKey.ArrowRight) -> if (horizontal)
+            Some(SliderKey.Step(forward))
+        else
+            None
+        case Named(NamedKey.ArrowDown) -> if (!horizontal)
+            Some(SliderKey.Step(-sign))
+        else
+            None
+        case Named(NamedKey.ArrowUp) -> if (!horizontal)
+            Some(SliderKey.Step(sign))
+        else
+            None
+        else -> None
+    }
+}
+
+internal fun sliderKeyValue(input: SliderProps, current: Double, key: SliderKey): Double {
+    val range = input.range
+    return when (key) {
+        case Minimum -> range.minimum
+        case Maximum -> range.lastValue
+        case Step(amount) -> {
+            val step = range.step ?: input.keyboardStep!!
+            if (amount > 0.0) {
+                if ((range.maximum - current) / step <= amount)
+                    range.lastValue
+                else
+                    current + step * amount
+            } else {
+                if ((current - range.minimum) / step <= -amount)
+                    range.minimum
+                else
+                    current + step * amount
+            }
+        }
+    }
+}

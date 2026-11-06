@@ -1,0 +1,65 @@
+package scoop.tests.ui.menus
+
+import scoop.test.*
+import scoop.tests.window.nativeEditorKey
+import scoop.window.Window
+import scoop.window.native.*
+
+internal fun menuKey(window: Window, code: Int, text: String, flags: Int = 0): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeEditorKey(view, code, bytes, length, flags)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun menuFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        menuFailure(error.primaryFailure)
+        menuFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "field failure")
+}
+
+internal fun menuRightClick(window: Window, x: Double, y: Double): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> nativeMenuRightClick(view, x, y)
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_menu_test_right_click")
+private fun nativeMenuRightClick(view: Ptr<Unit>, x: Double, y: Double): Int

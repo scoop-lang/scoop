@@ -1,0 +1,226 @@
+package scoop.tests.ui.descriptionreuse
+
+import scoop.ui.*
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class DescriptionReuseTest {
+    @Test
+    fun `all instance categories retain keyed and positional state and remount on type changes`() {
+        val probe = DescriptionReuseProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        host.use { owner -> Application().run(owner) }
+        assertTrue(probe.finished)
+        assertEquals(36L, probe.records.values.size)
+        for (record in probe.records.values) {
+            assertEquals(1, record.mounts)
+            assertEquals(1, record.unmounts)
+            assertEquals(1, record.closes)
+            assertFalse(record.scope!!.isMounted)
+        }
+    }
+}
+
+internal class DescriptionReuseProbe {
+    val records = ReuseRecords()
+    val version = state(0)
+    val mode = state(0)
+    val shown = state(true)
+    val order = state<Array<Long>>([0L, 1L, 2L, 3L, 4L, 5L])
+    var window: UiWindow? = None
+    var step = 0
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                window =
+                    host.attach(
+                        application.createWindow(
+                            windowAttributes {
+                                this.title = "UI description reuse"
+                                this.visible = false
+                            }
+                        ),
+                        { mount -> DescriptionReuseScene(this, scope = mount) }
+                    )
+                post(application)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("description reuse deadline"))
+            else -> {}
+        }
+    }
+    private fun post(application: ActiveApplication) {
+        assertTrue(application.proxy().post { active -> advance(active) })
+    }
+    private fun current(id: Long): ReuseRecord {
+        for (record in records.values)
+            if (record.id == id && record.unmounts == 0)
+                return record
+        throw IllegalStateException(Some("missing active test instance"))
+    }
+    private fun checkBatch(total: Long, factoryVersion: Int, local: Int) {
+        assertEquals(total, records.values.size)
+        for (id in 0L ..< 9L) {
+            val record = current(id)
+            assertEquals(1, record.mounts)
+            assertEquals(0, record.closes)
+            assertEquals(factoryVersion * 10 + id.toInt(), record.factoryVersion)
+            assertEquals(version.value * 10 + id.toInt(), record.observed)
+            assertEquals(
+                if (local == 0)
+                    0
+                else
+                    local + id.toInt(),
+                record.observedLocal
+            )
+        }
+        for (record in records.values)
+            if (record.unmounts != 0) {
+                assertEquals(1, record.unmounts)
+                assertEquals(1, record.closes)
+            }
+    }
+    private fun advance(application: ActiveApplication) {
+        when (step) {
+            case 0 -> {
+                checkBatch(9L, 0, 0)
+                for (record in records.values)
+                    record.local.value = 7 + record.id.toInt()
+                version.value = 1
+            }
+            case 1 -> {
+                checkBatch(9L, 0, 7)
+                // Replace closures and swap same-type keyed siblings; positional children stay fixed.
+                order.value = [3L, 4L, 5L, 0L, 1L, 2L]
+                version.value = 2
+            }
+            case 2 -> {
+                checkBatch(9L, 0, 7)
+                mode.value = 1
+                version.value = 3
+            }
+            case 3 -> {
+                // Only the nested Props argument changes; concrete instance types stay identical.
+                checkBatch(18L, 3, 0)
+                mode.value = 2
+                version.value = 4
+            }
+            case 4 -> {
+                // Only the second, nested instance type argument changes; Props stay identical.
+                checkBatch(27L, 4, 0)
+                shown.value = false
+            }
+            case 5 -> {
+                for (record in records.values) {
+                    assertEquals(1, record.unmounts)
+                    assertEquals(1, record.closes)
+                }
+                shown.value = true
+                version.value = 5
+            }
+            case 6 -> {
+                checkBatch(36L, 5, 0)
+                window!!.close()
+            }
+            case 7 -> {
+                finished = true
+                application.requestExit()
+            }
+            else -> fail(Some("unexpected description reuse step"))
+        }
+        step += 1
+        if (!finished)
+            post(application)
+    }
+}
+
+private class DescriptionReuseScene(
+    private val probe: DescriptionReuseProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val version = probe.version.value
+        val mode = probe.mode.value
+        val children = ArrayList<View>()
+        if (probe.shown.value) {
+            for (id in probe.order.value)
+                children.add(child(id, ViewKey.Number(id), mode, version))
+            for (id in 6L ..< 9L)
+                children.add(child(id, ViewKey.Position, mode, version))
+        }
+        return element({ mount -> ReuseLayout(scope = mount) }, children.toArray())
+    }
+    private fun child(id: Long, key: ViewKey, mode: Int, version: Int): View =
+        when (mode) {
+            case 0 -> reuseChild<Array<Int>, Int, Array<Int>>(
+                ReuseInput(version * 10 + id.toInt()),
+                id,
+                key,
+                probe.records
+            )
+            case 1 -> reuseChild<Array<Long>, Int, Array<Int>>(
+                ReuseInput(version * 10 + id.toInt()),
+                id,
+                key,
+                probe.records
+            )
+            case 2 -> reuseChild<Array<Long>, Int, Array<Long>>(
+                ReuseInput(version * 10 + id.toInt()),
+                id,
+                key,
+                probe.records
+            )
+            else -> throw IllegalArgumentException(Some("unexpected reuse mode"))
+        }
+}
+
+private fun <P, A, B> reuseChild(
+    input: ReuseInput<P>,
+    id: Long,
+    key: ViewKey,
+    records: ReuseRecords
+): View =
+    when (id % 3L) {
+        case 0L -> component(
+            input,
+            {
+                props,
+                mount -> ReuseComponent<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
+                )
+            },
+            key
+        )
+        case 1L -> element(
+            input,
+            {
+                props,
+                mount -> ReuseElement<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
+                )
+            },
+            key = key
+        )
+        else -> lazyElement(
+            ReuseEmptyItems(),
+            input,
+            {
+                props,
+                mount -> ReuseLazy<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
+                )
+            },
+            key = key
+        )
+    }

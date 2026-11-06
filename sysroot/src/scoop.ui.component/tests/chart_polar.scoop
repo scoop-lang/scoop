@@ -1,0 +1,249 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.test.*
+import scoop.ui.*
+
+private fun chartTestSector(sample: ChartSample): ChartSector =
+    when (sample.shape) {
+        case Sector(arc) -> arc;
+        else -> throw IllegalStateException(Some("expected a sector"))
+    }
+
+@Test
+private class ChartPolarTest {
+    @Test
+    fun `pie proportions holes reversed arcs and active outsets agree with path picking`() {
+        chartWithAppearance {
+            appearance ->
+            val model = ChartModel(chartTestData([[Some(1.0), Some(3.0), Some(0.0), None]]))
+            val input =
+                ChartProps(
+                    model,
+                    kind = ChartKind.Pie,
+                    startAngle = 0.0,
+                    endAngle = TAU,
+                    innerRadius = 0.5
+                )
+            val shape =
+                ChartPlan(input, model.snapshot, appearance).cache.resolve(Size(400.0, 300.0))
+            val first = shape.series[0L].samples[0L]!!
+            val arc = chartTestSector(first)
+            chartNear(TAU / 4.0, arc.sweep)
+            chartNear(arc.outer / 2.0, arc.inner)
+            chartNear(3.0 * TAU / 4.0, chartTestSector(shape.series[0L].samples[1L]!!).sweep)
+            assertEquals(Some(first.selection), chartHit(shape, first.point, false))
+            assertEquals(None, chartHit(shape, arc.center, false))
+            arc.outline().use {
+                outline ->
+                assertTrue(outline.contains(first.point))
+                assertFalse(outline.contains(arc.center))
+            }
+            val outside = chartPolarPoint(arc.center, arc.outer + 2.0, arc.start + arc.sweep / 2.0)
+            assertEquals(None, chartHit(shape, outside, false))
+            assertEquals(
+                Some(first.selection),
+                chartHit(shape, outside, false, Some(first.selection))
+            )
+            val half =
+                ChartPlan(
+                    ChartProps(
+                        model,
+                        kind = ChartKind.Pie,
+                        startAngle = 0.0,
+                        endAngle = -PI,
+                        innerRadius = 0.5
+                    ),
+                    model.snapshot,
+                    appearance
+                ).cache.resolve(shape.size)
+            val reversed = half.series[0L].samples[0L]!!
+            chartNear(-PI / 4.0, chartTestSector(reversed).sweep)
+            assertEquals(Some(reversed.selection), chartHit(half, reversed.point, false))
+            chartTestSector(reversed).outline().use {
+                outline -> assertTrue(outline.contains(reversed.point))
+            }
+            assertTrue(shape.contentBounds.width > 0.0)
+            assertTrue(shape.contentBounds.width < sqrt(2.0) * arc.inner)
+            val rings = ChartModel(chartTestData([[Some(1.0), Some(3.0)], [Some(1.0), Some(3.0)]]))
+            val layered =
+                ChartPlan(
+                    ChartProps(rings, kind = ChartKind.Pie, innerRadius = 0.5),
+                    rings.snapshot,
+                    appearance
+                ).cache.resolve(shape.size)
+            val innerSample = layered.series[1L].samples[0L]!!
+            val innerArc = chartTestSector(innerSample)
+            val overlap =
+                chartPolarPoint(
+                    innerArc.center,
+                    innerArc.outer + 3.0,
+                    innerArc.start + innerArc.sweep / 2.0
+                )
+            assertEquals(
+                Some(innerSample.selection),
+                chartHit(layered, overlap, false, Some(innerSample.selection))
+            )
+            model.replaceData(chartTestData([[Some(0.0), None]]))
+            assertFalse(
+                ChartPlan(input, model.snapshot, appearance).cache.resolve(shape.size).interactive
+            )
+            model.replaceData(chartTestData([[Some(Double.MAX_VALUE), Some(Double.MAX_VALUE)]]))
+            val huge = ChartPlan(input, model.snapshot, appearance).cache.resolve(shape.size)
+            chartNear(PI, chartTestSector(huge.series[0L].samples[0L]!!).sweep)
+            chartNear(PI, chartTestSector(huge.series[0L].samples[1L]!!).sweep)
+            assertFailsWith<IllegalArgumentException> {
+                ChartProps(model, startAngle = 0.0, endAngle = 0.0)
+            }
+            assertFailsWith<IllegalArgumentException> { ChartProps(model, endAngle = 100.0) }
+            assertFailsWith<IllegalArgumentException> { ChartProps(model, innerRadius = 1.0) }
+            model.replaceData(chartTestData([[Some(-1.0)]]))
+            assertFailsWith<IllegalArgumentException> {
+                ChartPlan(input, model.snapshot, appearance)
+            }
+        }
+    }
+
+    @Test
+    fun `radar axes use measured categories and preserve a missing edge across the wrap`() {
+        chartWithAppearance {
+            appearance ->
+            val model = ChartModel(chartTestData([[Some(100.0), Some(50.0), None, Some(75.0)]]))
+            val input =
+                ChartProps(
+                    model,
+                    kind = ChartKind.Radar,
+                    yAxis = ChartAxis(domain = ChartDomain.Fixed(0.0, 100.0))
+                )
+            val shape =
+                ChartPlan(input, model.snapshot, appearance).cache.resolve(Size(400.0, 320.0))
+            val first = shape.series[0L].samples[0L]!!
+            val second = shape.series[0L].samples[1L]!!
+            val radius = shape.plot.width / 2.0
+            val center = Point(shape.plot.x + radius, shape.plot.y + radius)
+            chartNear(center.x, first.point.x);
+            chartNear(center.y - radius, first.point.y)
+            chartNear(center.x + radius / 2.0, second.point.x);
+            chartNear(center.y, second.point.y)
+            assertEquals(Some(second.selection), chartHit(shape, second.point, false))
+            assertEquals(None, chartHit(shape, Point(shape.plot.x, shape.plot.y), false))
+            assertTrue(shape.grid.size >= 20L)
+            assertTrue(shape.labels.size >= 4L)
+            val runs = chartRadarRuns(shape.series[0L].samples)
+            assertEquals(1L, runs.size);
+            assertEquals(3L, runs[0L].size)
+            assertEquals("d3", runs[0L][0L].selection.datum.value)
+            assertEquals("d0", runs[0L][1L].selection.datum.value)
+            assertEquals("d1", runs[0L][2L].selection.datum.value)
+        }
+    }
+
+    @Test
+    fun `radial tracks share a signed zero baseline and skip zero or missing bars`() {
+        chartWithAppearance {
+            appearance ->
+            val model = ChartModel(chartTestData([[Some(10.0), Some(-5.0), Some(0.0), None]]))
+            val input =
+                ChartProps(
+                    model,
+                    kind = ChartKind.Radial,
+                    startAngle = 0.0,
+                    endAngle = PI,
+                    innerRadius = 0.2,
+                    yAxis = ChartAxis(domain = ChartDomain.Fixed(-10.0, 20.0))
+                )
+            val shape =
+                ChartPlan(input, model.snapshot, appearance).cache.resolve(Size(400.0, 300.0))
+            assertEquals(3L, shape.tracks.size)
+            val positive = shape.series[0L].samples[0L]!!
+            val negative = shape.series[0L].samples[1L]!!
+            chartNear(PI / 3.0, chartTestSector(positive).start)
+            chartNear(PI / 3.0, chartTestSector(positive).sweep)
+            chartNear(-PI / 6.0, chartTestSector(negative).sweep)
+            assertTrue(chartTestSector(positive).inner > chartTestSector(negative).outer)
+            assertEquals(Some(negative.selection), chartHit(shape, negative.point, false))
+            assertFalse(shape.series[0L].samples[2L]!!.visible)
+            assertEquals(Some(negative.selection), chartNavigate(shape, None, edge = 1))
+            assertEquals(None, chartHit(shape, chartTestSector(positive).center, false))
+        }
+    }
+
+    @Test
+    fun `mixed cartesian marks and equivalent axes keep stable plans during controlled selection`() {
+        chartWithAppearance {
+            appearance ->
+            val data = chartTestData([[Some(3.0), Some(6.0)], [Some(100.0), Some(200.0)]])
+            val model =
+                ChartModel(
+                    ChartData(
+                        data.datums,
+                        [
+                            ChartSeries(
+                                data.series[0L].key,
+                                "Bars",
+                                data.series[0L].values,
+                                mark = Some(ChartMark.Bar)
+                            ),
+                            ChartSeries(
+                                data.series[1L].key,
+                                "Line",
+                                data.series[1L].values,
+                                mark = Some(ChartMark.Line)
+                            )
+                        ]
+                    )
+                )
+            val input = ChartProps(model, stack = ChartStack.Normalized)
+            val plan = ChartPlan(input, model.snapshot, appearance)
+            chartNear(1.0, plan.prepared.series[0L].samples[0L]!!.end)
+            chartNear(100.0, plan.prepared.series[1L].samples[0L]!!.end)
+            val selection = state<ChartSelection?>(None)
+            val next =
+                ChartProps(model, stack = ChartStack.Normalized, active = Some(selection.binding()))
+            assertTrue(
+                chartPlanMatches(
+                    plan,
+                    next,
+                    model.snapshot,
+                    appearance.theme,
+                    appearance.fonts,
+                    appearance.direction
+                )
+            )
+            selection.value = Some(ChartSelection(data.series[0L].key, data.datums[0L].key))
+            assertTrue(
+                chartPlanMatches(
+                    plan,
+                    next,
+                    model.snapshot,
+                    appearance.theme,
+                    appearance.fonts,
+                    appearance.direction
+                )
+            )
+            assertFalse(
+                chartPlanMatches(
+                    plan,
+                    ChartProps(model, stack = ChartStack.Normalized, labels = true),
+                    model.snapshot,
+                    appearance.theme,
+                    appearance.fonts,
+                    appearance.direction
+                )
+            )
+            val shape = plan.cache.resolve(Size(480.0, 300.0))
+            assertTrue(shape === plan.cache.resolve(shape.size))
+            val invalid =
+                ChartModel(
+                    ChartData(
+                        [ChartDatum(ChartDatumKey("missing"), "Missing")],
+                        [ChartSeries(ChartSeriesKey("v"), "V", [Some(1.0)])]
+                    )
+                )
+            assertFailsWith<IllegalArgumentException> {
+                ChartPlan(ChartProps(invalid, xAxis = ChartAxis()), invalid.snapshot, appearance)
+            }
+        }
+    }
+}

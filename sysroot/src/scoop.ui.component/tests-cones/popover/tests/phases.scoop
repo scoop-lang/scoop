@@ -1,0 +1,205 @@
+package scoop.tests.ui.popover
+
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.style.MotionPreference
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.LogicalSize
+
+internal fun popoverStep(p: PopoverProbe) {
+    when (p.phase) {
+        case 0 -> assertTrue(p.trigger.requestFocus())
+        case 1 -> {
+            assertTrue(p.trigger.hasFocus);
+            p.key(49, " ")
+        }
+        case 2 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.edit.hasFocus)
+            assertEquals(1, p.factories)
+            p.key(0, "a");
+            p.key(48, "\t")
+        }
+        case 3 -> {
+            assertEquals("a", p.editor.text);
+            assertTrue(p.local.hasFocus)
+            p.key(49, " ");
+            p.key(48, "\t")
+        }
+        case 4 -> {
+            assertEquals(2, p.observed);
+            assertTrue(p.after.hasFocus)
+            p.key(53)
+        }
+        case 5 -> {
+            assertFalse(p.open.value);
+            assertEquals(1, p.unmounts)
+            assertTrue(p.after.hasFocus)
+            assertTrue(p.trigger.requestFocus());
+            p.key(49, " ")
+        }
+        case 6 -> {
+            assertTrue(p.edit.hasFocus);
+            assertEquals(2, p.factories)
+            p.clickBackground()
+        }
+        case 7 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.background.hasFocus)
+            assertEquals(1, p.actions)
+            p.mode = OverlayMode.FocusContained;
+            p.open.value = true;
+            p.changed()
+        }
+        case 8 -> {
+            assertTrue(p.edit.hasFocus);
+            assertTrue(p.rootInput!!.isInputAllowed)
+            assertFalse(p.rootInput!!.isFocusAllowed)
+            p.backgroundOpen.value = true
+            p.veto = true;
+            p.clickBackground()
+            assertTrue(sendSurfaceScroll(p.native!!, 40.0, 350.0, 0, -1))
+        }
+        case 9 -> {
+            assertTrue(p.open.value);
+            assertEquals(2, p.actions)
+            assertTrue(p.wheels > 0);
+            assertTrue(p.edit.hasFocus)
+            assertFalse(p.background.requestFocus());
+            p.key(48, "\t")
+        }
+        case 10 -> {
+            assertTrue(p.local.hasFocus);
+            p.key(48, "\t")
+        }
+        case 11 -> {
+            assertTrue(p.edit.hasFocus)
+            p.veto = false;
+            p.key(53)
+        }
+        case 12 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.background.hasFocus)
+            assertTrue(p.backgroundOpen.value)
+            assertFalse(p.backgroundPopup.hasFocus)
+            p.backgroundOpen.value = false
+            p.mode = OverlayMode.Modal;
+            p.open.value = true;
+            p.veto = true;
+            p.changed()
+        }
+        case 13 -> {
+            assertTrue(p.edit.hasFocus);
+            assertFalse(p.rootInput!!.isInputAllowed)
+            p.clickBackground()
+        }
+        case 14 -> {
+            assertTrue(p.open.value);
+            assertEquals(2, p.actions)
+            p.veto = false;
+            p.key(53)
+        }
+        case 15 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.background.hasFocus)
+            p.mode = OverlayMode.NonModal;
+            p.slow = true;
+            p.open.value = true;
+            p.changed()
+        }
+        case 16 -> {
+            assertTrue(p.edit.hasFocus);
+            assertEquals(5, p.factories)
+            p.layer.requestClose();
+            assertFalse(p.open.value)
+            p.open.value = true;
+            p.bottom = true;
+            p.changed()
+        }
+        case 17 -> {
+            assertTrue(p.open.value);
+            assertEquals(5, p.factories);
+            assertEquals(4, p.unmounts)
+            assertEquals(Some(OverlaySide.Top), p.side)
+            assertTrue(p.local.requestFocus());
+            p.key(49, " ")
+        }
+        case 18 -> {
+            p.native!!.requestSize(LogicalSize(260.0, 400.0))
+            assertEquals(2, p.observed)
+            p.deny = true;
+            p.key(53)
+        }
+        case 19 -> {
+            assertTrue(p.popupWidth < 288.0)
+            assertTrue(p.open.value);
+            assertEquals(2, p.observed)
+            p.deny = false;
+            p.version = 7;
+            p.changed()
+        }
+        case 20 -> p.key(53)
+        case 21 -> {
+            assertFalse(p.open.value);
+            assertEquals(7, p.callbackVersion)
+            assertEquals(4, p.unmounts)
+            assertTrue(p.background.requestFocus())
+        }
+        case 22 -> {
+            assertEquals(5, p.unmounts);
+            assertTrue(p.background.hasFocus)
+            p.native!!.requestSize(LogicalSize(640.0, 400.0))
+            p.slow = false;
+            p.theme.current.value =
+                shadcnTheme { tokens { motion { preference = MotionPreference.Reduced } } }
+            p.mode = OverlayMode.FocusContained;
+            p.open.value = true;
+            p.changed()
+        }
+        case 23 -> {
+            assertEquals(PresencePhase.Present, p.popupPhase)
+            assertTrue(p.edit.hasFocus)
+            p.enabled = false;
+            p.changed()
+        }
+        case 24 -> {
+            assertFalse(p.edit.requestFocus());
+            assertFalse(p.edit.hasFocus)
+            p.enabled = true;
+            p.changed()
+        }
+        case 25 -> {
+            assertTrue(p.edit.requestFocus())
+            p.innerOpen.value = true
+        }
+        case 26 -> {
+            assertTrue(p.inner.hasFocus)
+            assertTrue(p.open.value)
+            p.innerLayer.requestClose()
+        }
+        case 27 -> {
+            assertFalse(p.innerOpen.value)
+            assertEquals(1, p.innerUnmounts)
+            assertTrue(p.edit.hasFocus)
+            p.innerExplicitFocus = false
+            p.changed()
+            assertTrue(p.innerTrigger.requestFocus())
+        }
+        case 28 -> p.key(49, " ")
+        case 29 -> {
+            assertTrue(p.innerOpen.value)
+            assertTrue(p.inner.hasFocus)
+            assertEquals(2, p.innerMounts)
+            p.layer.requestClose()
+        }
+        case 30 -> {
+            assertFalse(p.open.value);
+            assertFalse(p.innerLayer.isAttached)
+            assertEquals(2, p.innerUnmounts)
+            assertTrue(p.background.hasFocus)
+        }
+        case 31 -> p.native!!.requestDestroy()
+        else -> throw IllegalStateException(Some("unexpected popover phase"))
+    }
+}

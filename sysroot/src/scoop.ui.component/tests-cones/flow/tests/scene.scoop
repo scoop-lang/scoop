@@ -7,9 +7,9 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
-import scoop.ui.text.ParagraphHost
+import scoop.ui.text.*
 
-internal class FlowRoot(private val probe: FlowProbe): Component {
+internal class FlowRoot(private val probe: FlowProbe, scope: ComponentScope): Component(scope) {
     private val content = flowContent(probe)
     public override fun render(): View = direction(content, probe.desired.value)
 }
@@ -18,12 +18,12 @@ private fun flowContent(probe: FlowProbe): View {
     val cells =
         Array<View>(probe.records.size) {
             index -> element(
-                { FlowCell(probe.records[index], index == 5L) },
+                { mount -> FlowCell(probe.records[index], index == 5L, scope = mount) },
                 key = ViewKey.Number(index)
             )
         }
     return element(
-        { FlowPanel(probe) },
+        { mount -> FlowPanel(probe, scope = mount) },
         [
             wrap {
                 spacing = 4.0
@@ -93,8 +93,10 @@ private fun flowContent(probe: FlowProbe): View {
     )
 }
 
-private class FlowPanel(private val probe: FlowProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FlowPanel(private val probe: FlowProbe, scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val wrapped =
             context.measureChild(
                 0L,
@@ -114,9 +116,9 @@ private class FlowPanel(private val probe: FlowProbe): Element {
         context.placeChild(3L, Point(10.0, 180.0))
         context.measureChild(4L, Constraints.tight(Size(100.0, 40.0)))
         context.placeChild(4L, Point(120.0, 180.0))
-        return LayoutMetrics(constraints.constrain(Size(460.0, 240.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(460.0, 240.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val direction = context.layoutDirection
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -127,11 +129,15 @@ private class FlowPanel(private val probe: FlowProbe): Element {
     }
 }
 
-private class FlowCell(private val record: FlowRecord, private val isText: Boolean): Element {
+private class FlowCell(
+    private val record: FlowRecord,
+    private val isText: Boolean,
+    scope: ComponentScope
+): Element<ParagraphMeasurement?>(scope) {
     private val content = styledText { text("Grid words wrap at the assigned width") }
     private var fonts: FontCollection? = None
     private var host: ParagraphHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.area = Some(scope.createArea())
         record.mounts += 1
         if (isText) {
@@ -139,19 +145,28 @@ private class FlowCell(private val record: FlowRecord, private val isText: Boole
             host = Some(scope.resource { ParagraphHost() })
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        val metrics =
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement?
+    > {
+        val measured =
             if (isText)
-                host!!.measure(context, constraints, fonts!!, content)
+                Some(host!!.measure(context, constraints, fonts!!, content))
             else
-                LayoutMetrics(constraints.constrain(record.natural), record.baseline)
-        record.last = Some(metrics.size)
-        return metrics
+                None
+        val metrics =
+            when (measured) {
+                case Some(value) -> value.metrics
+                case None -> LayoutMetrics(constraints.constrain(record.natural), record.baseline)
+            }
+        return LayoutResult(metrics, measured, { measured?.close() })
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement?) {
+        record.last = Some(context.size)
         context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        if (isText)
-            host!!.scene(context)
+        when (measured) {
+            case Some(value) -> host!!.scene(context, value)
+            case None -> {}
+        }
     }
     public override fun onUnmount() {
         record.unmounts += 1

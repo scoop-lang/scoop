@@ -1,12 +1,14 @@
 # 复杂控件的数据与交互模型
 
-日期：2026-11-04。状态：设计。范围见 [CATALOG.md](CATALOG.md)，共享输入、主题和生命周期见 [API.md](API.md)。这里定义实际控件需要的算法和业务边界，不建立跨控件的通用状态机框架。
+设计日期：2026-11-04；完成日期：2026-11-06。状态：所属批次已交付，实际验证范围见 [实施记录](PROGRESS.md)。范围见 [CATALOG.md](CATALOG.md)，共享输入、主题和生命周期见 [API.md](API.md)。这里记录实际控件采用的算法和业务边界，不建立跨控件的通用状态机框架。
 
 ## 1. 选择、搜索与菜单
 
 Select、Combobox、RadioGroup、ToggleGroup 共用有序的 Choice 元数据，单选值使用 `Binding<T?>`，多选使用 `Binding<Array<T>>`；需要比较值的泛型入口明确要求 `T: Equals<T>`，不退回 Any 或显示字符串。每个 Choice 有稳定显式 ViewKey、领域值、显示文字、enabled 和必要的分组／搜索文字。显示文字不是身份，相同标题合法。
 
-小数据入口接收不可变 `Array<Choice<T>>`；大数据使用实际的 ChoiceSource，提供 count、按索引取得元数据、按 key 定位。导航适配现有 NavigationSource，呈现适配 ItemSource，条目 View 只在需要时创建。source 是本次元数据快照，流式正文／进度可以独立 State 更新，不为一个字的变化重新构造所有选项。
+RadioGroup／ToggleGroup 的项描述在 Choice 之外保存各自的内容、样式与焦点选项，以不可变 entries 数组或 builder.item(choice) 接入；每个新 Props 快照检查一次 key／value 唯一性。Radio 使用 KeyNavigation.preferredTab 与 onNavigate 表达已选入口和方向选择，ToggleGroup 只使用同一导航的焦点行为，不共享选择策略。
+
+其他小数据入口接收不可变 `Array<Choice<T>>`；大数据使用实际的 ChoiceSource，提供 count、按索引取得元数据、按 key 定位。导航适配现有 NavigationSource，呈现适配 ItemSource，条目 View 只在需要时创建。source 是本次元数据快照，流式正文／进度可以独立 State 更新，不为一个字的变化重新构造所有选项。
 
 | 状态 | 行为 |
 | --- | --- |
@@ -21,9 +23,11 @@ Select、Combobox、RadioGroup、ToggleGroup 共用有序的 Choice 元数据，
 
 外部更新后的 selected 不在当前数据源中时，控件保留该值，显示调用方的值文字或明确的“不可用选项”文案；不在 render 中擅自清空 Binding。外部过滤、分页或请求未完成不代表用户撤销选择。数据源的 key／值对应关系在实际元数据接入边界检查，未变数据不每帧重新完整校验。
 
-菜单共享具体的 MenuEntry：Action、Checkbox、Radio、Submenu、Label、Separator。每种 entry 只携带自身需要的动作／Binding／子菜单；Label／Separator 不可激活。普通 Action 成功选择后关闭相应菜单链，Checkbox／Radio 默认保持打开并可显式配置 closeOnSelect。回调失败遵循既有 UI 异常路径，不能伪造成功选择。
+菜单共享具体的 MenuEntry：Action、Checkbox、Radio、Submenu、Label、Separator。MenuContent 是条目快照；同级显式 key 唯一，子级可重复父级 key。每种 entry 只携带自身需要的动作／Binding／子菜单；Label／Separator 不可激活。普通 Action 成功选择后关闭相应菜单链，Checkbox／Radio 默认保持打开并可显式配置 closeOnSelect；Checkbox 只在实际值变化后关闭，Radio 只在目标值确实选中后关闭。`radioItem<T: Equals<T>>` 把领域比较和写入保存在有类型的闭包中，不扩展统一值容器。回调失败遵循既有 UI 异常路径，不能伪造成功选择。
 
-DropdownMenu、ContextMenu、Menubar 共用菜单行、导航和子菜单开关逻辑；不同之处是打开方式和父级导航。父／子菜单使用已提交矩形和 Hover corridor，RTL 翻转展开方向。Right／Left 进入／退出子菜单，Escape 只关闭最内层；Tab 退出菜单链并按保存的焦点意图继续。显示快捷键不自动注册全局动作，应用注册同一个 ShortcutChord。
+DropdownMenu、ContextMenu、Menubar 共用菜单行、导航和子菜单开关逻辑；不同之处是打开方式和父级导航。父／子菜单使用已提交矩形和 Hover corridor，RTL 翻转展开方向。键盘打开子菜单后保持实际焦点，悬浮打开不主动抢走父行焦点；Right／Left 进入／退出子菜单，Escape 只关闭最内层。Tab 保存方向，请求根关闭，在根 onClosed 中从恢复的入口调用 moveFocus；拒绝关闭或退出中重开都清除该请求，不合成键盘事件。Menubar 的 Binding<ViewKey?> 是唯一打开值，缺失／禁用的外部 key 不被暗写。显示快捷键不自动注册全局动作，应用注册同一个 ShortcutChord。
+
+Popover 直接持有业务 `Binding<Boolean>`，编辑字段仍用各自 TextEditorState。打开会话与退出动画由 Portal 持有；组件不复制 open，不保存第二份焦点目标或窗口坐标。onOpenChange 仅在 setter 采纳新值后通知；onCloseRequest 可 veto，onClosed 仅在实际移除后通知。退出中重开保留同一内容实例，最终关闭再开创建新内容，外部编辑模型可继续保留草稿。
 
 ## 2. 三态、范围与拖动
 
@@ -52,9 +56,9 @@ OTP 的 group／separator 只影响显示。原文、复制、提交和长度判
 
 ## 4. Calendar 与 DatePicker
 
-默认日期采用现有 `scoop.datetime.LocalDate`／YearMonth／DayOfWeek；它们是日期值，不带时区。选中 11 月 4 日就是这个日期，不在控件里转成午夜 UTC 再转回来。今天、周起点、月／星期名称、数字与日期格式由明确的日期／locale 数据输入；涉及 Instant、系统时区或 IO 的转换由调用方完成。
+默认日期采用现有 `scoop.datetime.LocalDate`／YearMonth／DayOfWeek；它们是日期值，不带时区。选中 11 月 4 日就是这个日期，不在控件里转成午夜 UTC 再转回来。今天、周起点、月份全名／简称、星期名称、数字与日期格式由明确的日期／locale 数据输入；涉及 Instant、系统时区或 IO 的转换由调用方完成。
 
-选择模式是三个完整入口：Single 的可选日期、Multiple 的唯一日期数组、Range 的可选完整 DateRange。DateRange 保证 start≤end；范围第一下点击保存暂定起点和预览，不向外发布缺失终点的范围。第二下点击按规则形成完整有序范围，校验后一次提交。可限制 required、最小／最大范围、禁用日期，以及是否允许范围内部包含禁用日；不会静默跳过日期后形成另一段范围。
+选择模式是三个完整入口：Single 的可选日期、Multiple 的唯一日期数组、Range 的可选完整 DateRange。DateRange 保证 start≤end，nights 为 start.daysUntil(end)，同一天为零夜；范围第一下点击保存暂定起点和预览，不向外发布缺失终点的范围。第二下点击按规则形成完整有序范围，校验后一次提交。CalendarRules 限制 required、minimumDates／maximumDates、minimumNights／maximumNights、minDate／maxDate、disabled 和 allowDisabledInside；不会静默跳过日期后形成另一段范围。
 
 Calendar 的界面状态只包含显示月份、当前焦点日期和暂定范围。外部改 selection 时更新高亮；是否把月份移动到新值由明确的同步选项控制。方向键±1／±7 天，Home／End 到周边界，PageUp／Down 翻月，Shift+Page 翻年；所有运算复用日期库。只在本次显示页的有效日期中确定可用焦点，整页不可选时退到翻页入口，不为找到“下一个可用日”无限扫描年份。
 
@@ -64,10 +68,10 @@ Calendar 的界面状态只包含显示月份、当前焦点日期和暂定范�
 
 DatePicker 是 Popover、Calendar 和按钮／输入的实际组合，支持日期、范围、生日选择、预设值和时间输入。核心合同：
 
-- 按钮模式的文字由选中值格式化；输入模式保留 TextEditorState 草稿，Enter／blur 的提交策略明确，解析失败显示错误并保留草稿。
+- 按钮模式的文字由选中值格式化；输入模式使用 DatePickerDraft 的唯一 TextEditorState 和可观察 error。默认 Enter 提交，commitOnBlur=false；显式启用 blur 时，在本次输入事件结束后提交。默认解析严格 ISO 日期，范围使用 `start .. end`；解析失败显示错误并保留草稿。
 - 外部选中值变化时，非编辑中的草稿同步；编辑／composition 中的更新由明确的 accept／reset 动作收束，不能覆盖正在输入的文字。
 - 日期和时间分别采用 LocalDate／LocalTime，应用需要时组成 LocalDateTime；控件不推测 timezone。
-- 自然语言示例接受显式 parser、参考日期和 locale；解析由提交或编辑通知触发，失败返回可显示错误。没有 parser 时不能把任意字符串猜成有效日期；这不要求组件库重写 chrono-node。
+- 自然语言示例接受显式 parser、参考日期和 locale；解析只由提交动作触发，返回 DatePickerParse.Date／Range／Empty／Invalid。没有 parser 时不能把任意字符串猜成有效日期；这不要求组件库重写 chrono-node。
 - Escape 先交给 IME，再关闭 popup；取消不提交暂定 range／无效草稿。点击日历提交时，输入的晚到 blur 不得覆盖刚选中的日期。
 
 ## 5. Table 与 DataTable
@@ -83,6 +87,10 @@ TableColumn<Row> 必须有稳定列 id、header 和类型化 cell 渲染函数�
 
 TableQuery 包含排序描述、列过滤输入、pageIndex／pageSize；选中行 key、列可见性和列宽是各自明确状态。pageIndex 从 0 开始，UI 页码从 1 开始。变更过滤／排序默认回第一页；行数减少使页号失效时在一次模型更新中收敛，不能在 render 中反复回写。外部模式的请求、取消、loading／error 和迟到结果处理归应用，同一个最终结果经正常 Props 进入。
 
+落地入口为应用持有的 `DataTableState<Row>(data, columns, query, selectable)` 与 `dataTable(state)`。replaceData、setQuery 和选择／显隐／宽度方法是普通应用动作，render 只读取快照。TableData.Provided 接收当前页来源与 totalRows，页数按 pageSize 推导；onQueryChange 交付成功更新后的查询。列定义固定在一个模型内，本地分页复用已有筛选／稳定排序结果。
+
+P3 已实现的独立 Pagination 只接收 Binding<Long> 和 pageCount，不承担上述表格查询规则。`paginationItems` 用边界与邻近范围生成有序 Page／Ellipsis，只缺一页时补齐页码，多页缺口跳过；空数据和 Long 上界有定向覆盖。外部越界页码只在展示窗口计算时夹取，绑定原值保留；业务模型负责决定何时重置。实际改变后通知 setter 采纳值，拒绝写入时不通知。
+
 表头全选明确作用于**当前结果页的可选行**，三态从该集合计算；跨页已选 key 保留。库不把“勾选本页”解释为后台所有匹配记录，更不生成抽象的“全量减例外”选择协议。删除已知行时由模型更新移除相应选择；Provided 模式中暂未出现在本页不等于已删除。
 
 Header 和可见行消费同一个不可变列宽数组。Fixed／比例列直接解析；Auto 的宽度来自明确的表头／给定测量样本，不能为了自动列宽扫描或挂载百万行。固定 header 在正文滚动区之外，横向位移采用一份共同布局／滚动来源；拖列宽重新计算一次轨道后通知全部需要的行。正文使用 VirtualList，行内输入、菜单和按钮继续按既有活动项保留与焦点显露规则处理。
@@ -93,7 +101,7 @@ Header 和可见行消费同一个不可变列宽数组。Fixed／比例列直�
 
 Chart 交付六类真实图表，与 [shadcn Chart](https://ui.shadcn.com/docs/components/chart) 的常用图表范围对应。Scoop 没有可直接运行的 Recharts，采用现有 graphics／graphics.text／math 实现这一有限绘图需求；不嵌入 WebView，不包装静态图，也不新增一个通用 renderer。
 
-ChartModel 使用类型化系列与数据：稳定 SeriesKey／DatumKey、显示 label、可选颜色和数值／分类坐标。可空样本用 Option 表达缺值，NaN／Infinity 不是合法缺值编码。格式化是明确回调，Tooltip／Legend 使用同一系列名称和颜色。可见系列状态独立于数据，颜色按稳定系列身份分配，隐藏一条系列不使剩余颜色乱序。
+ChartModel 持有不可变 ChartData，ChartDatum／ChartSeries 使用类型化系列与数据：稳定 ChartSeriesKey／ChartDatumKey、显示 label、可选颜色和数值／分类坐标。可空样本用 Option 表达缺值，NaN／Infinity 不是合法缺值编码。格式化是明确回调，Tooltip／Legend 使用同一系列名称和颜色。可见系列状态独立于数据，颜色按稳定系列身份分配，隐藏一条系列不使剩余颜色乱序。
 
 | 图表族 | 本轮实际能力 |
 | --- | --- |
@@ -106,9 +114,9 @@ ChartModel 使用类型化系列与数据：稳定 SeriesKey／DatumKey、显示
 
 共用有限的线性／分类尺度、tick 生成、文字测量、plot rect、路径与命中算法。相同轴域的 Bar＋Line 等组合可以共用一个 plot；多坐标系统、地图、任意缩放／刷选、3D、金融图及 Recharts 全部扩展不属于本轮。普通数值轴有明确的手动／自动 domain、零点和 nice tick 规则；常量域、空数据、全零饼图、负数与缺值都有明确结果。
 
-算法先用成熟公开实现核对刻度、堆叠和曲线规则，实际复用代码时记录许可证；不从截图估算数值比例。geometry 与 hit-test 共用同一数据／尺度快照，文本真实排版。Legend／Tooltip 支持图标、标签、数值 formatter、隐藏标题和点／线／虚线指示；Tooltip 支持鼠标与键盘数据项导航，不能只有鼠标 hover。
+算法先用成熟公开实现核对刻度、堆叠和曲线规则，实际复用代码时记录许可证；不从截图估算数值比例。geometry 与 hit-test 共用同一数据／尺度快照，文本真实排版。Pie／Radial 可由 datum 颜色覆盖系列颜色；活动 Pie 扇区的突出范围同时用于绘制和优先命中，内孔内容按可容纳的正方形布局。Radar 缺值打断相邻边，跨最后／第一项的有效边仍保留。Legend／Tooltip 支持图标、标签、数值 formatter、隐藏标题和点／线／虚线指示；Tooltip 支持鼠标与键盘数据项导航，不能只有鼠标 hover。
 
-数据／大小／字体／系列显隐变化才重算对应布局；pointer 移动仅更新 active datum 和提示，不能重建全部数据。动画绑定 stable key 并复用 Surface，结束／隐藏／减少动态后停帧。大输入不自动丢点；降采样若需要由显式数据准备决定并保留语义，不作为隐含绘图优化。
+数据／大小／字体／系列显隐或绘图参数变化才重算对应布局；等值的默认轴配置可复用原计划。pointer 移动仅更新 active datum 和提示，不能重建全部数据。图面仅在 Accepted 的有效几何中有可选项时接收焦点；零尺寸、全缺值或全零 Pie 不留下可聚焦的空图面。默认数据更新直接呈现最终值，自定义内容需要动画时按 stable key 复用 Surface，结束／隐藏／减少动态后停帧。大输入不自动丢点；降采样若需要由显式数据准备决定并保留语义，不作为隐含绘图优化。
 
 验收除截图外，精确检查值域到坐标、堆叠总量／正负基线、角度和命中结果；六类各有真实数据例子，并组合 Tooltip、Legend、Dark、RTL 布局及窗口缩放。
 
@@ -116,13 +124,13 @@ ChartModel 使用类型化系列与数据：稳定 SeriesKey／DatumKey、显示
 
 ToastState 是 owner 线程上的显式模型，一个活动 Toaster 绑定一个状态。`show` 返回 ToastId，`update(id, ...)` 替换同一条通知，`dismiss(id)` 请求退出；完成后 id 不再可更新。它不是进程级 singleton，也不沿隐式 Provider 找宿主。相同状态不能同时由两个活动窗口处理计时和关闭。
 
-记录包含内容／动作、类型、位置、持续时间及明确的关闭策略。默认普通通知 5 秒，Loading 持续到应用更新或关闭；六个位置、可见数量和队列顺序属于 Toaster 的布局配置。可见上限是通知展示策略，不影响程序或数据合法性。
+记录包含内容／动作、类型、可选位置覆盖、持续时间及明确的关闭策略。默认普通通知 5 秒，Loading 持续到应用更新或关闭；默认位置、每位置可见数量和队列顺序属于 Toaster 的布局配置。可见上限是通知展示策略，不影响程序或数据合法性。update 替换当前内容并重新开始新持续时间；排队、暂停及没有活动宿主时不消耗这段时间。
 
 进入和退出用 Presence，剩余时间用既有单调时间及最早一次 deadline。hover、焦点进入、窗口失活／隐藏时暂停剩余时间；恢复后继续，不为暂停通知反复唤醒。排队且未显示的通知不消耗展示时长。用户滑动关闭复用 Drag，取消回到原位置；手动关闭、超时和动作关闭只选择一次结果。
 
 异步任务在应用／组件 Job 中运行，用同一个 id 更新 Loading→Success／Error。可以提供普通组合 helper 包住现有任务，但不向 Toast 注入 HTTP 依赖或独立 executor。任务在通知被关闭后完成，更新返回无效结果，不重新创建已关闭通知；任务自己的资源收尾仍由原 scope 负责。
 
-通知默认不夺取当前输入焦点。用户聚焦 action 后关闭时，按同一非模态焦点会话规则恢复或选择仍有效的下一通知；不得覆盖新显式焦点。Toaster 卸载取消计时／动画并解除绑定，外部任务不会再触及其 painter。
+通知默认不夺取当前输入焦点。用户聚焦 action 后关闭时，按同一非模态焦点会话规则恢复或选择仍有效的下一通知；不得覆盖新显式焦点。Toaster 卸载取消计时／动画并解除绑定；尚未关闭的记录保留剩余时间，后续重新挂载可继续展示，已请求退出的记录完成一次关闭。外部任务只能更新仍活动的模型记录，不持有 painter。
 
 ## 8. 消息、附件与阅读位置
 

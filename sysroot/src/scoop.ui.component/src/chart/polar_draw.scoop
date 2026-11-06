@@ -1,0 +1,162 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal fun chartDrawPolar(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry) {
+    val a = plan.appearance
+    val d = a.density
+    for (line in geometry.grid)
+        canvas.drawLine(
+            line.start,
+            line.end,
+            Paint(a.theme.tokens.palette.border.withAlpha(0.5), strokeWidth = d)
+        )
+    for (track in geometry.tracks)
+        if (track.outer > track.inner)
+            track.outline().use { outline -> canvas.drawPath(outline, Paint(track.color)) }
+    if (geometry.kind == ChartKind.Radar)
+        chartDrawRadar(canvas, plan, geometry)
+    else {
+        for (series in geometry.series)
+            for (sample in series.samples)
+                when (sample) {
+                    case Some(value) -> when (value.shape) {
+                        case Sector(arc) -> {
+                            if (value.visible) {
+                                arc.outline().use {
+                                    outline ->
+                                    canvas.drawPath(outline, Paint(arc.color))
+                                    if (geometry.kind == ChartKind.Pie)
+                                        canvas.drawPath(
+                                            outline,
+                                            Paint(
+                                                a.theme.tokens.palette.background.background,
+                                                PaintingStyle.Stroke,
+                                                d
+                                            )
+                                        )
+                                    return@use Unit
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+                    case None -> {}
+                }
+    }
+    for (label in geometry.labels)
+        a.draw(canvas, label.text, label.origin)
+    if (plan.input.labels)
+        for (series in geometry.series)
+            for (sample in series.samples)
+                when (sample) {
+                    case Some(value) -> if (value.visible) {
+                        val text = chartNumber(value.value)
+                        val measured = a.measure(text)
+                        a.draw(
+                            canvas,
+                            text,
+                            Point(
+                                chartClamp(
+                                    value.point.x - measured.width / 2.0,
+                                    0.0,
+                                    lowerBound(geometry.size.width - measured.width, 0.0)
+                                ),
+                                chartClamp(
+                                    value.point.y - measured.height / 2.0,
+                                    0.0,
+                                    lowerBound(geometry.size.height - measured.height, 0.0)
+                                )
+                            ),
+                            true
+                        )
+                    }
+                    case None -> {}
+                }
+}
+
+private fun chartDrawRadar(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry) {
+    path { this.addOval(geometry.plot) }.use {
+        clip -> canvas.withState {
+            canvas ->
+            canvas.clipPath(clip)
+            for (series in geometry.series) {
+                val runs = chartRadarRuns(series.samples)
+                val complete = runs.size == 1L && runs[0L].size == series.samples.size
+                for (run in runs) {
+                    path {
+                        chartTrace(
+                            this,
+                            Array<Point>(run.size) { at -> run[at].point },
+                            ChartCurve.Linear,
+                            false
+                        )
+                        if (complete && run.size > 2L)
+                            this.closeContour()
+                    }.use {
+                        polygon ->
+                        if (complete && run.size > 2L)
+                            canvas.drawPath(polygon, Paint(series.series.color.withAlpha(0.2)))
+                        canvas.drawPath(
+                            polygon,
+                            Paint(
+                                series.series.color,
+                                PaintingStyle.Stroke,
+                                2.0 * plan.appearance.density
+                            )
+                        )
+                    }
+                    if (plan.input.pointRadius > 0.0)
+                        for (value in run)
+                            canvas.drawCircle(
+                                value.point,
+                                plan.input.pointRadius * plan.appearance.density,
+                                Paint(series.series.color)
+                            )
+                }
+            }
+        }
+    }
+}
+
+internal fun chartDrawPolarActive(
+    canvas: Canvas,
+    plan: ChartPlan,
+    geometry: ChartGeometry,
+    selection: ChartSelection?
+) {
+    val key = selection ?: return
+    val sample = geometry.find(key) ?: return
+    val a = plan.appearance
+    when (sample.shape) {
+        case Sector(arc) -> {
+            val active =
+                if (geometry.kind == ChartKind.Pie)
+                    arc.expanded()
+                else
+                    arc
+            active.outline().use {
+                outline ->
+                if (geometry.kind == ChartKind.Pie)
+                    canvas.drawPath(outline, Paint(active.color))
+                canvas.drawPath(
+                    outline,
+                    Paint(a.theme.tokens.palette.ring, PaintingStyle.Stroke, 2.0 * a.density)
+                )
+            }
+        }
+        else -> {
+            canvas.drawCircle(
+                sample.point,
+                lowerBound(plan.input.pointRadius, 4.0) * a.density,
+                Paint(a.theme.tokens.palette.background.background)
+            )
+            canvas.drawCircle(
+                sample.point,
+                lowerBound(plan.input.pointRadius, 4.0) * a.density,
+                Paint(a.theme.tokens.palette.ring, PaintingStyle.Stroke, 2.0 * a.density)
+            )
+        }
+    }
+}

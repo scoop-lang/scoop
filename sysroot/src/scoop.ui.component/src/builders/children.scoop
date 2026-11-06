@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.datetime.LocalDate
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.portal as makePortal
@@ -8,9 +9,391 @@ import scoop.ui.direction as makeDirection
 import scoop.ui.style.StyledBuilder
 import scoop.ui.style.styled as makeStyled
 import scoop.ui.text.TextEditorState
+import scoop.window.ShortcutChord
+import scoop.window.ShortcutLabel
+import scoop.ui.component.dialog as makeDialog
+import scoop.ui.component.alertDialog as makeAlertDialog
+import scoop.ui.component.sheet as makeSheet
+import scoop.ui.component.dialogFooter as makeDialogFooter
+import scoop.ui.component.command as makeCommand
+import scoop.ui.component.combobox as appendCombobox
+import scoop.ui.component.navigationMenu as appendNavigationMenu
+import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
+import scoop.ui.component.resizable as appendResizable
+import scoop.ui.component.carousel as appendCarousel
+import scoop.ui.component.drawer as appendDrawer
+import scoop.ui.component.toaster as appendToaster
+import scoop.ui.component.calendar as appendCalendar
+import scoop.ui.component.calendarMultiple as appendCalendarMultiple
+import scoop.ui.component.calendarRange as appendCalendarRange
+import scoop.ui.component.datePicker as appendDatePicker
+import scoop.ui.component.dateRangePicker as appendDateRangePicker
+import scoop.ui.component.chart as appendChart
+import scoop.ui.component.messageScroller as appendMessageScroller
+import scoop.ui.component.messageScrollButton as appendMessageScrollButton
+import scoop.ui.component.questionnaire as appendQuestionnaire
+import scoop.ui.component.table as appendTable
+import scoop.ui.component.dataTable as appendDataTable
+import scoop.ui.component.sidebar as appendSidebar
+import scoop.ui.component.sidebarTrigger as appendSidebarTrigger
+import scoop.ui.component.sidebarGroup as appendSidebarGroup
+import scoop.ui.component.sidebarMenu as appendSidebarMenu
+import scoop.ui.component.sidebarMenuAction as appendSidebarMenuAction
+import scoop.ui.component.sidebarMenuBadge as appendSidebarMenuBadge
+import scoop.ui.component.sidebarSubmenu as appendSidebarSubmenu
+import scoop.ui.component.sidebarMenuSkeleton as appendSidebarMenuSkeleton
+import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun bubble(content: String, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(conversationText(content), configure))
+    }
+    public fun bubble(content: StyledText, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(conversationText(content), configure))
+    }
+    public fun bubble(content: View, configure: BubbleBuilder.() -> Unit = {}) {
+        add(makeBubble(ButtonContent.Custom(content), configure))
+    }
+    public fun bubble(
+        content: (ActionContentStyle) -> View,
+        configure: BubbleBuilder.() -> Unit = {}
+    ) {
+        add(makeBubble(ButtonContent.Resolved(content), configure))
+    }
+    public fun marker(content: String, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(conversationText(content), configure))
+    }
+    public fun marker(content: StyledText, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(conversationText(content), configure))
+    }
+    public fun marker(content: View, configure: MarkerBuilder.() -> Unit = {}) {
+        add(makeMarker(ButtonContent.Custom(content), configure))
+    }
+    public fun marker(
+        content: (ActionContentStyle) -> View,
+        configure: MarkerBuilder.() -> Unit = {}
+    ) {
+        add(makeMarker(ButtonContent.Resolved(content), configure))
+    }
+    public fun traceLine(content: String, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(conversationText(content), configure))
+    }
+    public fun traceLine(content: StyledText, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(conversationText(content), configure))
+    }
+    public fun traceLine(content: View, configure: TraceLineBuilder.() -> Unit = {}) {
+        add(makeTraceLine(ButtonContent.Custom(content), configure))
+    }
+    public fun traceLine(
+        content: (ActionContentStyle) -> View,
+        configure: TraceLineBuilder.() -> Unit = {}
+    ) {
+        add(makeTraceLine(ButtonContent.Resolved(content), configure))
+    }
+    public fun attachment(content: String, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(conversationText(content), configure))
+    }
+    public fun attachment(content: StyledText, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(conversationText(content), configure))
+    }
+    public fun attachment(content: View, configure: AttachmentBuilder.() -> Unit = {}) {
+        add(makeAttachment(ButtonContent.Custom(content), configure))
+    }
+    public fun message(content: View, configure: MessageBuilder.() -> Unit = {}) {
+        add(makeMessage({ _ -> content }, configure))
+    }
+    public fun message(
+        content: (MessageAlignment) -> View,
+        configure: MessageBuilder.() -> Unit = {}
+    ) {
+        add(makeMessage(content, configure))
+    }
+    public fun trace(title: String, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(conversationText(title), content, configure))
+    }
+    public fun trace(title: StyledText, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(conversationText(title), content, configure))
+    }
+    public fun trace(title: View, content: View, configure: TraceBuilder.() -> Unit = {}) {
+        add(makeTrace(ButtonContent.Custom(title), content, configure))
+    }
+    public fun bubbleGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun messageGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun traceGroup(configure: LinearBuilder.() -> Unit) {
+        add(conversationGroup(configure))
+    }
+    public fun attachmentGroup(configure: AttachmentGroupBuilder.() -> Unit) {
+        add(makeAttachmentGroup(None, configure))
+    }
+    public fun attachmentGroup(
+        source: ItemSource,
+        configure: AttachmentGroupBuilder.() -> Unit = {}
+    ) {
+        add(makeAttachmentGroup(Some(source), configure))
+    }
+
+    public fun messageScroller(
+        source: TranscriptSource,
+        state: MessageScrollState,
+        configure: MessageScrollerBuilder.() -> Unit = {}
+    ) {
+        add(appendMessageScroller(source, state, configure))
+    }
+    public fun messageScrollButton(
+        state: MessageScrollState,
+        direction: MessageScrollDirection = MessageScrollDirection.End,
+        configure: ButtonBuilder.() -> Unit = {}
+    ) {
+        add(appendMessageScrollButton(state, direction, configure))
+    }
+    public fun chart(model: ChartModel, configure: ChartBuilder.() -> Unit = {}) {
+        add(appendChart(model, configure))
+    }
+    public fun table(configure: TableBuilder.() -> Unit) {
+        add(appendTable(configure))
+    }
+    public fun <Row> dataTable(
+        state: DataTableState<Row>,
+        configure: DataTableBuilder.() -> Unit = {}
+    ) {
+        add(appendDataTable(state, configure))
+    }
+    public fun sidebar(
+        open: Binding<Boolean>,
+        content: View,
+        configure: SidebarBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebar(open, content, configure))
+    }
+    public fun sidebar(
+        open: Binding<Boolean>,
+        content: (SidebarPresentation) -> View,
+        configure: SidebarBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebar(open, content, configure))
+    }
+    public fun sidebarTrigger(
+        open: Binding<Boolean>,
+        configure: SidebarTriggerBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebarTrigger(open, configure))
+    }
+    public fun sidebarGroup(content: View, configure: SidebarGroupBuilder.() -> Unit = {}) {
+        add(appendSidebarGroup(content, configure))
+    }
+    public fun sidebarMenu(configure: SidebarMenuBuilder.() -> Unit) {
+        add(appendSidebarMenu(configure))
+    }
+    public fun sidebarMenuAction(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebarMenuAction(content, onClick, configure))
+    }
+    public fun sidebarMenuBadge(text: String, configure: SidebarBadgeBuilder.() -> Unit = {}) {
+        add(appendSidebarMenuBadge(text, configure))
+    }
+    public fun sidebarSubmenu(content: View, configure: SidebarSubmenuBuilder.() -> Unit = {}) {
+        add(appendSidebarSubmenu(content, configure))
+    }
+    public fun sidebarMenuSkeleton(configure: SidebarSkeletonBuilder.() -> Unit = {}) {
+        add(appendSidebarMenuSkeleton(configure))
+    }
+    public fun sidebarInput(state: TextEditorState, configure: InputBuilder.() -> Unit = {}) {
+        add(appendSidebarInput(state, configure))
+    }
+    public fun drawer(
+        open: Binding<Boolean>,
+        content: View,
+        configure: DrawerBuilder.() -> Unit = {}
+    ) {
+        add(appendDrawer(open, content, configure))
+    }
+    public fun carousel(source: ItemSource, configure: CarouselBuilder.() -> Unit = {}) {
+        add(appendCarousel(source, configure))
+    }
+    public fun carousel(configure: CarouselBuilder.() -> Unit) {
+        add(appendCarousel(configure))
+    }
+    public fun resizable(
+        sizes: Binding<Array<ResizableSize>>,
+        configure: ResizableBuilder.() -> Unit = {}
+    ) {
+        add(appendResizable(sizes, configure))
+    }
+    public fun navigationMenu(
+        open: Binding<ViewKey?>? = None,
+        configure: NavigationMenuBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenu(open, configure))
+    }
+    public fun navigationMenuLink(
+        text: String,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(text, onNavigate, configure))
+    }
+    public fun navigationMenuLink(
+        text: StyledText,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(text, onNavigate, configure))
+    }
+    public fun navigationMenuLink(
+        content: View,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(content, onNavigate, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<T?>,
+        choices: ChoiceSource<T>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<Array<T>>,
+        choices: ChoiceSource<T>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<T?>,
+        choices: Array<Choice<T>>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<Array<T>>,
+        choices: Array<Choice<T>>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+
+    public fun command(
+        source: CommandSource,
+        query: TextEditorState,
+        configure: CommandBuilder.() -> Unit = {}
+    ) {
+        add(makeCommand(source, query, configure))
+    }
+
+    public fun <T: Equals<T>> select(
+        value: Binding<T?>,
+        configure: SelectBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeSelect(value, [], configure))
+    }
+    public fun <T: Equals<T>> select(
+        value: Binding<T?>,
+        choices: Array<Choice<T>>,
+        configure: SelectBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeSelect(value, choices, configure))
+    }
+    public fun dropdownMenu(
+        open: Binding<Boolean>,
+        content: MenuContent,
+        configure: DropdownMenuBuilder.() -> Unit = {}
+    ) {
+        add(makeDropdownMenu(open, content, configure))
+    }
+    public fun contextMenu(
+        content: View,
+        menu: MenuContent,
+        configure: ContextMenuBuilder.() -> Unit = {}
+    ) {
+        add(makeContextMenu(content, menu, configure))
+    }
+    public fun menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {}) {
+        add(makeMenubar(open, configure))
+    }
+    public fun dialog(
+        open: Binding<Boolean>,
+        content: View,
+        configure: DialogBuilder.() -> Unit = {}
+    ) {
+        add(makeDialog(open, content, configure))
+    }
+    public fun alertDialog(
+        open: Binding<Boolean>,
+        content: View,
+        configure: AlertDialogBuilder.() -> Unit = {}
+    ) {
+        add(makeAlertDialog(open, content, configure))
+    }
+    public fun sheet(
+        open: Binding<Boolean>,
+        content: View,
+        configure: SheetBuilder.() -> Unit = {}
+    ) {
+        add(makeSheet(open, content, configure))
+    }
+    public fun dialogFooter(configure: ChildrenBuilder.() -> Unit) {
+        add(makeDialogFooter(configure))
+    }
+    public fun tooltip(trigger: View, text: String, configure: TooltipBuilder.() -> Unit = {}) {
+        add(
+            makeTooltip(
+                trigger,
+                PanelContent.Label(LabelProps(LabelText.Plain(text, None))),
+                configure
+            )
+        )
+    }
+    public fun tooltip(trigger: View, text: StyledText, configure: TooltipBuilder.() -> Unit = {}) {
+        add(makeTooltip(trigger, PanelContent.Label(LabelProps(LabelText.Styled(text))), configure))
+    }
+    public fun tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}) {
+        add(makeTooltip(trigger, PanelContent.Custom(content), configure))
+    }
+    public fun hoverCard(
+        trigger: View,
+        content: View,
+        configure: HoverCardBuilder.() -> Unit = {}
+    ) {
+        add(makeHoverCard(trigger, content, configure))
+    }
+    public fun popover(
+        open: Binding<Boolean>,
+        content: View,
+        configure: PopoverBuilder.() -> Unit = {}
+    ) {
+        add(makePopover(open, content, configure))
+    }
+    public fun breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}) {
+        add(makeBreadcrumb(configure))
+    }
+    public fun pagination(
+        page: Binding<Long>,
+        pageCount: Long,
+        configure: PaginationBuilder.() -> Unit = {}
+    ) {
+        add(makePagination(page, pageCount, configure))
+    }
+    public fun <T: Equals<T>> tabs(
+        selected: Binding<T?>,
+        configure: TabsBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeTabs(selected, configure))
+    }
     private val entries = ArrayList<View>()
     internal val childCount: Long get() = entries.size
     public var key: ViewKey = ViewKey.Position
@@ -26,6 +409,95 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): Unit {
         add(makePlainLabel(text, configure))
+    }
+
+    public fun fieldLabel(
+        text: String,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(FieldLabelContent.Text(LabelText.Plain(text, None)), target, configure))
+    }
+    public fun fieldLabel(
+        text: StyledText,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(FieldLabelContent.Text(LabelText.Styled(text)), target, configure))
+    }
+    public fun fieldLabel(
+        content: View,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(FieldLabelContent.Custom(content), target, configure))
+    }
+
+    public fun field(control: View, configure: FieldBuilder.() -> Unit = {}) {
+        add(makeField(control, configure))
+    }
+    public fun fieldGroup(configure: FieldStackBuilder.() -> Unit = {}) {
+        add(makeFieldStack(FieldStackKind.Group, configure))
+    }
+    public fun fieldContent(configure: FieldStackBuilder.() -> Unit = {}) {
+        add(makeFieldStack(FieldStackKind.Content, configure))
+    }
+    public fun fieldSet(content: View, configure: FieldSetBuilder.() -> Unit = {}) {
+        add(makeFieldSet(content, configure))
+    }
+    public fun fieldTitle(content: String, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldPlain(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldTitle(content: StyledText, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldStyled(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldTitle(content: View, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(PanelContent.Custom(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldDescription(content: String, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldPlain(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldDescription(content: StyledText, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldStyled(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldDescription(content: View, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(PanelContent.Custom(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldLegend(content: String, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(fieldPlain(content), configure))
+    }
+    public fun fieldLegend(content: StyledText, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(fieldStyled(content), configure))
+    }
+    public fun fieldLegend(content: View, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(PanelContent.Custom(content), configure))
+    }
+    public fun fieldError(content: String, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(fieldPlain(content)), configure))
+    }
+    public fun fieldError(content: StyledText, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(fieldStyled(content)), configure))
+    }
+    public fun fieldError(content: View, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(PanelContent.Custom(content)), configure))
+    }
+    public fun fieldSeparator(content: String, configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(Some(fieldPlain(content)), configure))
+    }
+    public fun fieldSeparator(
+        content: StyledText,
+        configure: FieldSeparatorBuilder.() -> Unit = {}
+    ) {
+        add(makeFieldSeparator(Some(fieldStyled(content)), configure))
+    }
+    public fun fieldSeparator(content: View, configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(Some(PanelContent.Custom(content)), configure))
+    }
+    public fun fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError(errors, None, configure))
+    }
+    public fun fieldSeparator(configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(None, configure))
     }
 
     public fun imageView(
@@ -54,6 +526,37 @@ public open class ChildrenBuilder internal constructor() {
         add(makeStyledLabel(content, configure))
     }
 
+    public fun slider(
+        values: Binding<Array<Double>>,
+        range: RangeSpec,
+        configure: SliderBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSlider(values, range, configure))
+    }
+
+    public fun inputGroup(configure: InputGroupBuilder.() -> Unit): Unit {
+        add(makeInputGroup(configure))
+    }
+
+    public fun <T: Equals<T>> radioGroup(
+        selected: Binding<T?>,
+        configure: RadioGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeRadioGroup(selected, configure))
+    }
+    public fun <T: Equals<T>> toggleGroup(
+        selected: Binding<T?>,
+        configure: ToggleGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeToggleGroup(ToggleGroupSelection.Single(selected), configure))
+    }
+    public fun <T: Equals<T>> toggleGroup(
+        selected: Binding<Array<T>>,
+        configure: ToggleGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeToggleGroup(ToggleGroupSelection.Multiple(selected), configure))
+    }
+
     public fun button(
         text: String,
         onClick: () -> Unit,
@@ -78,6 +581,187 @@ public open class ChildrenBuilder internal constructor() {
         add(makeContentButton(content, onClick, configure))
     }
 
+    public fun button(
+        content: (ActionContentStyle) -> View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeResolvedButton(content, onClick, configure))
+    }
+    public fun buttonGroup(configure: ButtonGroupBuilder.() -> Unit): Unit {
+        add(makeButtonGroup(configure))
+    }
+    public fun badge(text: String, configure: BadgeBuilder.() -> Unit = {}): Unit {
+        add(makeTextBadge(text, configure))
+    }
+    public fun badge(text: StyledText, configure: StyledBadgeBuilder.() -> Unit = {}): Unit {
+        add(makeStyledBadge(text, configure))
+    }
+    public fun badge(content: View, configure: ContentBadgeBuilder.() -> Unit = {}): Unit {
+        add(makeContentBadge(content, configure))
+    }
+    public fun badge(
+        content: (ActionContentStyle) -> View,
+        configure: ContentBadgeBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeResolvedBadge(content, configure))
+    }
+    public fun spinner(configure: SpinnerBuilder.() -> Unit = {}): Unit {
+        add(makeSpinner(configure))
+    }
+
+    public fun avatar(fallback: String, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Label(LabelProps(LabelText.Plain(fallback, None))), configure))
+    }
+    public fun avatar(fallback: StyledText, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Label(LabelProps(LabelText.Styled(fallback))), configure))
+    }
+    public fun avatar(fallback: View, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Custom(fallback), configure))
+    }
+    public fun avatarGroup(
+        size: AvatarSize = AvatarSize.Default,
+        configure: AvatarGroupBuilder.() -> Unit
+    ): Unit {
+        add(makeAvatarGroup(size, configure))
+    }
+    public fun skeleton(configure: SkeletonBuilder.() -> Unit = {}): Unit {
+        add(makeSkeleton(empty(), Some(16.0), configure))
+    }
+    public fun skeleton(content: View, configure: SkeletonBuilder.() -> Unit = {}): Unit {
+        add(makeSkeleton(content, None, configure))
+    }
+    public fun progress(value: Double?, configure: ProgressBuilder.() -> Unit = {}): Unit {
+        add(makeProgress(value, configure))
+    }
+    public fun progress(value: Double, configure: ProgressBuilder.() -> Unit = {}): Unit {
+        add(makeProgress(Some(value), configure))
+    }
+
+    public fun typography(
+        text: String,
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTypography(TypographyContent.Plain(text), role, configure))
+    }
+    public fun typography(
+        content: StyledText,
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTypography(TypographyContent.Styled(content), role, configure))
+    }
+    public fun typography(
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyTextBuilder.() -> Unit
+    ): Unit {
+        add(makeTypographyText(role, configure))
+    }
+    public fun typographyList(configure: TypographyListBuilder.() -> Unit): Unit {
+        add(makeTypographyList(configure))
+    }
+    public fun typographyTable(configure: TypographyTableBuilder.() -> Unit): Unit {
+        add(makeTypographyTable(configure))
+    }
+    public fun kbd(text: String, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Text(text), false, configure))
+    }
+    public fun kbd(content: View, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Custom(content), false, configure))
+    }
+    public fun kbd(chord: ShortcutChord, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Chord(chord), false, configure))
+    }
+    public fun kbd(label: ShortcutLabel, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Label(label), false, configure))
+    }
+    public fun kbdGroup(chord: ShortcutChord, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Chord(chord), true, configure))
+    }
+    public fun kbdGroup(label: ShortcutLabel, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Label(label), true, configure))
+    }
+    public fun kbdGroup(configure: KbdGroupBuilder.() -> Unit): Unit {
+        add(makeKbdGroup(configure))
+    }
+
+    public fun card(content: View, configure: CardBuilder.() -> Unit = {}): Unit {
+        add(makeCard(content, configure))
+    }
+    public fun alert(content: View, configure: AlertBuilder.() -> Unit = {}): Unit {
+        add(makeAlert(content, configure))
+    }
+    public fun emptyState(content: View, configure: EmptyStateBuilder.() -> Unit = {}): Unit {
+        add(makeEmptyState(content, configure))
+    }
+    public fun separator(configure: SeparatorBuilder.() -> Unit = {}): Unit {
+        add(makeSeparator(configure))
+    }
+    public fun contentItem(configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(None, ItemSize.Default, configure))
+    }
+    public fun contentItem(content: View, configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(Some(content), ItemSize.Default, configure))
+    }
+    public fun itemGroup(
+        size: ItemSize = ItemSize.Default,
+        configure: ItemGroupBuilder.() -> Unit
+    ): Unit {
+        add(makeItemGroup(size, configure))
+    }
+    public fun itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {}): Unit {
+        add(makeItemSeparator(configure))
+    }
+    public fun aspectRatio(
+        content: View,
+        ratio: Double,
+        configure: AspectRatioBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeAspectRatio(content, ratio, configure))
+    }
+
+    public fun checkbox(
+        checked: Binding<CheckState>,
+        configure: CheckboxBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeCheckbox(checked, configure))
+    }
+    public fun switchControl(
+        checked: Binding<Boolean>,
+        configure: SwitchBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSwitch(checked, configure))
+    }
+    public fun toggle(
+        text: String,
+        pressed: Binding<Boolean>,
+        configure: ToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTextToggle(text, pressed, configure))
+    }
+    public fun toggle(
+        text: StyledText,
+        pressed: Binding<Boolean>,
+        configure: StyledToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeStyledToggle(text, pressed, configure))
+    }
+    public fun toggle(
+        content: View,
+        pressed: Binding<Boolean>,
+        configure: ContentToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentToggle(ButtonContent.Custom(content), pressed, configure))
+    }
+    public fun toggle(
+        content: (ActionContentStyle) -> View,
+        pressed: Binding<Boolean>,
+        configure: ContentToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentToggle(ButtonContent.Resolved(content), pressed, configure))
+    }
+
     public fun checkbox(
         checked: Binding<Boolean>,
         configure: CheckboxBuilder.() -> Unit = {}
@@ -94,6 +778,22 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): Unit {
         add(makeInput(state, configure))
+    }
+
+    public fun questionnaire(
+        state: QuestionnaireState,
+        onSubmit: (QuestionnaireResult) -> Unit,
+        configure: QuestionnaireBuilder.() -> Unit = {}
+    ): Unit {
+        add(appendQuestionnaire(state, onSubmit, configure))
+    }
+
+    public fun inputOtp(
+        state: TextEditorState,
+        length: Long,
+        configure: InputOtpBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeInputOtp(state, length, configure))
     }
 
     public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): Unit {
@@ -118,6 +818,26 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun grid(configure: GridBuilder.() -> Unit = {}): Unit {
         add(makeGrid(configure))
+    }
+
+    public fun collapsible(
+        open: Binding<Boolean>,
+        content: View,
+        configure: CollapsibleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeCollapsible(open, content, configure))
+    }
+    public fun <T: Equals<T>> accordion(
+        selected: Binding<T?>,
+        configure: AccordionBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeAccordion(selected, configure))
+    }
+    public fun <T: Equals<T>> accordion(
+        selected: Binding<Array<T>>,
+        configure: AccordionBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeAccordion(selected, configure))
     }
 
     public fun direction(
@@ -150,6 +870,53 @@ public open class ChildrenBuilder internal constructor() {
         configure: VirtualListBuilder.() -> Unit = {}
     ): Unit {
         add(makeVirtualList(source, itemExtent, configure))
+    }
+
+    public fun toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): Unit {
+        add(appendToaster(state, configure))
+    }
+
+    public fun calendar(
+        value: Binding<LocalDate?>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendar(value, initialPage, configure))
+    }
+    public fun calendar(
+        selection: CalendarSelection,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendar(selection, initialPage, configure))
+    }
+    public fun calendarMultiple(
+        value: Binding<Array<LocalDate>>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendarMultiple(value, initialPage, configure))
+    }
+    public fun calendarRange(
+        value: Binding<DateRange?>,
+        initialPage: LocalDate,
+        configure: CalendarBuilder.() -> Unit = {}
+    ) {
+        add(appendCalendarRange(value, initialPage, configure))
+    }
+    public fun datePicker(
+        value: Binding<LocalDate?>,
+        initialPage: LocalDate,
+        configure: DatePickerBuilder.() -> Unit = {}
+    ) {
+        add(appendDatePicker(value, initialPage, configure))
+    }
+    public fun dateRangePicker(
+        value: Binding<DateRange?>,
+        initialPage: LocalDate,
+        configure: DatePickerBuilder.() -> Unit = {}
+    ) {
+        add(appendDateRangePicker(value, initialPage, configure))
     }
 
     public fun portal(

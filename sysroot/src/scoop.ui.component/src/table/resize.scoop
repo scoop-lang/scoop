@@ -1,0 +1,255 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class TableResizeInput(
+    val width: Binding<Double?>,
+    val size: TableColumnSize,
+    val appearance: TableAppearance,
+    val enabled: Boolean
+)
+
+private class TableResizeGesture(
+    val width: Double,
+    val initial: Double?,
+    val density: Double,
+    val direction: LayoutDirection
+) {
+    var expected = initial
+}
+
+internal class TableResizeHeader(
+    private val props: Props<TableResizeInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var accepted: Double? = None
+    private var gesture: TableResizeGesture? = None
+    private var cursor = false
+    private val area =
+        scope.createArea(focusable = true) {
+            context,
+            event -> if (context.phase == RoutedPhase.Notification) {
+                when (event) {
+                    case FocusChanged(false) -> cancel();
+                    else -> {}
+                }
+                if (scope.isMounted) {
+                    updateCursor();
+                    scope.requestFrame()
+                }
+            }
+        }
+    private val focus = scope.focusTarget(area)
+    private val drag =
+        scope.drag(
+            area,
+            options(),
+            { _ -> props.value.enabled && accepted != None },
+            { event -> receive(event) }
+        )
+    init {
+        area.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (
+                            key.state ==
+                                ElementState.Pressed &&
+                                !key.synthetic &&
+                                area.isFocusActive &&
+                                props.value.enabled
+                        ) {
+                            when (key.logicalKey) {
+                                case Named(NamedKey.Escape) -> if (panelPresent(gesture)) {
+                                    cancel();
+                                    context.consume()
+                                }
+                                case Named(NamedKey.Home) -> {
+                                    cancel();
+                                    props.value.width.value = None;
+                                    context.consume()
+                                }
+                                case Named(NamedKey.ArrowLeft) -> {
+                                    adjust(false);
+                                    context.consume()
+                                }
+                                case Named(NamedKey.ArrowRight) -> {
+                                    adjust(true);
+                                    context.consume()
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (props.value.enabled)
+                            focus.handle.requestFocus(FocusOrigin.Pointer)
+                    }
+                    else -> {}
+                }
+            }
+    }
+    private fun options(): DragOptions =
+        DragOptions(DragAxis.Horizontal, enabled = props.value.enabled)
+    private fun adjust(forward: Boolean) {
+        val width = accepted ?: return
+        val sign =
+            if (forward != (scope.layoutDirection == LayoutDirection.Rtl))
+                1.0
+            else
+                -1.0
+        props.value.width.value =
+            Some(props.value.size.constrain(lowerBound(width + sign * 10.0, 0.0)))
+    }
+    private fun receive(event: DragEvent) {
+        when (event) {
+            case Started(sample) -> {
+                val width = accepted ?: return
+                gesture =
+                    Some(
+                        TableResizeGesture(
+                            width,
+                            props.value.width.value,
+                            props.value.appearance.density,
+                            scope.layoutDirection
+                        )
+                    )
+                move(sample.displacement)
+            }
+            case Moved(sample) -> move(sample.displacement)
+            case Ended(sample) -> {
+                move(sample.displacement);
+                gesture = None
+            }
+            case Cancelled(_, _) -> cancel()
+        }
+        if (scope.isMounted) {
+            updateCursor();
+            scope.requestFrame()
+        }
+    }
+    private fun move(delta: Double) {
+        val active = gesture ?: return
+        if (props.value.width.value != active.expected) {
+            cancel();
+            return
+        }
+        val logical =
+            if (active.direction == LayoutDirection.Rtl)
+                -delta
+            else
+                delta
+        val next =
+            props.value.size.constrain(lowerBound(active.width + logical / active.density, 0.0))
+        active.expected = Some(next)
+        props.value.width.value = Some(next)
+    }
+    private fun cancel() {
+        val active = gesture ?: return
+        gesture = None
+        if (props.value.width.value == active.expected)
+            props.value.width.value = active.initial
+        drag.cancel()
+    }
+    private fun updateCursor() {
+        val next = props.value.enabled && (area.scope.isHovered || drag.isDragging)
+        if (next || cursor)
+            scope.nativeWindow.setCursorIcon(
+                if (next)
+                    CursorIcon.ResizeHorizontal
+                else
+                    CursorIcon.Default
+            )
+        cursor = next
+    }
+    public override fun update(): UiInvalidation {
+        when (gesture) {
+            case Some(value) -> if (
+                props.value.width.value !=
+                    value.expected ||
+                    value.density !=
+                    props.value.appearance.density ||
+                    value.direction !=
+                    scope.layoutDirection
+            )
+                cancel()
+            case None -> {}
+        }
+        drag.update(
+            options(),
+            { _ -> props.value.enabled && accepted != None },
+            { event -> receive(event) }
+        )
+        area.scope.enabled = props.value.enabled
+        updateCursor()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        val input = props.value
+        val density = input.appearance.density
+        val size = context.size
+        val width = size.width / density
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                accepted =
+                    if (size.width > 0.0 && size.height > 0.0)
+                        Some(width)
+                    else
+                        None
+                if (accepted == None)
+                    cancel()
+            }
+        }
+        context.children()
+        val x =
+            if (context.layoutDirection == LayoutDirection.Rtl)
+                0.0
+            else
+                lowerBound(size.width - 8.0 * density, 0.0)
+        val bounds =
+            Rect(
+                x,
+                4.0 * density,
+                lowerBound(upperBound(size.width, 8.0 * density), 0.0),
+                lowerBound(size.height - 8.0 * density, 0.0)
+            )
+        context.place(area, bounds)
+        if (area.scope.isHovered || area.isFocusVisible || drag.isDragging)
+            context.draw {
+                paint ->
+                val color =
+                    if (area.isFocusVisible)
+                        input.appearance.theme.tokens.palette.ring
+                    else
+                        input.appearance.theme.tokens.palette.border
+                paint.canvas.drawRect(
+                    Rect(
+                        bounds.x + bounds.width / 2.0 - density,
+                        bounds.y,
+                        2.0 * density,
+                        bounds.height
+                    ),
+                    Paint(color)
+                )
+            }
+    }
+    public override fun onUnmount() {
+        cancel();
+        if (cursor)
+            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+    }
+}

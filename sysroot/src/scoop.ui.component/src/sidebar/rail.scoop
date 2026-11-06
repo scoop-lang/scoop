@@ -1,0 +1,86 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.CursorIcon
+import scoop.window.setCursorIcon
+
+private class SidebarRailInput(val props: SidebarProps, val theme: Theme, val toggle: () -> Unit)
+
+internal fun sidebarRail(input: SidebarProps, theme: Theme, toggle: () -> Unit): View =
+    element(
+        SidebarRailInput(input, theme, toggle),
+        { current, mount -> SidebarRail(current, scope = mount) }
+    )
+
+private class SidebarRail(
+    private val props: Props<SidebarRailInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var press: Press? = None
+    private var cursor = false
+    public override fun onMount() {
+        area =
+            Some(
+                scope.createArea {
+                    context,
+                    _ -> if (context.phase == RoutedPhase.Notification && scope.isMounted) {
+                        refreshCursor();
+                        scope.requestFrame()
+                    }
+                }
+            )
+        press =
+            Some(
+                scope.press(area!!, PressOptions(props.value.props.enabled)) {
+                    props.value.toggle()
+                }
+            )
+    }
+    private fun refreshCursor() {
+        val hover = props.value.props.enabled && area!!.scope.isHovered
+        if (hover != cursor) {
+            scope.nativeWindow.setCursorIcon(
+                if (hover)
+                    CursorIcon.ResizeHorizontal
+                else
+                    CursorIcon.Default
+            )
+            cursor = hover
+        }
+    }
+    public override fun update(): UiInvalidation {
+        area!!.scope.enabled = props.value.props.enabled
+        press!!.update(PressOptions(props.value.props.enabled)) { props.value.toggle() }
+        refreshCursor()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(16.0, constraints.maxHeight ?: 0.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
+        if (area!!.scope.isHovered && props.value.props.enabled) {
+            val density = props.value.theme.tokens.typography.body.fontSize / 14.0
+            val color = props.value.theme.tokens.palette.sidebar.border
+            context.draw {
+                paint -> paint.canvas.drawRect(
+                    Rect(size.width / 2.0 - density, 0.0, density * 2.0, size.height),
+                    Paint(color)
+                )
+            }
+        }
+    }
+    public override fun onUnmount() {
+        if (cursor && scope.isMounted)
+            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+    }
+}

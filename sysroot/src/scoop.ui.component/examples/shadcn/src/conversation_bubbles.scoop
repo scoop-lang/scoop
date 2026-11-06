@@ -1,0 +1,235 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as conversationColumn
+import scoop.ui.component.row as conversationRow
+import scoop.ui.component.bubble as conversationBubble
+import scoop.ui.component.message as conversationMessage
+import scoop.ui.component.input as conversationInput
+import scoop.ui.component.button as conversationButton
+import scoop.ui.component.typography as conversationText
+import scoop.ui.component.avatar as conversationAvatar
+import scoop.ui.component.attachment as conversationAttachment
+
+internal fun conversationBubbleExamples(model: ConversationExamplesModel): View =
+    conversationColumn {
+        this.wrap {
+            this.button("Next variant", { model.nextVariant() }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.topReactions.value)
+                    "Reactions below"
+                else
+                    "Reactions above",
+                { model.topReactions.value = !model.topReactions.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0;
+            this.lineSpacing = 8.0
+        }
+        for (
+            variant in [
+                BubbleVariant.Default,
+                BubbleVariant.Secondary,
+                BubbleVariant.Muted,
+                BubbleVariant.Tinted,
+                BubbleVariant.Outline,
+                BubbleVariant.Ghost,
+                BubbleVariant.Destructive
+            ]
+        ) {
+            this.bubble(
+                "A " + bubbleName(variant) + " bubble with a line that can wrap at a narrow width."
+            ) {
+                this.variant = variant
+                this.align =
+                    if (model.end.value)
+                        MessageAlignment.End
+                    else
+                        MessageAlignment.Start
+                this.enabled = model.enabled.value
+            }
+        }
+        this.add(
+            conversationBubble(conversationInput(model.note)) {
+                this.variant = BubbleVariant.Outline
+                this.align =
+                    if (model.end.value)
+                        MessageAlignment.End
+                    else
+                        MessageAlignment.Start
+                this.enabled = model.enabled.value
+                this.reactions(
+                    conversationButton(
+                        if (model.reacted.value)
+                            "♥ 2"
+                        else
+                            "♡ 1",
+                        { model.reacted.value = !model.reacted.value }
+                    ) {
+                        this.variant = ButtonVariant.Ghost;
+                        this.size = ButtonSize.Xs
+                    },
+                    if (model.topReactions.value)
+                        BubbleReactionSide.Top
+                    else
+                        BubbleReactionSide.Bottom,
+                    if (model.end.value)
+                        MessageAlignment.Start
+                    else
+                        MessageAlignment.End
+                )
+            }
+        )
+        this.bubble("Open this message for more detail.") {
+            this.variant = model.variant.value
+            this.onClick =
+                if (model.actions.value)
+                    Some({ model.clicks.value += 1 })
+                else
+                    None
+            this.enabled = model.enabled.value
+            this.align =
+                if (model.end.value)
+                    MessageAlignment.End
+                else
+                    MessageAlignment.Start
+            this.actions =
+                if (model.actions.value)
+                    Some(
+                        conversationButton("Reply", { model.clicks.value += 1 }) {
+                            this.variant = ButtonVariant.Ghost;
+                            this.size = ButtonSize.Xs
+                        }
+                    )
+                else
+                    None
+        }
+        this.spacing = 14.0;
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun bubbleName(value: BubbleVariant): String =
+    when (value) {
+        case Default -> "default";
+        case Secondary -> "secondary";
+        case Muted -> "muted";
+        case Tinted -> "tinted";
+        case Outline -> "outline";
+        case Ghost -> "ghost";
+        case Destructive -> "destructive"
+    }
+
+internal fun conversationMessageExamples(model: ConversationExamplesModel, image: Image): View =
+    conversationColumn {
+        this.wrap {
+            this.button(
+                if (model.face.value)
+                    "Hide avatar"
+                else
+                    "Show avatar",
+                { model.face.value = !model.face.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.button(
+                if (model.footer.value)
+                    "Hide footer"
+                else
+                    "Show footer",
+                { model.footer.value = !model.footer.value }
+            ) { this.variant = ButtonVariant.Outline }
+            this.spacing = 8.0;
+            this.lineSpacing = 8.0
+        }
+        this.message(
+            {
+                align -> conversationBubble("Can we keep the decision with its source files?") {
+                    this.align = align;
+                    this.variant = BubbleVariant.Secondary
+                }
+            }
+        ) {
+            this.align = MessageAlignment.End
+            this.avatar = Some(conversationAvatar("C"))
+            this.header("Chen · 10:24")
+        }
+        this.add(
+            conversationMessage(
+                {
+                    align -> conversationColumn {
+                        this.add(
+                            conversationBubble(
+                                {
+                                    appearance -> conversationText(model.body.value) {
+                                        this.textStyle {
+                                            this.color = Some(appearance.text.color);
+                                            this.fontSize = Some(14.0);
+                                            this.lineHeight = Some(Some(1.625))
+                                        }
+                                    }
+                                }
+                            ) {
+                                this.variant = BubbleVariant.Ghost;
+                                this.align = align;
+                                this.enabled = model.enabled.value
+                            }
+                        )
+                        this.add(
+                            conversationAttachment("Decision notes.pdf") {
+                                this.image(image, Size(320.0, 180.0))
+                                this.description("PDF · 2.4 MB")
+                                this.state = model.attachment.value
+                                this.enabled = model.enabled.value
+                                this.onClick =
+                                    if (model.actions.value)
+                                        Some({ model.clicks.value += 1 })
+                                    else
+                                        None
+                            }
+                        )
+                        this.add(
+                            conversationBubble(conversationInput(model.note)) {
+                                this.variant = BubbleVariant.Outline;
+                                this.align = align;
+                                this.enabled = model.enabled.value
+                            }
+                        )
+                        this.spacing = 8.0;
+                        this.alignment = CrossAlignment.Stretch
+                    }
+                }
+            ) {
+                this.align =
+                    if (model.end.value)
+                        MessageAlignment.End
+                    else
+                        MessageAlignment.Start
+                this.captionInset = 0.0
+                this.avatar =
+                    if (model.face.value)
+                        Some(conversationAvatar("S"))
+                    else
+                        None
+                this.reserveAvatar = true
+                this.header("Scoop · 10:25")
+                if (model.footer.value)
+                    this.footer(
+                        conversationRow {
+                            this.button("Reply", { model.clicks.value += 1 }) {
+                                this.variant = ButtonVariant.Ghost;
+                                this.size = ButtonSize.Xs
+                            }
+                            this.button("Save", { model.clicks.value += 1 }) {
+                                this.variant = ButtonVariant.Ghost;
+                                this.size = ButtonSize.Xs
+                            }
+                            this.spacing = 4.0
+                        }
+                    )
+            }
+        )
+        this.spacing = 18.0;
+        this.alignment = CrossAlignment.Stretch
+    }

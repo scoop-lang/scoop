@@ -1,0 +1,49 @@
+package scoop.window
+
+/** Observed native state used to pause work owned by this window. */
+public struct WindowActivity(val focused: Boolean, val visible: Boolean, val occluded: Boolean)
+
+internal class WindowActivityObserver(
+    private val owner: WindowOwner,
+    private var previous: WindowActivity,
+    callback: (WindowActivity) -> Unit
+): Closeable {
+    private var handler: ((WindowActivity) -> Unit)? = Some(callback)
+
+    fun deliver(value: WindowActivity) {
+        val callback = handler ?: return
+        if (value == previous)
+            return
+        previous = value
+        callback(value)
+    }
+
+    public override fun close() {
+        owner.application.checkThread()
+        when (handler) {
+            case None -> return
+            case Some(_) -> {}
+        }
+        handler = None
+        for (index in 0L ..< owner.activityObservers.size)
+            if (owner.activityObservers[index] === this) {
+                owner.activityObservers.removeAt(index)
+                return
+            }
+    }
+}
+
+internal fun WindowOwner.activitySnapshot(): WindowActivity {
+    val value = snapshot()
+    return WindowActivity(value.focused != 0, value.visible != 0, value.occluded != 0)
+}
+
+internal fun WindowOwner.notifyActivity() {
+    if (phase != WindowState.Open || activityObservers.size == 0L)
+        return
+    for (observer in activityObservers.toArray()) {
+        if (phase != WindowState.Open)
+            return
+        observer.deliver(activitySnapshot())
+    }
+}

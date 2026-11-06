@@ -1,0 +1,57 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class DisclosureLayoutProps(
+    val presence: Presence?,
+    val open: Boolean,
+    val transition: PresenceOptions,
+    val hasTrigger: Boolean,
+    val spacing: Double
+)
+
+/** The presentation owner stays outside the content's input and animation gate. */
+internal class DisclosureLayout(
+    private val props: Props<DisclosureLayoutProps>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
+    public override fun update(): UiInvalidation {
+        props.value.presence?.update(props.value.open, Some(props.value.transition))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
+        val input = props.value
+        val child =
+            Constraints(minWidth = constraints.maxWidth ?: 0.0, maxWidth = constraints.maxWidth)
+        val header = context.measureChild(0L, child)
+        val body = context.measureChild(1L, child)
+        val progress = disclosureProgress(input.presence, input.open)
+        val gap =
+            if (input.hasTrigger)
+                input.spacing * progress
+            else
+                0.0
+        val width = lowerBound(header.size.width, body.size.width)
+        val height = header.size.height + gap + body.size.height
+        val size = constraints.constrain(Size(width, height))
+        val clipped = size.width < width || size.height < height
+        if (size.width > 0.0 && size.height > 0.0) {
+            if (input.hasTrigger)
+                context.placeChild(0L, Point(0.0, 0.0))
+            if (body.size.height > 0.0)
+                context.placeChild(1L, Point(0.0, header.size.height + gap))
+        }
+        return LayoutResult(
+            LayoutMetrics(size, header.alphabeticBaseline, header.ideographicBaseline),
+            clipped
+        )
+    }
+    public override fun scene(context: SceneContext, clipped: Boolean) {
+        if (clipped)
+            context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

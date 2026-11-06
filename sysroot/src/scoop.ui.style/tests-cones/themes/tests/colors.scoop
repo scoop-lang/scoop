@@ -1,0 +1,82 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+
+@Test
+private class ThemeColorTest {
+    @Test
+    fun `color interpolation preserves endpoints and weights visible channels by alpha`() {
+        val red = Color(1.0, 0.0, 0.0, 0.2)
+        val blue = Color(0.0, 0.0, 1.0, 0.8)
+        val middle = mixThemeColor(red, blue, 0.5)
+        near(0.2, middle.red)
+        near(0.0, middle.green)
+        near(0.8, middle.blue)
+        near(0.5, middle.alpha)
+        assertEquals(red, mixThemeColor(red, blue, -0.5))
+        assertEquals(blue, mixThemeColor(red, blue, 1.5))
+        val invisible = Color(1.0, 0.0, 0.0, 0.0)
+        assertEquals(invisible, mixThemeColor(invisible, blue, 0.0))
+        assertEquals(Color.Transparent, mixThemeColor(invisible, Color.Transparent, 0.5))
+        val states = StateColors(red, blue, Color.White, Color.Black)
+        assertEquals(
+            Color.Black,
+            states.resolve(InteractionVisual(enabled = false, hovered = true, pressed = true))
+        )
+        assertEquals(
+            Color.White,
+            states.resolve(InteractionVisual(pressed = true, hoverProgress = Some(0.5)))
+        )
+    }
+
+    @Test
+    fun `transparent color transitions composite without overshooting either painted endpoint`() {
+        val bounds = Rect(0.0, 0.0, 4.0, 4.0)
+        for (background in [Color.White, Color.Black]) {
+            for (hidden in [Color.Transparent, Color(1.0, 0.0, 0.0, 0.0)]) {
+                val target = Color(0.6, 0.8, 0.1, 0.8)
+                for (reverse in [false, true]) {
+                    val from =
+                        if (reverse)
+                            target
+                        else
+                            hidden
+                    val to =
+                        if (reverse)
+                            hidden
+                        else
+                            target
+                    for (t in [0.0, 0.25, 0.5, 0.75, 1.0]) {
+                        val result =
+                            pixels(4, 4) {
+                                canvas ->
+                                canvas.clear(background)
+                                canvas.drawRect(bounds, Paint(mixThemeColor(from, to, t)))
+                            }
+                        val alpha =
+                            target.alpha *
+                                (
+                                    if (reverse)
+                                        1.0 - t
+                                    else
+                                        t
+                                )
+                        pixelColor(
+                            result,
+                            4,
+                            2,
+                            2,
+                            Color(
+                                target.red * alpha + background.red * (1.0 - alpha),
+                                target.green * alpha + background.green * (1.0 - alpha),
+                                target.blue * alpha + background.blue * (1.0 - alpha)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

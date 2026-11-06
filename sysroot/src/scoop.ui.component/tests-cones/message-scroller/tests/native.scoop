@@ -1,0 +1,100 @@
+package scoop.tests.ui.messages
+
+import scoop.test.*
+
+import scoop.tests.window.nativeEditorText
+import scoop.tests.window.nativeEditorKey
+import scoop.tests.window.nativeEditorPointer
+import scoop.window.Window
+import scoop.window.native.*
+
+internal fun messageNativeText(window: Window, text: String, marked: Boolean): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeEditorText(
+                                view,
+                                if (marked)
+                                    1
+                                else
+                                    0,
+                                bytes,
+                                length,
+                                if (marked)
+                                    2L
+                                else
+                                    0L,
+                                0L,
+                                -1L,
+                                0L
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun messageNativeKey(window: Window, code: Int, text: String, flags: Int = 0): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeEditorKey(view, code, bytes, length, flags)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun messageNativeFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        messageNativeFailure(error.primaryFailure)
+        messageNativeFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "message scroller failure")
+}
+
+internal fun messageNativePointer(window: Window, x: Double, y: Double, pressed: Boolean): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> nativeEditorPointer(view, x, y, pressed, 1, false)
+                }
+            }
+        }
+    }
+}

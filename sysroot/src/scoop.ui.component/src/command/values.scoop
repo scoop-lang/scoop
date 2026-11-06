@@ -1,0 +1,103 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.ShortcutChord
+
+/** Immutable command metadata. Custom content and icons have no independent input behavior. */
+public class CommandItem public constructor(
+    public val key: ViewKey,
+    public val label: String,
+    public val onSelect: () -> Unit = {},
+    public val enabled: Boolean = true,
+    public val keywords: Array<String> = [],
+    public val content: View? = None,
+    public val icon: View? = None,
+    public val shortcut: ShortcutChord? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public enum CommandEntry {
+    Item(CommandItem), Label(val key: ViewKey, val content: PanelContent), Separator(
+        val key: ViewKey
+    )
+}
+
+/** A metadata snapshot; large provided sources need not allocate every item or View. */
+public interface CommandSource: NavigationSource {
+    public val itemCount: Long
+    public fun entryAt(index: Long): CommandEntry
+    public override fun keyAt(index: Long): ViewKey = commandKey(entryAt(index))
+    public override fun enabledAt(index: Long): Boolean =
+        commandItem(entryAt(index))?.enabled ?: false
+    public override fun searchTextAt(index: Long): String = commandItem(entryAt(index))?.label ?: ""
+}
+
+public class CommandContent public constructor(
+    public val entries: Array<CommandEntry>
+): CommandSource {
+    private val indices = HashMap<ViewKey, Long>()
+    private var commands = 0L
+    init {
+        for (index in 0L ..< entries.size) {
+            val key = commandKey(entries[index])
+            requireComponent(key != ViewKey.Position, "command entry requires an explicit key")
+            requireComponent(indices[key] == None, "duplicate command entry key")
+            indices.put(key, index)
+            if (panelPresent(commandItem(entries[index])))
+                commands += 1L
+        }
+    }
+    public override val count: Long get() = entries.size
+    public override val itemCount: Long get() = commands
+    public override fun entryAt(index: Long): CommandEntry = entries[index]
+    public override fun indexOfKey(key: ViewKey): Long? = indices[key]
+}
+
+public enum CommandFilter {
+    Ranked, Provided, Custom(val score: (CommandItem, String) -> Double)
+}
+
+public class CommandProps public constructor(
+    public val source: CommandSource,
+    public val input: InputProps,
+    public val active: Binding<ViewKey?>? = None,
+    public val filter: CommandFilter = CommandFilter.Ranked,
+    public val autoHighlight: Boolean = true,
+    public val loop: Boolean = true,
+    public val width: Double = 320.0,
+    public val maxHeight: Double = 288.0,
+    public val empty: PanelContent =
+        PanelContent.Label(LabelProps(LabelText.Plain("No results found.", None))),
+    public val showSearchIcon: Boolean = true,
+    public val searchIcon: View? = None,
+    public val scroll: ScrollState? = None,
+    public val listHandle: VirtualListHandle? = None,
+    public val panelStyle: StyleOverride = styleOverride(),
+    public val onSelect: (ViewKey) -> Unit = { _ -> Unit }
+) {
+    public val query: TextEditorState get() = input.state
+    init {
+        nonnegative(width, "invalid command width")
+        nonnegative(maxHeight, "invalid command list height")
+        requireComponent(
+            source.count >= 0L && source.itemCount >= 0L && source.itemCount <= source.count,
+            "invalid command source counts"
+        )
+    }
+}
+
+internal fun commandItem(entry: CommandEntry): CommandItem? =
+    when (entry) {
+        case Item(item) -> Some(item)
+        else -> None
+    }
+
+internal fun commandKey(entry: CommandEntry): ViewKey =
+    when (entry) {
+        case Item(item) -> item.key
+        case Label(key, _) -> key
+        case Separator(key) -> key
+    }

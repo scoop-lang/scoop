@@ -1,0 +1,164 @@
+package scoop.ui.component
+
+import scoop.datetime.LocalDate
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as calendarHeaderRow
+
+internal fun calendarHeader(
+    owner: CalendarControl,
+    page: CalendarPage,
+    index: Long,
+    first: Boolean,
+    last: Boolean,
+    appearance: CalendarAppearance
+): View {
+    val input = owner.props.value
+    val before = calendarPageButton(owner, first, false, appearance)
+    val after = calendarPageButton(owner, last, true, appearance)
+    val caption =
+        if (
+            input.options.caption ==
+                CalendarCaption.Dropdowns &&
+                page.months.size >
+                0L &&
+                page.years.size >
+                0L
+        )
+            calendarHeaderRow {
+                this.add(calendarPageSelect(owner, index, page.months, appearance, "month"))
+                this.add(calendarPageSelect(owner, index, page.years, appearance, "year"))
+                this.spacing = 2.0 * appearance.density
+                this.alignment = CrossAlignment.Center
+            }
+        else
+            calendarLabel(page.caption, appearance.caption, input.fonts)
+    val parts = CalendarHeaderParts(page, before, after, caption)
+    when (input.header) {
+        case Some(build) -> return build(parts);
+        case None -> {}
+    }
+    val layout =
+        GridProps(
+            [
+                GridTrack.Fixed(appearance.cell),
+                GridTrack.Fraction(1.0),
+                GridTrack.Fixed(appearance.cell)
+            ],
+            [GridTrack.Auto],
+            [
+                GridItem(before, 0L, 0L),
+                GridItem(caption, 1L, 0L, vertical = CrossAlignment.Center),
+                GridItem(after, 2L, 0L)
+            ],
+            columnGap = 2.0 * appearance.density
+        )
+    return component(layout, { props, scope -> Grid(props, scope) })
+}
+
+private fun calendarPageButton(
+    owner: CalendarControl,
+    present: Boolean,
+    forward: Boolean,
+    appearance: CalendarAppearance
+): View {
+    if (!present)
+        return empty()
+    val input = owner.props.value
+    val first = owner.pages()[0L]
+    val available =
+        if (forward)
+            first.next != None
+        else
+            first.previous != None
+    val button =
+        component(
+            ButtonProps(
+                ButtonContent.Resolved {
+                    style -> navigationIcon(
+                        if (forward)
+                            NavigationGlyph.End
+                        else
+                            NavigationGlyph.Start,
+                        style.iconSize,
+                        style.text.color
+                    )
+                },
+                { owner.turn(forward) },
+                input.enabled && available,
+                appearance.normal,
+                input.theme,
+                FocusOptions(
+                    handle =
+                        Some(
+                            if (forward)
+                                owner.nextFocus
+                            else
+                                owner.previousFocus
+                        )
+                ),
+                variant = ButtonVariant.Ghost,
+                size = ButtonSize.Icon
+            ),
+            { props, scope -> Button(props, scope) },
+            ViewKey.Text(
+                if (forward)
+                    "next"
+                else
+                    "previous"
+            )
+        )
+    return panelFrame(button, Insets.all(appearance.ring))
+}
+
+private fun calendarPageSelect(
+    owner: CalendarControl,
+    index: Long,
+    entries: Array<CalendarPageChoice>,
+    appearance: CalendarAppearance,
+    key: String
+): View {
+    val input = owner.props.value
+    val selected =
+        binding<LocalDate?>(
+            { owner.captionPage(index) },
+            {
+                next -> when (next) {
+                    case Some(date) -> {
+                        owner.showCaption(date, index);
+                    };
+                    case None -> {}
+                }
+            }
+        )
+    val choices =
+        Array<Choice<LocalDate>>(entries.size) {
+            index -> Choice(
+                ViewKey.Text(entries[index].anchor.toString()),
+                entries[index].anchor,
+                entries[index].label
+            )
+        }
+    return select(selected, choices) {
+        this.key = ViewKey.Text(key)
+        this.size = SelectSize.Sm
+        this.enabled = input.enabled
+        this.fonts = input.fonts
+        this.theme = input.theme
+        this.position = SelectPosition.Popup
+        this.style {
+            this.surface {
+                this.padding =
+                    Some(
+                        Insets(
+                            4.0 * appearance.density,
+                            2.0 * appearance.density,
+                            4.0 * appearance.density,
+                            2.0 * appearance.density
+                        )
+                    )
+            }
+        }
+    }
+}

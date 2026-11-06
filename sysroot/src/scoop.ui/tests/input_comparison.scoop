@@ -1,0 +1,56 @@
+package scoop.ui
+
+import scoop.test.*
+
+private class ComparedInput(val number: Int, val action: () -> Unit)
+
+@Test
+private class InputComparisonTest {
+    @Test
+    fun `current props replace even when the same rule proves the display unchanged`() {
+        val clicks = state(0)
+        val first = ComparedInput(4, { clicks.value = 1 })
+        val rule = InputComparison<ComparedInput> { a, b -> a.number == b.number }
+        val props = Props(first, Some(rule))
+        val next = ComparedInput(4, { clicks.value = 2 })
+        assertTrue(props.replace(next, Some(rule)))
+        assertTrue(props.value === next)
+        props.value.action()
+        assertEquals(2, clicks.value)
+        assertFalse(props.replace(next, Some(InputComparison { a, b -> a.number == b.number })))
+        assertFalse(props.replace(next))
+        assertFalse(Props(first).replace(first))
+    }
+
+    @Test
+    fun `input comparison cannot mutate state or extend a render subscription`() {
+        val signal = state(3)
+        val rule = InputComparison<Int> { a, b -> signal.value == 3 && a == b }
+        val props = Props(1, Some(rule))
+        val collector = DependencyCollector()
+        evaluateUi(Some(collector)) { assertTrue(props.replace(1, Some(rule))) }
+        assertEquals(0L, collector.sources.size)
+        val impure =
+            InputComparison<Int> {
+                _, _ ->
+                signal.value = 4;
+                true
+            }
+        val invalid = Props(1, Some(impure))
+        assertFailsWith<IllegalStateException> { invalid.replace(2, Some(impure)) }
+        assertEquals(3, signal.value)
+        assertEquals(2, invalid.value)
+    }
+
+    @Test
+    fun `repeated reads collect each distinct signal once`() {
+        val signals = Array<State<Int>>(256L) { index -> state(index.toInt()) }
+        val collector = DependencyCollector()
+        evaluateUi(Some(collector)) {
+            for (_ in 0L ..< 8L)
+                for (index in 0L ..< signals.size)
+                    assertEquals(index.toInt(), signals[index].value)
+        }
+        assertEquals(256L, collector.sources.size)
+    }
+}
