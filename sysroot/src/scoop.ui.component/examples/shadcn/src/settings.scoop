@@ -106,11 +106,12 @@ internal fun settingsExamples(model: SettingsModel, theme: Theme): View =
         this.alignment = CrossAlignment.Start
     }
 
-private fun settingsAccount(model: SettingsModel): View =
+internal fun settingsAccount(model: SettingsModel): View =
     makeFieldSet(
         makeFieldGroup {
             this.field(
                 makeInput(model.name) {
+                    this.focus = FocusOptions(Some(model.nameFocus))
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.targets[0L])
@@ -177,6 +178,7 @@ private fun settingsAccount(model: SettingsModel): View =
             }
             this.field(
                 settingsDatePicker(model.birthday.binding(), LocalDate(2026, 11, 6)) {
+                    this.focus = FocusOptions(Some(model.birthdayFocus))
                     this.enabled = model.enabled.value
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.birthdayTarget)
@@ -196,13 +198,14 @@ private fun settingsAccount(model: SettingsModel): View =
         this.description("Required fields are checked when you save; errors update as you edit.")
     }
 
-private fun settingsPreferences(model: SettingsModel, theme: Theme): View =
+internal fun settingsPreferences(model: SettingsModel, theme: Theme): View =
     makeFieldSet(
         makeFieldGroup {
             this.add(
                 makeFieldLabel(
                     makeField(
                         makeCheckbox(model.updates.binding()) {
+                            this.focus = FocusOptions(Some(model.updatesFocus))
                             this.enabled = model.enabled.value;
                             this.labelTarget = Some(model.targets[4L])
                         }
@@ -235,6 +238,7 @@ private fun settingsPreferences(model: SettingsModel, theme: Theme): View =
             )
             this.field(
                 makeSwitch(model.privateProfile.binding()) {
+                    this.focus = FocusOptions(Some(model.privateFocus))
                     this.enabled = model.enabled.value;
                     this.labelTarget = Some(model.targets[5L])
                 }
@@ -247,7 +251,9 @@ private fun settingsPreferences(model: SettingsModel, theme: Theme): View =
             this.field(
                 makeRadioGroup(model.plan.binding()) {
                     this.enabled = model.enabled.value
-                    this.item(Choice(ViewKey.Text("personal"), 0, "Personal"))
+                    this.item(Choice(ViewKey.Text("personal"), 0, "Personal")) {
+                        this.focus = FocusOptions(Some(model.planFocus))
+                    }
                     this.item(Choice(ViewKey.Text("team"), 1, "Team"))
                 }
             ) {
@@ -259,6 +265,7 @@ private fun settingsPreferences(model: SettingsModel, theme: Theme): View =
             this.field(
                 makeSlider(model.storage.binding(), RangeSpec(0.0, 100.0, Some(5.0))) {
                     this.enabled = model.enabled.value
+                    this.thumb { this.focus = FocusOptions(Some(model.storageFocus)) }
                 }
             ) {
                 this.orientation = model.orientation.value

@@ -46,12 +46,11 @@ internal class MessageScrollerExamplesModel {
             None
         else
             Some(rows[rows.size - 1L])
-    fun send() {
+    fun send(text: String = "Show how this plan behaves as the conversation grows.") {
         stop()
         val id = next
         next += 2L
-        val user =
-            TranscriptExampleRow(id, true, "Show how this plan behaves as the conversation grows.")
+        val user = TranscriptExampleRow(id, true, text)
         val answer = TranscriptExampleRow(id + 1L, false, "Here is the next part of the plan.")
         val previous = rows
         replace(
@@ -66,7 +65,7 @@ internal class MessageScrollerExamplesModel {
             }
         )
         scroll.beginTurn(ViewKey.Number(id))
-        status.value = "New turn placed near the top. Start streaming to grow its reply."
+        status.value = "Your message is ready for a reply."
     }
     fun streamReply() {
         val target = reply() ?: return
@@ -81,12 +80,11 @@ internal class MessageScrollerExamplesModel {
                     try {
                         for (at in 1 .. 12) {
                             currentEventLoop().sleep(Duration.milliseconds(180L))
-                            target.text.value += f"\n\n${
+                            target.text.value += f"\n\nReview item ${
                                 at
-                            }. Keep the same message key while content arrives. Reading an earlier paragraph should remain comfortable, even when the reply adds detail or an image appears."
+                            }: confirm the owner, describe the expected result and record any open questions before the next project review."
                         }
-                        model.status.value =
-                            "Reply complete. The window is idle until your next action."
+                        model.status.value = "Reply complete."
                     } finally {
                         if (model.streamRevision == revision)
                             model.running.value = false
@@ -112,7 +110,7 @@ internal class MessageScrollerExamplesModel {
                 currentApplicationScope().launch {
                     currentEventLoop().sleep(Duration.milliseconds(700L))
                     target.image.value = true
-                    model.status.value = "Image ready. Existing reading position was retained."
+                    model.status.value = "Project illustration ready."
                 }
             )
     }
@@ -144,7 +142,7 @@ internal class MessageScrollerExamplesModel {
     }
     fun remember() {
         saved.value = scroll.reading?.anchor ?: None
-        status.value = "Reading position saved by message key."
+        status.value = "Reading position saved."
     }
     fun restore() {
         when (saved.value) {
@@ -174,25 +172,25 @@ private fun initialMessages(): Array<TranscriptExampleRow> =
         TranscriptExampleRow(
             1L,
             false,
-            "Start with a short plan and keep the main decisions close to the work. A long conversation can remain readable without forcing the viewport to follow every update."
+            "Start with a short plan: one shared workspace for drafts, decisions and project notes. I have attached an outline for the first review."
         ),
         TranscriptExampleRow(2L, true, "Keep a record of the tradeoffs too."),
         TranscriptExampleRow(
             3L,
             false,
-            "Each message has a stable identity. You can keep a note here, return to a saved paragraph, and add older context without losing your place.",
+            "We can keep editing and preview side by side, with the inspector available when someone needs more detail. Record the tradeoffs in the decision notes below.",
             true
         ),
-        TranscriptExampleRow(4L, true, "What happens when a reply keeps growing?"),
+        TranscriptExampleRow(4L, true, "What should we cover in the first review?"),
         TranscriptExampleRow(
             5L,
             false,
-            "The current turn first grows into the available space. Optional following starts only after that space is full. Scrolling or selecting text stops automatic movement."
+            "Review the draft with the people who will use it. Check that they can find their work, make a change and understand what to do next."
         ),
         TranscriptExampleRow(6L, true, "Let's try the next step."),
         TranscriptExampleRow(
             7L,
             false,
-            "Use the controls above to stream a reply, prepend history, reveal an image or send a new turn."
+            "Tell me what you would like to explore. You can also answer the project questions below so we can tailor the next steps to your role."
         )
     ]

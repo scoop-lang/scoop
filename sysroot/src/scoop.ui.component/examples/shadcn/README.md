@@ -1,5 +1,12 @@
 # shadcn Gallery
 
+真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。导航分为 Applications 和 Components，包含设计目录全部 64 项的独立页面，以及四个可操作的应用组合：
+
+- **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
+- **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。
+- **Data app**：本地样例付款的筛选、排序、分页、选择和行内备注；行菜单的删除确认同时更新表格与图表，通知中的 Undo 恢复原记录及备注。
+- **Conversation app**：消息、附件、可编辑的嵌套 Trace、异步回复与图片，以及带条件分支的问卷；支持插入历史、保存／恢复阅读位置和答案、错误回跳与重复提交防护，切页取消任务。
+
 Bubble、Message、Marker、Attachment、Trace 页面提供窄宽、逻辑对齐、独立动作和真实异步更新。Bubble 展示全部变体及上下反应区；Message 可增删头像／页脚并保留草稿。Attachment 包含五种状态、三种尺寸、横纵媒体及可滚动图片组。Trace 支持嵌套编辑、受控／拒绝展开、链接动作及 Dialog／Sheet；页面和 Sheet 分别持有编辑器状态。切页取消任务，明暗、System／Neutral、RTL 与减少动态沿顶部设置。
 
 Message Scroller 页面使用稳定消息 key，提供新回合、真实异步流式回复、历史插入、延迟图片、保存／恢复阅读位置和清空恢复。Auto follow 显式启用末端跟随；拖选正文、输入备注或向上滚动后保持阅读位置。顶部主题／RTL 与 Narrow 可组合检查；切页取消示例任务并释放图片。
@@ -8,8 +15,7 @@ Table 展示有限发票、共享列宽、footer 和独立动作。Data Table �
 
 Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
 
-真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。
-当前已提供设计目录全部 64 项的独立页面，包括普通、invalid、disabled、真实焦点状态和各公开变体。组件批次结果见 `docs/ui/shadcn/PROGRESS.md`；四个完整应用组合的 P9 验收继续推进。
+组件页面包括普通、invalid、disabled、真实焦点状态和各公开变体。组件及组合应用的实际验证范围见 [实施记录](../../../../../docs/ui/shadcn/PROGRESS.md)。
 
 在准备好开发 sysroot 后运行：
 
@@ -17,7 +23,7 @@ Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、
 SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.component/examples/shadcn --release
 ```
 
-顶部切换明暗与 LTR／RTL；左侧搜索、选择控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
+顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
 
 macOS 默认使用实际系统配色，顶部 `Colors: System／Neutral` 按钮切换配色。System 使用系统强调色、背景、文字及分隔线，按当前 Light／Dark 选择解析；切换配色、明暗或重新聚焦窗口时读取最新系统颜色。shadcn 的尺寸、布局和交互保持一致，Neutral 仍用于参考和固定配色测试。其他平台继续使用 Neutral，系统取色适配只在 macOS 提供。
 
@@ -48,7 +54,7 @@ Input 页面补充密码显隐、最多六位数字的编辑策略、只读复�
 
 Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、独立按钮、多行消息和显式自定义输入。可以移动 keyed addon、收窄宽度及切换错误／禁用／只读；点击 addon 文字聚焦编辑器，按钮各自激活。顶部配色、明暗和 RTL 设置同样适用。
 
-Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group 和 Slider。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。DatePicker 在 P7 实现后接入。
+Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group、Slider 和 DatePicker。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。
 
 Direction 页面组合继承方向的文本、编号标签、方向键选择组和逻辑 Start 边框，以及局部 LTR 代码输入。顶部热切换保留文字、选区与点击计数。Scroll Area 页面提供垂直、水平、双轴及嵌套视口，可切换条可见性、宽度、禁用与内层残量策略；Focus viewport 和 Reveal last field 分别演示键盘翻页和自动显露，圆角视口与主题焦点环共用绘制／命中几何。
 

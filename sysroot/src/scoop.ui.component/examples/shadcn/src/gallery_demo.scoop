@@ -9,6 +9,12 @@ import scoop.ui.style.*
 
 internal fun galleryDemo(model: GalleryModel, value: Demo): View =
     when (value) {
+        case AppSettings -> settingsApplication(model.appSettings, model.source.current.value)
+        case AppWorkspace -> workspaceApplication(model.appWorkspace, model.source.current.value)
+        case AppData -> dataApplication(model.appData)
+        case AppConversation -> component(
+            { scope -> ConversationApplication(model.appConversation, scope) }
+        )
         case Button -> controlDemo(model, ControlDemo.Button)
         case Input -> controlDemo(model, ControlDemo.Input)
         case Checkbox -> controlDemo(model, ControlDemo.Checkbox)

@@ -1,8 +1,8 @@
 # shadcn 控件实施记录
 
-当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
+当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。[设计](DESIGN.md) 的 P0～P9 已完成；本轮只在 macOS 验证，收尾包含 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。以下按批次保留当时的范围与结果，最终状态见 P9。
 
-2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。P6～P8 随后按新协议交付，组件目录累计 **64／64**；继续 P9 四个应用组合与最终复验。整改本身不增加组件目录完成数。
+2026-11-06：[UI 整改 P0～P6](../REMEDIATION-PROGRESS.md)已完成框架、已有控件及示例迁移和 macOS aarch64 release 验收。后续批次按新协议交付，组件目录累计 **64／64**；四个应用组合通过 aarch64 与 x86_64 Rosetta release 验证。整改本身不增加组件目录完成数。
 
 ## P0a：完整配色与主题
 
@@ -333,3 +333,12 @@
 - macOS release：**8 项模型测试，以及 aarch64、x86_64 Rosetta 各 53 阶段原生窗口测试全部通过**。覆盖中文预编辑／提交、重复提交防护、选择／导航、外部替换与编辑身份、尺寸／密度／RTL、7 像素焦点环、零尺寸撤销输入、错误回跳、Dialog 草稿保留和卸载停帧。组件、独立实窗及 Gallery 格式／静态检查与生产构建通过；x86_64 按现有构建流程更新 runtime 和 UI 依赖闭包，未重建编译器／LLVM。
 - Gallery 实查中英文、System／Neutral、明暗／RTL、宽窄、分支／明确跳过、快照恢复、外部错误、空问卷和真实异步提交。修复同一 Accepted 场景内重复提交、scene 阶段零尺寸失焦导致的状态写入，以及选项宽度／快捷键居中；预编辑重置测试按实际原生事件送达顺序执行，最终双架构复验通过。
 - 累计 **64／64**，P8 闭合；目录、Gallery 标题与入口逐项一致，P9 组合验收仍待完成。原始记录留在仓库外，清理本轮临时脚本、锁和窗口，保留共享缓存、生产库、Gallery、测试产物与后续 x86_64 验收工具。Windows／Linux 未验证，未运行全仓或全部控件测试。
+
+## P9 — 完整目录与应用组合（2026-11-06）
+
+- Gallery 分为 Applications／Components，提供四个应用入口和 **64／64** 独立组件页面；逐项核对没有缺项、重复或额外计数。顶部增加 Reduce motion／Full motion，搜索、配色、明暗和方向继续作用于同一套控件与应用模型。
+- Settings app 组合完整设置表单、日期、校验、固定提交区和错误字段自动显露。Workspace app 组合侧栏、可调面板、文档／预览、命令搜索、多层菜单和嵌套 Dialog／Sheet／Drawer；关闭后恢复焦点，窄窗口切换移动侧栏并保留中文草稿。
+- Data app 组合筛选／排序／分页／选择、行内备注、行菜单、删除确认、Chart 和 Toast Undo；数据替换保留行身份与备注。Conversation app 组合消息／附件、可编辑嵌套 Trace、真实异步流式文字与图片、历史插入及阅读恢复，以及问卷分支、IME、错误回跳、答案恢复和重复提交防护。
+- macOS release：**aarch64 与 x86_64 Rosetta 各 173 阶段原生流程通过**，分别为设置 39、工作区 50、数据 37、会话 47 阶段；每个应用包含卸载后输入解绑、异步取消和停帧检查。aarch64 组件库收尾回归 **204／204** 通过，设置模型与 Gallery 搜索 2 项定向回归通过；双架构静态检查及 aarch64 Gallery 构建通过。
+- Gallery 实查四页、明暗／RTL／减少动态、确认与 Undo、中文草稿和完整焦点环；修正工作区编辑器的顶端对齐并复看。测试按窗口宿主合同共用一次 Application 启动，依次创建四个窗口，闭合首次多次启动的宿主错误；双架构最终复验均通过。
+- P0～P9 闭合。原始验收记录保存在仓库外，清理本轮临时脚本、独立锁与测试窗口，继续复用 `../scoop-dep` 的外部依赖、共享编译缓存、生产库、测试产物与 Gallery。本批未重建编译器／LLVM，未运行全仓测试；Windows／Linux 和 OS accessibility 未在本轮验收。

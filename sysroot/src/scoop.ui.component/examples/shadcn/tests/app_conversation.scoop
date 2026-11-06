@@ -1,0 +1,171 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun advanceConversationApplication(p: ApplicationProbe) {
+    val m = p.model.appConversation
+    val messages = m.messages
+    val questions = m.questions
+    val survey = questions.survey
+    when (p.phase) {
+        case 0 -> assertTrue(
+            messages.scroll.scrollToMessage(ViewKey.Number(3L), ScrollAlignment.Start)
+        )
+        case 1 -> p.focus(m.traceFocus)
+        case 2 -> p.space()
+        case 3 -> {
+            assertTrue(m.traceOpen.value);
+            p.focus(m.nestedFocus)
+        }
+        case 4 -> p.space()
+        case 5 -> {
+            assertTrue(m.nestedOpen.value);
+            p.focus(m.noteFocus)
+        }
+        case 6 -> {
+            p.selectAll();
+            p.text("中文会话备注", true)
+        }
+        case 7 -> {
+            assertTrue(p.messageNote.isComposing);
+            p.text("中文会话备注")
+        }
+        case 8 -> {
+            assertEquals("中文会话备注", p.messageNote.text)
+            p.reading = messages.scroll.reading!!.anchor
+            messages.history()
+        }
+        case 9 -> {
+            assertEquals(p.reading, messages.scroll.reading!!.anchor)
+            assertTrue(messages.rows[6L].note === p.messageNote)
+            p.focus(m.composerFocus)
+        }
+        case 10 -> p.text("请展开计划", true)
+        case 11 -> {
+            assertTrue(m.composer.isComposing)
+            assertFalse(m.sendFocus.requestFocus())
+            p.text("请展开计划")
+        }
+        case 12 -> {
+            assertEquals("请展开计划", m.composer.text);
+            p.focus(m.sendFocus)
+        }
+        case 13 -> p.enter()
+        case 14 -> {
+            assertEquals("", m.composer.text)
+            assertEquals(13L, messages.rows.size)
+            assertEquals("请展开计划", messages.rows[11L].text.value)
+            assertTrue(messages.running.value)
+            messages.scroll.hold()
+            assertTrue(messages.scroll.scrollToStart())
+        }
+        case 15 -> {
+            p.reading = messages.scroll.reading!!.anchor
+            messages.history()
+            p.savedLength = messages.rows[messages.rows.size - 1L].text.value.charLength
+        }
+        case 16 -> {
+            assertEquals(p.reading, messages.scroll.reading!!.anchor)
+            assertEquals(MessageScrollMode.Holding, messages.scroll.mode)
+        }
+        case 17 -> {
+            val reply = messages.rows[messages.rows.size - 1L]
+            assertTrue(reply.text.value.charLength > p.savedLength)
+            assertTrue(reply.image.value)
+            assertFalse(messages.scroll.atEnd)
+            assertEquals(p.reading, messages.scroll.reading!!.anchor)
+        }
+        case 18 -> {
+            messages.stop();
+            assertTrue(messages.scroll.scrollToMessage(ViewKey.Number(3L), ScrollAlignment.Start))
+        }
+        case 19 -> {
+            assertTrue(m.traceOpen.value)
+            assertTrue(m.nestedOpen.value)
+            assertEquals("中文会话备注", p.messageNote.text)
+            p.focus(m.noteFocus)
+        }
+        case 20 -> assertTrue(
+            messages.scroll.scrollToMessage(ViewKey.Text("questionnaire"), ScrollAlignment.Start)
+        )
+        case 21 -> p.focus(m.roleFocus)
+        case 22 -> p.space()
+        case 23 -> {
+            assertEquals(4L, survey.progress.total);
+            p.primary()
+        }
+        case 24 -> {
+            assertEquals(Some(QuestionKey("tools")), survey.activeKey);
+            p.key(18, "1")
+        }
+        case 25 -> {
+            assertTrue(survey.isSelected(QuestionKey("tools"), QuestionChoiceKey("search")));
+            p.primary()
+        }
+        case 26 -> {
+            assertEquals(Some(QuestionKey("repository")), survey.activeKey)
+            assertTrue(m.questionFocus.hasFocus)
+            p.text("中文仓库", true)
+        }
+        case 27 -> {
+            assertTrue(p.repository.isComposing);
+            p.primary();
+            p.text("中文仓库")
+        }
+        case 28 -> {
+            assertEquals(Some(QuestionKey("repository")), survey.activeKey)
+            assertEquals("中文仓库", p.repository.text)
+            questions.save()
+        }
+        case 29 -> p.primary()
+        case 30 -> {
+            assertEquals(Some(QuestionKey("note")), survey.activeKey);
+            p.text("接下来审阅")
+        }
+        case 31 -> p.primary()
+        case 32 -> {
+            assertEquals(1, questions.submitted.value);
+            assertTrue(questions.busy.value);
+            p.primary()
+        }
+        case 33 -> {
+            assertEquals(1, questions.submitted.value);
+            questions.stop();
+            questions.reject()
+        }
+        case 34 -> {
+            assertEquals(Some(QuestionKey("role")), survey.activeKey)
+            questions.restore()
+        }
+        case 35 -> {
+            assertEquals(Some(QuestionKey("repository")), survey.activeKey)
+            assertTrue(survey.editor(QuestionKey("repository"))!! === p.repository)
+            assertTrue(m.questionFocus.hasFocus)
+            assertEquals("中文仓库", p.repository.text)
+            p.selectAll();
+            p.text("changed")
+        }
+        case 36 -> {
+            assertEquals("changed", p.repository.text);
+            questions.reset()
+        }
+        case 37 -> {
+            assertEquals("中文仓库", p.repository.text)
+            assertFalse(p.repository.canUndo)
+            p.darkRtl(720.0)
+        }
+        case 38 -> {
+            assertEquals("中文仓库", p.repository.text)
+            assertTrue(m.questionFocus.hasFocus)
+            messages.streamReply()
+            messages.loadImage()
+        }
+        case 39 -> {
+            assertTrue(messages.running.value)
+            assertEquals("中文会话备注", p.messageNote.text)
+        }
+        else -> fail(Some("unexpected conversation phase"))
+    }
+}

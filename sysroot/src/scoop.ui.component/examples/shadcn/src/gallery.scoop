@@ -22,7 +22,7 @@ private fun galleryView(model: GalleryModel): View {
             case Some(value) -> galleryDemo(model, value)
             case None -> makeColumn {
                 spacing = 12.0
-                add(galleryText(model, "No matching components", 24.0, 600))
+                add(galleryText(model, "No matching examples", 24.0, 600))
                 add(
                     galleryText(model, "Try Card, Alert, Button, Input, or Empty.", 14.0, 400, true)
                 )
@@ -87,6 +87,13 @@ private fun galleryToolbar(model: GalleryModel): View {
             button(colors, { model.toggleColors() }) { variant = ButtonVariant.Outline }
         button(theme, { model.toggleTheme() }) { variant = ButtonVariant.Outline }
         button(direction, { model.toggleDirection() }) { variant = ButtonVariant.Outline }
+        button(
+            if (model.reduced.value)
+                "Full motion"
+            else
+                "Reduce motion",
+            { model.toggleMotion() }
+        ) { variant = ButtonVariant.Outline }
     }
 }
 
@@ -97,17 +104,36 @@ private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current
                 spacing = 12.0
                 alignment = CrossAlignment.Stretch
                 padding = Insets(4.0, 4.0, 12.0, 4.0)
-                input(model.query) { placeholder = "Search components..." }
-                add(galleryText(model, "COMPONENTS", 11.0, 600, true))
-                for (entry in entries)
-                    button(demoTitle(entry), { model.selected.value = entry }) {
-                        variant =
-                            if (current == Some(entry))
-                                ButtonVariant.Default
-                            else
-                                ButtonVariant.Outline
-                        style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
-                    }
+                input(model.query) { placeholder = "Search examples..." }
+                for (applications in [true, false]) {
+                    var present = false
+                    for (entry in entries)
+                        if (applicationDemo(entry) == applications)
+                            present = true
+                    if (present)
+                        add(
+                            galleryText(
+                                model,
+                                if (applications)
+                                    "APPLICATIONS"
+                                else
+                                    "COMPONENTS",
+                                11.0,
+                                600,
+                                true
+                            )
+                        )
+                    for (entry in entries)
+                        if (applicationDemo(entry) == applications)
+                            button(demoTitle(entry), { model.selected.value = entry }) {
+                                variant =
+                                    if (current == Some(entry))
+                                        ButtonVariant.Default
+                                    else
+                                        ButtonVariant.Outline
+                                style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
+                            }
+                }
             }
         )
     ) {

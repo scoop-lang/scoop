@@ -1,8 +1,8 @@
 # shadcn 全套自绘控件设计
 
-日期：2026-11-04。状态：实施中，实际交付与验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。尚未在实施记录中闭合的类型、签名和批次仍是拟议合同，不表示仓库已经提供这些 API。
+设计日期：2026-11-04；完成日期：2026-11-06。状态：P0～P9 已交付，实际 macOS 验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。公开类型、签名和默认值以现行 UI、组件与主题规范为准。
 
-2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。P1～P8 的组件目录已交付 **64／64**；Questionnaire 已通过 aarch64 与 x86_64 Rosetta 定向实窗验证，继续 P9 四个应用组合与最终复验。
+2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。P1～P8 的组件目录已交付 **64／64**；P9 的设置、工作区、数据管理、会话与问卷四个应用组合通过 aarch64 与 x86_64 Rosetta release 实窗验证。Windows／Linux 留待各自基础设施完成后验收。
 
 ## 1. 交付目标与复刻基线
 
@@ -103,9 +103,9 @@ P2 的 OTP、P4 的弹层焦点、P5 的 Select／Combobox、P7 的图表以及 
 
 ## 6. Spec 落点
 
-设计中的待实施 API 不记为“已实现”。开始相应批次时，先更新下列合同，再同步源码和实际调用方；实际完成范围记录在 PROGRESS.md：
+各批次已按 spec 先行完成以下合同、实现和实际调用方的同步；验收范围记录在 [PROGRESS.md](PROGRESS.md)：
 
-| 规范 | 需要演进的内容 |
+| 规范 | 已同步的内容 |
 | --- | --- |
 | [SCOOP-UI-COMPONENT-SPEC](../../specs/SCOOP-UI-COMPONENT-SPEC.md) | 第 2 节入口与 builder；Button 变体、Checkbox 三态、Input／Textarea 组合；虚拟列表留白与定位；新增控件及具体模型章节 |
 | [SCOOP-UI-THEME-SPEC](../../specs/SCOOP-UI-THEME-SPEC.md) | 第 3 节完整语义颜色／尺寸／文字／动画；新增 shadcn 主题；按实际需求扩展共享几何和视觉状态 |

@@ -9,6 +9,8 @@ import scoop.ui.text.TextEditorState
 
 internal class Payment(val id: Long, val email: String, val amount: Int, val status: String) {
     val note = TextEditorState("")
+    val noteFocus = FocusHandle()
+    val actionFocus = FocusHandle()
     val enabled: Boolean get() = id % 7L != 0L
 }
 
@@ -21,7 +23,11 @@ internal class TableExamplesModel {
     val additive = state(false)
     val notice = state("Rows keep their identity while sorting, filtering and scrolling.")
     val requests = state(0)
-    private val columns = paymentColumns(this)
+    private val columns =
+        paymentColumns(
+            { row -> notice.value = f"Payment ${row.id + 1L}: ${row.email}, USD ${row.amount}." },
+            { row -> delete(row.id) }
+        )
     val local =
         DataTableState(TableData.Local(source()), columns, selectable = { row -> row.enabled })
     private val provider =
@@ -84,7 +90,7 @@ internal class TableExamplesModel {
     }
 }
 
-private fun makePayment(index: Long): Payment =
+internal fun makePayment(index: Long): Payment =
     Payment(
         index,
         [
@@ -98,7 +104,9 @@ private fun makePayment(index: Long): Payment =
         ["Success", "Processing", "Pending"][index % 3L]
     )
 
-private fun paymentColumns(model: TableExamplesModel): Array<TableColumn<Payment>> =
+internal fun paymentColumns(details: (Payment) -> Unit, delete: (Payment) -> Unit): Array<
+    TableColumn<Payment>
+> =
     [
         TableColumn(
             "status",
@@ -127,13 +135,18 @@ private fun paymentColumns(model: TableExamplesModel): Array<TableColumn<Payment
         TableColumn(
             "note",
             "Note",
-            { row -> input(row.note) { this.placeholder = "Add a note" } },
+            {
+                row -> input(row.note) {
+                    this.placeholder = "Add a note"
+                    this.focus = FocusOptions(Some(row.noteFocus))
+                }
+            },
             TableColumnSize(GridTrack.Fixed(180.0), minimum = 130.0)
         ),
         TableColumn(
             "actions",
             "",
-            { row -> component({ scope -> PaymentActions(model, row, scope) }) },
+            { row -> component({ scope -> PaymentActions(row, details, delete, scope) }) },
             TableColumnSize(GridTrack.Fixed(56.0), minimum = 48.0),
             hideable = false,
             resizable = false
@@ -141,28 +154,23 @@ private fun paymentColumns(model: TableExamplesModel): Array<TableColumn<Payment
     ]
 
 private class PaymentActions(
-    private val model: TableExamplesModel,
     private val row: Payment,
+    private val details: (Payment) -> Unit,
+    private val delete: (Payment) -> Unit,
     scope: ComponentScope
 ): Component(scope) {
     private val open = state(false)
     public override fun render(): View {
         val row = this.row
-        val model = this.model
+        val details = this.details
+        val delete = this.delete
         return dropdownMenu(
             open.binding(),
             menu {
                 this.label(ViewKey.Text("title"), f"Payment ${row.id + 1L}")
-                this.item(
-                    ViewKey.Text("details"),
-                    "View details",
-                    {
-                        model.notice.value =
-                            f"Payment ${row.id + 1L}: ${row.email}, USD ${row.amount}."
-                    }
-                )
+                this.item(ViewKey.Text("details"), "View details", { details(row) })
                 this.separator(ViewKey.Text("separator"))
-                this.item(ViewKey.Text("delete"), "Delete payment", { model.delete(row.id) }) {
+                this.item(ViewKey.Text("delete"), "Delete payment", { delete(row) }) {
                     this.destructive = true
                 }
             }
@@ -170,6 +178,7 @@ private class PaymentActions(
             this.trigger("…") {
                 this.variant = ButtonVariant.Ghost;
                 this.size = ButtonSize.IconSm
+                this.focus = FocusOptions(Some(row.actionFocus))
             }
         }
     }
