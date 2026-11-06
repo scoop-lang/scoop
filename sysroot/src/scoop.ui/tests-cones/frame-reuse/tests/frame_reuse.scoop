@@ -166,21 +166,23 @@ private class FrameReuseScene(
     scope: ComponentScope
 ): Component(scope) {
     public override fun render(): View =
-        element(
-            { mount -> FrameReuseRoot(probe, active, scope = mount) },
-            [
-                component({ mount -> FrameReuseColor(probe, scope = mount) }),
-                element(
-                    { mount -> FrameReuseMoving(probe, scope = mount) },
-                    [element({ mount -> FrameReuseChild(probe, scope = mount) })]
-                ),
-                element({ mount -> FrameReuseText(probe, 0L, scope = mount) }),
-                element({ mount -> FrameReuseText(probe, 1L, scope = mount) }),
-                element(
-                    { mount -> FrameReuseScroll(probe, scope = mount) },
-                    [element({ mount -> FrameReuseScrollChild(probe, scope = mount) })]
-                )
-            ]
+        cachedScene(
+            element(
+                { mount -> FrameReuseRoot(probe, active, scope = mount) },
+                [
+                    component({ mount -> FrameReuseColor(probe, scope = mount) }),
+                    element(
+                        { mount -> FrameReuseMoving(probe, scope = mount) },
+                        [element({ mount -> FrameReuseChild(probe, scope = mount) })]
+                    ),
+                    element({ mount -> FrameReuseText(probe, 0L, scope = mount) }),
+                    element({ mount -> FrameReuseText(probe, 1L, scope = mount) }),
+                    element(
+                        { mount -> FrameReuseScroll(probe, scope = mount) },
+                        [element({ mount -> FrameReuseScrollChild(probe, scope = mount) })]
+                    )
+                ]
+            )
         )
 }
 

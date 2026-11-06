@@ -1,0 +1,130 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.FrameContext
+
+internal fun NodeLayout.scene(
+    frame: FrameContext,
+    origin: Point,
+    overlay: OverlayLayout? = None,
+    scrollPath: Array<ScrollReveal> = [],
+    paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    epochs: Array<SceneEpoch> = []
+) {
+    if (!node.active || !node.root.isOpen)
+        return
+    when (body) {
+        case Empty -> {}
+        case Transparent -> children[0L].result!!.scene(
+            frame,
+            origin,
+            overlay,
+            scrollPath,
+            paintCache,
+            epochs
+        )
+        case Portal(instance) -> node.root.overlays.include(instance)
+        case Element(value) -> sceneElement(
+            frame,
+            origin,
+            overlay,
+            scrollPath,
+            paintCache,
+            epochs,
+            value
+        )
+        case Lazy(value, _) -> sceneElement(
+            frame,
+            origin,
+            overlay,
+            scrollPath,
+            paintCache,
+            epochs,
+            value
+        )
+    }
+}
+
+private fun NodeLayout.sceneElement(
+    frame: FrameContext,
+    origin: Point,
+    overlay: OverlayLayout?,
+    scrollPath: Array<ScrollReveal>,
+    paintCache: PaintCachePolicy,
+    epochs: Array<SceneEpoch>,
+    value: ElementLayout
+) {
+    frame.withState {
+        childFrame ->
+        childFrame.canvas.translate(origin.x, origin.y)
+        val cached =
+            when (sceneCache) {
+                case Some(previous) -> if (
+                    epochs.size >
+                        0L &&
+                        previous.matches(node, epochs, childFrame.canvas, frame.time)
+                )
+                    Some(previous)
+                else
+                    None
+                case None -> None
+            }
+        val recorder =
+            when (cached) {
+                case Some(_) -> None
+                case None -> if (epochs.size > 0L)
+                    Some(SceneRecorder())
+                else
+                    None
+            }
+        val pass = ScenePass()
+        val context =
+            SceneContext(
+                node,
+                childFrame,
+                this,
+                overlay,
+                pass,
+                scrollPath = scrollPath,
+                paintCache = paintCache,
+                epochs = epochs,
+                recorder = recorder
+            )
+        try {
+            when (cached) {
+                case Some(previous) -> {
+                    previous.replay(context)
+                    if (node.active && node.root.isOpen)
+                        context.finish()
+                }
+                case None -> {
+                    sceneCache = None
+                    val version = node.sceneVersion
+                    val reads = FrameReads(node, frame.time)
+                    evaluateUi<Unit>(None, Some(reads)) { value.scene(context) }
+                    if (node.active && node.root.isOpen) {
+                        context.finish()
+                        val inputs = reads.finish()
+                        node.frameInputs.setScene(inputs)
+                        when (recorder) {
+                            case Some(commands) -> if (pass.cacheable && !inputs.perFrame)
+                                sceneCache =
+                                    Some(
+                                        CachedScene(
+                                            version,
+                                            epochs,
+                                            commands.finish(),
+                                            pass.layers.toArray()
+                                        )
+                                    )
+                            case None -> {}
+                        }
+                    }
+                }
+            }
+            Unit
+        } finally {
+            context.end()
+        }
+    }
+}

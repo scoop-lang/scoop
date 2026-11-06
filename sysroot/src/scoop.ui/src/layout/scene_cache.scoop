@@ -1,0 +1,70 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.InputArea
+import scoop.time.TimeMark
+
+/** An explicit revision of a cache boundary, without a global identity table. */
+internal class SceneEpoch
+
+/** Only value geometry and owned drawing records may outlive a scene callback. */
+internal enum SceneCommand {
+    Concat(Transform), Clip(Rect), Save, SaveLayer(Double, BlendMode), Restore,
+    Place(InputArea, Rect), Anchor(LayoutAnchor, Rect),
+    Children(Array<Long>?, SceneEpoch?), Drawing(CachedPaintLayer), Scope(Array<SceneCommand>)
+
+    fun replay(context: SceneContext) {
+        when (this) {
+            case Concat(value) -> context.concat(value)
+            case Clip(value) -> context.clipRect(value)
+            case Save -> context.save()
+            case SaveLayer(opacity, blend) -> context.saveLayer(opacity, blendMode = blend)
+            case Restore -> context.restore()
+            case Place(area, rect) -> context.place(area, rect)
+            case Anchor(handle, rect) -> context.anchor(handle, rect)
+            case Children(order, epoch) -> context.presentChildren(order, epoch)
+            case Drawing(layer) -> context.drawRetained(layer)
+            case Scope(commands) -> context.withState<Unit> {
+                child -> for (command in commands)
+                    command.replay(child)
+            }
+        }
+    }
+}
+
+internal class SceneRecorder {
+    private val commands = ArrayList<SceneCommand>()
+    fun add(value: SceneCommand) {
+        commands.add(value)
+    }
+    fun finish(): Array<SceneCommand> = commands.toArray()
+}
+
+/** Replays local operations into this frame; it never stores submitted input geometry. */
+internal class CachedScene(
+    private val version: Long,
+    private val epochs: Array<SceneEpoch>,
+    private val commands: Array<SceneCommand>,
+    private val layers: Array<CachedPaintLayer>
+) {
+    fun matches(
+        node: MountedNode,
+        current: Array<SceneEpoch>,
+        canvas: Canvas,
+        time: TimeMark
+    ): Boolean {
+        if (version != node.sceneVersion || epochs.size != current.size)
+            return false
+        for (index in 0L ..< epochs.size)
+            if (epochs[index] !== current[index])
+                return false
+        for (layer in layers)
+            if (!layer.compatible(canvas) || !layer.current(Some(time)))
+                return false
+        return true
+    }
+    fun replay(context: SceneContext) {
+        for (command in commands)
+            command.replay(context)
+    }
+}

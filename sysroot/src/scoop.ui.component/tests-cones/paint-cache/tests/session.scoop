@@ -194,10 +194,7 @@ internal class CacheProbe(val fonts: FontCollection) {
             startQuiet()
     }
     fun assertReuse(before: Int, after: Int) {
-        if (cached)
-            assertEquals(before, after)
-        else
-            assertTrue(after > before)
+        assertEquals(before, after)
     }
     fun next(action: () -> Unit = {}) {
         step += 1

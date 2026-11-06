@@ -29,13 +29,15 @@ internal class EditScene(private val probe: EditProbe, scope: ComponentScope): C
         }
         if (probe.displayTest.show)
             children.add(selectableTestView(probe))
-        return direction(
-            element(
-                revision,
-                { props, mount -> EditPanel(probe, props, scope = mount) },
-                children.toArray()
-            ),
-            probe.systemIme.direction.value
+        return cachedScene(
+            direction(
+                element(
+                    revision,
+                    { props, mount -> EditPanel(probe, props, scope = mount) },
+                    children.toArray()
+                ),
+                probe.systemIme.direction.value
+            )
         )
     }
 }

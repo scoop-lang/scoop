@@ -19,128 +19,139 @@ internal class Gallery(
         val palette = model.source.current.value.tokens.palette
         val entries = model.entries()
         val current = model.current(entries)
-        return direction(
-            makeFrame(
-                makeColumn {
-                    this.row {
-                        this.add(this @Gallery.text("Scoop / shadcn", 22.0, 700))
-                        this.item(empty()) { this.grow = 1.0 }
-                        if (this @Gallery.model.hasSystemColors)
+        return cachedScene(
+            direction(
+                makeFrame(
+                    makeColumn {
+                        this.row {
+                            this.add(this @Gallery.text("Scoop / shadcn", 22.0, 700))
+                            this.item(empty()) { this.grow = 1.0 }
+                            if (this @Gallery.model.hasSystemColors)
+                                this.button(
+                                    if (this @Gallery.model.usesSystemColors)
+                                        "Colors: System"
+                                    else
+                                        "Colors: Neutral",
+                                    { this @Gallery.model.toggleColors() }
+                                ) {
+                                    this.fonts = Some(this @Gallery.fonts)
+                                    this.variant = ButtonVariant.Outline
+                                }
                             this.button(
-                                if (this @Gallery.model.usesSystemColors)
-                                    "Colors: System"
+                                if (this @Gallery.model.mode.value == ThemeMode.Light)
+                                    "Dark theme"
                                 else
-                                    "Colors: Neutral",
-                                { this @Gallery.model.toggleColors() }
+                                    "Light theme",
+                                { this @Gallery.model.toggleTheme() }
                             ) {
                                 this.fonts = Some(this @Gallery.fonts)
                                 this.variant = ButtonVariant.Outline
                             }
-                        this.button(
-                            if (this @Gallery.model.mode.value == ThemeMode.Light)
-                                "Dark theme"
-                            else
-                                "Light theme",
-                            { this @Gallery.model.toggleTheme() }
-                        ) {
-                            this.fonts = Some(this @Gallery.fonts)
-                            this.variant = ButtonVariant.Outline
+                            this.button(
+                                if (this @Gallery.model.direction.value == LayoutDirection.Ltr)
+                                    "Switch to RTL"
+                                else
+                                    "Switch to LTR",
+                                { this @Gallery.model.toggleDirection() }
+                            ) {
+                                this.fonts = Some(this @Gallery.fonts)
+                                this.variant = ButtonVariant.Outline
+                            }
+                            this.spacing = 12.0
+                            this.alignment = CrossAlignment.Center
                         }
-                        this.button(
-                            if (this @Gallery.model.direction.value == LayoutDirection.Ltr)
-                                "Switch to RTL"
-                            else
-                                "Switch to LTR",
-                            { this @Gallery.model.toggleDirection() }
-                        ) {
-                            this.fonts = Some(this @Gallery.fonts)
-                            this.variant = ButtonVariant.Outline
-                        }
-                        this.spacing = 12.0
-                        this.alignment = CrossAlignment.Center
-                    }
-                    this.item(
-                        makeRow {
-                            this.frame(
-                                makeScrollArea(
-                                    makeColumn {
-                                        this.input(this @Gallery.model.query) {
-                                            this.placeholder = "Search components..."
-                                            this.fonts = Some(this @Gallery.fonts)
-                                        }
-                                        this.add(this @Gallery.text("COMPONENTS", 11.0, 600, true))
-                                        for (entry in entries)
-                                            this.button(
-                                                demoTitle(entry),
-                                                { this @Gallery.model.selected.value = entry }
-                                            ) {
+                        this.item(
+                            makeRow {
+                                this.frame(
+                                    makeScrollArea(
+                                        makeColumn {
+                                            this.input(this @Gallery.model.query) {
+                                                this.placeholder = "Search components..."
                                                 this.fonts = Some(this @Gallery.fonts)
-                                                this.variant =
-                                                    if (current == Some(entry))
-                                                        ButtonVariant.Default
-                                                    else
-                                                        ButtonVariant.Outline
-                                                style {
-                                                    surface {
-                                                        this.suggestedSize = Some(Size(190.0, 32.0))
+                                            }
+                                            this.add(
+                                                this @Gallery.text("COMPONENTS", 11.0, 600, true)
+                                            )
+                                            for (entry in entries)
+                                                this.button(
+                                                    demoTitle(entry),
+                                                    { this @Gallery.model.selected.value = entry }
+                                                ) {
+                                                    this.fonts = Some(this @Gallery.fonts)
+                                                    this.variant =
+                                                        if (current == Some(entry))
+                                                            ButtonVariant.Default
+                                                        else
+                                                            ButtonVariant.Outline
+                                                    style {
+                                                        surface {
+                                                            this.suggestedSize =
+                                                                Some(Size(190.0, 32.0))
+                                                        }
                                                     }
                                                 }
-                                            }
-                                        this.spacing = 12.0
-                                        this.alignment = CrossAlignment.Stretch
-                                        this.padding = Insets(4.0, 4.0, 12.0, 4.0)
-                                    }
-                                )
-                            ) {
-                                this.width = Some(190.0)
-                                this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
-                            }
-                            this.item(
-                                makeScrollArea(
-                                    makeFrame(
-                                        when (current) {
-                                            case Some(value) -> this @Gallery.demo(value)
-                                            case None -> makeColumn {
-                                                this.add(
-                                                    this @Gallery.text(
-                                                        "No matching components",
-                                                        24.0,
-                                                        600
-                                                    )
-                                                )
-                                                this.add(
-                                                    this @Gallery.text(
-                                                        "Try Card, Alert, Button, Input, or Empty.",
-                                                        14.0,
-                                                        400,
-                                                        true
-                                                    )
-                                                )
-                                                this.spacing = 12.0
-                                            }
+                                            this.spacing = 12.0
+                                            this.alignment = CrossAlignment.Stretch
+                                            this.padding = Insets(4.0, 4.0, 12.0, 4.0)
                                         }
-                                    ) { padding = Some(Insets.all(6.0)) }
-                                )
-                            ) {
-                                this.grow = 1.0;
-                                this.basis = FlexBasis.Fixed(0.0)
+                                    )
+                                ) {
+                                    this.width = Some(190.0)
+                                    this.alignment =
+                                        Alignment(AxisAlignment.Start, AxisAlignment.Start)
+                                }
+                                this.item(
+                                    makeScrollArea(
+                                        makeFrame(
+                                            when (current) {
+                                                case Some(value) -> this @Gallery.demo(value)
+                                                case None -> makeColumn {
+                                                    this.add(
+                                                        this @Gallery.text(
+                                                            "No matching components",
+                                                            24.0,
+                                                            600
+                                                        )
+                                                    )
+                                                    this.add(
+                                                        this @Gallery.text(
+                                                            "Try Card, Alert, Button, Input, or Empty.",
+                                                            14.0,
+                                                            400,
+                                                            true
+                                                        )
+                                                    )
+                                                    this.spacing = 12.0
+                                                }
+                                            }
+                                        ) { padding = Some(Insets.all(6.0)) }
+                                    )
+                                ) {
+                                    this.grow = 1.0;
+                                    this.basis = FlexBasis.Fixed(0.0)
+                                }
+                                this.spacing = 32.0
+                                this.alignment = CrossAlignment.Stretch
                             }
-                            this.spacing = 32.0
-                            this.alignment = CrossAlignment.Stretch
+                        ) {
+                            this.grow = 1.0;
+                            this.basis = FlexBasis.Fixed(0.0)
                         }
-                    ) {
-                        this.grow = 1.0;
-                        this.basis = FlexBasis.Fixed(0.0)
+                        this.add(
+                            this @Gallery.text(
+                                "Base Nova  /  Native Scoop controls",
+                                12.0,
+                                400,
+                                true
+                            )
+                        )
+                        this.spacing = 24.0
+                        this.padding = Insets.all(28.0)
+                        this.alignment = CrossAlignment.Stretch
                     }
-                    this.add(
-                        this @Gallery.text("Base Nova  /  Native Scoop controls", 12.0, 400, true)
-                    )
-                    this.spacing = 24.0
-                    this.padding = Insets.all(28.0)
-                    this.alignment = CrossAlignment.Stretch
-                }
-            ) { style { this.background(Some(Paint(palette.background.background))) } },
-            model.direction.value
+                ) { style { this.background(Some(Paint(palette.background.background))) } },
+                model.direction.value
+            )
         )
     }
 

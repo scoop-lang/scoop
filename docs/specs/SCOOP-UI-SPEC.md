@@ -375,7 +375,7 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 `SceneContext.draw(block: (PaintContext) -> Unit)` 提交并同步执行一个直接绘图块；块只负责像素和自身绘制缓存，不登记 InputArea、呈现子项或修改 State。PaintContext 提供 size、time 和隔离借用的 Canvas；块中增加的 transform／clip 仅影响该块的画面，退出后不影响场景中后续区域或子项。场景几何与绘制块的调用分开，省略一个绘图块不会省略已声明的区域。可缓存的有限图层使用第 7.2.1 节的独立入口。
 
-场景操作在同一个实际帧内流式提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。真正的跨帧绘制记录／图像缓存另按其拥有关系持有资源。当前还不承诺自动跳过未失效绘图块。
+场景操作在同一个实际帧内提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。跨帧绘制记录／图像缓存另按其拥有关系持有资源；显式场景缓存边界按第 7.2.2 节复用稳定的局部操作。
 
 `SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
 
@@ -395,15 +395,25 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 drawLayer 的回调始终在独立局部记录 Canvas 中执行，不继承目标变换、clip 或 DPI；同一内容在缓存开关两种状态下使用同一坐标语义。调用方为影响输出的输入提供 revision；相同 key、revision、size、bounds 和 samplingOutset 表示可复用相同内容。State、时间、动画采样和绘图资源改变须反映在 revision 中，框架不猜测任意可变闭包的依赖。不能提供可靠版本或有限范围，以及需要直接作用于背景的绘图，继续使用 draw。
 
-`PaintCachePolicy.None` 每帧执行、重放并释放图层记录，不保留绘制记录或图像。`Tiles(tileSize = 256, overscan = 1)` 保留未变化的记录，并把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
+`PaintCachePolicy.None` 不保留像素图像，未变化的有限 Drawing 仍可复用，每帧独立合成重放。`Tiles(tileSize = 256, overscan = 1)` 在同一绘制记录上把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
 
 samplingOutset 是有限非负逻辑长度，描述插值及已声明命令需要的采样边缘；每轴至少保留一个设备像素。bounds 必须包含完整输出，不能直接用布局盒子截断字形、阴影或光晕。缓存块先绘制扩展范围，再用 drawImageRegion 合成核心区。无法给出可靠范围时使用 draw；扩大边缘不能把底层不可独立裁剪的效果变成可分块记录。正的轴对齐缩放按实际像素变换选择分辨率；旋转、错切、反射、不可表示的块坐标或尺寸使用不保留像素的图层重放。
 
-缓存也遵守 Graphics 的 Drawing.canRasterizeTiles。记录内部含 ImageFilter 或未声明可独立裁剪的原生命令时，同一回调产生的记录直接隔离重放并释放；不保留记录或图像，不用修改像素容差掩盖裁剪引起的效果差异。可以把滤镜放在 SceneContext.saveLayer 的合成阶段，使正文等输入块保持可缓存，同时在本帧完整内容上执行滤镜。
+缓存也遵守 Graphics 的 Drawing.canRasterizeTiles。记录内部含 ImageFilter 或未声明可独立裁剪的原生命令时，保留完整 Drawing 并隔离重放，不保留分块图像，不用修改像素容差掩盖裁剪引起的效果差异。可以把滤镜放在 SceneContext.saveLayer 的合成阶段，使正文等输入块保持可缓存，同时在本帧完整内容上执行滤镜。
 
-revision、size、bounds、samplingOutset、像素缩放或缓存参数改变时仅重建对应绘图层；后端 context 不兼容时重建该层的记录和图像。单纯滚动平移、最终 clip、父级合成效果改变不作废仍在缓存范围内的内容块。离开范围的块及时释放；未在本次 scene 使用的 key、不参与帧的子树、None 策略和卸载均释放相应缓存。图像和记录不持有 Component、输入处理器或用户绘图回调。
+revision、size、bounds 或 samplingOutset 改变时重建对应记录和图像；像素缩放或缓存参数改变只重建像素块，后端 context 不兼容时重建该层记录和图像。单纯滚动平移、最终 clip、父级合成效果改变不作废仍在缓存范围内的内容块。离开范围、完全裁剪或改为 None 时及时释放像素块；未在本次 scene 使用的 key、不参与帧的子树和卸载释放完整缓存。图像和记录不保存用户绘图回调。
 
-ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后请求必要帧。其 present 内容回调把策略传给所呈现的子场景；嵌套视口采用自身策略，Portal 在独立呈现场景中处理。缓存命中仍执行 scene、输入／anchor 登记、子项呈现与帧完成通知，不影响逻辑更新、焦点、IME 或实例生命周期，也不产生持续帧需求。Discarded 的图像只作为对应内容版本的内部缓存，不能发布该帧输入几何或布局状态。
+记录回调中的时间、动画及已登记字体读取随记录保存，命中时继续归入本节点的场景依赖；相应依赖变化使记录重新生成，不能因回调跳过而丢失失效来源。任意普通可变对象仍由调用方的 revision 表达。公共段落及编辑宿主集中维护内容／字体／排版版本；普通文字在没有场景或像素缓存需求时直接 draw，在显式缓存内使用带该版本的有限图层。
+
+ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后请求必要帧。其 present 内容回调把策略传给所呈现的子场景；嵌套视口采用自身策略，Portal 在独立呈现场景中处理。像素缓存本身不跳过 scene；场景缓存边界按下节处理。输入／anchor 登记、子项呈现与当前帧完成通知保持正确，不影响逻辑更新、焦点、IME 或实例生命周期，也不产生持续帧需求。Discarded 的图像只作为对应内容版本的内部缓存，不能发布该帧输入几何或布局状态。
+
+### 7.2.2 显式场景缓存边界
+
+`cachedScene(content: View, revision: Long = 0L, key: ViewKey = ViewKey.Position): View` 通过普通 Element 包装一个子项，原样转交约束、尺寸与基线，不增加 ViewBody 形状。边界内仍使用相同的 Element／LazyElement 协议；当前布局、场景输入版本和边界 revision 未变化时，可以复用已记录的稳定局部场景操作，跳过相应节点的 scene 回调。Props、children、State 引起的更新及显式 requestFrame／requestLayout 仍按原合同失效。未通过这些通路表达的外部数据由调用方改变边界 revision；不猜测任意可变闭包的依赖。外层 revision 变化也使嵌套边界下的场景记录失效；有限 drawLayer 的内容版本仍由其自身 revision 声明，边界版本不替代绘图版本。
+
+缓存保存值类型的变换、矩形裁剪、矩形输入放置、锚点、子项顺序、隔离作用域和已拥有的有限 Drawing 引用；不保存 SceneContext、FrameContext 或借用 Canvas，也不复制整棵布局树。每帧将局部操作装配到当前祖先变换、clip、图层顺序及当前输入收集器，子项仍按最终选中的结果呈现。输入、焦点、编辑与锚点不能复用上一帧的已提交几何作为本帧候选；Accepted／Discarded 的发布边界不变。禁用资格取当前区域状态，隐藏或卸载移除相应记录。
+
+需要同步借用 Path／ImageFilter、执行任意 draw、读取 overlayLayout、时间或动画、呈现滚动视口，或登记 onFrameComplete 的节点继续执行 scene；其稳定子项仍可独立复用。raw draw 的目标变换、clip、像素混合和资源使用不变；框架不把任意绘图闭包保存到后续帧。一次性帧完成回调从不进入场景缓存，滚动、caret、输入显露与动画帧参与仍登记当前帧所需工作。有限 drawLayer 的记录、像素命中和 scene 回调跳过分别验收。
 
 ### 7.3 输入与焦点接入
 
@@ -492,7 +502,7 @@ ParagraphHost.scene(context, measurement: ParagraphMeasurement): Unit
 
 measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。每次宿主测量只对每个子项发出一次请求，包括本次最终被截掉的对象；相同有效请求可复用本轮已有结果。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 drawLayer 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；普通路径直接 draw，显式场景／像素缓存内通过 drawLayer 复用版本化的有限记录；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 

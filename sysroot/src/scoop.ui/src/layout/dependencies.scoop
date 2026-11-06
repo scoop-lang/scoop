@@ -9,15 +9,18 @@ internal class AnimationRead(val source: AnimationSource, val revision: Long)
 
 internal class DefaultFontRead(val source: RootFonts, val revision: Long)
 
+internal class FontRead(val watch: FontWatch, val revision: Long)
+
 /** Inputs of one completed layout or scene callback. */
 internal class FrameInputs(
     val animations: Array<AnimationRead> = [],
-    val fonts: Array<FontWatch> = [],
+    val fonts: Array<FontRead> = [],
     val time: TimeMark? = None,
     val scrolls: Array<ScrollViewport> = [],
     val defaults: Array<DefaultFontRead> = []
 ) {
     val dynamic: Boolean get() = animations.size > 0L || time != None || defaults.size > 0L
+    val perFrame: Boolean get() = animations.size > 0L || time != None
     fun changed(mark: TimeMark): Boolean {
         if (time != None && time != Some(mark))
             return true
@@ -27,11 +30,14 @@ internal class FrameInputs(
         for (read in defaults)
             if (read.source.revision != read.revision)
                 return true
+        for (read in fonts)
+            if (read.watch.revision != read.revision)
+                return true
         return false
     }
     fun uses(watch: FontWatch): Boolean {
         for (font in fonts)
-            if (font === watch)
+            if (font.watch === watch)
                 return true
         return false
     }
@@ -42,7 +48,7 @@ internal class FrameReads(
     private val mark: TimeMark
 ): AnimationReadObserver {
     private val animations = ArrayList<AnimationRead>()
-    private val fonts = ArrayList<FontWatch>()
+    private val fonts = ArrayList<FontRead>()
     private val scrolls = ArrayList<ScrollViewport>()
     private val defaults = ArrayList<DefaultFontRead>()
     private var time = false
@@ -70,9 +76,28 @@ internal class FrameReads(
     fun readFonts(value: FontCollection) {
         val watch = node.root.frameDependencies.fonts(value)
         for (previous in fonts)
-            if (previous === watch)
+            if (previous.watch === watch)
                 return
-        fonts.add(watch)
+        fonts.add(FontRead(watch, watch.revision))
+    }
+    /** A reused drawing keeps the reads collected when its commands were recorded. */
+    fun include(value: FrameInputs) {
+        for (read in value.animations)
+            this.read(read.source)
+        for (read in value.defaults)
+            readDefaults(read.source)
+        for (read in value.fonts) {
+            var found = false
+            for (previous in fonts)
+                if (previous.watch === read.watch)
+                    found = true
+            if (!found)
+                fonts.add(read)
+        }
+        for (scroll in value.scrolls)
+            readScroll(scroll)
+        if (value.time != None)
+            readTime()
     }
     fun finish(): FrameInputs =
         FrameInputs(
@@ -176,10 +201,10 @@ internal class NodeFrameInputs(val node: MountedNode) {
                 index += 1L
             }
         }
-        for (watch in layout.fonts)
-            bind(watch, true)
-        for (watch in scene.fonts)
-            bind(watch, layout.uses(watch))
+        for (read in layout.fonts)
+            bind(read.watch, true)
+        for (read in scene.fonts)
+            bind(read.watch, layout.uses(read.watch))
     }
     private fun bind(watch: FontWatch, affectsLayout: Boolean) {
         for (binding in fonts)

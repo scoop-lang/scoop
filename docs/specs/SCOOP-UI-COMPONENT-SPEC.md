@@ -295,7 +295,7 @@ ScrollArea 的 style 配置视口背景、边框、圆角、阴影和内容效�
 
 ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记实际滚动路径，复用 UI 的焦点显露。行内目标的 FocusHandle、Tab 和组内键盘导航可显露已放置的离屏内容，嵌套视口按从内到外的成功帧顺序处理；滚动条和 Portal 不因逻辑祖先关系而被错误当作内容滚动。
 
-两者另提供 paintCache，使用 UI 的 PaintCachePolicy.None／Tiles，默认 None，经同一 ScrollViewport 传给内容场景。它只优化采用 drawLayer 的有限图层；公共 ParagraphHost 的正文已经使用稳定 PaintKey、真实绘制边界和布局修订，普通 draw 仍直接执行。切换此策略不更换 ScrollState、内容实例、输入作用域或虚拟化策略。VirtualList.retention 与 paintCache 独立，Dispose／KeepAlive 均可搭配 None／Tiles。
+两者另提供 paintCache，使用 UI 的 PaintCachePolicy.None／Tiles，默认 None，经同一 ScrollViewport 传给内容场景。它只缓存采用 drawLayer 的有限图层像素；公共 ParagraphHost 在普通场景直接 draw，在显式 cachedScene 或像素缓存内使用稳定 PaintKey、真实绘制边界和布局修订。None 下显式声明的 drawLayer 可以复用 Drawing，仍不保留像素；缩放和像素质量变化只重建所需图块。切换此策略不更换 ScrollState、内容实例、输入作用域或虚拟化策略。VirtualList.retention 与 paintCache 独立，Dispose／KeepAlive 均可搭配 None／Tiles。
 
 Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, apply)，将内容位移取反为 offset，返回实际消费位移；子项到边界后只交接剩余原始单位。Contain 在本层消费后 preventDefault。新 wheel（包括零位移手势开始）先取消旧平滑滚动；系统 phase／momentum 沿用 Surface 路由。控件不另建惯性时钟。
 

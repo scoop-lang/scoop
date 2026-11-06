@@ -42,16 +42,18 @@ internal class OverlayScene(private val probe: OverlayProbe, scope: ComponentSco
             children.add(child)
         for (child in relationProbes(probe))
             children.add(child)
-        return element(
-            CanvasInput(
-                generation,
-                probe.anchorRect,
-                probe.smallClip,
-                probe.omitAnchor,
-                probe.discardHidden
-            ),
-            { props, mount -> OverlayCanvas(probe, props, scope = mount) },
-            children.toArray()
+        return cachedScene(
+            element(
+                CanvasInput(
+                    generation,
+                    probe.anchorRect,
+                    probe.smallClip,
+                    probe.omitAnchor,
+                    probe.discardHidden
+                ),
+                { props, mount -> OverlayCanvas(probe, props, scope = mount) },
+                children.toArray()
+            )
         )
     }
     private fun layer(
@@ -199,9 +201,8 @@ private class OverlayBox(
     private val probe: OverlayProbe,
     private val props: Props<LayerInput>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+): Element<Size>(scope) {
     private var area: InputArea? = None
-    private var measuredAt = -1
     public override fun onMount() {
         val index = props.value.index
         probe.mounts[index] += 1
@@ -236,10 +237,8 @@ private class OverlayBox(
         probe.unmounts[props.value.index] += 1
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
+        Size
     > {
-        assertTrue(measuredAt != probe.passes)
-        measuredAt = probe.passes
         probe.measures[props.value.index] += 1
         for (index in 0L ..< context.childCount) {
             assertEquals(Size(0.0, 0.0), context.measureChild(index, Constraints()).size)
@@ -250,15 +249,16 @@ private class OverlayBox(
                 Size(30.0, 20.0)
             else
                 Size(80.0, 40.0)
-        return LayoutResult(LayoutMetrics(constraints.constrain(desired)), Unit)
+        val size = constraints.constrain(desired)
+        return LayoutResult(LayoutMetrics(size), size)
     }
-    public override fun scene(context: SceneContext, measured: Unit) {
+    public override fun scene(context: SceneContext, measured: Size) {
         val index = props.value.index
-        assertEquals(measuredAt, probe.passes)
+        assertEquals(measured, context.size)
         probe.scenes[index] += 1
-        assertEquals(probe.measures[index], probe.scenes[index])
         probe.order += index.toString()
         val layout = context.overlayLayout!!
+        assertEquals(measured, Size(layout.bounds.width, layout.bounds.height))
         probe.layouts[index] = Some(layout)
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, rect)

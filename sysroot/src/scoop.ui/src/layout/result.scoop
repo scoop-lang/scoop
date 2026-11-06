@@ -57,11 +57,13 @@ internal class NodeLayout(
     val inputs: FrameInputs = FrameInputs()
 ): Closeable {
     var selected: LayoutRound? = None
+    var sceneCache: CachedScene? = None
     private var closed = false
     public override fun close() {
         if (closed)
             return
         closed = true
+        sceneCache = None
         when (body) {
             case Element(value) -> value.close()
             case Lazy(value, _) -> value.close()

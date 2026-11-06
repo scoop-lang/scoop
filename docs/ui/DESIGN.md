@@ -184,6 +184,10 @@ scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable �
 
 每个真实帧由 Surface 先统一采样动画，UI 再检查已登记依赖并取得有效布局。节点按版本、约束和方向直接复用上一轮选中的完整结果；失效沿父级传播，路径外的兄弟仍可命中。动画在 measure 中读取时使布局依赖其 revision，在 scene／draw 中读取时只影响场景，读取布局时间的元素每个实际帧重新测量。ActionInk、Frame、选择标记等从 scene 取得当前像素数据；Progress、Spinner、caret 和颜色过渡可复用布局，Disclosure 高度、Sidebar 宽度等真实几何动画继续重新布局。
 
+`cachedScene(content, revision)` 是沿普通 Element 协议实现的显式边界。有效布局与场景输入未变化时，内部节点可以复用稳定的局部变换、矩形 clip、区域、锚点、子项顺序和有限绘图记录；每帧仍按当前祖先状态装配候选几何，只有 Accepted 后发布。边界 revision 覆盖未由正常更新通路表达的外部场景输入，外层变化也使嵌套边界失效。raw draw、借用 Path／滤镜、滚动视口、时间／动画和帧完成通知继续执行相应场景工作，不保存用户回调供后续重放。
+
+有限 `drawLayer` 独立维护完整内容版本；`PaintCachePolicy.None` 复用 Drawing 而不保留像素，Tiles 另外复用可见范围的图像。像素缩放或缓存参数变化只替换瓦片，内容或后端不兼容才替换记录；两条路径保持独立合成的 Clear／Src 语义。公共文字没有缓存需求时直接绘制，显式场景或像素缓存内才录制版本化图层。场景跳过、记录复用、光栅化和合成分别验收，见 [UI 规范 §7.2](../specs/SCOOP-UI-SPEC.md#72-场景装配与纯绘制)。
+
 ## 7. 逻辑更新独立于 drawable
 
 现有 SurfaceWindow 取得真实 RenderFrame 后才调用 painter。UI 的逻辑队列通过现有事件循环的安全边界独立推进，使隐藏、零尺寸或 Deferred 期间也能移除组件、解除订阅和释放资源。

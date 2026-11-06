@@ -2,27 +2,63 @@ package scoop.ui
 
 import scoop.collections.HashMap
 import scoop.graphics.*
+import scoop.time.TimeMark
 
 internal class PaintTile(val image: Image, val source: Rect, val destination: Rect)
 
-/** Owns native resources only; no element, callback or input route is retained. */
+/** A complete recording owns its optional raster tiles, never a user drawing callback. */
 internal class CachedPaintLayer(
     val key: PaintKey,
     val input: PaintLayerInput,
-    val grid: PaintTileGrid,
-    val drawing: Drawing
+    val drawing: Drawing,
+    val inputs: FrameInputs = FrameInputs()
 ): Closeable {
+    var grid: PaintTileGrid? = None
     val tiles = HashMap<PaintTileIndex, PaintTile>()
+    private val canTile = drawing.canRasterizeTiles
 
-    fun compatible(canvas: Canvas): Boolean {
-        if (!canvas.isCompatible(drawing))
-            return false
-        for (tile in tiles.values)
-            if (!canvas.isCompatible(tile.image))
-                return false
-        return true
+    fun compatible(canvas: Canvas): Boolean = !drawing.isClosed && canvas.isCompatible(drawing)
+
+    fun current(time: TimeMark?): Boolean =
+        when (time) {
+            case Some(mark) -> !inputs.changed(mark)
+            case None -> !inputs.dynamic && inputs.fonts.size == 0L
+        }
+
+    fun paint(canvas: Canvas, policy: PaintCachePolicy) {
+        val next =
+            when (policy) {
+                case None -> None
+                case Tiles(size, overscan) -> if (canTile)
+                    paintTileGrid(canvas.pixelTransform, input, size, overscan)
+                else
+                    None
+            }
+        if (grid != next) {
+            clearTiles()
+            grid = next
+        }
+        when (next) {
+            case Some(value) -> {
+                val range =
+                    when (canvas.localClipBounds) {
+                        case Some(clip) -> value.range(input.bounds, clip)
+                        case None -> None
+                    }
+                when (range) {
+                    case Some(visible) -> if (value.representable(visible)) {
+                        paintTiles(canvas, value, visible)
+                    } else {
+                        clearTiles()
+                        replayPaintLayer(canvas, drawing)
+                    }
+                    case None -> clearTiles()
+                }
+            }
+            case None -> replayPaintLayer(canvas, drawing)
+        }
     }
-    fun paint(canvas: Canvas, range: PaintTileRange) {
+    private fun paintTiles(canvas: Canvas, grid: PaintTileGrid, range: PaintTileRange) {
         val retired = ArrayList<PaintTileIndex>()
         for (entry in tiles)
             if (!range.contains(entry.key))
@@ -32,12 +68,12 @@ internal class CachedPaintLayer(
         for (y in range.top ..< range.bottom) {
             for (x in range.left ..< range.right) {
                 val index = PaintTileIndex(x, y)
-                val tile = tiles[index] ?: rasterize(canvas, index)
+                val tile = tiles[index] ?: rasterize(canvas, grid, index)
                 canvas.drawImageRegion(tile.image, tile.source, tile.destination)
             }
         }
     }
-    private fun rasterize(canvas: Canvas, index: PaintTileIndex): PaintTile {
+    private fun rasterize(canvas: Canvas, grid: PaintTileGrid, index: PaintTileIndex): PaintTile {
         val core = grid.core(index)
         val image =
             canvas.createSurface(grid.pixelWidth, grid.pixelHeight).use {
@@ -71,12 +107,26 @@ internal class CachedPaintLayer(
             throw error
         }
     }
-    public override fun close() {
+    fun clearTiles() {
         var failure: Throwable? = None
         for (tile in tiles.values)
             failure = cleanupUi(failure) { tile.image.close() }
         tiles.clear()
+        throwUi(failure)
+    }
+    public override fun close() {
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { clearTiles() }
+        grid = None
         failure = cleanupUi(failure) { drawing.close() }
         throwUi(failure)
+    }
+}
+
+private fun replayPaintLayer(canvas: Canvas, drawing: Drawing) {
+    canvas.withState {
+        target ->
+        target.saveLayer()
+        target.drawDrawing(drawing)
     }
 }

@@ -1,0 +1,242 @@
+package scoop.tests.ui.scenecache
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.window.*
+
+private val stableInput = InputComparison<Unit> { _, _ -> true }
+
+internal class CachedTestScene(
+    private val probe: SceneCacheProbe,
+    active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
+    private val content = sceneContents(probe, active)
+    public override fun render(): View = cachedScene(content, probe.revision.value)
+}
+
+private fun sceneContents(probe: SceneCacheProbe, active: ActiveApplication): View =
+    element(
+        { scope -> TestCanvas(probe, active, scope) },
+        [
+            element(
+                { scope -> TestGroup(probe, scope) },
+                [
+                    element(
+                        { scope -> TestLeaf(probe, 0L, scope) },
+                        comparison = Some(stableInput)
+                    ),
+                    cachedScene(
+                        element(
+                            { scope -> TestLeaf(probe, 1L, scope) },
+                            comparison = Some(stableInput)
+                        )
+                    )
+                ],
+                comparison = Some(stableInput)
+            ),
+            element({ scope -> TestDynamic(probe, scope) }, comparison = Some(stableInput)),
+            portal(probe.open.binding(), element({ scope -> TestOverlay(probe, scope) })) {
+                options {
+                    placement =
+                        OverlayPlacement.Anchored(
+                            probe.anchor,
+                            OverlaySide.Bottom,
+                            OverlayAlignment.Start
+                        )
+                    anchorVisibility = AnchorVisibility.Hide
+                }
+            }
+        ],
+        comparison = Some(stableInput)
+    )
+
+private class TestCanvas(
+    private val probe: SceneCacheProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        probe.root = Some(scope)
+        probe.animation = Some(scope.animation(1.0))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (probe.hidden)
+            context.skipChild(0L)
+        else {
+            context.measureChild(0L, Constraints.tight(Size(60.0, 30.0)))
+            context.placeChild(0L, Point(20.0, 20.0))
+        }
+        context.measureChild(1L, Constraints.tight(Size(20.0, 20.0)))
+        context.placeChild(1L, Point(20.0, 90.0))
+        context.measureChild(2L, Constraints())
+        context.placeChild(2L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 160.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.frames += 1
+        val frameId = probe.frames
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.withState {
+            child ->
+            child.translate(probe.offset, 0.0)
+            child.clipRect(Rect(0.0, 0.0, probe.clipWidth, 140.0))
+            child.children()
+        }
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.overlap = readNativePixel(native, 45.0 + probe.offset, 30.0)
+                    }
+                }
+            }
+        }
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(340.0, 160.0))
+        }
+        context.onFrameComplete {
+            frame ->
+            assertEquals(probe.completed + 1, frameId)
+            probe.completed = frameId
+            when (frame.submission) {
+                case Accepted -> probe.accepted(active)
+                case Discarded -> {
+                    assertTrue(discard)
+                    assertEquals(
+                        Some(Rect(50.0, 20.0, 35.0, 30.0)),
+                        probe.areas[0L]!!.visibleBounds
+                    )
+                    probe.discarded += 1
+                    scope.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+private class TestGroup(private val probe: SceneCacheProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
+        probe.group = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< 2L) {
+            context.measureChild(index, Constraints.tight(Size(40.0, 30.0)))
+            context.placeChild(index, Point(index.toDouble() * 20.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(60.0, 30.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.groupScenes += 1
+        context.withState {
+            child ->
+            child.saveLayer()
+            child.children(
+                if (probe.reverse)
+                    [1L, 0L]
+                else
+                    [0L, 1L]
+            )
+            child.restore()
+        }
+    }
+}
+
+private class TestLeaf(
+    private val probe: SceneCacheProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val key = PaintKey()
+    private val area = scope.createArea(focusable = true)
+    public override fun onMount() {
+        probe.mounts += 1
+        probe.areas[index] = Some(area)
+        if (index == 0L)
+            scope.layoutAnchor(probe.anchor)
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures[index] += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 30.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes[index] += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        if (index == 0L)
+            context.anchor(probe.anchor, Rect(0.0, 30.0, 10.0, 5.0))
+        context.drawLayer(key, bounds, 0L) {
+            paint ->
+            probe.records[index] += 1
+            paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (index == 0L)
+                        Color(1.0, 0.0, 0.0)
+                    else
+                        Color(0.0, 1.0, 0.0)
+                )
+            )
+        }
+    }
+}
+
+private class TestDynamic(private val probe: SceneCacheProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val key = PaintKey()
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.dynamicScenes += 1
+        val frameId = probe.dynamicScenes
+        context.drawLayer(key, Rect(0.0, 0.0, 20.0, 20.0), 0L) {
+            paint ->
+            probe.dynamicRecords += 1
+            probe.alpha = probe.animation!!.value
+            paint.canvas.drawRect(
+                Rect(0.0, 0.0, 20.0, 20.0),
+                Paint(Color.Black.withAlpha(probe.alpha))
+            )
+        }
+        context.onFrameComplete {
+            _ ->
+            assertEquals(probe.dynamicCompleted + 1, frameId)
+            probe.dynamicCompleted = frameId
+        }
+    }
+}
+
+private class TestOverlay(private val probe: SceneCacheProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 10.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.overlayX = context.overlayLayout!!.bounds.x
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 20.0, 10.0), Paint(Color.Black))
+        }
+    }
+}

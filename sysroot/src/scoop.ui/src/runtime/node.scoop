@@ -51,6 +51,7 @@ internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view:
         if (framesAllowed == value)
             return
         framesAllowed = value
+        invalidateScene()
         inheritFrameParticipation(parent?.frameEnabled ?: true)
     }
     fun setFrameParticipation(value: Boolean) {
@@ -62,6 +63,7 @@ internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view:
         if (next == frameEnabled)
             return
         frameEnabled = next
+        sceneVersion += 1L
         if (!next)
             paintLayers.close()
         scope.updateFrameParticipation()
@@ -70,6 +72,10 @@ internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view:
     }
 
     fun clearPaintSubtree() {
+        when (currentLayout) {
+            case Some(value) -> value.sceneCache = None
+            case None -> {}
+        }
         var failure: Throwable? = None
         failure = cleanupUi(failure) { paintLayers.close() }
         for (child in children)

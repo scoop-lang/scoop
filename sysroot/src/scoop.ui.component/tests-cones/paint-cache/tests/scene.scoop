@@ -12,29 +12,31 @@ internal class CacheScene(private val probe: CacheProbe, scope: ComponentScope):
     public override fun render(): View {
         val mode = probe.mode.value
         val policy = probe.policy.value
-        return element(
-            probe.placed.value,
-            { props, mount -> CachePanel(probe, props, scope = mount) },
-            [
-                virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
-                    this.state = Some(this @CacheScene.probe.scroll)
-                    this.scrollbars = ScrollbarVisibility.Hidden
-                    this.theme = Some(this @CacheScene.probe.theme)
-                    this.retention =
-                        if (mode >= 2)
-                            ItemRetention.KeepAlive(3L)
-                        else
-                            ItemRetention.Dispose
-                    this.paintCache = policy
-                },
-                scrollArea(paintRow(probe, mode, -1L)) {
-                    this.state = Some(this @CacheScene.probe.eagerScroll)
-                    this.scrollbars = ScrollbarVisibility.Hidden
-                    this.theme = Some(this @CacheScene.probe.theme)
-                    this.paintCache = policy
-                }
-            ],
-            ViewKey.Number(mode.toLong())
+        return cachedScene(
+            element(
+                probe.placed.value,
+                { props, mount -> CachePanel(probe, props, scope = mount) },
+                [
+                    virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
+                        this.state = Some(this @CacheScene.probe.scroll)
+                        this.scrollbars = ScrollbarVisibility.Hidden
+                        this.theme = Some(this @CacheScene.probe.theme)
+                        this.retention =
+                            if (mode >= 2)
+                                ItemRetention.KeepAlive(3L)
+                            else
+                                ItemRetention.Dispose
+                        this.paintCache = policy
+                    },
+                    scrollArea(paintRow(probe, mode, -1L)) {
+                        this.state = Some(this @CacheScene.probe.eagerScroll)
+                        this.scrollbars = ScrollbarVisibility.Hidden
+                        this.theme = Some(this @CacheScene.probe.theme)
+                        this.paintCache = policy
+                    }
+                ],
+                ViewKey.Number(mode.toLong())
+            )
         )
     }
 }

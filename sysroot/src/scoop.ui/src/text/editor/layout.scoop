@@ -239,7 +239,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     paint.canvas.drawRect(box.rect, Paint(color))
             }
             val bounds = layout.paintBounds
-            content.drawLayer(host.bodyKey, editorInkBounds(bounds), layout.generation) {
+            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), layout.generation) {
                 paint -> paint.canvas.drawText(layout)
             }
             if (
@@ -251,7 +251,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     0L
             ) {
                 val hint = measure.hint!!.layout
-                content.drawLayer(
+                content.drawTextLayer(
                     host.hintKey,
                     editorInkBounds(hint.paintBounds),
                     measure.hintGeneration
