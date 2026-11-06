@@ -1,0 +1,8 @@
+schema = 1
+[cone]
+group = "test.context"
+name = "query-consumer"
+version = "0.1.0"
+kind = "library"
+[dependencies]
+"test.context:query-provider" = { version = "=0.1.0", artifact = "../artifacts/test.context/query-provider/0.1.0/cone.slib" }

@@ -11,22 +11,35 @@ private fun released(): Int
 private fun callNative(callback: FunPtr<(Ptr<Unit>, Int) -> Unit>, context: Ptr<Unit>, value: Int)
 
 class Payload(val id: Int, private val handle: Ptr<Unit>) {
-    release { @Unsafe { drop(handle) } }
+    release {
+        @Unsafe
+        {
+            drop(handle)
+        }
+    }
 }
 
 private fun payload(id: Int): Payload {
-    @Unsafe { return Payload(id, create(id)) }
+    @Unsafe
+    {
+        return Payload(id, create(id))
+    }
 }
 
 context(value: Payload)
 private fun current(): Int = value.id
 
-private fun expect(value: Boolean) { if (!value) { throw IllegalStateException() } }
+private fun expect(value: Boolean) {
+    if (!value) {
+        throw IllegalStateException()
+    }
+}
 
 private fun collect(expected: Int) {
     gcCollect()
     gcCollect()
-    @Unsafe {
+    @Unsafe
+    {
         val actual = released()
         if (actual != expected) {
             println(actual)
@@ -38,11 +51,15 @@ private fun collect(expected: Int) {
 
 private fun scopes() {
     context(payload(1)) {
+        val saved = contextOrNone<Payload>()
         collect(0)
         expect(current() == 1)
+        expect(saved!!.id == 1)
         context(payload(2)) {
             collect(0)
             expect(current() == 2)
+            expect(contextOrNone<Payload>()!!.id == 2)
+            expect(saved!!.id == 1)
         }
         collect(2)
         expect(current() == 1)
@@ -50,26 +67,34 @@ private fun scopes() {
 }
 
 @Unsafe
-private fun registered(): ForeignCallback<(Ptr<Unit>, Int) -> Unit> = context(payload(4)) {
-    foreignCallback<(Ptr<Unit>, Int) -> Unit>(
-        { expected: Int ->
-            collect(3)
-            expect(current() == expected)
-        }, 0, ForeignCallbackMode.Reusable
-    )
-}
+private fun registered(): ForeignCallback<(Ptr<Unit>, Int) -> Unit> =
+    context(payload(4)) {
+        foreignCallback<(Ptr<Unit>, Int) -> Unit>(
+            {
+                expected: Int ->
+                collect(3)
+                expect(current() == expected)
+            },
+            0,
+            ForeignCallbackMode.Reusable
+        )
+    }
 
 private fun invoke(callback: ForeignCallback<(Ptr<Unit>, Int) -> Unit>) {
     context(payload(8)) {
         collect(3)
-        @Unsafe { callNative(callback.function, callback.context, 4) }
+        @Unsafe
+        {
+            callNative(callback.function, callback.context, 4)
+        }
         collect(3)
         expect(current() == 8)
     }
 }
 
 private fun callbacks() {
-    @Unsafe {
+    @Unsafe
+    {
         val callback = registered()
         collect(3)
         invoke(callback)
@@ -79,30 +104,44 @@ private fun callbacks() {
     }
 }
 
-class Gate(val id: Int) : SuspendRegistration<Int> {
+class Gate(val id: Int): SuspendRegistration<Int> {
     var waiter: Continuation<Int>? = None
-    public override fun register(continuation: Continuation<Int>) { waiter = Some(continuation) }
-    fun complete() { waiter!!.resume(42) }
-    fun fail() { waiter!!.resumeWithException(IllegalStateException()) }
+    public override fun register(continuation: Continuation<Int>) {
+        waiter = Some(continuation)
+    }
+    fun complete() {
+        waiter!!.resume(42)
+    }
+    fun fail() {
+        waiter!!.resumeWithException(IllegalStateException())
+    }
 }
 
-class Completion : Continuation<Int> {
+class Completion: Continuation<Int> {
     var value: Int = 0
-    public override fun resume(value: Int) { this.value = value }
-    public override fun resumeWithException(exception: Throwable) { throw exception }
+    public override fun resume(value: Int) {
+        this.value = value
+    }
+    public override fun resumeWithException(exception: Throwable) {
+        throw exception
+    }
 }
 
 private suspend fun immediate(value: Int): Int = value
 
-private suspend fun work(gate: Gate): Int = context(payload(gate.id)) {
-    context(payload(gate.id * 2)) {
-        val result = suspendCoroutine(gate)
-        val returned = immediate(result)
-        gcCollect()
-        expect(current() == gate.id * 2)
-        returned
+private suspend fun work(gate: Gate): Int =
+    context(payload(gate.id)) {
+        context(payload(gate.id * 2)) {
+            val result = suspendCoroutine(gate)
+            val returned = immediate(result)
+            val saved = contextOrNone<Payload>()
+            gcCollect()
+            expect(current() == gate.id * 2)
+            expect(saved!!.id == gate.id * 2)
+            expect(contextOrNone<Payload>()!! === saved!!)
+            returned
+        }
     }
-}
 
 private fun tasks() {
     val first = Gate(16)
@@ -118,14 +157,18 @@ private fun tasks() {
     second.complete()
     collect(255)
     expect(secondDone.value == 42)
-    expect(when (first.waiter) {
-        case Some(_) -> true
-        case None -> false
-    })
-    expect(when (second.waiter) {
-        case Some(_) -> true
-        case None -> false
-    })
+    expect(
+        when (first.waiter) {
+            case Some(_) -> true
+            case None -> false
+        }
+    )
+    expect(
+        when (second.waiter) {
+            case Some(_) -> true
+            case None -> false
+        }
+    )
     val failed = Gate(256)
     val failedDone = Completion()
     startCoroutine(suspend { work(failed) }, failedDone)
@@ -137,10 +180,12 @@ private fun tasks() {
         collect(1023)
     }
     expect(failedDone.value == 0)
-    expect(when (failed.waiter) {
-        case Some(_) -> true
-        case None -> false
-    })
+    expect(
+        when (failed.waiter) {
+            case Some(_) -> true
+            case None -> false
+        }
+    )
 }
 
 fun main() {

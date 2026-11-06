@@ -30,16 +30,8 @@ internal suspend fun <T> runWsSource(state: WsState, block: suspend () -> T): T 
     }
 }
 
-context(operation: WsSourceOperation)
-private fun currentWsSourceOperation(): WsSourceOperation = operation
-
 internal fun checkWsCloseContext(state: WsState) {
-    val operation =
-        try {
-            Some(currentWsSourceOperation())
-        } catch (_: MissingContextException) {
-            None
-        }
+    val operation = contextOrNone<WsSourceOperation>()
     if (
         present(operation) &&
             operation!!.state ===

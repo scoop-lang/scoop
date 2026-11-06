@@ -1,0 +1,6 @@
+/**
+ * Returns the current task's binding for the exact type T, or None when it is absent.
+ * The lookup does not allocate, throw, or search for compatible subtypes.
+ */
+@Intrinsic("context_or_none")
+public fun <T: ref> contextOrNone(): Option<T>

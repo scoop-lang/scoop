@@ -1,0 +1,43 @@
+package scoop.ui
+
+import scoop.test.*
+
+@Test
+private class StateObservationTest {
+    @Test
+    fun `optional evaluation is absent outside evaluation and during preparation`() {
+        assertTrue(
+            when (currentEvaluation()) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        val collector = DependencyCollector()
+        evaluateUi(Some(collector)) {
+            val outer = currentEvaluation()!!
+            assertSame(collector, outer.collector!!)
+            prepareUi {
+                assertTrue(
+                    when (currentEvaluation()) {
+                        case None -> true;
+                        case Some(_) -> false
+                    }
+                )
+                evaluateUi(None) { assertFalse(currentEvaluation()!!.preparing) }
+                assertTrue(
+                    when (currentEvaluation()) {
+                        case None -> true;
+                        case Some(_) -> false
+                    }
+                )
+            }
+            assertSame(outer, currentEvaluation()!!)
+        }
+        assertTrue(
+            when (currentEvaluation()) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+    }
+}

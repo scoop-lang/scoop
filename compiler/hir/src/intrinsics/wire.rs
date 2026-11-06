@@ -17,6 +17,7 @@ impl WireEncode for IntrinsicFunctionKind {
             Self::CoroutineSuspend => encode_empty_sum(encoder, 8),
             Self::CoroutineCurrentExecution => encode_empty_sum(encoder, 36),
             Self::CoroutineYield => encode_empty_sum(encoder, 37),
+            Self::ContextOrNone => encode_empty_sum(encoder, 38),
             Self::CurrentSourceLocation => encode_empty_sum(encoder, 9),
             Self::CompileEnv => encode_empty_sum(encoder, 34),
             Self::IncludeStr => encode_empty_sum(encoder, 31),
@@ -66,6 +67,7 @@ impl WireDecode for IntrinsicFunctionKind {
         }
         let tag = decoder.field(0, Decoder::unsigned)?;
         match tag {
+            38 => decode_empty_intrinsic(decoder, fields, Self::ContextOrNone),
             34 => decode_empty_intrinsic(decoder, fields, Self::CompileEnv),
             31 => decode_empty_intrinsic(decoder, fields, Self::IncludeStr),
             32 => decode_empty_intrinsic(decoder, fields, Self::IncludeBytes),

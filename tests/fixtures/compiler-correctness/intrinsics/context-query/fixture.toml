@@ -1,0 +1,58 @@
+schema = 1
+name = "context-query-cross-cone"
+inputs = ["provider", "consumer", "runner", "check_query.py"]
+tools = ["scoop", "python"]
+tags = ["context", "intrinsics", "artifacts", "compiler-correctness"]
+variants = [
+  {name = "debug", vars = {profile = "debug"}},
+  {name = "release", vars = {profile = "release"}},
+]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+  {copy = {from = "${fixture}/runner", to = "${work}/runner"}},
+]
+
+[[steps]]
+name = "provider"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/provider", "--release", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-provider", "-o", "${work}/artifacts/test.context/query-provider/0.1.0/cone.slib", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "consumer"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/consumer", "--profile", "${profile}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-consumer", "--cone-path", "${work}/artifacts", "-o", "${work}/artifacts/test.context/query-consumer/0.1.0/cone.slib", "--emit", "lir", "--dump-dir", "${work}/dump", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "check-query"
+argv = ["${python}", "${fixture}/check_query.py", "${work}/dump/${consumer.result.root.identity}/lir.txt"]
+exit = 0
+stdout = "context queries use allocation-free NoGC lookups\n"
+stderr = ""
+
+[[steps]]
+name = "runner"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/runner", "--profile", "${profile}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-runner", "--cone-path", "${work}/artifacts", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${runner.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

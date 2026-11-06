@@ -1,0 +1,13 @@
+interface Service {}
+
+fun <T> unbounded(): T? = contextOrNone<T>()
+
+fun <T: Service> interfaceBound(): T? = contextOrNone<T>()
+
+fun valueKey(): Int? = contextOrNone<Int>()
+
+fun optionalKey(): String?? = contextOrNone<String?>()
+
+fun pointerKey(): Ptr<Int>? = contextOrNone<Ptr<Int>>()
+
+fun main() {}

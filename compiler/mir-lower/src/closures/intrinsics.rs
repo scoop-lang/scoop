@@ -10,6 +10,12 @@ pub(super) fn reference_definition(
     };
     match &module.functions[function].kind {
         hir::FunctionKind::Intrinsic(hir::IntrinsicFunction {
+            kind: hir::IntrinsicFunctionKind::ContextOrNone,
+            ..
+        }) => Some(ReferenceDefinition::ContextOrNone(
+            module.functions[function].return_ty,
+        )),
+        hir::FunctionKind::Intrinsic(hir::IntrinsicFunction {
             kind: hir::IntrinsicFunctionKind::MaybeUninit(kind),
             ..
         }) => Some(ReferenceDefinition::MaybeUninit(*kind)),

@@ -83,6 +83,7 @@ pub(super) fn expected_operation_owner(
         | IntrinsicFunctionKind::CoroutineSuspend
         | IntrinsicFunctionKind::CoroutineCurrentExecution
         | IntrinsicFunctionKind::CoroutineYield
+        | IntrinsicFunctionKind::ContextOrNone
         | IntrinsicFunctionKind::CurrentSourceLocation
         | IntrinsicFunctionKind::CompileEnv
         | IntrinsicFunctionKind::IncludeStr

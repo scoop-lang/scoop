@@ -12,8 +12,11 @@ import scoop.time.Duration
  * and asynchronous output. Operations require an active job on the owning loop; close the session
  * after use.
  */
-public class AsyncTerminalSession private constructor(internal val tty: AsyncTty,
-    private val loop: EventLoop, parser: InputParser) : AsyncByteSink, AsyncCloseable {
+public class AsyncTerminalSession private constructor(
+    internal val tty: AsyncTty,
+    private val loop: EventLoop,
+    parser: InputParser
+): AsyncByteSink, AsyncCloseable {
     internal val gate: SessionGate = SessionGate()
     internal val raw: AtomicBoolean = AtomicBoolean(false)
     internal val input: SessionInput = SessionInput(SessionReader(tty, parser, raw))
@@ -30,35 +33,56 @@ public class AsyncTerminalSession private constructor(internal val tty: AsyncTty
          * Opens the terminal on the supplied loop. `escapeDelay` controls how long an incomplete
          * escape sequence may wait before being treated as input.
          */
-        public suspend fun open(loop: EventLoop,
-            escapeDelay: Duration = Duration.milliseconds(50L)): AsyncTerminalSession {
+        public suspend fun open(
+            loop: EventLoop,
+            escapeDelay: Duration = Duration.milliseconds(50L)
+        ): AsyncTerminalSession {
             val parser = InputParser(escapeDelay)
             val tty = loop.openTty()
-            try { return AsyncTerminalSession(tty, loop, parser) }
+            try {
+                return AsyncTerminalSession(tty, loop, parser)
+            }
             catch (primary: Throwable) {
-                try { tty.close() }
-                catch (cleanup: Throwable) { throw ResourceUseException(primary, cleanup) }
+                try {
+                    tty.close()
+                }
+                catch (cleanup: Throwable) {
+                    throw ResourceUseException(primary, cleanup)
+                }
                 throw primary
             }
         }
     }
 
     private fun requireJob(cancellable: Boolean) {
-        val current = try { currentEventLoop() }
-            catch (_: MissingContextException) { throw IllegalStateException(Some("missing event loop")) }
-        if (current !== loop) throw IllegalStateException(Some("wrong event loop"))
-        val job = currentJobOrNone() ?: throw IllegalStateException(Some("terminal I/O requires a Job"))
-        if (job.isCompleted) throw IllegalStateException(Some("terminal I/O requires an active Job"))
-        if (cancellable) job.ensureActive()
-        if (tty.isClosed) throw IoClosedException()
+        val current =
+            contextOrNone<EventLoop>() ?: throw IllegalStateException(Some("missing event loop"))
+        if (current !== loop)
+            throw IllegalStateException(Some("wrong event loop"))
+        val job =
+            currentJobOrNone() ?: throw IllegalStateException(Some("terminal I/O requires a Job"))
+        if (job.isCompleted)
+            throw IllegalStateException(Some("terminal I/O requires an active Job"))
+        if (cancellable)
+            job.ensureActive()
+        if (tty.isClosed)
+            throw IoClosedException()
     }
 
-    internal suspend fun <R> withAccess(reading: Boolean, writing: Boolean, cancellable: Boolean = true,
-        block: suspend () -> R): R {
+    internal suspend fun <R> withAccess(
+        reading: Boolean,
+        writing: Boolean,
+        cancellable: Boolean = true,
+        block: suspend () -> R
+    ): R {
         requireJob(cancellable)
         gate.acquire(reading, writing)
-        try { return block() }
-        finally { gate.release(reading, writing) }
+        try {
+            return block()
+        }
+        finally {
+            gate.release(reading, writing)
+        }
     }
 
     /**
@@ -70,34 +94,41 @@ public class AsyncTerminalSession private constructor(internal val tty: AsyncTty
      * zero timeout checks current availability.
      */
     public suspend fun poll(timeout: Duration): Boolean {
-        if (timeout < Duration.ZERO) throw IllegalArgumentException(Some("negative terminal poll timeout"))
+        if (timeout < Duration.ZERO)
+            throw IllegalArgumentException(Some("negative terminal poll timeout"))
         return withAccess(true, false) suspend { input.poll(Some(timeout)) }
     }
 
     /**
      * Reads the terminal dimensions, including pixel dimensions when the host supplies them.
      */
-    public suspend fun size(): TerminalSize = withAccess(true, true) suspend {
-        val value = tty.size()
-        TerminalSize(value.columns, value.rows, value.widthPixels, value.heightPixels)
-    }
+    public suspend fun size(): TerminalSize =
+        withAccess(true, true) suspend {
+            val value = tty.size()
+            TerminalSize(value.columns, value.rows, value.widthPixels, value.heightPixels)
+        }
     /**
      * Reads the actual terminal mode and refreshes the session's tracked raw-mode state.
      */
-    public suspend fun isRawMode(): Boolean = withAccess(true, true, false) suspend {
-        val value = tty.isRawMode()
-        raw.store(value)
-        value
-    }
+    public suspend fun isRawMode(): Boolean =
+        withAccess(true, true, false) suspend {
+            val value = tty.isRawMode()
+            raw.store(value)
+            value
+        }
     /**
      * Enables raw terminal input while reserving session input and output access.
      */
-    public suspend fun enableRawMode() { withAccess(true, true) suspend { changeRaw(true) } }
+    public suspend fun enableRawMode() {
+        withAccess(true, true) suspend { changeRaw(true) }
+    }
     /**
      * Restores non-raw terminal input. Cleanup can call this even when the active job is
      * cancelling.
      */
-    public suspend fun disableRawMode() { withAccess(true, true, false) suspend { changeRaw(false) } }
+    public suspend fun disableRawMode() {
+        withAccess(true, true, false) suspend { changeRaw(false) }
+    }
 
     /**
      * Writes readable buffer bytes through the terminal handle and advances the buffer by actual
@@ -108,17 +139,25 @@ public class AsyncTerminalSession private constructor(internal val tty: AsyncTty
     /**
      * Waits for buffered terminal output to be flushed.
      */
-    public override suspend fun flush() { withAccess(false, true) suspend { tty.flush() } }
+    public override suspend fun flush() {
+        withAccess(false, true) suspend { tty.flush() }
+    }
 
     /**
      * Closes the terminal handle and waits for active session operations to leave their access
      * scopes. Repeated closes after cleanup return immediately.
      */
     public override suspend fun close() {
-        if (tty.isClosed && gate.isIdle) return
-        if (!tty.isClosed) requireJob(false)
+        if (tty.isClosed && gate.isIdle)
+            return
+        if (!tty.isClosed)
+            requireJob(false)
         gate.beginClose()
-        try { tty.close() }
-        finally { gate.awaitIdle() }
+        try {
+            tty.close()
+        }
+        finally {
+            gate.awaitIdle()
+        }
     }
 }

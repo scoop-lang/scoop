@@ -70,20 +70,12 @@ internal class UiEvaluation(
     val frameReads: FrameReads? = None
 )
 
-context(evaluation: UiEvaluation)
-private fun boundEvaluation(): UiEvaluation = evaluation
-
 internal fun currentEvaluation(): UiEvaluation? {
-    try {
-        val current = boundEvaluation()
-        return if (current.preparing)
-            None
-        else
-            Some(current)
-    }
-    catch (_: MissingContextException) {
-        return None
-    }
+    val current = contextOrNone<UiEvaluation>() ?: return None
+    return if (current.preparing)
+        None
+    else
+        Some(current)
 }
 
 internal fun <T> evaluateUi(

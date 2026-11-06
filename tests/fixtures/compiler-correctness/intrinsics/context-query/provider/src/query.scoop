@@ -1,0 +1,9 @@
+package test.context.provider
+
+public interface QueryService {
+    public fun number(): Int
+}
+
+public fun <T: ref> lookup(): T? = contextOrNone<T>()
+
+public fun lookupString(value: String? = contextOrNone<String>()): String? = value

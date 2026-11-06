@@ -1037,6 +1037,20 @@ context list 不参与 overload applicability、MSC、泛型推断、普通或 s
 - 所有 eager initializer 与 main 共享根任务，但 binding 仍只能由实际执行的词法 scope 提供。无 binding 的 initializer 调用 contextual function 同样抛 `MissingContextException`。
 - Context 不提供取消、调度、线程同步或资源释放。永不恢复的 continuation 不隐式执行 scope cleanup；相关对象不可达后按普通 GC 回收。
 
+#### 8.3.6 可选查询
+
+core 默认导出普通调用形态的查询入口：
+
+```scoop
+public fun <T : ref> contextOrNone(): Option<T>
+```
+
+每次调用读取当前逻辑任务中以 `T` 为 exact key 的有效 binding；存在时返回 `Some(value)`，缺失时返回 `None`。查询沿用 8.3.1～8.3.2 的引用类型和精确匹配规则：透明 alias 展开，完整泛型实参及函数挂起性参与 key，不搜索子类型、父接口或可转换的函数类型。类型实参可以显式提供或按普通调用规则从期望结果类型推断；值类型、`Option<T>` 与原生指针不能作为查询 key。
+
+查询直接使用运行时的 try-get，不构造或捕获 `MissingContextException`，不分配、不触发 GC、不调用用户代码，也不修改 binding。接口结果保留完整接口表示；`Option` 使用第 7 章的普通值表示。它返回调用时的值，之后的重绑定不改变已取得结果；保存为函数值时在实际调用时查询，不捕获创建函数值时的 Context。
+
+该入口处理 managed 引用，源码调用仍受普通 Managed／const／release-safe 限制，不标注 `@NoGC`；底层 try-get 的 NoGC 属性见运行时规范 9.1。声明前缀 `context(name: T)` 继续表示必需依赖，缺失仍按 8.3.2 抛异常。需要缺省值时可以写 `contextOrNone<Logger>() ?: fallbackLogger`。
+
 ### 8.4 `inline` / `crossinline` / `noinline` / `reified` / `tailrec`
 
 这五个上下文修饰符仅出于 Kotlin 语法兼容而接受，解析后完全忽略，不产生内联或尾调用提示、尾递归变换、调用/捕获限制、运行期类型保留或跨 callable 跳转语义。

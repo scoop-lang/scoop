@@ -1,0 +1,188 @@
+package test.core.tests.context
+
+import scoop.test.*
+
+private class ContextValue(val number: Int)
+
+private typealias ContextAlias = ContextValue
+
+private class ContextBox<T>(val value: T)
+
+private interface ContextService {
+    fun number(): Int
+}
+
+private class ContextServiceImpl(val value: Int): ContextService {
+    public override fun number(): Int = value
+}
+
+private struct ContextValueService(val value: Int): ContextService {
+    public override fun number(): Int = value
+}
+
+private fun <T> absent(value: T?): Boolean =
+    when (value) {
+        case None -> true
+        case Some(_) -> false
+    }
+
+private fun <T: ref> forwardedContext(): T? = contextOrNone<T>()
+
+context(value: ContextValue)
+private fun requiredContext(): ContextValue = value
+
+private fun defaultContext(value: ContextValue? = contextOrNone<ContextValue>()): ContextValue? =
+    value
+
+private class QueryCompletion: Continuation<Int> {
+    var value: Int? = None
+    var failure: Throwable? = None
+    public override fun resume(value: Int) {
+        this.value = Some(value)
+    }
+    public override fun resumeWithException(exception: Throwable) {
+        failure = Some(exception)
+    }
+}
+
+private class QueryGate {
+    var continuation: Continuation<Unit>? = None
+    suspend fun wait() {
+        suspendCoroutine<Unit> { continuation = Some(it) }
+    }
+}
+
+@Test
+private class ContextQueryTest {
+    @Test
+    fun `missing queries return None and required contexts still fail`() {
+        assertTrue(absent(contextOrNone<ContextValue>()))
+        assertTrue(absent(contextOrNone<ContextService>()))
+        assertTrue(absent(contextOrNone<() -> Int>()))
+        assertTrue(absent(defaultContext()))
+        assertFailsWith<MissingContextException> { requiredContext() }
+    }
+
+    @Test
+    fun `queries follow nested bindings and preserve earlier results`() {
+        val outer = ContextValue(1)
+        val inner = ContextValue(2)
+        context(outer) {
+            val saved = contextOrNone<ContextValue>()
+            assertSame(outer, saved!!)
+            assertSame(outer, contextOrNone<ContextAlias>()!!)
+            assertSame(outer, defaultContext()!!)
+            val inferred: ContextValue? = contextOrNone()
+            assertSame(outer, inferred!!)
+            context(inner) {
+                assertSame(inner, contextOrNone<ContextValue>()!!)
+                assertSame(inner, requiredContext())
+                assertSame(outer, saved!!)
+            }
+            assertSame(outer, contextOrNone<ContextValue>()!!)
+            assertFailsWith<IllegalStateException> {
+                context(inner) {
+                    assertSame(inner, contextOrNone<ContextValue>()!!)
+                    throw IllegalStateException(Some("leave inner context"))
+                }
+            }
+            assertSame(outer, contextOrNone<ContextValue>()!!)
+        }
+        assertTrue(absent(contextOrNone<ContextValue>()))
+    }
+
+    @Test
+    fun `interface keys are exact and restore class and boxed value dispatch`() {
+        val implementation = ContextServiceImpl(7)
+        val service: ContextService = implementation
+        context(implementation) {
+            assertTrue(absent(contextOrNone<ContextService>()))
+            context(service) {
+                assertSame(implementation, contextOrNone<ContextServiceImpl>()!!)
+                assertSame(service, contextOrNone<ContextService>()!!)
+                assertEquals(7, contextOrNone<ContextService>()!!.number())
+            }
+            assertTrue(absent(contextOrNone<ContextService>()))
+        }
+        val boxed: ContextService = ContextValueService(9)
+        context(boxed) {
+            assertEquals(9, forwardedContext<ContextService>()!!.number())
+            assertTrue(absent(contextOrNone<ContextServiceImpl>()))
+        }
+    }
+
+    @Test
+    fun `generic and function keys retain full static types`() {
+        val numbers = ContextBox<Int>(42)
+        val text = ContextBox<String>("context")
+        context(numbers) {
+            assertSame(numbers, forwardedContext<ContextBox<Int>>()!!)
+            assertTrue(absent(contextOrNone<ContextBox<String>>()))
+            context(text) {
+                assertSame(numbers, contextOrNone<ContextBox<Int>>()!!)
+                assertSame(text, forwardedContext<ContextBox<String>>()!!)
+            }
+        }
+        val values = [1, 2]
+        context(values) {
+            assertSame(values, contextOrNone<Array<Int>>()!!)
+            assertTrue(absent(contextOrNone<Array<Long>>()))
+            assertTrue(absent(contextOrNone<Any>()))
+        }
+        val callback: () -> Int = { 12 }
+        val suspended: suspend () -> Int = { 34 }
+        context(callback) {
+            assertSame(callback, contextOrNone<() -> Int>()!!)
+            assertEquals(12, contextOrNone<() -> Int>()!!())
+            assertTrue(absent(contextOrNone<suspend () -> Int>()))
+            context(suspended) {
+                assertSame(suspended, contextOrNone<suspend () -> Int>()!!)
+                assertSame(callback, contextOrNone<() -> Int>()!!)
+            }
+        }
+    }
+
+    @Test
+    fun `query function values read the invocation context`() {
+        val lookup: () -> ContextValue? = ::contextOrNone
+        assertTrue(absent(lookup()))
+        val value = ContextValue(5)
+        val captured =
+            context(value) {
+                assertSame(value, lookup()!!)
+                val reference: () -> ContextValue? = ::contextOrNone
+                reference
+            }
+        assertTrue(absent(captured()))
+        context(value) {
+            assertSame(value, captured()!!)
+        }
+    }
+
+    @Test
+    fun `suspended queries use the child task context and restore the resumer`() {
+        val child = ContextValue(21)
+        val resumer = ContextValue(99)
+        val gate = QueryGate()
+        val completion = QueryCompletion()
+        context(child) {
+            startCoroutine<Int>(
+                {
+                    assertSame(child, contextOrNone<ContextValue>()!!)
+                    gate.wait()
+                    contextOrNone<ContextValue>()!!.number
+                },
+                completion
+            )
+        }
+        assertTrue(absent(completion.value))
+        assertTrue(absent(contextOrNone<ContextValue>()))
+        context(resumer) {
+            gate.continuation!!.resume(Unit)
+            assertSame(resumer, contextOrNone<ContextValue>()!!)
+        }
+        assertTrue(absent(completion.failure))
+        assertEquals(21, completion.value!!)
+        assertTrue(absent(contextOrNone<ContextValue>()))
+    }
+}

@@ -98,15 +98,11 @@ public interface EventLoop {
 context(loop: EventLoop)
 public fun currentEventLoop(): EventLoop = loop
 
-internal fun hasEventLoop(): Boolean {
-    try {
-        currentEventLoop();
-        return true
+internal fun hasEventLoop(): Boolean =
+    when (contextOrNone<EventLoop>()) {
+        case Some(_) -> true
+        case None -> false
     }
-    catch (_: MissingContextException) {
-        return false
-    }
-}
 
 /**
  * Reports an operation attempted on a closed I/O resource.

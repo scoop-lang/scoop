@@ -206,6 +206,11 @@ pub(super) fn expected_operation_signature(
             )
         }
         IntrinsicFunctionKind::CoroutineYield => (Effect::Suspend, Vec::new(), unit.clone()),
+        IntrinsicFunctionKind::ContextOrNone => (
+            Effect::Ordinary,
+            Vec::new(),
+            signature_application(surface.option_protocol.option, binder.clone()),
+        ),
         IntrinsicFunctionKind::CoroutineCurrentExecution => (
             Effect::Ordinary,
             Vec::new(),
@@ -450,6 +455,7 @@ pub(super) fn operation_own_type_parameter_count(kind: IntrinsicFunctionKind) ->
         | IntrinsicFunctionKind::GcReleaseHandleRaw
         | IntrinsicFunctionKind::CoroutineStart
         | IntrinsicFunctionKind::CoroutineSuspend
+        | IntrinsicFunctionKind::ContextOrNone
         | IntrinsicFunctionKind::ForeignCallbackRegister
         | IntrinsicFunctionKind::ForeignCallbackRetain
         | IntrinsicFunctionKind::ForeignCallbackRelease

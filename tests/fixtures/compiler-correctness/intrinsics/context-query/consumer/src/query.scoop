@@ -1,0 +1,9 @@
+package test.context.consumer
+
+import test.context.provider.*
+
+public fun optionalService(): QueryService? = lookup<QueryService>()
+
+public fun optionalString(): String? = lookupString()
+
+public fun optionalFunction(): (() -> Int)? = lookup<() -> Int>()

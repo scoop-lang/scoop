@@ -157,16 +157,8 @@ internal suspend fun prepareClientAttempt(call: ClientCall) {
         }
 }
 
-context(callback: ClientAttemptCallback)
-private fun boundClientAttemptCallback(): ClientAttemptCallback = callback
-
 internal fun checkClientAttemptClose(client: ClientState) {
-    val callback =
-        try {
-            Some(boundClientAttemptCallback())
-        } catch (_: MissingContextException) {
-            None
-        }
+    val callback = contextOrNone<ClientAttemptCallback>()
     if (
         clientPresent(callback) &&
             callback!!.call.client ===

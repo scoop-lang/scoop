@@ -249,6 +249,7 @@ impl Lowerer {
             self.validate_atomic_intrinsics(files);
             self.validate_maybe_uninit_intrinsics();
             self.validate_compile_time_input_intrinsics();
+            self.validate_context_query_intrinsic();
         }
         let source_location_core = if defines_core {
             self.validate_source_location_core(files)

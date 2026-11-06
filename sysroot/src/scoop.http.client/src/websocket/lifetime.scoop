@@ -81,16 +81,8 @@ private class ClientWebSocketCompletion(val state: ClientWebSocketState): Contin
     }
 }
 
-context(source: ClientWebSocketSource)
-private fun boundClientWebSocketSource(): ClientWebSocketSource = source
-
 internal fun checkClientWebSocketClose(client: ClientState) {
-    val source =
-        try {
-            Some(boundClientWebSocketSource())
-        } catch (_: MissingContextException) {
-            None
-        }
+    val source = contextOrNone<ClientWebSocketSource>()
     if (
         clientPresent(source) &&
             source!!.client ===
