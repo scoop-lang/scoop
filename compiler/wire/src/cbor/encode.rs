@@ -196,8 +196,9 @@ impl minicbor::encode::Write for FallibleVec {
     type Error = OutputError;
 
     fn write_all(&mut self, bytes: &[u8]) -> Result<(), Self::Error> {
+        // CBOR emits many small writes; preserve amortized buffer growth.
         self.bytes
-            .try_reserve_exact(bytes.len())
+            .try_reserve(bytes.len())
             .map_err(|_| OutputError::Allocation)?;
         self.bytes.extend_from_slice(bytes);
         Ok(())

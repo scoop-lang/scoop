@@ -42,8 +42,9 @@ impl RuntimeEncoder {
     }
 
     fn write(&mut self, value: &[u8]) -> Result<(), RuntimeEncodeError> {
+        // Runtime record fields are appended incrementally.
         self.bytes
-            .try_reserve_exact(value.len())
+            .try_reserve(value.len())
             .map_err(|_| RuntimeEncodeError::Allocation)?;
         self.bytes.extend_from_slice(value);
         Ok(())

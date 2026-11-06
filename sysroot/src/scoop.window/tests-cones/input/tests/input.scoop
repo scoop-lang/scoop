@@ -38,10 +38,10 @@ private class WindowsInputTest {
         assertTrue(handler.moved)
         assertEquals(1, handler.enabled)
         assertEquals(1, handler.disabled)
-        assertEquals(11, handler.batches)
-        assertEquals("中文中文😀", handler.text.surroundingText)
+        assertEquals(2, handler.batches)
+        assertEquals("😀z", handler.text.surroundingText)
         assertEquals(None, handler.text.markedRange)
-        assertEquals(11L, handler.text.revision)
+        assertEquals(2L, handler.text.revision)
         assertEquals("dmlfdrxdxdu", handler.cancellation.sequence)
         assertTrue(handler.destroyed)
     }
@@ -75,22 +75,11 @@ private class InputHandler: ApplicationHandler {
             case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
                 gcCollect()
                 batches += 1
+                assertEquals(1L, batch.operations.size)
                 text = text.apply(batch)
-                when (batches) {
-                    1 -> assertEquals(Utf8Selection(7L, 7L), text.selection)
-                    2 -> assertEquals(Utf8Selection(3L, 3L), text.selection)
-                    3 -> {
-                        assertEquals(2L, batch.operations.size)
-                        assertEquals("中文に😀", text.surroundingText)
-                    }
-                    4, 6, 8 -> assertEquals("中文", text.surroundingText)
-                    5 -> assertEquals("中文日本語", text.surroundingText)
-                    9 -> assertEquals(Utf8Selection(6L, 6L), text.selection)
-                    else -> {}
-                }
             }
             case AboutToWait -> {
-                if (keys.size >= 11L && batches >= 11 && wheels >= 2) {
+                if (keys.size >= 11L && batches >= 2 && wheels >= 2) {
                     if (cancellation.started)
                         application.requestExit()
                     else
@@ -141,6 +130,37 @@ private class InputHandler: ApplicationHandler {
 
     private fun start(application: ActiveApplication) {
         val window = application.createWindow(windowAttributes { this.visible = false })
+        val logical =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("a")),
+                    ShortcutModifiers(primary = true)
+                )
+            )
+        assertEquals("+", logical.separator)
+        assertEquals(2L, logical.parts.size)
+        assertEquals("Ctrl", logical.parts[0L])
+        assertEquals("a", logical.parts[1L])
+        val named =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)),
+                    ShortcutModifiers(primary = true, shift = true)
+                )
+            )
+        assertEquals("Ctrl", named.parts[0L])
+        assertEquals("Shift", named.parts[1L])
+        assertEquals("Enter", named.parts[2L])
+        val physical =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyA)),
+                    ShortcutModifiers(primary = true)
+                )
+            )
+        assertEquals(2L, physical.parts.size)
+        assertEquals("Ctrl", physical.parts[0L])
+        assertTrue(physical.parts[1L].byteLength > 0L)
         @Unsafe
         {
             val held = window.acquireNativeWindow()
@@ -156,26 +176,12 @@ private class InputHandler: ApplicationHandler {
                 LogicalRect(LogicalPosition(12.0, 20.0), LogicalSize(2.0, 18.0))
             )
             assertTrue(nativeCaretMatches(hwnd) != 0)
-            sendMessage(hwnd, 269u, 0uL, 0L)
-            nativeTextBatch(hwnd, 0)
-            nativeTextBatch(hwnd, 1)
-            nativeTextBatch(hwnd, 2)
-            nativeTextBatch(hwnd, 3)
-            sendMessage(hwnd, 269u, 0uL, 0L)
-            nativeTextBatch(hwnd, 4)
-            nativeTextBatch(hwnd, 5)
-            sendMessage(hwnd, 269u, 0uL, 0L)
-            nativeTextBatch(hwnd, 6)
-            sendMessage(hwnd, 271u, 0uL, 0L)
-            sendMessage(hwnd, 271u, 20206uL, 24576L)
-            nativeTextBatch(hwnd, 7)
             sendMessage(hwnd, 646u, 20013uL, 0L)
-            sendMessage(hwnd, 270u, 0uL, 0L)
             window.setImeAllowed(false)
             window.setImeAllowed(false)
             sendMessage(hwnd, 258u, 55357uL, 0L)
             sendMessage(hwnd, 258u, 56832uL, 0L)
-            sendMessage(hwnd, 262u, 122uL, 0L)
+            sendMessage(hwnd, 265u, 122uL, 0L)
         }
         application.setControlFlow(
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))

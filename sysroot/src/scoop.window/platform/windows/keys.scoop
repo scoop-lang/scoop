@@ -219,7 +219,8 @@ internal fun platformModifiers(flags: Long): Modifiers =
         sides(flags, 4096L, 8192L),
         sides(flags, 16384L, 32768L),
         Some(flags.and(32L) != 0L),
-        Some(flags.and(64L) != 0L)
+        Some(flags.and(64L) != 0L),
+        Some(flags.and(2L) != 0L && flags.and(8192L) != 0L)
     )
 
 private fun sides(flags: Long, left: Long, right: Long): ModifierSides =

@@ -1,0 +1,294 @@
+package scoop.window
+
+internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Control
+
+internal fun platformShortcutCharactersEqual(left: String, right: String): Boolean {
+    @Unsafe
+    {
+        return left.withUtf8Bytes {
+            a,
+            aSize -> @Unsafe
+            {
+                return@withUtf8Bytes right.withUtf8Bytes {
+                    b,
+                    bSize -> @Unsafe
+                    {
+                        val result = nativeShortcutEqual(a, aSize, b, bSize)
+                        if (result < 0)
+                            throw WindowException(
+                                "compare shortcut keys",
+                                WindowErrorKind.NativeFailure
+                            )
+                        return@withUtf8Bytes result != 0
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
+    val modifiers = resolvedModifiers(chord.modifiers, platformPrimaryModifier())
+    val parts = ArrayList<String>()
+    if (modifiers.control)
+        parts.add("Ctrl")
+    if (modifiers.alt)
+        parts.add("Alt")
+    if (modifiers.shift)
+        parts.add("Shift")
+    if (modifiers.superKey)
+        parts.add("Win")
+    if (modifiers.function)
+        parts.add("Fn")
+    parts.add(windowsShortcutLabel(chord.key))
+    return ShortcutLabel(parts.toArray(), "+")
+}
+
+private fun windowsShortcutLabel(key: ShortcutKey): String {
+    return when (key) {
+        case Logical(LogicalKey.Character(text)) -> text
+        case Logical(LogicalKey.Named(key)) -> windowsNamedLabel(key)
+        case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
+            Some("dead shortcut key")
+        )
+        case Logical(LogicalKey.Unidentified(_)) -> "Unknown"
+        case Physical(PhysicalKey.Unidentified(_)) -> "Unknown"
+        case Physical(PhysicalKey.Code(key)) -> {
+            when (val scan = windowsScanCode(key)) {
+                case Some(value) -> when (val text = windowsLayoutLabel(value)) {
+                    case Some(label) -> return label
+                    case None -> {}
+                }
+                case None -> {}
+            }
+            windowsPhysicalKeyName(key)
+        }
+    }
+}
+
+private fun windowsScanCode(key: KeyCode): UInt? {
+    for (code in 1L ..< 512L) {
+        if (platformPhysicalKey(code) == PhysicalKey.Code(key))
+            return Some(code.toUInt())
+    }
+    return None
+}
+
+private fun windowsLayoutLabel(scan: UInt): String? {
+    @Unsafe
+    {
+        val result = nativeKeyLabel(scan)
+        try {
+            checkNativeStatus(result.error, "query shortcut label")
+            return when (result.bytes) {
+                case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                case None -> None
+            }
+        } finally {
+            nativeKeyLabelRelease(result.bytes)
+        }
+    }
+}
+
+private fun windowsNamedLabel(key: NamedKey): String =
+    when (key) {
+        case Enter -> "Enter"
+        case Tab -> "Tab"
+        case Space -> "Space"
+        case Backspace -> "Backspace"
+        case Escape -> "Esc"
+        case Shift -> "Shift"
+        case Control -> "Ctrl"
+        case Alt -> "Alt"
+        case Super -> "Win"
+        case CapsLock -> "Caps Lock"
+        case NumLock -> "Num Lock"
+        case ScrollLock -> "Scroll Lock"
+        case Insert -> "Insert"
+        case PrintScreen -> "Print Screen"
+        case Pause -> "Pause"
+        case Fn -> "Fn"
+        case ArrowLeft -> "Left"
+        case ArrowRight -> "Right"
+        case ArrowUp -> "Up"
+        case ArrowDown -> "Down"
+        case Delete -> "Delete"
+        case Home -> "Home"
+        case End -> "End"
+        case PageUp -> "Page Up"
+        case PageDown -> "Page Down"
+        case Help -> "Help"
+        case ContextMenu -> "Menu"
+        case F1 -> "F1"
+        case F2 -> "F2"
+        case F3 -> "F3"
+        case F4 -> "F4"
+        case F5 -> "F5"
+        case F6 -> "F6"
+        case F7 -> "F7"
+        case F8 -> "F8"
+        case F9 -> "F9"
+        case F10 -> "F10"
+        case F11 -> "F11"
+        case F12 -> "F12"
+        case F13 -> "F13"
+        case F14 -> "F14"
+        case F15 -> "F15"
+        case F16 -> "F16"
+        case F17 -> "F17"
+        case F18 -> "F18"
+        case F19 -> "F19"
+        case F20 -> "F20"
+        case Clear -> "Clear"
+        case AudioVolumeUp -> "Volume Up"
+        case AudioVolumeDown -> "Volume Down"
+        case AudioVolumeMute -> "Mute"
+        case Eisu -> "Eisu"
+        case Kana -> "Kana"
+    }
+
+private fun windowsPhysicalKeyName(key: KeyCode): String =
+    when (key) {
+        case KeyA -> "KeyA"
+        case KeyB -> "KeyB"
+        case KeyC -> "KeyC"
+        case KeyD -> "KeyD"
+        case KeyE -> "KeyE"
+        case KeyF -> "KeyF"
+        case KeyG -> "KeyG"
+        case KeyH -> "KeyH"
+        case KeyI -> "KeyI"
+        case KeyJ -> "KeyJ"
+        case KeyK -> "KeyK"
+        case KeyL -> "KeyL"
+        case KeyM -> "KeyM"
+        case KeyN -> "KeyN"
+        case KeyO -> "KeyO"
+        case KeyP -> "KeyP"
+        case KeyQ -> "KeyQ"
+        case KeyR -> "KeyR"
+        case KeyS -> "KeyS"
+        case KeyT -> "KeyT"
+        case KeyU -> "KeyU"
+        case KeyV -> "KeyV"
+        case KeyW -> "KeyW"
+        case KeyX -> "KeyX"
+        case KeyY -> "KeyY"
+        case KeyZ -> "KeyZ"
+        case Digit0 -> "Digit0"
+        case Digit1 -> "Digit1"
+        case Digit2 -> "Digit2"
+        case Digit3 -> "Digit3"
+        case Digit4 -> "Digit4"
+        case Digit5 -> "Digit5"
+        case Digit6 -> "Digit6"
+        case Digit7 -> "Digit7"
+        case Digit8 -> "Digit8"
+        case Digit9 -> "Digit9"
+        case Backquote -> "Backquote"
+        case Backslash -> "Backslash"
+        case BracketLeft -> "BracketLeft"
+        case BracketRight -> "BracketRight"
+        case Comma -> "Comma"
+        case Equal -> "Equal"
+        case Minus -> "Minus"
+        case Period -> "Period"
+        case Quote -> "Quote"
+        case Semicolon -> "Semicolon"
+        case Slash -> "Slash"
+        case IntlBackslash -> "IntlBackslash"
+        case IntlYen -> "IntlYen"
+        case IntlRo -> "IntlRo"
+        case Lang1 -> "Lang1"
+        case Lang2 -> "Lang2"
+        case Enter -> "Enter"
+        case Tab -> "Tab"
+        case Space -> "Space"
+        case Backspace -> "Backspace"
+        case Escape -> "Escape"
+        case CapsLock -> "CapsLock"
+        case NumLock -> "NumLock"
+        case ScrollLock -> "ScrollLock"
+        case Insert -> "Insert"
+        case PrintScreen -> "PrintScreen"
+        case Pause -> "Pause"
+        case Fn -> "Fn"
+        case SuperLeft -> "SuperLeft"
+        case SuperRight -> "SuperRight"
+        case ShiftLeft -> "ShiftLeft"
+        case ShiftRight -> "ShiftRight"
+        case ControlLeft -> "ControlLeft"
+        case ControlRight -> "ControlRight"
+        case AltLeft -> "AltLeft"
+        case AltRight -> "AltRight"
+        case ArrowLeft -> "ArrowLeft"
+        case ArrowRight -> "ArrowRight"
+        case ArrowUp -> "ArrowUp"
+        case ArrowDown -> "ArrowDown"
+        case Delete -> "Delete"
+        case Home -> "Home"
+        case End -> "End"
+        case PageUp -> "PageUp"
+        case PageDown -> "PageDown"
+        case Help -> "Help"
+        case ContextMenu -> "ContextMenu"
+        case F1 -> "F1"
+        case F2 -> "F2"
+        case F3 -> "F3"
+        case F4 -> "F4"
+        case F5 -> "F5"
+        case F6 -> "F6"
+        case F7 -> "F7"
+        case F8 -> "F8"
+        case F9 -> "F9"
+        case F10 -> "F10"
+        case F11 -> "F11"
+        case F12 -> "F12"
+        case F13 -> "F13"
+        case F14 -> "F14"
+        case F15 -> "F15"
+        case F16 -> "F16"
+        case F17 -> "F17"
+        case F18 -> "F18"
+        case F19 -> "F19"
+        case F20 -> "F20"
+        case AudioVolumeUp -> "AudioVolumeUp"
+        case AudioVolumeDown -> "AudioVolumeDown"
+        case AudioVolumeMute -> "AudioVolumeMute"
+        case Numpad0 -> "Numpad0"
+        case Numpad1 -> "Numpad1"
+        case Numpad2 -> "Numpad2"
+        case Numpad3 -> "Numpad3"
+        case Numpad4 -> "Numpad4"
+        case Numpad5 -> "Numpad5"
+        case Numpad6 -> "Numpad6"
+        case Numpad7 -> "Numpad7"
+        case Numpad8 -> "Numpad8"
+        case Numpad9 -> "Numpad9"
+        case NumpadAdd -> "NumpadAdd"
+        case NumpadSubtract -> "NumpadSubtract"
+        case NumpadMultiply -> "NumpadMultiply"
+        case NumpadDivide -> "NumpadDivide"
+        case NumpadDecimal -> "NumpadDecimal"
+        case NumpadEqual -> "NumpadEqual"
+        case NumpadEnter -> "NumpadEnter"
+        case NumpadClear -> "NumpadClear"
+        case NumpadComma -> "NumpadComma"
+    }
+
+@CLayout
+private struct NativeKeyLabel(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
+
+@Extern(name = "scoop_window_shortcut_equal")
+private fun nativeShortcutEqual(
+    left: Ptr<UInt8>,
+    leftSize: Long,
+    right: Ptr<UInt8>,
+    rightSize: Long
+): Int
+
+@Extern(name = "scoop_window_key_label")
+private fun nativeKeyLabel(scan: UInt): NativeKeyLabel
+
+@Extern(name = "scoop_window_key_label_release")
+private fun nativeKeyLabelRelease(bytes: Ptr<UInt8>?)

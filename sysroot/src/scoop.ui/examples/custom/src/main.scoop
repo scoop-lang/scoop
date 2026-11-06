@@ -105,12 +105,12 @@ private class CounterDrawing(
                                     pressed = false
                                     if (scope.isMounted)
                                         scope.requestFrame()
-                                    true
+                                    false
                                 }
                                 case FocusChanged(_) -> {
                                     if (scope.isMounted)
                                         scope.requestFrame()
-                                    true
+                                    false
                                 }
                                 else -> false
                             }

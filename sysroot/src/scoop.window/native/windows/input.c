@@ -41,7 +41,7 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
   bool down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
   uint64_t mods = sw_modifiers();
   modifiers(window, mods);
-  if (vk == VK_PROCESSKEY || (down && window->composing))
+  if (vk == VK_PROCESSKEY || (down && sw_text_composing(window)))
     return;
   if (!down && !window->key_down[code])
     return;
@@ -218,7 +218,8 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
     }
     if (!up) {
       window->pressed_buttons |= mask;
-      SetCapture(window->hwnd);
+      if (GetCapture() != window->hwnd)
+        SetCapture(window->hwnd);
     } else
       window->pressed_buttons &= ~mask;
     pointer(window, up ? 4 : 3, position, button, twice ? 2 : 1, 0, 0);

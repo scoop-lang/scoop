@@ -48,10 +48,11 @@ when = { os = "windows" }
 "scoop.tests:window-native" = { version = "0.1.0", path = "test-native" }
 
 [native]
-cxx = { when = { os = "linux", env = "gnu" } }
+cxx = true
 include = [{ sysroot = "include" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 
 [[native.sources]]
 path = "native/darwin/application.m"
@@ -155,7 +156,19 @@ path = "native/windows/input.c"
 when = { os = "windows" }
 
 [[native.sources]]
-path = "native/windows/text.c"
+path = "native/windows/shortcuts.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/clipboard.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/text.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/text_store.cpp"
 when = { os = "windows" }
 
 [[native.libraries]]
@@ -180,6 +193,14 @@ when = { os = "windows" }
 
 [[native.libraries]]
 name = "imm32"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "ole32"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "uuid"
 when = { os = "windows" }
 
 [[native.libraries]]

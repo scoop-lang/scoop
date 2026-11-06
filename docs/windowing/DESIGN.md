@@ -34,7 +34,7 @@ Scoop 尚未发布任何版本。语言、库 API、runtime ABI、native 产物�
 - `scoop.window`：依赖 core／std／platform，提供应用主循环、窗口、事件、显示器、输入和受控 native 句柄借用；不依赖 asyncio、Skia 或 HarfBuzz。
 - `scoop.window.asyncio`：依赖 window／asyncio，把已有 PlatformEventLoop 附着到窗口宿主，协调应用退出与 I/O 收尾。没有第二套 Job、cancel、join 或 native I/O 实现。
 
-选择“移植能力与平台语义”，不把 Rust ABI 或 winit 类型放进 Scoop API。原生层分别使用 AppKit、Win32／IMM32、libwayland-client／wayland-protocols／libxkbcommon／libdecor、Xlib／XInput2／XRandR／Xcursor／XKB／XIM。引用或改写 winit 的键映射、算法和平台规则时保留相应许可证与来源。窗口协议、键盘映射、输入法与装饰优先复用这些成熟库，不自行实现 wire protocol 或完整输入法。
+选择“移植能力与平台语义”，不把 Rust ABI 或 winit 类型放进 Scoop API。原生层分别使用 AppKit、Win32／TSF、libwayland-client／wayland-protocols／libxkbcommon／libdecor、Xlib／XInput2／XRandR／Xcursor／XKB／XIM。引用或改写 winit 的键映射、算法和平台规则时保留相应许可证与来源。窗口协议、键盘映射、输入法与装饰优先复用这些成熟库，不自行实现 wire protocol 或完整输入法。
 
 本期采用上述原生后端，不新增独立的 winit Rust staticlib。现有 [text backend](../../sysroot/native/text_backend/Cargo.toml) 已包含 Rust 标准库及静态依赖；第二个独立 staticlib 会重复打包这些部分，并可能产生符号和运行库链接冲突。最终程序的按需抽取／裁剪不能作为解决多 staticlib 组合的合同。[Rust 链接规范](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)给出的组合方式是先将 Rust 库汇总到一个 staticlib，再交给外部链接器。
 
@@ -170,15 +170,15 @@ decorations／resizable／buttons／level 等已有创建及运行中设置入�
 
 文字统一通过 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作插入：普通可打印键、dead-key compose 和 IME 都归一到该入口；LogicalKey 用于快捷键和键位语义，不再隐式插入第二份字符。TextInputEvent 只含 Enabled、Disabled、Edit，旧草案的独立 Preedit／Commit／DeleteSurrounding 事件直接替换，不提供兼容别名。失焦时撤销 active preedit、清理按下状态；需要合成 release 时标记 synthetic，不伪造真实输入时间。
 
-本阶段输入法 API 为 `setImeAllowed` 和 `setImeCursorArea`，对应 winit 的 marked／preedit、commit 与候选窗位置。AppKit 只保存 native marked text，不维护完整编辑器文档镜像，也不提供重转换；purpose 和 surrounding 文档桥后续随上层编辑器需求增加。[winit 0.30.13 的 NSTextInputClient 实现](https://github.com/rust-windowing/winit/blob/v0.30.13/src/platform_impl/macos/view.rs)同样不提供 attributedSubstring 文档查询。
+输入法基础 API 为 `setImeAllowed` 和 `setImeCursorArea`，对应 winit 的 marked／preedit、commit 与候选窗位置。文档接入另通过 `publishTextInputState`／`publishTextInputCaret` 发布应用快照和精确几何；macOS 的 NSTextInputClient 与 Windows 的 TSF 文档存储共用这套协议，支持 surrounding 查询和显式范围替换。purpose 不进入当前公共 API。
 
 `TextInputState` 保留为应用可选用的纯值编辑辅助，包含 surroundingText、带 anchor／cursor 的 selection、可选 marked range、caret rect 和 revision；所有范围以 UTF-8 字节为单位并落在字符边界，选择保留活动端方向。AppKit 转换实际 marked text 的 UTF-16 选区，产生不依赖文档 revision 的 CurrentSelection 编辑。只改变候选窗位置不推进文本 revision。
 
 TextInputBatch 携带可选 baseRevision 和有序编辑操作，具体载荷见[窗口规范第 5 节](../specs/SCOOP-WINDOW-SPEC.md#5-输入与文本)。一批操作只调用一次 handler，在开始时检查基础快照，按批次内顺序解释后续位置，最后发布一次新快照。不能在删除 surrounding 后立即推进公开 revision，再把同批 commit／preedit 当成过期数据。范围引用失效或 native 数据非法时整批拒绝并重新同步，不部分应用；无需旧快照的普通 CurrentSelection 提交保持可用。
 
-Wayland 每个 text-input-v3.done 形成一个批次，依协议顺序清除旧 preedit、删除 surrounding、提交文字和设置新 preedit。协议 done serial 与编辑器 revision 分别保存，前者不匹配不能直接作为丢弃输入的理由；平台按协议处理状态提交。AppKit 一次输入解释、未来 TSF 一次编辑会话同样保留原生更新边界。[text-input-v3 协议](https://github.com/wayland-mirror/wayland-protocols/blob/main/unstable/text-input/text-input-unstable-v3.xml)给出了顺序与 serial 规则。
+Wayland 每个 text-input-v3.done 形成一个批次，依协议顺序清除旧 preedit、删除 surrounding、提交文字和设置新 preedit。协议 done serial 与编辑器 revision 分别保存，前者不匹配不能直接作为丢弃输入的理由；平台按协议处理状态提交。AppKit 一次输入解释、Windows TSF 一次原子编辑事务同样保留原生更新边界。[text-input-v3 协议](https://github.com/wayland-mirror/wayland-protocols/blob/main/unstable/text-input/text-input-unstable-v3.xml)给出了顺序与 serial 规则。
 
-平台使用当前 native marked text 和候选窗矩形回答同步询问，不在 NSTextInputClient／未来 TSF 回调中挂起。当前 AppKit 桥不发布应用文档正文。窗口层只转换文本更新和坐标，编辑器保留真实文档、布局与 grapheme 导航的责任；后续 purpose／surrounding 扩展也不得向平台发布密码正文。
+平台使用已发布的原生文档副本和候选窗矩形回答同步询问，不在 NSTextInputClient／TSF 回调中调用 managed handler、布局或挂起。同一编辑事务使用原生临时投影，事务外存在未确认编辑时返回 unavailable。窗口层只转换文本更新和坐标，编辑器保留真实文档、布局与 grapheme 导航的责任；后续 purpose 扩展不得向平台发布密码正文。
 
 鼠标区分按键、进入／离开、窗口内位置、相对设备位移。滚轮保留 LineDelta 与 PixelDelta，明确相位和惯性信息；不能猜测每行固定像素数。触摸携带独立 contact id、phase、位置和可选 pressure；原生 pinch／rotation／pan／double-tap／pressure 保留事件来源与单位。不支持的原生手势不靠周期采样伪造。
 
@@ -262,7 +262,7 @@ Linux 首期按真实桌面依赖动态链接，GNU／musl 各自使用兼容 he
 
 本阶段以 Windows 10 1703 起的 Per-Monitor V2 为窗口 API 基线，消费现有三个 Windows x86_64 target。消息窗口和业务 HWND 均由主线程拥有，原生 C 薄层通过已有 ForeignCallback 回到 Scoop。共享生命周期、业务／收尾队列和测试辅助不复制为第二套实现。平台文件由普通 Cone source 条件选择；native handle 增加 Win32(hwnd, hinstance)，未知键码分别保留 Windows scan code 和 virtual key 来源。
 
-普通窗口使用 Unicode Win32 API。物理键来自扩展 scan code，逻辑键来自当前键盘布局；WM_CHAR 与 IMM32 的 result／composition 统一为自有 UTF-8 编辑批次。IMM32 只发布 marked text 和候选窗矩形，不发布应用文档，取消组合交付空 Preedit。TSF 文档存储、raw device、触摸、全屏和捕获仍属原设计的后续扩展，不增加空实现。
+普通窗口使用 Unicode Win32 API。物理键来自扩展 scan code，逻辑键来自当前键盘布局；普通 WM_CHAR／WM_UNICHAR 与 TSF 文档编辑统一为自有 UTF-8 批次。owner 线程激活 ITfThreadMgr，每窗口以 ITfDocumentMgr／ITfContext 管理焦点，应用侧实现 ITextStoreACP 和必要通知。原生文档投影把 ACP／UTF-16 范围归一为公共 UTF-8 操作，revision／origin 保证输入法编辑与上层确认一致；COM/C++ 限制在 native 后端，不保留 IMM32 组合后端或公共 TSF 扩展。raw device、触摸、全屏和捕获仍属后续扩展。
 
 所有 HWND 创建前确认 owner 的 DPI awareness。WM_DPICHANGED 应用系统建议 rect 后发布实际 client pixel size 与 DPI 的完整快照。桌面位置采用物理虚拟桌面坐标；内容逻辑坐标按本窗口 DPI 转换，不用单个 scale 换算整个桌面。显示器枚举使用 EnumDisplayMonitors／GetMonitorInfo／当前显示设置，离线身份由共享层退休。
 

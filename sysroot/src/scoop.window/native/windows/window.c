@@ -95,6 +95,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // The hidden application window receives the single process-level intent.
     return FALSE;
   case WM_SIZE:
+    sw_text_geometry_changed(window);
     sw_emit(window, 2);
     sw_emit(window, 5);
     return 0;
@@ -102,9 +103,11 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     sw_emit(window, 3);
     return 0;
   case WM_SETFOCUS:
+    sw_text_focus(window, true);
     sw_emit(window, 4);
     return 0;
   case WM_KILLFOCUS:
+    sw_text_focus(window, false);
     sw_reset_input(window);
     sw_emit(window, 4);
     return 0;
@@ -133,7 +136,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                       rect->right - rect->left, rect->bottom - rect->top,
                       SWP_NOZORDER | SWP_NOACTIVATE))
       sw_fail(window->application, GetLastError());
-    sw_update_ime_caret(window);
+    sw_text_geometry_changed(window);
     sw_emit(window, 2);
     return 0;
   }
@@ -213,9 +216,7 @@ SWSnapshot scoop_window_snapshot(SWWindow *window) {
 }
 void scoop_window_destroy(SWWindow *window) {
   window->destroying = true;
-  ImmAssociateContext(window->hwnd, NULL);
-  if (window->ime)
-    ImmDestroyContext(window->ime);
+  sw_text_window_destroy(window);
   DestroyWindow(window->hwnd);
   for (int n = 0; n < 512; ++n)
     free((void *)window->pressed[n].text);

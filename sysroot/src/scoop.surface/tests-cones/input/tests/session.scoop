@@ -19,7 +19,7 @@ private class NativeInputTest {
             host -> try {
                 application.run(host)
                 assertTrue(probe.finished)
-                assertEquals("A", probe.firstText.surroundingText)
+                assertEquals("中😀", probe.firstText.surroundingText)
                 assertEquals("A", probe.secondText.surroundingText)
                 assertEquals(2, probe.downs)
                 assertEquals(2, probe.ups)
@@ -180,7 +180,7 @@ private class InputSession: Closeable {
                     assertTrue(view!!.preedit())
                 } else {
                     assertTrue(oldDisabled)
-                    assertEquals("A", firstText.surroundingText)
+                    assertEquals("中😀", firstText.surroundingText)
                     assertTrue(view!!.caretMatches(12.0, 134.0, 2.0, 18.0))
                     phase = InputPhase.SecondEdit
                     assertTrue(view!!.button(10.0, 110.0, true))

@@ -271,7 +271,7 @@ Keyboard／ModifiersChanged 可用于快捷键与编辑命令；文本仅由 Tex
 
 更换文本接收区域时，逻辑 focus 与原生输入接收者的切换分别处理：先关闭旧接收者的 IME，以 window 的 Disabled 通知作为旧输入会话结束边界，再设置新 caret 并开启新接收者；没有活动旧接收者时直接开启。结束前排队的 Edit 仍属于旧接收者；旧区域已经注销则丢弃，不能写进新区域。Enabled 先于新接收者的 Edit。复用已有通知顺序，不另加窗口专用编辑器对象或并行 IME 会话；测试须覆盖组合输入中切换区域。窗口关闭时直接结束接收状态，资源释放不等待这些业务通知。
 
-本期提供输入路由和几何转换，不替应用保管文档、selection、marked range、撤销栈。已有 TextInputState 可辅助应用处理编辑批次；完整 surrounding 文档接入仍属于后续编辑器需求。
+本期提供输入路由和几何转换，不替应用保管文档、selection、marked range、撤销栈。已有 TextInputState 可辅助应用处理编辑批次并发布原生 surrounding 文档；精确 caret 几何在成功帧与文档 revision 对齐后发布，Surface 不接管编辑器状态。
 
 ## 9. macOS 后端
 

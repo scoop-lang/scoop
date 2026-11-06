@@ -1,0 +1,67 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+
+@Test
+private class WindowsShortcutTest {
+    @Test
+    fun `Windows primary Unicode comparison and editing commands follow shared contracts`() {
+        assertTrue(LogicalKey.Character("S").matchesShortcut(LogicalKey.Character("s")))
+        assertTrue(LogicalKey.Character("Å").matchesShortcut(LogicalKey.Character("å")))
+        assertTrue(LogicalKey.Character("Σ").matchesShortcut(LogicalKey.Character("ς")))
+        assertTrue(LogicalKey.Character("É").matchesShortcut(LogicalKey.Character("é")))
+        assertFalse(LogicalKey.Character("e").matchesShortcut(LogicalKey.Character("é")))
+        assertFalse(LogicalKey.Character("i").matchesShortcut(LogicalKey.Character("ı")))
+        assertTrue(
+            LogicalKey.Unidentified(NativeKeyCode.WindowsVirtualKey(255u)).matchesShortcut(
+                LogicalKey.Unidentified(NativeKeyCode.WindowsVirtualKey(255u))
+            )
+        )
+        val primary =
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("K")),
+                ShortcutModifiers(primary = true, shift = true)
+            )
+        assertTrue(primary.matches(chordKey(platformModifiers(3L))))
+        assertFalse(primary.matches(chordKey(platformModifiers(9L))))
+        assertTrue(
+            primary.equivalentTo(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("k")),
+                    ShortcutModifiers(control = true, shift = true)
+                )
+            )
+        )
+        assertEquals(Some(true), platformModifiers(8194L).altGraph)
+        assertEquals(Some(false), platformModifiers(6L).altGraph)
+        assertEquals(
+            Some(TextEditCommand.Copy),
+            windowsEditingCommand(LogicalKey.Character("C"), platformModifiers(2L))
+        )
+        assertEquals(
+            Some(TextEditCommand.Redo),
+            windowsEditingCommand(LogicalKey.Character("z"), platformModifiers(3L))
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.WordLeft, true)),
+            windowsEditingCommand(LogicalKey.Named(NamedKey.ArrowLeft), platformModifiers(3L))
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.LineStart, false)),
+            windowsEditingCommand(LogicalKey.Named(NamedKey.Home), platformModifiers(0L))
+        )
+    }
+}
+
+private fun chordKey(modifiers: Modifiers): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(KeyCode.Enter),
+        LogicalKey.Character("k"),
+        KeyLocation.Standard,
+        ElementState.Pressed,
+        false,
+        modifiers,
+        false,
+        InputTime.Observed(MonotonicTimeSource.markNow())
+    )

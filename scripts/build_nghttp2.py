@@ -109,6 +109,9 @@ def prepare(args):
         if msvc:
             options["CMAKE_C_FLAGS"] = "/D_WIN32_WINNT=0x0a00"
             options["CMAKE_C_COMPILER_TARGET"] = native_configuration(args.target)["llvm_triple"]
+            # nghttp2 enables CXX; keep it on clang-cl instead of a GNU-style clang++ from PATH.
+            options["CMAKE_CXX_COMPILER"] = cc
+            options["CMAKE_CXX_COMPILER_TARGET"] = options["CMAKE_C_COMPILER_TARGET"]
             options["CMAKE_POLICY_DEFAULT_CMP0091"] = "NEW"
             options["CMAKE_MSVC_RUNTIME_LIBRARY"] = "MultiThreadedDLL"
             options["ENABLE_STATIC_CRT"] = "OFF"

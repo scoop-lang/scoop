@@ -92,6 +92,10 @@ path = "native/linux/fonts.cpp"
 when = { os = "linux", env = "gnu" }
 
 [[native.libraries]]
+name = "uuid"
+when = { os = "windows" }
+
+[[native.libraries]]
 name = "CoreFoundation"
 kind = "framework"
 when = { os = "darwin" }

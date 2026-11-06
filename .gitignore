@@ -2,6 +2,7 @@
 /sysroot/lib
 /sysroot/include
 /sysroot/commands/scoop-example
+/sysroot/commands/scoop-example.exe
 /tooling/scoop-example/target
 /sysroot/vendor/llvm-project/*/*.src/
 /sysroot/vendor/llvm-project/*/*.src.tar.xz

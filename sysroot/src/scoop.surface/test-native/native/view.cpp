@@ -4,12 +4,15 @@
 
 #include <cmath>
 #include <cstdint>
+#include <dcomp.h>
 #include <dwmapi.h>
-#include <imm.h>
 #include <memory>
 #include <new>
+#include <wrl/client.h>
 
-extern "C" void scoop_window_test_text_batch(HWND, int32_t);
+extern "C" bool scoop_window_test_surface_text(HWND, bool);
+extern "C" bool scoop_window_test_surface_caret(HWND, double, double, double,
+                                                double);
 
 struct ViewProbe {
   HWND window;
@@ -17,6 +20,7 @@ struct ViewProbe {
   HWND firstChild;
   HWND child = nullptr;
   LONG_PTR procedure;
+  Microsoft::WRL::ComPtr<IDCompositionDevice> composition;
 
   ~ViewProbe() {
     if (child && IsWindow(child))
@@ -55,6 +59,9 @@ ViewProbe *scoop_surface_test_view_create(HWND window, bool customContent) {
   probe->window = window;
   probe->parent = GetParent(window);
   probe->procedure = GetWindowLongPtrW(window, GWLP_WNDPROC);
+  if (FAILED(
+          DCompositionCreateDevice(nullptr, IID_PPV_ARGS(&probe->composition))))
+    return nullptr;
   if (customContent) {
     probe->child =
         CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE, 4, 4, 12, 12,
@@ -75,9 +82,15 @@ bool scoop_surface_test_view_check(ViewProbe *probe, int32_t width,
 }
 
 bool scoop_surface_test_view_restored(ViewProbe *probe) {
-  // Reattachment in the host test separately proves the composition target was
-  // retired.
-  return !IsWindow(probe->window) || probe->matches();
+  if (!IsWindow(probe->window))
+    return true;
+  if (!probe->matches())
+    return false;
+  // The same HWND layer cannot have another target while Surface owns it.
+  // A successful probe releases its empty target without committing a visual.
+  Microsoft::WRL::ComPtr<IDCompositionTarget> target;
+  return SUCCEEDED(
+      probe->composition->CreateTargetForHwnd(probe->window, FALSE, &target));
 }
 
 void scoop_surface_test_view_drop(ViewProbe *probe) { delete probe; }
@@ -96,31 +109,12 @@ bool scoop_surface_test_view_button(ViewProbe *probe, double x, double y,
 }
 
 bool scoop_surface_test_view_text(ViewProbe *probe, bool commit) {
-  if (!IsWindow(probe->window))
-    return false;
-  // The window test Cone owns protocol injection at the production UTF-16
-  // boundary.
-  scoop_window_test_text_batch(probe->window, commit ? 8 : 0);
-  return true;
+  return IsWindow(probe->window) &&
+         scoop_window_test_surface_text(probe->window, commit);
 }
 
 bool scoop_surface_test_view_caret(ViewProbe *probe, double x, double y,
                                    double width, double height) {
-  HIMC context = ImmGetContext(probe->window);
-  if (!context)
-    return false;
-  CANDIDATEFORM candidate{};
-  const BOOL found = ImmGetCandidateWindow(context, 0, &candidate);
-  ImmReleaseContext(probe->window, context);
-  const double scale = GetDpiForWindow(probe->window) / 96.0;
-  return found && candidate.dwStyle == CFS_EXCLUDE &&
-         candidate.ptCurrentPos.x == static_cast<LONG>(std::round(x * scale)) &&
-         candidate.ptCurrentPos.y == static_cast<LONG>(std::round(y * scale)) &&
-         candidate.rcArea.left == candidate.ptCurrentPos.x &&
-         candidate.rcArea.top == candidate.ptCurrentPos.y &&
-         candidate.rcArea.right ==
-             static_cast<LONG>(std::ceil((x + width) * scale)) &&
-         candidate.rcArea.bottom ==
-             static_cast<LONG>(std::ceil((y + height) * scale));
+  return scoop_window_test_surface_caret(probe->window, x, y, width, height);
 }
 }

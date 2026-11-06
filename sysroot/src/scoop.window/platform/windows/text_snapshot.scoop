@@ -1,0 +1,91 @@
+package scoop.window
+
+internal fun platformPublishText(
+    window: Window,
+    connection: TextInputConnection,
+    state: TextInputState,
+    after: Long
+): Long {
+    @Unsafe
+    {
+        return state.surroundingText.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                return@withUtf8Bytes nativePublishText(
+                    window.owner.pointer!!,
+                    NativeTextSnapshot(
+                        connection.generation,
+                        state.revision,
+                        after,
+                        bytes,
+                        length,
+                        state.selection.anchor,
+                        state.selection.cursor,
+                        state.markedRange?.start ?: -1L,
+                        state.markedRange?.end ?: -1L
+                    )
+                )
+            }
+        }
+    }
+}
+
+internal fun platformPublishTextCaret(
+    window: Window,
+    connection: TextInputConnection,
+    revision: Long,
+    area: LogicalRect?
+): Long {
+    @Unsafe
+    {
+        return nativePublishTextCaret(
+            window.owner.pointer!!,
+            connection.generation,
+            revision,
+            area != None,
+            area?.origin?.x ?: 0.0,
+            area?.origin?.y ?: 0.0,
+            area?.size?.width ?: 0.0,
+            area?.size?.height ?: 0.0
+        )
+    }
+}
+
+internal fun platformClearImeCaret(window: Window): Long {
+    @Unsafe
+    {
+        return nativeClearImeCaret(window.owner.pointer!!)
+    }
+}
+
+@CLayout
+private struct NativeTextSnapshot(
+    val connection: Long,
+    val revision: Long,
+    val after: Long,
+    val text: Ptr<UInt8>,
+    val length: Long,
+    val anchor: Long,
+    val cursor: Long,
+    val markedStart: Long,
+    val markedEnd: Long
+)
+
+@Extern(name = "scoop_window_publish_text")
+private fun nativePublishText(window: Ptr<Unit>, snapshot: NativeTextSnapshot): Long
+
+@Extern(name = "scoop_window_publish_text_caret")
+private fun nativePublishTextCaret(
+    window: Ptr<Unit>,
+    connection: Long,
+    revision: Long,
+    available: Boolean,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+): Long
+
+@Extern(name = "scoop_window_clear_ime_caret")
+private fun nativeClearImeCaret(window: Ptr<Unit>): Long
