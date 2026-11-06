@@ -1121,3 +1121,17 @@ TraceStatus 为 Complete／Running／Error／Pending，默认 Complete。traceLi
 trace(title, content) 组合状态行和已有 Collapsible。未提供外部 open Binding 时，尚未被用户操作的行仅在 Running 默认展开；第一次明确打开／关闭后保留该选择，流式追加和状态变化不强行重开。提供 open Binding 时读取实际接受结果，拒绝 setter 不发成功变化通知。触发器先请求切换，再在仍挂载时调用 line.onClick；onOpenChange 只报告实际接受的展开变化。嵌套步骤独立持有展开选择，关闭保留策略使用 ContentRetention；KeepMounted 的正文不可见时退出输入与帧参与，恢复后保留原编辑状态。
 
 展开正文使用逻辑起侧边线和内边距，标题与描述在窄宽下先限制描述宽度再截断标题；正文和触发器共享稳定槽位。焦点、IME、退出动画、Reduced、Accepted／Discarded、停帧与卸载继续使用既有协议。验收覆盖五个会话展示组件的全部变体、独立动作、内容保留、真实主题／RTL／窄宽、完整焦点环、运行态停帧、图片借用及嵌套 Trace 对 MessageScroller 阅读位置的影响。
+
+## 51. Questionnaire
+
+QuestionnaireState 由应用持有。QuestionKey 与 QuestionChoiceKey 是不同的值类型，题目和固定选项分别按 key 保持身份；QuestionKind 为 Single／Multiple／Freeform，选择题可额外声明一项 QuestionFreeform。每个 freeform 只有一个 TextEditorState，隐藏、前后导航和条件停用保留草稿及编辑历史；结果和持久化快照才读取 committedText。定义只保存题目、说明、required／enabled、选项和局部纯校验，不执行异步业务。
+
+QuestionAnswer 为 Choice(key)／Text(value)，QuestionnaireAnswer 为 Unanswered／Skipped／Single(answer)／Multiple(answers)。未回答与明确 Skip 分开；选择题结果按定义顺序交付固定选项，已选 freeform 位于末尾，空白是否合法由 allowBlank 指定。Next 校验当前题；optional 也须回答或显式 Skip，required 不可 Skip。Previous 不校验当前题。Submit 校验全部 enabled 题，失败定位首个无效题，成功交付不可变的 keyed 结果；没有 enabled 题时为 0／0 和空结果。被停用的题目不参与导航、进度、校验和结果，但保留草稿。
+
+replaceQuestions 按稳定 key 保留同题型答案和仍存在的 freeform 编辑器，移除已删除／停用固定选项的选择；题型变化重置该题答案，题目删除释放所属草稿。snapshot 同时保存未选 freeform 的文字、选择、Skip、题型与活动题。restore 先验证 key、题型、选择及 Skip，再一次性恢复，成为新的 reset 基线；省略题目恢复为空答案。reset 按当前定义恢复基线中仍匹配的题目，新题从空答案开始；两者清空错误、组合输入和编辑历史，不发送结果。普通重排和条件显隐不改变基线。setErrors 接入调用方的 keyed 错误，可定位首个 enabled 错误；编辑对应答案清除此题错误。
+
+questionnaire(state, onSubmit) 的 busy／enabled 是显式应用输入。默认 Next／Submit 可激活以显示校验结果；busy 停用回答和导航，单次激活只交付一次，重入不重复调用。成功交付后的重复提交须等更新场景 Accepted，防止同一帧中的后续按键再次读取旧 busy；异步保存状态仍由调用方持有，完成后自行清除 busy 或设置错误。Dialog 关闭只取消展示，不 Skip、reset 或 submit。QuestionnaireStrings 提供按钮、进度、可选／跳过状态和错误文案；题目文字属于定义，组件不引入 locale 或网络服务。
+
+默认选项卡片最小高度 44、内边距 12／10、圆角 8，选择标记 16、快捷键提示 20、卡片间距 8；标题 16／500、说明 14、进度 12／500，题目及导航间距 16。有限宽度下选项组与输入及导航占用同一可用宽度，正文自然换行，快捷键在提示框中居中。操作区保留逻辑起侧 Previous 与末侧 Skip／Next／Submit，必要时换行；所有长度随文字密度变化。表面和输入使用同一主题、Press、KeyNavigation 和 TextEditor，focusOutset 纳入外部布局，不能在选项或问卷边缘裁掉。QuestionnairePart 的 Item／Title／Description／Choice／Choices／Input／Error／Progress／Actions 可包装或替换默认 View，默认导航和进度具有稳定槽位。
+
+固定选项按 enabled 顺序分配 1–9、a–z 快捷键，选择后不自动翻题；文本输入持有焦点或正在组合时暂停。Single 的箭头选择复用 Radio 的 roving 协议，Multiple 的选项可分别 Tab；ArrowLeft／Right 仅在焦点未处于回答控件时前后导航，不截获文本和 Radio 动作。Primary+Enter 校验并继续，末题提交；重复按键和组合输入同次提交不另触发问卷动作。成功导航和校验失败的焦点转移在新场景 Accepted 后执行；依赖实际尺寸的输入域启停同样在 Accepted 回调发布，避免构建场景时同步触发编辑器失焦。零尺寸、禁用、旧题及卸载不响应输入或保留待处理焦点。默认无持续动画，空闲不请求帧。

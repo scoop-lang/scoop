@@ -31,6 +31,7 @@ import scoop.ui.component.dateRangePicker as appendDateRangePicker
 import scoop.ui.component.chart as appendChart
 import scoop.ui.component.messageScroller as appendMessageScroller
 import scoop.ui.component.messageScrollButton as appendMessageScrollButton
+import scoop.ui.component.questionnaire as appendQuestionnaire
 import scoop.ui.component.table as appendTable
 import scoop.ui.component.dataTable as appendDataTable
 import scoop.ui.component.sidebar as appendSidebar
@@ -777,6 +778,14 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): Unit {
         add(makeInput(state, configure))
+    }
+
+    public fun questionnaire(
+        state: QuestionnaireState,
+        onSubmit: (QuestionnaireResult) -> Unit,
+        configure: QuestionnaireBuilder.() -> Unit = {}
+    ): Unit {
+        add(appendQuestionnaire(state, onSubmit, configure))
     }
 
     public fun inputOtp(

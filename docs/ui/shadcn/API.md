@@ -368,3 +368,12 @@ MessageScrollState 的 options 使用 MessageScrollOptions，默认值与 [模�
 `attachment(title)` 的标题支持 String／StyledText／View，description 接收文字或 View，content 和 actions 接收普通 View。state 为 Idle／Uploading／Processing／Error／Done；size 为 Default／Sm／Xs，orientation 为 Horizontal／Vertical。`image(image, naturalSize)` 借用应用持有的 GraphicsImage，`icon(content)` 显式替换媒体。整卡 onClick 与子动作分别激活，卡片不持有上传任务。`attachmentGroup { item(key, content); attachment(key, title) { ... } }` 与外部 ItemSource 重载提供同一横向 Carousel；length／spacing／enabled／handle／focus／fade／theme 可配置，使用真实测量吸附、键盘、拖动和横向滚轮，竖向滚轮留给外层。
 
 `traceLine` 是可选动作的状态行，status 为 Complete／Running／Error／Pending；icon、description、shimmer、focus、enabled 和样式均可覆盖。`trace(title, content)` 组合状态行和 Collapsible，open 缺省时 Running 自动展开一次用户选择之前的状态，手动选择后保持；外部 Binding 拒绝请求时 onOpenChange 不报告成功变化。onClick 在触发器请求切换后执行。retention 默认 KeepMounted，嵌套步骤独立保存展开选择与编辑状态。运行指示和 shimmer 使用作用域动画，隐藏、减少动态、停止及卸载结束其自发帧需求。完整规则见组件规范第 48～50 节。
+
+
+## P8c：Questionnaire
+
+`QuestionnaireState(questions, initial)` 按 QuestionKey 持有单选／多选／freeform 定义、回答及活动题。QuestionChoiceKey 与题目 key 分开，QuestionFreeform 为一题保留唯一 TextEditorState。select／selectText／textEdited、previous／next／skip／activate、submit／setErrors 是应用动作；progress 只统计 enabled 题目。QuestionAnswer 的 Choice／Text 和 QuestionnaireAnswer 的 Unanswered／Skipped／Single／Multiple 保留结果类型，submit 校验后才返回 QuestionnaireResult。
+
+`snapshot()` 保存每题选择、未选文字草稿、题型、Skip 与活动 key；`restore(snapshot)` 先校验再应用并替换 reset 基线，`reset()` 按当前定义恢复匹配草稿。`replaceQuestions` 保留稳定 key 下的编辑器和同题型选择，条件题停用保留草稿，删除或停用固定选项会移除其选择。编辑器程序更新后可调用 textEdited 清除当前题错误；业务条件与异步结果由调用方在事件回调中更新。
+
+`questionnaire(state, onSubmit) { ... }` 与 ChildrenBuilder 的同名成员共享 QuestionnaireProps。enabled／busy／continueEnabled 控制交互，autoFocus 默认 false；inputFocus、choiceFocus、focusOutline 提供既有焦点配置。shortcuts 提供固定选项的数字／字母选择，Primary+Enter 校验并继续，输入法组合不触发二次动作。strings 为 QuestionnaireStrings，题目文字来自定义；part 接收 QuestionnairePart 和默认 View，可包装或替换 Item／Title／Description／Choice／Choices／Input／Error／Progress／Actions。fonts／theme／style 沿原有接口，完整规则见组件规范第 51 节。

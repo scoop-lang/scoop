@@ -1,0 +1,296 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.asyncio.currentApplicationScope
+
+internal class QuestionnaireExamplesModel {
+    val chinese = state(false)
+    val narrow = state(false)
+    val enabled = state(true)
+    val busy = state(false)
+    val opened = state(false)
+    val empty = state(false)
+    val status = state("Your answers stay here until you submit them.")
+    val submitted = state(0)
+    val survey = QuestionnaireState(questionnaireExampleQuestions(false, false))
+    val modal = QuestionnaireState(questionnaireExampleQuestions(false, false))
+    private var saved: QuestionnaireSnapshot? = None
+    private var task: Job? = None
+    private var revision = 0L
+    fun definitions(owner: QuestionnaireState) {
+        val branch =
+            when (owner.answer(QuestionKey("role"))) {
+                case Single(QuestionAnswer.Choice(key)) -> key == QuestionChoiceKey("developer")
+                else -> false
+            }
+        owner.replaceQuestions(questionnaireExampleQuestions(chinese.value, branch, empty.value))
+    }
+    fun language() {
+        chinese.value = !chinese.value
+        definitions(survey);
+        definitions(modal)
+    }
+    fun toggleEmpty() {
+        empty.value = !empty.value
+        definitions(survey);
+        definitions(modal)
+    }
+    fun save() {
+        saved = Some(survey.snapshot());
+        status.value =
+            if (chinese.value)
+                "草稿快照已保存。"
+            else
+                "Draft snapshot saved."
+    }
+    fun restore() {
+        when (saved) {
+            case Some(value) -> {
+                // Restore while all snapshot keys are available, then apply the answer's branch.
+                survey.replaceQuestions(questionnaireExampleQuestions(chinese.value, true))
+                empty.value = false
+                survey.restore(value)
+                definitions(survey)
+                status.value =
+                    if (chinese.value)
+                        "草稿已恢复，并成为重置基线。"
+                    else
+                        "Draft restored as the reset baseline."
+            }
+            case None -> status.value =
+                if (chinese.value)
+                    "请先保存一份草稿。"
+                else
+                    "Save a draft first."
+        }
+    }
+    fun reset() {
+        survey.reset();
+        definitions(survey)
+    }
+    fun reject() {
+        survey.setErrors(
+            [
+                QuestionnaireError(
+                    QuestionKey("role"),
+                    if (chinese.value)
+                        "这个工作组名额已满，请选择其他角色。"
+                    else
+                        "This group is full. Choose another role."
+                )
+            ]
+        )
+    }
+    fun submit(result: QuestionnaireResult) {
+        stop()
+        busy.value = true
+        submitted.value += 1
+        val owner = this
+        val generation = revision
+        val count = result.answers.size
+        task =
+            Some(
+                currentApplicationScope().launch {
+                    try {
+                        currentEventLoop().sleep(Duration.milliseconds(900L))
+                        if (owner.revision == generation)
+                            owner.status.value =
+                                if (owner.chinese.value)
+                                    f"已提交 ${count} 个回答。你可以继续修改，再次提交。"
+                                else
+                                    f"Submitted ${count} answers. You can edit and submit again."
+                    } finally {
+                        if (owner.revision == generation)
+                            owner.busy.value = false
+                    }
+                }
+            )
+    }
+    fun stop() {
+        revision += 1L;
+        task?.cancel();
+        task = None;
+        busy.value = false
+    }
+}
+
+internal fun questionnaireExampleQuestions(
+    chinese: Boolean,
+    branch: Boolean,
+    disabled: Boolean = false
+): Array<Question> =
+    [
+        Question(
+            QuestionKey("role"),
+            if (chinese)
+                "你希望如何参与这个项目？"
+            else
+                "How would you like to join this project?",
+            QuestionKind.Single,
+            if (chinese)
+                "选择一个角色，也可以写下其他参与方式。"
+            else
+                "Choose a role, or describe a different way to contribute.",
+            enabled = !disabled,
+            choices =
+                [
+                    QuestionChoice(
+                        QuestionChoiceKey("developer"),
+                        if (chinese)
+                            "开发"
+                        else
+                            "Development",
+                        if (chinese)
+                            "构建应用，并分享你的代码仓库。"
+                        else
+                            "Build the app and share your repository."
+                    ),
+                    QuestionChoice(
+                        QuestionChoiceKey("designer"),
+                        if (chinese)
+                            "设计"
+                        else
+                            "Design",
+                        if (chinese)
+                            "整理流程、界面和视觉语言。"
+                        else
+                            "Shape the flows, screens and visual language."
+                    ),
+                    QuestionChoice(
+                        QuestionChoiceKey("researcher"),
+                        if (chinese)
+                            "研究（稍后开放）"
+                        else
+                            "Research (coming soon)",
+                        enabled = false
+                    )
+                ],
+            freeform =
+                Some(
+                    QuestionFreeform(
+                        if (chinese)
+                            "其他方式"
+                        else
+                            "Another role",
+                        if (chinese)
+                            "告诉我们你的想法"
+                        else
+                            "Tell us how you would help"
+                    )
+                )
+        ),
+        Question(
+            QuestionKey("tools"),
+            if (chinese)
+                "哪些功能对你最有帮助？"
+            else
+                "Which features would help you most?",
+            QuestionKind.Multiple,
+            if (chinese)
+                "可以多选；如果暂时没有想法，请明确跳过。"
+            else
+                "Choose as many as you need, or skip for now.",
+            required = false,
+            enabled = !disabled,
+            choices =
+                [
+                    QuestionChoice(
+                        QuestionChoiceKey("search"),
+                        if (chinese)
+                            "搜索资料"
+                        else
+                            "Search documents"
+                    ),
+                    QuestionChoice(
+                        QuestionChoiceKey("charts"),
+                        if (chinese)
+                            "查看图表"
+                        else
+                            "Explore charts"
+                    ),
+                    QuestionChoice(
+                        QuestionChoiceKey("files"),
+                        if (chinese)
+                            "分享附件"
+                        else
+                            "Share files"
+                    )
+                ],
+            freeform =
+                Some(
+                    QuestionFreeform(
+                        if (chinese)
+                            "其他功能"
+                        else
+                            "Something else",
+                        if (chinese)
+                            "补充你的需求"
+                        else
+                            "Describe what you need"
+                    )
+                )
+        ),
+        Question(
+            QuestionKey("repository"),
+            if (chinese)
+                "你的项目放在哪个代码仓库？"
+            else
+                "Where is your project repository?",
+            QuestionKind.Freeform,
+            if (chinese)
+                "这道题只在选择开发角色时出现；切换角色仍会保留草稿。"
+            else
+                "This question appears for development. Your draft remains when you change roles.",
+            enabled = branch && !disabled,
+            freeform =
+                Some(
+                    QuestionFreeform(
+                        placeholder =
+                            if (chinese)
+                                "仓库名称或地址"
+                            else
+                                "Repository name or URL"
+                    )
+                )
+        ),
+        Question(
+            QuestionKey("note"),
+            if (chinese)
+                "还有什么想补充的吗？"
+            else
+                "Anything else you would like to add?",
+            QuestionKind.Freeform,
+            required = false,
+            enabled = !disabled,
+            freeform =
+                Some(
+                    QuestionFreeform(
+                        placeholder =
+                            if (chinese)
+                                "写下一句备注，或跳过"
+                            else
+                                "Leave a note, or skip"
+                    )
+                )
+        )
+    ]
+
+internal fun questionnaireExampleStrings(chinese: Boolean): QuestionnaireStrings =
+    if (!chinese)
+        QuestionnaireStrings()
+    else
+        QuestionnaireStrings(
+            "上一题",
+            "下一题",
+            "跳过",
+            "提交回答",
+            "正在提交…",
+            "可选回答",
+            "已明确跳过",
+            "请回答这道题；可选题也可以点击跳过。",
+            "请填写回答后继续。",
+            { position, total -> f"第 ${position} 题，共 ${total} 题" }
+        )

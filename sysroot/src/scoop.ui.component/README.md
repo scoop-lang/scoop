@@ -158,3 +158,6 @@ Combobox 提供单／多选、Unicode 包含搜索、外部候选、自定义项
 `sidebar(open, content) { header(view); footer(view); inset(workspace) }` 提供 Sidebar／Floating／Inset、逻辑侧、Offcanvas／Icon／None、rail 和作用域内 Primary+B。Auto 根据父级宽度切换窄布局 Drawer；主编辑区保持实例，导航跨宿主的业务状态显式提升到外部。分组、菜单、独立动作／badge、子菜单、Skeleton、Input 与 Trigger 均有真实成员 DSL，菜单使用普通 Tab 与 Button。`tests-cones/sidebar` 覆盖折叠、稳定 key、快捷键、关闭拦截、窗口缩放、编辑状态及隐藏停帧。
 
 `ToastState` 与 `toaster(state)` 提供窗口内显式通知。`show` 返回 ToastId，`update` 原位替换内容与时长，`dismiss` 只关闭一次；同一状态只绑定一个活动宿主。六种语义类型、六位置、队列／堆叠、动作、滑动及暂停剩余时间由 `tests-cones/toast` 的真实窗口用例覆盖。异步工作继续由应用 Job 管理，关闭后的迟到更新返回 false。
+
+
+`questionnaire(state, onSubmit)` 以应用持有的 QuestionnaireState 组合单选、多选与 freeform。QuestionKey／QuestionChoiceKey、类型化结果、显式 Skip、条件题、外部错误和快照恢复按当前定义处理；每份文字草稿只有一个 TextEditorState。Next／Submit 可触发校验，busy 明确阻止重复提交，Primary+Enter 与固定选项快捷键尊重编辑和 IME；部件包装、文案、焦点环和主题均可配置。`tests-cones/questionnaire` 覆盖真实窗口中的导航、编辑、取消和布局生命周期。

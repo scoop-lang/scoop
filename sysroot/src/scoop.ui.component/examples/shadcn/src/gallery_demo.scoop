@@ -73,6 +73,9 @@ internal fun galleryDemo(model: GalleryModel, value: Demo): View =
         case Marker -> conversationExamples(model, value)
         case Attachment -> conversationExamples(model, value)
         case Trace -> conversationExamples(model, value)
+        case Questionnaire -> component(
+            { scope -> QuestionnaireExamples(model.questionnaires, scope) }
+        )
         case MessageScroller -> component(
             { scope -> MessageScrollerExamples(model.messages, model.source, scope) }
         )

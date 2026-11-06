@@ -1,0 +1,101 @@
+package scoop.ui.component
+
+import scoop.text.trim
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+internal struct QuestionSelection(
+    val choices: Array<QuestionChoiceKey> = [],
+    val useText: Boolean = false,
+    val skipped: Boolean = false
+)
+
+internal class QuestionRecord(
+    val question: Question,
+    val selected: State<QuestionSelection> = state(QuestionSelection()),
+    val editor: TextEditorState? =
+        if (panelPresent(question.freeform))
+            Some(TextEditorState())
+        else
+            None
+) {
+    fun answer(): QuestionnaireAnswer {
+        val draft = selected.value
+        if (draft.skipped)
+            return QuestionnaireAnswer.Skipped
+        val items = ArrayList<QuestionAnswer>()
+        for (choice in question.choices)
+            if (choice.enabled && questionContains(draft.choices, choice.key))
+                items.add(QuestionAnswer.Choice(choice.key))
+        if (usesText())
+            items.add(QuestionAnswer.Text(editor!!.committedText))
+        return if (items.size == 0L)
+            QuestionnaireAnswer.Unanswered
+        else
+            if (question.kind == QuestionKind.Multiple)
+                QuestionnaireAnswer.Multiple(items.toArray())
+            else
+                QuestionnaireAnswer.Single(items[0L])
+    }
+    fun usesText(): Boolean =
+        !selected.value.skipped &&
+            (question.kind == QuestionKind.Freeform || selected.value.useText)
+
+    fun issue(): QuestionnaireIssueKind? {
+        if (selected.value.skipped && !question.required)
+            return None
+        if (usesText() && !question.freeform!!.allowBlank && editor!!.committedText.trim() == "")
+            return Some(QuestionnaireIssueKind.TextRequired)
+        val value = answer()
+        when (value) {
+            case Unanswered -> return Some(QuestionnaireIssueKind.AnswerRequired)
+            case Skipped -> return Some(QuestionnaireIssueKind.AnswerRequired)
+            else -> {}
+        }
+        return when (question.validate(value)) {
+            case Some(message) -> Some(QuestionnaireIssueKind.Message(message))
+            case None -> None
+        }
+    }
+    fun snapshot(): QuestionDraft =
+        QuestionDraft(
+            question.key,
+            question.kind,
+            selected.value.choices,
+            selected.value.useText,
+            when (editor) {
+                case Some(value) -> Some(value.committedText);
+                case None -> None
+            },
+            selected.value.skipped
+        )
+    fun replace(next: Question): QuestionRecord {
+        val same = next.kind == question.kind
+        val kept = ArrayList<QuestionChoiceKey>()
+        if (same)
+            for (key in selected.value.choices)
+                if (questionHasChoice(next, key))
+                    kept.add(key)
+        val text: TextEditorState? =
+            if (panelPresent(next.freeform))
+                Some(
+                    if (same)
+                        editor ?: TextEditorState()
+                    else
+                        TextEditorState()
+                )
+            else
+                None
+        return QuestionRecord(
+            next,
+            state(
+                QuestionSelection(
+                    kept.toArray(),
+                    same && selected.value.useText && panelPresent(next.freeform),
+                    same && selected.value.skipped && !next.required
+                )
+            ),
+            text
+        )
+    }
+}

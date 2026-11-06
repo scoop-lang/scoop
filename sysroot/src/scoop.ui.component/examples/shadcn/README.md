@@ -9,7 +9,7 @@ Table 展示有限发票、共享列宽、footer 和独立动作。Data Table �
 Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
 
 真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。
-当前展示 Button、Input、Checkbox 的普通、invalid、disabled 和真实焦点状态，以及 Button 的六种变体／八种尺寸、Badge 的展示与动作模式、Spinner 的运行与减少动态模式。内容页面包含 Card、Alert、Empty、横纵 Separator、图片 Aspect Ratio、Avatar、Skeleton、Progress、Typography、Kbd、Label、Button Group 和 Item。目录随控件批次扩充，尚不代表完整 64 项已交付。
+当前已提供设计目录全部 64 项的独立页面，包括普通、invalid、disabled、真实焦点状态和各公开变体。组件批次结果见 `docs/ui/shadcn/PROGRESS.md`；四个完整应用组合的 P9 验收继续推进。
 
 在准备好开发 sysroot 后运行：
 
@@ -79,3 +79,6 @@ Toast 页面提供六种类型、六位置、展开／堆叠、可见数量、�
 Calendar 页面展示单选、多选与范围、单／双月、窄宽、月／年下拉、周号、outside days、中文 locale、禁用日期和四周规划周期的自定义 CalendarPageSource。参考日期由示例模型明确提供；页面底部显示真实选择值。焦点与选择分别响应键盘操作，范围只有第二个端点接受后才提交。
 
 Date Picker 页面展示普通日期、生日、双月范围与 7／30 日预设、严格 ISO 草稿、显式自然语言 parser，以及独立时间输入组成的 LocalDateTime。可用 Enter、移开焦点、Reset 和外部日期更新观察草稿处理；解析错误保留原文，组合输入优先。设置表单也加入生日 Field，继承禁用、readonly、方向和主题配置。
+
+
+Questionnaire 页面提供中英文、单选／多选／文字、开发角色的条件题、明确 Skip、错误回跳、保存／恢复／重置、空问卷、禁用与真实异步提交。独立 Dialog 问卷在关闭后保留草稿，返回时继续填写；窄宽、明暗、System／Neutral 和 RTL 可直接切换。
