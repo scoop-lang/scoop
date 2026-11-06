@@ -1,0 +1,289 @@
+package scoop.tests.ui.toast
+
+import scoop.asyncio.*
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+import scoop.window.asyncio.*
+
+@Test
+private class ToastWindowTest {
+    @Test
+    fun `native notifications queue pause update swipe and restore without stealing focus`() {
+        val p = ToastProbe()
+        val host =
+            UiHost(
+                onRootError =
+                    {
+                        _, error ->
+                        if (error !== p.callbackFailure)
+                            throw error
+                        p.rootErrors += 1
+                    },
+                handler = { owner, active, event -> p.event(owner, active, event) }
+            )
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().runWithAsyncio(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.model.isAttached);
+            assertFalse(p.otherModel.isAttached)
+            assertEquals(2, p.jobsFinished)
+            assertEquals(1, p.rootErrors)
+            assertFalse(p.lateAccepted);
+            assertTrue(p.liveAccepted)
+            for (item in p.items)
+                assertEquals(item.mounts, item.unmounts)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"toast phase=${p.phase}, count=${p.model.count}, focused=${
+                    (p.native!!.state == WindowState.Open && p.native!!.isFocused)
+                }, frames=${p.frames!!.snapshot().required}"
+            )
+            reportToastFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class ToastCapture {
+    var id: ToastId? = None
+    var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var actionBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var ring = false
+    var mounts = 0
+    var unmounts = 0
+    var draws = 0
+    var version = 0
+    var actions = 0
+    val focus = FocusHandle()
+    val closeFocus = FocusHandle()
+    var closed: ToastCloseReason? = None
+    var closeCount = 0
+}
+
+internal class ToastProbe {
+    val model = ToastState()
+    val otherModel = ToastState()
+    val theme =
+        ThemeSource(shadcnTheme() { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val draft = TextEditorState("Workspace draft")
+    val main = FocusHandle()
+    val other = FocusHandle()
+    val items = Array<ToastCapture>(24L) { _ -> ToastCapture() }
+    val activities = ArrayList<WindowActivity>()
+    val callbackFailure = IllegalStateException(Some("expected toast closing failure"))
+    var rootErrors = 0
+    var observer: Closeable? = None
+    var visible = 2L
+    var expanded = false
+    var order = ToastOrder.OldestFirst
+    var width = 320.0
+    var enabled = true
+    var rtl = false
+    var hidden = false
+    var replacement = false
+    var gone = false
+    var jobsFinished = 0
+    var lateAccepted = true
+    var liveAccepted = false
+    var activityCount = 0L
+    var swipeStart = Point(0.0, 0.0)
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    var waitAfter = Duration.milliseconds(150L)
+    var next = MonotonicTimeSource.markNow()
+    val timeout = next + Duration.seconds(60L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop toast test";
+                            size = LogicalSize(900.0, 560.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                observer = Some(window.observeActivity { value -> activities.add(value) })
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { mount -> ToastScene(this, mount) }, fonts = Some(fonts));
+                window.requestFocus()
+                next = MonotonicTimeSource.markNow() + waitAfter
+                active.setControlFlow(ControlFlow.WaitUntil(next))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < timeout, Some("toast timeout"))
+                if (
+                    now >=
+                        next &&
+                        (
+                            rootErrors >
+                                0 ||
+                                hidden ||
+                                (
+                                    native!!.isFocused &&
+                                        rendered >=
+                                        generation.value &&
+                                        !main.isPending &&
+                                        !other.isPending
+                                )
+                        )
+                ) {
+                    waitAfter = Duration.milliseconds(150L)
+                    advanceToast(this);
+                    phase += 1
+                    next = MonotonicTimeSource.markNow() + waitAfter
+                } else
+                    if (!hidden && !native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 45)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (next > now)
+                                next
+                            else
+                                now + Duration.milliseconds(30L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 45;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun refresh() {
+        generation.value += 1
+    }
+    fun key(code: Int) {
+        assertTrue(sendSurfaceKey(native!!, code, true));
+        assertTrue(sendSurfaceKey(native!!, code, false))
+    }
+    fun pointer(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun button(x: Double, y: Double, down: Boolean) {
+        pointer(x, y);
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun clear() {
+        for (item in items)
+            when (item.id) {
+                case Some(id) -> model.dismiss(id);
+                case None -> {}
+            }
+    }
+    fun show(
+        slot: Long,
+        duration: Duration? = None,
+        kind: ToastKind = ToastKind.Default,
+        position: ToastPosition? = None
+    ): ToastId {
+        val id = model.show(data(slot, duration, kind, position))
+        items[slot].id = Some(id)
+        return id
+    }
+    fun data(
+        slot: Long,
+        duration: Duration? = None,
+        kind: ToastKind = ToastKind.Default,
+        position: ToastPosition? = None
+    ): ToastProps {
+        val item = items[slot]
+        val actionContent = toastAction(this, slot)
+        return toastProps(toastTitle(this, slot)) {
+            this.duration = duration;
+            this.kind = kind;
+            this.position = position
+            action(actionContent, { item.actions += 1 }) {
+                focus = FocusOptions(handle = Some(item.focus))
+            }
+            closeFocus = FocusOptions(handle = Some(item.closeFocus))
+            onClosed =
+                {
+                    _, reason ->
+                    item.closed = Some(reason);
+                    item.closeCount += 1
+                }
+        }
+    }
+    fun startTask(slot: Long, dismissNow: Boolean) {
+        val p = this
+        val id = show(slot, kind = ToastKind.Loading)
+        currentApplicationScope().launch {
+            try {
+                currentEventLoop().sleep(Duration.milliseconds(250L))
+                val accepted =
+                    p.model.update(
+                        id,
+                        p.data(slot, Some(Duration.milliseconds(350L)), ToastKind.Success)
+                    )
+                if (dismissNow)
+                    p.lateAccepted = accepted
+                else
+                    p.liveAccepted = accepted
+            } finally {
+                p.jobsFinished += 1
+            }
+        }
+        if (dismissNow)
+            model.dismiss(id)
+    }
+}
+
+private fun reportToastFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportToastFailure(error.primaryFailure);
+        reportToastFailure(error.cleanupFailure)
+    }
+    else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "toast failure")
+}

@@ -998,3 +998,19 @@ SidebarBuilder 提供 header／footer／inset 成员和 content 重载；sidebar
 ModalOptions／ModalBuilder 同时增加 contentPadding=16，统一控制 header、body、footer 的逻辑内边距，有限非负并随密度缩放；默认行为不变。Sidebar 的窄层使用 contentPadding=0，自己的组与头尾留白保护完整焦点环，避免重复添加 Dialog 内边距。
 
 验收覆盖三种变体／折叠、逻辑侧／RTL、窄宽 Drawer 及窗口缩放、受控拒绝／换绑／实际值通知、真实快捷键／Tab／文本编辑、滚动与关闭拦截、稳定 key、动作及子菜单、静态／动画停帧、宿主切换和卸载；不把桌面指针测试记为触屏验收。
+
+## 42. Toast
+
+`ToastState()` 是 owner 线程显式通知模型；`show(ToastProps)`／`show(title) { ... }` 返回不透明 ToastId，`update(id, props)`／`update(id, title) { ... }` 替换同一条记录，`dismiss(id)` 请求退出。count 包括排队与退出中的记录，contains 仅对仍可更新的记录为 true。记录处于退出或已经完成时 update／dismiss 返回 false；没有宿主或尚未显示的通知可同步完成关闭。每个状态仅绑定一个活动 Toaster，跨状态的 id 不相互匹配；getter 与 mutation 都遵守 State 的 owner 线程和求值期间禁止修改合同。
+
+ToastProps 使用普通 PanelContent title、可选 description／icon／action，提供 Default／Success／Info／Warning／Error／Loading、可选 position、duration=5 秒、dismiss=ToastDismiss()、style 和 onClosed(id, reason)。String／StyledText／View 标题与说明有 builder 入口；ToastAction 为 ButtonContent、onClick、dismiss=true、enabled、focus 与样式。普通 duration=None 表示持续，非空必须大于零；Loading 不计时。update 从新 Props 重置持续时间，Loading→Success／Error 获得完整新时长。关闭原因 Explicit／Timeout／Action／Swipe／Escape 只确定一次；先标记关闭，再运行独立动作回调，避免重入双执行，onClosed 在记录移除后只调用一次。
+
+`toaster(state) { ... }` 创建零布局占位宿主。默认 position=BottomEnd、visibleCount=3（每位置）、order=OldestFirst、expanded=false、width=384、offset=16、gap=12、enabled=true、transition、fonts／theme／style。位置为 TopStart／TopCenter／TopEnd／BottomStart／BottomCenter／BottomEnd，Start／End 按 RTL 解析；记录可覆盖宿主位置。队列按声明的 OldestFirst／NewestFirst 补充空位，已经显示的记录保留，退出项仍占展示槽直到完成；降低上限使多余未退出项回队列并暂停剩余时间。新进入的可见项位于叠层前方；hover／焦点进入该位置任一通知时展开自然高度与 gap，离开后收叠，expanded=true 始终展开。默认收叠每层向视口内偏移 12、缩小 10%，后层背景使用前层高度并隐藏正文；隐藏正文退出输入／Tab 与子树动画，模型和实例保留。
+
+每条实际显示的通知复用一个 NonModal Portal，autoFocus=false，忽略全局 Escape 和 outsidePress；只在该条正文的未消费 Escape 上关闭，不干扰应用输入。动作、关闭按钮保留普通 Tab，非交互通知不额外加入 Tab。拖动达到阈值后复用 Drag 取消子项 Press，并将焦点放到非 Tab 卡片目标以便 Escape 取消。边侧通知沿对应物理水平边、居中通知沿上下边拖动；反向位移有有限阻力，释放的位移加 0.15 秒速度投影达到 max(40, 主轴长度×0.4) 时退出，否则回弹。外层取消、禁用、窗口失焦、几何变化及卸载结束手势；焦点恢复沿同一 Portal 会话和 revision，不盖过应用较新的显式聚焦。
+
+进入／退出复用 Presence，布局与回弹使用本挂载动画时钟；默认 500ms cubicBezier(0.22,1,0.36,1)，Reduced Motion 或 transition(None) 立即完成。每宿主仅预约一个最早 deadline，使用 MonotonicTimeSource；Accepted 且进入完成后开始计时。该位置 hover／焦点／拖动、窗口失活／隐藏／遮蔽、禁用或无有效几何时保存剩余时长并取消不需要的排期，恢复继续剩余时长；排队不耗时。deadline 与 Window 活动观察分别通过 ComponentScope.createDeadline／observeWindowActivity 进入根错误边界，不轮询。卸载先解除绑定并暂停全部记录，再完成已退出记录和取消挂载资源；一个关闭回调失败不能阻止其余记录收尾。异步任务由应用 Job 负责，同 id 的迟到结果不会复活关闭记录。
+
+控制器、输入与绘图资源在构造作用域取得，不经 onMount 向 State 发布资源。更换 state 时若旧记录的关闭回调失败，根错误收尾仍解除旧、新状态的宿主绑定，不留下已退休宿主。卡片位置、尺寸与子项放置保存为完整布局结果，Accepted 后才更新可交互几何和实测高度；高度改变使同位置的实际卡片布局失效，悬浮展开由普通观察状态触发更新。稳定布局下的进入／退出、平移和回弹只更新场景。默认字体从根借用，Toaster 的显式 fonts 覆盖保持有效。
+
+卡片采用 popover 背景／前景、1 像素 border、16 圆角、floating shadow、16 内边距及 12 横向间隔；标题 14／medium、说明 14／muted、垂直间距 4。语义图标 16，Error 使用 destructive，Loading 复用 Spinner。动作默认 Outline／Sm，按自然宽度与正文并排；正文剩余宽度不足 96 密度单位时移到下一行，并按扣除图标占位后的可用宽度约束。关闭默认 Ghost／IconSm。保留普通内容的自然换行、窄宽和零尺寸处理；内部控件焦点环允许在 padding 内外扩，绘制和命中使用同一动画变换。

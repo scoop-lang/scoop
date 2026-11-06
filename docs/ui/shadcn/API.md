@@ -306,3 +306,9 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 `sidebar(open.binding(), { shown -> navigation(shown.collapsed) }) { header(headerView); footer(accountView); inset(workspaceView) }` 组合导航与相邻主内容，提供 Sidebar／Floating／Inset、Start／End 和 Offcanvas／Icon／None。默认 Auto 按父级可用宽度在内联导航与普通 Drawer 之间切换，可显式指定 Desktop／Mobile；主内容保持同一槽位，导航跨宿主按普通挂载规则重建，业务编辑状态由外部模型保存。
 
 `sidebarGroup(content)`、`sidebarMenu { item(key, label, onClick) { icon(view); badge(view); action(view); submenu(open, view) } }` 提供分组、稳定 key、active／disabled、尺寸、独立动作和可折叠子菜单。icon／badge 的 ActionContentStyle 回调提供当前前景色与交互状态，`sidebarMenuBadge` 可用 color 接收该颜色；部件显式接收 collapsed；`sidebarMenuSkeleton` 使用明确 textFraction，`sidebarInput` 提供侧栏输入外观，`sidebarTrigger` 是受控普通按钮。rail 点击和作用域内默认 Primary+B 切换同一开关，窄布局关闭请求复用 Drawer 的焦点恢复／veto。公共 ModalOptions 新增 contentPadding=16，Sidebar 使用零弹层 padding 并由各内容部件保留焦点环留白。详细合同见组件规范第 41 节。
+
+## P6e：Toast
+
+`ToastState.show(title) { kind = ToastKind.Success; description("Saved"); action("Undo", undo) }` 返回 ToastId；`update(id, title) { ... }` 替换同一条内容并重置时长，`dismiss(id)` 关闭。String／StyledText／View 标题与说明、ToastProps、ToastAction 和 ToastDismiss 均为显式类型；关闭中的 id 拒绝迟到结果，onClosed 只通知一次。
+
+`toaster(state) { position = ToastPosition.BottomEnd; visibleCount = 3L }` 是每窗口显式宿主，支持六位置、每位置队列、OldestFirst／NewestFirst、展开／叠放、宽度与间距、字体／主题／样式。每宿主共用一个最早 deadline，悬浮、焦点、失活、隐藏及禁用保存剩余时长，排队不计时；Loading 默认持续。动作、局部 Escape、滑动取消与关闭复用现有输入、Presence 和非模态焦点会话。卸载保留未关闭记录与剩余时间，解绑并释放挂载资源。

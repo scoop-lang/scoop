@@ -187,8 +187,14 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             index -= 1L
             val modal = work[index]
             if (modal.isClosing && !modal.wasPresented(completed)) {
-                if (sameModal(previous, Some(modal)))
-                    restore = Some(modal)
+                when (restore) {
+                    case None -> if (
+                        modal.canRestoreFocus &&
+                            (sameModal(previous, Some(modal)) || modal.heldFocusOnClose)
+                    )
+                        restore = Some(modal)
+                    case Some(_) -> {}
+                }
                 failure = cleanupUi(failure) { modal.finish() }
                 removeModal(modal)
             }

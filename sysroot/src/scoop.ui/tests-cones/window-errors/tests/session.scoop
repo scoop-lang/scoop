@@ -11,7 +11,7 @@ import scoop.ui.*
 import scoop.window.*
 
 internal enum FailurePoint {
-    Constructor, Render, Mount, Update, Measure, Scene, Input, Complete, Deadline, Animation, Cleanup, Reporter
+    Constructor, Render, Mount, Update, Measure, Scene, Input, Complete, Deadline, Animation, Cleanup, WindowActivity, Reporter
 }
 
 internal class FailureRecord(val point: FailurePoint) {
@@ -45,13 +45,14 @@ private class WindowErrorUiTest {
             )
         try {
             val failure = assertFailsWith<ResourceUseException> { Application().run(host) }
-            assertTrue(containsFailure(failure, probe.records[11L].primary))
-            assertTrue(containsFailure(failure, probe.records[11L].cleanup))
+            val last = probe.records[probe.records.size - 1L]
+            assertTrue(containsFailure(failure, last.primary))
+            assertTrue(containsFailure(failure, last.cleanup))
             assertTrue(containsFailure(failure, probe.reporterFailure))
             assertTrue(containsFailure(failure, probe.siblingCleanup))
             assertTrue(host.isClosed)
-            assertEquals(12L, probe.started)
-            assertEquals(12, probe.shared.value)
+            assertEquals(13L, probe.started)
+            assertEquals(13, probe.shared.value)
             assertEquals(1, probe.siblingCloses)
             assertTrue(probe.sibling!!.isClosed)
             for (record in probe.records) {
@@ -83,6 +84,7 @@ internal class FailureProbe {
             FailureRecord(FailurePoint.Deadline),
             FailureRecord(FailurePoint.Animation),
             FailureRecord(FailurePoint.Cleanup),
+            FailureRecord(FailurePoint.WindowActivity),
             FailureRecord(FailurePoint.Reporter)
         ]
     val shared = state(0)
@@ -217,6 +219,8 @@ internal class FailureProbe {
                 record.trigger.value = true
             if (record.point == FailurePoint.Cleanup)
                 record.ui!!.close()
+            if (record.point == FailurePoint.WindowActivity)
+                native.setVisible(true)
         }
     }
 }

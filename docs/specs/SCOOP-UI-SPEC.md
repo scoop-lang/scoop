@@ -423,6 +423,8 @@ Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handl
 
 `ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
 
+`ComponentScope.observeWindowActivity(action: (WindowActivity) -> Unit): Closeable` 管理所属 Window 的活动状态观察，沿用 Window.observeActivity 的快照、变化通知和取消规则。回调只在挂载有效时通过同一根错误边界执行；作用域退休自动撤销登记，不创建轮询、帧请求或独立状态源。Toast 用它在窗口失活、隐藏或遮蔽时准确暂停剩余时长。
+
 ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
 容器可以用 `scope.routeChildren(area)` 将同一挂载拥有的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。createArea、routeChildren、focusTarget 和 Press／Drag 使用同一归属检查：沿区域父链可到本挂载 input，中间不得经过其他挂载作用域，因此不能借此把后代挂载节点变成本挂载子项的共同父节点。
@@ -638,7 +640,7 @@ OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；in
 
 OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受当前有效焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 的登记处于禁用状态，允许 Tab 离开；FocusContained 启用 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 启用 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
 
-退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
+退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，为原当前焦点会话或关闭前实际包含焦点的会话尝试一次恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。多个 NonModal 同时打开时，较早的层仍可实际获得焦点，关闭它的恢复资格不能被后来登记但未取得焦点的层覆盖。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
 ### 7.7 滚动状态与视口登记
 
@@ -776,7 +778,7 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 - `resource<R : Closeable>(create: () -> R): R`：成功取得后立即登记为本组件拥有的资源。
 - `onDispose(action: () -> Unit)`：登记卸载时同步执行的清理动作，例如解除外部订阅或发出任务取消。
-- `isMounted`：本次作用域是否仍有效；工厂构造期间已有效，退休后为 false。
+- `isMounted`：本次作用域是否仍有效；工厂构造期间已有效，退休后为 false。所属 Surface 开始 Closing 时立即为 false，即使 UI 资源尚在等待安全退休；输入关闭的完成通知不能继续提交新的挂载工作。
 - `defaultFonts: FontCollection`：借用所属根的当前默认字体。需要跟随替换时，在 render／update／measure 中读取当前值，不把一次读取的结果当作自动换绑的字段。
 - `nativeWindow`：当前挂载所属的 Window，供公共适配接入窗口剪贴板、文本快照和一次性 deadline；不转移窗口所有权，挂载退休后读取报告状态错误。
 - `requestFrame()`：请求所属根再次呈现；不立即执行 render、measure 或 paint。

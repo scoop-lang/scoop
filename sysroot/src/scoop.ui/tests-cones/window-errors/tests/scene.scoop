@@ -69,6 +69,12 @@ internal class FailingRoot(
             )
         if (record.point == FailurePoint.Cleanup)
             scope.onDispose { probe.raise(record) }
+        if (record.point == FailurePoint.WindowActivity)
+            scope.observeWindowActivity {
+                _ ->
+                record.callbacks += 1
+                probe.raise(record)
+            }
     }
 }
 
@@ -136,7 +142,11 @@ private class HealthyLeaf(
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 100.0))), Unit)
     public override fun scene(context: SceneContext, measured: Unit) {
         val value = props.value
-        context.draw { paint -> paint.canvas.clear(Color(value.toDouble() / 12.0, 0.2, 0.3)) }
+        context.draw {
+            paint -> paint.canvas.clear(
+                Color(value.toDouble() / probe.records.size.toDouble(), 0.2, 0.3)
+            )
+        }
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
                 probe.committed = value

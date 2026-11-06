@@ -21,6 +21,7 @@ import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
 import scoop.ui.component.resizable as appendResizable
 import scoop.ui.component.carousel as appendCarousel
 import scoop.ui.component.drawer as appendDrawer
+import scoop.ui.component.toaster as appendToaster
 import scoop.ui.component.sidebar as appendSidebar
 import scoop.ui.component.sidebarTrigger as appendSidebarTrigger
 import scoop.ui.component.sidebarGroup as appendSidebarGroup
@@ -732,6 +733,10 @@ public open class ChildrenBuilder internal constructor() {
         configure: VirtualListBuilder.() -> Unit = {}
     ): Unit {
         add(makeVirtualList(source, itemExtent, configure))
+    }
+
+    public fun toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): Unit {
+        add(appendToaster(state, configure))
     }
 
     public fun portal(

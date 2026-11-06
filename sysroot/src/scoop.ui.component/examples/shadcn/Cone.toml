@@ -17,6 +17,8 @@ path = "platform/portable"
 when = { os = ["windows", "linux"] }
 
 [dependencies]
+"scoop:scoop.asyncio" = "0.1.0"
+"scoop:scoop.window.asyncio" = "0.1.0"
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.math" = "0.1.0"

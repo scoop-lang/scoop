@@ -50,6 +50,7 @@ internal class OverlayFocusSession(
     private var restoreTarget = initial.focusOptions?.restoreTarget ?: None
     private var closingRevision: ULong? = None
     private var focusLeftBeforeClose = false
+    var heldFocusOnClose = false
     var presented: OverlayFrame? = None
     val isClosing: Boolean get() = closingRevision != None
 
@@ -119,8 +120,9 @@ internal class OverlayFocusSession(
     fun beginClose(revision: ULong) {
         if (isClosing)
             return
+        heldFocusOnClose = input.activity.hasFocus
         focusLeftBeforeClose =
-            !constrained && root.surface.input.activity.hasFocus && !input.activity.hasFocus
+            !constrained && root.surface.input.activity.hasFocus && !heldFocusOnClose
         closingRevision = Some(revision)
         initialPending = false
         constraintPending = false
@@ -129,6 +131,7 @@ internal class OverlayFocusSession(
     }
     fun reopen() {
         closingRevision = None
+        heldFocusOnClose = false
         initialPending = true
         openingRevision = root.surface.focusRevision
         replace(portal.options)
@@ -202,14 +205,14 @@ internal class OverlayFocusSession(
         )
             group.requestFocus()
     }
+    val canRestoreFocus: Boolean get() =
+        root.isOpen &&
+            restoreOnClose &&
+            !focusLeftBeforeClose &&
+            closingRevision ==
+            Some(root.surface.focusRevision)
     fun restore() {
-        if (
-            !root.isOpen ||
-                !restoreOnClose ||
-                focusLeftBeforeClose ||
-                closingRevision !=
-                Some(root.surface.focusRevision)
-        )
+        if (!canRestoreFocus)
             return
         val candidates = ArrayList<FocusHandle>()
         when (restoreTarget) {

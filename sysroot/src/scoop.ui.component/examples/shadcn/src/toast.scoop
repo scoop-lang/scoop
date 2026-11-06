@@ -1,0 +1,236 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.*
+import scoop.graphics.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.asyncio.currentApplicationScope
+import scoop.ui.component.column as toastColumn
+
+internal class ToastExamplesModel {
+    val notifications = ToastState()
+    val position = state(ToastPosition.BottomEnd)
+    val expanded = state(false)
+    val visibleCount = state(3L)
+    val newest = state(false)
+    val narrow = state(false)
+    val disabled = state(false)
+    val actions = state(0)
+    val closed = state(0)
+    val result = state("No task running")
+    val draft = TextEditorState("Focus stays with your draft")
+    var latest: ToastId? = None
+    private var counter = 0
+    fun show(kind: ToastKind = ToastKind.Default) {
+        val model = this
+        counter += 1
+        latest =
+            Some(
+                notifications.show(f"${toastKindName(kind)} notification ${counter}") {
+                    this.kind = kind
+                    description("Review the update or undo the last change.")
+                    action("Undo", { model.actions.value += 1 })
+                    onClosed = { _, _ -> model.closed.value += 1 }
+                }
+            )
+    }
+    fun task(fail: Boolean) {
+        val model = this
+        val id =
+            notifications.show("Saving your workspace") {
+                kind = ToastKind.Loading
+                description("You can keep editing while this finishes.")
+                onClosed = { _, _ -> model.closed.value += 1 }
+            }
+        latest = Some(id)
+        result.value = "Saving…"
+        currentApplicationScope().launch {
+            currentEventLoop().sleep(Duration.seconds(2L))
+            val accepted =
+                model.notifications.update(
+                    id,
+                    if (fail)
+                        "Save failed"
+                    else
+                        "Workspace saved"
+                ) {
+                    kind =
+                        if (fail)
+                            ToastKind.Error
+                        else
+                            ToastKind.Success
+                    description(
+                        if (fail)
+                            "Try the save again when you are ready."
+                        else
+                            "Your draft is ready to share."
+                    )
+                    onClosed = { _, _ -> model.closed.value += 1 }
+                }
+            model.result.value =
+                if (accepted)
+                    (
+                        if (fail)
+                            "Task failed"
+                        else
+                            "Task completed"
+                    )
+                else
+                    "Task completed after its notification was closed"
+        }
+    }
+}
+
+private fun toastKindName(kind: ToastKind): String =
+    when (kind) {
+        case Default -> "Default";
+        case Success -> "Success";
+        case Info -> "Info"
+        case Warning -> "Warning";
+        case Error -> "Error";
+        case Loading -> "Loading"
+    }
+
+private fun toastPositionName(position: ToastPosition): String =
+    when (position) {
+        case TopStart -> "Top start";
+        case TopCenter -> "Top center";
+        case TopEnd -> "Top end"
+        case BottomStart -> "Bottom start";
+        case BottomCenter -> "Bottom center";
+        case BottomEnd -> "Bottom end"
+    }
+
+internal fun toastExamples(model: ToastExamplesModel): View =
+    toastColumn {
+        spacing = 18.0
+        alignment = CrossAlignment.Stretch
+        add(panelHeading("Toast"))
+        typography(
+            "Notifications pause while hovered, focused, or while this window is inactive. Swipe toward the nearest edge to dismiss.",
+            TypographyRole.Muted
+        )
+        wrap {
+            spacing = 8.0
+            for (
+                kind in [
+                    ToastKind.Default,
+                    ToastKind.Success,
+                    ToastKind.Info,
+                    ToastKind.Warning,
+                    ToastKind.Error,
+                    ToastKind.Loading
+                ]
+            )
+                button(toastKindName(kind), { model.show(kind) }) {
+                    variant = ButtonVariant.Outline
+                }
+        }
+        wrap {
+            spacing = 8.0
+            for (
+                position in [
+                    ToastPosition.TopStart,
+                    ToastPosition.TopCenter,
+                    ToastPosition.TopEnd,
+                    ToastPosition.BottomStart,
+                    ToastPosition.BottomCenter,
+                    ToastPosition.BottomEnd
+                ]
+            )
+                button(toastPositionName(position), { model.position.value = position }) {
+                    variant = ButtonVariant.Outline
+                }
+        }
+        wrap {
+            spacing = 8.0
+            button(
+                if (model.expanded.value)
+                    "Stack cards"
+                else
+                    "Keep expanded",
+                { model.expanded.value = !model.expanded.value }
+            ) { variant = ButtonVariant.Secondary }
+            button(
+                if (model.visibleCount.value == 3L)
+                    "Show one at a time"
+                else
+                    "Show three at a time",
+                {
+                    model.visibleCount.value =
+                        if (model.visibleCount.value == 3L)
+                            1L
+                        else
+                            3L
+                }
+            ) { variant = ButtonVariant.Secondary }
+            button(
+                if (model.newest.value)
+                    "Use oldest first"
+                else
+                    "Use newest first",
+                { model.newest.value = !model.newest.value }
+            ) { variant = ButtonVariant.Secondary }
+            button(
+                if (model.narrow.value)
+                    "Use wide cards"
+                else
+                    "Use narrow cards",
+                { model.narrow.value = !model.narrow.value }
+            ) { variant = ButtonVariant.Secondary }
+        }
+        input(model.draft)
+        wrap {
+            spacing = 8.0
+            button("Save workspace", { model.task(false) }) { variant = ButtonVariant.Outline }
+            button("Simulate failure", { model.task(true) }) { variant = ButtonVariant.Outline }
+            button(
+                "Queue five",
+                {
+                    for (at in 0 ..< 5)
+                        model.show(ToastKind.Info)
+                }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                "Close latest",
+                {
+                    when (model.latest) {
+                        case Some(id) -> model.notifications.dismiss(id);
+                        case None -> {}
+                    }
+                }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.disabled.value)
+                    "Enable notifications"
+                else
+                    "Disable interactions",
+                { model.disabled.value = !model.disabled.value }
+            ) { variant = ButtonVariant.Outline }
+        }
+        label(
+            f"Undo: ${model.actions.value} · Closed: ${model.closed.value} · Pending: ${
+                model.notifications.count
+            }"
+        )
+        label(model.result.value)
+        toaster(model.notifications) {
+            position = model.position.value;
+            expanded = model.expanded.value;
+            visibleCount = model.visibleCount.value
+            order =
+                if (model.newest.value)
+                    ToastOrder.NewestFirst
+                else
+                    ToastOrder.OldestFirst
+            width =
+                if (model.narrow.value)
+                    260.0
+                else
+                    384.0
+            enabled = !model.disabled.value;
+        }
+    }

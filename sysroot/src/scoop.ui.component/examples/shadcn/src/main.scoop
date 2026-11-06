@@ -3,6 +3,7 @@ package scoop.examples.ui.shadcn
 import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.asyncio.runWithAsyncio
 
 internal fun runGallery(model: GalleryModel) {
     FontCollection().use {
@@ -37,7 +38,7 @@ internal fun runGallery(model: GalleryModel) {
                     }
                     else -> {}
                 }
-            }.use { host -> Application().run(host) }
+            }.use { host -> Application().runWithAsyncio(host) }
         }
     }
 }

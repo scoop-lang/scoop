@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
+import scoop.window.WindowActivity
 import scoop.window.WindowDeadline
 
 /** Owns the resources of one mount; applications do not close individual components. */
@@ -81,7 +82,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
 
     public val isMounted: Boolean get() {
         root.checkThread()
-        return active && root.isOpen
+        return active && root.isOpen && root.surface.state == SurfaceWindowState.Open
     }
     /** Continues ordinary Tab navigation from the current focus within this owner. */
     public fun moveFocus(reverse: Boolean = false): Boolean {
@@ -110,6 +111,17 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
             root.window.createDeadline {
                 if (isMounted)
                     root.surface.dispatch(action)
+            }
+        managed.add(value)
+        return value
+    }
+    /** Observes the native window while preserving this root's callback ownership. */
+    public fun observeWindowActivity(action: (WindowActivity) -> Unit): Closeable {
+        checkMounted()
+        val value =
+            root.window.observeActivity {
+                activity -> if (isMounted)
+                    root.surface.dispatch { action(activity) }
             }
         managed.add(value)
         return value

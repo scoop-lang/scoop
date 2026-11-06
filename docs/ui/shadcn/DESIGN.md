@@ -2,7 +2,7 @@
 
 日期：2026-11-04。状态：实施中，实际交付与验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。尚未在实施记录中闭合的类型、签名和批次仍是拟议合同，不表示仓库已经提供这些 API。
 
-2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式，继续本设计剩余项。组件交付进度仍到 Sidebar；未完成 Toast 不计为交付。
+2026-11-06 调整：[UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)的 P0～P6 已完成现有框架、控件和示例迁移，并通过 macOS aarch64 release 定向验收；结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)。后续组件沿用完整布局结果、构造作用域、根默认字体、窗口错误隔离和可更新 Portal 模式。Toast 已按新协议交付，本设计 P6 完成，累计 52／64；继续 P7 日期与数据展示。
 
 ## 1. 交付目标与复刻基线
 
