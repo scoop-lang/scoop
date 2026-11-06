@@ -1,0 +1,26 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class LinuxKeysTest {
+    @Test
+    fun `evdev positions and XKB symbols retain layout and side distinctions`() {
+        assertEquals(PhysicalKey.Code(KeyCode.KeyA), platformPhysicalKey(30L))
+        assertEquals(PhysicalKey.Code(KeyCode.ControlRight), platformPhysicalKey(97L))
+        assertEquals(KeyLocation.Numpad, platformKeyLocation(96L))
+        assertEquals(Some(NamedKey.Enter), platformNamedKey(96L, 65421L))
+        assertEquals(
+            PhysicalKey.Unidentified(NativeKeyCode.LinuxEvdev(767u)),
+            platformPhysicalKey(767L)
+        )
+        assertEquals(NativeKeyCode.XkbKeysym(16909060u), platformUnknownLogicalKey(767L, 16909060L))
+        val known = platformModifiers(65536L.or(256L).or(2048L).or(2L).or(32L))
+        assertEquals(ModifierSides(Some(true), Some(false)), known.shiftSides)
+        assertEquals(ModifierSides(Some(false), Some(true)), known.controlSides)
+        assertTrue(known.control)
+        assertEquals(Some(true), known.numLock)
+        assertEquals(Some(false), known.scrollLock)
+        assertEquals(ModifierSides(None, None), platformModifiers(0L).shiftSides)
+    }
+}

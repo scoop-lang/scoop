@@ -1,0 +1,43 @@
+package scoop.tests.surface.errors
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+
+internal class FailingContent(
+    private val failure: Throwable,
+    private val painter: (FrameContext) -> Unit
+): SurfaceContent {
+    val image = Image.fromRgba(1, 1, [0, 0, 0, -1])
+    var closeCalls = 0
+    var retire: () -> Unit = { Unit }
+    private var canvas: Canvas? = None
+    public override fun paint(frame: FrameContext) {
+        canvas = Some(frame.canvas)
+        painter(frame)
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        fail(Some("a failing painter or hidden root must not receive frame completion"))
+    }
+    public override fun close() {
+        closeCalls += 1
+        if (image.isClosed)
+            return
+        image.close()
+        when (canvas) {
+            case Some(value) -> assertFailsWith<IllegalStateException> { value.clear(Color.White) }
+            case None -> {}
+        }
+        retire()
+        throw failure
+    }
+}
+
+internal fun containsFailure(error: Throwable, wanted: Throwable): Boolean {
+    if (error === wanted)
+        return true
+    if (error is ResourceUseException)
+        return containsFailure(error.primaryFailure, wanted) ||
+            containsFailure(error.cleanupFailure, wanted)
+    return false
+}

@@ -14,8 +14,19 @@ use scoop_process::{CommandExt, parse_make_dependencies};
 use scoop_wire::sha256;
 
 use crate::ToolchainError;
-use crate::linux_target::LinuxTarget;
+use crate::linux_target::{LinuxLibc, LinuxTarget};
 use crate::paths::find_program;
+
+pub(crate) fn bundled_clang_path() -> Result<PathBuf, ToolchainError> {
+    crate::installed_executable()?
+        .parent()
+        .and_then(Path::parent)
+        .map(|root| {
+            root.join("libexec/llvm/bin")
+                .join(crate::host_executable_name("clang"))
+        })
+        .ok_or_else(|| error("cannot locate the installed LLVM tools"))
+}
 
 pub fn resolve_linux_c_toolchain(
     target: LirTargetProfile,
@@ -32,13 +43,14 @@ pub(crate) fn probe_linux_c_toolchain(
 ) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
     let selected = LinuxTarget::select(target.id())?;
     let default_driver = selected.libc.default_c_driver();
+    let bundled = (compiler.is_none() && selected.libc == LinuxLibc::Gnu)
+        .then(bundled_clang_path)
+        .transpose()?;
+    let selected_driver = compiler
+        .or_else(|| bundled.as_deref().filter(|path| path.is_file()))
+        .unwrap_or_else(|| Path::new(default_driver));
     let search_path = std::env::var_os("PATH").ok_or_else(|| error("PATH is not set"))?;
-    let driver = find_program(
-        compiler
-            .unwrap_or_else(|| Path::new(default_driver))
-            .as_os_str(),
-        &search_path,
-    )?;
+    let driver = find_program(selected_driver.as_os_str(), &search_path)?;
     // Only a wrapper that actually reads REALGCC receives this environment input.
     let real_gcc = underlying_compiler(
         uses_real_gcc(&driver)?,
@@ -89,12 +101,11 @@ pub(crate) fn probe_linux_c_toolchain(
         .collect();
     crate::native_record::header_candidates(&dependencies.stderr, &mut inputs);
     crate::native_record::program_candidates(
-        compiler
-            .unwrap_or_else(|| Path::new(default_driver))
-            .as_os_str(),
+        selected_driver.as_os_str(),
         &paths.search_path,
         &mut inputs,
     );
+    inputs.extend(bundled);
     if paths.real_gcc.is_some() {
         crate::native_record::program_candidates(
             std::env::var_os("REALGCC")

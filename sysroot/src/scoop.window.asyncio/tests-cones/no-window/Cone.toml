@@ -17,3 +17,7 @@ when = { os = ["darwin", "windows"] }
 "scoop:scoop.window" = "0.1.0"
 "scoop:scoop.window.asyncio" = "0.1.0"
 "scoop:scoop.asyncio" = "0.1.0"
+
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }

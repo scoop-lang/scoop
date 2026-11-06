@@ -16,7 +16,7 @@
 - `scoop.surface` 是普通 Cone，依赖 graphics、window 及实际使用的 core／std／math／platform，提供 SurfaceHost、SurfaceWindow、帧调度、动画、InputArea 与区域焦点。两库的几何与动画所需数学函数复用 scoop.math。
 - window 继续拥有原生窗口、输入归一、IME 协议、事件循环和 native lease；Surface 的平台适配拥有 surface 与呈现。共享层不依赖 AppKit、Metal 或其他窗口／GPU API。
 
-当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，以及 Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`。Windows 阶段实现同一共享合同，Linux 留待后续；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
+当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`，以及 Linux GNU 的 `x86_64-unknown-linux-gnu`。各平台实现同一共享合同；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
 
 ## 2. 几何与绘制
 
@@ -312,3 +312,15 @@ Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换�
 ### 快捷键描述装配
 
 `shortcutBinding(chord: ShortcutChord, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以完整组合和动作作为必需参数，配置 enabled=true、allowRepeat=false、canExecute={ true }。modifiers 配置归 window 的 shortcutChord，不再作为 Binding 的第二份键位状态。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(chord, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。
+
+## 10. Linux GNU 呈现
+
+Linux 使用 Skia Ganesh GLES 与 GtkGLArea，目标为 `x86_64-unknown-linux-gnu`；musl 暂无本阶段需要的 C++／桌面资源。renderer 在 window 的 Gtk 内容容器中挂载一个 GtkGLArea，使用 GTK 管理的 framebuffer 与合成呈现，不创建额外 wl_egl_window 或 EGL window surface。
+
+同一 RendererHost 的各 GtkGLArea 使用同一个通过 GdkDisplay 创建的 GLES context，保持现有跨窗口 GPU 资源共享语义。Ganesh 复用该 context，使用真实 framebuffer id、RGBA8 与 bottom-left origin，公开 Canvas 仍为 top-left 逻辑坐标。目标、GPU 图像和 context 保持必要的共享持有；宿主关闭先排空并 abandon Ganesh，再释放 GDK context。独立 surfaceless EGL 离屏 API 保留。
+
+Skia 绘制在 owner 业务事件边界执行；GTK render signal 仅交付可用帧机会并呈现已经提交的内容，不递归调用业务 handler。GtkGLArea 使用 auto-render=false；只在实际 demand 存在时注册 frame-clock tick，提交后排入一次 GTK 重绘。无 demand 时不保留持续 tick；未映射、等待实际内容分配、零尺寸或尚未得到帧机会时返回 Deferred，dirty 保留到下次机会。大小或 generation 变化令旧帧 Discarded，确定的 GLES／GTK context 错误报告 GraphicsException。
+
+Skia 构建由既有维护脚本使用本地固定 vendor 输入完成，启用 GLES／EGL、Fontconfig／FreeType，继续复用共享 HarfBuzz／ICU／图像解码资源。普通应用只消费预编译 `.slib`、头文件和声明的 native 依赖。验收分别覆盖 Wayland 与 X11 的真实 GLES 绘制、resize、隐藏重显、多窗口、帧需求撤销、异常及资源关闭；离屏测试不能替代实际呈现。验证记录须区分真实显示服务器、软件 GPU、合成输入及实际硬件输入。
+
+Linux 的 Primary 快捷键使用 Control；macOS 使用 Command。两者沿同一 capture／target／bubble／default 路由，平台修饰键归一之后仍检查重复组合、编辑器让行和 preventDefault。SurfaceHost 可附着 PendingConfigure 窗口，首次配置前保留内容和 dirty；隐藏重显期间暂停 demand，新的配置到来后继续，不将等待配置当作关闭。

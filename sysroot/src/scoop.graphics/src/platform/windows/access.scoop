@@ -1,0 +1,4 @@
+package scoop.graphics
+
+@Unsafe
+internal fun platformGraphicsAccess(pointer: Ptr<Unit>) {}

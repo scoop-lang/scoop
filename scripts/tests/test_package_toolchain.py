@@ -125,11 +125,13 @@ class ComponentArchiveTests(unittest.TestCase):
                 ]
                 if not host.endswith("darwin"):
                     target_files += ["unwind/include/unwind.h", "unwind/lib/libunwind.a"]
-                if not host.endswith("linux-gnu"):
+                if target in package_toolchain.SKIA_TARGETS:
                     target_files += [
                         package_toolchain.SKIA_LIBRARY,
                         "include/skia/include/core/SkCanvas.h",
                     ]
+                if target == package_toolchain.GTK_TARGET:
+                    target_files += ["include/gtk/gtk/gtk.h", *package_toolchain.GTK_LINK_INPUTS]
                 for relative in target_files:
                     path = target_root / relative
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -251,7 +253,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     metadata["targets"][target]["cones"],
                 )
                 self.assertEqual(metadata["liburing"], "2.15")
-                if not host.endswith("linux-gnu"):
+                if target in package_toolchain.SKIA_TARGETS:
                     self.assertEqual(metadata["skia"], release["skia"])
                 for name in ("rust_windows", "llvm_mingw"):
                     if "windows" in host:
@@ -346,12 +348,18 @@ class ComponentArchiveTests(unittest.TestCase):
                 self.assertEqual(
                     (lib_root / "libscoop_text_backend.a").read_text(), "libscoop_text_backend.a"
                 )
-                if not host.endswith("linux-gnu"):
+                if target in package_toolchain.SKIA_TARGETS:
                     self.assertEqual(
                         (lib_root / package_toolchain.SKIA_LIBRARY).read_text(),
                         package_toolchain.SKIA_LIBRARY,
                     )
                     self.assertTrue((lib_root / "include/skia/include/core/SkCanvas.h").is_file())
+                if target == package_toolchain.GTK_TARGET:
+                    self.assertTrue((lib_root / "include/gtk/gtk/gtk.h").is_file())
+                    for library in package_toolchain.GTK_LINK_INPUTS:
+                        self.assertEqual((lib_root / library).read_text(), library)
+                else:
+                    self.assertFalse((lib_root / "include/gtk").exists())
                 for variant in (
                     "runtime",
                     "runtime-stress",
@@ -361,7 +369,12 @@ class ComponentArchiveTests(unittest.TestCase):
                     self.assertTrue((lib_root / variant / "index.cbor").is_file())
 
     def test_packaging_builds_system_libraries_and_runtime(self):
-        for target in ("aarch64-apple-darwin", *WINDOWS_TARGETS):
+        for target in (
+            "aarch64-apple-darwin",
+            *WINDOWS_TARGETS,
+            "x86_64-unknown-linux-gnu",
+            "x86_64-unknown-linux-musl",
+        ):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
                 work = Path(temporary)
                 args = SimpleNamespace(
@@ -369,6 +382,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     jobs=2,
                     gn="gn",
                     llvm_prefix=work / "llvm",
+                    gtk_prefix=work / "gtk",
                     llvm_source=work / "llvm-source",
                     mingw_ucrt=work / "ucrt",
                     mingw_msvcrt=work / "msvcrt",
@@ -376,6 +390,11 @@ class ComponentArchiveTests(unittest.TestCase):
                     msys_perl="perl",
                     msys_make="make",
                     msys_shell="sh",
+                    gnu_cc="gcc",
+                    musl_cc="musl-gcc",
+                    unwind_cc="clang",
+                    unwind_cxx="clang++",
+                    musl_include=work / "musl/include",
                 )
                 binaries = [work / "scoop", work / "scoopc"]
                 with patch.object(package_toolchain, "run_script") as run:
@@ -383,11 +402,24 @@ class ComponentArchiveTests(unittest.TestCase):
                 scripts = [call.args[0] for call in run.call_args_list]
                 self.assertIn("build_openssl.py", scripts)
                 self.assertIn("build_text_backends.py", scripts)
-                self.assertIn("build_skia.py", scripts)
                 self.assertEqual(scripts[-1], "prepare_sysroot.py")
                 arguments = run.call_args.args[1]
                 self.assertNotIn("--runtime-only", arguments)
                 self.assertEqual(arguments[arguments.index("--scoop") + 1], binaries[0])
+                self.assertEqual(
+                    "prepare_gtk.py" in scripts, target == package_toolchain.GTK_TARGET
+                )
+                if target == package_toolchain.GTK_TARGET:
+                    gtk = next(
+                        call.args[1]
+                        for call in run.call_args_list
+                        if call.args[0] == "prepare_gtk.py"
+                    )
+                    self.assertEqual(gtk[gtk.index("--development-prefix") + 1], args.gtk_prefix)
+                if target == "x86_64-unknown-linux-musl":
+                    self.assertNotIn("build_skia.py", scripts)
+                    continue
+                self.assertIn("build_skia.py", scripts)
                 skia = next(
                     call.args[1] for call in run.call_args_list if call.args[0] == "build_skia.py"
                 )
@@ -397,6 +429,8 @@ class ComponentArchiveTests(unittest.TestCase):
                         skia[skia.index("--cc") + 1],
                         package_toolchain.package_windows.compiler(args, target),
                     )
+                elif target == "x86_64-unknown-linux-gnu":
+                    self.assertEqual(skia[skia.index("--cc") + 1], args.llvm_prefix / "bin/clang")
 
     def test_extract_directly_into_installation_root(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,7 +1,5 @@
 package scoop.window
 
-internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Super
-
 internal fun platformShortcutCharactersEqual(left: String, right: String): Boolean {
     @Unsafe
     {

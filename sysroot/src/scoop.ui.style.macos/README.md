@@ -10,4 +10,14 @@ macOS 另提供 `macosSystemPalette(mode)`，在主线程读取指定明暗外�
 
 四类部件共同使用公共 ShapeTheme 算法，各预设显式声明自己的参数，控件不按风格分支。完整 Radio 分组、滚动、动画驱动及点击行为仍属于控件或模型。
 
-用法及资源／效果合同见 [style README](../scoop.ui.style/README.md) 和[主题规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md)。三组主题的比较、离屏像素、字体、资源和真实 Metal 验证位于 [themes 测试 Cone](../scoop.ui.style/tests-cones/themes/Cone.toml)，当前结果见[实施记录](../../../docs/ui/PROGRESS.md)。本期先完成 macOS aarch64，x86_64 最后补验，Windows 后续。
+用法及资源／效果合同见 [style README](../scoop.ui.style/README.md) 和[主题规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md)。三组主题的比较、离屏像素、字体、资源和 Metal／GLES 验证位于 [themes 测试 Cone](../scoop.ui.style/tests-cones/themes/Cone.toml)，当前结果见[实施记录](../../../docs/ui/PROGRESS.md)。Linux GNU 使用同一套主题描述及绘图代码。
+
+## Linux GNU
+
+使用已准备的 GNU sysroot，运行共享的主题测试：
+
+```sh
+scoop test sysroot/src/scoop.ui.style/tests-cones/themes --release --sysroot ~/.scoop
+```
+
+本主题可用于 Wayland 与 X11 的自绘窗口；名称表示视觉风格，不要求相应操作系统。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

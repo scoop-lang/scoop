@@ -1,6 +1,6 @@
 # Scoop 桌面窗口库规范
 
-状态：基础架构与 macOS／Windows GUI 骨架已实现。实现基线日期：2026-10-30；第 11 节的 GUI 输入扩展于 2026-10-31 实现，Darwin 两目标验证通过，Win32 同步共享合同但本轮未执行 Windows 验证。本文件描述普通 Cone `scoop.window` 与 `scoop.window.asyncio` 的当前合同及后续平台设计方向；实际交付与验证范围见[窗口库实施记录](../windowing/PROGRESS.md)、[目标扩展实施记录](../target-refactor/PROGRESS.md)和 [GUI 实施记录](../surface/PROGRESS.md)。依据 [设计](../windowing/DESIGN.md)与 [winit 能力映射](../windowing/WINIT-MAPPING.md)。
+状态：基础架构与 macOS／Windows GUI 骨架已实现，Linux GNU Wayland／X11 后端按第 12 节接入并验证。实现基线日期：2026-10-30；第 11 节的 GUI 输入扩展于 2026-10-31 实现，Darwin 两目标验证通过，Win32 同步共享合同但本轮未执行 Windows 验证。本文件描述普通 Cone `scoop.window` 与 `scoop.window.asyncio` 的当前合同及后续平台设计方向；实际交付与验证范围见[窗口库实施记录](../windowing/PROGRESS.md)、[目标扩展实施记录](../target-refactor/PROGRESS.md)和 [GUI 实施记录](../surface/PROGRESS.md)。依据 [设计](../windowing/DESIGN.md)与 [winit 能力映射](../windowing/WINIT-MAPPING.md)。
 
 2026-11-01 补充第 4.1～4.3 节的多窗口、模态和窗框能力边界；本次是文档更新，没有新增窗口 API 或运行验收结论。
 
@@ -8,7 +8,7 @@
 
 ## 1. 分层与目标
 
-window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin AArch64／amd64 的 AppKit 后端和三个 Windows x86_64 target 的 Win32 后端已实现；Windows 窗口 API 要求 Windows 10 1703 起的 Per-Monitor V2。Linux Wayland／X11 及其他后端留待后续；不添加没有后端的 native handle 变体或假窗口实现。两个库及其原生薄层、测试、示例均以普通 Cone 组织，窗口逻辑不进入编译器或 runtime。
+window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin AArch64／amd64 的 AppKit 后端和三个 Windows x86_64 target 的 Win32 后端已实现；Windows 窗口 API 要求 Windows 10 1703 起的 Per-Monitor V2。Linux GNU x86_64 的 Wayland／X11 接入按第 12 节实施，进展与实际验证范围见 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。两个库及其原生薄层、测试、示例均以普通 Cone 组织，窗口逻辑不进入编译器或 runtime。
 
 本轮范围按 winit 定位为 GUI 骨架：应用／窗口与基础属性、基础输入／IME、DPI／显示器快照、渲染句柄和 I/O 集成。下文的完整窗口层模型同时保留后续扩展方向；全屏控制／视频模式切换、全局 raw device、触摸／高级手势、光标捕获、文件拖放及复杂平台窗口交互不作为当前骨架验收项。未实施接口随实际需求再增加，不为占据 API 名称加入空实现。
 
@@ -40,7 +40,7 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
 
-公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
+公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Linux 通过第 12 节的原生 selection 协议接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
 
 ### 2.3 窗口活动状态观察
 
@@ -60,7 +60,7 @@ NewEvents 原因区分 Init、Poll、Wake 与 Deadline；平台没有信息时�
 
 WindowAttributes、Window 的能力与方法分组见映射表，当前阶段只提供其中标为本期的已实施接口。请求返回 Applied／Requested／Unsupported；Requested 不保证系统采纳，实际状态由通知／快照决定。查询无法知道时返回 None；不把 desired state 写成 observed state。创建所需属性不支持时明确失败，不悄悄改变含义。
 
-WindowException 保留 WindowErrorKind、operation、backend 和可选 native code；类别包含 Unsupported、Unavailable、PermissionDenied、InvalidState、ResourceBusy、Disconnected、NativeFailure。参数错误使用现有参数异常；backend 随实际后端提供，按目标为 AppKit／Win32，不假定原生 code 都是 errno；Win32 保留 DWORD／HRESULT 的 32-bit 数值。能力提示不替代实际操作错误。
+WindowException 保留 WindowErrorKind、operation、backend 和可选 native code；类别包含 Unsupported、Unavailable、PermissionDenied、InvalidState、ResourceBusy、Disconnected、NativeFailure。参数错误使用现有参数异常；backend 随实际后端提供，按实际显示系统为 AppKit／Win32／X11／Wayland，不假定原生 code 都是 errno；Win32 保留 DWORD／HRESULT 的 32-bit 数值。能力提示不替代实际操作错误。
 
 WindowId、DeviceId、MonitorId 为不同值类型，只在一次 Application 生命周期内比较，不暴露原生身份，不复用活过的编号。本阶段 Monitor 为不可变快照，保存 id、可选 name／desktopBounds／refreshRateMilliHertz、physicalSize 与 scaleFactor；不持有原生指针。ActiveApplication.monitors／primaryMonitor 与 Window.currentMonitor 在 owner 上获取快照，后者及 primaryMonitor 可为 None。AppKit 用 NSScreen 的桌面矩形和 backing 转换，CoreGraphics 未给出正刷新率时返回 None，不把最大可用刷新率当作实际刷新率。显示器变更通知刷新当前身份集合，已观察到离开的身份退休；再次出现分配新编号。后续加入视频模式及控制请求时再定义对应活动句柄的失效行为。
 
@@ -76,7 +76,7 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 ### 4.1 多窗口
 
-多窗口在 AppKit 和 Win32 后端均已实现。一个 Application 可以多次调用 ActiveApplication.createWindow，创建共享同一 owner 线程和原生事件循环的多个独立窗口；每个窗口有自己的 WindowId、状态、输入、重绘需求和 native lease。ApplicationEvent.Window(id, event) 指明事件归属，不为每个窗口另建 Application 或主循环。
+多窗口在 AppKit、Win32、X11 和 Wayland 后端均已实现。一个 Application 可以多次调用 ActiveApplication.createWindow，创建共享同一 owner 线程和原生事件循环的多个独立窗口；每个窗口有自己的 WindowId、状态、输入、重绘需求和 native lease。ApplicationEvent.Window(id, event) 指明事件归属，不为每个窗口另建 Application 或主循环。
 
 当前 createWindow 创建非模态（modeless）的独立顶层窗口，没有窗口间的 parent／owner 关系。对一个窗口调用 requestDestroy 只请求该窗口销毁；应用仍可在 CloseRequested 中选择退出整个应用。最后一个窗口实际 Destroyed 后，LastWindowPolicy.Exit 才触发应用退出；默认 KeepRunning，详见第 7 节。
 
@@ -117,25 +117,25 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 
 ## 5. 输入与文本
 
-KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
+KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)；Linux 从当前 XKB 的 LevelThree／Mode_switch 文本修饰状态产生 Some(true) 或 Some(false)，缺少 keymap 时为 None。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
 
 TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
 
-AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。Window 在原生命令为空且该键未被输入法消费时，补充宿主的标准编辑映射；macOS 包括 Command 的复制／剪切／粘贴／选择／撤销／重做和行／文档导航、Control 编辑键、Option 词／段落导航以及普通编辑键。未知 selector 不伪造命令，但仍可使用该键已确定的标准映射。空列表表示没有编辑含义，上层不得再添加平台键位表；Windows 标准映射由该平台后续批次实现。所有命令沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑，字符插入仍只由 TextInputEvent 交付。
+AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。Window 在原生命令为空且该键未被输入法消费时，补充宿主的标准编辑映射；macOS 包括 Command 的复制／剪切／粘贴／选择／撤销／重做和行／文档导航、Control 编辑键、Option 词／段落导航以及普通编辑键。未知 selector 不伪造命令，但仍可使用该键已确定的标准映射。Linux 在 window 层产生 Ctrl 的复制／剪切／粘贴／选择／撤销／重做、词和文档导航以及普通编辑命令；Home／End 对应行边界，Ctrl+Home／End 对应文档边界。AltGraph 文本输入不产生 Ctrl 编辑命令或快捷键。空列表表示没有编辑含义，上层不得再添加平台键位表；Windows 标准映射由该平台后续批次实现。所有命令沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑，字符插入仍只由 TextInputEvent 交付。
 
 Window 公共 `LogicalKey.matchesShortcut(other)` 比较已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。
 
-`ShortcutKey` 为 Logical(LogicalKey)／Physical(PhysicalKey)。不可变 `ShortcutModifiers` 保存 primary、shift、control、alt、superKey、function 六个布尔值，默认均为 false。`ShortcutChord(key, modifiers = ShortcutModifiers())` 保存完整描述，构造时拒绝 Dead 和空 Character；`shortcutChord(key) { ... }` 用 ShortcutModifiersBuilder 同步构造同一描述，配置块不执行动作。Primary 在 macOS 展开为 Super，在 Windows 合同中展开为 Control；解析后按集合合并，不能要求同一个修饰键按两次。完整匹配忽略锁定及左右侧信息，未指定的其他修饰键不得出现。
+`ShortcutKey` 为 Logical(LogicalKey)／Physical(PhysicalKey)。不可变 `ShortcutModifiers` 保存 primary、shift、control、alt、superKey、function 六个布尔值，默认均为 false。`ShortcutChord(key, modifiers = ShortcutModifiers())` 保存完整描述，构造时拒绝 Dead 和空 Character；`shortcutChord(key) { ... }` 用 ShortcutModifiersBuilder 同步构造同一描述，配置块不执行动作。Primary 在 macOS 展开为 Super，在 Linux 和 Windows 合同中展开为 Control；解析后按集合合并，不能要求同一个修饰键按两次。完整匹配忽略锁定及左右侧信息，未指定的其他修饰键不得出现；明确的 AltGraph 文本修饰不匹配普通快捷键。
 
 `ShortcutChord.matches(event)` 比较键和解析后的完整修饰集合，不判断 keydown、repeat、synthetic 或路由；`equivalentTo(other)` 比较同一种 logical／physical 语义下的解析后组合。两个操作复用同一平台解析，surface 负责绑定、冲突、输入资格和动作。
 
-`Window.shortcutLabel(chord): ShortcutLabel` 在 owner 线程和活动窗口上查询当前键盘布局，返回只读 `parts: Array<String>` 与 `separator: String` 值快照；不保留 native 借用。macOS 修饰键按 Control、Option、Shift、Command、Fn 排列，使用 ⌃／⌥／⇧／⌘／fn，separator 为空串，重复的 Primary／Super 只出现一次。Logical 字符保持绑定字符；Physical 字符按当前键盘布局查询，无字符映射时使用明确物理键名称；已知非字符键使用本平台标签，未知键使用 Unknown。查询不改变输入源、焦点或当前组合。此批先实施 macOS 标签，Windows 后端按同一入口补齐。
+`Window.shortcutLabel(chord): ShortcutLabel` 在 owner 线程和活动窗口上查询当前键盘布局，返回只读 `parts: Array<String>` 与 `separator: String` 值快照；不保留 native 借用。macOS 修饰键按 Control、Option、Shift、Command、Fn 排列，使用 ⌃／⌥／⇧／⌘／fn，separator 为空串，重复的 Primary／Super 只出现一次。Logical 字符保持绑定字符；Physical 字符按当前键盘布局查询，无字符映射时使用明确物理键名称；已知非字符键使用本平台标签，未知键使用 Unknown。查询不改变输入源、焦点或当前组合。Linux 修饰键按 Ctrl、Alt、Shift、Super、Fn 排列，separator 为 "+"；Physical 字符通过当前 XKB keymap 的无修饰布局查询，非字符键使用 Linux 标签。macOS 和 Linux 均实现标签查询，Windows 后端按同一入口补齐。
 
 AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／Control 快捷键不产生普通文本提交。无装饰窗口仍可成为 key／main window，接收键盘不依赖原生标题栏。已交付的按下状态在失焦时补发 synthetic release，清空按住的修饰键并保留已知锁定状态；没有硬件来源的设备 id 为 None。CapsLock 通知表达锁定状态，不伪造物理按键释放。指针同时携带同次 native 事件的逻辑／物理位置与 scale，两种位置均以内容区左上为原点，物理位置由该次窗口 backing scale 换算；不能直接混入 backing surface 的底部原点。精确滚轮的 AppKit points 转换为物理 PixelDelta，普通滚轮保持 LineDelta，普通 phase 和 momentumPhase 分别保留。光标基础图标使用 NSCursor，可见性只在本窗口内容区域生效，退出该区域、失焦或销毁时平衡系统 hide／unhide。
 
 文字统一由 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作交付；普通键、compose、IME 不得重复插入。TextInputEvent 只有 Enabled(connection?)／Disabled(connection?)／Edit。TextInputConnection 由 WindowId 与该窗口递增的输入连接 generation 组成；macOS 开启时交付 Some(connection)，重复开关不重建连接，Disabled 保留结束的连接身份。尚无原生文档快照连接的 Win32 交付 None。一次 AppKit 输入解释形成一个编辑批次，以一个事件调用 handler。范围为 UTF-8 字节区间且位于字符边界，平台 UTF-16 索引在 native 边界转换；非法 native 范围触发状态重同步，不越界访问。
 
-owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。公共 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。公共检查和声明位于共享源码，后端负责复制与原生查询；macOS 已接入，Windows 分支补齐同一合同。没有发布快照时，原生 surrounding 查询返回 unavailable。
+owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。公共 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。公共检查和声明位于共享源码，后端负责复制与原生查询；macOS 与 Linux 已接入，Windows 分支补齐同一合同。没有发布快照时，原生 surrounding 查询返回 unavailable。
 
 原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。未来源于原生连接的纯值批次和现有 Win32 批次为 None。native 只保存最新已发布文档、已经排队及已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
@@ -237,6 +237,30 @@ PointerState 与 KeyEvent 均携带 InputTime，取消事件独立携带；平�
 
 输入时间随原始 payload 保存；合并连续移动时保留最终被交付样本的位置、scale 与时间，不跨按钮／焦点／取消等顺序边界合并。相关验证覆盖来源标记、同源运算和排队延迟，不以精确计时断言替代事件顺序验收。
 
+
+## 12. Linux Wayland 与 X11 后端
+
+Linux 桌面接入首先面向 `x86_64-unknown-linux-gnu`，复用第 2～8 节的应用、事件、关闭、lease、deadline 和 asyncio 合同。`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端；未设置时有 WAYLAND_DISPLAY 则选择 Wayland，否则选择 X11。显式选择或已选显示连接失败正常报错，不静默改用另一个显示服务器。`WindowBackend` 报告实际 Wayland／X11；原始 Application.run 不初始化 io_uring。
+
+Linux 窗口由 GTK 4.18 及以上与 libadwaita 1.4 及以上承载，X11／Wayland 仍是实际显示协议。装饰窗口使用 `AdwWindow`、`AdwToolbarView` 与 `AdwHeaderBar`；标题栏、圆角、阴影与桌面窗口按钮遵循 libadwaita。内容区保留 Scoop 自绘，不把普通组件改成 GTK 控件。窗口库本身不创建 GPU context，渲染器在取得 native lease 后挂载内容 widget。
+
+GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。GTK signal 只更新原生快照或排队事件；业务 handler 在 GMainContext dispatch 之外执行，剪贴板的同步读取也不递归进入业务 handler。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。
+
+GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
+
+窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+
+GTK 不提供的窗口控制明确返回 Unsupported，包括内容保护、背景模糊、独立窗口的强制明暗主题、非默认 resize increments、最大内容尺寸约束。默认创建值不要求这些能力；调用方显式要求不支持的创建属性则创建失败。Requested 只表示已发出有效原生请求，不能把 desired state 当成观察结果。X11 的全局位置、层级与 attention 使用其原生窗口管理协议；Wayland 对没有对应协议的操作仍返回 Unsupported。
+
+默认内容背景由 libadwaita 提供，透明窗口通过去掉该窗口和内容区背景实现；窗口圆角和阴影仍由 GTK 合成。renderer 负责正确的预乘 alpha 像素。X11 透明需要实际合成器支持，window 不自行启动合成器。
+
+物理键使用 Linux evdev 编码，未知物理键为 NativeKeyCode.LinuxEvdev，未知逻辑键保留 XkbKeysym。逻辑键和布局来自 GDK 键盘事件，普通组合键与输入法使用 GtkIMContext；正文只经 TextInputBatch 交付一次。失焦取消组合和鼠标序列，并补发已经交付按下键的 synthetic release。重复键和指针滚动节奏由 GTK 处理，不另起重复计时器。输入保留原生接收边界的 Observed 单调时间。
+
+纯文本剪贴板使用 GdkClipboard，读取实际所有者的内容，不以本地副本伪造成功。GtkIMContext 的 commit、preedit 与 delete-surrounding 接入已有编辑批次；surrounding、selection 与 caret 只使用匹配连接／revision 的已发布快照。GTK 仅提供其实际输入法能力，Scoop 不重写 XIM 或 Wayland text-input 协议。
+
+Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 GtkWindow 与可挂载渲染 widget 的内容容器。它们是借用对象，lease 保活窗口与显示连接；需要原始 GDK／X11／Wayland 对象的调用方通过 GTK 公共接口取得，不能绕过 GTK 向其 surface 单独提交 EGL buffer。renderer 先卸载内容 widget 和帧回调，再释放 lease。macOS AppKit 和 Windows Win32 的句柄及实现不变。
+
+按真实桌面协议分别验证创建／属性／多窗口、DPI、输入／编辑、剪贴板、deadline、watch、跨线程投递和延迟 lease 关闭；合成事件仅证明归一与路由。显示器热插拔、真实输入法候选窗与硬件刷新行为单独记录，不能用合成事件声称完成。
 
 ### 创建配置的接收者入口
 

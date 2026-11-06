@@ -6,6 +6,10 @@ internal struct NativeCreateResult(val pointer: Ptr<Unit>?, val error: Long)
 internal fun checkNativeStatus(code: Long, operation: String) {
     if (code == -1L)
         throw WindowException(operation, WindowErrorKind.Unsupported)
+    if (code == -2L)
+        throw WindowException(operation, WindowErrorKind.Unavailable)
+    if (code == -3L)
+        throw WindowException(operation, WindowErrorKind.Disconnected)
     if (code != 0L)
         throw WindowException(operation, WindowErrorKind.NativeFailure, nativeCode = Some(code))
 }
@@ -27,16 +31,13 @@ internal fun requireCreationStatus(status: RequestStatus, operation: String) {
 }
 
 private fun created(result: NativeCreateResult, operation: String): Ptr<Unit> {
-    return result.pointer ?:
-        throw WindowException(
-            operation,
-            WindowErrorKind.NativeFailure,
-            nativeCode =
-                if (result.error == 0L)
-                    None
-                else
-                    Some(result.error)
-        )
+    when (result.pointer) {
+        case Some(pointer) -> return pointer
+        case None -> {
+            checkNativeStatus(result.error, operation)
+            throw WindowException(operation, WindowErrorKind.NativeFailure)
+        }
+    }
 }
 
 @Unsafe

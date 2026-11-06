@@ -1,0 +1,20 @@
+schema = 1
+[cone]
+group = "scoop.tests"
+name = "system-cxx-builtins"
+version = "0.1.0"
+kind = "executable"
+
+[[sources]]
+path = "main.scoop"
+
+[native]
+cxx = true
+cxx_flags = ["-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "provider.cpp"
+
+[[native.libraries]]
+name = "scoop_test_builtins"
+kind = "static"

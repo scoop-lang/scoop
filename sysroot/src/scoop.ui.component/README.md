@@ -161,3 +161,7 @@ Combobox 提供单／多选、Unicode 包含搜索、外部候选、自定义项
 
 
 `questionnaire(state, onSubmit)` 以应用持有的 QuestionnaireState 组合单选、多选与 freeform。QuestionKey／QuestionChoiceKey、类型化结果、显式 Skip、条件题、外部错误和快照恢复按当前定义处理；每份文字草稿只有一个 TextEditorState。Next／Submit 可触发校验，busy 明确阻止重复提交，Primary+Enter 与固定选项快捷键尊重编辑和 IME；部件包装、文案、焦点环和主题均可配置。`tests-cones/questionnaire` 覆盖真实窗口中的导航、编辑、取消和布局生命周期。
+
+## Linux GNU
+
+支持 Wayland 与 X11，共用公共实现、Skia Ganesh GLES 和 Fontconfig／FreeType。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui.component --release --sysroot ~/.scoop`；[主题展示](examples/themes/README.md)和[后台下载](examples/download/README.md)分别提供真实窗口组合测试。图形应用通过 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 选择显示协议。文本编辑使用 Ctrl 快捷键。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

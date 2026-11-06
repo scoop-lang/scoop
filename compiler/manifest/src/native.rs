@@ -23,7 +23,7 @@ pub struct NativeConfig {
     c_flags: Vec<NativeCompileFlag>,
     cxx_flags: Vec<NativeCompileFlag>,
     objc_flags: Vec<NativeCompileFlag>,
-    cxx: bool,
+    cxx: crate::TargetPredicate,
     libraries: Vec<NativeLibrary>,
 }
 
@@ -61,8 +61,8 @@ impl NativeConfig {
         &self.objc_flags
     }
 
-    pub fn cxx(&self) -> bool {
-        self.cxx
+    pub fn cxx(&self, target: TargetProfileId) -> bool {
+        self.cxx.matches(target)
     }
 }
 

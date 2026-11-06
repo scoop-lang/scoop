@@ -1,6 +1,6 @@
 # scoop.ui.style
 
-普通 Scoop 库，提供公共主题绘图协议、几何、语义参数，以及可复用的装饰与内容效果。`scoop.ui` 不依赖本库，基础控件和第三方自绘使用同一套公开接入。原有功能的 macOS 验证见[实施记录](../../../docs/ui/PROGRESS.md)；新增场景协议迁移见[基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)，各批验证 aarch64，全部功能完成后统一验证 x86_64，Windows 后续。
+普通 Scoop 库，提供公共主题绘图协议、几何、语义参数，以及可复用的装饰与内容效果。`scoop.ui` 不依赖本库，基础控件和第三方自绘使用同一套公开接入。macOS 验证见[实施记录](../../../docs/ui/PROGRESS.md)，场景协议迁移见[基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)，Linux GNU 验证见[Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
 
 ```toml
 [dependencies]
@@ -88,3 +88,7 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 应用持有稳定 ThemeSource，使用 `context(source) { ... }` 包围实际 Application.run／runWithAsyncio 及挂载入口。Component 可在挂载工厂的构造阶段保存来源，在 render 中读取 `source.current.value`；首轮 render 早于 onMount，不应等到 onMount 才初始化这个引用。更新主题 State 通知实际订阅者。局部主题通过明确 Props 传入，临时 Context 不会自动成为挂载树 Provider。三套主题、公共绘图部件和实际控件的完整用法见[主题展示](../scoop.ui.component/examples/themes/README.md)。
 
 详细合同见[公共样式规范](../../../docs/specs/SCOOP-UI-STYLE-SPEC.md)、[图像滤镜规范](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)和[主题绘图规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md)。普通绘图／缓存测试位于本 Cone，实际窗口与错误收尾位于 tests-cones/ui 和 tests-cones/errors，均使用 scoop.test。
+
+## Linux GNU
+
+Linux GNU 使用同一套公共绘图实现，支持 raster 和 Skia Ganesh GLES 目标，窗口可采用 Wayland 或 X11。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui.style --release --sysroot ~/.scoop`。三套主题的像素、几何及 GPU／raster 对照在 `tests-cones/themes` 中验证；依赖与实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

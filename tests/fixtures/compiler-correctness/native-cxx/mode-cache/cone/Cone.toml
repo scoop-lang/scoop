@@ -5,4 +5,4 @@ name = "cxx-mode-cache"
 version = "0.1.0"
 kind = "executable"
 [native]
-cxx = false
+cxx = { when = { env = "musl" } }

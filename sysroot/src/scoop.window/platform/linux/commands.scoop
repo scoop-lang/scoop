@@ -1,0 +1,16 @@
+package scoop.window
+
+internal fun platformTextCommands(
+    pointer: Ptr<Unit>,
+    key: LogicalKey,
+    modifiers: Modifiers,
+    state: ElementState,
+    synthetic: Boolean
+): Array<TextEditCommand> {
+    if (state != ElementState.Pressed || synthetic)
+        return []
+    return when (linuxEditingCommand(key, modifiers)) {
+        case Some(command) -> [command]
+        case None -> []
+    }
+}

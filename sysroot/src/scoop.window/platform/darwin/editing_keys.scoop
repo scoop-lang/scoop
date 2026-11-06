@@ -145,3 +145,9 @@ internal fun darwinEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEd
 
 private fun darwinShortcutCharacter(key: LogicalKey, text: String): Boolean =
     LogicalKey.Character(text).matchesShortcut(key)
+
+internal fun editorSubmitChord(modifiers: Modifiers): Boolean? =
+    if (modifiers.shift || modifiers.control || modifiers.alt)
+        None
+    else
+        Some(modifiers.superKey)

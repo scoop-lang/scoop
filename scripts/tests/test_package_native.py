@@ -60,6 +60,7 @@ class LinuxDependenciesTests(unittest.TestCase):
                 check=True,
             )
             (external / "librelease_python.so").symlink_to(library.name)
+            library.chmod(0o555)
             source = work / "main.c"
             source.write_text(
                 "#include <stdio.h>\nint python_value(void);\n"

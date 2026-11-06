@@ -53,7 +53,11 @@ impl NativeToolchain {
         selected_c: Option<&Path>,
         selected_cxx: Option<&Path>,
     ) -> Result<Self, ToolchainError> {
-        let cxx = manifest.parsed().semantic().native().cxx();
+        let cxx = manifest
+            .parsed()
+            .semantic()
+            .native()
+            .cxx(c.profile().contract().target().id());
         let windows_c = Self::needs_windows_c(c, manifest)?
             .then(|| {
                 let default =
@@ -118,7 +122,7 @@ impl NativeToolchain {
                 .parsed()
                 .semantic()
                 .native()
-                .cxx()
+                .cxx(target.id())
                 .then(|| ValidatedCxxToolchain::resolve_cached(target, cache))
                 .transpose()
                 .map_err(|err| {

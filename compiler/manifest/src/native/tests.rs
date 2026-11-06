@@ -5,6 +5,34 @@ use crate::{ManifestParseErrorKind, SourceSelection};
 const CONE: &str = "schema = 1\n[cone]\ngroup = 'native.test'\nname = 'inputs'\nversion = '1.0.0'\nkind = 'library'\n";
 
 #[test]
+fn cxx_requirements_and_sources_use_the_selected_target() {
+    for value in ["true", "false", "{ when = { os = 'linux', env = 'gnu' } }"] {
+        let parsed = parse_cone_manifest(&format!("{CONE}\n[native]\ncxx = {value}")).unwrap();
+        let native = parsed.semantic().native();
+        let source = crate::ConeRelativePath::new("native/view.cpp").unwrap();
+        for target in crate::test_catalog::SOURCE_TARGETS {
+            let enabled = value == "true"
+                || (value.starts_with('{') && target.os == "linux" && target.env == "gnu");
+            assert_eq!(native.cxx(target.id), enabled);
+            assert_eq!(native.source_language(&source, *target).is_ok(), enabled);
+        }
+    }
+}
+
+#[test]
+fn invalid_cxx_conditions_are_manifest_errors() {
+    for value in [
+        "{}",
+        "{ when = { os = 'unknown' } }",
+        "{ when = { host = 'linux' } }",
+        "{ when = { os = 'linux' }, enabled = true }",
+        "'true'",
+    ] {
+        assert!(parse_cone_manifest(&format!("{CONE}\n[native]\ncxx = {value}")).is_err());
+    }
+}
+
+#[test]
 fn native_sources_do_not_change_the_default_scoop_source_set() {
     let source = format!(
         "{CONE}\n[native]\ninclude = ['native/include']\nc_flags = ['-std=c17', '-D', 'ANSWER=42', '-I./more']\n[[native.sources]]\npath = 'native/file.c'\nwhen = {{os = 'linux'}}"
@@ -126,7 +154,7 @@ fn objective_c_has_independent_flags_and_requires_darwin_after_selection() {
     );
     let parsed = parse_cone_manifest(&source).unwrap();
     let native = parsed.semantic().native();
-    assert!(!native.cxx());
+    assert!(!native.cxx(scoop_target_data::DARWIN_AARCH64_ID));
     assert!(native.c_flags().is_empty());
     assert!(native.cxx_flags().is_empty());
     assert_eq!(native.objc_flags().len(), 2);

@@ -2,7 +2,7 @@
 
 普通 Scoop Cone 实现的声明式自绘框架。Component 是保留身份的 class，以成员 State 保存状态，通过 render 返回不可变 View 描述。Element 使用公开的约束、子项测量／放置、Canvas、InputArea 和 Surface 动画绘制自身。框架不提供 Label、Button、默认样式或容器布局策略。
 
-当前已在 macOS aarch64 实现独立自绘闭环及公共文本子包；独立控件库按批次接入，x86_64 留待本期功能完成后补验，Windows 后续实施。公开合同见 [UI 规范](../../../docs/specs/SCOOP-UI-SPEC.md)，当前验证范围见 [实施记录](../../../docs/ui/PROGRESS.md)。
+当前提供 macOS aarch64／x86_64 与 Linux GNU x86_64 实现，包含独立自绘闭环及公共文本子包；基础控件由独立的 `scoop.ui.component` 提供。公开合同见 [UI 规范](../../../docs/specs/SCOOP-UI-SPEC.md)，macOS 验证见 [实施记录](../../../docs/ui/PROGRESS.md)，Linux 验证见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
 
 ## 组合与状态
 
@@ -124,3 +124,9 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 窗口错误通过 `UiHost(onRootError = { id, error -> ... })` 接收：失败根完成输入与资源清理后报告一次，处理器正常返回可继续运行其他根，默认处理器重新抛出。`attach` 成功返回 `Some(UiWindow)`，已处理的初次挂载失败返回 `None`。宿主事件、共享渲染器、消息投递和错误处理器自身的失败仍关闭整个宿主。`scope.createDeadline` 使用原生一次性 deadline，随作用域退休关闭，并在所属根的错误边界内交付回调。
 
 同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到移除帧被接受。模式变化本身不产生关闭回调。
+
+## Linux GNU
+
+支持 Wayland 与 X11，共用公共实现、Skia Ganesh GLES 和 Fontconfig／FreeType。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui --release --sysroot ~/.scoop`；图形应用通过 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 选择显示协议。文本编辑与快捷键使用 Ctrl 作为 Primary；Home／End 移至行边界，Ctrl+Home／End 移至文档边界，Textarea 使用 Ctrl+Enter 提交。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+
+UiHost 每次实际绘制先清空窗口内容，移动或移除元素不会保留旧像素。独立 `tests-cones/frames` Cone 用真实窗口的连续帧读回验证这一行为，可在 macOS 或 Linux 上运行；Linux 验收覆盖 X11、Wayland 和 Wayland 2 倍缩放。

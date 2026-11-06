@@ -1,0 +1,62 @@
+package scoop.window
+
+import scoop.window.native.NativeWindowHandle
+
+internal fun platformBackend(): WindowBackend {
+    @Unsafe
+    {
+        return if (nativeBackend() == 2)
+            WindowBackend.Wayland
+        else
+            WindowBackend.X11
+    }
+}
+
+internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
+    if (event.a > 0L)
+        Some(TextInputConnection(WindowId(event.window), event.a))
+    else
+        None
+
+internal fun platformUnknownLogicalKey(scan: Long, symbol: Long): NativeKeyCode =
+    NativeKeyCode.XkbKeysym(symbol.toUInt())
+
+@Unsafe
+internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle =
+    NativeWindowHandle.Gtk(nativeWindow(pointer), nativeView(pointer))
+
+@Unsafe
+internal fun platformCreationProperties(pointer: Ptr<Unit>, flags: Int) {
+    requireWindow(flags == 0, "AppKit titlebar options cannot be used with Linux")
+}
+
+@Unsafe
+internal fun platformWindowMetrics(pointer: Ptr<Unit>): WindowMetrics? =
+    if (nativeConfigured(pointer) != 0)
+        Some(nativeWindowSnapshot(pointer).metrics())
+    else
+        None
+
+@Extern(name = "scoop_window_linux_backend")
+private fun nativeBackend(): Int
+
+@Extern(name = "scoop_window_configured")
+private fun nativeConfigured(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_gtk_window")
+private fun nativeWindow(window: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_window_gtk_view")
+private fun nativeView(window: Ptr<Unit>): Ptr<Unit>
+
+internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? {
+    @Unsafe
+    {
+        return when (owner.pointer) {
+            case Some(pointer) -> platformWindowMetrics(pointer)
+            case None -> owner.metrics
+        }
+    }
+}
+
+internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Control

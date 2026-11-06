@@ -183,7 +183,9 @@ internal class ApplicationOwner(
             val owner = WindowOwner(this, identity, pointer)
             try {
                 applyCreationProperties(owner, attributes)
-                owner.metrics = Some(nativeWindowSnapshot(pointer).metrics())
+                owner.metrics = platformWindowMetrics(pointer)
+                if (owner.metrics == None)
+                    owner.phase = WindowState.PendingConfigure
             } catch (error: Throwable) {
                 nativeWindowDestroy(pointer)
                 throw error
@@ -193,7 +195,11 @@ internal class ApplicationOwner(
             if (attributes.visible) {
                 checkNativeStatus(nativeWindowVisible(pointer, 1), "visible")
                 if (attributes.requestActivation)
-                    checkNativeStatus(nativeWindowFocus(pointer), "focus")
+                    nativeRequestStatus(
+                        nativeWindowFocus(pointer),
+                        "focus",
+                        RequestStatus.Requested
+                    )
             }
             return Window(owner)
         }

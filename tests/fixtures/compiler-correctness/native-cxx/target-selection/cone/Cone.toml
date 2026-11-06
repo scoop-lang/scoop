@@ -1,0 +1,14 @@
+schema = 1
+[cone]
+group = "native.test"
+name = "cxx-target-selection"
+version = "1.0.0"
+kind = "executable"
+[native]
+cxx = { when = { os = "linux", env = "gnu" } }
+[[native.sources]]
+path = "value.cpp"
+when = { env = "gnu" }
+[[native.sources]]
+path = "value.c"
+when = { env = "musl" }

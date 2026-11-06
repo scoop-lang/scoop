@@ -1,0 +1,110 @@
+package scoop.graphics
+
+import scoop.graphics.native.linux.GLESContext
+import scoop.test.*
+
+@Test
+private class GLESGraphicsTest {
+    @Test
+    fun `GLES preserves alpha scale snapshots and context ownership across device switches`() {
+        GLESContext.createOffscreen().use {
+            context -> context.offscreen(48, 32, 2.0).use {
+                target ->
+                val images = ArrayList<Image>()
+                try {
+                    val drawing =
+                        target.draw {
+                            canvas ->
+                            assertEquals(Transform.scale(2.0, 2.0), canvas.pixelTransform)
+                            canvas.createSurface(16, 16, 2.0).use {
+                                surface ->
+                                surface.draw { inner -> inner.clear(Color(1.0, 0.0, 0.0, 0.5)) }
+                                images.add(surface.snapshot())
+                                surface.draw { inner -> inner.clear(Color(0.0, 1.0, 0.0)) }
+                                images.add(surface.snapshot())
+                            }
+                            canvas.recordDrawing(Rect(0.0, 0.0, 8.0, 8.0)) {
+                                record -> record.drawImage(images[0L], Rect(0.0, 0.0, 8.0, 8.0))
+                            }
+                        }
+                    drawing.use {
+                        record ->
+                        GLESContext.createOffscreen().use {
+                            other -> other.offscreen(16, 16).use {
+                                different ->
+                                different.draw {
+                                    canvas ->
+                                    assertFalse(canvas.isCompatible(images[0L]))
+                                    assertFailsWith<IllegalArgumentException> {
+                                        canvas.drawDrawing(record)
+                                    }
+                                    canvas.clear(Color.White)
+                                }
+                                assertEquals(255, channel(different.readPixels(), 16, 2, 2, 0))
+                            }
+                        }
+                        images[0L].close()
+                        context.close()
+                        target.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            assertTrue(canvas.isCompatible(record))
+                            canvas.drawDrawing(record)
+                            canvas.drawImage(images[1L], Rect(12.0, 0.0, 8.0, 8.0))
+                        }
+                        val pixels = target.readPixels()
+                        assertEquals(255, channel(pixels, 48, 6, 6, 0))
+                        assertTrue(channel(pixels, 48, 6, 6, 3) in 127 .. 128)
+                        assertEquals(255, channel(pixels, 48, 30, 6, 1))
+                        target.snapshot().use {
+                            cpu -> RasterSurface(48, 32).use {
+                                raster ->
+                                raster.draw {
+                                    canvas -> canvas.drawImage(cpu, Rect(0.0, 0.0, 48.0, 32.0))
+                                }
+                                assertEquals(255, channel(raster.readPixels(), 48, 30, 6, 1))
+                            }
+                        }
+                    }
+                } finally {
+                    for (image in images)
+                        image.close()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `GLES filters use logical units and escaped canvases end on exceptions`() {
+        GLESContext.createOffscreen().use {
+            context -> context.offscreen(96, 96, 2.0).use {
+                target ->
+                val escaped = ArrayList<Canvas>()
+                assertFailsWith<IllegalStateException> {
+                    target.draw {
+                        canvas ->
+                        escaped.add(canvas);
+                        target.close()
+                    }
+                }
+                assertFailsWith<IllegalStateException> { escaped[0L].clear(Color.White) }
+                ImageFilter.dropShadow(Point(10.0, 0.0), 2.0, 2.0, Color(0.0, 0.0, 1.0)).use {
+                    filter ->
+                    target.draw {
+                        canvas ->
+                        canvas.clear(Color.Transparent)
+                        canvas.saveLayer(filter = Some(filter))
+                        canvas.drawRect(Rect(12.0, 12.0, 8.0, 8.0), Paint(Color(1.0, 0.0, 0.0)))
+                        canvas.restore()
+                    }
+                    val pixels = target.readPixels()
+                    assertEquals(255, channel(pixels, 96, 30, 30, 0))
+                    assertTrue(channel(pixels, 96, 54, 30, 2) > 200)
+                    assertEquals(0, channel(pixels, 96, 82, 30, 3))
+                }
+                context.abandon()
+                assertFailsWith<GraphicsException> { target.readPixels() }
+            }
+        }
+    }
+}

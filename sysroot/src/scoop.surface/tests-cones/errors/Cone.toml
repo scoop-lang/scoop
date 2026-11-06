@@ -17,3 +17,15 @@ when = { os = ["darwin", "windows"] }
 "scoop:scoop.surface" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.window" = "0.1.0"
 "scoop.tests:surface-native" = { version = "0.1.0", path = "../../test-native" }
+
+[[test.sources]]
+path = "common"
+when = { os = ["darwin", "windows"] }
+
+[[test.sources]]
+path = "common"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "test-linux"
+when = { os = "linux", env = "gnu" }

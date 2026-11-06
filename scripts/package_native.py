@@ -170,6 +170,7 @@ def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None):
             arguments += ["--set-soname", destination.name]
         edits.append((destination, arguments))
     for destination, arguments in edits:
+        destination.chmod(destination.stat().st_mode | 0o200)
         subprocess.run(["patchelf", *arguments, str(destination)], check=True)
     return list(libraries.values())
 

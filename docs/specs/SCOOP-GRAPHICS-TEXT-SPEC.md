@@ -18,9 +18,11 @@ Cone 名称为 `scoop:scoop.graphics.text`，公共 package 为 `scoop.graphics.
 
 绘制扩展定义在 graphics.text，因此依赖保持 `scoop.graphics.text → scoop.graphics`；graphics 不引用 TextLayout。`scoop.ui.text` 不另建 Cone，也不提供现成控件。UI 框架使用 graphics.text 的地方声明直接依赖；独立绘图程序无需引入 UI 或 Application。
 
-文本算法继续采用当前固定版本的 SkParagraph、HarfBuzz 与 SkUnicode／ICU，系统字体发现继续复用 CoreText／DirectWrite。拆分不要求新的文本引擎、语言语法、编译器处理、runtime ABI 或插件协议。
+文本算法继续采用当前固定版本的 SkParagraph、HarfBuzz 与 SkUnicode／ICU，系统字体发现继续复用 CoreText／DirectWrite／Fontconfig。拆分不要求新的文本引擎、语言语法、编译器处理、runtime ABI 或插件协议。
 
 当前实施批次先以 macOS aarch64 的 CoreText 与真实离屏／Metal 绘图为验收目标，本期功能完成后统一补验 x86_64。拆分时一起移动已有的 DirectWrite 工厂及目标选择，避免保留两套文本所有权；Windows 的新增接入和运行验收留待后续。共享文本模型仍按本规范实现，目标平台的可用性以已交付的 Cone 源码和验证记录为准。
+
+Linux GNU 阶段使用 Skia 的 Fontconfig／FreeType 字体工厂，并沿用同一 HarfBuzz、ICU、段落布局和 UTF-8 索引合同；字体文件、集合和布局继续由所属资源持有。系统字体依 Fontconfig 查询，不能假定 macOS 字体名称存在。集合创建时按 Fontconfig 的配置替换与默认规则解析 `sans-serif`、`serif`、`monospace`，保存匹配到的实际 family，之后的段落快照复用该选择。固定字体测试使用仓库已有字体输入，真实显示通过 GLES／EGL 的 Wayland 和 X11 Surface 验证；实施范围和结果见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。
 
 本期支持段落内多字体／字号／样式混排，以及不可分割的行内图片和控件盒子。完整编辑文档、撤销、剪贴板系统接入、accessibility 树、分页、浮动元素和跨多行图文绕排不属于本库本期交付；文本位置、替代文字与选择几何则在本期有明确合同。
 
@@ -115,7 +117,7 @@ InlineAlignment 的含义为：
 
 FontCollection、TextStyle、ParagraphStyle、TextRange／TextPosition 等文本类型迁入 graphics.text。FontCollection 管理显式字体、family 别名和系统 fallback。成功改变字体登记时更新其只读 revision，供段落宿主判断字体输入是否变化；普通查询与失败登记不改变 revision。这只是本集合的缓存更新标记，不是全局身份或产物字段。
 
-`FontCollection(systemFallback = true)` 为 `sans-serif`、`serif`、`monospace` 三个通用 family 名提供宿主字体。后端在集合创建时解析系统默认无衬线、衬线和等宽字体，集合保存该选择；段落快照复用它，不反复扫描系统字体。显式 register 的同名 family 优先，关闭 systemFallback 时只使用显式字体，不偷偷加入系统别名。普通 family 仍按 TextStyle.families 的声明顺序匹配，缺字 fallback 继续由系统字体管理器处理。通用名保证字体类别和正常排版，不保证不同平台的同名、相同度量或像素结果；必要字体不可用时报告现有 GraphicsException。CoreText／DirectWrite 及系统字体选择只存在于 text 后端。
+`FontCollection(systemFallback = true)` 为 `sans-serif`、`serif`、`monospace` 三个通用 family 名提供宿主字体。后端在集合创建时解析系统默认无衬线、衬线和等宽字体，集合保存该选择；段落快照复用它，不反复扫描系统字体。显式 register 的同名 family 优先，关闭 systemFallback 时只使用显式字体，不偷偷加入系统别名。普通 family 仍按 TextStyle.families 的声明顺序匹配，缺字 fallback 继续由系统字体管理器处理。通用名保证字体类别和正常排版，不保证不同平台的同名、相同度量或像素结果；必要字体不可用时报告现有 GraphicsException。CoreText／DirectWrite／Fontconfig 及系统字体选择只存在于 text 后端。
 
 `Paragraph(fonts, content: StyledText, settings)` 保存展开后的内容、最终样式与字体来源快照。另提供 String 加 TextStyle 的普通便利构造，它产生相同的纯文本内容。之后字体登记、来源关闭或创建另一段落，不改变已有 Paragraph 和 TextLayout。
 

@@ -7,6 +7,7 @@ kind = "library"
 
 [[sources]]
 path = "src"
+when = { os = ["darwin", "windows"] }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
@@ -34,3 +35,11 @@ path = "src"
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }

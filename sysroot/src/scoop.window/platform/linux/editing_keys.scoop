@@ -1,0 +1,95 @@
+package scoop.window
+
+/** Standard editing commands; inserted text remains a separate native event. */
+internal fun linuxEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEditCommand? {
+    if (
+        modifiers.alt ||
+            modifiers.superKey ||
+            modifiers.function ||
+            modifiers.altGraph ==
+            Some(true)
+    )
+        return None
+    if (modifiers.control) {
+        if (linuxShortcut(key, "z"))
+            return Some(
+                if (modifiers.shift)
+                    TextEditCommand.Redo
+                else
+                    TextEditCommand.Undo
+            )
+        if (!modifiers.shift) {
+            if (linuxShortcut(key, "a"))
+                return Some(TextEditCommand.SelectAll)
+            if (linuxShortcut(key, "c"))
+                return Some(TextEditCommand.Copy)
+            if (linuxShortcut(key, "x"))
+                return Some(TextEditCommand.Cut)
+            if (linuxShortcut(key, "v"))
+                return Some(TextEditCommand.Paste)
+            if (linuxShortcut(key, "y"))
+                return Some(TextEditCommand.Redo)
+        }
+        return when (key) {
+            case Named(NamedKey.ArrowLeft) -> Some(
+                TextEditCommand.Move(TextMovement.WordLeft, modifiers.shift)
+            )
+            case Named(NamedKey.ArrowRight) -> Some(
+                TextEditCommand.Move(TextMovement.WordRight, modifiers.shift)
+            )
+            case Named(NamedKey.ArrowUp) -> Some(
+                TextEditCommand.Move(TextMovement.ParagraphStart, modifiers.shift)
+            )
+            case Named(NamedKey.ArrowDown) -> Some(
+                TextEditCommand.Move(TextMovement.ParagraphEnd, modifiers.shift)
+            )
+            case Named(NamedKey.Home) -> Some(
+                TextEditCommand.Move(TextMovement.DocumentStart, modifiers.shift)
+            )
+            case Named(NamedKey.End) -> Some(
+                TextEditCommand.Move(TextMovement.DocumentEnd, modifiers.shift)
+            )
+            case Named(NamedKey.Backspace) -> Some(
+                TextEditCommand.Delete(TextDeletion.WordBackward)
+            )
+            case Named(NamedKey.Delete) -> Some(TextEditCommand.Delete(TextDeletion.WordForward))
+            case Named(NamedKey.Enter) -> Some(TextEditCommand.InsertNewline)
+            else -> None
+        }
+    }
+    val movement =
+        when (key) {
+            case Named(NamedKey.ArrowLeft) -> Some(TextMovement.Left)
+            case Named(NamedKey.ArrowRight) -> Some(TextMovement.Right)
+            case Named(NamedKey.ArrowUp) -> Some(TextMovement.Up)
+            case Named(NamedKey.ArrowDown) -> Some(TextMovement.Down)
+            case Named(NamedKey.Home) -> Some(TextMovement.LineStart)
+            case Named(NamedKey.End) -> Some(TextMovement.LineEnd)
+            case Named(NamedKey.PageUp) -> Some(TextMovement.PageUp)
+            case Named(NamedKey.PageDown) -> Some(TextMovement.PageDown)
+            else -> None
+        }
+    when (movement) {
+        case Some(value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
+        case None -> {}
+    }
+    return when (key) {
+        case Named(NamedKey.Backspace) -> Some(TextEditCommand.Delete(TextDeletion.Backward))
+        case Named(NamedKey.Delete) -> Some(TextEditCommand.Delete(TextDeletion.Forward))
+        case Named(NamedKey.Enter) -> Some(TextEditCommand.InsertNewline)
+        case Named(NamedKey.Tab) -> Some(
+            if (modifiers.shift)
+                TextEditCommand.InsertBacktab
+            else
+                TextEditCommand.InsertTab
+        )
+        case Named(NamedKey.Escape) -> if (modifiers.shift)
+            None
+        else
+            Some(TextEditCommand.Cancel)
+        else -> None
+    }
+}
+
+private fun linuxShortcut(key: LogicalKey, text: String): Boolean =
+    LogicalKey.Character(text).matchesShortcut(key)
