@@ -14,6 +14,8 @@ window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin 
 
 公共应用对象不暴露 fd、HWND、XID、dispatch queue 或 ring。现有 Job／CoroutineScope、Context、ForeignCallback、时间、路径与异常规则继续适用；窗口库不承担布局、排版、绘制设备、I/O 调度或另一套任务树。
 
+原生菜单、popup 及跨 Cone 菜单借用的实施合同见[菜单规范](SCOOP-WINDOW-MENUS-SPEC.md)。托盘另由单向依赖 window 的 scoop.tray 提供，普通 window 和 UI 不引入托盘系统依赖。完整桌面扩展的实际进度见[实施记录](../desktop-ui/PROGRESS.md)。
+
 ## 2. 应用与线程
 
 Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。

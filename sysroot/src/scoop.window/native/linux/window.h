@@ -77,6 +77,7 @@ typedef struct SWEvent {
 } SWEvent;
 typedef struct SWWatch SWWatch;
 typedef struct SWWindow SWWindow;
+typedef struct SWMenu SWMenu;
 typedef struct {
   SWCallback callback;
   void *context;
@@ -98,6 +99,7 @@ struct SWWindow {
   SWApplication *application;
   SWWindow *next;
   GtkWidget *window, *view, *toolbar, *header;
+  SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
   bool destroying;
   int64_t identity;
@@ -155,6 +157,7 @@ int64_t sw_transparency(SWWindow *window, bool transparent);
 uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
 void sw_input_install(SWWindow *window);
+bool sw_menu_key_equivalent(SWWindow *window, guint symbol);
 void sw_ime_install(SWWindow *window);
 void sw_ime_update(SWWindow *window);
 void sw_ime_caret(SWWindow *window);

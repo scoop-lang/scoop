@@ -191,6 +191,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         for (observer in activityObservers.toArray())
             observer.close()
         application.retireDeadlines(this)
+        application.closeWindowMenus(this)
         application.mailbox.wake()
     }
 }

@@ -1,0 +1,145 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Extern(name = "scoop_test_win_menu_command")
+private fun commandNumber(menu: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_win_menu_wide_ids")
+private fun checkWideIds(menu: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_win_window_menu")
+private fun windowMenu(window: Ptr<Unit>): Int
+
+@Test
+private class WinMenuTests {
+    @Test
+    @Ignore("Requires a Windows desktop session; run separately with --ignored")
+    fun `Win32 menu command IDs remain wide and borrowed menus drain before windows`() {
+        val handler = WinMenuHandler()
+        try {
+            Application().run(handler)
+        } catch (error: WindowException) {
+            fail(Some(f"${error.operation}; nativeCode=${error.nativeCode ?: 0L}"))
+        }
+        assertEquals(1, handler.actions)
+        assertEquals(1, handler.borrowerClosed)
+        assertEquals(WindowState.Destroyed, handler.window!!.state)
+        assertEquals(MenuState.Closed, handler.menu!!.state)
+    }
+}
+
+private class WinMenuHandler: ApplicationHandler {
+    var actions = 0
+    var borrowerClosed = 0
+    var window: Window? = None
+    var menu: Menu? = None
+    private var lease: NativeMenuLease? = None
+    private var action = MenuItemId(0L)
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> start(application)
+            case Menu(activation) -> {
+                assertEquals(action, activation.item)
+                when (activation.source) {
+                    case Native(identity) -> assertEquals(lease!!.id, identity)
+                    else -> fail(Some("wrong Win32 native menu source"))
+                }
+                actions += 1
+                menu!!.close()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("Win32 menu test deadline"))
+            else -> {}
+        }
+    }
+
+    private fun start(application: ActiveApplication) {
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+        assertTrue(application.desktopCapabilities().menus.windowMenuBar)
+        assertFalse(application.desktopCapabilities().menus.applicationMenuBar)
+        val target =
+            application.createWindow(
+                windowAttributes {
+                    title = "Win32 hidden menu test"
+                    visible = false
+                }
+            )
+        window = Some(target)
+        val created = application.createMenu()
+        menu = Some(created)
+        val root = created.insert(MenuItemDescription("File", kind = MenuItemKind.Submenu))
+        action =
+            created.insert(
+                MenuItemDescription(
+                    "Execute",
+                    shortcut =
+                        Some(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("o")),
+                                ShortcutModifiers(primary = true)
+                            )
+                        )
+                ),
+                Some(root)
+            )
+        val checked =
+            created.insert(
+                MenuItemDescription("Checked", kind = MenuItemKind.Checkbox(true)),
+                Some(root)
+            )
+        val binding = target.attachMenuBar(created)
+        @Unsafe
+        {
+            val native = target.acquireNativeWindow()
+            try {
+                when (native.handle) {
+                    case Win32(hwnd, _) -> assertEquals(1, windowMenu(hwnd))
+                }
+            } finally {
+                native.close()
+            }
+        }
+        binding.close()
+        @Unsafe
+        {
+            lease =
+                Some(
+                    created.acquireNativeMenu {
+                        borrowerClosed += 1
+                        lease!!.endTracking()
+                        lease!!.close()
+                        target.requestDestroy()
+                        application.requestExit()
+                    }
+                )
+            when (lease!!.handle) {
+                case Win32(handle) -> {
+                    val command = commandNumber(handle)
+                    assertTrue(command != 0)
+                    assertEquals(Some(action), lease!!.itemForNativeCommand(command))
+                    assertEquals(0, checkWideIds(handle))
+                }
+            }
+        }
+        lease!!.beginTracking()
+        assertEquals(
+            RequestStatus.Requested,
+            created.update(
+                checked,
+                MenuItemDescription("Unchecked", kind = MenuItemKind.Checkbox(false))
+            )
+        )
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { lease!!.close() }.kind
+        )
+        assertTrue(lease!!.activate(action))
+    }
+}

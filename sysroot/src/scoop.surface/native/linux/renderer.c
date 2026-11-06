@@ -81,8 +81,10 @@ void *scoop_surface_gtk_display(void *view) {
 }
 void *scoop_surface_gles_create(void *view, void *gl_context,
                                 SSCallback callback, void *context) {
-  if (gtk_widget_get_first_child(GTK_WIDGET(view)))
-    return NULL;
+  for (GtkWidget *child = gtk_widget_get_first_child(GTK_WIDGET(view)); child;
+       child = gtk_widget_get_next_sibling(child))
+    if (!GTK_IS_POPOVER(child))
+      return NULL;
   SSSurface *surface = calloc(1, sizeof(*surface));
   if (!surface)
     return NULL;

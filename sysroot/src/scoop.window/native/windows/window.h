@@ -58,6 +58,7 @@ typedef struct SWEvent {
   struct SWEvent *next;
 } SWEvent;
 typedef struct SWWatch SWWatch;
+typedef struct SWMenu SWMenu;
 typedef struct SWApplication {
   SWCallback callback;
   void *context;
@@ -69,6 +70,7 @@ typedef struct SWApplication {
   SWEvent *head, *tail;
   SWWatch *watches;
   void *text_manager;
+  SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
   SWApplication *application;
@@ -89,6 +91,7 @@ typedef struct SWWindow {
   uint32_t pressed_buttons;
   int64_t text_connection;
   void *text;
+  SWMenu *menu_bar, *popup_menu;
 } SWWindow;
 
 int32_t scoop_window_ime_allowed(SWWindow *window, int32_t allowed);
@@ -123,6 +126,10 @@ void sw_minmax(SWWindow *window, MINMAXINFO *info);
 void sw_sizing(SWWindow *window, WPARAM edge, RECT *rect);
 bool sw_input(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,
               LRESULT *result);
+bool sw_menu_message(SWWindow *window, UINT message, WPARAM wparam,
+                      LPARAM lparam, LRESULT *result);
+bool sw_menu_translate(SWApplication *application, MSG *message);
+void sw_menu_dpi(SWWindow *window, UINT dpi);
 bool sw_text(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,
              LRESULT *result);
 bool sw_text_composing(SWWindow *window);

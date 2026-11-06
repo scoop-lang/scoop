@@ -110,6 +110,8 @@ static gboolean key_pressed(GtkEventControllerKey *controller, guint symbol,
   SWWindow *window = data;
   key_state(window, GTK_EVENT_CONTROLLER(controller), symbol, code, state,
             true);
+  if (sw_menu_key_equivalent(window, symbol))
+    return TRUE;
   bool composing = window->preedit_active;
   if (!(composing && (symbol == GDK_KEY_Return || symbol == GDK_KEY_Escape)))
     key_event(window, symbol, code, true);

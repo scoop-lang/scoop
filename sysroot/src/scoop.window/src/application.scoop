@@ -17,6 +17,7 @@ public enum StartCause {
 /** Application lifecycle and window notifications have owned payloads. */
 public enum ApplicationEvent {
     NewEvents(StartCause), Resumed, Suspended, MemoryWarning,
+    Menu(MenuActivation), PopupCompleted(PopupSessionId, PopupResult),
     Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
 }
 
@@ -26,9 +27,9 @@ public enum WindowEvent {
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),
-    Keyboard(KeyEvent), ModifiersChanged(Modifiers), Pointer(PointerEvent), TextInput(
-        TextInputEvent
-    )
+    Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(Modifiers), Pointer(
+        PointerEvent
+    ), TextInput(TextInputEvent)
 }
 
 /** Receives serial application events on the native owner thread. */

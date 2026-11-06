@@ -17,6 +17,7 @@ internal fun ApplicationOwner.cleanupEvent(event: ApplicationEvent) {
 internal fun ApplicationOwner.drainShutdown() {
     if (dispatchDepth != 0)
         return
+    drainMenus()
     if (exiting && !attached) {
         for (watch in watches)
             if (!watch.removing)
@@ -66,6 +67,12 @@ internal fun ApplicationOwner.drainShutdown() {
             0L &&
             watches.size ==
             0L &&
+            menus.size ==
+            0L &&
+            nativeOperations.size ==
+            0L &&
+            nativeOperationDepth ==
+            0 &&
             (!attached || attachmentComplete) &&
             mailbox.sealControlsIfEmpty()
     ) {

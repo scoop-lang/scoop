@@ -24,7 +24,10 @@ internal fun ApplicationOwner.pump(stage: Int) {
             while (count < 64) {
                 val pointer = nativeNextEvent(native!!) ?: break
                 try {
-                    events.add(copyNativeEvent(pointer))
+                    when (copyNativeEvent(pointer)) {
+                        case Some(event) -> events.add(event)
+                        case None -> {}
+                    }
                 } finally {
                     nativeEventRelease(pointer)
                 }
@@ -183,6 +186,7 @@ internal fun ApplicationOwner.deliverWindow(window: WindowOwner, event: WindowEv
 
 internal fun ApplicationOwner.dispatchNative(event: ApplicationEvent) {
     when (event) {
+        case Menu(activation) -> deliverMenu(activation)
         case Window(identity, notification) -> {
             val window = findWindow(identity.value) ?: return
             deliverWindow(window, notification)

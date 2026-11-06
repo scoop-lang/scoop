@@ -15,8 +15,8 @@
 | 批次 | 范围 | 状态 |
 | --- | --- | --- |
 | 准备 | 设计基线、开发分支、验证与提交约定 | 已建立分支；设计进入版本管理 |
-| D1 | 公共合同、跨 Cone 原生使用、平台关键组合 | 待实施 |
-| D2 | Menu／Popup、快捷键、原生菜单借用 | 待实施 |
+| D1 | 公共合同、跨 Cone 原生使用、平台关键组合 | 菜单身份、图像、能力与 NativeMenuLease 已实施；应用资源登记随 D3 完成 |
+| D2 | Menu／Popup、快捷键、原生菜单借用 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 待实施 |
 | D4 | Frame／Region、原生外观与系统操作 | 待实施 |
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 待实施 |
@@ -28,4 +28,12 @@
 
 ## 3. 验证记录
 
-设计基线已检查本地文档链接、章节、D1～D9 依赖顺序和格式。尚未开始新增能力的构建或运行验证；既有 Linux GTK 验证记录不作为本次新增能力的通过证据。
+设计基线已检查本地文档链接、章节、D1～D9 依赖顺序和格式。开发分支已在更新后的 main（2bd06a47，包含 Linux GUI 与 Windows TSF 合入）上重建。
+
+2026-11-07，D2：已加入[菜单规范](../specs/SCOOP-WINDOW-MENUS-SPEC.md)与三个原生后端，包含稳定身份、CPU 图像、标准角色、实际快捷键、菜单栏、popup session、tracking 中更新及跨 Cone 菜单借用。关闭立即停止原生动作，解绑和销毁等待原生使用退休。原生 popup 从应用控制回调启动，保证 watch 先返回并重新挂接通知源。
+
+- macOS aarch64：Scoop 格式化、原生严格编译检查和窗口库构建通过；菜单 Cone 2 passed、1 ignored；asyncio 的真实 popup tracking／I/O／关闭组合 1 passed。忽略的是独立编辑焦点用例：当前桌面处于 loginwindow，须在解锁的前台桌面单独运行。
+- Linux GNU：窗口库和测试构建通过；X11 与带输入 seat 的嵌套 Wayland 各 2 passed。覆盖实际菜单栏展开、tracking 中更新、GTK 快捷键只派发一次、原生模型／借用、popup 选择和目标窗口关闭。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的窗口库和完整测试程序均编译通过；各目标默认测试 1 passed、1 ignored。SSH 会话无法创建测试所需的原生 Application，原生窗口／菜单用例保留到桌面会话执行；这些结果不代表 GUI 交互验收通过。
+
+测试入口、所需桌面条件及独立焦点／Windows 用例的执行方式见[菜单测试说明](../../sysroot/src/scoop.window/tests-cones/menus/README.md)。macOS amd64 构建与三平台完整桌面组合继续随后续批次和最终打包验收推进。

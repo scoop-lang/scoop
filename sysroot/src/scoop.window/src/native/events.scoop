@@ -1,19 +1,32 @@
 package scoop.window
 
 /** Copies every borrowed native payload before the queue releases its owner. */
-internal fun copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent {
+internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent? {
     @Unsafe
     {
         val event = nativeEventData(pointer)
+        if (event.kind == 110)
+            return copyMenuActivation(event)
+        if (event.kind == 111)
+            return copyPopupCompletion(event)
+        if (event.kind == 112)
+            return None
         if (event.window == 0L)
-            return when (event.kind) {
-                100 -> ApplicationEvent.MonitorsChanged
-                101 -> ApplicationEvent.ExitRequested(ExitReason.System)
-                else -> throw WindowException(
-                    "unknown native application event",
-                    WindowErrorKind.NativeFailure
-                )
-            }
+            return Some(
+                when (event.kind) {
+                    100 -> ApplicationEvent.MonitorsChanged
+                    101 -> ApplicationEvent.ExitRequested(
+                        if (event.flags == 1)
+                            ExitReason.User
+                        else
+                            ExitReason.System
+                    )
+                    else -> throw WindowException(
+                        "unknown native application event",
+                        WindowErrorKind.NativeFailure
+                    )
+                }
+            )
         val value =
             when (event.kind) {
                 1 -> WindowEvent.CloseRequested
@@ -42,6 +55,7 @@ internal fun copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent {
                     TextInputEvent.Edit(copyNativeTextBatch(pointer, event))
                 )
                 15 -> WindowEvent.RedrawRequested
+                16 -> WindowEvent.TextCommand(menuTextCommand(event.a.toInt()))
                 14 -> WindowEvent.TextInput(
                     if (event.flags != 0)
                         TextInputEvent.Enabled(platformTextConnection(event))
@@ -53,7 +67,7 @@ internal fun copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent {
                     WindowErrorKind.NativeFailure
                 )
             }
-        return ApplicationEvent.Window(WindowId(event.window), value)
+        return Some(ApplicationEvent.Window(WindowId(event.window), value))
     }
 }
 

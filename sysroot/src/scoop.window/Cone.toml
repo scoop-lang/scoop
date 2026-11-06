@@ -87,6 +87,18 @@ path = "native/darwin/shortcuts.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/menu.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/menu_actions.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/menu_presentation.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/pointer.m"
 when = { os = "darwin" }
 
@@ -136,7 +148,39 @@ path = "native/windows/application.c"
 when = { os = "windows" }
 
 [[native.sources]]
+path = "native/linux/menu.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/menu_actions.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/menu_presentation.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
 path = "native/windows/window.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_images.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_keys.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_actions.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_presentation.c"
 when = { os = "windows" }
 
 [[native.sources]]

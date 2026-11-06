@@ -1,0 +1,280 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Extern(name = "scoop_test_gtk_menu_model")
+private fun checkModel(model: Ptr<Unit>, actions: Ptr<Unit>, checked: Long): Int
+
+@Extern(name = "scoop_test_gtk_menu_shortcut")
+private fun activateShortcut(view: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_gtk_menu_open")
+private fun openMenuBar(view: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_gtk_popup")
+private fun activatePopup(view: Ptr<Unit>, item: Long): Int
+
+@Test
+private class GtkMenuTests {
+    @Test
+    fun `GTK menu models and popovers preserve actions and close with their window`() {
+        val handler = GtkMenuHandler()
+        Application().run(handler)
+        assertEquals(1, handler.barActions)
+        assertEquals(1, handler.borrowedActions)
+        assertEquals(1, handler.popupActions)
+        assertEquals(2, handler.completions)
+        assertEquals(1, handler.borrowerClosed)
+        assertTrue(handler.updatedDuringPopup)
+        assertEquals(WindowState.Destroyed, handler.window!!.state)
+    }
+}
+
+private class GtkMenuHandler: ApplicationHandler {
+    var window: Window? = None
+    var barActions = 0
+    var borrowedActions = 0
+    var popupActions = 0
+    var completions = 0
+    var borrowerClosed = 0
+    var updatedDuringPopup = false
+    private var menu: Menu? = None
+    private var binding: MenuBarBinding? = None
+    private var lease: NativeMenuLease? = None
+    private var popup: PopupSession? = None
+    private var action = MenuItemId(0L)
+    private var checked = MenuItemId(0L)
+    private var deadline: WindowDeadline? = None
+    private var targetClosing = false
+    private var shortcutStarted = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> start(application)
+            case Window(_, WindowEvent.GeometryChanged(_)) -> startShortcut()
+            case NewEvents(StartCause.Deadline) -> fail(Some("GTK menu test deadline"))
+            case Menu(activation) -> {
+                assertEquals(action, activation.item)
+                when (activation.source) {
+                    case WindowMenuBar(target) -> {
+                        assertEquals(window!!.id, target)
+                        barActions += 1
+                        borrow(application)
+                    }
+                    case Native(identity) -> {
+                        assertEquals(lease!!.id, identity)
+                        borrowedActions += 1
+                        menu!!.close()
+                    }
+                    case Popup(identity, target) -> {
+                        assertEquals(popup!!.id, identity)
+                        assertEquals(window!!.id, target)
+                        popupActions += 1
+                    }
+                    else -> fail(Some("wrong GTK menu source"))
+                }
+            }
+            case PopupCompleted(identity, result) -> {
+                assertEquals(popup!!.id, identity)
+                completions += 1
+                if (!targetClosing) {
+                    when (result) {
+                        case Selected(selected) -> assertEquals(action, selected)
+                        else -> fail(Some("GTK popup did not select the item"))
+                    }
+                    assertEquals(1, popupActions)
+                    targetClosing = true
+                    showPopup()
+                } else {
+                    when (result) {
+                        case Cancelled(PopupCancelReason.TargetClosed) -> {}
+                        else -> fail(Some("GTK popup did not drain before its target"))
+                    }
+                    application.requestExit()
+                }
+            }
+            case Window(_, WindowEvent.Keyboard(key)) -> {
+                if (key.state == ElementState.Pressed)
+                    fail(Some("native menu shortcut was delivered twice"))
+            }
+            else -> {}
+        }
+    }
+
+    private fun start(application: ActiveApplication) {
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+        assertTrue(application.desktopCapabilities().menus.windowMenuBar)
+        assertFalse(application.desktopCapabilities().menus.applicationMenuBar)
+        val target =
+            application.createWindow(
+                windowAttributes {
+                    title = "GTK native menu test"
+                    size = LogicalSize(320.0, 240.0)
+                }
+            )
+        window = Some(target)
+        val created = application.createMenu()
+        menu = Some(created)
+        val root = created.insert(MenuItemDescription("File", kind = MenuItemKind.Submenu))
+        action =
+            created.insert(
+                MenuItemDescription(
+                    "Execute",
+                    shortcut =
+                        Some(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("o")),
+                                ShortcutModifiers(primary = true)
+                            )
+                        )
+                ),
+                Some(root)
+            )
+        checked =
+            created.insert(
+                MenuItemDescription("Checked", kind = MenuItemKind.Checkbox(true)),
+                Some(root)
+            )
+        created.insert(MenuItemDescription("Radio", kind = MenuItemKind.Radio(true)), Some(root))
+        binding = Some(target.attachMenuBar(created))
+    }
+
+    private fun startShortcut() {
+        if (shortcutStarted)
+            return
+        shortcutStarted = true
+        val timer =
+            window!!.createDeadline {
+                assertEquals(
+                    RequestStatus.Requested,
+                    menu!!.update(
+                        checked,
+                        MenuItemDescription(
+                            "Checked while tracking",
+                            kind = MenuItemKind.Checkbox(true)
+                        )
+                    )
+                )
+                @Unsafe
+                {
+                    val native = window!!.acquireNativeWindow()
+                    try {
+                        when (native.handle) {
+                            case Gtk(_, view) -> assertEquals(1, activateShortcut(view))
+                        }
+                    } finally {
+                        native.close()
+                    }
+                }
+                deadline!!.close()
+            }
+        deadline = Some(timer)
+        @Unsafe
+        {
+            val native = window!!.acquireNativeWindow()
+            try {
+                when (native.handle) {
+                    case Gtk(_, view) -> assertEquals(1, openMenuBar(view))
+                }
+            } finally {
+                native.close()
+            }
+        }
+        timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+    }
+
+    private fun borrow(application: ActiveApplication) {
+        binding!!.close()
+        @Unsafe
+        {
+            lease =
+                Some(
+                    menu!!.acquireNativeMenu {
+                        borrowerClosed += 1
+                        lease!!.endTracking()
+                        lease!!.close()
+                        menu = Some(application.createMenu())
+                        action = menu!!.insert(MenuItemDescription("Popup selection"))
+                        showPopup()
+                    }
+                )
+            when (lease!!.handle) {
+                case Gtk(model, actions) -> assertEquals(
+                    0,
+                    checkModel(model, actions, checked.value)
+                )
+            }
+        }
+        lease!!.beginTracking()
+        assertEquals(
+            RequestStatus.Requested,
+            menu!!.update(
+                checked,
+                MenuItemDescription("Unchecked", kind = MenuItemKind.Checkbox(false))
+            )
+        )
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { lease!!.close() }.kind
+        )
+        assertTrue(lease!!.activate(action))
+    }
+
+    private fun showPopup() {
+        popup =
+            Some(
+                window!!.showPopup(
+                    menu!!,
+                    PopupPlacement.Anchor(
+                        LogicalRect(LogicalPosition(12.0, 12.0), LogicalSize(24.0, 18.0))
+                    )
+                )
+            )
+        val timer =
+            window!!.createDeadline {
+                if (targetClosing) {
+                    @Unsafe
+                    {
+                        val native = window!!.acquireNativeWindow()
+                        try {
+                            when (native.handle) {
+                                case Gtk(_, view) -> assertEquals(1, activatePopup(view, 0L))
+                            }
+                        } finally {
+                            native.close()
+                        }
+                    }
+                    window!!.requestDestroy()
+                } else {
+                    assertEquals(
+                        RequestStatus.Requested,
+                        menu!!.update(action, MenuItemDescription("Updated while tracking"))
+                    )
+                    updatedDuringPopup = true
+                    @Unsafe
+                    {
+                        val native = window!!.acquireNativeWindow()
+                        try {
+                            when (native.handle) {
+                                case Gtk(_, view) -> assertEquals(
+                                    1,
+                                    activatePopup(view, action.value)
+                                )
+                            }
+                        } finally {
+                            native.close()
+                        }
+                    }
+                }
+                deadline!!.close()
+            }
+        deadline = Some(timer)
+        timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+    }
+}

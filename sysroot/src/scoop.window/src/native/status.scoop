@@ -30,7 +30,7 @@ internal fun requireCreationStatus(status: RequestStatus, operation: String) {
         throw WindowException(operation, WindowErrorKind.Unsupported)
 }
 
-private fun created(result: NativeCreateResult, operation: String): Ptr<Unit> {
+internal fun created(result: NativeCreateResult, operation: String): Ptr<Unit> {
     when (result.pointer) {
         case Some(pointer) -> return pointer
         case None -> {

@@ -1,0 +1,133 @@
+package scoop.window
+
+internal fun MenuOwner.settleUse() {
+    if (busy() || application.nativeOperationDepth != 0)
+        return
+    when (use) {
+        case Some(MenuUse.Bar(binding)) -> {
+            if (binding.closed) {
+                @Unsafe
+                {
+                    checkNativeStatus(nativeMenuUnbind(pointer!!), "detach menu bar")
+                }
+                when (binding.window) {
+                    case Some(window) -> window.leases -= 1L
+                    case None -> {}
+                }
+                use = None
+            }
+        }
+        case Some(MenuUse.Native(lease)) -> {
+            if (lease.closed) {
+                @Unsafe
+                {
+                    checkNativeStatus(nativeMenuUnbind(pointer!!), "release native menu")
+                }
+                use = None
+            }
+        }
+        else -> {}
+    }
+}
+
+internal fun ApplicationOwner.drainMenus() {
+    var index = 0L
+    while (index < menus.size) {
+        val menu = menus[index]
+        menu.settleUse()
+        if (!menu.busy())
+            menu.publish()
+        if (
+            menu.phase ==
+                MenuState.Closing &&
+                !menu.hasUse &&
+                !menu.busy() &&
+                nativeOperationDepth ==
+                0
+        ) {
+            @Unsafe
+            {
+                nativeMenuDestroy(menu.pointer!!)
+            }
+            menu.pointer = None
+            menu.phase = MenuState.Closed
+            menus.removeAt(index)
+        } else
+            index += 1L
+    }
+}
+
+internal fun ApplicationOwner.closeWindowMenus(window: WindowOwner) {
+    for (menu in menus.toArray()) {
+        when (menu.use) {
+            case Some(MenuUse.Bar(binding)) -> {
+                if (sameMenuWindow(binding.window, Some(window)))
+                    binding.close()
+            }
+            case Some(MenuUse.Popup(session)) -> {
+                if (session.window === window)
+                    session.cancel(PopupCancelReason.TargetClosed)
+            }
+            else -> {}
+        }
+    }
+}
+
+internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): ApplicationEvent? {
+    val menu = findMenu(event.a) ?: return None
+    val use = menu.use ?: return None
+    if (use.serial() != event.c)
+        return None
+    val source =
+        when (use) {
+            case Bar(binding) -> when (binding.window) {
+                case Some(window) -> MenuSource.WindowMenuBar(window.id)
+                case None -> MenuSource.ApplicationMenuBar(
+                    if (event.d == 0L)
+                        None
+                    else
+                        Some(WindowId(event.d))
+                )
+            }
+            case Popup(session) -> MenuSource.Popup(session.id, session.window.id)
+            case Native(lease) -> MenuSource.Native(lease.id)
+        }
+    return Some(ApplicationEvent.Menu(MenuActivation(menu.id, MenuItemId(event.b), source, use)))
+}
+
+internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): ApplicationEvent? {
+    val menu = findMenu(event.a) ?: return None
+    when (menu.use) {
+        case Some(MenuUse.Popup(session)) -> {
+            if (session.serial == event.c)
+                return session.completeNative(event.b)
+        }
+        else -> {}
+    }
+    return None
+}
+
+internal fun ApplicationOwner.deliverMenu(activation: MenuActivation) {
+    deliverBusiness {
+        when (findMenu(activation.menu.value)) {
+            case Some(menu) -> {
+                if (menu.phase == MenuState.Open && activation.use.acceptsActions()) {
+                    when (menu.findItem(activation.item)) {
+                        case Some(node) -> {
+                            if (
+                                node.enabled() &&
+                                    node.prepared.kind <
+                                    3 &&
+                                    node.prepared.description.command ==
+                                    MenuCommand.Action
+                            )
+                                handler!!.onEvent(active, ApplicationEvent.Menu(activation))
+                        }
+                        case None -> {}
+                    }
+                }
+            }
+            case None -> {}
+        }
+    }
+}

@@ -2,6 +2,7 @@
 #include <gdk/x11/gdkx.h>
 
 // The window owns this container; a renderer may attach one content widget.
+// Native popup menus use separate GtkPopover surfaces parented to this widget.
 typedef struct {
   GtkWidget parent;
   SWWindow *owner;
@@ -31,13 +32,17 @@ static void content_allocate(GtkWidget *widget, int width, int height,
     return;
   if (width > 0 && height > 0)
     sw_set_geometry(window, width, height, gtk_widget_get_scale_factor(widget));
-  GtkWidget *child = gtk_widget_get_first_child(widget);
-  if (child)
-    gtk_widget_allocate(child, width, height, baseline, NULL);
+  for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+       child = gtk_widget_get_next_sibling(child)) {
+    if (GTK_IS_POPOVER(child))
+      gtk_popover_present(GTK_POPOVER(child));
+    else
+      gtk_widget_allocate(child, width, height, baseline, NULL);
+  }
 }
 static void content_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
-  GtkWidget *child = gtk_widget_get_first_child(widget);
-  if (child)
+  for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+       child = gtk_widget_get_next_sibling(child))
     gtk_widget_snapshot_child(widget, child, snapshot);
 }
 static void content_dispose(GObject *object) {

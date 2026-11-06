@@ -83,7 +83,8 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   if (!window)
     return DefWindowProcW(hwnd, msg, wp, lp);
   LRESULT result;
-  if (!window->destroying && (sw_text(window, msg, wp, lp, &result) ||
+  if (!window->destroying && (sw_menu_message(window, msg, wp, lp, &result) ||
+                              sw_text(window, msg, wp, lp, &result) ||
                               sw_input(window, msg, wp, lp, &result)))
     return result;
   switch (msg) {
@@ -131,6 +132,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return TRUE;
   case WM_DPICHANGED: {
     window->scale = HIWORD(wp) / 96.0;
+    sw_menu_dpi(window, HIWORD(wp));
     RECT *rect = (RECT *)lp;
     if (!SetWindowPos(hwnd, NULL, rect->left, rect->top,
                       rect->right - rect->left, rect->bottom - rect->top,
@@ -242,7 +244,7 @@ int64_t sw_size(SWWindow *window, double width, double height) {
   if (pw > INT_MAX / 2 || ph > INT_MAX / 2)
     return ERROR_INVALID_PARAMETER;
   RECT rect = {0, 0, (LONG)pw, (LONG)ph};
-  if (!AdjustWindowRectExForDpi(&rect, sw_style(window), FALSE, 0,
+  if (!AdjustWindowRectExForDpi(&rect, sw_style(window), GetMenu(window->hwnd) != NULL, 0,
                                 (UINT)round(window->scale * 96)))
     return GetLastError();
   return SetWindowPos(window->hwnd, NULL, 0, 0, rect.right - rect.left,

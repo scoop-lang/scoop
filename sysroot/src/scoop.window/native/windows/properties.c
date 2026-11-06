@@ -29,7 +29,7 @@ int64_t scoop_window_position(SWWindow *window, double x, double y) {
 }
 void sw_minmax(SWWindow *window, MINMAXINFO *info) {
   RECT border = {0};
-  AdjustWindowRectExForDpi(&border, sw_style(window), FALSE, 0,
+  AdjustWindowRectExForDpi(&border, sw_style(window), GetMenu(window->hwnd) != NULL, 0,
                            (UINT)round(window->scale * 96));
   LONG bw = border.right - border.left, bh = border.bottom - border.top;
   info->ptMinTrackSize.x = (LONG)ceil(window->min_width * window->scale) + bw;
@@ -42,7 +42,7 @@ void sw_minmax(SWWindow *window, MINMAXINFO *info) {
 }
 void sw_sizing(SWWindow *window, WPARAM edge, RECT *rect) {
   RECT border = {0};
-  AdjustWindowRectExForDpi(&border, sw_style(window), FALSE, 0,
+  AdjustWindowRectExForDpi(&border, sw_style(window), GetMenu(window->hwnd) != NULL, 0,
                            (UINT)round(window->scale * 96));
   double bw = border.right - border.left, bh = border.bottom - border.top;
   double width = (rect->right - rect->left - bw) / window->scale;

@@ -14,6 +14,13 @@ internal class ApplicationOwner(
 ) {
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
+    val menus = ArrayList<MenuOwner>()
+    var nextMenu = 1L
+    var nextMenuItem = 1L
+    var nextMenuUse = 1L
+    var nextPopup = 1L
+    val nativeOperations = ArrayList<() -> Unit>()
+    var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
     var armedDeadline: TimeMark? = None
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
@@ -132,9 +139,10 @@ internal class ApplicationOwner(
 
     fun nativeCallback(identity: Long, stage: Int) {
         try {
-            if (identity == 0L)
+            if (identity == 0L) {
                 pump(stage)
-            else
+                drainNativeOperations()
+            } else
                 dispatchWatch(identity, stage)
         }
         catch (error: Throwable) {
@@ -232,6 +240,8 @@ internal class ApplicationOwner(
         exiting = true
         mailbox.closeBusiness()
         refreshDeadline()
+        for (menu in menus.toArray())
+            menu.close(PopupCancelReason.ApplicationExit)
         for (window in windows)
             window.close()
         mailbox.wake()

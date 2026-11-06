@@ -34,7 +34,7 @@ typedef struct {
   int64_t error;
 } SWResult;
 
-@class SWApplication, SWWindow;
+@class SWApplication, SWWindow, SWMenu;
 
 @interface SWTextSnapshot : NSObject
 @property(nonatomic, strong) NSString *text;
@@ -65,6 +65,7 @@ typedef struct {
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWWindow *> *windows;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, id> *watches;
+@property(nonatomic, weak) SWMenu *menuBar;
 - (void)enqueue:(SWEvent *)event;
 @end
 
@@ -142,6 +143,7 @@ void sw_invalidate_text_caret(SWView *view);
 @end
 
 void sw_wake(SWApplication *application);
+BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
 void sw_stamp_input(SWEventData *data);
 SWSnapshot sw_snapshot(SWWindow *window);

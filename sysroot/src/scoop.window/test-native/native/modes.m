@@ -89,3 +89,12 @@ int32_t scoop_window_test_active_mode(void) {
 int32_t scoop_window_test_completed_modes(void) {
   return atomic_load(&completed_modes);
 }
+
+int32_t scoop_window_test_menu_tracking(void) {
+  CFStringRef mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain());
+  BOOL tracking =
+      mode && CFEqual(mode, (__bridge CFStringRef)NSEventTrackingRunLoopMode);
+  if (mode)
+    CFRelease(mode);
+  return tracking;
+}

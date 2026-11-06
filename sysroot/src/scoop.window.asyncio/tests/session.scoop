@@ -40,6 +40,8 @@ private class AsyncHandler: ApplicationHandler {
     var batches = 0
     var modalTicks = 0
     var menuTicks = 0
+    var menu: Menu? = None
+    var popup: PopupSession? = None
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         assertEquals(thread, currentThreadId())
@@ -124,15 +126,31 @@ private class AsyncHandler: ApplicationHandler {
                     val mode = activeNativeMode()
                     if (mode == 1)
                         this @AsyncHandler.modalTicks += 1
-                    if (mode == 2)
+                    if (isNativeMenuTracking() != 0)
                         this @AsyncHandler.menuTicks += 1
                     val count = completedNativeModes()
-                    if (count == 2)
-                        break
                     if (count == 1 && !menuStarted) {
                         menuStarted = true
-                        when (this @AsyncHandler.lease!!.handle) {
-                            case AppKit(window, _) -> scheduleNativeMode(window, 2, 0.15)
+                        val menu = application.createMenu()
+                        menu.insert(MenuItemDescription("Public popup session"))
+                        this @AsyncHandler.menu = Some(menu)
+                        this @AsyncHandler.popup =
+                            Some(
+                                first.showPopup(
+                                    menu,
+                                    PopupPlacement.Pointer(LogicalPosition(12.0, 12.0))
+                                )
+                            )
+                    }
+                    if (this @AsyncHandler.menuTicks >= 3) {
+                        this @AsyncHandler.popup!!.close()
+                        when (this @AsyncHandler.popup!!.result) {
+                            case Some(PopupResult.Cancelled(reason)) -> {
+                                assertEquals(PopupCancelReason.ExplicitClose, reason)
+                                break
+                            }
+                            case None -> {}
+                            else -> fail(Some("unexpected public popup result"))
                         }
                     }
                 }

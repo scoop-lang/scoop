@@ -155,8 +155,10 @@ int32_t scoop_window_application_run(SWApplication *app) {
     for (int n = 0; n < 64 && PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE); ++n) {
       if (msg.message == WM_QUIT)
         return ERROR_CANCELLED;
-      TranslateMessage(&msg);
-      DispatchMessageW(&msg);
+      if (!sw_menu_translate(app, &msg)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+      }
       if (app->stopped)
         break;
     }

@@ -1,0 +1,114 @@
+package scoop.window.native
+
+import scoop.window.*
+
+/** An explicit native use of a menu owned by a separate Cone. */
+public class NativeMenuLease internal constructor(
+    internal val menu: MenuOwner,
+    public val id: NativeMenuUseId,
+    private var closeCallback: (() -> Unit)?
+): Closeable {
+    internal var closed = false
+    private var tracking = false
+    private var closeRequested = false
+
+    public val handle: NativeMenuHandle@Unsafe get() {
+        requireActive()
+        return platformNativeMenuHandle(menu.pointer!!)
+    }
+
+    public fun beginTracking() {
+        requireActive()
+        if (tracking || closeRequested)
+            throw WindowException("native menu tracking", WindowErrorKind.InvalidState)
+        tracking = true
+        @Unsafe
+        {
+            nativeMenuExternalTracking(menu.pointer!!, 1)
+        }
+    }
+
+    public fun endTracking() {
+        menu.application.checkThread()
+        if (!tracking)
+            return
+        tracking = false
+        @Unsafe
+        {
+            nativeMenuExternalTracking(menu.pointer!!, 0)
+        }
+        menu.application.mailbox.wake()
+    }
+
+    /** Reports an item selected by a host that does not invoke the native menu's action. */
+    public fun activate(item: MenuItemId): Boolean {
+        requireActive()
+        if (closeRequested || menu.phase != MenuState.Open)
+            return false
+        val node = menu.findItem(item) ?: return false
+        if (!node.enabled() || node.prepared.kind >= 3)
+            return false
+        @Unsafe
+        {
+            return nativeMenuActivate(menu.pointer!!, item.value) != 0
+        }
+    }
+
+    /** Maps the actual native command number; never truncates a public identity. */
+    @Unsafe
+    public fun itemForNativeCommand(command: Int): MenuItemId? {
+        requireActive()
+        val value = nativeMenuItemForCommand(menu.pointer!!, command)
+        return if (value == 0L)
+            None
+        else
+            Some(MenuItemId(value))
+    }
+
+    public override fun close() {
+        menu.application.checkThread()
+        if (closed)
+            return
+        if (tracking || menu.busy())
+            throw WindowException("native menu is still tracking", WindowErrorKind.ResourceBusy)
+        closed = true
+        closeCallback = None
+        menu.settleUse()
+        menu.application.mailbox.wake()
+    }
+
+    internal fun requestClose() {
+        if (closeRequested || closed)
+            return
+        closeRequested = true
+        @Unsafe
+        {
+            nativeMenuCancel(menu.pointer!!)
+        }
+        val callback = closeCallback
+        closeCallback = None
+        menu.application.mailbox.postControl {
+            if (!closed)
+                callback!!()
+        }
+    }
+
+    private fun requireActive() {
+        menu.application.checkThread()
+        if (closed || menu.pointer == None)
+            throw WindowException("native menu lease", WindowErrorKind.InvalidState)
+    }
+}
+
+/** The borrower must detach and close this lease when requestClose is delivered. */
+@Unsafe
+public fun Menu.acquireNativeMenu(requestClose: () -> Unit): NativeMenuLease {
+    owner.requireUnused()
+    val lease = NativeMenuLease(owner, NativeMenuUseId(owner.takeUseSerial()), Some(requestClose))
+    checkNativeStatus(
+        nativeMenuBind(owner.pointer!!, 3, lease.id.value, None),
+        "borrow native menu"
+    )
+    owner.use = Some(MenuUse.Native(lease))
+    return lease
+}
