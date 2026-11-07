@@ -1,0 +1,92 @@
+package scoop.window.platform.windows
+
+import scoop.window.*
+
+public struct WindowsFrameCapabilities(
+    val borderColor: Boolean,
+    val captionColor: Boolean,
+    val textColor: Boolean,
+    val cornerPreference: Boolean,
+    val visibleBorderThickness: Boolean
+)
+
+public enum WindowsFrameColor {
+    Default, None, Rgb(UInt8, UInt8, UInt8)
+}
+
+public enum WindowsCornerPreference {
+    Default, Square, Round, SmallRound
+}
+
+/** Queries each supported DWM attribute on this actual HWND. */
+public fun Window.windowsFrameCapabilities(): WindowsFrameCapabilities {
+    owner.requireOpen()
+    @Unsafe
+    {
+        val bits = nativeWindowsFrameCapabilities(owner.pointer!!)
+        return WindowsFrameCapabilities(
+            bits.and(1) != 0,
+            bits.and(2) != 0,
+            bits.and(4) != 0,
+            bits.and(8) != 0,
+            bits.and(16) != 0
+        )
+    }
+}
+
+public fun Window.setWindowsBorderColor(color: WindowsFrameColor): RequestStatus =
+    windowsColor(34, color)
+
+public fun Window.setWindowsCaptionColor(color: WindowsFrameColor): RequestStatus =
+    windowsColor(35, color)
+
+public fun Window.setWindowsTextColor(color: WindowsFrameColor): RequestStatus =
+    windowsColor(36, color)
+
+public fun Window.setWindowsCornerPreference(preference: WindowsCornerPreference): RequestStatus {
+    val code: UInt =
+        when (preference) {
+            case Default -> 0u;
+            case Square -> 1u;
+            case Round -> 2u;
+            case SmallRound -> 3u
+        }
+    owner.requireOpen()
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowsFrameAttribute(owner.pointer!!, 33, code),
+            "DWM corner preference"
+        )
+    }
+}
+
+private fun Window.windowsColor(attribute: Int, color: WindowsFrameColor): RequestStatus {
+    owner.requireOpen()
+    val value: UInt =
+        when (color) {
+            case Default -> 4294967295u
+            case None -> {
+                requireWindow(attribute == 34, "only the DWM border color supports None")
+                4294967294u
+            }
+            case Rgb(red, green, blue) -> red.toUInt() +
+                green.toUInt() *
+                256u +
+                blue.toUInt() *
+                65536u
+        }
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowsFrameAttribute(owner.pointer!!, attribute, value),
+            "DWM frame color"
+        )
+    }
+}
+
+@Extern(name = "scoop_window_windows_frame_capabilities")
+private fun nativeWindowsFrameCapabilities(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_windows_frame_attribute")
+private fun nativeWindowsFrameAttribute(window: Ptr<Unit>, attribute: Int, value: UInt): Long

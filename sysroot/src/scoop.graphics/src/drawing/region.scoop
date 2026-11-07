@@ -1,0 +1,37 @@
+package scoop.graphics
+
+/** Converts filled coverage to owned rectangles on the requested logical grid. */
+public fun Path.rasterizeRegion(clip: Rect, scale: Double = 1.0): Array<Rect> {
+    checkRect(clip)
+    checkRegionScale(scale)
+    @Unsafe
+    {
+        return copyRegion(pathRegion(resource.get(), clip, scale))
+    }
+}
+
+internal fun checkRegionScale(scale: Double) {
+    requireGraphics(scale.isFinite() && scale > 0.0, "invalid region scale")
+}
+
+internal fun copyRegion(pointer: Ptr<Unit>?): Array<Rect> {
+    return ownedGraphics(pointer, "rasterize region").use {
+        resource -> @Unsafe
+        {
+            val count = regionCount(resource.get())
+            val rects = ArrayList<Rect>(count)
+            for (index in 0L ..< count)
+                rects.add(regionRect(resource.get(), index))
+            return@use rects.toArray()
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_path_region")
+private fun pathRegion(path: Ptr<Unit>, clip: Rect, scale: Double): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_region_count")
+private fun regionCount(region: Ptr<Unit>): Long
+
+@Extern(name = "scoop_graphics_region_rect")
+private fun regionRect(region: Ptr<Unit>, index: Long): Rect

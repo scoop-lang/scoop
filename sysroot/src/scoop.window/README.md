@@ -2,7 +2,7 @@
 
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、菜单模型、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
+库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
 
 ## 依赖与入口
 
@@ -51,9 +51,9 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 模态（modal）窗口尚无公共 API：当前没有窗口 owner、modality、showModal 或 sheet 入口。后文的模态／菜单测试验证系统嵌套循环期间 asyncio 仍能推进，不表示可以用 Scoop API 创建模态对话框。WindowLevel.AlwaysOnTop 只改变层级，不阻止其他窗口输入。
 
-创建时用 decorations／resizable，运行中用 setDecorations／setResizable 控制装饰和缩放；buttons／setEnabledButtons 控制原生按钮可用性。Win32 在 decorations=false、resizable=true 时仍保留 WS_THICKFRAME 缩放边框，要去掉这一边框还须设置 resizable=false。系统拖移、边缘缩放的 beginMove／beginResize 接口尚未提供，不能把关闭装饰直接等同于完整自绘窗框支持。
+创建时使用 frame，运行中用 setFrame 切换 System(Standard／Extended) 与 Client。Client 去除宿主可见装饰，resizable／buttons 仍独立控制系统操作；System 的 Extended 保留真实系统按钮并让内容进入标题栏。frameMetrics 给出实际内容可用矩形和按钮占用，未知值为 None。desktopCapabilities().frame 分别报告窗口裁剪、独立输入区域、整窗忽略鼠标、系统拖动／缩放与阴影等能力。setWindowRegion、setInputRegion 和 setHitRegions 使用内容逻辑坐标中的自有矩形集合；None 恢复默认，空区域没有覆盖。系统 beginMove／beginResize／showWindowMenu 必须在当前真实输入事件的 handler 内调用，阻塞操作在回调退栈后执行，接管前取消原指针序列。详细平台边界见[窗框规范](../../../docs/specs/SCOOP-WINDOW-FRAME-SPEC.md)。
 
-macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到标题栏，通过 setMacOSTitlebar 设置；无装饰窗口仍可接收键盘焦点。当前接口和后续模态／自绘窗框分工见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。
+macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏标题；内容延伸统一由 WindowFrame.System(Extended) 表达，Client 窗口仍可接收键盘焦点。Windows 的边框色、标题栏色、文字色与圆角偏好在 platform.windows 中分别查询 DWM 能力和设置。当前接口和后续模态分工见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。
 
 ## 文本输入
 

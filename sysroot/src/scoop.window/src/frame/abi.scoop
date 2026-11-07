@@ -1,0 +1,63 @@
+package scoop.window
+
+@CLayout
+internal struct NativeFrameRect(
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double
+) {
+    fun logical(): LogicalRect? =
+        if (x.isFinite() && y.isFinite() && width >= 0.0 && height >= 0.0)
+            Some(LogicalRect(LogicalPosition(x, y), LogicalSize(width, height)))
+        else
+            None
+}
+
+@CLayout
+internal struct NativeFrameSnapshot(
+    val mode: Int,
+    val ready: Int,
+    val layout: NativeFrameRect,
+    val border: Double
+)
+
+@CLayout
+internal struct NativeHitRect(val rect: NativeFrameRect, val role: Int)
+
+@Extern(name = "scoop_window_frame_capabilities")
+internal fun nativeFrameCapabilities(): Int
+
+@Extern(name = "scoop_window_frame")
+internal fun nativeWindowFrame(window: Ptr<Unit>, mode: Int): Long
+
+@Extern(name = "scoop_window_frame_snapshot")
+internal fun nativeWindowFrameSnapshot(window: Ptr<Unit>): NativeFrameSnapshot
+
+@Extern(name = "scoop_window_frame_button")
+internal fun nativeWindowFrameButton(window: Ptr<Unit>, role: Int): NativeFrameRect
+
+@Extern(name = "scoop_window_shadow")
+internal fun nativeWindowShadow(window: Ptr<Unit>, enabled: Int): Long
+
+@Extern(name = "scoop_window_region")
+internal fun nativeWindowRegion(
+    window: Ptr<Unit>,
+    kind: Int,
+    present: Int,
+    rectangles: Ptr<NativeFrameRect>,
+    count: Long
+): Long
+
+@Extern(name = "scoop_window_ignore_mouse")
+internal fun nativeWindowIgnoreMouse(window: Ptr<Unit>, enabled: Int): Long
+
+@Extern(name = "scoop_window_hit_regions")
+internal fun nativeWindowHitRegions(
+    window: Ptr<Unit>,
+    rectangles: Ptr<NativeHitRect>,
+    count: Long
+): Long
+
+@Extern(name = "scoop_window_frame_retire")
+internal fun nativeWindowFrameRetire(window: Ptr<Unit>)

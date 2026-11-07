@@ -14,7 +14,7 @@ public fun WindowAttributes.copy(
     builder.title = this.title
     builder.size = this.size
     builder.visible = this.visible
-    builder.decorations = this.decorations
+    builder.frame = this.frame
     builder.resizable = this.resizable
     builder.transparent = this.transparent
     builder.requestActivation = this.requestActivation
@@ -26,6 +26,7 @@ public fun WindowAttributes.copy(
     builder.theme = this.theme
     builder.blur = this.blur
     builder.contentProtected = this.contentProtected
+    builder.shadow = this.shadow
     builder.titlebarFlags = this.titlebarFlags
     builder.configure()
     return builder.snapshot()
@@ -36,7 +37,7 @@ public class WindowAttributesBuilder internal constructor() {
     public var title: String = "Scoop"
     public var size: LogicalSize = LogicalSize(800.0, 600.0)
     public var visible: Boolean = true
-    public var decorations: Boolean = true
+    public var frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard)
     public var resizable: Boolean = true
     public var transparent: Boolean = false
     public var requestActivation: Boolean = true
@@ -48,12 +49,13 @@ public class WindowAttributesBuilder internal constructor() {
     public var theme: Theme? = None
     public var blur: Boolean = false
     public var contentProtected: Boolean = false
+    public var shadow: WindowShadow = WindowShadow.System
     internal fun snapshot(): WindowAttributes =
         WindowAttributes(
             title,
             size,
             visible,
-            decorations,
+            frame,
             resizable,
             transparent,
             requestActivation,
@@ -65,6 +67,7 @@ public class WindowAttributesBuilder internal constructor() {
             theme,
             blur,
             contentProtected,
+            shadow,
             titlebarFlags
         )
 }

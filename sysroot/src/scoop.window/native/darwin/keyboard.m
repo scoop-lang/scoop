@@ -78,6 +78,8 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   }
   event.data = data;
   if (down && keyEvent)
+    event.nativeInput = native;
+  if (down && keyEvent)
     event.commands = [view.textCommands copy];
   if (down)
     view.pressedKeys[code] = event;

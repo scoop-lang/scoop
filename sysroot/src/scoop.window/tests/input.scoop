@@ -96,6 +96,7 @@ internal class InputProbe {
                 pointerSequence += when (reason) {
                     case FocusLost -> "c"
                     case CaptureLost -> "x"
+                    case SystemOperation -> "s"
                 }
             }
             case Left(state) -> {

@@ -380,3 +380,41 @@ when = { os = "linux", env = "gnu" }
 name = "scoop_text_backend"
 kind = "static"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/frame.m"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "QuartzCore"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/frame.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/frame_appearance.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/frame.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "cairo"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/frame_operations.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/frame_operations.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/frame_operations.c"
+when = { os = "linux", env = "gnu" }

@@ -18,7 +18,7 @@
 | D1 | 公共合同、跨 Cone 原生使用、平台关键组合 | 已实施菜单身份、图像、能力、NativeMenuLease 与应用资源登记；平台验证限制见下 |
 | D2 | Menu／Popup、快捷键、原生菜单借用 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
-| D4 | Frame／Region、原生外观与系统操作 | 待实施 |
+| D4 | Frame／Region、原生外观与系统操作 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、非 GUI 测试通过，桌面交互限制见下 |
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 待实施 |
 | D6 | 原生文件／目录对话框 | 待实施 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 待实施 |
@@ -46,3 +46,12 @@
 - Linux GNU：独立准备 libdbusmenu-glib 开发资源及增量复用通过；窗口、window.asyncio、托盘与测试构建通过。X11 与带 seat 的嵌套 Wayland 各 5 passed，覆盖实际总线协议的多分辨率 ARGB、DBusMenu 图像／快捷键／状态／子菜单、更新后稳定命令身份、退休动作、Watcher 消失与返回、激活提示、关闭中的异步请求。X11 验证基于实际外框和工作区的位置请求，Wayland 验证 Unsupported。菜单复验各 2 passed。这是协议与软件显示会话验证，不替代具体桌面 Shell 中的图标呈现验收。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的窗口／window.asyncio／托盘库及完整测试程序均编译通过；各目标托盘 4 passed、1 ignored，菜单复验 1 passed、1 ignored。忽略项需要交互桌面和 Explorer，包含通知回调、图像与自己图标的重新注册；SSH 结果不代表 GUI 验收通过。
 - 打包入口与许可收集已接入托盘；相关 Python 检查通过，包组装 5 项、许可收集 4 项测试通过。完整发行包继续在 D9 后统一构建。
+
+2026-11-07，D4：已加入[窗框规范](../specs/SCOOP-WINDOW-FRAME-SPEC.md)，以 WindowFrame 替代 decorations，提供 System(Standard／Extended)、Client、实际窗框／系统按钮几何、阴影与 Windows DWM 外观属性。原生区域区分默认、空集、窗口裁剪和独立输入覆盖；尺寸／DPI／窗框改变后撤销旧快照。系统拖动／缩放／窗口菜单保留真实输入使用，等业务回调退栈再运行，接管时取消原按下序列；退出取消尚未执行的操作并等待使用退休。
+
+graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换，Surface 收到 FrameChanged 后重绘；UI 对 Accepted 帧发布窗框区域仍归 D7／D8。GTK 直接使用的 Cairo 链接输入已进入准备与打包清单，托盘依赖仍保持独立。Windows graphics 显式声明 Skia D3D 对象需要的 uuid 链接输入，独立消费不再依赖 window 间接带入它。
+
+- macOS aarch64：Scoop 格式化、原生严格编译和相关库构建通过；窗框 3 passed，graphics 区域 3 passed，菜单复验 2 passed、1 ignored，asyncio 收尾组合 1 passed。覆盖真实 Surface CAMetalLayer、菜单栏、运行中 opaque 同步、输入使用与关闭顺序；当前 loginwindow 下不将合成 NSEvent 准备请求等同于前台实际拖动／缩放或屏幕透明呈现验收。
+- Linux GNU：当前分支 CLI、基础依赖、Window／graphics／Surface／window.asyncio 构建和原生严格检查通过。无合成器 X11、有合成器 X11、带 seat 的嵌套 Wayland 各 3 passed；有合成器 X11 与 Wayland 在 2 倍缩放下再次各 3 passed。覆盖真实 GTK 模式与按钮几何、菜单栏下的客户区尺寸、X Shape 输入区域、XTest 输入取消，以及改尺寸后的 Surface Accepted。菜单复验 X11／Wayland 各 2 passed，graphics 区域 3 passed。真实用户拖动及具体桌面 Shell 的呈现仍需桌面验收。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成当前分支所需库、完整窗框／DWM GUI 用例及透明 Surface 呈现用例的编译；每个目标窗框 2 passed、1 ignored，菜单 1 passed、1 ignored，graphics 区域 3 passed。SSH 不运行 GUI 用例，桌面执行方式见[窗框测试说明](../../sysroot/src/scoop.window/tests-cones/frame/README.md)。
+- GTK 准备及增量复用通过，Python 包组装测试 5 passed。完整发行包仍在 D9 后统一构建。

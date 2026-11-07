@@ -21,6 +21,7 @@ internal class ApplicationOwner(
     var nextMenuItem = 1L
     var nextMenuUse = 1L
     var nextPopup = 1L
+    val pendingInputs = ArrayList<NativeInputDelivery>()
     val nativeOperations = ArrayList<() -> Unit>()
     var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
@@ -165,7 +166,7 @@ internal class ApplicationOwner(
         val identity = WindowId(nextWindow)
         nextWindow += 1L
         val flags =
-            flag(attributes.decorations) +
+            flag(frameCode(attributes.frame) != 2) +
                 flag(attributes.resizable) *
                 2 +
                 flag(attributes.transparent) *
@@ -240,6 +241,8 @@ internal class ApplicationOwner(
         if (exiting)
             return
         exiting = true
+        for (input in pendingInputs.toArray())
+            input.close()
         mailbox.closeBusiness()
         refreshDeadline()
         for (menu in menus.toArray())

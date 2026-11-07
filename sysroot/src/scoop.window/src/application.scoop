@@ -23,7 +23,8 @@ public enum ApplicationEvent {
 
 /** Events whose final notification is Destroyed. */
 public enum WindowEvent {
-    CloseRequested, Closing, Destroyed, RedrawRequested,
+    CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
+    FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),

@@ -101,23 +101,6 @@ public fun Window.setResizable(value: Boolean): RequestStatus {
     }
 }
 
-/** Changes native decorations while retaining the configured button policy. */
-public fun Window.setDecorations(value: Boolean): RequestStatus {
-    owner.requireOpen()
-    @Unsafe
-    {
-        val status =
-            nativeRequestStatus(
-                nativeWindowDecorations(owner.pointer!!, flag(value)),
-                "decorations"
-            )
-        if (status == RequestStatus.Unsupported)
-            return status
-    }
-    setEnabledButtons(owner.buttons)
-    return RequestStatus.Applied
-}
-
 /** Sets the native close, minimize, and zoom button availability. */
 public fun Window.setEnabledButtons(buttons: WindowButtons): RequestStatus {
     owner.requireOpen()
@@ -306,6 +289,8 @@ internal fun applyCreationProperties(owner: WindowOwner, attributes: WindowAttri
     {
         platformCreationProperties(owner.pointer!!, attributes.titlebarFlags)
     }
+    requireCreationStatus(window.setFrame(attributes.frame), "frame")
+    requireCreationStatus(window.setShadow(attributes.shadow), "shadow")
     requireCreationStatus(window.setSizeConstraints(attributes.constraints), "constraints")
     requireCreationStatus(
         window.setResizeIncrements(attributes.resizeIncrements),

@@ -37,6 +37,8 @@ void sw_free_event(SWEvent *event) {
   for (size_t index = 0; index < event->edit_count; ++index)
     free((void *)event->edits[index].text);
   free(event->edits);
+  if (event->native_input)
+    gdk_event_unref(event->native_input);
   free(event);
 }
 

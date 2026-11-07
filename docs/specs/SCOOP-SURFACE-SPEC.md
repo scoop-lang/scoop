@@ -32,6 +32,10 @@ PathBuilder 的 `moveTo(point)`、`lineTo(point)`、`quadraticTo(control, end)`�
 
 Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独立 PathMeasure，原 Path 关闭后仍可查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
 
+`Path.rasterizeRegion(clip: Rect, scale: Double = 1.0): Array<Rect>` 使用 Skia Region 将填充轮廓转换为二进制矩形集合；clip 必须显式给出，scale 为正有限值。返回矩形仍以原逻辑单位表示，边界落在 1/scale 网格上，覆盖规则是 Skia 的非抗锯齿区域栅格化，不是半透明像素命中。clip 量化为覆盖它的整数网格边界；结果为空是正常结果。负坐标、EvenOdd 孔洞和矩形合并沿 Skia，禁止自行采样路径。native 整数坐标或转换后的浮点路径不可表示时失败。
+
+`graphics.native.CanvasGeometry.rasterizeRegion(scale = 1.0)` 对捕获的最终 transform、全部 path clip 和 viewport 使用同一栅格化；不可逆变换返回空。结果为自有普通值，快照关闭后仍有效。该转换供原生窗框／输入区域的 Accepted 提交使用，graphics 不依赖 window。
+
 Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其他线程调用；作用域结束后使用报状态异常。变换和 clip 的当前几何状态由 graphics 维护，并经低层接入接口提供给 Surface。绘制与区域放置不得分别维护两套可能不一致的变换。
 
 `Canvas.withState<T>(block: (Canvas) -> T): T` 创建同步嵌套借用，继承当前坐标、clip 和组状态，不重复施加 DPI。block 获得独立有效期的子 Canvas；期间只能使用子 Canvas，父 Canvas 的操作及几何捕获报告状态错误。正常返回或抛错均恢复入口状态和保存层级，包括未配对的子级 save／saveLayer；子 Canvas 不能 restore 到入口以下，退出后拒绝操作。已绘制像素不回滚，异常帧是否提交由外层目标决定。

@@ -8,11 +8,7 @@ public enum ActivationPolicy {
 }
 
 /** Native titlebar options; they do not add an application menu or widget hierarchy. */
-public struct TitlebarOptions(
-    val transparent: Boolean = false,
-    val titleHidden: Boolean = false,
-    val fullSizeContent: Boolean = false
-)
+public struct TitlebarOptions(val transparent: Boolean = false, val titleHidden: Boolean = false)
 
 /** Selects AppKit policy before the immutable application configuration is published. */
 public var ApplicationOptionsBuilder.macOSActivationPolicy: ActivationPolicy
@@ -35,16 +31,12 @@ set(value) {
 public fun WindowAttributesBuilder.macOSTitlebar(configure: TitlebarOptionsBuilder.() -> Unit) {
     val builder = TitlebarOptionsBuilder(titlebarFlags)
     builder.configure()
-    titlebarFlags =
-        titlebarBits(
-            TitlebarOptions(builder.transparent, builder.titleHidden, builder.fullSizeContent)
-        )
+    titlebarFlags = titlebarBits(TitlebarOptions(builder.transparent, builder.titleHidden))
 }
 
 public class TitlebarOptionsBuilder internal constructor(flags: Int) {
     public var transparent: Boolean = flags.and(1) != 0
     public var titleHidden: Boolean = flags.and(2) != 0
-    public var fullSizeContent: Boolean = flags.and(4) != 0
 }
 
 /** Updates AppKit titlebar behavior on the owner thread. */
@@ -71,7 +63,7 @@ public fun ActiveApplication.macOSApplicationIdentifier(): String? {
 }
 
 private fun titlebarBits(options: TitlebarOptions): Int =
-    flag(options.transparent) + flag(options.titleHidden) * 2 + flag(options.fullSizeContent) * 4
+    flag(options.transparent) + flag(options.titleHidden) * 2
 
 @CLayout
 private struct NativeBundleIdentifier(val data: Ptr<UInt8>?, val length: Long)

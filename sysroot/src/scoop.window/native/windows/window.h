@@ -6,6 +6,7 @@
 #define UNICODE
 #include <windows.h>
 
+#include "../frame.h"
 #include <dwmapi.h>
 #include <imm.h>
 #include <limits.h>
@@ -53,6 +54,8 @@ typedef struct {
 } SWTextSnapshotData;
 typedef struct SWEvent {
   SWEventData data;
+  bool native_input;
+  POINT input_position;
   SWTextEditData *edits;
   int64_t edit_count, edit_capacity;
   struct SWEvent *next;
@@ -78,7 +81,13 @@ typedef struct SWWindow {
   int64_t identity;
   double scale, min_width, min_height, max_width, max_height;
   double increment_width, increment_height;
-  bool decorations, resizable, close_button, minimize_button, maximize_button;
+  int frame_mode;
+  SWHitRect *hit_rects;
+  size_t hit_count;
+  double frame_width, frame_height, frame_scale;
+  int frame_hover, frame_pressed;
+  bool window_region;
+  bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
   bool destroying, caret_set;
   int theme;
@@ -121,13 +130,20 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT message, WPARAM wparam,
                                 LPARAM lparam);
 SWSnapshot sw_snapshot(SWWindow *window);
 DWORD sw_style(SWWindow *window);
+int64_t sw_restyle(SWWindow *window);
+int64_t sw_frame_margins(SWWindow *window);
+void sw_frame_invalidate(SWWindow *window);
+void sw_frame_geometry(SWWindow *window, SWSnapshot snapshot);
+void sw_adjust_frame_rect(SWWindow *window, RECT *rect, UINT dpi);
+bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
+                      LRESULT *result);
 int64_t sw_size(SWWindow *window, double width, double height);
 void sw_minmax(SWWindow *window, MINMAXINFO *info);
 void sw_sizing(SWWindow *window, WPARAM edge, RECT *rect);
 bool sw_input(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,
               LRESULT *result);
 bool sw_menu_message(SWWindow *window, UINT message, WPARAM wparam,
-                      LPARAM lparam, LRESULT *result);
+                     LPARAM lparam, LRESULT *result);
 bool sw_menu_translate(SWApplication *application, MSG *message);
 void sw_menu_dpi(SWWindow *window, UINT dpi);
 bool sw_text(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,

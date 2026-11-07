@@ -17,7 +17,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 beginExit()
             }
         }
-        val events = ArrayList<ApplicationEvent>()
+        val events = ArrayList<NativeDelivery>()
         @Unsafe
         {
             var count = 0
@@ -25,7 +25,9 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 val pointer = nativeNextEvent(native!!) ?: break
                 try {
                     when (copyNativeEvent(pointer)) {
-                        case Some(event) -> events.add(event)
+                        case Some(event) -> events.add(
+                            NativeDelivery(event, copyNativeInput(pointer))
+                        )
                         case None -> {}
                     }
                 } finally {
@@ -101,7 +103,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
             if (initial)
                 deliver(ApplicationEvent.Resumed)
             for (event in events)
-                dispatchNative(event)
+                dispatchNative(event.event, event.input)
             for (block in business)
                 deliverBusiness(block)
             for (delivery in timed)
@@ -150,46 +152,86 @@ internal fun ApplicationOwner.deliver(event: ApplicationEvent) {
     deliverBusiness { handler!!.onEvent(active, event) }
 }
 
-internal fun ApplicationOwner.deliverWindow(window: WindowOwner, event: WindowEvent) {
+internal fun ApplicationOwner.deliverWindow(
+    window: WindowOwner,
+    event: WindowEvent,
+    input: NativeInputDelivery? = None
+) {
     deliverBusiness {
-        if (window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure) {
-            var ready = true
-            when (event) {
-                case GeometryChanged(value) -> {
-                    window.metrics = Some(value)
-                    window.phase = WindowState.Open
-                    window.notifyActivity()
+        try {
+            if (window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure) {
+                var ready = true
+                when (event) {
+                    case GeometryChanged(value) -> {
+                        window.metrics = Some(value)
+                        window.phase = WindowState.Open
+                        window.notifyActivity()
+                    }
+                    case Focused(_) -> window.notifyActivity()
+                    case Occluded(_) -> window.notifyActivity()
+                    case RedrawRequested -> {
+                        val value = window.snapshot()
+                        ready =
+                            value.visible !=
+                                0 &&
+                                value.occluded ==
+                                0 &&
+                                value.pixelWidth >
+                                0.0 &&
+                                value.pixelHeight >
+                                0.0
+                        if (!ready)
+                            window.dirty = true
+                    }
+                    else -> {}
                 }
-                case Focused(_) -> window.notifyActivity()
-                case Occluded(_) -> window.notifyActivity()
-                case RedrawRequested -> {
-                    val value = window.snapshot()
-                    ready =
-                        value.visible !=
-                            0 &&
-                            value.occluded ==
-                            0 &&
-                            value.pixelWidth >
-                            0.0 &&
-                            value.pixelHeight >
-                            0.0
-                    if (!ready)
-                        window.dirty = true
+                if (ready && window.phase == WindowState.Open) {
+                    window.currentInput = input
+                    handler!!.onEvent(active, ApplicationEvent.Window(window.id, event))
+                    window.currentInput = None
+                    when (window.pendingSystemCancellation) {
+                        case Some(time) -> {
+                            window.pendingSystemCancellation = None
+                            if (window.phase == WindowState.Open && !exiting)
+                                handler!!.onEvent(
+                                    active,
+                                    ApplicationEvent.Window(
+                                        window.id,
+                                        WindowEvent.Pointer(
+                                            PointerEvent.Cancelled(
+                                                PointerCancelReason.SystemOperation,
+                                                time
+                                            )
+                                        )
+                                    )
+                                )
+                        }
+                        case None -> {}
+                    }
                 }
-                else -> {}
             }
-            if (ready && window.phase == WindowState.Open)
-                handler!!.onEvent(active, ApplicationEvent.Window(window.id, event))
+        } finally {
+            window.currentInput = None
+            when (input) {
+                case Some(value) -> value.close();
+                case None -> {}
+            }
         }
     }
 }
 
-internal fun ApplicationOwner.dispatchNative(event: ApplicationEvent) {
+internal fun ApplicationOwner.dispatchNative(event: ApplicationEvent, input: NativeInputDelivery?) {
     when (event) {
         case Menu(activation) -> deliverMenu(activation)
         case Window(identity, notification) -> {
-            val window = findWindow(identity.value) ?: return
-            deliverWindow(window, notification)
+            val window = findWindow(identity.value)
+            when (window) {
+                case Some(value) -> deliverWindow(value, notification, input)
+                case None -> when (input) {
+                    case Some(value) -> value.close();
+                    case None -> {}
+                }
+            }
         }
         case MonitorsChanged -> {
             refreshMonitors();

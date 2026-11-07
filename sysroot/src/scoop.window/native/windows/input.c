@@ -90,6 +90,10 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
     window->pressed[code].text = NULL;
     window->key_down[code] = false;
   }
+  if (down) {
+    event->native_input = true;
+    GetCursorPos(&event->input_position);
+  }
   sw_enqueue(window->application, event);
 }
 
@@ -145,6 +149,11 @@ static void pointer(SWWindow *window, int kind, POINT position, int64_t button,
   event->data.y = position.y / event->data.scale;
   event->data.dx = dx;
   event->data.dy = dy;
+  if (kind == 3) {
+    event->native_input = true;
+    event->input_position = position;
+    ClientToScreen(window->hwnd, &event->input_position);
+  }
   sw_enqueue(window->application, event);
 }
 

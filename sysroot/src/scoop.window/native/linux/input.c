@@ -167,12 +167,20 @@ static int pointer_button(guint button) {
 static void pointer_pressed(GtkGestureClick *gesture, int count, double x,
                             double y, gpointer data) {
   SWWindow *window = data;
+  GdkEvent *event =
+      gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(gesture));
+  if (sw_frame_pointer(window, event, x, y)) {
+    gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    return;
+  }
   gtk_widget_grab_focus(window->view);
   pointer_state(window, GTK_EVENT_CONTROLLER(gesture), x, y);
+  window->current_event = event;
   sw_pointer(window, 3,
              pointer_button(gtk_gesture_single_get_current_button(
                  GTK_GESTURE_SINGLE(gesture))),
              0, 0, 0);
+  window->current_event = NULL;
   gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 }
 static void pointer_released(GtkGestureClick *gesture, int count, double x,
@@ -303,6 +311,9 @@ void sw_focus(SWWindow *window, bool focused) {
 
 void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
                 double dy, int phase) {
+  if (kind == 4 && button >= 0 && button < 32 &&
+      !(window->pressed_buttons & (1u << button)))
+    return;
   SWEvent *event = sw_event(window, 12);
   if (!event)
     return;
@@ -322,6 +333,8 @@ void sw_pointer(SWWindow *window, int kind, int64_t button, double dx,
   if (kind == 1)
     window->pointer_inside = false;
   if (kind == 3) {
+    if (window->current_event)
+      event->native_input = gdk_event_ref(window->current_event);
     double now = sw_now();
     bool repeated = now - window->click_time < 0.5 &&
                     button == window->click_button &&

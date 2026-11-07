@@ -223,8 +223,8 @@ private class LinuxHandler: ApplicationHandler {
         assertFailsWith<IllegalArgumentException> { value.requestSize(LogicalSize(80.0, 60.0)) }
         value.setResizable(false);
         value.setResizable(true)
-        value.setDecorations(false);
-        value.setDecorations(true)
+        value.setFrame(WindowFrame.Client);
+        value.setFrame(WindowFrame.System(WindowContentMode.Standard))
         value.setCursorVisible(false);
         value.setCursorVisible(true)
         value.setTitle("窗口 😀")

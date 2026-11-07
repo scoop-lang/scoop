@@ -90,20 +90,21 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 | 能力 | WindowAttributes | Window 操作 |
 | --- | --- | --- |
-| 原生标题栏／装饰 | decorations | setDecorations |
+| 原生／自绘窗框与内容延伸 | frame | setFrame |
 | 交互式调整大小 | resizable | setResizable |
 | 关闭／最小化／最大化按钮可用性 | buttons | setEnabledButtons |
 | 普通／置顶／置底层级 | level | setWindowLevel |
 | 透明背景 | transparent | setTransparent |
+| 系统阴影 | shadow | setShadow |
 | 显示／隐藏 | visible | setVisible |
 
-decorations 与 resizable 是独立属性。Win32 当前在 decorations=false 时使用 WS_POPUP，在 resizable=true 时仍保留 WS_THICKFRAME，因此关闭标题栏／装饰不承诺同时去掉原生缩放边框。需要去掉该缩放边框时，当前还须设置 resizable=false；原生样式见 [Win32 实现](../../sysroot/src/scoop.window/native/windows/window.c)。
+WindowFrame 与 resizable 是独立属性；Client 去除宿主可见装饰并保留必要系统交互。窗框模式、实际几何、区域、外观和系统操作以[窗框规范](SCOOP-WINDOW-FRAME-SPEC.md)为准。
 
-macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent，通过 WindowAttributesBuilder.macOSTitlebar 配置创建值，或通过 Window.setMacOSTitlebar 更新现有窗口。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
+macOS 的 TitlebarOptions 提供 transparent、titleHidden，通过 WindowAttributesBuilder.macOSTitlebar 配置创建值，或通过 Window.setMacOSTitlebar 更新现有窗口；内容延伸统一使用 WindowFrame.System(WindowContentMode.Extended)。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
 
 窗口层级与模态是不同属性：AlwaysOnTop／AlwaysOnBottom 只改变叠放策略，不禁止其他窗口输入，也不建立窗口归属。
 
-### 4.3 模态与自绘窗框的待补能力
+### 4.3 模态与系统窗框操作
 
 当前公共 API 没有 parent／owner、modality、showModal 或 sheet 入口。第 8～10 节的模态循环接入，以及测试原生层的 runModalForWindow／MessageBox，验证的是系统嵌套循环期间事件与 asyncio 继续推进；它们不提供普通 Scoop 调用方可用的模态窗口合同。
 
@@ -113,7 +114,7 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 - 模态作用范围：区分非模态、仅约束关联窗口的窗口模态，以及约束同一应用其他窗口的应用模态；明确定义哪些窗口在何时停止和恢复交互。
 - 生命周期与焦点：关闭、取消、异常及 owner 提前关闭时完成模态状态释放；焦点只能请求恢复到仍存在且可交互的窗口，继续遵守 OS 激活策略与 callback／lease 关闭顺序。
 
-自绘窗框还需要系统拖移和边缘缩放接入。能力映射中的 beginMove／beginResize／showWindowMenu 均待实施；当前原生装饰的用户拖动不等于已有这些公开方法。后续入口须使用有效输入上下文，协调实际 DPI、原生命中与嵌套循环，不能仅把 decorations=false 当成完整自定义窗框支持。
+自绘窗框的 beginMove／beginResize／showWindowMenu 使用当前真实输入上下文；原生命中、区域失效与能力差异见[窗框规范第 3～4 节](SCOOP-WINDOW-FRAME-SPEC.md#3-自有区域)。
 
 窗口归属、模态输入限制、焦点与系统拖移／缩放由 scoop.window 提供；UI 负责内容、控件及结果交付。不得在组件中通过临时屏蔽几个输入回调或设置置顶来代替窗口模态。实施时分别验证窗口模态／应用模态、其他窗口的交互、关闭及焦点恢复、自绘窗框拖移／缩放，以及真实原生循环中的 asyncio 推进。
 
@@ -231,7 +232,7 @@ composition 的开始、范围更新、提交、取消和 unmark 归一到现有
 
 ### 11.1 鼠标序列取消
 
-新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost 与 CaptureLost；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
+新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost、CaptureLost 与 SystemOperation；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
 
 失焦或原生侧确认捕获／跟踪中断时，先取消仍活动的鼠标序列，再交付相应的后续状态通知。正常最后一个 Up 已结束序列时不重复取消；原生取消和失焦归一只结束一次。PointerEvent.Left 仅表示离开内容区，滚轮 ScrollPhase.Cancelled 仅结束滚轮相位，两者均不替代鼠标序列取消。
 
@@ -280,7 +281,7 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 
 | 结果 | 构造入口与全部配置字段 |
 | --- | --- |
-| WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；decorations: Boolean = true；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false |
+| WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard)；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false；shadow: WindowShadow = WindowShadow.System |
 | ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning |
 
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。

@@ -55,6 +55,12 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
                     TextInputEvent.Edit(copyNativeTextBatch(pointer, event))
                 )
                 15 -> WindowEvent.RedrawRequested
+                17 -> WindowEvent.FrameChanged
+                18 -> WindowEvent.FrameButtonChanged(
+                    systemButtonValue(event.a.toInt()),
+                    event.flags.and(1) != 0,
+                    event.flags.and(2) != 0
+                )
                 16 -> WindowEvent.TextCommand(menuTextCommand(event.a.toInt()))
                 14 -> WindowEvent.TextInput(
                     if (event.flags != 0)
@@ -126,6 +132,7 @@ private fun copyPointerEvent(event: NativeEvent): PointerEvent {
             when (event.a) {
                 0L -> PointerCancelReason.FocusLost
                 1L -> PointerCancelReason.CaptureLost
+                2L -> PointerCancelReason.SystemOperation
                 else -> throw WindowException(
                     "unknown pointer cancellation",
                     WindowErrorKind.NativeFailure

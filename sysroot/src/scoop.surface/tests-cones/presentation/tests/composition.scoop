@@ -41,11 +41,12 @@ private class CompositionProbe {
                     backgroundPainted = true
                 }
                 val foreground =
-                    application.createWindow(attributes("Scoop Surface transparent", true))
+                    application.createWindow(attributes("Scoop Surface transparent", false))
                 front = Some(foreground)
                 foreground.requestFocus()
                 host.attach(foreground) {
                     frame ->
+                    foreground.setTransparent(true)
                     frame.canvas.clear(Color.Transparent)
                     frame.canvas.drawRect(
                         Rect(20.0, 20.0, 60.0, 80.0),
@@ -79,7 +80,7 @@ private class CompositionProbe {
         windowAttributes {
             this.title = title
             this.size = LogicalSize(160.0, 120.0)
-            this.decorations = false
+            this.frame = WindowFrame.Client
             this.resizable = false
             this.transparent = transparent
             this.position = Some(DesktopPosition(200.0, 200.0))

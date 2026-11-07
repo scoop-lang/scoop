@@ -38,12 +38,6 @@ int64_t scoop_window_resizable(SWWindow *window, int32_t value) {
   gtk_widget_queue_resize(window->view);
   return 0;
 }
-int64_t scoop_window_decorations(SWWindow *window, int32_t value) {
-  window->decorations = value != 0;
-  gtk_window_set_decorated(GTK_WINDOW(window->window), window->decorations);
-  gtk_widget_set_visible(window->header, window->decorations);
-  return 0;
-}
 void sw_update_buttons(SWWindow *window) {
   if (window->close_button && window->minimize_button &&
       window->maximize_button) {
@@ -120,11 +114,16 @@ int64_t sw_transparency(SWWindow *window, bool transparent) {
   if (!installed) {
     GtkCssProvider *provider = gtk_css_provider_new();
     gtk_css_provider_load_from_string(
-        provider, ".scoop-window.scoop-transparent, "
-                  ".scoop-window.scoop-transparent contents, "
-                  ".scoop-window.scoop-transparent toolbarview, "
-                  ".scoop-window.scoop-transparent scoopcontent "
-                  "{ background: transparent; }");
+        provider,
+        ".scoop-window.scoop-transparent, "
+        ".scoop-window.scoop-transparent contents, "
+        ".scoop-window.scoop-transparent toolbarview, "
+        ".scoop-window.scoop-transparent scoopcontent "
+        "{ background: transparent; }"
+        ".scoop-window.scoop-client, .scoop-window.scoop-client contents "
+        "{ border-radius: 0; border: 0 solid transparent; padding: 0; "
+        "box-shadow: none; }"
+        ".scoop-window.scoop-no-shadow { box-shadow: none; }");
     gtk_style_context_add_provider_for_display(
         window->application->display, GTK_STYLE_PROVIDER(provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);

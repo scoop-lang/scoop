@@ -39,6 +39,7 @@ static void content_allocate(GtkWidget *widget, int width, int height,
     else
       gtk_widget_allocate(child, width, height, baseline, NULL);
   }
+  sw_frame_layout(window);
 }
 static void content_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
   for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
@@ -87,6 +88,7 @@ void sw_snapshot_update(SWWindow *window) {
 }
 static void changed(GObject *object, GParamSpec *pspec, gpointer data) {
   sw_snapshot_update(data);
+  sw_frame_layout(data);
 }
 static void mapped(GtkWidget *widget, gpointer data) {
   SWWindow *window = data;
@@ -96,6 +98,7 @@ static void mapped(GtkWidget *widget, gpointer data) {
 }
 static void layout(GdkSurface *surface, int width, int height, gpointer data) {
   sw_snapshot_update(data);
+  sw_frame_layout(data);
 }
 static gboolean close_requested(GtkWindow *native, gpointer data) {
   SWWindow *window = data;
@@ -141,7 +144,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->requested_height = height;
   window->max_width = window->max_height = -1;
   window->increment_width = window->increment_height = 1;
-  window->decorations = (flags & 1) != 0;
+  window->frame_mode = (flags & 1) ? 0 : 2;
   window->resizable = (flags & 2) != 0;
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
@@ -158,13 +161,15 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   gtk_window_set_title(GTK_WINDOW(window->window), name);
   free(name);
   gtk_window_set_resizable(GTK_WINDOW(window->window), window->resizable);
-  gtk_window_set_decorated(GTK_WINDOW(window->window), window->decorations);
+  gtk_window_set_decorated(GTK_WINDOW(window->window), window->frame_mode != 2);
   gtk_widget_add_css_class(window->window, "scoop-window");
+  if (window->frame_mode == 2)
+    gtk_widget_add_css_class(window->window, "scoop-client");
   window->toolbar = adw_toolbar_view_new();
   window->header = adw_header_bar_new();
   adw_toolbar_view_add_top_bar(ADW_TOOLBAR_VIEW(window->toolbar),
                                window->header);
-  gtk_widget_set_visible(window->header, window->decorations);
+  gtk_widget_set_visible(window->header, window->frame_mode != 2);
   window->view = GTK_WIDGET(g_object_new(sw_content_get_type(), NULL));
   ((SWContent *)window->view)->owner = window;
   adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(window->toolbar), window->view);
@@ -197,6 +202,11 @@ void scoop_window_destroy(SWWindow *window) {
   if (*link)
     *link = window->next;
   window->destroying = true;
+  if (window->frame_idle)
+    g_source_remove(window->frame_idle);
+  free(window->hit_rects);
+  if (window->input_region)
+    cairo_region_destroy(window->input_region);
   GdkSurface *surface = sw_surface(window);
   if (surface)
     g_signal_handlers_disconnect_by_data(surface, window);
@@ -237,10 +247,10 @@ int64_t sw_request_size(SWWindow *window, double width, double height) {
   window->requested_width = width;
   window->requested_height = height;
   gtk_widget_queue_resize(window->view);
-  int minimum = 0, extra = 0;
-  if (window->decorations)
-    gtk_widget_measure(window->header, GTK_ORIENTATION_VERTICAL,
-                       (int)ceil(width), &minimum, &extra, NULL, NULL);
+  int minimum = 0, natural = 0;
+  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_VERTICAL,
+                     (int)ceil(width), &minimum, &natural, NULL, NULL);
+  int extra = window->frame_mode == 1 ? 0 : MAX(0, natural - (int)ceil(height));
   gtk_window_set_default_size(GTK_WINDOW(window->window), (int)ceil(width),
                               (int)ceil(height) + extra);
   return 0;

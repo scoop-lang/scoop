@@ -5,7 +5,7 @@ public class WindowAttributes internal constructor(
     public val title: String = "Scoop",
     public val size: LogicalSize = LogicalSize(800.0, 600.0),
     public val visible: Boolean = true,
-    public val decorations: Boolean = true,
+    public val frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard),
     public val resizable: Boolean = true,
     public val transparent: Boolean = false,
     public val requestActivation: Boolean = true,
@@ -16,7 +16,8 @@ public class WindowAttributes internal constructor(
     public val level: WindowLevel = WindowLevel.Normal,
     public val theme: Theme? = None,
     public val blur: Boolean = false,
-    public val contentProtected: Boolean = false
+    public val contentProtected: Boolean = false,
+    public val shadow: WindowShadow = WindowShadow.System
     ,
     internal val titlebarFlags: Int = 0
 )
@@ -171,6 +172,9 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
     var dirty: Boolean = false
     var closingDelivered: Boolean = false
     var leases: Long = 0L
+    var currentInput: NativeInputDelivery? = None
+    var systemOperationPending: Boolean = false
+    var pendingSystemCancellation: InputTime? = None
     fun requireOpen() {
         application.checkThread()
         if (phase != WindowState.Open && phase != WindowState.PendingConfigure)
@@ -187,6 +191,10 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         if (phase == WindowState.Closing || phase == WindowState.Destroyed)
             return
         phase = WindowState.Closing
+        @Unsafe
+        {
+            nativeWindowFrameRetire(pointer!!)
+        }
         dirty = false
         for (observer in activityObservers.toArray())
             observer.close()

@@ -1,6 +1,7 @@
 #ifndef SCOOP_WINDOW_DARWIN_H
 #define SCOOP_WINDOW_DARWIN_H
 
+#include "../frame.h"
 #import <AppKit/AppKit.h>
 #import <CoreFoundation/CoreFoundation.h>
 #include <stdint.h>
@@ -50,6 +51,7 @@ typedef struct {
 
 @interface SWEvent : NSObject
 @property(nonatomic) SWEventData data;
+@property(nonatomic, strong) NSEvent *nativeInput;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
 @property(nonatomic, strong) NSArray<NSNumber *> *commands;
@@ -138,6 +140,8 @@ void sw_invalidate_text_caret(SWView *view);
 @property(nonatomic, strong) SWView *view;
 @property(nonatomic, strong) NSVisualEffectView *effect;
 @property(nonatomic) BOOL transparent;
+@property(nonatomic, strong) NSData *hitRegions;
+@property(nonatomic) double frameWidth, frameHeight, frameScale;
 @property(nonatomic) NSInteger attentionRequest;
 - (void)emit:(int32_t)kind;
 @end
@@ -148,5 +152,8 @@ SWEvent *sw_event(SWWindow *window, int32_t kind);
 void sw_stamp_input(SWEventData *data);
 SWSnapshot sw_snapshot(SWWindow *window);
 double sw_desktop_top(void);
+void sw_frame_invalidate(SWWindow *owner);
+void sw_frame_geometry(SWWindow *owner);
+BOOL sw_frame_pointer(SWView *view, NSEvent *event);
 
 #endif

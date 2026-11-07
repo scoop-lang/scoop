@@ -155,6 +155,7 @@ public class SurfaceWindow internal constructor(
                     render()
                 }
                 case GeometryChanged(_) -> refresh()
+                case FrameChanged -> requestFrame()
                 case Occluded(_) -> {
                     scheduler.request();
                     refresh()

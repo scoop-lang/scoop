@@ -72,6 +72,9 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 - (BOOL)isFlipped {
   return YES;
 }
+- (BOOL)mouseDownCanMoveWindow {
+  return NO;
+}
 - (BOOL)acceptsFirstResponder {
   return YES;
 }
@@ -83,6 +86,8 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 
 @implementation SWWindow
 - (void)emit:(int32_t)kind {
+  if (kind == 2)
+    sw_frame_geometry(self);
   SWEvent *event = sw_event(self, kind);
   SWEventData data = event.data;
   SWSnapshot value = sw_snapshot(self);

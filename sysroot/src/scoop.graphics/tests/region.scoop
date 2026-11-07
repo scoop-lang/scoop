@@ -1,0 +1,87 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.test.*
+
+@Test
+private class RegionRasterTests {
+    @Test
+    fun `binary regions retain holes negative coordinates and an explicit clip`() {
+        val rectangles =
+            path(FillRule.EvenOdd) {
+                addRect(Rect(-4.0, -2.0, 12.0, 12.0))
+                addRect(Rect(0.0, 2.0, 4.0, 4.0))
+            }.use { shape -> shape.rasterizeRegion(Rect(-2.0, -1.0, 8.0, 10.0), 2.0) }
+        assertTrue(contains(rectangles, Point(-1.75, -0.75)))
+        assertTrue(contains(rectangles, Point(5.75, 8.75)))
+        assertFalse(contains(rectangles, Point(2.0, 4.0)))
+        assertFalse(contains(rectangles, Point(-2.25, 1.0)))
+        assertEquals(64.0, area(rectangles))
+    }
+
+    @Test
+    fun `captured regions use final transform clips and viewport after resources close`() {
+        val rectangles =
+            RasterSurface(64, 48).use {
+                surface ->
+                val geometry =
+                    surface.draw {
+                        canvas ->
+                        canvas.translate(8.0, 16.0)
+                        canvas.scale(2.0, 2.0)
+                        canvas.clipRect(Rect(0.0, 0.0, 20.0, 20.0))
+                        @Unsafe
+                        {
+                            return@draw captureGeometry(canvas, Rect(0.0, 0.0, 40.0, 40.0))
+                        }
+                    }
+                geometry.use { value -> value.rasterizeRegion(2.0) }
+            }
+        assertEquals(1L, rectangles.size)
+        assertEquals(Rect(8.0, 16.0, 40.0, 32.0), rectangles[0L])
+    }
+
+    @Test
+    fun `curves rasterize through Skia while empty and invalid requests stay distinct`() {
+        path { addOval(Rect(0.0, 0.0, 20.0, 20.0)) }.use {
+            shape ->
+            val rectangles = shape.rasterizeRegion(Rect(0.0, 0.0, 20.0, 20.0))
+            assertTrue(rectangles.size > 1L)
+            assertTrue(contains(rectangles, Point(10.0, 10.0)))
+            assertFalse(contains(rectangles, Point(0.0, 0.0)))
+            assertTrue(area(rectangles) > 280.0 && area(rectangles) < 340.0)
+            assertEquals(0L, shape.rasterizeRegion(Rect(30.0, 30.0, 10.0, 10.0)).size)
+            assertFailsWith<IllegalArgumentException> {
+                shape.rasterizeRegion(Rect(0.0, 0.0, 10.0, 10.0), 0.0)
+            }
+            assertFailsWith<GraphicsException> {
+                shape.rasterizeRegion(Rect(0.0, 0.0, 10.0, 10.0), 10000000000.0)
+            }
+        }
+        RasterSurface(10, 10).use {
+            surface -> surface.draw {
+                canvas ->
+                canvas.scale(0.0, 1.0)
+                @Unsafe
+                {
+                    captureGeometry(canvas, Rect(0.0, 0.0, 10.0, 10.0)).use {
+                        geometry -> assertEquals(0L, geometry.rasterizeRegion().size)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun contains(rects: Array<Rect>, point: Point): Boolean {
+        for (rect in rects)
+            if (rect.contains(point))
+                return true
+        return false
+    }
+    private fun area(rects: Array<Rect>): Double {
+        var total = 0.0
+        for (rect in rects)
+            total += rect.width * rect.height
+        return total
+    }
+}

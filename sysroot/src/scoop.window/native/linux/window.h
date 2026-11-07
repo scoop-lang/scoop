@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wunused-value"
 #include <adwaita.h>
 #pragma clang diagnostic pop
+#include "../frame.h"
 #include <xkbcommon/xkbcommon.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
@@ -72,6 +73,7 @@ typedef struct {
 } SWTextSnapshotData;
 typedef struct SWEvent {
   SWEventData data;
+  GdkEvent *native_input;
   SWTextEditData *edits;
   size_t edit_count;
   struct SWEvent *next;
@@ -102,10 +104,18 @@ struct SWWindow {
   GtkWidget *window, *view, *toolbar, *header;
   SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
+  GdkEvent *current_event;
   bool destroying;
   int64_t identity;
   SWSnapshot snapshot;
-  bool configured, requested_visible, decorations, resizable, transparent;
+  bool configured, requested_visible, resizable, transparent;
+  int frame_mode;
+  guint frame_idle;
+  bool ignore_mouse;
+  SWHitRect *hit_rects;
+  size_t hit_count;
+  cairo_region_t *input_region;
+  double frame_width, frame_height, frame_scale, frame_x, frame_y;
   bool close_button, minimize_button, maximize_button, cursor_visible;
   bool pointer_inside, ime_allowed, preedit_active, caret_known;
   int cursor_icon;
@@ -165,6 +175,9 @@ void sw_ime_caret(SWWindow *window);
 void sw_ime_document(SWWindow *window);
 GtkIMContext *sw_ime_context(SWWindow *window);
 void sw_snapshot_update(SWWindow *window);
+void sw_frame_invalidate(SWWindow *window);
+void sw_frame_layout(SWWindow *window);
+bool sw_frame_pointer(SWWindow *window, GdkEvent *event, double x, double y);
 void sw_desktop_bounds(SWWindow *window);
 void sw_update_buttons(SWWindow *window);
 int64_t sw_request_size(SWWindow *window, double width, double height);
