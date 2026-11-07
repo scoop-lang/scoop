@@ -1,0 +1,12 @@
+package scoop.tests.ui.desktop
+
+import scoop.test.*
+
+@Test
+private class UiDesktopTests {
+    @Test
+    @Ignore("Requires a Windows desktop and GPU; run separately with --ignored")
+    fun `native resources and window regions follow UI ownership and accepted frames`() {
+        runDesktopProbe()
+    }
+}

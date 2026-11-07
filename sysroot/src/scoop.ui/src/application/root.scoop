@@ -1,0 +1,185 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.window.ActiveApplication
+
+public class UiApplication internal constructor(private val root: UiApplicationRoot): Closeable {
+    public val isClosed: Boolean get() {
+        root.host.checkThread();
+        return root.closed
+    }
+    public override fun close() {
+        root.close()
+    }
+}
+
+internal class UiApplicationRoot(
+    val host: UiHost,
+    val application: ActiveApplication
+): UiUpdateRoot, StateInvalidationTarget {
+    val scope = ApplicationScope(this)
+    private var component: ApplicationComponent? = None
+    private var mounted = false
+    private var entries: Array<MountedApplicationEntry> = []
+    private val dependencies = HashMap<StateSignalId, StateSubscription>()
+    private var depth = 0
+    private var failure: Throwable? = None
+    override var isOpen = true
+    var closed = false
+    override var pendingEnqueued = false
+
+    fun <C: ApplicationComponent> mount(create: (ApplicationScope) -> C) {
+        val value = create(scope)
+        value.claim(scope)
+        component = Some(value)
+        rebuild()
+        if (!isOpen)
+            return
+        value.onMount()
+        mounted = true
+        for (entry in entries)
+            entry.mount()
+    }
+    override fun stateChanged(invalidation: UiInvalidation) {
+        if (isOpen)
+            host.enqueue(this)
+    }
+    override fun dispatchUpdate() {
+        dispatch { rebuild() }
+    }
+    private fun rebuild() {
+        if (!isOpen)
+            return
+        val collector = DependencyCollector()
+        val next = evaluateUi(Some(collector)) { component!!.render() }
+        if (!isOpen)
+            return
+        replaceStateDependencies(this, dependencies, collector)
+        reconcile(next.items)
+    }
+    private fun reconcile(descriptions: Array<ApplicationItem>) {
+        val previous = entries
+        val plan =
+            matchSiblings(
+                previous,
+                descriptions,
+                { it.item.key },
+                { it.key },
+                { entry, next -> entry.active && entry.item.description.sameType(next.description) }
+            )
+        for (index in 0L ..< previous.size)
+            if (!plan.used[index])
+                previous[index].deactivate()
+        var failure: Throwable? = None
+        for (index in 0L ..< previous.size)
+            if (!plan.used[index])
+                failure = cleanupUi(failure) { previous[index].unmount() }
+        throwUi(failure)
+        if (!isOpen)
+            return
+        val next = ArrayList<MountedApplicationEntry>()
+        val created = ArrayList<MountedApplicationEntry>()
+        try {
+            for (index in 0L ..< descriptions.size) {
+                if (!isOpen)
+                    break
+                val entry =
+                    when (plan.positions[index]) {
+                        case Some(position) -> previous[position]
+                        case None -> {
+                            val entry = MountedApplicationEntry(this, descriptions[index])
+                            created.add(entry)
+                            entry
+                        }
+                    }
+                next.add(entry)
+            }
+        } catch (error: Throwable) {
+            var cleanup: Throwable? = Some(error)
+            for (entry in created)
+                cleanup = cleanupUi(cleanup) { entry.unmount() }
+            throw cleanup!!
+        }
+        if (!isOpen) {
+            val remaining = ArrayList<MountedApplicationEntry>()
+            for (entry in previous)
+                remaining.add(entry)
+            for (entry in created)
+                remaining.add(entry)
+            entries = remaining.toArray()
+            return
+        }
+        entries = next.toArray()
+        for (index in 0L ..< entries.size) {
+            if (!isOpen)
+                break
+            entries[index].replace(descriptions[index])
+            if (mounted)
+                entries[index].mount()
+        }
+    }
+    fun dispatch(action: () -> Unit): Boolean {
+        host.checkThread()
+        if (!isOpen)
+            return false
+        depth += 1
+        try {
+            action()
+        } catch (error: Throwable) {
+            failure = cleanupUi(failure) { throw error }
+        }
+        when (failure) {
+            case Some(_) -> stop();
+            case None -> {}
+        }
+        depth -= 1
+        if (!isOpen && depth == 0)
+            finishRetirement()
+        return isOpen
+    }
+    private fun stop() {
+        if (!isOpen)
+            return
+        isOpen = false
+        scope.deactivate()
+        for (subscription in dependencies.values)
+            subscription.close()
+        dependencies.clear()
+        for (entry in entries)
+            entry.deactivate()
+    }
+    fun close() {
+        host.checkThread()
+        if (closed)
+            return
+        stop()
+        if (depth == 0)
+            finishRetirement()
+    }
+    private fun finishRetirement() {
+        failure = cleanupUi(failure) { retire() }
+        val reported = failure
+        failure = None
+        when (reported) {
+            case Some(error) -> host.reportApplicationError(error)
+            case None -> {}
+        }
+    }
+    private fun retire() {
+        if (closed)
+            return
+        closed = true
+        var failure: Throwable? = None
+        for (entry in entries)
+            failure = cleanupUi(failure) { entry.unmount() }
+        entries = []
+        failure = cleanupUi(failure) { throwUi(scope.retireManaged()) }
+        val value = component
+        component = None
+        if (mounted)
+            failure = cleanupUi(failure) { value!!.onUnmount() }
+        failure = cleanupUi(failure) { throwUi(scope.release()) }
+        host.detachedApplication(this)
+        throwUi(failure)
+    }
+}

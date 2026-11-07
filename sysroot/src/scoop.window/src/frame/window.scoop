@@ -1,5 +1,14 @@
 package scoop.window
 
+/** Changes before queued frame notifications when native region coordinates become stale. */
+public val Window.frameRevision: ULong get() {
+    owner.requireOpen()
+    @Unsafe
+    {
+        return nativeWindowFrameRevision(owner.pointer!!)
+    }
+}
+
 public val Window.frameMetrics: WindowFrameMetrics? get() {
     owner.requireOpen()
     @Unsafe

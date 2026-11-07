@@ -1,0 +1,81 @@
+package scoop.ui
+
+/** A persistent application root without layout, fonts, or a native window. */
+public abstract class ApplicationComponent protected constructor(
+    public val scope: ApplicationScope
+) {
+    private val ownership = InstanceOwnership(scope)
+    internal fun claim(scope: ApplicationScope) {
+        ownership.claim(scope)
+    }
+    public abstract fun render(): ApplicationContent
+    public open fun onMount() {}
+    public open fun onUnmount() {}
+}
+
+/** Native application attachments use the ordinary mount and Props lifetime. */
+public abstract class ApplicationElement protected constructor(public val scope: ApplicationScope) {
+    private val ownership = InstanceOwnership(scope)
+    internal fun claim(scope: ApplicationScope) {
+        ownership.claim(scope)
+    }
+    public open fun onMount() {}
+    public open fun update() {}
+    public open fun onUnmount() {}
+}
+
+public class ApplicationContent public constructor(public val items: Array<ApplicationItem>)
+
+public class ApplicationItem internal constructor(
+    internal val key: ViewKey,
+    internal val description: ApplicationElementDescription
+)
+
+public fun <E: ApplicationElement> applicationElement(
+    create: (ApplicationScope) -> E,
+    key: ViewKey,
+    comparison: InputComparison<Unit>? = None
+): ApplicationItem = applicationElement(Unit, { _, scope -> create(scope) }, key, comparison)
+
+public fun <P, E: ApplicationElement> applicationElement(
+    props: P,
+    create: (Props<P>, ApplicationScope) -> E,
+    key: ViewKey,
+    comparison: InputComparison<P>? = None
+): ApplicationItem = ApplicationItem(key, TypedApplicationDescription(props, create, comparison))
+
+internal interface ApplicationElementDescription {
+    fun sameType(other: ApplicationElementDescription): Boolean
+    fun create(scope: ApplicationScope): ApplicationElementInstance
+}
+
+internal interface ApplicationElementInstance {
+    val value: ApplicationElement
+    fun replace(description: ApplicationElementDescription): Boolean
+}
+
+private class TypedApplicationDescription<P, E: ApplicationElement>(
+    val input: P,
+    private val factory: (Props<P>, ApplicationScope) -> E,
+    val comparison: InputComparison<P>?
+): ApplicationElementDescription {
+    override fun sameType(other: ApplicationElementDescription): Boolean =
+        other is TypedApplicationDescription<P, E>
+    override fun create(scope: ApplicationScope): ApplicationElementInstance {
+        val props = Props(input, comparison)
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedApplicationInstance<P, E>(props, instance)
+    }
+}
+
+private class TypedApplicationInstance<P, E: ApplicationElement>(
+    private val props: Props<P>,
+    private val instance: E
+): ApplicationElementInstance {
+    override val value: ApplicationElement get() = instance
+    override fun replace(description: ApplicationElementDescription): Boolean {
+        val next = description as TypedApplicationDescription<P, E>
+        return props.replace(next.input, next.comparison)
+    }
+}

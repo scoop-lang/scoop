@@ -1,0 +1,62 @@
+package scoop.ui
+
+import scoop.window.*
+
+public class ApplicationScope internal constructor(private val root: UiApplicationRoot) {
+    private var active = true
+    private val resources = ScopeResources()
+    private val events =
+        ScopedNativeEvents(root.host, resources, { checkMounted() }, { action -> dispatch(action) })
+
+    public val application: ActiveApplication get() {
+        checkMounted();
+        return root.application
+    }
+    public val uiHost: UiHost get() {
+        checkMounted();
+        return root.host
+    }
+    public val isMounted: Boolean get() {
+        root.host.checkThread();
+        return active && root.isOpen
+    }
+    private fun checkMounted() {
+        if (!isMounted)
+            throw IllegalStateException(Some("application scope is no longer mounted"))
+    }
+    public fun <R: Closeable> resource(create: () -> R): R {
+        checkMounted()
+        val value = create()
+        resources.cleanup.add { value.close() }
+        return value
+    }
+    public fun onDispose(action: () -> Unit) {
+        checkMounted()
+        resources.cleanup.add(action)
+    }
+    public fun dispatch(action: () -> Unit): Boolean {
+        if (!isMounted)
+            return false
+        return root.dispatch {
+            if (isMounted)
+                action()
+        } &&
+            isMounted
+    }
+    public fun observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
+        events.menu(menu, action)
+    public fun observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
+        events.popup(session, action)
+    public fun observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
+        events.modal(session, action)
+    public fun <T> observeFileDialog(
+        session: FileDialogSession<T>,
+        action: (FileDialogResult<T>) -> Unit
+    ): Closeable = events.file(session, action)
+
+    internal fun deactivate() {
+        active = false
+    }
+    internal fun retireManaged(): Throwable? = resources.retireManaged()
+    internal fun release(): Throwable? = resources.release()
+}

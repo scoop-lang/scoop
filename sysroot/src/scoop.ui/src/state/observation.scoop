@@ -10,11 +10,16 @@ internal struct StateSignalId(val value: Long): Equals<StateSignalId>, Hash {
     public override fun hash(): Long = value.hash()
 }
 
+/** The same signal invalidates a window node or an application root. */
+internal interface StateInvalidationTarget {
+    fun stateChanged(invalidation: UiInvalidation)
+}
+
 internal class StateSignal {
     val id = StateSignalId(stateSequence.fetchAdd(1L, MemoryOrder.Relaxed))
     private val observers = ArrayList<StateSubscription>()
 
-    fun subscribe(node: MountedNode): StateSubscription {
+    fun subscribe(node: StateInvalidationTarget): StateSubscription {
         val subscription = StateSubscription(Some(this), Some(node), observers.size)
         observers.add(subscription)
         return subscription
@@ -33,8 +38,7 @@ internal class StateSignal {
         for (observer in observers.toArray()) {
             when (observer.node) {
                 case Some(node) -> {
-                    node.request(invalidation)
-                    node.invalidate()
+                    node.stateChanged(invalidation)
                 }
                 case None -> {}
             }
@@ -45,7 +49,7 @@ internal class StateSignal {
 /** Closing a binding removes it without searching its source's other observers. */
 internal class StateSubscription(
     private var source: StateSignal?,
-    var node: MountedNode?,
+    var node: StateInvalidationTarget?,
     var index: Long
 ): Closeable {
     public override fun close() {
@@ -62,6 +66,26 @@ internal class DependencyCollector {
     fun read(source: StateSignal) {
         sources[source.id] = source
     }
+}
+
+internal fun replaceStateDependencies(
+    target: StateInvalidationTarget,
+    dependencies: HashMap<StateSignalId, StateSubscription>,
+    collector: DependencyCollector
+) {
+    val next = collector.sources
+    val removed = ArrayList<StateSignalId>()
+    for (entry in dependencies) {
+        if (!next.containsKey(entry.key)) {
+            entry.value.close()
+            removed.add(entry.key)
+        }
+    }
+    for (id in removed)
+        dependencies.remove(id)
+    for (entry in next)
+        if (!dependencies.containsKey(entry.key))
+            dependencies[entry.key] = entry.value.subscribe(target)
 }
 
 internal class UiEvaluation(

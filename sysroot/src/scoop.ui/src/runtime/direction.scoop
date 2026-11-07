@@ -70,20 +70,7 @@ internal fun MountedNode.rebuildComponent(
 }
 
 internal fun MountedNode.replaceDependencies(collector: DependencyCollector) {
-    val next = collector.sources
-    val removed = ArrayList<StateSignalId>()
-    for (entry in dependencies) {
-        if (!next.containsKey(entry.key)) {
-            entry.value.close()
-            removed.add(entry.key)
-        }
-    }
-    for (id in removed)
-        dependencies.remove(id)
-    for (entry in next) {
-        if (!dependencies.containsKey(entry.key))
-            dependencies[entry.key] = entry.value.subscribe(this)
-    }
+    replaceStateDependencies(this, dependencies, collector)
 }
 
 /** Only root-default font reads are observed here; update retains its ordinary mutation rules. */

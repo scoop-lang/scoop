@@ -86,6 +86,7 @@ typedef struct SWWindow {
   SWHitRect *hit_rects;
   size_t hit_count;
   double frame_width, frame_height, frame_scale;
+  uint64_t frame_revision;
   int frame_hover, frame_pressed;
   bool window_region;
   bool resizable, close_button, minimize_button, maximize_button;

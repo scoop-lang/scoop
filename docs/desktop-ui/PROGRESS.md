@@ -21,7 +21,7 @@
 | D4 | Frame／Region、原生外观与系统操作 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、非 GUI 测试通过，桌面交互限制见下 |
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、纯值测试通过 |
 | D6 | 原生文件／目录对话框 | 已实施；macOS、Linux 本地选择器及真实 portal 验证完成，Windows 三目标构建和路径 ABI 测试通过 |
-| D7 | UI 应用根、资源事件、Surface 发布边界 | 待实施 |
+| D7 | UI 应用根、资源事件、Surface 发布边界 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
 | D8 | 通用组件及独立托盘组件 | 待实施 |
 | D9 | 综合 desktop demo | 待实施 |
 | 发行 | macOS、Linux、Windows 安装包及脚本修复 | 待实施 |
@@ -67,3 +67,10 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - macOS aarch64：格式化、原生严格检查和 Window／window.asyncio 构建通过；文件对话框 2 passed，模态复验 3 passed，原生路径 ABI 1 passed。覆盖真实 NSOpenPanel／NSSavePanel 的 Owner sheet、Application 模态、两独立 owner、嵌套取消、无窗口应用，以及实际 TCP／定时器。当前 loginwindow 下自动组合验证展示与取消，不将其记作前台选择、编辑或覆盖确认验收。
 - Linux GNU：原生严格检查、Window／window.asyncio 构建和路径 ABI 1 passed；X11 与带 seat 的嵌套 Wayland 各文件对话框 2 passed、模态复验 3 passed。本地 GtkFileChooser 通过公共选择 API 接受真实单选／多选模式／保存／目录结果，保存后目标文件仍不存在。两后端另各真实 portal 1 passed，观察系统 FileChooser 请求、返回的 request handle 与 Close，覆盖四种入口、面板存活时的 TCP 和无窗口 Application。portal 观察器不替换服务或生成选择结果；跨进程面板实际选择和具体桌面 Shell 呈现留待交互验收。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的 Window／window.asyncio 与完整文件对话框、模态程序均编译通过；每目标文件对话框 1 passed、1 ignored，模态 2 passed、1 ignored，原生路径 ABI 1 passed。ABI 测试从 C 返回含非配对 surrogate 的真实 UTF-16 路径，经公共对话框转换后再核对原始字节与字节长度。SSH 不运行 GUI，桌面执行方式见[文件对话框测试说明](../../sysroot/src/scoop.window/tests-cones/dialogs/README.md)。
+
+2026-11-07，D7：已加入 [UI 桌面规范](../specs/SCOOP-UI-DESKTOP-SPEC.md)与 [Surface 区域规范](../specs/SCOOP-SURFACE-FRAME-SPEC.md)。ApplicationComponent／ApplicationElement 在没有业务 Window、Surface 或字体的情况下复用现有 State、Props、key 协调与逻辑更新队列；菜单、popup、模态和文件 session 按实际身份登记事件并沿所属 scope 处理错误。Surface 在 Accepted 后发布窗口形状、输入覆盖及命中区域，保留 clip／变换／比例；隐藏的失败帧、输入边界和卸载撤销均已覆盖。Window.frameRevision 同步标记原生几何失效，防止 paint 内改变窗框时，在异步通知到达前重新发布旧候选。
+
+- macOS aarch64：Scoop 格式化、原生严格检查及相关库构建通过；无窗口应用根 1 passed，桌面区域组合 1 passed，既有 UiCompositionTest 1 passed、InputComparisonTest 3 passed、独立描述复用 1 passed。实际查询 AppKit 命中区域和 CAMetalLayer opaque；帧提交、空区域／默认恢复、应用与窗口错误隔离，以及最后窗口关闭后的应用更新均通过。当前 loginwindow 条件下仍不宣称前台输入与视觉呈现验收通过。
+- Linux GNU：原生严格检查及相关库构建通过；X11 与带 seat 的嵌套 Wayland 各应用根 1 passed、桌面区域组合 1 passed、描述复用 1 passed。X11 查询真实 ShapeInput；Wayland 不伪造其无法查询的系统命中区域。尺寸请求使用高于 GTK 最小窗口宽度的值，继续按实际 metrics 和 Accepted 验证。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成相关库、应用根和完整桌面区域程序的编译；每目标 InputComparisonTest 3 passed，桌面 GUI 组合 1 ignored。应用根程序也需要原生 Application，在 SSH 中只编译。桌面执行说明见[应用根](../../sysroot/src/scoop.ui/tests-cones/application/README.md)与[桌面组合](../../sysroot/src/scoop.ui/tests-cones/desktop/README.md)，未执行的 GUI 交互不记作通过。
+- 跨 Cone 描述复用暴露了 HIR 具体化遗漏导入虚方法签名类型的问题。修复限定于实际分派条目的参数、receiver 与返回类型保留，不改变语言／runtime ABI；新增独立的控制台编译运行 fixture。本地相关 Rust 组 93 passed、5 failed；对照提交 08223b1e 的原实现为 92 passed、相同 5 failed，均为原有测试依赖的 MissingCoreFunction，新回归由失败变为通过。正式 CLI fixture 在 macOS、Linux 及 Windows 三目标均为 1 passed；Rust 格式化与对应 crate 的 clippy 通过。

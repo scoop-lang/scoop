@@ -1,0 +1,15 @@
+package dev.dispatch.signature
+
+public class Input public constructor(public val value: Int)
+
+public class Output public constructor(public val value: Int)
+
+public abstract class Source {
+    public abstract fun transform(input: Input): Output
+}
+
+public class Host public constructor(private val source: Source?) {
+    public val value: Int get() = 42
+}
+
+public fun createHost(): Host = Host(None)

@@ -1,0 +1,62 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "ui-desktop"
+version = "0.1.0"
+kind = "library"
+
+[[test.sources]]
+path = "tests"
+[[test.sources]]
+path = "test-desktop"
+when = { os = "darwin" }
+[[test.sources]]
+path = "test-desktop"
+when = { os = "linux", env = "gnu" }
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }
+[[test.sources]]
+path = "platform/darwin"
+when = { os = "darwin" }
+[[test.sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+[[test.sources]]
+path = "platform/windows"
+when = { os = "windows" }
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"scoop:scoop.ui" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"
+"scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.surface" = "0.1.0"
+"scoop:scoop.window.asyncio" = "0.1.0"
+"scoop:scoop.asyncio" = "0.1.0"
+
+[native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
+c_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/darwin.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux.c"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "QuartzCore"
+kind = "framework"
+when = { os = "darwin" }
+[[native.libraries]]
+name = "Xext"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

@@ -36,6 +36,7 @@ static void button_state(SWWindow *window, int hover, int pressed) {
 }
 
 void sw_frame_invalidate(SWWindow *window) {
+  window->frame_revision += 1;
   free(window->hit_rects);
   window->hit_rects = NULL;
   window->hit_count = 0;
@@ -45,6 +46,10 @@ void sw_frame_invalidate(SWWindow *window) {
     SetWindowRgn(window->hwnd, NULL, TRUE);
   }
   sw_emit(window, 17);
+}
+
+uint64_t scoop_window_frame_revision(SWWindow *window) {
+  return window->frame_revision;
 }
 
 void sw_frame_geometry(SWWindow *window, SWSnapshot snapshot) {

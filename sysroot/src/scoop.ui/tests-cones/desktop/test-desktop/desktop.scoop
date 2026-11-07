@@ -1,0 +1,11 @@
+package scoop.tests.ui.desktop
+
+import scoop.test.*
+
+@Test
+private class UiDesktopTests {
+    @Test
+    fun `native resources and window regions follow UI ownership and accepted frames`() {
+        runDesktopProbe()
+    }
+}

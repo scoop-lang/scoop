@@ -1,0 +1,143 @@
+package scoop.tests.ui.desktop
+
+import scoop.ui.*
+import scoop.surface.*
+import scoop.graphics.*
+import scoop.window.*
+import scoop.test.*
+
+internal class DesktopApplication(
+    private val probe: DesktopProbe,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    public override fun render(): ApplicationContent {
+        probe.applicationRenders += 1
+        probe.applicationObserved = probe.shared.value
+        if (probe.failApplication.value)
+            throw probe.applicationFailure
+        return ApplicationContent([])
+    }
+}
+
+internal class DesktopRoot(private val probe: DesktopProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val comparison = InputComparison<Int> { a, b -> a == b }
+    init {
+        probe.windowScope = Some(scope)
+    }
+    public override fun render(): View {
+        probe.windowObserved = probe.shared.value
+        return element(
+            probe.stage.value,
+            { props, mount -> RegionContent(probe, props, mount) },
+            comparison = Some(comparison)
+        )
+    }
+}
+
+internal class RegionContent(
+    private val probe: DesktopProbe,
+    private val stage: Props<Int>,
+    scope: ComponentScope
+): Element<Int>(scope) {
+    val hit = scope.createWindowRegion(WindowRegionKind.Hit(WindowHitRole.Caption))
+    val boundaryArea = scope.createArea()
+    private val caps = scope.application.desktopCapabilities().frame
+    private val shape =
+        if (caps.windowRegion)
+            Some(scope.createWindowRegion(WindowRegionKind.Shape))
+        else
+            None
+    private val inputRegion =
+        if (caps.inputRegion)
+            Some(scope.createWindowRegion(WindowRegionKind.Input))
+        else
+            None
+    private val outline =
+        scope.resource {
+            path {
+                moveTo(Point(0.0, 0.0));
+                lineTo(Point(220.0, 0.0));
+                lineTo(Point(220.0, 110.0))
+                lineTo(Point(110.0, 110.0));
+                lineTo(Point(110.0, 160.0));
+                lineTo(Point(0.0, 160.0))
+                closeContour()
+            }
+        }
+    init {
+        probe.region = Some(this)
+    }
+    public override fun onMount() {
+        scope.observeFrameMetrics {
+            value ->
+            probe.frameNotifications += 1;
+            probe.frame = value
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Int
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 180.0))), stage.value)
+    public override fun scene(context: SceneContext, layout: Int) {
+        context.draw { paint -> paint.canvas.drawPath(outline, Paint(Color.White)) }
+        if (layout != 3) {
+            when (shape) {
+                case Some(value) -> if (layout == 2)
+                    context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
+                else
+                    context.place(value, outline)
+                case None -> {}
+            }
+            when (inputRegion) {
+                case Some(value) -> if (layout == 2)
+                    context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
+                else
+                    context.place(value, outline)
+                case None -> {}
+            }
+        }
+        if (layout == 2)
+            context.place(hit, Rect(0.0, 0.0, 0.0, 0.0))
+        else
+            if (layout != 3)
+                context.withState {
+                    child ->
+                    child.translate(
+                        if (layout == 0)
+                            20.0
+                        else
+                            150.0,
+                        10.0
+                    )
+                    child.clipRect(Rect(0.0, 0.0, 70.0, 40.0))
+                    child.place(hit, Rect(20.0, 20.0, 80.0, 35.0))
+                }
+        if (probe.discardNext) {
+            probe.discardNext = false
+            scope.nativeWindow.setVisible(false)
+        }
+        val changedFrame = probe.changeFrameNext
+        if (changedFrame) {
+            probe.changeFrameNext = false
+            val revision = scope.nativeWindow.frameRevision
+            scope.nativeWindow.setFrame(WindowFrame.System(WindowContentMode.Standard))
+            scope.nativeWindow.setFrame(WindowFrame.Client)
+            assertTrue(revision != scope.nativeWindow.frameRevision)
+        }
+        context.onFrameComplete {
+            result ->
+            if (changedFrame) {
+                val hit = nativeRegionQuery(scope.nativeWindow, 0, 180.0, 40.0)
+                if (hit >= 0)
+                    assertEquals(0, hit)
+                probe.changedFrameObserved = true
+            }
+            if (result.submission == FrameSubmission.Accepted) {
+                probe.accepted += 1
+                probe.acceptedStage = layout
+            } else
+                probe.discarded += 1
+        }
+    }
+}

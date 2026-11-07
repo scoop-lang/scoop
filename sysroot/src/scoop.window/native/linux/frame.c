@@ -46,6 +46,7 @@ static void restore_input(SWWindow *window) {
 }
 
 void sw_frame_invalidate(SWWindow *window) {
+  window->frame_revision += 1;
   free(window->hit_rects);
   window->hit_rects = NULL;
   window->hit_count = 0;
@@ -55,6 +56,10 @@ void sw_frame_invalidate(SWWindow *window) {
     restore_input(window);
   }
   sw_emit(window, 17);
+}
+
+uint64_t scoop_window_frame_revision(SWWindow *window) {
+  return window->frame_revision;
 }
 
 static void sync_geometry(SWWindow *window) {

@@ -10,6 +10,8 @@ System 包含 GTK/libadwaita CSD 标题栏；Client 隐藏该标题栏和系统�
 
 `Window.frameMetrics: WindowFrameMetrics?` 返回已配置窗口的实际 frame、相应 WindowMetrics、contentLayout（不被宿主标题栏占用的内容矩形）、systemButtons（Close／Minimize／Maximize 的真实占用矩形）和 visibleBorderThickness（未知为 None）。所有矩形均为内容左上角逻辑坐标；Standard 下按钮可能在内容之外。GTK 未分配、DWM 尚未给出按钮几何时，未知字段为空；不得填入常量标题栏高度或虚构按钮宽度。WindowEvent.FrameChanged 通知需要重新读取几何，GeometryChanged 仍描述内容尺寸与 DPI。
 
+`Window.frameRevision: ULong` 是原生窗框／区域配置的短期版本快照。在同一窗口原生尺寸、DPI、窗框或内容偏移失效时，先更新该值并撤销旧区域，再排队 FrameChanged；即使通知尚未派发，值已反映失效。Surface 在采集和发布区域之间比较它，避免绘制回调内切换配置后重新发布旧几何。读取不重新计算按钮布局，只提供同一窗口内的相等比较，不用作跨窗口身份或持久版本。
+
 `DesktopCapabilities.frame` 分别声明 client、extendedContent、systemResizeEdges、beginMove、beginResize、windowMenu、windowRegion、inputRegion、ignoreMouse、shadow、resizeHitRegions、systemButtonHitRegions。它描述后端提供的操作，具体窗口状态仍会影响请求；不表示 WM 已接受异步请求。
 
 ## 2. 原生外观

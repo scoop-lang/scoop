@@ -31,6 +31,10 @@ when = { os = ["darwin", "windows"] }
 path = "tests"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "tests/input_comparison.scoop"
+when = { os = "windows" }
+
 [[sources]]
 path = "src"
 when = { os = "linux", env = "gnu" }

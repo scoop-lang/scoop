@@ -9,7 +9,11 @@ internal enum NodeBody {
 
 internal class UpdateTurn
 
-internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view: View) {
+internal class MountedNode(
+    val root: UiRoot,
+    val parent: MountedNode?,
+    var view: View
+): StateInvalidationTarget {
     val depth: Long = (parent?.depth ?: -1L) + 1L
     var layoutDirection: LayoutDirection =
         view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
@@ -114,6 +118,10 @@ internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view:
                 root.enqueue(this)
             }
         }
+    }
+    override fun stateChanged(invalidation: UiInvalidation) {
+        request(invalidation)
+        invalidate()
     }
     fun replace(next: View) {
         when ((body, next.body)) {

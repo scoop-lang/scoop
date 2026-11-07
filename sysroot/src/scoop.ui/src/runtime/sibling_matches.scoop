@@ -1,0 +1,52 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.collections.HashSet
+
+internal class SiblingMatches(val positions: Array<Long?>, val used: MutableArray<Boolean>)
+
+/** Shared positional/key matching for visual children and native application entries. */
+internal fun <N, D> matchSiblings(
+    previous: Array<N>,
+    descriptions: Array<D>,
+    oldKey: (N) -> ViewKey,
+    newKey: (D) -> ViewKey,
+    canReuse: (N, D) -> Boolean
+): SiblingMatches {
+    val keys = HashSet<ViewKey>()
+    for (description in descriptions) {
+        val key = newKey(description)
+        if (key != ViewKey.Position)
+            requireUi(keys.add(key), "duplicate sibling ViewKey")
+    }
+    val keyed = HashMap<ViewKey, Long>()
+    for (index in 0L ..< previous.size) {
+        val key = oldKey(previous[index])
+        if (key != ViewKey.Position)
+            keyed.put(key, index)
+    }
+    val used = MutableArray<Boolean>(previous.size) { _ -> false }
+    val positions =
+        Array<Long?>(descriptions.size) {
+            index ->
+            val description = descriptions[index]
+            val key = newKey(description)
+            val candidate =
+                if (key == ViewKey.Position) {
+                    if (index < previous.size && oldKey(previous[index]) == ViewKey.Position)
+                        Some(index)
+                    else
+                        None
+                } else
+                    keyed[key]
+            when (candidate) {
+                case Some(position) -> if (canReuse(previous[position], description)) {
+                    used[position] = true
+                    Some(position)
+                } else
+                    None
+                case None -> None
+            }
+        }
+    return SiblingMatches(positions, used)
+}

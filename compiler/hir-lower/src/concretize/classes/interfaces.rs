@@ -152,12 +152,12 @@ impl Concretizer<'_> {
             }
             export::InterfaceImplementationTarget::Imported(callable) => {
                 concrete::InterfaceImplementationTarget::Imported(
-                    self.imported_dependency_callable_map[&callable],
+                    self.lower_dispatch_callable(callable),
                 )
             }
             export::InterfaceImplementationTarget::ImportedAbstract(callable) => {
                 concrete::InterfaceImplementationTarget::ImportedAbstract {
-                    declaration: self.imported_dependency_callable_map[&callable],
+                    declaration: self.lower_dispatch_callable(callable),
                 }
             }
             export::InterfaceImplementationTarget::Abstract(application) => {

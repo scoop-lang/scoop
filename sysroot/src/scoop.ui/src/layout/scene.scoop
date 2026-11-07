@@ -5,6 +5,7 @@ import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
+import scoop.surface.WindowRegionHandle
 import scoop.time.TimeMark
 
 internal class ScenePass {
@@ -291,6 +292,16 @@ public class SceneContext internal constructor(
         pass.cacheable = false
         frame.place(area, shape)
         node.root.focus.place(area, scrollPath)
+    }
+    public fun place(region: WindowRegionHandle, shape: Rect) {
+        checkActive()
+        pass.cacheable = false
+        frame.place(region, shape)
+    }
+    public fun place(region: WindowRegionHandle, shape: Path) {
+        checkActive()
+        pass.cacheable = false
+        frame.place(region, shape)
     }
     public fun children() {
         presentChildren(None, None)

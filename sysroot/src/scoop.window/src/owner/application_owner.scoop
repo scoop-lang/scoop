@@ -34,7 +34,7 @@ internal class ApplicationOwner(
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
     var nextWatch: Long = 1L
-    val active: ActiveApplication get() = ActiveApplication(this)
+    val active = ActiveApplication(this)
     var native: Ptr<Unit>? = None
     var handler: ApplicationHandler? = None
     var attachment: ApplicationAttachment? = None

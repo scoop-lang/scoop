@@ -1,0 +1,195 @@
+package scoop.tests.ui.application
+
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.test.*
+
+internal class ApplicationModel {
+    val ids = state<Array<Long>>([1L, 2L])
+    val text = state("initial")
+    val extra = state("extra")
+    val watchesExtra = state(true)
+    val callbackVersion = state(1)
+    val failure = state(false)
+    val items = ArrayList<MenuEntry>()
+    val log = ArrayList<String>()
+    var renders = 0
+    var actions = 0
+    var lastAction = 0
+    var disposed = 0
+    var unmounted = 0
+    val expected = IllegalStateException(Some("expected application update failure"))
+}
+
+internal class EntryInput(
+    val id: Long,
+    val title: String,
+    val action: () -> Unit,
+    val fail: Boolean
+)
+
+internal class NativeRoot(
+    val model: ApplicationModel,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    private val comparison =
+        InputComparison<EntryInput> { a, b -> a.title == b.title && a.fail == b.fail }
+    init {
+        scope.onDispose { model.disposed += 1 }
+    }
+    public override fun render(): ApplicationContent {
+        model.renders += 1
+        val suffix =
+            if (model.watchesExtra.value)
+                model.extra.value
+            else
+                ""
+        val text = model.text.value + suffix
+        val callbackVersion = model.callbackVersion.value
+        val fail = model.failure.value
+        val ids = model.ids.value
+        return ApplicationContent(
+            Array<ApplicationItem>(ids.size) {
+                index ->
+                val id = ids[index]
+                applicationElement(
+                    EntryInput(
+                        id,
+                        text,
+                        {
+                            model.actions += 1
+                            model.lastAction = callbackVersion
+                        },
+                        fail
+                    ),
+                    { props, mount -> MenuEntry(model, props, mount) },
+                    ViewKey.Number(id),
+                    Some(comparison)
+                )
+            }
+        )
+    }
+    public override fun onMount() {
+        model.log.add("root mount")
+    }
+    public override fun onUnmount() {
+        model.unmounted += 1
+    }
+}
+
+internal class MenuEntry(
+    private val model: ApplicationModel,
+    private val props: Props<EntryInput>,
+    scope: ApplicationScope
+): ApplicationElement(scope) {
+    val id = props.value.id
+    val menu = scope.resource { scope.application.createMenu() }
+    private val item = menu.insert(MenuItemDescription(text = props.value.title))
+    private var nativeUse: NativeMenuLease? = None
+    var updates = 0
+    var closes = 0
+    var unmounts = 0
+    var subscription: Closeable? = None
+    init {
+        nativeUse =
+            Some(
+                scope.resource {
+                    @Unsafe
+                    {
+                        return@resource menu.acquireNativeMenu { nativeUse?.close() }
+                    }
+                }
+            )
+        model.items.add(this)
+        scope.onDispose { closes += 1 }
+    }
+    public override fun onMount() {
+        model.log.add("entry mount")
+        subscription =
+            Some(
+                scope.observeMenu(menu) {
+                    event ->
+                    assertEquals(item, event.item)
+                    when (event.source) {
+                        case Native(value) -> assertEquals(nativeUse!!.id, value)
+                        else -> fail(Some("menu activation lost its native use identity"))
+                    }
+                    props.value.action()
+                }
+            )
+    }
+    public override fun update() {
+        if (props.value.fail)
+            throw model.expected
+        updates += 1
+        menu.update(item, MenuItemDescription(text = props.value.title))
+    }
+    public override fun onUnmount() {
+        unmounts += 1
+    }
+    fun fire() {
+        assertTrue(nativeUse!!.activate(item))
+    }
+    fun displayed(): String = menu.description(item).text
+}
+
+internal enum FailurePoint {
+    Constructor, Render, Mount, Callback, Cleanup
+}
+
+internal class FailureRecord(val point: FailurePoint) {
+    val primary = IllegalStateException(Some("expected application failure"))
+    val cleanup = IllegalArgumentException(Some("expected application cleanup failure"))
+    var disposals = 0
+    var unmounts = 0
+    var borrowed = false
+}
+
+internal class FailingApplication(
+    val record: FailureRecord,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    init {
+        scope.onDispose {
+            record.disposals += 1;
+            throw record.cleanup
+        }
+        if (record.point == FailurePoint.Constructor)
+            throw record.primary
+    }
+    public override fun render(): ApplicationContent {
+        if (record.point == FailurePoint.Render)
+            throw record.primary
+        return ApplicationContent([])
+    }
+    public override fun onMount() {
+        if (record.point == FailurePoint.Mount)
+            throw record.primary
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+    }
+    fun invokeFailure() {
+        scope.dispatch {
+            record.borrowed = true
+            try {
+                throw record.primary
+            } finally {
+                record.borrowed = false
+            }
+        }
+    }
+}
+
+internal fun includesFailure(error: Throwable, expected: Throwable): Boolean =
+    error ===
+        expected ||
+        (
+            error is
+                ResourceUseException &&
+                (
+                    includesFailure(error.primaryFailure, expected) ||
+                        includesFailure(error.cleanupFailure, expected)
+                )
+        )

@@ -147,7 +147,7 @@ void scoop_window_titlebar(void *pointer, int32_t flags) {
   window.titlebarAppearsTransparent = (flags & 1) != 0;
   window.titleVisibility =
       (flags & 2) ? NSWindowTitleHidden : NSWindowTitleVisible;
-  [owner emit:17];
+  sw_frame_invalidate(owner);
 }
 
 typedef struct {

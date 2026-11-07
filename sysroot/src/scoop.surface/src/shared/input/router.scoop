@@ -18,6 +18,7 @@ internal class InputRouter(
 ): Closeable {
     private val thread = currentThreadId()
     internal var closed = false
+    internal var windowRegions: WindowRegionStore? = None
     internal var scene = AreaScene([])
     private val owned = ArrayList<InputScope>()
     internal val rootScope = InputScope(this, None, None, { _, _ -> Unit })
@@ -127,6 +128,7 @@ internal class InputRouter(
         checkThread()
         if (closed)
             return
+        windowRegions?.refreshEligibility()
         pending = true
         dispatch { invalidate() }
     }

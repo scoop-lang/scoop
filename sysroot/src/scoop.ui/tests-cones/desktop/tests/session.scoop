@@ -1,0 +1,232 @@
+package scoop.tests.ui.desktop
+
+import scoop.ui.*
+import scoop.surface.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.test.*
+
+internal fun runDesktopProbe() {
+    val probe = DesktopProbe()
+    UiHost(
+        onRootError = { id, error -> probe.windowError(id, error) },
+        onApplicationError = { error -> probe.applicationError(error) },
+        handler = { host, application, event -> probe.event(host, application, event) }
+    ).use { Application().runWithAsyncio(it) }
+    assertTrue(probe.finished)
+    assertEquals(1, probe.windowErrors)
+    assertEquals(1, probe.applicationErrors)
+}
+
+private suspend fun waitDesktop(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 300, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+    }
+}
+
+internal class DesktopProbe {
+    val shared = state(0)
+    val stage = state(0)
+    val failApplication = state(false)
+    val applicationFailure = IllegalStateException(Some("expected application resource failure"))
+    val windowFailure = IllegalStateException(Some("expected window resource failure"))
+    var applicationRenders = 0
+    var applicationObserved = -1
+    var windowObserved = -1
+    var frameNotifications = 0
+    var frame: WindowFrameMetrics? = None
+    var accepted = 0
+    var discarded = 0
+    var acceptedStage = -1
+    var discardNext = false
+    var changeFrameNext = false
+    var changedFrameObserved = false
+    var finished = false
+    var applicationErrors = 0
+    var windowErrors = 0
+    var region: RegionContent? = None
+    var windowScope: ComponentScope? = None
+    private var applicationUi: UiApplication? = None
+    private var windowUi: UiWindow? = None
+    private var window: Window? = None
+
+    fun windowError(id: WindowId, error: Throwable) {
+        assertEquals(window!!.id, id)
+        assertTrue(error === windowFailure)
+        assertTrue(windowUi!!.isClosed)
+        assertTrue(region!!.hit.isClosed)
+        assertFalse(applicationUi!!.isClosed)
+        windowErrors += 1
+    }
+    fun applicationError(error: Throwable) {
+        assertTrue(error === applicationFailure)
+        assertTrue(applicationUi!!.isClosed)
+        assertFalse(windowUi!!.isClosed)
+        applicationErrors += 1
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                applicationUi = host.attachApplication(application) { DesktopApplication(this, it) }
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop UI desktop regions"
+                            size = LogicalSize(280.0, 180.0)
+                            frame = WindowFrame.Client
+                            transparent = true
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                windowUi = host.attach(native, { DesktopRoot(this, it) })
+                currentApplicationScope().launch {
+                    this @DesktopProbe.scenario(host, application, native)
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun hit(native: Window, x: Double, y: Double, expected: Int) {
+        val actual = nativeRegionQuery(native, 0, x, y)
+        if (actual >= 0)
+            assertEquals(expected, actual)
+    }
+    private fun coverage(native: Window, x: Double, y: Double, expected: Int) {
+        val actual = nativeRegionQuery(native, 1, x, y)
+        if (actual >= 0)
+            assertEquals(expected, actual)
+    }
+    private suspend fun scenario(host: UiHost, application: ActiveApplication, native: Window) {
+        waitDesktop("initial accepted regions") { acceptedStage == 0 }
+        hit(native, 50.0, 40.0, 1)
+        hit(native, 100.0, 40.0, 0)
+        coverage(native, 50.0, 130.0, 1)
+        coverage(native, 150.0, 130.0, 0)
+        region!!.hit.enabled = false
+        hit(native, 50.0, 40.0, 0)
+        region!!.hit.enabled = true
+        hit(native, 50.0, 40.0, 1)
+        InputBoundary(region!!.boundaryArea.scope).use { hit(native, 50.0, 40.0, 0) }
+        hit(native, 50.0, 40.0, 1)
+        val stable = accepted
+        shared.value = 9
+        waitDesktop("shared state across roots") { applicationObserved == 9 && windowObserved == 9 }
+        currentEventLoop().sleep(Duration.milliseconds(80L))
+        val idle = accepted
+        currentEventLoop().sleep(Duration.milliseconds(80L))
+        assertEquals(idle, accepted)
+        assertTrue(accepted >= stable)
+        discardNext = true
+        stage.value = 1
+        waitDesktop("discarded replacement") { discarded > 0 }
+        hit(native, 50.0, 40.0, 1)
+        hit(native, 180.0, 40.0, 0)
+        native.setVisible(true)
+        waitDesktop("accepted replacement") { acceptedStage == 1 }
+        hit(native, 50.0, 40.0, 0)
+        hit(native, 180.0, 40.0, 1)
+        native.setTransparent(false)
+        val opaque = nativeRegionQuery(native, 2)
+        if (opaque >= 0)
+            assertEquals(1, opaque)
+        val notifications = frameNotifications
+        native.setFrame(WindowFrame.System(WindowContentMode.Standard))
+        waitDesktop("system frame observation") {
+            frameNotifications >
+                notifications &&
+                frame!!.frame ==
+                WindowFrame.System(WindowContentMode.Standard)
+        }
+        native.setFrame(WindowFrame.Client)
+        waitDesktop("client frame observation") { frame!!.frame == WindowFrame.Client }
+        assertTrue(frame!!.frame == WindowFrame.Client)
+        val beforeResize = accepted
+        native.requestSize(LogicalSize(420.0, 260.0))
+        waitDesktop("resized accepted regions") {
+            when (native.metrics) {
+                case Some(value) -> value.logicalSize.width == 420.0 && accepted > beforeResize
+                case None -> false
+            }
+        }
+        stage.value = 2
+        waitDesktop("empty region publication") { acceptedStage == 2 }
+        hit(native, 180.0, 40.0, 0)
+        coverage(native, 50.0, 130.0, 0)
+        stage.value = 3
+        waitDesktop("unplaced region defaults") { acceptedStage == 3 }
+        hit(native, 180.0, 40.0, 0)
+        coverage(native, 150.0, 130.0, 1)
+        stage.value = 4
+        waitDesktop("restored regions") { acceptedStage == 4 }
+        hit(native, 180.0, 40.0, 1)
+        coverage(native, 150.0, 130.0, 0)
+        changeFrameNext = true
+        stage.value = 5
+        waitDesktop("frame change during painting") { changedFrameObserved }
+        waitDesktop("fresh frame after native invalidation") {
+            acceptedStage == 5 && nativeRegionQuery(native, 0, 180.0, 40.0) != 0
+        }
+
+        val scope = windowScope!!
+        val menu = scope.resource { application.createMenu() }
+        menu.insert(MenuItemDescription(text = "Pending popup"))
+        val popup =
+            scope.resource {
+                native.showPopup(menu, PopupPlacement.Pointer(LogicalPosition(50.0, 40.0)))
+            }
+        val popupDone = state(0)
+        scope.observePopup(popup) { _ -> popupDone.value += 1 }
+        popup.close()
+        waitDesktop("window popup completion") { popupDone.value == 1 }
+        val child =
+            application.createWindow(
+                windowAttributes {
+                    title = "Pending modal";
+                    visible = false;
+                    relation = WindowRelation.Owned(native)
+                }
+            )
+        val modal = child.showModal()
+        val modalDone = state(0)
+        scope.observeModal(modal) { _ -> modalDone.value += 1 }
+        modal.dismiss()
+        waitDesktop("window modal completion") { modalDone.value == 1 }
+        child.requestDestroy()
+
+        failApplication.value = true
+        waitDesktop("isolated application failure") { applicationErrors == 1 }
+        shared.value = 10
+        waitDesktop("surviving window update") { windowObserved == 10 }
+        failApplication.value = false
+        applicationUi = host.attachApplication(application) { DesktopApplication(this, it) }
+        val file = application.openFile(DialogTarget.Owner(native))
+        scope.observeFileDialog(file) {
+            _ ->
+            shared.value = 11;
+            throw windowFailure
+        }
+        file.cancel()
+        waitDesktop("isolated window callback failure") {
+            windowErrors == 1 && applicationObserved == 11
+        }
+        assertEquals(WindowState.Open, native.state)
+        hit(native, 180.0, 40.0, 0)
+        coverage(native, 150.0, 130.0, 1)
+        native.requestDestroy()
+        waitDesktop("native window destruction") { native.state == WindowState.Destroyed }
+        val frames = accepted
+        shared.value = 12
+        waitDesktop("application after last window") { applicationObserved == 12 }
+        currentEventLoop().sleep(Duration.milliseconds(80L))
+        assertEquals(frames, accepted)
+        applicationUi!!.close()
+        finished = true
+        application.requestExit()
+    }
+}

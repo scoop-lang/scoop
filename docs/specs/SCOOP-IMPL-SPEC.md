@@ -211,6 +211,8 @@ Export HIR lowering 的结构类型与完整函数签名通过结构键查询已
 
 两者使用不同的实体 ID 家族和显式映射。导出声明、完整泛型 application 与本地 concrete 实体不能用同一 arena index 或别名混用。
 
+具体化保留实际外部调用及分派表条目的完整签名类型，包括只通过依赖类的字段、基类或接口实现间接引入的方法。参数、receiver 和返回类型不以消费方源码是否直接引用为条件；它们沿既有类型具体化入口形成闭合的 LocalConcreteHir，MIR 只消费这些结果，不补建 HIR 类型。没有被具体化实体使用的导入声明不因此成为新的发射根。
+
 executable 的入口发现只检查 root Cone，并按语言规范 12.4.4 一次确定 `NoArgsUnit`、`ArgvUnit`、`NoArgsInt`、`ArgvInt` 四种形态之一。LocalConcreteHir 保存实际 main 的 typed identity、完整源码签名和入口形态；有参数时同时解析 argv 构造所需的实际 core `Array<String>`、String 及 helper targets。argv 构造使用普通 internal core 函数 `__scoopProgramArguments(): Array<String>`，通过现有 compiler protocol 记录实际函数 identity；其正文读取 runtime 已保存的 raw argv，严格解码、复制并报告非法参数下标。raw argv 访问器的 Scoop 返回类型为 `Ptr<Int8>?`，保留越界返回 null 的契约；helper 在 argc 范围内访问并按普通 Option 规则取出指针。后续 stage 使用该 typed 引用，不按名称重新查找。缺少入口、多个入口或非法签名在 HIR 报错；不能留给 linker 通过函数名挑选或修补。
 
 每个 expression 具有非可选类型和 definition/evaluation origin。已解析调用保存完整逻辑签名、适配前 receiver 类型、实参映射、唯一 typed target 与效果；receiver 和实参的执行顺序遵守语言规范 8.5，不由类型求解顺序决定。

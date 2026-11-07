@@ -74,6 +74,8 @@ Surface 只接收局部 Rect caret，并通过区域几何转换为窗口 IME �
 
 ## 4. Surface 宿主与帧
 
+D7 的原生窗框／输入区域登记与 Accepted 发布合同见[Surface 原生窗口区域规范](SCOOP-SURFACE-FRAME-SPEC.md)。实际平台验证见[原生桌面实施记录](../desktop-ui/PROGRESS.md)。
+
 SurfaceHost 包装 ApplicationHandler，管理所附着的 SurfaceWindow，使用现有 Application.run 或 runWithAsyncio。窗口事件、用户绘制、动画采样和区域输入均在窗口 owner 线程串行执行；不启动第二个主循环或另一套任务树。CloseRequested 的接受策略仍由应用决定。
 
 SurfaceHost 必须在 Closing／Exiting 及用户回调失败时关闭相关 Surface 资源；不能要求应用额外转发清理事件才能释放 lease。绘制和输入回调不挂起、不在内部锁中运行，也不从原生通知递归进入。

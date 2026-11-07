@@ -1,6 +1,36 @@
 use super::*;
 
 impl Concretizer<'_> {
+    pub(super) fn lower_dispatch_callable(
+        &mut self,
+        source: export::ImportedDependencyCallableUseId,
+    ) -> concrete::ImportedDependencyCallableUseId {
+        let reference = self.source.imported_dependency_callables[source].reference();
+        if self.materialized_dispatch_signatures.insert(reference) {
+            let signature = self
+                .selected_dependencies
+                .expect("an imported dispatch target retains dependency selections")
+                .resolve_callable(reference)
+                .expect("an imported callable retains its selected declaration")
+                .interface();
+            for ty in signature
+                .receiver()
+                .into_iter()
+                .chain(
+                    signature
+                        .parameters()
+                        .parameters()
+                        .iter()
+                        .map(|p| p.value_type()),
+                )
+                .chain([signature.result()])
+            {
+                self.metadata_signature_type(ty, &[]);
+            }
+        }
+        self.imported_dependency_callable_map[&source]
+    }
+
     pub(super) fn lower_callable(
         &mut self,
         source: export::Callable,

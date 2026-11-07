@@ -1,0 +1,50 @@
+package scoop.ui
+
+internal class MountedApplicationEntry(val root: UiApplicationRoot, var item: ApplicationItem) {
+    val scope = ApplicationScope(root)
+    var active = true
+    private var mounted = false
+    private var retired = false
+    val instance: ApplicationElementInstance = create()
+
+    private fun create(): ApplicationElementInstance {
+        try {
+            return item.description.create(scope)
+        } catch (error: Throwable) {
+            active = false
+            scope.deactivate()
+            var failure = cleanupUi(Some(error)) { throwUi(scope.retireManaged()) }
+            failure = cleanupUi(failure) { throwUi(scope.release()) }
+            throw failure!!
+        }
+    }
+    fun replace(next: ApplicationItem) {
+        val unchanged = instance.replace(next.description)
+        item = next
+        if (mounted && active && root.isOpen && !unchanged)
+            instance.value.update()
+    }
+    fun mount() {
+        if (!active || !root.isOpen || mounted)
+            return
+        instance.value.onMount()
+        mounted = true
+        if (active && root.isOpen)
+            instance.value.update()
+    }
+    fun deactivate() {
+        active = false
+        scope.deactivate()
+    }
+    fun unmount() {
+        if (retired)
+            return
+        retired = true
+        deactivate()
+        var failure = cleanupUi(None) { throwUi(scope.retireManaged()) }
+        if (mounted)
+            failure = cleanupUi(failure) { instance.value.onUnmount() }
+        failure = cleanupUi(failure) { throwUi(scope.release()) }
+        throwUi(failure)
+    }
+}

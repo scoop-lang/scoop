@@ -174,7 +174,7 @@ impl Concretizer<'_> {
                 export::ImportedDispatchCallable::External(callable) => {
                     concrete::ClassMethod::Imported {
                         family: self.lower_virtual_method(method.family),
-                        callable: self.imported_dependency_callable_map[&callable],
+                        callable: self.lower_dispatch_callable(callable),
                     }
                 }
                 export::ImportedDispatchCallable::Template(application) => {

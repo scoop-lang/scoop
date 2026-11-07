@@ -1,0 +1,39 @@
+package scoop.ui
+
+/** Both mount scopes retire managed registrations before user-owned resources. */
+internal class ScopeResources {
+    val managed = ArrayList<Closeable>()
+    val cleanup = ArrayList<() -> Unit>()
+
+    fun forget(value: Closeable) {
+        for (index in 0L ..< managed.size)
+            if (managed[index] === value) {
+                managed.removeAt(index)
+                break
+            }
+    }
+
+    fun retireManaged(): Throwable? {
+        val values = managed.toArray()
+        managed.clear()
+        var failure: Throwable? = None
+        var index = values.size
+        while (index > 0L) {
+            index -= 1L
+            val value = values[index]
+            failure = cleanupUi(failure) { value.close() }
+        }
+        return failure
+    }
+    fun release(): Throwable? {
+        val actions = cleanup.toArray()
+        cleanup.clear()
+        var failure: Throwable? = None
+        var index = actions.size
+        while (index > 0L) {
+            index -= 1L
+            failure = cleanupUi(failure, actions[index])
+        }
+        return failure
+    }
+}

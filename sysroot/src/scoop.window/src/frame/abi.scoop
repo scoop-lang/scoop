@@ -34,6 +34,9 @@ internal fun nativeWindowFrame(window: Ptr<Unit>, mode: Int): Long
 @Extern(name = "scoop_window_frame_snapshot")
 internal fun nativeWindowFrameSnapshot(window: Ptr<Unit>): NativeFrameSnapshot
 
+@Extern(name = "scoop_window_frame_revision")
+internal fun nativeWindowFrameRevision(window: Ptr<Unit>): ULong
+
 @Extern(name = "scoop_window_frame_button")
 internal fun nativeWindowFrameButton(window: Ptr<Unit>, role: Int): NativeFrameRect
 

@@ -362,9 +362,9 @@ Surface 在实际 scene 组装时收集窗框／原生区域候选，使用最�
 
 沿用现有 Accepted 的含义，不等待 GPU 扫描到屏幕才更新命中。不同 OS 的像素呈现与区域变更不一定原子，设计不额外承诺同步扫描；真实呈现和系统命中之间的过渡按平台验证记录。
 
-区域使用实际布局版本／配置判断是否仍有效。DPI、模式或尺寸使旧配置失效时，按既有输入规则撤销不再合法的区域；系统已经接管的 resize 继续由 native 处理。关闭／卸载立即移除登记，不等待下一帧。场景缓存可以复用未变化的区域数据，但不能重放一次性提交回调，或为纯颜色变化重新测量全部标题栏。
+区域使用实际布局版本／配置判断是否仍有效。DPI、模式或尺寸使旧配置失效时，按既有输入规则撤销不再合法的区域；系统已经接管的 resize 继续由 native 处理。Window.frameRevision 在原生失效时更新，Surface 在发布前比较，覆盖绘制回调改变窗框但通知尚未派发的情况。关闭／卸载立即移除登记，不等待下一帧。场景缓存可以复用未变化的区域数据，但不能重放一次性提交回调，或为纯颜色变化重新测量全部标题栏。
 
-透明属性变化要覆盖窗口和 renderer：当前 CAMetalLayer.opaque 只在创建时读取窗口值，运行中切换需要同步；DirectComposition 已有预乘 alpha swapchain，继续验证与当前 HWND 样式、region 的组合。失败不能留下窗口认为透明而 renderer 按不透明处理的已成功状态。
+透明属性变化要覆盖窗口和 renderer：CAMetalLayer.opaque 在安装时读取窗口值，之后由窗口背景变化同步；DirectComposition 保持预乘 alpha swapchain，并验证与当前 HWND 样式、region 的组合。失败不能留下窗口认为透明而 renderer 按不透明处理的已成功状态。
 
 Linux 延续 GtkGLArea／Skia Ganesh GLES 的合成路径，验证预乘 alpha 与 GTK 背景、圆角、阴影、输入区域及菜单栏的组合。内容物理尺寸使用现有 widget 整数 scale factor，不把显示器分数缩放再次乘入 framebuffer；不绕过 GTK 创建额外 EGL window surface。区域和菜单布局变化依赖真实 GTK 分配及 Accepted 边界。
 

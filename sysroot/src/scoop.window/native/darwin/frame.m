@@ -6,11 +6,16 @@ int32_t scoop_window_frame_capabilities(void) {
 }
 
 void sw_frame_invalidate(SWWindow *owner) {
+  owner.frameRevision += 1;
   owner.hitRegions = nil;
   owner.frameWidth = owner.view.bounds.size.width;
   owner.frameHeight = owner.view.bounds.size.height;
   owner.frameScale = owner.window.backingScaleFactor;
   [owner emit:17];
+}
+
+uint64_t scoop_window_frame_revision(void *pointer) {
+  return ((__bridge SWWindow *)pointer).frameRevision;
 }
 
 void sw_frame_geometry(SWWindow *owner) {

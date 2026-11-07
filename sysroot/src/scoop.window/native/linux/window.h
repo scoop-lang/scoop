@@ -119,6 +119,7 @@ struct SWWindow {
   size_t hit_count;
   cairo_region_t *input_region;
   double frame_width, frame_height, frame_scale, frame_x, frame_y;
+  uint64_t frame_revision;
   bool close_button, minimize_button, maximize_button, cursor_visible;
   bool pointer_inside, ime_allowed, preedit_active, caret_known;
   int cursor_icon;
