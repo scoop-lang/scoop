@@ -165,6 +165,8 @@ AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选
 
 Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
 
+ScrollDelta 的 x／y 表示内容在窗口坐标系中的位移：正 x 向右，正 y 向下。滚动容器将其取反为 offset，因此查看更右方／下方的内容分别对应负 x／y。后端以 OS 已应用用户滚动方向设置的事件为准，只归一坐标含义，不再次应用自然滚动设置；GTK 两轴取反，Win32 水平轴取反、垂直轴保留，AppKit 保留原生内容位移。LineDelta 和 PixelDelta 的单位／比例与相位合同不变。
+
 后续光标捕获使用 None／Confined／Locked，warp 与相对输入分离；custom cursor 的 RGBA 与 hotspot 在创建时复制。移动／resize／系统窗口菜单请求需要有效输入上下文的平台，由后端保留原生 serial 并核对，不能靠定时回调伪造用户操作。
 
 ## 6. 绘制与 native 句柄

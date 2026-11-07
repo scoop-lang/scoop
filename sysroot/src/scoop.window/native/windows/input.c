@@ -241,7 +241,7 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   case WM_MOUSEHWHEEL: {
     ScreenToClient(window->hwnd, &position);
     double delta = GET_WHEEL_DELTA_WPARAM(wp) / (double)WHEEL_DELTA;
-    pointer(window, 5, position, 0, 0, msg == WM_MOUSEHWHEEL ? delta : 0,
+    pointer(window, 5, position, 0, 0, msg == WM_MOUSEHWHEEL ? -delta : 0,
             msg == WM_MOUSEWHEEL ? delta : 0);
     return true;
   }

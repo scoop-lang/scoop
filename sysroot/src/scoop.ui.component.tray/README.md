@@ -33,4 +33,6 @@ class DesktopResources(val image: DesktopImage, scope: ApplicationScope): Applic
 
 完整 API 与生命周期见[托盘组件规范](../../../docs/specs/SCOOP-UI-TRAY-SPEC.md)，平台验证见[实施记录](../../../docs/desktop-ui/PROGRESS.md)。
 
+[原生桌面综合 demo](../scoop.ui.component/examples/native-desktop/README.md) 展示共享菜单状态、CPU 图标更新、托盘锚点／工作区查询、邻近窗口的显式降级，以及最后窗口关闭后继续更新和重新打开文档。
+
 测试使用正式 `scoop test sysroot/src/scoop.ui.component.tray --release`。macOS 需要 Window 后端可用的桌面会话；Linux GNU 需要 D-Bus 会话及 GTK 显示会话。测试覆盖无窗口更新、菜单移除／重新附着、handle 唯一归属、scope 错误隔离、取消和卸载，不把协议可用等同于 Shell 实际显示图标。Windows 默认只执行纯状态测试，完整 GUI 程序仍会编译；在交互桌面及 Explorer 中单独追加 `--ignored` 运行原生用例。

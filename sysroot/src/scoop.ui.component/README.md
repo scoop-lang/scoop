@@ -6,6 +6,8 @@
 
 托盘包装在独立 [scoop.ui.component.tray](../scoop.ui.component.tray/README.md) Cone，普通 component 不依赖 scoop.tray／DBusMenu。原生组件的组合测试和 Windows 桌面执行入口见 [tests-cones/native-desktop](tests-cones/native-desktop/README.md)，实际平台验收记录见[桌面能力进度](../../../docs/desktop-ui/PROGRESS.md)。
 
+[原生桌面综合 demo](examples/native-desktop/README.md) 将菜单、编辑、窗框、异形窗口、工具／模态窗口、系统文件面板及独立托盘组件组合在一个普通 Cone 中；包含实际能力说明、显式定位降级及无窗口运行流程。
+
 `bubble`、`message`、`marker`、`attachment` 和 `trace` 提供会话展示组合。气泡支持七种变体、逻辑对齐及外伸反应区；Message 以真实正文／页脚高度定位头像。Attachment 借用应用图片，状态、整卡动作及独立动作由应用提供，AttachmentGroup 复用 Carousel 的横向吸附。Trace 组合 Collapsible，保留用户展开选择与嵌套编辑状态；纯状态行没有额外 Tab 目标。可选动作变化保留正文挂载，运行指示在不可见／减少动态／停止后停帧，布局纳入实际焦点环范围。组合实窗测试位于 `tests-cones/conversation`，完整合同见组件规范第 48～50 节。
 
 `messageScroller(source, state)` 以 `TranscriptSource` 的稳定 key 和显式回合锚点按需构造消息。`MessageScrollState` 组合既有滚动／虚拟列表能力，提供初始 End／Start／LastAnchor、新回合顶部定位、可收缩尾部留白、可选自动跟随、阅读保持及按 key 跳转／恢复。指针选择、键盘和滚动立即停止旧跟随；公开阅读快照仅来自 Accepted。`transcript { item(key, scrollAnchor = true) { ... } }` 创建来源，`messageScrollButton` 可放入自定义 controls；真实输入和停帧测试位于 `tests-cones/message-scroller`。

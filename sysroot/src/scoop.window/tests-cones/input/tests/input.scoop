@@ -119,7 +119,7 @@ private class InputHandler: ApplicationHandler {
                     if (wheels == 0)
                         ScrollDelta.LineDelta(0.0, 0.5)
                     else
-                        ScrollDelta.LineDelta(-1.0, 0.0),
+                        ScrollDelta.LineDelta(1.0, 0.0),
                     delta
                 )
                 wheels += 1

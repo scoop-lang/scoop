@@ -1,0 +1,90 @@
+package scoop.examples.native_desktop
+
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.tray.*
+import scoop.ui.component.*
+import scoop.window.*
+
+private suspend fun waitDemo(label: String, ready: () -> Boolean) {
+    println("Smoke: " + label)
+    var count = 0
+    while (!ready()) {
+        requireDemo(count < 300, "Timed out: " + label)
+        count += 1
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+    }
+}
+
+internal suspend fun runDemoSmoke(demo: DesktopDemo, first: DemoDocument) {
+    try {
+        awaitDemoScenario(demo, first)
+    } catch (error: Throwable) {
+        demo.failed(error)
+    }
+}
+
+private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
+    waitDemo("first frame") { first.frames > 0 }
+    val root = first.root!!
+    val second = demo.newDocument()
+    waitDemo("second frame") { second.frames > 0 }
+    demo.checked.value = true
+    demo.color.value = 2
+    demo.activate("Smoke")
+    root.overrideMenu.value = true
+    root.mode.value = 0
+    waitDemo("system frame") {
+        first.window.frameMetrics!!.frame == WindowFrame.System(WindowContentMode.Standard)
+    }
+    root.mode.value = 2
+    waitDemo("client frame") { first.window.frameMetrics!!.frame == WindowFrame.Client }
+    waitDemo("popup anchor") { root.popup.requestOpen() }
+    root.popup.cancel()
+    waitDemo("popup cancelled") { !root.popup.isPending }
+    root.showTool()
+    requireDemo(root.tool.isOpen, "owned tool did not open")
+    requireDemo(root.tool.window!!.ownerWindow?.id == Some(first.window.id), "wrong tool owner")
+    root.matchShape.value =
+        demo.capabilities!!.frame.windowRegion || demo.capabilities!!.frame.inputRegion
+    root.showShape()
+    requireDemo(root.shape.isOpen, "shaped window did not open")
+    root.showDialog()
+    requireDemo(first.window.isInputBlocked && !second.window.isInputBlocked, "owner modal scope")
+    requireDemo(root.response!!.accept(true), "owner modal response")
+    waitDemo("owner result") { !root.dialog.isPending }
+    val app = demo.applicationView!!
+    app.showDialog()
+    requireDemo(
+        first.window.isInputBlocked && second.window.isInputBlocked,
+        "application modal scope"
+    )
+    app.dialog.cancel()
+    waitDemo("application result") { !app.dialog.isPending }
+    root.openFile()
+    root.files.cancel()
+    waitDemo("owner file completion") { !root.files.isPending }
+    demo.allowUnanchored.value = true
+    app.showTrayWindow(None)
+    app.closeTrayWindow()
+    when (demo.tray.icon) {
+        case Some(icon) -> if (icon.capabilities().programmaticMenu) {
+            demo.tray.requestMenu()
+            demo.tray.cancelMenu()
+            waitDemo("tray menu completion") { !demo.tray.isMenuPending }
+        }
+        case None -> {}
+    }
+    demo.background()
+    waitDemo("all documents closed") { demo.documents.size == 0L }
+    demo.activate("Windowless smoke")
+    demo.color.value = 1
+    app.openFile()
+    app.files.cancel()
+    waitDemo("windowless file completion") { !app.files.isPending }
+    val reopened = demo.newDocument()
+    waitDemo("reopened frame") { reopened.frames > 0 }
+    requireDemo(demo.nativeFailures == 0, "native operation failed during smoke")
+    demo.smokeCompleted = true
+    demo.application!!.requestExit()
+}

@@ -1,0 +1,9 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun platformFrameControls(root: DocumentView): View =
+    label(
+        "GTK / libadwaita owns native decoration. Client mode uses Scoop drawing; window-manager ordering remains capability-dependent."
+    )

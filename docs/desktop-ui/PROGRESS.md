@@ -23,7 +23,7 @@
 | D6 | 原生文件／目录对话框 | 已实施；macOS、Linux 本地选择器及真实 portal 验证完成，Windows 三目标构建和路径 ABI 测试通过 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
 | D8 | 通用组件及独立托盘组件 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
-| D9 | 综合 desktop demo | 待实施 |
+| D9 | 综合 desktop demo | 已实施；macOS 两架构、Linux 两后端的完整流程及 Windows 三目标构建、无 GUI 启动验证通过 |
 | 发行 | macOS、Linux、Windows 安装包及脚本修复 | 待实施 |
 
 ## 3. 验证记录
@@ -82,3 +82,10 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - macOS aarch64：格式化、原生严格编译与相关库构建通过；桌面组件组合 2 passed、独立托盘组件 2 passed、输入命令 2 passed；底层菜单复验 2 passed、1 ignored，托盘复验 5 passed、1 ignored。覆盖实际菜单动作与稳定身份、纯菜单更新不绘制、窗框切换、工具窗口复用、Owner／Application 模态及四类文件面板取消、错误隔离、无窗口更新和退出清理。当前 loginwindow 下仍保留原生编辑焦点、真实托盘 popup、拖动／缩放及视觉呈现的前台验收限制。
 - Linux GNU：所有相关库及完整 GUI 程序构建通过。X11 和带 seat 的嵌套 Wayland 各桌面组件 2 passed、独立托盘组件 2 passed、输入命令 2 passed；底层菜单各 2 passed、托盘各 5 passed。组合测试等待两个窗口均完成初始配置后再验证菜单动作，避免把尚未可交互窗口捕获到的动作当作有效输入。实际 GTK 菜单、软件显示会话和 SNI 协议结果不代替具体桌面 Shell 的视觉／交互验收。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成相关库及完整 GUI 程序的构建；各目标桌面组件 1 passed、1 ignored，独立托盘组件 1 passed、1 ignored，输入命令 2 passed，底层菜单 1 passed、1 ignored，托盘 4 passed、1 ignored。SSH 只执行可运行的非 GUI 用例；原生菜单、编辑焦点、窗框、控制器及托盘交互留待登录桌面执行，入口见[桌面组件测试](../../sysroot/src/scoop.ui.component/tests-cones/native-desktop/README.md)与[托盘组件说明](../../sysroot/src/scoop.ui.component.tray/README.md)。
+
+2026-11-07，D9：已加入[原生桌面综合 demo](../../sysroot/src/scoop.ui.component/examples/native-desktop/README.md)。普通 Cone 显式依赖托盘及对应组件，组合应用／窗口菜单、编辑命令、popup、共享菜单状态、三种窗框模式、系统操作、平台外观、异形／鼠标穿透窗口、owned 工具、Owner／Application 及嵌套模态、四种文件面板和有序退出。托盘定位的提示点、完整屏幕替代工作区及无锚点窗口各自显式选择；只有主动选择保留托盘后，关闭全部文档才继续无窗口运行。
+
+- macOS aarch64 与 x86_64：完整构建、`--help` 和 `--smoke` 通过；x86_64 在 Rosetta 下运行。按现有准备脚本更新 x86_64 Skia 和 no_std 文本归档，解决旧 native 资源缺少 PathOps、仍携带 Rust unwind 的链接失败，没有新增 Rust 依赖或修改异常机制。最终程序只含 Scoop、C++、Objective-C personality。首次 x86_64 运行有一次首帧超时，随后干净版完整复验通过；前台拖动、焦点、托盘及冷启动视觉表现仍由真实桌面验收。
+- Linux GNU：完整构建，X11 与带 seat 的嵌套 Wayland 各一次完整 `--smoke` 通过；实际 X11 点击、滚动、Owner 确认及椭圆窗口截图检查通过。交互暴露 GTK 滚轮方向与 UI 内容位移约定相反，统一 GTK 两轴及 Win32 水平轴的方向；新增真实 XTest 滚轮断言在旧后端失败、修复后 LinuxApplicationTest 1 passed。不改变滚轮单位、相位或用户自然滚动设置。
+- Windows：MSVC UCRT、LLVM-MinGW UCRT、LLVM-MinGW MSVCRT 的最终 demo、更新后的窗口库和原生输入测试程序均编译通过；三个 demo 在开发环境及普通 SSH 环境下的 `--help` 均通过。原生输入程序只编译，GUI／Explorer 场景及 `--smoke` 留给登录桌面验证；没有把无 GUI 启动记作 GUI 通过。
+- 示例运行说明包含完整体验顺序及平台依赖；格式化、变更文档的本地链接与差异检查通过。安装包将消费已更新资源，并在独立安装目录继续验证。

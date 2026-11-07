@@ -1,0 +1,195 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.tray.*
+import scoop.tray.*
+import scoop.window.*
+
+internal class DesktopApplication(
+    private val demo: DesktopDemo,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    val files = scope.fileDialogController()
+    val dialog = scope.nativeDialogController<Boolean>(DialogTarget.Application)
+    var response: NativeDialogResponse<Boolean>? = None
+    private var popupWindow: Window? = None
+    private var popupUi: UiWindow? = None
+    private var popupEvents: Closeable? = None
+    init {
+        demo.applicationView = Some(this)
+        scope.onDispose { closeTrayWindow() }
+    }
+    public override fun render(): ApplicationContent {
+        val demo = this.demo
+        val app = this
+        val trayMenu =
+            nativeMenu {
+                item(ViewKey.Text("show"), "Open document window", { _ -> demo.newDocument() })
+                item(
+                    ViewKey.Text("panel"),
+                    "Show panel beside tray",
+                    { _ -> app.showTrayWindow(None) }
+                )
+                item(ViewKey.Text("open"), "Open file without an owner…", { _ -> app.openFile() })
+                submenu(ViewKey.Text("state"), "Shared state", actionMenu(demo))
+                separator(ViewKey.Text("exit-separator"))
+                item(ViewKey.Text("exit"), "Quit…", { _ -> app.confirmExit() })
+            }
+        val icon =
+            if (demo.color.value == 1)
+                demo.blueIcon
+            else
+                demo.orangeIcon
+        return ApplicationContent(
+            [
+                nativeApplicationMenuBar(applicationMenu(demo), ViewKey.Text("application-menu")),
+                nativeTrayIcon(icon, ViewKey.Text("tray")) {
+                    handle = Some(demo.tray)
+                    tooltip = Some(f"Scoop native desktop • ${demo.actionCount.value} actions")
+                    menu = Some(trayMenu)
+                    onActivated =
+                        {
+                            event ->
+                            demo.report(activationText(event))
+                            if (event.kind == TrayActivationKind.Primary)
+                                app.showTrayWindow(event.anchor)
+                        }
+                    onAvailabilityChanged =
+                        {
+                            value -> demo.report(
+                                if (value == TrayAvailability.Available)
+                                    "Tray host available"
+                                else
+                                    "Tray host unavailable"
+                            )
+                        }
+                    onMenuClosed = { _ -> demo.report("Native tray menu closed") }
+                }
+            ]
+        )
+    }
+    fun openFile() {
+        files.openFile(DialogTarget.Application, { reportFile(demo, it) })
+    }
+    fun showDialog(exit: Boolean = false) {
+        val demo = this.demo
+        dialog.open(
+            {
+                reply, mount ->
+                response = Some(reply)
+                Confirmation(
+                    demo,
+                    reply,
+                    if (exit)
+                        "Quit this application?"
+                    else
+                        "Application modal",
+                    "Every document is blocked until this native window closes.",
+                    mount
+                )
+            },
+            {
+                result -> when (result) {
+                    case Accepted(value) -> if (value && exit)
+                        demo.application!!.requestExit()
+                    case Cancelled(_) -> demo.report("Application modal cancelled")
+                    case Failed(error) -> demo.operationFailed(error)
+                }
+            },
+            attributes =
+                windowAttributes {
+                    title = "Application modal";
+                    size = LogicalSize(550.0, 350.0)
+                }
+        )
+    }
+    fun confirmExit() {
+        showDialog(true)
+    }
+    fun showTrayWindow(anchor: TrayAnchor?) {
+        closeTrayWindow()
+        val icon = demo.tray.icon ?: return
+        val window =
+            scope.application.createWindow(
+                windowAttributes {
+                    title = "Tray panel";
+                    size = LogicalSize(380.0, 240.0);
+                    visible = false
+                    requestActivation = false
+                }
+            )
+        popupWindow = Some(window)
+        try {
+            popupUi = demo.host!!.attach(window, { TrayPanel(demo, { closeTrayWindow() }, it) })
+            if (
+                when (popupUi) {
+                    case None -> true;
+                    case Some(_) -> false
+                }
+            ) {
+                closeTrayWindow();
+                return
+            }
+            try {
+                icon.placeWindow(
+                    window,
+                    TrayWindowPlacement(
+                        anchor = anchor,
+                        allowPointHint = demo.allowPointHint.value,
+                        allowMonitorBounds = demo.allowScreenBounds.value
+                    )
+                )
+                demo.report("Tray panel positioned from the current native anchor / allowed hint.")
+            } catch (error: WindowException) {
+                if (
+                    error.kind !=
+                        WindowErrorKind.Unsupported &&
+                        error.kind !=
+                        WindowErrorKind.Unavailable
+                )
+                    throw error
+                if (!demo.allowUnanchored.value) {
+                    demo.report(
+                        "Tray placement unavailable. Enable unanchored placement to allow a normal window. " +
+                            (error.message ?: "")
+                    )
+                    closeTrayWindow()
+                    return
+                }
+                demo.report(
+                    "Tray placement unavailable; displaying an explicitly allowed ordinary window. " +
+                        (error.message ?: "")
+                )
+            }
+            popupEvents =
+                Some(
+                    scope.observeWindow(window) {
+                        event -> when (event) {
+                            case CloseRequested -> closeTrayWindow()
+                            else -> {}
+                        }
+                    }
+                )
+            window.setVisible(true)
+            if (!demo.smoke)
+                window.requestFocus()
+        } catch (error: Throwable) {
+            closeTrayWindow();
+            throw error
+        }
+    }
+    fun closeTrayWindow() {
+        val window = popupWindow
+        popupWindow = None
+        val ui = popupUi
+        popupUi = None
+        popupEvents?.close()
+        popupEvents = None
+        try {
+            ui?.close()
+        } finally {
+            window?.requestDestroy()
+        }
+    }
+}

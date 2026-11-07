@@ -1,0 +1,153 @@
+package scoop.examples.native_desktop
+
+import scoop.asyncio.*
+import scoop.ui.*
+import scoop.ui.component.tray.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.asyncio.*
+
+internal class DemoDocument(val window: Window, val number: Int) {
+    var ui: UiWindow? = None
+    var root: DocumentView? = None
+    var frames = 0
+}
+
+internal class DesktopDemo(val smoke: Boolean) {
+    val theme = ThemeSource(shadcnTheme())
+    val status = state("Ready. Open the native menu, edit text, or explore the window controls.")
+    val actionCount = state(0)
+    val menuEnabled = state(true)
+    val checked = state(false)
+    val color = state(1)
+    val windowCount = state(0)
+    val keepRunning = state(false)
+    val allowPointHint = state(false)
+    val allowScreenBounds = state(false)
+    val allowUnanchored = state(false)
+    val tray = NativeTrayHandle()
+    val blueIcon = demoIcon(false)
+    val orangeIcon = demoIcon(true)
+    val documents = ArrayList<DemoDocument>()
+    var application: ActiveApplication? = None
+    var host: UiHost? = None
+    var capabilities: DesktopCapabilities? = None
+    var applicationView: DesktopApplication? = None
+    var failure: Throwable? = None
+    var smokeCompleted = false
+    var nativeFailures = 0
+    private var nextNumber = 1
+
+    fun operationFailed(error: WindowException) {
+        nativeFailures += 1;
+        report(error.message ?: "Native operation failed")
+    }
+    fun report(message: String) {
+        status.value = message
+    }
+    fun failed(error: Throwable) {
+        if (error is Exception)
+            println(error.message ?: "Native desktop failure")
+        if (
+            when (failure) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+            failure = Some(error)
+        application?.requestExit()
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                this.host = Some(host)
+                application = Some(active)
+                capabilities = Some(active.desktopCapabilities())
+                host.attachApplication(active) { DesktopApplication(this, it) }
+                if (
+                    when (failure) {
+                        case None -> false;
+                        case Some(_) -> true
+                    }
+                )
+                    return
+                val first = newDocument()
+                if (smoke)
+                    currentApplicationScope().launch { runDemoSmoke(this @DesktopDemo, first) }
+            }
+            case ExitRequested(_) -> applicationView!!.confirmExit()
+            case Window(id, WindowEvent.CloseRequested) -> when (find(id)) {
+                case Some(document) -> document.root?.confirmClose()
+                case None -> {}
+            }
+            case Window(id, WindowEvent.Destroyed) -> {
+                var index = 0L
+                while (index < documents.size) {
+                    if (documents[index].window.id == id) {
+                        documents.removeAt(index);
+                        break
+                    }
+                    index += 1L
+                }
+                windowCount.value = documents.size.toInt()
+                if (documents.size == 0L && !keepRunning.value)
+                    active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun newDocument(): DemoDocument {
+        val activate = !smoke
+        val number = nextNumber
+        nextNumber += 1
+        val window =
+            application!!.createWindow(
+                windowAttributes {
+                    title = f"Scoop native desktop — ${number}"
+                    size = LogicalSize(1000.0, 720.0)
+                    frame = WindowFrame.Client
+                    requestActivation = activate
+                }
+            )
+        val document = DemoDocument(window, number)
+        documents.add(document)
+        windowCount.value = documents.size.toInt()
+        document.ui = host!!.attach(window, { DocumentView(this, document, it) })
+        return document
+    }
+    fun find(id: WindowId): DemoDocument? {
+        for (document in documents)
+            if (document.window.id == id)
+                return Some(document)
+        return None
+    }
+    fun source(event: MenuActivation): DemoDocument? =
+        when (event.source) {
+            case WindowMenuBar(id) -> find(id)
+            case ApplicationMenuBar(id) -> when (id) {
+                case Some(value) -> find(value);
+                case None -> None
+            }
+            case Popup(_, id) -> find(id)
+            case Native(_) -> None
+        }
+    fun closeDocument(document: DemoDocument) {
+        document.ui?.close()
+        document.window.requestDestroy()
+    }
+    fun background() {
+        keepRunning.value = true
+        for (document in documents.toArray())
+            closeDocument(document)
+        report("All document windows are closed. The tray and application menu remain active.")
+    }
+    fun activate(source: String) {
+        actionCount.value += 1
+        report(
+            f"${source}: action ${actionCount.value}; checked=${checked.value}; color=${
+                color.value
+            }"
+        )
+    }
+}

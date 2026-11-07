@@ -1,0 +1,47 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.*
+
+fun main(arguments: Array<String>) {
+    if (hasArgument(arguments, "--help")) {
+        println("Scoop native desktop demo: run normally for the interactive showcase.")
+        println("--smoke runs a bounded GUI lifecycle scenario and exits; it requires a desktop.")
+        return
+    }
+    val smoke = hasArgument(arguments, "--smoke")
+    val demo = DesktopDemo(smoke)
+    context(demo.theme) {
+        UiHost(
+            onRootError = { _, error -> demo.failed(error) },
+            onApplicationError = { error -> demo.failed(error) },
+            handler = { host, application, event -> demo.event(host, application, event) }
+        ).use {
+            host -> Application(
+                applicationOptions { lastWindowPolicy = LastWindowPolicy.KeepRunning }
+            )
+            .runWithAsyncio(host)
+        }
+    }
+    when (demo.failure) {
+        case Some(error) -> throw error
+        case None -> {}
+    }
+    if (smoke) {
+        requireDemo(demo.smokeCompleted, "smoke scenario did not finish")
+        println("native-desktop smoke passed")
+    }
+}
+
+internal fun requireDemo(value: Boolean, message: String) {
+    if (!value)
+        throw IllegalStateException(Some(message))
+}
+
+private fun hasArgument(arguments: Array<String>, expected: String): Boolean {
+    for (argument in arguments)
+        if (argument == expected)
+            return true
+    return false
+}

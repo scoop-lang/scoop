@@ -207,7 +207,7 @@ static gboolean scroll(GtkEventControllerScroll *controller, double dx,
                      GDK_SCROLL_UNIT_WHEEL
                  ? 5
                  : 6,
-             0, dx, dy, 1);
+             0, -dx, -dy, 1);
   return TRUE;
 }
 static void scroll_begin(GtkEventControllerScroll *controller, gpointer data) {

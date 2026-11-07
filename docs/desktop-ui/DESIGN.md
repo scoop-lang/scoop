@@ -506,6 +506,8 @@ window 通过应用资源登记通知 tray 收尾，不遍历托盘私有对象�
 
 最后编写一个完整的桌面能力 demo，统一展示原生菜单栏／popup、托盘与邻近弹窗、可定制／异形窗口、owned 工具窗口、Owner／Application 模态、一次 raise／持续 topmost、原生打开／保存／目录面板，以及响应式 UI 包装和有序退出。demo 使用公共 API，明确引入托盘组件 Cone；在 macOS、Windows、Linux Wayland／X11 上展示实际支持的操作，能力缺失时说明原因并演示明确选择的降级，不伪造结果。
 
+示例入口位于 [native-desktop](../../sysroot/src/scoop.ui.component/examples/native-desktop/README.md)。正常启动提供交互展示；`--help` 不创建原生 Application，`--smoke` 在显示会话内验证有界的窗口、菜单、模态、文件面板和无窗口应用流程。实际平台结果与交互限制继续记录在[实施记录](PROGRESS.md)。
+
 代表使用场景：
 
 - 多窗口编辑应用：应用默认菜单、窗口覆盖、当前编辑器 Cut／Copy／Paste／Undo，以及窗口关闭后的菜单切换。
