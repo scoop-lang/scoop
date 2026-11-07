@@ -1,0 +1,54 @@
+package dev.scoop.bundle
+
+import scoop.platform.env.executablePath
+import scoop.platform.fs.Path
+import scoop.platform.fs.readText
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.*
+
+fun main() {
+    val relative =
+        when (operatingSystem) {
+            case OperatingSystem.Darwin -> "../Resources/assets/message.txt"
+            case OperatingSystem.Linux -> "../../../share/dev.scoop.gui-app/assets/message.txt"
+            case OperatingSystem.Windows -> "resources/assets/message.txt"
+        }
+    val message = executablePath().parent!!.resolve(Path.fromString(relative)).readText()
+    Application().run(ResourceWindow(message))
+}
+
+private class ResourceWindow(private val message: String): ApplicationHandler {
+    private var shown = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.createWindow(
+                    windowAttributes {
+                        title = "Scoop Bundle Window"
+                        size = LogicalSize(480.0, 280.0)
+                    }
+                )
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(2L))
+                )
+            }
+            case Window(_, WindowEvent.RedrawRequested) -> {
+                if (!shown) {
+                    print(message)
+                    shown = true
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                if (!shown)
+                    throw IllegalStateException(Some("The packaged window did not become visible"))
+                application.requestExit()
+            }
+            case Window(_, WindowEvent.CloseRequested) -> application.requestExit()
+            else -> return
+        }
+    }
+}

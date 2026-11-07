@@ -3,6 +3,7 @@ mod cache;
 mod config;
 mod deploy;
 mod host_path;
+mod linux;
 mod macos;
 mod project;
 mod target;
@@ -23,12 +24,23 @@ pub fn run(args: &Args) -> Result<()> {
     let settings = &input.settings;
     let mut formats = args.formats.clone();
     if formats.is_empty() {
-        formats = settings.config.macos.formats.clone();
+        formats = match input.target.os.as_str() {
+            "linux" => settings.config.linux.formats.clone(),
+            _ => settings.config.macos.formats.clone(),
+        };
     }
     if formats.is_empty() {
-        formats.push("app".into());
+        formats.push(
+            if input.target.os == "linux" {
+                "deb"
+            } else {
+                "app"
+            }
+            .into(),
+        );
     }
-    formats.dedup();
+    let mut selected = std::collections::BTreeSet::new();
+    formats.retain(|format| selected.insert(format.clone()));
     let mut failures = Vec::new();
     for format in formats {
         match bundle(&input, &format, args.force) {
@@ -68,8 +80,11 @@ pub fn run(args: &Args) -> Result<()> {
 
 fn bundle(input: &project::Input, format: &str, force: bool) -> Result<(PathBuf, bool)> {
     ensure!(
-        format == "app" && input.target.os == "darwin",
-        "format {format:?} is unavailable for {}; available format: app on Darwin",
+        matches!(
+            (input.target.os.as_str(), format),
+            ("darwin", "app") | ("linux", "deb" | "rpm" | "appimage")
+        ),
+        "format {format:?} is unavailable for {}",
         input.target.triple
     );
     let settings = &input.settings;
@@ -103,7 +118,17 @@ fn bundle(input: &project::Input, format: &str, force: bool) -> Result<(PathBuf,
         inputs.watch(&settings.path(path))?;
     }
     let mut tools = tools::Tools::new(settings);
-    let artifact = macos::build(input, &publish, scratch.path(), &mut inputs, &mut tools)?;
+    let artifact = match input.target.os.as_str() {
+        "linux" => linux::build(
+            input,
+            format,
+            &publish,
+            scratch.path(),
+            &mut inputs,
+            &mut tools,
+        )?,
+        _ => macos::build(input, &publish, scratch.path(), &mut inputs, &mut tools)?,
+    };
     inputs.save(&publish, key, artifact.clone())?;
     let previous = scratch.path().join("previous");
     if destination.exists() {

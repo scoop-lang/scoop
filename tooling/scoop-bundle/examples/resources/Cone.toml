@@ -16,6 +16,7 @@ schema = 1
 identifier = "dev.scoop.resource-app"
 display-name = "Scoop Resource App"
 publisher = "Scoop Examples"
+icons = ["assets/icon.png"]
 
 [[bundle.files]]
 from = "assets"
@@ -24,3 +25,10 @@ kind = "resource"
 
 [bundle.macos]
 formats = ["app"]
+
+[bundle.linux]
+formats = ["deb", "rpm", "appimage"]
+terminal = true
+
+[bundle.linux.deb]
+maintainer = "Scoop Examples <noreply@example.com>"

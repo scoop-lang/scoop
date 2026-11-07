@@ -19,6 +19,7 @@ enum Entry {
     File { source: PathBuf, executable: bool },
     Link { source: PathBuf },
     Generated(Vec<u8>),
+    GeneratedLink(PathBuf),
 }
 
 pub struct Plan {
@@ -84,6 +85,17 @@ impl Plan {
 
     pub fn generated(&mut self, path: impl Into<PathBuf>, data: impl Into<Vec<u8>>) -> Result<()> {
         self.insert(path.into(), Entry::Generated(data.into()))
+    }
+
+    pub fn symlink(&mut self, path: impl Into<PathBuf>, target: impl Into<PathBuf>) -> Result<()> {
+        let path = path.into();
+        let target = target.into();
+        match self.entries.get(&path) {
+            Some(Entry::GeneratedLink(existing)) if existing == &target => return Ok(()),
+            Some(Entry::Link { source }) if fs::read_link(source)? == target => return Ok(()),
+            _ => (),
+        }
+        self.insert(path, Entry::GeneratedLink(target))
     }
 
     pub fn add(
@@ -203,6 +215,16 @@ impl Plan {
                         .create_new(true)
                         .open(&destination)?;
                     file.write_all(bytes)?;
+                }
+                Entry::GeneratedLink(target) => {
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(target, &destination)?;
+                    #[cfg(windows)]
+                    bail!(
+                        "installer payload cannot express symlink {} -> {}",
+                        destination.display(),
+                        target.display()
+                    );
                 }
             }
         }

@@ -33,6 +33,8 @@ pub struct Config {
     #[serde(default)]
     pub macos: Macos,
     #[serde(default)]
+    pub linux: Linux,
+    #[serde(default)]
     pub tools: BTreeMap<String, PathBuf>,
 }
 

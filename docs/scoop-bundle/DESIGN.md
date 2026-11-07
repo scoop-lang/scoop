@@ -351,7 +351,7 @@ MSI 通过 WiX 定义产品、目录、component、快捷方式和升级。Upgra
 
 2026-11-08 确认上述 Rust 库近期仍有维护，许可为 MIT 或 MIT/Apache-2.0；独立工具声明 Rust 1.90 并锁定 Cargo.lock，不调整主 compiler workspace 的最低版本。实际运行依赖和格式工具版本记录在平台验收中。
 
-只为所选格式发现工具，允许在 `bundle.tools` 中按工具名称显式给出路径。普通打包不静默安装 SDK 或下载执行辅助工具；维护环境显式准备系统工具，并通过配置选择其位置。AppImage 自动部署实际 ELF 依赖；无法由 imports 推导的模块和数据继续使用显式文件映射。
+只为所选格式发现工具，允许在 `bundle.tools` 中按工具名称显式给出路径。普通打包不静默安装 SDK 或下载执行辅助工具；维护环境显式准备系统工具，并通过配置选择其位置。AppImage 的维护工具需要单独准备 `appimagetool` 与 type-2 runtime（`bundle.tools.appimage-runtime`），调用时总是显式传入 runtime 文件，避免上游默认的在线获取行为。AppImage 自动部署实际 ELF 依赖；无法由 imports 推导的模块和数据继续使用显式文件映射。
 
 实施前同步：
 

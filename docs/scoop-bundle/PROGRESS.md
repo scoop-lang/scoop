@@ -19,3 +19,12 @@
 - 通过开发 sysroot 的真实 `scoop bundle` 运行资源示例；从 `/tmp` 启动读取资源成功。本机 Developer ID 专项验证通过，签名包含可信时间戳及 hardened runtime；该记录不代表完成公证。
 - 维护构建入口和完整工具链发行已接入新命令，依赖许可收集覆盖其独立 Cargo workspace。定向发行脚本测试通过，其他宿主专属检查留待相应平台。
 - 本轮临时 C/framework 工程与签名配置已清理；签名样包和必要构建缓存保留在仓库外供后续验收。Linux/Windows 格式继续实施。
+
+## 2026-11-08：Linux deb、rpm 与 AppImage
+
+- 三种格式共用固定目录、desktop/图标、文件映射和 ELF 依赖部署；deb 调用 dpkg-deb，rpm 使用 rpm 0.30.2，AppImage 显式提供 appimagetool 与 type-2 runtime。因 ELF 部署和 GUI 验收共用，AppImage 与 Linux 大项一起完成。
+- 部署保留原有 SONAME，必要时生成相对链接，只修改副本的 RUNPATH/依赖路径。实际 GUI 验收发现并修复了改变 SONAME 导致 GLib 重复加载的问题；定向测试覆盖重命名私有库后链接依赖与 dlopen 使用同一实例。
+- 本地与 Linux 格式化、clippy 通过；8 项公共/格式单测与实际 Linux CLI 集成测试通过。集成覆盖传递依赖、空格/中文路径、目录资源、三个格式复用、deb/rpm 安装/升级/卸载与普通 FUSE 启动。
+- nuc12 独立检出中的真实 Scoop 平台测试 5 项通过。资源和窗口两个 Scoop 示例均完成三格式生成、从 `/tmp` 读取资源；窗口示例在 Xvfb/X11 与 D-Bus 会话中显示窗口并正常退出。运行时未使用开发工具链的 LD_LIBRARY_PATH。
+- 验收宿主为 Ubuntu 26.04.1 x86_64、glibc 2.43、GTK 4.22.4、libadwaita 1.9.1；RPM 安装器为 6.0.1，AppImage 工具为 2026-11-06 的 continuous build 370。这不是较早发行版兼容性声明，发布者须在选定的最低系统基线上构建。
+- 安装验收使用临时目录和独立包数据库，完成后自动清理。GUI 包依赖由宿主提供，临时数据库安装绕过依赖求解；RPM 包并未在 Fedora 系统包数据库上验收。样包、日志与后续发行仍需的缓存/工具保留在仓库外。

@@ -33,3 +33,47 @@ pub enum SigningMode {
     Identity,
     None,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct Linux {
+    #[serde(default)]
+    pub formats: Vec<String>,
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub terminal: bool,
+    #[serde(default)]
+    pub deb: Deb,
+    #[serde(default)]
+    pub rpm: Rpm,
+    #[serde(default)]
+    pub appimage: AppImage,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct Deb {
+    pub maintainer: Option<String>,
+    pub section: Option<String>,
+    pub version: Option<String>,
+    pub revision: Option<String>,
+    #[serde(default)]
+    pub depends: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct Rpm {
+    pub version: Option<String>,
+    pub release: Option<String>,
+    #[serde(default)]
+    pub requires: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct AppImage {
+    #[serde(default)]
+    pub system_libraries: Vec<String>,
+}
