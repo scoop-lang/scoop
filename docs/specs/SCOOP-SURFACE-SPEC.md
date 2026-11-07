@@ -148,6 +148,8 @@ SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近�
 
 ## 6. 区域、输入与焦点
 
+原生菜单的 WindowEvent.TextCommand 转为 InputEvent.TextCommand，沿当前合格焦点的普通输入路径派发，保留 capture／target／bubble／default 和 preventDefault；观察时间来自当前输入派发，不构造虚假的 Keyboard。InputScope.textCommandAvailability 为可选的 Window TextCommandAvailability，默认 None 表示该 scope 不提供编辑角色。最近的合格焦点祖先中首个 Some 决定当前六项可用性；没有提供者时发布全 false。焦点、边界和声明变化同步刷新 Window，不请求绘制帧；Surface 退休清除自己提供的状态。此状态不控制原生文件面板的编辑目标。
+
 InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
 
 InputArea.focusable 是可更新资格；设置 false 时按普通输入失效规则清理该区域的焦点，设置 true 不自动聚焦。textInput=true 必须保持 focusable=true，不能在文本输入仍启用时清除焦点能力。该入口供 Portal 模式切换复用原路由代理，不替换区域或其子树。

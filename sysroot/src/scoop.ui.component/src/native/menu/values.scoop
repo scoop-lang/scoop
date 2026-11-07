@@ -1,0 +1,49 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.*
+
+public class NativeMenuItemSpec public constructor(
+    public val key: ViewKey,
+    public val label: String,
+    public val enabled: Boolean = true,
+    public val image: DesktopImage? = None,
+    public val shortcut: ShortcutChord? = None
+)
+
+public enum NativeMenuEntry {
+    Action(val item: NativeMenuItemSpec, val onSelect: (MenuActivation) -> Unit),
+    Role(val item: NativeMenuItemSpec, val role: MenuRole),
+    Checkbox(
+        val item: NativeMenuItemSpec,
+        val checked: Binding<Boolean>,
+        val onCheckedChange: (Boolean) -> Unit = {}
+    ),
+    Radio(val item: NativeMenuItemSpec, val isSelected: () -> Boolean, val onSelect: () -> Unit),
+    Submenu(val item: NativeMenuItemSpec, val content: NativeMenuContent),
+    Separator(val key: ViewKey)
+}
+
+public class NativeMenuContent public constructor(public val entries: Array<NativeMenuEntry>) {
+    init {
+        for (index in 0L ..< entries.size) {
+            val key = nativeMenuKey(entries[index])
+            requireComponent(key != ViewKey.Position, "native menu entry requires an explicit key")
+            for (previous in 0L ..< index)
+                requireComponent(
+                    nativeMenuKey(entries[previous]) != key,
+                    "duplicate native menu key"
+                )
+        }
+    }
+}
+
+internal fun nativeMenuKey(entry: NativeMenuEntry): ViewKey =
+    when (entry) {
+        case Action(item, _) -> item.key
+        case Role(item, _) -> item.key
+        case Checkbox(item, _, _) -> item.key
+        case Radio(item, _, _) -> item.key
+        case Submenu(item, _) -> item.key
+        case Separator(key) -> key
+    }

@@ -146,6 +146,7 @@ void sw_invalidate_text_caret(SWView *view);
 @property(nonatomic, strong) NSData *hitRegions;
 @property(nonatomic) double frameWidth, frameHeight, frameScale;
 @property(nonatomic) uint64_t frameRevision;
+@property(nonatomic) int32_t menuTextCommands;
 @property(nonatomic) NSInteger attentionRequest;
 - (void)emit:(int32_t)kind;
 @end

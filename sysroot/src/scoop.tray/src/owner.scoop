@@ -219,6 +219,9 @@ internal class TrayOwner(
             detachMenu()
             if (state == TrayState.Open && !detaching)
                 setMenu(previous)
+            else
+                if (state == TrayState.Open)
+                    emit(TrayEvent.MenuBindingChanged(None))
             detaching = false
             renewing = false
         }

@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class NativePopupLayout(
+    private val props: Props<NativePopupInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var presentation: NativePopupPresentation? = None
+    private var fallback: FocusTarget? = None
+
+    public override fun onMount() {
+        val target = scope.createArea(focusable = props.value.contextMenu)
+        area = Some(target)
+        scope.routeChildren(target)
+        if (props.value.contextMenu)
+            fallback = Some(scope.focusTarget(target, FocusOptions(tabStop = false)))
+        val tree = scope.resource { NativeMenuTree(scope.application, props.value.menu) }
+        val popup = scope.resource { NativePopupPresentation(scope, target, tree, { props.value }) }
+        presentation = Some(popup)
+        popup.update()
+        scope.observeMenu(tree.menu) {
+            event -> if (props.value.enabled)
+                tree.activate(event)
+        }
+        target.scope.captureHandler =
+            {
+                context,
+                event -> if (props.value.enabled && props.value.contextMenu)
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(
+                                pointer,
+                                MouseButton.Right,
+                                ElementState.Pressed,
+                                _
+                            )
+                        ) -> {
+                            if (target.visibleBounds != None && target.scope.isInputAllowed) {
+                                if (!target.scope.activity.hasFocus)
+                                    fallback!!.handle.requestFocus(FocusOrigin.Pointer)
+                                if (popup.open(Some(pointer.state.logicalPosition)))
+                                    context.consume()
+                            }
+                        }
+                        else -> {}
+                    }
+            }
+        target.scope.addDefaultAction {
+            context, event ->
+            if (!props.value.enabled)
+                return@addDefaultAction
+            val key =
+                when (event) {
+                    case Keyboard(value) -> value;
+                    else -> return@addDefaultAction
+                }
+            if (!menuKeyAllowed(key, true))
+                return@addDefaultAction
+            val requested =
+                if (props.value.contextMenu)
+                    key.logicalKey ==
+                        LogicalKey.Named(NamedKey.ContextMenu) ||
+                        (key.logicalKey == LogicalKey.Named(NamedKey.F10) && key.modifiers.shift)
+                else
+                    !key.modifiers.shift &&
+                        (
+                            key.logicalKey ==
+                                LogicalKey.Named(NamedKey.ArrowDown) ||
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.ArrowUp)
+                        )
+            if (requested && popup.open(None))
+                context.consume()
+        }
+    }
+    public override fun update(): UiInvalidation {
+        presentation!!.update()
+        return UiInvalidation.None
+    }
+    public override fun onUnmount() {
+        presentation?.close()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

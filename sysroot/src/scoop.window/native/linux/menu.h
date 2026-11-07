@@ -23,6 +23,7 @@ typedef struct SWMenuEntry {
 
 struct SWMenu {
   SWApplication *application;
+  SWMenu *next;
   SWWindow *window;
   GMenu *model;
   GSimpleActionGroup *actions;
@@ -36,6 +37,7 @@ struct SWMenu {
 SWMenuEntry *sw_menu_find(SWMenu *menu, int64_t identity);
 void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window);
 bool sw_menu_activate(SWMenuEntry *entry);
+void sw_menu_refresh_commands(SWMenu *menu);
 void sw_menu_action(GSimpleAction *action, GVariant *parameter, gpointer data);
 void sw_menu_watch(SWMenu *menu, GtkWidget *widget, bool connect);
 bool sw_menu_tracking(GtkWidget *widget);

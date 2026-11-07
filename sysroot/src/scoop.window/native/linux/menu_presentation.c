@@ -86,6 +86,7 @@ int64_t scoop_window_menu_bind(SWMenu *menu, int32_t kind, int64_t serial,
     window->menu_bar = menu;
     sw_menu_watch(menu, menu->bar, true);
   }
+  sw_menu_refresh_commands(menu);
   return 0;
 }
 

@@ -1,0 +1,32 @@
+package scoop.ui.component.tray
+
+import scoop.tray.*
+import scoop.ui.state
+
+/** Controls the current mount; the exposed icon is borrowed from that mount. */
+public class NativeTrayHandle public constructor() {
+    private val binding = state<NativeTrayAttachment?>(None)
+    public val icon: TrayIcon? get() = binding.value?.icon
+    public val availability: TrayAvailability? get() = binding.value?.availability
+    public val isMenuPending: Boolean get() = binding.value?.isMenuPending ?: false
+    public fun requestMenu(): Boolean = binding.value?.requestMenu() ?: false
+    public fun cancelMenu() {
+        binding.value?.cancelMenu()
+    }
+    internal fun bind(owner: NativeTrayAttachment) {
+        when (binding.value) {
+            case Some(current) -> if (!(current === owner))
+                throw IllegalStateException(Some("tray handle already belongs to a mounted icon"))
+            case None -> {
+                binding.value = Some(owner)
+            }
+        }
+    }
+    internal fun unbind(owner: NativeTrayAttachment) {
+        when (binding.value) {
+            case Some(current) -> if (current === owner)
+                binding.value = None
+            case None -> {}
+        }
+    }
+}

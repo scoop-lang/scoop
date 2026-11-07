@@ -91,6 +91,7 @@ typedef struct SWWindow {
   bool window_region;
   bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
+  int32_t menu_text_commands;
   bool destroying, caret_set;
   bool input_blocked, saved_enabled;
   int theme;

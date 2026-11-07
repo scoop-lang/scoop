@@ -52,6 +52,7 @@ public class SelectableTextHost public constructor(
         area.scope.onEventFinished = { event -> selectableFinished(this, event) }
         area.scope.enabled = options.enabled
         scope.routeChildren(area)
+        refreshMenuCommands()
     }
 
     public val isClosed: Boolean get() {
@@ -166,6 +167,7 @@ public class SelectableTextHost public constructor(
             }
         // Pending text blocks selection through inputFrame without retiring the existing focus.
         area.scope.enabled = options.enabled
+        refreshMenuCommands()
         for (action in actions)
             action.refresh(available, accepted)
     }
@@ -184,6 +186,7 @@ public class SelectableTextHost public constructor(
         if (selected.value == value)
             return false
         selected.value = value
+        refreshMenuCommands()
         scope.requestFrame()
         changed(value.anchor, value.cursor)
         return true

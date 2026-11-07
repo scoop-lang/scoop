@@ -37,6 +37,10 @@ internal fun selectableHandle(
     )
         return
     when (event) {
+        case TextCommand(command) -> if (
+            context.phase == RoutedPhase.Default && host.execute(command)
+        )
+            context.consume()
         case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
             if (state == ElementState.Pressed) {
                 if (context.phase == RoutedPhase.Capture) {

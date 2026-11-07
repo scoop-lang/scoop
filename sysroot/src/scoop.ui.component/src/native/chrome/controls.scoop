@@ -1,0 +1,195 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+public class WindowControlsProps public constructor(
+    public val buttons: WindowButtons = WindowButtons(),
+    public val size: ButtonSize = ButtonSize.IconSm,
+    public val style: ButtonStyle = buttonStyle(),
+    public val theme: ThemeSource? = None
+)
+
+public class WindowControlsBuilder internal constructor() {
+    public var buttons: WindowButtons = WindowButtons()
+    public var size: ButtonSize = ButtonSize.IconSm
+    public var style: ButtonStyle = buttonStyle()
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun windowControls(configure: WindowControlsBuilder.() -> Unit = {}): View {
+    val builder = WindowControlsBuilder()
+    builder.configure()
+    return component(
+        WindowControlsProps(builder.buttons, builder.size, builder.style, builder.theme),
+        { props, scope -> WindowControls(props, scope) },
+        builder.key
+    )
+}
+
+public class WindowControls public constructor(
+    private val props: Props<WindowControlsProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val input = props.value
+        return row {
+            for (
+                button in [
+                    WindowSystemButton.Minimize,
+                    WindowSystemButton.Maximize,
+                    WindowSystemButton.Close
+                ]
+            ) {
+                val visible =
+                    when (button) {
+                        case Minimize -> input.buttons.minimize
+                        case Maximize -> input.buttons.maximize
+                        case Close -> input.buttons.close
+                    }
+                if (visible)
+                    add(
+                        component(
+                            WindowControlInput(button, input),
+                            { current, mount -> WindowControl(current, mount) },
+                            ViewKey.Number(
+                                when (button) {
+                                    case Minimize -> 0L;
+                                    case Maximize -> 1L;
+                                    case Close -> 2L
+                                }
+                            )
+                        )
+                    )
+            }
+        }
+    }
+}
+
+internal class WindowControlInput(
+    val button: WindowSystemButton,
+    val appearance: WindowControlsProps
+)
+
+private class WindowControl(
+    private val props: Props<WindowControlInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    private val nativeInteraction = state(InteractionState())
+    private val maximized = state(false)
+    private val click: () -> Unit = { activate() }
+    private val control = PressControl(scope, PressOptions(), FocusOptions(), click)
+    public override fun onMount() {
+        themes.mount(props.value.appearance.theme)
+        maximized.value = scope.nativeWindow.isMaximized ?: false
+        scope.observeWindow(scope.nativeWindow) {
+            event -> when (event) {
+                case FrameButtonChanged(button, hovered, pressed) -> if (
+                    button == props.value.button
+                ) {
+                    val next = InteractionState(hovered, pressed)
+                    if (nativeInteraction.value != next)
+                        nativeInteraction.value = next
+                }
+                case GeometryChanged(_) -> {
+                    val next = scope.nativeWindow.isMaximized ?: false
+                    if (maximized.value != next)
+                        maximized.value = next
+                }
+                else -> {}
+            }
+        }
+    }
+    private fun activate() {
+        val window = scope.nativeWindow
+        when (props.value.button) {
+            case Close -> {
+                window.requestClose()
+            }
+            case Minimize -> requireChromeRequest(window.requestMinimized(true), "minimize window")
+            case Maximize -> requireChromeRequest(
+                window.requestMaximized(!(window.isMaximized ?: false)),
+                "maximize window"
+            )
+        }
+    }
+    public override fun render(): View {
+        val input = props.value
+        val appearance = input.appearance
+        val theme = themes.read(appearance.theme)
+        val keyboard = control.press.interaction
+        val native = nativeInteraction.value
+        val interaction =
+            InteractionState(
+                keyboard.hovered || native.hovered,
+                keyboard.pressed || native.pressed,
+                keyboard.focused,
+                keyboard.focusVisible
+            )
+        val visual = SurfaceVisual(appearance.style.kind, interaction.asVisual(true, false))
+        val shape = ActionShape.Button(appearance.size)
+        val button =
+            element(
+                ActionInkProps(
+                    theme,
+                    shape,
+                    ButtonVariant.Ghost,
+                    appearance.style,
+                    visual,
+                    ActionBehavior.Press(control, click, FocusOptions())
+                ),
+                { current, mount -> ActionInk(current, mount) },
+                [
+                    windowControlGlyph(
+                        input.button,
+                        maximized.value,
+                        actionIconSize(shape),
+                        actionTextColor(theme, shape, ButtonVariant.Ghost, visual)
+                    )
+                ]
+            )
+        return element(
+            input.button,
+            { current, mount -> WindowControlHit(current, mount) },
+            [button]
+        )
+    }
+}
+
+private class WindowControlHit(
+    private val props: Props<WindowSystemButton>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var region: WindowRegionHandle? = None
+    public override fun onMount() {
+        if (scope.application.desktopCapabilities().frame.systemButtonHitRegions)
+            region =
+                Some(
+                    scope.createWindowRegion(
+                        WindowRegionKind.Hit(WindowHitRole.SystemButton(props.value))
+                    )
+                )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        when (region) {
+            case Some(value) -> context.place(
+                value,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
+        context.children()
+    }
+}

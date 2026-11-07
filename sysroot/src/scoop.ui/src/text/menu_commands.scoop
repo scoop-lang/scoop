@@ -1,0 +1,35 @@
+package scoop.ui.text
+
+import scoop.window.TextCommandAvailability
+
+internal fun TextEditHost.refreshMenuCommands() {
+    val selected = current.selection.range.start != current.selection.range.end
+    val editable = options.enabled && !options.readOnly
+    area.scope.textCommandAvailability =
+        Some(
+            TextCommandAvailability(
+                cut = editable && copyAllowed && selected,
+                copy = options.enabled && copyAllowed && selected,
+                paste = editable,
+                selectAll = options.enabled && current.text.byteLength > 0L,
+                undo = editable && current.canUndo,
+                redo = editable && current.canRedo
+            )
+        )
+}
+
+internal fun SelectableTextHost.refreshMenuCommands() {
+    val available =
+        when (inputFrame()) {
+            case Some(_) -> options.enabled;
+            case None -> false
+        }
+    val selected = selection.range.start != selection.range.end
+    area.scope.textCommandAvailability =
+        Some(
+            TextCommandAvailability(
+                copy = available && options.copy && selected,
+                selectAll = available && content.text.byteLength > 0L
+            )
+        )
+}

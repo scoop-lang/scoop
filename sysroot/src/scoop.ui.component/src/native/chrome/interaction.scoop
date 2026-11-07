@@ -1,0 +1,177 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal enum WindowInteraction {
+    Move, Resize(WindowResizeEdge)
+}
+
+internal class WindowInteractionProps(
+    val content: View,
+    val kind: WindowInteraction,
+    val enabled: Boolean,
+    val doubleClickMaximize: Boolean = false,
+    val windowMenu: Boolean = false
+)
+
+private class WindowInteractionLayout(
+    private val props: Props<WindowInteractionProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var area: InputArea? = None
+    private var region: WindowRegionHandle? = None
+    private var previous: WindowInteraction? = None
+    public override fun onMount() {
+        val target = scope.createArea()
+        area = Some(target)
+        scope.routeChildren(target)
+        target.scope.defaultAction =
+            {
+                context, event ->
+                val input = props.value
+                if (input.enabled)
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(_, button, ElementState.Pressed, count)
+                        ) -> {
+                            val capabilities = scope.application.desktopCapabilities().frame
+                            if (button == MouseButton.Left) {
+                                when (input.kind) {
+                                    case Move -> if (count >= 2 && input.doubleClickMaximize) {
+                                        requireChromeRequest(
+                                            scope.nativeWindow.requestMaximized(
+                                                !(scope.nativeWindow.isMaximized ?: false)
+                                            ),
+                                            "maximize window"
+                                        )
+                                    } else
+                                        requireChromeRequest(
+                                            scope.nativeWindow.beginMove(),
+                                            "move window"
+                                        )
+                                    case Resize(edge) -> requireChromeRequest(
+                                        scope.nativeWindow.beginResize(edge),
+                                        "resize window"
+                                    )
+                                }
+                                context.consume()
+                            } else
+                                if (
+                                    button ==
+                                        MouseButton.Right &&
+                                        input.windowMenu &&
+                                        capabilities.windowMenu
+                                ) {
+                                    requireChromeRequest(
+                                        scope.nativeWindow.showWindowMenu(),
+                                        "window menu"
+                                    )
+                                    context.consume()
+                                }
+                        }
+                        else -> {}
+                    }
+            }
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        val value = props.value
+        val capabilities = scope.application.desktopCapabilities().frame
+        if (value.enabled) {
+            val supported =
+                when (value.kind) {
+                    case Move -> capabilities.beginMove;
+                    case Resize(_) -> capabilities.beginResize || capabilities.resizeHitRegions
+                }
+            if (!supported)
+                throw WindowException("window interaction", WindowErrorKind.Unsupported)
+        }
+        if (previous != Some(value.kind)) {
+            region?.close()
+            region =
+                when (value.kind) {
+                    case Resize(edge) -> if (capabilities.resizeHitRegions)
+                        Some(
+                            scope.createWindowRegion(
+                                WindowRegionKind.Hit(WindowHitRole.Resize(edge))
+                            )
+                        )
+                    else
+                        None
+                    case Move -> None
+                }
+            previous = Some(value.kind)
+        }
+        when (region) {
+            case Some(value) -> value.enabled = props.value.enabled;
+            case None -> {}
+        }
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        when (region) {
+            case Some(value) -> context.place(value, bounds);
+            case None -> {}
+        }
+        context.children()
+    }
+}
+
+public class WindowDragRegionBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var doubleClickMaximize: Boolean = true
+    public var windowMenu: Boolean = true
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun windowDragRegion(
+    content: View,
+    configure: WindowDragRegionBuilder.() -> Unit = {}
+): View {
+    val builder = WindowDragRegionBuilder()
+    builder.configure()
+    return element(
+        WindowInteractionProps(
+            content,
+            WindowInteraction.Move,
+            builder.enabled,
+            builder.doubleClickMaximize,
+            builder.windowMenu
+        ),
+        { current, mount -> WindowInteractionLayout(current, scope = mount) },
+        [content],
+        builder.key
+    )
+}
+
+public class WindowResizeRegionBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun windowResizeRegion(
+    edge: WindowResizeEdge,
+    content: View,
+    configure: WindowResizeRegionBuilder.() -> Unit = {}
+): View {
+    val builder = WindowResizeRegionBuilder()
+    builder.configure()
+    return element(
+        WindowInteractionProps(content, WindowInteraction.Resize(edge), builder.enabled),
+        { current, mount -> WindowInteractionLayout(current, scope = mount) },
+        [content],
+        builder.key
+    )
+}

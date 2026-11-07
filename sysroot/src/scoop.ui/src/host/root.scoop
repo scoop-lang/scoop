@@ -49,6 +49,7 @@ internal class UiRoot(
     val frameDependencies = FrameDependencies()
     val focus = FocusController(this)
     val overlays = OverlayController(this)
+    var windowFrame: UiWindowFrameClaim? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
     override var pendingEnqueued = false

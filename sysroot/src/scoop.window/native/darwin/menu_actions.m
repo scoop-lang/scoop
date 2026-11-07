@@ -33,7 +33,8 @@ static SWWindow *scoop_target(SWMenu *menu, NSWindow *target) {
 }
 
 static BOOL can_activate(SWMenu *menu, SWMenuEntry *entry) {
-  if (!entry.live || entry.kind >= 3 || menu.binding < 0 || menu.cancelled)
+  if (!entry.live || !entry.enabled || entry.kind >= 3 || menu.binding < 0 ||
+      menu.cancelled)
     return NO;
   NSWindow *target = target_window(menu);
   SWWindow *window = scoop_target(menu, target);
@@ -41,7 +42,9 @@ static BOOL can_activate(SWMenu *menu, SWMenuEntry *entry) {
     return NO;
   if (entry.role >= 4) {
     if (window && target.firstResponder == window.view)
-      return entry.enabled && window.view.imeAllowed;
+      return ((window.menuTextCommands & 64)
+                  ? (window.menuTextCommands & (1 << (entry.role - 4))) != 0
+                  : window.view.imeAllowed);
     SEL selector = role_selector(entry.role);
     id responder = [NSApp targetForAction:selector to:nil from:entry.item];
     if (!responder)
@@ -57,8 +60,6 @@ static BOOL can_activate(SWMenu *menu, SWMenuEntry *entry) {
     }
     return YES;
   }
-  if (!entry.enabled)
-    return NO;
   if (entry.role == 2)
     return target && (target.styleMask & NSWindowStyleMaskMiniaturizable);
   if (entry.role == 3)
@@ -101,6 +102,11 @@ int32_t scoop_window_menu_activate(void *pointer, int64_t identity) {
   SWMenu *owner = (__bridge SWMenu *)pointer;
   SWMenuEntry *entry = owner.entries[@(identity)];
   return entry && sw_menu_activate(owner, entry);
+}
+
+void scoop_window_text_commands(void *pointer, int32_t flags) {
+  SWWindow *window = (__bridge SWWindow *)pointer;
+  window.menuTextCommands = flags;
 }
 
 BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event) {

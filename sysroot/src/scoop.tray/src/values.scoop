@@ -72,7 +72,7 @@ public enum TrayMenuResult {
 
 public enum TrayEvent {
     Activated(TrayActivation), AvailabilityChanged(TrayAvailability),
-    MenuCompleted(TrayMenuSessionId, TrayMenuResult)
+    MenuCompleted(TrayMenuSessionId, TrayMenuResult), MenuBindingChanged(NativeMenuUseId?)
 }
 
 public enum TrayPlacementSide {

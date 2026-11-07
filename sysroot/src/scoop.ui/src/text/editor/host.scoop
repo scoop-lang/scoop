@@ -68,6 +68,7 @@ public class TextEditHost public constructor(
         area.scope.onEventFinished = { event -> editorFinish(this, event) }
         area.scope.enabled = initialOptions.enabled
         viewport.paintCache = initialOptions.paintCache
+        refreshMenuCommands()
     }
 
     public val isClosed: Boolean get() {
@@ -214,6 +215,7 @@ public class TextEditHost public constructor(
         viewport.paintCache = options.paintCache
         area.scope.enabled = options.enabled
         area.textInput = options.enabled && !options.readOnly
+        refreshMenuCommands()
         if (area.isFocusActive && options.enabled)
             current.attachHost(this)
         if (restart)
@@ -255,6 +257,7 @@ public class TextEditHost public constructor(
     internal fun modelChanged() {
         if (closed || performing)
             return
+        refreshMenuCommands()
         invalidate()
         editorStopDrag(this, false)
         current.breakUndoGroup()
@@ -310,6 +313,7 @@ public class TextEditHost public constructor(
             invalidate()
         if (endComposition && composing)
             retireConnection()
+        refreshMenuCommands()
         publishNative()
         if (notify)
             notifyEdited(before, beforeCommitted)

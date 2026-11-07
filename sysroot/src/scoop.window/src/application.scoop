@@ -17,7 +17,10 @@ public enum StartCause {
 /** Application lifecycle and window notifications have owned payloads. */
 public enum ApplicationEvent {
     NewEvents(StartCause), Resumed, Suspended, MemoryWarning,
-    Menu(MenuActivation), PopupCompleted(PopupSessionId, PopupResult),
+    Menu(MenuActivation), MenuBarDetached(MenuBarBindingId), PopupCompleted(
+        PopupSessionId,
+        PopupResult
+    ),
     ModalCompleted(ModalSessionId, ModalResult), FileDialogCompleted(FileDialogSessionId),
     Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
 }

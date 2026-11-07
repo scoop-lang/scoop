@@ -350,5 +350,9 @@ private fun windowInputs(window: Window): InputRouter =
                 publishWindowCaret(window, caret)
             else
                 false
+        },
+        {
+            commands -> if (window.state == WindowState.Open)
+                window.textCommandAvailability = commands
         }
     )

@@ -1,0 +1,119 @@
+package scoop.ui.component
+
+import scoop.graphics.Point
+import scoop.ui.*
+import scoop.window.*
+
+private class NativeMenuBarProjection(
+    application: ActiveApplication,
+    private val read: () -> NativeMenuSnapshot
+): UiMenuBarContent {
+    private val tree = NativeMenuTree(application, read())
+    public override val menu: Menu get() = tree.menu
+    public override fun update() {
+        tree.update(read())
+    }
+    public override fun activate(event: MenuActivation) {
+        tree.activate(event)
+    }
+    public override fun close() {
+        tree.close()
+    }
+}
+
+public class NativeApplicationMenuBarProps public constructor(
+    public val snapshot: NativeMenuSnapshot
+)
+
+public class NativeApplicationMenuBar public constructor(
+    private val props: Props<NativeApplicationMenuBarProps>,
+    scope: ApplicationScope
+): ApplicationElement(scope) {
+    private var declaration: UiMenuBarDeclaration? = None
+    public override fun onMount() {
+        declaration =
+            Some(
+                scope.declareMenuBar {
+                    NativeMenuBarProjection(scope.application, { props.value.snapshot })
+                }
+            )
+    }
+    public override fun update() {
+        declaration!!.update()
+    }
+    public override fun onUnmount() {
+        declaration?.close()
+    }
+}
+
+public fun nativeApplicationMenuBar(menu: NativeMenuContent, key: ViewKey): ApplicationItem =
+    applicationElement(
+        NativeApplicationMenuBarProps(menu.snapshot()),
+        { current, mount -> NativeApplicationMenuBar(current, scope = mount) },
+        key
+    )
+
+public class NativeWindowMenuBarProps public constructor(
+    public val content: View,
+    public val menu: NativeMenuContent
+)
+
+public class NativeWindowMenuBar public constructor(
+    private val props: Props<NativeWindowMenuBarProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element(
+            props.value.menu.snapshot(),
+            { current, mount -> NativeWindowMenuBarLayout(current, scope = mount) },
+            [props.value.content]
+        )
+}
+
+private class NativeWindowMenuBarLayout(
+    private val props: Props<NativeMenuSnapshot>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var declaration: UiMenuBarDeclaration? = None
+    public override fun onMount() {
+        declaration =
+            Some(
+                scope.declareMenuBar { NativeMenuBarProjection(scope.application, { props.value }) }
+            )
+    }
+    public override fun update(): UiInvalidation {
+        declaration!!.update()
+        return UiInvalidation.None
+    }
+    public override fun onUnmount() {
+        declaration?.close()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+public class NativeWindowMenuBarBuilder internal constructor() {
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun nativeWindowMenuBar(
+    content: View,
+    menu: NativeMenuContent,
+    configure: NativeWindowMenuBarBuilder.() -> Unit = {}
+): View {
+    val builder = NativeWindowMenuBarBuilder()
+    builder.configure()
+    return component(
+        NativeWindowMenuBarProps(content, menu),
+        { current, mount -> NativeWindowMenuBar(current, scope = mount) },
+        builder.key
+    )
+}

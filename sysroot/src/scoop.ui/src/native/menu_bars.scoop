@@ -1,0 +1,221 @@
+package scoop.ui
+
+import scoop.window.*
+
+private class MenuBarWindow(val window: Window, val activity: Closeable)
+
+/** Chooses sources once per host, while each physical menu retains its own lifetime. */
+internal class UiMenuBars(internal val host: UiHost): Closeable {
+    private val declarations = ArrayList<UiMenuBarDeclaration>()
+    private val windows = ArrayList<MenuBarWindow>()
+    private val slots = ArrayList<UiMenuBarSlot>()
+    private var lastFocused: WindowId? = None
+    private var refreshing = false
+    private var dirty = false
+    internal var closed = false
+
+    fun checkThread() {
+        host.checkThread()
+    }
+
+    fun register(
+        window: Window?,
+        mounted: () -> Boolean,
+        dispatch: (() -> Unit) -> Boolean,
+        create: () -> UiMenuBarContent
+    ): UiMenuBarDeclaration {
+        checkThread()
+        if (closed)
+            throw IllegalStateException(Some("UI menu bars are closed"))
+        val capabilities = host.activeApplication.desktopCapabilities().menus
+        if (!capabilities.applicationMenuBar && !capabilities.windowMenuBar)
+            throw WindowException("UI menu bar", WindowErrorKind.Unsupported)
+        for (value in declarations)
+            requireUi(
+                !sameMenuBarWindow(value.window, window),
+                "menu bar is already declared for this scope target"
+            )
+        val value = UiMenuBarDeclaration(this, window, mounted, dispatch, create)
+        declarations.add(value)
+        return value
+    }
+    fun remove(value: UiMenuBarDeclaration) {
+        for (index in 0L ..< declarations.size)
+            if (declarations[index] === value) {
+                declarations.removeAt(index)
+                break
+            }
+        refresh()
+    }
+    fun attached(window: Window) {
+        if (closed)
+            return
+        val observation =
+            window.observeActivity {
+                activity ->
+                if (activity.focused)
+                    lastFocused = Some(window.id)
+                refresh()
+            }
+        windows.add(MenuBarWindow(window, observation))
+        if (window.isFocused)
+            lastFocused = Some(window.id)
+        refresh()
+    }
+    fun detached(window: Window) {
+        for (index in 0L ..< windows.size)
+            if (windows[index].window.id == window.id) {
+                val previous = windows[index]
+                windows.removeAt(index)
+                previous.activity.close()
+                break
+            }
+        if (lastFocused == Some(window.id))
+            lastFocused = None
+        refresh()
+    }
+    fun event(event: ApplicationEvent) {
+        if (closed)
+            return
+        when (event) {
+            case MenuBarDetached(id) -> {
+                for (slot in slots)
+                    if (slot.waiting?.id == Some(id)) {
+                        refresh()
+                        break
+                    }
+            }
+            case Window(id, value) -> when (value) {
+                case Focused(focused) -> {
+                    if (focused && contains(id))
+                        lastFocused = Some(id)
+                    refresh()
+                }
+                case Closing -> refresh()
+                case InputBlockedChanged(_) -> refresh()
+                else -> {}
+            }
+            else -> {}
+        }
+    }
+    private fun contains(id: WindowId): Boolean {
+        for (value in windows)
+            if (value.window.id == id)
+                return true
+        return false
+    }
+    private fun declared(window: Window?): UiMenuBarDeclaration? {
+        for (value in declarations)
+            if (value.available && sameMenuBarWindow(value.window, window))
+                return Some(value)
+        return None
+    }
+    private fun eligible(window: Window): Boolean =
+        window.state == WindowState.Open && window.isVisible && !window.isInputBlocked
+    private fun windowSource(window: Window): UiMenuBarDeclaration? =
+        when (val value = declared(Some(window))) {
+            case Some(_) -> value
+            case None -> declared(None)
+        }
+    private fun applicationSource(): UiMenuBarDeclaration? {
+        var selected: Window? = None
+        for (value in windows)
+            if (eligible(value.window) && value.window.isFocused) {
+                selected = Some(value.window)
+                break
+            }
+        when (selected) {
+            case None -> for (value in windows)
+                if (Some(value.window.id) == lastFocused && eligible(value.window)) {
+                    selected = Some(value.window)
+                    break
+                }
+            case Some(_) -> {}
+        }
+        when (selected) {
+            case Some(window) -> when (val override = declared(Some(window))) {
+                case Some(_) -> return override
+                case None -> {}
+            }
+            case None -> {}
+        }
+        return declared(None)
+    }
+    private fun slot(window: Window?): UiMenuBarSlot {
+        for (value in slots)
+            if (sameMenuBarWindow(value.window, window))
+                return value
+        val value = UiMenuBarSlot(this, window)
+        slots.add(value)
+        return value
+    }
+    fun refresh() {
+        if (closed)
+            return
+        dirty = true
+        if (refreshing)
+            return
+        refreshing = true
+        try {
+            while (dirty && !closed) {
+                dirty = false
+                if (declarations.size > 0L) {
+                    val applicationBar =
+                        host.activeApplication.desktopCapabilities().menus.applicationMenuBar
+                    if (applicationBar) {
+                        when (val source = applicationSource()) {
+                            case Some(_) -> slot(None)
+                            case None -> {}
+                        }
+                    } else {
+                        for (value in windows)
+                            if (value.window.state == WindowState.Open)
+                                when (windowSource(value.window)) {
+                                    case Some(_) -> slot(Some(value.window))
+                                    case None -> {}
+                                }
+                    }
+                }
+                for (value in slots.toArray()) {
+                    val source: UiMenuBarDeclaration? =
+                        when (value.window) {
+                            case None -> applicationSource()
+                            case Some(window) -> if (
+                                contains(window.id) && window.state == WindowState.Open
+                            )
+                                windowSource(window)
+                            else
+                                None
+                        }
+                    value.reconcile(source)
+                }
+                var index = 0L
+                while (index < slots.size) {
+                    if (slots[index].idle)
+                        slots.removeAt(index)
+                    else
+                        index += 1L
+                }
+            }
+        } finally {
+            refreshing = false
+        }
+    }
+    public override fun close() {
+        checkThread()
+        if (closed)
+            return
+        closed = true
+        for (value in declarations)
+            value.closed = true
+        declarations.clear()
+        var failure: Throwable? = None
+        for (value in windows)
+            failure = cleanupUi(failure) { value.activity.close() }
+        windows.clear()
+        for (value in slots.toArray())
+            failure = cleanupUi(failure) { value.close() }
+        slots.clear()
+        throwUi(failure)
+    }
+}

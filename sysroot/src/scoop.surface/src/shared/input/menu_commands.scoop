@@ -1,0 +1,36 @@
+package scoop.surface
+
+import scoop.window.TextCommandAvailability
+
+internal fun InputRouter.changeTextCommands(value: TextCommandAvailability?) {
+    if (publishedTextCommands != value) {
+        publishTextCommands(value)
+        publishedTextCommands = value
+    }
+}
+
+internal fun InputRouter.refreshTextCommands() {
+    var value = TextCommandAvailability()
+    if (osFocused) {
+        when (activeFocus) {
+            case Some(area) -> if (allowsFocus(area.scope) && allows(area.scope)) {
+                var cursor: InputScope? = Some(area.scope)
+                while (true) {
+                    val current = cursor ?: break
+                    when (current.textCommandAvailability) {
+                        case Some(commands) -> {
+                            value = commands;
+                            break
+                        }
+                        case None -> {}
+                    }
+                    if (current === focusRoot)
+                        break
+                    cursor = current.parent
+                }
+            }
+            case None -> {}
+        }
+    }
+    changeTextCommands(Some(value))
+}

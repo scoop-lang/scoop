@@ -1,0 +1,110 @@
+package scoop.surface
+
+import scoop.graphics.Rect
+import scoop.test.*
+import scoop.window.*
+
+private fun latestMenuCommands(rig: InputRig): TextCommandAvailability? =
+    rig.log.textCommands[rig.log.textCommands.size - 1L]
+
+@Test
+private class InputMenuCommandsTest {
+    @Test
+    fun `native command availability follows focused providers and input boundaries without requesting frames`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val parent = rig.area("parent")
+            val child = rig.area("child", true, parent = Some(parent.scope))
+            val copy = TextCommandAvailability(copy = true)
+            val paste = TextCommandAvailability(paste = true)
+            root.textCommandAvailability = Some(copy)
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 100.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
+            }
+            assertTrue(child.requestFocus())
+            assertEquals(Some(copy), latestMenuCommands(rig))
+            val frames = rig.log.invalidations
+            child.scope.textCommandAvailability = Some(TextCommandAvailability())
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            parent.scope.textCommandAvailability = Some(paste)
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            child.scope.textCommandAvailability = None
+            assertEquals(Some(paste), latestMenuCommands(rig))
+            parent.scope.textCommandAvailability = None
+            assertEquals(Some(copy), latestMenuCommands(rig))
+            val notifications = rig.log.textCommands.size
+            root.textCommandAvailability = Some(copy)
+            assertEquals(notifications, rig.log.textCommands.size)
+            assertEquals(frames, rig.log.invalidations)
+            InputBoundary(parent.scope).use {
+                _ ->
+                assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+                parent.scope.textCommandAvailability = Some(paste)
+                assertEquals(Some(paste), latestMenuCommands(rig))
+            }
+            rig.router.event(WindowEvent.Focused(false))
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            rig.router.event(WindowEvent.Focused(true))
+            assertEquals(Some(paste), latestMenuCommands(rig))
+            parent.scope.enabled = false
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            parent.scope.enabled = true
+            assertTrue(child.requestFocus())
+            assertEquals(Some(paste), latestMenuCommands(rig))
+            child.close()
+            assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
+            rig.router.close()
+            assertEquals(None, latestMenuCommands(rig))
+        }
+    }
+
+    @Test
+    fun `native text commands keep routed cancellation and do not synthesize keyboard events`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val area = rig.area("editor", true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0)) }
+            assertTrue(area.requestFocus())
+            val commands = ArrayList<TextEditCommand>()
+            area.scope.defaultAction =
+                {
+                    context,
+                    event -> when (event) {
+                        case TextCommand(command) -> {
+                            commands.add(command);
+                            context.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            root.captureHandler =
+                {
+                    context,
+                    event -> when (event) {
+                        case TextCommand(_) -> context.preventDefault()
+                        else -> {}
+                    }
+                }
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Copy))
+            assertEquals(0L, commands.size)
+            assertEquals("editor/text-command", rig.log.trace())
+            root.captureHandler = { _, _ -> Unit }
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Copy))
+            assertEquals(1L, commands.size)
+            assertEquals(TextEditCommand.Copy, commands[0L])
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Paste))
+            assertEquals(1L, commands.size)
+            rig.router.event(WindowEvent.Focused(true))
+            area.scope.enabled = false
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Cut))
+            assertEquals(1L, commands.size)
+        }
+    }
+}

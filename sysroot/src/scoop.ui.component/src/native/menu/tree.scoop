@@ -1,0 +1,185 @@
+package scoop.ui.component
+
+import scoop.ui.ViewKey
+import scoop.window.*
+
+/** Owns one native tree; its caller owns the presentation and scoped event registration. */
+public class NativeMenuTree public constructor(
+    application: ActiveApplication,
+    snapshot: NativeMenuSnapshot
+): Closeable {
+    public val menu: Menu = application.createMenu()
+    private var closed = false
+    private var roots: Array<NativeMenuNode> = []
+
+    init {
+        update(snapshot)
+    }
+
+    public val isClosed: Boolean get() = menu.state != MenuState.Open || closed
+
+    public fun update(snapshot: NativeMenuSnapshot) {
+        if (isClosed)
+            throw IllegalStateException(Some("native menu tree is closed"))
+        try {
+            roots = retire(roots, snapshot.entries)
+            releaseShortcuts(roots, snapshot.entries)
+            roots = reconcile(roots, snapshot.entries, None)
+        } catch (error: Throwable) {
+            try {
+                close()
+            }
+            catch (cleanup: Throwable) {
+                throw ResourceUseException(error, cleanup)
+            }
+            throw error
+        }
+    }
+
+    public fun activate(event: MenuActivation): Boolean {
+        if (isClosed || event.menu != menu.id)
+            return false
+        val node = activeNode(roots, event.item) ?: return false
+        val action = node.value.action ?: return false
+        action(event)
+        return true
+    }
+
+    public override fun close() {
+        menu.state
+        if (closed)
+            return
+        closed = true
+        roots = []
+        menu.close()
+    }
+
+    private fun retire(previous: Array<NativeMenuNode>, next: Array<NativeMenuValue>): Array<
+        NativeMenuNode
+    > {
+        val kept = ArrayList<NativeMenuNode>()
+        for (node in previous) {
+            val replacement = nativeMenuValueForKey(next, node.value.key)
+            when (replacement) {
+                case Some(value) -> if (value.category == node.value.category) {
+                    node.children = retire(node.children, value.children)
+                    kept.add(node)
+                } else
+                    menu.remove(node.id)
+                case None -> menu.remove(node.id)
+            }
+        }
+        return kept.toArray()
+    }
+
+    private fun releaseShortcuts(previous: Array<NativeMenuNode>, next: Array<NativeMenuValue>) {
+        for (node in previous) {
+            val value = nativeMenuValueForKey(next, node.value.key)!!
+            if (!sameNativeShortcut(node.description.shortcut, value.description.shortcut)) {
+                val current = node.description
+                when (current.shortcut) {
+                    case Some(_) -> {
+                        val cleared =
+                            MenuItemDescription(
+                                current.text,
+                                current.kind,
+                                current.enabled,
+                                current.image,
+                                None,
+                                current.command
+                            )
+                        menu.update(node.id, cleared)
+                        node.description = cleared
+                    }
+                    case None -> {}
+                }
+            }
+            releaseShortcuts(node.children, value.children)
+        }
+    }
+
+    private fun reconcile(
+        previous: Array<NativeMenuNode>,
+        next: Array<NativeMenuValue>,
+        parent: MenuItemId?
+    ): Array<NativeMenuNode> {
+        return Array<NativeMenuNode>(next.size) {
+            index ->
+            val value = next[index]
+            val existing = nativeMenuNodeForKey(previous, value.key)
+            val node =
+                when (existing) {
+                    case Some(current) -> {
+                        if (!sameNativeMenuDisplay(current.description, value.description))
+                            menu.update(current.id, value.description)
+                        menu.move(current.id, index)
+                        current.description = value.description
+                        current.value = value
+                        current
+                    }
+                    case None -> NativeMenuNode(
+                        menu.insert(value.description, parent, Some(index)),
+                        value
+                    )
+                }
+            node.children = reconcile(node.children, value.children, Some(node.id))
+            node
+        }
+    }
+}
+
+private class NativeMenuNode(val id: MenuItemId, var value: NativeMenuValue) {
+    var description = value.description
+    var children: Array<NativeMenuNode> = []
+}
+
+private fun nativeMenuValueForKey(values: Array<NativeMenuValue>, key: ViewKey): NativeMenuValue? {
+    for (value in values)
+        if (value.key == key)
+            return Some(value)
+    return None
+}
+
+private fun nativeMenuNodeForKey(values: Array<NativeMenuNode>, key: ViewKey): NativeMenuNode? {
+    for (value in values)
+        if (value.value.key == key)
+            return Some(value)
+    return None
+}
+
+private fun activeNode(nodes: Array<NativeMenuNode>, id: MenuItemId): NativeMenuNode? {
+    for (node in nodes) {
+        if (!node.value.description.enabled)
+            continue
+        if (node.id == id)
+            return Some(node)
+        when (val child = activeNode(node.children, id)) {
+            case Some(_) -> return child
+            case None -> {}
+        }
+    }
+    return None
+}
+
+private fun sameNativeMenuDisplay(left: MenuItemDescription, right: MenuItemDescription): Boolean =
+    left.text ==
+        right.text &&
+        left.kind ==
+        right.kind &&
+        left.enabled ==
+        right.enabled &&
+        sameNativeShortcut(left.shortcut, right.shortcut) &&
+        left.command ==
+        right.command &&
+        when ((left.image, right.image)) {
+            case(Some(a), Some(b)) -> a === b
+            case(None, None) -> true
+            else -> false
+        }
+
+private fun sameNativeShortcut(left: ShortcutChord?, right: ShortcutChord?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a.key == b.key && a.modifiers == b.modifiers
+        case(None, None) -> true
+        else -> false
+    }

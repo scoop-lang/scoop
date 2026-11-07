@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.window.*
+import scoop.window.ModalOptions as WindowModalOptions
+
+internal class NativeDialogPresentation<T>(
+    private val scope: NativeControllerScope,
+    val owned: NativeOwnedWindow,
+    private val finished: (NativeDialogResult<T>) -> Unit
+): Closeable {
+    private var session: ModalSession? = None
+    private var observation: Closeable? = None
+    private var accepted: T? = None
+    private var ending = false
+    private var closed = false
+
+    fun start(options: WindowModalOptions) {
+        val modal = owned.window.showModal(options)
+        session = Some(modal)
+        observation =
+            Some(
+                scope.observeModal(modal) {
+                    result ->
+                    val value: NativeDialogResult<T> =
+                        when (result) {
+                            case Completed -> when (accepted) {
+                                case Some(value) -> NativeDialogResult.Accepted(value)
+                                case None -> NativeDialogResult.Cancelled(
+                                    ModalCancelReason.Cancelled
+                                )
+                            }
+                            case Cancelled(reason) -> NativeDialogResult.Cancelled(reason)
+                            case Failed(error) -> NativeDialogResult.Failed(error)
+                        }
+                    close()
+                    finished(value)
+                }
+            )
+        if (ending) {
+            when (accepted) {
+                case Some(_) -> modal.dismiss();
+                case None -> modal.cancel()
+            }
+        }
+    }
+    fun accept(value: T): Boolean =
+        scope.request {
+            if (closed || ending)
+                return@request false
+            accepted = Some(value)
+            ending = true
+            session?.dismiss()
+            true
+        }
+    fun cancel() {
+        scope.dispatch {
+            if (!closed && !ending) {
+                ending = true
+                session?.cancel()
+            }
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        val modal = session
+        val events = observation
+        session = None
+        observation = None
+        var failure = cleanupNative(None) { events?.close() }
+        failure = cleanupNative(failure) { modal?.cancel() }
+        failure = cleanupNative(failure) { owned.close() }
+        throwNative(failure)
+    }
+}

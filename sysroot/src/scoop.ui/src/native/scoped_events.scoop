@@ -80,4 +80,12 @@ internal class ScopedNativeEvents(
         registration.deliver(Unit)
         return registration
     }
+    fun window(window: Window, action: (WindowEvent) -> Unit): Closeable {
+        checkMounted()
+        return own(
+            host.nativeEvents.windows.subscribe(window.id, false) {
+                value -> dispatch { action(value) }
+            }
+        )
+    }
 }

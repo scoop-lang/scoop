@@ -16,6 +16,11 @@ public struct PopupSessionId(val value: Long): Equals<PopupSessionId>, Hash {
     public override fun hash(): Long = value.hash()
 }
 
+public struct MenuBarBindingId(val value: Long): Equals<MenuBarBindingId>, Hash {
+    public override operator fun equals(other: MenuBarBindingId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
 public struct NativeMenuUseId(val value: Long): Equals<NativeMenuUseId>, Hash {
     public override operator fun equals(other: NativeMenuUseId): Boolean = value == other.value
     public override fun hash(): Long = value.hash()

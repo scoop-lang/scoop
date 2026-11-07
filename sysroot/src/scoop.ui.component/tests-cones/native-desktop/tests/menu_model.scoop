@@ -1,0 +1,167 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.test.*
+
+internal class MenuModelProbe(private val scope: ApplicationScope): Closeable {
+    val checked = state(false)
+    val selected = state(1)
+    var acceptsCheck = false
+    var checkboxChanges = 0
+    var radioChanges = 0
+    var received = 0
+    var lastVersion = 0
+    var lastItem = 0
+    val tree = NativeMenuTree(scope.application, description(1).snapshot())
+    private var lease: NativeMenuLease? = None
+    private var events: Closeable? = None
+    init {
+        @Unsafe
+        {
+            lease = Some(tree.menu.acquireNativeMenu { lease?.close() })
+        }
+        events =
+            Some(
+                scope.observeMenu(tree.menu) {
+                    event -> if (tree.activate(event))
+                        received += 1
+                }
+            )
+    }
+
+    fun description(
+        version: Int,
+        reversed: Boolean = false,
+        includeFirst: Boolean = true,
+        branchEnabled: Boolean = true
+    ): NativeMenuContent {
+        val probe = this
+        val check =
+            binding(
+                get = { checked.value },
+                set =
+                    {
+                        value -> if (acceptsCheck)
+                            checked.value = value
+                    }
+            )
+        val radio = selected.binding()
+        val order: Array<Int> =
+            if (reversed)
+                [2, 1]
+            else
+                [1, 2]
+        return nativeMenu {
+            for (id in order)
+                if (id != 1 || includeFirst) {
+                    val character =
+                        if ((id == 1) != reversed)
+                            "a"
+                        else
+                            "b"
+                    item(
+                        ViewKey.Number(id.toLong()),
+                        if (id == 1)
+                            "First"
+                        else
+                            "Second",
+                        {
+                            _ ->
+                            probe.lastVersion = version
+                            probe.lastItem = id
+                        }
+                    ) {
+                        shortcut =
+                            Some(
+                                ShortcutChord(
+                                    ShortcutKey.Logical(LogicalKey.Character(character)),
+                                    ShortcutModifiers(primary = true)
+                                )
+                            )
+                    }
+                }
+            checkboxItem(
+                ViewKey.Text("checked"),
+                "Checked",
+                check,
+                { _ -> probe.checkboxChanges += 1 }
+            )
+            radioItem(ViewKey.Text("one"), "One", 1, radio, { _ -> probe.radioChanges += 1 })
+            radioItem(ViewKey.Text("two"), "Two", 2, radio, { _ -> probe.radioChanges += 1 })
+            submenu(
+                ViewKey.Text("branch"),
+                "Branch",
+                nativeMenu { item(ViewKey.Number(1L), "Nested first", { _ -> probe.lastItem = 3 }) }
+            ) { enabled = branchEnabled }
+        }
+    }
+
+    suspend fun run() {
+        val menu = tree.menu
+        val initial = menu.items()
+        val first = initial[0L]
+        val second = initial[1L]
+        val check = initial[2L]
+        val radioTwo = initial[4L]
+        val nested = menu.items(Some(initial[5L]))[0L]
+        assertTrue(lease!!.activate(first))
+        awaitNative("initial menu callback") { received == 1 }
+        assertEquals(1, lastVersion)
+        assertTrue(lease!!.activate(check))
+        awaitNative("rejected checkbox write") { received == 2 }
+        assertFalse(checked.value)
+        assertEquals(0, checkboxChanges)
+        acceptsCheck = true
+        assertTrue(lease!!.activate(check))
+        awaitNative("accepted checkbox write") { received == 3 }
+        assertTrue(checked.value)
+        assertEquals(1, checkboxChanges)
+        assertTrue(lease!!.activate(radioTwo))
+        awaitNative("radio selection") { received == 4 }
+        assertEquals(2, selected.value)
+        assertEquals(1, radioChanges)
+        assertTrue(lease!!.activate(radioTwo))
+        awaitNative("same radio selection") { received == 5 }
+        assertEquals(1, radioChanges)
+
+        lease!!.beginTracking()
+        tree.update(description(2, reversed = true, branchEnabled = false).snapshot())
+        val reordered = menu.items()
+        assertEquals(second, reordered[0L])
+        assertEquals(first, reordered[1L])
+        assertEquals(check, reordered[2L])
+        assertEquals(MenuItemKind.Checkbox(true), menu.description(check).kind)
+        assertEquals(MenuItemKind.Radio(true), menu.description(radioTwo).kind)
+        assertFalse(lease!!.activate(nested))
+        tree.update(description(3, reversed = true, includeFirst = false).snapshot())
+        assertFalse(lease!!.activate(first))
+        lease!!.endTracking()
+        tree.update(description(4, reversed = true).snapshot())
+        val fresh = menu.items()[1L]
+        assertTrue(first != fresh)
+        assertEquals(second, menu.items()[0L])
+        assertTrue(lease!!.activate(fresh))
+        awaitNative("fresh action after removal") { received == 6 }
+        assertEquals(4, lastVersion)
+        tree.update(description(5, reversed = true).snapshot())
+        assertEquals(fresh, menu.items()[1L])
+        assertTrue(lease!!.activate(fresh))
+        awaitNative("latest callback on same menu identity") { received == 7 }
+        assertEquals(5, lastVersion)
+        assertEquals(1, lastItem)
+        assertTrue(lease!!.activate(nested))
+        awaitNative("reenabled submenu") { received == 8 }
+        assertEquals(3, lastItem)
+    }
+
+    public override fun close() {
+        events?.close();
+        events = None
+        lease?.close();
+        lease = None
+        tree.close()
+    }
+}

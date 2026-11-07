@@ -22,6 +22,8 @@ SWResult scoop_window_menu_create(SWApplication *app, int64_t identity) {
   menu->actions = g_simple_action_group_new();
   menu->entries = g_ptr_array_new_with_free_func(free_entry);
   menu->roots = g_ptr_array_new();
+  menu->next = app->menus;
+  app->menus = menu;
   return (SWResult){menu, 0};
 }
 
@@ -48,6 +50,10 @@ int64_t scoop_window_menu_clear(SWMenu *menu) {
 }
 
 void scoop_window_menu_destroy(SWMenu *menu) {
+  SWMenu **link = &menu->application->menus;
+  while (*link != menu)
+    link = &(*link)->next;
+  *link = menu->next;
   scoop_window_menu_clear(menu);
   g_ptr_array_unref(menu->roots);
   g_ptr_array_unref(menu->entries);
@@ -179,6 +185,7 @@ static void append_level(GMenu *model, GPtrArray *entries) {
 
 int64_t scoop_window_menu_commit(SWMenu *menu) {
   append_level(menu->model, menu->roots);
+  sw_menu_refresh_commands(menu);
   if (menu->bar)
     sw_menu_watch(menu, menu->bar, true);
   return 0;
@@ -194,6 +201,8 @@ void scoop_window_menu_live(SWMenu *menu, int64_t identity, int32_t enabled) {
     entry->enabled = enabled != 0;
   if (entry->action)
     g_simple_action_set_enabled(entry->action, entry->live && entry->enabled);
+  if (entry->role >= 4)
+    sw_menu_refresh_commands(menu);
 }
 
 void *scoop_window_menu_handle(SWMenu *menu) { return menu->model; }

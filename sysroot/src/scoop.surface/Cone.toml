@@ -135,6 +135,10 @@ path = "tests/input_defaults.scoop"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
+path = "tests/input_menu_commands.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/input_focus.scoop"
 when = { os = "linux", env = "gnu" }
 

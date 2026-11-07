@@ -17,6 +17,7 @@ internal class InputLog {
     val ime = ArrayList<Boolean>()
     val carets = ArrayList<Rect>()
     val caretUpdates = ArrayList<ImeCaret>()
+    val textCommands = ArrayList<TextCommandAvailability?>()
     var invalidations = 0
     fun trace(): String {
         var result = ""
@@ -46,7 +47,8 @@ internal class InputRig(val log: InputLog = InputLog()): Closeable {
                     case None -> {}
                 }
                 true
-            }
+            },
+            { value -> log.textCommands.add(value) }
         )
     val surface = RasterSurface(300, 200)
     fun area(
@@ -138,6 +140,7 @@ internal fun inputKind(event: InputEvent): String =
         case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> "scroll-cancel"
         case Keyboard(_) -> "key"
         case ModifiersChanged(_) -> "modifiers"
+        case TextCommand(_) -> "text-command"
         case TextInput(TextInputEvent.Enabled(_)) -> "enabled"
         case TextInput(TextInputEvent.Disabled(_)) -> "disabled"
         case TextInput(TextInputEvent.Edit(_)) -> "edit"

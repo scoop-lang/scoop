@@ -1,0 +1,51 @@
+package scoop.ui
+
+import scoop.window.*
+
+/** A separate owned menu instance for one actual host attachment. */
+public interface UiMenuBarContent: Closeable {
+    public val menu: Menu
+    public fun update()
+    public fun activate(event: MenuActivation)
+}
+
+/** An application default or a window override, owned by its declaring scope. */
+public class UiMenuBarDeclaration internal constructor(
+    private val owner: UiMenuBars,
+    internal val window: Window?,
+    internal val mounted: () -> Boolean,
+    internal val dispatch: (() -> Unit) -> Boolean,
+    internal val create: () -> UiMenuBarContent
+): Closeable {
+    internal var closed = false
+    internal var revision = 0UL
+    internal val available: Boolean get() = !closed && mounted()
+    public fun update() {
+        owner.checkThread()
+        if (!available)
+            throw IllegalStateException(Some("menu bar declaration is closed"))
+        revision += 1UL
+        owner.refresh()
+    }
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        owner.remove(this)
+    }
+}
+
+internal fun sameMenuBarSource(left: UiMenuBarDeclaration?, right: UiMenuBarDeclaration?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }
+
+internal fun sameMenuBarWindow(left: Window?, right: Window?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a.id == b.id
+        case(None, None) -> true
+        else -> false
+    }

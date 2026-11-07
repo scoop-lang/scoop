@@ -15,6 +15,7 @@ internal fun MenuOwner.settleUse() {
                     case None -> {}
                 }
                 use = None
+                binding.didDetach()
             }
         }
         case Some(MenuUse.Native(lease)) -> {

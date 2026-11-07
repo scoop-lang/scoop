@@ -1,0 +1,90 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.*
+
+/** The two existing boundaries retain their concrete scope for typed session observation. */
+internal enum NativeControllerScope {
+    Window(ComponentScope), Application(ApplicationScope)
+}
+
+internal val NativeControllerScope.application: ActiveApplication get() =
+    when (this) {
+        case Window(scope) -> scope.application
+        case Application(scope) -> scope.application
+    }
+
+internal val NativeControllerScope.host: UiHost get() =
+    when (this) {
+        case Window(scope) -> scope.uiHost
+        case Application(scope) -> scope.uiHost
+    }
+
+internal val NativeControllerScope.mounted: Boolean get() =
+    when (this) {
+        case Window(scope) -> scope.isMounted
+        case Application(scope) -> scope.isMounted
+    }
+
+internal fun NativeControllerScope.dispatch(action: () -> Unit): Boolean =
+    when (this) {
+        case Window(scope) -> scope.dispatch(action)
+        case Application(scope) -> scope.dispatch(action)
+    }
+
+internal fun NativeControllerScope.observeWindow(
+    window: Window,
+    action: (WindowEvent) -> Unit
+): Closeable =
+    when (this) {
+        case Window(scope) -> scope.observeWindow(window, action)
+        case Application(scope) -> scope.observeWindow(window, action)
+    }
+
+internal fun NativeControllerScope.observeModal(
+    session: ModalSession,
+    action: (ModalResult) -> Unit
+): Closeable =
+    when (this) {
+        case Window(scope) -> scope.observeModal(session, action)
+        case Application(scope) -> scope.observeModal(session, action)
+    }
+
+internal fun <T> NativeControllerScope.observeFile(
+    session: FileDialogSession<T>,
+    action: (FileDialogResult<T>) -> Unit
+): Closeable =
+    when (this) {
+        case Window(scope) -> scope.observeFileDialog(session, action)
+        case Application(scope) -> scope.observeFileDialog(session, action)
+    }
+
+private class NativeRequestResult {
+    var accepted = false
+}
+
+internal fun NativeControllerScope.request(action: () -> Boolean): Boolean {
+    if (!mounted)
+        return false
+    val result = NativeRequestResult()
+    return dispatch { result.accepted = action() } && result.accepted
+}
+
+internal fun cleanupNative(previous: Throwable?, action: () -> Unit): Throwable? =
+    try {
+        action();
+        previous
+    }
+    catch (error: Throwable) {
+        when (previous) {
+            case Some(first) -> Some(ResourceUseException(first, error));
+            case None -> Some(error)
+        }
+    }
+
+internal fun throwNative(error: Throwable?) {
+    when (error) {
+        case Some(value) -> throw value;
+        case None -> {}
+    }
+}

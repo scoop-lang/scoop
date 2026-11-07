@@ -1,0 +1,77 @@
+package scoop.ui.component.tray
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class TrayApplication(
+    private val probe: UiTrayProbe,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    public override fun render(): ApplicationContent {
+        val probe = this.probe
+        probe.renders += 1
+        probe.observedAvailability = probe.handle.availability
+        val version = probe.version.value
+        val tooltip = probe.tooltip.value
+        val fail = probe.failCompletion.value
+        val image = probe.image.value
+        val menu =
+            if (probe.hasMenu.value)
+                Some(
+                    nativeMenu {
+                        item(ViewKey.Text("action"), tooltip, {})
+                        checkboxItem(ViewKey.Text("checked"), "Checked", probe.checked.binding())
+                    }
+                )
+            else
+                None
+        if (!probe.present.value)
+            return ApplicationContent([])
+        val item =
+            nativeTrayIcon(image, ViewKey.Text("tray")) {
+                this.tooltip = Some(tooltip)
+                this.menu = menu
+                handle = Some(probe.handle)
+                onMenuClosed =
+                    {
+                        _ ->
+                        probe.completions += 1
+                        probe.lastVersion = version
+                        if (fail)
+                            throw probe.expected
+                    }
+            }
+        return if (probe.duplicate.value)
+            ApplicationContent(
+                [
+                    item,
+                    nativeTrayIcon(image, ViewKey.Text("duplicate")) { handle = Some(probe.handle) }
+                ]
+            )
+        else
+            ApplicationContent([item])
+    }
+}
+
+internal class TrayWindow(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = empty()
+}
+
+internal fun uiTrayImage(red: UInt8 = 20.toUByte()): DesktopImage =
+    DesktopImage(
+        LogicalSize(16.0, 16.0),
+        [
+            DesktopImageRepresentation(
+                PhysicalSize(16, 16),
+                Array<UInt8>(1024L) {
+                    index -> when (index % 4L) {
+                        case 0L -> red;
+                        case 1L -> 80.toUByte();
+                        case 2L -> 180.toUByte();
+                        else -> 255.toUByte()
+                    }
+                }
+            )
+        ]
+    )

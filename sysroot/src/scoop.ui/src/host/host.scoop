@@ -26,6 +26,7 @@ public class UiHost public constructor(
     private var applicationRoot: UiApplicationRoot? = None
     private var active: ActiveApplication? = None
     internal val nativeEvents = UiNativeEvents { checkThread() }
+    internal val menuBars = UiMenuBars(this)
     private var proxy: ApplicationProxy? = None
     private var queued = false
     private var processing = false
@@ -50,6 +51,7 @@ public class UiHost public constructor(
                 {
                     _, application, event ->
                     nativeEvents.deliver(event)
+                    menuBars.event(event)
                     handler(this, application, event)
                 }
         )
@@ -142,9 +144,10 @@ public class UiHost public constructor(
                 roots.add(created)
                 val attached = surfaces.attach(window, created)
                 surface = Some(attached)
-                if (attached.dispatch { created.mount(attached) })
+                if (attached.dispatch { created.mount(attached) }) {
+                    menuBars.attached(window)
                     Some(UiWindow(created))
-                else
+                } else
                     None
             } catch (error: Throwable) {
                 when (surface) {
@@ -190,6 +193,10 @@ public class UiHost public constructor(
         callback {
             nativeDepth += 1
             try {
+                when (event) {
+                    case Exiting -> menuBars.close()
+                    else -> {}
+                }
                 surfaces.onEvent(application, event)
                 when (event) {
                     case Exiting -> close()
@@ -288,6 +295,7 @@ public class UiHost public constructor(
     internal fun detached(root: UiRoot) {
         removeRoot(roots, root)
         removePending(root)
+        menuBars.detached(root.window)
     }
     private fun removePending(root: UiUpdateRoot) {
         for (index in 0L ..< pending.size)
@@ -302,7 +310,8 @@ public class UiHost public constructor(
         if (closing)
             return
         closing = true
-        var failure = cleanupUi(None) { nativeEvents.close() }
+        var failure = cleanupUi(None) { menuBars.close() }
+        failure = cleanupUi(failure) { nativeEvents.close() }
         failure = cleanupUi(failure) { applicationRoot?.close() }
         failure = cleanupUi(failure) { hostShortcuts?.close() }
         hostShortcuts = None

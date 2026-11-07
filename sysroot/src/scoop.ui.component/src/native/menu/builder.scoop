@@ -1,0 +1,96 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.*
+
+public class NativeMenuItemBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var image: DesktopImage? = None
+    public var shortcut: ShortcutChord? = None
+    internal fun snapshot(key: ViewKey, label: String): NativeMenuItemSpec =
+        NativeMenuItemSpec(key, label, enabled, image, shortcut)
+}
+
+public class NativeMenuBuilder internal constructor() {
+    private val entries = ArrayList<NativeMenuEntry>()
+    public fun add(entry: NativeMenuEntry) {
+        entries.add(entry)
+    }
+    public fun item(
+        key: ViewKey,
+        label: String,
+        onSelect: (MenuActivation) -> Unit,
+        configure: NativeMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = NativeMenuItemBuilder()
+        builder.configure()
+        add(NativeMenuEntry.Action(builder.snapshot(key, label), onSelect))
+    }
+    public fun role(
+        key: ViewKey,
+        label: String,
+        role: MenuRole,
+        configure: NativeMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = NativeMenuItemBuilder()
+        builder.configure()
+        add(NativeMenuEntry.Role(builder.snapshot(key, label), role))
+    }
+    public fun checkboxItem(
+        key: ViewKey,
+        label: String,
+        checked: Binding<Boolean>,
+        onCheckedChange: (Boolean) -> Unit = {},
+        configure: NativeMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = NativeMenuItemBuilder()
+        builder.configure()
+        add(NativeMenuEntry.Checkbox(builder.snapshot(key, label), checked, onCheckedChange))
+    }
+    public fun <T: Equals<T>> radioItem(
+        key: ViewKey,
+        label: String,
+        value: T,
+        selected: Binding<T>,
+        onValueChange: (T) -> Unit = {},
+        configure: NativeMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = NativeMenuItemBuilder()
+        builder.configure()
+        add(
+            NativeMenuEntry.Radio(
+                builder.snapshot(key, label),
+                { selected.value == value },
+                {
+                    val before = selected.value
+                    if (before != value) {
+                        selected.value = value
+                        val accepted = selected.value
+                        if (accepted != before)
+                            onValueChange(accepted)
+                    }
+                }
+            )
+        )
+    }
+    public fun submenu(
+        key: ViewKey,
+        label: String,
+        content: NativeMenuContent,
+        configure: NativeMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = NativeMenuItemBuilder()
+        builder.configure()
+        add(NativeMenuEntry.Submenu(builder.snapshot(key, label), content))
+    }
+    public fun separator(key: ViewKey) {
+        add(NativeMenuEntry.Separator(key))
+    }
+    internal fun snapshot(): NativeMenuContent = NativeMenuContent(entries.toArray())
+}
+
+public fun nativeMenu(configure: NativeMenuBuilder.() -> Unit): NativeMenuContent {
+    val builder = NativeMenuBuilder()
+    builder.configure()
+    return builder.snapshot()
+}

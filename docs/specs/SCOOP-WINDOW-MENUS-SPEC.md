@@ -8,7 +8,7 @@ ActiveApplication.createMenu() 创建空 Menu。Menu 提供 insert(description, 
 
 MenuItemDescription 是不可变显示值，包含 text、kind、enabled、image、shortcut 和 command。MenuItemKind 为 Action、Checkbox(checked)、Radio(checked)、Submenu、Separator；MenuCommand 为 Action 或 Role(MenuRole)。角色包括 Quit、Minimize、Zoom、Cut、Copy、Paste、SelectAll、Undo、Redo，只适用于可激活项。子菜单与分隔符没有命令、快捷键或选中状态；分隔符没有文字或图像。文字不含 U+0000。checked 由应用发布，原生点击不建立另一份业务状态。
 
-MenuId、MenuItemId、PopupSessionId、NativeMenuUseId 为不同值类型；一次 Application 中各类编号不复用。原生窄 command ID 与公共 Long ID 分别映射，不截断公共身份。普通属性和顺序变化保留 MenuItemId，删除后插入分配新 ID。原生树不保存业务闭包。
+MenuId、MenuItemId、MenuBarBindingId、PopupSessionId、NativeMenuUseId 为不同值类型；一次 Application 中各类编号不复用。原生窄 command ID 与公共 Long ID 分别映射，不截断公共身份。普通属性和顺序变化保留 MenuItemId，删除后插入分配新 ID。原生树不保存业务闭包。
 
 DesktopImage 由逻辑尺寸、非空的 DesktopImageRepresentation 数组和 template 标志构成。每份 representation 包含正的 PhysicalSize 和对应数量的不可变 RGBA8 字节，采用 straight alpha。尺寸与实际字节数在构造时验证，原生端复制所需存储；不依赖 Skia、Surface 或 GPU Image。不同分辨率表达相同逻辑图像。template 为平台支持时按系统外观着色的提示，不改变原始字节。
 
@@ -20,6 +20,8 @@ ActiveApplication.desktopCapabilities().menus 返回 MenuCapabilities，分别�
 
 ActiveApplication.attachMenuBar(menu) 返回应用级 MenuBarBinding；Window.attachMenuBar(menu) 返回窗口级 MenuBarBinding。不支持的目标抛出 WindowException(Unsupported)。一个目标同一时间只允许一个 binding；同一 Menu 只允许一个 binding、popup 或 native lease，冲突为 ResourceBusy。不同应用的对象不能组合。菜单栏根只含 Submenu，应用明确构造自己的应用／文件／编辑等入口。MenuBarBinding.close() 只解除附着；不关闭 Menu。
 
+MenuBarBinding.id 为 MenuBarBindingId。isClosed 表示已请求关闭并停止动作；isDetached 表示原生 tracking 已结束、目标已实际解除附着。完成解绑后投递一次 ApplicationEvent.MenuBarDetached(id)，允许 UI 在原生使用退休后切换到新的菜单；同步解绑时可直接读取 isDetached，不必等待通知。退出期间通知可丢弃，实际状态与资源退休仍完成。目标尚未解绑时的新附着继续报告 ResourceBusy，不通过循环重试或固定延时猜测完成。
+
 AppKit 使用 NSApplication.mainMenu；Win32 使用 SetMenu／DrawMenuBar；Linux 在现有 AdwToolbarView 中挂载 GtkPopoverMenuBar，复用 GMenuModel 和 GSimpleActionGroup。附着造成的内容分配变化沿原有 WindowMetrics 发布。
 
 原生菜单结构更新只在不 tracking 时进行。tracking 中发布逻辑修改立即改变动作资格，不能再激活已删除、禁用或变更执行语义的项目；实际结构留到 tracking 结束应用，返回 Requested。无需延后的修改返回 Applied。修改前完成参数、归属和快捷键冲突检查；原生失败关闭受影响使用，按 WindowException 报告，不承诺 OS 无法提供的整树事务回滚。
@@ -27,6 +29,8 @@ AppKit 使用 NSApplication.mainMenu；Win32 使用 SetMenu／DrawMenuBar；Linu
 ## 3. 动作与快捷键
 
 ApplicationEvent.Menu(MenuActivation) 只交付 MenuCommand.Action。MenuActivation 含 MenuId、MenuItemId、MenuSource；来源区分 ApplicationMenuBar(发生时的活动 WindowId?)、WindowMenuBar(WindowId)、Popup(PopupSessionId, WindowId) 和 Native(NativeMenuUseId)。原生事件排队时保存来源，不在稍后回调时按焦点重新选择。业务派发前再次检查仍有效的菜单项和原使用，关闭／退休不交付旧动作。
+
+`Window.textCommandAvailability: TextCommandAvailability?` 声明 Scoop 内容区当前编辑目标的原生命令可用性。值包含 cut、copy、paste、selectAll、undo、redo（均默认 false），与 IME 开关独立；只读选择目标仍可复制。None 表示未提供内容区状态，沿用该窗口已有的 IME 目标判断；Some 全 false 明确禁用全部六个角色。原生文本字段继续由自身 responder／编辑控件验证，不使用后台 Scoop 状态。普通内容区按声明状态和 MenuItemDescription.enabled 共同判断，实际命令仍经 WindowEvent.TextCommand 交付；声明不替代当前输入资格检查。
 
 MenuCommand.Role 由原生目标执行，不再交付一份普通 Menu 动作。Quit 产生 ExitRequested(User)，由应用决定是否开始有序退出。Minimize／Zoom 使用发生时的有效原生窗口。编辑角色针对 Scoop 内容时产生独立 WindowEvent.TextCommand(TextEditCommand)，不伪造按键；系统文件面板／原生编辑器保留自己的 responder／控件动作与可用性验证。UI 发布的 enabled 快照用于 Scoop 编辑目标，不覆盖系统面板的真实编辑状态。
 

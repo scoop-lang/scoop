@@ -1,0 +1,12 @@
+package scoop.ui.component.tray
+
+import scoop.test.*
+
+@Test
+private class NativeTrayTests {
+    @Test
+    @Ignore("Requires an interactive Windows desktop and Explorer; run separately with --ignored")
+    fun `native tray mounts update independently and clean up their application scope`() {
+        runUiTray()
+    }
+}

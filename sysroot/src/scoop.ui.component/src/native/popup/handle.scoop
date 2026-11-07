@@ -1,0 +1,40 @@
+package scoop.ui.component
+
+import scoop.ui.state
+import scoop.window.LogicalPosition
+
+/** One mounted trigger, with explicit requests instead of a persistent open value. */
+public class NativePopupHandle public constructor() {
+    private var owner: NativePopupPresentation? = None
+    private val pending = state(false)
+
+    public val isPending: Boolean get() = pending.value
+    public fun requestOpen(): Boolean = owner?.open(None) ?: false
+    public fun cancel() {
+        owner?.cancel()
+    }
+
+    internal fun bind(value: NativePopupPresentation) {
+        when (owner) {
+            case Some(current) -> requireComponent(
+                current === value,
+                "native popup handle is already mounted"
+            )
+            case None -> {}
+        }
+        owner = Some(value)
+        pending.value = value.isPending
+    }
+    internal fun unbind(value: NativePopupPresentation) {
+        when (owner) {
+            case Some(current) -> if (current === value) {
+                owner = None
+                pending.value = false
+            }
+            case None -> {}
+        }
+    }
+    internal fun changed(value: Boolean) {
+        pending.value = value
+    }
+}

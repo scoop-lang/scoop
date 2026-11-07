@@ -30,6 +30,7 @@ ApplicationScope 提供 application、uiHost、isMounted、resource、onDispose 
 
 | 登记 | 回调值 |
 | --- | --- |
+| observeWindow(window, action) | WindowEvent |
 | observeMenu(menu, action) | MenuActivation |
 | observePopup(session, action) | PopupResult |
 | observeModal(session, action) | ModalResult |
@@ -38,6 +39,8 @@ ApplicationScope 提供 application、uiHost、isMounted、resource、onDispose 
 登记按对应的 MenuId／PopupSessionId／ModalSessionId／FileDialogSessionId 路由，只交付所属资源。session 已完成时，在该次登记的所属同步边界交付既有结果一次；未完成时等真实完成事件，不轮询。回调执行前移除一次性 session 登记，显式关闭或卸载后的迟到事件不执行旧动作。菜单动作保留完整 MenuSource，独立托盘组件通过 NativeMenuUseId 判断自身的原生使用。
 
 ComponentScope 另提供 `observeFrameMetrics(action: (WindowFrameMetrics?) -> Unit)`。登记后立即在所属边界交付当前值，之后只在该窗口 FrameChanged／GeometryChanged 时读取 native 快照；关闭窗口后不再查询。它使实际窗框变化驱动 State，而不是逐帧查询或长期使用创建时的期望值。
+
+窗口／应用 scope 另提供 `observeWindow(window, action: (WindowEvent) -> Unit): Closeable`，按明确的 WindowId 观察随后事件，不重放创建前的通知。它用于拥有窗口的工具／对话框控制器；回调仍归登记它的 scope，卸载立即注销。
 
 ## 4. 错误与退休
 
@@ -48,5 +51,19 @@ UiHost 增加 `onApplicationError: (Throwable) -> Unit = { error -> throw error 
 ## 5. 验证范围
 
 以普通 Cone 验证无窗口应用根的首次构造、State／Binding 更新、动态依赖、key 重排与移除、最新 Props、实例归属及清理；与窗口根共享 State 时各自失效。原生菜单和文件 session 的实际事件进入所属回调，注销和失败后停止交付。应用根失败且处理器正常返回时，其余根保持可用；默认策略继续传播。原生图像／菜单更新不产生空闲帧或隐藏窗口。
+
+## 6. 菜单栏声明与宿主映射
+
+窗口／应用 scope 的 `declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration` 分别登记当前窗口覆盖／应用默认内容。每个 UiHost 至多一个应用声明，每个已附着窗口至多一个窗口声明；重复声明是状态错误。UiMenuBarContent 是菜单投影所需的窄协议：拥有一个 `menu: Menu`，实现 update()、activate(MenuActivation) 和 close()。component 的原生菜单树包装实现该协议；UI 不依赖 component 或 tray。
+
+每个实际附着独立调用 create，内容的 update 从声明者当前 Props 读取已在 render 求值的菜单快照。`UiMenuBarDeclaration.update()` 通知宿主更新当前投影；close 撤销声明和所属动作。创建、更新和动作进入声明者的 dispatch；应用默认内容的错误归应用根，窗口覆盖的错误归对应窗口。声明和实际菜单在不同 scope 之间不转移所有权。
+
+有 applicationMenuBar 能力时只附着一份全局菜单：选取 UiHost 中当前有资格的焦点窗口覆盖；原生菜单临时取得焦点时保留仍合格的最近窗口，没有覆盖时使用应用默认内容。窗口关闭、隐藏或被模态限制后不能继续提供窗口覆盖。有 windowMenuBar 能力且没有 applicationMenuBar 时，为 UiHost 每个已附着窗口建立各自的覆盖或默认实例。没有窗口也可保留应用声明。窗口不属于当前 UiHost 时不自动修改它的菜单。
+
+切换声明先注销旧动作并请求关闭旧附着，等 MenuBarBinding.isDetached／MenuBarDetached 确认后才建立新附着；等待期间的新声明替代尚未展示的候选。更新同一声明复用实际菜单与条目身份。宿主不使用定时轮询、隐藏窗口或固定等待。UiWindow 退休撤销它的实际附着；UiHost 收到 Exiting 时在 Surface／窗口清理前停止菜单协调并关闭全部投影，避免关闭期间重新附着或请求只允许在运行阶段查询的能力。实际原生使用由 Window 继续有序退休。
+
+## 7. 根窗框配置归属
+
+`ComponentScope.claimWindowFrame(): Closeable` 为当前 UiWindow 登记一个根窗框配置使用者；同窗口有另一个仍挂载使用者时抛出状态错误。它由 scope 管理，显式 close 或卸载释放登记。WindowChrome 取得此登记后修改 Window 配置并发布自己的根区域；普通拖动／缩放区域不取得登记。释放仅结束配置归属和组件资源，不自动恢复历史 WindowFrame、透明或原生外观。直接调用低层 Window 的应用仍对自己的修改顺序负责。
 
 同批次的 Accepted 窗框区域发布及 ComponentScope／SceneContext 桥接见 [Surface 原生窗口区域规范](SCOOP-SURFACE-FRAME-SPEC.md)；上述应用根不依赖该几何能力。

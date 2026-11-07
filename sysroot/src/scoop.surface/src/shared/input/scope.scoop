@@ -1,5 +1,7 @@
 package scoop.surface
 
+import scoop.window.TextCommandAvailability
+
 /** A logical route node, with optional area geometry and independently replaceable handlers. */
 public class InputScope internal constructor(
     internal val owner: InputRouter,
@@ -17,6 +19,19 @@ public class InputScope internal constructor(
     private var action: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     private var finished: (InputEvent) -> Unit = { _ -> Unit }
     private var press: (InputPress) -> Boolean = { _ -> false }
+    private var textCommands: TextCommandAvailability? = None
+    public var textCommandAvailability: TextCommandAvailability?
+    get() {
+        owner.checkThread()
+        return textCommands
+    }
+    set(value) {
+        checkOpen()
+        if (textCommands != value) {
+            textCommands = value
+            owner.dispatch {}
+        }
+    }
     public val isClosed: Boolean get() {
         owner.checkThread()
         return closed

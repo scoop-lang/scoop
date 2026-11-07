@@ -14,7 +14,8 @@ internal class InputRouter(
     internal var osFocused: Boolean,
     private val invalidate: () -> Unit,
     internal val imeAllowed: (Boolean) -> Unit,
-    internal val imeCursor: (ImeCaret) -> Boolean
+    internal val imeCursor: (ImeCaret) -> Boolean,
+    internal val publishTextCommands: (TextCommandAvailability?) -> Unit = { _ -> }
 ): Closeable {
     private val thread = currentThreadId()
     internal var closed = false
@@ -37,6 +38,7 @@ internal class InputRouter(
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
     internal var activeFocusVisible = false
+    internal var publishedTextCommands: TextCommandAvailability? = None
     internal var focusRevision = 0uL
     internal val boundaries = ArrayList<InputBoundary>()
     internal var pendingBoundaryChange = false
@@ -52,6 +54,7 @@ internal class InputRouter(
 
     init {
         owned.add(rootScope)
+        refreshTextCommands()
     }
 
     fun createArea(
@@ -175,6 +178,7 @@ internal class InputRouter(
                                 )
                         }
                         case Keyboard(value) -> routeFocused(InputEvent.Keyboard(value))
+                        case TextCommand(value) -> routeFocused(InputEvent.TextCommand(value))
                         case ModifiersChanged(value) -> notifyFocused(
                             InputEvent.ModifiersChanged(value)
                         )
@@ -234,6 +238,7 @@ internal class InputRouter(
                     refreshHover(inputObservation())
                 }
                 if (!pending) {
+                    refreshTextCommands()
                     activityDirty = false
                     notifyActivity()
                 }
@@ -258,6 +263,7 @@ internal class InputRouter(
         logicalFocus = None
         activeFocus = None
         activeFocusVisible = false
+        failure = cleanupFailure(failure) { changeTextCommands(None) }
         when (previous) {
             case Some(area) -> failure =
                 cleanupFailure(failure) {

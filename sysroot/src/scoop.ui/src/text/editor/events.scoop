@@ -45,6 +45,8 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
     if (context.phase != RoutedPhase.Default || !host.options.enabled)
         return
     when (event) {
+        case TextCommand(command) -> if (host.execute(command))
+            context.consume()
         case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
             if (state == ElementState.Pressed)
                 editorPress(host, pointer, context.localPosition, count)

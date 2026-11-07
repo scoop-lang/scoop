@@ -63,6 +63,21 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     public fun observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
         events.menu(menu, action)
+    public fun observeWindow(window: Window, action: (WindowEvent) -> Unit): Closeable =
+        events.window(window, action)
+    public fun declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
+        checkMounted()
+        val value =
+            root.host.menuBars.register(
+                Some(nativeWindow),
+                { isMounted },
+                { action -> dispatch(action) },
+                create
+            )
+        managed.add(value)
+        value.update()
+        return value
+    }
     public fun observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
         events.popup(session, action)
     public fun observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
@@ -184,6 +199,19 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
                 else -> None
             }
         val value = root.surface.createWindowRegion(kind, parent)
+        managed.add(value)
+        return value
+    }
+    public fun claimWindowFrame(): Closeable {
+        checkMounted()
+        when (root.windowFrame) {
+            case Some(_) -> throw IllegalStateException(
+                Some("window frame is already configured by another mount")
+            )
+            case None -> {}
+        }
+        val value = UiWindowFrameClaim(root)
+        root.windowFrame = Some(value)
         managed.add(value)
         return value
     }

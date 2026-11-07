@@ -1,0 +1,137 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.ModalOptions as WindowModalOptions
+import scoop.window.copy as copyWindowAttributes
+
+public enum NativeDialogResult<T> {
+    Accepted(T), Cancelled(ModalCancelReason), Failed(WindowException)
+}
+
+/** Refers to one presentation; retained replies never target a later dialog. */
+public class NativeDialogResponse<T> internal constructor(
+    private val presentation: NativeDialogPresentation<T>
+) {
+    public val window: Window get() = presentation.owned.window
+    public fun accept(value: T): Boolean = presentation.accept(value)
+    public fun cancel() {
+        presentation.cancel()
+    }
+}
+
+public class NativeDialogController<T> internal constructor(
+    private val scope: NativeControllerScope,
+    private val target: DialogTarget
+): Closeable {
+    private var current: NativeDialogPresentation<T>? = None
+    private val pending = state(false)
+    private var closed = false
+    public val isPending: Boolean get() = pending.value
+    public val window: Window? get() {
+        pending.value;
+        return current?.owned?.window
+    }
+
+    public fun <C: Component> open(
+        create: (NativeDialogResponse<T>, ComponentScope) -> C,
+        onResult: (NativeDialogResult<T>) -> Unit,
+        attributes: WindowAttributes = windowAttributes(),
+        options: WindowModalOptions? = None,
+        fonts: FontCollection? = None
+    ): Boolean =
+        scope.request {
+            if (closed || pending.value)
+                return@request false
+            val relation =
+                when (target) {
+                    case Owner(window) -> WindowRelation.Owned(window)
+                    case Application -> WindowRelation.Independent
+                }
+            val modal =
+                options ?:
+                    WindowModalOptions(
+                        scope =
+                            when (target) {
+                                case Owner(_) -> ModalScope.Owner;
+                                case Application -> ModalScope.Application
+                            }
+                    )
+            val window =
+                scope.application.createWindow(
+                    attributes.copyWindowAttributes {
+                        this.relation = relation
+                        this.visible = false
+                        this.requestActivation = false
+                    }
+                )
+            val owned = NativeOwnedWindow(window)
+            val presentation =
+                NativeDialogPresentation<T>(scope, owned) {
+                    result ->
+                    current = None
+                    pending.value = false
+                    if (!closed)
+                        onResult(result)
+                }
+            current = Some(presentation)
+            pending.value = true
+            try {
+                val response = NativeDialogResponse(presentation)
+                owned.events =
+                    Some(
+                        scope.observeWindow(window) {
+                            event -> when (event) {
+                                case CloseRequested -> presentation.cancel();
+                                else -> {}
+                            }
+                        }
+                    )
+                owned.ui = scope.host.attach(window, { mount -> create(response, mount) }, fonts)
+                when (owned.ui) {
+                    case None -> {
+                        current = None
+                        pending.value = false
+                        presentation.close()
+                        return@request false
+                    }
+                    case Some(_) -> {}
+                }
+                if (closed || !scope.mounted) {
+                    presentation.close()
+                    return@request false
+                }
+                presentation.start(modal)
+                true
+            } catch (error: Throwable) {
+                current = None
+                pending.value = false
+                throwNative(cleanupNative(Some(error)) { presentation.close() })
+                false
+            }
+        }
+    public fun cancel() {
+        if (!closed)
+            current?.cancel()
+    }
+    public override fun close() {
+        scope.mounted
+        if (closed)
+            return
+        closed = true
+        val presentation = current
+        current = None
+        pending.value = false
+        presentation?.close()
+    }
+}
+
+public fun <T> ComponentScope.nativeDialogController(target: DialogTarget): NativeDialogController<
+    T
+> = resource { NativeDialogController<T>(NativeControllerScope.Window(this), target) }
+
+public fun <T> ApplicationScope.nativeDialogController(
+    target: DialogTarget
+): NativeDialogController<T> =
+    resource { NativeDialogController<T>(NativeControllerScope.Application(this), target) }

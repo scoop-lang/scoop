@@ -22,7 +22,7 @@
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、纯值测试通过 |
 | D6 | 原生文件／目录对话框 | 已实施；macOS、Linux 本地选择器及真实 portal 验证完成，Windows 三目标构建和路径 ABI 测试通过 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
-| D8 | 通用组件及独立托盘组件 | 待实施 |
+| D8 | 通用组件及独立托盘组件 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
 | D9 | 综合 desktop demo | 待实施 |
 | 发行 | macOS、Linux、Windows 安装包及脚本修复 | 待实施 |
 
@@ -74,3 +74,11 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - Linux GNU：原生严格检查及相关库构建通过；X11 与带 seat 的嵌套 Wayland 各应用根 1 passed、桌面区域组合 1 passed、描述复用 1 passed。X11 查询真实 ShapeInput；Wayland 不伪造其无法查询的系统命中区域。尺寸请求使用高于 GTK 最小窗口宽度的值，继续按实际 metrics 和 Accepted 验证。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成相关库、应用根和完整桌面区域程序的编译；每目标 InputComparisonTest 3 passed，桌面 GUI 组合 1 ignored。应用根程序也需要原生 Application，在 SSH 中只编译。桌面执行说明见[应用根](../../sysroot/src/scoop.ui/tests-cones/application/README.md)与[桌面组合](../../sysroot/src/scoop.ui/tests-cones/desktop/README.md)，未执行的 GUI 交互不记作通过。
 - 跨 Cone 描述复用暴露了 HIR 具体化遗漏导入虚方法签名类型的问题。修复限定于实际分派条目的参数、receiver 与返回类型保留，不改变语言／runtime ABI；新增独立的控制台编译运行 fixture。本地相关 Rust 组 93 passed、5 failed；对照提交 08223b1e 的原实现为 92 passed、相同 5 failed，均为原有测试依赖的 MissingCoreFunction，新回归由失败变为通过。正式 CLI fixture 在 macOS、Linux 及 Windows 三目标均为 1 passed；Rust 格式化与对应 crate 的 clippy 通过。
+
+2026-11-07，D8：已实现[原生菜单组件](../specs/SCOOP-UI-NATIVE-MENUS-SPEC.md)、[窗口与文件面板控制器](../specs/SCOOP-UI-NATIVE-WINDOWS-SPEC.md)、[窗框组件](../specs/SCOOP-UI-WINDOW-CHROME-SPEC.md)和独立 [scoop.ui.component.tray](../specs/SCOOP-UI-TRAY-SPEC.md)。菜单按完整 key 路径保留原生身份，Binding 在 render 求值；应用默认菜单与窗口覆盖由 UiHost 协调。WindowChrome 保留标题栏／正文槽位，区域仍在 Accepted 后发布。工具、模态和文件控制器拥有自己的请求及窗口资源，卸载后停止业务回调。
+
+标准编辑角色从当前输入焦点取得可用命令并沿 Surface 路由；原生编辑控件继续使用系统验证，同时遵守显式 enabled。popup 在请求时同步检查原生输入限制，应用退出先停止菜单协调再清理窗口；菜单栏和托盘菜单以真实解绑通知完成退休。依赖闭包检查确认普通 window／ui.component 不包含 scoop.tray，只有显式托盘组件引入它。
+
+- macOS aarch64：格式化、原生严格编译与相关库构建通过；桌面组件组合 2 passed、独立托盘组件 2 passed、输入命令 2 passed；底层菜单复验 2 passed、1 ignored，托盘复验 5 passed、1 ignored。覆盖实际菜单动作与稳定身份、纯菜单更新不绘制、窗框切换、工具窗口复用、Owner／Application 模态及四类文件面板取消、错误隔离、无窗口更新和退出清理。当前 loginwindow 下仍保留原生编辑焦点、真实托盘 popup、拖动／缩放及视觉呈现的前台验收限制。
+- Linux GNU：所有相关库及完整 GUI 程序构建通过。X11 和带 seat 的嵌套 Wayland 各桌面组件 2 passed、独立托盘组件 2 passed、输入命令 2 passed；底层菜单各 2 passed、托盘各 5 passed。组合测试等待两个窗口均完成初始配置后再验证菜单动作，避免把尚未可交互窗口捕获到的动作当作有效输入。实际 GTK 菜单、软件显示会话和 SNI 协议结果不代替具体桌面 Shell 的视觉／交互验收。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成相关库及完整 GUI 程序的构建；各目标桌面组件 1 passed、1 ignored，独立托盘组件 1 passed、1 ignored，输入命令 2 passed，底层菜单 1 passed、1 ignored，托盘 4 passed、1 ignored。SSH 只执行可运行的非 GUI 用例；原生菜单、编辑焦点、窗框、控制器及托盘交互留待登录桌面执行，入口见[桌面组件测试](../../sysroot/src/scoop.ui.component/tests-cones/native-desktop/README.md)与[托盘组件说明](../../sysroot/src/scoop.ui.component.tray/README.md)。

@@ -76,6 +76,7 @@ internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
     val modals = UiEventTable<ModalSessionId, ModalResult>(checkThread)
     val files = UiEventTable<FileDialogSessionId, Unit>(checkThread)
     val frames = UiEventTable<WindowId, Unit>(checkThread)
+    val windows = UiEventTable<WindowId, WindowEvent>(checkThread)
 
     fun deliver(event: ApplicationEvent) {
         when (event) {
@@ -83,10 +84,13 @@ internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
             case PopupCompleted(id, result) -> popups.deliver(id, result)
             case ModalCompleted(id, result) -> modals.deliver(id, result)
             case FileDialogCompleted(id) -> files.deliver(id, Unit)
-            case Window(id, value) -> when (value) {
-                case FrameChanged -> frames.deliver(id, Unit)
-                case GeometryChanged(_) -> frames.deliver(id, Unit)
-                else -> {}
+            case Window(id, value) -> {
+                windows.deliver(id, value)
+                when (value) {
+                    case FrameChanged -> frames.deliver(id, Unit)
+                    case GeometryChanged(_) -> frames.deliver(id, Unit)
+                    else -> {}
+                }
             }
             else -> {}
         }
@@ -96,6 +100,7 @@ internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
         popups.close();
         modals.close();
         files.close();
-        frames.close()
+        frames.close();
+        windows.close()
     }
 }

@@ -68,6 +68,7 @@ internal fun TrayOwner.setMenu(next: Menu?) {
     }
     menuLease = lease
     menu = next
+    emit(TrayEvent.MenuBindingChanged(lease?.id))
 }
 
 internal fun TrayOwner.detachMenu() {

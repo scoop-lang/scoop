@@ -61,6 +61,27 @@ public class Window internal constructor(internal val owner: WindowOwner) {
         owner.application.checkThread();
         owner.close()
     }
+    /** Sends the same close request as a frame button, without bypassing application policy. */
+    public fun requestClose(): Boolean {
+        owner.requireOpen()
+        if (owner.inputBlocked || !owner.buttons.close)
+            return false
+        val window = owner
+        val application = owner.application
+        return application.mailbox.post {
+            if (
+                (
+                    window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure
+                ) &&
+                    !window.inputBlocked &&
+                    window.buttons.close
+            )
+                application.handler!!.onEvent(
+                    application.active,
+                    ApplicationEvent.Window(window.id, WindowEvent.CloseRequested)
+                )
+        }
+    }
     /** Requests a content size; native geometry notifications report the observed result. */
     public fun requestSize(size: LogicalSize): RequestStatus {
         owner.requireOpen();
@@ -194,6 +215,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
     var requestedVisible: Boolean = false
     var visibilitySuppressed: Boolean = false
     var inputBlocked: Boolean = false
+    var textCommands: TextCommandAvailability? = None
     var modalSession: ModalSession? = None
     val hasOwner: Boolean get() =
         when (owningWindow) {

@@ -7,9 +7,22 @@ public class MenuBarBinding internal constructor(
     internal val serial: Long
 ): Closeable {
     internal var closed = false
+    private var detached = false
+    public val id: MenuBarBindingId = MenuBarBindingId(serial)
+    public val isDetached: Boolean get() {
+        menu.application.checkThread()
+        return detached
+    }
     public val isClosed: Boolean get() {
         menu.application.checkThread()
         return closed
+    }
+    internal fun didDetach() {
+        detached = true
+        val application = menu.application
+        application.mailbox.post {
+            application.handler!!.onEvent(application.active, ApplicationEvent.MenuBarDetached(id))
+        }
     }
     public override fun close() {
         menu.application.checkThread()

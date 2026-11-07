@@ -1,0 +1,152 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+public class WindowChrome public constructor(
+    private val props: Props<WindowChromeProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val metrics = state<WindowFrameMetrics?>(None)
+    public override fun onMount() {
+        scope.claimWindowFrame()
+        scope.observeFrameMetrics { value -> metrics.value = value }
+    }
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            WindowChromeInput(input, metrics.value),
+            { current, mount -> WindowChromeLayout(current, scope = mount) },
+            [input.titleBar ?: empty(), input.content]
+        )
+    }
+}
+
+internal class WindowChromeInput(val value: WindowChromeProps, val metrics: WindowFrameMetrics?)
+
+private struct ChromeConfiguration(
+    val frame: WindowFrame,
+    val fallback: WindowFrame?,
+    val transparent: Boolean?,
+    val shadow: WindowShadow?
+)
+
+internal class WindowChromeLayout(
+    private val props: Props<WindowChromeInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var previous: ChromeConfiguration? = None
+    private var shape: WindowRegionHandle? = None
+    private var input: WindowRegionHandle? = None
+    public override fun onMount() {
+        configure()
+    }
+    public override fun update(): UiInvalidation {
+        configure();
+        return UiInvalidation.Layout
+    }
+    private fun configure() {
+        val value = props.value.value
+        val desired =
+            ChromeConfiguration(value.frame, value.fallbackFrame, value.transparent, value.shadow)
+        val window = scope.nativeWindow
+        val frameChanged =
+            when (previous) {
+                case Some(old) -> old.frame != value.frame || old.fallback != value.fallbackFrame
+                case None -> true
+            }
+        if (frameChanged) {
+            val result = window.setFrame(value.frame)
+            if (result == RequestStatus.Unsupported) {
+                when (value.fallbackFrame) {
+                    case Some(fallback) -> requireChromeRequest(
+                        window.setFrame(fallback),
+                        "fallback window frame"
+                    )
+                    case None -> requireChromeRequest(result, "window frame")
+                }
+            }
+        }
+        val transparentChanged =
+            when (previous) {
+                case Some(old) -> old.transparent != value.transparent
+                case None -> true
+            }
+        if (transparentChanged) {
+            when (value.transparent) {
+                case Some(transparent) -> requireChromeRequest(
+                    window.setTransparent(transparent),
+                    "transparent window"
+                );
+                case None -> {}
+            }
+        }
+        val shadowChanged =
+            when (previous) {
+                case Some(old) -> old.shadow != value.shadow
+                case None -> true
+            }
+        if (shadowChanged) {
+            when (value.shadow) {
+                case Some(shadow) -> requireChromeRequest(
+                    window.setShadow(shadow),
+                    "window shadow"
+                );
+                case None -> {}
+            }
+        }
+        previous = Some(desired)
+        shape = updateRegion(shape, value.windowShape, WindowRegionKind.Shape)
+        input = updateRegion(input, value.inputShape, WindowRegionKind.Input)
+    }
+    private fun updateRegion(
+        previous: WindowRegionHandle?,
+        geometry: WindowChromeShape?,
+        kind: WindowRegionKind
+    ): WindowRegionHandle? =
+        when (geometry) {
+            case None -> {
+                previous?.close();
+                None
+            }
+            case Some(_) -> when (previous) {
+                case Some(_) -> previous
+                case None -> Some(scope.createWindowRegion(kind))
+            }
+        }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = measureWindowChrome(context, constraints, props.value)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val value = props.value.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        when (value.clip) {
+            case Some(clip) -> withChromePath(clip, bounds) { path -> context.clipPath(path) };
+            case None -> {}
+        }
+        when (value.windowShape) {
+            case Some(geometry) -> withChromePath(geometry, bounds) {
+                path -> context.place(shape!!, path)
+            };
+            case None -> {}
+        }
+        when (value.inputShape) {
+            case Some(geometry) -> withChromePath(geometry, bounds) {
+                path -> context.place(input!!, path)
+            };
+            case None -> {}
+        }
+        context.children()
+    }
+}
+
+internal fun withChromePath(shape: WindowChromeShape, bounds: Rect, action: (Path) -> Unit) {
+    when (shape) {
+        case Path(value) -> action(value)
+        case Bounds -> path { addRect(bounds) }.use(action)
+        case Rounded(radius) -> path { addRoundRect(bounds, radius, radius) }.use(action)
+        case Ellipse -> path { addOval(bounds) }.use(action)
+    }
+}

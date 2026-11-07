@@ -16,11 +16,13 @@ scoop.window.native 提供 registerNativeResource(requestClose)，返回 NativeA
 
 TrayCapabilities 区分模板图像、主／上下文／键盘激活、绑定菜单后的激活通知、图标矩形查询、事件锚点、宿主菜单、程序化菜单与邻近窗口定位。它描述协议能力；TrayAvailability 的 Available／Unavailable 描述当前注册宿主状态。注册或宿主接受图标不保证图标在主托盘栏中可见。
 
-TrayEvent 包含 Activated、AvailabilityChanged、MenuCompleted。激活值区分 Primary／Context／Secondary，来源为 Pointer／Keyboard／Unknown；按钮、点击次数、锚点只在系统实际提供时存在。键盘激活不伪造鼠标位置。绑定 Menu 后使用平台的宿主菜单行为；各平台能同时提供的激活通知由能力值表达。
+TrayEvent 包含 Activated、AvailabilityChanged、MenuCompleted、MenuBindingChanged(NativeMenuUseId?)。激活值区分 Primary／Context／Secondary，来源为 Pointer／Keyboard／Unknown；按钮、点击次数、锚点只在系统实际提供时存在。键盘激活不伪造鼠标位置。绑定 Menu 后使用平台的宿主菜单行为；各平台能同时提供的激活通知由能力值表达。
 
 Menu 通过 NativeMenuLease 借用，同一 Menu 的其他使用按 ResourceBusy 处理。TrayIcon.menuUseId 提供当前 NativeMenuUseId，供应用把 ApplicationEvent.Menu 的 Native 来源关联到托盘；不再生成一份执行相同动作的 TrayEvent。Menu.close 只解除该托盘的菜单使用，图标本身可以继续存在。
 
 setMenu 对相同菜单无副作用；原生菜单仍在 tracking 时报告 ResourceBusy，应先取消并等待展示结束。接受的替换取消尚未启动的旧展示。取消已经开始的程序化 session 会退休旧菜单使用，结束后重新借用仍有效的同一 Menu，避免旧动作落到下一次展示。
+
+MenuBindingChanged 在实际附着、解绑或取消后的重新借用完成时交付，以当前 NativeMenuUseId（解绑为 None）标记结果；相同菜单的无操作更新不通知。它也覆盖宿主直接打开菜单后因 Menu.close 引发的延迟解绑，供组件等待旧使用退休并应用最新声明，不增加轮询。事件是变化时的快照，处理时仍可查询 menuUseId 确认当前使用。
 
 支持程序化显示的后端上，showMenu 返回 TrayMenuSession；状态为待完成或 Selected(MenuItemId)、Cancelled、Failed(WindowException)。一次请求只记录一次终态；关闭、替换菜单与应用退出取消展示。MenuCompleted 通知用于展示状态，不重复执行条目动作。展示从 postNative 边界启动，原生 tracking 中继续处理现有 owner 和 I/O。Linux 首批只支持由宿主显示导出的菜单，程序化 showMenu 返回 Unsupported。
 

@@ -1,0 +1,97 @@
+package scoop.ui
+
+import scoop.window.*
+
+private class UiMenuBarProjection(
+    val source: UiMenuBarDeclaration,
+    val content: UiMenuBarContent,
+    val binding: MenuBarBinding,
+    val events: Closeable,
+    var revision: ULong
+)
+
+internal class UiMenuBarSlot(private val owner: UiMenuBars, val window: Window?): Closeable {
+    private var current: UiMenuBarProjection? = None
+    private var retiring: MenuBarBinding? = None
+    val waiting: MenuBarBinding? get() = retiring
+    val idle: Boolean get() =
+        when ((current, waiting)) {
+            case(None, None) -> true;
+            else -> false
+        }
+
+    fun reconcile(source: UiMenuBarDeclaration?) {
+        if (!sameMenuBarSource(current?.source, source))
+            close()
+        when (waiting) {
+            case Some(binding) -> {
+                if (!binding.isDetached)
+                    return
+                retiring = None
+            }
+            case None -> {}
+        }
+        if (owner.closed)
+            return
+        val selected = source ?: return
+        if (!selected.available)
+            return
+        when (current) {
+            case Some(value) -> if (value.revision != selected.revision) {
+                val revision = selected.revision
+                if (selected.dispatch { value.content.update() })
+                    value.revision = revision
+            }
+            case None -> create(selected)
+        }
+    }
+    private fun create(source: UiMenuBarDeclaration) {
+        source.dispatch {
+            if (!source.available || owner.closed)
+                return@dispatch
+            val content = source.create()
+            var binding: MenuBarBinding? = None
+            try {
+                if (!source.available || owner.closed) {
+                    content.close()
+                    return@dispatch
+                }
+                val attached =
+                    when (window) {
+                        case Some(value) -> value.attachMenuBar(content.menu)
+                        case None -> owner.host.activeApplication.attachMenuBar(content.menu)
+                    }
+                binding = Some(attached)
+                val events =
+                    owner.host.nativeEvents.menus.subscribe(content.menu.id, false) {
+                        event -> if (source.available)
+                            source.dispatch { content.activate(event) }
+                    }
+                current =
+                    Some(UiMenuBarProjection(source, content, attached, events, source.revision))
+            } catch (error: Throwable) {
+                val failedBinding = binding
+                var failure = cleanupUi(Some(error)) { failedBinding?.close() }
+                failure = cleanupUi(failure) { content.close() }
+                throwUi(failure)
+            }
+        }
+    }
+    public override fun close() {
+        val value = current ?: return
+        current = None
+        retiring = Some(value.binding)
+        var failure = cleanupUi(None) { value.events.close() }
+        failure = cleanupUi(failure) { value.binding.close() }
+        failure = cleanupUi(failure) { value.content.close() }
+        if (value.binding.isDetached)
+            retiring = None
+        when (val error = failure) {
+            case Some(_) -> if (value.source.mounted())
+                value.source.dispatch { throwUi(error) }
+            else
+                throwUi(error)
+            case None -> {}
+        }
+    }
+}

@@ -1,0 +1,248 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+import scoop.platform.fs.Path
+import scoop.test.*
+
+private class DialogReplies {
+    var response: NativeDialogResponse<String>? = None
+    val values = ArrayList<NativeDialogResult<String>>()
+}
+
+private fun <T> assertCancelled(result: FileDialogResult<T>) {
+    when (result) {
+        case Cancelled(reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
+        else -> fail(Some("file request did not complete as cancelled"))
+    }
+}
+
+internal suspend fun runControllerCases(
+    probe: NativeDesktopProbe,
+    application: ApplicationScope,
+    scope: ComponentScope,
+    owner: Window,
+    other: Window
+) {
+    val tool = scope.nativeToolWindowController()
+    val closes = state(0)
+    assertTrue(
+        tool.open(
+            { NativeChild(probe, it) },
+            { closes.value += 1 },
+            appearance = NativeToolAppearance.PreferTool
+        )
+    )
+    assertTrue(tool.isOpen)
+    val toolWindow = tool.window!!
+    assertEquals(Some(owner.id), toolWindow.ownerWindow?.id)
+    assertEquals(
+        if (scope.application.desktopCapabilities().windows.toolWindow)
+            WindowRole.Tool
+        else
+            WindowRole.Normal,
+        toolWindow.role
+    )
+    assertFalse(owner.isInputBlocked)
+    assertFalse(tool.open({ NativeChild(probe, it) }, appearance = NativeToolAppearance.Normal))
+    tool.closeWindow()
+    assertFalse(tool.isOpen)
+    assertFalse(tool.open({ NativeChild(probe, it) }, appearance = NativeToolAppearance.Normal))
+    awaitNative("tool destroyed before reuse") {
+        toolWindow.state == WindowState.Destroyed && closes.value == 1
+    }
+    assertTrue(
+        tool.open(
+            { NativeChild(probe, it) },
+            { closes.value += 1 },
+            appearance = NativeToolAppearance.Normal
+        )
+    )
+    val reopened = tool.window!!
+    assertTrue(reopened.id != toolWindow.id)
+    assertTrue(reopened.requestClose())
+    awaitNative("native tool close") {
+        reopened.state == WindowState.Destroyed && closes.value == 2
+    }
+
+    val dialog = scope.nativeDialogController<String>(DialogTarget.Owner(owner))
+    val replies = DialogReplies()
+    assertTrue(
+        dialog.open(
+            {
+                response, mount ->
+                replies.response = Some(response)
+                NativeChild(probe, mount)
+            },
+            { result -> replies.values.add(result) }
+        )
+    )
+    assertTrue(dialog.isPending)
+    assertTrue(owner.isInputBlocked)
+    assertFalse(other.isInputBlocked)
+    assertFalse(probe.otherPopup.requestOpen())
+    assertFalse(owner.requestClose())
+    val first = replies.response!!
+    assertEquals(Some(owner.id), first.window.ownerWindow?.id)
+    assertFalse(
+        dialog.open(
+            { _, mount -> NativeChild(probe, mount) },
+            { fail(Some("duplicate dialog opened")) }
+        )
+    )
+    assertTrue(first.accept("accepted"))
+    assertFalse(first.accept("second value"))
+    assertTrue(dialog.isPending)
+    awaitNative("accepted modal result") { replies.values.size == 1L }
+    when (replies.values[0L]) {
+        case Accepted(value) -> assertEquals("accepted", value)
+        else -> fail(Some("accepted value was lost"))
+    }
+    assertFalse(dialog.isPending)
+    assertFalse(owner.isInputBlocked)
+    assertFalse(first.accept("stale response"))
+    awaitNative("accepted modal native destruction") { first.window.state == WindowState.Destroyed }
+
+    assertTrue(
+        dialog.open(
+            {
+                response, mount ->
+                replies.response = Some(response)
+                NativeChild(probe, mount) { assertTrue(response.accept("from mount")) }
+            },
+            { result -> replies.values.add(result) }
+        )
+    )
+    awaitNative("reply during child mount") { replies.values.size == 2L }
+    when (replies.values[1L]) {
+        case Accepted(value) -> assertEquals("from mount", value)
+        else -> fail(Some("early response was lost"))
+    }
+    val early = replies.response!!
+    awaitNative("early modal native destruction") { early.window.state == WindowState.Destroyed }
+    assertTrue(
+        dialog.open(
+            {
+                response, mount ->
+                replies.response = Some(response)
+                NativeChild(probe, mount)
+            },
+            { result -> replies.values.add(result) }
+        )
+    )
+    val cancelled = replies.response!!
+    first.cancel()
+    assertTrue(dialog.isPending)
+    assertTrue(cancelled.window.requestClose())
+    awaitNative("native dialog close cancellation") { replies.values.size == 3L }
+    when (replies.values[2L]) {
+        case Cancelled(reason) -> assertEquals(ModalCancelReason.Cancelled, reason)
+        else -> fail(Some("native close did not cancel dialog"))
+    }
+    awaitNative("cancelled modal native destruction") {
+        cancelled.window.state == WindowState.Destroyed
+    }
+
+    val appDialog = application.nativeDialogController<Unit>(DialogTarget.Application)
+    val appResults = state(0)
+    assertTrue(
+        appDialog.open(
+            { _, mount -> NativeChild(probe, mount) },
+            {
+                result ->
+                when (result) {
+                    case Cancelled(_) -> {};
+                    else -> fail(Some("application dialog did not cancel"))
+                }
+                appResults.value += 1
+            }
+        )
+    )
+    val appWindow = appDialog.window!!
+    assertTrue(owner.isInputBlocked && other.isInputBlocked)
+    assertTrue(
+        when (appWindow.ownerWindow) {
+            case None -> true;
+            case Some(_) -> false
+        }
+    )
+    appDialog.cancel()
+    awaitNative("application modal completion") {
+        appResults.value == 1 && appWindow.state == WindowState.Destroyed
+    }
+    assertFalse(owner.isInputBlocked || other.isInputBlocked)
+
+    val files = scope.fileDialogController()
+    val otherFiles = application.fileDialogController()
+    val ownerFiles = state(0)
+    val independentFiles = state(0)
+    assertTrue(
+        files.openFile(
+            DialogTarget.Owner(owner),
+            {
+                result: FileDialogResult<Path> ->
+                assertCancelled(result);
+                ownerFiles.value += 1
+            }
+        )
+    )
+    assertTrue(
+        otherFiles.openFiles(
+            DialogTarget.Owner(other),
+            {
+                result: FileDialogResult<Array<Path>> ->
+                assertCancelled(result);
+                independentFiles.value += 1
+            }
+        )
+    )
+    assertTrue(owner.isInputBlocked && other.isInputBlocked)
+    assertFalse(files.saveFile(DialogTarget.Owner(owner), { fail(Some("duplicate file request")) }))
+    files.cancel()
+    assertTrue(files.isPending)
+    awaitNative("owner file cancellation") { ownerFiles.value == 1 }
+    assertFalse(files.isPending)
+    assertFalse(owner.isInputBlocked)
+    assertTrue(other.isInputBlocked)
+    otherFiles.cancel()
+    awaitNative("independent file cancellation") { independentFiles.value == 1 }
+    assertTrue(
+        files.saveFile(
+            DialogTarget.Owner(owner),
+            {
+                result ->
+                assertCancelled(result);
+                ownerFiles.value += 1
+            }
+        )
+    )
+    files.cancel()
+    awaitNative("save file cancellation") { ownerFiles.value == 2 }
+    assertTrue(
+        otherFiles.selectDirectory(
+            DialogTarget.Application,
+            {
+                result ->
+                assertCancelled(result);
+                independentFiles.value += 1
+            }
+        )
+    )
+    otherFiles.cancel()
+    awaitNative("application directory cancellation") { independentFiles.value == 2 }
+    assertTrue(
+        files.openFile(
+            DialogTarget.Owner(owner),
+            { fail(Some("closed file controller delivered callback")) }
+        )
+    )
+    files.close()
+    assertFalse(files.isPending)
+    awaitNative("closed file controller cleanup") { !owner.isInputBlocked }
+    assertFalse(files.openFile(DialogTarget.Application, {}))
+    otherFiles.close()
+    appDialog.close()
+    dialog.close()
+    tool.close()
+}

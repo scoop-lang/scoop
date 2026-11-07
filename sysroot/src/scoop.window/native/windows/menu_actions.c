@@ -48,7 +48,8 @@ static HWND native_editor(SWMenu *menu, SWWindow *window) {
 }
 
 bool sw_menu_enabled(SWMenuEntry *entry) {
-  if (!entry->live || entry->kind == 4 || entry->menu->cancelled)
+  if (!entry->live || !entry->enabled || entry->kind == 4 ||
+      entry->menu->cancelled)
     return false;
   SWWindow *window = sw_menu_target(entry->menu);
   if (entry->role != 1 && window &&
@@ -79,11 +80,11 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
         return false;
       }
     }
-    return entry->enabled && menu_focus(entry->menu) == window->hwnd &&
-           window->ime_allowed;
+    return menu_focus(entry->menu) == window->hwnd &&
+           ((window->menu_text_commands & 64)
+                ? (window->menu_text_commands & (1 << (entry->role - 4))) != 0
+                : window->ime_allowed);
   }
-  if (!entry->enabled)
-    return false;
   if (entry->role == 2)
     return window && window->minimize_button;
   if (entry->role == 3)
@@ -133,6 +134,10 @@ bool sw_menu_activate(SWMenuEntry *entry) {
 int32_t scoop_window_menu_activate(SWMenu *menu, int64_t identity) {
   SWMenuEntry *entry = sw_menu_find(menu, identity);
   return entry && sw_menu_activate(entry);
+}
+
+void scoop_window_text_commands(SWWindow *window, int32_t flags) {
+  window->menu_text_commands = flags;
 }
 
 static SWMenu *owner_of(SWWindow *window, HMENU handle) {

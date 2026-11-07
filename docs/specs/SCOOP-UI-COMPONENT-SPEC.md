@@ -19,7 +19,7 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 ## 1. 定位与依赖
 
-生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
+生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。Darwin、Windows、Linux GNU 使用同一份上层源码，具体批次的构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
 
 `scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／math／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
@@ -1135,3 +1135,11 @@ questionnaire(state, onSubmit) 的 busy／enabled 是显式应用输入。默认
 默认选项卡片最小高度 44、内边距 12／10、圆角 8，选择标记 16、快捷键提示 20、卡片间距 8；标题 16／500、说明 14、进度 12／500，题目及导航间距 16。有限宽度下选项组与输入及导航占用同一可用宽度，正文自然换行，快捷键在提示框中居中。操作区保留逻辑起侧 Previous 与末侧 Skip／Next／Submit，必要时换行；所有长度随文字密度变化。表面和输入使用同一主题、Press、KeyNavigation 和 TextEditor，focusOutset 纳入外部布局，不能在选项或问卷边缘裁掉。QuestionnairePart 的 Item／Title／Description／Choice／Choices／Input／Error／Progress／Actions 可包装或替换默认 View，默认导航和进度具有稳定槽位。
 
 固定选项按 enabled 顺序分配 1–9、a–z 快捷键，选择后不自动翻题；文本输入持有焦点或正在组合时暂停。Single 的箭头选择复用 Radio 的 roving 协议，Multiple 的选项可分别 Tab；ArrowLeft／Right 仅在焦点未处于回答控件时前后导航，不截获文本和 Radio 动作。Primary+Enter 校验并继续，末题提交；重复按键和组合输入同次提交不另触发问卷动作。成功导航和校验失败的焦点转移在新场景 Accepted 后执行；依赖实际尺寸的输入域启停同样在 Accepted 回调发布，避免构建场景时同步触发编辑器失焦。零尺寸、禁用、旧题及卸载不响应输入或保留待处理焦点。默认无持续动画，空闲不请求帧。
+
+## 52. 原生桌面包装
+
+原生菜单使用独立 NativeMenuContent 描述，nativeApplicationMenuBar／nativeWindowMenuBar、nativeMenuButton／nativeContextMenu 及标准编辑角色桥接见[原生菜单组件规范](SCOOP-UI-NATIVE-MENUS-SPEC.md)。应用附属项复用 ApplicationElement，不占窗口布局槽；窗口菜单只透传正文。原生状态更新沿逻辑队列，锚点与窗框区域沿 Accepted 几何。
+
+windowChrome、windowDragRegion、windowResizeRegion、windowControls 的能力协商、原生区域、实际系统几何及关闭请求见[窗框组件规范](SCOOP-UI-WINDOW-CHROME-SPEC.md)。窗口／应用 scope 的工具窗口、类型化模态与文件面板控制器，以及打开／保存按钮见[原生窗口组件规范](SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。控制器只销毁自己创建的窗口，借用和实际原生退休继续遵守 Window／UI 合同。
+
+nativeTrayIcon 在独立 scoop.ui.component.tray Cone 中实现相同的应用挂载协议，菜单复用上述公共描述；普通组件不依赖托盘或 Linux DBusMenu。独立 API、NativeMenuUseId 归属与资源收尾见[托盘组件规范](SCOOP-UI-TRAY-SPEC.md)。同一组功能最终由综合 desktop demo 展示，实施与三平台验证状态见[桌面能力实施记录](../desktop-ui/PROGRESS.md)。

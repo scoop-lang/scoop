@@ -95,7 +95,10 @@ internal fun InputRouter.routeFocused(event: InputEvent) {
             }
             route(deliveries(chain), event, key.time)
         }
-        else -> throw IllegalArgumentException(Some("only keyboard input uses focused routing"))
+        case TextCommand(_) -> route(deliveries(chain), event, inputObservation())
+        else -> throw IllegalArgumentException(
+            Some("only keyboard and text commands use focused routing")
+        )
     }
 }
 

@@ -95,6 +95,7 @@ typedef struct {
   double deadline;
   SWEvent *head, *tail;
   SWWindow *windows;
+  SWMenu *menus;
   SWWatch *watches;
   bool physical_keys[768], physical_keys_known;
 } SWApplication;
@@ -122,6 +123,7 @@ struct SWWindow {
   uint64_t frame_revision;
   bool close_button, minimize_button, maximize_button, cursor_visible;
   bool pointer_inside, ime_allowed, preedit_active, caret_known;
+  int32_t menu_text_commands;
   int cursor_icon;
   double requested_width, requested_height;
   double min_width, min_height, max_width, max_height;

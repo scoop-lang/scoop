@@ -41,7 +41,9 @@ static bool can_activate(SWMenuEntry *entry) {
   if (entry->role == 3)
     return window->maximize_button && window->resizable;
   if (entry->role >= 4)
-    return window->ime_allowed;
+    return (window->menu_text_commands & 64)
+               ? (window->menu_text_commands & (1 << (entry->role - 4))) != 0
+               : window->ime_allowed;
   return true;
 }
 
@@ -88,6 +90,20 @@ void sw_menu_action(GSimpleAction *action, GVariant *parameter, gpointer data) {
 int32_t scoop_window_menu_activate(SWMenu *menu, int64_t identity) {
   SWMenuEntry *entry = sw_menu_find(menu, identity);
   return entry && sw_menu_activate(entry);
+}
+
+void sw_menu_refresh_commands(SWMenu *menu) {
+  for (guint index = 0; index < menu->entries->len; ++index) {
+    SWMenuEntry *entry = g_ptr_array_index(menu->entries, index);
+    if (entry->role >= 4 && entry->action)
+      g_simple_action_set_enabled(entry->action, can_activate(entry));
+  }
+}
+
+void scoop_window_text_commands(SWWindow *window, int32_t flags) {
+  window->menu_text_commands = flags;
+  for (SWMenu *menu = window->application->menus; menu; menu = menu->next)
+    sw_menu_refresh_commands(menu);
 }
 
 bool sw_menu_key_equivalent(SWWindow *window, guint symbol) {

@@ -45,6 +45,16 @@ public class ApplicationScope internal constructor(private val root: UiApplicati
     }
     public fun observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
         events.menu(menu, action)
+    public fun observeWindow(window: Window, action: (WindowEvent) -> Unit): Closeable =
+        events.window(window, action)
+    public fun declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
+        checkMounted()
+        val value =
+            root.host.menuBars.register(None, { isMounted }, { action -> dispatch(action) }, create)
+        resources.managed.add(value)
+        value.update()
+        return value
+    }
     public fun observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
         events.popup(session, action)
     public fun observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =

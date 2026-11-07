@@ -1,0 +1,63 @@
+package scoop.ui.component.tray
+
+import scoop.tray.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.DesktopImage
+
+public class NativeTrayIconProps public constructor(
+    public val image: DesktopImage,
+    public val tooltip: String? = None,
+    public val menu: NativeMenuSnapshot? = None,
+    public val handle: NativeTrayHandle? = None,
+    public val onActivated: (TrayActivation) -> Unit = {},
+    public val onAvailabilityChanged: (TrayAvailability) -> Unit = {},
+    public val onMenuClosed: (TrayMenuResult) -> Unit = {}
+)
+
+public class NativeTrayIcon public constructor(
+    private val props: Props<NativeTrayIconProps>,
+    scope: ApplicationScope
+): ApplicationElement(scope) {
+    private var attachment: NativeTrayAttachment? = None
+    public override fun onMount() {
+        attachment = Some(scope.resource { NativeTrayAttachment(scope, { props.value }) })
+    }
+    public override fun update() {
+        attachment!!.update()
+    }
+    public override fun onUnmount() {
+        attachment?.close()
+    }
+}
+
+public class NativeTrayIconBuilder internal constructor() {
+    public var tooltip: String? = None
+    public var menu: NativeMenuContent? = None
+    public var handle: NativeTrayHandle? = None
+    public var onActivated: (TrayActivation) -> Unit = {}
+    public var onAvailabilityChanged: (TrayAvailability) -> Unit = {}
+    public var onMenuClosed: (TrayMenuResult) -> Unit = {}
+}
+
+public fun nativeTrayIcon(
+    image: DesktopImage,
+    key: ViewKey,
+    configure: NativeTrayIconBuilder.() -> Unit = {}
+): ApplicationItem {
+    val builder = NativeTrayIconBuilder()
+    builder.configure()
+    return applicationElement(
+        NativeTrayIconProps(
+            image,
+            builder.tooltip,
+            builder.menu?.snapshot(),
+            builder.handle,
+            builder.onActivated,
+            builder.onAvailabilityChanged,
+            builder.onMenuClosed
+        ),
+        { props, scope -> NativeTrayIcon(props, scope) },
+        key
+    )
+}

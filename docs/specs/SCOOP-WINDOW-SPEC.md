@@ -179,6 +179,8 @@ lease.close 可跨线程且幂等，原子结束借用并把实际释放排入 o
 
 ## 7. 窗口及应用关闭
 
+`Window.requestClose(): Boolean` 从业务代码排队一次普通 CloseRequested，供自绘窗口关闭按钮沿同一退出确认入口工作；它不直接 requestDestroy。返回 true 表示已接受排队。窗口受模态限制、关闭按钮禁用或应用不再接受业务工作时返回 false；交付时再次检查窗口仍可处理关闭请求，失效后不交付旧请求。实际销毁继续由应用明确决定。
+
 独立托盘 Cone 所需的 NativeApplicationLease、显示器 workArea 及系统栏查询合同见[托盘规范](SCOOP-TRAY-SPEC.md)。这些入口复用既有 owner／mailbox／关闭通路；window 不引入托盘类型或 Linux 托盘依赖。
 
 状态为 PendingConfigure／Open／Closing／Destroyed。CloseRequested 只表示意图；requestDestroy 幂等、非阻塞，先进入 Closing／通知并拒绝新业务，等 Closing 已交付、callback 和 lease 均退休后实际销毁并发一次 Destroyed。Closing 后不再交付业务输入／重绘；迟到原生事件按 id 和 phase 丢弃，Destroyed 为该窗口的最后事件。

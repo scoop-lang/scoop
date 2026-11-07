@@ -1,0 +1,21 @@
+package scoop.ui.component.tray
+
+import scoop.test.*
+
+@Test
+private class NativeTrayValuesTests {
+    @Test
+    fun `an unattached handle does not invent an icon location or menu session`() {
+        val handle = NativeTrayHandle()
+        assertTrue(
+            when (handle.icon) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertEquals(None, handle.availability)
+        assertFalse(handle.isMenuPending)
+        assertFalse(handle.requestMenu())
+        handle.cancelMenu()
+    }
+}
