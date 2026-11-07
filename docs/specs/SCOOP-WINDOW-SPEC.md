@@ -108,6 +108,8 @@ macOS 的 TitlebarOptions 提供 transparent、titleHidden，通过 WindowAttrib
 
 showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Application 输入范围与 Automatic／SeparateWindow／Sheet 展示。实际能力、原生输入限制、唯一完成、焦点请求及关闭依赖见[归属与模态规范](SCOOP-WINDOW-MODAL-SPEC.md)。第 8～10 节的原生循环接入继续承担嵌套展示期间的 I/O 与控制推进，不能递归执行 managed pump。
 
+原生文件／目录面板由 ActiveApplication.openFile／openFiles／saveFile／selectDirectory 提供，目标明确区分 Owner 与 Application，返回 FileDialogSession<T> 和 Path 结果。选项、无损路径、原生取消与关闭依赖见[文件对话框规范](SCOOP-WINDOW-DIALOGS-SPEC.md)。
+
 自绘窗框的 beginMove／beginResize／showWindowMenu 使用当前真实输入上下文；原生命中、区域失效与能力差异见[窗框规范第 3～4 节](SCOOP-WINDOW-FRAME-SPEC.md#3-自有区域)。
 
 窗口归属、模态输入限制、焦点与系统拖移／缩放由 scoop.window 提供；UI 负责内容、控件及结果交付。不得在组件中通过临时屏蔽几个输入回调或设置置顶来代替窗口模态。实施时分别验证窗口模态／应用模态、其他窗口的交互、关闭及焦点恢复、自绘窗框拖移／缩放，以及真实原生循环中的 asyncio 推进。

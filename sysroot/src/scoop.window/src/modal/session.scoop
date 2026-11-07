@@ -36,6 +36,7 @@ public class ModalSession internal constructor(
             return
         requestedEnd = Some(result)
         phase = ModalState.Ending
+        application.cancelOwnedFileDialogs(window.owner, FileDialogCancelReason.OwnerHidden)
         application.cancelOwnedModals(window.owner, ModalCancelReason.OwnerHidden)
         @Unsafe
         {
@@ -93,8 +94,11 @@ public fun Window.showModal(options: ModalOptions = ModalOptions()): ModalSessio
         )
             throw WindowException("application modal branch", WindowErrorKind.ResourceBusy)
     }
+    if (options.scope == ModalScope.Application && application.fileDialogs.size != 0L)
+        throw WindowException("application file dialog is active", WindowErrorKind.ResourceBusy)
     when (parent) {
         case Some(value) -> {
+            application.requireDialogOwnerAvailable(value)
             value.requireInteractive()
             val snapshot = value.snapshot()
             if (snapshot.visible == 0 || snapshot.minimized != 0)

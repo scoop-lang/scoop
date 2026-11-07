@@ -79,7 +79,7 @@ void scoop_window_input_blocked(void *pointer, int32_t blocked) {
   [owner emit:19];
 }
 
-static void stop_ending(SWApplication *application) {
+void sw_modal_resume_ending(SWApplication *application) {
   SWModal *session = application.modalStack.lastObject;
   if (!session.ending || !session.running ||
       NSApp.modalWindow != session.owner.window)
@@ -147,7 +147,7 @@ int64_t scoop_window_modal_start(void *pointer) {
         [owner.window orderOut:nil];
         session.finished = YES;
         [owner.application.modalStack removeObjectIdenticalTo:session];
-        stop_ending(owner.application);
+        sw_modal_resume_ending(owner.application);
       }
     } else {
       sw_show_owned_window(owner, YES);
@@ -174,7 +174,7 @@ void scoop_window_modal_end(void *pointer) {
   else if (session.presentation && session.owner.window.sheetParent)
     [session.owner.window.sheetParent endSheet:session.owner.window];
   else if (session.running)
-    stop_ending(session.owner.application);
+    sw_modal_resume_ending(session.owner.application);
   else {
     [session.owner.window orderOut:nil];
     session.finished = YES;

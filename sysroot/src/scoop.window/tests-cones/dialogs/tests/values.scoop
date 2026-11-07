@@ -1,0 +1,24 @@
+package scoop.tests.window.dialogs
+
+import scoop.test.*
+import scoop.window.*
+import scoop.platform.fs.Path
+
+@Test
+private class FileDialogValueTests {
+    @Test
+    fun `file results keep path and multiple path payloads typed`() {
+        val path = Path.fromString("report.txt")
+        val one: FileDialogResult<Path> = FileDialogResult.Accepted<Path>(path)
+        val many: FileDialogResult<Array<Path>> = FileDialogResult.Accepted<Array<Path>>([path])
+        when (one) {
+            case Accepted(value) -> assertEquals(path, value)
+            else -> fail()
+        }
+        when (many) {
+            case Accepted(values) -> assertEquals(path, values[0L])
+            else -> fail()
+        }
+        assertTrue(FileDialogSessionId(1L) != FileDialogSessionId(2L))
+    }
+}

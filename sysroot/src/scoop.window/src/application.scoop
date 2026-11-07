@@ -18,7 +18,7 @@ public enum StartCause {
 public enum ApplicationEvent {
     NewEvents(StartCause), Resumed, Suspended, MemoryWarning,
     Menu(MenuActivation), PopupCompleted(PopupSessionId, PopupResult),
-    ModalCompleted(ModalSessionId, ModalResult),
+    ModalCompleted(ModalSessionId, ModalResult), FileDialogCompleted(FileDialogSessionId),
     Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
 }
 

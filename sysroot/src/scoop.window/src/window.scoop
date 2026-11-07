@@ -94,6 +94,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
         if (visible && owner.hasModal)
             throw WindowException("modal visibility", WindowErrorKind.InvalidState)
         if (!visible) {
+            owner.application.cancelOwnedFileDialogs(owner, FileDialogCancelReason.OwnerHidden)
             owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
             when (owner.modalSession) {
                 case Some(session) -> session.end(
@@ -233,6 +234,13 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         if (phase == WindowState.Closing || phase == WindowState.Destroyed)
             return
         phase = WindowState.Closing
+        application.cancelOwnedFileDialogs(
+            this,
+            if (application.exiting)
+                FileDialogCancelReason.ApplicationExit
+            else
+                FileDialogCancelReason.OwnerClosed
+        )
         application.cancelOwnedModals(
             this,
             if (application.exiting)

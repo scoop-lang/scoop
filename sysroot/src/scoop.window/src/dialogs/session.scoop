@@ -1,0 +1,92 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+
+/** A native file presentation with an owned, typed completion result. */
+public class FileDialogSession<T> internal constructor(
+    internal val owner: FileDialogOwner,
+    private val decode: (Array<Path>) -> T
+) {
+    private var cached: FileDialogResult<T>? = None
+    public val id: FileDialogSessionId get() = owner.id
+    public val state: FileDialogState get() {
+        owner.application.checkThread()
+        return owner.phase
+    }
+    public val result: FileDialogResult<T>? get() {
+        owner.application.checkThread()
+        when (cached) {
+            case Some(_) -> return cached
+            case None -> {}
+        }
+        val value = owner.completion ?: return None
+        cached =
+            Some(
+                when (value) {
+                    case Accepted(paths) -> FileDialogResult.Accepted<T>(decode(paths))
+                    case Cancelled(reason) -> FileDialogResult.Cancelled<T>(reason)
+                    case Failed(error) -> FileDialogResult.Failed<T>(error)
+                }
+            )
+        return cached
+    }
+    public fun cancel() {
+        owner.application.checkThread()
+        owner.cancel(FileDialogCancelReason.Cancelled)
+    }
+}
+
+internal class FileDialogOwner(
+    val application: ApplicationOwner,
+    val id: FileDialogSessionId,
+    val window: WindowOwner?,
+    val kind: Int,
+    native: Ptr<Unit>
+) {
+    var pointer: Ptr<Unit>? = Some(native)
+    var phase = FileDialogState.Pending
+    var commandPending = true
+    var cancellation: FileDialogCancelReason? = None
+    var completion: FileDialogResult<Array<Path>>? = None
+
+    fun blocks(target: WindowOwner): Boolean =
+        when (window) {
+            case Some(value) -> value === target
+            case None -> true
+        }
+    fun owns(target: WindowOwner): Boolean =
+        when (window) {
+            case Some(value) -> value === target || value.isDescendantOf(target)
+            case None -> false
+        }
+    fun cancel(reason: FileDialogCancelReason) {
+        if (phase == FileDialogState.Ending || phase == FileDialogState.Completed)
+            return
+        @Unsafe
+        {
+            if (nativeFileCancel(pointer!!) == 0)
+                return
+            cancellation = Some(reason)
+            phase = FileDialogState.Ending
+        }
+        application.mailbox.wake()
+    }
+    fun start() {
+        try {
+            if (phase == FileDialogState.Ending)
+                return
+            if (application.exiting) {
+                cancel(FileDialogCancelReason.ApplicationExit)
+                return
+            }
+            phase = FileDialogState.Showing
+            @Unsafe
+            {
+                nativeFileStart(pointer!!)
+            }
+        } finally {
+            commandPending = false
+            application.mailbox.wake()
+        }
+    }
+}

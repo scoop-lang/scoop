@@ -148,6 +148,7 @@ public fun Window.setWindowLevel(level: WindowLevel): RequestStatus {
 public fun Window.requestMinimized(value: Boolean): RequestStatus {
     owner.requireOpen()
     if (value) {
+        owner.application.cancelOwnedFileDialogs(owner, FileDialogCancelReason.OwnerHidden)
         owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
         when (owner.modalSession) {
             case Some(session) -> session.end(ModalResult.Cancelled(ModalCancelReason.WindowHidden))

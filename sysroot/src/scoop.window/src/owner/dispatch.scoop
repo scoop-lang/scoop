@@ -18,6 +18,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
             }
         }
         syncOwnedVisibility()
+        syncFileDialogVisibility()
         val events = ArrayList<NativeDelivery>()
         @Unsafe
         {

@@ -430,3 +430,24 @@ when = { os = "windows" }
 [[native.sources]]
 path = "native/linux/modal.c"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/dialogs.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows/dialogs.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux/dialogs.c"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "UniformTypeIdentifiers"
+kind = "framework"
+when = { os = "darwin" }
+
+[[test.sources]]
+path = "tests/dialog_paths.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/dialog_paths.scoop"
+when = { os = "linux", env = "gnu" }

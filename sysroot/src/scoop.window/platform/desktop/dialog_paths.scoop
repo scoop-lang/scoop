@@ -1,0 +1,18 @@
+package scoop.window
+
+import scoop.platform.system.OsString
+
+@Unsafe
+internal fun withDialogString(value: OsString, block: (Ptr<Byte>, Long) -> Long): Long =
+    value.toByteArray().withDataPointer { pointer, count -> block(pointer, count) }
+
+@Unsafe
+internal fun copyDialogString(value: NativeFilePath): OsString =
+    OsString.fromByteArray(
+        Array<Byte>(value.length) {
+            index -> @Unsafe
+            {
+                return@Array value.data!!.load(index)
+            }
+        }
+    )

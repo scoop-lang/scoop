@@ -23,6 +23,9 @@ internal fun ApplicationOwner.updateModalInput() {
                 if (!modalBranch(window, session.window.owner))
                     blocked = true
         }
+        for (dialog in fileDialogs)
+            if (dialog.blocks(window))
+                blocked = true
         if (window.inputBlocked != blocked) {
             window.inputBlocked = blocked
             if (blocked) {

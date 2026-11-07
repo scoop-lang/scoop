@@ -17,6 +17,7 @@ internal fun ApplicationOwner.cleanupEvent(event: ApplicationEvent) {
 internal fun ApplicationOwner.drainShutdown() {
     if (dispatchDepth != 0)
         return
+    drainFileDialogs()
     drainModals()
     drainMenus()
     if (exiting && !attached) {
@@ -77,6 +78,8 @@ internal fun ApplicationOwner.drainShutdown() {
             watches.size ==
             0L &&
             menus.size ==
+            0L &&
+            fileDialogs.size ==
             0L &&
             modals.size ==
             0L &&

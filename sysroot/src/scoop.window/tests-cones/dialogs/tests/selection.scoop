@@ -1,0 +1,19 @@
+package scoop.tests.window.dialogs
+
+import scoop.platform.fs.Path
+
+internal fun chooseNativePath(path: Path): Boolean {
+    @Unsafe
+    {
+        return path.toOsString().toByteArray().withDataPointer {
+            pointer,
+            count -> @Unsafe
+            {
+                return@withDataPointer nativeChoose(pointer, count) != 0
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_file_choose")
+private fun nativeChoose(path: Ptr<Byte>, length: Long): Int

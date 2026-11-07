@@ -1,0 +1,60 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+import scoop.platform.system.OsString
+
+public enum DialogTarget {
+    Owner(Window), Application
+}
+
+public enum FileTypes {
+    Any, Extensions(Array<String>)
+}
+
+public struct OpenFileOptions(
+    val title: String? = None,
+    val initialDirectory: Path? = None,
+    val types: FileTypes = FileTypes.Any
+)
+
+public struct SaveFileOptions(
+    val title: String? = None,
+    val initialDirectory: Path? = None,
+    val suggestedName: OsString? = None,
+    val types: FileTypes = FileTypes.Any
+)
+
+public struct DirectoryDialogOptions(val title: String? = None, val initialDirectory: Path? = None)
+
+public enum FileDialogState {
+    Pending, Showing, Ending, Completed
+}
+
+public enum FileDialogCancelReason {
+    UserCancelled, Cancelled, OwnerHidden, OwnerClosed, ApplicationExit
+}
+
+public enum FileDialogResult<T> {
+    Accepted(T), Cancelled(FileDialogCancelReason), Failed(WindowException)
+}
+
+public struct FileDialogSessionId(val value: Long): Equals<FileDialogSessionId>, Hash {
+    public override operator fun equals(other: FileDialogSessionId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct FileDialogCapabilities(
+    val openFile: Boolean,
+    val openFiles: Boolean,
+    val saveFile: Boolean,
+    val selectDirectory: Boolean,
+    val owner: Boolean,
+    val application: Boolean,
+    val title: Boolean,
+    val initialDirectory: Boolean,
+    val suggestedName: Boolean,
+    val extensions: Boolean
+)
+
+internal fun fileDialogCapabilities(): FileDialogCapabilities =
+    FileDialogCapabilities(true, true, true, true, true, true, true, true, true, true)

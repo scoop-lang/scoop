@@ -56,6 +56,24 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 desktopCapabilities().windows 分别报告相对叠放、工具角色、raise、层级传播和模态展示组合。Linux transient 关系是 WM／compositor 提示，Wayland 不提供通用工具窗角色、无激活 raise 或 topmost。AppKit 的 Automatic Owner 展示采用普通 sheet，Application 展示使用原生应用模态；不使用 critical sheet 伪装普通嵌套。详细合同与测试入口见[模态规范](../../../docs/specs/SCOOP-WINDOW-MODAL-SPEC.md)和[模态测试说明](tests-cones/modal/README.md)。
 
+## 原生文件与目录面板
+
+ActiveApplication.openFile／openFiles／saveFile／selectDirectory 返回 FileDialogSession<T>，分别交付 Path 或非空 Array<Path>。目标必须明确传 DialogTarget.Owner(window) 或 DialogTarget.Application；后者也支持没有业务窗口的应用。文件面板与窗口模态共用输入限制和关闭依赖，嵌套面板结束不会解除外层模态。
+
+```scoop
+val request = application.saveFile(
+    DialogTarget.Owner(window),
+    SaveFileOptions(
+        suggestedName = Some(OsString.fromString("report.txt")),
+        types = FileTypes.Extensions(["txt"])
+    )
+)
+```
+
+通过 ApplicationEvent.FileDialogCompleted(id) 找到对应请求，读取 request.result 的 Accepted／Cancelled／Failed。cancel() 请求取消原生展示，原生调用和回调退休后才完成 session 并释放 owner；用户取消与原生失败分别表示。路径复用 scoop.platform 的 Path／OsString，保留本地编码。保存面板只选择目标路径，应用随后执行文件 I/O。
+
+desktopCapabilities().fileDialogs 报告入口和选项能力。AppKit 使用 NSOpenPanel／NSSavePanel，Win32 使用 Common Item Dialog，Linux 使用已有 GTK/GIO 的 GtkFileDialog，不引入托盘依赖。详细合同与测试入口见[文件对话框规范](../../../docs/specs/SCOOP-WINDOW-DIALOGS-SPEC.md)和[测试说明](tests-cones/dialogs/README.md)。
+
 创建时使用 frame，运行中用 setFrame 切换 System(Standard／Extended) 与 Client。Client 去除宿主可见装饰，resizable／buttons 仍独立控制系统操作；System 的 Extended 保留真实系统按钮并让内容进入标题栏。frameMetrics 给出实际内容可用矩形和按钮占用，未知值为 None。desktopCapabilities().frame 分别报告窗口裁剪、独立输入区域、整窗忽略鼠标、系统拖动／缩放与阴影等能力。setWindowRegion、setInputRegion 和 setHitRegions 使用内容逻辑坐标中的自有矩形集合；None 恢复默认，空区域没有覆盖。系统 beginMove／beginResize／showWindowMenu 必须在当前真实输入事件的 handler 内调用，阻塞操作在回调退栈后执行，接管前取消原指针序列。详细平台边界见[窗框规范](../../../docs/specs/SCOOP-WINDOW-FRAME-SPEC.md)。
 
 macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏标题；内容延伸统一由 WindowFrame.System(Extended) 表达，Client 窗口仍可接收键盘焦点。Windows 的边框色、标题栏色、文字色与圆角偏好在 platform.windows 中分别查询 DWM 能力和设置。当前接口见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。

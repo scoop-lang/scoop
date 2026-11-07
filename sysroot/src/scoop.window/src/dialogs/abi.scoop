@@ -1,0 +1,39 @@
+package scoop.window
+
+@CLayout
+internal struct NativeFileResult(
+    val outcome: Int,
+    val error: Long,
+    val count: Long,
+    val domain: Ptr<UInt8>?,
+    val domainLength: Long
+)
+
+/** Length is in bytes, including for Windows UTF-16. Storage belongs to the native session. */
+@CLayout
+internal struct NativeFilePath(val data: Ptr<Byte>?, val length: Long)
+
+@Extern(name = "scoop_window_file_create")
+internal fun nativeFileCreate(
+    application: Ptr<Unit>,
+    owner: Ptr<Unit>?,
+    kind: Int
+): NativeCreateResult
+
+@Extern(name = "scoop_window_file_option")
+internal fun nativeFileOption(session: Ptr<Unit>, field: Int, data: Ptr<Byte>, length: Long): Long
+
+@Extern(name = "scoop_window_file_start")
+internal fun nativeFileStart(session: Ptr<Unit>)
+
+@Extern(name = "scoop_window_file_cancel")
+internal fun nativeFileCancel(session: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_file_result")
+internal fun nativeFileResult(session: Ptr<Unit>): NativeFileResult
+
+@Extern(name = "scoop_window_file_path")
+internal fun nativeFilePath(session: Ptr<Unit>, index: Long): NativeFilePath
+
+@Extern(name = "scoop_window_file_release")
+internal fun nativeFileRelease(session: Ptr<Unit>)

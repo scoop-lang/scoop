@@ -1,0 +1,316 @@
+package scoop.tests.window.dialogs
+
+import scoop.test.*
+import scoop.asyncio.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.window.native.*
+import scoop.platform.fs.*
+import scoop.platform.system.OsString
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal fun runDialogProbe() {
+    val directory = createTempDirectory(prefix = "scoop-dialog-")
+    try {
+        val probe = DialogProbe(directory)
+        Application().runWithAsyncio(probe)
+        assertTrue(probe.finished)
+        assertTrue(probe.ioProgress)
+        assertTrue(probe.headless)
+        assertCancelled(probe.exitSession!!, FileDialogCancelReason.ApplicationExit)
+        assertFalse(directory.resolve(Path.fromString("未写入.txt")).exists())
+    } finally {
+        directory.deleteRecursively()
+    }
+}
+
+private fun <T> assertCancelled(session: FileDialogSession<T>, reason: FileDialogCancelReason) {
+    when (session.result) {
+        case Some(FileDialogResult.Cancelled(value)) -> assertEquals(reason, value)
+        case Some(FileDialogResult.Failed(error)) -> fail(Some(error.operation))
+        else -> fail(Some("file dialog did not complete with the expected cancellation"))
+    }
+}
+
+private suspend fun waitFor(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 300, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+    }
+}
+
+private suspend fun <T> shown(session: FileDialogSession<T>, parent: Window?, kind: Int) {
+    waitFor("native file dialog") {
+        if (session.state == FileDialogState.Completed)
+            fail(Some("file dialog completed before native presentation"))
+        session.state == FileDialogState.Showing && dialogQuery(parent, 0, kind) > 0
+    }
+    assertEquals(1, dialogQuery(parent, 2, kind))
+}
+
+private suspend fun <T> completed(session: FileDialogSession<T>) {
+    waitFor("file dialog retirement") { session.state == FileDialogState.Completed }
+}
+
+private suspend fun <T> accepted(
+    session: FileDialogSession<T>,
+    parent: Window?,
+    kind: Int,
+    path: Path
+): T {
+    shown(session, parent, kind)
+    waitFor("native selection") { chooseNativePath(path) }
+    completed(session)
+    session.cancel()
+    return when (session.result) {
+        case Some(FileDialogResult.Accepted(value)) -> value
+        else -> fail(Some("native selection did not produce an accepted path"))
+    }
+}
+
+private suspend fun modalCompleted(session: ModalSession) {
+    waitFor("outer modal retirement") { session.state == ModalState.Completed }
+}
+
+private fun blocked(window: Window, expected: Boolean) {
+    assertEquals(expected, window.isInputBlocked)
+    assertEquals(
+        if (expected)
+            0
+        else
+            1,
+        dialogQuery(Some(window), 3)
+    )
+}
+
+private class DialogProbe(val directory: Path): ApplicationHandler {
+    var finished = false
+    var ioProgress = false
+    var headless = false
+    var exitSession: FileDialogSession<Path>? = None
+    var depth = 0
+    val delivered = ArrayList<FileDialogSessionId>()
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(0, depth)
+        depth += 1
+        try {
+            when (event) {
+                case Resumed -> {
+                    application.setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(50L))
+                    )
+                    val scope = currentApplicationScope()
+                    scope.launch { this @DialogProbe.scenario(application, this) }
+                }
+                case NewEvents(StartCause.Deadline) -> fail(Some("file dialog test deadline"))
+                case FileDialogCompleted(id) -> {
+                    for (previous in delivered)
+                        assertTrue(previous != id)
+                    delivered.add(id)
+                }
+                else -> {}
+            }
+        } finally {
+            depth -= 1
+        }
+    }
+
+    private fun openOptions(): OpenFileOptions =
+        OpenFileOptions(
+            title = Some("Scoop file probe"),
+            initialDirectory = Some(directory),
+            types = FileTypes.Extensions(["txt"])
+        )
+    private fun saveOptions(): SaveFileOptions =
+        SaveFileOptions(
+            title = Some("Scoop file probe"),
+            initialDirectory = Some(directory),
+            suggestedName = Some(OsString.fromString("未写入.txt")),
+            types = FileTypes.Extensions(["txt"])
+        )
+    private fun directoryOptions(): DirectoryDialogOptions =
+        DirectoryDialogOptions(title = Some("Scoop file probe"), initialDirectory = Some(directory))
+
+    private suspend fun scenario(application: ActiveApplication, scope: CoroutineScope) {
+        val a =
+            application.createWindow(
+                windowAttributes {
+                    title = "File owner A";
+                    requestActivation = false
+                }
+            )
+        val b =
+            application.createWindow(
+                windowAttributes {
+                    title = "File owner B";
+                    requestActivation = false
+                }
+            )
+        val child =
+            application.createWindow(
+                windowAttributes {
+                    title = "Confirmation";
+                    visible = false;
+                    relation = WindowRelation.Owned(a)
+                }
+            )
+        waitFor("owners") { a.metrics != None && b.metrics != None }
+        val caps = application.desktopCapabilities().fileDialogs
+        assertTrue(caps.openFile && caps.openFiles && caps.saveFile && caps.selectDirectory)
+        assertTrue(caps.owner && caps.application)
+        assertFailsWith<IllegalArgumentException> {
+            application.openFile(
+                DialogTarget.Owner(a),
+                OpenFileOptions(types = FileTypes.Extensions([]))
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            application.saveFile(
+                DialogTarget.Owner(a),
+                SaveFileOptions(suggestedName = Some(OsString.fromString("dir/name.txt")))
+            )
+        }
+        assertEquals(
+            WindowErrorKind.InvalidState,
+            assertFailsWith<WindowException> {
+                application.openFile(DialogTarget.Owner(child))
+            }.kind
+        )
+
+        if (dialogQuery(None, 4) != 0) {
+            val existing = directory.resolve(Path.fromString("现有.txt"))
+            existing.writeText("unchanged contents")
+            val opened = application.openFile(DialogTarget.Owner(a), openOptions())
+            assertEquals(existing, accepted(opened, Some(a), 0, existing))
+            val multiple = application.openFiles(DialogTarget.Owner(a), openOptions())
+            val paths = accepted(multiple, Some(a), 1, existing)
+            assertEquals(1L, paths.size)
+            assertEquals(existing, paths[0L])
+            val destination = directory.resolve(Path.fromString("未写入.txt"))
+            val save = application.saveFile(DialogTarget.Owner(a), saveOptions())
+            assertEquals(destination, accepted(save, Some(a), 2, destination))
+            assertFalse(destination.exists())
+            val chooseFolder =
+                application.selectDirectory(DialogTarget.Owner(a), directoryOptions())
+            assertEquals(directory, accepted(chooseFolder, Some(a), 3, directory))
+            assertEquals("unchanged contents", existing.readText())
+        }
+
+        val pending = application.openFile(DialogTarget.Owner(a), openOptions())
+        assertEquals(FileDialogState.Pending, pending.state)
+        blocked(a, true);
+        blocked(b, false)
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { application.openFile(DialogTarget.Owner(a)) }.kind
+        )
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { child.showModal() }.kind
+        )
+        pending.cancel();
+        pending.cancel()
+        assertEquals(FileDialogState.Ending, pending.state)
+        blocked(a, true)
+        completed(pending)
+        assertCancelled(pending, FileDialogCancelReason.Cancelled)
+        blocked(a, false)
+
+        val first = application.openFile(DialogTarget.Owner(a), openOptions())
+        val second = application.openFiles(DialogTarget.Owner(b), openOptions())
+        shown(first, Some(a), 0);
+        shown(second, Some(b), 1)
+        blocked(a, true);
+        blocked(b, true)
+        second.cancel()
+        completed(second)
+        assertCancelled(second, FileDialogCancelReason.Cancelled)
+        blocked(a, true)
+        blocked(b, false)
+        assertEquals(1, dialogQuery(Some(a), 1, 0))
+        completed(first)
+        assertCancelled(first, FileDialogCancelReason.UserCancelled)
+        blocked(a, false)
+
+        val confirmation =
+            child.showModal(ModalOptions(ModalScope.Owner, ModalPresentation.SeparateWindow))
+        waitFor("confirmation") { confirmation.state == ModalState.Showing && child.isVisible }
+        val saved = application.saveFile(DialogTarget.Owner(child), saveOptions())
+        shown(saved, Some(child), 2)
+        blocked(a, true);
+        blocked(child, true);
+        blocked(b, false)
+        dialogTcpTransfer(scope)
+        currentEventLoop().sleep(Duration.milliseconds(30L))
+        ioProgress = true
+        confirmation.dismiss()
+        completed(saved);
+        modalCompleted(confirmation)
+        assertCancelled(saved, FileDialogCancelReason.OwnerHidden)
+        blocked(a, false)
+
+        val outer =
+            child.showModal(ModalOptions(ModalScope.Application, ModalPresentation.SeparateWindow))
+        waitFor("application modal") { outer.state == ModalState.Showing && child.isVisible }
+        val nested = application.openFile(DialogTarget.Application, openOptions())
+        shown(nested, None, 0)
+        blocked(a, true);
+        blocked(b, true);
+        blocked(child, true)
+        outer.cancel()
+        assertEquals(ModalState.Ending, outer.state)
+        dialogTcpTransfer(scope)
+        nested.cancel()
+        completed(nested);
+        modalCompleted(outer)
+        assertCancelled(nested, FileDialogCancelReason.Cancelled)
+        blocked(a, false);
+        blocked(b, false)
+
+        val folder = application.selectDirectory(DialogTarget.Application, directoryOptions())
+        shown(folder, None, 3)
+        val late = application.createWindow(windowAttributes { visible = false })
+        blocked(a, true);
+        blocked(b, true);
+        blocked(late, true)
+        folder.cancel();
+        completed(folder)
+        assertCancelled(folder, FileDialogCancelReason.Cancelled)
+        blocked(late, false)
+
+        val closing = application.saveFile(DialogTarget.Owner(a), saveOptions())
+        shown(closing, Some(a), 2)
+        @Unsafe
+        {
+            a.acquireNativeWindow().use suspend {
+                _ ->
+                a.requestDestroy()
+                assertEquals(WindowState.Closing, a.state)
+                completed(closing)
+                assertCancelled(closing, FileDialogCancelReason.OwnerClosed)
+                assertEquals(WindowState.Closing, a.state)
+            }
+        }
+        waitFor("owner native retirement") { a.state == WindowState.Destroyed }
+        assertEquals(WindowState.Destroyed, child.state)
+        b.requestDestroy();
+        late.requestDestroy()
+        waitFor("all business windows") {
+            b.state == WindowState.Destroyed && late.state == WindowState.Destroyed
+        }
+        val noWindow = application.selectDirectory(DialogTarget.Application, directoryOptions())
+        shown(noWindow, None, 3)
+        dialogTcpTransfer(scope)
+        noWindow.cancel();
+        completed(noWindow)
+        assertCancelled(noWindow, FileDialogCancelReason.Cancelled)
+        headless = true
+        exitSession = Some(application.openFile(DialogTarget.Application, openOptions()))
+        finished = true
+        application.requestExit()
+    }
+}

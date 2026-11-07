@@ -1,0 +1,28 @@
+package scoop.tests.window.dialogs
+
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun dialogQuery(target: Window?, action: Int, kind: Int = -1): Int {
+    @Unsafe
+    {
+        when (target) {
+            case None -> return nativeDialogQuery(None, action, kind)
+            case Some(window) -> return window.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case Gtk(pointer, _) -> return@use nativeDialogQuery(
+                            Some(pointer),
+                            action,
+                            kind
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_file_dialog")
+private fun nativeDialogQuery(window: Ptr<Unit>?, action: Int, kind: Int): Int

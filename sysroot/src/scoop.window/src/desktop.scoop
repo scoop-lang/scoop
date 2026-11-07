@@ -11,7 +11,8 @@ public struct DesktopCapabilities(
     val menus: MenuCapabilities,
     val positioning: DesktopPositioningCapabilities,
     val frame: WindowFrameCapabilities,
-    val windows: WindowManagementCapabilities
+    val windows: WindowManagementCapabilities,
+    val fileDialogs: FileDialogCapabilities
 )
 
 /** Queries the active backend; availability is reported by the individual operation. */
@@ -35,7 +36,8 @@ public fun ActiveApplication.desktopCapabilities(): DesktopCapabilities {
                 positioning.and(8) != 0
             ),
             frameCapabilities(),
-            managementCapabilities()
+            managementCapabilities(),
+            fileDialogCapabilities()
         )
     }
 }

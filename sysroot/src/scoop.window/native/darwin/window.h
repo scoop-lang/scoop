@@ -162,5 +162,6 @@ BOOL sw_window_input_allowed(NSWindow *window);
 BOOL sw_window_modal_eligible(NSWindow *window);
 BOOL sw_window_input_event(NSEvent *event);
 void sw_show_owned_window(SWWindow *owner, BOOL activate);
+void sw_modal_resume_ending(SWApplication *application);
 
 #endif

@@ -20,7 +20,7 @@
 | D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D4 | Frame／Region、原生外观与系统操作 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、非 GUI 测试通过，桌面交互限制见下 |
 | D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、纯值测试通过 |
-| D6 | 原生文件／目录对话框 | 待实施 |
+| D6 | 原生文件／目录对话框 | 已实施；macOS、Linux 本地选择器及真实 portal 验证完成，Windows 三目标构建和路径 ABI 测试通过 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 待实施 |
 | D8 | 通用组件及独立托盘组件 | 待实施 |
 | D9 | 综合 desktop demo | 待实施 |
@@ -61,3 +61,9 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - macOS aarch64：格式化、原生严格检查和相关库构建通过；模态 3 passed，窗框复验 3 passed，菜单 2 passed、1 ignored，asyncio 1 passed，主窗口测试程序编译通过。覆盖两个独立 Owner 模态、嵌套 sheet／Application 模态、实际 loopback TCP 和定时取消、被阻塞窗口的原生关闭资格、隐藏／最小化恢复，以及父窗口等待子窗口 lease。当前 loginwindow 下仍不宣称前台焦点、实际用户交互与视觉叠放验收通过。
 - Linux GNU：原生严格检查与 Window／window.asyncio／Surface 构建通过；X11 和带 seat 的嵌套 Wayland 各模态 3 passed、窗框 3 passed、菜单 2 passed。直接查询 GTK transient、独立窗口组和 sensitive；X11 查询实际 UTILITY 属性，Wayland 明确验证 Tool／raise 的平台限制。原生组和软件显示会话结果不能替代具体桌面 Shell 的视觉叠放验收。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的 Window／window.asyncio／Surface 和完整 GUI 用例均编译通过；各目标模态 2 passed、1 ignored，窗框 2 passed、1 ignored，菜单 1 passed、1 ignored。SSH 只执行纯值测试，不代表真实 HWND 焦点／叠放及交互验收通过；桌面执行入口见[模态测试说明](../../sysroot/src/scoop.window/tests-cones/modal/README.md)。
+
+2026-11-07，D6：已加入[原生文件对话框规范](../specs/SCOOP-WINDOW-DIALOGS-SPEC.md)，实现打开单文件／多文件、保存和选择目录，返回类型化 FileDialogSession<Path>／FileDialogSession<Array<Path>>。Owner 与 Application 输入范围复用窗口模态并集；原生命令延后展示，取消、owner 关闭及应用退出等待实际面板退休。保存接受只返回路径，POSIX 原始字节和 Windows UTF-16 保持无损。AppKit 内层文件循环结束后继续退出已取消的外层窗口模态；Linux 复用现有 GTK/GIO 的本地选择器及 portal，不新增托盘依赖。
+
+- macOS aarch64：格式化、原生严格检查和 Window／window.asyncio 构建通过；文件对话框 2 passed，模态复验 3 passed，原生路径 ABI 1 passed。覆盖真实 NSOpenPanel／NSSavePanel 的 Owner sheet、Application 模态、两独立 owner、嵌套取消、无窗口应用，以及实际 TCP／定时器。当前 loginwindow 下自动组合验证展示与取消，不将其记作前台选择、编辑或覆盖确认验收。
+- Linux GNU：原生严格检查、Window／window.asyncio 构建和路径 ABI 1 passed；X11 与带 seat 的嵌套 Wayland 各文件对话框 2 passed、模态复验 3 passed。本地 GtkFileChooser 通过公共选择 API 接受真实单选／多选模式／保存／目录结果，保存后目标文件仍不存在。两后端另各真实 portal 1 passed，观察系统 FileChooser 请求、返回的 request handle 与 Close，覆盖四种入口、面板存活时的 TCP 和无窗口 Application。portal 观察器不替换服务或生成选择结果；跨进程面板实际选择和具体桌面 Shell 呈现留待交互验收。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的 Window／window.asyncio 与完整文件对话框、模态程序均编译通过；每目标文件对话框 1 passed、1 ignored，模态 2 passed、1 ignored，原生路径 ABI 1 passed。ABI 测试从 C 返回含非配对 surrogate 的真实 UTF-16 路径，经公共对话框转换后再核对原始字节与字节长度。SSH 不运行 GUI，桌面执行方式见[文件对话框测试说明](../../sysroot/src/scoop.window/tests-cones/dialogs/README.md)。

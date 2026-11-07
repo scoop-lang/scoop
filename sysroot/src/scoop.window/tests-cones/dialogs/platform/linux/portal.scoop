@@ -1,0 +1,155 @@
+package scoop.tests.window.dialogs
+
+import scoop.test.*
+import scoop.asyncio.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.time.Duration
+
+@Test
+private class NativePortalTests {
+    @Test
+    @Ignore(
+        "Requires a real session portal and GDK_DEBUG=portals; run separately with --ignored --filter NativePortalTests"
+    )
+    fun `real portal handles four file requests and cancellation while asyncio progresses`() {
+        @Unsafe
+        {
+            val pointer = nativePortalCreate()!!
+            try {
+                val probe = PortalHandler(pointer)
+                Application().runWithAsyncio(probe)
+                assertTrue(probe.finished)
+            } finally {
+                nativePortalRelease(pointer)
+            }
+        }
+    }
+}
+
+private class PortalHandler(val pointer: Ptr<Unit>): ApplicationHandler {
+    var finished = false
+
+    fun value(field: Int): Int {
+        @Unsafe
+        {
+            return nativePortalValue(pointer, field)
+        }
+    }
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> currentApplicationScope().launch {
+                this @PortalHandler.scenario(application, this)
+            }
+            else -> {}
+        }
+    }
+
+    private suspend fun awaitCondition(label: String, ready: () -> Boolean) {
+        var attempts = 0
+        while (!ready()) {
+            assertTrue(attempts < 500, Some("timed out waiting for portal " + label))
+            attempts += 1
+            currentEventLoop().sleep(Duration.milliseconds(40L))
+        }
+    }
+
+    private suspend fun <T> exercise(
+        session: FileDialogSession<T>,
+        owner: Window?,
+        scope: CoroutineScope,
+        kind: Int,
+        count: Int
+    ) {
+        awaitCondition("request handle") { value(0) == count && value(1) == count }
+        assertEquals(FileDialogState.Showing, session.state)
+        assertEquals(kind, value(3))
+        assertEquals(
+            if (kind == 3)
+                0
+            else
+                1,
+            value(4)
+        )
+        assertEquals(1, value(5))
+        when (owner) {
+            case Some(window) -> assertTrue(window.isInputBlocked)
+            case None -> {}
+        }
+        dialogTcpTransfer(scope)
+        session.cancel()
+        awaitCondition("cancellation") {
+            value(2) == count && session.state == FileDialogState.Completed
+        }
+        when (session.result) {
+            case Some(FileDialogResult.Cancelled(reason)) ->
+            assertEquals(FileDialogCancelReason.Cancelled, reason)
+            else -> fail(Some("portal cancellation did not retire the file session"))
+        }
+        when (owner) {
+            case Some(window) -> assertFalse(window.isInputBlocked)
+            case None -> {}
+        }
+    }
+
+    private suspend fun scenario(application: ActiveApplication, scope: CoroutineScope) {
+        val window = application.createWindow(windowAttributes { requestActivation = false })
+        awaitCondition("owner metrics") { window.metrics != None }
+        val options =
+            OpenFileOptions(
+                title = Some("Scoop portal probe"),
+                types = FileTypes.Extensions(["txt"])
+            )
+        exercise(
+            application.openFile(DialogTarget.Owner(window), options),
+            Some(window),
+            scope,
+            0,
+            1
+        )
+        exercise(
+            application.openFiles(DialogTarget.Owner(window), options),
+            Some(window),
+            scope,
+            1,
+            2
+        )
+        exercise(
+            application.saveFile(
+                DialogTarget.Owner(window),
+                SaveFileOptions(
+                    title = Some("Scoop portal probe"),
+                    types = FileTypes.Extensions(["txt"])
+                )
+            ),
+            Some(window),
+            scope,
+            2,
+            3
+        )
+        window.requestDestroy()
+        awaitCondition("owner destruction") { window.state == WindowState.Destroyed }
+        exercise(
+            application.selectDirectory(
+                DialogTarget.Application,
+                DirectoryDialogOptions(title = Some("Scoop portal probe"))
+            ),
+            None,
+            scope,
+            3,
+            4
+        )
+        finished = true
+        application.requestExit()
+    }
+}
+
+@Extern(name = "scoop_test_portal_create")
+private fun nativePortalCreate(): Ptr<Unit>?
+
+@Extern(name = "scoop_test_portal_value")
+private fun nativePortalValue(pointer: Ptr<Unit>, field: Int): Int
+
+@Extern(name = "scoop_test_portal_release")
+private fun nativePortalRelease(pointer: Ptr<Unit>)

@@ -17,6 +17,8 @@ internal class ApplicationOwner(
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
     val modals = ArrayList<ModalSession>()
     var nextModal = 1L
+    val fileDialogs = ArrayList<FileDialogOwner>()
+    var nextFileDialog = 1L
     val menus = ArrayList<MenuOwner>()
     val nativeResources = ArrayList<NativeApplicationLease>()
     var nextMenu = 1L
@@ -271,6 +273,8 @@ internal class ApplicationOwner(
         if (exiting)
             return
         exiting = true
+        for (session in fileDialogs)
+            session.cancel(FileDialogCancelReason.ApplicationExit)
         for (input in pendingInputs.toArray())
             input.close()
         mailbox.closeBusiness()

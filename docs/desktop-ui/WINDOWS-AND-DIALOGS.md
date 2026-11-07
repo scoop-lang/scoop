@@ -1,6 +1,6 @@
 # 窗口归属、模态与原生文件对话框设计
 
-日期：2026-11-07。状态：按批次实施。本文补充[原生桌面能力与 UI 组件设计](DESIGN.md)，覆盖原生顶层窗口之间的归属、相对叠放、模态，以及系统打开／保存文件对话框。D5 的实际 API 以[窗口归属与模态规范](../specs/SCOOP-WINDOW-MODAL-SPEC.md)为准；文件对话框和 UI 包装的交付状态见[实施记录](PROGRESS.md)，尚未交付部分仍是拟定合同。
+日期：2026-11-07。状态：按批次实施。本文补充[原生桌面能力与 UI 组件设计](DESIGN.md)，覆盖原生顶层窗口之间的归属、相对叠放、模态，以及系统打开／保存文件对话框。D5 与 D6 的实际 API 分别以[窗口归属与模态规范](../specs/SCOOP-WINDOW-MODAL-SPEC.md)和[文件对话框规范](../specs/SCOOP-WINDOW-DIALOGS-SPEC.md)为准；各平台验证及 UI 包装的交付状态见[实施记录](PROGRESS.md)，尚未交付部分仍是拟定合同。
 
 实施平台与主设计一致：Darwin 两个 target、Windows 三个 target，以及已合入的 Linux GNU x86_64 Wayland／X11 后端。Linux 复用 GTK 4.18+／libadwaita 1.4+ 与 GtkGLArea，现状和验证边界见 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。沿用 [Window 规范](../specs/SCOOP-WINDOW-SPEC.md)、[Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)和 [UI 规范](../specs/SCOOP-UI-SPEC.md)，实施各批次时先同步所属规范。
 
