@@ -53,9 +53,9 @@ public interface ItemSource {
 }
 
 /** Ownership is checked on the actual user instance, including after it has retired. */
-private class InstanceOwnership(private val scope: ComponentScope) {
+internal class InstanceOwnership(private val scope: Any) {
     private var claimed = false
-    fun claim(current: ComponentScope) {
+    fun claim(current: Any) {
         if (claimed || scope !== current)
             throw IllegalStateException(
                 Some("component or element instance belongs to another mount")

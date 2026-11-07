@@ -1,0 +1,82 @@
+package scoop.ui.component
+
+import scoop.platform.fs.Path
+import scoop.ui.*
+import scoop.window.*
+
+public class FileDialogController internal constructor(
+    private val scope: NativeControllerScope
+): Closeable {
+    private val pending = state(false)
+    private var closed = false
+    private var cancellation: (() -> Unit)? = None
+    private var observation: Closeable? = None
+    public val isPending: Boolean get() = pending.value
+
+    public fun openFile(
+        target: DialogTarget,
+        onResult: (FileDialogResult<Path>) -> Unit,
+        options: OpenFileOptions = OpenFileOptions()
+    ): Boolean = start({ scope.application.openFile(target, options) }, onResult)
+    public fun openFiles(
+        target: DialogTarget,
+        onResult: (FileDialogResult<Array<Path>>) -> Unit,
+        options: OpenFileOptions = OpenFileOptions()
+    ): Boolean = start({ scope.application.openFiles(target, options) }, onResult)
+    public fun saveFile(
+        target: DialogTarget,
+        onResult: (FileDialogResult<Path>) -> Unit,
+        options: SaveFileOptions = SaveFileOptions()
+    ): Boolean = start({ scope.application.saveFile(target, options) }, onResult)
+    public fun selectDirectory(
+        target: DialogTarget,
+        onResult: (FileDialogResult<Path>) -> Unit,
+        options: DirectoryDialogOptions = DirectoryDialogOptions()
+    ): Boolean = start({ scope.application.selectDirectory(target, options) }, onResult)
+
+    private fun <T> start(
+        create: () -> FileDialogSession<T>,
+        onResult: (FileDialogResult<T>) -> Unit
+    ): Boolean =
+        scope.request {
+            if (closed || pending.value)
+                return@request false
+            val session = create()
+            pending.value = true
+            cancellation = Some { session.cancel() }
+            observation =
+                Some(
+                    scope.observeFile(session) {
+                        result ->
+                        cancellation = None
+                        observation = None
+                        pending.value = false
+                        if (!closed)
+                            onResult(result)
+                    }
+                )
+            true
+        }
+    public fun cancel() {
+        if (!closed)
+            scope.dispatch { cancellation?.invoke() }
+    }
+    public override fun close() {
+        scope.mounted
+        if (closed)
+            return
+        closed = true
+        val cancel = cancellation
+        val events = observation
+        cancellation = None
+        observation = None
+        pending.value = false
+        throwNative(cleanupNative(cleanupNative(None) { events?.close() }) { cancel?.invoke() })
+    }
+}
+
+public fun ComponentScope.fileDialogController(): FileDialogController =
+    resource { FileDialogController(NativeControllerScope.Window(this)) }
+
+public fun ApplicationScope.fileDialogController(): FileDialogController =
+    resource { FileDialogController(NativeControllerScope.Application(this)) }

@@ -14,9 +14,13 @@ window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin 
 
 公共应用对象不暴露 fd、HWND、XID、dispatch queue 或 ring。现有 Job／CoroutineScope、Context、ForeignCallback、时间、路径与异常规则继续适用；窗口库不承担布局、排版、绘制设备、I/O 调度或另一套任务树。
 
+原生菜单、popup 及跨 Cone 菜单借用的实施合同见[菜单规范](SCOOP-WINDOW-MENUS-SPEC.md)。托盘另由单向依赖 window 的 scoop.tray 提供，普通 window 和 UI 不引入托盘系统依赖。完整桌面扩展的实际进度见[实施记录](../desktop-ui/PROGRESS.md)。
+
 ## 2. 应用与线程
 
 Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。
+
+同一 Application 的 handler、proxy 与集成回调共享一个稳定的 ActiveApplication 引用；它表达相同运行 owner，不在每次派发时重新创建包装对象。引用稳定不延长运行期，关闭后各操作仍遵守原有状态检查。
 
 ApplicationProxy 提供跨线程 post 与 requestExit；post 为 `(ActiveApplication) -> Unit`，返回 Boolean，异步排队。false 表示拒绝且不保留闭包；true 不保证之后关闭时仍执行。关闭停止业务投递，清理通知继续处理。所有原生窗口操作只在 owner 线程；WindowId／DeviceId／MonitorId 和不可变快照可跨线程保存。
 
@@ -62,7 +66,7 @@ WindowAttributes、Window 的能力与方法分组见映射表，当前阶段只
 
 WindowException 保留 WindowErrorKind、operation、backend 和可选 native code；类别包含 Unsupported、Unavailable、PermissionDenied、InvalidState、ResourceBusy、Disconnected、NativeFailure。参数错误使用现有参数异常；backend 随实际后端提供，按实际显示系统为 AppKit／Win32／X11／Wayland，不假定原生 code 都是 errno；Win32 保留 DWORD／HRESULT 的 32-bit 数值。能力提示不替代实际操作错误。
 
-WindowId、DeviceId、MonitorId 为不同值类型，只在一次 Application 生命周期内比较，不暴露原生身份，不复用活过的编号。本阶段 Monitor 为不可变快照，保存 id、可选 name／desktopBounds／refreshRateMilliHertz、physicalSize 与 scaleFactor；不持有原生指针。ActiveApplication.monitors／primaryMonitor 与 Window.currentMonitor 在 owner 上获取快照，后者及 primaryMonitor 可为 None。AppKit 用 NSScreen 的桌面矩形和 backing 转换，CoreGraphics 未给出正刷新率时返回 None，不把最大可用刷新率当作实际刷新率。显示器变更通知刷新当前身份集合，已观察到离开的身份退休；再次出现分配新编号。后续加入视频模式及控制请求时再定义对应活动句柄的失效行为。
+WindowId、DeviceId、MonitorId 为不同值类型，只在一次 Application 生命周期内比较，不暴露原生身份，不复用活过的编号。本阶段 Monitor 为不可变快照，保存 id、可选 name／desktopBounds／workArea／refreshRateMilliHertz、physicalSize 与 scaleFactor；不持有原生指针。workArea 只保存平台实际给出的工作区，不以完整屏幕范围填补缺失值。ActiveApplication.monitors／primaryMonitor 与 Window.currentMonitor 在 owner 上获取快照，后者及 primaryMonitor 可为 None。AppKit 用 NSScreen 的桌面矩形和 backing 转换，CoreGraphics 未给出正刷新率时返回 None，不把最大可用刷新率当作实际刷新率。显示器变更通知刷新当前身份集合，已观察到离开的身份退休；再次出现分配新编号。后续加入视频模式及控制请求时再定义对应活动句柄的失效行为。
 
 LogicalPosition／LogicalSize／LogicalRect 采用有限 Double，内容坐标左上原点、向右／向下递增。PhysicalSize 为非负 Int 像素尺寸；PhysicalPosition 允许小数。DesktopPosition／DesktopRect 仅用于同一显示系统的全局桌面坐标，不允许通过单个窗口 DPI 在混合 DPI 桌面上换算。
 
@@ -78,7 +82,7 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 多窗口在 AppKit、Win32、X11 和 Wayland 后端均已实现。一个 Application 可以多次调用 ActiveApplication.createWindow，创建共享同一 owner 线程和原生事件循环的多个独立窗口；每个窗口有自己的 WindowId、状态、输入、重绘需求和 native lease。ApplicationEvent.Window(id, event) 指明事件归属，不为每个窗口另建 Application 或主循环。
 
-当前 createWindow 创建非模态（modeless）的独立顶层窗口，没有窗口间的 parent／owner 关系。对一个窗口调用 requestDestroy 只请求该窗口销毁；应用仍可在 CloseRequested 中选择退出整个应用。最后一个窗口实际 Destroyed 后，LastWindowPolicy.Exit 才触发应用退出；默认 KeepRunning，详见第 7 节。
+createWindow 默认创建非模态的独立顶层窗口，也可通过 WindowRelation.Owned 建立固定的原生归属关系，通过 WindowRole.Tool 请求工具面板。关系、相对叠放、可见性意图与后代先销毁的合同见[归属与模态规范](SCOOP-WINDOW-MODAL-SPEC.md)。最后一个窗口实际 Destroyed 后，LastWindowPolicy.Exit 才触发应用退出；默认 KeepRunning，详见第 7 节。
 
 现有 [Darwin 测试](../../sysroot/src/scoop.window/tests/application.scoop)与 [Win32 测试](../../sysroot/src/scoop.window/test-windows/application.scoop)包含双窗口、不同 WindowId、分别请求销毁和重复销毁的用例。它们不构成模态窗口或父子窗口关系的实现证明。
 
@@ -88,30 +92,27 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 | 能力 | WindowAttributes | Window 操作 |
 | --- | --- | --- |
-| 原生标题栏／装饰 | decorations | setDecorations |
+| 原生／自绘窗框与内容延伸 | frame | setFrame |
 | 交互式调整大小 | resizable | setResizable |
 | 关闭／最小化／最大化按钮可用性 | buttons | setEnabledButtons |
 | 普通／置顶／置底层级 | level | setWindowLevel |
 | 透明背景 | transparent | setTransparent |
+| 系统阴影 | shadow | setShadow |
 | 显示／隐藏 | visible | setVisible |
 
-decorations 与 resizable 是独立属性。Win32 当前在 decorations=false 时使用 WS_POPUP，在 resizable=true 时仍保留 WS_THICKFRAME，因此关闭标题栏／装饰不承诺同时去掉原生缩放边框。需要去掉该缩放边框时，当前还须设置 resizable=false；原生样式见 [Win32 实现](../../sysroot/src/scoop.window/native/windows/window.c)。
+WindowFrame 与 resizable 是独立属性；Client 去除宿主可见装饰并保留必要系统交互。窗框模式、实际几何、区域、外观和系统操作以[窗框规范](SCOOP-WINDOW-FRAME-SPEC.md)为准。
 
-macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent，通过 WindowAttributesBuilder.macOSTitlebar 配置创建值，或通过 Window.setMacOSTitlebar 更新现有窗口。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
+macOS 的 TitlebarOptions 提供 transparent、titleHidden，通过 WindowAttributesBuilder.macOSTitlebar 配置创建值，或通过 Window.setMacOSTitlebar 更新现有窗口；内容延伸统一使用 WindowFrame.System(WindowContentMode.Extended)。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
 
 窗口层级与模态是不同属性：AlwaysOnTop／AlwaysOnBottom 只改变叠放策略，不禁止其他窗口输入，也不建立窗口归属。
 
-### 4.3 模态与自绘窗框的待补能力
+### 4.3 模态与系统窗框操作
 
-当前公共 API 没有 parent／owner、modality、showModal 或 sheet 入口。第 8～10 节的模态循环接入，以及测试原生层的 runModalForWindow／MessageBox，验证的是系统嵌套循环期间事件与 asyncio 继续推进；它们不提供普通 Scoop 调用方可用的模态窗口合同。
+showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Application 输入范围与 Automatic／SeparateWindow／Sheet 展示。实际能力、原生输入限制、唯一完成、焦点请求及关闭依赖见[归属与模态规范](SCOOP-WINDOW-MODAL-SPEC.md)。第 8～10 节的原生循环接入继续承担嵌套展示期间的 I/O 与控制推进，不能递归执行 managed pump。
 
-正式对话框需要窗口层补充以下具体语义；本节记录待补范围，不新增可调用接口：
+原生文件／目录面板由 ActiveApplication.openFile／openFiles／saveFile／selectDirectory 提供，目标明确区分 Owner 与 Application，返回 FileDialogSession<T> 和 Path 结果。选项、无损路径、原生取消与关闭依赖见[文件对话框规范](SCOOP-WINDOW-DIALOGS-SPEC.md)。
 
-- 窗口归属：明确对话框关联的 owner 窗口、相应原生关系，以及 owner 关闭时关联窗口的收尾规则。这里的 owner 窗口与现有 owner 线程是不同概念。
-- 模态作用范围：区分非模态、仅约束关联窗口的窗口模态，以及约束同一应用其他窗口的应用模态；明确定义哪些窗口在何时停止和恢复交互。
-- 生命周期与焦点：关闭、取消、异常及 owner 提前关闭时完成模态状态释放；焦点只能请求恢复到仍存在且可交互的窗口，继续遵守 OS 激活策略与 callback／lease 关闭顺序。
-
-自绘窗框还需要系统拖移和边缘缩放接入。能力映射中的 beginMove／beginResize／showWindowMenu 均待实施；当前原生装饰的用户拖动不等于已有这些公开方法。后续入口须使用有效输入上下文，协调实际 DPI、原生命中与嵌套循环，不能仅把 decorations=false 当成完整自定义窗框支持。
+自绘窗框的 beginMove／beginResize／showWindowMenu 使用当前真实输入上下文；原生命中、区域失效与能力差异见[窗框规范第 3～4 节](SCOOP-WINDOW-FRAME-SPEC.md#3-自有区域)。
 
 窗口归属、模态输入限制、焦点与系统拖移／缩放由 scoop.window 提供；UI 负责内容、控件及结果交付。不得在组件中通过临时屏蔽几个输入回调或设置置顶来代替窗口模态。实施时分别验证窗口模态／应用模态、其他窗口的交互、关闭及焦点恢复、自绘窗框拖移／缩放，以及真实原生循环中的 asyncio 推进。
 
@@ -164,6 +165,8 @@ AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选
 
 Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
 
+ScrollDelta 的 x／y 表示内容在窗口坐标系中的位移：正 x 向右，正 y 向下。滚动容器将其取反为 offset，因此查看更右方／下方的内容分别对应负 x／y。后端以 OS 已应用用户滚动方向设置的事件为准，只归一坐标含义，不再次应用自然滚动设置；GTK 两轴取反，Win32 水平轴取反、垂直轴保留，AppKit 保留原生内容位移。LineDelta 和 PixelDelta 的单位／比例与相位合同不变。
+
 后续光标捕获使用 None／Confined／Locked，warp 与相对输入分离；custom cursor 的 RGBA 与 hotspot 在创建时复制。移动／resize／系统窗口菜单请求需要有效输入上下文的平台，由后端保留原生 serial 并核对，不能靠定时回调伪造用户操作。
 
 ## 6. 绘制与 native 句柄
@@ -177,6 +180,10 @@ lease.close 可跨线程且幂等，原子结束借用并把实际释放排入 o
 已有 lease 阻止库主动销毁原生窗口，但不保证显示服务器永远可用，也不扩展平台图形对象的线程权限。renderer 先结束 surface 及有关原生使用，再释放 lease；GC release 不调用窗口 API。lease 不授权在隐藏、零尺寸、待配置或 Closing 时提交帧。
 
 ## 7. 窗口及应用关闭
+
+`Window.requestClose(): Boolean` 从业务代码排队一次普通 CloseRequested，供自绘窗口关闭按钮沿同一退出确认入口工作；它不直接 requestDestroy。返回 true 表示已接受排队。窗口受模态限制、关闭按钮禁用或应用不再接受业务工作时返回 false；交付时再次检查窗口仍可处理关闭请求，失效后不交付旧请求。实际销毁继续由应用明确决定。
+
+独立托盘 Cone 所需的 NativeApplicationLease、显示器 workArea 及系统栏查询合同见[托盘规范](SCOOP-TRAY-SPEC.md)。这些入口复用既有 owner／mailbox／关闭通路；window 不引入托盘类型或 Linux 托盘依赖。
 
 状态为 PendingConfigure／Open／Closing／Destroyed。CloseRequested 只表示意图；requestDestroy 幂等、非阻塞，先进入 Closing／通知并拒绝新业务，等 Closing 已交付、callback 和 lease 均退休后实际销毁并发一次 Destroyed。Closing 后不再交付业务输入／重绘；迟到原生事件按 id 和 phase 丢弃，Destroyed 为该窗口的最后事件。
 
@@ -227,7 +234,7 @@ composition 的开始、范围更新、提交、取消和 unmark 归一到现有
 
 ### 11.1 鼠标序列取消
 
-新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost 与 CaptureLost；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
+新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost、CaptureLost、SystemOperation 与 Modal；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
 
 失焦或原生侧确认捕获／跟踪中断时，先取消仍活动的鼠标序列，再交付相应的后续状态通知。正常最后一个 Up 已结束序列时不重复取消；原生取消和失焦归一只结束一次。PointerEvent.Left 仅表示离开内容区，滚轮 ScrollPhase.Cancelled 仅结束滚轮相位，两者均不替代鼠标序列取消。
 
@@ -256,6 +263,8 @@ GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 
 
 窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
 
+X11 的 outerBounds 查询实际原生顶层外框：沿 X11 窗口树取得 WM frame，读取其当前几何并转换到 GDK 桌面坐标；不能取得时返回 None。位置请求也以外框左上角的桌面坐标表达，在 WM 声明支持时使用 EWMH `_NET_MOVERESIZE_WINDOW` 的 NorthWest gravity，否则沿现有 X11 移动请求交给 WM。请求坐标先转换为 X11 原生单位，成功仍只代表 Requested。托盘定位使用这份实际外框尺寸，不以内容区冒充窗口尺寸。
+
 GTK 不提供的窗口控制明确返回 Unsupported，包括内容保护、背景模糊、独立窗口的强制明暗主题、非默认 resize increments、最大内容尺寸约束。默认创建值不要求这些能力；调用方显式要求不支持的创建属性则创建失败。Requested 只表示已发出有效原生请求，不能把 desired state 当成观察结果。X11 的全局位置、层级与 attention 使用其原生窗口管理协议；Wayland 对没有对应协议的操作仍返回 Unsupported。
 
 默认内容背景由 libadwaita 提供，透明窗口通过去掉该窗口和内容区背景实现；窗口圆角和阴影仍由 GTK 合成。renderer 负责正确的预乘 alpha 像素。X11 透明需要实际合成器支持，window 不自行启动合成器。
@@ -274,7 +283,7 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 
 | 结果 | 构造入口与全部配置字段 |
 | --- | --- |
-| WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；decorations: Boolean = true；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false |
+| WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard)；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false；shadow: WindowShadow = WindowShadow.System |
 | ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning |
 
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。

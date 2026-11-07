@@ -1,0 +1,45 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.platform.fs.Path
+
+@Test
+private class FileDialogPathTests {
+    @Test
+    fun `native file path bytes survive the dialog ABI in both directions`() {
+        @Unsafe
+        {
+            val result = testFilePathResult()
+            val path = Path.fromOsString(copyDialogString(result))
+            val bytes = path.toOsString().toByteArray()
+            if (testFilePathWindows() != 0) {
+                assertEquals(10L, bytes.size)
+                assertEquals(0xed.toByte(), bytes[3L])
+                assertEquals(0xa0.toByte(), bytes[4L])
+                assertEquals(0x80.toByte(), bytes[5L])
+                assertEquals(0xd800.toUShort(), path.toOsString().toUtf16()[3L])
+            } else {
+                assertEquals(10L, bytes.size)
+                assertEquals(0xff.toByte(), bytes[5L])
+            }
+            val matches =
+                withDialogString(path.toOsString()) {
+                    pointer,
+                    length -> @Unsafe
+                    {
+                        return@withDialogString testFilePathOption(pointer, length).toLong()
+                    }
+                }
+            assertEquals(1L, matches)
+        }
+    }
+}
+
+@Extern(name = "scoop_test_file_path_result")
+private fun testFilePathResult(): NativeFilePath
+
+@Extern(name = "scoop_test_file_path_option")
+private fun testFilePathOption(pointer: Ptr<Byte>, length: Long): Int
+
+@Extern(name = "scoop_test_file_path_windows")
+private fun testFilePathWindows(): Int

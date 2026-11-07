@@ -1,0 +1,12 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.test.*
+
+@Test
+private class NativeDesktopTests {
+    @Test
+    @Ignore("Requires a Windows desktop and GPU; run separately with --ignored")
+    fun `native UI menus chrome and owned dialogs follow their mounted scopes`() {
+        runNativeDesktop()
+    }
+}

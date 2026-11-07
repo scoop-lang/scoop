@@ -1,0 +1,96 @@
+package scoop.ui.component
+
+import scoop.surface.InputArea
+import scoop.ui.*
+import scoop.window.*
+
+internal class NativePopupInput(
+    val menu: NativeMenuSnapshot,
+    val enabled: Boolean,
+    val contextMenu: Boolean,
+    val handle: NativePopupHandle,
+    val onClosed: (PopupResult) -> Unit
+)
+
+internal class NativePopupPresentation(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private val tree: NativeMenuTree,
+    private val read: () -> NativePopupInput
+): Closeable {
+    private var session: PopupSession? = None
+    private var handle: NativePopupHandle? = None
+    private var closed = false
+    val isPending: Boolean get() =
+        when (session) {
+            case Some(_) -> true;
+            case None -> false
+        }
+
+    fun update() {
+        val next = read().handle
+        when (handle) {
+            case Some(current) -> if (current !== next) {
+                next.bind(this)
+                current.unbind(this)
+                handle = Some(next)
+            }
+            case None -> {
+                next.bind(this)
+                handle = Some(next)
+            }
+        }
+        tree.update(read().menu)
+        if (!read().enabled)
+            cancel()
+    }
+
+    fun open(pointer: LogicalPosition?): Boolean {
+        if (
+            closed || !scope.isMounted || !read().enabled || isPending || !area.scope.isInputAllowed
+        )
+            return false
+        val window = scope.nativeWindow
+        if (window.state != WindowState.Open || window.isInputBlocked)
+            return false
+        val bounds = area.visibleBounds ?: return false
+        val placement =
+            when (pointer) {
+                case Some(position) -> PopupPlacement.Pointer(position)
+                case None -> PopupPlacement.Anchor(
+                    LogicalRect(
+                        LogicalPosition(bounds.x, bounds.y),
+                        LogicalSize(bounds.width, bounds.height)
+                    )
+                )
+            }
+        val current = window.showPopup(tree.menu, placement)
+        session = Some(current)
+        handle?.changed(true)
+        scope.observePopup(current) {
+            result ->
+            session = None
+            handle?.changed(false)
+            if (!closed)
+                read().onClosed(result)
+        }
+        return true
+    }
+    fun cancel() {
+        session?.close()
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        val previous = handle
+        handle = None
+        try {
+            session?.close()
+        }
+        finally {
+            session = None
+            previous?.unbind(this)
+        }
+    }
+}

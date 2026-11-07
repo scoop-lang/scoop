@@ -1,0 +1,11 @@
+package scoop.window.native
+
+import scoop.window.*
+
+public enum NativeMenuHandle {
+    Win32(Ptr<Unit>)
+}
+
+@Unsafe
+internal fun platformNativeMenuHandle(menu: Ptr<Unit>): NativeMenuHandle =
+    NativeMenuHandle.Win32(nativeMenuHandle(menu))

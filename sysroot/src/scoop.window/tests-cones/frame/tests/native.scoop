@@ -1,0 +1,369 @@
+package scoop.tests.window.frame
+
+import scoop.test.*
+import scoop.surface.*
+import scoop.graphics.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal fun runFrameProbe(verifyAppearance: (Window) -> Unit = { _ -> Unit }) {
+    val probe = FrameProbe(verifyAppearance)
+    val host =
+        SurfaceHost {
+            owner, application, event ->
+            probe.host = Some(owner)
+            probe.onEvent(application, event)
+        }
+    try {
+        Application().runWithAsyncio(host)
+    } finally {
+        host.close()
+    }
+    assertTrue(probe.finished)
+    assertTrue(probe.contentClosed)
+    assertEquals(WindowState.Destroyed, probe.window!!.state)
+    assertEquals(
+        if (probe.backend == WindowBackend.Wayland)
+            0
+        else
+            1,
+        probe.cancelled
+    )
+}
+
+private class FrameProbe(private val verifyAppearance: (Window) -> Unit): ApplicationHandler {
+    var window: Window? = None
+    var host: SurfaceHost? = None
+    var accepted = false
+    var completionSize = Size(0.0, 0.0)
+    var completionAccepted = false
+    var contentClosed = false
+    var backend = WindowBackend.AppKit
+    var finished = false
+    var cancelled = 0
+    var deadline: WindowDeadline? = None
+    var stage = -1
+    var ticks = 0
+    var depth = 0
+    var capabilities: WindowFrameCapabilities? = None
+    var menu: Menu? = None
+    var bar: MenuBarBinding? = None
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(0, depth)
+        depth += 1
+        try {
+            when (event) {
+                case Resumed -> {
+                    capabilities = Some(application.desktopCapabilities().frame)
+                    val target =
+                        application.createWindow(
+                            windowAttributes {
+                                title = "Scoop native frame test"
+                                size = LogicalSize(320.0, 240.0)
+                                frame = WindowFrame.Client
+                                requestActivation = false
+                            }
+                        )
+                    window = Some(target)
+                    host!!.attach(target, FrameContent(this))
+                    val menu = application.createMenu()
+                    val file = menu.insert(MenuItemDescription("File", MenuItemKind.Submenu))
+                    menu.insert(MenuItemDescription("Frame test"), parent = Some(file))
+                    this.menu = Some(menu)
+                    bar =
+                        Some(
+                            if (application.desktopCapabilities().menus.applicationMenuBar)
+                                application.attachMenuBar(menu)
+                            else
+                                target.attachMenuBar(menu)
+                        )
+                    backend = frameBackend()
+                    deadline = Some(target.createDeadline { tick(application) })
+                    schedule()
+                }
+                case Window(
+                    _,
+                    WindowEvent.Pointer(
+                        PointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    )
+                ) -> {
+                    if (stage == 4) {
+                        if (backend == WindowBackend.AppKit) {
+                            assertEquals(
+                                RequestStatus.Unsupported,
+                                window!!.beginResize(WindowResizeEdge.Right)
+                            )
+                            assertEquals(RequestStatus.Unsupported, window!!.showWindowMenu())
+                        }
+                        assertEquals(RequestStatus.Requested, window!!.beginMove())
+                        val busy = assertFailsWith<WindowException> { window!!.beginMove() }
+                        assertEquals(WindowErrorKind.ResourceBusy, busy.kind)
+                    }
+                }
+                case Window(
+                    _,
+                    WindowEvent.Pointer(
+                        PointerEvent.Cancelled(PointerCancelReason.SystemOperation, _)
+                    )
+                ) -> {
+                    cancelled += 1
+                    finished = true
+                    application.requestExit()
+                }
+                else -> {}
+            }
+        } finally {
+            depth -= 1
+        }
+    }
+
+    private fun schedule() {
+        deadline!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+    }
+
+    private fun tick(application: ActiveApplication) {
+        ticks += 1
+        val target = window!!
+        val metrics = target.frameMetrics
+        when (metrics) {
+            case None -> {
+                assertTrue(ticks < 100, Some("frame never configured"))
+                schedule();
+                return
+            };
+            case Some(_) -> {}
+        }
+        assertTrue(
+            ticks < 100,
+            Some(
+                f"frame stage ${stage} timed out: content=${metrics!!.metrics.logicalSize.width}x${
+                    metrics!!.metrics.logicalSize.height
+                }, frame=${completionSize.width}x${completionSize.height}, submitted=${
+                    completionAccepted
+                }, accepted=${accepted}"
+            )
+        )
+        val caps = capabilities!!
+        assertEquals(1.0, nativeFrameQuery(target, 1))
+        if (stage == -1) {
+            assertEquals(WindowFrame.Client, metrics!!.frame)
+            assertEquals(2.0, nativeFrameQuery(target, 0))
+            target.setFrame(WindowFrame.System(WindowContentMode.Standard))
+            stage = 0
+        } else
+            if (stage == 0) {
+                assertEquals(WindowFrame.System(WindowContentMode.Standard), metrics!!.frame)
+                assertEquals(0.0, nativeFrameQuery(target, 0))
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> { target.beginMove() }.kind
+                )
+                assertEquals(
+                    RequestStatus.Applied,
+                    target.setFrame(WindowFrame.System(WindowContentMode.Extended))
+                )
+                stage = 1
+            } else
+                if (stage == 1) {
+                    assertEquals(WindowFrame.System(WindowContentMode.Extended), metrics!!.frame)
+                    assertEquals(1.0, nativeFrameQuery(target, 0))
+                    assertTrue(metrics!!.systemButtons.size > 0L)
+                    when (metrics!!.contentLayout) {
+                        case Some(rect) -> assertTrue(
+                            rect.origin.y >
+                                0.0 &&
+                                rect.size.height <
+                                metrics!!.metrics.logicalSize.height
+                        )
+                        case None -> assertEquals(WindowBackend.Win32, backend)
+                    }
+                    target.setFrame(WindowFrame.Client)
+                    stage = 2
+                } else
+                    if (stage == 2) {
+                        assertEquals(WindowFrame.Client, metrics!!.frame)
+                        assertEquals(0L, metrics!!.systemButtons.size)
+                        assertEquals(RequestStatus.Applied, target.setShadow(WindowShadow.System))
+                        assertEquals(
+                            if (caps.shadow)
+                                RequestStatus.Applied
+                            else
+                                RequestStatus.Unsupported,
+                            target.setShadow(WindowShadow.None)
+                        )
+                        target.setShadow(WindowShadow.System)
+                        verifyAppearance(target)
+                        if (backend == WindowBackend.AppKit) {
+                            assertEquals(1.0, nativeFrameQuery(target, 4))
+                        }
+                        val transparency = target.setTransparent(true)
+                        if (transparency == RequestStatus.Unsupported)
+                            assertEquals(WindowBackend.X11, backend)
+                        else
+                            assertEquals(RequestStatus.Applied, transparency)
+                        if (backend == WindowBackend.AppKit) {
+                            assertEquals(0.0, nativeFrameQuery(target, 6))
+                        }
+                        checkRegions(target, caps)
+                        accepted = false
+                        target.requestSize(LogicalSize(400.0, 280.0))
+                        stage = 3
+                    } else
+                        if (stage == 3) {
+                            if (
+                                metrics!!.metrics.logicalSize !=
+                                    LogicalSize(400.0, 280.0) ||
+                                    (!target.isOccluded && !accepted)
+                            ) {
+                                schedule();
+                                return
+                            }
+                            target.setTransparent(false)
+                            if (backend == WindowBackend.AppKit)
+                                assertEquals(1.0, nativeFrameQuery(target, 6))
+                            if (backend == WindowBackend.X11 || backend == WindowBackend.Win32)
+                                assertEquals(1.0, nativeFrameQuery(target, 2, 200.0, 150.0))
+                            if (backend == WindowBackend.Win32)
+                                assertTrue(nativeFrameQuery(target, 3, 60.0, 15.0) != 2.0)
+                            if (backend == WindowBackend.Wayland) {
+                                finished = true
+                                application.requestExit()
+                                return
+                            }
+                            stage = 4
+                            assertEquals(1.0, nativeFrameQuery(target, 5, 60.0, 60.0))
+                        }
+        schedule()
+    }
+
+    private fun checkRegions(target: Window, caps: WindowFrameCapabilities) {
+        val small =
+            WindowRegion(
+                [
+                    LogicalRect(LogicalPosition(10.0, 10.0), LogicalSize(140.0, 80.0)),
+                    LogicalRect(LogicalPosition(200.25, 150.25), LogicalSize(0.0, 10.0))
+                ]
+            )
+        assertEquals(
+            RequestStatus.Applied,
+            target.setHitRegions(
+                [
+                    WindowHitRegion(
+                        WindowRegion(
+                            [LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(20.0, 30.0))]
+                        ),
+                        WindowHitRole.Client
+                    ),
+                    WindowHitRegion(
+                        WindowRegion(
+                            [LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(320.0, 30.0))]
+                        ),
+                        WindowHitRole.Caption
+                    )
+                ]
+            )
+        )
+        if (backend == WindowBackend.Win32) {
+            assertEquals(1.0, nativeFrameQuery(target, 3, 10.0, 15.0))
+            assertEquals(2.0, nativeFrameQuery(target, 3, 60.0, 15.0))
+            target.setHitRegions(
+                [
+                    WindowHitRegion(
+                        WindowRegion(
+                            [LogicalRect(LogicalPosition(200.0, 0.0), LogicalSize(80.0, 30.0))]
+                        ),
+                        WindowHitRole.SystemButton(WindowSystemButton.Maximize)
+                    ),
+                    WindowHitRegion(
+                        WindowRegion(
+                            [LogicalRect(LogicalPosition(310.0, 0.0), LogicalSize(10.0, 240.0))]
+                        ),
+                        WindowHitRole.Resize(WindowResizeEdge.Right)
+                    ),
+                    WindowHitRegion(
+                        WindowRegion(
+                            [LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(320.0, 30.0))]
+                        ),
+                        WindowHitRole.Caption
+                    )
+                ]
+            )
+            assertEquals(9.0, nativeFrameQuery(target, 3, 230.0, 15.0))
+            assertEquals(11.0, nativeFrameQuery(target, 3, 315.0, 70.0))
+            target.setEnabledButtons(WindowButtons(maximize = false))
+            assertEquals(1.0, nativeFrameQuery(target, 3, 230.0, 15.0))
+            target.setEnabledButtons(WindowButtons())
+            target.setResizable(false)
+            assertEquals(1.0, nativeFrameQuery(target, 3, 315.0, 70.0))
+            target.setResizable(true)
+        }
+        assertEquals(
+            if (caps.windowRegion)
+                RequestStatus.Applied
+            else
+                RequestStatus.Unsupported,
+            target.setWindowRegion(Some(small))
+        )
+        assertEquals(
+            if (caps.inputRegion)
+                RequestStatus.Applied
+            else
+                RequestStatus.Unsupported,
+            target.setInputRegion(Some(small))
+        )
+        if (backend == WindowBackend.X11 || backend == WindowBackend.Win32) {
+            assertEquals(1.0, nativeFrameQuery(target, 2, 30.0, 30.0))
+            assertEquals(0.0, nativeFrameQuery(target, 2, 200.0, 150.0))
+        }
+        if (caps.inputRegion)
+            target.setInputRegion(Some(WindowRegion([])))
+        if (caps.windowRegion)
+            target.setWindowRegion(Some(WindowRegion([])))
+        if (backend == WindowBackend.X11 || backend == WindowBackend.Win32)
+            assertEquals(0.0, nativeFrameQuery(target, 2, 30.0, 30.0))
+        assertEquals(RequestStatus.Applied, target.setWindowRegion(None))
+        assertEquals(RequestStatus.Applied, target.setInputRegion(None))
+        if (backend == WindowBackend.X11 || backend == WindowBackend.Win32)
+            assertEquals(1.0, nativeFrameQuery(target, 2, 200.0, 150.0))
+        assertEquals(
+            if (caps.ignoreMouse)
+                RequestStatus.Applied
+            else
+                RequestStatus.Unsupported,
+            target.setIgnoreMouse(true)
+        )
+        target.setIgnoreMouse(false)
+        if (caps.inputRegion)
+            target.setInputRegion(Some(small))
+        if (caps.windowRegion)
+            target.setWindowRegion(Some(small))
+    }
+}
+
+private class FrameContent(private val probe: FrameProbe): SurfaceContent {
+    public override fun paint(frame: FrameContext) {
+        frame.canvas.clear(Color.Transparent)
+        frame.canvas.drawRect(Rect(20.0, 20.0, 80.0, 60.0), Paint(Color(1.0, 0.0, 0.0, 0.5)))
+    }
+
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        probe.completionSize = frame.size
+        probe.completionAccepted = frame.submission == FrameSubmission.Accepted
+        if (
+            probe.stage ==
+                3 &&
+                frame.size ==
+                Size(400.0, 280.0) &&
+                frame.submission ==
+                FrameSubmission.Accepted
+        )
+            probe.accepted = true
+    }
+
+    public override fun close() {
+        probe.contentClosed = true
+    }
+}

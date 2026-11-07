@@ -1,0 +1,213 @@
+package scoop.ui.component.tray
+
+import scoop.tray.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class NativeTrayAttachment(
+    private val scope: ApplicationScope,
+    private val read: () -> NativeTrayIconProps
+): Closeable {
+    private var tray: TrayIcon? = None
+    private var events: Closeable? = None
+    private var tree: NativeMenuTree? = None
+    private var menuEvents: Closeable? = None
+    private var session: TrayMenuSession? = None
+    private var handle: NativeTrayHandle? = None
+    private var desired: NativeMenuSnapshot? = None
+    private var image: DesktopImage? = None
+    private var tooltip: String? = None
+    private val available = state(TrayAvailability.Unavailable)
+    private val pending = state(false)
+    private var closed = false
+    val icon: TrayIcon get() {
+        scope.isMounted;
+        return tray!!
+    }
+    val availability: TrayAvailability get() {
+        scope.isMounted;
+        return available.value
+    }
+    val isMenuPending: Boolean get() {
+        scope.isMounted;
+        return pending.value
+    }
+
+    init {
+        try {
+            val input = read()
+            val created =
+                TrayIcon.create(scope.application, TrayOptions(input.image, input.tooltip))
+            tray = Some(created)
+            image = Some(input.image)
+            tooltip = input.tooltip
+            available.value = created.availability
+            events =
+                Some(
+                    created.subscribe {
+                        event -> scope.dispatch {
+                            if (!closed)
+                                receive(event)
+                        }
+                    }
+                )
+            update()
+        } catch (error: Throwable) {
+            try {
+                close()
+            } catch (cleanup: Throwable) {
+                throw ResourceUseException(error, cleanup)
+            }
+            throw error
+        }
+    }
+
+    fun update() {
+        if (closed)
+            return
+        val input = read()
+        val sameImage =
+            when (image) {
+                case Some(previous) -> previous === input.image;
+                case None -> false
+            }
+        if (!sameImage) {
+            icon.setImage(input.image);
+            image = Some(input.image)
+        }
+        if (tooltip != input.tooltip) {
+            icon.setTooltip(input.tooltip);
+            tooltip = input.tooltip
+        }
+        val sameHandle =
+            when ((handle, input.handle)) {
+                case(Some(previous), Some(next)) -> previous === next
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameHandle) {
+            input.handle?.bind(this)
+            handle?.unbind(this)
+            handle = input.handle
+        }
+        desired = input.menu
+        reconcileMenu()
+    }
+
+    private fun reconcileMenu() {
+        when (tree) {
+            case Some(current) -> {
+                if (!current.isClosed)
+                    when (desired) {
+                        case Some(snapshot) -> {
+                            current.update(snapshot);
+                            return
+                        }
+                        case None -> current.close()
+                    }
+                if (icon.menuUseId != None)
+                    return
+                menuEvents?.close()
+                menuEvents = None
+                tree = None
+            }
+            case None -> {}
+        }
+        when (desired) {
+            case Some(snapshot) -> {
+                val created = NativeMenuTree(scope.application, snapshot)
+                tree = Some(created)
+                menuEvents =
+                    Some(
+                        scope.observeMenu(created.menu) {
+                            activation -> when (activation.source) {
+                                case Native(id) -> {
+                                    if (icon.menuUseId == Some(id))
+                                        created.activate(activation)
+                                }
+                                else -> {}
+                            }
+                        }
+                    )
+                icon.setMenu(Some(created.menu))
+            }
+            case None -> {}
+        }
+    }
+
+    private fun receive(event: TrayEvent) {
+        when (event) {
+            case Activated(value) -> read().onActivated(value)
+            case AvailabilityChanged(value) -> {
+                available.value = value
+                read().onAvailabilityChanged(value)
+            }
+            case MenuBindingChanged(_) -> reconcileMenu()
+            case MenuCompleted(id, result) -> when (session) {
+                case Some(current) -> if (current.id == id) {
+                    session = None
+                    pending.value = false
+                    read().onMenuClosed(result)
+                }
+                case None -> {}
+            }
+        }
+    }
+
+    fun requestMenu(): Boolean {
+        if (closed || !scope.isMounted || pending.value)
+            return false
+        when (tree) {
+            case Some(value) -> if (value.isClosed)
+                return false;
+            case None -> return false
+        }
+        return scope.dispatch {
+            session = Some(icon.showMenu())
+            pending.value = true
+        } &&
+            pending.value
+    }
+
+    fun cancelMenu() {
+        if (!closed)
+            scope.dispatch { session?.close() }
+    }
+
+    public override fun close() {
+        scope.isMounted
+        if (closed)
+            return
+        closed = true
+        handle?.unbind(this)
+        handle = None
+        pending.value = false
+        var failure = closeTrayResource(None, menuEvents)
+        failure = closeTrayResource(failure, events)
+        failure = closeTrayResource(failure, session)
+        failure = closeTrayResource(failure, tray)
+        failure = closeTrayResource(failure, tree)
+        menuEvents = None;
+        events = None;
+        session = None;
+        tray = None;
+        tree = None
+        when (failure) {
+            case Some(error) -> throw error;
+            case None -> {}
+        }
+    }
+}
+
+private fun <R: Closeable> closeTrayResource(previous: Throwable?, resource: R?): Throwable? =
+    try {
+        resource?.close();
+        previous
+    }
+    catch (error: Throwable) {
+        when (previous) {
+            case Some(first) -> Some(ResourceUseException(first, error));
+            case None -> Some(error)
+        }
+    }

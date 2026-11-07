@@ -1,0 +1,123 @@
+package scoop.window
+
+internal fun ApplicationOwner.modalBranch(window: WindowOwner, root: WindowOwner): Boolean {
+    var current = window
+    while (!(current === root)) {
+        if (!current.hasModal)
+            return false
+        current = current.owningWindow ?: return false
+    }
+    return true
+}
+
+internal fun ApplicationOwner.updateModalInput() {
+    for (window in windows) {
+        if (window.pointer == None)
+            continue
+        var blocked = false
+        for (session in modals) {
+            if (session.options.scope == ModalScope.Owner) {
+                if (session.window.owner.isOwnedBy(window))
+                    blocked = true
+            } else
+                if (!modalBranch(window, session.window.owner))
+                    blocked = true
+        }
+        for (dialog in fileDialogs)
+            if (dialog.blocks(window))
+                blocked = true
+        if (window.inputBlocked != blocked) {
+            window.inputBlocked = blocked
+            if (blocked) {
+                window.systemOperationCancelled = true
+                window.pendingSystemCancellation = None
+                for (menu in menus.toArray()) {
+                    when (menu.use) {
+                        case Some(MenuUse.Popup(session)) -> {
+                            if (session.window === window)
+                                session.cancel(PopupCancelReason.TargetBlocked)
+                        }
+                        else -> {}
+                    }
+                }
+            }
+            @Unsafe
+            {
+                nativeWindowInputBlocked(window.pointer!!, flag(blocked))
+            }
+        }
+    }
+}
+
+internal fun ApplicationOwner.cancelOwnedModals(window: WindowOwner, reason: ModalCancelReason) {
+    var index = modals.size
+    while (index > 0L) {
+        index -= 1L
+        val session = modals[index]
+        if (session.window.owner.isDescendantOf(window))
+            session.end(ModalResult.Cancelled(reason))
+    }
+}
+
+internal fun ApplicationOwner.drainModals() {
+    var index = modals.size
+    while (index > 0L) {
+        index -= 1L
+        val session = modals[index]
+        if (session.commandPending)
+            continue
+        @Unsafe
+        {
+            if (nativeModalFinished(session.pointer!!) == 0)
+                continue
+        }
+        val result = session.requestedEnd ?: ModalResult.Completed
+        val window = session.window.owner
+        val parent = window.owningWindow
+        @Unsafe
+        {
+            nativeModalRelease(session.pointer!!)
+        }
+        session.pointer = None
+        window.requestedVisible = false
+        window.modalSession = None
+        window.leases -= 1L
+        when (parent) {
+            case Some(value) -> value.leases -= 1L;
+            case None -> {}
+        }
+        modals.removeAt(index)
+        session.phase = ModalState.Completed
+        session.completion = Some(result)
+        updateModalInput()
+        if (!exiting) {
+            when (parent) {
+                case Some(value) -> if (
+                    value.phase ==
+                        WindowState.Open &&
+                        !value.inputBlocked &&
+                        !value.visibilitySuppressed &&
+                        (!value.hasModal || value.modalSession!!.phase == ModalState.Showing)
+                ) {
+                    val snapshot = value.snapshot()
+                    if (snapshot.visible != 0 && snapshot.minimized == 0)
+                        Window(value).requestFocus()
+                }
+                case None -> {}
+            }
+            deliver(ApplicationEvent.ModalCompleted(session.id, result))
+        }
+    }
+}
+
+internal fun modalInputAllowed(event: WindowEvent): Boolean =
+    when (event) {
+        case Keyboard(key) -> key.synthetic
+        case Pointer(value) -> when (value) {
+            case Cancelled(_, _) -> true;
+            else -> false
+        }
+        case TextCommand(_) -> false
+        case CloseRequested -> false
+        else -> true
+    }

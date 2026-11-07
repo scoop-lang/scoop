@@ -1,0 +1,254 @@
+package scoop.tray
+
+import scoop.window.*
+import scoop.window.native.*
+
+internal class TrayOwner(
+    val application: ActiveApplication,
+    val id: TrayIconId,
+    val positioning: DesktopPositioningCapabilities
+) {
+    var state = TrayState.Open
+    var availability = TrayAvailability.Unavailable
+    var pointer: Ptr<Unit>? = None
+    var resource: NativeApplicationLease? = None
+    private var callback: ForeignCallback<(Ptr<Unit>, Ptr<Unit>) -> Int>? = None
+    val subscriptions = ArrayList<TraySubscription>()
+    var menu: Menu? = None
+    var menuLease: NativeMenuLease? = None
+    var session: TrayMenuSession? = None
+    var detaching = false
+    var renewing = false
+
+    fun checkThread() {
+        resource!!.checkThread()
+    }
+    fun requireOpen() {
+        checkThread()
+        if (state != TrayState.Open || resource!!.isClosing)
+            throw WindowException("tray operation", WindowErrorKind.InvalidState)
+    }
+
+    fun initialize(options: TrayOptions) {
+        @Unsafe
+        {
+            resource =
+                Some(
+                    application.registerNativeResource {
+                        close(TrayMenuCancelReason.ApplicationExit)
+                    }
+                )
+            try {
+                val bridge =
+                    foreignCallback<(Ptr<Unit>, Ptr<Unit>) -> Int>(
+                        {
+                            event: Ptr<Unit> -> try {
+                                @Unsafe
+                                {
+                                    val copy = nativeTrayEventData(event)
+                                    resource!!.postControl { receive(copy) }
+                                }
+                                1
+                            } catch (error: Throwable) {
+                                resource!!.postControl { throw error }
+                                0
+                            }
+                        },
+                        0,
+                        ForeignCallbackMode.Reusable
+                    )
+                callback = Some(bridge)
+                val native = nativeTrayCreate(bridge.function, bridge.context, id.value)
+                checkTrayStatus(native.error, "create tray icon")
+                pointer =
+                    Some(
+                        native.pointer ?:
+                            throw WindowException("create tray icon", WindowErrorKind.NativeFailure)
+                    )
+                setImage(options.image)
+                setTooltip(options.tooltip)
+                setMenu(options.menu)
+                checkTrayStatus(nativeTrayStart(pointer!!), "register tray icon")
+                availability =
+                    if (nativeTrayAvailable(pointer!!) != 0)
+                        TrayAvailability.Available
+                    else
+                        TrayAvailability.Unavailable
+            } catch (error: Throwable) {
+                try {
+                    close(TrayMenuCancelReason.TrayClosed)
+                } catch (cleanup: Throwable) {
+                    throw ResourceUseException(error, cleanup)
+                }
+                throw error
+            }
+        }
+    }
+
+    fun capabilities(): TrayCapabilities {
+        requireOpen()
+        @Unsafe
+        {
+            val flags = nativeTrayCapabilities(pointer!!)
+            return TrayCapabilities(
+                flags.and(1) != 0,
+                flags.and(2) != 0,
+                flags.and(4) != 0,
+                flags.and(8) != 0,
+                flags.and(16) != 0,
+                flags.and(32) != 0,
+                flags.and(64) != 0,
+                flags.and(128) != 0,
+                flags.and(256) != 0,
+                positioning.globalWindowPosition
+            )
+        }
+    }
+
+    fun setImage(image: DesktopImage) {
+        @Unsafe
+        {
+            checkTrayStatus(
+                nativeTrayImageBegin(
+                    pointer!!,
+                    image.size.width,
+                    image.size.height,
+                    if (image.template)
+                        1
+                    else
+                        0
+                ),
+                "tray image"
+            )
+            for (representation in image.representations)
+                representation.pixels.withDataPointer {
+                    pixels,
+                    _ -> @Unsafe
+                    {
+                        checkTrayStatus(
+                            nativeTrayImageAdd(
+                                pointer!!,
+                                representation.size.width,
+                                representation.size.height,
+                                pixels
+                            ),
+                            "tray image pixels"
+                        )
+                    }
+                }
+            checkTrayStatus(nativeTrayImageCommit(pointer!!), "publish tray image")
+        }
+    }
+
+    fun setTooltip(tooltip: String?) {
+        val text = tooltip ?: ""
+        for (character in text)
+            if (character.code == 0)
+                throw IllegalArgumentException(Some("tray tooltip contains NUL"))
+        @Unsafe
+        {
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    checkTrayStatus(nativeTrayTooltip(pointer!!, bytes, length), "tray tooltip")
+                }
+            }
+        }
+    }
+
+    fun emit(event: TrayEvent) {
+        if (state != TrayState.Open)
+            return
+        val listeners = subscriptions.toArray()
+        resource!!.post {
+            if (state == TrayState.Open)
+                for (listener in listeners)
+                    listener.deliver(event)
+        }
+    }
+
+    fun busy(): Boolean {
+        @Unsafe
+        {
+            if (pointer != None && nativeTrayBusy(pointer!!) != 0)
+                return true
+        }
+        return when (menuLease) {
+            case Some(lease) -> lease.isTracking;
+            case None -> false
+        }
+    }
+
+    fun close(reason: TrayMenuCancelReason) {
+        checkThread()
+        if (state != TrayState.Open)
+            return
+        state = TrayState.Closing
+        detaching = true
+        renewing = false
+        for (subscription in subscriptions.toArray())
+            subscription.close()
+        when (menuLease) {
+            case Some(lease) -> lease.cancel();
+            case None -> {}
+        }
+        @Unsafe
+        {
+            when (pointer) {
+                case Some(native) -> nativeTrayRequestClose(native);
+                case None -> {}
+            }
+        }
+        when (session) {
+            case Some(active) -> cancelSession(active, reason);
+            case None -> {}
+        }
+        settle()
+    }
+
+    fun settle() {
+        if (state == TrayState.Open && resource!!.isClosing) {
+            close(TrayMenuCancelReason.ApplicationExit)
+            return
+        }
+        if (state == TrayState.Closed || busy())
+            return
+        if (detaching || renewing) {
+            val previous = menu
+            detachMenu()
+            if (state == TrayState.Open && !detaching)
+                setMenu(previous)
+            else
+                if (state == TrayState.Open)
+                    emit(TrayEvent.MenuBindingChanged(None))
+            detaching = false
+            renewing = false
+        }
+        if (state != TrayState.Closing)
+            return
+        @Unsafe
+        {
+            when (pointer) {
+                case Some(native) -> nativeTrayDestroy(native);
+                case None -> {}
+            }
+            pointer = None
+            var failure: Throwable? = None
+            when (callback) {
+                case Some(bridge) -> {
+                    failure = foreignCallbackFailure(bridge)
+                    releaseForeignCallback(bridge)
+                }
+                case None -> {}
+            }
+            callback = None
+            state = TrayState.Closed
+            resource!!.close()
+            when (failure) {
+                case Some(error) -> throw error;
+                case None -> {}
+            }
+        }
+    }
+}

@@ -1,5 +1,23 @@
 use super::*;
 
+#[test]
+fn imported_virtual_signatures_materialize_types_absent_from_consumer_source() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/compiler-correctness/dispatch-signature-types");
+    let provider = std::fs::read_to_string(root.join("provider/src/api.scoop")).unwrap();
+    let consumer = std::fs::read_to_string(root.join("consumer/src/main.scoop")).unwrap();
+    with_provider_consumer(&provider, &consumer, |output, _, _, _, _| {
+        let module = output.output().local.module();
+        for name in ["Input", "Output"] {
+            assert!(
+                module.classes.values().any(|class| class.name == name),
+                "an imported virtual signature retains {name}"
+            );
+        }
+    })
+    .unwrap();
+}
+
 fn fixture(name: &str) -> String {
     std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

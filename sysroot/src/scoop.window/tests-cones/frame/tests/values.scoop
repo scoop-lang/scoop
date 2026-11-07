@@ -1,0 +1,51 @@
+package scoop.tests.window.frame
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class FrameValueTests {
+    @Test
+    fun `frame attributes snapshot modes independently of window permissions`() {
+        val base =
+            windowAttributes {
+                frame = WindowFrame.Client;
+                resizable = true
+            }
+        val extended =
+            base.copy {
+                frame = WindowFrame.System(WindowContentMode.Extended);
+                shadow = WindowShadow.None
+            }
+        assertEquals(WindowFrame.Client, base.frame)
+        assertEquals(WindowFrame.System(WindowContentMode.Extended), extended.frame)
+        assertTrue(extended.resizable)
+        assertEquals(WindowButtons(), extended.buttons)
+        assertEquals(WindowShadow.System, base.shadow)
+        assertEquals(WindowShadow.None, extended.shadow)
+    }
+
+    @Test
+    fun `regions preserve negative coordinates holes and half open boundaries`() {
+        val region =
+            WindowRegion(
+                [
+                    LogicalRect(LogicalPosition(-10.0, -5.0), LogicalSize(5.0, 10.0)),
+                    LogicalRect(LogicalPosition(5.0, -5.0), LogicalSize(5.0, 10.0)),
+                    LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(0.0, 10.0))
+                ]
+            )
+        assertTrue(region.contains(LogicalPosition(-10.0, -5.0)))
+        assertFalse(region.contains(LogicalPosition(-5.0, 0.0)))
+        assertFalse(region.contains(LogicalPosition(0.0, 0.0)))
+        assertTrue(region.contains(LogicalPosition(9.999, 4.999)))
+        assertFalse(region.contains(LogicalPosition(10.0, 5.0)))
+        assertFalse(WindowRegion([]).contains(LogicalPosition(0.0, 0.0)))
+        assertFailsWith<IllegalArgumentException> {
+            WindowRegion([LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(-1.0, 1.0))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WindowRegion([LogicalRect(LogicalPosition(1.7e308, 0.0), LogicalSize(1.7e308, 1.0))])
+        }
+    }
+}

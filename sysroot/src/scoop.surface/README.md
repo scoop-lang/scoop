@@ -66,6 +66,8 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 `SurfaceWindow.createArea` 创建窗口持有的稳定 InputArea，`area.scope` 是它的逻辑输入节点。`createScope` 可建立没有几何的祖先，二者的 parent 缺省为 `SurfaceWindow.input`。在 painter 内调用 `frame.place(area, rect或path)`，沿 Canvas 当时的变换和 clip 记录本帧几何；只有渲染提交成功后才整体发布。parent 在挂载逻辑中设置，与绘制顺序独立，不自动裁剪子区域。区域不再放置、scope 禁用或关闭后退出交互；所属窗口关闭时关闭其全部输入节点。
 
+`SurfaceWindow.createWindowRegion(kind, parent)` 登记原生窗口区域，kind 为 `WindowRegionKind.Shape`、`Input` 或 `Hit(WindowHitRole)`。在同一 FrameContext 中用 `place(handle, rect或path)` 捕获最终变换及 clip，按当前 scaleFactor 转为 WindowRegion；只在 RenderFrame Accepted 后发布，Discarded 保留上一有效快照。Shape／Input 每个 Surface 各至多一个，不能传输入 parent；Hit 可归属于同窗口 InputScope，禁用、AllInput 边界或卸载立即撤销其资格。未放置恢复默认覆盖，放置空覆盖则发布空区域；尺寸、DPI 和窗框改变会撤销旧快照。Surface 关闭恢复自己曾发布的默认区域，借用的 Window 仍可存活。能力限制与完整合同见[原生区域规范](../../../docs/specs/SCOOP-SURFACE-FRAME-SPEC.md)，真实 UI／renderer 组合在 [UI desktop 测试](../scoop.ui/tests-cones/desktop/README.md)中覆盖。
+
 事件处理器接收 `(RoutedEventContext, InputEvent)`，返回 Unit。InputScope 的 captureHandler、handler 和 defaultAction 分别接收 capture、target／bubble 和默认动作。`stopPropagation()` 只停止传播，`preventDefault()` 只取消默认动作，`consume()` 同时执行两者。默认阶段从目标向根执行；主按钮按下的聚焦也在这一阶段，可由父级取消。窗口有 OS 焦点而没有区域焦点时，键盘事件从根 scope 开始。
 
 上下文的 target／currentTarget 是逻辑 scope，localPosition 只在带几何的区域指针事件中存在，窗口位置保留在 InputPointer.state；上下文随同步回调结束而失效。Enter／Leave、焦点、修饰键与取消是不可取消的通知，文本只给对应 IME 会话。首次按钮按下固定整次多按钮序列的路径，空白区域按下固定根路径；拖出窗口仍可继续，取消向旧路径完整交付，剩余按钮事件不会改投其他区域。滚轮区分行与逻辑像素。`onEventFinished(InputEvent)` 在每次可路由输入之后通知原路径内仍有效节点，即使传播或默认行为被取消；控件用它结束释放序列，不执行被取消的激活。

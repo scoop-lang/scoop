@@ -1,0 +1,164 @@
+package scoop.ui.component.tray
+
+import scoop.tray.*
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.test.*
+
+private suspend fun awaitUiTray(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 250, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(30L))
+    }
+}
+
+internal fun runUiTray() {
+    val probe = UiTrayProbe()
+    UiHost(
+        onApplicationError = { error -> probe.errors.add(error) },
+        handler = { host, active, event -> probe.event(host, active, event) }
+    ).use { Application().runWithAsyncio(it) }
+    assertTrue(probe.finished)
+    assertEquals(2L, probe.errors.size)
+}
+
+internal class UiTrayProbe {
+    val handle = NativeTrayHandle()
+    val image = state(uiTrayImage())
+    val tooltip = state("Scoop UI tray component")
+    val version = state(1)
+    val checked = state(false)
+    val present = state(true)
+    val hasMenu = state(true)
+    val duplicate = state(false)
+    val failCompletion = state(false)
+    val expected = IllegalStateException(Some("expected tray completion failure"))
+    val errors = ArrayList<Throwable>()
+    var observedAvailability: scoop.tray.TrayAvailability? = None
+    var renders = 0
+    var windowEvents = 0
+    var completions = 0
+    var lastVersion = 0
+    var finished = false
+    private var applicationUi: UiApplication? = None
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                applicationUi = host.attachApplication(application) { TrayApplication(this, it) }
+                currentApplicationScope().launch { this @UiTrayProbe.scenario(host, application) }
+            }
+            case Window(_, _) -> windowEvents += 1
+            else -> {}
+        }
+    }
+    private suspend fun scenario(host: UiHost, application: ActiveApplication) {
+        val first = handle.icon!!
+        assertEquals(TrayState.Open, first.state)
+        assertEquals(0, windowEvents)
+        val initialUse = first.menuUseId!!
+        val count = renders
+        tooltip.value = "Updated native tray"
+        image.value = uiTrayImage(170.toUByte())
+        version.value = 2
+        checked.value = true
+        awaitUiTray("tray props and binding update") { renders > count }
+        assertEquals(first.id, handle.icon!!.id)
+        assertEquals(Some(initialUse), first.menuUseId)
+        assertEquals(0L, errors.size)
+        assertEquals(0, windowEvents)
+        assertEquals(Some(first.availability), observedAvailability)
+        val programmatic = first.capabilities().programmaticMenu
+        if (programmatic) {
+            assertTrue(handle.requestMenu())
+            assertTrue(handle.isMenuPending)
+            assertFalse(handle.requestMenu())
+            handle.cancelMenu()
+            awaitUiTray("programmatic tray cancellation") { completions == 1 }
+            assertFalse(handle.isMenuPending)
+            assertEquals(2, lastVersion)
+        }
+        hasMenu.value = false
+        awaitUiTray("menu detached from live icon") { first.menuUseId == None }
+        assertEquals(first.id, handle.icon!!.id)
+        assertFalse(handle.requestMenu())
+        hasMenu.value = true
+        awaitUiTray("new menu use after reattachment") { first.menuUseId != None }
+        assertTrue(first.menuUseId != Some(initialUse))
+        val reattached = first.menuUseId
+        val beforeCheck = renders
+        checked.value = false
+        awaitUiTray("binding change retained same menu") { renders > beforeCheck }
+        assertEquals(reattached, first.menuUseId)
+        present.value = false
+        awaitUiTray("tray unmounted") { first.state == TrayState.Closed }
+        assertTrue(
+            when (handle.icon) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertFalse(handle.requestMenu())
+        present.value = true
+        awaitUiTray("tray remounted") {
+            when (handle.icon) {
+                case Some(_) -> true;
+                case None -> false
+            }
+        }
+        val second = handle.icon!!
+        assertTrue(second.id != first.id)
+        assertEquals(0, windowEvents)
+
+        val window =
+            application.createWindow(
+                windowAttributes {
+                    title = "Tray root error isolation";
+                    requestActivation = false
+                }
+            )
+        val windowUi = host.attach(window, { TrayWindow(it) })!!
+        duplicate.value = true
+        awaitUiTray("duplicate handle failure") { errors.size == 1L }
+        assertTrue(errors[0L] is IllegalStateException)
+        assertTrue(applicationUi!!.isClosed)
+        assertFalse(windowUi.isClosed)
+        assertEquals(WindowState.Open, window.state)
+        awaitUiTray("failed application tray cleanup") { second.state == TrayState.Closed }
+        assertTrue(
+            when (handle.icon) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        windowUi.close()
+        window.requestDestroy()
+        awaitUiTray("last business window closed") { window.state == WindowState.Destroyed }
+        duplicate.value = false
+        applicationUi = host.attachApplication(application) { TrayApplication(this, it) }
+        val third = handle.icon!!
+        if (programmatic) {
+            val beforeFailure = renders
+            failCompletion.value = true
+            awaitUiTray("completion failure props") { renders > beforeFailure }
+            assertTrue(handle.requestMenu())
+            handle.cancelMenu()
+        } else
+            tooltip.value = "invalid\u0000tooltip"
+        awaitUiTray("tray callback or update error") { errors.size == 2L }
+        if (programmatic)
+            assertTrue(errors[1L] === expected)
+        else
+            assertTrue(errors[1L] is IllegalArgumentException)
+        assertTrue(applicationUi!!.isClosed)
+        awaitUiTray("final tray cleanup") { third.state == TrayState.Closed }
+        assertFalse(handle.isMenuPending)
+        finished = true
+        application.requestExit()
+    }
+}

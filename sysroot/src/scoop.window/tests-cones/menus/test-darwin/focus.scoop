@@ -1,0 +1,81 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal class FocusedMenuHandler: ApplicationHandler {
+    var window: Window? = None
+    var editCommands = 0
+    var nativeEditorSelected = false
+    private var started = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                val target = application.createWindow()
+                target.setImeAllowed(true)
+                window = Some(target)
+                val menu = application.createMenu()
+                val root = menu.insert(MenuItemDescription("Edit", kind = MenuItemKind.Submenu))
+                menu.insert(
+                    MenuItemDescription(
+                        "Editor Select All",
+                        command = MenuCommand.Role(MenuRole.SelectAll)
+                    ),
+                    Some(root)
+                )
+                menu.insert(
+                    MenuItemDescription(
+                        "Native Select All",
+                        enabled = false,
+                        command = MenuCommand.Role(MenuRole.SelectAll)
+                    ),
+                    Some(root)
+                )
+                application.attachMenuBar(menu)
+                target.requestFocus()
+                if (target.isFocused)
+                    checkFocus(application)
+            }
+            case Window(_, WindowEvent.Focused(true)) -> checkFocus(application)
+            case Window(_, WindowEvent.TextCommand(command)) -> {
+                assertEquals(TextEditCommand.SelectAll, command)
+                editCommands += 1
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("native focus was not obtained"))
+            else -> {}
+        }
+    }
+
+    private fun checkFocus(application: ActiveApplication) {
+        if (started)
+            return
+        started = true
+        assertTrue(menuAction("Editor Select All"))
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(nativeWindow, _) -> {
+                        assertEquals(1, nativeMenuEditor(nativeWindow))
+                        nativeEditorSelected = true
+                    }
+                }
+            } finally {
+                lease.close()
+            }
+        }
+        application.proxy().post {
+            active ->
+            assertEquals(1, editCommands)
+            active.requestExit()
+        }
+    }
+}

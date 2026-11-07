@@ -1,0 +1,81 @@
+package scoop.tray
+
+import scoop.test.*
+import scoop.tests.tray.native.*
+import scoop.window.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal class TrayPopupHandler: ApplicationHandler {
+    var tray: TrayIcon? = None
+    var completions = 0
+    var actions = 0
+    private var popup: TrayMenuSession? = None
+    private var action = MenuItemId(0L)
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val menu = application.createMenu()
+                action = menu.insert(MenuItemDescription("Choose"))
+                val icon =
+                    TrayIcon.create(application, TrayOptions(trayTestImage(), menu = Some(menu)))
+                tray = Some(icon)
+                assertTrue(icon.geometry()!!.bounds.width > 0.0)
+                icon.subscribe {
+                    value -> when (value) {
+                        case MenuCompleted(id, result) -> {
+                            assertEquals(popup!!.id, id)
+                            completions += 1
+                            if (completions == 1) {
+                                when (result) {
+                                    case Cancelled(TrayMenuCancelReason.ExplicitClose) -> {}
+                                    else -> fail(Some("tray popup did not cancel"))
+                                }
+                                popup = Some(icon.showMenu())
+                                application.setControlFlow(
+                                    ControlFlow.WaitUntil(
+                                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                                    )
+                                )
+                            } else {
+                                when (result) {
+                                    case Selected(item) -> assertEquals(action, item)
+                                    else -> fail(Some("tray popup did not select"))
+                                }
+                                application.requestExit()
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+                popup = Some(icon.showMenu())
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(
+                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                    )
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                if (completions == 0)
+                    popup!!.close()
+                else
+                    if (completions == 1)
+                        @Unsafe
+                        {
+                            assertEquals(1, selectTrayMenu(tray!!.owner.pointer!!))
+                        }
+                    else
+                        fail(Some("tray popup deadline"))
+            }
+            case Menu(activation) -> {
+                assertEquals(action, activation.item);
+                actions += 1
+            }
+            else -> {}
+        }
+    }
+}

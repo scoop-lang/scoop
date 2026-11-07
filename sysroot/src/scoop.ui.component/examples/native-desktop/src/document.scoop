@@ -1,0 +1,232 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.input as viewInput
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+internal class DocumentView(
+    val demo: DesktopDemo,
+    val document: DemoDocument,
+    scope: ComponentScope
+): Component(scope) {
+    val mode = state(2)
+    val overrideMenu = state(false)
+    val readOnly = state(false)
+    val topmost = state(false)
+    val shadow = state(true)
+    val matchShape = state(false)
+    val ignoreShapeMouse = state(false)
+    val nativeStyle = state(false)
+    val title = TextEditorState(f"Document ${document.number}")
+    val text =
+        TextEditorState(
+            "Select this text and use the native Edit menu.\nCut, copy, paste and undo follow the focused editor.\nRight-click here for a native context menu."
+        )
+    val tool = scope.nativeToolWindowController()
+    val shape = scope.nativeToolWindowController()
+    val dialog = scope.nativeDialogController<Boolean>(DialogTarget.Owner(document.window))
+    val files = scope.fileDialogController()
+    val popup = NativePopupHandle()
+    var response: NativeDialogResponse<Boolean>? = None
+    init {
+        document.root = Some(this)
+    }
+
+    fun openFile() {
+        files.openFile(DialogTarget.Owner(document.window), { reportFile(demo, it) })
+    }
+    fun showTool() {
+        val demo = this.demo
+        val owner = document.window
+        tool.open(
+            { ToolView(demo, owner, it) },
+            { demo.report("Owned tool window closed") },
+            attributes =
+                windowAttributes {
+                    title = "Owned tool";
+                    size = LogicalSize(430.0, 240.0);
+                    requestActivation = !demo.smoke
+                },
+            appearance = NativeToolAppearance.PreferTool
+        )
+    }
+    fun showShape() {
+        val demo = this.demo
+        val matched = matchShape.value
+        shape.open(
+            { ShapeView(demo, matched, it) },
+            {
+                ignoreShapeMouse.value = false
+                demo.report("Shaped window closed")
+            },
+            attributes =
+                windowAttributes {
+                    title = "Shaped window";
+                    size = LogicalSize(390.0, 390.0)
+                    frame = WindowFrame.Client;
+                    transparent = true;
+                    requestActivation = !demo.smoke
+                },
+            appearance = NativeToolAppearance.Normal
+        )
+    }
+    fun showDialog(close: Boolean = false) {
+        val demo = this.demo
+        val document = this.document
+        dialog.open(
+            {
+                reply, mount ->
+                response = Some(reply)
+                Confirmation(
+                    demo,
+                    reply,
+                    if (close)
+                        "Close this document?"
+                    else
+                        "Owner modal",
+                    "Only this document is blocked. Other documents remain interactive.",
+                    mount
+                )
+            },
+            {
+                result -> when (result) {
+                    case Accepted(value) -> {
+                        if (value && close)
+                            demo.closeDocument(document)
+                        else
+                            demo.report("Owner modal accepted")
+                    }
+                    case Cancelled(_) -> demo.report("Owner modal cancelled")
+                    case Failed(error) -> demo.operationFailed(error)
+                }
+            },
+            attributes =
+                windowAttributes {
+                    title = "Owner modal";
+                    size = LogicalSize(550.0, 350.0);
+                    requestActivation = !demo.smoke
+                }
+        )
+    }
+    fun confirmClose() {
+        showDialog(true)
+    }
+    fun toggleTopmost() {
+        val next = !topmost.value
+        document.window.setWindowLevel(
+            if (next)
+                WindowLevel.AlwaysOnTop
+            else
+                WindowLevel.Normal
+        )
+        topmost.value = next
+        demo.report(
+            if (next)
+                "Requested always-on-top; owned tool ordering remains separate."
+            else
+                "Requested normal window level."
+        )
+    }
+    fun toggleShapeInput() {
+        val window = shape.window ?: return
+        val next = !ignoreShapeMouse.value
+        window.setIgnoreMouse(next)
+        ignoreShapeMouse.value = next
+        demo.report(
+            if (next)
+                "Shaped window ignores mouse input. Use this document's button to restore it."
+            else
+                "Shaped window accepts mouse input again."
+        )
+    }
+    public override fun render(): View {
+        val root = this
+        val caps = demo.capabilities!!.frame
+        val client = mode.value == 2
+        val currentMode = mode.value
+        val decorated =
+            frame(scrollArea(documentSections(root))) {
+                padding = Some(Insets.all(18.0))
+                style {
+                    background(
+                        Some(
+                            Paint(
+                                root.demo.theme.current.value.tokens.palette.background.background
+                            )
+                        )
+                    )
+                }
+            }
+        val titleBar =
+            windowDragRegion(
+                frame(
+                    row {
+                        spacing = 10.0
+                        alignment = CrossAlignment.Center
+                        label("SCOOP") { style { weight = Some(700) } }
+                        frame(
+                            viewInput(root.title) {
+                                onSubmit = { value -> root.document.window.setTitle(value.text) }
+                            }
+                        ) { width = Some(240.0) }
+                        button("New window", { root.demo.newDocument() }) { size = ButtonSize.Sm }
+                        if (client)
+                            add(windowControls())
+                    }
+                ) { padding = Some(Insets(8.0, 4.0, 8.0, 4.0)) }
+            ) { enabled = caps.beginMove }
+        val useShadow = shadow.value
+        var content =
+            windowChrome(element({ DemoFrame(document, it) }, [decorated])) {
+                frame =
+                    when (currentMode) {
+                        case 0 -> WindowFrame.System(WindowContentMode.Standard)
+                        case 1 -> WindowFrame.System(WindowContentMode.Extended)
+                        else -> WindowFrame.Client
+                    }
+                this.titleBar =
+                    if (currentMode == 0)
+                        None
+                    else
+                        Some(titleBar)
+                titleBarHeight = 46.0
+                if (caps.shadow)
+                    shadow =
+                        Some(
+                            if (useShadow)
+                                WindowShadow.System
+                            else
+                                WindowShadow.None
+                        )
+            }
+        if (overrideMenu.value)
+            content = nativeWindowMenuBar(content, applicationMenu(demo, Some(document)))
+        return content
+    }
+}
+
+private class DemoFrame(private val document: DemoDocument, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> document.frames += 1
+                else -> {}
+            }
+        }
+    }
+}

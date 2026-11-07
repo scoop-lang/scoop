@@ -1,0 +1,27 @@
+package scoop.ui.component
+
+import scoop.ui.UiWindow
+import scoop.window.Window
+
+internal class NativeOwnedWindow(val window: Window): Closeable {
+    var ui: UiWindow? = None
+    var events: Closeable? = None
+    private var closed = false
+    fun closeContent() {
+        val previous = ui
+        ui = None
+        throwNative(
+            cleanupNative(cleanupNative(None) { previous?.close() }) { window.requestDestroy() }
+        )
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        val observation = events
+        events = None
+        var failure = cleanupNative(None) { observation?.close() }
+        failure = cleanupNative(failure) { closeContent() }
+        throwNative(failure)
+    }
+}

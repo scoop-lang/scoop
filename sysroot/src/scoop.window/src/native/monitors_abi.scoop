@@ -13,7 +13,11 @@ internal struct NativeMonitor(
     val pixelHeight: Double,
     val scale: Double,
     val name: Ptr<UInt8>?,
-    val nameLength: Long
+    val nameLength: Long,
+    val workX: Double,
+    val workY: Double,
+    val workWidth: Double,
+    val workHeight: Double
 )
 
 @Extern(name = "scoop_window_monitors")

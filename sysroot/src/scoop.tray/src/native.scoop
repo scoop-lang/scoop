@@ -1,0 +1,104 @@
+package scoop.tray
+
+import scoop.window.*
+
+@CLayout
+internal struct NativeTrayResult(val pointer: Ptr<Unit>?, val error: Long)
+
+@CLayout
+internal struct NativeTrayGeometry(
+    val error: Long,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double
+)
+
+@CLayout
+internal struct NativeTraySelection(val command: Int, val error: Long)
+
+@CLayout
+internal struct NativeTrayEvent(
+    val kind: Int,
+    val action: Int,
+    val source: Int,
+    val clicks: Int,
+    val button: Long,
+    val anchor: Int,
+    val reserved: Int,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double,
+    val error: Long
+)
+
+@Extern(name = "scoop_tray_create")
+internal fun nativeTrayCreate(
+    callback: FunPtr<(Ptr<Unit>, Ptr<Unit>) -> Int>,
+    context: Ptr<Unit>,
+    id: Long
+): NativeTrayResult
+
+@Extern(name = "scoop_tray_event_data")
+internal fun nativeTrayEventData(event: Ptr<Unit>): NativeTrayEvent
+
+@Extern(name = "scoop_tray_start")
+internal fun nativeTrayStart(tray: Ptr<Unit>): Long
+
+@Extern(name = "scoop_tray_request_close")
+internal fun nativeTrayRequestClose(tray: Ptr<Unit>)
+
+@Extern(name = "scoop_tray_destroy")
+internal fun nativeTrayDestroy(tray: Ptr<Unit>)
+
+@Extern(name = "scoop_tray_busy")
+internal fun nativeTrayBusy(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_tray_cancel")
+internal fun nativeTrayCancel(tray: Ptr<Unit>)
+
+@Extern(name = "scoop_tray_capabilities")
+internal fun nativeTrayCapabilities(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_tray_available")
+internal fun nativeTrayAvailable(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_tray_geometry")
+internal fun nativeTrayGeometry(tray: Ptr<Unit>): NativeTrayGeometry
+
+@Extern(name = "scoop_tray_image_begin")
+internal fun nativeTrayImageBegin(
+    tray: Ptr<Unit>,
+    width: Double,
+    height: Double,
+    template: Int
+): Long
+
+@Extern(name = "scoop_tray_image_add")
+internal fun nativeTrayImageAdd(tray: Ptr<Unit>, width: Int, height: Int, pixels: Ptr<UInt8>): Long
+
+@Extern(name = "scoop_tray_image_commit")
+internal fun nativeTrayImageCommit(tray: Ptr<Unit>): Long
+
+@Extern(name = "scoop_tray_tooltip")
+internal fun nativeTrayTooltip(tray: Ptr<Unit>, text: Ptr<UInt8>, length: Long): Long
+
+@Extern(name = "scoop_tray_menu")
+internal fun nativeTrayMenu(tray: Ptr<Unit>, menu: Ptr<Unit>?, actions: Ptr<Unit>?): Long
+
+@Extern(name = "scoop_tray_show_menu")
+internal fun nativeTrayShowMenu(tray: Ptr<Unit>): NativeTraySelection
+
+internal fun checkTrayStatus(code: Long, operation: String) {
+    if (code == 0L)
+        return
+    val kind =
+        when (code) {
+            -1L -> WindowErrorKind.Unsupported
+            -2L -> WindowErrorKind.Unavailable
+            -3L -> WindowErrorKind.Disconnected
+            else -> WindowErrorKind.NativeFailure
+        }
+    throw WindowException(operation, kind, Some(code))
+}

@@ -1,0 +1,73 @@
+package scoop.ui.component
+
+import scoop.graphics.Path
+import scoop.ui.*
+import scoop.window.*
+
+public enum WindowChromeShape {
+    Bounds, Rounded(Double), Ellipse, Path(Path)
+}
+
+public class WindowChromeProps public constructor(
+    public val content: View,
+    public val frame: WindowFrame = WindowFrame.Client,
+    public val fallbackFrame: WindowFrame? = None,
+    public val titleBar: View? = None,
+    public val titleBarHeight: Double = 32.0,
+    public val transparent: Boolean? = None,
+    public val shadow: WindowShadow? = None,
+    public val clip: WindowChromeShape? = None,
+    public val windowShape: WindowChromeShape? = None,
+    public val inputShape: WindowChromeShape? = None
+) {
+    init {
+        nonnegative(titleBarHeight, "invalid title bar height")
+        for (shape in [clip, windowShape, inputShape])
+            when (shape) {
+                case Some(WindowChromeShape.Rounded(radius)) -> nonnegative(
+                    radius,
+                    "invalid window corner radius"
+                )
+                else -> {}
+            }
+    }
+}
+
+public class WindowChromeBuilder internal constructor() {
+    public var frame: WindowFrame = WindowFrame.Client
+    public var fallbackFrame: WindowFrame? = None
+    public var titleBar: View? = None
+    public var titleBarHeight: Double = 32.0
+    public var transparent: Boolean? = None
+    public var shadow: WindowShadow? = None
+    public var clip: WindowChromeShape? = None
+    public var windowShape: WindowChromeShape? = None
+    public var inputShape: WindowChromeShape? = None
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun windowChrome(content: View, configure: WindowChromeBuilder.() -> Unit = {}): View {
+    val builder = WindowChromeBuilder()
+    builder.configure()
+    return component(
+        WindowChromeProps(
+            content,
+            builder.frame,
+            builder.fallbackFrame,
+            builder.titleBar,
+            builder.titleBarHeight,
+            builder.transparent,
+            builder.shadow,
+            builder.clip,
+            builder.windowShape,
+            builder.inputShape
+        ),
+        { current, mount -> WindowChrome(current, scope = mount) },
+        builder.key
+    )
+}
+
+internal fun requireChromeRequest(status: RequestStatus, operation: String) {
+    if (status == RequestStatus.Unsupported)
+        throw WindowException(operation, WindowErrorKind.Unsupported)
+}

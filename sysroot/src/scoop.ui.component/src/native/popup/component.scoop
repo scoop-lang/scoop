@@ -1,0 +1,83 @@
+package scoop.ui.component
+
+import scoop.graphics.text.TextAlignment
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.window.PopupResult
+
+public class NativeMenuButtonProps public constructor(
+    public val trigger: PopupTriggerSpec,
+    public val menu: NativeMenuContent,
+    public val theme: ThemeSource? = None,
+    public val group: GroupPosition? = None,
+    public val handle: NativePopupHandle? = None,
+    public val onClosed: (PopupResult) -> Unit = {}
+)
+
+public class NativeMenuButton public constructor(
+    private val props: Props<NativeMenuButtonProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val local = NativePopupHandle()
+    private val click: () -> Unit = { (props.value.handle ?: local).requestOpen() }
+    public override fun render(): View {
+        val input = props.value
+        val trigger = input.trigger
+        return element(
+            NativePopupInput(
+                input.menu.snapshot(),
+                trigger.enabled,
+                false,
+                input.handle ?: local,
+                input.onClosed
+            ),
+            { current, mount -> NativePopupLayout(current, scope = mount) },
+            [
+                component(
+                    ButtonProps(
+                        navigationLabel(trigger.content, trigger.fonts, TextAlignment.Center),
+                        click,
+                        trigger.enabled,
+                        trigger.style,
+                        input.theme,
+                        trigger.focus,
+                        variant = trigger.variant,
+                        size = trigger.size,
+                        group = input.group
+                    ),
+                    { current, mount -> Button(current, scope = mount) },
+                    comparison = Some(buttonComparison)
+                )
+            ]
+        )
+    }
+}
+
+public class NativeContextMenuProps public constructor(
+    public val content: View,
+    public val menu: NativeMenuContent,
+    public val enabled: Boolean = true,
+    public val handle: NativePopupHandle? = None,
+    public val onClosed: (PopupResult) -> Unit = {}
+)
+
+public class NativeContextMenu public constructor(
+    private val props: Props<NativeContextMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val local = NativePopupHandle()
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            NativePopupInput(
+                input.menu.snapshot(),
+                input.enabled,
+                true,
+                input.handle ?: local,
+                input.onClosed
+            ),
+            { current, mount -> NativePopupLayout(current, scope = mount) },
+            [input.content]
+        )
+    }
+}

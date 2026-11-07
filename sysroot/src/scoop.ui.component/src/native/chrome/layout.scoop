@@ -1,0 +1,88 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun measureWindowChrome(
+    context: MeasureContext,
+    constraints: Constraints,
+    input: WindowChromeInput
+): LayoutResult<Unit> {
+    val value = input.value
+    var left = 0.0
+    var right = 0.0
+    var bottom = 0.0
+    var top =
+        when (value.titleBar) {
+            case Some(_) -> value.titleBarHeight;
+            case None -> 0.0
+        }
+    when (input.metrics) {
+        case Some(metrics) -> if (metrics.frame == WindowFrame.System(WindowContentMode.Extended)) {
+            when (metrics.contentLayout) {
+                case Some(layout) -> {
+                    left = lowerBound(layout.origin.x, 0.0)
+                    right =
+                        lowerBound(
+                            metrics.metrics.logicalSize.width - layout.origin.x - layout.size.width,
+                            0.0
+                        )
+                    bottom =
+                        lowerBound(
+                            metrics.metrics.logicalSize.height -
+                                layout.origin.y -
+                                layout.size.height,
+                            0.0
+                        )
+                    top = lowerBound(top, layout.origin.y)
+                }
+                case None -> {}
+            }
+        }
+        case None -> {}
+    }
+    val horizontal = left + right
+    val vertical = top + bottom
+    val body =
+        context.measureChild(
+            1L,
+            Constraints(
+                lowerBound(constraints.minWidth - horizontal, 0.0),
+                when (constraints.maxWidth) {
+                    case Some(width) -> Some(lowerBound(width - horizontal, 0.0))
+                    case None -> None
+                },
+                lowerBound(constraints.minHeight - vertical, 0.0),
+                when (constraints.maxHeight) {
+                    case Some(height) -> Some(lowerBound(height - vertical, 0.0))
+                    case None -> None
+                }
+            )
+        )
+    val size =
+        constraints.constrain(Size(body.size.width + horizontal, body.size.height + vertical))
+    context.placeChild(1L, Point(left, top))
+    var titleLeft = left
+    var titleRight = right
+    when (input.metrics) {
+        case Some(metrics) -> for (button in metrics.systemButtons) {
+            val rect = button.bounds
+            if (rect.origin.y < top && rect.origin.y + rect.size.height > 0.0) {
+                if (rect.origin.x + rect.size.width / 2.0 < size.width / 2.0)
+                    titleLeft = lowerBound(titleLeft, rect.origin.x + rect.size.width + 8.0)
+                else
+                    titleRight = lowerBound(titleRight, size.width - rect.origin.x + 8.0)
+            }
+        }
+        case None -> {}
+    }
+    val titleSize =
+        when (value.titleBar) {
+            case Some(_) -> Size(lowerBound(size.width - titleLeft - titleRight, 0.0), top)
+            case None -> Size(0.0, 0.0)
+        }
+    context.measureChild(0L, Constraints.tight(titleSize))
+    context.placeChild(0L, Point(titleLeft, 0.0))
+    return LayoutResult(offsetMetrics(body, size, top), Unit)
+}

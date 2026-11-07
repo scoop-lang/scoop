@@ -1,0 +1,10 @@
+package dev.dispatch.signature.consumer
+
+import dev.dispatch.signature.Host
+import dev.dispatch.signature.createHost
+
+fun host(): Host = createHost()
+
+fun main() {
+    println(host().value)
+}

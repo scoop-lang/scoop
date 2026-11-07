@@ -1,0 +1,72 @@
+package scoop.tray
+
+import scoop.test.*
+import scoop.tests.tray.native.*
+import scoop.window.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Test
+private class Win32TrayTests {
+    @Test
+    @Ignore("Requires a Windows desktop and Explorer; run separately with --ignored")
+    fun `tray messages survive icon re-registration and close with a windowless application`() {
+        val handler = WindowsTrayHandler()
+        Application().run(handler)
+        assertEquals(1, handler.activations)
+        assertEquals(1, handler.actions)
+        assertEquals(TrayState.Closed, handler.tray!!.state)
+    }
+}
+
+private class WindowsTrayHandler: ApplicationHandler {
+    var tray: TrayIcon? = None
+    var activations = 0
+    var actions = 0
+    private var item = MenuItemId(0L)
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                val menu = application.createMenu()
+                item = menu.insert(MenuItemDescription("Execute"))
+                val icon =
+                    TrayIcon.create(application, TrayOptions(trayTestImage(), menu = Some(menu)))
+                tray = Some(icon)
+                assertEquals(TrayAvailability.Available, icon.availability)
+                assertFalse(icon.capabilities().templateImages)
+                assertTrue(application.desktopCapabilities().positioning.systemTaskbarBounds)
+                assertTrue(application.systemTaskbarBounds()!!.width > 0.0)
+                @Unsafe
+                {
+                    assertEquals(1, checkWindowsTrayImage(icon.owner.pointer!!))
+                    assertEquals(1, recreateWindowsTray(icon.owner.pointer!!))
+                }
+                icon.subscribe {
+                    value -> when (value) {
+                        case Activated(activation) -> {
+                            assertEquals(TrayActivationKind.Primary, activation.kind)
+                            assertEquals(TrayActivationSource.Pointer, activation.source)
+                            activations += 1
+                            assertTrue(icon.owner.menuLease!!.activate(item))
+                        }
+                        else -> {}
+                    }
+                }
+                @Unsafe
+                {
+                    activateWindowsTray(icon.owner.pointer!!)
+                }
+            }
+            case Menu(activation) -> {
+                assertEquals(item, activation.item)
+                actions += 1
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("Windows tray deadline"))
+            else -> {}
+        }
+    }
+}

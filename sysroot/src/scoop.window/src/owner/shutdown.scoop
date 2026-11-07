@@ -17,6 +17,9 @@ internal fun ApplicationOwner.cleanupEvent(event: ApplicationEvent) {
 internal fun ApplicationOwner.drainShutdown() {
     if (dispatchDepth != 0)
         return
+    drainFileDialogs()
+    drainModals()
+    drainMenus()
     if (exiting && !attached) {
         for (watch in watches)
             if (!watch.removing)
@@ -46,7 +49,14 @@ internal fun ApplicationOwner.drainShutdown() {
     var index = 0L
     while (index < windows.size) {
         val window = windows[index]
-        if (window.phase == WindowState.Closing && window.closingDelivered && window.leases == 0L) {
+        if (
+            window.phase ==
+                WindowState.Closing &&
+                window.closingDelivered &&
+                window.leases ==
+                0L &&
+                !hasOwnedWindow(window)
+        ) {
             @Unsafe
             {
                 nativeWindowDestroy(window.pointer!!)
@@ -56,6 +66,7 @@ internal fun ApplicationOwner.drainShutdown() {
             windows.removeAt(index)
             cleanupEvent(ApplicationEvent.Window(window.id, WindowEvent.Destroyed))
             didDestroyWindow()
+            index = 0L
         } else
             index += 1L
     }
@@ -66,6 +77,18 @@ internal fun ApplicationOwner.drainShutdown() {
             0L &&
             watches.size ==
             0L &&
+            menus.size ==
+            0L &&
+            fileDialogs.size ==
+            0L &&
+            modals.size ==
+            0L &&
+            nativeResources.size ==
+            0L &&
+            nativeOperations.size ==
+            0L &&
+            nativeOperationDepth ==
+            0 &&
             (!attached || attachmentComplete) &&
             mailbox.sealControlsIfEmpty()
     ) {

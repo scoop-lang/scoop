@@ -5,6 +5,7 @@ public struct Monitor(
     val id: MonitorId,
     val name: String?,
     val desktopBounds: DesktopRect?,
+    val workArea: DesktopRect?,
     val physicalSize: PhysicalSize,
     val scaleFactor: Double,
     val refreshRateMilliHertz: Long?
@@ -69,6 +70,23 @@ internal fun ApplicationOwner.refreshMonitors(): Array<Monitor> {
                                     DesktopPosition(value.x, value.y),
                                     value.width,
                                     value.height
+                                )
+                            )
+                        else
+                            None,
+                        if (
+                            value.workX.isFinite() &&
+                                value.workY.isFinite() &&
+                                value.workWidth >
+                                0.0 &&
+                                value.workHeight >
+                                0.0
+                        )
+                            Some(
+                                DesktopRect(
+                                    DesktopPosition(value.workX, value.workY),
+                                    value.workWidth,
+                                    value.workHeight
                                 )
                             )
                         else

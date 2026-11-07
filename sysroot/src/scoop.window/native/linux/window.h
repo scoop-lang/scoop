@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wunused-value"
 #include <adwaita.h>
 #pragma clang diagnostic pop
+#include "../frame.h"
 #include <xkbcommon/xkbcommon.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
@@ -55,6 +56,7 @@ typedef struct {
   double x, y, width, height, pixel_width, pixel_height, scale;
   const uint8_t *name;
   int64_t name_length;
+  double work_x, work_y, work_width, work_height;
 } SWMonitorData;
 typedef struct {
   SWMonitorData *items;
@@ -71,12 +73,14 @@ typedef struct {
 } SWTextSnapshotData;
 typedef struct SWEvent {
   SWEventData data;
+  GdkEvent *native_input;
   SWTextEditData *edits;
   size_t edit_count;
   struct SWEvent *next;
 } SWEvent;
 typedef struct SWWatch SWWatch;
 typedef struct SWWindow SWWindow;
+typedef struct SWMenu SWMenu;
 typedef struct {
   SWCallback callback;
   void *context;
@@ -91,20 +95,35 @@ typedef struct {
   double deadline;
   SWEvent *head, *tail;
   SWWindow *windows;
+  SWMenu *menus;
   SWWatch *watches;
   bool physical_keys[768], physical_keys_known;
 } SWApplication;
 struct SWWindow {
   SWApplication *application;
+  SWWindow *owning_window;
+  GtkWindowGroup *group;
   SWWindow *next;
   GtkWidget *window, *view, *toolbar, *header;
+  SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
+  GdkEvent *current_event;
   bool destroying;
+  bool input_blocked, saved_sensitive, tool;
   int64_t identity;
   SWSnapshot snapshot;
-  bool configured, requested_visible, decorations, resizable, transparent;
+  bool configured, requested_visible, resizable, transparent;
+  int frame_mode;
+  guint frame_idle;
+  bool ignore_mouse;
+  SWHitRect *hit_rects;
+  size_t hit_count;
+  cairo_region_t *input_region;
+  double frame_width, frame_height, frame_scale, frame_x, frame_y;
+  uint64_t frame_revision;
   bool close_button, minimize_button, maximize_button, cursor_visible;
   bool pointer_inside, ime_allowed, preedit_active, caret_known;
+  int32_t menu_text_commands;
   int cursor_icon;
   double requested_width, requested_height;
   double min_width, min_height, max_width, max_height;
@@ -155,12 +174,17 @@ int64_t sw_transparency(SWWindow *window, bool transparent);
 uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
 void sw_input_install(SWWindow *window);
+bool sw_menu_key_equivalent(SWWindow *window, guint symbol);
 void sw_ime_install(SWWindow *window);
 void sw_ime_update(SWWindow *window);
 void sw_ime_caret(SWWindow *window);
 void sw_ime_document(SWWindow *window);
 GtkIMContext *sw_ime_context(SWWindow *window);
 void sw_snapshot_update(SWWindow *window);
+void sw_frame_invalidate(SWWindow *window);
+void sw_frame_layout(SWWindow *window);
+bool sw_frame_pointer(SWWindow *window, GdkEvent *event, double x, double y);
+void sw_desktop_bounds(SWWindow *window);
 void sw_update_buttons(SWWindow *window);
 int64_t sw_request_size(SWWindow *window, double width, double height);
 GdkSurface *sw_surface(SWWindow *window);

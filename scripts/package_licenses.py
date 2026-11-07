@@ -8,6 +8,8 @@ from pathlib import Path
 from build_rust_text import NOTICE_DIRECTORY
 from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
+from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
+from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import host_definition, llvm_mingw_resource_triple, native_configuration
 
 
@@ -161,6 +163,11 @@ def collect_libraries(root, sysroot, target):
         for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
             collector.add(
                 "GTK-" + directory.name, "See included documents", license_files(directory)
+            )
+    if target == TRAY_TARGET:
+        for directory in sorted((sysroot / "lib" / target / TRAY_NOTICE_DIRECTORY).iterdir()):
+            collector.add(
+                "Tray-" + directory.name, "See included documents", license_files(directory)
             )
     configuration = native_configuration(target)
     if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:

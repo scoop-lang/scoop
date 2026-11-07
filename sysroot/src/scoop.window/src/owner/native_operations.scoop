@@ -1,0 +1,22 @@
+package scoop.window
+
+/** Use the application callback, after I/O watches have returned and rearmed their sources. */
+internal fun ApplicationOwner.deferNativeOperation(operation: () -> Unit) {
+    nativeOperations.add(operation)
+    mailbox.wake()
+}
+
+internal fun ApplicationOwner.drainNativeOperations() {
+    if (pumping || dispatchDepth != 0)
+        return
+    if (nativeOperations.size == 0L)
+        return
+    val operation = nativeOperations.removeAt(0L)
+    nativeOperationDepth += 1
+    try {
+        operation()
+    } finally {
+        nativeOperationDepth -= 1
+        mailbox.wake()
+    }
+}

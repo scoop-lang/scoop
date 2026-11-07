@@ -1,0 +1,235 @@
+package scoop.tests.ui.application
+
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.platform.fs.Path
+import scoop.time.Duration
+import scoop.test.*
+
+@Test
+private class UiApplicationTests {
+    @Test
+    fun `application mounts update native resources and retire failures without creating a window`() {
+        val probe = ApplicationProbe()
+        val host =
+            UiHost(
+                onApplicationError = { error -> probe.report(error) },
+                handler = { owner, active, event -> probe.event(owner, active, event) }
+            )
+        val caught =
+            assertFailsWith<IllegalStateException> { host.use { Application().runWithAsyncio(it) } }
+        assertTrue(caught === probe.propagatedFailure)
+        assertEquals(1, probe.finalDisposals)
+        assertTrue(probe.finished)
+        assertTrue(host.isClosed)
+        assertEquals(0, probe.windowEvents)
+        assertEquals(1, probe.model.disposed)
+        assertEquals(1, probe.model.unmounted)
+        for (item in probe.model.items) {
+            assertEquals(1, item.closes)
+            assertEquals(1, item.unmounts)
+            assertEquals(MenuState.Closed, item.menu.state)
+        }
+    }
+}
+
+private suspend fun awaitApplication(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 250, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+    }
+}
+
+internal class ApplicationProbe {
+    val model = ApplicationModel()
+    var finished = false
+    var windowEvents = 0
+    private var reported = ArrayList<Throwable>()
+    private var currentFailure: FailureRecord? = None
+    private var root: NativeRoot? = None
+    private var ui: UiApplication? = None
+    private var ownership: OwnershipProbe? = None
+    val propagatedFailure = IllegalStateException(Some("expected propagated application failure"))
+    var finalDisposals = 0
+
+    fun report(error: Throwable) {
+        if (error === propagatedFailure) {
+            assertEquals(1, finalDisposals)
+            throw error
+        }
+        when (ownership) {
+            case Some(probe) -> {
+                probe.report(error);
+                return
+            }
+            case None -> {}
+        }
+        when (currentFailure) {
+            case Some(record) -> {
+                assertEquals(1, record.disposals)
+                assertFalse(record.borrowed)
+                assertTrue(includesFailure(error, record.cleanup))
+                if (record.point != FailurePoint.Cleanup)
+                    assertTrue(includesFailure(error, record.primary))
+            }
+            case None -> {
+                assertTrue(includesFailure(error, model.expected))
+                assertTrue(ui!!.isClosed)
+                for (item in model.items)
+                    assertEquals(1, item.closes)
+            }
+        }
+        reported.add(error)
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                ui =
+                    host.attachApplication(application) {
+                        scope ->
+                        val created = NativeRoot(model, scope)
+                        root = Some(created)
+                        created
+                    }
+                currentApplicationScope().launch {
+                    this @ApplicationProbe.scenario(host, application)
+                }
+            }
+            case Window(_, _) -> windowEvents += 1
+            else -> {}
+        }
+    }
+    private suspend fun scenario(host: UiHost, application: ActiveApplication) {
+        assertFalse(ui!!.isClosed)
+        assertEquals("root mount", model.log[0L])
+        assertEquals(1, model.renders)
+        assertEquals(2L, model.items.size)
+        assertFailsWith<IllegalStateException> {
+            host.attachApplication(application) { NativeRoot(ApplicationModel(), it) }
+        }
+        val first = model.items[0L]
+        val second = model.items[1L]
+        assertEquals(1, first.updates)
+        model.text.value = "changed"
+        model.text.value = "latest"
+        awaitApplication("coalesced application render") { model.renders == 2 }
+        assertEquals("latestextra", first.displayed())
+        assertEquals(2, first.updates)
+        model.callbackVersion.value = 7
+        awaitApplication("callback props replacement") { model.renders == 3 }
+        assertEquals(2, first.updates)
+        first.fire()
+        awaitApplication("native menu action") { model.actions == 1 }
+        assertEquals(7, model.lastAction)
+        model.watchesExtra.value = false
+        awaitApplication("dynamic dependency removal") { model.renders == 4 }
+        model.extra.value = "unobserved"
+        currentEventLoop().sleep(Duration.milliseconds(60L))
+        assertEquals(4, model.renders)
+        model.ids.value = [2L, 1L]
+        awaitApplication("key reorder") { model.renders == 5 }
+        assertEquals(2L, model.items.size)
+        model.ids.value = [2L]
+        awaitApplication("entry removal") { first.closes == 1 }
+        assertFalse(first.scope.dispatch { fail(Some("retired scope received an action")) })
+        assertTrue(second.scope.isMounted)
+        model.ids.value = [2L, 1L]
+        awaitApplication("fresh identity after reinsertion") { model.items.size == 3L }
+        val fresh = model.items[2L]
+        assertTrue(fresh !== first)
+        val actions = model.actions
+        fresh.subscription!!.close()
+        fresh.fire()
+        second.fire()
+        awaitApplication("remaining menu subscription") { model.actions == actions + 1 }
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+        assertEquals(actions + 1, model.actions)
+
+        val scope = root!!.scope
+        val session = application.openFile(DialogTarget.Application)
+        val files = state(0)
+        scope.observeFileDialog(session) {
+            result: FileDialogResult<Path> ->
+            when (result) {
+                case Cancelled(reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
+                else -> fail(Some("pending file request was not cancelled"))
+            }
+            files.value += 1
+        }
+        session.cancel()
+        awaitApplication("typed file completion") { files.value == 1 }
+        val late = state(0)
+        scope.observeFileDialog(session) { _ -> late.value += 1 }
+        assertEquals(1, late.value)
+        val removed = state(0)
+        val cancelled = application.openFile(DialogTarget.Application)
+        scope.observeFileDialog(cancelled) { _ -> removed.value += 1 }.close()
+        cancelled.cancel()
+        awaitApplication("cancelled registration") { cancelled.state == FileDialogState.Completed }
+        assertEquals(0, removed.value)
+
+        model.failure.value = true
+        awaitApplication("application error isolation") { reported.size == 1L }
+        assertTrue(ui!!.isClosed)
+        assertFalse(host.isClosed)
+        val retiredRenders = model.renders
+        model.text.value = "retired"
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+        assertEquals(retiredRenders, model.renders)
+        assertFalse(scope.dispatch { fail(Some("failed application root resumed")) })
+        for (
+            point in [
+                FailurePoint.Constructor,
+                FailurePoint.Render,
+                FailurePoint.Mount,
+                FailurePoint.Callback,
+                FailurePoint.Cleanup
+            ]
+        ) {
+            val record = FailureRecord(point)
+            currentFailure = Some(record)
+            val component = state<FailingApplication?>(None)
+            val count = reported.size
+            val handle =
+                host.attachApplication(application) {
+                    mount ->
+                    val created = FailingApplication(record, mount)
+                    component.value = Some(created)
+                    created
+                }
+            when (point) {
+                case Callback -> component.value!!.invokeFailure()
+                case Cleanup -> handle!!.close()
+                else -> when (handle) {
+                    case Some(_) -> fail(Some("failed application mount returned a handle"))
+                    case None -> {}
+                }
+            }
+            assertEquals(count + 1L, reported.size)
+            assertEquals(1, record.disposals)
+            assertEquals(
+                if (point == FailurePoint.Callback || point == FailurePoint.Cleanup)
+                    1
+                else
+                    0,
+                record.unmounts
+            )
+        }
+        currentFailure = None
+        val ownershipProbe = OwnershipProbe()
+        ownership = Some(ownershipProbe)
+        runOwnershipCases(ownershipProbe, host, application)
+        ownership = None
+        finished = true
+        host.attachApplication<NativeRoot>(application) {
+            scope ->
+            scope.onDispose { finalDisposals += 1 }
+            throw propagatedFailure
+        }
+        fail(Some("application error handler did not propagate"))
+    }
+}

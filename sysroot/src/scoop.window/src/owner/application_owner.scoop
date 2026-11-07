@@ -6,6 +6,7 @@ import scoop.time.TimeMark
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 import scoop.window.native.ApplicationWatch
+import scoop.window.native.NativeApplicationLease
 import scoop.window.native.dispatchWatch
 
 internal class ApplicationOwner(
@@ -14,13 +15,26 @@ internal class ApplicationOwner(
 ) {
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
+    val modals = ArrayList<ModalSession>()
+    var nextModal = 1L
+    val fileDialogs = ArrayList<FileDialogOwner>()
+    var nextFileDialog = 1L
+    val menus = ArrayList<MenuOwner>()
+    val nativeResources = ArrayList<NativeApplicationLease>()
+    var nextMenu = 1L
+    var nextMenuItem = 1L
+    var nextMenuUse = 1L
+    var nextPopup = 1L
+    val pendingInputs = ArrayList<NativeInputDelivery>()
+    val nativeOperations = ArrayList<() -> Unit>()
+    var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
     var armedDeadline: TimeMark? = None
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
     var nextWatch: Long = 1L
-    val active: ActiveApplication get() = ActiveApplication(this)
+    val active = ActiveApplication(this)
     var native: Ptr<Unit>? = None
     var handler: ApplicationHandler? = None
     var attachment: ApplicationAttachment? = None
@@ -132,9 +146,10 @@ internal class ApplicationOwner(
 
     fun nativeCallback(identity: Long, stage: Int) {
         try {
-            if (identity == 0L)
+            if (identity == 0L) {
                 pump(stage)
-            else
+                drainNativeOperations()
+            } else
                 dispatchWatch(identity, stage)
         }
         catch (error: Throwable) {
@@ -149,13 +164,16 @@ internal class ApplicationOwner(
         if (exiting || native == None)
             throw WindowException("create window", WindowErrorKind.InvalidState)
         validateAttributes(attributes)
+        val parent = relationOwner(attributes.relation)
+        if (attributes.role == WindowRole.Tool && !managementCapabilities().toolWindow)
+            throw WindowException("tool window role", WindowErrorKind.Unsupported)
         attributes.size.toPhysical(1.0)
         if (nextWindow == 9223372036854775807L)
             throw WindowException("window identity", WindowErrorKind.NativeFailure)
         val identity = WindowId(nextWindow)
         nextWindow += 1L
         val flags =
-            flag(attributes.decorations) +
+            flag(frameCode(attributes.frame) != 2) +
                 flag(attributes.resizable) *
                 2 +
                 flag(attributes.transparent) *
@@ -175,12 +193,22 @@ internal class ApplicationOwner(
                                 count,
                                 size.width,
                                 size.height,
-                                flags
+                                flags,
+                                when (parent) {
+                                    case Some(value) -> value.pointer;
+                                    case None -> None
+                                },
+                                if (attributes.role == WindowRole.Tool)
+                                    1
+                                else
+                                    0
                             )
                         }
                     }
                 )
             val owner = WindowOwner(this, identity, pointer)
+            owner.owningWindow = parent
+            owner.role = attributes.role
             try {
                 applyCreationProperties(owner, attributes)
                 owner.metrics = platformWindowMetrics(pointer)
@@ -191,10 +219,25 @@ internal class ApplicationOwner(
                 throw error
             }
             windows.add(owner)
+            updateModalInput()
             createdWindow = true
-            if (attributes.visible) {
+            owner.requestedVisible = attributes.visible
+            when (parent) {
+                case Some(value) -> {
+                    val snapshot = value.snapshot()
+                    owner.visibilitySuppressed =
+                        !value.requestedVisible ||
+                            value.visibilitySuppressed ||
+                            snapshot.visible ==
+                            0 ||
+                            snapshot.minimized !=
+                            0
+                }
+                case None -> {}
+            }
+            if (attributes.visible && !owner.visibilitySuppressed) {
                 checkNativeStatus(nativeWindowVisible(pointer, 1), "visible")
-                if (attributes.requestActivation)
+                if (attributes.requestActivation && !owner.inputBlocked)
                     nativeRequestStatus(
                         nativeWindowFocus(pointer),
                         "focus",
@@ -230,8 +273,16 @@ internal class ApplicationOwner(
         if (exiting)
             return
         exiting = true
+        for (session in fileDialogs)
+            session.cancel(FileDialogCancelReason.ApplicationExit)
+        for (input in pendingInputs.toArray())
+            input.close()
         mailbox.closeBusiness()
         refreshDeadline()
+        for (menu in menus.toArray())
+            menu.close(PopupCancelReason.ApplicationExit)
+        for (resource in nativeResources.toArray())
+            resource.requestClose()
         for (window in windows)
             window.close()
         mailbox.wake()

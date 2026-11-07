@@ -1,0 +1,129 @@
+package scoop.tray
+
+import scoop.window.*
+
+internal fun TrayOwner.receive(event: NativeTrayEvent) {
+    checkThread()
+    if (state == TrayState.Closed)
+        return
+    if (state == TrayState.Open && resource!!.isClosing) {
+        close(TrayMenuCancelReason.ApplicationExit)
+        return
+    }
+    when (event.kind) {
+        1 -> {
+            val next =
+                if (event.action != 0)
+                    TrayAvailability.Available
+                else
+                    TrayAvailability.Unavailable
+            if (next != availability) {
+                availability = next
+                emit(TrayEvent.AvailabilityChanged(next))
+            }
+        }
+        2 -> if (state == TrayState.Open)
+            emit(TrayEvent.Activated(activation(event)))
+        3 -> settle()
+        4 -> settle()
+        5 -> if (state == TrayState.Open && !busy()) {
+            when (menuLease) {
+                case Some(_) -> showMenu()
+                case None -> emit(TrayEvent.Activated(activation(event)))
+            }
+        }
+        6 -> throw WindowException(
+            "native tray service",
+            WindowErrorKind.NativeFailure,
+            Some(event.error)
+        )
+        else -> throw WindowException("native tray event", WindowErrorKind.NativeFailure)
+    }
+}
+
+private fun TrayOwner.activation(event: NativeTrayEvent): TrayActivation {
+    val anchor =
+        when (event.anchor) {
+            1 -> {
+                val bounds =
+                    DesktopRect(DesktopPosition(event.x, event.y), event.width, event.height)
+                Some(
+                    TrayAnchor.Rectangle(
+                        TrayGeometry(
+                            bounds,
+                            monitorFor(
+                                bounds.origin.x + bounds.width / 2.0,
+                                bounds.origin.y + bounds.height / 2.0
+                            )
+                        )
+                    )
+                )
+            }
+            2 -> Some(TrayAnchor.PointHint(DesktopPosition(event.x, event.y)))
+            else -> None
+        }
+    return TrayActivation(
+        when (event.action) {
+            1 -> TrayActivationKind.Primary;
+            2 -> TrayActivationKind.Context;
+            else -> TrayActivationKind.Secondary
+        },
+        when (event.source) {
+            1 -> TrayActivationSource.Pointer;
+            2 -> TrayActivationSource.Keyboard;
+            else -> TrayActivationSource.Unknown
+        },
+        anchor,
+        when (event.button) {
+            1L -> Some(MouseButton.Left);
+            2L -> Some(MouseButton.Right);
+            3L -> Some(MouseButton.Middle);
+            else -> None
+        },
+        if (event.clicks > 0)
+            Some(event.clicks)
+        else
+            None
+    )
+}
+
+internal fun TrayOwner.monitorFor(x: Double, y: Double): MonitorId? {
+    for (monitor in application.monitors())
+        when (monitor.desktopBounds) {
+            case Some(bounds) -> if (containsPoint(bounds, x, y))
+                return Some(monitor.id)
+            case None -> {}
+        }
+    return None
+}
+
+internal fun TrayOwner.geometry(): TrayGeometry? {
+    if (!capabilities().iconBounds)
+        throw WindowException("tray icon bounds", WindowErrorKind.Unsupported)
+    @Unsafe
+    {
+        val value = nativeTrayGeometry(pointer!!)
+        if (value.error == -2L)
+            return None
+        checkTrayStatus(value.error, "tray icon bounds")
+        val bounds = DesktopRect(DesktopPosition(value.x, value.y), value.width, value.height)
+        return Some(
+            TrayGeometry(
+                bounds,
+                monitorFor(value.x + value.width / 2.0, value.y + value.height / 2.0)
+            )
+        )
+    }
+}
+
+internal fun containsPoint(bounds: DesktopRect, x: Double, y: Double): Boolean =
+    x >=
+        bounds.origin.x &&
+        y >=
+        bounds.origin.y &&
+        x <
+        bounds.origin.x +
+        bounds.width &&
+        y <
+        bounds.origin.y +
+        bounds.height

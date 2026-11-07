@@ -1,0 +1,29 @@
+schema = 1
+name = "dispatch-signature-types"
+inputs = ["provider", "consumer"]
+tools = ["scoop", "scoopc"]
+tags = ["dispatch", "cross-cone", "compiler-correctness"]
+variants = [{name = "release"}]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--runtime-root", "${runtime}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "42\n"
+stderr = ""

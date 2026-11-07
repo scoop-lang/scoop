@@ -15,17 +15,6 @@ static void x11_state(SWWindow *window, bool enabled, const char *name) {
              SubstructureRedirectMask | SubstructureNotifyMask, &event);
   XFlush(display);
 }
-int64_t scoop_window_position(SWWindow *window, double x, double y) {
-  if (window->application->kind != SW_X11)
-    return -1;
-  if (x < INT16_MIN || y < INT16_MIN || x > INT16_MAX || y > INT16_MAX)
-    return EOVERFLOW;
-  Display *display = gdk_x11_display_get_xdisplay(window->application->display);
-  XMoveWindow(display, gdk_x11_surface_get_xid(sw_surface(window)), (int)x,
-              (int)y);
-  XFlush(display);
-  return 0;
-}
 int64_t scoop_window_constraints(SWWindow *window, double min_width,
                                  double min_height, double max_width,
                                  double max_height) {
@@ -47,12 +36,6 @@ int64_t scoop_window_resizable(SWWindow *window, int32_t value) {
   window->resizable = value != 0;
   gtk_window_set_resizable(GTK_WINDOW(window->window), window->resizable);
   gtk_widget_queue_resize(window->view);
-  return 0;
-}
-int64_t scoop_window_decorations(SWWindow *window, int32_t value) {
-  window->decorations = value != 0;
-  gtk_window_set_decorated(GTK_WINDOW(window->window), window->decorations);
-  gtk_widget_set_visible(window->header, window->decorations);
   return 0;
 }
 void sw_update_buttons(SWWindow *window) {
@@ -131,11 +114,16 @@ int64_t sw_transparency(SWWindow *window, bool transparent) {
   if (!installed) {
     GtkCssProvider *provider = gtk_css_provider_new();
     gtk_css_provider_load_from_string(
-        provider, ".scoop-window.scoop-transparent, "
-                  ".scoop-window.scoop-transparent contents, "
-                  ".scoop-window.scoop-transparent toolbarview, "
-                  ".scoop-window.scoop-transparent scoopcontent "
-                  "{ background: transparent; }");
+        provider,
+        ".scoop-window.scoop-transparent, "
+        ".scoop-window.scoop-transparent contents, "
+        ".scoop-window.scoop-transparent toolbarview, "
+        ".scoop-window.scoop-transparent scoopcontent "
+        "{ background: transparent; }"
+        ".scoop-window.scoop-client, .scoop-window.scoop-client contents "
+        "{ border-radius: 0; border: 0 solid transparent; padding: 0; "
+        "box-shadow: none; }"
+        ".scoop-window.scoop-no-shadow { box-shadow: none; }");
     gtk_style_context_add_provider_for_display(
         window->application->display, GTK_STYLE_PROVIDER(provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);

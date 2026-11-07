@@ -1,0 +1,149 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+
+internal fun ApplicationOwner.requireDialogOwnerAvailable(window: WindowOwner) {
+    for (session in fileDialogs)
+        if (session.blocks(window))
+            throw WindowException("dialog owner is busy", WindowErrorKind.ResourceBusy)
+}
+
+internal fun ApplicationOwner.cancelOwnedFileDialogs(
+    window: WindowOwner,
+    reason: FileDialogCancelReason
+) {
+    for (session in fileDialogs)
+        if (session.owns(window))
+            session.cancel(reason)
+}
+
+internal fun ApplicationOwner.syncFileDialogVisibility() {
+    for (session in fileDialogs) {
+        val window = session.window ?: continue
+        if (window.phase != WindowState.Open && window.phase != WindowState.PendingConfigure)
+            continue
+        val snapshot = window.snapshot()
+        if (
+            !window.requestedVisible ||
+                window.visibilitySuppressed ||
+                snapshot.visible ==
+                0 ||
+                snapshot.minimized !=
+                0
+        )
+            session.cancel(FileDialogCancelReason.OwnerHidden)
+    }
+}
+
+internal fun ApplicationOwner.drainFileDialogs() {
+    var index = fileDialogs.size
+    while (index > 0L) {
+        index -= 1L
+        val session = fileDialogs[index]
+        if (session.commandPending)
+            continue
+        @Unsafe
+        {
+            val native = nativeFileResult(session.pointer!!)
+            if (native.outcome == 0)
+                continue
+            val result =
+                try {
+                    readFileDialogResult(session, native)
+                } catch (error: WindowException) {
+                    FileDialogResult.Failed<Array<Path>>(error)
+                } catch (error: Throwable) {
+                    recordFailure(error)
+                    beginExit()
+                    FileDialogResult.Failed<Array<Path>>(
+                        WindowException("decode file dialog result", WindowErrorKind.NativeFailure)
+                    )
+                }
+            nativeFileRelease(session.pointer!!)
+            session.pointer = None
+            session.completion = Some(result)
+            session.phase = FileDialogState.Completed
+            fileDialogs.removeAt(index)
+            when (session.window) {
+                case Some(window) -> window.leases -= 1L
+                case None -> {}
+            }
+        }
+        updateModalInput()
+        if (!exiting) {
+            when (session.window) {
+                case Some(window) -> if (
+                    window.phase ==
+                        WindowState.Open &&
+                        !window.inputBlocked &&
+                        !window.visibilitySuppressed &&
+                        (!window.hasModal || window.modalSession!!.phase == ModalState.Showing)
+                ) {
+                    val snapshot = window.snapshot()
+                    if (snapshot.visible != 0 && snapshot.minimized == 0)
+                        Window(window).requestFocus()
+                }
+                case None -> {}
+            }
+            deliver(ApplicationEvent.FileDialogCompleted(session.id))
+        }
+    }
+}
+
+@Unsafe
+private fun readFileDialogResult(
+    session: FileDialogOwner,
+    native: NativeFileResult
+): FileDialogResult<Array<Path>> {
+    when (session.cancellation) {
+        case Some(reason) -> return FileDialogResult.Cancelled<Array<Path>>(reason)
+        case None -> {}
+    }
+    if (native.outcome == 2)
+        return FileDialogResult.Cancelled<Array<Path>>(FileDialogCancelReason.UserCancelled)
+    if (native.outcome == 3) {
+        val domain =
+            when (native.domain) {
+                case Some(value) -> Some(String.fromUtf8(value, native.domainLength))
+                case None -> None
+            }
+        val kind =
+            if (domain != None)
+                WindowErrorKind.NativeFailure
+            else
+                when (native.error) {
+                    -1L -> WindowErrorKind.Unsupported
+                    -2L -> WindowErrorKind.Unavailable
+                    -3L -> WindowErrorKind.Disconnected
+                    -4L -> WindowErrorKind.InvalidState
+                    -5L -> WindowErrorKind.ResourceBusy
+                    else -> WindowErrorKind.NativeFailure
+                }
+        return FileDialogResult.Failed<Array<Path>>(
+            WindowException(
+                "file dialog",
+                kind,
+                if (kind == WindowErrorKind.NativeFailure)
+                    Some(native.error)
+                else
+                    None,
+                domain
+            )
+        )
+    }
+    if (native.outcome != 1 || native.count < 1L || (session.kind != 1 && native.count != 1L))
+        return FileDialogResult.Failed<Array<Path>>(
+            WindowException("file dialog result", WindowErrorKind.NativeFailure)
+        )
+    return FileDialogResult.Accepted<Array<Path>>(
+        Array<Path>(native.count) {
+            index -> @Unsafe
+            {
+                val path = nativeFilePath(session.pointer!!, index)
+                if (path.data == None || path.length <= 0L)
+                    throw WindowException("native file path", WindowErrorKind.NativeFailure)
+                return@Array Path.fromOsString(copyDialogString(path))
+            }
+        }
+    )
+}

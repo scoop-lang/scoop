@@ -37,6 +37,8 @@ void sw_free_event(SWEvent *event) {
   for (size_t index = 0; index < event->edit_count; ++index)
     free((void *)event->edits[index].text);
   free(event->edits);
+  if (event->native_input)
+    gdk_event_unref(event->native_input);
   free(event);
 }
 
@@ -60,6 +62,8 @@ void sw_emit(SWWindow *window, int kind) {
     event->data.flags = value.occluded;
   else if (kind == 6)
     event->data.flags = value.dark;
+  else if (kind == 19)
+    event->data.flags = window->input_blocked;
   sw_enqueue(window->application, event);
 }
 

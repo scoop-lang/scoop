@@ -1,5 +1,7 @@
 # scoop.ui：自绘框架与独立控件库设计
 
+后续的原生菜单组件、应用级挂载、WindowChrome，以及工具／模态窗口与系统文件对话框包装见 [原生桌面能力与 UI 组件设计](../desktop-ui/DESIGN.md)，窗口与文件面板控制器详见[配套设计](../desktop-ui/WINDOWS-AND-DIALOGS.md)。托盘底层为独立 scoop.tray，UI 包装为 scoop.ui.component.tray，普通 UI 不带入托盘依赖。设计已纳入 Linux GTK 后端与最后的综合 demo，新增能力尚未实施。
+
 日期：2026-11-02。状态：`scoop.ui` 的独立自绘框架和公共文本适配、公共 `scoop.ui.style`、主题绘图／几何和三套风格、基础控件／容器、主题展示及后台下载组合已完成 macOS aarch64 实施与 x86_64 统一补验，范围见 [UI 实施记录](PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续接入。框架公开行为见 [UI 规范](../specs/SCOOP-UI-SPEC.md)，公共文本能力见 [文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与[文本排版设计](../graphics/text/DESIGN.md)，基础控件行为见 [控件库规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。现有 `scoop.gui` 已直接改名为 `scoop.surface`；底层实现与验证沿用 [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)及[实施记录](../surface/PROGRESS.md)。
 
 弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。

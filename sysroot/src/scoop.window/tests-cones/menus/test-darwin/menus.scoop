@@ -1,0 +1,313 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Test
+private class NativeMenuTests {
+    @Test
+    fun `native menus preserve identity and drain popup and borrowed uses`() {
+        val handler = MenuHandler()
+        @Unsafe
+        {
+            nativeObserveMenus()
+        }
+        try {
+            Application().run(handler)
+        } finally {
+            @Unsafe
+            {
+                nativeEndMenus()
+            }
+        }
+        assertEquals(2, handler.barActions)
+        assertEquals(1, handler.popupActions)
+        assertEquals(3, handler.completed)
+        assertEquals(1, handler.borrowerClosed)
+        assertEquals(1, handler.destroyed)
+        assertEquals(MenuState.Closed, handler.bar!!.state)
+        assertEquals(MenuState.Closed, handler.popupMenu!!.state)
+        assertEquals(WindowState.Destroyed, handler.window!!.state)
+        assertTrue(handler.updatedDuringTracking)
+        assertEquals(1, handler.quitRequests)
+    }
+
+    @Test
+    @Ignore("Requires an unlocked foreground desktop; run separately with --ignored")
+    fun `edit roles follow the native focus target and its validation`() {
+        val handler = FocusedMenuHandler()
+        Application().run(handler)
+        assertEquals(1, handler.editCommands)
+        assertTrue(handler.nativeEditorSelected)
+    }
+}
+
+private class MenuHandler: ApplicationHandler {
+    var window: Window? = None
+    var bar: Menu? = None
+    var binding: MenuBarBinding? = None
+    var borrowed: NativeMenuLease? = None
+    var popupMenu: Menu? = None
+    var selected: PopupSession? = None
+    var cancelled: PopupSession? = None
+    var targetClosed: PopupSession? = None
+    var command = MenuItemId(0L)
+    var retired = MenuItemId(0L)
+    var check = MenuItemId(0L)
+    var barActions = 0
+    var popupActions = 0
+    var completed = 0
+    var borrowerClosed = 0
+    var destroyed = 0
+    var updatedDuringTracking = false
+    var depth = 0
+    var quitRequests = 0
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(0, depth)
+        depth += 1
+        try {
+            when (event) {
+                case Resumed -> start(application)
+                case NewEvents(StartCause.Deadline) -> fail(Some("menu test deadline"))
+                case Menu(activation) -> handleActivation(application, activation)
+                case ExitRequested(reason) -> {
+                    assertEquals(ExitReason.User, reason)
+                    quitRequests += 1
+                }
+                case PopupCompleted(identity, result) -> {
+                    completed += 1
+                    if (identity == cancelled!!.id)
+                        assertCancelled(result, PopupCancelReason.ExplicitClose)
+                    else
+                        if (identity == selected!!.id) {
+                            when (result) {
+                                case Selected(item) -> assertEquals(command, item)
+                                else -> fail(Some("popup selection was not recorded"))
+                            }
+                            assertEquals(1, popupActions)
+                            closeTarget()
+                        } else {
+                            assertEquals(targetClosed!!.id, identity)
+                            assertCancelled(result, PopupCancelReason.TargetClosed)
+                            application.requestExit()
+                        }
+                }
+                case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+                else -> {}
+            }
+        } finally {
+            depth -= 1
+        }
+    }
+
+    private fun start(application: ActiveApplication) {
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+        val target =
+            application.createWindow(
+                windowAttributes {
+                    this.title = "Native menu test"
+                    this.size = LogicalSize(240.0, 160.0)
+                }
+            )
+        window = Some(target)
+        target.setImeAllowed(true)
+        val menu = application.createMenu()
+        bar = Some(menu)
+        val root = menu.insert(MenuItemDescription("Test", kind = MenuItemKind.Submenu))
+        val chord =
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("o")),
+                ShortcutModifiers(primary = true)
+            )
+        command = menu.insert(MenuItemDescription("Execute", shortcut = Some(chord)), Some(root))
+        retired = menu.insert(MenuItemDescription("Retire"), Some(root))
+        menu.insert(
+            MenuItemDescription("Quit request", command = MenuCommand.Role(MenuRole.Quit)),
+            Some(root)
+        )
+        check =
+            menu.insert(
+                MenuItemDescription("Checked", kind = MenuItemKind.Checkbox(true)),
+                Some(root)
+            )
+        val image =
+            DesktopImage(
+                LogicalSize(16.0, 16.0),
+                [
+                    DesktopImageRepresentation(
+                        PhysicalSize(1, 1),
+                        [255.toUByte(), 0.toUByte(), 0.toUByte(), 255.toUByte()]
+                    ),
+                    DesktopImageRepresentation(
+                        PhysicalSize(2, 2),
+                        Array<UInt8>(16L) { _ -> 255.toUByte() }
+                    )
+                ]
+            )
+        menu.insert(MenuItemDescription("Image", image = Some(image)), Some(root))
+        val radio =
+            menu.insert(MenuItemDescription("Radio", kind = MenuItemKind.Radio(true)), Some(root))
+        menu.move(radio, 0L)
+        assertEquals(radio, menu.items(Some(root))[0L])
+        assertEquals(MenuItemKind.Checkbox(true), menu.description(check).kind)
+        assertFailsWith<IllegalArgumentException> {
+            menu.insert(MenuItemDescription("Duplicate", shortcut = Some(chord)), Some(root))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            menu.update(root, MenuItemDescription("Invalid"))
+        }
+        binding = Some(application.attachMenuBar(menu))
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { application.attachMenuBar(menu) }.kind
+        )
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> {
+                target.showPopup(menu, PopupPlacement.Pointer(LogicalPosition(8.0, 8.0)))
+            }.kind
+        )
+        assertFailsWith<IllegalArgumentException> {
+            menu.insert(MenuItemDescription("Invalid root"))
+        }
+        assertTrue(menuAction("Execute"))
+    }
+
+    private fun handleActivation(application: ActiveApplication, activation: MenuActivation) {
+        if (activation.menu == bar!!.id) {
+            assertEquals(command, activation.item)
+            when (activation.source) {
+                case ApplicationMenuBar(_) -> {}
+                else -> fail(Some("wrong menu bar source"))
+            }
+            barActions += 1
+            if (barActions == 1) {
+                @Unsafe
+                {
+                    val lease = window!!.acquireNativeWindow()
+                    try {
+                        when (lease.handle) {
+                            case AppKit(nativeWindow, _) -> assertEquals(
+                                1,
+                                nativeMenuShortcut(nativeWindow)
+                            )
+                        }
+                    } finally {
+                        lease.close()
+                    }
+                }
+            } else {
+                assertEquals(2, barActions)
+                assertTrue(menuAction("Quit request"))
+                assertTrue(menuAction("Retire"))
+                bar!!.remove(retired)
+                assertTrue(menuAction("Execute"))
+                binding!!.close()
+                binding = Some(application.attachMenuBar(bar!!))
+                application.proxy().post { active -> borrow(active) }
+            }
+        } else {
+            assertEquals(popupMenu!!.id, activation.menu)
+            assertEquals(command, activation.item)
+            when (activation.source) {
+                case Popup(identity, target) -> {
+                    assertEquals(selected!!.id, identity)
+                    assertEquals(window!!.id, target)
+                }
+                else -> fail(Some("wrong popup source"))
+            }
+            popupActions += 1
+        }
+    }
+
+    private fun borrow(application: ActiveApplication) {
+        assertEquals(2, barActions)
+        assertEquals(1, quitRequests)
+        binding!!.close()
+        @Unsafe
+        {
+            borrowed =
+                Some(
+                    bar!!.acquireNativeMenu {
+                        borrowerClosed += 1
+                        borrowed!!.endTracking()
+                        borrowed!!.close()
+                        beginPopup(application)
+                    }
+                )
+            when (borrowed!!.handle) {
+                case AppKit(menu) -> {
+                    assertEquals(1L, menuProperty(menu, "Checked", 0))
+                    assertEquals(2L, menuProperty(menu, "Image", 1))
+                }
+            }
+        }
+        borrowed!!.beginTracking()
+        assertEquals(
+            RequestStatus.Requested,
+            bar!!.update(check, MenuItemDescription("Checked", enabled = false))
+        )
+        assertFalse(borrowed!!.activate(check))
+        bar!!.close()
+        @Unsafe
+        {
+            when (borrowed!!.handle) {
+                case AppKit(menu) -> assertEquals(1, nativeClosingMenuRole(menu))
+            }
+        }
+    }
+
+    private fun beginPopup(application: ActiveApplication) {
+        val menu = application.createMenu()
+        popupMenu = Some(menu)
+        command = menu.insert(MenuItemDescription("Choose"))
+        check = menu.insert(MenuItemDescription("Check", kind = MenuItemKind.Checkbox(false)))
+        cancelled =
+            Some(window!!.showPopup(menu, PopupPlacement.Pointer(LogicalPosition(12.0, 12.0))))
+        cancelled!!.close()
+        assertCancelled(cancelled!!.result!!, PopupCancelReason.ExplicitClose)
+        selected =
+            Some(
+                window!!.showPopup(
+                    menu,
+                    PopupPlacement.Anchor(
+                        LogicalRect(LogicalPosition(12.0, 12.0), LogicalSize(40.0, 16.0))
+                    )
+                )
+            )
+        window!!.createDeadline {
+            @Unsafe
+            {
+                assertEquals(1, nativeMenuTracking())
+            }
+            assertEquals(
+                RequestStatus.Requested,
+                menu.update(check, MenuItemDescription("Check", kind = MenuItemKind.Checkbox(true)))
+            )
+            updatedDuringTracking = true
+            assertTrue(popupAction("Choose"))
+        }.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+    }
+
+    private fun closeTarget() {
+        targetClosed =
+            Some(
+                window!!.showPopup(popupMenu!!, PopupPlacement.Pointer(LogicalPosition(12.0, 12.0)))
+            )
+        window!!.createDeadline { window!!.requestDestroy() }
+        .schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+    }
+}
+
+private fun assertCancelled(result: PopupResult, reason: PopupCancelReason) {
+    when (result) {
+        case Cancelled(value) -> assertEquals(reason, value)
+        else -> fail(Some("expected popup cancellation"))
+    }
+}

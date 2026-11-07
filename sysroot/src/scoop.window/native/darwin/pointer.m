@@ -38,6 +38,8 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
     data.dy = native.scrollingDeltaY * (kind == 6 ? data.scale : 1);
   }
   event.data = data;
+  if (kind == 3)
+    event.nativeInput = native;
   [view.owner.application enqueue:event];
 }
 
@@ -108,6 +110,8 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
   pointer(self, event, 2);
 }
 - (void)mouseDown:(NSEvent *)event {
+  if (sw_frame_pointer(self, event))
+    return;
   pointer(self, event, 3);
 }
 - (void)rightMouseDown:(NSEvent *)event {

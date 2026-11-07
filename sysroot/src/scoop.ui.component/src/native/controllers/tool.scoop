@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.copy as copyWindowAttributes
+
+public enum NativeToolAppearance {
+    RequireTool, PreferTool, Normal
+}
+
+public class NativeToolWindowController internal constructor(
+    private val scope: NativeControllerScope,
+    private val owner: Window
+): Closeable {
+    private var current: NativeOwnedWindow? = None
+    private val open = state(false)
+    private var closed = false
+    public val isOpen: Boolean get() = open.value
+    public val window: Window? get() {
+        open.value;
+        return current?.window
+    }
+
+    public fun <C: Component> open(
+        create: (ComponentScope) -> C,
+        onClosed: () -> Unit = {},
+        attributes: WindowAttributes = windowAttributes(),
+        appearance: NativeToolAppearance = NativeToolAppearance.RequireTool,
+        fonts: FontCollection? = None
+    ): Boolean =
+        scope.request {
+            if (closed)
+                return@request false
+            when (current) {
+                case Some(_) -> return@request false;
+                case None -> {}
+            }
+            val supported = scope.application.desktopCapabilities().windows.toolWindow
+            val role =
+                when (appearance) {
+                    case RequireTool -> {
+                        if (!supported)
+                            throw WindowException("native tool window", WindowErrorKind.Unsupported)
+                        WindowRole.Tool
+                    }
+                    case PreferTool -> if (supported)
+                        WindowRole.Tool
+                    else
+                        WindowRole.Normal
+                    case Normal -> WindowRole.Normal
+                }
+            val parent = owner
+            val created =
+                scope.application.createWindow(
+                    attributes.copyWindowAttributes {
+                        this.relation = WindowRelation.Owned(parent)
+                        this.visible = false
+                        this.requestActivation = false
+                        this.role = role
+                    }
+                )
+            val owned = NativeOwnedWindow(created)
+            current = Some(owned)
+            try {
+                owned.events =
+                    Some(
+                        scope.observeWindow(created) {
+                            event -> when (event) {
+                                case CloseRequested -> closeWindow()
+                                case Closing -> open.value = false
+                                case Destroyed -> {
+                                    current = None
+                                    open.value = false
+                                    owned.close()
+                                    if (!closed)
+                                        onClosed()
+                                }
+                                else -> {}
+                            }
+                        }
+                    )
+                owned.ui = scope.host.attach(created, create, fonts)
+                when (owned.ui) {
+                    case None -> {
+                        current = None
+                        owned.close()
+                        return@request false
+                    }
+                    case Some(_) -> {}
+                }
+                if (closed || !scope.mounted) {
+                    owned.close()
+                    return@request false
+                }
+                created.setVisible(true)
+                if (attributes.requestActivation)
+                    created.requestFocus()
+                open.value = true
+                true
+            } catch (error: Throwable) {
+                current = None
+                open.value = false
+                throwNative(cleanupNative(Some(error)) { owned.close() })
+                false
+            }
+        }
+    public fun closeWindow() {
+        if (!closed)
+            scope.dispatch {
+                open.value = false
+                current?.closeContent()
+            }
+    }
+    public override fun close() {
+        scope.mounted
+        if (closed)
+            return
+        closed = true
+        val owned = current
+        current = None
+        open.value = false
+        owned?.close()
+    }
+}
+
+public fun ComponentScope.nativeToolWindowController(): NativeToolWindowController =
+    resource { NativeToolWindowController(NativeControllerScope.Window(this), nativeWindow) }

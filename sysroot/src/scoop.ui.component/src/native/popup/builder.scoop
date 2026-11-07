@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.window.PopupResult
+
+public class NativeMenuButtonBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var variant: ButtonVariant = ButtonVariant.Default
+    public var size: ButtonSize = ButtonSize.Default
+    public var style: ButtonStyle = buttonStyle()
+    public var focus: FocusOptions = FocusOptions()
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var group: GroupPosition? = None
+    public var handle: NativePopupHandle? = None
+    public var onClosed: (PopupResult) -> Unit = {}
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+}
+
+public fun nativeMenuButton(
+    text: String,
+    menu: NativeMenuContent,
+    configure: NativeMenuButtonBuilder.() -> Unit = {}
+): View {
+    val builder = NativeMenuButtonBuilder()
+    builder.configure()
+    return component(
+        NativeMenuButtonProps(
+            PopupTriggerSpec(
+                ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                builder.enabled,
+                builder.variant,
+                builder.size,
+                builder.style,
+                builder.focus,
+                builder.fonts
+            ),
+            menu,
+            builder.theme,
+            builder.group,
+            builder.handle,
+            builder.onClosed
+        ),
+        { current, mount -> NativeMenuButton(current, scope = mount) },
+        builder.key
+    )
+}
+
+public class NativeContextMenuBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var handle: NativePopupHandle? = None
+    public var onClosed: (PopupResult) -> Unit = {}
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun nativeContextMenu(
+    content: View,
+    menu: NativeMenuContent,
+    configure: NativeContextMenuBuilder.() -> Unit = {}
+): View {
+    val builder = NativeContextMenuBuilder()
+    builder.configure()
+    return component(
+        NativeContextMenuProps(content, menu, builder.enabled, builder.handle, builder.onClosed),
+        { current, mount -> NativeContextMenu(current, scope = mount) },
+        builder.key
+    )
+}

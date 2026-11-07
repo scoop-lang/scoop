@@ -1,0 +1,111 @@
+package scoop.tests.ui.application
+
+import scoop.ui.*
+import scoop.window.*
+import scoop.test.*
+
+internal fun runOwnershipCases(
+    probe: OwnershipProbe,
+    host: UiHost,
+    application: ActiveApplication
+) {
+    for (mode in [OwnershipMode.DuplicateKeys, OwnershipMode.DuplicateInstance]) {
+        probe.mode = mode
+        val result = host.attachApplication(application) { OwnershipRoot(probe, it) }
+        when (result) {
+            case Some(_) -> fail(Some("invalid description was mounted"))
+            case None -> {}
+        }
+        assertFalse(host.isClosed)
+    }
+    assertEquals(2, probe.errors)
+    assertEquals(2, probe.disposals)
+    assertEquals(1, probe.entryDisposals)
+    assertEquals(0, probe.entryUnmounts)
+    probe.mode = OwnershipMode.Empty
+    val handle = host.attachApplication(application) { OwnershipRoot(probe, it) }!!
+    val scope = probe.root!!.scope
+    scope.dispatch {
+        probe.borrowed = true
+        scope.dispatch { handle.close() }
+        assertEquals(2, probe.disposals)
+        probe.borrowed = false
+    }
+    assertTrue(handle.isClosed)
+    assertEquals(3, probe.disposals)
+    assertEquals(1, probe.unmounts)
+    assertFalse(scope.dispatch { fail(Some("closed root accepted a callback")) })
+}
+
+internal enum OwnershipMode {
+    DuplicateKeys, DuplicateInstance, Empty
+}
+
+internal class OwnershipProbe {
+    var mode = OwnershipMode.Empty
+    var errors = 0
+    var disposals = 0
+    var entryDisposals = 0
+    var entryUnmounts = 0
+    var unmounts = 0
+    var borrowed = false
+    var root: OwnershipRoot? = None
+    var entry: OwnershipEntry? = None
+    fun report(error: Throwable) {
+        when (mode) {
+            case DuplicateKeys -> assertTrue(error is IllegalArgumentException)
+            case DuplicateInstance -> assertTrue(error is IllegalStateException)
+            case Empty -> throw error
+        }
+        assertFalse(borrowed)
+        errors += 1
+        assertEquals(errors, disposals)
+    }
+}
+
+internal class OwnershipRoot(private val probe: OwnershipProbe, scope: ApplicationScope):
+ApplicationComponent(scope) {
+    init {
+        probe.root = Some(this)
+        scope.onDispose {
+            assertFalse(probe.borrowed)
+            probe.disposals += 1
+        }
+    }
+    public override fun render(): ApplicationContent {
+        if (probe.mode == OwnershipMode.Empty)
+            return ApplicationContent([])
+        return ApplicationContent(
+            Array<ApplicationItem>(2L) {
+                index -> applicationElement(
+                    {
+                        mount ->
+                        val existing = probe.entry
+                        val value = existing ?: OwnershipEntry(probe, mount)
+                        probe.entry = Some(value)
+                        value
+                    },
+                    ViewKey.Number(
+                        if (probe.mode == OwnershipMode.DuplicateKeys)
+                            1L
+                        else
+                            index
+                    )
+                )
+            }
+        )
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+}
+
+internal class OwnershipEntry(private val probe: OwnershipProbe, scope: ApplicationScope):
+ApplicationElement(scope) {
+    init {
+        scope.onDispose { probe.entryDisposals += 1 }
+    }
+    public override fun onUnmount() {
+        probe.entryUnmounts += 1
+    }
+}

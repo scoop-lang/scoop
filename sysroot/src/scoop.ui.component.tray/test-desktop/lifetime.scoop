@@ -1,0 +1,11 @@
+package scoop.ui.component.tray
+
+import scoop.test.*
+
+@Test
+private class NativeTrayTests {
+    @Test
+    fun `native tray mounts update independently and clean up their application scope`() {
+        runUiTray()
+    }
+}

@@ -52,6 +52,8 @@ internal class PointerCancellationProbe {
                 sequence += when (reason) {
                     case FocusLost -> "f"
                     case CaptureLost -> "x"
+                    case SystemOperation -> "s"
+                    case Modal -> "m"
                 }
             }
             else -> {}

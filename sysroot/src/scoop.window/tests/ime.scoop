@@ -13,7 +13,7 @@ internal class ImeProbe {
     var text = TextInputState("[]", Utf8Selection(1L, 1L))
 
     fun start(window: Window, lease: NativeWindowLease) {
-        window.setDecorations(false)
+        window.setFrame(WindowFrame.Client)
         window.requestFocus()
         assertFailsWith<IllegalArgumentException> {
             window.setImeCursorArea(LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(-1.0, 2.0)))
@@ -35,7 +35,7 @@ internal class ImeProbe {
         }
         window.setImeAllowed(false)
         window.setImeAllowed(false)
-        window.setDecorations(true)
+        window.setFrame(WindowFrame.System(WindowContentMode.Standard))
         gcCollect()
     }
 

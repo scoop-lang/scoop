@@ -28,6 +28,14 @@ public class CanvasGeometry internal constructor(
                 Some(result.rect)
         }
     }
+    /** Rasterizes final transformed coverage and all clips on a logical grid. */
+    public fun rasterizeRegion(scale: Double = 1.0): Array<Rect> {
+        checkRegionScale(scale)
+        @Unsafe
+        {
+            return copyRegion(geometryRegion(resource.get(), scale))
+        }
+    }
     public fun hitTest(windowPoint: Point): Boolean {
         checkPoint(windowPoint)
         @Unsafe
@@ -111,3 +119,6 @@ private fun geometryBounds(geometry: Ptr<Unit>): Rect
 
 @Extern(name = "scoop_graphics_geometry_visible")
 private fun geometryVisible(geometry: Ptr<Unit>): NativeGeometryBounds
+
+@Extern(name = "scoop_graphics_geometry_region")
+private fun geometryRegion(geometry: Ptr<Unit>, scale: Double): Ptr<Unit>?

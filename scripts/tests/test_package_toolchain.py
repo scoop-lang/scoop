@@ -132,6 +132,11 @@ class ComponentArchiveTests(unittest.TestCase):
                     ]
                 if target == package_toolchain.GTK_TARGET:
                     target_files += ["include/gtk/gtk/gtk.h", *package_toolchain.GTK_LINK_INPUTS]
+                if target == package_toolchain.TRAY_TARGET:
+                    target_files += [
+                        "include/tray/libdbusmenu-glib/menuitem.h",
+                        *package_toolchain.TRAY_LINK_INPUTS,
+                    ]
                 for relative in target_files:
                     path = target_root / relative
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -360,6 +365,14 @@ class ComponentArchiveTests(unittest.TestCase):
                         self.assertEqual((lib_root / library).read_text(), library)
                 else:
                     self.assertFalse((lib_root / "include/gtk").exists())
+                if target == package_toolchain.TRAY_TARGET:
+                    self.assertTrue(
+                        (lib_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
+                    )
+                    for library in package_toolchain.TRAY_LINK_INPUTS:
+                        self.assertEqual((lib_root / library).read_text(), library)
+                else:
+                    self.assertFalse((lib_root / "include/tray").exists())
                 for variant in (
                     "runtime",
                     "runtime-stress",
@@ -383,6 +396,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     gn="gn",
                     llvm_prefix=work / "llvm",
                     gtk_prefix=work / "gtk",
+                    tray_prefix=work / "tray",
                     llvm_source=work / "llvm-source",
                     mingw_ucrt=work / "ucrt",
                     mingw_msvcrt=work / "msvcrt",
@@ -416,6 +430,16 @@ class ComponentArchiveTests(unittest.TestCase):
                         if call.args[0] == "prepare_gtk.py"
                     )
                     self.assertEqual(gtk[gtk.index("--development-prefix") + 1], args.gtk_prefix)
+                self.assertEqual(
+                    "prepare_tray.py" in scripts, target == package_toolchain.TRAY_TARGET
+                )
+                if target == package_toolchain.TRAY_TARGET:
+                    tray = next(
+                        call.args[1]
+                        for call in run.call_args_list
+                        if call.args[0] == "prepare_tray.py"
+                    )
+                    self.assertEqual(tray[tray.index("--development-prefix") + 1], args.tray_prefix)
                 if target == "x86_64-unknown-linux-musl":
                     self.assertNotIn("build_skia.py", scripts)
                     continue

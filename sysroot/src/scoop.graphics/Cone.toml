@@ -135,6 +135,9 @@ when = { os = "windows" }
 name = "ole32"
 when = { os = "windows" }
 [[native.libraries]]
+name = "uuid"
+when = { os = "windows" }
+[[native.libraries]]
 name = "oleaut32"
 when = { os = "windows" }
 [[native.libraries]]
@@ -207,3 +210,9 @@ when = { os = "linux", env = "gnu" }
 name = "glib-2.0"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/shared/region.cpp"
+
+[[test.sources]]
+path = "tests/region.scoop"

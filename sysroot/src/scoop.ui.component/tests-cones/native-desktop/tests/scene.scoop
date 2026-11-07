@@ -1,0 +1,191 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class DesktopApplication(
+    private val probe: NativeDesktopProbe,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    init {
+        probe.applicationScope = Some(scope)
+    }
+    public override fun render(): ApplicationContent {
+        val probe = this.probe
+        val version = probe.version.value
+        probe.applicationRenders += 1
+        val title =
+            if (probe.changedTitle.value)
+                "Changed"
+            else
+                "App"
+        val content =
+            nativeMenu {
+                submenu(
+                    ViewKey.Text("file"),
+                    "File",
+                    nativeMenu {
+                        item(
+                            ViewKey.Text("action"),
+                            title,
+                            { event -> probe.activated(event, version, false) }
+                        )
+                    }
+                )
+            }
+        return ApplicationContent(
+            [nativeApplicationMenuBar(content, ViewKey.Text("application-menu"))]
+        )
+    }
+}
+
+internal class NativeDesktopRoot(
+    private val probe: NativeDesktopProbe,
+    scope: ComponentScope
+): Component(scope) {
+    init {
+        probe.windowScope = Some(scope)
+    }
+    public override fun render(): View {
+        val probe = this.probe
+        val stage = probe.chromeStage.value
+        val title = probe.showTitle.value
+        val popupVersion = probe.popupVersion.value
+        probe.renderedPopupVersion = popupVersion
+        val popupEnabled = probe.popupEnabled.value
+        val useAlternate = probe.alternatePopup.value
+        val popup =
+            if (useAlternate)
+                probe.otherPopup
+            else
+                probe.popup
+        val caps = scope.application.desktopCapabilities().frame
+        val owner = scope.nativeWindow
+        val menu = nativeMenu { item(ViewKey.Text("action"), "Popup", {}) }
+        var content =
+            column {
+                add(
+                    nativeMenuButton("Native popup", menu) {
+                        handle = Some(popup)
+                        enabled = popupEnabled
+                        onClosed =
+                            {
+                                _ ->
+                                probe.popupClosed += 1;
+                                probe.lastPopupVersion = popupVersion
+                            }
+                    }
+                )
+                add(
+                    nativeContextMenu(element({ mount -> DesktopLeaf(probe, mount) }), menu) {
+                        handle = Some(probe.contextPopup)
+                        onClosed = { _ -> probe.contextClosed += 1 }
+                    }
+                )
+                add(
+                    nativeOpenFileButton(
+                        "Open",
+                        DialogTarget.Owner(owner),
+                        { _ -> probe.buttonResults += 1 }
+                    )
+                )
+                add(
+                    nativeSaveFileButton(
+                        "Save",
+                        DialogTarget.Owner(owner),
+                        { _ -> probe.buttonResults += 1 }
+                    )
+                )
+            }
+        content =
+            windowChrome(content) {
+                frame =
+                    if (stage == 0)
+                        WindowFrame.Client
+                    else
+                        WindowFrame.System(WindowContentMode.Standard)
+                transparent = Some(true)
+                clip =
+                    if (stage == 0)
+                        Some(WindowChromeShape.Rounded(12.0))
+                    else
+                        None
+                windowShape =
+                    if (stage == 0 && caps.windowRegion)
+                        Some(WindowChromeShape.Rounded(12.0))
+                    else
+                        None
+                inputShape =
+                    if (stage == 0 && caps.inputRegion)
+                        Some(WindowChromeShape.Rounded(12.0))
+                    else
+                        None
+                if (title)
+                    titleBar = Some(windowDragRegion(windowControls()) { enabled = caps.beginMove })
+            }
+        if (probe.windowOverride.value) {
+            val version = probe.version.value
+            val override =
+                nativeMenu {
+                    submenu(
+                        ViewKey.Text("file"),
+                        "File",
+                        nativeMenu {
+                            item(
+                                ViewKey.Text("action"),
+                                "Window",
+                                { event -> probe.activated(event, version, true) }
+                            )
+                        }
+                    )
+                }
+            content = nativeWindowMenuBar(content, override)
+        }
+        return content
+    }
+}
+
+internal class DesktopLeaf(private val probe: NativeDesktopProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
+        probe.bodyMounts += 1
+    }
+    public override fun onUnmount() {
+        probe.bodyUnmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.bodyMeasures += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 70.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { target -> target.canvas.drawRect(bounds, Paint(Color.White)) }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> probe.accepted += 1
+                else -> {}
+            }
+        }
+    }
+}
+
+internal class NativeChild(
+    private val probe: NativeDesktopProbe,
+    scope: ComponentScope,
+    private val mounted: () -> Unit = {}
+): Component(scope) {
+    public override fun onMount() {
+        probe.childrenMounted += 1;
+        mounted()
+    }
+    public override fun onUnmount() {
+        probe.childrenUnmounted += 1
+    }
+    public override fun render(): View = empty()
+}

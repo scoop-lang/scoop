@@ -1,0 +1,11 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.test.*
+
+@Test
+private class NativeDesktopTests {
+    @Test
+    fun `native UI menus chrome and owned dialogs follow their mounted scopes`() {
+        runNativeDesktop()
+    }
+}

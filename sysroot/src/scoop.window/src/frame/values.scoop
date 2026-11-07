@@ -1,0 +1,136 @@
+package scoop.window
+
+public enum WindowContentMode {
+    Standard, Extended
+}
+
+/** Client suppresses host decoration without disabling native window operations. */
+public enum WindowFrame {
+    System(WindowContentMode), Client
+}
+
+public enum WindowShadow {
+    System, None
+}
+
+public enum WindowResizeEdge {
+    Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight
+}
+
+public enum WindowSystemButton {
+    Close, Minimize, Maximize
+}
+
+public struct WindowSystemButtonBounds(val button: WindowSystemButton, val bounds: LogicalRect)
+
+public struct WindowFrameMetrics(
+    val frame: WindowFrame,
+    val metrics: WindowMetrics,
+    val contentLayout: LogicalRect?,
+    val systemButtons: Array<WindowSystemButtonBounds>,
+    val visibleBorderThickness: Double?
+)
+
+public struct WindowFrameCapabilities(
+    val client: Boolean,
+    val extendedContent: Boolean,
+    val systemResizeEdges: Boolean,
+    val beginMove: Boolean,
+    val beginResize: Boolean,
+    val windowMenu: Boolean,
+    val windowRegion: Boolean,
+    val inputRegion: Boolean,
+    val ignoreMouse: Boolean,
+    val shadow: Boolean,
+    val resizeHitRegions: Boolean,
+    val systemButtonHitRegions: Boolean
+)
+
+/** Immutable binary coverage in logical content coordinates. */
+public class WindowRegion public constructor(public val rectangles: Array<LogicalRect>) {
+    init {
+        for (rect in rectangles) {
+            checkRect(rect)
+            requireWindow(
+                (rect.origin.x + rect.size.width).isFinite() &&
+                    (rect.origin.y + rect.size.height).isFinite(),
+                "region endpoint overflow"
+            )
+        }
+    }
+    public fun contains(point: LogicalPosition): Boolean {
+        checkPosition(point)
+        for (rect in rectangles)
+            if (
+                point.x >=
+                    rect.origin.x &&
+                    point.y >=
+                    rect.origin.y &&
+                    point.x <
+                    rect.origin.x +
+                    rect.size.width &&
+                    point.y <
+                    rect.origin.y +
+                    rect.size.height
+            )
+                return true
+        return false
+    }
+}
+
+public enum WindowHitRole {
+    Client, Caption, Resize(WindowResizeEdge), SystemButton(WindowSystemButton)
+}
+
+/** Published order resolves overlaps after reserved native buttons. */
+public struct WindowHitRegion(val region: WindowRegion, val role: WindowHitRole)
+
+internal fun frameCode(frame: WindowFrame): Int =
+    when (frame) {
+        case System(WindowContentMode.Standard) -> 0
+        case System(WindowContentMode.Extended) -> 1
+        case Client -> 2
+    }
+
+internal fun frameValue(code: Int): WindowFrame =
+    when (code) {
+        0 -> WindowFrame.System(WindowContentMode.Standard)
+        1 -> WindowFrame.System(WindowContentMode.Extended)
+        2 -> WindowFrame.Client
+        else -> throw WindowException("native frame mode", WindowErrorKind.NativeFailure)
+    }
+
+internal fun resizeEdgeCode(edge: WindowResizeEdge): Int =
+    when (edge) {
+        case Left -> 0;
+        case Right -> 1;
+        case Top -> 2;
+        case Bottom -> 3
+        case TopLeft -> 4;
+        case TopRight -> 5;
+        case BottomLeft -> 6;
+        case BottomRight -> 7
+    }
+
+internal fun systemButtonCode(button: WindowSystemButton): Int =
+    when (button) {
+        case Close -> 0;
+        case Minimize -> 1;
+        case Maximize -> 2
+    }
+
+internal fun systemButtonValue(code: Int): WindowSystemButton =
+    when (code) {
+        0 -> WindowSystemButton.Close;
+        1 -> WindowSystemButton.Minimize;
+        2 -> WindowSystemButton.Maximize
+        else -> throw WindowException("native frame button", WindowErrorKind.NativeFailure)
+    }
+
+internal fun hitRoleCode(role: WindowHitRole): Int =
+    when (role) {
+        case Client -> 0;
+        case Caption -> 1
+        case Resize(edge) -> 2 + resizeEdgeCode(edge)
+        case SystemButton(button) -> 10 + systemButtonCode(button)
+    }

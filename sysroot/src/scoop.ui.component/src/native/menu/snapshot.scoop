@@ -1,0 +1,80 @@
+package scoop.ui.component
+
+import scoop.ui.ViewKey
+import scoop.window.*
+
+/** Captures native display values while the owner is collecting render dependencies. */
+public class NativeMenuSnapshot internal constructor(internal val entries: Array<NativeMenuValue>)
+
+internal enum NativeMenuCategory {
+    Action, Role, Checkbox, Radio, Submenu, Separator
+}
+
+internal class NativeMenuValue(
+    val key: ViewKey,
+    val category: NativeMenuCategory,
+    val description: MenuItemDescription,
+    val action: ((MenuActivation) -> Unit)?,
+    val children: Array<NativeMenuValue> = []
+)
+
+public fun NativeMenuContent.snapshot(): NativeMenuSnapshot =
+    NativeMenuSnapshot(
+        Array<NativeMenuValue>(entries.size) { index -> nativeMenuValue(entries[index]) }
+    )
+
+private fun nativeMenuValue(entry: NativeMenuEntry): NativeMenuValue {
+    return when (entry) {
+        case Action(item, action) -> NativeMenuValue(
+            item.key,
+            NativeMenuCategory.Action,
+            nativeDescription(item, MenuItemKind.Action),
+            Some(action)
+        )
+        case Role(item, role) -> NativeMenuValue(
+            item.key,
+            NativeMenuCategory.Role,
+            nativeDescription(item, MenuItemKind.Action, MenuCommand.Role(role)),
+            None
+        )
+        case Checkbox(item, checked, changed) -> NativeMenuValue(
+            item.key,
+            NativeMenuCategory.Checkbox,
+            nativeDescription(item, MenuItemKind.Checkbox(checked.value)),
+            Some {
+                _ ->
+                val before = checked.value
+                checked.value = !before
+                val accepted = checked.value
+                if (accepted != before)
+                    changed(accepted)
+            }
+        )
+        case Radio(item, selected, action) -> NativeMenuValue(
+            item.key,
+            NativeMenuCategory.Radio,
+            nativeDescription(item, MenuItemKind.Radio(selected())),
+            Some { _ -> action() }
+        )
+        case Submenu(item, content) -> NativeMenuValue(
+            item.key,
+            NativeMenuCategory.Submenu,
+            nativeDescription(item, MenuItemKind.Submenu),
+            None,
+            content.snapshot().entries
+        )
+        case Separator(key) -> NativeMenuValue(
+            key,
+            NativeMenuCategory.Separator,
+            MenuItemDescription(kind = MenuItemKind.Separator),
+            None
+        )
+    }
+}
+
+private fun nativeDescription(
+    item: NativeMenuItemSpec,
+    kind: MenuItemKind,
+    command: MenuCommand = MenuCommand.Action
+): MenuItemDescription =
+    MenuItemDescription(item.label, kind, item.enabled, item.image, item.shortcut, command)

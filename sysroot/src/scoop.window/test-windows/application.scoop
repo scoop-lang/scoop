@@ -178,8 +178,8 @@ private class WindowsHandler: ApplicationHandler {
         first.setResizeIncrements(Some(LogicalSize(2.0, 2.0)))
         first.setResizable(false);
         first.setResizable(true)
-        first.setDecorations(false);
-        first.setDecorations(true)
+        first.setFrame(WindowFrame.Client);
+        first.setFrame(WindowFrame.System(WindowContentMode.Standard))
         first.setEnabledButtons(WindowButtons())
         first.setWindowLevel(WindowLevel.AlwaysOnTop)
         first.requestMinimized(true)

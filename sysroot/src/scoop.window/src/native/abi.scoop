@@ -90,7 +90,9 @@ internal fun nativeWindowCreateResult(
     length: Long,
     width: Double,
     height: Double,
-    flags: Int
+    flags: Int,
+    owner: Ptr<Unit>?,
+    role: Int
 ): NativeCreateResult
 
 @Extern(name = "scoop_window_snapshot")

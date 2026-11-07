@@ -1,0 +1,11 @@
+package scoop.window.native
+
+import scoop.window.*
+
+public enum NativeMenuHandle {
+    Gtk(Ptr<Unit>, Ptr<Unit>)
+}
+
+@Unsafe
+internal fun platformNativeMenuHandle(menu: Ptr<Unit>): NativeMenuHandle =
+    NativeMenuHandle.Gtk(nativeMenuHandle(menu), nativeMenuActions(menu)!!)

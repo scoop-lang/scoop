@@ -37,7 +37,8 @@ public enum WindowErrorKind {
 public class WindowException public constructor(
     public val operation: String,
     public val kind: WindowErrorKind,
-    public val nativeCode: Long? = None
+    public val nativeCode: Long? = None,
+    public val nativeDomain: String? = None
 ): Exception(Some("window operation failed: " + operation)) {
     public val backend: WindowBackend = platformBackend()
 }

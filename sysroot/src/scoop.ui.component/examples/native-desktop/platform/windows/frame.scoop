@@ -1,0 +1,49 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.platform.windows.*
+
+internal fun platformFrameControls(root: DocumentView): View {
+    val window = root.document.window
+    val caps = window.windowsFrameCapabilities()
+    return row {
+        spacing = 8.0
+        button(
+            if (root.nativeStyle.value)
+                "Reset DWM appearance"
+            else
+                "Color DWM frame",
+            {
+                val next = !root.nativeStyle.value
+                val color =
+                    if (next)
+                        WindowsFrameColor.Rgb(36.toUByte(), 108.toUByte(), 215.toUByte())
+                    else
+                        WindowsFrameColor.Default
+                if (caps.borderColor)
+                    window.setWindowsBorderColor(color)
+                if (caps.captionColor)
+                    window.setWindowsCaptionColor(color)
+                if (caps.textColor)
+                    window.setWindowsTextColor(
+                        if (next)
+                            WindowsFrameColor.Rgb(255.toUByte(), 255.toUByte(), 255.toUByte())
+                        else
+                            WindowsFrameColor.Default
+                    )
+                root.nativeStyle.value = next
+                root.demo.report("Supported DWM frame colors updated.")
+            }
+        ) { enabled = caps.borderColor || caps.captionColor || caps.textColor }
+        button(
+            "DWM round corners",
+            { window.setWindowsCornerPreference(WindowsCornerPreference.Round) }
+        ) { enabled = caps.cornerPreference }
+        button(
+            "DWM square corners",
+            { window.setWindowsCornerPreference(WindowsCornerPreference.Square) }
+        ) { enabled = caps.cornerPreference }
+        label("Hover the custom maximize button to inspect Windows Snap Layout.")
+    }
+}

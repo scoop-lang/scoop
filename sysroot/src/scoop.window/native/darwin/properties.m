@@ -1,4 +1,5 @@
 #import "window.h"
+#import <QuartzCore/QuartzCore.h>
 #include <float.h>
 
 static void set_style(SWWindow *owner, NSWindowStyleMask style) {
@@ -43,16 +44,6 @@ int64_t scoop_window_resizable(void *pointer, int32_t value) {
   NSWindowStyleMask style = owner.window.styleMask;
   set_style(owner, value ? style | NSWindowStyleMaskResizable
                          : style & ~NSWindowStyleMaskResizable);
-  return 0;
-}
-
-int64_t scoop_window_decorations(void *pointer, int32_t value) {
-  SWWindow *owner = (__bridge SWWindow *)pointer;
-  NSWindowStyleMask decorations = NSWindowStyleMaskTitled |
-                                  NSWindowStyleMaskClosable |
-                                  NSWindowStyleMaskMiniaturizable;
-  NSWindowStyleMask style = owner.window.styleMask;
-  set_style(owner, value ? style | decorations : style & ~decorations);
   return 0;
 }
 
@@ -101,6 +92,7 @@ int64_t scoop_window_theme(void *pointer, int32_t value) {
 
 static void background(SWWindow *owner) {
   owner.window.opaque = !(owner.transparent || owner.effect);
+  owner.view.layer.opaque = owner.window.opaque;
   owner.window.backgroundColor =
       owner.window.opaque ? NSColor.windowBackgroundColor : NSColor.clearColor;
 }
@@ -155,9 +147,7 @@ void scoop_window_titlebar(void *pointer, int32_t flags) {
   window.titlebarAppearsTransparent = (flags & 1) != 0;
   window.titleVisibility =
       (flags & 2) ? NSWindowTitleHidden : NSWindowTitleVisible;
-  NSWindowStyleMask style = window.styleMask;
-  set_style(owner, (flags & 4) ? style | NSWindowStyleMaskFullSizeContentView
-                               : style & ~NSWindowStyleMaskFullSizeContentView);
+  sw_frame_invalidate(owner);
 }
 
 typedef struct {

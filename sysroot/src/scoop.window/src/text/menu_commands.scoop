@@ -1,0 +1,47 @@
+package scoop.window
+
+/** Availability of the six standard menu edits, independent of an IME connection. */
+public struct TextCommandAvailability(
+    val cut: Boolean = false,
+    val copy: Boolean = false,
+    val paste: Boolean = false,
+    val selectAll: Boolean = false,
+    val undo: Boolean = false,
+    val redo: Boolean = false
+)
+
+public var Window.textCommandAvailability: TextCommandAvailability?
+get() {
+    owner.requireOpen()
+    return owner.textCommands
+}
+set(value) {
+    owner.requireOpen()
+    if (owner.textCommands == value)
+        return
+    val flags =
+        when (value) {
+            case None -> 0
+            case Some(commands) -> 64 +
+                flag(commands.cut) +
+                flag(commands.copy) *
+                2 +
+                flag(commands.paste) *
+                4 +
+                flag(commands.selectAll) *
+                8 +
+                flag(commands.undo) *
+                16 +
+                flag(commands.redo) *
+                32
+        }
+    @Unsafe
+    {
+        nativeTextCommands(owner.pointer!!, flags)
+    }
+    owner.textCommands = value
+}
+
+@Extern(name = "scoop_window_text_commands")
+@Unsafe
+internal fun nativeTextCommands(window: Ptr<Unit>, flags: Int)

@@ -1,0 +1,21 @@
+package scoop.tests.ui.desktop
+
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun nativeRegionQuery(target: Window, field: Int, x: Double = 0.0, y: Double = 0.0): Int {
+    @Unsafe
+    {
+        return target.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case AppKit(window, view) -> return@use regionQuery(window, view, field, x, y)
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_ui_region")
+private fun regionQuery(window: Ptr<Unit>, view: Ptr<Unit>, field: Int, x: Double, y: Double): Int

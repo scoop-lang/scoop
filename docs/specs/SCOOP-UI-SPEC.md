@@ -822,6 +822,8 @@ Label、Typography、Button 内容、可选择文字、Input／Textarea／OTP、
 
 ## 9. 宿主、关闭与错误
 
+应用级挂载、无窗口 State 更新、ApplicationScope 及原生资源事件的 D7 合同见[UI 应用挂载与原生资源规范](SCOOP-UI-DESKTOP-SPEC.md)。其应用根复用本节宿主与错误规则，不创建隐藏 Surface；实际交付状态见该文档引用的实施记录。
+
 `UiHost(onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error }, handler = { _, _, _ -> })` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create, fonts = None): UiWindow?` 成功返回 Some(UiWindow)，初次构造／挂载失败则清理并交付根错误，处理器正常返回时返回 None；挂载回调主动关闭根同样返回 None。错误线程或已经关闭的宿主在开始附着前直接拒绝。处理器默认重新抛出，不默默丢弃错误；调用方可以提供正常返回的处理器，使其他根继续运行。
 
 `runUiApplication(title, create, fonts = None)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；根错误采用明确的重新抛出策略，退出事件循环并向调用方报告失败。复杂窗口策略使用显式 UiHost。UiWindow.close 及已处理的根错误均只关闭根和 Surface，原生 Window 仍由调用方持有，不隐式触发 LastWindowPolicy；错误处理器可按 WindowId 选择销毁原生窗口或退出应用。

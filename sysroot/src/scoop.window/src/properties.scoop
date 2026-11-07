@@ -101,23 +101,6 @@ public fun Window.setResizable(value: Boolean): RequestStatus {
     }
 }
 
-/** Changes native decorations while retaining the configured button policy. */
-public fun Window.setDecorations(value: Boolean): RequestStatus {
-    owner.requireOpen()
-    @Unsafe
-    {
-        val status =
-            nativeRequestStatus(
-                nativeWindowDecorations(owner.pointer!!, flag(value)),
-                "decorations"
-            )
-        if (status == RequestStatus.Unsupported)
-            return status
-    }
-    setEnabledButtons(owner.buttons)
-    return RequestStatus.Applied
-}
-
 /** Sets the native close, minimize, and zoom button availability. */
 public fun Window.setEnabledButtons(buttons: WindowButtons): RequestStatus {
     owner.requireOpen()
@@ -143,6 +126,12 @@ public fun Window.setEnabledButtons(buttons: WindowButtons): RequestStatus {
 /** Selects a native ordering level without claiming keyboard focus. */
 public fun Window.setWindowLevel(level: WindowLevel): RequestStatus {
     owner.requireOpen()
+    if (
+        level ==
+            WindowLevel.AlwaysOnBottom &&
+            (owner.hasOwner || owner.application.hasOwnedWindow(owner))
+    )
+        return RequestStatus.Unsupported
     val value =
         when (level) {
             case Normal -> 0;
@@ -158,6 +147,14 @@ public fun Window.setWindowLevel(level: WindowLevel): RequestStatus {
 /** Requests native miniaturization or restoration. */
 public fun Window.requestMinimized(value: Boolean): RequestStatus {
     owner.requireOpen()
+    if (value) {
+        owner.application.cancelOwnedFileDialogs(owner, FileDialogCancelReason.OwnerHidden)
+        owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
+        when (owner.modalSession) {
+            case Some(session) -> session.end(ModalResult.Cancelled(ModalCancelReason.WindowHidden))
+            case None -> {}
+        }
+    }
     @Unsafe
     {
         return nativeRequestStatus(
@@ -306,6 +303,8 @@ internal fun applyCreationProperties(owner: WindowOwner, attributes: WindowAttri
     {
         platformCreationProperties(owner.pointer!!, attributes.titlebarFlags)
     }
+    requireCreationStatus(window.setFrame(attributes.frame), "frame")
+    requireCreationStatus(window.setShadow(attributes.shadow), "shadow")
     requireCreationStatus(window.setSizeConstraints(attributes.constraints), "constraints")
     requireCreationStatus(
         window.setResizeIncrements(attributes.resizeIncrements),

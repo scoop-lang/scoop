@@ -1,47 +1,16 @@
 package scoop.ui
 
-import scoop.collections.HashMap
-import scoop.collections.HashSet
-
 internal fun MountedNode.reconcile(descriptions: Array<View>, turn: UpdateTurn) {
-    val keys = HashSet<ViewKey>()
-    for (description in descriptions) {
-        if (description.key != ViewKey.Position)
-            requireUi(keys.add(description.key), "duplicate sibling ViewKey")
-    }
     val previous = children
-    val keyed = HashMap<ViewKey, Long>()
-    var oldIndex = 0L
-    for (child in previous) {
-        if (child.view.key != ViewKey.Position)
-            keyed.put(child.view.key, oldIndex)
-        oldIndex += 1L
-    }
-    val used = MutableArray<Boolean>(previous.size) { _ -> false }
-    val matches =
-        Array<MountedNode?>(descriptions.size) {
-            index ->
-            val description = descriptions[index]
-            val candidate =
-                if (description.key == ViewKey.Position) {
-                    if (index < previous.size && previous[index].view.key == ViewKey.Position)
-                        Some(index)
-                    else
-                        None
-                } else
-                    keyed[description.key]
-            when (candidate) {
-                case Some(position) -> {
-                    val child = previous[position]
-                    if (child.active && child.view.sameType(description)) {
-                        used[position] = true
-                        Some(child)
-                    } else
-                        None
-                }
-                case None -> None
-            }
-        }
+    val plan =
+        matchSiblings(
+            previous,
+            descriptions,
+            { it.view.key },
+            { it.key },
+            { child, description -> child.active && child.view.sameType(description) }
+        )
+    val used = plan.used
     // Remove every stale interaction before running any unmount callback.
     var index = 0L
     for (child in previous) {
@@ -64,10 +33,10 @@ internal fun MountedNode.reconcile(descriptions: Array<View>, turn: UpdateTurn) 
     val created = ArrayList<MountedNode>()
     try {
         var position = 0L
-        for (match in matches) {
+        for (match in plan.positions) {
             val child =
                 when (match) {
-                    case Some(value) -> value
+                    case Some(value) -> previous[value]
                     case None -> {
                         val value = createNode(root, Some(this), descriptions[position])
                         created.add(value)

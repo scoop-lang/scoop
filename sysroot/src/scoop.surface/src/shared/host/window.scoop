@@ -25,7 +25,9 @@ public class SurfaceWindow internal constructor(
     private var scheduledAnimationTime: TimeMark? = None
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
     private val inputs = windowInputs(nativeWindow)
+    private val regions = WindowRegionStore(this, inputs, host.frameCapabilities())
     init {
+        inputs.windowRegions = Some(regions)
         host.bindShortcuts(inputs.rootScope)
         animations.scheduleChanged = { refresh() }
     }
@@ -66,6 +68,10 @@ public class SurfaceWindow internal constructor(
         parent: InputScope? = None,
         handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     ): InputScope = inputs.createScope(parent, handler)
+    public fun createWindowRegion(
+        kind: WindowRegionKind,
+        parent: InputScope? = None
+    ): WindowRegionHandle = regions.create(kind, parent)
     public fun clearFocus() {
         inputs.clearFocus()
     }
@@ -103,6 +109,7 @@ public class SurfaceWindow internal constructor(
                     renderer.configure(metrics)
                     configured = Some(metrics)
                     scheduler.request()
+                    regions.geometryChanged()
                     inputs.geometryChanged()
                 }
                 if (phase != SurfaceWindowState.Open)
@@ -155,6 +162,10 @@ public class SurfaceWindow internal constructor(
                     render()
                 }
                 case GeometryChanged(_) -> refresh()
+                case FrameChanged -> {
+                    regions.geometryChanged();
+                    requestFrame()
+                }
                 case Occluded(_) -> {
                     scheduler.request();
                     refresh()
@@ -181,35 +192,46 @@ public class SurfaceWindow internal constructor(
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
                     frame.use {
-                        current -> inputs.beginFrame().use {
-                            placements ->
-                            scheduler.begin()
-                            animations.withFrame<Unit>(time) {
-                                if (phase == SurfaceWindowState.Open) {
-                                    current.draw {
-                                        canvas -> content.paint(
-                                            FrameContext(this, canvas, size, time, placements)
-                                        )
+                        current -> regions.begin(metrics.scaleFactor).use {
+                            nativeRegions -> inputs.beginFrame().use {
+                                placements ->
+                                scheduler.begin()
+                                animations.withFrame<Unit>(time) {
+                                    if (phase == SurfaceWindowState.Open) {
+                                        current.draw {
+                                            canvas -> content.paint(
+                                                FrameContext(
+                                                    this,
+                                                    canvas,
+                                                    size,
+                                                    time,
+                                                    placements,
+                                                    nativeRegions
+                                                )
+                                            )
+                                        }
                                     }
                                 }
+                                // A painter can resize or close its native window synchronously.
+                                refresh()
+                                val accepted =
+                                    if (
+                                        phase !=
+                                            SurfaceWindowState.Open ||
+                                            nativeWindow.state !=
+                                            WindowState.Open ||
+                                            !nativeWindow.isVisible ||
+                                            nativeWindow.isOccluded
+                                    )
+                                        false
+                                    else
+                                        current.submit()
+                                if (accepted) {
+                                    regions.publish(nativeRegions)
+                                    inputs.publish(placements)
+                                }
+                                accepted
                             }
-                            // A painter can resize or close its native window synchronously.
-                            refresh()
-                            val accepted =
-                                if (
-                                    phase !=
-                                        SurfaceWindowState.Open ||
-                                        nativeWindow.state !=
-                                        WindowState.Open ||
-                                        !nativeWindow.isVisible ||
-                                        nativeWindow.isOccluded
-                                )
-                                    false
-                                else
-                                    current.submit()
-                            if (accepted)
-                                inputs.publish(placements)
-                            accepted
                         }
                     }
                 if (!accepted)
@@ -268,6 +290,8 @@ public class SurfaceWindow internal constructor(
         host.requestRetirement()
         failure = cleanupFailure(failure) { renderer.setFrameDemand(false) }
         failure = cleanupFailure(failure) { animationDeadline?.close() }
+        failure = cleanupFailure(failure) { regions.close() }
+        inputs.windowRegions = None
         failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }
     }
@@ -326,5 +350,9 @@ private fun windowInputs(window: Window): InputRouter =
                 publishWindowCaret(window, caret)
             else
                 false
+        },
+        {
+            commands -> if (window.state == WindowState.Open)
+                window.textCommandAvailability = commands
         }
     )

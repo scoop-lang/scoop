@@ -1,0 +1,27 @@
+package scoop.window
+
+/** One immutable, tightly packed straight-alpha RGBA8 image. */
+public class DesktopImageRepresentation public constructor(
+    public val size: PhysicalSize,
+    public val pixels: Array<UInt8>
+) {
+    init {
+        requireWindow(size.width > 0 && size.height > 0, "empty desktop image")
+        val area = size.width.toLong() * size.height.toLong()
+        requireWindow(area <= 2305843009213693951L, "desktop image size overflow")
+        requireWindow(pixels.size == area * 4L, "desktop image byte count")
+    }
+}
+
+/** CPU image data shared by menus and the optional tray Cone. */
+public class DesktopImage public constructor(
+    public val size: LogicalSize,
+    public val representations: Array<DesktopImageRepresentation>,
+    public val template: Boolean = false
+) {
+    init {
+        checkSize(size)
+        requireWindow(size.width > 0.0 && size.height > 0.0, "empty desktop image size")
+        requireWindow(representations.size > 0L, "desktop image has no representations")
+    }
+}

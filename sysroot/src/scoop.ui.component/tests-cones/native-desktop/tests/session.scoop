@@ -1,0 +1,317 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.time.Duration
+import scoop.test.*
+
+internal suspend fun awaitNative(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 250, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(40L))
+    }
+}
+
+internal fun runNativeDesktop() {
+    val probe = NativeDesktopProbe()
+    val theme = ThemeSource(shadcnTheme())
+    UiHost(
+        onRootError = { id, error -> probe.error(id, error) },
+        handler = { host, application, event -> probe.event(host, application, event) }
+    ).use {
+        host -> context(theme) {
+            Application().runWithAsyncio(host)
+        }
+    }
+    assertTrue(probe.finished)
+    assertEquals(probe.childrenMounted, probe.childrenUnmounted)
+    assertEquals(2, probe.failures)
+}
+
+internal class NativeDesktopProbe {
+    val version = state(1)
+    val changedTitle = state(false)
+    val windowOverride = state(false)
+    val chromeStage = state(0)
+    val showTitle = state(true)
+    val popupVersion = state(1)
+    val popupEnabled = state(true)
+    val alternatePopup = state(false)
+    val popup = NativePopupHandle()
+    val otherPopup = NativePopupHandle()
+    val contextPopup = NativePopupHandle()
+    var applicationScope: ApplicationScope? = None
+    var windowScope: ComponentScope? = None
+    var applicationRenders = 0
+    var accepted = 0
+    var bodyMounts = 0
+    var bodyUnmounts = 0
+    var bodyMeasures = 0
+    var childrenMounted = 0
+    var childrenUnmounted = 0
+    var popupClosed = 0
+    var renderedPopupVersion = 0
+    var contextClosed = 0
+    var lastPopupVersion = 0
+    var buttonResults = 0
+    var actions = 0
+    var lastActionVersion = 0
+    var lastOverride = false
+    var lastSource: MenuSource? = None
+    var closeRequests = 0
+    var finished = false
+    var failures = 0
+    private var duplicateWindow: WindowId? = None
+    private val expectedFailure =
+        IllegalStateException(Some("expected native controller callback failure"))
+    private var first: Window? = None
+    private var second: Window? = None
+    private var firstUi: UiWindow? = None
+    private var secondUi: UiWindow? = None
+    private var applicationUi: UiApplication? = None
+
+    fun activated(event: MenuActivation, version: Int, override: Boolean) {
+        actions += 1
+        lastActionVersion = version
+        lastOverride = override
+        lastSource = Some(event.source)
+    }
+    fun error(id: WindowId, error: Throwable) {
+        if (Some(id) == duplicateWindow)
+            assertTrue(error is IllegalStateException)
+        else {
+            assertEquals(first!!.id, id)
+            if (!(error === expectedFailure))
+                throw error
+        }
+        failures += 1
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                applicationUi = host.attachApplication(application) { DesktopApplication(this, it) }
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Native UI desktop integration"
+                            size = LogicalSize(520.0, 360.0)
+                            requestActivation = false
+                            frame = WindowFrame.Client
+                            transparent = true
+                        }
+                    )
+                first = Some(native)
+                firstUi = host.attach(native, { NativeDesktopRoot(this, it) })
+                val other =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Independent native menu owner"
+                            size = LogicalSize(440.0, 280.0)
+                            requestActivation = false
+                        }
+                    )
+                second = Some(other)
+                secondUi = host.attach(other, { PassiveRoot(it) })
+                currentApplicationScope().launch {
+                    this @NativeDesktopProbe.scenario(host, application, native, other)
+                }
+            }
+            case Window(id, WindowEvent.CloseRequested) -> {
+                if (first?.id == Some(id))
+                    closeRequests += 1
+            }
+            else -> {}
+        }
+    }
+    private suspend fun scenario(
+        host: UiHost,
+        application: ActiveApplication,
+        native: Window,
+        other: Window
+    ) {
+        awaitNative("first accepted native UI frame") { accepted > 0 }
+        awaitNative("both native windows configured") {
+            native.state == WindowState.Open && other.state == WindowState.Open
+        }
+        val model = MenuModelProbe(applicationScope!!)
+        try {
+            model.run()
+        } finally {
+            model.close()
+        }
+        awaitNative("application menu attached") {
+            nativeMenuLabel(native) == 1 && nativeMenuLabel(other) == 1
+        }
+        assertEquals(1, nativeMenuLabel(native, true))
+        awaitNative("application menu native action") { actions == 1 }
+        assertEquals(1, lastActionVersion)
+        assertFalse(lastOverride)
+        val perWindow = application.desktopCapabilities().menus.windowMenuBar
+        if (perWindow)
+            assertEquals(Some(MenuSource.WindowMenuBar(native.id)), lastSource)
+
+        currentEventLoop().sleep(Duration.milliseconds(100L))
+        val frames = accepted
+        val renders = applicationRenders
+        version.value = 2
+        awaitNative("application callback replacement") { applicationRenders > renders }
+        currentEventLoop().sleep(Duration.milliseconds(80L))
+        assertEquals(frames, accepted)
+        assertEquals(1, nativeMenuLabel(other, true))
+        awaitNative("updated application callback") { actions == 2 }
+        assertEquals(2, lastActionVersion)
+        if (perWindow)
+            assertEquals(Some(MenuSource.WindowMenuBar(other.id)), lastSource)
+        changedTitle.value = true
+        awaitNative("native menu display update") { nativeMenuLabel(native) == 3 }
+        changedTitle.value = false
+        awaitNative("native menu display restored") { nativeMenuLabel(native) == 1 }
+
+        val mounts = bodyMounts
+        val beforeTitle = accepted
+        showTitle.value = false
+        awaitNative("title slot removed") { accepted > beforeTitle }
+        assertEquals(mounts, bodyMounts)
+        val withoutTitle = accepted
+        showTitle.value = true
+        awaitNative("title slot restored") { accepted > withoutTitle }
+        assertEquals(mounts, bodyMounts)
+        val beforeFrame = accepted
+        chromeStage.value = 1
+        awaitNative("system frame applied") {
+            native.frameMetrics!!.frame ==
+                WindowFrame.System(WindowContentMode.Standard) &&
+                accepted >
+                beforeFrame
+        }
+        chromeStage.value = 0
+        awaitNative("client frame reapplied") { native.frameMetrics!!.frame == WindowFrame.Client }
+
+        assertTrue(popup.requestOpen())
+        assertTrue(popup.isPending)
+        assertFalse(popup.requestOpen())
+        popup.cancel()
+        awaitNative("popup cancellation") { popupClosed == 1 }
+        assertFalse(popup.isPending)
+        popupVersion.value = 2
+        awaitNative("popup callback props") { renderedPopupVersion == 2 }
+        assertTrue(popup.requestOpen())
+        popup.cancel()
+        awaitNative("latest popup completion") { popupClosed == 2 }
+        assertEquals(2, lastPopupVersion)
+        assertTrue(contextPopup.requestOpen())
+        contextPopup.cancel()
+        awaitNative("context popup cancellation") { contextClosed == 1 }
+        alternatePopup.value = true
+        awaitNative("new popup handle bound") { otherPopup.requestOpen() }
+        assertFalse(popup.requestOpen())
+        otherPopup.cancel()
+        awaitNative("rebound popup completion") { popupClosed == 3 }
+        popupEnabled.value = false
+        currentEventLoop().sleep(Duration.milliseconds(80L))
+        assertFalse(otherPopup.requestOpen())
+        popupEnabled.value = true
+
+        windowOverride.value = true
+        if (perWindow) {
+            awaitNative("per-window menu override") { nativeMenuLabel(native) == 2 }
+            assertEquals(1, nativeMenuLabel(other))
+        } else {
+            native.requestFocus()
+            currentEventLoop().sleep(Duration.milliseconds(80L))
+            assertEquals(
+                if (native.isFocused)
+                    2
+                else
+                    1,
+                nativeMenuLabel(native)
+            )
+        }
+        val menuSource = nativeMenuLabel(native, true)
+        awaitNative("selected menu source") { actions == 3 }
+        assertEquals(menuSource == 2, lastOverride)
+        windowOverride.value = false
+        awaitNative("application default restored") { nativeMenuLabel(native) == 1 }
+
+        assertTrue(native.requestClose())
+        awaitNative("custom close request") { closeRequests == 1 }
+        assertEquals(WindowState.Open, native.state)
+        val scope = windowScope!!
+        runControllerCases(this, applicationScope!!, scope, native, other)
+
+        val duplicate =
+            application.createWindow(
+                windowAttributes {
+                    visible = false;
+                    requestActivation = false
+                }
+            )
+        duplicateWindow = Some(duplicate.id)
+        val failed = host.attach(duplicate, { DuplicateChrome(it) })
+        assertTrue(
+            when (failed) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
+        assertEquals(1, failures)
+        val replacement = host.attach(duplicate, { SingleChrome(it) })!!
+        replacement.close()
+        duplicate.requestDestroy()
+        duplicateWindow = None
+
+        val tool = scope.nativeToolWindowController()
+        assertTrue(
+            tool.open({ NativeChild(this, it) }, appearance = NativeToolAppearance.PreferTool)
+        )
+        val toolWindow = tool.window!!
+        val dialog = scope.nativeDialogController<String>(DialogTarget.Owner(native))
+        assertTrue(
+            dialog.open(
+                { _, mount -> NativeChild(this, mount) },
+                { fail(Some("unmounted dialog callback")) }
+            )
+        )
+        val dialogWindow = dialog.window!!
+        assertFalse(scope.dispatch { throw expectedFailure })
+        assertTrue(firstUi!!.isClosed)
+        assertFalse(secondUi!!.isClosed)
+        assertFalse(applicationUi!!.isClosed)
+        assertEquals(WindowState.Open, native.state)
+        awaitNative("owned resources after root failure") {
+            toolWindow.state == WindowState.Destroyed && dialogWindow.state == WindowState.Destroyed
+        }
+        assertFalse(native.isInputBlocked)
+        assertFalse(otherPopup.requestOpen())
+        native.requestDestroy()
+        secondUi!!.close()
+        other.requestDestroy()
+        awaitNative("native windows destroyed") {
+            native.state == WindowState.Destroyed && other.state == WindowState.Destroyed
+        }
+        val lastRender = applicationRenders
+        version.value = 3
+        awaitNative("application update after all windows") { applicationRenders > lastRender }
+        finished = true
+        application.requestExit()
+    }
+}
+
+private class PassiveRoot(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = empty()
+}
+
+private class DuplicateChrome(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = windowChrome(windowChrome(empty()))
+}
+
+private class SingleChrome(scope: ComponentScope): Component(scope) {
+    public override fun render(): View = windowChrome(empty())
+}

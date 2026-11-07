@@ -7,10 +7,35 @@
 
 @implementation SWAppKitWindow
 - (BOOL)canBecomeKeyWindow {
-  return YES;
+  return sw_window_input_allowed(self);
 }
 - (BOOL)canBecomeMainWindow {
-  return YES;
+  return sw_window_input_allowed(self);
+}
+- (BOOL)worksWhenModal {
+  return sw_window_modal_eligible(self);
+}
+- (void)sendEvent:(NSEvent *)event {
+  if (sw_window_input_allowed(self) || !sw_window_input_event(event))
+    [super sendEvent:event];
+}
+@end
+
+@interface SWAppKitPanel : NSPanel
+@end
+@implementation SWAppKitPanel
+- (BOOL)canBecomeKeyWindow {
+  return sw_window_input_allowed(self);
+}
+- (BOOL)canBecomeMainWindow {
+  return NO;
+}
+- (BOOL)worksWhenModal {
+  return sw_window_modal_eligible(self);
+}
+- (void)sendEvent:(NSEvent *)event {
+  if (sw_window_input_allowed(self) || !sw_window_input_event(event))
+    [super sendEvent:event];
 }
 @end
 
@@ -72,8 +97,11 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 - (BOOL)isFlipped {
   return YES;
 }
+- (BOOL)mouseDownCanMoveWindow {
+  return NO;
+}
 - (BOOL)acceptsFirstResponder {
-  return YES;
+  return !self.owner.inputBlocked;
 }
 - (void)viewDidChangeEffectiveAppearance {
   [super viewDidChangeEffectiveAppearance];
@@ -83,6 +111,8 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 
 @implementation SWWindow
 - (void)emit:(int32_t)kind {
+  if (kind == 2)
+    sw_frame_geometry(self);
   SWEvent *event = sw_event(self, kind);
   SWEventData data = event.data;
   SWSnapshot value = sw_snapshot(self);
@@ -101,11 +131,14 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
     data.flags = value.occluded;
   if (kind == 6)
     data.flags = value.dark;
+  if (kind == 19)
+    data.flags = self.inputBlocked;
   event.data = data;
   [self.application enqueue:event];
 }
 - (BOOL)windowShouldClose:(NSWindow *)sender {
-  [self emit:1];
+  if (!self.inputBlocked)
+    [self emit:1];
   return NO;
 }
 - (void)windowDidResize:(NSNotification *)notification {
@@ -153,23 +186,28 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
 
 SWResult scoop_window_create(void *application, int64_t identity,
                              const uint8_t *title, int64_t length, double width,
-                             double height, int32_t flags) {
+                             double height, int32_t flags, void *parent,
+                             int32_t role) {
   @autoreleasepool {
     SWApplication *app = (__bridge SWApplication *)application;
     SWWindow *owner = [SWWindow new];
     owner.application = app;
     owner.identity = identity;
+    owner.owningWindow = (__bridge SWWindow *)parent;
     NSWindowStyleMask style = NSWindowStyleMaskBorderless;
     if (flags & 1)
       style |= NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                NSWindowStyleMaskMiniaturizable;
     if (flags & 2)
       style |= NSWindowStyleMaskResizable;
-    owner.window = [[SWAppKitWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, width, height)
-                  styleMask:style
-                    backing:NSBackingStoreBuffered
-                      defer:NO];
+    if (role && (flags & 1))
+      style |= NSWindowStyleMaskUtilityWindow;
+    Class windowClass = role ? SWAppKitPanel.class : SWAppKitWindow.class;
+    owner.window =
+        [[windowClass alloc] initWithContentRect:NSMakeRect(0, 0, width, height)
+                                       styleMask:style
+                                         backing:NSBackingStoreBuffered
+                                           defer:NO];
     if (!owner.window)
       return (SWResult){NULL, 0};
     owner.view = [[SWView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
@@ -194,6 +232,12 @@ SWResult scoop_window_create(void *application, int64_t identity,
       owner.window.backgroundColor = NSColor.clearColor;
     }
     [owner.window center];
+    if (role) {
+      ((NSPanel *)owner.window).floatingPanel = NO;
+      ((NSPanel *)owner.window).becomesKeyOnlyIfNeeded = NO;
+      owner.window.hidesOnDeactivate = NO;
+    }
+    [owner.window orderOut:nil];
     app.windows[@(identity)] = owner;
     [owner.window makeFirstResponder:owner.view];
     if (flags & 8) {
@@ -213,6 +257,8 @@ SWSnapshot scoop_window_snapshot(void *pointer) {
 
 void scoop_window_destroy(void *pointer) {
   SWWindow *owner = (__bridge SWWindow *)pointer;
+  owner.destroying = YES;
+  [owner.window.parentWindow removeChildWindow:owner.window];
   [owner.view resetInput];
   if (owner.attentionRequest)
     [NSApp cancelUserAttentionRequest:owner.attentionRequest];
@@ -246,7 +292,7 @@ int64_t scoop_window_size(void *pointer, double width, double height) {
 int64_t scoop_window_visible(void *pointer, int32_t value) {
   SWWindow *owner = (__bridge SWWindow *)pointer;
   if (value)
-    [owner.window orderFront:nil];
+    sw_show_owned_window(owner, NO);
   else
     [owner.window orderOut:nil];
   [owner emit:5];
@@ -256,6 +302,6 @@ int64_t scoop_window_visible(void *pointer, int32_t value) {
 int64_t scoop_window_focus(void *pointer) {
   SWWindow *owner = (__bridge SWWindow *)pointer;
   [NSApp activate];
-  [owner.window makeKeyAndOrderFront:nil];
+  sw_show_owned_window(owner, YES);
   return 0;
 }

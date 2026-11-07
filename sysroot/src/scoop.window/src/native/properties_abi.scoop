@@ -18,9 +18,6 @@ internal fun nativeWindowResizeIncrements(window: Ptr<Unit>, width: Double, heig
 @Extern(name = "scoop_window_resizable")
 internal fun nativeWindowResizable(window: Ptr<Unit>, value: Int): Long
 
-@Extern(name = "scoop_window_decorations")
-internal fun nativeWindowDecorations(window: Ptr<Unit>, value: Int): Long
-
 @Extern(name = "scoop_window_buttons")
 internal fun nativeWindowButtons(window: Ptr<Unit>, close: Int, minimize: Int, maximize: Int): Long
 

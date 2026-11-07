@@ -8,14 +8,25 @@ import scoop.surface.HostShortcutScope
 import scoop.surface.ShortcutBinding
 import scoop.window.*
 
+internal interface UiUpdateRoot {
+    val isOpen: Boolean
+    var pendingEnqueued: Boolean
+    fun dispatchUpdate()
+}
+
 /** Runs logical updates and Surface frames on the existing application owner. */
 public class UiHost public constructor(
     private val onRootError: (WindowId, Throwable) -> Unit = { _, error -> throw error },
+    private val onApplicationError: (Throwable) -> Unit = { error -> throw error },
     private val handler: (UiHost, ActiveApplication, ApplicationEvent) -> Unit = { _, _, _ -> }
 ): ApplicationHandler, Closeable {
     private val thread = currentThreadId()
     private val roots = ArrayList<UiRoot>()
-    private val pending = ArrayList<UiRoot>()
+    private val pending = ArrayList<UiUpdateRoot>()
+    private var applicationRoot: UiApplicationRoot? = None
+    private var active: ActiveApplication? = None
+    internal val nativeEvents = UiNativeEvents { checkThread() }
+    internal val menuBars = UiMenuBars(this)
     private var proxy: ApplicationProxy? = None
     private var queued = false
     private var processing = false
@@ -36,15 +47,75 @@ public class UiHost public constructor(
                         throw cleanupUi(Some(reported)) { close() }!!
                     }
                 },
-            handler = { _, application, event -> handler(this, application, event) }
+            handler =
+                {
+                    _, application, event ->
+                    nativeEvents.deliver(event)
+                    menuBars.event(event)
+                    handler(this, application, event)
+                }
         )
 
     public val isClosed: Boolean get() {
         checkThread()
-        return closing && roots.size == 0L && surfaces.isClosed
+        val applicationClosed =
+            when (applicationRoot) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        return closing && roots.size == 0L && applicationClosed && surfaces.isClosed
     }
     internal fun checkThread() {
         checkUiThread(thread)
+    }
+    internal val activeApplication: ActiveApplication get() {
+        checkThread()
+        return active ?: throw IllegalStateException(Some("UI host is not running"))
+    }
+
+    public fun <C: ApplicationComponent> attachApplication(
+        application: ActiveApplication,
+        create: (ApplicationScope) -> C
+    ): UiApplication? {
+        checkThread()
+        if (closing || !(activeApplication === application))
+            throw IllegalStateException(Some("application does not drive this open UI host"))
+        when (applicationRoot) {
+            case Some(_) -> throw IllegalStateException(Some("UI application is already attached"))
+            case None -> {}
+        }
+        return callback {
+            val root = UiApplicationRoot(this, application)
+            applicationRoot = Some(root)
+            if (root.dispatch { root.mount(create) })
+                Some(UiApplication(root))
+            else
+                None
+        }
+    }
+
+    internal fun reportApplicationError(error: Throwable) {
+        if (closing)
+            throw error
+        try {
+            onApplicationError(error)
+        } catch (reported: Throwable) {
+            val failure: Throwable? =
+                if (reported === error)
+                    Some(error)
+                else
+                    Some(ResourceUseException(error, reported))
+            throw cleanupUi(failure) { close() }!!
+        }
+    }
+
+    internal fun detachedApplication(root: UiApplicationRoot) {
+        when (applicationRoot) {
+            case Some(current) -> if (current === root)
+                applicationRoot = None
+            case None -> {}
+        }
+        removePending(root)
     }
 
     public fun shortcutScope(bindings: Array<ShortcutBinding> = []): HostShortcutScope {
@@ -73,9 +144,10 @@ public class UiHost public constructor(
                 roots.add(created)
                 val attached = surfaces.attach(window, created)
                 surface = Some(attached)
-                if (attached.dispatch { created.mount(attached) })
+                if (attached.dispatch { created.mount(attached) }) {
+                    menuBars.attached(window)
                     Some(UiWindow(created))
-                else
+                } else
                     None
             } catch (error: Throwable) {
                 when (surface) {
@@ -109,6 +181,11 @@ public class UiHost public constructor(
     }
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         checkThread()
+        when (active) {
+            case None -> active = Some(application)
+            case Some(value) -> if (!(value === application))
+                throw IllegalStateException(Some("UI host belongs to another application"))
+        }
         when (proxy) {
             case None -> proxy = Some(application.proxy())
             case Some(_) -> {}
@@ -116,6 +193,10 @@ public class UiHost public constructor(
         callback {
             nativeDepth += 1
             try {
+                when (event) {
+                    case Exiting -> menuBars.close()
+                    else -> {}
+                }
                 surfaces.onEvent(application, event)
                 when (event) {
                     case Exiting -> close()
@@ -126,7 +207,7 @@ public class UiHost public constructor(
             }
         }
     }
-    internal fun enqueue(root: UiRoot) {
+    internal fun enqueue(root: UiUpdateRoot) {
         if (closing || !root.isOpen)
             return
         if (!root.pendingEnqueued) {
@@ -161,7 +242,7 @@ public class UiHost public constructor(
         try {
             for (root in work)
                 if (root.isOpen)
-                    root.surface.dispatch { root.flush() }
+                    root.dispatchUpdate()
         } finally {
             processing = false
         }
@@ -213,7 +294,15 @@ public class UiHost public constructor(
     }
     internal fun detached(root: UiRoot) {
         removeRoot(roots, root)
-        removeRoot(pending, root)
+        removePending(root)
+        menuBars.detached(root.window)
+    }
+    private fun removePending(root: UiUpdateRoot) {
+        for (index in 0L ..< pending.size)
+            if (pending[index] === root) {
+                pending.removeAt(index)
+                break
+            }
         root.pendingEnqueued = false
     }
     public override fun close() {
@@ -221,7 +310,10 @@ public class UiHost public constructor(
         if (closing)
             return
         closing = true
-        var failure = cleanupUi(None) { hostShortcuts?.close() }
+        var failure = cleanupUi(None) { menuBars.close() }
+        failure = cleanupUi(failure) { nativeEvents.close() }
+        failure = cleanupUi(failure) { applicationRoot?.close() }
+        failure = cleanupUi(failure) { hostShortcuts?.close() }
         hostShortcuts = None
         queued = false
         pending.clear()

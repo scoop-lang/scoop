@@ -1,5 +1,54 @@
 #include "window.h"
+#include <X11/Xatom.h>
 #include <gdk/x11/gdkx.h>
+
+static void work_area(SWApplication *app, SWMonitorData *value) {
+  value->work_x = value->work_y = value->work_width = value->work_height = NAN;
+  if (!GDK_IS_X11_DISPLAY(app->display))
+    return;
+  Display *display = gdk_x11_display_get_xdisplay(app->display);
+  Atom current = XInternAtom(display, "_NET_CURRENT_DESKTOP", True);
+  Atom work = XInternAtom(display, "_NET_WORKAREA", True);
+  if (current == None || work == None)
+    return;
+  Atom type;
+  int format;
+  unsigned long count, after;
+  unsigned char *bytes = NULL;
+  int status = XGetWindowProperty(display, DefaultRootWindow(display), current,
+                                  0, 1, False, XA_CARDINAL, &type, &format,
+                                  &count, &after, &bytes);
+  if (status != Success || type != XA_CARDINAL || format != 32 || count != 1) {
+    if (bytes)
+      XFree(bytes);
+    return;
+  }
+  unsigned long desktop = ((unsigned long *)bytes)[0];
+  XFree(bytes);
+  if (desktop > LONG_MAX / 4)
+    return;
+  bytes = NULL;
+  status = XGetWindowProperty(display, DefaultRootWindow(display), work,
+                              (long)desktop * 4, 4, False, XA_CARDINAL, &type,
+                              &format, &count, &after, &bytes);
+  if (status == Success && type == XA_CARDINAL && format == 32 && count == 4) {
+    const unsigned long *rect = (const unsigned long *)bytes;
+    double x = (int32_t)rect[0] / value->scale;
+    double y = (int32_t)rect[1] / value->scale;
+    double right = fmin(x + rect[2] / value->scale, value->x + value->width);
+    double bottom = fmin(y + rect[3] / value->scale, value->y + value->height);
+    x = fmax(x, value->x);
+    y = fmax(y, value->y);
+    if (right > x && bottom > y) {
+      value->work_x = x;
+      value->work_y = y;
+      value->work_width = right - x;
+      value->work_height = bottom - y;
+    }
+  }
+  if (bytes)
+    XFree(bytes);
+}
 
 static int64_t monitor_key(SWApplication *app, GdkMonitor *monitor) {
   int64_t *key = g_object_get_data(G_OBJECT(monitor), "scoop-monitor-id");
@@ -68,6 +117,7 @@ void *scoop_window_monitors(void) {
         .scale = scale,
         .name = (uint8_t *)name,
         .name_length = (int64_t)strlen(name)};
+    work_area(app, &result->items[result->count - 1]);
     g_object_unref(monitor);
   }
   return result;
@@ -91,3 +141,16 @@ int64_t scoop_window_current_monitor(SWWindow *window) {
                                 : NULL;
   return monitor ? monitor_key(window->application, monitor) : 0;
 }
+
+typedef struct {
+  int64_t error;
+  double x, y, width, height;
+} SWDesktopRect;
+
+int32_t scoop_window_desktop_capabilities(void) {
+  return GDK_IS_X11_DISPLAY(sw_application->display) ? 1 | 2 : 0;
+}
+SWDesktopRect scoop_window_system_taskbar_bounds(void) {
+  return (SWDesktopRect){.error = -1};
+}
+double scoop_window_system_menu_bar_height(void) { return NAN; }

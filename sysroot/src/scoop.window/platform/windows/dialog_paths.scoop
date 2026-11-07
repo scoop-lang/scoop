@@ -1,0 +1,27 @@
+package scoop.window
+
+import scoop.platform.system.OsString
+
+@Unsafe
+internal fun withDialogString(value: OsString, block: (Ptr<Byte>, Long) -> Long): Long =
+    value.toUtf16().withDataPointer {
+        pointer,
+        count -> @Unsafe
+        {
+            return@withDataPointer block(pointer.cast<Byte>(), count * 2L)
+        }
+    }
+
+@Unsafe
+internal fun copyDialogString(value: NativeFilePath): OsString {
+    if (value.length % 2L != 0L)
+        throw WindowException("native UTF-16 path", WindowErrorKind.NativeFailure)
+    return OsString.fromUtf16(
+        Array<UShort>(value.length / 2L) {
+            index -> @Unsafe
+            {
+                return@Array value.data!!.cast<UShort>().load(index)
+            }
+        }
+    )
+}

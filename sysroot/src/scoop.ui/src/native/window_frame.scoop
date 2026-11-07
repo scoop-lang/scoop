@@ -1,0 +1,12 @@
+package scoop.ui
+
+internal class UiWindowFrameClaim(private val root: UiRoot): Closeable {
+    private var closed = false
+    public override fun close() {
+        root.checkThread()
+        if (closed)
+            return
+        closed = true
+        root.windowFrame = None
+    }
+}

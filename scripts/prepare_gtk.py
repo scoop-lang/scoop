@@ -21,6 +21,7 @@ LIBRARIES = {
     "gobject-2.0": "gobject-2.0",
     "glib-2.0": "glib-2.0",
     "pango": "pango-1.0",
+    "cairo": "cairo",
 }
 LINK_INPUTS = tuple(f"lib{name}.so" for name in LIBRARIES.values())
 NOTICE_DIRECTORY = "gtk-licenses"

@@ -1,0 +1,217 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+import scoop.platform.system.OsString
+
+public fun ActiveApplication.openFile(
+    target: DialogTarget,
+    options: OpenFileOptions = OpenFileOptions()
+): FileDialogSession<Path> =
+    FileDialogSession(
+        owner.createFileDialog(
+            target,
+            0,
+            options.title,
+            options.initialDirectory,
+            None,
+            options.types
+        )
+    ) { paths -> paths[0L] }
+
+public fun ActiveApplication.openFiles(
+    target: DialogTarget,
+    options: OpenFileOptions = OpenFileOptions()
+): FileDialogSession<Array<Path>> =
+    FileDialogSession(
+        owner.createFileDialog(
+            target,
+            1,
+            options.title,
+            options.initialDirectory,
+            None,
+            options.types
+        )
+    ) { paths -> paths }
+
+public fun ActiveApplication.saveFile(
+    target: DialogTarget,
+    options: SaveFileOptions = SaveFileOptions()
+): FileDialogSession<Path> =
+    FileDialogSession(
+        owner.createFileDialog(
+            target,
+            2,
+            options.title,
+            options.initialDirectory,
+            options.suggestedName,
+            options.types
+        )
+    ) { paths -> paths[0L] }
+
+public fun ActiveApplication.selectDirectory(
+    target: DialogTarget,
+    options: DirectoryDialogOptions = DirectoryDialogOptions()
+): FileDialogSession<Path> =
+    FileDialogSession(
+        owner.createFileDialog(
+            target,
+            3,
+            options.title,
+            options.initialDirectory,
+            None,
+            FileTypes.Any
+        )
+    ) { paths -> paths[0L] }
+
+private fun ApplicationOwner.createFileDialog(
+    target: DialogTarget,
+    kind: Int,
+    title: String?,
+    directory: Path?,
+    name: OsString?,
+    types: FileTypes
+): FileDialogOwner {
+    requireRunning("file dialog")
+    val parent =
+        when (target) {
+            case Owner(value) -> {
+                if (!(value.owner.application === this))
+                    throw IllegalArgumentException(
+                        Some("dialog owner belongs to another application")
+                    )
+                Some(value.owner)
+            }
+            case Application -> None
+        }
+    when (parent) {
+        case Some(value) -> {
+            requireDialogOwnerAvailable(value)
+            for (session in modals)
+                if (session.window.owner.isOwnedBy(value))
+                    throw WindowException("dialog owner is busy", WindowErrorKind.ResourceBusy)
+            value.requireInteractive()
+            val snapshot = value.snapshot()
+            if (snapshot.visible == 0 || snapshot.minimized != 0)
+                throw WindowException("dialog owner visibility", WindowErrorKind.InvalidState)
+        }
+        case None -> if (fileDialogs.size != 0L)
+            throw WindowException("application file dialog is busy", WindowErrorKind.ResourceBusy)
+    }
+    when (title) {
+        case Some(value) -> for (character in value)
+            requireWindow(character.code != 0, "dialog title contains NUL")
+        case None -> {}
+    }
+    when (name) {
+        case Some(value) -> requireWindow(
+            Path.fromOsString(value).fileName == Some(value),
+            "suggested name must be a nonempty file name"
+        )
+        case None -> {}
+    }
+    val extensions =
+        when (types) {
+            case Any -> Array<String>(0L) { _ -> "" }
+            case Extensions(values) -> {
+                requireWindow(values.size > 0L, "file extensions cannot be empty")
+                for (value in values) {
+                    requireWindow(
+                        value.charLength > 0L && value.getCharAt(0L) != '.',
+                        "invalid file extension"
+                    )
+                    for (character in value)
+                        requireWindow(
+                            character.code !=
+                                0 &&
+                                character !=
+                                '/' &&
+                                character !=
+                                '\\' &&
+                                character !=
+                                '*' &&
+                                character !=
+                                '?' &&
+                                character !=
+                                ';' &&
+                                character !=
+                                '[' &&
+                                character !=
+                                ']',
+                            "invalid file extension"
+                        )
+                }
+                Array<String>(values.size) { index -> values[index] }
+            }
+        }
+    if (nextFileDialog == Long.MAX_VALUE)
+        throw WindowException("file dialog identity", WindowErrorKind.NativeFailure)
+    @Unsafe
+    {
+        val native =
+            created(
+                nativeFileCreate(this.native!!, parent?.pointer ?: None, kind),
+                "prepare file dialog"
+            )
+        try {
+            when (title) {
+                case Some(value) -> setFileText(native, 0, value)
+                case None -> {}
+            }
+            when (directory) {
+                case Some(value) -> setFilePathOption(native, 1, value.toOsString())
+                case None -> {}
+            }
+            when (name) {
+                case Some(value) -> setFilePathOption(native, 2, value)
+                case None -> {}
+            }
+            for (extension in extensions)
+                setFileText(native, 3, extension)
+        } catch (error: Throwable) {
+            nativeFileRelease(native)
+            throw error
+        }
+        val session =
+            FileDialogOwner(this, FileDialogSessionId(nextFileDialog), parent, kind, native)
+        nextFileDialog += 1L
+        when (parent) {
+            case Some(value) -> value.leases += 1L
+            case None -> {}
+        }
+        fileDialogs.add(session)
+        updateModalInput()
+        deferNativeOperation { session.start() }
+        return session
+    }
+}
+
+private fun setFileText(native: Ptr<Unit>, field: Int, value: String) {
+    @Unsafe
+    {
+        value.toByteArray().withDataPointer {
+            data,
+            count -> @Unsafe
+            {
+                checkNativeStatus(
+                    nativeFileOption(native, field, data, count),
+                    "file dialog option"
+                )
+            }
+        }
+    }
+}
+
+private fun setFilePathOption(native: Ptr<Unit>, field: Int, value: OsString) {
+    @Unsafe
+    {
+        val status =
+            withDialogString(value) {
+                data,
+                count -> @Unsafe
+                {
+                    return@withDialogString nativeFileOption(native, field, data, count)
+                }
+            }
+        checkNativeStatus(status, "file dialog path option")
+    }
+}

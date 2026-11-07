@@ -1,0 +1,88 @@
+package scoop.window
+
+/** Application-local identities, separate from native command numbers. */
+public struct MenuId(val value: Long): Equals<MenuId>, Hash {
+    public override operator fun equals(other: MenuId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct MenuItemId(val value: Long): Equals<MenuItemId>, Hash {
+    public override operator fun equals(other: MenuItemId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct PopupSessionId(val value: Long): Equals<PopupSessionId>, Hash {
+    public override operator fun equals(other: PopupSessionId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct MenuBarBindingId(val value: Long): Equals<MenuBarBindingId>, Hash {
+    public override operator fun equals(other: MenuBarBindingId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct NativeMenuUseId(val value: Long): Equals<NativeMenuUseId>, Hash {
+    public override operator fun equals(other: NativeMenuUseId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public enum MenuState {
+    Open, Closing, Closed
+}
+
+/** Check state is published by the application and never toggled implicitly. */
+public enum MenuItemKind {
+    Action, Checkbox(Boolean), Radio(Boolean), Submenu, Separator
+}
+
+public enum MenuRole {
+    Quit, Minimize, Zoom, Cut, Copy, Paste, SelectAll, Undo, Redo
+}
+
+/** A standard role and an application action are mutually exclusive. */
+public enum MenuCommand {
+    Action, Role(MenuRole)
+}
+
+public class MenuItemDescription public constructor(
+    public val text: String = "",
+    public val kind: MenuItemKind = MenuItemKind.Action,
+    public val enabled: Boolean = true,
+    public val image: DesktopImage? = None,
+    public val shortcut: ShortcutChord? = None,
+    public val command: MenuCommand = MenuCommand.Action
+)
+
+public struct MenuCapabilities(
+    val applicationMenuBar: Boolean,
+    val windowMenuBar: Boolean,
+    val popup: Boolean,
+    val templateImages: Boolean
+)
+
+public enum MenuSource {
+    ApplicationMenuBar(WindowId?), WindowMenuBar(WindowId),
+    Popup(PopupSessionId, WindowId), Native(NativeMenuUseId)
+}
+
+/** The source is captured at activation, including an application menu's active window. */
+public class MenuActivation internal constructor(
+    public val menu: MenuId,
+    public val item: MenuItemId,
+    public val source: MenuSource,
+    internal val use: MenuUse,
+    internal val target: WindowId?
+)
+
+/** Coordinates belong to the target window's presented content. */
+public enum PopupPlacement {
+    Pointer(LogicalPosition), Anchor(LogicalRect)
+}
+
+public enum PopupCancelReason {
+    User, ExplicitClose, MenuClosed, TargetClosed, TargetBlocked, ApplicationExit
+}
+
+public enum PopupResult {
+    Selected(MenuItemId), Cancelled(PopupCancelReason), Failed(WindowException)
+}

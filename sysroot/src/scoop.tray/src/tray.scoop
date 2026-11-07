@@ -1,0 +1,102 @@
+package scoop.tray
+
+import scoop.window.*
+
+/** An application resource whose native dependencies are confined to this Cone. */
+public class TrayIcon internal constructor(internal val owner: TrayOwner): Closeable {
+    public val id: TrayIconId get() = owner.id
+    public val state: TrayState get() {
+        owner.checkThread();
+        return owner.state
+    }
+    public val availability: TrayAvailability get() {
+        owner.requireOpen();
+        return owner.availability
+    }
+    public val menuUseId: NativeMenuUseId? get() {
+        owner.requireOpen()
+        return when (owner.menuLease) {
+            case Some(lease) -> Some(lease.id)
+            case None -> None
+        }
+    }
+    public fun capabilities(): TrayCapabilities = owner.capabilities()
+    public fun setImage(image: DesktopImage) {
+        owner.requireOpen();
+        owner.setImage(image)
+    }
+    public fun setTooltip(tooltip: String?) {
+        owner.requireOpen();
+        owner.setTooltip(tooltip)
+    }
+    public fun setMenu(menu: Menu?) {
+        owner.requireOpen();
+        owner.setMenu(menu)
+    }
+    public fun subscribe(handler: (TrayEvent) -> Unit): Closeable {
+        owner.requireOpen()
+        val subscription = TraySubscription(owner, Some(handler))
+        owner.subscriptions.add(subscription)
+        return subscription
+    }
+    public fun geometry(): TrayGeometry? = owner.geometry()
+    public fun showMenu(): TrayMenuSession = owner.showMenu()
+    public fun placeWindow(
+        window: Window,
+        placement: TrayWindowPlacement = TrayWindowPlacement()
+    ): RequestStatus = owner.placeWindow(window, placement)
+    public override fun close() {
+        owner.close(TrayMenuCancelReason.TrayClosed)
+    }
+
+    public companion object {
+        public fun create(application: ActiveApplication, options: TrayOptions): TrayIcon {
+            val positioning = application.desktopCapabilities().positioning
+            val owner = TrayOwner(application, TrayIconId(nextTrayIcon()), positioning)
+            owner.initialize(options)
+            return TrayIcon(owner)
+        }
+    }
+}
+
+internal class TraySubscription(
+    private val owner: TrayOwner,
+    private var callback: ((TrayEvent) -> Unit)?
+): Closeable {
+    public override fun close() {
+        owner.checkThread()
+        callback = None
+        for (index in 0L ..< owner.subscriptions.size)
+            if (owner.subscriptions[index] === this) {
+                owner.subscriptions.removeAt(index)
+                break
+            }
+    }
+    fun deliver(event: TrayEvent) {
+        when (callback) {
+            case Some(handler) -> handler(event)
+            case None -> {}
+        }
+    }
+}
+
+private object TrayIdentities {
+    var icon = 1L
+    var menu = 1L
+}
+
+internal fun nextTrayIcon(): Long {
+    if (TrayIdentities.icon == 9223372036854775807L)
+        throw WindowException("tray identity", WindowErrorKind.NativeFailure)
+    val result = TrayIdentities.icon
+    TrayIdentities.icon += 1L
+    return result
+}
+
+internal fun nextTrayMenu(): Long {
+    if (TrayIdentities.menu == 9223372036854775807L)
+        throw WindowException("tray menu identity", WindowErrorKind.NativeFailure)
+    val result = TrayIdentities.menu
+    TrayIdentities.menu += 1L
+    return result
+}

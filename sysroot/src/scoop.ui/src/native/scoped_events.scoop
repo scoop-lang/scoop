@@ -1,0 +1,91 @@
+package scoop.ui
+
+import scoop.window.*
+
+internal class ScopedNativeEvents(
+    private val host: UiHost,
+    private val resources: ScopeResources,
+    private val checkMounted: () -> Unit,
+    private val dispatch: (() -> Unit) -> Boolean
+) {
+    private fun <E> own(registration: UiEventRegistration<E>): UiEventRegistration<E> {
+        resources.managed.add(registration)
+        registration.afterClose = Some { resources.forget(registration) }
+        return registration
+    }
+    private fun <E> completed(value: E, action: (E) -> Unit): Closeable {
+        val registration =
+            own(
+                UiEventRegistration<E>(
+                    { host.checkThread() },
+                    { event -> dispatch { action(event) } },
+                    true
+                )
+            )
+        registration.deliver(value)
+        return registration
+    }
+    fun menu(menu: Menu, action: (MenuActivation) -> Unit): Closeable {
+        checkMounted()
+        return own(
+            host.nativeEvents.menus.subscribe(menu.id, false) {
+                value -> dispatch { action(value) }
+            }
+        )
+    }
+    fun popup(session: PopupSession, action: (PopupResult) -> Unit): Closeable {
+        checkMounted()
+        when (session.result) {
+            case Some(value) -> return completed(value, action)
+            case None -> {}
+        }
+        return own(
+            host.nativeEvents.popups.subscribe(session.id, true) {
+                value -> dispatch { action(value) }
+            }
+        )
+    }
+    fun modal(session: ModalSession, action: (ModalResult) -> Unit): Closeable {
+        checkMounted()
+        when (session.result) {
+            case Some(value) -> return completed(value, action)
+            case None -> {}
+        }
+        return own(
+            host.nativeEvents.modals.subscribe(session.id, true) {
+                value -> dispatch { action(value) }
+            }
+        )
+    }
+    fun <T> file(session: FileDialogSession<T>, action: (FileDialogResult<T>) -> Unit): Closeable {
+        checkMounted()
+        when (session.result) {
+            case Some(value) -> return completed(value, action)
+            case None -> {}
+        }
+        return own(
+            host.nativeEvents.files.subscribe(session.id, true) {
+                _ -> dispatch { action(session.result!!) }
+            }
+        )
+    }
+    fun frame(window: Window, action: (WindowFrameMetrics?) -> Unit): Closeable {
+        checkMounted()
+        val registration =
+            own(
+                host.nativeEvents.frames.subscribe(window.id, false) {
+                    _ -> dispatch { action(window.frameMetrics) }
+                }
+            )
+        registration.deliver(Unit)
+        return registration
+    }
+    fun window(window: Window, action: (WindowEvent) -> Unit): Closeable {
+        checkMounted()
+        return own(
+            host.nativeEvents.windows.subscribe(window.id, false) {
+                value -> dispatch { action(value) }
+            }
+        )
+    }
+}

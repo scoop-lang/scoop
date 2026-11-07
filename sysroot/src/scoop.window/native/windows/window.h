@@ -6,6 +6,7 @@
 #define UNICODE
 #include <windows.h>
 
+#include "../frame.h"
 #include <dwmapi.h>
 #include <imm.h>
 #include <limits.h>
@@ -53,11 +54,14 @@ typedef struct {
 } SWTextSnapshotData;
 typedef struct SWEvent {
   SWEventData data;
+  bool native_input;
+  POINT input_position;
   SWTextEditData *edits;
   int64_t edit_count, edit_capacity;
   struct SWEvent *next;
 } SWEvent;
 typedef struct SWWatch SWWatch;
+typedef struct SWMenu SWMenu;
 typedef struct SWApplication {
   SWCallback callback;
   void *context;
@@ -69,16 +73,27 @@ typedef struct SWApplication {
   SWEvent *head, *tail;
   SWWatch *watches;
   void *text_manager;
+  SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
   SWApplication *application;
+  struct SWWindow *owning_window;
   HWND hwnd;
   int64_t identity;
   double scale, min_width, min_height, max_width, max_height;
   double increment_width, increment_height;
-  bool decorations, resizable, close_button, minimize_button, maximize_button;
+  int frame_mode;
+  SWHitRect *hit_rects;
+  size_t hit_count;
+  double frame_width, frame_height, frame_scale;
+  uint64_t frame_revision;
+  int frame_hover, frame_pressed;
+  bool window_region;
+  bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
+  int32_t menu_text_commands;
   bool destroying, caret_set;
+  bool input_blocked, saved_enabled;
   int theme;
   HCURSOR cursor;
   double caret_x, caret_y, caret_width, caret_height;
@@ -89,6 +104,7 @@ typedef struct SWWindow {
   uint32_t pressed_buttons;
   int64_t text_connection;
   void *text;
+  SWMenu *menu_bar, *popup_menu;
 } SWWindow;
 
 int32_t scoop_window_ime_allowed(SWWindow *window, int32_t allowed);
@@ -118,11 +134,22 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT message, WPARAM wparam,
                                 LPARAM lparam);
 SWSnapshot sw_snapshot(SWWindow *window);
 DWORD sw_style(SWWindow *window);
+int64_t sw_restyle(SWWindow *window);
+int64_t sw_frame_margins(SWWindow *window);
+void sw_frame_invalidate(SWWindow *window);
+void sw_frame_geometry(SWWindow *window, SWSnapshot snapshot);
+void sw_adjust_frame_rect(SWWindow *window, RECT *rect, UINT dpi);
+bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
+                      LRESULT *result);
 int64_t sw_size(SWWindow *window, double width, double height);
 void sw_minmax(SWWindow *window, MINMAXINFO *info);
 void sw_sizing(SWWindow *window, WPARAM edge, RECT *rect);
 bool sw_input(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,
               LRESULT *result);
+bool sw_menu_message(SWWindow *window, UINT message, WPARAM wparam,
+                     LPARAM lparam, LRESULT *result);
+bool sw_menu_translate(SWApplication *application, MSG *message);
+void sw_menu_dpi(SWWindow *window, UINT dpi);
 bool sw_text(SWWindow *window, UINT message, WPARAM wparam, LPARAM lparam,
              LRESULT *result);
 bool sw_text_composing(SWWindow *window);
@@ -131,6 +158,8 @@ void sw_text_geometry_changed(SWWindow *window);
 void sw_text_window_destroy(SWWindow *window);
 void sw_text_application_destroy(SWApplication *application);
 void sw_reset_input(SWWindow *window);
+void sw_cancel_pointer(SWWindow *window, int reason);
+bool sw_modal_input_message(UINT message);
 void sw_cancel_composition(SWWindow *window);
 uint64_t sw_modifiers(void);
 WCHAR *sw_wide(const uint8_t *text, int64_t length);

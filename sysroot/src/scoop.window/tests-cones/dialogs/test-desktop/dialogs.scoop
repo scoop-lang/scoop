@@ -1,0 +1,11 @@
+package scoop.tests.window.dialogs
+
+import scoop.test.*
+
+@Test
+private class NativeFileDialogTests {
+    @Test
+    fun `native file dialogs preserve scope and drain before windows and application exit`() {
+        runDialogProbe()
+    }
+}

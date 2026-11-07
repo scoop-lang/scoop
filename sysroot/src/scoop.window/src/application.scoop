@@ -17,18 +17,25 @@ public enum StartCause {
 /** Application lifecycle and window notifications have owned payloads. */
 public enum ApplicationEvent {
     NewEvents(StartCause), Resumed, Suspended, MemoryWarning,
+    Menu(MenuActivation), MenuBarDetached(MenuBarBindingId), PopupCompleted(
+        PopupSessionId,
+        PopupResult
+    ),
+    ModalCompleted(ModalSessionId, ModalResult), FileDialogCompleted(FileDialogSessionId),
     Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
 }
 
 /** Events whose final notification is Destroyed. */
 public enum WindowEvent {
-    CloseRequested, Closing, Destroyed, RedrawRequested,
+    CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
+    FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
+    InputBlockedChanged(Boolean),
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),
-    Keyboard(KeyEvent), ModifiersChanged(Modifiers), Pointer(PointerEvent), TextInput(
-        TextInputEvent
-    )
+    Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(Modifiers), Pointer(
+        PointerEvent
+    ), TextInput(TextInputEvent)
 }
 
 /** Receives serial application events on the native owner thread. */
@@ -56,7 +63,7 @@ public class Application public constructor(options: ApplicationOptions = applic
 
 /** Owner-thread operations available while the native application is active. */
 public class ActiveApplication internal constructor(internal val owner: ApplicationOwner) {
-    /** Creates an independent native window from a snapshot of these attributes. */
+    /** Creates a native top-level window from a snapshot of these attributes. */
     public fun createWindow(attributes: WindowAttributes = windowAttributes()): Window =
         owner.createWindow(attributes)
     /** Selects native waiting behavior without introducing a periodic tick. */

@@ -134,3 +134,6 @@ when = { os = "linux", env = "gnu" }
 name = "Xtst"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/dialog_paths.c"

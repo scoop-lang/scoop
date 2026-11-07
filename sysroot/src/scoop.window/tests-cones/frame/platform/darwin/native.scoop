@@ -1,0 +1,33 @@
+package scoop.tests.window.frame
+
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun frameBackend(): WindowBackend {
+    @Unsafe
+    {
+        return WindowBackend.AppKit
+    }
+}
+
+internal fun nativeFrameQuery(
+    target: Window,
+    field: Int,
+    x: Double = 0.0,
+    y: Double = 0.0
+): Double {
+    @Unsafe
+    {
+        return target.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case AppKit(window, view) -> return@use frameQuery(window, view, field, x, y)
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_frame_query")
+private fun frameQuery(window: Ptr<Unit>, view: Ptr<Unit>, field: Int, x: Double, y: Double): Double

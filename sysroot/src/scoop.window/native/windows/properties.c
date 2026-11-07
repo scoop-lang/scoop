@@ -1,13 +1,13 @@
 #include "window.h"
 
-static int64_t restyle(SWWindow *window) {
+int64_t sw_restyle(SWWindow *window) {
   RECT client;
   GetClientRect(window->hwnd, &client);
   LONG_PTR old = GetWindowLongPtrW(window->hwnd, GWL_STYLE);
   SetLastError(0);
   SetWindowLongPtrW(window->hwnd, GWL_STYLE,
-                    sw_style(window) |
-                        (old & (WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE)));
+                    sw_style(window) | (old & (WS_VISIBLE | WS_MINIMIZE |
+                                               WS_MAXIMIZE | WS_DISABLED)));
   DWORD error = GetLastError();
   if (error)
     return error;
@@ -29,8 +29,7 @@ int64_t scoop_window_position(SWWindow *window, double x, double y) {
 }
 void sw_minmax(SWWindow *window, MINMAXINFO *info) {
   RECT border = {0};
-  AdjustWindowRectExForDpi(&border, sw_style(window), FALSE, 0,
-                           (UINT)round(window->scale * 96));
+  sw_adjust_frame_rect(window, &border, (UINT)round(window->scale * 96));
   LONG bw = border.right - border.left, bh = border.bottom - border.top;
   info->ptMinTrackSize.x = (LONG)ceil(window->min_width * window->scale) + bw;
   info->ptMinTrackSize.y = (LONG)ceil(window->min_height * window->scale) + bh;
@@ -42,8 +41,7 @@ void sw_minmax(SWWindow *window, MINMAXINFO *info) {
 }
 void sw_sizing(SWWindow *window, WPARAM edge, RECT *rect) {
   RECT border = {0};
-  AdjustWindowRectExForDpi(&border, sw_style(window), FALSE, 0,
-                           (UINT)round(window->scale * 96));
+  sw_adjust_frame_rect(window, &border, (UINT)round(window->scale * 96));
   double bw = border.right - border.left, bh = border.bottom - border.top;
   double width = (rect->right - rect->left - bw) / window->scale;
   double height = (rect->bottom - rect->top - bh) / window->scale;
@@ -92,11 +90,7 @@ int64_t scoop_window_resize_increments(SWWindow *window, double width,
 }
 int64_t scoop_window_resizable(SWWindow *window, int32_t value) {
   window->resizable = value != 0;
-  return restyle(window);
-}
-int64_t scoop_window_decorations(SWWindow *window, int32_t value) {
-  window->decorations = value != 0;
-  return restyle(window);
+  return sw_restyle(window);
 }
 int64_t scoop_window_buttons(SWWindow *window, int32_t close, int32_t minimize,
                              int32_t maximize) {
@@ -107,9 +101,13 @@ int64_t scoop_window_buttons(SWWindow *window, int32_t close, int32_t minimize,
   if (menu)
     EnableMenuItem(menu, SC_CLOSE,
                    MF_BYCOMMAND | (close ? MF_ENABLED : MF_GRAYED));
-  return restyle(window);
+  return sw_restyle(window);
 }
 int64_t scoop_window_level(SWWindow *window, int32_t level) {
+  if (!level && window->owning_window &&
+      (GetWindowLongPtrW(window->owning_window->hwnd, GWL_EXSTYLE) &
+       WS_EX_TOPMOST))
+    level = 1;
   window->bottom = level < 0;
   HWND order = level > 0   ? HWND_TOPMOST
                : level < 0 ? HWND_BOTTOM
@@ -150,13 +148,12 @@ int64_t scoop_window_theme(SWWindow *window, int32_t theme) {
   return 0;
 }
 int64_t scoop_window_transparent(SWWindow *window, int32_t value) {
-  int margin = value ? -1 : 0;
-  MARGINS margins = {margin, margin, margin, margin};
-  HRESULT hr = DwmExtendFrameIntoClientArea(window->hwnd, &margins);
-  if (FAILED(hr))
-    return (uint32_t)hr;
+  bool previous = window->transparent;
   window->transparent = value != 0;
-  return 0;
+  int64_t status = sw_frame_margins(window);
+  if (status)
+    window->transparent = previous;
+  return status;
 }
 int64_t scoop_window_blur(SWWindow *window, int32_t value) {
   // DwmEnableBlurBehindWindow no longer produces blur on Windows 8 and later.

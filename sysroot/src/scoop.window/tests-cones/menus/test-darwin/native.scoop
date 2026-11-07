@@ -1,0 +1,67 @@
+package scoop.tests.window.menus
+
+@Extern(name = "scoop_test_menu_action")
+private fun nativeMenuAction(text: Ptr<UInt8>, length: Long): Int
+
+@Extern(name = "scoop_test_popup_action")
+private fun nativePopupAction(text: Ptr<UInt8>, length: Long): Int
+
+@Extern(name = "scoop_test_menu_property")
+private fun nativeMenuProperty(menu: Ptr<Unit>, text: Ptr<UInt8>, length: Long, field: Int): Long
+
+@Extern(name = "scoop_test_menu_shortcut")
+internal fun nativeMenuShortcut(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_closing_menu_role")
+internal fun nativeClosingMenuRole(menu: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_native_menu_editor")
+internal fun nativeMenuEditor(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_menu_observe")
+internal fun nativeObserveMenus()
+
+@Extern(name = "scoop_test_menu_tracking")
+internal fun nativeMenuTracking(): Int
+
+@Extern(name = "scoop_test_menu_end")
+internal fun nativeEndMenus()
+
+internal fun menuAction(title: String): Boolean {
+    @Unsafe
+    {
+        return title.withUtf8Bytes {
+            bytes,
+            count -> @Unsafe
+            {
+                return@withUtf8Bytes nativeMenuAction(bytes, count) != 0
+            }
+        }
+    }
+}
+
+internal fun popupAction(title: String): Boolean {
+    @Unsafe
+    {
+        return title.withUtf8Bytes {
+            bytes,
+            count -> @Unsafe
+            {
+                return@withUtf8Bytes nativePopupAction(bytes, count) != 0
+            }
+        }
+    }
+}
+
+internal fun menuProperty(menu: Ptr<Unit>, title: String, field: Int): Long {
+    @Unsafe
+    {
+        return title.withUtf8Bytes {
+            bytes,
+            count -> @Unsafe
+            {
+                return@withUtf8Bytes nativeMenuProperty(menu, bytes, count, field)
+            }
+        }
+    }
+}

@@ -82,7 +82,7 @@ pub(crate) fn lower(
     let dependencies =
         export::ImportedSemanticWorld::from_dependencies(module.cone, Vec::new(), Vec::new())
             .expect("a source-only world has no dependency conflicts");
-    Concretizer::new(module, &dependencies, automatic).run()
+    Concretizer::new(module, &dependencies, None, automatic).run()
 }
 
 pub(crate) use output::lower_output;
@@ -98,6 +98,7 @@ enum ConcreteApplicationRepresentation {
 struct Concretizer<'a> {
     source: &'a export::Module,
     dependencies: &'a export::ImportedSemanticWorld<'a>,
+    selected_dependencies: Option<&'a export::SelectedImportedDependencySet>,
     automatic: AutomaticNominalRoots,
     core: &'a export::CoreProtocols,
     coroutine_results: std::collections::BTreeSet<concrete::TypeId>,
@@ -209,6 +210,8 @@ struct Concretizer<'a> {
     imported_dependency_callables: Arena<concrete::ImportedDependencyCallableUse>,
     imported_dependency_callable_map:
         HashMap<export::ImportedDependencyCallableUseId, concrete::ImportedDependencyCallableUseId>,
+    materialized_dispatch_signatures:
+        std::collections::HashSet<export::ImportedDependencyCallableRef>,
     function_coercions: Arena<concrete::FunctionCoercion>,
     coercion_by_key:
         HashMap<(export::FunctionCoercionId, Vec<concrete::TypeId>), concrete::FunctionCoercionId>,
@@ -281,6 +284,7 @@ impl<'a> Concretizer<'a> {
     fn new(
         source: &'a export::Module,
         dependencies: &'a export::ImportedSemanticWorld<'a>,
+        selected_dependencies: Option<&'a export::SelectedImportedDependencySet>,
         automatic: AutomaticNominalRoots,
     ) -> Self {
         let object_by_backing_class = source
@@ -395,6 +399,8 @@ impl<'a> Concretizer<'a> {
             imported_derived_equalities: Arena::new(),
             imported_dependency_callables,
             imported_dependency_callable_map,
+            selected_dependencies,
+            materialized_dispatch_signatures: std::collections::HashSet::new(),
             function_coercions: Arena::new(),
             coercion_by_key: HashMap::new(),
             foreign_callback_slots: Vec::new(),

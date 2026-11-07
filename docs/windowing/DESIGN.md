@@ -1,8 +1,10 @@
 # 桌面窗口与事件库设计
 
+后续的原生菜单栏、popup menu、可定制窗框、窗口归属／模态、系统文件对话框，以及独立 scoop.tray Cone 和 UI 包装见 [原生桌面能力与 UI 组件设计](../desktop-ui/DESIGN.md)，关系与对话框细节见[配套设计](../desktop-ui/WINDOWS-AND-DIALOGS.md)。设计已纳入当前 Linux 后端，并安排最后的综合 demo；新增能力尚未实施。
+
 后续控件基础所需的公共键位、编辑命令、剪贴板与 IME 合同整理见 [跨平台抽象设计](../ui/component-foundations/PLATFORM.md)。该轮设计于 2026-11-04 完成，尚未实施；当前先做 macOS，Windows 分支随后满足同一公共合同，上层 UI 不另写平台代码。
 
-状态：基础架构、macOS 与 Windows GUI 骨架已实现。更新：2026-11-01，补充多窗口、模态与窗框边界，未新增实现。Windows 阶段复用两个普通 Cone，交付窗口、属性、基础输入／IME、显示器、native lease、DXGI renderer 和 asyncio；Linux Wayland／X11 及其他后端仍留待后续。实现、验收边界与硬件交互限制见 [PROGRESS.md](PROGRESS.md)，使用方式见[窗口库 README](../../sysroot/src/scoop.window/README.md)。
+状态：基础架构、macOS／Windows GUI 骨架及 Linux GNU x86_64 的 GTK4／libadwaita Wayland／X11 后端已实现。更新：2026-11-07，同步 Linux 合入后的设计基线；本次仅更新文档。Linux 采用 GtkGLArea／Skia 呈现，musl 暂无 GUI。实现、验证与限制见 [PROGRESS.md](PROGRESS.md)及 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)，使用方式见[窗口库 README](../../sysroot/src/scoop.window/README.md)。
 
 本轮按 winit 的职责搭建可供 GUI 使用的骨架：真实窗口／主循环、显式生命周期与 proxy、基础窗口属性、DPI／显示器快照、键盘／指针／滚轮／文本输入、native lease、renderer 和 asyncio 接入。winit 的完整能力地图用于确定边界和后续扩展方向，不要求本轮复制它的全部平台扩展。全屏控制／显示模式切换、全局原始设备监听、触摸／高级手势、光标捕获、文件拖放及平台专有的复杂窗口交互分批补充；未实施项不以 Unsupported 伪装成平台不支持。控件、布局、菜单体系和应用编辑器仍由上层 GUI 实现。
 
@@ -148,7 +150,7 @@ watch/remove 的所有权、非内联注册、串行通知、回调退出后注�
 
 窗口内部坐标以左上为原点，x 向右、y 向下。LogicalPosition／LogicalSize／LogicalRect 使用有限 Double；PhysicalSize 使用非负 Int，表示 drawable 像素尺寸；PhysicalPosition 保留小数，适合物理像素中的指针位置。尺寸非负、scaleFactor 为有限正值；render target 遇到零尺寸暂停取得／提交帧。
 
-`WindowMetrics` 同时携带逻辑内容大小、实际 drawable 大小与有效 scaleFactor；一次 GeometryChanged 发布一个完整快照，避免上层读到新 DPI 配旧尺寸。原生配置未完成时 metrics 为 None；Wayland 首次创建及 unmap 后重新显示均需等待 configure，不虚构可绘制尺寸。请求尺寸与实际尺寸分开；Wayland configure 中的零宽／高是客户端自行选取该维度的提示，使用有效请求、上次实际尺寸或初始默认尺寸，不能直接发布为零 drawable。
+`WindowMetrics` 同时携带逻辑内容大小、实际 drawable 大小与有效 scaleFactor；一次 GeometryChanged 发布完整快照，原生配置未完成时为 None。Linux 使用 GTK 对内容 widget 的实际分配，排除标题栏与阴影；首次映射和隐藏重显中的协议配置由 GTK/GDK 处理，不能用 requested size 冒充可绘制尺寸。GtkGLArea 物理尺寸使用 widget 的整数 scale factor，桌面分数缩放留给 GTK／compositor。
 
 全局位置单独用 `DesktopPosition`／`DesktopRect`，表示当前显示系统的桌面坐标；不能用某一个窗口的 scaleFactor 在混合 DPI 桌面上进行全局换算。桌面位置与尺寸查询允许 None，Wayland 不伪造全局窗口位置或 primary monitor。窗口内物理／逻辑换算只在同一 metrics 快照中进行，像素分配尺寸向上取整。
 
@@ -176,7 +178,7 @@ decorations／resizable／buttons／level 等已有创建及运行中设置入�
 
 TextInputBatch 携带可选 baseRevision 和有序编辑操作，具体载荷见[窗口规范第 5 节](../specs/SCOOP-WINDOW-SPEC.md#5-输入与文本)。一批操作只调用一次 handler，在开始时检查基础快照，按批次内顺序解释后续位置，最后发布一次新快照。不能在删除 surrounding 后立即推进公开 revision，再把同批 commit／preedit 当成过期数据。范围引用失效或 native 数据非法时整批拒绝并重新同步，不部分应用；无需旧快照的普通 CurrentSelection 提交保持可用。
 
-Wayland 每个 text-input-v3.done 形成一个批次，依协议顺序清除旧 preedit、删除 surrounding、提交文字和设置新 preedit。协议 done serial 与编辑器 revision 分别保存，前者不匹配不能直接作为丢弃输入的理由；平台按协议处理状态提交。AppKit 一次输入解释、Windows TSF 一次原子编辑事务同样保留原生更新边界。[text-input-v3 协议](https://github.com/wayland-mirror/wayland-protocols/blob/main/unstable/text-input/text-input-unstable-v3.xml)给出了顺序与 serial 规则。
+Linux 经 GtkIMContext 接入 commit、preedit、delete-surrounding 与已发布的 surrounding／caret 快照，实际 Wayland／X11 输入法协议由 GTK/GDK 管理，不在 Scoop 中重复解析协议批次。AppKit 一次输入解释、Windows TSF 一次原子编辑事务仍保留各自的原生更新边界；公共批次与连接／revision 合同见窗口规范。
 
 平台使用已发布的原生文档副本和候选窗矩形回答同步询问，不在 NSTextInputClient／TSF 回调中调用 managed handler、布局或挂起。同一编辑事务使用原生临时投影，事务外存在未确认编辑时返回 unavailable。窗口层只转换文本更新和坐标，编辑器保留真实文档、布局与 grapheme 导航的责任；后续 purpose 扩展不得向平台发布密码正文。
 
@@ -190,7 +192,7 @@ requestRedraw 只置 dirty 并唤醒，重复请求可合并。RedrawRequested �
 
 `prePresentNotify()` 告诉窗口后端即将提交帧，用于 Wayland frame callback 等节流；它不是实际 present，也不表示 GPU 完成。渲染层拥有 Metal／Vulkan／OpenGL 的 device、swapchain、surface、提交和 vsync。窗口层不把 io_uring timer 当显示时钟，不内置 Skia surface 或强制渲染线程。[winit 绘制边界](https://docs.rs/winit/0.30.13/winit/)。
 
-`scoop.window.native` 提供 `@Unsafe Window.acquireNativeWindow(): NativeWindowLease`。lease 保活 Window 和 display connection；`handle` 为带类型的 NativeWindowHandle，当前随目标声明 AppKit(nsWindow, nsView) 或 Win32(hwnd, hinstance)。后续 Linux 实施时再加入 Wayland(display, surface) 与 Xlib(display, windowId, visualId, screen)；当前目标只声明实际后端的 handle 变体。XID 使用整数，指针／HANDLE 使用 Ptr<Unit>；不以一个 Long 统一所有句柄，也不为未来 enum 匹配预留没有实现的分支。
+`scoop.window.native` 提供 `@Unsafe Window.acquireNativeWindow(): NativeWindowLease`。lease 保活 Window 和 display connection；NativeWindowHandle 按目标提供 AppKit(nsWindow, nsView)、Win32(hwnd, hinstance) 或 Linux Gtk(window, view)。Linux renderer 在 Gtk 内容容器内挂载 GtkGLArea；需要原始显示对象时经 GTK 公共接口取得，不绕过 GTK 独立提交窗口 buffer。句柄和 borrowed 生命周期保持明确类型，不为未实现后端预留假变体。
 
 lease 的 handle 查询在 owner 上执行；显式 close 可跨线程，原子封闭该借用后把实际释放投递到 owner 的内部收尾队列，不在调用线程执行 GUI API。该队列在停止业务 proxy 投递后仍然可用，避免后台 GPU 完成回调无法释放窗口；重复 close 为空操作，调用后不得继续使用 handle。不能从 GC release 启动这条异步路径。Skia／GPU 包装持有 lease，销毁依赖原生窗口的 surface 并结束有关 GPU／native 借用后再释放。窗口进入 Closing 后不能取得新 lease，已有 lease 阻止库主动销毁原生窗口；lease 不保证外部显示服务器永不失联，也不授权跨线程操作原生对象。渲染层需要后台线程时遵守对应图形 API 的线程规则。
 
@@ -230,33 +232,29 @@ framework 链接复用已有合同；macOS 阶段已实际验证本仓库 Mach-O
 
 ### 10.1 选择与公共边界
 
-Linux 自动模式优先连接有效的 Wayland 桌面，再在建立任何窗口前尝试 X11；可通过 `scoop.window.platform.linux` 显式选择 WaylandOnly／X11Only 及 display name。明确指定的后端失败不得静默切换；开始运行后失联也不能把既有窗口迁到另一显示服务器。该 Linux 专用选项不放进公共 ApplicationOptions。
+当前目标为 x86_64-unknown-linux-gnu。`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择协议；未设置时有 WAYLAND_DISPLAY 则选择 Wayland，否则选择 X11。已选连接失败正常报错，不静默切换。WindowBackend 报告实际显示协议，完整当前合同见[窗口规范第 12 节](../specs/SCOOP-WINDOW-SPEC.md#12-linux-wayland-与-x11-后端)。
 
-窗口 native 后端把显示连接、app proxy 通知、ApplicationHost 注册的通知源、键重复／ControlFlow deadline 组合在一次原生等待中。显示连接只由窗口后端读取；集成 Cone 的 WindowLoopHost 注册 asyncio 的 eventfd 并接收 ready，asyncio 消费自己的通知。所有原生等待走 NativeSafe，空闲不轮询；已有批次未处理或即将关闭时不进入阻塞等待。
+两种协议共用 GTK/GDK 宿主：GMainContext、应用 eventfd、deadline 与借入 readable fd 组合在 owner 的一次 poll 等待中，GTK signal 只更新快照或排队，managed handler 在 GMainContext dispatch 之外执行。asyncio 消费自己的通知；不独立读取 GTK 的显示连接，不新增轮询线程或 GUI loop。
 
 ### 10.2 Wayland
 
-使用 libwayland-client；协议优先 xdg-shell，按 compositor 宣告协商 text-input-v3、fractional-scale／viewporter、pointer-constraints／relative-pointer、pointer-gestures、xdg-activation、xdg-decoration 等。协议缺失通过能力和 Unsupported 表达，不承诺全局定位、强制聚焦、独占显示模式或任意鼠标 warp。
+使用 GTK 的 Wayland 后端。窗口由 AdwWindow／AdwToolbarView／AdwHeaderBar 承载，标题栏、按钮、圆角与阴影由 libadwaita 提供，内容仍由 Scoop UI／Skia 绘制。旧 libdecor 和直接协议窗口实现已移除；surface role、配置、缩放和提交由 GTK/GDK 管理。
 
-等待严格执行 dispatch_pending → prepare_read → flush → poll → read_events／cancel_read，再 dispatch；prepare 成功后每条退出路径必须 read 或 cancel。flush 返回 EAGAIN 时临时监听可写；其他 fd 唤醒也要取消已准备的读取。禁止直接用 io_uring recv 消费 wl_display fd，或让多个 reader 争用同一协议队列。[Wayland client 合同](https://wayland.freedesktop.org/docs/html/apb.html)。
+窗口真实内容分配到达后发布 metrics；隐藏时暂停帧需求，重显后等待有效 GTK 分配与帧机会再呈现。renderer 使用 GtkGLArea 的真实 framebuffer 和 frame clock，不自行创建 wl_egl_window／EGL window surface。全局窗口位置与主显示器返回未知，无相应公开能力的全局定位／topmost 请求返回 Unsupported。
 
-创建 xdg role 后设置标题、app id、尺寸约束等，先提交无 buffer 的初始状态；收到 configure、确定实际尺寸并 ack 后才公布 metrics、提交绘制 buffer。configure 的零宽／高表示客户端选择该维度，处理规则见第 5 节。resize 配置、scale、surface role 和 frame callback 由后端管理，renderer 在已公布 metrics 下分配像素 buffer；fractional scaling 用协商后的 viewport／buffer-scale 规则，不把 scaleFactor 强制取整。renderer 可管理自己的事件队列，但须遵守 libwayland 的共享 display 读取协议，不能自行裸读 fd。
-
-setVisible(false) 先与 renderer 串行停止新 buffer 提交，再以 null buffer commit unmap，清除可绘制配置并保留 dirty。unmap 后 toplevel 的相关状态失效；再次显示时重新提交属性及无 buffer 初始状态，进入 PendingConfigure、等待新的 configure／ack，然后发布完整 metrics 并补 redraw。WindowId 和仍有效的 lease 保持原对象身份，但旧 metrics 不授权提前提交新帧。[xdg-shell 协议](https://github.com/wayland-mirror/wayland-protocols/blob/main/stable/xdg-shell/xdg-shell.xml)的首次映射与重新映射规则都适用。
-
-键位和 compose 用 libxkbcommon；IME 用 text-input-v3 的批次与 done 序列，版本／能力不足时保留普通键输入并明确 IME 不可用。客户端装饰使用 libdecor 及匹配的 C 装饰插件；若 compositor 不提供服务端装饰且客户端装饰依赖不可用，要求装饰的窗口创建失败，不无提示地变成无边框。协议和装饰依赖版本在实施开始时固定，并记录许可证。
+输入、IME、剪贴板及显示器使用 GTK/GDK。新窗框、区域、关系／模态和文件面板在这套宿主上扩展，不能为每项功能建立另一份 Wayland 显示连接或独立协议调度。
 
 ### 10.3 X11
 
-Xlib 持有唯一 Display 与事件读取；XKB／libxkbcommon 归一键位，XIM／XIC 和 UTF-8 lookup 负责输入法，XInput2 负责可用的 raw／touch，XRandR 负责显示器／模式／热插拔，Xcursor 负责光标。不能混用 Xlib 与 XCB 作为同一连接的独立事件消费者。[libxkbcommon 官方说明](https://xkbcommon.org/doc/current/)。
+同样使用 GTK/libadwaita 与 GtkGLArea；通过 GDK 公共入口取得需要的 Xlib Display／XID，现有全局位置、窗口层级与 attention 使用原生 X11 请求。显示事件仍由 GTK 读取，不混入另一套 XCB／Xlib 事件消费者。
 
-实现 WM_DELETE_WINDOW、EWMH 状态、configure、焦点与 XDND 文件拖放。尺寸、置顶、激活和全屏请求需等待 WM 事实确认；窗口管理器可以忽略建议。X11 error handler 的进程级属性必须由本库自有 Application 边界管理，捕获请求相关错误，不能把异步 X error 当一次 setter 已成功，也不能静默覆盖宿主的既有 Xlib 策略。
+WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明需要实际 compositor；输入、IME、剪贴板和显示器继续由 GTK/GDK 处理。全屏、拖放、raw／touch 等未交付能力不因 GTK 存在就记为完成。
 
 ### 10.4 依赖与发行
 
-Linux 首期按真实桌面依赖动态链接，GNU／musl 各自使用兼容 headers、库及 libdecor／XIM 模块；不能让 musl 程序加载 glibc 插件。完整静态桌面分发不是首期验收承诺；native 声明与显式链接模式冲突走现有链接诊断。桌面库不进入无窗口程序的依赖闭包。
+最低依赖为 GTK 4.18、libadwaita 1.4，运行时使用系统动态库。维护阶段通过现有 prepare_gtk.py 与 pkg-config 准备 GNU sysroot 的头文件、native 链接输入及许可；Linux GUI 按需要声明 C++ runtime。musl 暂不包含 GUI，不要求普通无窗口程序带入桌面库。
 
-生成的 Wayland 协议 C 源码在维护／发行准备阶段用固定 scanner 版本生成并作为普通输入携带；消费预编译 Cone 不临时联网、不自动运行依赖安装器。缺失库和 display 按普通构建／运行错误报告。是否允许无显示器环境启动由明确的测试宿主决定，不用一个假窗口后端冒充桌面实现。
+消费预编译 Cone 不临时联网或安装依赖；缺失库、显示连接与不支持的显式创建属性正常报错。托盘额外依赖由独立 scoop.tray Cone 声明。Wayland／X11、软件 GPU 与真实硬件验证及已知 GTK/GNOME 限制分别记录于 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。
 
 ## 11. Windows 后端
 
@@ -290,11 +288,11 @@ Windows 后端要求创建窗口的 owner 使用 Per-Monitor V2。应用优先�
 
 1. 按本草案定义最小端到端子集，先落实实际需要的 `.m` native 管线，并采用 Windows 分支的 EventLoopNotification／watch；同步实际宿主与调用方，不新增旧签名兼容层。
 2. 用真实 window／window.asyncio 两个 Cone 完成公开宿主接入、窗口创建、输入、提交一帧及退出。持有 renderer lease 和活动 I/O 时请求退出，确认窗口、session、watch 与 lease 能依次或交错收尾；没有窗口时也能等待 session 完成。渲染使用小型实际 surface 适配，不建设完整 GUI 或通用渲染框架。
-3. 后续 Linux 阶段完成 Wayland 的首次配置、零尺寸提示、隐藏／重显、DPI、IME 批次、装饰、frame、拖放及协议能力差异，并实现 X11 对应行为。GNU／musl 共用 Scoop 层，不复制测试实现。
+3. Linux GNU 已通过 GTK/libadwaita 接入 Wayland／X11 的窗口、内容分配、输入／IME、装饰、GtkGLArea 和 asyncio；当前验证见 Linux GUI 实施记录。拖放等未交付能力继续独立补齐，musl 不列入当前 GUI 范围。
 4. 在已有基础光标、monitor、主题和窗口属性之上，按映射表分批补充 touch／gesture／raw device、全屏控制及高级可选属性；每项“平台不支持”均有真实 capability 依据和明确结果。
 5. 每个阶段以配套示例、真实目标测试和明确限制独立交付。当前基础架构／macOS 骨架阶段与完整能力地图分别记录；Linux 窗口及平台专测另行安排，平台基础分支通过不等于窗口可用。
 
-纯值／归一规则、状态、错误与普通 API 行为用所属 Cone 的 scoop.test；真实窗口与 callback 测试使用主线程测试程序，必要的 OS 进程控制／ABI／native 编译能力才用少量 fixture。当前目标为真实 macOS 与 Windows 桌面；后续 Linux 验收覆盖 Wayland compositor、X11 WM 及 GNU／musl 库。Xvfb 或 headless compositor 可覆盖自动化行为，但不能替代实体显示器、输入法候选交互与真实用户拖动的手工验证。
+纯值／归一规则、状态、错误与普通 API 行为用所属 Cone 的 scoop.test；真实窗口与 callback 测试使用主线程测试程序，必要的 OS 进程控制／ABI／native 编译能力才用少量 fixture。当前覆盖 macOS、Windows 和 Linux GNU 的 GTK Wayland／X11；实际执行范围分别记录。Xvfb／嵌套 compositor 可覆盖自动化行为，但不能替代硬件显示器、输入法候选交互、真实用户拖动及不同桌面 Shell 的验证。
 
 重点组合：多个窗口与任务并存；关闭／外线程投递竞争；移动 GC 下事件文本和 ForeignCallback；关闭中 surface lease 未释放；用户 handler／清理抛错；菜单、拖动、模态期间 timer／网络／取消推进；混合 DPI 跨屏与热插拔；零 drawable 与 Wayland 零尺寸提示的区别；隐藏／重显后真实 buffer 提交；中文／日文组合、emoji／UTF-16 range、dead keys、重复输入与失焦；同批 delete／commit／preedit、选择方向、协议 serial 与文本 revision 的区别；Wayland flush EAGAIN／prepared-read 取消；X11 WM 忽略请求；display 断开；退出时 I/O、window、watch 各自先完成及没有窗口的顺序。
 

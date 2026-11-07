@@ -1,0 +1,82 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.WindowSystemButton
+
+internal class WindowControlGlyphProps(
+    val button: WindowSystemButton,
+    val restored: Boolean,
+    val size: Double,
+    val color: Color
+)
+
+internal fun windowControlGlyph(
+    button: WindowSystemButton,
+    restored: Boolean,
+    size: Double,
+    color: Color
+): View =
+    element(
+        WindowControlGlyphProps(button, restored, size, color),
+        { props, scope -> WindowControlGlyph(props, scope) }
+    )
+
+private class WindowControlGlyph(
+    private val props: Props<WindowControlGlyphProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val close =
+        scope.resource {
+            path {
+                this.moveTo(Point(5.0, 5.0));
+                this.lineTo(Point(19.0, 19.0))
+                this.moveTo(Point(19.0, 5.0));
+                this.lineTo(Point(5.0, 19.0))
+            }
+        }
+    private val minimize =
+        scope.resource {
+            path {
+                this.moveTo(Point(4.0, 16.0));
+                this.lineTo(Point(20.0, 16.0))
+            }
+        }
+    private val restore =
+        scope.resource {
+            path {
+                this.addRect(Rect(4.0, 8.0, 12.0, 12.0))
+                this.moveTo(Point(8.0, 8.0));
+                this.lineTo(Point(8.0, 4.0));
+                this.lineTo(Point(20.0, 4.0))
+                this.lineTo(Point(20.0, 16.0));
+                this.lineTo(Point(16.0, 16.0))
+            }
+        }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val size = context.size
+        context.draw {
+            target -> target.canvas.withState {
+                canvas ->
+                canvas.scale(size.width / 24.0, size.height / 24.0)
+                val paint = Paint(input.color, PaintingStyle.Stroke, 1.6)
+                when (input.button) {
+                    case Close -> canvas.drawPath(close, paint)
+                    case Minimize -> canvas.drawPath(minimize, paint)
+                    case Maximize -> if (input.restored)
+                        canvas.drawPath(restore, paint)
+                    else
+                        canvas.drawRect(Rect(4.0, 4.0, 16.0, 16.0), paint)
+                }
+            }
+        }
+    }
+}

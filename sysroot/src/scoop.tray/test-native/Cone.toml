@@ -1,0 +1,57 @@
+schema = 1
+[cone]
+group = "scoop.tests"
+name = "tray-native"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+[[sources]]
+path = "darwin"
+when = { os = "darwin" }
+[[sources]]
+path = "windows"
+when = { os = "windows" }
+[[sources]]
+path = "linux"
+when = { os = "linux", env = "gnu" }
+
+[native]
+include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
+c_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+[[native.sources]]
+path = "native/darwin.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux.c"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "AppKit"
+kind = "framework"
+when = { os = "darwin" }
+[[native.libraries]]
+name = "shell32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "user32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "gdi32"
+when = { os = "windows" }
+[[native.libraries]]
+name = "gio-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "gobject-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "glib-2.0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

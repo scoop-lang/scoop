@@ -1,0 +1,29 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class DesktopImageTests {
+    @Test
+    fun `RGBA images validate actual allocation sizes without a graphics dependency`() {
+        assertFailsWith<IllegalArgumentException> {
+            DesktopImageRepresentation(
+                PhysicalSize(2, 2),
+                [0.toUByte(), 0.toUByte(), 0.toUByte(), 0.toUByte()]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopImageRepresentation(PhysicalSize(-1, 4), [])
+        }
+        assertFailsWith<IllegalArgumentException> { DesktopImage(LogicalSize(16.0, 16.0), []) }
+        val representation =
+            DesktopImageRepresentation(
+                PhysicalSize(1, 1),
+                [255.toUByte(), 0.toUByte(), 0.toUByte(), 128.toUByte()]
+            )
+        val image = DesktopImage(LogicalSize(16.0, 16.0), [representation])
+        assertEquals(128.toUByte(), image.representations[0L].pixels[3L])
+        assertFalse(image.template)
+    }
+}

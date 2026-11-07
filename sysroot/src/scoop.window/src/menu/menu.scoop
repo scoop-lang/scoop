@@ -1,0 +1,217 @@
+package scoop.window
+
+import scoop.window.native.NativeMenuLease
+
+/** An explicit owner of one native menu tree. */
+public class Menu internal constructor(internal val owner: MenuOwner): Closeable {
+    public val id: MenuId get() = owner.id
+    public val state: MenuState get() {
+        owner.application.checkThread()
+        return owner.phase
+    }
+    public fun insert(
+        description: MenuItemDescription,
+        parent: MenuItemId? = None,
+        index: Long? = None
+    ): MenuItemId = owner.insert(description, parent, index)
+
+    public fun update(item: MenuItemId, description: MenuItemDescription): RequestStatus =
+        owner.update(item, description)
+
+    public fun move(item: MenuItemId, index: Long): RequestStatus = owner.move(item, index)
+
+    public fun remove(item: MenuItemId): RequestStatus = owner.remove(item)
+
+    public fun items(parent: MenuItemId? = None): Array<MenuItemId> {
+        owner.requireOpen()
+        val children = owner.children(parent)
+        return Array<MenuItemId>(children.size) { index -> children[index].id }
+    }
+
+    public fun description(item: MenuItemId): MenuItemDescription {
+        owner.requireOpen()
+        return owner.requireItem(item).prepared.description
+    }
+
+    public override fun close() {
+        owner.application.checkThread()
+        owner.close(PopupCancelReason.MenuClosed)
+    }
+}
+
+/** Creates a menu without a binding, popup, or native borrow. */
+public fun ActiveApplication.createMenu(): Menu {
+    owner.requireRunning("create menu")
+    val identity = MenuId(owner.takeMenuId())
+    @Unsafe
+    {
+        val result = nativeMenuCreate(owner.native!!, identity.value)
+        val pointer = created(result, "create menu")
+        val menu = MenuOwner(owner, identity, pointer)
+        owner.menus.add(menu)
+        return Menu(menu)
+    }
+}
+
+internal enum MenuUse {
+    Bar(MenuBarBinding), Popup(PopupSession), Native(NativeMenuLease)
+}
+
+internal fun MenuUse.serial(): Long =
+    when (this) {
+        case Bar(binding) -> binding.serial
+        case Popup(session) -> session.serial
+        case Native(lease) -> lease.id.value
+    }
+
+internal fun MenuUse.acceptsActions(): Boolean =
+    when (this) {
+        case Bar(binding) -> !binding.closed
+        case Popup(session) -> session.acceptsActions
+        case Native(lease) -> !lease.closed && lease.acceptsActions
+    }
+
+internal class MenuNode(val id: MenuItemId, val parent: MenuNode?, var prepared: PreparedMenuItem) {
+    val children = ArrayList<MenuNode>()
+    fun enabled(): Boolean {
+        if (!prepared.description.enabled)
+            return false
+        return when (parent) {
+            case Some(value) -> value.enabled()
+            case None -> true
+        }
+    }
+}
+
+internal class MenuOwner(val application: ApplicationOwner, val id: MenuId, native: Ptr<Unit>) {
+    val roots = ArrayList<MenuNode>()
+    val nodes = ArrayList<MenuNode>()
+    var pointer: Ptr<Unit>? = Some(native)
+    var phase = MenuState.Open
+    var use: MenuUse? = None
+    val hasUse: Boolean get() =
+        when (use) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    var dirty = false
+
+    fun requireOpen() {
+        application.requireRunning("menu operation")
+        if (phase != MenuState.Open)
+            throw WindowException("menu operation", WindowErrorKind.InvalidState)
+    }
+
+    fun requireUnused() {
+        requireOpen()
+        if (hasUse || busy())
+            throw WindowException("menu already in use", WindowErrorKind.ResourceBusy)
+        publish()
+    }
+
+    fun findItem(identity: MenuItemId): MenuNode? {
+        for (node in nodes)
+            if (node.id == identity)
+                return Some(node)
+        return None
+    }
+
+    fun requireItem(identity: MenuItemId): MenuNode =
+        findItem(identity) ?:
+            throw IllegalArgumentException(Some("item does not belong to this menu"))
+
+    fun children(parent: MenuItemId?): ArrayList<MenuNode> =
+        when (parent) {
+            case None -> roots
+            case Some(identity) -> {
+                val node = requireItem(identity)
+                requireWindow(
+                    node.prepared.description.kind == MenuItemKind.Submenu,
+                    "menu parent must be a submenu"
+                )
+                node.children
+            }
+        }
+
+    fun busy(): Boolean {
+        @Unsafe
+        {
+            return pointer != None && nativeMenuBusy(pointer!!) != 0
+        }
+    }
+
+    fun close(reason: PopupCancelReason) {
+        if (phase != MenuState.Open)
+            return
+        phase = MenuState.Closing
+        when (use) {
+            case Some(MenuUse.Bar(binding)) -> binding.close()
+            case Some(MenuUse.Popup(session)) -> session.cancel(reason)
+            case Some(MenuUse.Native(lease)) -> lease.requestClose()
+            case None -> {}
+        }
+        application.mailbox.wake()
+    }
+
+    fun takeUseSerial(): Long = application.takeMenuUseId()
+
+    fun checkRoot(kind: MenuItemKind, parent: MenuNode?) {
+        when (use) {
+            case Some(MenuUse.Bar(_)) -> {
+                when (parent) {
+                    case None -> requireWindow(
+                        kind == MenuItemKind.Submenu,
+                        "menu bar roots must be submenus"
+                    )
+                    case Some(_) -> {}
+                }
+            }
+            else -> {}
+        }
+    }
+
+    fun applyChanges(): RequestStatus {
+        dirty = true
+        if (busy())
+            return RequestStatus.Requested
+        publish()
+        return RequestStatus.Applied
+    }
+}
+
+internal fun ApplicationOwner.requireRunning(operation: String) {
+    checkThread()
+    if (native == None || exiting || stopped)
+        throw WindowException(operation, WindowErrorKind.InvalidState)
+}
+
+internal fun ApplicationOwner.findMenu(identity: Long): MenuOwner? {
+    for (menu in menus)
+        if (menu.id.value == identity)
+            return Some(menu)
+    return None
+}
+
+internal fun ApplicationOwner.takeMenuId(): Long {
+    if (nextMenu == 9223372036854775807L)
+        throw WindowException("menu identity", WindowErrorKind.NativeFailure)
+    val identity = nextMenu
+    nextMenu += 1L
+    return identity
+}
+
+internal fun ApplicationOwner.takeMenuItemId(): MenuItemId {
+    if (nextMenuItem == 9223372036854775807L)
+        throw WindowException("menu item identity", WindowErrorKind.NativeFailure)
+    val identity = MenuItemId(nextMenuItem)
+    nextMenuItem += 1L
+    return identity
+}
+
+internal fun ApplicationOwner.takeMenuUseId(): Long {
+    if (nextMenuUse == 9223372036854775807L)
+        throw WindowException("menu use identity", WindowErrorKind.NativeFailure)
+    val identity = nextMenuUse
+    nextMenuUse += 1L
+    return identity
+}

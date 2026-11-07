@@ -1,0 +1,278 @@
+package scoop.window
+
+/** A single explicit attachment; closing it never closes the menu. */
+public class MenuBarBinding internal constructor(
+    internal val menu: MenuOwner,
+    internal val window: WindowOwner?,
+    internal val serial: Long
+): Closeable {
+    internal var closed = false
+    private var detached = false
+    public val id: MenuBarBindingId = MenuBarBindingId(serial)
+    public val isDetached: Boolean get() {
+        menu.application.checkThread()
+        return detached
+    }
+    public val isClosed: Boolean get() {
+        menu.application.checkThread()
+        return closed
+    }
+    internal fun didDetach() {
+        detached = true
+        val application = menu.application
+        application.mailbox.post {
+            application.handler!!.onEvent(application.active, ApplicationEvent.MenuBarDetached(id))
+        }
+    }
+    public override fun close() {
+        menu.application.checkThread()
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            nativeMenuCancel(menu.pointer!!)
+        }
+        menu.settleUse()
+        menu.application.mailbox.wake()
+    }
+}
+
+public fun ActiveApplication.attachMenuBar(menu: Menu): MenuBarBinding {
+    owner.requireRunning("attach application menu bar")
+    requireWindow(menu.owner.application === owner, "menu belongs to another application")
+    if (!desktopCapabilities().menus.applicationMenuBar)
+        throw WindowException("application menu bar", WindowErrorKind.Unsupported)
+    return menu.owner.attachBar(None)
+}
+
+public fun Window.attachMenuBar(menu: Menu): MenuBarBinding {
+    owner.requireOpen()
+    requireWindow(
+        menu.owner.application === owner.application,
+        "menu belongs to another application"
+    )
+    if (!owner.application.active.desktopCapabilities().menus.windowMenuBar)
+        throw WindowException("window menu bar", WindowErrorKind.Unsupported)
+    return menu.owner.attachBar(Some(owner))
+}
+
+private fun MenuOwner.attachBar(window: WindowOwner?): MenuBarBinding {
+    requireUnused()
+    for (menu in application.menus) {
+        when (menu.use) {
+            case Some(MenuUse.Bar(binding)) -> {
+                if (sameMenuWindow(binding.window, window))
+                    throw WindowException(
+                        "menu bar target already bound",
+                        WindowErrorKind.ResourceBusy
+                    )
+            }
+            else -> {}
+        }
+    }
+    for (node in roots)
+        requireWindow(
+            node.prepared.description.kind == MenuItemKind.Submenu,
+            "menu bar roots must be submenus"
+        )
+    val binding = MenuBarBinding(this, window, takeUseSerial())
+    val nativeWindow =
+        when (window) {
+            case Some(value) -> value.pointer
+            case None -> None
+        }
+    @Unsafe
+    {
+        checkNativeStatus(
+            nativeMenuBind(
+                pointer!!,
+                when (window) {
+                    case None -> 0;
+                    case Some(_) -> 1
+                },
+                binding.serial,
+                nativeWindow
+            ),
+            "attach menu bar"
+        )
+    }
+    when (window) {
+        case Some(value) -> value.leases += 1L
+        case None -> {}
+    }
+    use = Some(MenuUse.Bar(binding))
+    return binding
+}
+
+internal fun sameMenuWindow(left: WindowOwner?, right: WindowOwner?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }
+
+/** A nonblocking handle to one native popup presentation. */
+public class PopupSession internal constructor(
+    public val id: PopupSessionId,
+    internal val menu: MenuOwner,
+    internal val window: WindowOwner,
+    internal val serial: Long,
+    private val placement: PopupPlacement
+): Closeable {
+    private var completed: PopupResult? = None
+    private val finished: Boolean get() =
+        when (completed) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    private var cancellation: PopupCancelReason? = None
+    private var started = false
+    internal var acceptsActions = true
+
+    public val result: PopupResult? get() {
+        menu.application.checkThread()
+        return completed
+    }
+
+    public override fun close() {
+        menu.application.checkThread()
+        cancel(PopupCancelReason.ExplicitClose)
+    }
+
+    internal fun cancel(reason: PopupCancelReason) {
+        if (finished || cancellation != None)
+            return
+        cancellation = Some(reason)
+        acceptsActions = false
+        if (started) {
+            @Unsafe
+            {
+                nativeMenuCancel(menu.pointer!!)
+            }
+        } else {
+            finish(PopupResult.Cancelled(reason))
+            postCompletion()
+        }
+        menu.application.mailbox.wake()
+    }
+
+    internal fun start() {
+        if (finished)
+            return
+        if (window.inputBlocked) {
+            cancel(PopupCancelReason.TargetBlocked)
+            return
+        }
+        started = true
+        val rect =
+            when (placement) {
+                case Pointer(position) -> LogicalRect(position, LogicalSize(0.0, 0.0))
+                case Anchor(value) -> value
+            }
+        val anchor =
+            when (placement) {
+                case Pointer(_) -> 0;
+                case Anchor(_) -> 1
+            }
+        try {
+            @Unsafe
+            {
+                checkNativeStatus(
+                    nativeMenuPopup(
+                        menu.pointer!!,
+                        window.pointer!!,
+                        rect.origin.x,
+                        rect.origin.y,
+                        rect.size.width,
+                        rect.size.height,
+                        anchor
+                    ),
+                    "show popup"
+                )
+            }
+        } catch (error: WindowException) {
+            if (!finished) {
+                finish(PopupResult.Failed(error))
+                postCompletion()
+            }
+        }
+    }
+
+    internal fun completeNative(selected: Long): ApplicationEvent? {
+        if (finished)
+            return None
+        val value: PopupResult =
+            when (cancellation) {
+                case Some(reason) -> PopupResult.Cancelled(reason)
+                case None -> {
+                    when (menu.findItem(MenuItemId(selected))) {
+                        case Some(node) -> if (node.enabled())
+                            PopupResult.Selected(node.id)
+                        else
+                            PopupResult.Cancelled(PopupCancelReason.User)
+                        case None -> PopupResult.Cancelled(PopupCancelReason.User)
+                    }
+                }
+            }
+        finish(value)
+        return Some(ApplicationEvent.PopupCompleted(id, value))
+    }
+
+    private fun finish(value: PopupResult) {
+        if (finished)
+            return
+        completed = Some(value)
+        acceptsActions =
+            when (value) {
+                case Selected(_) -> acceptsActions;
+                else -> false
+            }
+        @Unsafe
+        {
+            checkNativeStatus(nativeMenuUnbind(menu.pointer!!), "detach popup")
+        }
+        menu.use = None
+        window.leases -= 1L
+        if (!menu.busy())
+            menu.publish()
+    }
+
+    private fun postCompletion() {
+        val event = ApplicationEvent.PopupCompleted(id, completed!!)
+        val application = menu.application
+        application.mailbox.post { application.handler!!.onEvent(application.active, event) }
+    }
+}
+
+public fun Window.showPopup(menu: Menu, placement: PopupPlacement): PopupSession {
+    owner.requireInteractive()
+    requireWindow(
+        menu.owner.application === owner.application,
+        "menu belongs to another application"
+    )
+    when (placement) {
+        case Pointer(position) -> checkPosition(position)
+        case Anchor(rect) -> checkRect(rect)
+    }
+    menu.owner.requireUnused()
+    val application = owner.application
+    if (!application.active.desktopCapabilities().menus.popup)
+        throw WindowException("popup", WindowErrorKind.Unsupported)
+    if (application.nextPopup == 9223372036854775807L)
+        throw WindowException("popup identity", WindowErrorKind.NativeFailure)
+    val identity = PopupSessionId(application.nextPopup)
+    application.nextPopup += 1L
+    val session = PopupSession(identity, menu.owner, owner, menu.owner.takeUseSerial(), placement)
+    @Unsafe
+    {
+        checkNativeStatus(
+            nativeMenuBind(menu.owner.pointer!!, 2, session.serial, owner.pointer),
+            "bind popup"
+        )
+    }
+    owner.leases += 1L
+    menu.owner.use = Some(MenuUse.Popup(session))
+    application.deferNativeOperation { session.start() }
+    return session
+}

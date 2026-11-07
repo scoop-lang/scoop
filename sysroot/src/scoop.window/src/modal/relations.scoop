@@ -1,0 +1,131 @@
+package scoop.window
+
+public val Window.ownerWindow: Window? get() {
+    owner.application.checkThread()
+    return when (owner.owningWindow) {
+        case Some(value) -> Some(Window(value))
+        case None -> None
+    }
+}
+
+public val Window.role: WindowRole get() {
+    owner.application.checkThread();
+    return owner.role
+}
+
+public val Window.isInputBlocked: Boolean get() {
+    owner.application.checkThread()
+    return owner.inputBlocked
+}
+
+/** Requests stacking only; OS activation policy remains separate. */
+public fun Window.requestRaise(): RequestStatus {
+    owner.requireOpen()
+    val snapshot = owner.snapshot()
+    if (snapshot.visible == 0 || snapshot.minimized != 0)
+        throw WindowException("raise visible window", WindowErrorKind.InvalidState)
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowRaise(owner.pointer!!),
+            "raise",
+            RequestStatus.Requested
+        )
+    }
+}
+
+/** Reports the native level, including owner propagation; unavailable observations stay unknown. */
+public val Window.observedWindowLevel: WindowLevel? get() {
+    owner.requireOpen()
+    @Unsafe
+    {
+        return when (nativeWindowObservedLevel(owner.pointer!!)) {
+            -1 -> Some(WindowLevel.AlwaysOnBottom)
+            0 -> Some(WindowLevel.Normal)
+            1 -> Some(WindowLevel.AlwaysOnTop)
+            else -> None
+        }
+    }
+}
+
+internal fun WindowOwner.isDescendantOf(ancestor: WindowOwner): Boolean {
+    var current = owningWindow
+    while (true) {
+        val window = current ?: return false
+        if (window === ancestor)
+            return true
+        current = window.owningWindow
+    }
+}
+
+internal fun WindowOwner.isOwnedBy(parent: WindowOwner): Boolean =
+    when (owningWindow) {
+        case Some(value) -> value === parent
+        case None -> false
+    }
+
+internal fun ApplicationOwner.relationOwner(relation: WindowRelation): WindowOwner? =
+    when (relation) {
+        case Independent -> None
+        case Owned(value) -> {
+            if (!(value.owner.application === this))
+                throw IllegalArgumentException(Some("owner window belongs to another application"))
+            value.owner.requireOpen()
+            Some(value.owner)
+        }
+    }
+
+internal fun WindowOwner.requireInteractive() {
+    requireOpen()
+    if (inputBlocked)
+        throw WindowException("window input", WindowErrorKind.InvalidState)
+}
+
+internal fun ApplicationOwner.hasOwnedWindow(owner: WindowOwner): Boolean {
+    for (window in windows)
+        if (window.hasOwner && window.owningWindow!! === owner)
+            return true
+    return false
+}
+
+internal fun ApplicationOwner.syncOwnedVisibility() {
+    for (window in windows) {
+        if (window.phase != WindowState.Open && window.phase != WindowState.PendingConfigure)
+            continue
+        val parent = window.owningWindow ?: continue
+        if (parent.pointer == None)
+            continue
+        val value = parent.snapshot()
+        val suppressed =
+            !parent.requestedVisible ||
+                parent.visibilitySuppressed ||
+                value.visible ==
+                0 ||
+                value.minimized !=
+                0
+        if (suppressed == window.visibilitySuppressed)
+            continue
+        window.visibilitySuppressed = suppressed
+        if (suppressed)
+            cancelOwnedModals(parent, ModalCancelReason.OwnerHidden)
+        if (!window.hasModal) {
+            @Unsafe
+            {
+                checkNativeStatus(
+                    nativeWindowVisible(
+                        window.pointer!!,
+                        flag(window.requestedVisible && !suppressed)
+                    ),
+                    "owned visibility"
+                )
+            }
+            window.notifyActivity()
+        }
+    }
+}
+
+@Extern(name = "scoop_window_raise")
+private fun nativeWindowRaise(window: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_observed_level")
+private fun nativeWindowObservedLevel(window: Ptr<Unit>): Int

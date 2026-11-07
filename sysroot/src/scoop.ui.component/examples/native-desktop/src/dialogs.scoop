@@ -1,0 +1,202 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.*
+import scoop.platform.fs.Path
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+internal fun reportFile(demo: DesktopDemo, result: FileDialogResult<Path>) {
+    when (result) {
+        case Accepted(path) -> demo.report("Selected: " + path.display())
+        case Cancelled(_) -> demo.report("File dialog cancelled")
+        case Failed(error) -> demo.operationFailed(error)
+    }
+}
+
+internal fun reportFiles(demo: DesktopDemo, result: FileDialogResult<Array<Path>>) {
+    when (result) {
+        case Accepted(paths) -> {
+            var message = "Selected paths:"
+            for (path in paths)
+                message += "\n" + path.display()
+            demo.report(message)
+        }
+        case Cancelled(_) -> demo.report("Multiple-file dialog cancelled")
+        case Failed(error) -> demo.operationFailed(error)
+    }
+}
+
+internal class Confirmation(
+    private val demo: DesktopDemo,
+    private val response: NativeDialogResponse<Boolean>,
+    private val title: String,
+    private val message: String,
+    scope: ComponentScope,
+    private val nestedAllowed: Boolean = true
+): Component(scope) {
+    private val input = TextEditorState("Native modal content remains ordinary editable UI")
+    private val child = scope.nativeDialogController<Boolean>(DialogTarget.Owner(response.window))
+    public override fun render(): View {
+        val demo = this.demo
+        val response = this.response
+        val title = this.title
+        val message = this.message
+        val nested = child
+        val allowNested = nestedAllowed
+        return frame(
+            column {
+                spacing = 14.0
+                label(title) {
+                    style {
+                        fontSize = Some(22.0);
+                        weight = Some(700)
+                    }
+                }
+                label(message)
+                input(this @Confirmation.input)
+                row {
+                    spacing = 8.0
+                    button("Accept", { response.accept(true) })
+                    button("Cancel", { response.cancel() }) { variant = ButtonVariant.Outline }
+                    add(
+                        nativeOpenFileButton(
+                            "Open file…",
+                            DialogTarget.Owner(response.window),
+                            { reportFile(demo, it) }
+                        )
+                    )
+                }
+                if (allowNested)
+                    button(
+                        "Nested owner modal",
+                        {
+                            nested.open(
+                                {
+                                    reply,
+                                    mount -> Confirmation(
+                                        demo,
+                                        reply,
+                                        "Nested owner modal",
+                                        "Closing this restores the previous modal scope.",
+                                        mount,
+                                        false
+                                    )
+                                },
+                                { _ -> demo.report("Nested modal completed") },
+                                attributes =
+                                    windowAttributes {
+                                        this.title = "Nested modal";
+                                        size = LogicalSize(540.0, 300.0);
+                                        requestActivation = !demo.smoke
+                                    }
+                            )
+                        }
+                    ) { enabled = !nested.isPending }
+            }
+        ) {
+            padding = Some(Insets.all(22.0));
+            surface = Some(SurfaceKind.Plain)
+        }
+    }
+}
+
+internal class ToolView(
+    private val demo: DesktopDemo,
+    private val owner: Window,
+    scope: ComponentScope
+): Component(scope) {
+    private val clicks = state(0)
+    public override fun render(): View {
+        val demo = this.demo
+        val clicks = this.clicks
+        val window = scope.nativeWindow
+        val owner = this.owner
+        return frame(
+            column {
+                spacing = 14.0
+                label("Owned nonmodal tool") {
+                    style {
+                        fontSize = Some(21.0);
+                        weight = Some(700)
+                    }
+                }
+                label(
+                    "The document remains interactive. Minimize / restore its owner to observe native grouping."
+                )
+                row {
+                    spacing = 8.0
+                    button(f"Tool counter: ${clicks.value}", { clicks.value += 1 })
+                    button("Minimize owner", { owner.requestMinimized(true) })
+                    button("Close", { window.requestClose() })
+                }
+                add(nativeMenuButton("Native tool menu", actionMenu(demo)))
+            }
+        ) {
+            padding = Some(Insets.all(20.0));
+            surface = Some(SurfaceKind.Plain)
+        }
+    }
+}
+
+internal class ShapeView(
+    private val demo: DesktopDemo,
+    private val matched: Boolean,
+    scope: ComponentScope
+): Component(scope) {
+    private val ellipse = state(true)
+    public override fun render(): View {
+        val demo = this.demo
+        val shape =
+            if (ellipse.value)
+                WindowChromeShape.Ellipse
+            else
+                WindowChromeShape.Rounded(64.0)
+        val ellipse = this.ellipse
+        val caps = demo.capabilities!!.frame
+        val matched = this.matched
+        val window = scope.nativeWindow
+        val body =
+            windowDragRegion(
+                frame(
+                    column {
+                        spacing = 12.0
+                        label("Shaped native window") {
+                            style {
+                                fontSize = Some(18.0);
+                                weight = Some(700)
+                            }
+                        }
+                        label(
+                            if (matched)
+                                "Matching native region requested"
+                            else
+                                "Visual shape only"
+                        )
+                        button("Ellipse / rounded", { ellipse.value = !ellipse.value })
+                        button("Close", { window.requestClose() })
+                    }
+                ) {
+                    padding = Some(Insets.all(56.0));
+                    surface = Some(SurfaceKind.Plain)
+                    style { background(Some(Paint(Color(0.87, 0.92, 1.0)))) }
+                }
+            ) { enabled = caps.beginMove }
+        val chrome =
+            windowChrome(body) {
+                frame = WindowFrame.Client;
+                transparent = Some(true);
+                clip = Some(shape)
+                if (matched && caps.windowRegion)
+                    windowShape = Some(shape)
+                if (matched && caps.inputRegion)
+                    inputShape = Some(shape)
+            }
+        return if (demo.capabilities!!.menus.windowMenuBar)
+            nativeWindowMenuBar(chrome, nativeMenu {})
+        else
+            chrome
+    }
+}

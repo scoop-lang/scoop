@@ -1,0 +1,16 @@
+package scoop.tests.tray.native
+
+@Extern(name = "scoop_test_linux_tray_host")
+public fun createLinuxTrayHost(): Ptr<Unit>?
+
+@Extern(name = "scoop_test_linux_tray_status")
+public fun linuxTrayHostStatus(host: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_linux_tray_inspect")
+public fun inspectLinuxTrayHost(host: Ptr<Unit>, stage: Int)
+
+@Extern(name = "scoop_test_linux_tray_cycle")
+public fun cycleLinuxTrayHost(host: Ptr<Unit>, present: Int): Int
+
+@Extern(name = "scoop_test_linux_tray_destroy")
+public fun destroyLinuxTrayHost(host: Ptr<Unit>)

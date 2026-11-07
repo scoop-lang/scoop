@@ -1,0 +1,278 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.*
+import scoop.platform.system.OsString
+import scoop.tray.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as viewColumn
+import scoop.ui.component.label as viewLabel
+import scoop.ui.component.textarea as viewTextarea
+import scoop.ui.component.frame as viewFrame
+import scoop.ui.style.*
+import scoop.window.*
+
+internal fun demoOption(value: Binding<Boolean>, text: String): View =
+    row {
+        spacing = 6.0;
+        alignment = CrossAlignment.Center
+        checkbox(value)
+        label(text)
+    }
+
+internal fun panel(title: String, content: View): View =
+    frame(
+        column {
+            spacing = 10.0
+            label(title) {
+                style {
+                    fontSize = Some(18.0);
+                    weight = Some(700)
+                }
+            }
+            add(content)
+        }
+    ) {
+        padding = Some(Insets.all(14.0));
+        surface = Some(SurfaceKind.Elevated)
+    }
+
+internal fun documentSections(root: DocumentView): View {
+    val demo = root.demo
+    val window = root.document.window
+    val caps = demo.capabilities!!
+    return column {
+        spacing = 14.0
+        label("Native desktop playground") {
+            style {
+                fontSize = Some(28.0);
+                weight = Some(700)
+            }
+        }
+        label(
+            "Menus, windows, dialogs and a tray share live application state. Changes below use the public Scoop APIs."
+        )
+        add(
+            panel(
+                "Native menus and text editing",
+                viewColumn {
+                    spacing = 10.0
+                    row {
+                        spacing = 12.0;
+                        alignment = CrossAlignment.Center
+                        add(
+                            nativeMenuButton("Open native popup", actionMenu(demo)) {
+                                handle = Some(root.popup)
+                                onClosed = { _ -> demo.report("Native popup completed") }
+                            }
+                        )
+                        add(demoOption(demo.checked.binding(), "Shared checkbox"))
+                        add(demoOption(demo.menuEnabled.binding(), "Enable action"))
+                    }
+                    row {
+                        spacing = 14.0
+                        add(demoOption(root.overrideMenu.binding(), "Window menu override"))
+                        add(demoOption(root.readOnly.binding(), "Read-only editor"))
+                    }
+                    add(
+                        nativeContextMenu(
+                            viewTextarea(root.text) {
+                                rows = 3L;
+                                readOnly = root.readOnly.value
+                                description =
+                                    "Right-click, Menu key or Shift+F10. Native Edit commands target this editor when focused."
+                            },
+                            actionMenu(demo)
+                        )
+                    )
+                }
+            )
+        )
+        add(
+            panel(
+                "Window frame and native ordering",
+                viewColumn {
+                    spacing = 10.0
+                    row {
+                        spacing = 8.0
+                        button("System frame", { root.mode.value = 0 })
+                        button("Extended content", { root.mode.value = 1 }) {
+                            enabled = caps.frame.extendedContent
+                        }
+                        button("Client frame", { root.mode.value = 2 }) {
+                            enabled = caps.frame.client
+                        }
+                        if (caps.frame.shadow)
+                            add(demoOption(root.shadow.binding(), "System shadow"))
+                    }
+                    label(
+                        "Drag blank titlebar space; the input and buttons keep their own interaction. Double-click to maximize. Right-click opens the system window menu when supported."
+                    )
+                    row {
+                        spacing = 8.0
+                        button("Owned tool", { root.showTool() }) { enabled = !root.tool.isOpen }
+                        button("Close tool", { root.tool.closeWindow() }) {
+                            enabled = root.tool.isOpen
+                        }
+                        button(
+                            "Raise once",
+                            {
+                                window.requestRaise();
+                                demo.report("One raise request sent without requesting focus.")
+                            }
+                        ) { enabled = caps.windows.raise }
+                        button(
+                            if (root.topmost.value)
+                                "Normal level"
+                            else
+                                "Always on top",
+                            { root.toggleTopmost() }
+                        ) { enabled = caps.windows.alwaysOnTop }
+                        button("Another document", { demo.newDocument() })
+                    }
+                    label(
+                        if (caps.windows.toolWindow)
+                            "Tool appearance is supported; the tool is owned and nonmodal."
+                        else
+                            "Native tool appearance is unavailable. This demo explicitly uses a normal owned window."
+                    )
+                    add(platformFrameControls(root))
+                }
+            )
+        )
+        add(
+            panel(
+                "Shape, visual clipping and mouse input",
+                viewColumn {
+                    spacing = 8.0
+                    row {
+                        spacing = 10.0
+                        add(demoOption(root.matchShape.binding(), "Require matching native region"))
+                        button("Open shaped window", { root.showShape() }) {
+                            enabled =
+                                !root.shape.isOpen &&
+                                    (
+                                        !root.matchShape.value ||
+                                            caps.frame.windowRegion ||
+                                            caps.frame.inputRegion
+                                    )
+                        }
+                        button(
+                            if (root.ignoreShapeMouse.value)
+                                "Restore mouse input"
+                            else
+                                "Ignore shaped window mouse",
+                            { root.toggleShapeInput() }
+                        ) { enabled = root.shape.isOpen && caps.frame.ignoreMouse }
+                    }
+                    label(
+                        "Visual clipping alone may retain rectangular input. Matching mode requests a real window or input region; unsupported choices are disabled."
+                    )
+                    if (caps.frame.resizeHitRegions || caps.frame.beginResize)
+                        add(
+                            windowResizeRegion(
+                                WindowResizeEdge.BottomRight,
+                                viewFrame(viewLabel("Drag this grip to resize the window ↘")) {
+                                    padding = Some(Insets.all(8.0));
+                                    surface = Some(SurfaceKind.Plain)
+                                }
+                            )
+                        )
+                }
+            )
+        )
+        add(
+            panel(
+                "Native modal windows and shell dialogs",
+                viewColumn {
+                    spacing = 10.0
+                    row {
+                        spacing = 10.0
+                        button("Owner modal", { root.showDialog() }) {
+                            enabled = !root.dialog.isPending
+                        }
+                        button("Application modal", { demo.applicationView!!.showDialog() })
+                        button("Close document…", { window.requestClose() })
+                    }
+                    row {
+                        spacing = 8.0
+                        add(
+                            nativeOpenFileButton(
+                                "Open file…",
+                                DialogTarget.Owner(window),
+                                { reportFile(demo, it) }
+                            ) {
+                                options =
+                                    OpenFileOptions(types = FileTypes.Extensions(["txt", "md"]))
+                            }
+                        )
+                        button(
+                            "Open several…",
+                            {
+                                root.files.openFiles(
+                                    DialogTarget.Owner(window),
+                                    { reportFiles(demo, it) }
+                                )
+                            }
+                        ) { enabled = !root.files.isPending }
+                        add(
+                            nativeSaveFileButton(
+                                "Save location…",
+                                DialogTarget.Owner(window),
+                                { reportFile(demo, it) }
+                            ) {
+                                options =
+                                    SaveFileOptions(
+                                        suggestedName =
+                                            Some(OsString.fromString("desktop-notes.txt"))
+                                    )
+                            }
+                        )
+                        button(
+                            "Directory…",
+                            {
+                                root.files.selectDirectory(
+                                    DialogTarget.Owner(window),
+                                    { reportFile(demo, it) }
+                                )
+                            }
+                        ) { enabled = !root.files.isPending }
+                    }
+                    label(
+                        "Save only chooses a path. Nested owner modals and file dialogs are also available inside the confirmation window."
+                    )
+                }
+            )
+        )
+        add(traySection(demo))
+        add(
+            panel(
+                "Current capabilities",
+                viewColumn {
+                    spacing = 4.0
+                    label(
+                        f"Menus: app=${caps.menus.applicationMenuBar}, window=${
+                            caps.menus.windowMenuBar
+                        }; global positioning=${caps.positioning.globalWindowPosition}"
+                    )
+                    label(
+                        f"Frame: extended=${caps.frame.extendedContent}, resize=${
+                            caps.frame.beginResize
+                        }, window region=${caps.frame.windowRegion}, input region=${
+                            caps.frame.inputRegion
+                        }"
+                    )
+                    label(
+                        f"Native system button regions=${
+                            caps.frame.systemButtonHitRegions
+                        }; always on top=${caps.windows.alwaysOnTop}; owner sheet=${
+                            caps.windows.modal.ownerSheet
+                        }"
+                    )
+                    button("Query monitors / system bars / tray anchor", { queryDesktop(demo) })
+                }
+            )
+        )
+        add(panel("Last result", viewLabel(demo.status.value)))
+    }
+}

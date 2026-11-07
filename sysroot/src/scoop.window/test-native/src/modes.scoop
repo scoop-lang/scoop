@@ -13,3 +13,7 @@ public fun activeNativeMode(): Int
 @GCLeaf
 @Extern(name = "scoop_window_test_completed_modes")
 public fun completedNativeModes(): Int
+
+/** Checks the real native loop mode while a public popup session is displayed. */
+@Extern(name = "scoop_window_test_menu_tracking")
+public fun isNativeMenuTracking(): Int

@@ -1,0 +1,10 @@
+package scoop.tests.tray.native
+
+@Extern(name = "scoop_test_win_tray_image")
+public fun checkWindowsTrayImage(tray: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_win_tray_activate")
+public fun activateWindowsTray(tray: Ptr<Unit>)
+
+@Extern(name = "scoop_test_win_tray_recreate")
+public fun recreateWindowsTray(tray: Ptr<Unit>): Int

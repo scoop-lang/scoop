@@ -2,7 +2,7 @@
 
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、菜单模型、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
+库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
 
 ## 依赖与入口
 
@@ -28,7 +28,8 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | --- | --- |
 | 主循环 | Wait、Poll、单调 WaitUntil；跨线程 `ApplicationProxy.post`／`requestExit`；回调串行交付 |
 | 定时回调 | `Window.createDeadline` 创建窗口所属的一次性回调；共用主循环最近期限，关闭窗口即撤销 |
-| 窗口 | 多个独立非模态窗口；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、装饰及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
+| 窗口 | 独立／Owned 顶层窗口、Tool 角色与一次 raise；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、窗框及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
+| 模态 | 从隐藏窗口创建 ModalSession；Owner／Application 输入范围、SeparateWindow／Sheet 能力、嵌套、取消与原生使用退休 |
 | macOS | activation policy、titlebar 属性、bundle identifier 查询 |
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
 | 输入 | 物理键、当前布局逻辑键、重复、左右修饰键、未知键码、指针位置／按钮、序列取消、行／像素滚轮及 momentum、单调输入时间、基础光标和区域内隐藏 |
@@ -49,11 +50,33 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 在 Resumed 中可以多次调用 ActiveApplication.createWindow；这些窗口共用一个 Application 和事件循环，以 ApplicationEvent.Window(id, event) 区分事件。它们各自重绘和销毁，默认是独立的非模态（modeless）顶层窗口。最后一个窗口实际销毁后的行为仍由 LastWindowPolicy 决定。
 
-模态（modal）窗口尚无公共 API：当前没有窗口 owner、modality、showModal 或 sheet 入口。后文的模态／菜单测试验证系统嵌套循环期间 asyncio 仍能推进，不表示可以用 Scoop API 创建模态对话框。WindowLevel.AlwaysOnTop 只改变层级，不阻止其他窗口输入。
+通过 windowAttributes 的 relation = WindowRelation.Owned(parent) 建立固定的顶层窗口归属；role = WindowRole.Tool 请求平台支持的工具面板角色。隐藏或最小化 owner 时暂时隐藏其后代，恢复时保留显式隐藏的意图；销毁 owner 会先关闭后代，并等待各自的 native lease 退休。AppKit 隐藏 child 时原生 parent 关系会暂时撤销，逻辑 owner 不改变，显示时重新建立关系。
 
-创建时用 decorations／resizable，运行中用 setDecorations／setResizable 控制装饰和缩放；buttons／setEnabledButtons 控制原生按钮可用性。Win32 在 decorations=false、resizable=true 时仍保留 WS_THICKFRAME 缩放边框，要去掉这一边框还须设置 resizable=false。系统拖移、边缘缩放的 beginMove／beginResize 接口尚未提供，不能把关闭装饰直接等同于完整自绘窗框支持。
+先创建 visible = false 的窗口并挂载内容，再调用 window.showModal(ModalOptions(scope, presentation))。Owner 只阻塞直接 owner，Application 阻塞其他应用窗口；两者与非模态 Tool、全局 AlwaysOnTop 各自独立。session.dismiss() 正常结束并隐藏窗口，cancel() 取消，均不销毁所借 Window；结果保存在 session.result，并通过 ApplicationEvent.ModalCompleted 通知。Window.isInputBlocked 和 InputBlockedChanged 可供内容宿主同步交互状态。
 
-macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到标题栏，通过 setMacOSTitlebar 设置；无装饰窗口仍可接收键盘焦点。当前接口和后续模态／自绘窗框分工见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。
+desktopCapabilities().windows 分别报告相对叠放、工具角色、raise、层级传播和模态展示组合。Linux transient 关系是 WM／compositor 提示，Wayland 不提供通用工具窗角色、无激活 raise 或 topmost。AppKit 的 Automatic Owner 展示采用普通 sheet，Application 展示使用原生应用模态；不使用 critical sheet 伪装普通嵌套。详细合同与测试入口见[模态规范](../../../docs/specs/SCOOP-WINDOW-MODAL-SPEC.md)和[模态测试说明](tests-cones/modal/README.md)。
+
+## 原生文件与目录面板
+
+ActiveApplication.openFile／openFiles／saveFile／selectDirectory 返回 FileDialogSession<T>，分别交付 Path 或非空 Array<Path>。目标必须明确传 DialogTarget.Owner(window) 或 DialogTarget.Application；后者也支持没有业务窗口的应用。文件面板与窗口模态共用输入限制和关闭依赖，嵌套面板结束不会解除外层模态。
+
+```scoop
+val request = application.saveFile(
+    DialogTarget.Owner(window),
+    SaveFileOptions(
+        suggestedName = Some(OsString.fromString("report.txt")),
+        types = FileTypes.Extensions(["txt"])
+    )
+)
+```
+
+通过 ApplicationEvent.FileDialogCompleted(id) 找到对应请求，读取 request.result 的 Accepted／Cancelled／Failed。cancel() 请求取消原生展示，原生调用和回调退休后才完成 session 并释放 owner；用户取消与原生失败分别表示。路径复用 scoop.platform 的 Path／OsString，保留本地编码。保存面板只选择目标路径，应用随后执行文件 I/O。
+
+desktopCapabilities().fileDialogs 报告入口和选项能力。AppKit 使用 NSOpenPanel／NSSavePanel，Win32 使用 Common Item Dialog，Linux 使用已有 GTK/GIO 的 GtkFileDialog，不引入托盘依赖。详细合同与测试入口见[文件对话框规范](../../../docs/specs/SCOOP-WINDOW-DIALOGS-SPEC.md)和[测试说明](tests-cones/dialogs/README.md)。
+
+创建时使用 frame，运行中用 setFrame 切换 System(Standard／Extended) 与 Client。Client 去除宿主可见装饰，resizable／buttons 仍独立控制系统操作；System 的 Extended 保留真实系统按钮并让内容进入标题栏。frameMetrics 给出实际内容可用矩形和按钮占用，未知值为 None。desktopCapabilities().frame 分别报告窗口裁剪、独立输入区域、整窗忽略鼠标、系统拖动／缩放与阴影等能力。setWindowRegion、setInputRegion 和 setHitRegions 使用内容逻辑坐标中的自有矩形集合；None 恢复默认，空区域没有覆盖。系统 beginMove／beginResize／showWindowMenu 必须在当前真实输入事件的 handler 内调用，阻塞操作在回调退栈后执行，接管前取消原指针序列。详细平台边界见[窗框规范](../../../docs/specs/SCOOP-WINDOW-FRAME-SPEC.md)。
+
+macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏标题；内容延伸统一由 WindowFrame.System(Extended) 表达，Client 窗口仍可接收键盘焦点。Windows 的边框色、标题栏色、文字色与圆角偏好在 platform.windows 中分别查询 DWM 能力和设置。当前接口见[窗口规范第 4.1～4.3 节](../../../docs/specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。
 
 ## 文本输入
 

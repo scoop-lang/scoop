@@ -1,0 +1,11 @@
+package scoop.window.native
+
+import scoop.window.*
+
+public enum NativeMenuHandle {
+    AppKit(Ptr<Unit>)
+}
+
+@Unsafe
+internal fun platformNativeMenuHandle(menu: Ptr<Unit>): NativeMenuHandle =
+    NativeMenuHandle.AppKit(nativeMenuHandle(menu))

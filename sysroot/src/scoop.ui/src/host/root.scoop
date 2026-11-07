@@ -42,17 +42,18 @@ internal class UiRoot(
     val window: Window,
     private val initial: View,
     defaultFonts: FontCollection? = None
-): SurfaceContent {
+): SurfaceContent, UiUpdateRoot {
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
     val layouts = LayoutStore()
     val frameDependencies = FrameDependencies()
     val focus = FocusController(this)
     val overlays = OverlayController(this)
+    var windowFrame: UiWindowFrameClaim? = None
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
-    var pendingEnqueued = false
-    var isOpen = true
+    override var pendingEnqueued = false
+    override var isOpen = true
     var closed = false
     val surface: SurfaceWindow get() =
         attached ?: throw IllegalStateException(Some("UI root is not attached"))
@@ -104,6 +105,9 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
+    }
+    override fun dispatchUpdate() {
+        surface.dispatch { flush() }
     }
     public override fun paint(frame: FrameContext) {
         if (!isOpen)

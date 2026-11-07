@@ -1,0 +1,33 @@
+package scoop.tests.window.modal
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class ModalValueTests {
+    @Test
+    fun `window roles and modal scopes stay independent of frame and level`() {
+        val base =
+            windowAttributes {
+                role = WindowRole.Tool;
+                visible = false;
+                frame = WindowFrame.Client
+            }
+        val copy = base.copy { level = WindowLevel.AlwaysOnTop }
+        assertEquals(WindowRole.Tool, copy.role)
+        assertEquals(WindowFrame.Client, copy.frame)
+        assertEquals(WindowLevel.Normal, base.level)
+        assertFalse(copy.visible)
+        assertEquals(ModalScope.Owner, ModalOptions().scope)
+        assertEquals(ModalPresentation.Automatic, ModalOptions().presentation)
+    }
+    @Test
+    fun `capabilities distinguish sheet and independent presentation for each scope`() {
+        val capabilities = ModalCapabilities(true, false, true, false)
+        assertTrue(capabilities.supports(ModalScope.Owner, ModalPresentation.Automatic))
+        assertTrue(capabilities.supports(ModalScope.Application, ModalPresentation.SeparateWindow))
+        assertFalse(capabilities.supports(ModalScope.Owner, ModalPresentation.Sheet))
+        assertFalse(capabilities.supports(ModalScope.Application, ModalPresentation.Sheet))
+        assertTrue(ModalSessionId(3L) != ModalSessionId(4L))
+    }
+}

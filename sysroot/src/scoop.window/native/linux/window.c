@@ -1,7 +1,9 @@
 #include "window.h"
+#include <X11/Xatom.h>
 #include <gdk/x11/gdkx.h>
 
 // The window owns this container; a renderer may attach one content widget.
+// Native popup menus use separate GtkPopover surfaces parented to this widget.
 typedef struct {
   GtkWidget parent;
   SWWindow *owner;
@@ -31,13 +33,18 @@ static void content_allocate(GtkWidget *widget, int width, int height,
     return;
   if (width > 0 && height > 0)
     sw_set_geometry(window, width, height, gtk_widget_get_scale_factor(widget));
-  GtkWidget *child = gtk_widget_get_first_child(widget);
-  if (child)
-    gtk_widget_allocate(child, width, height, baseline, NULL);
+  for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+       child = gtk_widget_get_next_sibling(child)) {
+    if (GTK_IS_POPOVER(child))
+      gtk_popover_present(GTK_POPOVER(child));
+    else
+      gtk_widget_allocate(child, width, height, baseline, NULL);
+  }
+  sw_frame_layout(window);
 }
 static void content_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
-  GtkWidget *child = gtk_widget_get_first_child(widget);
-  if (child)
+  for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+       child = gtk_widget_get_next_sibling(child))
     gtk_widget_snapshot_child(widget, child, snapshot);
 }
 static void content_dispose(GObject *object) {
@@ -78,23 +85,11 @@ void sw_snapshot_update(SWWindow *window) {
     sw_emit(window, 5);
   }
   sw_focus(window, gtk_window_is_active(GTK_WINDOW(window->window)));
-  if (surface && GDK_IS_X11_SURFACE(surface)) {
-    Display *display =
-        gdk_x11_display_get_xdisplay(window->application->display);
-    Window xid = gdk_x11_surface_get_xid(surface), child;
-    int x, y;
-    if (XTranslateCoordinates(display, xid, DefaultRootWindow(display), 0, 0,
-                              &x, &y, &child)) {
-      if (window->snapshot.x != x || window->snapshot.y != y) {
-        window->snapshot.x = x;
-        window->snapshot.y = y;
-        sw_emit(window, 3);
-      }
-    }
-  }
+  sw_desktop_bounds(window);
 }
 static void changed(GObject *object, GParamSpec *pspec, gpointer data) {
   sw_snapshot_update(data);
+  sw_frame_layout(data);
 }
 static void mapped(GtkWidget *widget, gpointer data) {
   SWWindow *window = data;
@@ -104,10 +99,11 @@ static void mapped(GtkWidget *widget, gpointer data) {
 }
 static void layout(GdkSurface *surface, int width, int height, gpointer data) {
   sw_snapshot_update(data);
+  sw_frame_layout(data);
 }
 static gboolean close_requested(GtkWindow *native, gpointer data) {
   SWWindow *window = data;
-  if (window->close_button)
+  if (window->close_button && !window->input_blocked)
     sw_emit(window, 1);
   return TRUE;
 }
@@ -116,6 +112,14 @@ static void realized(GtkWidget *widget, gpointer data) {
   GdkSurface *surface = sw_surface(window);
   g_signal_connect(surface, "notify::state", G_CALLBACK(changed), window);
   g_signal_connect(surface, "layout", G_CALLBACK(layout), window);
+  if (window->tool && window->application->kind == SW_X11) {
+    Display *display =
+        gdk_x11_display_get_xdisplay(window->application->display);
+    Atom type = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    XChangeProperty(display, gdk_x11_surface_get_xid(surface),
+                    XInternAtom(display, "_NET_WM_WINDOW_TYPE", False), XA_ATOM,
+                    32, PropModeReplace, (unsigned char *)&type, 1);
+  }
 }
 void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
                       gpointer data) {
@@ -130,7 +134,10 @@ void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
 }
 SWResult scoop_window_create(SWApplication *app, int64_t identity,
                              const uint8_t *title, int64_t length, double width,
-                             double height, int32_t flags) {
+                             double height, int32_t flags, SWWindow *parent,
+                             int32_t role) {
+  if (role && app->kind != SW_X11)
+    return (SWResult){NULL, -1};
   if (app->error)
     return (SWResult){NULL, -3};
   if ((flags & 4) && app->kind == SW_X11 &&
@@ -149,7 +156,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->requested_height = height;
   window->max_width = window->max_height = -1;
   window->increment_width = window->increment_height = 1;
-  window->decorations = (flags & 1) != 0;
+  window->frame_mode = (flags & 1) ? 0 : 2;
   window->resizable = (flags & 2) != 0;
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
@@ -163,16 +170,25 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->snapshot.occluded = true;
   window->document.revision = -1;
   window->window = adw_window_new();
+  window->owning_window = parent;
+  window->tool = role != 0;
+  window->group = gtk_window_group_new();
+  if (parent)
+    gtk_window_set_transient_for(GTK_WINDOW(window->window),
+                                 GTK_WINDOW(parent->window));
+  gtk_window_group_add_window(window->group, GTK_WINDOW(window->window));
   gtk_window_set_title(GTK_WINDOW(window->window), name);
   free(name);
   gtk_window_set_resizable(GTK_WINDOW(window->window), window->resizable);
-  gtk_window_set_decorated(GTK_WINDOW(window->window), window->decorations);
+  gtk_window_set_decorated(GTK_WINDOW(window->window), window->frame_mode != 2);
   gtk_widget_add_css_class(window->window, "scoop-window");
+  if (window->frame_mode == 2)
+    gtk_widget_add_css_class(window->window, "scoop-client");
   window->toolbar = adw_toolbar_view_new();
   window->header = adw_header_bar_new();
   adw_toolbar_view_add_top_bar(ADW_TOOLBAR_VIEW(window->toolbar),
                                window->header);
-  gtk_widget_set_visible(window->header, window->decorations);
+  gtk_widget_set_visible(window->header, window->frame_mode != 2);
   window->view = GTK_WIDGET(g_object_new(sw_content_get_type(), NULL));
   ((SWContent *)window->view)->owner = window;
   adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(window->toolbar), window->view);
@@ -205,6 +221,11 @@ void scoop_window_destroy(SWWindow *window) {
   if (*link)
     *link = window->next;
   window->destroying = true;
+  if (window->frame_idle)
+    g_source_remove(window->frame_idle);
+  free(window->hit_rects);
+  if (window->input_region)
+    cairo_region_destroy(window->input_region);
   GdkSurface *surface = sw_surface(window);
   if (surface)
     g_signal_handlers_disconnect_by_data(surface, window);
@@ -223,6 +244,7 @@ void scoop_window_destroy(SWWindow *window) {
   g_clear_object(&window->ime);
   g_clear_object(&window->simple_ime);
   gtk_window_destroy(GTK_WINDOW(window->window));
+  g_clear_object(&window->group);
   for (size_t i = 0; i < G_N_ELEMENTS(window->pressed); ++i)
     free((void *)window->pressed[i].text);
   free((void *)window->document.text);
@@ -245,10 +267,10 @@ int64_t sw_request_size(SWWindow *window, double width, double height) {
   window->requested_width = width;
   window->requested_height = height;
   gtk_widget_queue_resize(window->view);
-  int minimum = 0, extra = 0;
-  if (window->decorations)
-    gtk_widget_measure(window->header, GTK_ORIENTATION_VERTICAL,
-                       (int)ceil(width), &minimum, &extra, NULL, NULL);
+  int minimum = 0, natural = 0;
+  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_VERTICAL,
+                     (int)ceil(width), &minimum, &natural, NULL, NULL);
+  int extra = window->frame_mode == 1 ? 0 : MAX(0, natural - (int)ceil(height));
   gtk_window_set_default_size(GTK_WINDOW(window->window), (int)ceil(width),
                               (int)ceil(height) + extra);
   return 0;

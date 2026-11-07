@@ -3,17 +3,18 @@ package scoop.ui
 import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
-import scoop.window.Window
-import scoop.window.WindowActivity
-import scoop.window.WindowDeadline
+import scoop.window.*
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
     private val root: UiRoot get() = node.root
     private var active = true
     internal var fontReads: DependencyCollector? = None
-    private val managed = ArrayList<Closeable>()
-    private val cleanup = ArrayList<() -> Unit>()
+    private val resources = ScopeResources()
+    private val managed = resources.managed
+    private val cleanup = resources.cleanup
+    private val events =
+        ScopedNativeEvents(root.host, resources, { checkMounted() }, { action -> dispatch(action) })
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
@@ -42,6 +43,51 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         return root.window
     }
+
+    public val application: ActiveApplication get() {
+        checkMounted();
+        return root.host.activeApplication
+    }
+    public val uiHost: UiHost get() {
+        checkMounted();
+        return root.host
+    }
+    public fun dispatch(action: () -> Unit): Boolean {
+        if (!isMounted)
+            return false
+        return root.surface.dispatch {
+            if (isMounted)
+                action()
+        } &&
+            isMounted
+    }
+    public fun observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
+        events.menu(menu, action)
+    public fun observeWindow(window: Window, action: (WindowEvent) -> Unit): Closeable =
+        events.window(window, action)
+    public fun declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
+        checkMounted()
+        val value =
+            root.host.menuBars.register(
+                Some(nativeWindow),
+                { isMounted },
+                { action -> dispatch(action) },
+                create
+            )
+        managed.add(value)
+        value.update()
+        return value
+    }
+    public fun observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
+        events.popup(session, action)
+    public fun observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
+        events.modal(session, action)
+    public fun <T> observeFileDialog(
+        session: FileDialogSession<T>,
+        action: (FileDialogResult<T>) -> Unit
+    ): Closeable = events.file(session, action)
+    public fun observeFrameMetrics(action: (WindowFrameMetrics?) -> Unit): Closeable =
+        events.frame(nativeWindow, action)
 
     public val input: InputScope get() {
         checkMounted()
@@ -144,6 +190,30 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun requestLayout() {
         checkMounted()
         node.request(UiInvalidation.Layout)
+    }
+    public fun createWindowRegion(kind: WindowRegionKind): WindowRegionHandle {
+        checkMounted()
+        val parent =
+            when (kind) {
+                case Hit(_) -> Some(input);
+                else -> None
+            }
+        val value = root.surface.createWindowRegion(kind, parent)
+        managed.add(value)
+        return value
+    }
+    public fun claimWindowFrame(): Closeable {
+        checkMounted()
+        when (root.windowFrame) {
+            case Some(_) -> throw IllegalStateException(
+                Some("window frame is already configured by another mount")
+            )
+            case None -> {}
+        }
+        val value = UiWindowFrameClaim(root)
+        root.windowFrame = Some(value)
+        managed.add(value)
+        return value
     }
     public fun createArea(
         focusable: Boolean = false,
@@ -271,26 +341,9 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         }
     }
     internal fun retireInteraction(): Throwable? {
-        val values = managed.toArray()
-        managed.clear()
-        var failure: Throwable? = None
-        var index = values.size
-        while (index > 0L) {
-            index -= 1L
-            val value = values[index]
-            failure = cleanupUi(failure) { value.close() }
-        }
-        return failure
+        return resources.retireManaged()
     }
     internal fun release(): Throwable? {
-        val actions = cleanup.toArray()
-        cleanup.clear()
-        var failure: Throwable? = None
-        var index = actions.size
-        while (index > 0L) {
-            index -= 1L
-            failure = cleanupUi(failure, actions[index])
-        }
-        return failure
+        return resources.release()
     }
 }

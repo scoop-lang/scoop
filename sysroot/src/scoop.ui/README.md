@@ -15,6 +15,18 @@
 
 State 在创建它的线程读写；render／measure／scene／draw 不允许写入 State。后台结果通过窗口 ApplicationProxy 或现有 EventLoopSession 投递到 owner，再修改状态。逻辑更新不依赖 drawable，隐藏窗口仍可更新 Props、卸载子树及关闭资源。
 
+## 应用根与原生资源
+
+`UiHost.attachApplication(active) { scope -> MyApplication(scope) }` 挂载 `ApplicationComponent`，返回 `UiApplication?`。每个宿主至多一个应用根，可同时保留多个窗口根；应用根自身没有 Window、Surface、默认字体或 GPU context。其 render 返回 `ApplicationContent`，用 `applicationElement(props, create, key)` 描述具有 Props、onMount、update、onUnmount 的 `ApplicationElement`。菜单等原生资源在挂载或 update 中创建和修改，Binding 的显示值在 render 中读取。它与窗口树共用 State 依赖、key 匹配和按需更新队列。
+
+ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、onDispose、dispatch，以及 observeMenu、observePopup、observeModal、observeFileDialog。事件按实际资源身份交付，登记可提前关闭，卸载自动注销；已完成的 session 在登记时交付一次已有结果。`dispatch` 把库自己的回调放回所属错误边界。应用根失败先清理，再调用 `onApplicationError`；窗口根失败仍调用 `onRootError`。处理器正常返回时其他根可继续工作，默认重新抛出并关闭宿主。
+
+`UiApplication.close()` 只卸载应用根。窗口全部关闭后是否继续运行由 ApplicationOptions.lastWindowPolicy 决定；托盘应用应使用显式 Application 和 UiHost，而非默认关闭最后窗口即退出的 `runUiApplication`。独立托盘组件通过普通 ApplicationElement 协议接入，UI 核心不依赖托盘 Cone。
+
+`ComponentScope.observeFrameMetrics` 立即交付当前窗框快照，随后由真实 FrameChanged／GeometryChanged 通知更新。`scope.createWindowRegion(WindowRegionKind.Hit(...))` 随挂载管理原生命中区域；在 `SceneContext.place(handle, rect或path)` 中放置，只有真实 Accepted 帧才发布最终 transform／clip。Shape／Input 每个窗口各允许一个登记，按后端能力检查；禁用、输入边界和卸载可立即撤销命中资格。细节见[应用挂载规范](../../../docs/specs/SCOOP-UI-DESKTOP-SPEC.md)和[Surface 区域规范](../../../docs/specs/SCOOP-SURFACE-FRAME-SPEC.md)。
+
+无窗口生命周期验证见 [application](tests-cones/application/README.md)，共享状态、错误隔离与 Accepted 区域组合见 [desktop](tests-cones/desktop/README.md)。
+
 ## 自绘与资源
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。

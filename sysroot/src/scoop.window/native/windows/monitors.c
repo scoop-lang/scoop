@@ -1,4 +1,5 @@
 #include "window.h"
+#include <shellapi.h>
 #include <shellscalingapi.h>
 
 typedef struct {
@@ -6,6 +7,7 @@ typedef struct {
   double x, y, width, height, pixel_width, pixel_height, scale;
   const uint8_t *name;
   int64_t name_length;
+  double work_x, work_y, work_width, work_height;
 } SWMonitor;
 typedef struct {
   SWMonitor *items;
@@ -36,6 +38,10 @@ static BOOL CALLBACK enumerate(HMONITOR monitor, HDC dc, LPRECT bounds,
   value.width = value.pixel_width = info.rcMonitor.right - info.rcMonitor.left;
   value.height = value.pixel_height =
       info.rcMonitor.bottom - info.rcMonitor.top;
+  value.work_x = info.rcWork.left;
+  value.work_y = info.rcWork.top;
+  value.work_width = info.rcWork.right - info.rcWork.left;
+  value.work_height = info.rcWork.bottom - info.rcWork.top;
   UINT x = 96, y = 96;
   HRESULT hr = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &x, &y);
   if (FAILED(hr)) {
@@ -86,3 +92,20 @@ int64_t scoop_window_current_monitor(SWWindow *window) {
   return (int64_t)(intptr_t)MonitorFromWindow(window->hwnd,
                                               MONITOR_DEFAULTTONULL);
 }
+
+typedef struct {
+  int64_t error;
+  double x, y, width, height;
+} SWDesktopRect;
+
+int32_t scoop_window_desktop_capabilities(void) { return 1 | 2 | 4; }
+SWDesktopRect scoop_window_system_taskbar_bounds(void) {
+  APPBARDATA data = {.cbSize = sizeof(data)};
+  if (!SHAppBarMessage(ABM_GETTASKBARPOS, &data))
+    return (SWDesktopRect){.error = -2};
+  return (SWDesktopRect){.x = data.rc.left,
+                         .y = data.rc.top,
+                         .width = data.rc.right - data.rc.left,
+                         .height = data.rc.bottom - data.rc.top};
+}
+double scoop_window_system_menu_bar_height(void) { return NAN; }

@@ -1,0 +1,160 @@
+package scoop.window
+
+/** Changes before queued frame notifications when native region coordinates become stale. */
+public val Window.frameRevision: ULong get() {
+    owner.requireOpen()
+    @Unsafe
+    {
+        return nativeWindowFrameRevision(owner.pointer!!)
+    }
+}
+
+public val Window.frameMetrics: WindowFrameMetrics? get() {
+    owner.requireOpen()
+    @Unsafe
+    {
+        val frame = nativeWindowFrameSnapshot(owner.pointer!!)
+        if (frame.ready == 0)
+            return None
+        val buttons = ArrayList<WindowSystemButtonBounds>()
+        for (
+            button in [
+                WindowSystemButton.Close,
+                WindowSystemButton.Minimize,
+                WindowSystemButton.Maximize
+            ]
+        ) {
+            when (nativeWindowFrameButton(owner.pointer!!, systemButtonCode(button)).logical()) {
+                case Some(rect) -> buttons.add(WindowSystemButtonBounds(button, rect))
+                case None -> {}
+            }
+        }
+        return Some(
+            WindowFrameMetrics(
+                frameValue(frame.mode),
+                nativeWindowSnapshot(owner.pointer!!).metrics(),
+                frame.layout.logical(),
+                buttons.toArray(),
+                if (frame.border.isFinite() && frame.border >= 0.0)
+                    Some(frame.border)
+                else
+                    None
+            )
+        )
+    }
+}
+
+public fun Window.setFrame(frame: WindowFrame): RequestStatus {
+    owner.requireOpen()
+    @Unsafe
+    {
+        val status =
+            nativeRequestStatus(nativeWindowFrame(owner.pointer!!, frameCode(frame)), "frame")
+        if (status == RequestStatus.Unsupported)
+            return status
+    }
+    setEnabledButtons(owner.buttons)
+    return RequestStatus.Applied
+}
+
+public fun Window.setShadow(shadow: WindowShadow): RequestStatus {
+    owner.requireOpen()
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowShadow(owner.pointer!!, flag(shadow == WindowShadow.System)),
+            "shadow"
+        )
+    }
+}
+
+public fun Window.setWindowRegion(region: WindowRegion?): RequestStatus = setNativeRegion(0, region)
+
+public fun Window.setInputRegion(region: WindowRegion?): RequestStatus = setNativeRegion(1, region)
+
+public fun Window.setIgnoreMouse(ignore: Boolean): RequestStatus {
+    owner.requireOpen()
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowIgnoreMouse(owner.pointer!!, flag(ignore)),
+            "ignore mouse"
+        )
+    }
+}
+
+private fun Window.setNativeRegion(kind: Int, region: WindowRegion?): RequestStatus {
+    owner.requireOpen()
+    val rectangles = ArrayList<NativeFrameRect>()
+    var present = 0
+    when (region) {
+        case Some(value) -> {
+            present = 1
+            for (rect in value.rectangles)
+                if (rect.size.width > 0.0 && rect.size.height > 0.0)
+                    rectangles.add(nativeFrameRect(rect))
+        }
+        case None -> {}
+    }
+    val regionPresent = present
+    @Unsafe
+    {
+        return rectangles.toArray().withDataPointer {
+            data,
+            count -> @Unsafe
+            {
+                return@withDataPointer nativeRequestStatus(
+                    nativeWindowRegion(owner.pointer!!, kind, regionPresent, data, count),
+                    "region"
+                )
+            }
+        }
+    }
+}
+
+/** Replaces the complete native snapshot; an empty array restores ordinary client input. */
+public fun Window.setHitRegions(regions: Array<WindowHitRegion>): RequestStatus {
+    owner.requireOpen()
+    val rectangles = ArrayList<NativeHitRect>()
+    for (item in regions)
+        for (rect in item.region.rectangles)
+            if (rect.size.width > 0.0 && rect.size.height > 0.0)
+                rectangles.add(NativeHitRect(nativeFrameRect(rect), hitRoleCode(item.role)))
+    @Unsafe
+    {
+        return rectangles.toArray().withDataPointer {
+            data,
+            count -> @Unsafe
+            {
+                return@withDataPointer nativeRequestStatus(
+                    nativeWindowHitRegions(owner.pointer!!, data, count),
+                    "hit regions"
+                )
+            }
+        }
+    }
+}
+
+private fun nativeFrameRect(rect: LogicalRect): NativeFrameRect =
+    NativeFrameRect(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
+
+internal fun frameCapabilities(): WindowFrameCapabilities {
+    @Unsafe
+    {
+        val bits = nativeFrameCapabilities()
+        return WindowFrameCapabilities(
+            bits.and(1) != 0,
+            bits.and(2) != 0,
+            bits.and(4) != 0,
+            bits.and(8) != 0,
+            bits.and(16) != 0,
+            bits.and(32) != 0,
+            bits.and(64) != 0,
+            bits.and(128) != 0,
+            bits.and(256) != 0,
+            bits.and(512) != 0,
+            bits.and(1024) != 0,
+            bits.and(2048) != 0
+        )
+    }
+}

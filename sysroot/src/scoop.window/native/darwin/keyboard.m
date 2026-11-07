@@ -78,6 +78,8 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   }
   event.data = data;
   if (down && keyEvent)
+    event.nativeInput = native;
+  if (down && keyEvent)
     event.commands = [view.textCommands copy];
   if (down)
     view.pressedKeys[code] = event;
@@ -111,6 +113,9 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   key(self, event, NO);
 }
 - (BOOL)performKeyEquivalent:(NSEvent *)event {
+  if (event.type == NSEventTypeKeyDown &&
+      sw_menu_key_equivalent(self.owner.application, event))
+    return YES;
   if (event.type != NSEventTypeKeyDown ||
       !(event.modifierFlags &
         (NSEventModifierFlagCommand | NSEventModifierFlagControl)))

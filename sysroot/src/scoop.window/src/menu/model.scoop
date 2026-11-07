@@ -1,0 +1,205 @@
+package scoop.window
+
+internal fun MenuOwner.insert(
+    description: MenuItemDescription,
+    parent: MenuItemId?,
+    index: Long?
+): MenuItemId {
+    requireOpen()
+    val target = children(parent)
+    val position = index ?: target.size
+    if (position < 0L || position > target.size)
+        throw IndexOutOfBoundsException()
+    val parentNode =
+        when (parent) {
+            case Some(identity) -> Some(requireItem(identity))
+            case None -> None
+        }
+    checkRoot(description.kind, parentNode)
+    val prepared = prepareMenuItem(description)
+    checkShortcut(prepared, None)
+    val node = MenuNode(application.takeMenuItemId(), parentNode, prepared)
+    target.add(position, node)
+    nodes.add(node)
+    applyChanges()
+    return node.id
+}
+
+internal fun MenuOwner.update(item: MenuItemId, description: MenuItemDescription): RequestStatus {
+    requireOpen()
+    val node = requireItem(item)
+    requireWindow(
+        node.children.size == 0L || description.kind == MenuItemKind.Submenu,
+        "cannot replace a nonempty submenu"
+    )
+    checkRoot(description.kind, node.parent)
+    val prepared = prepareMenuItem(description)
+    checkShortcut(prepared, Some(item))
+    val previous = node.prepared
+    node.prepared = prepared
+    if (busy()) {
+        if (previous.description.command != description.command || previous.kind != prepared.kind)
+            deactivate(node)
+        else
+            publishLive(node)
+    }
+    return applyChanges()
+}
+
+internal fun MenuOwner.move(item: MenuItemId, index: Long): RequestStatus {
+    requireOpen()
+    val node = requireItem(item)
+    val siblings =
+        when (node.parent) {
+            case Some(parent) -> parent.children
+            case None -> roots
+        }
+    if (index < 0L || index >= siblings.size)
+        throw IndexOutOfBoundsException()
+    var previous = 0L
+    while (siblings[previous].id != item)
+        previous += 1L
+    if (previous == index)
+        return RequestStatus.Applied
+    siblings.removeAt(previous)
+    siblings.add(index, node)
+    return applyChanges()
+}
+
+internal fun MenuOwner.remove(item: MenuItemId): RequestStatus {
+    requireOpen()
+    val node = requireItem(item)
+    val siblings =
+        when (node.parent) {
+            case Some(parent) -> parent.children
+            case None -> roots
+        }
+    if (busy())
+        deactivate(node)
+    var index = 0L
+    while (siblings[index].id != item)
+        index += 1L
+    siblings.removeAt(index)
+    retire(node)
+    return applyChanges()
+}
+
+private fun MenuOwner.retire(node: MenuNode) {
+    for (child in node.children)
+        retire(child)
+    var index = 0L
+    while (nodes[index].id != node.id)
+        index += 1L
+    nodes.removeAt(index)
+}
+
+private fun MenuOwner.deactivate(node: MenuNode) {
+    @Unsafe
+    {
+        nativeMenuLive(pointer!!, node.id.value, -1)
+    }
+    for (child in node.children)
+        deactivate(child)
+}
+
+private fun MenuOwner.publishLive(node: MenuNode) {
+    @Unsafe
+    {
+        nativeMenuLive(pointer!!, node.id.value, flag(node.enabled()))
+    }
+    for (child in node.children)
+        publishLive(child)
+}
+
+private fun MenuOwner.checkShortcut(item: PreparedMenuItem, replacing: MenuItemId?) {
+    if (item.key.key == 0)
+        return
+    for (node in nodes) {
+        if (
+            Some(node.id) !=
+                replacing &&
+                node.prepared.key.key ==
+                item.key.key &&
+                node.prepared.key.modifiers ==
+                item.key.modifiers
+        )
+            throw IllegalArgumentException(Some("duplicate native menu shortcut"))
+    }
+}
+
+internal fun MenuOwner.publish() {
+    if (!dirty || phase != MenuState.Open)
+        return
+    try {
+        @Unsafe
+        {
+            checkNativeStatus(nativeMenuClear(pointer!!), "clear menu")
+        }
+        for (node in roots)
+            appendNative(node, 0L)
+        @Unsafe
+        {
+            checkNativeStatus(nativeMenuCommit(pointer!!), "commit menu")
+        }
+        dirty = false
+    } catch (error: Throwable) {
+        close(PopupCancelReason.MenuClosed)
+        throw error
+    }
+}
+
+private fun MenuOwner.appendNative(node: MenuNode, parent: Long) {
+    val item = node.prepared
+    val description = item.description
+    @Unsafe
+    {
+        description.text.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                checkNativeStatus(
+                    nativeMenuAppend(
+                        pointer!!,
+                        node.id.value,
+                        parent,
+                        item.kind,
+                        item.checked,
+                        flag(node.enabled()),
+                        item.role,
+                        bytes,
+                        length,
+                        item.key.key,
+                        item.key.modifiers
+                    ),
+                    "append menu item"
+                )
+            }
+        }
+        when (description.image) {
+            case Some(image) -> for (representation in image.representations) {
+                representation.pixels.withDataPointer {
+                    bytes,
+                    count -> @Unsafe
+                    {
+                        checkNativeStatus(
+                            nativeMenuImage(
+                                pointer!!,
+                                node.id.value,
+                                representation.size.width,
+                                representation.size.height,
+                                bytes,
+                                image.size.width,
+                                image.size.height,
+                                flag(image.template)
+                            ),
+                            "menu image"
+                        )
+                    }
+                }
+            }
+            case None -> {}
+        }
+    }
+    for (child in node.children)
+        appendNative(child, node.id.value)
+}

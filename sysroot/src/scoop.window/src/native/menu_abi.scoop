@@ -1,0 +1,93 @@
+package scoop.window
+
+@Extern(name = "scoop_window_menu_selection")
+internal fun nativeMenuSelection(menu: Ptr<Unit>): Long
+
+@CLayout
+internal struct NativeMenuKey(val key: Int, val modifiers: Int, val error: Long)
+
+@Extern(name = "scoop_window_menu_capabilities")
+internal fun nativeMenuCapabilities(): Int
+
+@Extern(name = "scoop_window_menu_create")
+internal fun nativeMenuCreate(application: Ptr<Unit>, identity: Long): NativeCreateResult
+
+@Extern(name = "scoop_window_menu_destroy")
+internal fun nativeMenuDestroy(menu: Ptr<Unit>)
+
+@Extern(name = "scoop_window_menu_clear")
+internal fun nativeMenuClear(menu: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_menu_append")
+internal fun nativeMenuAppend(
+    menu: Ptr<Unit>,
+    item: Long,
+    parent: Long,
+    kind: Int,
+    checked: Int,
+    enabled: Int,
+    role: Int,
+    text: Ptr<UInt8>,
+    length: Long,
+    key: Int,
+    modifiers: Int
+): Long
+
+@Extern(name = "scoop_window_menu_image")
+internal fun nativeMenuImage(
+    menu: Ptr<Unit>,
+    item: Long,
+    width: Int,
+    height: Int,
+    pixels: Ptr<UInt8>,
+    logicalWidth: Double,
+    logicalHeight: Double,
+    template: Int
+): Long
+
+@Extern(name = "scoop_window_menu_commit")
+internal fun nativeMenuCommit(menu: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_menu_live")
+internal fun nativeMenuLive(menu: Ptr<Unit>, item: Long, enabled: Int)
+
+@Extern(name = "scoop_window_menu_busy")
+internal fun nativeMenuBusy(menu: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_menu_bind")
+internal fun nativeMenuBind(menu: Ptr<Unit>, kind: Int, serial: Long, window: Ptr<Unit>?): Long
+
+@Extern(name = "scoop_window_menu_unbind")
+internal fun nativeMenuUnbind(menu: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_menu_popup")
+internal fun nativeMenuPopup(
+    menu: Ptr<Unit>,
+    window: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    anchor: Int
+): Long
+
+@Extern(name = "scoop_window_menu_cancel")
+internal fun nativeMenuCancel(menu: Ptr<Unit>)
+
+@Extern(name = "scoop_window_menu_resolve_key")
+internal fun nativeMenuResolveKey(kind: Int, key: Int, modifiers: Int): NativeMenuKey
+
+@Extern(name = "scoop_window_menu_handle")
+internal fun nativeMenuHandle(menu: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_window_menu_actions")
+internal fun nativeMenuActions(menu: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_window_menu_activate")
+internal fun nativeMenuActivate(menu: Ptr<Unit>, item: Long): Int
+
+@Extern(name = "scoop_window_menu_item_for_command")
+internal fun nativeMenuItemForCommand(menu: Ptr<Unit>, command: Int): Long
+
+@Extern(name = "scoop_window_menu_external_tracking")
+internal fun nativeMenuExternalTracking(menu: Ptr<Unit>, tracking: Int)

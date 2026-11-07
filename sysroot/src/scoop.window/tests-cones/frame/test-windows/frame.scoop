@@ -1,0 +1,58 @@
+package scoop.tests.window.frame
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.platform.windows.*
+
+@Test
+private class NativeFrameTests {
+    @Test
+    @Ignore("Requires a Windows desktop session; run separately with --ignored")
+    fun `native frames regions and input uses survive mode changes and retire in order`() {
+        runFrameProbe {
+            window ->
+            val caps = window.windowsFrameCapabilities()
+            verifyColor(window, caps.borderColor, 34) {
+                color -> window.setWindowsBorderColor(color)
+            }
+            verifyColor(window, caps.captionColor, 35) {
+                color -> window.setWindowsCaptionColor(color)
+            }
+            verifyColor(window, caps.textColor, 36) { color -> window.setWindowsTextColor(color) }
+            assertEquals(
+                if (caps.cornerPreference)
+                    RequestStatus.Applied
+                else
+                    RequestStatus.Unsupported,
+                window.setWindowsCornerPreference(WindowsCornerPreference.Round)
+            )
+            if (caps.cornerPreference)
+                assertEquals(2.0, nativeFrameQuery(window, 6, 33.0))
+            window.setWindowsCornerPreference(WindowsCornerPreference.Default)
+            assertFailsWith<WindowException> {
+                window.setWindowsCaptionColor(WindowsFrameColor.None)
+            }
+            assertFailsWith<WindowException> { window.setWindowsTextColor(WindowsFrameColor.None) }
+        }
+    }
+}
+
+private fun verifyColor(
+    window: Window,
+    supported: Boolean,
+    attribute: Int,
+    apply: (WindowsFrameColor) -> RequestStatus
+) {
+    assertEquals(
+        if (supported)
+            RequestStatus.Applied
+        else
+            RequestStatus.Unsupported,
+        apply(WindowsFrameColor.Rgb(12.toUByte(), 34.toUByte(), 56.toUByte()))
+    )
+    if (supported)
+        assertEquals(3678732.0, nativeFrameQuery(window, 6, attribute.toDouble()))
+    apply(WindowsFrameColor.Default)
+    if (supported)
+        assertEquals(4294967295.0, nativeFrameQuery(window, 6, attribute.toDouble()))
+}

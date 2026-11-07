@@ -1,0 +1,151 @@
+package scoop.window
+
+internal class PreparedMenuItem(
+    val description: MenuItemDescription,
+    val kind: Int,
+    val checked: Int,
+    val role: Int,
+    val key: NativeMenuKey
+)
+
+internal fun prepareMenuItem(description: MenuItemDescription): PreparedMenuItem {
+    for (character in description.text)
+        requireWindow(character.code != 0, "menu text contains NUL")
+    val kind =
+        when (description.kind) {
+            case Action -> 0
+            case Checkbox(_) -> 1
+            case Radio(_) -> 2
+            case Submenu -> 3
+            case Separator -> 4
+        }
+    if (kind >= 3) {
+        when (description.shortcut) {
+            case Some(_) -> throw IllegalArgumentException(
+                Some("submenu and separator cannot have a shortcut")
+            )
+            case None -> {}
+        }
+        requireWindow(
+            description.command == MenuCommand.Action,
+            "submenu and separator cannot have a command or shortcut"
+        )
+    }
+    if (kind == 4) {
+        when (description.image) {
+            case Some(_) -> throw IllegalArgumentException(Some("separator cannot have an image"))
+            case None -> {}
+        }
+        requireWindow(description.text.byteLength == 0L, "separator cannot have text or image")
+    }
+    val checked =
+        when (description.kind) {
+            case Checkbox(value) -> flag(value)
+            case Radio(value) -> flag(value)
+            else -> 0
+        }
+    val role =
+        when (description.command) {
+            case Action -> 0
+            case Role(value) -> menuRoleCode(value)
+        }
+    val key =
+        when (description.shortcut) {
+            case Some(chord) -> resolveMenuKey(chord)
+            case None -> NativeMenuKey(0, 0, 0L)
+        }
+    return PreparedMenuItem(description, kind, checked, role, key)
+}
+
+internal fun menuRoleCode(role: MenuRole): Int =
+    when (role) {
+        case Quit -> 1
+        case Minimize -> 2
+        case Zoom -> 3
+        case Cut -> 4
+        case Copy -> 5
+        case Paste -> 6
+        case SelectAll -> 7
+        case Undo -> 8
+        case Redo -> 9
+    }
+
+internal fun menuTextCommand(code: Int): TextEditCommand =
+    when (code) {
+        4 -> TextEditCommand.Cut
+        5 -> TextEditCommand.Copy
+        6 -> TextEditCommand.Paste
+        7 -> TextEditCommand.SelectAll
+        8 -> TextEditCommand.Undo
+        9 -> TextEditCommand.Redo
+        else -> throw WindowException("native menu editing command", WindowErrorKind.NativeFailure)
+    }
+
+private fun resolveMenuKey(chord: ShortcutChord): NativeMenuKey {
+    val key =
+        when (chord.key) {
+            case Logical(LogicalKey.Character(text)) -> {
+                if (text.charLength != 1L || text.getCharAt(0L).code == 0)
+                    throw WindowException("native menu shortcut", WindowErrorKind.Unsupported)
+                (0, text.getCharAt(0L).code)
+            }
+            case Logical(LogicalKey.Named(named)) -> (1, menuNamedKey(named))
+            else -> throw WindowException("native menu shortcut", WindowErrorKind.Unsupported)
+        }
+    val modifiers = resolvedModifiers(chord.modifiers, platformPrimaryModifier())
+    val mask =
+        flag(modifiers.control) +
+            flag(modifiers.alt) *
+            2 +
+            flag(modifiers.shift) *
+            4 +
+            flag(modifiers.superKey) *
+            8 +
+            flag(modifiers.function) *
+            16
+    @Unsafe
+    {
+        val result = nativeMenuResolveKey(key._1, key._2, mask)
+        checkNativeStatus(result.error, "native menu shortcut")
+        return result
+    }
+}
+
+private fun menuNamedKey(key: NamedKey): Int =
+    when (key) {
+        case Enter -> 1
+        case Tab -> 2
+        case Space -> 3
+        case Backspace -> 4
+        case Escape -> 5
+        case Delete -> 6
+        case ArrowLeft -> 7
+        case ArrowRight -> 8
+        case ArrowUp -> 9
+        case ArrowDown -> 10
+        case Home -> 11
+        case End -> 12
+        case PageUp -> 13
+        case PageDown -> 14
+        case F1 -> 21
+        case F2 -> 22
+        case F3 -> 23
+        case F4 -> 24
+        case F5 -> 25
+        case F6 -> 26
+        case F7 -> 27
+        case F8 -> 28
+        case F9 -> 29
+        case F10 -> 30
+        case F11 -> 31
+        case F12 -> 32
+        case F13 -> 33
+        case F14 -> 34
+        case F15 -> 35
+        case F16 -> 36
+        case F17 -> 37
+        case F18 -> 38
+        case F19 -> 39
+        case F20 -> 40
+        else -> throw WindowException("native menu named key", WindowErrorKind.Unsupported)
+    }

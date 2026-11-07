@@ -1,0 +1,304 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.graphics.native.*
+import scoop.window.*
+
+public enum WindowRegionKind {
+    Shape, Input, Hit(WindowHitRole)
+}
+
+/** Geometry comes from Accepted frames; eligibility can change independently. */
+public class WindowRegionHandle internal constructor(
+    internal val owner: WindowRegionStore,
+    public val kind: WindowRegionKind,
+    private val route: InputScope?
+): Closeable {
+    internal var closed = false
+    private var accepts = true
+    public val isClosed: Boolean get() {
+        owner.checkThread();
+        return closed
+    }
+    public var enabled: Boolean
+    get() {
+        owner.checkThread();
+        return accepts
+    }
+    set(value) {
+        checkOpen()
+        if (accepts != value) {
+            accepts = value
+            owner.refreshEligibility()
+        }
+    }
+    internal val eligible: Boolean get() = !closed && accepts && (route?.isInputAllowed ?: true)
+    internal fun checkOpen() {
+        owner.checkOpen()
+        if (closed)
+            throw IllegalStateException(Some("window region is closed"))
+    }
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        owner.remove(this)
+    }
+}
+
+internal class WindowRegionPlacement(val handle: WindowRegionHandle, val region: WindowRegion) {
+    var eligible = handle.eligible
+}
+
+internal class WindowRegionFrame(
+    val owner: WindowRegionStore,
+    private val scale: Double
+): Closeable {
+    val generation = owner.generation
+    var revision = owner.revision()
+    private val placements = ArrayList<WindowRegionPlacement>()
+    private var ended = false
+
+    private fun check(handle: WindowRegionHandle) {
+        if (ended)
+            throw IllegalStateException(Some("window region frame has ended"))
+        requireInput(handle.owner === owner, "window region belongs to another Surface")
+        handle.checkOpen()
+        if (revision == None)
+            revision = owner.revision()
+        for (previous in placements)
+            requireInput(previous.handle !== handle, "window region was placed twice")
+    }
+    fun place(canvas: Canvas, handle: WindowRegionHandle, shape: Rect) {
+        check(handle)
+        @Unsafe
+        {
+            captureGeometry(canvas, shape).use { append(handle, it) }
+        }
+    }
+    fun place(canvas: Canvas, handle: WindowRegionHandle, shape: Path) {
+        check(handle)
+        @Unsafe
+        {
+            captureGeometry(canvas, shape).use { append(handle, it) }
+        }
+    }
+    private fun append(handle: WindowRegionHandle, geometry: CanvasGeometry) {
+        val rectangles = geometry.rasterizeRegion(scale)
+        val region =
+            WindowRegion(
+                Array<LogicalRect>(rectangles.size) {
+                    index ->
+                    val rect = rectangles[index]
+                    LogicalRect(
+                        LogicalPosition(rect.x, rect.y),
+                        LogicalSize(rect.width, rect.height)
+                    )
+                }
+            )
+        placements.add(WindowRegionPlacement(handle, region))
+    }
+    fun take(): Array<WindowRegionPlacement> {
+        if (ended)
+            throw IllegalStateException(Some("window region frame has ended"))
+        ended = true
+        val result = placements.toArray()
+        placements.clear()
+        return result
+    }
+    public override fun close() {
+        ended = true;
+        placements.clear()
+    }
+}
+
+internal class WindowRegionStore(
+    private val surface: SurfaceWindow,
+    private val input: InputRouter,
+    private val capabilities: WindowFrameCapabilities
+): Closeable {
+    private val window: Window get() = surface.nativeWindow
+    private val handles = ArrayList<WindowRegionHandle>()
+    private var scene: Array<WindowRegionPlacement> = []
+    private var closed = false
+    private var shapeApplied = false
+    private var inputApplied = false
+    private var hitsApplied = false
+    var generation = 0L
+
+    fun checkThread() {
+        input.checkThread()
+    }
+    fun checkOpen() {
+        checkThread()
+        if (closed || surface.state != SurfaceWindowState.Open)
+            throw IllegalStateException(Some("Surface window regions are closed"))
+    }
+    fun create(kind: WindowRegionKind, parent: InputScope?): WindowRegionHandle {
+        checkOpen()
+        val supported =
+            when (kind) {
+                case Shape -> capabilities.windowRegion
+                case Input -> capabilities.inputRegion
+                case Hit(role) -> when (role) {
+                    case Resize(_) -> capabilities.resizeHitRegions
+                    case SystemButton(_) -> capabilities.systemButtonHitRegions
+                    else -> true
+                }
+            }
+        if (!supported)
+            throw WindowException("Surface window region", WindowErrorKind.Unsupported)
+        val route =
+            when (kind) {
+                case Hit(_) -> {
+                    val target = parent ?: input.rootScope
+                    requireInput(
+                        target.owner === input,
+                        "window hit region belongs to another input owner"
+                    )
+                    target.checkOpen()
+                    Some(target)
+                }
+                else -> {
+                    when (parent) {
+                        case Some(_) -> throw IllegalArgumentException(
+                            Some("only a hit region has an input scope")
+                        )
+                        case None -> {}
+                    }
+                    for (handle in handles)
+                        if (handle.kind == kind)
+                            throw IllegalStateException(Some("window region kind is already owned"))
+                    None
+                }
+            }
+        val handle = WindowRegionHandle(this, kind, route)
+        handles.add(handle)
+        return handle
+    }
+    fun begin(scale: Double): WindowRegionFrame = WindowRegionFrame(this, scale)
+    fun revision(): ULong? =
+        if (handles.size == 0L)
+            None
+        else
+            Some(window.frameRevision)
+    fun publish(frame: WindowRegionFrame) {
+        requireInput(frame.owner === this, "window region frame belongs to another Surface")
+        val next = frame.take()
+        if (closed || frame.generation != generation)
+            return
+        when (frame.revision) {
+            case Some(value) -> if (value != window.frameRevision) {
+                geometryChanged()
+                surface.requestFrame()
+                return
+            }
+            case None -> {}
+        }
+        scene = next
+        for (placement in scene)
+            placement.eligible = placement.handle.eligible
+        apply()
+    }
+    fun refreshEligibility() {
+        if (closed)
+            return
+        var changed = false
+        for (placement in scene) {
+            val eligible = placement.handle.eligible
+            if (placement.eligible != eligible) {
+                placement.eligible = eligible
+                changed = true
+            }
+        }
+        if (changed)
+            apply()
+    }
+    fun geometryChanged() {
+        if (closed)
+            return
+        generation += 1L
+        scene = []
+        apply()
+    }
+    fun remove(handle: WindowRegionHandle) {
+        for (index in 0L ..< handles.size)
+            if (handles[index] === handle) {
+                handles.removeAt(index);
+                break
+            }
+        val remaining = ArrayList<WindowRegionPlacement>()
+        for (placement in scene)
+            if (placement.handle !== handle)
+                remaining.add(placement)
+        scene = remaining.toArray()
+        if (!closed)
+            apply()
+    }
+    private fun apply() {
+        if (window.state != WindowState.Open)
+            return
+        var shape: WindowRegion? = None
+        var inputRegion: WindowRegion? = None
+        val hits = ArrayList<WindowHitRegion>()
+        var ownsShape = false
+        var ownsInput = false
+        var ownsHits = false
+        for (handle in handles)
+            when (handle.kind) {
+                case Shape -> ownsShape = true
+                case Input -> ownsInput = true
+                case Hit(_) -> ownsHits = true
+            }
+        for (placement in scene) {
+            if (!placement.eligible)
+                continue
+            when (placement.handle.kind) {
+                case Shape -> shape = Some(placement.region)
+                case Input -> inputRegion = Some(placement.region)
+                case Hit(role) -> hits.add(WindowHitRegion(placement.region, role))
+            }
+        }
+        if (ownsShape || shapeApplied) {
+            requireApplied(window.setWindowRegion(shape))
+            shapeApplied = ownsShape
+        }
+        if (ownsInput || inputApplied) {
+            requireApplied(window.setInputRegion(inputRegion))
+            inputApplied = ownsInput
+        }
+        if (ownsHits || hitsApplied) {
+            requireApplied(window.setHitRegions(hits.toArray()))
+            hitsApplied = ownsHits
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        generation += 1L
+        for (handle in handles)
+            handle.closed = true
+        handles.clear()
+        scene = []
+        var failure: Throwable? = None
+        if (window.state == WindowState.Open) {
+            if (shapeApplied)
+                failure = cleanupFailure(failure) { requireApplied(window.setWindowRegion(None)) }
+            if (inputApplied)
+                failure = cleanupFailure(failure) { requireApplied(window.setInputRegion(None)) }
+            if (hitsApplied)
+                failure = cleanupFailure(failure) { requireApplied(window.setHitRegions([])) }
+        }
+        shapeApplied = false;
+        inputApplied = false;
+        hitsApplied = false
+        throwFailure(failure)
+    }
+}
+
+private fun requireApplied(status: RequestStatus) {
+    if (status == RequestStatus.Unsupported)
+        throw WindowException("publish Surface window region", WindowErrorKind.Unsupported)
+}

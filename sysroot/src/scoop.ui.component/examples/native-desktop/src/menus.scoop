@@ -1,0 +1,110 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal fun primaryKey(character: String): ShortcutChord =
+    ShortcutChord(
+        ShortcutKey.Logical(LogicalKey.Character(character)),
+        ShortcutModifiers(primary = true)
+    )
+
+internal fun editMenu(): NativeMenuContent =
+    nativeMenu {
+        role(ViewKey.Text("undo"), "Undo", MenuRole.Undo) { shortcut = Some(primaryKey("z")) }
+        role(ViewKey.Text("redo"), "Redo", MenuRole.Redo) { shortcut = Some(primaryKey("y")) }
+        separator(ViewKey.Text("history"))
+        role(ViewKey.Text("cut"), "Cut", MenuRole.Cut) { shortcut = Some(primaryKey("x")) }
+        role(ViewKey.Text("copy"), "Copy", MenuRole.Copy) { shortcut = Some(primaryKey("c")) }
+        role(ViewKey.Text("paste"), "Paste", MenuRole.Paste) { shortcut = Some(primaryKey("v")) }
+        role(ViewKey.Text("select-all"), "Select All", MenuRole.SelectAll) {
+            shortcut = Some(primaryKey("a"))
+        }
+    }
+
+internal fun actionMenu(demo: DesktopDemo, includeEdit: Boolean = true): NativeMenuContent =
+    nativeMenu {
+        item(
+            ViewKey.Text("count"),
+            f"Run action (${demo.actionCount.value})",
+            { _ -> demo.activate("Popup") }
+        ) {
+            enabled = demo.menuEnabled.value
+            image =
+                Some(
+                    if (demo.color.value == 1)
+                        demo.blueIcon
+                    else
+                        demo.orangeIcon
+                )
+        }
+        checkboxItem(
+            ViewKey.Text("check"),
+            "Shared checkbox",
+            demo.checked.binding(),
+            { _ -> demo.report("Checkbox Binding updated from a native menu") }
+        )
+        submenu(
+            ViewKey.Text("color"),
+            "Tray color",
+            nativeMenu {
+                radioItem(ViewKey.Text("blue"), "Blue", 1, demo.color.binding())
+                radioItem(ViewKey.Text("orange"), "Orange", 2, demo.color.binding())
+            }
+        )
+        separator(ViewKey.Text("separator"))
+        if (includeEdit)
+            submenu(ViewKey.Text("edit"), "Edit focused text", editMenu())
+    }
+
+internal fun applicationMenu(demo: DesktopDemo, document: DemoDocument? = None): NativeMenuContent =
+    nativeMenu {
+        submenu(
+            ViewKey.Text("file"),
+            if (
+                when (document) {
+                    case None -> true;
+                    case Some(_) -> false
+                }
+            )
+                "File"
+            else
+                f"Window ${document!!.number}",
+            nativeMenu {
+                item(ViewKey.Text("new"), "New document window", { _ -> demo.newDocument() }) {
+                    shortcut = Some(primaryKey("n"))
+                }
+                item(
+                    ViewKey.Text("open"),
+                    "Open file…",
+                    {
+                        event -> when (demo.source(event)) {
+                            case Some(owner) -> owner.root!!.openFile()
+                            case None -> demo.applicationView!!.openFile()
+                        }
+                    }
+                ) { shortcut = Some(primaryKey("o")) }
+                item(
+                    ViewKey.Text("modal"),
+                    "Application modal…",
+                    { _ -> demo.applicationView!!.showDialog() }
+                )
+                separator(ViewKey.Text("exit-separator"))
+                role(ViewKey.Text("quit"), "Quit…", MenuRole.Quit) {
+                    shortcut = Some(primaryKey("q"))
+                }
+            }
+        )
+        submenu(ViewKey.Text("edit"), "Edit", editMenu())
+        submenu(ViewKey.Text("actions"), "Shared state", actionMenu(demo, false))
+        submenu(
+            ViewKey.Text("window"),
+            "Window",
+            nativeMenu {
+                role(ViewKey.Text("minimize"), "Minimize", MenuRole.Minimize)
+                role(ViewKey.Text("zoom"), "Maximize / restore", MenuRole.Zoom)
+                item(ViewKey.Text("new-window"), "Another document", { _ -> demo.newDocument() })
+            }
+        )
+    }

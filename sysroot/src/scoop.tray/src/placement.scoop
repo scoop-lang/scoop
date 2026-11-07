@@ -1,0 +1,292 @@
+package scoop.tray
+
+import scoop.window.*
+
+internal fun TrayOwner.placeWindow(window: Window, options: TrayWindowPlacement): RequestStatus {
+    requireOpen()
+    if (!positioning.globalWindowPosition)
+        throw WindowException("tray window placement", WindowErrorKind.Unsupported)
+    @Unsafe
+    {
+        val lease = resource!!.acquireWindow(window)
+        try {
+            val anchor = placementAnchor(options)
+            val centerX = anchor.origin.x + anchor.width / 2.0
+            val centerY = anchor.origin.y + anchor.height / 2.0
+            var target: Monitor? = None
+            for (monitor in application.monitors())
+                when (monitor.desktopBounds) {
+                    case Some(bounds) -> if (containsPoint(bounds, centerX, centerY))
+                        target = Some(monitor)
+                    case None -> {}
+                }
+            val monitor =
+                target ?: throw WindowException("tray anchor monitor", WindowErrorKind.Unavailable)
+            val work =
+                monitor.workArea ?:
+                    if (options.allowMonitorBounds)
+                        monitor.desktopBounds ?:
+                            throw WindowException("monitor bounds", WindowErrorKind.Unavailable)
+                    else
+                        throw WindowException("monitor work area", WindowErrorKind.Unavailable)
+            val metrics =
+                window.metrics ?:
+                    throw WindowException("window geometry", WindowErrorKind.Unavailable)
+            val outer =
+                window.outerBounds ?:
+                    throw WindowException("window outer bounds", WindowErrorKind.Unavailable)
+            val fromUnits = desktopUnits(metrics.scaleFactor)
+            val targetUnits = desktopUnits(monitor.scaleFactor)
+            val width = outer.width * targetUnits / fromUnits
+            val height = outer.height * targetUnits / fromUnits
+            val plan =
+                planPlacement(anchor, work, width, height, options.gap * targetUnits, options)
+            if (plan.width != width || plan.height != height) {
+                val frameWidth = outer.width / fromUnits - metrics.logicalSize.width
+                val frameHeight = outer.height / fromUnits - metrics.logicalSize.height
+                val contentWidth = plan.width / targetUnits - frameWidth
+                val contentHeight = plan.height / targetUnits - frameHeight
+                if (contentWidth <= 0.0 || contentHeight <= 0.0)
+                    throw WindowException("tray window does not fit", WindowErrorKind.Unavailable)
+                window.requestSize(LogicalSize(contentWidth, contentHeight))
+            }
+            val status = window.requestPosition(plan.origin)
+            // Win32 delivers WM_DPICHANGED during SetWindowPos. Use the actual
+            // new frame without waiting for a managed metrics event to arrive.
+            when (window.outerBounds) {
+                case Some(actual) -> if (
+                    actual.width != plan.width || actual.height != plan.height
+                ) {
+                    val adjusted =
+                        planPlacement(
+                            anchor,
+                            work,
+                            actual.width,
+                            actual.height,
+                            options.gap * targetUnits,
+                            options
+                        )
+                    window.requestPosition(adjusted.origin)
+                }
+                case None -> {}
+            }
+            return status
+        } finally {
+            lease.close()
+        }
+    }
+}
+
+private fun TrayOwner.placementAnchor(options: TrayWindowPlacement): DesktopRect {
+    if (capabilities().iconBounds)
+        when (geometry()) {
+            case Some(value) -> return value.bounds
+            case None -> {}
+        }
+    return when (options.anchor) {
+        case Some(TrayAnchor.Rectangle(value)) -> {
+            validBounds(value.bounds, false)
+            value.bounds
+        }
+        case Some(TrayAnchor.PointHint(point)) -> {
+            if (!options.allowPointHint)
+                throw WindowException(
+                    "tray point hint requires explicit opt-in",
+                    WindowErrorKind.Unavailable
+                )
+            val value = DesktopRect(point, 0.0, 0.0)
+            validBounds(value, true)
+            value
+        }
+        case None -> throw WindowException("tray anchor", WindowErrorKind.Unavailable)
+    }
+}
+
+private fun validBounds(rect: DesktopRect, point: Boolean) {
+    if (
+        !rect.origin.x.isFinite() ||
+            !rect.origin.y.isFinite() ||
+            !rect.width.isFinite() ||
+            !rect.height.isFinite() ||
+            !(rect.origin.x + rect.width).isFinite() ||
+            !(rect.origin.y + rect.height).isFinite() ||
+            rect.width <
+            0.0 ||
+            rect.height <
+            0.0 ||
+            (!point && (rect.width == 0.0 || rect.height == 0.0))
+    )
+        throw IllegalArgumentException(Some("invalid tray placement bounds"))
+}
+
+private fun smaller(a: Double, b: Double): Double =
+    if (a < b)
+        a
+    else
+        b
+
+private fun larger(a: Double, b: Double): Double =
+    if (a > b)
+        a
+    else
+        b
+
+private fun automaticSide(anchor: DesktopRect, work: DesktopRect): TrayPlacementSide {
+    val x = anchor.origin.x + anchor.width / 2.0
+    val y = anchor.origin.y + anchor.height / 2.0
+    val top = y - work.origin.y
+    val bottom = work.origin.y + work.height - y
+    val left = x - work.origin.x
+    val right = work.origin.x + work.width - x
+    if (top <= bottom && top <= left && top <= right)
+        return TrayPlacementSide.Below
+    if (bottom <= left && bottom <= right)
+        return TrayPlacementSide.Above
+    return if (left <= right)
+        TrayPlacementSide.Right
+    else
+        TrayPlacementSide.Left
+}
+
+private fun opposite(side: TrayPlacementSide): TrayPlacementSide =
+    when (side) {
+        case Above -> TrayPlacementSide.Below
+        case Below -> TrayPlacementSide.Above
+        case Left -> TrayPlacementSide.Right
+        case Right -> TrayPlacementSide.Left
+        case Automatic -> throw IllegalArgumentException(Some("placement side was not resolved"))
+    }
+
+private fun vertical(side: TrayPlacementSide): Boolean =
+    side == TrayPlacementSide.Above || side == TrayPlacementSide.Below
+
+private fun availableSpace(
+    side: TrayPlacementSide,
+    anchor: DesktopRect,
+    work: DesktopRect,
+    gap: Double
+): Double =
+    when (side) {
+        case Above -> smaller(anchor.origin.y - gap, work.origin.y + work.height) - work.origin.y
+        case Below -> work.origin.y +
+            work.height -
+            larger(anchor.origin.y + anchor.height + gap, work.origin.y)
+        case Left -> smaller(anchor.origin.x - gap, work.origin.x + work.width) - work.origin.x
+        case Right -> work.origin.x +
+            work.width -
+            larger(anchor.origin.x + anchor.width + gap, work.origin.x)
+        case Automatic -> throw IllegalArgumentException(Some("placement side was not resolved"))
+    }
+
+private fun aligned(
+    origin: Double,
+    extent: Double,
+    size: Double,
+    alignment: TrayPlacementAlignment
+): Double =
+    when (alignment) {
+        case Start -> origin
+        case Center -> origin + (extent - size) / 2.0
+        case End -> origin + extent - size
+    }
+
+/** Pure placement policy; it cannot turn a hint or a full monitor into a work area. */
+internal fun planPlacement(
+    anchor: DesktopRect,
+    work: DesktopRect,
+    requestedWidth: Double,
+    requestedHeight: Double,
+    gap: Double,
+    options: TrayWindowPlacement
+): DesktopRect {
+    validBounds(anchor, true)
+    validBounds(work, false)
+    if (
+        !requestedWidth.isFinite() ||
+            !requestedHeight.isFinite() ||
+            requestedWidth <=
+            0.0 ||
+            requestedHeight <=
+            0.0 ||
+            !gap.isFinite() ||
+            gap <
+            0.0
+    )
+        throw IllegalArgumentException(Some("invalid tray placement size or gap"))
+    var side =
+        if (options.side == TrayPlacementSide.Automatic)
+            automaticSide(anchor, work)
+        else
+            options.side
+    var space = availableSpace(side, anchor, work, gap)
+    val extent =
+        if (vertical(side))
+            requestedHeight
+        else
+            requestedWidth
+    if (options.flip && extent > space) {
+        val flipped = opposite(side)
+        val other = availableSpace(flipped, anchor, work, gap)
+        if (other > space) {
+            side = flipped;
+            space = other
+        }
+    }
+    val maxWidth =
+        if (vertical(side))
+            work.width
+        else
+            smaller(work.width, space)
+    val maxHeight =
+        if (vertical(side))
+            smaller(work.height, space)
+        else
+            work.height
+    if (
+        maxWidth <=
+            0.0 ||
+            maxHeight <=
+            0.0 ||
+            (!options.allowResize && (requestedWidth > maxWidth || requestedHeight > maxHeight))
+    )
+        throw WindowException(
+            "tray window does not fit beside the anchor",
+            WindowErrorKind.Unavailable
+        )
+    val width = smaller(requestedWidth, maxWidth)
+    val height = smaller(requestedHeight, maxHeight)
+    var x = aligned(anchor.origin.x, anchor.width, width, options.alignment)
+    var y = aligned(anchor.origin.y, anchor.height, height, options.alignment)
+    when (side) {
+        case Above -> y = smaller(anchor.origin.y - gap, work.origin.y + work.height) - height
+        case Below -> y = larger(anchor.origin.y + anchor.height + gap, work.origin.y)
+        case Left -> x = smaller(anchor.origin.x - gap, work.origin.x + work.width) - width
+        case Right -> x = larger(anchor.origin.x + anchor.width + gap, work.origin.x)
+        case Automatic -> throw IllegalArgumentException(Some("placement side was not resolved"))
+    }
+    if (options.slide) {
+        if (vertical(side))
+            x = larger(work.origin.x, smaller(x, work.origin.x + work.width - width))
+        else
+            y = larger(work.origin.y, smaller(y, work.origin.y + work.height - height))
+    }
+    if (
+        x <
+            work.origin.x ||
+            y <
+            work.origin.y ||
+            x +
+            width >
+            work.origin.x +
+            work.width ||
+            y +
+            height >
+            work.origin.y +
+            work.height
+    )
+        throw WindowException(
+            "tray window does not fit without sliding",
+            WindowErrorKind.Unavailable
+        )
+    return DesktopRect(DesktopPosition(x, y), width, height)
+}

@@ -1,0 +1,34 @@
+package scoop.tests.ui.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.test.*
+
+@Test
+private class NativeDesktopValuesTests {
+    @Test
+    fun `native menu keys are stable within each parent and shape sizes reject invalid geometry`() {
+        assertFailsWith<IllegalArgumentException> {
+            nativeMenu { item(ViewKey.Position, "Missing key", {}) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            nativeMenu {
+                item(ViewKey.Text("same"), "First", {})
+                separator(ViewKey.Text("same"))
+            }
+        }
+        val child = nativeMenu { item(ViewKey.Text("same"), "Child", {}) }
+        val parent = nativeMenu { submenu(ViewKey.Text("same"), "Parent", child) }
+        assertEquals(1L, parent.entries.size)
+        assertFailsWith<IllegalArgumentException> {
+            WindowChromeProps(empty(), windowShape = Some(WindowChromeShape.Rounded(-1.0)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WindowChromeProps(empty(), titleBarHeight = -1.0)
+        }
+        val popup = NativePopupHandle()
+        assertFalse(popup.requestOpen())
+        assertFalse(popup.isPending)
+        popup.cancel()
+    }
+}

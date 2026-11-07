@@ -1,0 +1,106 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.window.*
+
+internal class UiEventRegistration<E>(
+    private val checkThread: () -> Unit,
+    action: (E) -> Unit,
+    private val once: Boolean
+): Closeable {
+    private var action: ((E) -> Unit)? = Some(action)
+    var detach: (() -> Unit)? = None
+    var afterClose: (() -> Unit)? = None
+
+    fun deliver(event: E) {
+        val callback = action ?: return
+        if (once)
+            close()
+        callback(event)
+    }
+    public override fun close() {
+        checkThread()
+        when (action) {
+            case None -> return;
+            case Some(_) -> {}
+        }
+        action = None
+        val remove = detach
+        val finished = afterClose
+        detach = None
+        afterClose = None
+        remove?.invoke()
+        finished?.invoke()
+    }
+}
+
+/** Each typed table indexes only the resource identity it owns. */
+internal class UiEventTable<K, E>(private val checkThread: () -> Unit) where K: Equals<K>, K: Hash {
+    private val entries = HashMap<K, ArrayList<UiEventRegistration<E>>>()
+
+    fun subscribe(key: K, once: Boolean, action: (E) -> Unit): UiEventRegistration<E> {
+        val registration = UiEventRegistration(checkThread, action, once)
+        val group = entries[key] ?: ArrayList<UiEventRegistration<E>>()
+        entries[key] = group
+        group.add(registration)
+        registration.detach =
+            Some {
+                for (index in 0L ..< group.size)
+                    if (group[index] === registration) {
+                        group.removeAt(index)
+                        break
+                    }
+                if (group.size == 0L)
+                    entries.remove(key)
+            }
+        return registration
+    }
+    fun deliver(key: K, event: E) {
+        val group = entries[key] ?: return
+        for (entry in group.toArray())
+            entry.deliver(event)
+    }
+    fun close() {
+        val all = ArrayList<UiEventRegistration<E>>()
+        for (group in entries.values)
+            for (entry in group)
+                all.add(entry)
+        for (entry in all)
+            entry.close()
+    }
+}
+
+internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
+    val menus = UiEventTable<MenuId, MenuActivation>(checkThread)
+    val popups = UiEventTable<PopupSessionId, PopupResult>(checkThread)
+    val modals = UiEventTable<ModalSessionId, ModalResult>(checkThread)
+    val files = UiEventTable<FileDialogSessionId, Unit>(checkThread)
+    val frames = UiEventTable<WindowId, Unit>(checkThread)
+    val windows = UiEventTable<WindowId, WindowEvent>(checkThread)
+
+    fun deliver(event: ApplicationEvent) {
+        when (event) {
+            case Menu(value) -> menus.deliver(value.menu, value)
+            case PopupCompleted(id, result) -> popups.deliver(id, result)
+            case ModalCompleted(id, result) -> modals.deliver(id, result)
+            case FileDialogCompleted(id) -> files.deliver(id, Unit)
+            case Window(id, value) -> {
+                windows.deliver(id, value)
+                when (value) {
+                    case FrameChanged -> frames.deliver(id, Unit)
+                    case GeometryChanged(_) -> frames.deliver(id, Unit)
+                    else -> {}
+                }
+            }
+            else -> {}
+        }
+    }
+    public override fun close() {
+        menus.close();
+        popups.close();
+        modals.close();
+        files.close();
+        frames.close();
+        windows.close()
+    }
+}

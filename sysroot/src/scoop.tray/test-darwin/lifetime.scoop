@@ -1,0 +1,131 @@
+package scoop.tray
+
+import scoop.test.*
+import scoop.tests.tray.native.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Test
+private class AppKitTrayTests {
+    @Test
+    fun `windowless status items retire callbacks and close with their application`() {
+        val handler = TrayLifecycleHandler()
+        Application().runWithAsyncio(handler)
+        assertEquals(1, handler.activations)
+        assertEquals(2, handler.actions)
+        assertEquals(TrayState.Closed, handler.first!!.state)
+        assertEquals(TrayState.Closed, handler.second!!.state)
+        assertEquals(MenuState.Closed, handler.menu!!.state)
+        assertTrue(handler.cleaned)
+    }
+
+    @Test
+    @Ignore("Requires an unlocked status bar; run separately with --ignored")
+    fun `a tray popup can be cancelled and immediately shown again`() {
+        val handler = TrayPopupHandler()
+        Application().run(handler)
+        assertEquals(2, handler.completions)
+        assertEquals(1, handler.actions)
+        assertEquals(TrayState.Closed, handler.tray!!.state)
+    }
+}
+
+private class TrayLifecycleHandler: ApplicationHandler {
+    var first: TrayIcon? = None
+    var second: TrayIcon? = None
+    var menu: Menu? = None
+    var activations = 0
+    var actions = 0
+    var cleaned = false
+    private var action = MenuItemId(0L)
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                val icon =
+                    TrayIcon.create(application, TrayOptions(trayTestImage(), Some("Status item")))
+                first = Some(icon)
+                assertTrue(icon.capabilities().templateImages)
+                assertTrue(icon.capabilities().iconBounds)
+                assertTrue(application.desktopCapabilities().positioning.monitorWorkArea)
+                assertTrue(application.systemMenuBarHeight()!! > 0.0)
+                assertTrue(application.primaryMonitor()!!.workArea!!.height > 0.0)
+                icon.subscribe {
+                    value -> when (value) {
+                        case Activated(_) -> {
+                            activations += 1
+                            val created = application.createMenu()
+                            menu = Some(created)
+                            action = created.insert(MenuItemDescription("Execute"))
+                            icon.setMenu(Some(created))
+                            assertTrue(icon.owner.menuLease!!.activate(action))
+                        }
+                        else -> {}
+                    }
+                }
+                assertFailsWith<IllegalArgumentException> { icon.setTooltip(Some("bad\u0000tip")) }
+                @Unsafe
+                {
+                    assertEquals(1, checkTrayImage(icon.owner.pointer!!))
+                }
+                val scope = currentApplicationScope()
+                val loop = currentEventLoop()
+                scope.launch {
+                    try {
+                        loop.sleep(Duration.seconds(10L))
+                    } finally {
+                        nonCancellableScope<Unit> {
+                            loop.sleep(Duration.milliseconds(20L))
+                            assertEquals(
+                                TrayState.Closed,
+                                this @TrayLifecycleHandler.second!!.state
+                            )
+                            this @TrayLifecycleHandler.cleaned = true
+                        }
+                    }
+                }
+                scope.launch {
+                    loop.sleep(Duration.milliseconds(10L))
+                    @Unsafe
+                    {
+                        assertEquals(1, clickTray(icon.owner.pointer!!))
+                    }
+                }
+            }
+            case Menu(activation) -> {
+                actions += 1
+                assertEquals(action, activation.item)
+                val icon =
+                    if (actions == 1)
+                        first!!
+                    else
+                        second!!
+                when (activation.source) {
+                    case Native(identity) -> assertEquals(icon.menuUseId, Some(identity))
+                    else -> fail(Some("wrong tray menu source"))
+                }
+                if (actions == 1) {
+                    assertTrue(icon.owner.menuLease!!.activate(action))
+                    icon.close()
+                    icon.close()
+                    second =
+                        Some(
+                            TrayIcon.create(application, TrayOptions(trayTestImage(), menu = menu))
+                        )
+                    assertTrue(second!!.owner.menuLease!!.activate(action))
+                } else {
+                    assertEquals(2, actions)
+                    application.requestExit()
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("tray lifecycle deadline"))
+            else -> {}
+        }
+    }
+}

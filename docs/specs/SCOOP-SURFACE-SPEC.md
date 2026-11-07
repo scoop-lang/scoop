@@ -32,6 +32,10 @@ PathBuilder 的 `moveTo(point)`、`lineTo(point)`、`quadraticTo(control, end)`�
 
 Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独立 PathMeasure，原 Path 关闭后仍可查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
 
+`Path.rasterizeRegion(clip: Rect, scale: Double = 1.0): Array<Rect>` 使用 Skia Region 将填充轮廓转换为二进制矩形集合；clip 必须显式给出，scale 为正有限值。返回矩形仍以原逻辑单位表示，边界落在 1/scale 网格上，覆盖规则是 Skia 的非抗锯齿区域栅格化，不是半透明像素命中。clip 量化为覆盖它的整数网格边界；结果为空是正常结果。负坐标、EvenOdd 孔洞和矩形合并沿 Skia，禁止自行采样路径。native 整数坐标或转换后的浮点路径不可表示时失败。
+
+`graphics.native.CanvasGeometry.rasterizeRegion(scale = 1.0)` 对捕获的最终 transform、全部 path clip 和 viewport 使用同一栅格化；不可逆变换返回空。结果为自有普通值，快照关闭后仍有效。该转换供原生窗框／输入区域的 Accepted 提交使用，graphics 不依赖 window。
+
 Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其他线程调用；作用域结束后使用报状态异常。变换和 clip 的当前几何状态由 graphics 维护，并经低层接入接口提供给 Surface。绘制与区域放置不得分别维护两套可能不一致的变换。
 
 `Canvas.withState<T>(block: (Canvas) -> T): T` 创建同步嵌套借用，继承当前坐标、clip 和组状态，不重复施加 DPI。block 获得独立有效期的子 Canvas；期间只能使用子 Canvas，父 Canvas 的操作及几何捕获报告状态错误。正常返回或抛错均恢复入口状态和保存层级，包括未配对的子级 save／saveLayer；子 Canvas 不能 restore 到入口以下，退出后拒绝操作。已绘制像素不回滚，异常帧是否提交由外层目标决定。
@@ -69,6 +73,8 @@ OffscreenSurface.snapshot 返回不可变合成 Image；GPU 路径保留 GPU 图
 Surface 只接收局部 Rect caret，并通过区域几何转换为窗口 IME 候选窗位置。文本编辑状态由应用拥有，应用在 graphics.text 的 TextRange 与 window 的 Utf8Range 之间显式转换；输入路由不保留段落或完整文档，也不接管撤销、剪贴板或 TextField。
 
 ## 4. Surface 宿主与帧
+
+D7 的原生窗框／输入区域登记与 Accepted 发布合同见[Surface 原生窗口区域规范](SCOOP-SURFACE-FRAME-SPEC.md)。实际平台验证见[原生桌面实施记录](../desktop-ui/PROGRESS.md)。
 
 SurfaceHost 包装 ApplicationHandler，管理所附着的 SurfaceWindow，使用现有 Application.run 或 runWithAsyncio。窗口事件、用户绘制、动画采样和区域输入均在窗口 owner 线程串行执行；不启动第二个主循环或另一套任务树。CloseRequested 的接受策略仍由应用决定。
 
@@ -141,6 +147,8 @@ SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近�
 `AnimationTimeline.group(frameEnabled = true)` 创建同一时间轴拥有的 AnimationGroup。group.value 与 timeline.value 支持相同值类型；组拥有这些值，close 关闭其剩余动画，时间轴关闭同时关闭组。组的 isFrameEnabled 与每个值的 isFrameEnabled 相与，不覆盖值的显式设置；恢复组时按同一个当前时间采样，完成回调仍排队。组没有独立时钟或嵌套调度器，供 UI 将一个挂载作用域的动画与平滑滚动一起退出离屏帧需求。创建、读写与关闭均使用时间轴 owner 线程。
 
 ## 6. 区域、输入与焦点
+
+原生菜单的 WindowEvent.TextCommand 转为 InputEvent.TextCommand，沿当前合格焦点的普通输入路径派发，保留 capture／target／bubble／default 和 preventDefault；观察时间来自当前输入派发，不构造虚假的 Keyboard。InputScope.textCommandAvailability 为可选的 Window TextCommandAvailability，默认 None 表示该 scope 不提供编辑角色。最近的合格焦点祖先中首个 Some 决定当前六项可用性；没有提供者时发布全 false。焦点、边界和声明变化同步刷新 Window，不请求绘制帧；Surface 退休清除自己提供的状态。此状态不控制原生文件面板的编辑目标。
 
 InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
 

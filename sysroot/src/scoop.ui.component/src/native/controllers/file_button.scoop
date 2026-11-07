@@ -1,0 +1,137 @@
+package scoop.ui.component
+
+import scoop.platform.fs.Path
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.window.*
+
+public enum NativeFileRequest {
+    Open(OpenFileOptions), Save(SaveFileOptions)
+}
+
+public class NativeFileButtonProps public constructor(
+    public val content: ButtonContent,
+    public val request: NativeFileRequest,
+    public val target: DialogTarget,
+    public val onResult: (FileDialogResult<Path>) -> Unit,
+    public val enabled: Boolean = true,
+    public val style: ButtonStyle = buttonStyle(),
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val invalid: Boolean = false,
+    public val variant: ButtonVariant = ButtonVariant.Default,
+    public val size: ButtonSize = ButtonSize.Default,
+    public val group: GroupPosition? = None,
+    public val labelTarget: FieldTarget? = None
+)
+
+public class NativeFileButton public constructor(
+    private val props: Props<NativeFileButtonProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val controller = scope.fileDialogController()
+    private val completed: (FileDialogResult<Path>) -> Unit =
+        { result -> props.value.onResult(result) }
+    private val click: () -> Unit =
+        {
+            val input = props.value
+            if (input.enabled && !controller.isPending)
+                when (input.request) {
+                    case Open(options) -> {
+                        controller.openFile(input.target, completed, options)
+                    }
+                    case Save(options) -> {
+                        controller.saveFile(input.target, completed, options)
+                    }
+                }
+        }
+    public override fun render(): View {
+        val input = props.value
+        return component(
+            ButtonProps(
+                input.content,
+                click,
+                input.enabled && !controller.isPending,
+                input.style,
+                input.theme,
+                input.focus,
+                input.invalid,
+                input.variant,
+                input.size,
+                input.group,
+                input.labelTarget
+            ),
+            { current, mount -> Button(current, mount) },
+            comparison = Some(buttonComparison)
+        )
+    }
+}
+
+public class NativeOpenFileButtonBuilder internal constructor(): ButtonBuilder() {
+    public var options: OpenFileOptions = OpenFileOptions()
+}
+
+public class NativeSaveFileButtonBuilder internal constructor(): ButtonBuilder() {
+    public var options: SaveFileOptions = SaveFileOptions()
+}
+
+public fun nativeOpenFileButton(
+    text: String,
+    target: DialogTarget,
+    onResult: (FileDialogResult<Path>) -> Unit,
+    configure: NativeOpenFileButtonBuilder.() -> Unit = {}
+): View {
+    val builder = NativeOpenFileButtonBuilder()
+    builder.configure()
+    return nativeFileButton(
+        text,
+        target,
+        onResult,
+        NativeFileRequest.Open(builder.options),
+        builder
+    )
+}
+
+public fun nativeSaveFileButton(
+    text: String,
+    target: DialogTarget,
+    onResult: (FileDialogResult<Path>) -> Unit,
+    configure: NativeSaveFileButtonBuilder.() -> Unit = {}
+): View {
+    val builder = NativeSaveFileButtonBuilder()
+    builder.configure()
+    return nativeFileButton(
+        text,
+        target,
+        onResult,
+        NativeFileRequest.Save(builder.options),
+        builder
+    )
+}
+
+private fun nativeFileButton(
+    text: String,
+    target: DialogTarget,
+    onResult: (FileDialogResult<Path>) -> Unit,
+    request: NativeFileRequest,
+    builder: ButtonBuilder
+): View =
+    component(
+        NativeFileButtonProps(
+            ButtonContent.Label(LabelProps(LabelText.Plain(text, None), builder.fonts)),
+            request,
+            target,
+            onResult,
+            builder.enabled,
+            builder.style,
+            builder.theme,
+            builder.focus,
+            builder.invalid,
+            builder.variant,
+            builder.size,
+            builder.group,
+            builder.labelTarget
+        ),
+        { props, scope -> NativeFileButton(props, scope) },
+        builder.key
+    )

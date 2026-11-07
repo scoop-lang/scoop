@@ -1,0 +1,27 @@
+package scoop.examples.native_desktop
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.platform.macos.*
+
+internal fun platformFrameControls(root: DocumentView): View =
+    row {
+        spacing = 10.0
+        button(
+            if (root.nativeStyle.value)
+                "Restore AppKit titlebar"
+            else
+                "Transparent AppKit titlebar",
+            {
+                val next = !root.nativeStyle.value
+                root.document.window.setMacOSTitlebar(
+                    TitlebarOptions(transparent = next, titleHidden = next)
+                )
+                root.nativeStyle.value = next
+                root.demo.report(
+                    "AppKit titlebar options updated; inspect System / Extended frame modes."
+                )
+            }
+        )
+        label("AppKit preserves native window buttons in extended content.")
+    }

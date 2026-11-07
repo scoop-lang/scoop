@@ -2,7 +2,7 @@
 
 DWORD sw_style(SWWindow *window) {
   DWORD style = WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-  style |= window->decorations ? WS_CAPTION | WS_SYSMENU : WS_POPUP;
+  style |= WS_SYSMENU | (window->frame_mode != 2 ? WS_CAPTION : WS_POPUP);
   if (window->resizable)
     style |= WS_THICKFRAME;
   if (window->minimize_button)
@@ -46,6 +46,8 @@ void sw_emit(SWWindow *window, int32_t kind) {
   if (!event)
     return;
   SWSnapshot snapshot = sw_snapshot(window);
+  if (kind == 2)
+    sw_frame_geometry(window, snapshot);
   switch (kind) {
   case 2:
     event->data.x = snapshot.width;
@@ -67,6 +69,9 @@ void sw_emit(SWWindow *window, int32_t kind) {
   case 6:
     event->data.flags = snapshot.dark;
     break;
+  case 19:
+    event->data.flags = window->input_blocked;
+    break;
   default:
     break;
   }
@@ -82,13 +87,17 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
   if (!window)
     return DefWindowProcW(hwnd, msg, wp, lp);
+  if (window->input_blocked && sw_modal_input_message(msg))
+    return 0;
   LRESULT result;
-  if (!window->destroying && (sw_text(window, msg, wp, lp, &result) ||
+  if (!window->destroying && (sw_frame_message(window, msg, wp, lp, &result) ||
+                              sw_menu_message(window, msg, wp, lp, &result) ||
+                              sw_text(window, msg, wp, lp, &result) ||
                               sw_input(window, msg, wp, lp, &result)))
     return result;
   switch (msg) {
   case WM_CLOSE:
-    if (window->close_button)
+    if (window->close_button && !window->input_blocked)
       sw_emit(window, 1);
     return 0;
   case WM_QUERYENDSESSION:
@@ -131,6 +140,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return TRUE;
   case WM_DPICHANGED: {
     window->scale = HIWORD(wp) / 96.0;
+    sw_menu_dpi(window, HIWORD(wp));
     RECT *rect = (RECT *)lp;
     if (!SetWindowPos(hwnd, NULL, rect->left, rect->top,
                       rect->right - rect->left, rect->bottom - rect->top,
@@ -162,13 +172,16 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 SWResult scoop_window_create(SWApplication *app, int64_t identity,
                              const uint8_t *title, int64_t length, double width,
-                             double height, int32_t flags) {
+                             double height, int32_t flags, SWWindow *parent,
+                             int32_t role) {
   SWWindow *window = calloc(1, sizeof(*window));
   if (!window)
     return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
   window->application = app;
+  window->owning_window = parent;
   window->identity = identity;
-  window->decorations = (flags & 1) != 0;
+  window->frame_mode = (flags & 1) ? 0 : 2;
+  window->frame_hover = window->frame_pressed = -1;
   window->resizable = (flags & 2) != 0;
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
@@ -184,9 +197,10 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   if (!text)
     error = GetLastError();
   else {
-    window->hwnd = CreateWindowExW(0, sw_window_class, text, sw_style(window),
-                                   CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, NULL,
-                                   NULL, GetModuleHandleW(NULL), window);
+    window->hwnd = CreateWindowExW(
+        role ? WS_EX_TOOLWINDOW : 0, sw_window_class, text, sw_style(window),
+        CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, parent ? parent->hwnd : NULL, NULL,
+        GetModuleHandleW(NULL), window);
     free(text);
     if (!window->hwnd)
       error = GetLastError();
@@ -220,6 +234,7 @@ void scoop_window_destroy(SWWindow *window) {
   DestroyWindow(window->hwnd);
   for (int n = 0; n < 512; ++n)
     free((void *)window->pressed[n].text);
+  free(window->hit_rects);
   free(window);
 }
 void *scoop_window_hwnd(SWWindow *window) { return window->hwnd; }
@@ -242,14 +257,24 @@ int64_t sw_size(SWWindow *window, double width, double height) {
   if (pw > INT_MAX / 2 || ph > INT_MAX / 2)
     return ERROR_INVALID_PARAMETER;
   RECT rect = {0, 0, (LONG)pw, (LONG)ph};
-  if (!AdjustWindowRectExForDpi(&rect, sw_style(window), FALSE, 0,
-                                (UINT)round(window->scale * 96)))
+  sw_adjust_frame_rect(window, &rect, (UINT)round(window->scale * 96));
+  if (!SetWindowPos(window->hwnd, NULL, 0, 0, rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE))
     return GetLastError();
-  return SetWindowPos(window->hwnd, NULL, 0, 0, rect.right - rect.left,
-                      rect.bottom - rect.top,
-                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE)
-             ? 0
-             : GetLastError();
+  // The first allocation determines the actual native menu wrapping.
+  RECT actual, outer;
+  GetClientRect(window->hwnd, &actual);
+  GetWindowRect(window->hwnd, &outer);
+  LONG extra_width = (LONG)pw - actual.right,
+       extra_height = (LONG)ph - actual.bottom;
+  if ((extra_width || extra_height) &&
+      !SetWindowPos(window->hwnd, NULL, 0, 0,
+                    outer.right - outer.left + extra_width,
+                    outer.bottom - outer.top + extra_height,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE))
+    return GetLastError();
+  return 0;
 }
 int64_t scoop_window_size(SWWindow *window, double width, double height) {
   return sw_size(window, width, height);

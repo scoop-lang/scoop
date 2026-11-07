@@ -21,14 +21,15 @@ private class WindowReceiverDslTests {
         val derived =
             original.copy {
                 title = "copy";
-                macOSTitlebar { fullSizeContent = true }
+                frame = WindowFrame.System(WindowContentMode.Extended)
             }
         captured[0L].title = "late"
         assertEquals("original", original.title)
         assertEquals("copy", derived.title)
         assertEquals(LogicalSize(360.0, 240.0), derived.size)
         assertEquals(3, original.titlebarFlags)
-        assertEquals(7, derived.titlebarFlags)
+        assertEquals(3, derived.titlebarFlags)
+        assertEquals(WindowFrame.System(WindowContentMode.Extended), derived.frame)
         assertFalse(derived.visible)
         assertFalse(derived.requestActivation)
     }

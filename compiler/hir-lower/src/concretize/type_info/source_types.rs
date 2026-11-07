@@ -127,7 +127,7 @@ impl<'a> Concretizer<'a> {
         }
     }
 
-    pub(super) fn metadata_signature_type(
+    pub(in crate::concretize) fn metadata_signature_type(
         &mut self,
         ty: &SignatureTypeKey,
         arguments: &[concrete::TypeId],

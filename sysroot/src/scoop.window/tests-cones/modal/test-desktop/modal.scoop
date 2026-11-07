@@ -1,0 +1,11 @@
+package scoop.tests.window.modal
+
+import scoop.test.*
+
+@Test
+private class NativeModalTests {
+    @Test
+    fun `owned windows and nested modal scopes retire native uses before their owners`() {
+        runModalProbe()
+    }
+}

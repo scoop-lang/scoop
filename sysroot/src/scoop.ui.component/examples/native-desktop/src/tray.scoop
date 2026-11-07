@@ -1,0 +1,220 @@
+package scoop.examples.native_desktop
+
+import scoop.tray.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal fun demoIcon(orange: Boolean): DesktopImage {
+    val images = ArrayList<DesktopImageRepresentation>()
+    for (size in [16, 32]) {
+        images.add(
+            DesktopImageRepresentation(
+                PhysicalSize(size, size),
+                Array<UInt8>(size.toLong() * size.toLong() * 4L) {
+                    index ->
+                    val pixel = index / 4L
+                    val x = (pixel % size.toLong()).toInt()
+                    val y = (pixel / size.toLong()).toInt()
+                    val margin = size / 8
+                    val inside =
+                        x >= margin && x < size - margin && y >= margin && y < size - margin
+                    when (index % 4L) {
+                        case 0L -> (
+                            if (orange)
+                                235
+                            else
+                                36
+                        ).toUByte()
+                        case 1L -> (
+                            if (orange)
+                                125
+                            else
+                                108
+                        ).toUByte()
+                        case 2L -> (
+                            if (orange)
+                                45
+                            else
+                                215
+                        ).toUByte()
+                        else -> (
+                            if (inside)
+                                255
+                            else
+                                0
+                        ).toUByte()
+                    }
+                }
+            )
+        )
+    }
+    return DesktopImage(LogicalSize(16.0, 16.0), images.toArray())
+}
+
+internal fun rectText(value: DesktopRect?): String =
+    when (value) {
+        case None -> "unknown"
+        case Some(rect) -> f"(${rect.origin.x}, ${rect.origin.y}) ${rect.width} × ${rect.height}"
+    }
+
+internal fun describeAnchor(anchor: TrayAnchor?): String =
+    when (anchor) {
+        case Some(TrayAnchor.Rectangle(value)) -> "native icon rectangle " +
+            rectText(Some(value.bounds))
+        case Some(TrayAnchor.PointHint(point)) -> f"host point hint (${point.x}, ${point.y})"
+        case None -> "no anchor"
+    }
+
+internal fun activationText(event: TrayActivation): String {
+    val kind =
+        when (event.kind) {
+            case Primary -> "primary";
+            case Context -> "context";
+            case Secondary -> "secondary"
+        }
+    val source =
+        when (event.source) {
+            case Pointer -> "pointer";
+            case Keyboard -> "keyboard";
+            case Unknown -> "unknown"
+        }
+    return kind + " / " + source + ": " + describeAnchor(event.anchor)
+}
+
+internal fun queryDesktop(demo: DesktopDemo) {
+    val app = demo.application!!
+    val caps = demo.capabilities!!
+    var message = "Desktop coordinates / work areas:"
+    for (monitor in app.monitors()) {
+        message += "\n" +
+            (monitor.name ?: "Display") +
+            f" • scale ${monitor.scaleFactor} • work " +
+            rectText(monitor.workArea)
+    }
+    message += "\nTaskbar: " +
+        (
+            if (caps.positioning.systemTaskbarBounds)
+                rectText(app.systemTaskbarBounds())
+            else
+                "unsupported"
+        )
+    message += "\nMenu bar height: " +
+        (
+            if (caps.positioning.systemMenuBarHeight)
+                when (app.systemMenuBarHeight()) {
+                    case Some(height) -> height.toString();
+                    case None -> "unknown"
+                }
+            else
+                "unsupported"
+        )
+    when (demo.tray.icon) {
+        case Some(icon) -> {
+            val trayCaps = icon.capabilities()
+            message += "\nTray rectangle: " +
+                (
+                    if (trayCaps.iconBounds)
+                        when (icon.geometry()) {
+                            case Some(geometry) -> rectText(Some(geometry.bounds));
+                            case None -> "temporarily unknown"
+                        }
+                    else
+                        "unsupported; activation may provide a point hint"
+                )
+            message += f"\nTray window positioning: ${trayCaps.placeWindow}; host menu: ${
+                trayCaps.hostMenu
+            }; programmatic menu: ${trayCaps.programmaticMenu}"
+        }
+        case None -> message += "\nTray is not mounted"
+    }
+    demo.report(message)
+}
+
+internal fun traySection(demo: DesktopDemo): View {
+    val available = demo.tray.availability == Some(TrayAvailability.Available)
+    val menu =
+        when (demo.tray.icon) {
+            case Some(icon) -> icon.capabilities().programmaticMenu;
+            case None -> false
+        }
+    return panel(
+        "Tray and windowless application",
+        column {
+            spacing = 10.0
+            label(
+                if (available)
+                    "Tray host is available. Registration does not guarantee a visible icon; inspect the desktop overflow area too."
+                else
+                    "Tray host is unavailable. On Linux a StatusNotifierItem host / extension is required."
+            )
+            row {
+                spacing = 8.0
+                button(
+                    "Blue / orange icon",
+                    {
+                        demo.color.value =
+                            if (demo.color.value == 1)
+                                2
+                            else
+                                1
+                    }
+                )
+                button("Tray menu", { demo.tray.requestMenu() }) { enabled = menu && available }
+                button("Panel beside tray", { demo.applicationView!!.showTrayWindow(None) })
+                button("Close all windows, keep tray", { demo.background() }) {
+                    enabled = available
+                }
+            }
+            row {
+                spacing = 12.0
+                add(demoOption(demo.allowPointHint.binding(), "Allow host point hint"))
+                add(demoOption(demo.allowScreenBounds.binding(), "Allow full-screen bounds"))
+                add(demoOption(demo.allowUnanchored.binding(), "Allow unanchored window"))
+            }
+            label(
+                f"Document windows: ${
+                    demo.windowCount.value
+                }. Tray menu actions and application state remain active after the last document closes."
+            )
+            label(
+                "The panel re-queries icon geometry before placement, flips / slides at work-area edges, and preserves size. Wayland can refuse global placement; fallback requires the explicit choice above."
+            )
+        }
+    )
+}
+
+internal class TrayPanel(
+    private val demo: DesktopDemo,
+    private val close: () -> Unit,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val demo = this.demo
+        val close = this.close
+        return frame(
+            column {
+                spacing = 12.0
+                label("Tray panel") {
+                    style {
+                        fontSize = Some(22.0);
+                        weight = Some(700)
+                    }
+                }
+                label(
+                    "This is a real native window, positioned beside the icon when the desktop permits it."
+                )
+                button("Update shared state", { demo.activate("Tray panel") })
+                row {
+                    spacing = 8.0
+                    button("Open document", { demo.newDocument() })
+                    button("Close", close)
+                }
+            }
+        ) {
+            padding = Some(Insets.all(20.0));
+            surface = Some(SurfaceKind.Plain)
+        }
+    }
+}

@@ -87,6 +87,18 @@ path = "native/darwin/shortcuts.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/menu.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/menu_actions.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/menu_presentation.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/pointer.m"
 when = { os = "darwin" }
 
@@ -136,7 +148,39 @@ path = "native/windows/application.c"
 when = { os = "windows" }
 
 [[native.sources]]
+path = "native/linux/menu.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/menu_actions.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/menu_presentation.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
 path = "native/windows/window.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_images.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_keys.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_actions.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/menu_presentation.c"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -189,6 +233,10 @@ when = { os = "windows" }
 
 [[native.libraries]]
 name = "shcore"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "shell32"
 when = { os = "windows" }
 
 [[native.libraries]]
@@ -261,6 +309,10 @@ path = "native/linux/properties.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
+path = "native/linux/desktop.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
 path = "native/linux/watch.c"
 when = { os = "linux", env = "gnu" }
 
@@ -327,4 +379,75 @@ when = { os = "linux", env = "gnu" }
 [[native.libraries]]
 name = "scoop_text_backend"
 kind = "static"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/frame.m"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "QuartzCore"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/frame.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/frame_appearance.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/frame.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "cairo"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/frame_operations.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/frame_operations.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/frame_operations.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/modal.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/modal.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/modal.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/dialogs.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows/dialogs.c"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux/dialogs.c"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "UniformTypeIdentifiers"
+kind = "framework"
+when = { os = "darwin" }
+
+[[test.sources]]
+path = "tests/dialog_paths.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/dialog_paths.scoop"
 when = { os = "linux", env = "gnu" }

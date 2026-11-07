@@ -1,0 +1,125 @@
+package scoop.window
+
+/** Requests native dragging from this window's currently dispatched input. */
+public fun Window.beginMove(): RequestStatus = requestSystemOperation(0, 0)
+
+public fun Window.beginResize(edge: WindowResizeEdge): RequestStatus =
+    requestSystemOperation(1, resizeEdgeCode(edge))
+
+public fun Window.showWindowMenu(): RequestStatus = requestSystemOperation(2, 0)
+
+private fun Window.requestSystemOperation(kind: Int, edge: Int): RequestStatus {
+    owner.requireInteractive()
+    val input =
+        owner.currentInput ?:
+            throw WindowException("system window operation", WindowErrorKind.InvalidState)
+    val pointer =
+        input.pointer ?:
+            throw WindowException("system window operation", WindowErrorKind.InvalidState)
+    if (owner.systemOperationPending)
+        throw WindowException("system window operation", WindowErrorKind.ResourceBusy)
+    @Unsafe
+    {
+        val result = nativeSystemOperationPrepare(owner.pointer!!, pointer, kind, edge)
+        if (result.error == -1L)
+            return RequestStatus.Unsupported
+        if (result.error == -4L)
+            throw WindowException("system window input", WindowErrorKind.InvalidState)
+        val operation = created(result, "prepare system window operation")
+        owner.systemOperationPending = true
+        owner.systemOperationCancelled = false
+        owner.pendingSystemCancellation = Some(input.time)
+        owner.leases += 1L
+        owner.application.deferNativeOperation {
+            try {
+                if (
+                    owner.phase ==
+                        WindowState.Open &&
+                        !owner.application.exiting &&
+                        !owner.inputBlocked &&
+                        !owner.systemOperationCancelled
+                ) {
+                    @Unsafe
+                    {
+                        checkNativeStatus(
+                            nativeSystemOperationRun(operation),
+                            "system window operation"
+                        )
+                    }
+                }
+            } finally {
+                @Unsafe
+                {
+                    nativeSystemOperationRelease(operation)
+                }
+                owner.systemOperationPending = false
+                owner.leases -= 1L
+                owner.application.mailbox.wake()
+            }
+        }
+    }
+    return RequestStatus.Requested
+}
+
+/** Accepted attachment work can be discarded on shutdown; the application owns that cleanup. */
+internal class NativeInputDelivery(
+    val application: ApplicationOwner,
+    native: Ptr<Unit>,
+    val time: InputTime
+) {
+    var pointer: Ptr<Unit>? = Some(native)
+    fun close() {
+        val value = pointer ?: return
+        pointer = None
+        @Unsafe
+        {
+            nativeInputRelease(value)
+        }
+        for (index in 0L ..< application.pendingInputs.size)
+            if (application.pendingInputs[index] === this) {
+                application.pendingInputs.removeAt(index)
+                return
+            }
+    }
+}
+
+internal struct NativeDelivery(val event: ApplicationEvent, val input: NativeInputDelivery?)
+
+internal fun ApplicationOwner.copyNativeInput(event: Ptr<Unit>): NativeInputDelivery? {
+    if (exiting)
+        return None
+    @Unsafe
+    {
+        val result = nativeInputCopy(event)
+        checkNativeStatus(result.error, "copy native window input")
+        when (result.pointer) {
+            case Some(pointer) -> {
+                val input =
+                    NativeInputDelivery(this, pointer, copyInputTime(nativeEventData(event)))
+                pendingInputs.add(input)
+                return Some(input)
+            }
+            case None -> return None
+        }
+    }
+}
+
+@Extern(name = "scoop_window_input_copy")
+private fun nativeInputCopy(event: Ptr<Unit>): NativeCreateResult
+
+@Extern(name = "scoop_window_input_release")
+private fun nativeInputRelease(input: Ptr<Unit>)
+
+@Extern(name = "scoop_window_system_operation_prepare")
+private fun nativeSystemOperationPrepare(
+    window: Ptr<Unit>,
+    input: Ptr<Unit>,
+    kind: Int,
+    edge: Int
+): NativeCreateResult
+
+@Extern(name = "scoop_window_system_operation_run")
+private fun nativeSystemOperationRun(operation: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_system_operation_release")
+private fun nativeSystemOperationRelease(operation: Ptr<Unit>)
