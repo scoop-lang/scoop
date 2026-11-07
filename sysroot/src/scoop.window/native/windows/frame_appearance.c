@@ -19,8 +19,10 @@ int64_t scoop_window_windows_frame_attribute(SWWindow *window,
   HRESULT status = DwmGetWindowAttribute(window->hwnd, attribute, &previous,
                                          sizeof(previous));
   if (FAILED(status))
-    return status == E_INVALIDARG ? -1 : (uint32_t)status;
+    return status == E_INVALIDARG ? -1 : (int64_t)(uint32_t)status;
   status =
       DwmSetWindowAttribute(window->hwnd, attribute, &value, sizeof(value));
-  return SUCCEEDED(status) ? 0 : status == E_INVALIDARG ? -1 : (uint32_t)status;
+  return SUCCEEDED(status)        ? 0
+         : status == E_INVALIDARG ? -1
+                                  : (int64_t)(uint32_t)status;
 }

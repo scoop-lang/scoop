@@ -9,6 +9,12 @@ import scoop.time.Duration
 @Extern(name = "scoop_test_win_menu_command")
 private fun commandNumber(menu: Ptr<Unit>): Int
 
+@Extern(name = "scoop_test_win_menu_select_input")
+private fun selectPopupInput(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_win_menu_cancel_input")
+private fun cancelPopupInput()
+
 @Extern(name = "scoop_test_win_menu_wide_ids")
 private fun checkWideIds(menu: Ptr<Unit>): Int
 
@@ -19,7 +25,7 @@ private fun windowMenu(window: Ptr<Unit>): Int
 private class WinMenuTests {
     @Test
     @Ignore("Requires a Windows desktop session; run separately with --ignored")
-    fun `Win32 menu command IDs remain wide and borrowed menus drain before windows`() {
+    fun `Win32 popup selections and wide borrowed menus survive presentation changes`() {
         val handler = WinMenuHandler()
         try {
             Application().run(handler)
@@ -27,6 +33,8 @@ private class WinMenuTests {
             fail(Some(f"${error.operation}; nativeCode=${error.nativeCode ?: 0L}"))
         }
         assertEquals(1, handler.actions)
+        assertEquals(1, handler.popupActions)
+        assertEquals(1, handler.popupSelections)
         assertEquals(1, handler.borrowerClosed)
         assertEquals(WindowState.Destroyed, handler.window!!.state)
         assertEquals(MenuState.Closed, handler.menu!!.state)
@@ -35,11 +43,16 @@ private class WinMenuTests {
 
 private class WinMenuHandler: ApplicationHandler {
     var actions = 0
+    var popupActions = 0
+    var popupSelections = 0
     var borrowerClosed = 0
     var window: Window? = None
     var menu: Menu? = None
     private var lease: NativeMenuLease? = None
+    private var inputWindow: NativeWindowLease? = None
+    private var popup: PopupSession? = None
     private var action = MenuItemId(0L)
+    private var checked = MenuItemId(0L)
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -47,13 +60,32 @@ private class WinMenuHandler: ApplicationHandler {
             case Menu(activation) -> {
                 assertEquals(action, activation.item)
                 when (activation.source) {
-                    case Native(identity) -> assertEquals(lease!!.id, identity)
+                    case Popup(identity, target) -> {
+                        assertEquals(popup!!.id, identity)
+                        assertEquals(window!!.id, target)
+                        popupActions += 1
+                    }
+                    case Native(identity) -> {
+                        assertEquals(lease!!.id, identity)
+                        actions += 1
+                        menu!!.close()
+                    }
                     else -> fail(Some("wrong Win32 native menu source"))
                 }
-                actions += 1
-                menu!!.close()
+            }
+            case PopupCompleted(identity, result) -> {
+                closeInput()
+                assertEquals(popup!!.id, identity)
+                when (result) {
+                    case Selected(item) -> assertEquals(action, item)
+                    else -> fail(Some("Win32 popup must report the selected command"))
+                }
+                assertEquals(1, popupActions)
+                popupSelections += 1
+                beginBorrow(application)
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("Win32 menu test deadline"))
+            case Exiting -> closeInput()
             else -> {}
         }
     }
@@ -67,7 +99,7 @@ private class WinMenuHandler: ApplicationHandler {
         val target =
             application.createWindow(
                 windowAttributes {
-                    title = "Win32 hidden menu test"
+                    title = "Win32 menu test"
                     visible = false
                 }
             )
@@ -89,7 +121,7 @@ private class WinMenuHandler: ApplicationHandler {
                 ),
                 Some(root)
             )
-        val checked =
+        checked =
             created.insert(
                 MenuItemDescription("Checked", kind = MenuItemKind.Checkbox(true)),
                 Some(root)
@@ -107,6 +139,30 @@ private class WinMenuHandler: ApplicationHandler {
             }
         }
         binding.close()
+        target.setVisible(true)
+        target.requestFocus()
+        @Unsafe
+        {
+            inputWindow = Some(target.acquireNativeWindow())
+            when (inputWindow!!.handle) {
+                case Win32(hwnd, _) -> assertEquals(1, selectPopupInput(hwnd))
+            }
+        }
+        popup = Some(target.showPopup(created, PopupPlacement.Pointer(LogicalPosition(16.0, 16.0))))
+    }
+
+    private fun closeInput() {
+        @Unsafe
+        {
+            cancelPopupInput()
+        }
+        inputWindow?.close()
+        inputWindow = None
+    }
+
+    private fun beginBorrow(application: ActiveApplication) {
+        val target = window!!
+        val created = menu!!
         @Unsafe
         {
             lease =

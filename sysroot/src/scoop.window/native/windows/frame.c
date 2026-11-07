@@ -6,41 +6,12 @@ int32_t scoop_window_frame_capabilities(void) {
          SW_FRAME_RESIZE_HIT | SW_FRAME_BUTTON_HIT;
 }
 
-static int button_role(LRESULT hit) {
-  return hit == HTCLOSE       ? 0
-         : hit == HTMINBUTTON ? 1
-         : hit == HTMAXBUTTON ? 2
-                              : -1;
-}
-static bool button_enabled(SWWindow *window, int role) {
-  return role == 0   ? window->close_button
-         : role == 1 ? window->minimize_button
-                     : window->maximize_button && window->resizable;
-}
-static void button_state(SWWindow *window, int hover, int pressed) {
-  int previous_hover = window->frame_hover,
-      previous_pressed = window->frame_pressed;
-  window->frame_hover = hover;
-  window->frame_pressed = pressed;
-  for (int role = 0; role < 3; ++role) {
-    if ((previous_hover == role) == (hover == role) &&
-        (previous_pressed == role) == (pressed == role))
-      continue;
-    SWEvent *event = sw_event(window, 18);
-    if (event) {
-      event->data.a = role;
-      event->data.flags = (hover == role ? 1 : 0) | (pressed == role ? 2 : 0);
-      sw_enqueue(window->application, event);
-    }
-  }
-}
-
 void sw_frame_invalidate(SWWindow *window) {
   window->frame_revision += 1;
   free(window->hit_rects);
   window->hit_rects = NULL;
   window->hit_count = 0;
-  button_state(window, -1, -1);
+  sw_frame_clear_buttons(window);
   if (window->window_region) {
     window->window_region = false;
     SetWindowRgn(window->hwnd, NULL, TRUE);
@@ -80,6 +51,9 @@ int64_t sw_frame_margins(SWWindow *window) {
 int64_t scoop_window_frame(SWWindow *window, int32_t mode) {
   if (window->frame_mode == mode)
     return 0;
+  HMENU menu = GetMenu(window->hwnd);
+  if (mode == 1 && menu && GetMenuItemCount(menu) > 0)
+    return -1;
   int previous = window->frame_mode;
   window->frame_mode = mode;
   int64_t status = sw_restyle(window);
@@ -127,9 +101,23 @@ SWFrameSnapshot scoop_window_frame_snapshot(SWWindow *window) {
     TITLEBARINFOEX info = {0};
     info.cbSize = sizeof(info);
     SendMessageW(window->hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info);
+    double bottom = NAN;
     if (info.rcTitleBar.bottom > info.rcTitleBar.top) {
       SWFrameRect title = screen_rect(window, info.rcTitleBar);
-      layout.y = fmax(0, title.y + title.height);
+      bottom = title.y + title.height;
+    }
+    // NCCALCSIZE can collapse rcTitleBar to the client edge while the native
+    // caption buttons still occupy part of the extended client area.
+    for (int index = 2; index <= 5; ++index) {
+      RECT rect = info.rgrect[index];
+      if (!(info.rgstate[index] & STATE_SYSTEM_INVISIBLE) &&
+          rect.right > rect.left && rect.bottom > rect.top) {
+        SWFrameRect button = screen_rect(window, rect);
+        bottom = fmax(bottom, button.y + button.height);
+      }
+    }
+    if (isfinite(bottom)) {
+      layout.y = fmin(size.height, fmax(0, bottom));
       layout.height = fmax(0, size.height - layout.y);
     } else
       layout = sw_frame_unknown();
@@ -204,10 +192,22 @@ int64_t scoop_window_hit_regions(SWWindow *window, const SWHitRect *rects,
                                  int64_t count) {
   if (count < 0 || (uint64_t)count > SIZE_MAX / sizeof(*rects))
     return ERROR_INVALID_PARAMETER;
-  for (int64_t i = 0; i < count; ++i)
+  bool unchanged = (size_t)count == window->hit_count;
+  for (int64_t i = 0; i < count; ++i) {
     if (!sw_frame_rect_valid(rects[i].rect) || rects[i].role < 0 ||
         rects[i].role > 12)
       return ERROR_INVALID_PARAMETER;
+    if (unchanged) {
+      SWHitRect previous = window->hit_rects[i], next = rects[i];
+      unchanged = previous.role == next.role &&
+                  previous.rect.x == next.rect.x &&
+                  previous.rect.y == next.rect.y &&
+                  previous.rect.width == next.rect.width &&
+                  previous.rect.height == next.rect.height;
+    }
+  }
+  if (unchanged)
+    return 0;
   SWHitRect *copy = count ? malloc((size_t)count * sizeof(*copy)) : NULL;
   if (count && !copy)
     return ERROR_NOT_ENOUGH_MEMORY;
@@ -216,42 +216,8 @@ int64_t scoop_window_hit_regions(SWWindow *window, const SWHitRect *rects,
   free(window->hit_rects);
   window->hit_rects = copy;
   window->hit_count = (size_t)count;
-  button_state(window, -1, -1);
+  sw_frame_clear_buttons(window);
   return 0;
-}
-
-static LRESULT hit_test(SWWindow *window, LPARAM point) {
-  LRESULT native = 0;
-  if (window->frame_mode != 2 &&
-      DwmDefWindowProc(window->hwnd, WM_NCHITTEST, 0, point, &native) &&
-      button_role(native) >= 0)
-    return button_enabled(window, button_role(native)) ? native : HTCLIENT;
-  POINT client = {GET_X_LPARAM(point), GET_Y_LPARAM(point)};
-  ScreenToClient(window->hwnd, &client);
-  double scale = GetDpiForWindow(window->hwnd) / 96.0;
-  int role = sw_frame_hit(window->hit_rects, window->hit_count,
-                          client.x / scale, client.y / scale);
-  if (role >= 10) {
-    const LRESULT buttons[] = {HTCLOSE, HTMINBUTTON, HTMAXBUTTON};
-    return button_enabled(window, role - 10) ? buttons[role - 10] : HTCLIENT;
-  }
-  if (role >= 2) {
-    const LRESULT edges[] = {HTLEFT,       HTRIGHT,      HTTOP,
-                             HTBOTTOM,     HTTOPLEFT,    HTTOPRIGHT,
-                             HTBOTTOMLEFT, HTBOTTOMRIGHT};
-    return window->resizable && !IsZoomed(window->hwnd) &&
-                   !IsIconic(window->hwnd)
-               ? edges[role - 2]
-               : HTCLIENT;
-  }
-  if (role == 1)
-    return HTCAPTION;
-  // Explicit Client entries also exclude native resize/caption fallback.
-  for (size_t i = 0; i < window->hit_count; ++i)
-    if (sw_frame_contains(window->hit_rects[i].rect, client.x / scale,
-                          client.y / scale))
-      return HTCLIENT;
-  return DefWindowProcW(window->hwnd, WM_NCHITTEST, 0, point);
 }
 
 bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
@@ -284,29 +250,7 @@ bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
     *result = 0;
     return true;
   }
-  if (message == WM_NCHITTEST) {
-    *result = hit_test(window, lp);
-    return true;
-  }
-  if (message == WM_NCMOUSEMOVE) {
-    button_state(window, button_role(wp), window->frame_pressed);
-    TRACKMOUSEEVENT tracking = {sizeof(tracking), TME_LEAVE | TME_NONCLIENT,
-                                window->hwnd, 0};
-    TrackMouseEvent(&tracking);
-  } else if (message == WM_NCMOUSELEAVE || (message == WM_NCACTIVATE && !wp)) {
-    button_state(window, -1, -1);
-  } else if (message == WM_NCLBUTTONDOWN && button_role(wp) >= 0) {
-    int role = button_role(wp);
-    if (!button_enabled(window, role)) {
-      *result = 0;
-      return true;
-    }
-    button_state(window, role, role);
-    *result = DefWindowProcW(window->hwnd, message, wp, lp);
-    button_state(window, -1, -1);
-    return true;
-  }
-  return false;
+  return sw_frame_input(window, message, wp, lp, result);
 }
 
 void sw_adjust_frame_rect(SWWindow *window, RECT *rect, UINT dpi) {
@@ -326,5 +270,5 @@ void scoop_window_frame_retire(SWWindow *window) {
   free(window->hit_rects);
   window->hit_rects = NULL;
   window->hit_count = 0;
-  button_state(window, -1, -1);
+  sw_frame_clear_buttons(window);
 }

@@ -50,6 +50,7 @@ struct SSUSurface {
   PTP_WAIT wait = nullptr;
   std::atomic<UINT_PTR> notificationGeneration{0};
   std::atomic<HRESULT> notificationError{S_OK};
+  std::atomic<bool> available{false};
   uint64_t generation = 0;
   int32_t width = 0, height = 0;
   int32_t bufferWidth = 0, bufferHeight = 0;

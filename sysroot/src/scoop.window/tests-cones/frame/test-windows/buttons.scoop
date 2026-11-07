@@ -1,0 +1,111 @@
+package scoop.tests.window.frame
+
+import scoop.test.*
+import scoop.window.*
+
+internal fun verifyWindowsButtonActions(window: Window) {
+    var point = publishButton(window, WindowSystemButton.Maximize)
+    assertEquals(9.0, nativeFrameQuery(window, 7, point.x, point.y))
+    assertEquals(
+        1.0,
+        nativeFrameQuery(window, 9),
+        Some("button press must capture without blocking")
+    )
+    publishButton(window, WindowSystemButton.Maximize)
+    assertEquals(
+        1.0,
+        nativeFrameQuery(window, 9),
+        Some("identical regions must preserve the press")
+    )
+    nativeFrameQuery(window, 8, point.x, point.y)
+    assertEquals(Some(true), window.isMaximized)
+    assertEquals(0.0, nativeFrameQuery(window, 9))
+
+    point = publishButton(window, WindowSystemButton.Maximize)
+    assertEquals(9.0, nativeFrameQuery(window, 7, point.x, point.y))
+    nativeFrameQuery(window, 8, point.x, point.y)
+    assertEquals(
+        Some(false),
+        window.isMaximized,
+        Some("the same button must restore a maximized window")
+    )
+
+    point = publishButton(window, WindowSystemButton.Maximize)
+    nativeFrameQuery(window, 7, point.x, point.y)
+    nativeFrameQuery(window, 11, 20.0, 100.0)
+    nativeFrameQuery(window, 8, 20.0, 100.0)
+    assertEquals(Some(false), window.isMaximized, Some("release outside must cancel"))
+    assertEquals(0.0, nativeFrameQuery(window, 9))
+
+    for (cancel in [10, 12]) {
+        nativeFrameQuery(window, 7, point.x, point.y)
+        assertEquals(1.0, nativeFrameQuery(window, 9))
+        nativeFrameQuery(window, cancel)
+        nativeFrameQuery(window, 8, point.x, point.y)
+        assertEquals(
+            Some(false),
+            window.isMaximized,
+            Some("cancel or lost capture must not activate")
+        )
+        assertEquals(0.0, nativeFrameQuery(window, 9))
+    }
+
+    nativeFrameQuery(window, 7, point.x, point.y)
+    window.setHitRegions([])
+    assertEquals(0.0, nativeFrameQuery(window, 9))
+    nativeFrameQuery(window, 8, point.x, point.y)
+    assertEquals(Some(false), window.isMaximized, Some("removing regions must cancel the press"))
+
+    point = publishButton(window, WindowSystemButton.Maximize)
+    window.setEnabledButtons(WindowButtons(maximize = false))
+    assertTrue(nativeFrameQuery(window, 7, point.x, point.y) != 9.0)
+    assertEquals(0.0, nativeFrameQuery(window, 9))
+    window.setEnabledButtons(WindowButtons())
+
+    point = publishButton(window, WindowSystemButton.Minimize)
+    assertEquals(8.0, nativeFrameQuery(window, 7, point.x, point.y))
+    nativeFrameQuery(window, 8, point.x, point.y)
+    assertEquals(Some(true), window.isMinimized)
+    window.requestMinimized(false)
+    assertEquals(Some(false), window.isMinimized)
+
+    point = publishButton(window, WindowSystemButton.Close)
+    assertEquals(20.0, nativeFrameQuery(window, 7, point.x, point.y))
+    nativeFrameQuery(window, 8, point.x, point.y)
+    window.setHitRegions([])
+}
+
+private fun publishButton(window: Window, button: WindowSystemButton): LogicalPosition {
+    val metrics = window.frameMetrics!!
+    if (metrics.frame == WindowFrame.Client) {
+        window.setHitRegions(
+            [
+                WindowHitRegion(
+                    WindowRegion(
+                        [LogicalRect(LogicalPosition(60.0, 0.0), LogicalSize(80.0, 30.0))]
+                    ),
+                    WindowHitRole.SystemButton(button)
+                )
+            ]
+        )
+        return LogicalPosition(100.0, 15.0)
+    }
+    window.setHitRegions(
+        [
+            WindowHitRegion(
+                WindowRegion([LogicalRect(LogicalPosition(0.0, 0.0), metrics.metrics.logicalSize)]),
+                WindowHitRole.Client
+            )
+        ]
+    )
+    for (geometry in metrics.systemButtons) {
+        if (geometry.button == button) {
+            val rect = geometry.bounds
+            return LogicalPosition(
+                rect.origin.x + rect.size.width / 2.0,
+                rect.origin.y + rect.size.height / 2.0
+            )
+        }
+    }
+    fail(Some("native system button has no geometry"))
+}

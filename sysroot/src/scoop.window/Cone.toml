@@ -395,6 +395,10 @@ path = "native/windows/frame.c"
 when = { os = "windows" }
 
 [[native.sources]]
+path = "native/windows/frame_input.c"
+when = { os = "windows" }
+
+[[native.sources]]
 path = "native/windows/frame_appearance.c"
 when = { os = "windows" }
 

@@ -1,0 +1,107 @@
+package scoop.tests.surface.frame_demand
+
+import scoop.graphics.Color
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.asyncio.*
+
+@Test
+private class FrameDemandTest {
+    @Test
+    fun `asyncio resumes DXGI demand after repeated discarded frames`() {
+        val probe = FrameDemandProbe()
+        val host =
+            SurfaceHost { owner, application, event -> probe.event(owner, application, event) }
+        try {
+            Application().runWithAsyncio(host)
+            assertTrue(probe.finished)
+            assertEquals(4, probe.discarded)
+            assertTrue(probe.accepted >= 2)
+            assertTrue(probe.closed)
+            assertEquals(WindowState.Destroyed, probe.window!!.state)
+        } finally {
+            host.close()
+        }
+    }
+}
+
+private class FrameDemandProbe: SurfaceContent {
+    var window: Window? = None
+    var surface: SurfaceWindow? = None
+    var deadline: WindowDeadline? = None
+    var accepted = 0
+    var discarded = 0
+    var finished = false
+    var closed = false
+
+    fun event(host: SurfaceHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop DXGI frame demand"
+                            size = LogicalSize(240.0, 160.0)
+                            frame = WindowFrame.Client
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                deadline =
+                    Some(
+                        native.createDeadline {
+                            if (accepted >= 2) {
+                                finished = true
+                                application.requestExit()
+                            } else {
+                                native.setVisible(true)
+                                surface!!.requestFrame()
+                            }
+                        }
+                    )
+                surface = Some(host.attach(native, this))
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"DXGI frame demand stalled after ${discarded} discarded frames")
+            )
+            else -> {}
+        }
+    }
+
+    public override fun paint(frame: FrameContext) {
+        frame.canvas.clear(Color(0.2, 0.4, 0.8))
+        if (accepted == 1 && discarded < 4)
+            window!!.setVisible(false)
+    }
+
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        when (frame.submission) {
+            case Accepted -> {
+                accepted += 1
+                if (accepted == 1)
+                    surface!!.requestFrame()
+                else
+                    schedule()
+            }
+            case Discarded -> {
+                assertFalse(window!!.isVisible)
+                discarded += 1
+                schedule()
+            }
+        }
+    }
+
+    private fun schedule() {
+        deadline!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(40L))
+    }
+
+    public override fun close() {
+        closed = true
+    }
+}
