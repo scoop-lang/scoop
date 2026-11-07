@@ -709,12 +709,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary:
         base = Path(temporary)
         llvm_root = base / "llvm"
-        debugger_files, python_version, python_license = assemble_llvm(llvm_root, args, host_system)
+        debugger_files, python_version, python_license, debugger_search = assemble_llvm(
+            llvm_root, args, host_system
+        )
         bin_root = base / "bin"
         stage_binaries(bin_root, binaries, host_system)
         if host_system == "Windows":
             native = package_native.windows(
-                bin_root, llvm_root, binaries, args.llvm_prefix / "bin", debugger_files
+                bin_root,
+                llvm_root,
+                binaries,
+                args.llvm_prefix / "bin",
+                debugger_files,
+                search_directories=debugger_search,
             )
         else:
             native = (package_native.darwin if host_system == "Darwin" else package_native.linux)(

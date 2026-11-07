@@ -37,7 +37,20 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     waitDemo("system frame") {
         first.window.frameMetrics!!.frame == WindowFrame.System(WindowContentMode.Standard)
     }
-    root.mode.value = 2
+    if (demo.capabilities!!.frame.extendedContent) {
+        if (!platformExtendedMenuBar()) {
+            val beforeHide = first.frames
+            root.setMenuBarHidden(true)
+            waitDemo("hidden menu frame") { first.frames > beforeHide }
+        }
+        root.selectFrame(1)
+        waitDemo("extended frame") {
+            first.window.frameMetrics!!.frame == WindowFrame.System(WindowContentMode.Extended)
+        }
+        if (!platformExtendedMenuBar())
+            root.setMenuBarHidden(false)
+    }
+    root.selectFrame(2)
     waitDemo("client frame") { first.window.frameMetrics!!.frame == WindowFrame.Client }
     waitDemo("popup anchor") { root.popup.requestOpen() }
     root.popup.cancel()

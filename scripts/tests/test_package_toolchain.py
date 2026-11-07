@@ -203,7 +203,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     patch.object(
                         package_toolchain.package_debugger,
                         "stage",
-                        return_value=({}, "3.14", work / "LICENSE.txt"),
+                        return_value=({}, "3.14", work / "LICENSE.txt", []),
                     ),
                     patch.object(package_toolchain.package_licenses, "collect_bin"),
                     patch.object(package_toolchain.package_licenses, "collect_llvm"),

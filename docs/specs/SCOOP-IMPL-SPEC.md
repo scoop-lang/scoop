@@ -949,6 +949,8 @@ GitHub Release workflow 对版本 tag 构建 macOS AArch64、Windows x64 与 Lin
 
 bin 组件包将 `scoop`、`scoopc`、`scoop-link` 和 `scoop-lsp` 放在 `bin`，四个命令共用发行版本与源码 revision。LLVM 以含开发文件的完整 prefix 随 llvm 组件包交付于 `libexec/llvm`，三个平台一致；编译器命令经相对 rpath／`$ORIGIN` 加载 `libexec/llvm/lib` 中的动态库，Darwin 通过相对 rpath 和 dylib install name 加载，Linux 的每层私有依赖使用相对 `$ORIGIN` RUNPATH。prefix 之外的非系统传递依赖（如 Linux 的 libstdc++）仍收集进 `libexec/llvm/lib`。Windows 上 scoop 各 exe 所需的非系统 DLL 仍复制到 `bin/` 旁置，使其可独立启动；llvm 包 `libexec/llvm/bin` 的 DLL 供其自身工具使用。组装脚本从实际动态依赖取得需要复制的库并修改加载路径，不在日常命令启动时重扫这些文件。版本、源码 revision、目标部署配置、Cone coordinate 和 native 版本写入 `share/scoop/toolchain.toml` 供说明；不把清单作为认证或逐文件验证输入。各组件归档可由维护者或专门的 Release workflow 生成，不作为普通测试的前置步骤。
 
+Windows 组装 LLDB／Python 的原生依赖时，在环境 `PATH` 之前查找所选 Python 安装的原生目录，包括 Conda 布局中的 `Library/bin`；只复制实际导入的 DLL 及其传递依赖。所选 LLVM prefix 的 DLL 优先级保持不变，不从无关软件的同名 DLL 替代所选 Python 自带依赖。
+
 M63 在同一 `bin` 布局中分发配套 `scoop-pm`，宿主构建与第三方许可证收集均包含该程序及其依赖，它本身不依赖 LLVM；独立`pm`转发优先于既有`commands/`外部子命令查找。源码包registry的package/静态索引维护由PM负责，不与此处工具链/sysroot发行组装混为一个发布入口。
 
 ```text

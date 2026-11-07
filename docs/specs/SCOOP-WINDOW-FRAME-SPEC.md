@@ -10,6 +10,10 @@ System 包含 GTK/libadwaita CSD 标题栏；Client 隐藏该标题栏和系统�
 
 `Window.frameMetrics: WindowFrameMetrics?` 返回已配置窗口的实际 frame、相应 WindowMetrics、contentLayout（不被宿主标题栏占用的内容矩形）、systemButtons（Close／Minimize／Maximize 的真实占用矩形）和 visibleBorderThickness（未知为 None）。所有矩形均为内容左上角逻辑坐标；Standard 下按钮可能在内容之外。GTK 未分配、DWM 尚未给出按钮几何时，未知字段为空；不得填入常量标题栏高度或虚构按钮宽度。WindowEvent.FrameChanged 通知需要重新读取几何，GeometryChanged 仍描述内容尺寸与 DPI。
 
+Win32 Extended 在计算安全内容区域时，必须计入实际可见系统按钮的占用；自定义客户区后，WM_GETTITLEBARINFOEX 的整体标题栏矩形可能退化到客户区上沿，不能据此忽略仍位于客户区内的按钮。标题栏与按钮均无有效几何时 contentLayout 为空。
+
+Win32 当前的 HWND 宿主不组合 Extended 与非空原生菜单栏：HMENU 的非客户区位置仍包含标准标题栏，不能通过上移矩形客户区将两者放到同一块区域。有非空菜单栏时 setFrame(Extended) 返回 Unsupported，保留原模式；Extended 窗口附着非空菜单栏或向已附着的空栏添加条目也返回 Unsupported。空菜单栏不占据菜单行，允许作为 UI 应用默认菜单的显式空覆盖。调用者先撤去菜单栏或切回 Standard／Client，再执行另一请求，不隐式替换模式。
+
 `Window.frameRevision: ULong` 是原生窗框／区域配置的短期版本快照。在同一窗口原生尺寸、DPI、窗框或内容偏移失效时，先更新该值并撤销旧区域，再排队 FrameChanged；即使通知尚未派发，值已反映失效。Surface 在采集和发布区域之间比较它，避免绘制回调内切换配置后重新发布旧几何。读取不重新计算按钮布局，只提供同一窗口内的相等比较，不用作跨窗口身份或持久版本。
 
 `DesktopCapabilities.frame` 分别声明 client、extendedContent、systemResizeEdges、beginMove、beginResize、windowMenu、windowRegion、inputRegion、ignoreMouse、shadow、resizeHitRegions、systemButtonHitRegions。它描述后端提供的操作，具体窗口状态仍会影响请求；不表示 WM 已接受异步请求。
@@ -18,7 +22,7 @@ System 包含 GTK/libadwaita CSD 标题栏；Client 隐藏该标题栏和系统�
 
 `setShadow(WindowShadow.System | None)` 只请求系统阴影；它不绘制应用阴影。后端不能独立控制时返回 Unsupported。透明背景与阴影互不隐式覆盖；AppKit 同步窗口 opaque 与现有 CAMetalLayer，renderer 不继续使用创建时的旧值。
 
-platform.windows 提供 `WindowsFrameCapabilities` 与独立的边框色、标题栏色、文字色、圆角偏好 setter。颜色为 Default／None（仅边框）／Rgb，圆角为 Default／Square／Round／SmallRound；按实际 DWM attribute 探测，不用主题名或 OS 字符串猜测。DWM 边框宽度只查询，不提供任意宽度 setter。透明／region 等组合是否实际使用圆角由系统决定。
+platform.windows 提供 `WindowsFrameCapabilities` 与独立的边框色、标题栏色、文字色、圆角偏好 setter。颜色为 Default／None（仅边框）／Rgb，圆角为 Default／Square／Round／SmallRound；按实际 DWM attribute 探测，不用主题名或 OS 字符串猜测。不支持的 attribute 返回 Unsupported，native 状态转换不能将它变成正数错误码。DWM 边框宽度只查询，不提供任意宽度 setter。透明／region 等组合是否实际使用圆角由系统决定。
 
 ## 3. 自有区域
 
@@ -31,6 +35,10 @@ platform.windows 提供 `WindowsFrameCapabilities` 与独立的边框色、标�
 `setHitRegions(Array<WindowHitRegion>)` 发布 Client／Caption／Resize(edge)／SystemButton(role)；每项含 WindowRegion。原生按钮保留区域优先，其余按发布顺序先命中者优先，未命中为 Client。全部数据复制到 native，OS 回调只读取快照；不回调 managed layout。禁用缩放／最大化时不产生 resize 命中。后端没有对应原生命中能力时，对该角色返回 Unsupported，不接受后再忽略。
 
 Win32 SystemButton 命中映射 HTMINBUTTON／HTMAXBUTTON／HTCLOSE；系统执行动作，managed 不再收到一次普通点击。WindowEvent.FrameButtonChanged(role, hovered, pressed) 提供真实非客户区反馈，离开、失焦、撤销区域时清除。系统按钮权限继续受 WindowButtons 控制。
+
+Client／Extended 的按钮位置不一定符合 DefWindowProc 的标准标题栏追踪区域。Win32 后端在非客户区按下后捕获鼠标，按实际命中更新反馈，仅在同一按钮内释放且按钮仍启用时发送一次对应 WM_SYSCOMMAND；最大化按钮按当前窗口状态选择最大化或还原。移出后释放、丢失捕获、失焦、取消或撤销区域均不执行动作，不进入阻塞的默认按钮追踪循环。内容重绘重新发布完全相同的命中区域不撤销正在进行的按钮交互。
+
+Extended 最大化时，客户区裁到显示器工作区可能使 DwmDefWindowProc 不再返回按钮命中。此时仍按 WM_GETTITLEBARINFOEX 的实际可见按钮矩形保留系统角色，先于应用发布的 Client／Caption／Resize 区域；不能把可见的还原／最小化／关闭按钮当作普通内容。
 
 视觉 Path 与上述二进制 region 不等价。graphics 显式利用现有 Skia region 栅格化得到矩形集合；Surface／UI 只有在实际帧 Accepted 后发布最终变换／clip 下的区域。Discarded 不发布候选。需要输入匹配形状的组件在缺少能力时失败；降级为矩形输入须由调用方明确选择。
 

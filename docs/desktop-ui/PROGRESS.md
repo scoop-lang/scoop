@@ -23,8 +23,8 @@
 | D6 | 原生文件／目录对话框 | 已实施；macOS、Linux 本地选择器及真实 portal 验证完成，Windows 三目标构建和路径 ABI 测试通过 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
 | D8 | 通用组件及独立托盘组件 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建、非 GUI 测试通过 |
-| D9 | 综合 desktop demo | 已实施；macOS 两架构、Linux 两后端的完整流程及 Windows 三目标构建、无 GUI 启动验证通过 |
-| 发行 | macOS、Linux、Windows 安装包及脚本修复 | 待实施 |
+| D9 | 综合 desktop demo | 已实施；macOS 两架构、Linux 两后端的完整流程及 Windows 三目标完整 smoke 通过，Windows 桌面交互复验见下 |
+| 发行 | macOS、Linux、Windows 安装包及脚本修复 | Windows 三目标安装包、安装后工具与文档验证通过；macOS／Linux 安装包待实施 |
 
 ## 3. 验证记录
 
@@ -89,3 +89,20 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - Linux GNU：完整构建，X11 与带 seat 的嵌套 Wayland 各一次完整 `--smoke` 通过；实际 X11 点击、滚动、Owner 确认及椭圆窗口截图检查通过。交互暴露 GTK 滚轮方向与 UI 内容位移约定相反，统一 GTK 两轴及 Win32 水平轴的方向；新增真实 XTest 滚轮断言在旧后端失败、修复后 LinuxApplicationTest 1 passed。不改变滚轮单位、相位或用户自然滚动设置。
 - Windows：MSVC UCRT、LLVM-MinGW UCRT、LLVM-MinGW MSVCRT 的最终 demo、更新后的窗口库和原生输入测试程序均编译通过；三个 demo 在开发环境及普通 SSH 环境下的 `--help` 均通过。原生输入程序只编译，GUI／Explorer 场景及 `--smoke` 留给登录桌面验证；没有把无 GUI 启动记作 GUI 通过。
 - 示例运行说明包含完整体验顺序及平台依赖；格式化、变更文档的本地链接与差异检查通过。安装包将消费已更新资源，并在独立安装目录继续验证。
+
+2026-11-07，Windows 交互桌面修复：取消 Surface 帧需求时保留已取得、尚未用于 Present 的 DXGI 就绪机会，修复反复 Discarded 后停止重绘；原生菜单在创建时保留字符串类型，菜单栏与 popup 分别使用位置通知和返回命令，修复文字消失与选择不执行。Extended 安全区域及最大化后的按钮命中采用真实按钮几何；Client／Extended 按钮使用非阻塞捕获并发送单次系统命令，支持最大化／还原与取消，重绘重发相同区域不打断按下状态。DWM Unsupported 保留有符号状态。
+
+- MSVC UCRT release：`NativeFrameTests`、`WinMenuTests`、新增 `FrameDemandTest` 各 1 passed；最终 native-desktop 完整 `--smoke` 通过。回归覆盖真实 HWND 消息、普通／最大化／还原按钮命中、四次 Discarded 后恢复 Accepted、popup 单次选择，以及菜单栏与 Extended 的组合边界。
+- 最终示例的桌面鼠标验证通过：Client 自绘与 Extended 原生最大化／还原按钮、移出按钮后释放取消、空白标题栏双击、内容双向滚动、缩放手柄、菜单栏与 popup 同步共享状态，以及关闭确认取消后继续操作。缩放手柄将窗口从 1000×720 改为 1070×674，随后继续重绘和交互。
+- Scoop 格式化与变更 Cone 的检查通过；变更的原生代码通过 MSVC 与 LLVM-MinGW UCRT／MSVCRT 的严格编译检查。此次实际 GUI 运行覆盖 MSVC UCRT，不作为另外两个 CRT 或完整安装包的验收记录。原始日志保留在仓库外。
+
+当前 Win32 宿主明确不组合 Extended 与非空原生菜单栏，两个请求方向均返回 Unsupported。示例提供 Hide menu bar 后再选择 Extended；恢复菜单栏时回到 Client。背景绘制避开真实原生按钮区域，保留按钮显示并消除标题栏未绘制的空隙。对应规范与示例说明已同步。
+
+2026-11-08，Windows 打包与安装后验收（`codex/windows-native-packaging`）：在 Windows 11 x64 交互桌面完成正式打包入口，覆盖 MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT。每目标实际准备 40 个系统 Cone 与四种 runtime；LLVM／LLDB 使用匹配的 22.1.8 前缀，已准备的系统资源通过 `--prepared-sysroot` 复用。
+
+- 修复 LLDB 私有 Python 的原生依赖查找：优先使用所选 Python 的 `Library/bin`，避免从 PATH 中无关工具取得同名 DLL。增加同名依赖冲突回归，实际 LLDB 的 SSL、SQLite、ctypes、压缩模块与私有 Python 路径验证通过。
+- 窗框测试的 clang-cl 警告选项与窗口库、菜单测试一致，修复安装包工具链将 Windows SDK 头文件大小写提示当作错误的问题。Scoop／原生格式与严格检查通过；Python Ruff 0.16.10 检查通过，脚本测试 37 passed、15 条平台／工具条件跳过。
+- 生成并检查七份归档，包含宿主命令、LLVM、源码、三个目标库及 LLVM 源码；解压到含空格的独立安装目录。最终 bin／sources 归档刷新至代码提交 `48bf471ec`，其余未变化组件复用同一次打包结果；源码包包含修正后的测试配置，VSIX 与目标预编译库齐全。
+- 使用安装包工具及系统 PATH 完成 12 项宿主检查、30 项三目标程序检查，覆盖编译、两层链接入口、C FFI、GC、冷／热构建复用和预编译 crypto／TLS 消费。原始源码、工具及准备产物始终保留。
+- 三目标各完成示例构建、`--help`、完整 `--smoke`，并在实际桌面执行窗框、菜单、连续 Discarded 帧回归各 1 passed，共 18 项 GUI 构建／运行检查通过。上文鼠标交互验证仍以 MSVC UCRT 为范围。
+- 安装后脚本的默认目标、两个显式 MinGW 目标均生成完整文档；再次运行 `--all-targets` 复用全部 120 份文档输入，未在安装后工作目录生成 `.slib`。原始日志、辅助脚本、归档与安装目录均保存在仓库外。

@@ -9,7 +9,7 @@ private class NativeFrameTests {
     @Test
     @Ignore("Requires a Windows desktop session; run separately with --ignored")
     fun `native frames regions and input uses survive mode changes and retire in order`() {
-        runFrameProbe {
+        runFrameProbe(verifyButtons = { window -> verifyWindowsButtonActions(window) }) {
             window ->
             val caps = window.windowsFrameCapabilities()
             verifyColor(window, caps.borderColor, 34) {
@@ -29,10 +29,12 @@ private class NativeFrameTests {
             if (caps.cornerPreference)
                 assertEquals(2.0, nativeFrameQuery(window, 6, 33.0))
             window.setWindowsCornerPreference(WindowsCornerPreference.Default)
-            assertFailsWith<WindowException> {
+            assertFailsWith<IllegalArgumentException> {
                 window.setWindowsCaptionColor(WindowsFrameColor.None)
             }
-            assertFailsWith<WindowException> { window.setWindowsTextColor(WindowsFrameColor.None) }
+            assertFailsWith<IllegalArgumentException> {
+                window.setWindowsTextColor(WindowsFrameColor.None)
+            }
         }
     }
 }

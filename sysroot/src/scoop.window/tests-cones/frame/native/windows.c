@@ -55,6 +55,29 @@ double scoop_test_frame_query(HWND window, void *view, int32_t field, double x,
                ? (double)value
                : -1;
   }
+  case 7: {
+    ClientToScreen(window, &point);
+    LPARAM screen = MAKELPARAM(point.x, point.y);
+    LRESULT hit = SendMessageW(window, WM_NCHITTEST, 0, screen);
+    if (hit == HTCLOSE || hit == HTMINBUTTON || hit == HTMAXBUTTON)
+      SendMessageW(window, WM_NCLBUTTONDOWN, (WPARAM)hit, screen);
+    return (double)hit;
+  }
+  case 8:
+    SendMessageW(window, WM_LBUTTONUP, 0, MAKELPARAM(point.x, point.y));
+    return 1;
+  case 9:
+    return GetCapture() == window;
+  case 10:
+    SendMessageW(window, WM_CANCELMODE, 0, 0);
+    return 1;
+  case 11:
+    SendMessageW(window, WM_MOUSEMOVE, MK_LBUTTON,
+                 MAKELPARAM(point.x, point.y));
+    return 1;
+  case 12:
+    ReleaseCapture();
+    return 1;
   default:
     return -1;
   }

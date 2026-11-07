@@ -78,7 +78,7 @@ class DebuggerPackageTests(unittest.TestCase):
                     "executable": str(python / "bin/python3.14"),
                 }
                 with patch.object(package_debugger, "python_paths", return_value=paths):
-                    native, version, license_ = package_debugger.stage(
+                    native, version, license_, search = package_debugger.stage(
                         root, llvm, debugger, "python3", "x86_64-unknown-linux-gnu"
                     )
                 self.assertEqual(version, "3.14")
@@ -172,7 +172,7 @@ int wmain(int argc, wchar_t **argv) {
             }
             root = work / "staged"
             with patch.object(package_debugger, "python_paths", return_value=paths):
-                native, version, license_ = package_debugger.stage(
+                native, version, license_, search = package_debugger.stage(
                     root,
                     llvm,
                     debugger,
@@ -182,6 +182,7 @@ int wmain(int argc, wchar_t **argv) {
                 )
             self.assertEqual(version, "3.14")
             self.assertEqual(license_, stdlib / "LICENSE.txt")
+            self.assertEqual(search, [python / "Library/bin"])
             self.assertIn((package / "native/_lldb.pyd").resolve(), native)
             moved = work / "moved 中文 directory"
             root.rename(moved)

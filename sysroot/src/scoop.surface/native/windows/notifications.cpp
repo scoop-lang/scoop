@@ -23,6 +23,7 @@ void CALLBACK frameAvailable(PTP_CALLBACK_INSTANCE, void *context, PTP_WAIT,
                              TP_WAIT_RESULT) {
   auto *surface = static_cast<SSUSurface *>(context);
   // Only this native notification state is read by the threadpool worker.
+  surface->available.store(true);
   if (!PostMessageW(surface->notification, frameMessage,
                     surface->notificationGeneration.load(), 0))
     surface->notificationError.store(ssu_windows_error());
@@ -58,7 +59,9 @@ HRESULT SSUSurface::initialize() {
 void SSUSurface::stopNotifications() {
   if (wait) {
     SetThreadpoolWait(wait, nullptr, nullptr);
-    WaitForThreadpoolWaitCallbacks(wait, TRUE);
+    // A queued callback may already have consumed the DXGI signal. Let it
+    // record the unused opportunity before retiring its notification.
+    WaitForThreadpoolWaitCallbacks(wait, FALSE);
   }
   if (notification) {
     MSG message;
@@ -82,9 +85,10 @@ HRESULT SSUSurface::updateDemand() {
   }
   if (active || ready || waiting || queued)
     return S_OK;
-  if (!swapchain || width != bufferWidth || height != bufferHeight) {
-    // A new configuration needs its first target before it has a latency
-    // handle.
+  if (available.load() || !swapchain || width != bufferWidth ||
+      height != bufferHeight) {
+    // Reuse an unconsumed opportunity asynchronously. A new configuration
+    // also needs its first target before it has a latency handle.
     if (!PostMessageW(notification, frameMessage, notificationGeneration.load(),
                       0))
       return ssu_windows_error();

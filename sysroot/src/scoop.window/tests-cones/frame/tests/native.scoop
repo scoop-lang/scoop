@@ -8,8 +8,11 @@ import scoop.window.asyncio.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
 
-internal fun runFrameProbe(verifyAppearance: (Window) -> Unit = { _ -> Unit }) {
-    val probe = FrameProbe(verifyAppearance)
+internal fun runFrameProbe(
+    verifyButtons: (Window) -> Unit = { _ -> Unit },
+    verifyAppearance: (Window) -> Unit = { _ -> Unit }
+) {
+    val probe = FrameProbe(verifyAppearance, verifyButtons)
     val host =
         SurfaceHost {
             owner, application, event ->
@@ -25,6 +28,13 @@ internal fun runFrameProbe(verifyAppearance: (Window) -> Unit = { _ -> Unit }) {
     assertTrue(probe.contentClosed)
     assertEquals(WindowState.Destroyed, probe.window!!.state)
     assertEquals(
+        if (probe.backend == WindowBackend.Win32)
+            2
+        else
+            0,
+        probe.closeRequests
+    )
+    assertEquals(
         if (probe.backend == WindowBackend.Wayland)
             0
         else
@@ -33,7 +43,10 @@ internal fun runFrameProbe(verifyAppearance: (Window) -> Unit = { _ -> Unit }) {
     )
 }
 
-private class FrameProbe(private val verifyAppearance: (Window) -> Unit): ApplicationHandler {
+private class FrameProbe(
+    private val verifyAppearance: (Window) -> Unit,
+    private val verifyButtons: (Window) -> Unit
+): ApplicationHandler {
     var window: Window? = None
     var host: SurfaceHost? = None
     var accepted = false
@@ -43,6 +56,7 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
     var backend = WindowBackend.AppKit
     var finished = false
     var cancelled = 0
+    var closeRequests = 0
     var deadline: WindowDeadline? = None
     var stage = -1
     var ticks = 0
@@ -90,6 +104,7 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                         PointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                     )
                 ) -> {
+                    assertEquals(4, stage, Some("system buttons must not dispatch client presses"))
                     if (stage == 4) {
                         if (backend == WindowBackend.AppKit) {
                             assertEquals(
@@ -113,6 +128,7 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                     finished = true
                     application.requestExit()
                 }
+                case Window(_, WindowEvent.CloseRequested) -> closeRequests += 1
                 else -> {}
             }
         } finally {
@@ -148,6 +164,20 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
         )
         val caps = capabilities!!
         assertEquals(1.0, nativeFrameQuery(target, 1))
+        if (stage == 5 || stage == 6) {
+            assertEquals(Some(stage == 5), target.isMaximized)
+            checkNativeButtonHits(target)
+            if (stage == 5) {
+                target.requestMaximized(false)
+                stage = 6
+            } else {
+                target.setFrame(WindowFrame.Client)
+                bar = Some(target.attachMenuBar(menu!!))
+                stage = 2
+            }
+            schedule()
+            return
+        }
         if (stage == -1) {
             assertEquals(WindowFrame.Client, metrics!!.frame)
             assertEquals(2.0, nativeFrameQuery(target, 0))
@@ -161,6 +191,19 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                     WindowErrorKind.InvalidState,
                     assertFailsWith<WindowException> { target.beginMove() }.kind
                 )
+                if (backend == WindowBackend.Win32) {
+                    assertEquals(
+                        RequestStatus.Unsupported,
+                        target.setFrame(WindowFrame.System(WindowContentMode.Extended))
+                    )
+                    assertEquals(
+                        WindowFrame.System(WindowContentMode.Standard),
+                        target.frameMetrics!!.frame
+                    )
+                    bar!!.close()
+                    assertTrue(bar!!.isDetached)
+                    bar = None
+                }
                 assertEquals(
                     RequestStatus.Applied,
                     target.setFrame(WindowFrame.System(WindowContentMode.Extended))
@@ -170,18 +213,59 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                 if (stage == 1) {
                     assertEquals(WindowFrame.System(WindowContentMode.Extended), metrics!!.frame)
                     assertEquals(1.0, nativeFrameQuery(target, 0))
+                    if (backend == WindowBackend.Win32) {
+                        assertEquals(
+                            WindowErrorKind.Unsupported,
+                            assertFailsWith<WindowException> { target.attachMenuBar(menu!!) }.kind
+                        )
+                        val empty = application.createMenu()
+                        val emptyBar = target.attachMenuBar(empty)
+                        try {
+                            assertEquals(
+                                WindowErrorKind.Unsupported,
+                                assertFailsWith<WindowException> {
+                                    empty.insert(MenuItemDescription("File", MenuItemKind.Submenu))
+                                }.kind
+                            )
+                        } finally {
+                            emptyBar.close()
+                            empty.close()
+                        }
+                    }
                     assertTrue(metrics!!.systemButtons.size > 0L)
                     when (metrics!!.contentLayout) {
-                        case Some(rect) -> assertTrue(
-                            rect.origin.y >
-                                0.0 &&
-                                rect.size.height <
-                                metrics!!.metrics.logicalSize.height
-                        )
+                        case Some(rect) -> {
+                            assertTrue(
+                                rect.origin.y >
+                                    0.0 &&
+                                    rect.size.height <
+                                    metrics!!.metrics.logicalSize.height,
+                                Some(
+                                    f"extended content y=${rect.origin.y}, height=${
+                                        rect.size.height
+                                    }; window height=${metrics!!.metrics.logicalSize.height}"
+                                )
+                            )
+                            for (button in metrics!!.systemButtons) {
+                                assertTrue(
+                                    rect.origin.y >=
+                                        button.bounds.origin.y +
+                                        button.bounds.size.height,
+                                    Some("extended content must clear the actual system buttons")
+                                )
+                            }
+                        }
                         case None -> assertEquals(WindowBackend.Win32, backend)
                     }
-                    target.setFrame(WindowFrame.Client)
-                    stage = 2
+                    if (backend == WindowBackend.Win32) {
+                        checkNativeButtonHits(target)
+                        verifyButtons(target)
+                        target.requestMaximized(true)
+                        stage = 5
+                    } else {
+                        target.setFrame(WindowFrame.Client)
+                        stage = 2
+                    }
                 } else
                     if (stage == 2) {
                         assertEquals(WindowFrame.Client, metrics!!.frame)
@@ -196,6 +280,7 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                         )
                         target.setShadow(WindowShadow.System)
                         verifyAppearance(target)
+                        verifyButtons(target)
                         if (backend == WindowBackend.AppKit) {
                             assertEquals(1.0, nativeFrameQuery(target, 4))
                         }
@@ -237,6 +322,41 @@ private class FrameProbe(private val verifyAppearance: (Window) -> Unit): Applic
                             assertEquals(1.0, nativeFrameQuery(target, 5, 60.0, 60.0))
                         }
         schedule()
+    }
+
+    private fun checkNativeButtonHits(target: Window) {
+        val metrics = target.frameMetrics!!
+        assertEquals(3L, metrics.systemButtons.size)
+        target.setHitRegions(
+            [
+                WindowHitRegion(
+                    WindowRegion(
+                        [LogicalRect(LogicalPosition(0.0, 0.0), metrics.metrics.logicalSize)]
+                    ),
+                    WindowHitRole.Client
+                )
+            ]
+        )
+        for (button in metrics.systemButtons) {
+            val expected =
+                when (button.button) {
+                    case Close -> 20.0
+                    case Minimize -> 8.0
+                    case Maximize -> 9.0
+                }
+            val rect = button.bounds
+            assertEquals(
+                expected,
+                nativeFrameQuery(
+                    target,
+                    3,
+                    rect.origin.x + rect.size.width / 2.0,
+                    rect.origin.y + rect.size.height / 2.0
+                ),
+                Some("visible native buttons must take priority over client regions")
+            )
+        }
+        target.setHitRegions([])
     }
 
     private fun checkRegions(target: Window, caps: WindowFrameCapabilities) {

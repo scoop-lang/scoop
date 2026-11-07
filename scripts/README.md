@@ -180,7 +180,7 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 
 脚本读取宿主命令的实际动态依赖，将所需非系统库复制到 `libexec/llvm/lib`，为实际引用这些私有库的 Darwin 文件设置相对加载路径。目标资源和许可说明按实际组件收集；归档在完整写入后才替换同名文件。安装方法、系统开发环境要求及升级说明随包放在 `share/scoop`。
 
-Windows 的宿主 DLL 分别放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；两个 MinGW prefix 保留自身的 DLL 和目录关系。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
+Windows 的宿主 DLL 分别放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；两个 MinGW prefix 保留自身的 DLL 和目录关系。LLDB／Python 的依赖优先从所选 Python 安装查找，包含 Conda 的 `Library/bin`，再回退到环境 `PATH`；仅收集实际导入的 DLL 及其传递依赖。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
 
 打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（本 release 为该 host 提供的目标，默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的文档生成直接读取。Linux GNU 的 GUI Cone 进入 GNU 清单，未提供 musl 源码的 GUI Cone 不进入 musl 清单，不需要空后端。
 

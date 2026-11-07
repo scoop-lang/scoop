@@ -72,6 +72,15 @@ internal fun documentSections(root: DocumentView): View {
                     row {
                         spacing = 14.0
                         add(demoOption(root.overrideMenu.binding(), "Window menu override"))
+                        add(
+                            demoOption(
+                                binding(
+                                    get = { root.hideMenuBar.value },
+                                    set = { root.setMenuBarHidden(it) }
+                                ),
+                                "Hide menu bar"
+                            )
+                        )
                         add(demoOption(root.readOnly.binding(), "Read-only editor"))
                     }
                     add(
@@ -95,16 +104,22 @@ internal fun documentSections(root: DocumentView): View {
                     spacing = 10.0
                     row {
                         spacing = 8.0
-                        button("System frame", { root.mode.value = 0 })
-                        button("Extended content", { root.mode.value = 1 }) {
-                            enabled = caps.frame.extendedContent
+                        button("System frame", { root.selectFrame(0) })
+                        button("Extended content", { root.selectFrame(1) }) {
+                            enabled =
+                                caps.frame.extendedContent &&
+                                    (platformExtendedMenuBar() || root.hideMenuBar.value)
                         }
-                        button("Client frame", { root.mode.value = 2 }) {
+                        button("Client frame", { root.selectFrame(2) }) {
                             enabled = caps.frame.client
                         }
                         if (caps.frame.shadow)
                             add(demoOption(root.shadow.binding(), "System shadow"))
                     }
+                    if (!platformExtendedMenuBar())
+                        label(
+                            "Hide the menu bar to use Extended content. Restoring the menu bar returns this window to Client frame."
+                        )
                     label(
                         "Drag blank titlebar space; the input and buttons keep their own interaction. Double-click to maximize. Right-click opens the system window menu when supported."
                     )

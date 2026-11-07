@@ -8,6 +8,10 @@ ActiveApplication.createMenu() 创建空 Menu。Menu 提供 insert(description, 
 
 MenuItemDescription 是不可变显示值，包含 text、kind、enabled、image、shortcut 和 command。MenuItemKind 为 Action、Checkbox(checked)、Radio(checked)、Submenu、Separator；MenuCommand 为 Action 或 Role(MenuRole)。角色包括 Quit、Minimize、Zoom、Cut、Copy、Paste、SelectAll、Undo、Redo，只适用于可激活项。子菜单与分隔符没有命令、快捷键或选中状态；分隔符没有文字或图像。文字不含 U+0000。checked 由应用发布，原生点击不建立另一份业务状态。
 
+原生条目始终保留显式 kind；只有 Separator 是分隔符，普通条目的空文字也不改变其类型。Win32 创建条目时同时提供文字与类型，后续标签、快捷键更新及菜单栏／popup 转换继续保留这一规则。
+
+Win32 菜单栏使用按位置通知；popup 和 native lease 保持 TrackPopupMenuEx(TPM_RETURNCMD) 的命令编号返回语义，不设置 MNS_NOTIFYBYPOS。转换根类型时同步所有子菜单的通知方式，选择动作只派发一次。
+
 MenuId、MenuItemId、MenuBarBindingId、PopupSessionId、NativeMenuUseId 为不同值类型；一次 Application 中各类编号不复用。原生窄 command ID 与公共 Long ID 分别映射，不截断公共身份。普通属性和顺序变化保留 MenuItemId，删除后插入分配新 ID。原生树不保存业务闭包。
 
 DesktopImage 由逻辑尺寸、非空的 DesktopImageRepresentation 数组和 template 标志构成。每份 representation 包含正的 PhysicalSize 和对应数量的不可变 RGBA8 字节，采用 straight alpha。尺寸与实际字节数在构造时验证，原生端复制所需存储；不依赖 Skia、Surface 或 GPU Image。不同分辨率表达相同逻辑图像。template 为平台支持时按系统外观着色的提示，不改变原始字节。
@@ -23,6 +27,8 @@ ActiveApplication.attachMenuBar(menu) 返回应用级 MenuBarBinding；Window.at
 MenuBarBinding.id 为 MenuBarBindingId。isClosed 表示已请求关闭并停止动作；isDetached 表示原生 tracking 已结束、目标已实际解除附着。完成解绑后投递一次 ApplicationEvent.MenuBarDetached(id)，允许 UI 在原生使用退休后切换到新的菜单；同步解绑时可直接读取 isDetached，不必等待通知。退出期间通知可丢弃，实际状态与资源退休仍完成。目标尚未解绑时的新附着继续报告 ResourceBusy，不通过循环重试或固定延时猜测完成。
 
 AppKit 使用 NSApplication.mainMenu；Win32 使用 SetMenu／DrawMenuBar；Linux 在现有 AdwToolbarView 中挂载 GtkPopoverMenuBar，复用 GMenuModel 和 GSimpleActionGroup。附着造成的内容分配变化沿原有 WindowMetrics 发布。
+
+Win32 非空菜单栏与 Extended 窗框的组合遵守[窗框规范第 1 节](SCOOP-WINDOW-FRAME-SPEC.md#1-窗框模式与实际几何)：冲突请求返回 Unsupported，不能接受后让客户区覆盖原生菜单。空栏可作为隐藏应用默认菜单的显式覆盖；向 Extended 窗口的空栏添加条目同样是冲突请求。
 
 原生菜单结构更新只在不 tracking 时进行。tracking 中发布逻辑修改立即改变动作资格，不能再激活已删除、禁用或变更执行语义的项目；实际结构留到 tracking 结束应用，返回 Requested。无需延后的修改返回 Applied。修改前完成参数、归属和快捷键冲突检查；原生失败关闭受影响使用，按 WindowException 报告，不承诺 OS 无法提供的整树事务回滚。
 

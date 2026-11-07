@@ -87,7 +87,7 @@ typedef struct SWWindow {
   size_t hit_count;
   double frame_width, frame_height, frame_scale;
   uint64_t frame_revision;
-  int frame_hover, frame_pressed;
+  int frame_hover, frame_pressed, frame_button_down;
   bool window_region;
   bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
@@ -138,6 +138,9 @@ int64_t sw_restyle(SWWindow *window);
 int64_t sw_frame_margins(SWWindow *window);
 void sw_frame_invalidate(SWWindow *window);
 void sw_frame_geometry(SWWindow *window, SWSnapshot snapshot);
+void sw_frame_clear_buttons(SWWindow *window);
+bool sw_frame_input(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
+                    LRESULT *result);
 void sw_adjust_frame_rect(SWWindow *window, RECT *rect, UINT dpi);
 bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
                       LRESULT *result);
