@@ -153,6 +153,8 @@ fn members(args: LocalMembersArgs) -> PmResult<()> {
                     selected: selected.contains(&member.manifest),
                     sources: member.cone.sources.clone(),
                     test_sources: member.cone.test_sources.clone(),
+                    metadata: member.cone.metadata.clone(),
+                    bundle: member.document.bundle.clone(),
                 })
             })
             .collect::<PmResult<Vec<_>>>()?;

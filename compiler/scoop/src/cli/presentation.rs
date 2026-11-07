@@ -118,6 +118,7 @@ impl Reporter {
         })).collect::<Vec<_>>();
         let mut record = json!({
             "schema": 1, "kind": "library", "profile": build.profile.as_str(), "output": path_value(&build.output),
+            "target": root.artifact().summary().target_selection().target().contract().canonical_triple(),
             "root": artifact(root.artifact().summary(), root.artifact_locator()), "dependencies": dependencies,
             "observations": { "nodes": nodes, "child_invocations": observations.child_invocations().iter().map(ToString::to_string).collect::<Vec<_>>() },
         });

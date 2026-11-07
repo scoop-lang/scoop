@@ -18,7 +18,7 @@ mod validate;
 pub use members::{PackageMemberV1, PackageMembersV1};
 pub use overlays::{ManifestOverlayV1, ManifestOverlaysV1};
 
-pub const PACKAGE_PROTOCOL_VERSION: u32 = 5;
+pub const PACKAGE_PROTOCOL_VERSION: u32 = 6;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

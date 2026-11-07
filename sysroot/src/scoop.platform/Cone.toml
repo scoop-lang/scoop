@@ -102,6 +102,8 @@ path = "native/environment.c"
 [[native.sources]]
 path = "native/environment_directories.c"
 [[native.sources]]
+path = "native/environment_executable.c"
+[[native.sources]]
 path = "native/system.c"
 [[native.sources]]
 path = "native/target.c"

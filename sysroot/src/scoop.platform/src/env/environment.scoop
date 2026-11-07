@@ -71,6 +71,17 @@ public fun environment(): Map<OsString, OsString> {
     }
 }
 
+/** Returns the actual absolute path of the process executable, independent of argv and cwd. */
+public fun executablePath(): Path {
+    @Unsafe
+    {
+        return nativeExecutablePath().takePath("executable path")
+    }
+}
+
+@Extern(name = "scoop_platform_executable_path_result")
+private fun nativeExecutablePath(): NativeOsString
+
 /** Queries the actual current working directory, without consulting PWD. */
 public fun currentDirectory(): Path {
     @Unsafe

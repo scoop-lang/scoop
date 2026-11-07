@@ -50,6 +50,16 @@ pub fn parse_package_manifest(
             ));
         }
     }
+    if let (None, Some(bundle)) = (&raw.cone, &raw.bundle) {
+        return Err(invalid(
+            "bundle metadata requires a Cone member",
+            bundle.span(),
+        ));
+    }
+    let bundle = raw.bundle.map(|value| BundleMetadata {
+        span: value.span(),
+        table: value.into_inner(),
+    });
     let native = raw.native.parse(catalog)?;
     let cone = raw.cone.map(cone).transpose()?;
     let windows = crate::windows::parse(
@@ -87,6 +97,7 @@ pub fn parse_package_manifest(
         native,
         windows,
         publish,
+        bundle,
     })
 }
 

@@ -106,7 +106,14 @@ pub struct PublishFile {
     pub to: ConeRelativePath,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Tool-owned metadata, excluded from compiler input and dependency semantics.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BundleMetadata {
+    pub table: toml::Table,
+    pub span: Range<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PackageDocument {
     pub schema_span: Range<usize>,
     pub cone: Option<ConeDeclaration>,
@@ -121,6 +128,7 @@ pub struct PackageDocument {
     #[serde(default)]
     pub windows: crate::WindowsConfig,
     pub publish: PublishConfig,
+    pub bundle: Option<BundleMetadata>,
 }
 
 fn invalid(message: impl Into<String>, span: Range<usize>) -> ManifestParseError {
