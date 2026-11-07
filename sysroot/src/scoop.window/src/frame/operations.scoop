@@ -9,7 +9,7 @@ public fun Window.beginResize(edge: WindowResizeEdge): RequestStatus =
 public fun Window.showWindowMenu(): RequestStatus = requestSystemOperation(2, 0)
 
 private fun Window.requestSystemOperation(kind: Int, edge: Int): RequestStatus {
-    owner.requireOpen()
+    owner.requireInteractive()
     val input =
         owner.currentInput ?:
             throw WindowException("system window operation", WindowErrorKind.InvalidState)
@@ -27,11 +27,18 @@ private fun Window.requestSystemOperation(kind: Int, edge: Int): RequestStatus {
             throw WindowException("system window input", WindowErrorKind.InvalidState)
         val operation = created(result, "prepare system window operation")
         owner.systemOperationPending = true
+        owner.systemOperationCancelled = false
         owner.pendingSystemCancellation = Some(input.time)
         owner.leases += 1L
         owner.application.deferNativeOperation {
             try {
-                if (owner.phase == WindowState.Open && !owner.application.exiting) {
+                if (
+                    owner.phase ==
+                        WindowState.Open &&
+                        !owner.application.exiting &&
+                        !owner.inputBlocked &&
+                        !owner.systemOperationCancelled
+                ) {
                     @Unsafe
                     {
                         checkNativeStatus(

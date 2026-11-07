@@ -1,0 +1,98 @@
+package scoop.window
+
+/** Owned windows remain top-level windows with their own content coordinates. */
+public enum WindowRelation {
+    Independent, Owned(Window)
+}
+
+public enum WindowRole {
+    Normal, Tool
+}
+
+public enum OwnedWindowOrder {
+    Native, WindowManagerHint
+}
+
+public enum ModalScope {
+    Owner, Application
+}
+
+public enum ModalPresentation {
+    Automatic, SeparateWindow, Sheet
+}
+
+public enum ModalState {
+    Pending, Showing, Ending, Completed
+}
+
+public enum ModalCancelReason {
+    Cancelled, WindowHidden, WindowClosed, OwnerHidden, OwnerClosed, ApplicationExit
+}
+
+public struct ModalSessionId(val value: Long): Equals<ModalSessionId>, Hash {
+    public override operator fun equals(other: ModalSessionId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public enum ModalResult {
+    Completed, Cancelled(ModalCancelReason), Failed(WindowException)
+}
+
+public struct ModalOptions(
+    val scope: ModalScope = ModalScope.Owner,
+    val presentation: ModalPresentation = ModalPresentation.Automatic
+)
+
+public struct ModalCapabilities(
+    val ownerSeparateWindow: Boolean,
+    val ownerSheet: Boolean,
+    val applicationSeparateWindow: Boolean,
+    val nestedSheet: Boolean
+) {
+    public fun supports(scope: ModalScope, presentation: ModalPresentation): Boolean =
+        when (scope) {
+            case Owner -> when (presentation) {
+                case Automatic -> ownerSheet || ownerSeparateWindow
+                case SeparateWindow -> ownerSeparateWindow
+                case Sheet -> ownerSheet
+            }
+            case Application -> presentation != ModalPresentation.Sheet && applicationSeparateWindow
+        }
+}
+
+public struct WindowManagementCapabilities(
+    val ownedOrder: OwnedWindowOrder,
+    val toolWindow: Boolean,
+    val raise: Boolean,
+    val alwaysOnTop: Boolean,
+    val alwaysOnBottom: Boolean,
+    val ownerTopmostPropagation: Boolean,
+    val modal: ModalCapabilities
+)
+
+internal fun managementCapabilities(): WindowManagementCapabilities {
+    @Unsafe
+    {
+        val bits = nativeWindowManagementCapabilities()
+        return WindowManagementCapabilities(
+            if (bits.and(1) != 0)
+                OwnedWindowOrder.Native
+            else
+                OwnedWindowOrder.WindowManagerHint,
+            bits.and(2) != 0,
+            bits.and(4) != 0,
+            bits.and(8) != 0,
+            bits.and(16) != 0,
+            bits.and(32) != 0,
+            ModalCapabilities(
+                bits.and(64) != 0,
+                bits.and(128) != 0,
+                bits.and(256) != 0,
+                bits.and(512) != 0
+            )
+        )
+    }
+}
+
+@Extern(name = "scoop_window_management_capabilities")
+private fun nativeWindowManagementCapabilities(): Int

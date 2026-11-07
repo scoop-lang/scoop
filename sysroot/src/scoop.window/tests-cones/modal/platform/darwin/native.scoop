@@ -1,0 +1,46 @@
+package scoop.tests.window.modal
+
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun nativeQuery(target: Window, field: Int, value: Int = 0): Int {
+    @Unsafe
+    {
+        return target.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case AppKit(window, _) -> return@use query(window, None, field, value)
+                }
+            }
+        }
+    }
+}
+
+internal fun nativeRelation(target: Window, parent: Window): Boolean {
+    @Unsafe
+    {
+        return target.acquireNativeWindow().use {
+            childLease -> @Unsafe
+            {
+                return@use parent.acquireNativeWindow().use {
+                    parentLease -> @Unsafe
+                    {
+                        val child =
+                            when (childLease.handle) {
+                                case AppKit(window, _) -> window
+                            }
+                        val owner =
+                            when (parentLease.handle) {
+                                case AppKit(window, _) -> window
+                            }
+                        return@use query(child, Some(owner), 0, 0) != 0
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_modal_query")
+private fun query(window: Ptr<Unit>, parent: Ptr<Unit>?, field: Int, value: Int): Int

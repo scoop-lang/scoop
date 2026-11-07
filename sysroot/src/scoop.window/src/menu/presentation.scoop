@@ -147,6 +147,10 @@ public class PopupSession internal constructor(
     internal fun start() {
         if (finished)
             return
+        if (window.inputBlocked) {
+            cancel(PopupCancelReason.TargetBlocked)
+            return
+        }
         started = true
         val rect =
             when (placement) {
@@ -229,7 +233,7 @@ public class PopupSession internal constructor(
 }
 
 public fun Window.showPopup(menu: Menu, placement: PopupPlacement): PopupSession {
-    owner.requireOpen()
+    owner.requireInteractive()
     requireWindow(
         menu.owner.application === owner.application,
         "menu belongs to another application"

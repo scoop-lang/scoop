@@ -68,6 +68,7 @@ typedef struct {
     NSMutableDictionary<NSNumber *, SWWindow *> *windows;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, id> *watches;
 @property(nonatomic, weak) SWMenu *menuBar;
+@property(nonatomic, strong) NSMutableArray *modalStack;
 - (void)enqueue:(SWEvent *)event;
 @end
 
@@ -140,6 +141,8 @@ void sw_invalidate_text_caret(SWView *view);
 @property(nonatomic, strong) SWView *view;
 @property(nonatomic, strong) NSVisualEffectView *effect;
 @property(nonatomic) BOOL transparent;
+@property(nonatomic, weak) SWWindow *owningWindow;
+@property(nonatomic) BOOL inputBlocked, savedIgnoreMouse, destroying;
 @property(nonatomic, strong) NSData *hitRegions;
 @property(nonatomic) double frameWidth, frameHeight, frameScale;
 @property(nonatomic) NSInteger attentionRequest;
@@ -155,5 +158,9 @@ double sw_desktop_top(void);
 void sw_frame_invalidate(SWWindow *owner);
 void sw_frame_geometry(SWWindow *owner);
 BOOL sw_frame_pointer(SWView *view, NSEvent *event);
+BOOL sw_window_input_allowed(NSWindow *window);
+BOOL sw_window_modal_eligible(NSWindow *window);
+BOOL sw_window_input_event(NSEvent *event);
+void sw_show_owned_window(SWWindow *owner, BOOL activate);
 
 #endif

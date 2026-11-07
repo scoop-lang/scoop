@@ -51,7 +51,8 @@ bool sw_menu_enabled(SWMenuEntry *entry) {
   if (!entry->live || entry->kind == 4 || entry->menu->cancelled)
     return false;
   SWWindow *window = sw_menu_target(entry->menu);
-  if (window && (!IsWindowEnabled(window->hwnd) || window->destroying))
+  if (entry->role != 1 && window &&
+      (!IsWindowEnabled(window->hwnd) || window->destroying))
     return false;
   if (entry->role >= 4) {
     if (!window)

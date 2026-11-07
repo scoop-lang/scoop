@@ -17,7 +17,9 @@ public class WindowAttributes internal constructor(
     public val theme: Theme? = None,
     public val blur: Boolean = false,
     public val contentProtected: Boolean = false,
-    public val shadow: WindowShadow = WindowShadow.System
+    public val shadow: WindowShadow = WindowShadow.System,
+    public val relation: WindowRelation = WindowRelation.Independent,
+    public val role: WindowRole = WindowRole.Normal
     ,
     internal val titlebarFlags: Int = 0
 )
@@ -89,12 +91,24 @@ public class Window internal constructor(internal val owner: WindowOwner) {
     }
     public fun setVisible(visible: Boolean): RequestStatus {
         owner.requireOpen()
+        if (visible && owner.hasModal)
+            throw WindowException("modal visibility", WindowErrorKind.InvalidState)
+        if (!visible) {
+            owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
+            when (owner.modalSession) {
+                case Some(session) -> session.end(
+                    ModalResult.Cancelled(ModalCancelReason.WindowHidden)
+                )
+                case None -> {}
+            }
+        }
+        owner.requestedVisible = visible
         @Unsafe
         {
             checkNativeStatus(
                 nativeWindowVisible(
                     owner.pointer!!,
-                    if (visible)
+                    if (visible && !owner.visibilitySuppressed)
                         1
                     else
                         0
@@ -106,19 +120,30 @@ public class Window internal constructor(internal val owner: WindowOwner) {
                 owner.phase = WindowState.PendingConfigure
         }
         owner.application.mailbox.wake()
+        owner.application.syncOwnedVisibility()
         owner.notifyActivity()
         return RequestStatus.Applied
     }
     /** Asks the window system to activate this window; native events confirm focus. */
     public fun requestFocus(): RequestStatus {
-        owner.requireOpen()
+        owner.requireInteractive()
+        if (
+            owner.visibilitySuppressed ||
+                (owner.hasModal && owner.modalSession!!.phase != ModalState.Showing)
+        )
+            throw WindowException("focus presentation", WindowErrorKind.InvalidState)
+        owner.requestedVisible = true
         @Unsafe
         {
-            return nativeRequestStatus(
-                nativeWindowFocus(owner.pointer!!),
-                "focus",
-                RequestStatus.Requested
-            )
+            val status =
+                nativeRequestStatus(
+                    nativeWindowFocus(owner.pointer!!),
+                    "focus",
+                    RequestStatus.Requested
+                )
+            owner.application.syncOwnedVisibility()
+            owner.notifyActivity()
+            return status
         }
     }
     public val isVisible: Boolean get() = owner.snapshot().visible != 0
@@ -163,6 +188,22 @@ public class Window internal constructor(internal val owner: WindowOwner) {
 }
 
 internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, native: Ptr<Unit>) {
+    var owningWindow: WindowOwner? = None
+    var role: WindowRole = WindowRole.Normal
+    var requestedVisible: Boolean = false
+    var visibilitySuppressed: Boolean = false
+    var inputBlocked: Boolean = false
+    var modalSession: ModalSession? = None
+    val hasOwner: Boolean get() =
+        when (owningWindow) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    val hasModal: Boolean get() =
+        when (modalSession) {
+            case Some(_) -> true;
+            case None -> false
+        }
     val activityObservers = ArrayList<WindowActivityObserver>()
     var constraints: WindowSizeConstraints = WindowSizeConstraints()
     var buttons: WindowButtons = WindowButtons()
@@ -174,6 +215,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
     var leases: Long = 0L
     var currentInput: NativeInputDelivery? = None
     var systemOperationPending: Boolean = false
+    var systemOperationCancelled: Boolean = false
     var pendingSystemCancellation: InputTime? = None
     fun requireOpen() {
         application.checkThread()
@@ -191,6 +233,27 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         if (phase == WindowState.Closing || phase == WindowState.Destroyed)
             return
         phase = WindowState.Closing
+        application.cancelOwnedModals(
+            this,
+            if (application.exiting)
+                ModalCancelReason.ApplicationExit
+            else
+                ModalCancelReason.OwnerClosed
+        )
+        for (window in application.windows)
+            if (window.hasOwner && window.owningWindow!! === this)
+                window.close()
+        when (modalSession) {
+            case Some(session) -> session.end(
+                ModalResult.Cancelled(
+                    if (application.exiting)
+                        ModalCancelReason.ApplicationExit
+                    else
+                        ModalCancelReason.WindowClosed
+                )
+            )
+            case None -> {}
+        }
         @Unsafe
         {
             nativeWindowFrameRetire(pointer!!)

@@ -1,0 +1,19 @@
+package scoop.window
+
+@Extern(name = "scoop_window_modal_create")
+internal fun nativeModalCreate(window: Ptr<Unit>, scope: Int, presentation: Int): NativeCreateResult
+
+@Extern(name = "scoop_window_modal_start")
+internal fun nativeModalStart(session: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_modal_end")
+internal fun nativeModalEnd(session: Ptr<Unit>)
+
+@Extern(name = "scoop_window_modal_finished")
+internal fun nativeModalFinished(session: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_modal_release")
+internal fun nativeModalRelease(session: Ptr<Unit>)
+
+@Extern(name = "scoop_window_input_blocked")
+internal fun nativeWindowInputBlocked(window: Ptr<Unit>, blocked: Int)

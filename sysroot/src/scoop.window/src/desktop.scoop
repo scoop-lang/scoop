@@ -10,7 +10,8 @@ public struct DesktopPositioningCapabilities(
 public struct DesktopCapabilities(
     val menus: MenuCapabilities,
     val positioning: DesktopPositioningCapabilities,
-    val frame: WindowFrameCapabilities
+    val frame: WindowFrameCapabilities,
+    val windows: WindowManagementCapabilities
 )
 
 /** Queries the active backend; availability is reported by the individual operation. */
@@ -33,7 +34,8 @@ public fun ActiveApplication.desktopCapabilities(): DesktopCapabilities {
                 positioning.and(4) != 0,
                 positioning.and(8) != 0
             ),
-            frameCapabilities()
+            frameCapabilities(),
+            managementCapabilities()
         )
     }
 }

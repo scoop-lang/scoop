@@ -77,6 +77,7 @@ typedef struct SWApplication {
 } SWApplication;
 typedef struct SWWindow {
   SWApplication *application;
+  struct SWWindow *owning_window;
   HWND hwnd;
   int64_t identity;
   double scale, min_width, min_height, max_width, max_height;
@@ -90,6 +91,7 @@ typedef struct SWWindow {
   bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
   bool destroying, caret_set;
+  bool input_blocked, saved_enabled;
   int theme;
   HCURSOR cursor;
   double caret_x, caret_y, caret_width, caret_height;
@@ -154,6 +156,8 @@ void sw_text_geometry_changed(SWWindow *window);
 void sw_text_window_destroy(SWWindow *window);
 void sw_text_application_destroy(SWApplication *application);
 void sw_reset_input(SWWindow *window);
+void sw_cancel_pointer(SWWindow *window, int reason);
+bool sw_modal_input_message(UINT message);
 void sw_cancel_composition(SWWindow *window);
 uint64_t sw_modifiers(void);
 WCHAR *sw_wide(const uint8_t *text, int64_t length);

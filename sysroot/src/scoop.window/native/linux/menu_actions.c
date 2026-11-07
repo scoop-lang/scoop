@@ -31,7 +31,7 @@ static bool can_activate(SWMenuEntry *entry) {
       entry->kind >= 3)
     return false;
   SWWindow *window = target_window(menu);
-  if (window &&
+  if (entry->role != 1 && window &&
       (!gtk_widget_get_sensitive(window->window) || window->destroying))
     return false;
   if (entry->role >= 2 && !window)

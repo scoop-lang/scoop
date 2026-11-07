@@ -10,6 +10,10 @@ internal fun checkNativeStatus(code: Long, operation: String) {
         throw WindowException(operation, WindowErrorKind.Unavailable)
     if (code == -3L)
         throw WindowException(operation, WindowErrorKind.Disconnected)
+    if (code == -4L)
+        throw WindowException(operation, WindowErrorKind.InvalidState)
+    if (code == -5L)
+        throw WindowException(operation, WindowErrorKind.ResourceBusy)
     if (code != 0L)
         throw WindowException(operation, WindowErrorKind.NativeFailure, nativeCode = Some(code))
 }
@@ -56,9 +60,21 @@ internal fun nativeWindowCreate(
     length: Long,
     width: Double,
     height: Double,
-    flags: Int
+    flags: Int,
+    owner: Ptr<Unit>?,
+    role: Int
 ): Ptr<Unit> =
     created(
-        nativeWindowCreateResult(application, identity, title, length, width, height, flags),
+        nativeWindowCreateResult(
+            application,
+            identity,
+            title,
+            length,
+            width,
+            height,
+            flags,
+            owner,
+            role
+        ),
         "create window"
     )

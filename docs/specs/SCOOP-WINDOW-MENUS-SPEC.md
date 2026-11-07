@@ -36,7 +36,7 @@ ShortcutChord 复用 Primary 与既有逻辑键语义。只接受本后端能保
 
 Window.showPopup(menu, placement) 返回 PopupSession；PopupPlacement.Pointer(position) 使用内容逻辑坐标，Anchor(rect) 优先在已提交矩形下方展示，最终适配屏幕边缘由原生系统负责。非法坐标、归属和资源冲突在接受请求前报告；原生展示在当前业务回调／pump 返回后开始，不能在 handler 内阻塞原有派发。
 
-PopupSession 提供 id、result 和 close()；result 为 None 或 Selected(MenuItemId)、Cancelled(PopupCancelReason)、Failed(WindowException)。取消原因区分 User、ExplicitClose、MenuClosed、TargetClosed、ApplicationExit。每次展示只记录一次终态；排队但尚未启动的展示也可以取消。已经完成的 session 再 close 无副作用。
+PopupSession 提供 id、result 和 close()；result 为 None 或 Selected(MenuItemId)、Cancelled(PopupCancelReason)、Failed(WindowException)。取消原因区分 User、ExplicitClose、MenuClosed、TargetClosed、TargetBlocked、ApplicationExit。每次展示只记录一次终态；排队但尚未启动的展示也可以取消。已经完成的 session 再 close 无副作用。
 
 ApplicationEvent.PopupCompleted(id, result) 是展示完成通知，Menu 动作才执行应用操作，两者不得重复执行动作。正常选择结束后，同一批次已排队的菜单动作仍可交付；显式关闭、菜单退休或应用退出会阻止未执行的旧动作。原生展示失败保留错误并完成 Failed；调用方可在完成事件处理错误。
 

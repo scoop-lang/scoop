@@ -19,7 +19,7 @@
 | D2 | Menu／Popup、快捷键、原生菜单借用 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D3 | 独立 Tray Cone、定位、服务恢复与关闭 | 已实施；macOS／Linux 运行验证及 Windows 三目标构建完成，桌面交互限制见下 |
 | D4 | Frame／Region、原生外观与系统操作 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、非 GUI 测试通过，桌面交互限制见下 |
-| D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 待实施 |
+| D5 | Owned／Tool／Raise／Modal 与关闭依赖 | 已实施；macOS／Linux 运行验证与 Windows 三目标构建、纯值测试通过 |
 | D6 | 原生文件／目录对话框 | 待实施 |
 | D7 | UI 应用根、资源事件、Surface 发布边界 | 待实施 |
 | D8 | 通用组件及独立托盘组件 | 待实施 |
@@ -55,3 +55,9 @@ graphics 使用 Skia 提供 Path／CanvasGeometry 的显式二进制区域转换
 - Linux GNU：当前分支 CLI、基础依赖、Window／graphics／Surface／window.asyncio 构建和原生严格检查通过。无合成器 X11、有合成器 X11、带 seat 的嵌套 Wayland 各 3 passed；有合成器 X11 与 Wayland 在 2 倍缩放下再次各 3 passed。覆盖真实 GTK 模式与按钮几何、菜单栏下的客户区尺寸、X Shape 输入区域、XTest 输入取消，以及改尺寸后的 Surface Accepted。菜单复验 X11／Wayland 各 2 passed，graphics 区域 3 passed。真实用户拖动及具体桌面 Shell 的呈现仍需桌面验收。
 - Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 均完成当前分支所需库、完整窗框／DWM GUI 用例及透明 Surface 呈现用例的编译；每个目标窗框 2 passed、1 ignored，菜单 1 passed、1 ignored，graphics 区域 3 passed。SSH 不运行 GUI 用例，桌面执行方式见[窗框测试说明](../../sysroot/src/scoop.window/tests-cones/frame/README.md)。
 - GTK 准备及增量复用通过，Python 包组装测试 5 passed。完整发行包仍在 D9 后统一构建。
+
+2026-11-07，D5：已加入[窗口归属与模态规范](../specs/SCOOP-WINDOW-MODAL-SPEC.md)，实现 Owned／Tool、raise、实际层级查询、owner 隐藏／最小化时的显示意图恢复，以及 Owner／Application 模态 session。不同模态的输入限制取并集，新的窗口立即遵守范围；旧 popup／系统操作在目标受阻时取消，原有禁用状态在最后一个限制解除后恢复。AppKit 使用普通及嵌套 sheet 和真正的 application-modal 循环；GTK 每窗口原生组隔离 modal grab。关闭等待后代展示、Surface／native lease 退休，再按子到父顺序销毁。
+
+- macOS aarch64：格式化、原生严格检查和相关库构建通过；模态 3 passed，窗框复验 3 passed，菜单 2 passed、1 ignored，asyncio 1 passed，主窗口测试程序编译通过。覆盖两个独立 Owner 模态、嵌套 sheet／Application 模态、实际 loopback TCP 和定时取消、被阻塞窗口的原生关闭资格、隐藏／最小化恢复，以及父窗口等待子窗口 lease。当前 loginwindow 下仍不宣称前台焦点、实际用户交互与视觉叠放验收通过。
+- Linux GNU：原生严格检查与 Window／window.asyncio／Surface 构建通过；X11 和带 seat 的嵌套 Wayland 各模态 3 passed、窗框 3 passed、菜单 2 passed。直接查询 GTK transient、独立窗口组和 sensitive；X11 查询实际 UTILITY 属性，Wayland 明确验证 Tool／raise 的平台限制。原生组和软件显示会话结果不能替代具体桌面 Shell 的视觉叠放验收。
+- Windows：MSVC UCRT、LLVM-MinGW MSVCRT、LLVM-MinGW UCRT 的 Window／window.asyncio／Surface 和完整 GUI 用例均编译通过；各目标模态 2 passed、1 ignored，窗框 2 passed、1 ignored，菜单 1 passed、1 ignored。SSH 只执行纯值测试，不代表真实 HWND 焦点／叠放及交互验收通过；桌面执行入口见[模态测试说明](../../sysroot/src/scoop.window/tests-cones/modal/README.md)。

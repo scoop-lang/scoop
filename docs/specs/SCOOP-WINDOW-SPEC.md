@@ -80,7 +80,7 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 多窗口在 AppKit、Win32、X11 和 Wayland 后端均已实现。一个 Application 可以多次调用 ActiveApplication.createWindow，创建共享同一 owner 线程和原生事件循环的多个独立窗口；每个窗口有自己的 WindowId、状态、输入、重绘需求和 native lease。ApplicationEvent.Window(id, event) 指明事件归属，不为每个窗口另建 Application 或主循环。
 
-当前 createWindow 创建非模态（modeless）的独立顶层窗口，没有窗口间的 parent／owner 关系。对一个窗口调用 requestDestroy 只请求该窗口销毁；应用仍可在 CloseRequested 中选择退出整个应用。最后一个窗口实际 Destroyed 后，LastWindowPolicy.Exit 才触发应用退出；默认 KeepRunning，详见第 7 节。
+createWindow 默认创建非模态的独立顶层窗口，也可通过 WindowRelation.Owned 建立固定的原生归属关系，通过 WindowRole.Tool 请求工具面板。关系、相对叠放、可见性意图与后代先销毁的合同见[归属与模态规范](SCOOP-WINDOW-MODAL-SPEC.md)。最后一个窗口实际 Destroyed 后，LastWindowPolicy.Exit 才触发应用退出；默认 KeepRunning，详见第 7 节。
 
 现有 [Darwin 测试](../../sysroot/src/scoop.window/tests/application.scoop)与 [Win32 测试](../../sysroot/src/scoop.window/test-windows/application.scoop)包含双窗口、不同 WindowId、分别请求销毁和重复销毁的用例。它们不构成模态窗口或父子窗口关系的实现证明。
 
@@ -106,13 +106,7 @@ macOS 的 TitlebarOptions 提供 transparent、titleHidden，通过 WindowAttrib
 
 ### 4.3 模态与系统窗框操作
 
-当前公共 API 没有 parent／owner、modality、showModal 或 sheet 入口。第 8～10 节的模态循环接入，以及测试原生层的 runModalForWindow／MessageBox，验证的是系统嵌套循环期间事件与 asyncio 继续推进；它们不提供普通 Scoop 调用方可用的模态窗口合同。
-
-正式对话框需要窗口层补充以下具体语义；本节记录待补范围，不新增可调用接口：
-
-- 窗口归属：明确对话框关联的 owner 窗口、相应原生关系，以及 owner 关闭时关联窗口的收尾规则。这里的 owner 窗口与现有 owner 线程是不同概念。
-- 模态作用范围：区分非模态、仅约束关联窗口的窗口模态，以及约束同一应用其他窗口的应用模态；明确定义哪些窗口在何时停止和恢复交互。
-- 生命周期与焦点：关闭、取消、异常及 owner 提前关闭时完成模态状态释放；焦点只能请求恢复到仍存在且可交互的窗口，继续遵守 OS 激活策略与 callback／lease 关闭顺序。
+showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Application 输入范围与 Automatic／SeparateWindow／Sheet 展示。实际能力、原生输入限制、唯一完成、焦点请求及关闭依赖见[归属与模态规范](SCOOP-WINDOW-MODAL-SPEC.md)。第 8～10 节的原生循环接入继续承担嵌套展示期间的 I/O 与控制推进，不能递归执行 managed pump。
 
 自绘窗框的 beginMove／beginResize／showWindowMenu 使用当前真实输入上下文；原生命中、区域失效与能力差异见[窗框规范第 3～4 节](SCOOP-WINDOW-FRAME-SPEC.md#3-自有区域)。
 
@@ -232,7 +226,7 @@ composition 的开始、范围更新、提交、取消和 unmark 归一到现有
 
 ### 11.1 鼠标序列取消
 
-新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost、CaptureLost 与 SystemOperation；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
+新增 PointerEvent.Cancelled，携带 PointerCancelReason 与 InputTime。当前窗口鼠标模型只有一个聚合指针序列，取消结束该窗口已经交付的整个按下按钮集合，不伪造未知位置、按钮 Up 或 touch contact id。理由覆盖 FocusLost、CaptureLost、SystemOperation 与 Modal；窗口 Closing 的上层清理由 GUI 生命周期通知处理，不在 Closing 后另发业务输入事件。
 
 失焦或原生侧确认捕获／跟踪中断时，先取消仍活动的鼠标序列，再交付相应的后续状态通知。正常最后一个 Up 已结束序列时不重复取消；原生取消和失焦归一只结束一次。PointerEvent.Left 仅表示离开内容区，滚轮 ScrollPhase.Cancelled 仅结束滚轮相位，两者均不替代鼠标序列取消。
 

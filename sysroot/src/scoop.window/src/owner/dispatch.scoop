@@ -17,6 +17,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 beginExit()
             }
         }
+        syncOwnedVisibility()
         val events = ArrayList<NativeDelivery>()
         @Unsafe
         {
@@ -160,7 +161,7 @@ internal fun ApplicationOwner.deliverWindow(
     deliverBusiness {
         try {
             if (window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure) {
-                var ready = true
+                var ready = !window.inputBlocked || modalInputAllowed(event)
                 when (event) {
                     case GeometryChanged(value) -> {
                         window.metrics = Some(value)

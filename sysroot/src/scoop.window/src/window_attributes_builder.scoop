@@ -27,6 +27,8 @@ public fun WindowAttributes.copy(
     builder.blur = this.blur
     builder.contentProtected = this.contentProtected
     builder.shadow = this.shadow
+    builder.relation = this.relation
+    builder.role = this.role
     builder.titlebarFlags = this.titlebarFlags
     builder.configure()
     return builder.snapshot()
@@ -50,6 +52,8 @@ public class WindowAttributesBuilder internal constructor() {
     public var blur: Boolean = false
     public var contentProtected: Boolean = false
     public var shadow: WindowShadow = WindowShadow.System
+    public var relation: WindowRelation = WindowRelation.Independent
+    public var role: WindowRole = WindowRole.Normal
     internal fun snapshot(): WindowAttributes =
         WindowAttributes(
             title,
@@ -68,6 +72,8 @@ public class WindowAttributesBuilder internal constructor() {
             blur,
             contentProtected,
             shadow,
+            relation,
+            role,
             titlebarFlags
         )
 }

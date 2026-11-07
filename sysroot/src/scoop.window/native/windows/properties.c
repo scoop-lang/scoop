@@ -6,8 +6,8 @@ int64_t sw_restyle(SWWindow *window) {
   LONG_PTR old = GetWindowLongPtrW(window->hwnd, GWL_STYLE);
   SetLastError(0);
   SetWindowLongPtrW(window->hwnd, GWL_STYLE,
-                    sw_style(window) |
-                        (old & (WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE)));
+                    sw_style(window) | (old & (WS_VISIBLE | WS_MINIMIZE |
+                                               WS_MAXIMIZE | WS_DISABLED)));
   DWORD error = GetLastError();
   if (error)
     return error;
@@ -104,6 +104,10 @@ int64_t scoop_window_buttons(SWWindow *window, int32_t close, int32_t minimize,
   return sw_restyle(window);
 }
 int64_t scoop_window_level(SWWindow *window, int32_t level) {
+  if (!level && window->owning_window &&
+      (GetWindowLongPtrW(window->owning_window->hwnd, GWL_EXSTYLE) &
+       WS_EX_TOPMOST))
+    level = 1;
   window->bottom = level < 0;
   HWND order = level > 0   ? HWND_TOPMOST
                : level < 0 ? HWND_BOTTOM

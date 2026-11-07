@@ -27,7 +27,7 @@ public enum ScrollPhase {
 
 /** Ends the aggregate mouse-button sequence without synthesizing a successful release. */
 public enum PointerCancelReason {
-    FocusLost, CaptureLost, SystemOperation
+    FocusLost, CaptureLost, SystemOperation, Modal
 }
 
 /** Window-relative pointer events, with independent wheel and momentum phases. */

@@ -1,0 +1,510 @@
+package scoop.tests.window.modal
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+import scoop.window.asyncio.*
+import scoop.asyncio.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal fun runModalProbe() {
+    val probe = ModalProbe()
+    Application().runWithAsyncio(probe)
+    assertTrue(probe.finished)
+    assertTrue(probe.ioProgress)
+    assertEquals(0, probe.blockedCloseRequests)
+    assertEquals(WindowState.Destroyed, probe.a!!.state)
+    assertEquals(WindowState.Destroyed, probe.c!!.state)
+    assertEquals(WindowState.Destroyed, probe.f!!.state)
+    assertCancelled(probe.exitSession!!, ModalCancelReason.ApplicationExit)
+}
+
+private fun assertCancelled(session: ModalSession, expected: ModalCancelReason) {
+    when (session.result) {
+        case Some(ModalResult.Cancelled(reason)) -> assertEquals(expected, reason)
+        else -> assertTrue(false, Some("expected cancelled modal result"))
+    }
+}
+
+private class ModalProbe: ApplicationHandler {
+    var a: Window? = None
+    var b: Window? = None
+    var c: Window? = None
+    var f: Window? = None
+    var tool: Window? = None
+    var spare: Window? = None
+    var late: Window? = None
+    var first: ModalSession? = None
+    var second: ModalSession? = None
+    var exitSession: ModalSession? = None
+    var peerSession: ModalSession? = None
+    var lease: NativeWindowLease? = None
+    var deadline: WindowDeadline? = None
+    var caps: WindowManagementCapabilities? = None
+    var stage = 0
+    var ticks = 0
+    var depth = 0
+    var finished = false
+    var ioProgress = false
+    var blockedCloseRequests = 0
+    val completed = ArrayList<ModalSessionId>()
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(0, depth)
+        depth += 1
+        try {
+            when (event) {
+                case Resumed -> setup(application)
+                case ModalCompleted(id, _) -> {
+                    for (previous in completed)
+                        assertTrue(previous != id)
+                    completed.add(id)
+                }
+                case Window(id, WindowEvent.CloseRequested) -> {
+                    if (id == a!!.id)
+                        blockedCloseRequests += 1
+                }
+                case Window(id, WindowEvent.Destroyed) -> {
+                    if (id == a!!.id) {
+                        assertEquals(WindowState.Destroyed, c!!.state)
+                        assertEquals(WindowState.Destroyed, f!!.state)
+                        assertEquals(WindowState.Destroyed, tool!!.state)
+                    }
+                }
+                else -> {}
+            }
+        } finally {
+            depth -= 1
+        }
+    }
+
+    private fun setup(application: ActiveApplication) {
+        caps = Some(application.desktopCapabilities().windows)
+        a =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Modal owner A";
+                        size = LogicalSize(320.0, 220.0)
+                        frame = WindowFrame.Client;
+                        requestActivation = false
+                    }
+                )
+            )
+        b =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Independent B";
+                        size = LogicalSize(250.0, 180.0);
+                        requestActivation = false
+                    }
+                )
+            )
+        tool =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Owned tool";
+                        size = LogicalSize(120.0, 90.0);
+                        requestActivation = false
+                        relation = WindowRelation.Owned(this @ModalProbe.a!!)
+                        role =
+                            if (this @ModalProbe.caps!!.toolWindow)
+                                WindowRole.Tool
+                            else
+                                WindowRole.Normal
+                    }
+                )
+            )
+        c =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Confirmation C";
+                        visible = false;
+                        frame = WindowFrame.Client
+                        size = LogicalSize(210.0, 140.0);
+                        relation = WindowRelation.Owned(this @ModalProbe.a!!)
+                    }
+                )
+            )
+        f =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Nested F";
+                        visible = false;
+                        size = LogicalSize(160.0, 100.0)
+                        relation = WindowRelation.Owned(this @ModalProbe.c!!)
+                    }
+                )
+            )
+        spare =
+            Some(
+                application.createWindow(
+                    windowAttributes {
+                        title = "Hidden sibling";
+                        visible = false;
+                        relation = WindowRelation.Owned(this @ModalProbe.a!!)
+                    }
+                )
+            )
+        assertEquals(a!!.id, c!!.ownerWindow!!.id)
+        assertEquals(c!!.id, f!!.ownerWindow!!.id)
+        assertEquals(RequestStatus.Unsupported, c!!.setWindowLevel(WindowLevel.AlwaysOnBottom))
+        deadline = Some(b!!.createDeadline { tick(application) })
+        schedule()
+    }
+
+    private fun schedule() {
+        deadline!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+    }
+    private fun shown(session: ModalSession): Boolean =
+        session.state == ModalState.Showing && session.window.isVisible
+    private fun blocked(window: Window, expected: Boolean) {
+        assertEquals(expected, window.isInputBlocked)
+        assertEquals(
+            if (expected)
+                0
+            else
+                1,
+            nativeQuery(window, 1)
+        )
+    }
+
+    private fun tick(application: ActiveApplication) {
+        assertEquals(0, depth)
+        ticks += 1
+        assertTrue(ticks < 400, Some(f"modal stage ${stage} timed out"))
+        when (stage) {
+            0 -> if (a!!.metrics != None && b!!.metrics != None) {
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> { c!!.requestRaise() }.kind
+                )
+                assertEquals(
+                    RequestStatus.Unsupported,
+                    a!!.setWindowLevel(WindowLevel.AlwaysOnBottom)
+                )
+                if (!caps!!.toolWindow) {
+                    assertEquals(
+                        WindowErrorKind.Unsupported,
+                        assertFailsWith<WindowException> {
+                            application.createWindow(
+                                windowAttributes {
+                                    visible = false;
+                                    role = WindowRole.Tool
+                                }
+                            )
+                        }.kind
+                    )
+                }
+                if (caps!!.ownerTopmostPropagation) {
+                    a!!.setWindowLevel(WindowLevel.AlwaysOnTop)
+                    assertEquals(Some(WindowLevel.AlwaysOnTop), tool!!.observedWindowLevel)
+                    tool!!.setWindowLevel(WindowLevel.Normal)
+                    assertEquals(Some(WindowLevel.AlwaysOnTop), a!!.observedWindowLevel)
+                    a!!.setWindowLevel(WindowLevel.Normal)
+                    assertEquals(Some(WindowLevel.Normal), tool!!.observedWindowLevel)
+                }
+                assertTrue(nativeRelation(tool!!, a!!))
+                assertEquals(
+                    if (this @ModalProbe.caps!!.toolWindow)
+                        1
+                    else
+                        0,
+                    nativeQuery(tool!!, 2)
+                )
+                assertEquals(
+                    if (caps!!.raise)
+                        RequestStatus.Requested
+                    else
+                        RequestStatus.Unsupported,
+                    a!!.requestRaise()
+                )
+                val menu = application.createMenu()
+                menu.insert(MenuItemDescription("Must not open after modal"))
+                val popup = a!!.showPopup(menu, PopupPlacement.Pointer(LogicalPosition(5.0, 5.0)))
+                first =
+                    Some(
+                        c!!.showModal(
+                            ModalOptions(ModalScope.Owner, ModalPresentation.SeparateWindow)
+                        )
+                    )
+                assertEquals(ModalState.Pending, first!!.state)
+                when (popup.result) {
+                    case Some(PopupResult.Cancelled(reason)) -> assertEquals(
+                        PopupCancelReason.TargetBlocked,
+                        reason
+                    )
+                    else -> assertTrue(false)
+                }
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> {
+                        a!!.showPopup(menu, PopupPlacement.Pointer(LogicalPosition(5.0, 5.0)))
+                    }.kind
+                )
+                menu.close()
+                stage = 1
+            }
+            1 -> if (shown(first!!)) {
+                blocked(a!!, true);
+                blocked(b!!, false);
+                blocked(tool!!, false);
+                blocked(c!!, false)
+                a!!.setFrame(WindowFrame.System(WindowContentMode.Standard))
+                assertEquals(0, nativeQuery(a!!, 1))
+                assertEquals(
+                    WindowErrorKind.ResourceBusy,
+                    assertFailsWith<WindowException> { spare!!.showModal() }.kind
+                )
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> { a!!.requestFocus() }.kind
+                )
+                nativeQuery(a!!, 4)
+                val peer =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "B confirmation";
+                            visible = false
+                            relation = WindowRelation.Owned(this @ModalProbe.b!!)
+                        }
+                    )
+                peerSession =
+                    Some(
+                        peer.showModal(
+                            ModalOptions(ModalScope.Owner, ModalPresentation.SeparateWindow)
+                        )
+                    )
+                stage = 16
+            }
+            2 -> if (shown(second!!)) {
+                blocked(a!!, true);
+                blocked(c!!, true);
+                blocked(f!!, false);
+                blocked(b!!, false)
+                assertTrue(nativeRelation(f!!, c!!))
+                second!!.dismiss();
+                second!!.cancel()
+                stage = 3
+            }
+            3 -> if (second!!.state == ModalState.Completed) {
+                blocked(a!!, true);
+                blocked(c!!, false)
+                when (second!!.result) {
+                    case Some(ModalResult.Completed) -> {}
+                    else -> assertTrue(false)
+                }
+                first!!.dismiss();
+                stage = 4
+            }
+            4 -> if (first!!.state == ModalState.Completed) {
+                blocked(a!!, false)
+                nativeQuery(b!!, 10, 0)
+                first =
+                    Some(
+                        c!!.showModal(
+                            ModalOptions(ModalScope.Application, ModalPresentation.SeparateWindow)
+                        )
+                    )
+                stage = 5
+            }
+            5 -> if (shown(first!!)) {
+                blocked(a!!, true);
+                blocked(tool!!, true);
+                blocked(c!!, false)
+                assertTrue(b!!.isInputBlocked)
+                late =
+                    Some(
+                        application.createWindow(
+                            windowAttributes {
+                                title = "Created during modal";
+                                requestActivation = false
+                            }
+                        )
+                    )
+                blocked(late!!, true)
+                second =
+                    Some(
+                        f!!.showModal(
+                            ModalOptions(ModalScope.Application, ModalPresentation.SeparateWindow)
+                        )
+                    )
+                assertEquals(ModalState.Pending, second!!.state)
+                stage = 6
+            }
+            6 -> if (shown(second!!)) {
+                blocked(c!!, true);
+                blocked(f!!, false);
+                blocked(a!!, true)
+                if (caps!!.modal.ownerSheet)
+                    assertEquals(1, nativeQuery(f!!, 5))
+                val loop = currentEventLoop()
+                currentApplicationScope().launch {
+                    loop.sleep(Duration.milliseconds(60L))
+                    modalTcpTransfer(this)
+                    this @ModalProbe.ioProgress = true
+                    this @ModalProbe.second!!.dismiss()
+                }
+                stage = 7
+            }
+            7 -> if (second!!.state == ModalState.Completed && ioProgress) {
+                blocked(c!!, false);
+                blocked(a!!, true)
+                first!!.dismiss();
+                stage = 8
+            }
+            8 -> if (first!!.state == ModalState.Completed) {
+                blocked(a!!, false)
+                assertFalse(b!!.isInputBlocked)
+                assertEquals(0, nativeQuery(b!!, 1))
+                nativeQuery(b!!, 10, 1)
+                blocked(late!!, false)
+                late!!.requestDestroy()
+                first = Some(c!!.showModal())
+                stage = 9
+            }
+            9 -> if (shown(first!!)) {
+                assertEquals(
+                    if (caps!!.modal.ownerSheet)
+                        1
+                    else
+                        0,
+                    nativeQuery(c!!, 3)
+                )
+                second =
+                    Some(
+                        f!!.showModal(
+                            ModalOptions(
+                                ModalScope.Owner,
+                                if (caps!!.modal.nestedSheet)
+                                    ModalPresentation.Automatic
+                                else
+                                    ModalPresentation.SeparateWindow
+                            )
+                        )
+                    )
+                stage = 10
+            }
+            10 -> if (shown(second!!)) {
+                assertTrue(nativeRelation(c!!, a!!));
+                assertTrue(nativeRelation(f!!, c!!))
+                assertEquals(
+                    if (caps!!.modal.nestedSheet)
+                        1
+                    else
+                        0,
+                    nativeQuery(f!!, 3)
+                )
+                blocked(a!!, true);
+                blocked(c!!, true);
+                blocked(f!!, false)
+                first!!.cancel();
+                stage = 11
+            }
+            11 -> if (
+                first!!.state == ModalState.Completed && second!!.state == ModalState.Completed
+            ) {
+                assertCancelled(first!!, ModalCancelReason.Cancelled)
+                assertCancelled(second!!, ModalCancelReason.OwnerHidden)
+                assertFalse(c!!.isVisible);
+                assertFalse(f!!.isVisible)
+                tool!!.setVisible(true)
+                a!!.setVisible(false)
+                assertFalse(tool!!.isVisible)
+                a!!.setVisible(true)
+                assertTrue(tool!!.isVisible)
+                assertFalse(spare!!.isVisible)
+                first =
+                    Some(
+                        c!!.showModal(
+                            ModalOptions(ModalScope.Owner, ModalPresentation.SeparateWindow)
+                        )
+                    )
+                first!!.cancel();
+                first!!.dismiss()
+                stage = 12
+            }
+            12 -> if (first!!.state == ModalState.Completed) {
+                assertCancelled(first!!, ModalCancelReason.Cancelled)
+                assertFalse(c!!.isVisible)
+                if (nativeQuery(a!!, 20) == 0) {
+                    a!!.requestMinimized(true)
+                    stage = 18
+                } else
+                    prepareClosing()
+            }
+            13 -> if (shown(first!!)) {
+                assertTrue(nativeRelation(c!!, a!!))
+                @Unsafe
+                {
+                    lease = Some(f!!.acquireNativeWindow())
+                }
+                a!!.requestDestroy();
+                a!!.requestDestroy()
+                stage = 14
+            }
+            14 -> {
+                assertEquals(WindowState.Closing, a!!.state)
+                assertEquals(WindowState.Closing, c!!.state)
+                assertEquals(WindowState.Closing, f!!.state)
+                lease!!.close();
+                lease = None
+                stage = 15
+            }
+            15 -> {
+                if (a!!.state == WindowState.Destroyed) {
+                    assertCancelled(first!!, ModalCancelReason.OwnerClosed)
+                    val finalWindow =
+                        application.createWindow(
+                            windowAttributes {
+                                title = "Exit cancellation";
+                                visible = false;
+                                relation = WindowRelation.Owned(this @ModalProbe.b!!)
+                            }
+                        )
+                    exitSession = Some(finalWindow.showModal(ModalOptions(ModalScope.Application)))
+                    finished = true
+                    application.requestExit()
+                    return
+                }
+            }
+            16 -> if (shown(peerSession!!)) {
+                blocked(a!!, true);
+                blocked(b!!, true)
+                blocked(c!!, false);
+                blocked(peerSession!!.window, false);
+                blocked(tool!!, false)
+                peerSession!!.dismiss()
+                stage = 17
+            }
+            17 -> if (peerSession!!.state == ModalState.Completed) {
+                blocked(a!!, true);
+                blocked(b!!, false)
+                second = Some(f!!.showModal())
+                stage = 2
+            }
+            18 -> if (a!!.isMinimized == Some(true)) {
+                assertFalse(tool!!.isVisible)
+                a!!.requestMinimized(false)
+                stage = 19
+            }
+            19 -> {
+                if (a!!.isMinimized == Some(false) && tool!!.isVisible)
+                    prepareClosing()
+            }
+            else -> assertTrue(false)
+        }
+        schedule()
+    }
+
+    private fun prepareClosing() {
+        first =
+            Some(c!!.showModal(ModalOptions(ModalScope.Owner, ModalPresentation.SeparateWindow)))
+        stage = 13
+    }
+}

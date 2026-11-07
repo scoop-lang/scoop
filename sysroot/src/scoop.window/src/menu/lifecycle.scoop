@@ -92,7 +92,20 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
             case Popup(session) -> MenuSource.Popup(session.id, session.window.id)
             case Native(lease) -> MenuSource.Native(lease.id)
         }
-    return Some(ApplicationEvent.Menu(MenuActivation(menu.id, MenuItemId(event.b), source, use)))
+    return Some(
+        ApplicationEvent.Menu(
+            MenuActivation(
+                menu.id,
+                MenuItemId(event.b),
+                source,
+                use,
+                if (event.d == 0L)
+                    None
+                else
+                    Some(WindowId(event.d))
+            )
+        )
+    )
 }
 
 internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): ApplicationEvent? {
@@ -109,6 +122,14 @@ internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): Applicati
 
 internal fun ApplicationOwner.deliverMenu(activation: MenuActivation) {
     deliverBusiness {
+        when (activation.target) {
+            case Some(id) -> {
+                val target = findWindow(id.value) ?: return@deliverBusiness
+                if (target.inputBlocked || target.phase != WindowState.Open)
+                    return@deliverBusiness
+            }
+            case None -> {}
+        }
         when (findMenu(activation.menu.value)) {
             case Some(menu) -> {
                 if (menu.phase == MenuState.Open && activation.use.acceptsActions()) {

@@ -18,6 +18,7 @@ public enum StartCause {
 public enum ApplicationEvent {
     NewEvents(StartCause), Resumed, Suspended, MemoryWarning,
     Menu(MenuActivation), PopupCompleted(PopupSessionId, PopupResult),
+    ModalCompleted(ModalSessionId, ModalResult),
     Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
 }
 
@@ -25,6 +26,7 @@ public enum ApplicationEvent {
 public enum WindowEvent {
     CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
     FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
+    InputBlockedChanged(Boolean),
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),
@@ -58,7 +60,7 @@ public class Application public constructor(options: ApplicationOptions = applic
 
 /** Owner-thread operations available while the native application is active. */
 public class ActiveApplication internal constructor(internal val owner: ApplicationOwner) {
-    /** Creates an independent native window from a snapshot of these attributes. */
+    /** Creates a native top-level window from a snapshot of these attributes. */
     public fun createWindow(attributes: WindowAttributes = windowAttributes()): Window =
         owner.createWindow(attributes)
     /** Selects native waiting behavior without introducing a periodic tick. */

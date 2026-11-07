@@ -37,6 +37,8 @@ static BOOL can_activate(SWMenu *menu, SWMenuEntry *entry) {
     return NO;
   NSWindow *target = target_window(menu);
   SWWindow *window = scoop_target(menu, target);
+  if (entry.role != 1 && window && (window.inputBlocked || window.destroying))
+    return NO;
   if (entry.role >= 4) {
     if (window && target.firstResponder == window.view)
       return entry.enabled && window.view.imeAllowed;

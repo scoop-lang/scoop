@@ -418,3 +418,15 @@ when = { os = "windows" }
 [[native.sources]]
 path = "native/linux/frame_operations.c"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/modal.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/modal.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/modal.c"
+when = { os = "linux", env = "gnu" }

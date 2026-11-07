@@ -97,7 +97,7 @@ static void key(SWWindow *window, UINT msg, WPARAM vk, LPARAM lp) {
   sw_enqueue(window->application, event);
 }
 
-static void cancel_pointer(SWWindow *window, int reason) {
+void sw_cancel_pointer(SWWindow *window, int reason) {
   if (!window->pressed_buttons)
     return;
   window->pressed_buttons = 0;
@@ -112,7 +112,7 @@ static void cancel_pointer(SWWindow *window, int reason) {
 }
 
 void sw_reset_input(SWWindow *window) {
-  cancel_pointer(window, 0);
+  sw_cancel_pointer(window, 0);
   sw_cancel_composition(window);
   uint64_t locks = sw_modifiers() & 112;
   for (int n = 0; n < 512; ++n) {
@@ -164,7 +164,7 @@ bool sw_input(SWWindow *window, UINT msg, WPARAM wp, LPARAM lp,
   switch (msg) {
   case WM_CAPTURECHANGED:
   case WM_CANCELMODE:
-    cancel_pointer(window, 1);
+    sw_cancel_pointer(window, 1);
     return false;
   case WM_KEYDOWN:
   case WM_KEYUP:

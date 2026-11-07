@@ -15,6 +15,8 @@ internal class ApplicationOwner(
 ) {
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
+    val modals = ArrayList<ModalSession>()
+    var nextModal = 1L
     val menus = ArrayList<MenuOwner>()
     val nativeResources = ArrayList<NativeApplicationLease>()
     var nextMenu = 1L
@@ -160,6 +162,9 @@ internal class ApplicationOwner(
         if (exiting || native == None)
             throw WindowException("create window", WindowErrorKind.InvalidState)
         validateAttributes(attributes)
+        val parent = relationOwner(attributes.relation)
+        if (attributes.role == WindowRole.Tool && !managementCapabilities().toolWindow)
+            throw WindowException("tool window role", WindowErrorKind.Unsupported)
         attributes.size.toPhysical(1.0)
         if (nextWindow == 9223372036854775807L)
             throw WindowException("window identity", WindowErrorKind.NativeFailure)
@@ -186,12 +191,22 @@ internal class ApplicationOwner(
                                 count,
                                 size.width,
                                 size.height,
-                                flags
+                                flags,
+                                when (parent) {
+                                    case Some(value) -> value.pointer;
+                                    case None -> None
+                                },
+                                if (attributes.role == WindowRole.Tool)
+                                    1
+                                else
+                                    0
                             )
                         }
                     }
                 )
             val owner = WindowOwner(this, identity, pointer)
+            owner.owningWindow = parent
+            owner.role = attributes.role
             try {
                 applyCreationProperties(owner, attributes)
                 owner.metrics = platformWindowMetrics(pointer)
@@ -202,10 +217,25 @@ internal class ApplicationOwner(
                 throw error
             }
             windows.add(owner)
+            updateModalInput()
             createdWindow = true
-            if (attributes.visible) {
+            owner.requestedVisible = attributes.visible
+            when (parent) {
+                case Some(value) -> {
+                    val snapshot = value.snapshot()
+                    owner.visibilitySuppressed =
+                        !value.requestedVisible ||
+                            value.visibilitySuppressed ||
+                            snapshot.visible ==
+                            0 ||
+                            snapshot.minimized !=
+                            0
+                }
+                case None -> {}
+            }
+            if (attributes.visible && !owner.visibilitySuppressed) {
                 checkNativeStatus(nativeWindowVisible(pointer, 1), "visible")
-                if (attributes.requestActivation)
+                if (attributes.requestActivation && !owner.inputBlocked)
                     nativeRequestStatus(
                         nativeWindowFocus(pointer),
                         "focus",

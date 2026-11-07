@@ -97,6 +97,7 @@ internal class InputProbe {
                     case FocusLost -> "c"
                     case CaptureLost -> "x"
                     case SystemOperation -> "s"
+                    case Modal -> "m"
                 }
             }
             case Left(state) -> {

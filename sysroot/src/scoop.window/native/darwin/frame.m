@@ -83,7 +83,10 @@ int64_t scoop_window_region(void *pointer, int32_t kind, int32_t present,
 
 int64_t scoop_window_ignore_mouse(void *pointer, int32_t enabled) {
   SWWindow *owner = (__bridge SWWindow *)pointer;
-  owner.window.ignoresMouseEvents = enabled != 0;
+  if (owner.inputBlocked)
+    owner.savedIgnoreMouse = enabled != 0;
+  else
+    owner.window.ignoresMouseEvents = enabled != 0;
   if (enabled)
     [owner.view cancelPointer:1];
   return 0;

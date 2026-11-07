@@ -56,6 +56,7 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
                 )
                 15 -> WindowEvent.RedrawRequested
                 17 -> WindowEvent.FrameChanged
+                19 -> WindowEvent.InputBlockedChanged(event.flags != 0)
                 18 -> WindowEvent.FrameButtonChanged(
                     systemButtonValue(event.a.toInt()),
                     event.flags.and(1) != 0,
@@ -133,6 +134,7 @@ private fun copyPointerEvent(event: NativeEvent): PointerEvent {
                 0L -> PointerCancelReason.FocusLost
                 1L -> PointerCancelReason.CaptureLost
                 2L -> PointerCancelReason.SystemOperation
+                3L -> PointerCancelReason.Modal
                 else -> throw WindowException(
                     "unknown pointer cancellation",
                     WindowErrorKind.NativeFailure

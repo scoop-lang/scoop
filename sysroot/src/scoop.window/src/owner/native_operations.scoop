@@ -7,7 +7,7 @@ internal fun ApplicationOwner.deferNativeOperation(operation: () -> Unit) {
 }
 
 internal fun ApplicationOwner.drainNativeOperations() {
-    if (pumping || dispatchDepth != 0 || nativeOperationDepth != 0)
+    if (pumping || dispatchDepth != 0)
         return
     if (nativeOperations.size == 0L)
         return

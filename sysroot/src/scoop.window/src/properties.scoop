@@ -126,6 +126,12 @@ public fun Window.setEnabledButtons(buttons: WindowButtons): RequestStatus {
 /** Selects a native ordering level without claiming keyboard focus. */
 public fun Window.setWindowLevel(level: WindowLevel): RequestStatus {
     owner.requireOpen()
+    if (
+        level ==
+            WindowLevel.AlwaysOnBottom &&
+            (owner.hasOwner || owner.application.hasOwnedWindow(owner))
+    )
+        return RequestStatus.Unsupported
     val value =
         when (level) {
             case Normal -> 0;
@@ -141,6 +147,13 @@ public fun Window.setWindowLevel(level: WindowLevel): RequestStatus {
 /** Requests native miniaturization or restoration. */
 public fun Window.requestMinimized(value: Boolean): RequestStatus {
     owner.requireOpen()
+    if (value) {
+        owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
+        when (owner.modalSession) {
+            case Some(session) -> session.end(ModalResult.Cancelled(ModalCancelReason.WindowHidden))
+            case None -> {}
+        }
+    }
     @Unsafe
     {
         return nativeRequestStatus(

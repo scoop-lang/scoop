@@ -100,12 +100,15 @@ typedef struct {
 } SWApplication;
 struct SWWindow {
   SWApplication *application;
+  SWWindow *owning_window;
+  GtkWindowGroup *group;
   SWWindow *next;
   GtkWidget *window, *view, *toolbar, *header;
   SWMenu *menu_bar;
   GtkIMContext *ime, *simple_ime;
   GdkEvent *current_event;
   bool destroying;
+  bool input_blocked, saved_sensitive, tool;
   int64_t identity;
   SWSnapshot snapshot;
   bool configured, requested_visible, resizable, transparent;

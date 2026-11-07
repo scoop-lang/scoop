@@ -53,6 +53,7 @@ internal class PointerCancellationProbe {
                     case FocusLost -> "f"
                     case CaptureLost -> "x"
                     case SystemOperation -> "s"
+                    case Modal -> "m"
                 }
             }
             else -> {}

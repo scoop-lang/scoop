@@ -62,6 +62,8 @@ void sw_emit(SWWindow *window, int kind) {
     event->data.flags = value.occluded;
   else if (kind == 6)
     event->data.flags = value.dark;
+  else if (kind == 19)
+    event->data.flags = window->input_blocked;
   sw_enqueue(window->application, event);
 }
 

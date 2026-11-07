@@ -1,0 +1,159 @@
+package scoop.window
+
+/** Borrows a native window until the native presentation and its callbacks retire. */
+public class ModalSession internal constructor(
+    public val id: ModalSessionId,
+    public val window: Window,
+    public val options: ModalOptions,
+    public val presentation: ModalPresentation,
+    internal var pointer: Ptr<Unit>?
+) {
+    internal val application: ApplicationOwner = window.owner.application
+    internal var phase: ModalState = ModalState.Pending
+    internal var completion: ModalResult? = None
+    internal var requestedEnd: ModalResult? = None
+    internal var commandPending: Boolean = true
+    public val state: ModalState get() {
+        application.checkThread();
+        return phase
+    }
+    public val result: ModalResult? get() {
+        application.checkThread();
+        return completion
+    }
+
+    public fun dismiss() {
+        application.checkThread();
+        end(ModalResult.Completed)
+    }
+    public fun cancel() {
+        application.checkThread();
+        end(ModalResult.Cancelled(ModalCancelReason.Cancelled))
+    }
+
+    internal fun end(result: ModalResult) {
+        if (phase == ModalState.Ending || phase == ModalState.Completed)
+            return
+        requestedEnd = Some(result)
+        phase = ModalState.Ending
+        application.cancelOwnedModals(window.owner, ModalCancelReason.OwnerHidden)
+        @Unsafe
+        {
+            nativeModalEnd(pointer!!)
+        }
+        application.mailbox.wake()
+    }
+
+    internal fun start() {
+        try {
+            if (phase == ModalState.Ending || phase == ModalState.Completed)
+                return
+            val owner = window.owner
+            if (application.exiting) {
+                end(ModalResult.Cancelled(ModalCancelReason.ApplicationExit));
+                return
+            }
+            if (owner.phase == WindowState.Closing || owner.phase == WindowState.Destroyed) {
+                end(ModalResult.Cancelled(ModalCancelReason.WindowClosed));
+                return
+            }
+            phase = ModalState.Showing
+            owner.requestedVisible = true
+            @Unsafe
+            {
+                checkNativeStatus(nativeModalStart(pointer!!), "show modal")
+            }
+        } catch (error: WindowException) {
+            end(ModalResult.Failed(error))
+        } finally {
+            commandPending = false
+            application.mailbox.wake()
+        }
+    }
+}
+
+public fun Window.showModal(options: ModalOptions = ModalOptions()): ModalSession {
+    owner.requireOpen()
+    val application = owner.application
+    application.requireRunning("show modal")
+    if (owner.hasModal)
+        throw WindowException("show modal", WindowErrorKind.ResourceBusy)
+    if (owner.requestedVisible || isVisible)
+        throw WindowException("show hidden modal window", WindowErrorKind.InvalidState)
+    val parent = owner.owningWindow
+    if (options.scope == ModalScope.Owner && !owner.hasOwner)
+        throw WindowException("owner modal requires an owner", WindowErrorKind.InvalidState)
+    for (session in application.modals) {
+        if (owner.hasOwner && session.window.owner.isOwnedBy(parent!!))
+            throw WindowException("modal owner is busy", WindowErrorKind.ResourceBusy)
+        if (
+            session.options.scope ==
+                ModalScope.Application &&
+                (!owner.hasOwner || !application.modalBranch(parent!!, session.window.owner))
+        )
+            throw WindowException("application modal branch", WindowErrorKind.ResourceBusy)
+    }
+    when (parent) {
+        case Some(value) -> {
+            value.requireInteractive()
+            val snapshot = value.snapshot()
+            if (snapshot.visible == 0 || snapshot.minimized != 0)
+                throw WindowException("modal owner visibility", WindowErrorKind.InvalidState)
+        }
+        case None -> {}
+    }
+    val capabilities = managementCapabilities().modal
+    if (!capabilities.supports(options.scope, options.presentation))
+        throw WindowException("modal presentation", WindowErrorKind.Unsupported)
+    val presentation =
+        if (options.presentation == ModalPresentation.Automatic)
+            if (options.scope == ModalScope.Owner && capabilities.ownerSheet)
+                ModalPresentation.Sheet
+            else
+                ModalPresentation.SeparateWindow
+        else
+            options.presentation
+    if (
+        presentation ==
+            ModalPresentation.Sheet &&
+            owner.hasOwner &&
+            parent!!.hasModal &&
+            parent!!.modalSession!!.presentation ==
+            ModalPresentation.Sheet &&
+            !capabilities.nestedSheet
+    )
+        throw WindowException("nested sheet", WindowErrorKind.Unsupported)
+    if (application.nextModal == 9223372036854775807L)
+        throw WindowException("modal identity", WindowErrorKind.NativeFailure)
+    val id = ModalSessionId(application.nextModal)
+    application.nextModal += 1L
+    @Unsafe
+    {
+        val native =
+            created(
+                nativeModalCreate(
+                    owner.pointer!!,
+                    if (options.scope == ModalScope.Owner)
+                        0
+                    else
+                        1,
+                    if (presentation == ModalPresentation.Sheet)
+                        1
+                    else
+                        0
+                ),
+                "prepare modal"
+            )
+        val session = ModalSession(id, this, options, presentation, Some(native))
+        owner.leases += 1L
+        when (parent) {
+            case Some(value) -> value.leases += 1L;
+            case None -> {}
+        }
+        owner.modalSession = Some(session)
+        application.modals.add(session)
+        application.updateModalInput()
+        application.deferNativeOperation { session.start() }
+        return session
+    }
+}

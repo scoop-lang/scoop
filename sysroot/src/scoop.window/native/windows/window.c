@@ -69,6 +69,9 @@ void sw_emit(SWWindow *window, int32_t kind) {
   case 6:
     event->data.flags = snapshot.dark;
     break;
+  case 19:
+    event->data.flags = window->input_blocked;
+    break;
   default:
     break;
   }
@@ -84,6 +87,8 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
   if (!window)
     return DefWindowProcW(hwnd, msg, wp, lp);
+  if (window->input_blocked && sw_modal_input_message(msg))
+    return 0;
   LRESULT result;
   if (!window->destroying && (sw_frame_message(window, msg, wp, lp, &result) ||
                               sw_menu_message(window, msg, wp, lp, &result) ||
@@ -92,7 +97,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return result;
   switch (msg) {
   case WM_CLOSE:
-    if (window->close_button)
+    if (window->close_button && !window->input_blocked)
       sw_emit(window, 1);
     return 0;
   case WM_QUERYENDSESSION:
@@ -167,11 +172,13 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 SWResult scoop_window_create(SWApplication *app, int64_t identity,
                              const uint8_t *title, int64_t length, double width,
-                             double height, int32_t flags) {
+                             double height, int32_t flags, SWWindow *parent,
+                             int32_t role) {
   SWWindow *window = calloc(1, sizeof(*window));
   if (!window)
     return (SWResult){NULL, ERROR_NOT_ENOUGH_MEMORY};
   window->application = app;
+  window->owning_window = parent;
   window->identity = identity;
   window->frame_mode = (flags & 1) ? 0 : 2;
   window->frame_hover = window->frame_pressed = -1;
@@ -190,9 +197,10 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   if (!text)
     error = GetLastError();
   else {
-    window->hwnd = CreateWindowExW(0, sw_window_class, text, sw_style(window),
-                                   CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, NULL,
-                                   NULL, GetModuleHandleW(NULL), window);
+    window->hwnd = CreateWindowExW(
+        role ? WS_EX_TOOLWINDOW : 0, sw_window_class, text, sw_style(window),
+        CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, parent ? parent->hwnd : NULL, NULL,
+        GetModuleHandleW(NULL), window);
     free(text);
     if (!window->hwnd)
       error = GetLastError();

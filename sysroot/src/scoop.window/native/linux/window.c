@@ -1,4 +1,5 @@
 #include "window.h"
+#include <X11/Xatom.h>
 #include <gdk/x11/gdkx.h>
 
 // The window owns this container; a renderer may attach one content widget.
@@ -102,7 +103,7 @@ static void layout(GdkSurface *surface, int width, int height, gpointer data) {
 }
 static gboolean close_requested(GtkWindow *native, gpointer data) {
   SWWindow *window = data;
-  if (window->close_button)
+  if (window->close_button && !window->input_blocked)
     sw_emit(window, 1);
   return TRUE;
 }
@@ -111,6 +112,14 @@ static void realized(GtkWidget *widget, gpointer data) {
   GdkSurface *surface = sw_surface(window);
   g_signal_connect(surface, "notify::state", G_CALLBACK(changed), window);
   g_signal_connect(surface, "layout", G_CALLBACK(layout), window);
+  if (window->tool && window->application->kind == SW_X11) {
+    Display *display =
+        gdk_x11_display_get_xdisplay(window->application->display);
+    Atom type = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    XChangeProperty(display, gdk_x11_surface_get_xid(surface),
+                    XInternAtom(display, "_NET_WM_WINDOW_TYPE", False), XA_ATOM,
+                    32, PropModeReplace, (unsigned char *)&type, 1);
+  }
 }
 void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
                       gpointer data) {
@@ -125,7 +134,10 @@ void sw_theme_changed(AdwStyleManager *manager, GParamSpec *pspec,
 }
 SWResult scoop_window_create(SWApplication *app, int64_t identity,
                              const uint8_t *title, int64_t length, double width,
-                             double height, int32_t flags) {
+                             double height, int32_t flags, SWWindow *parent,
+                             int32_t role) {
+  if (role && app->kind != SW_X11)
+    return (SWResult){NULL, -1};
   if (app->error)
     return (SWResult){NULL, -3};
   if ((flags & 4) && app->kind == SW_X11 &&
@@ -158,6 +170,13 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->snapshot.occluded = true;
   window->document.revision = -1;
   window->window = adw_window_new();
+  window->owning_window = parent;
+  window->tool = role != 0;
+  window->group = gtk_window_group_new();
+  if (parent)
+    gtk_window_set_transient_for(GTK_WINDOW(window->window),
+                                 GTK_WINDOW(parent->window));
+  gtk_window_group_add_window(window->group, GTK_WINDOW(window->window));
   gtk_window_set_title(GTK_WINDOW(window->window), name);
   free(name);
   gtk_window_set_resizable(GTK_WINDOW(window->window), window->resizable);
@@ -225,6 +244,7 @@ void scoop_window_destroy(SWWindow *window) {
   g_clear_object(&window->ime);
   g_clear_object(&window->simple_ime);
   gtk_window_destroy(GTK_WINDOW(window->window));
+  g_clear_object(&window->group);
   for (size_t i = 0; i < G_N_ELEMENTS(window->pressed); ++i)
     free((void *)window->pressed[i].text);
   free((void *)window->document.text);

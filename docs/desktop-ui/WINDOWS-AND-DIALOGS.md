@@ -1,6 +1,6 @@
 # 窗口归属、模态与原生文件对话框设计
 
-日期：2026-11-07。状态：设计提案，尚未实施。本文补充[原生桌面能力与 UI 组件设计](DESIGN.md)，覆盖原生顶层窗口之间的归属、相对叠放、模态，以及系统打开／保存文件对话框。下文接口名是拟定合同，不是现有可调用 API。
+日期：2026-11-07。状态：按批次实施。本文补充[原生桌面能力与 UI 组件设计](DESIGN.md)，覆盖原生顶层窗口之间的归属、相对叠放、模态，以及系统打开／保存文件对话框。D5 的实际 API 以[窗口归属与模态规范](../specs/SCOOP-WINDOW-MODAL-SPEC.md)为准；文件对话框和 UI 包装的交付状态见[实施记录](PROGRESS.md)，尚未交付部分仍是拟定合同。
 
 实施平台与主设计一致：Darwin 两个 target、Windows 三个 target，以及已合入的 Linux GNU x86_64 Wayland／X11 后端。Linux 复用 GTK 4.18+／libadwaita 1.4+ 与 GtkGLArea，现状和验证边界见 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。沿用 [Window 规范](../specs/SCOOP-WINDOW-SPEC.md)、[Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)和 [UI 规范](../specs/SCOOP-UI-SPEC.md)，实施各批次时先同步所属规范。
 
@@ -14,7 +14,7 @@
 | 持续置顶的小窗口 | 请求 OS 的 topmost／floating 层级，不因此阻塞其他窗口 | 显示内容与置顶开关 |
 | 打开／保存文件或选择目录 | 系统面板负责原生导航、文件选择和确认，结果关联到发起请求的窗口或应用 | 消费路径，随后执行真正的文件 I/O |
 
-当前 `createWindow` 创建独立、非模态的顶层窗口；`WindowLevel.Normal／AlwaysOnTop／AlwaysOnBottom` 已存在，`requestFocus` 也已存在。当前没有窗口间 owner、公开模态 session 或原生文件对话框；已有 `runModalForWindow／MessageBox` 测试只证明嵌套原生循环可推进，不代表这些功能已经交付。
+设计基线的 `createWindow` 只创建独立、非模态的顶层窗口，已提供 `WindowLevel.Normal／AlwaysOnTop／AlwaysOnBottom` 和 `requestFocus`。D5 在这一基础上加入 owner、工具窗口、raise 与公开模态 session；原生文件对话框归 D6。基线中的 `runModalForWindow／MessageBox` 测试只证明嵌套原生循环可推进，不能代替各功能的独立实现与验证。
 
 本文将用户场景中的 model 按 modal（模态）处理。top-level、一次 raise、持续 topmost、owned 与 modal 是不同维度，不能合成一个互斥的窗口类型枚举。
 

@@ -1,0 +1,30 @@
+package scoop.tests.window.modal
+
+import scoop.asyncio.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.test.*
+
+internal suspend fun modalTcpTransfer(scope: CoroutineScope) {
+    val loop = currentEventLoop()
+    loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        listener ->
+        val connecting =
+            scope.async<AsyncTcpStream> suspend { loop.connectTcp(listener.localAddress) }
+        listener.accept().useAsync suspend {
+            receiver -> connecting.await().useAsync suspend {
+                sender ->
+                NativeByteBuffer.allocate(1L).use suspend {
+                    sent ->
+                    sent.writeByte(73)
+                    sender.writeFully(sent)
+                }
+                NativeByteBuffer.allocate(1L).use suspend {
+                    received ->
+                    receiver.readFully(received, 1L)
+                    assertEquals(73.toByte(), received.getByte(0L))
+                }
+            }
+        }
+    }
+}

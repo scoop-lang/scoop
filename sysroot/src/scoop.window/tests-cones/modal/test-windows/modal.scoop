@@ -1,0 +1,12 @@
+package scoop.tests.window.modal
+
+import scoop.test.*
+
+@Test
+private class NativeModalTests {
+    @Test
+    @Ignore("Requires a Windows desktop session; run separately with --ignored")
+    fun `owned windows and nested modal scopes retire native uses before their owners`() {
+        runModalProbe()
+    }
+}
