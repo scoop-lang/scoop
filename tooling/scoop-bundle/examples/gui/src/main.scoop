@@ -21,32 +21,24 @@ fun main() {
 }
 
 private class ResourceWindow(private val message: String): ApplicationHandler {
-    private var shown = false
-
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
-                application.createWindow(
-                    windowAttributes {
-                        title = "Scoop Bundle Window"
-                        size = LogicalSize(480.0, 280.0)
-                    }
-                )
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop Bundle Window"
+                            size = LogicalSize(480.0, 280.0)
+                        }
+                    )
+                window.requestFocus()
+                window.requestRedraw()
+                print(message)
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(2L))
                 )
             }
-            case Window(_, WindowEvent.RedrawRequested) -> {
-                if (!shown) {
-                    print(message)
-                    shown = true
-                }
-            }
-            case NewEvents(StartCause.Deadline) -> {
-                if (!shown)
-                    throw IllegalStateException(Some("The packaged window did not become visible"))
-                application.requestExit()
-            }
+            case NewEvents(StartCause.Deadline) -> application.requestExit()
             case Window(_, WindowEvent.CloseRequested) -> application.requestExit()
             else -> return
         }

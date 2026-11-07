@@ -244,6 +244,8 @@ Scoop Editor.app/
 
 Info.plist 至少生成 CFBundleIdentifier、CFBundleExecutable、CFBundleName、CFBundleDisplayName、CFBundlePackageType、版本、图标和最低系统版本。`bundle.macos.minimum-system-version` 默认取实际主程序与附加代码的最高部署要求，显式值不得更低。可用 `bundle.macos.info-plist` 提供额外 plist 键；身份、入口等生成字段发生不一致时报告冲突。
 
+一次打包对应一个明确 target。主程序、framework 或 dylib 为多架构 Mach-O 时，只根据所选 slice 收集依赖和最低系统版本，部署后先使用系统 `lipo` 提取该架构，再修改加载路径和签名；源文件保留全部架构。首期不合并 Universal 应用，也不将尚未部署依赖的其他 slice 留在包中。
+
 ```toml
 [bundle.macos]
 formats = ["app"]

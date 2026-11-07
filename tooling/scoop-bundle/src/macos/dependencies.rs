@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeSet,
+    ffi::OsStr,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -24,6 +25,7 @@ pub struct Code {
     pub dylib: bool,
     pub executable: bool,
     pub signed: bool,
+    pub thin_arch: Option<&'static str>,
     pub minimum: u32,
     pub changes: Vec<(String, PathBuf)>,
 }
@@ -81,6 +83,7 @@ fn describe(mach: MachO<'_>, source: &Path, destination: &Path, cpu: u32) -> Res
             .load_commands
             .iter()
             .any(|command| matches!(command.command, CommandVariant::CodeSignature(_))),
+        thin_arch: None,
         minimum,
         changes: Vec::new(),
     })
@@ -110,7 +113,9 @@ fn inspect(source: &Path, destination: &Path, arch: &str) -> Result<Option<Code>
                 if let SingleArch::MachO(mach) = entry?
                     && mach.header.cputype == cpu
                 {
-                    return describe(mach, source, destination, cpu).map(Some);
+                    let mut code = describe(mach, source, destination, cpu)?;
+                    code.thin_arch = Some(if arch == "aarch64" { "arm64" } else { "x86_64" });
+                    return Ok(Some(code));
                 }
             }
             bail!("{} has no {arch} Mach-O slice", source.display());
@@ -285,6 +290,24 @@ pub fn relocate(
     tools: &mut Tools<'_>,
 ) -> Result<()> {
     for code in &code.files {
+        let staged = app.join(&code.destination);
+        if let Some(arch) = code.thin_arch {
+            tools
+                .run(
+                    "lipo",
+                    [
+                        OsStr::new("-thin"),
+                        OsStr::new(arch),
+                        staged.as_os_str(),
+                        OsStr::new("-output"),
+                        staged.as_os_str(),
+                    ],
+                    inputs,
+                )
+                .with_context(|| {
+                    format!("select {arch} slice in {}", code.destination.display())
+                })?;
+        }
         let mut arguments = Vec::<std::ffi::OsString>::new();
         for (name, destination) in &code.changes {
             let relative = deploy::relative(
@@ -314,7 +337,7 @@ pub fn relocate(
         arguments.extend([
             "-add_rpath".into(),
             format!("@loader_path/{}", relative.display()).into(),
-            app.join(&code.destination).into_os_string(),
+            staged.into_os_string(),
         ]);
         tools
             .run("install_name_tool", arguments, inputs)

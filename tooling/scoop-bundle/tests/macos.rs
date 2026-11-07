@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
     let side = root.join("vendor/libSide.dylib");
     successful(
         Command::new("clang")
+            .args(["-arch", "arm64", "-arch", "x86_64"])
             .arg("-dynamiclib")
             .arg(root.join("side.c"))
             .arg("-o")
@@ -78,6 +79,7 @@ int main(int argc, char **argv) {
     );
     successful(
         Command::new("clang")
+            .args(["-arch", "arm64", "-arch", "x86_64"])
             .arg("-dynamiclib")
             .arg(root.join("answer.c"))
             .arg(&side)
@@ -95,6 +97,7 @@ int main(int argc, char **argv) {
     let executable = root.join("original program");
     successful(
         Command::new("clang")
+            .args(["-arch", "arm64", "-arch", "x86_64"])
             .arg(root.join("main.c"))
             .arg("-F")
             .arg(root.join("vendor"))
@@ -172,6 +175,21 @@ codesign = "tools/codesign"
     let first = record(&successful(&mut command()));
     assert_eq!(first["reused"], false);
     let app = PathBuf::from(first["output"].as_str().unwrap());
+    for relative in [
+        "Contents/MacOS/bundle-test",
+        "Contents/Frameworks/Answer.framework/Versions/A/Answer",
+        "Contents/Frameworks/libSide.dylib",
+    ] {
+        let architectures = successful(Command::new("lipo").arg("-archs").arg(app.join(relative)));
+        assert_eq!(
+            String::from_utf8(architectures.stdout).unwrap().trim(),
+            if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "x86_64"
+            }
+        );
+    }
     assert_eq!(
         fs::read_link(app.join("Contents/Frameworks/Answer.framework/Versions/Current")).unwrap(),
         Path::new("A")

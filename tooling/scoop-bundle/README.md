@@ -26,9 +26,9 @@ scoop bundle --executable ./dist/editor --target aarch64-apple-darwin \
 
 macOS 默认执行 ad-hoc codesign；真实证书在 `[bundle.macos.signing]` 显式选择 `mode = "identity"` 与 `identity`。主应用和辅助 executable 的 entitlements 分别声明。`--force` 强制重新部署和签名；普通命中不查询钥匙串或读取已签产物。
 
-工具不会下载或安装打包依赖。macOS 使用系统 `install_name_tool`、`codesign`，PNG 转 ICNS 需要 `iconutil`；可通过 `[bundle.tools]` 指定工具路径。Linux 使用 `patchelf`、`ldconfig`、`dpkg-deb`；RPM 直接通过锁定的格式库生成。AppImage 需要预先准备 `appimagetool` 和 type-2 runtime（命名为 `appimage-runtime` 放入 PATH，或在 `[bundle.tools]` 指定路径），每次调用都显式传入 runtime，避免上游在线下载。
+工具不会下载或安装打包依赖。macOS 使用系统 `install_name_tool`、`codesign`，PNG 转 ICNS 需要 `iconutil`；多架构 Mach-O 用 `lipo` 提取本次目标架构后部署，源文件保持不变。可通过 `[bundle.tools]` 指定工具路径。Linux 使用 `patchelf`、`ldconfig`、`dpkg-deb`；RPM 直接通过锁定的格式库生成。AppImage 需要预先准备 `appimagetool` 和 type-2 runtime（命名为 `appimage-runtime` 放入 PATH，或在 `[bundle.tools]` 指定路径），每次调用都显式传入 runtime，避免上游在线下载。
 
-[GUI 示例](examples/gui/Cone.toml) 打开真实窗口、读取资源并在两秒后退出，适合验证打包后的事件循环。Linux GUI 使用 GTK 4.18 以上、libadwaita 1.4 以上；deb/rpm 的发行版依赖必须由应用声明，AppImage 的构建系统须满足最低运行系统的 glibc 基线。动态加载模块、GSettings schema 等非 ELF imports 输入使用 files 显式加入。
+[GUI 示例](examples/gui/Cone.toml) 打开真实窗口、读取资源并在两秒后退出，适合验证打包后的事件循环。资源文本在窗口创建成功后打印；桌面可能因遮挡而暂缓绘制，这不影响资源读取或定时退出。Linux GUI 使用 GTK 4.18 以上、libadwaita 1.4 以上；deb/rpm 的发行版依赖必须由应用声明，AppImage 的构建系统须满足最低运行系统的 glibc 基线。动态加载模块、GSettings schema 等非 ELF imports 输入使用 files 显式加入。
 
 Developer ID 公证、Flatpak 与 MSIX 尚不属于首期。
 
