@@ -8,6 +8,7 @@ mod macos;
 mod project;
 mod target;
 mod tools;
+mod windows;
 
 #[cfg(test)]
 mod tests;
@@ -26,15 +27,16 @@ pub fn run(args: &Args) -> Result<()> {
     if formats.is_empty() {
         formats = match input.target.os.as_str() {
             "linux" => settings.config.linux.formats.clone(),
+            "windows" => settings.config.windows.formats.clone(),
             _ => settings.config.macos.formats.clone(),
         };
     }
     if formats.is_empty() {
         formats.push(
-            if input.target.os == "linux" {
-                "deb"
-            } else {
-                "app"
+            match input.target.os.as_str() {
+                "linux" => "deb",
+                "windows" => "nsis",
+                _ => "app",
             }
             .into(),
         );
@@ -82,7 +84,7 @@ fn bundle(input: &project::Input, format: &str, force: bool) -> Result<(PathBuf,
     ensure!(
         matches!(
             (input.target.os.as_str(), format),
-            ("darwin", "app") | ("linux", "deb" | "rpm" | "appimage")
+            ("darwin", "app") | ("linux", "deb" | "rpm" | "appimage") | ("windows", "nsis" | "msi")
         ),
         "format {format:?} is unavailable for {}",
         input.target.triple
@@ -119,6 +121,14 @@ fn bundle(input: &project::Input, format: &str, force: bool) -> Result<(PathBuf,
     }
     let mut tools = tools::Tools::new(settings);
     let artifact = match input.target.os.as_str() {
+        "windows" => windows::build(
+            input,
+            format,
+            &publish,
+            scratch.path(),
+            &mut inputs,
+            &mut tools,
+        )?,
         "linux" => linux::build(
             input,
             format,

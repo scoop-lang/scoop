@@ -45,7 +45,7 @@ pub fn decode(value: &Value) -> Result<PathBuf> {
             "UnixBytes" => serde_json::from_value::<Vec<u8>>(value["bytes"].clone())?,
             "unix-bytes" => {
                 let hex = value["hex"].as_str().context("missing path hex")?;
-                if !hex.is_ascii() || hex.len() % 2 != 0 {
+                if !hex.is_ascii() || !hex.len().is_multiple_of(2) {
                     bail!("invalid path hex");
                 }
                 (0..hex.len())
@@ -66,11 +66,13 @@ pub fn decode(value: &Value) -> Result<PathBuf> {
         let units = match encoding {
             "WindowsWtf16Le" => {
                 let bytes: Vec<u8> = serde_json::from_value(value["bytes"].clone())?;
-                if bytes.len() % 2 != 0 {
+                if !bytes.len().is_multiple_of(2) {
                     bail!("invalid UTF-16 path");
                 }
                 bytes
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|v| u16::from_le_bytes([v[0], v[1]]))
                     .collect::<Vec<_>>()
             }

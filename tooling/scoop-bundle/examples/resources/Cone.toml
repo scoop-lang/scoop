@@ -32,3 +32,10 @@ terminal = true
 
 [bundle.linux.deb]
 maintainer = "Scoop Examples <noreply@example.com>"
+
+[bundle.windows]
+formats = ["nsis", "msi"]
+vc-runtime = "system"
+
+[bundle.windows.msi]
+upgrade-code = "7c64998b-c73c-56bf-9b8b-63a4e06fd661"

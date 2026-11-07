@@ -35,6 +35,8 @@ pub struct Config {
     #[serde(default)]
     pub linux: Linux,
     #[serde(default)]
+    pub windows: Windows,
+    #[serde(default)]
     pub tools: BTreeMap<String, PathBuf>,
 }
 

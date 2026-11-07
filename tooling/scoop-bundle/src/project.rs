@@ -66,7 +66,7 @@ pub fn prepare(args: &Args) -> Result<Input> {
         command
     };
     let mut members = base();
-    members.args(["pm", "members", "--json"]);
+    members.args(["pm", "--diagnostic-format", "human", "members", "--json"]);
     if let Some(root) = &args.root_input {
         members.arg(root);
     }

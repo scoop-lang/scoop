@@ -275,7 +275,7 @@ source是带kind的封闭记录，各分支必需字段如下，不接收其他�
 
 driver 消费的是 lock 的精确图和本次已准备好的本地输入。portable source 不能直接当作本机文件路径，因此 PM 将 lock 投影为 `PreparedWorkspace` 返回；这份投影不是第二份 lock，不接受独立编辑，不记录另一套版本选择，也不是构建结果收据。
 
-`scoop-pm prepare --request <file> --response <file>` 是唯一自动构建接口。请求/响应采用版本为 4 的 UTF-8 JSON，展开 native 配置包含独立的 `objc_flags`；一次进程处理本次选中的全部根；响应成功后原子写文件，失败不提供部分成功响应。失败诊断写 stderr 的单个 JSON 记录，字段为 `version` 和 `diagnostic`，后者复用 `StructuredDiagnosticV1` 的 canonical CBOR 字节表示；清单主位置及相关声明保留为 host path/span，driver 直接交给现有诊断展示。其他面向人的 PM 命令仍输出文本诊断。未知协议版本明确失败，不在 driver 中降级成旧解析器。文件中的 host path 沿用既有可表示本机路径的数据载体，不能通过有损 UTF-8 转换改变路径。源码节点除解析后的实际 Cone 根外保留输入定位目录 `input_root`，供编译期 include 的路径范围判断；这一定位不改变 Cone 身份。
+`scoop-pm prepare --request <file> --response <file>` 是唯一自动构建接口。请求/响应采用版本为 6 的 UTF-8 JSON，展开 native 配置包含独立的 `objc_flags`；一次进程处理本次选中的全部根；响应成功后原子写文件，失败不提供部分成功响应。失败诊断默认写 stderr 的单个 JSON 记录，字段为 `version` 和 `diagnostic`，后者复用 `StructuredDiagnosticV1` 的 canonical CBOR 字节表示；清单主位置及相关声明保留为 host path/span，driver 直接交给现有诊断展示。其他面向人的 PM 命令默认输出文本诊断。全局 `--diagnostic-format human|json` 可独立选择 stderr 的诊断格式，不改变成功的数据输出；例如打包器用 `--diagnostic-format human members --json` 取得结构化成员信息并直接展示失败原因。未知协议版本明确失败，不在 driver 中降级成旧解析器。文件中的 host path 沿用既有可表示本机路径的数据载体，不能通过有损 UTF-8 转换改变路径。源码节点除解析后的实际 Cone 根外保留输入定位目录 `input_root`，供编译期 include 的路径范围判断；这一定位不改变 Cone 身份。
 
 请求的必需信息是：协议版本、cwd/显式 root、成员选择、purpose、canonical target、sysroot、artifact search roots、PM cache 位置和 locked/offline 策略；可选指定 lock 路径。profile、编译参数、native 工具位置和输出调度不参与求解。响应的必需信息是：协议版本、workspace/lock 位置、所选解析单位，以及每个单位的完整精确节点和边。节点用 `SourceCone` 或 `PrebuiltCone` 闭合表示：
 
@@ -320,7 +320,7 @@ LSP 使用同一已展开数据模型。加载项目时，先通过 PM 的 membe
 
 LSP 在 workspace 根打开时发现全部成员，并为各成员独立取得所选 target/purpose 的锁定图；显式成员目录只选择该成员。同一次加载发现 lock 缺失时，共用该 lock 的各成员和配置都执行上述初始化，不因第一个成员创建了文件而漏掉其余记录。某成员解析失败、缺少适用记录或本地依赖时，仅该成员的依赖语义不可用，本地源码、语法诊断和 workspace 符号仍可使用，不能以猜测的版本或空依赖图冒充已解析项目。首次 lock 只依据磁盘清单生成；未保存文本继续仅作为随后 members/metadata 的覆盖输入，不写入 lock。已安装系统库的源码导航也使用 members 提供的源码选择，不为导航解析依赖。`Cone.lock` 与清单、源码和产物共同参与文件监听；已有 lock 的依赖准备仍由用户显式 resolve/fetch/build 触发。LSP 的 `packageManager` 默认取实际 scoop-lsp 同目录的 scoop-pm，`packageCacheDir` 与 `lockfile` 可显式配置，均沿配置根解析相对路径。
 
-`members --json` 的格式 4 同样由 `scoop-protocol` 定义：返回 workspace root、所有成员的 coordinate/kind/相对路径/本地目录/清单路径、selected 标记及生产/测试 SourceSelection；本地路径使用无损 host path 载体。formatter 消费所选成员的源码集合，clean 使用 workspace root 定位统一 target；两者不调用 prepare，不创建或读取 lock。JSON 失败使用与 prepare 相同的结构化诊断记录。`fmt` 支持 `--workspace` 和可重复 `-p`，成员选择只接受一个 workspace 输入；多个显式文件仍可合并格式化。显式 `.scoop` 文件模式独立于 PM。
+`members --json` 的格式 6 同样由 `scoop-protocol` 定义：返回 workspace root、所有成员的 coordinate/kind/相对路径/本地目录/清单路径、selected 标记、生产/测试 SourceSelection 及第 2 节的 metadata/bundle；本地路径使用无损 host path 载体。formatter 消费所选成员的源码集合，clean 使用 workspace root 定位统一 target；两者不调用 prepare，不创建或读取 lock。JSON 失败默认使用与 prepare 相同的结构化诊断记录，也可显式选择文本诊断。`fmt` 支持 `--workspace` 和可重复 `-p`，成员选择只接受一个 workspace 输入；多个显式文件仍可合并格式化。显式 `.scoop` 文件模式独立于 PM。
 
 ## 8. 源码 registry
 

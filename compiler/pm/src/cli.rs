@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use scoop_manifest::DependencyCoordinateKey;
 use scoop_pm::{MemberSelection, PmError, PmResult, Workspace};
 use scoop_protocol::HostPathCarrier;
@@ -14,8 +14,17 @@ mod resolve;
 #[derive(Parser)]
 #[command(name = "scoop-pm", version = scoop_toolchain::VERSION, about = "Manage Scoop workspaces and packages")]
 struct Cli {
+    /// Select the stderr diagnostic format independently of command data output.
+    #[arg(long, global = true, value_enum)]
+    diagnostic_format: Option<DiagnosticFormat>,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum DiagnosticFormat {
+    Human,
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -73,9 +82,15 @@ struct LocalMembersArgs {
 
 pub fn run() -> Result<(), (PmError, bool)> {
     let cli = Cli::parse();
-    let machine = matches!(&cli.command, Command::Prepare { .. })
-        || matches!(&cli.command, Command::Members(args) if args.members.json)
-        || matches!(&cli.command, Command::Metadata(args) if args.json());
+    let machine = match cli.diagnostic_format {
+        Some(DiagnosticFormat::Human) => false,
+        Some(DiagnosticFormat::Json) => true,
+        None => {
+            matches!(&cli.command, Command::Prepare { .. })
+                || matches!(&cli.command, Command::Members(args) if args.members.json)
+                || matches!(&cli.command, Command::Metadata(args) if args.json())
+        }
+    };
     execute(cli).map_err(|error| (error, machine))
 }
 

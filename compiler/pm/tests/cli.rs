@@ -45,14 +45,36 @@ fn malformed_manifest_reports_its_path_and_location() {
         "schema = 1\n[workspace]\nmembers = ['../outside']\n",
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_scoop-pm"))
-        .arg("members")
-        .current_dir(directory.path())
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    let error = String::from_utf8(output.stderr).unwrap();
-    assert!(error.contains("Cone.toml") && error.contains("bytes") && error.contains("escape"));
+    for arguments in [
+        vec!["members"],
+        vec!["--diagnostic-format", "human", "members", "--json"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_scoop-pm"))
+            .args(arguments)
+            .current_dir(directory.path())
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert!(error.contains("Cone.toml") && error.contains("bytes") && error.contains("escape"));
+    }
+    for arguments in [
+        vec!["members", "--json"],
+        vec!["members", "--diagnostic-format", "json"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_scoop-pm"))
+            .args(arguments)
+            .current_dir(directory.path())
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let error: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+        assert_eq!(
+            error["version"],
+            scoop_protocol::package::PACKAGE_PROTOCOL_VERSION
+        );
+        assert!(!error["diagnostic"].as_array().unwrap().is_empty());
+    }
 }
 
 #[test]
@@ -74,7 +96,7 @@ fn members_delivers_inherited_metadata_and_bundle_without_loading_resources() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_scoop-pm"))
-        .args(["members", "--json"])
+        .args(["--diagnostic-format", "human", "members", "--json"])
         .current_dir(directory.path())
         .output()
         .unwrap();

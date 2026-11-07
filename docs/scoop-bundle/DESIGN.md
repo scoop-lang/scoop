@@ -41,7 +41,7 @@
 
 PM 识别 `[bundle]` 工具表或外部配置引用，保留原始 TOML 值及诊断来源；字段含义只由 bundle 解析器解释。普通 build/check 不读取外部 bundle 文件、资源、证书或平台打包工具。bundle 表不进入 `ConeManifestSemantic`、`.slib`、语言身份或编译请求。
 
-成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
+成员接口提供已展开的名称、版本、description、license、repository，打包器不再解释 workspace 继承或依赖规则。调用时使用 PM 的 `--diagnostic-format human`，成功 stdout 仍为成员 JSON，失败 stderr 可直接展示清单位置及原因，不把 CBOR 字节数组打印给用户。原始 manifest 文本仍只服务诊断。上述两处 JSON 扩展按各自现有格式规则同步生产者与消费者，不另建构建收据或完整编译协议。
 
 项目模式的主流程为：
 
@@ -302,27 +302,41 @@ GUI 依赖的模块与数据用真实窗口和资源读取验收。`--appimage-e
 [bundle.windows]
 formats = ["nsis", "msi"]
 install-mode = "per-user"
+# Required when PE imports use the VC runtime: system or app-local.
+vc-runtime = "system"
 
 [bundle.windows.nsis]
 start-menu-shortcut = true
 desktop-shortcut = false
+# file-version = "1.2.3.0"
 
 [bundle.windows.msi]
 upgrade-code = "58723036-0bd5-4df5-9d42-8df91d07f606"
 product-version = "1.2.3"
+start-menu-shortcut = true
+desktop-shortcut = false
 
 [bundle.windows.signing]
 certificate-thumbprint = "0123456789ABCDEF0123456789ABCDEF01234567"
 timestamp-url = "https://timestamp.example.com"
+# certificate-store = "current-user" # or local-machine
 ```
 
 上述 UUID、证书和时间戳地址仅为格式示例；应用应使用自己的稳定 UpgradeCode 和实际签名配置。
 
 两种格式使用相同的 payload 和公共 publisher/display-name/version；默认 per-user，安装到当前用户的 `LocalAppData/Programs/<identifier>`，per-machine 默认使用 `Program Files/<identifier>` 并按 Windows 正常权限流程安装。安装器允许用户选择目录，资源和 DLL 继续相对程序定位。NSIS 的卸载登记以稳定应用标识区分产品，安装器支持标准静默参数和版本升级。
 
+PE 主程序与附加代码验证目标架构；普通 imports、delay imports 和导出转发引用中的私有 DLL 一并处理。自动部署的 DLL 与使用它的程序位于同一加载目录，不从 PATH 随机选择运行库。VC runtime 的 `system` 表示由部署环境提供；`app-local` 从显式文件或 library-search-paths 中取得可分发 DLL。Windows 自带 UCRT/API-set 继续由系统提供，应用自行动态加载的插件仍须显式声明。
+
 首期升级针对同一种格式和安装范围；NSIS/MSI 互相切换或改变安装范围时，要求先正常卸载已有安装，再安装新包，不覆盖另一安装器拥有的同目录文件。两种格式共用应用 metadata，但不伪造对方的安装记录。
 
 MSI 通过 WiX 定义产品、目录、component、快捷方式和升级。UpgradeCode 是必填的稳定 UUID，不随版本变化；ProductCode 和 PackageCode 按 WiX/MSI 规则产生，component 身份按稳定安装路径维护。支持正常安装、修复、升级和卸载；默认拒绝降级。用户数据不放在 payload 中，卸载只处理安装器拥有的内容。
+
+MSI 使用 WiX CLI 与同版本 UI 扩展提供目录选择；扩展 DLL 通过 `bundle.tools.wix-ui-extension` 指定，或从 PATH 中选择 `WixToolset.UI.wixext.dll`。首期验收选择 MS-RL 许可的 WiX 5.0.2；WiX 6/7 引入的 OSMF 条款由使用者自行处理，打包器不代为接受协议。安装不要求接受工具生成的示例许可协议。NSIS/MSI 使用普通应用注册表值记录安装范围、目录及安装器类型，阻止未卸载就切换格式/范围；这些值只服务安装和升级，不用于证明来源。
+
+MSI 数据库使用 UTF-8 保存产品名称、发布者和文件名。Windows Installer 摘要只允许 ANSI 代码页，因此摘要使用 ASCII 应用标识、版本和生成工具名称；安装界面与程序列表继续显示完整的产品 metadata。
+
+WiX 5 的原生 CAB 接口使用系统 ANSI 代码页表示压缩输出目录。后端把 WiX 中间文件放在独立的系统临时目录，输入文件和最终安装包仍允许 Unicode 路径；使用 WiX 5 时，`TEMP` 须能由系统 ANSI 代码页表示。临时目录随本次调用清理，不进入更新缓存。
 
 可选 Authenticode 签名使用 Windows 证书存储引用和时间戳配置：先签署本次需要签名的 exe/DLL payload，再生成安装器并签署最终 NSIS/MSI。后端负责 NSIS uninstaller 等内部可执行文件的正确签名顺序，不能只签外层安装包后宣称内部程序已签名。显式要求签名时失败不发布新包。
 

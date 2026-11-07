@@ -26,6 +26,7 @@ pub struct Plan {
     entries: BTreeMap<PathBuf, Entry>,
     names: BTreeMap<String, PathBuf>,
     insensitive: bool,
+    windows: bool,
 }
 
 impl Plan {
@@ -34,12 +35,32 @@ impl Plan {
             entries: BTreeMap::new(),
             names: BTreeMap::new(),
             insensitive: target.os != "linux",
+            windows: target.os == "windows",
         }
     }
 
     fn insert(&mut self, destination: PathBuf, entry: Entry) -> Result<()> {
         if destination.as_os_str().is_empty() {
             return Ok(());
+        }
+        if self.windows {
+            for component in destination.components() {
+                let text = component
+                    .as_os_str()
+                    .to_str()
+                    .context("Windows installer paths must be Unicode")?;
+                let stem = text.split('.').next().unwrap_or(text).to_ascii_uppercase();
+                ensure!(
+                    !text.ends_with(['.', ' '])
+                        && !text.contains(['<', '>', ':', '"', '|', '?', '*'])
+                        && !text.chars().any(char::is_control)
+                        && !matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+                        && !(stem.len() == 4
+                            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+                            && matches!(stem.as_bytes()[3], b'1'..=b'9')),
+                    "invalid Windows package filename {text:?}"
+                );
+            }
         }
         if let Some(parent) = destination.parent() {
             self.directory(parent, false)?;
@@ -85,6 +106,19 @@ impl Plan {
 
     pub fn generated(&mut self, path: impl Into<PathBuf>, data: impl Into<Vec<u8>>) -> Result<()> {
         self.insert(path.into(), Entry::Generated(data.into()))
+    }
+
+    pub fn require_unused(&self, path: &Path) -> Result<()> {
+        ensure!(
+            !self.entries.contains_key(path)
+                && (!self.insensitive
+                    || !self
+                        .names
+                        .contains_key(&path.to_string_lossy().to_lowercase())),
+            "generated package destination conflicts with a payload entry: {}",
+            path.display()
+        );
+        Ok(())
     }
 
     pub fn symlink(&mut self, path: impl Into<PathBuf>, target: impl Into<PathBuf>) -> Result<()> {

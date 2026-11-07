@@ -29,11 +29,15 @@ impl<'a> Tools<'a> {
         let path = if let Some(path) = self.settings.config.tools.get(name) {
             self.settings.path(path)
         } else {
-            let suffix = if cfg!(windows) { ".exe" } else { "" };
+            let file_name = if name == "wix-ui-extension" {
+                "WixToolset.UI.wixext.dll".to_owned()
+            } else {
+                format!("{name}{}", if cfg!(windows) { ".exe" } else { "" })
+            };
             let path = std::env::var_os("PATH").unwrap_or_default();
             let mut found = None;
             for directory in std::env::split_paths(&path) {
-                let candidate = directory.join(format!("{name}{suffix}"));
+                let candidate = directory.join(&file_name);
                 inputs.watch(&candidate)?;
                 if candidate.is_file() {
                     found = Some(candidate);
