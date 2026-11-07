@@ -162,6 +162,36 @@ class ComponentLicenseTests(unittest.TestCase):
             )
             self.assertIn(f"| Rust-std-{target} |", (licenses / "README.md").read_text())
 
+    def test_linux_gui_licenses_follow_the_gui_package(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = "x86_64-unknown-linux-gnu"
+            library = root / "sysroot/lib" / target
+            for relative, content in (
+                ("rust-std/COPYRIGHT-library.txt", "Rust license"),
+                ("gtk-licenses/gtk4/COPYING", "GTK license"),
+                ("tray-licenses/libdbusmenu/COPYING", "dbusmenu license"),
+            ):
+                (library / relative).parent.mkdir(parents=True)
+                (library / relative).write_text(content)
+            installation = root / "installation"
+            package_licenses.collect_base_libraries(installation, root / "sysroot", target)
+            package_licenses.collect_gui_libraries(installation, root / "sysroot", target)
+            base = installation / f"share/licenses/lib-base-{target}"
+            gui = installation / f"share/licenses/lib-gui-{target}"
+            self.assertEqual(
+                {path.name for path in base.iterdir()}, {"README.md", f"Rust-std-{target}"}
+            )
+            self.assertEqual(
+                (gui / "GTK-gtk4/COPYING").read_text(),
+                "GTK license",
+            )
+            self.assertEqual(
+                (gui / "Tray-libdbusmenu/COPYING").read_text(),
+                "dbusmenu license",
+            )
+            self.assertNotIn("Rust-std", (gui / "README.md").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -205,6 +205,18 @@ class PostInstallTests(unittest.TestCase):
         self.assertIn(f"scoop-1.2.3-lib-base-{MINGW}.tar.xz", result.stderr)
         self.assertEqual(self.recorded(), [])
 
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell is not installed")
+    def test_powershell_documents_gui_cones_only_with_the_gui_package(self):
+        self.installation((MSVC, MINGW), gui_installed=(MSVC,))
+        gui = [str(self.root / "src" / name / "Cone.toml") for name in ("scoop.window", "scoop.ui")]
+        for target, documented in ((MSVC, True), (MINGW, False)):
+            result = self.run_install("--target", target, powershell=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            [command] = self.recorded()
+            self.assertIn(str(self.root / "src/scoop.std/Cone.toml"), command)
+            for manifest in gui:
+                self.assertEqual(manifest in command, documented)
+
 
 if __name__ == "__main__":
     unittest.main()
