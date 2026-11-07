@@ -1,0 +1,49 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class DemoFrameStyle(val background: Color, val metrics: WindowFrameMetrics?)
+
+internal class DemoFrame(
+    private val document: DemoDocument,
+    private val props: Props<DemoFrameStyle>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val value = props.value
+        context.draw {
+            paint ->
+            val bounds = Rect(0.0, 0.0, paint.size.width, paint.size.height)
+            paint.canvas.clipRect(bounds)
+            path(FillRule.EvenOdd) {
+                addRect(bounds)
+                when (value.metrics) {
+                    case Some(metrics) -> for (button in metrics.systemButtons) {
+                        val rect = button.bounds
+                        addRect(
+                            Rect(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
+                        )
+                    }
+                    case None -> {}
+                }
+            }.use { paint.canvas.drawPath(it, Paint(value.background)) }
+        }
+        context.children()
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> document.frames += 1
+                else -> {}
+            }
+        }
+    }
+}

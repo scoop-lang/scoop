@@ -48,6 +48,9 @@ int32_t scoop_surface_d3d_frame_present(SSUFrame *frame) {
   if (current.right != surface->width || current.bottom != surface->height ||
       GetDpiForWindow(surface->window) / 96.0 != surface->scale)
     return S_FALSE;
+  // Acquiring or discarding a frame does not submit it to DXGI. Only an actual
+  // Present attempt consumes the opportunity reserved by the native wait.
+  surface->available.store(false);
   const HRESULT result =
       surface->swapchain->Present(1, DXGI_PRESENT_DO_NOT_WAIT);
   if (result == DXGI_ERROR_WAS_STILL_DRAWING || result == DXGI_STATUS_OCCLUDED)

@@ -4,6 +4,8 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.platform.windows.*
 
+internal fun platformExtendedMenuBar(): Boolean = false
+
 internal fun platformFrameControls(root: DocumentView): View {
     val window = root.document.window
     val caps = window.windowsFrameCapabilities()

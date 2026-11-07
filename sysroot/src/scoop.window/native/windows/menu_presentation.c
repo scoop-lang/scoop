@@ -1,12 +1,12 @@
 #include "menu.h"
 
-static HMENU clone_menu(SWMenu *owner, HMENU source, bool bar) {
+static HMENU clone_menu(SWMenu *owner, HMENU source, bool bar, DWORD style) {
   HMENU target = bar ? CreateMenu() : CreatePopupMenu();
   if (!target)
     return NULL;
   MENUINFO info = {.cbSize = sizeof(info),
                    .fMask = MIM_STYLE | MIM_MENUDATA,
-                   .dwStyle = MNS_NOTIFYBYPOS,
+                   .dwStyle = style,
                    .dwMenuData = (ULONG_PTR)owner};
   if (!SetMenuInfo(target, &info)) {
     DestroyMenu(target);
@@ -36,7 +36,7 @@ static HMENU clone_menu(SWMenu *owner, HMENU source, bool bar) {
       return NULL;
     }
     if (item.hSubMenu) {
-      item.hSubMenu = clone_menu(owner, item.hSubMenu, false);
+      item.hSubMenu = clone_menu(owner, item.hSubMenu, false, style);
       if (!item.hSubMenu) {
         free(text);
         DestroyMenu(target);
@@ -74,7 +74,7 @@ static void record_handles(HMENU handle) {
 int64_t sw_menu_root_kind(SWMenu *menu, bool bar) {
   if (menu->bar == bar)
     return 0;
-  HMENU next = clone_menu(menu, menu->handle, bar);
+  HMENU next = clone_menu(menu, menu->handle, bar, bar ? MNS_NOTIFYBYPOS : 0);
   if (!next)
     return sw_menu_error();
   DestroyMenu(menu->handle);
@@ -126,6 +126,9 @@ int64_t scoop_window_menu_bind(SWMenu *menu, int32_t kind, int64_t serial,
     return -1;
   if (kind != 3 && !window)
     return ERROR_INVALID_PARAMETER;
+  if (kind == 1 && window->frame_mode == 1 &&
+      GetMenuItemCount(menu->handle) > 0)
+    return -1;
   int64_t error = sw_menu_root_kind(menu, kind == 1);
   if (error)
     return error;

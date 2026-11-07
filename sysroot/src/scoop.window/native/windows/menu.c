@@ -23,7 +23,7 @@ SWResult scoop_window_menu_create(SWApplication *app, int64_t identity) {
   }
   MENUINFO info = {.cbSize = sizeof(info),
                    .fMask = MIM_MENUDATA | MIM_STYLE,
-                   .dwStyle = MNS_NOTIFYBYPOS,
+                   .dwStyle = 0,
                    .dwMenuData = (ULONG_PTR)menu};
   if (!SetMenuInfo(menu->handle, &info)) {
     int64_t error = sw_menu_error();
@@ -97,6 +97,8 @@ int64_t scoop_window_menu_append(SWMenu *menu, int64_t identity, int64_t parent,
                                  int32_t kind, int32_t checked, int32_t enabled,
                                  int32_t role, const uint8_t *text,
                                  int64_t length, int32_t key, int32_t mods) {
+  if (!parent && menu->binding == 1 && menu->window->frame_mode == 1)
+    return -1;
   SWMenuEntry *container = parent ? sw_menu_find(menu, parent) : NULL;
   if (parent && (!container || !container->submenu))
     return ERROR_INVALID_PARAMETER;
@@ -135,7 +137,7 @@ int64_t scoop_window_menu_append(SWMenu *menu, int64_t identity, int64_t parent,
     }
     MENUINFO info = {.cbSize = sizeof(info),
                      .fMask = MIM_MENUDATA | MIM_STYLE,
-                     .dwStyle = MNS_NOTIFYBYPOS,
+                     .dwStyle = menu->bar ? MNS_NOTIFYBYPOS : 0,
                      .dwMenuData = (ULONG_PTR)menu};
     if (!SetMenuInfo(entry->submenu, &info)) {
       int64_t error = sw_menu_error();
@@ -153,6 +155,11 @@ int64_t scoop_window_menu_append(SWMenu *menu, int64_t identity, int64_t parent,
                                   (checked ? MFS_CHECKED : MFS_UNCHECKED),
                         .wID = entry->command,
                         .dwItemData = (ULONG_PTR)entry};
+  if (kind != 4) {
+    // Win32 turns a string item without initial text into a separator.
+    item.fMask |= MIIM_STRING;
+    item.dwTypeData = entry->text;
+  }
   if (entry->submenu) {
     item.fMask |= MIIM_SUBMENU;
     item.hSubMenu = entry->submenu;

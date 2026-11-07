@@ -181,7 +181,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->owning_window = parent;
   window->identity = identity;
   window->frame_mode = (flags & 1) ? 0 : 2;
-  window->frame_hover = window->frame_pressed = -1;
+  window->frame_hover = window->frame_pressed = window->frame_button_down = -1;
   window->resizable = (flags & 2) != 0;
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =

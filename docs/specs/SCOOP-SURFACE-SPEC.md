@@ -312,6 +312,8 @@ Surface 在 owner 上创建并使用 GPU context、swapchain 和呈现资源；�
 
 帧机会来自 DXGI frame-latency waitable object，按需求单次等待并合并 owner 通知。原生后台等待只投递通知，不读取托管 Surface 状态、不执行绘制。通知复用现有 Win32 消息循环，普通 run、asyncio 和系统嵌套循环遵守相同 owner 边界；不使用固定周期 timer、忙轮询或普通帧的 CPU fence 等待模拟帧时钟。隐藏、最小化和零尺寸停止帧需求；恢复后保留的 dirty 重新取帧。
 
+取消帧需求或退休过期通知不丢弃已经从 DXGI 取得、尚未用于 Present 的帧机会。已经就绪的 native wait 回调先完成机会记录，再退休其消息；因隐藏、尺寸变化或绘制中止而没有执行 Present 时保留该机会。再次产生需求时异步交付保留的机会，不能等待一个只有后续 Present 才会重新发出的信号。
+
 Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换，再在同一 direct queue 的有序工作之后 Present。过期尺寸、暂不可呈现或未就绪返回 Deferred；设备移除及其他确定的 HRESULT 失败报告 GraphicsException，不能静默重试或切换 renderer。resize 退休旧 backbuffer，并在其实际 GPU 使用结束后重新配置；普通提交保持异步，显式读回、resize 和关闭才同步相关 GPU 使用。
 
 关闭先解除原生等待和消息通知，结束正在使用的 frame，再排空相关 GPU 工作、卸载自己的合成目标、释放 swapchain／context，最后关闭 lease。已排队通知不能访问已释放 surface；关闭不依赖 ApplicationProxy 再执行业务闭包。三个目标分别构建相容的 C++／CRT 资源，并用所属 Cone 的 scoop.test 运行离屏、真实 D3D12、窗口、IME 与收尾测试；Linux 不进入本阶段的发布或验收。

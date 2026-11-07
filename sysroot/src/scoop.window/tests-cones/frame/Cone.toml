@@ -39,7 +39,7 @@ when = { os = "windows" }
 
 [native]
 include = [{ sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
-c_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
 [[native.sources]]

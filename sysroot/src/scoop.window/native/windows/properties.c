@@ -142,7 +142,7 @@ int64_t scoop_window_theme(SWWindow *window, int32_t theme) {
   HRESULT hr = DwmSetWindowAttribute(window->hwnd, 20, &dark, sizeof(dark));
   if (FAILED(hr)) {
     window->theme = previous;
-    return hr == E_INVALIDARG ? -1 : (uint32_t)hr;
+    return hr == E_INVALIDARG ? -1 : (int64_t)(uint32_t)hr;
   }
   sw_emit(window, 6);
   return 0;

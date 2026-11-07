@@ -4,6 +4,8 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.platform.macos.*
 
+internal fun platformExtendedMenuBar(): Boolean = true
+
 internal fun platformFrameControls(root: DocumentView): View =
     row {
         spacing = 10.0

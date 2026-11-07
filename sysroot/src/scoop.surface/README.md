@@ -105,6 +105,7 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 - `tests-cones/host-shortcuts`：macOS 的共享宿主登记、窗口本地优先、根模态边界、关闭首窗后附着第二窗口，以及动作内关闭宿主。
 - `tests-cones/scroll`：macOS 原生行／像素滚动、嵌套残量、区域移动后的连续 phase／momentum、源失效后抑制背景滚动与正常收尾。
 - `tests-cones/presentation`：Windows 桌面上用两个重叠的真实窗口，采样透明区域和半透明绘图的最终合成像素。
+- `tests-cones/frame-demand`：Windows 桌面的单个 Application／asyncio session 中连续隐藏并丢弃帧，再恢复重绘，验证 DXGI 已取得的帧机会不会在停止需求时丢失；正常提交、超时和资源收尾均有断言。
 
 可通过 `scoop test <Cone路径> --release --target <目标> --sysroot <sysroot>` 分别运行；Windows 安装后的命令名为 `sco`，仓库开发构建为 `scoop.exe`。真实显示测试需要已解锁、显示开启的桌面；显示休眠或锁屏时 AppKit 将窗口报告为遮挡，生产代码按合同停帧。当前交付状态与验证限制见 [实施记录](../../../docs/surface/PROGRESS.md)。
 
