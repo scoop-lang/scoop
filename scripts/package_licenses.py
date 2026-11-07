@@ -65,7 +65,11 @@ def collect_bin(root, repository, host):
     )
     packages = {}
     dependencies = {}
-    for workspace in (repository, repository / "tooling/scoop-example"):
+    for workspace in (
+        repository,
+        repository / "tooling/scoop-example",
+        repository / "tooling/scoop-bundle",
+    ):
         metadata = json.loads(
             subprocess.check_output(
                 [
@@ -82,13 +86,21 @@ def collect_bin(root, repository, host):
         )
         packages.update((package["id"], package) for package in metadata["packages"])
         for node in metadata["resolve"]["nodes"]:
-            # Shared crates may enable different features in the two Cargo projects.
+            # Shared crates may enable different features in the Cargo projects.
             dependencies.setdefault(node["id"], []).extend(node["deps"])
     queue = [
         package["id"]
         for package in packages.values()
         if package["name"]
-        in {"scoop", "scoopc", "scoop-linker", "scoop-lsp", "scoop-pm", "scoop-example"}
+        in {
+            "scoop",
+            "scoopc",
+            "scoop-linker",
+            "scoop-lsp",
+            "scoop-pm",
+            "scoop-example",
+            "scoop-bundle",
+        }
     ]
     visited = set()
     while queue:

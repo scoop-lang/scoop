@@ -110,7 +110,7 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 
 开发与发行 sysroot 均准备 `runtime`、`runtime-stress`、`runtime-startup-stats`、`runtime-stress-startup-stats` 四组目标 runtime，每组包含 `index.cbor`。默认构建使用 `runtime`，不编入 GC stress 或启动统计支持；`scoop --enable-gc-stress build/run/test/link` 选择 stress 配置，随后由 `SCOOP_GC_STRESS_MOVE` / `SCOOP_GC_STRESS_MINOR` 决定运行时是否开启。`--enable-startup-stats` 独立选择启动统计配置，编入后每次启动直接向 stderr 输出记录；未传时预处理完全排除计时和报告代码。两个开关可以组合，独立 `scoop-link` 同样支持。普通 fixtures 不传这些开关，相关专测显式选择。旧 schema 6 runtime 索引需要重新准备，`.slib` 和 runtime ABI 不变。
 
-`package_toolchain.py` 是发行组件包的唯一入口：取得固定 LLVM 输入、按 lockfile 构建 VS Code 扩展、构建 LLVM、五个 release 宿主命令与独立的 scoop-example、准备该宿主支持的全部 native／runtime 资源，并用本次编译器为各发行目标构建系统库 `.slib`，随包复制内置 Cone 源码、vendor、Scoop 编程 skill 和 post-install 脚本，最后按宿主／目标／全局维度生成下述六类组件归档。打包不生成 API 文档；文档由安装后的配套工具现场生成。无需事先逐个执行其他准备或扩展打包脚本。默认工作位置为 `tmp/package/<host>`，全部归档集中于以版本命名的 `tmp/dist/scoop-<version>/`；用 `--work-dir`、`--output-dir` 可选择外置盘目录。脚本不自动运行测试。
+`package_toolchain.py` 是发行组件包的唯一入口：取得固定 LLVM 输入、按 lockfile 构建 VS Code 扩展、构建 LLVM、五个 release 宿主命令与独立的 scoop-example、scoop-bundle，准备该宿主支持的全部 native／runtime 资源，并用本次编译器为各发行目标构建系统库 `.slib`，随包复制内置 Cone 源码、vendor、Scoop 编程 skill 和 post-install 脚本，最后按宿主／目标／全局维度生成下述六类组件归档。打包不生成 API 文档；文档由安装后的配套工具现场生成。无需事先逐个执行其他准备或扩展打包脚本。默认工作位置为 `tmp/package/<host>`，全部归档集中于以版本命名的 `tmp/dist/scoop-<version>/`；用 `--work-dir`、`--output-dir` 可选择外置盘目录。脚本不自动运行测试。
 
 Linux GNU 的 native 与系统库默认使用本次准备或通过 `--llvm-prefix` 选择的 LLVM Clang；GUI 的 native 警告选项要求 Clang。`--gnu-cc` 仍可显式覆盖编译器。musl 使用自己的 `--musl-cc`，不会复用 GNU Clang 配置。
 
@@ -204,6 +204,10 @@ post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，
 
 `python3 scripts/build_scoop_example.py` 仅构建 `tooling/scoop-example` 并将命令安装到开发 sysroot，不调用编译器。它使用独立 Cargo lockfile；新增示例与正文位于 `sysroot/share/scoop/examples`，已有库示例保持原文件。可用 `--sysroot` 安装到另一份配套工具链，用 `--target-dir` 指定构建缓存。完整打包入口自动完成这一步，并复制所有主题材料。内容维护和独立测试见[阅读器说明](../tooling/scoop-example/README.md)。
 
+
+## 应用打包外部命令
+
+`python3 scripts/build_scoop_bundle.py` 独立构建 `tooling/scoop-bundle` 并安装到开发 sysroot 的 `commands/`，不构建 LLVM。`--sysroot` 与 `--target-dir` 分别选择安装位置和构建缓存。完整工具链打包自动包含该命令及其 Rust 依赖许可；应用本身的打包用 `scoop bundle`，配置与示例见 [工具说明](../tooling/scoop-bundle/README.md)。各格式的系统打包工具由维护环境显式准备。
 
 ## 调试器发行资源
 

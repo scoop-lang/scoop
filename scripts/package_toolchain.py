@@ -15,6 +15,7 @@ import tomllib
 from pathlib import Path
 from urllib.parse import quote
 
+import build_scoop_bundle
 import build_scoop_example
 import package_debugger
 import package_licenses
@@ -696,6 +697,8 @@ def main():
     example_environment.pop("CARGO_ENCODED_RUSTFLAGS", None)
     example = build_scoop_example.build(args.work_dir / "scoop-example", example_environment)
     build_scoop_example.install(example, sysroot)
+    bundle = build_scoop_bundle.build(args.work_dir / "scoop-bundle", example_environment)
+    build_scoop_bundle.install(bundle, sysroot)
     targets = list(host_definition(args.host)["distribution_targets"])
     if args.prepared_sysroot is None:
         prepare_targets(args, targets, binaries, environment)

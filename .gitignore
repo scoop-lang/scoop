@@ -4,6 +4,11 @@
 /sysroot/commands/scoop-example
 /sysroot/commands/scoop-example.exe
 /tooling/scoop-example/target
+/tooling/scoop-bundle/target
+/tooling/scoop-bundle/examples/*/target
+/tooling/scoop-bundle/examples/*/Cone.lock
+/sysroot/commands/scoop-bundle
+/sysroot/commands/scoop-bundle.exe
 /sysroot/vendor/llvm-project/*/*.src/
 /sysroot/vendor/llvm-project/*/*.src.tar.xz
 /tmp

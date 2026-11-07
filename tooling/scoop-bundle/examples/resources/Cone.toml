@@ -1,0 +1,26 @@
+schema = 1
+
+[cone]
+group = "dev.scoop.bundle"
+name = "resource-app"
+version = "1.0.0"
+kind = "executable"
+description = "A Scoop application reading a packaged resource"
+license = "UNLICENSED"
+
+[dependencies]
+"scoop:scoop.platform" = "0.1.0"
+
+[bundle]
+schema = 1
+identifier = "dev.scoop.resource-app"
+display-name = "Scoop Resource App"
+publisher = "Scoop Examples"
+
+[[bundle.files]]
+from = "assets"
+to = "assets"
+kind = "resource"
+
+[bundle.macos]
+formats = ["app"]
