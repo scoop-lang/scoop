@@ -74,6 +74,7 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
             ),
             version,
             license_file,
+            [Path(paths["prefix"]) / "Library/bin"],
         )
     private = root / "libexec/llvm/lib"
     private.mkdir(parents=True, exist_ok=True)
@@ -159,4 +160,4 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
         output = root / "bin" / ("scoop-" + name)
         output.write_text(launcher(name, version, server))
         output.chmod(0o755)
-    return native, version, license_file
+    return native, version, license_file, []

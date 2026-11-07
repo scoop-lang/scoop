@@ -272,6 +272,46 @@ class WindowsDependenciesTests(unittest.TestCase):
         self.assertFalse(package_native.windows_system("msvcp140.dll"))
         self.assertFalse(package_native.windows_system("libLLVM-22.dll"))
 
+    def test_selected_python_libraries_precede_unrelated_path_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary).resolve()
+            root, python, external = (work / name for name in ("installation", "python", "other"))
+            native = {}
+            for relative in ("python.exe", "DLLs/_ssl.pyd"):
+                source, destination = python / relative, root / "python" / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source.touch()
+                native[source] = destination
+            libraries = python / "Library/bin"
+            for directory, contents in ((libraries, b"selected"), (external, b"unrelated")):
+                directory.mkdir(parents=True)
+                for name in ("libssl-3-x64.dll", "libcrypto-3-x64.dll", "vcruntime140.dll"):
+                    (directory / name).write_bytes(contents)
+            (python / "vcruntime140.dll").write_bytes(b"selected")
+            imports = {
+                "python.exe": ["vcruntime140.dll"],
+                "_ssl.pyd": ["libssl-3-x64.dll", "vcruntime140.dll"],
+                "libssl-3-x64.dll": ["libcrypto-3-x64.dll", "vcruntime140.dll"],
+                "libcrypto-3-x64.dll": ["vcruntime140.dll"],
+                "vcruntime140.dll": [],
+            }
+
+            def readobj(tool, flag, path):
+                return "\n".join("  Name: " + name for name in imports[Path(path).name])
+
+            with (
+                patch.object(package_native, "output", side_effect=readobj),
+                patch.object(package_native.os, "get_exec_path", return_value=[str(external)]),
+            ):
+                selected = package_native.windows(
+                    root, root, [], work / "llvm", native, search_directories=[libraries]
+                )
+            self.assertTrue(all(path.is_relative_to(python) for path in selected))
+            self.assertEqual((root / "python/vcruntime140.dll").read_bytes(), b"selected")
+            for name in ("libssl-3-x64.dll", "libcrypto-3-x64.dll", "vcruntime140.dll"):
+                self.assertEqual((root / "python/DLLs" / name).read_bytes(), b"selected")
+
     def test_matching_runtime_copies_in_python_directories_can_be_packaged(self):
         with tempfile.TemporaryDirectory() as temporary:
             work = Path(temporary)
