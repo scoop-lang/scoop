@@ -43,14 +43,15 @@ class PostInstallTests(unittest.TestCase):
         self.commands = self.root / "commands.log"
         self.environment = dict(os.environ, SCOOP_TEST_COMMANDS=str(self.commands))
 
-    def installation(self, targets=(GNU, MUSL), installed=None):
+    def installation(self, targets=(GNU, MUSL), installed=None, gui_installed=()):
         (self.root / "VERSION").write_text("1.2.3\nrevision: abc123\nhost: test\n")
         plan = self.root / "share/scoop/install"
         plan.mkdir(parents=True)
         (plan / "targets.list").write_text("\n".join(targets) + "\n")
         for target in targets:
             (plan / f"{target}.list").write_text("scoop.core\nscoop.std\n")
-        for name in ("scoop.core", "scoop.std"):
+            (plan / f"{target}.gui.list").write_text("scoop.window\nscoop.ui\n")
+        for name in ("scoop.core", "scoop.std", "scoop.window", "scoop.ui"):
             manifest = self.root / "src" / name / "Cone.toml"
             manifest.parent.mkdir(parents=True)
             manifest.write_text(f'[cone]\ngroup = "scoop"\nname = "{name}"\n')
@@ -59,6 +60,9 @@ class PostInstallTests(unittest.TestCase):
             library.mkdir(parents=True)
             for name in ("scoop.core", "scoop.std"):
                 (library / f"{name}.slib").write_text("library")
+        for target in gui_installed:
+            for name in ("scoop.window", "scoop.ui"):
+                (self.root / "lib" / target / f"{name}.slib").write_text("library")
         for name in ("post-install.sh", "post-install.ps1"):
             shutil.copy2(SCRIPTS / name, self.root / name)
         (self.root / "bin").mkdir()
@@ -109,6 +113,17 @@ class PostInstallTests(unittest.TestCase):
         self.assertIn(f"{GNU}/index.html", index)
         self.assertIn(f"{MUSL}/index.html", index)
 
+    def test_gui_cones_are_documented_only_with_the_gui_package(self):
+        self.installation(gui_installed=(GNU,))
+        gui = [str(self.root / "src" / name / "Cone.toml") for name in ("scoop.window", "scoop.ui")]
+        for target, documented in ((GNU, True), (MUSL, False)):
+            result = self.run_install("--target", target)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            [command] = self.recorded()
+            self.assertIn(str(self.root / "src/scoop.std/Cone.toml"), command)
+            for manifest in gui:
+                self.assertEqual(manifest in command, documented)
+
     def test_jobs_and_work_dir_preserve_arguments(self):
         self.installation()
         work = self.root / "another work directory"
@@ -136,7 +151,7 @@ class PostInstallTests(unittest.TestCase):
         self.installation(installed=(GNU,))
         result = self.run_install("--target", MUSL)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"scoop-1.2.3-lib-{MUSL}.tar.xz", result.stderr)
+        self.assertIn(f"scoop-1.2.3-lib-base-{MUSL}.tar.xz", result.stderr)
         self.assertEqual(self.recorded(), [])
 
     def test_failed_documentation_stops_the_installation(self):
@@ -187,8 +202,20 @@ class PostInstallTests(unittest.TestCase):
         self.installation((MSVC, MINGW), installed=(MSVC,))
         result = self.run_install("--target", MINGW, powershell=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"scoop-1.2.3-lib-{MINGW}.tar.xz", result.stderr)
+        self.assertIn(f"scoop-1.2.3-lib-base-{MINGW}.tar.xz", result.stderr)
         self.assertEqual(self.recorded(), [])
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell is not installed")
+    def test_powershell_documents_gui_cones_only_with_the_gui_package(self):
+        self.installation((MSVC, MINGW), gui_installed=(MSVC,))
+        gui = [str(self.root / "src" / name / "Cone.toml") for name in ("scoop.window", "scoop.ui")]
+        for target, documented in ((MSVC, True), (MINGW, False)):
+            result = self.run_install("--target", target, powershell=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            [command] = self.recorded()
+            self.assertIn(str(self.root / "src/scoop.std/Cone.toml"), command)
+            for manifest in gui:
+                self.assertEqual(manifest in command, documented)
 
 
 if __name__ == "__main__":

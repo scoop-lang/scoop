@@ -17,8 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import package_toolchain
 from package_toolchain import (
     archive,
+    assemble_base_libraries,
     assemble_bin,
-    assemble_libraries,
+    assemble_gui_libraries,
     assemble_llvm,
     assemble_sources,
     stage_binaries,
@@ -62,6 +63,14 @@ class ComponentArchiveTests(unittest.TestCase):
                     "sysroot/src/library/target/output": "generated output",
                     "sysroot/src/library/old.slib": "old artifact",
                     "sysroot/src/scoop.core/Cone.toml": '[cone]\ngroup = "scoop"\nname = "scoop.core"\nversion = "0.1.0"\n',
+                    "sysroot/src/scoop.window/Cone.toml": (
+                        '[cone]\ngroup = "scoop"\nname = "scoop.window"\nversion = "0.1.0"\n'
+                    ),
+                    "sysroot/src/widget/Cone.toml": (
+                        '[cone]\ngroup = "scoop"\nname = "widget"\nversion = "0.1.0"\n'
+                        '[dependencies]\n"scoop:library" = "0.1.0"\n'
+                        '"scoop:scoop.window" = "0.1.0"\n'
+                    ),
                     "scripts/distribution/README.md": "installation",
                     "scripts/distribution/RELEASE-NOTES.md": "release notes",
                     "sysroot/share/scoop/examples/catalog.toml": "schema = 1\n",
@@ -85,6 +94,8 @@ class ComponentArchiveTests(unittest.TestCase):
                 target_files = [
                     "scoop.core.slib",
                     "library.slib",
+                    "scoop.window.slib",
+                    "widget.slib",
                     "libscoop_text_backend.a",
                     "liburiparser.a",
                     "libpcre2-8.a",
@@ -183,7 +194,10 @@ class ComponentArchiveTests(unittest.TestCase):
                 selection.mkdir(parents=True)
                 orders = {target: cone_order(sysroot, selection, target)}
                 host_system = host_definition(host)["system"]
-                roots = {name: work / "roots" / name for name in ("bin", "llvm", "sources", "lib")}
+                roots = {
+                    name: work / "roots" / name
+                    for name in ("bin", "llvm", "sources", "lib-base", "lib-gui")
+                }
                 with (
                     patch.object(package_toolchain, "ROOT", repository),
                     patch.object(
@@ -194,7 +208,8 @@ class ComponentArchiveTests(unittest.TestCase):
                     patch.object(package_toolchain.package_licenses, "collect_bin"),
                     patch.object(package_toolchain.package_licenses, "collect_llvm"),
                     patch.object(package_toolchain.package_licenses, "collect_sources"),
-                    patch.object(package_toolchain.package_licenses, "collect_libraries"),
+                    patch.object(package_toolchain.package_licenses, "collect_base_libraries"),
+                    patch.object(package_toolchain.package_licenses, "collect_gui_libraries"),
                 ):
                     assemble_llvm(roots["llvm"], args, host_system)
                     stage_binaries(roots["bin"], binaries, host_system)
@@ -202,14 +217,21 @@ class ComponentArchiveTests(unittest.TestCase):
                         roots["bin"], [target], args, release, extension, orders, "3.14", []
                     )
                     assemble_sources(roots["sources"], args)
-                    assemble_libraries(roots["lib"], target, args, orders[target])
+                    base_cones, gui_cones = package_toolchain.split_gui_cones(
+                        sysroot, orders[target]
+                    )
+                    self.assertEqual(base_cones, ["scoop.core", "library"])
+                    self.assertEqual(gui_cones, ["scoop.window", "widget"])
+                    assemble_base_libraries(roots["lib-base"], target, args, base_cones)
+                    assemble_gui_libraries(roots["lib-gui"], target, args, gui_cones)
                 output = work / "dist" / f"scoop-{args.version}"
                 output.mkdir(parents=True)
                 names = {
                     "bin": f"scoop-1.2.3-bin-{host}",
                     "llvm": f"scoop-1.2.3-llvm-{host}",
                     "sources": "scoop-1.2.3-sources",
-                    "lib": f"scoop-1.2.3-lib-{target}",
+                    "lib-base": f"scoop-1.2.3-lib-base-{target}",
+                    "lib-gui": f"scoop-1.2.3-lib-gui-{target}",
                 }
                 installed = {}
                 for component, root in roots.items():
@@ -218,9 +240,18 @@ class ComponentArchiveTests(unittest.TestCase):
                     with tarfile.open(destination) as package:
                         members = package.getnames()
                         self.assertFalse(any("/docs/" in name for name in members))
-                        if component == "lib":
+                        if component == "lib-base":
                             self.assertIn(f"./lib/{target}/scoop.core.slib", members)
                             self.assertIn(f"./lib/{target}/library.slib", members)
+                            self.assertNotIn(f"./lib/{target}/widget.slib", members)
+                        elif component == "lib-gui":
+                            self.assertEqual(
+                                sorted(name for name in members if name.endswith(".slib")),
+                                [
+                                    f"./lib/{target}/scoop.window.slib",
+                                    f"./lib/{target}/widget.slib",
+                                ],
+                            )
                         else:
                             self.assertFalse(any(name.endswith(".slib") for name in members))
                         extracted = work / "extracted" / component
@@ -247,6 +278,9 @@ class ComponentArchiveTests(unittest.TestCase):
                 metadata = tomllib.loads((bin_root / "share/scoop/toolchain.toml").read_text())
                 self.assertEqual(metadata["default_target"], target)
                 self.assertEqual(metadata["targets"][target]["cones"], ["scoop.core", "library"])
+                self.assertEqual(
+                    metadata["targets"][target]["gui_cones"], ["scoop.window", "widget"]
+                )
                 installer = "post-install.ps1" if "windows" in host else "post-install.sh"
                 self.assertTrue((bin_root / installer).is_file())
                 self.assertEqual(
@@ -256,6 +290,10 @@ class ComponentArchiveTests(unittest.TestCase):
                 self.assertEqual(
                     (bin_root / f"share/scoop/install/{target}.list").read_text().splitlines(),
                     metadata["targets"][target]["cones"],
+                )
+                self.assertEqual(
+                    (bin_root / f"share/scoop/install/{target}.gui.list").read_text().splitlines(),
+                    metadata["targets"][target]["gui_cones"],
                 )
                 self.assertEqual(metadata["liburing"], "2.15")
                 if target in package_toolchain.SKIA_TARGETS:
@@ -274,6 +312,8 @@ class ComponentArchiveTests(unittest.TestCase):
                     [
                         {"coordinate": "scoop:library:0.1.0"},
                         {"coordinate": "scoop:scoop.core:0.1.0"},
+                        {"coordinate": "scoop:scoop.window:0.1.0"},
+                        {"coordinate": "scoop:widget:0.1.0"},
                     ],
                 )
                 self.assertEqual(metadata["programming_skill"], skill_path.as_posix())
@@ -347,32 +387,40 @@ class ComponentArchiveTests(unittest.TestCase):
                         (sysroot / "share/scoop/examples" / relative).read_bytes(),
                     )
 
-                lib_root = installed["lib"] / "lib" / target
+                lib_root = installed["lib-base"] / "lib" / target
+                gui_root = installed["lib-gui"] / "lib" / target
                 self.assertEqual((lib_root / "scoop.core.slib").read_text(), "scoop.core.slib")
                 self.assertEqual((lib_root / "library.slib").read_text(), "library.slib")
+                self.assertEqual((gui_root / "widget.slib").read_text(), "widget.slib")
                 self.assertEqual(
                     (lib_root / "libscoop_text_backend.a").read_text(), "libscoop_text_backend.a"
                 )
+                self.assertFalse((lib_root / package_toolchain.SKIA_LIBRARY).exists())
+                self.assertFalse((lib_root / "include/skia").exists())
+                self.assertFalse((gui_root / "runtime").exists())
                 if target in package_toolchain.SKIA_TARGETS:
                     self.assertEqual(
-                        (lib_root / package_toolchain.SKIA_LIBRARY).read_text(),
+                        (gui_root / package_toolchain.SKIA_LIBRARY).read_text(),
                         package_toolchain.SKIA_LIBRARY,
                     )
-                    self.assertTrue((lib_root / "include/skia/include/core/SkCanvas.h").is_file())
+                    self.assertTrue((gui_root / "include/skia/include/core/SkCanvas.h").is_file())
+                self.assertFalse((lib_root / "include/gtk").exists())
                 if target == package_toolchain.GTK_TARGET:
-                    self.assertTrue((lib_root / "include/gtk/gtk/gtk.h").is_file())
+                    self.assertTrue((gui_root / "include/gtk/gtk/gtk.h").is_file())
                     for library in package_toolchain.GTK_LINK_INPUTS:
-                        self.assertEqual((lib_root / library).read_text(), library)
+                        self.assertEqual((gui_root / library).read_text(), library)
+                        self.assertFalse((lib_root / library).exists())
                 else:
-                    self.assertFalse((lib_root / "include/gtk").exists())
+                    self.assertFalse((gui_root / "include/gtk").exists())
+                self.assertFalse((lib_root / "include/tray").exists())
                 if target == package_toolchain.TRAY_TARGET:
                     self.assertTrue(
-                        (lib_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
+                        (gui_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
                     )
                     for library in package_toolchain.TRAY_LINK_INPUTS:
-                        self.assertEqual((lib_root / library).read_text(), library)
+                        self.assertEqual((gui_root / library).read_text(), library)
                 else:
-                    self.assertFalse((lib_root / "include/tray").exists())
+                    self.assertFalse((gui_root / "include/tray").exists())
                 for variant in (
                     "runtime",
                     "runtime-stress",

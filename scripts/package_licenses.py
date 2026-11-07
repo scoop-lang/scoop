@@ -154,21 +154,11 @@ def collect_sources(root, sysroot):
     collector.finish()
 
 
-def collect_libraries(root, sysroot, target):
-    """Licenses of one target package's native and Rust-built components."""
-    collector = Collector(root, "lib-" + target)
+def collect_base_libraries(root, sysroot, target):
+    """Licenses of one target's base package: Rust-built and toolchain components."""
+    collector = Collector(root, "lib-base-" + target)
     notices = sysroot / "lib" / target / NOTICE_DIRECTORY
     collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
-    if target == GTK_TARGET:
-        for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
-            collector.add(
-                "GTK-" + directory.name, "See included documents", license_files(directory)
-            )
-    if target == TRAY_TARGET:
-        for directory in sorted((sysroot / "lib" / target / TRAY_NOTICE_DIRECTORY).iterdir()):
-            collector.add(
-                "Tray-" + directory.name, "See included documents", license_files(directory)
-            )
     configuration = native_configuration(target)
     if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
         prefix = root / "lib" / target / "toolchain"
@@ -180,4 +170,20 @@ def collect_libraries(root, sysroot, target):
                 *license_files(llvm_mingw_license_root(prefix, configuration["arch"])),
             ],
         )
+    collector.finish()
+
+
+def collect_gui_libraries(root, sysroot, target):
+    """Licenses of one target's GUI package native components."""
+    collector = Collector(root, "lib-gui-" + target)
+    if target == GTK_TARGET:
+        for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
+            collector.add(
+                "GTK-" + directory.name, "See included documents", license_files(directory)
+            )
+    if target == TRAY_TARGET:
+        for directory in sorted((sysroot / "lib" / target / TRAY_NOTICE_DIRECTORY).iterdir()):
+            collector.add(
+                "Tray-" + directory.name, "See included documents", license_files(directory)
+            )
     collector.finish()
