@@ -228,13 +228,17 @@ jobs:
                       raise SystemExit(f'{component} must not contain slibs or generated API documentation')
                   package.extractall(installed, filter='data')
           default_target = (installed / 'share/scoop/install/targets.list').read_text().splitlines()[0]
-          with tarfile.open(dist / f'scoop-{version}-lib-{default_target}.tar.xz') as package:
-              names = package.getnames()
-              if not any(name.endswith('.slib') for name in names):
-                  raise SystemExit('Target packages must contain the prebuilt system slibs')
-              if any(name.startswith('./docs/') for name in names):
-                  raise SystemExit('Target packages must not contain generated API documentation')
-              package.extractall(installed, filter='data')
+          for component in ('base', 'gui'):
+              path = dist / f'scoop-{version}-lib-{component}-{default_target}.tar.xz'
+              if component == 'gui' and not path.exists():
+                  continue
+              with tarfile.open(path) as package:
+                  names = package.getnames()
+                  if not any(name.endswith('.slib') for name in names):
+                      raise SystemExit('Target packages must contain the prebuilt system slibs')
+                  if any(name.startswith('./docs/') for name in names):
+                      raise SystemExit('Target packages must not contain generated API documentation')
+                  package.extractall(installed, filter='data')
           release = tomllib.loads(Path('scripts/release.toml').read_text())
           windows = os.name == 'nt'
           llvm_config = installed / 'libexec/llvm/bin' / ('llvm-config.exe' if windows else 'llvm-config')

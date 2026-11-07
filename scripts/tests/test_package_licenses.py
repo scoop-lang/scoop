@@ -154,8 +154,8 @@ class ComponentLicenseTests(unittest.TestCase):
             notices.mkdir(parents=True)
             (notices / "COPYRIGHT-library.txt").write_text("Rust license")
             installation = root / "installation"
-            package_licenses.collect_libraries(installation, root / "sysroot", target)
-            licenses = installation / f"share/licenses/lib-{target}"
+            package_licenses.collect_base_libraries(installation, root / "sysroot", target)
+            licenses = installation / f"share/licenses/lib-base-{target}"
             self.assertEqual(
                 (licenses / f"Rust-std-{target}/COPYRIGHT-library.txt").read_text(),
                 "Rust license",

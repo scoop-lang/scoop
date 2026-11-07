@@ -56,7 +56,7 @@ if ($scoopAllTargets) {
     if ($scoopTargets.Count -ne 0) { throw '--target and --all-targets are mutually exclusive' }
     $scoopTargets = @($scoopAvailable | Where-Object { ScoopInstalled $_ })
     if ($scoopTargets.Count -eq 0) {
-        throw "no target package is installed; extract a scoop-$scoopVersion-lib-<target>.tar.xz archive first"
+        throw "no target package is installed; extract a scoop-$scoopVersion-lib-base-<target>.tar.xz archive first"
     }
 } elseif ($scoopTargets.Count -eq 0) {
     $scoopTargets = @($scoopAvailable[0])
@@ -66,7 +66,7 @@ foreach ($scoopTarget in $scoopTargets) {
         throw "target $scoopTarget is not provided by this release"
     }
     if (-not (ScoopInstalled $scoopTarget)) {
-        throw "target $scoopTarget is not installed: extract scoop-$scoopVersion-lib-$scoopTarget.tar.xz into $scoopRoot first"
+        throw "target $scoopTarget is not installed: extract scoop-$scoopVersion-lib-base-$scoopTarget.tar.xz into $scoopRoot first"
     }
 }
 
@@ -86,6 +86,14 @@ try {
     $env:TEMP = $scoopScratch
     foreach ($scoopTarget in $scoopTargets) {
         $scoopCones = @(Get-Content -LiteralPath "$scoopPlan/$scoopTarget.list")
+        # GUI Cones are documented only when the target's lib-gui package is installed.
+        $scoopGuiPlan = "$scoopPlan/$scoopTarget.gui.list"
+        if (Test-Path -LiteralPath $scoopGuiPlan) {
+            $scoopGuiCones = @(Get-Content -LiteralPath $scoopGuiPlan)
+            if (Test-Path -LiteralPath "$scoopRoot/lib/$scoopTarget/$($scoopGuiCones[0]).slib") {
+                $scoopCones += $scoopGuiCones
+            }
+        }
         Write-Output "Generating API documentation for $scoopTarget"
         $scoopCommand = @('doc') + @(
             foreach ($scoopCone in $scoopCones) { "$scoopRoot/src/$scoopCone/Cone.toml" }

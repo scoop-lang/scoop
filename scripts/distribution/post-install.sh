@@ -68,7 +68,7 @@ if [ "$scoop_all_targets" = true ]; then
         fi
     done < "$scoop_plan/targets.list"
     [ -n "$scoop_targets" ] ||
-        scoop_error "no target package is installed; extract a scoop-$scoop_version-lib-<target>.tar.xz archive first"
+        scoop_error "no target package is installed; extract a scoop-$scoop_version-lib-base-<target>.tar.xz archive first"
 elif [ -z "$scoop_targets" ]; then
     IFS= read -r scoop_targets < "$scoop_plan/targets.list"
 fi
@@ -81,13 +81,23 @@ export TMPDIR="$scoop_work/scratch" TMP="$scoop_work/scratch" TEMP="$scoop_work/
 # Target triples contain no whitespace; Cone paths are read one per line.
 for scoop_target in $scoop_targets; do
     scoop_installed "$scoop_target" ||
-        scoop_error "target $scoop_target is not installed: extract scoop-$scoop_version-lib-$scoop_target.tar.xz into $scoop_root first"
+        scoop_error "target $scoop_target is not installed: extract scoop-$scoop_version-lib-base-$scoop_target.tar.xz into $scoop_root first"
 
     printf 'Generating API documentation for %s\n' "$scoop_target"
     set -- doc
     while IFS= read -r scoop_cone; do
         set -- "$@" "$scoop_root/src/$scoop_cone/Cone.toml"
     done < "$scoop_plan/$scoop_target.list"
+    # GUI Cones are documented only when the target's lib-gui package is installed.
+    scoop_gui_plan="$scoop_plan/$scoop_target.gui.list"
+    if [ -f "$scoop_gui_plan" ]; then
+        IFS= read -r scoop_gui_cone < "$scoop_gui_plan"
+        if [ -f "$scoop_root/lib/$scoop_target/$scoop_gui_cone.slib" ]; then
+            while IFS= read -r scoop_cone; do
+                set -- "$@" "$scoop_root/src/$scoop_cone/Cone.toml"
+            done < "$scoop_gui_plan"
+        fi
+    fi
     "$scoop_root/bin/scoop" "$@" --jobs "$scoop_jobs" --target "$scoop_target" \
         --sysroot "$scoop_root" --scoopc "$scoop_root/bin/scoopc" \
         --no-deps --deny-doc-warnings --cache-dir "$scoop_work/cache" \

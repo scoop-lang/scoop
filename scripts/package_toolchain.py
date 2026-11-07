@@ -256,13 +256,51 @@ def assemble_sources(root, args):
     package_licenses.collect_sources(root, sysroot)
 
 
-def assemble_libraries(root, target, args, order):
-    """Stage one target's prebuilt system libraries, native inputs and runtimes."""
+GUI_ROOT_CONES = ("scoop.window", "scoop.graphics")
+
+
+def split_gui_cones(sysroot, order):
+    """Split one target's Cone order into base Cones and GUI Cones.
+
+    GUI Cones are the window and graphics roots and every Cone depending on them.
+    """
+    manifests = {
+        directory: tomllib.loads(
+            (sysroot / "src" / directory / "Cone.toml").read_text(encoding="utf-8")
+        )
+        for directory in order
+    }
+    directories = {
+        f"{manifest['cone']['group']}:{manifest['cone']['name']}": directory
+        for directory, manifest in manifests.items()
+    }
+    gui = set()
+    for directory in order:
+        dependencies = manifests[directory].get("dependencies", {})
+        if directory in GUI_ROOT_CONES or any(
+            directories.get(name) in gui for name in dependencies
+        ):
+            gui.add(directory)
+    return (
+        [directory for directory in order if directory not in gui],
+        [directory for directory in order if directory in gui],
+    )
+
+
+def copy_entry(source, destination):
+    if source.is_dir():
+        shutil.copytree(source, destination)
+    else:
+        shutil.copy2(source, destination)
+
+
+def assemble_base_libraries(root, target, args, cones):
+    """Stage one target's base system libraries, native inputs and runtimes."""
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
     source = sysroot / "lib" / target
     destination = root / "lib" / target
     destination.mkdir(parents=True)
-    for cone in order:
+    for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
     (destination / "include").mkdir()
     for header in (
@@ -277,26 +315,10 @@ def assemble_libraries(root, target, args, order):
         "zlib_name_mangling-ng.h",
         "brotli",
     ):
-        origin = source / "include" / header
-        output = destination / "include" / header
-        if origin.is_dir():
-            shutil.copytree(origin, output)
-        else:
-            shutil.copy2(origin, output)
+        copy_entry(source / "include" / header, destination / "include" / header)
     shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
     shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
     shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
-    if target in SKIA_TARGETS:
-        shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
-        shutil.copytree(source / "include/skia", destination / "include/skia")
-    if target == GTK_TARGET:
-        shutil.copytree(source / "include/gtk", destination / "include/gtk")
-        for library in GTK_LINK_INPUTS:
-            shutil.copy2(source / library, destination / library)
-    if target == TRAY_TARGET:
-        shutil.copytree(source / "include/tray", destination / "include/tray")
-        for library in TRAY_LINK_INPUTS:
-            shutil.copy2(source / library, destination / library)
     for package in COMPRESSION_PACKAGES:
         for library in package["libraries"]:
             shutil.copy2(source / library, destination / library)
@@ -320,7 +342,29 @@ def assemble_libraries(root, target, args, order):
             shutil.copy2(source / component / "lib" / name, destination / component / "lib" / name)
     if host_definition(args.host)["system"] == "Windows":
         package_windows.install_toolchain(root, target, args)
-    package_licenses.collect_libraries(root, sysroot, target)
+    package_licenses.collect_base_libraries(root, sysroot, target)
+
+
+def assemble_gui_libraries(root, target, args, cones):
+    """Stage one target's GUI system libraries and their native inputs."""
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    source = sysroot / "lib" / target
+    destination = root / "lib" / target
+    (destination / "include").mkdir(parents=True)
+    for cone in cones:
+        shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
+    if target in SKIA_TARGETS:
+        shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
+        shutil.copytree(source / "include/skia", destination / "include/skia")
+    if target == GTK_TARGET:
+        shutil.copytree(source / "include/gtk", destination / "include/gtk")
+        for library in GTK_LINK_INPUTS:
+            shutil.copy2(source / library, destination / library)
+    if target == TRAY_TARGET:
+        shutil.copytree(source / "include/tray", destination / "include/tray")
+        for library in TRAY_LINK_INPUTS:
+            shutil.copy2(source / library, destination / library)
+    package_licenses.collect_gui_libraries(root, sysroot, target)
 
 
 def assemble_bin(root, targets, args, release, extension, orders, python_version, native):
@@ -403,9 +447,12 @@ def assemble_bin(root, targets, args, release, extension, orders, python_version
         manifest += [
             f"{key} = {json.dumps(value)}" for key, value in release["targets"][target].items()
         ]
-        order = orders[target]
-        manifest.append(f"cones = {json.dumps(order)}")
-        (plan / f"{target}.list").write_text("\n".join(order) + "\n", encoding="utf-8")
+        base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
+        manifest.append(f"cones = {json.dumps(base_cones)}")
+        manifest.append(f"gui_cones = {json.dumps(gui_cones)}")
+        (plan / f"{target}.list").write_text("\n".join(base_cones) + "\n", encoding="utf-8")
+        if gui_cones:
+            (plan / f"{target}.gui.list").write_text("\n".join(gui_cones) + "\n", encoding="utf-8")
     for cone_manifest in cone_manifests:
         cone = cone_manifest["cone"]
         manifest += [
@@ -683,9 +730,14 @@ def main():
         archive(llvm_root, output / f"scoop-{args.version}-llvm-{args.host}.tar.xz")
         archive(sources_root, output / f"scoop-{args.version}-sources.tar.xz")
         for target in targets:
-            lib_root = base / f"lib-{target}"
-            assemble_libraries(lib_root, target, args, orders[target])
-            archive(lib_root, output / f"scoop-{args.version}-lib-{target}.tar.xz")
+            base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
+            lib_root = base / f"lib-base-{target}"
+            assemble_base_libraries(lib_root, target, args, base_cones)
+            archive(lib_root, output / f"scoop-{args.version}-lib-base-{target}.tar.xz")
+            if gui_cones:
+                gui_root = base / f"lib-gui-{target}"
+                assemble_gui_libraries(gui_root, target, args, gui_cones)
+                archive(gui_root, output / f"scoop-{args.version}-lib-gui-{target}.tar.xz")
         llvm_sources = base / f"scoop-{args.version}-llvm-sources"
         vendor = llvm_sources / "vendor/llvm-project" / VERSION
         shutil.copytree(
