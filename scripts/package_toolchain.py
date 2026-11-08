@@ -249,7 +249,9 @@ def assemble_sources(root, args):
         shutil.copytree(
             sysroot / name,
             root / name,
-            ignore=shutil.ignore_patterns("target", "Cone.lock", "*.slib", "__pycache__"),
+            ignore=shutil.ignore_patterns(
+                "target", "Cone.lock", "*.slib", "__pycache__", ".DS_Store"
+            ),
         )
     relocate_markdown_links(root, args.revision)
     shutil.copytree(
