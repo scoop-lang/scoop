@@ -6,6 +6,8 @@
 
 窗口关系、一次 raise／持续 topmost、模态范围、原生打开／保存文件面板及对应控制器的详细合同见配套的[窗口归属、模态与原生文件对话框设计](WINDOWS-AND-DIALOGS.md)。下文统一记录分层、资源、实施依赖与验收边界。
 
+后续的 Skia SVG／Lucide、系统与临时字体选择、Taskbar／Dock 原生功能、桌面通知，以及 Windows 圆形示例修复见[GUI 扩展设计](GUI-EXTENSIONS.md)。该文为待实施设计，不改变本文已有批次的交付状态。
+
 依据：[Window 规范](../specs/SCOOP-WINDOW-SPEC.md)、[Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)、[UI 规范](../specs/SCOOP-UI-SPEC.md)、[组件规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)、[API 风格](../specs/SCOOP-API-STYLE.md)。UI 的布局、构造、失效和资源归属沿用已经完成的[整改合同](../ui/REMEDIATION-PLAN.md)，尤其是完整布局结果、按需更新和 Accepted 几何发布边界。
 
 ## 1. 目标、范围与现状

@@ -1,0 +1,42 @@
+package scoop.graphics.svg
+
+import scoop.graphics.*
+import scoop.graphics.native.macos.MetalContext
+import scoop.tests.graphics.TestMetalSurface
+import scoop.test.*
+
+@Test
+private class SvgMetalTest {
+    @Test
+    fun `SVG reaches a real Metal target with DPI applied only by the target`() {
+        SvgDocument.parse(
+            """<svg width="10" height="10"><rect x="2" y="2" width="6" height="6" fill="red"/></svg>"""
+        ).use {
+            document -> TestMetalSurface.create(64, 64).use {
+                objects -> @Unsafe
+                {
+                    MetalContext.create(objects.device(), objects.queue()).use {
+                        context -> @Unsafe
+                        {
+                            context.target(objects.texture(), 64, 64, 2.0).use {
+                                target ->
+                                target.draw {
+                                    canvas ->
+                                    canvas.clear(Color.Transparent)
+                                    canvas.drawSvg(document, Rect(4.0, 4.0, 20.0, 20.0))
+                                }
+                                target.submit()
+                                val pixels = target.readPixels()
+                                assertEquals(255, svgChannel(pixels, 64, 20, 20, 0))
+                                assertEquals(255, svgChannel(pixels, 64, 39, 39, 0))
+                                assertEquals(0, svgChannel(pixels, 64, 15, 20, 3))
+                                assertEquals(0, svgChannel(pixels, 64, 40, 20, 3))
+                            }
+                            context.drain()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

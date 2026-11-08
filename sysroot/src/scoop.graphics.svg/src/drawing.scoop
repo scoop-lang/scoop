@@ -1,0 +1,86 @@
+package scoop.graphics.svg
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+
+/** Per-draw root overrides. Explicit child properties retain SVG inheritance semantics. */
+public struct SvgDrawOptions(
+    val currentColor: Color? = None,
+    val rootStrokeWidth: Double? = None,
+    val opacity: Double = 1.0
+)
+
+/** Maps a document's natural viewport to a logical rectangle without adding a clip. */
+public fun Canvas.drawSvg(
+    document: SvgDocument,
+    viewport: Rect,
+    options: SvgDrawOptions = SvgDrawOptions()
+) {
+    for (
+        value in [
+            viewport.x,
+            viewport.y,
+            viewport.width,
+            viewport.height,
+            viewport.x + viewport.width,
+            viewport.y + viewport.height
+        ]
+    )
+        requireSvgScalar(value)
+    if (viewport.width < 0.0 || viewport.height < 0.0)
+        throw IllegalArgumentException(Some("negative SVG viewport size"))
+    requireSvgUnit(options.opacity)
+    val color = options.currentColor ?: Color.Black
+    for (value in [color.red, color.green, color.blue, color.alpha])
+        requireSvgUnit(value)
+    val stroke = options.rootStrokeWidth ?: 0.0
+    requireSvgScalar(stroke)
+    if (stroke < 0.0)
+        throw IllegalArgumentException(Some("negative SVG stroke width"))
+    val pointer = document.nativePointer()
+    @Unsafe
+    {
+        withSkiaCanvas {
+            canvas -> @Unsafe
+            {
+                val result =
+                    svgDraw(
+                        pointer,
+                        canvas,
+                        viewport,
+                        color,
+                        options.currentColor != None,
+                        stroke,
+                        options.rootStrokeWidth != None,
+                        options.opacity
+                    )
+                if (result < 0)
+                    throw IllegalArgumentException(Some("SVG viewport scale overflow"))
+                if (result == 0)
+                    throw GraphicsException("draw SVG document")
+            }
+        }
+    }
+}
+
+private fun requireSvgScalar(value: Double) {
+    if (!value.isFinite() || !value.toFloat().isFinite())
+        throw IllegalArgumentException(Some("SVG scalar overflow"))
+}
+
+private fun requireSvgUnit(value: Double) {
+    if (!value.isFinite() || value < 0.0 || value > 1.0)
+        throw IllegalArgumentException(Some("SVG color and opacity require 0..1"))
+}
+
+@Extern(name = "scoop_graphics_svg_draw")
+private fun svgDraw(
+    document: Ptr<Unit>,
+    canvas: Ptr<Unit>,
+    viewport: Rect,
+    color: Color,
+    hasColor: Boolean,
+    stroke: Double,
+    hasStroke: Boolean,
+    opacity: Double
+): Int

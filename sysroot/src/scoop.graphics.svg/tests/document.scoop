@@ -1,0 +1,82 @@
+package scoop.graphics.svg
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class SvgDocumentTest {
+    @Test
+    fun `source and encoded data expose independent natural size and view box`() {
+        val source =
+            """<svg width="24" height="16" viewBox="-4 8 12 8"><rect width="4" height="4"/></svg>"""
+        SvgDocument.parse(source).use {
+            document ->
+            assertEquals(Some(Size(24.0, 16.0)), document.intrinsicSize)
+            assertEquals(Some(Rect(-4.0, 8.0, 12.0, 8.0)), document.viewBox)
+            assertFalse(document.isClosed)
+        }
+        SvgDocument.decode(source.toByteArray()).use {
+            document ->
+            assertEquals(Some(Size(24.0, 16.0)), document.intrinsicSize)
+            assertEquals(Some(Rect(-4.0, 8.0, 12.0, 8.0)), document.viewBox)
+        }
+    }
+
+    @Test
+    fun `relative empty and missing dimensions do not invent intrinsic size`() {
+        for (
+            attributes in [
+                "",
+                "width=\"100%\" height=\"24\"",
+                "width=\"2em\" height=\"2em\"",
+                "width=\"24\" height=\"0\""
+            ]
+        ) {
+            SvgDocument.parse("<svg " + attributes + " viewBox=\"0 0 24 24\"/>").use {
+                document ->
+                assertEquals(None, document.intrinsicSize)
+                assertEquals(Some(Rect(0.0, 0.0, 24.0, 24.0)), document.viewBox)
+            }
+        }
+        SvgDocument.parse("""<svg width="4" height="8" viewBox="0 0 0 0"/>""").use {
+            document ->
+            assertEquals(Some(Size(4.0, 8.0)), document.intrinsicSize)
+            assertEquals(None, document.viewBox)
+        }
+    }
+
+    @Test
+    fun `malformed XML and non SVG roots report graphics failure`() {
+        for (source in ["", "<svg", "<svg><path></svg>", "<html/>", "<path d=\"M0 0\"/>"])
+            assertFailsWith<GraphicsException> { SvgDocument.parse(source) }
+        assertFailsWith<GraphicsException> { SvgDocument.decode([]) }
+        SvgDocument.parse(
+            """<svg unsupported="yes"><foreignObject/><rect width="2" height="2"/></svg>"""
+        ).use { document -> assertFalse(document.isClosed) }
+    }
+}
+
+internal fun svgChannel(pixels: Array<Byte>, width: Int, x: Int, y: Int, component: Int): Int =
+    pixels[((y * width + x) * 4 + component).toLong()].toUByte().toInt()
+
+internal fun svgPixels(
+    source: String,
+    width: Int = 40,
+    height: Int = 40,
+    options: SvgDrawOptions = SvgDrawOptions()
+): Array<Byte> =
+    SvgDocument.parse(source).use {
+        document -> RasterSurface(width, height).use {
+            surface ->
+            surface.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.drawSvg(
+                    document,
+                    Rect(0.0, 0.0, width.toDouble(), height.toDouble()),
+                    options
+                )
+            }
+            surface.readPixels()
+        }
+    }

@@ -882,6 +882,7 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 
 ### UI 与图形后续增强（调研结论，未实施）
 
+- [SVG、字体与桌面集成](desktop-ui/GUI-EXTENSIONS.md)：复用 Skia SVG 提供有限静态 SVG／Lucide，补齐系统字体目录、临时装载、命名实例与可变轴选择；Taskbar／Dock 的图标、文字、菜单、进度及系统通知仅使用平台原生能力，缺失功能不自绘补齐。Windows native desktop demo 的圆形窗口按实际配置与后端问题单独定位修复。G1 独立 SVG 图形库已完成 macOS aarch64 离屏／Metal 验证；其余批次和平台结果见[实施进度](desktop-ui/GUI-EXTENSIONS-PROGRESS.md)。
 - [高级文本排版](graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)：在内容／样式／InlineKey 基础上增加矩形区域续排、分栏及图文绕排，保留全局文本位置和真实行片段。固定宽度 SkParagraph 不能直接完成任意区域排版；后端增强与公共 UI 适配按实际场景推进，跨栏保留子组件身份。
 - [GPU 与 3D 互操作](ui/DESIGN.md#13-后续增强gpu-互操作3d-与视频)：先补充外部 GPU 图像导入和生产／采样的同步及资源合同，再分别推进 UI 纹理宿主和组件内 3D 合成。复用现有 Metal／D3D12 目标基础；GL／GLES／Vulkan 按实际需求增加后端，离屏 UI 另须接入帧、输入映射和根所有权。
 - [视频展示](ui/DESIGN.md#135-视频播放)：复用帧图像接入，媒体库负责解码、音频与播放时钟，UI 适配负责展示和状态通知；区分业务 State 与连续帧，补齐按呈现时间选帧、YUV／SDR 转换、跨线程交付、seek 迟到帧及共享播放器生命周期。

@@ -174,6 +174,10 @@ class ComponentLicenseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = "x86_64-unknown-linux-gnu"
+            vendor = root / "sysroot/vendor/skia"
+            vendor.mkdir(parents=True)
+            (vendor / "LICENSE-skia").write_text("Skia license")
+            (vendor / "LICENSE-expat").write_text("Expat license")
             library = root / "sysroot/lib" / target
             for relative, content in (
                 ("rust-std/COPYRIGHT-library.txt", "Rust license"),
@@ -199,6 +203,21 @@ class ComponentLicenseTests(unittest.TestCase):
                 "dbusmenu license",
             )
             self.assertNotIn("Rust-std", (gui / "README.md").read_text())
+            self.assertEqual((gui / "Skia/LICENSE-expat").read_text(), "Expat license")
+
+    def test_svg_dependencies_ship_licenses_in_darwin_and_windows_gui_packages(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            vendor = root / "sysroot/vendor/skia"
+            vendor.mkdir(parents=True)
+            (vendor / "LICENSE-skia").write_text("Skia license")
+            (vendor / "LICENSE-expat").write_text("Expat license")
+            for target in ("aarch64-apple-darwin", "x86_64-pc-windows-msvc-ucrt"):
+                installation = root / target
+                package_licenses.collect_gui_libraries(installation, root / "sysroot", target)
+                licenses = installation / f"share/licenses/lib-gui-{target}"
+                self.assertEqual((licenses / "Skia/LICENSE-expat").read_text(), "Expat license")
+                self.assertEqual((licenses / "Skia/LICENSE-skia").read_text(), "Skia license")
 
 
 if __name__ == "__main__":
