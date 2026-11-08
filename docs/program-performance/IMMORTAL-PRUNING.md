@@ -1,8 +1,8 @@
 # 静态常量与图标资源按需裁剪设计
 
-状态：设计完成，尚未实现。日期：2026-11-09。源码调研基线：`f3fd7f9f8`。
+状态：实施中，尚未完成验收。日期：2026-11-09。源码调研基线：`f3fd7f9f8`。
 
-本设计补齐最终链接对 immortal 静态对象的按需选择，以 `scoop.icons.lucide` 为实际消费者，接续[不可达 callable 裁剪](CALLABLE-PRUNING.md)和[类型／shape 元数据裁剪](TYPE-PRUNING.md)。文中的目标规则、改动和验收均为待实施内容；当前实现与已完成调研见第 2 节。
+本设计补齐最终链接对 immortal 静态对象的按需选择，以 `scoop.icons.lucide` 为实际消费者，接续[不可达 callable 裁剪](CALLABLE-PRUNING.md)和[类型／shape 元数据裁剪](TYPE-PRUNING.md)。第 2 节保留实施前的调研基线；目标规则已先同步到规范，完成情况以验收记录为准。
 
 ## 1. 需求与范围
 
@@ -141,7 +141,7 @@ callable 的代码、EH、GC 表、callable registration、函数私有机器常
 
 ## 7. 规范与文档同步
 
-本次只澄清实现规范中“目标”与“当前实现”的差别并链接本设计。进入实现批次时，先将以下目标规则落实到对应规范，再修改代码：
+实现批次先将以下目标规则落实到对应规范，再修改代码；库的用户说明随实际验收结果更新：
 
 | 文档 | 同步内容 |
 | --- | --- |
@@ -204,4 +204,16 @@ codegen 单测检查真实发射对象中的 Strong 配对、不同对象分离�
 3. 运行真实 Lucide 零／单／全引用及扩充实验，完成目标平台验证与空间／构建成本测量，再更新库声明和进度。
 
 交付要求是使用中的图标继续正确运行，未使用图标的资源、独立包装代码和登记都不进入最终可执行程序，且保留数据满足原有 GC／ABI 合同。完成前，README 中现有“不保证逐图标剔除”的说明继续有效。
+
+## 10. 实施记录
+
+### 2026-11-09：核心选择与本地编译器验收
+
+`codegen/object_partition` 将每个 Strong immortal 与登记独立合组；ODR 两种 definition 继续各自分组。`program/selection/reachable` 使用既有 typed entity 同时关联类型与 immortal 的登记，移除 immortal 两种 role 的无条件根，复用现有符号遍历和五表投影。没有新增 wire 字段、runtime ABI、用户开关或库特例。
+
+新增 `immortal-pruning` 专测覆盖零／单／多引用、增加未使用资源、release 实际内联后删除 getter、默认参数、三个 Cone 的相同泛型候选、静态初值与初始化、目录对象图、managed 保存及 MOVE／MINOR GC。检查实际 payload、对象与登记符号、semantic ID 和 callable body ID；零引用 provider 的全部 immortal 登记缺席。codegen 发射测试验证七个目标的两种 profile，Strong 配对与 ODR 独立成员均在真实对象中成立。
+
+Darwin AArch64：格式化与 Clippy 通过；codegen 397 项及 linker 16 项单测闭合。codegen 首次全量有一项既有 Windows return-PC 专测失败：默认 Homebrew LLVM 缺少仓库要求的 WinEH 补丁；改用已准备的配套 LLVM 22.1.8 动态库后，该项定向复验通过。不是裁剪逻辑回退。正式 CLI 的 immortal／callable／type pruning、三个 include 产物、native-app lifecycle 与 startup-stats 共 8 个 fixture、15 个变体、92 个过程通过；fixture runner 82 项规则测试通过，含 4 项平台条件跳过。
+
+真实图标、空间与构建成本、多平台运行和安装包尚未完成，本节不将对象交叉发射等同于目标平台实际运行。
 

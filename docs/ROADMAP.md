@@ -1,6 +1,6 @@
 # Scoop 实现路线图
 
-[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成设计，尚未实现（2026-11-09）：针对 Lucide 未使用 SVG 仍进入成品的问题，规划独立的 immortal 对象／登记分组及沿实际符号引用的最终选择，复用既有 callable／type 裁剪。范围、内联与 ODR 关联、真实图标验收和构建成本测量见设计；当前产物仍可能保留全部资源。
+[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成核心实现与 Darwin AArch64 编译器验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。零／单／多引用、扩库、跨 Cone 内联、重复泛型候选、静态对象图与定向 GC 已通过；静态存储和初始化规则保持。真实 Lucide、其他平台及发行打包验收继续进行。
 
 [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
 

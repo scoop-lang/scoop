@@ -14,8 +14,8 @@ impl SelectedMembers {
     ) -> Result<(), LinkError> {
         let mut owners = BTreeMap::<&[u8], Member>::new();
         let mut references = BTreeMap::<Member, Vec<&[u8]>>::new();
-        let mut types = Vec::new();
-        let mut type_registrations = BTreeMap::<StrongDefinitionEntity, Member>::new();
+        let mut registered_definitions = Vec::new();
+        let mut registrations = BTreeMap::<StrongDefinitionEntity, Member>::new();
         let mut pending = Vec::new();
         for (artifact, symbols) in closure.artifacts() {
             let cone = artifact.identity();
@@ -29,11 +29,17 @@ impl SelectedMembers {
                         for id in definitions {
                             let plan = &plans[id];
                             match plan.role {
-                                StrongDefinitionRole::TypeDescriptor => {
-                                    types.push(((cone, member.member()), plan.entity));
+                                StrongDefinitionRole::TypeDescriptor
+                                | StrongDefinitionRole::ImmortalObject => {
+                                    registered_definitions.push((
+                                        (cone, member.member()),
+                                        plan.entity,
+                                        plan.role,
+                                    ));
                                 }
-                                StrongDefinitionRole::TypeRegistration => {
-                                    type_registrations.insert(plan.entity, (cone, member.member()));
+                                StrongDefinitionRole::TypeRegistration
+                                | StrongDefinitionRole::ImmortalRegistration => {
+                                    registrations.insert(plan.entity, (cone, member.member()));
                                 }
                                 _ => {}
                             }
@@ -81,11 +87,9 @@ impl SelectedMembers {
             }
         }
         let mut companions = BTreeMap::<Member, Vec<Member>>::new();
-        for (member, entity) in types {
-            let registration = type_registrations.get(&entity).ok_or_else(|| {
-                error(format!(
-                    "TypeDescriptor {entity:?} has no selected type registration"
-                ))
+        for (member, entity, role) in registered_definitions {
+            let registration = registrations.get(&entity).ok_or_else(|| {
+                error(format!("{role:?} {entity:?} has no selected registration"))
             })?;
             if member != *registration {
                 companions.entry(member).or_default().push(*registration);
@@ -135,14 +139,13 @@ fn is_root(role: StrongDefinitionRole) -> bool {
     match role {
         StaticStorage
         | RootRegistration
-        | ImmortalObject
-        | ImmortalRegistration
         | InitializationCell
         | InitializationRegistration
         | GeneratedBridge
         | RootEntryDescriptor
         | NativeAppEntryDescriptor => true,
-        CallableBody | CallableRegistration | TypeDescriptor | TypeRegistration | Layout
-        | ScanProgram | DispatchTable | DispatchSlot | ImageDescriptor => false,
+        CallableBody | CallableRegistration | TypeDescriptor | TypeRegistration
+        | ImmortalObject | ImmortalRegistration | Layout | ScanProgram | DispatchTable
+        | DispatchSlot | ImageDescriptor => false,
     }
 }

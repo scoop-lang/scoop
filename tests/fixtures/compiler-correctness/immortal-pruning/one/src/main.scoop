@@ -1,0 +1,3 @@
+package dev.immortalpruning.one
+import dev.immortalpruning.text
+fun main() { print(text) }

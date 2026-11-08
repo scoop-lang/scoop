@@ -6,6 +6,7 @@ use super::*;
 
 mod constants;
 mod cstrings;
+mod immortals;
 mod no_gc;
 mod optimized;
 mod parallel;

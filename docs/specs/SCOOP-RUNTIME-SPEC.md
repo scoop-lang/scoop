@@ -253,6 +253,8 @@ ByteSpan 的物理表示是 pointer 后接 `u64 length`；static relocation 是 
 
 Image 依次包含 prefix、canonical Cone record（group/name/version ByteSpan 与 ConeIdentity）、直接依赖 identity pointer/count，再按 storage、immortal、initialization、type、callable 顺序保存五组 record pointer/count。每个 image 表只列出最终链接选中的 producer，普通 external ref 不重复登记。
 
+immortal 表只登记最终链接按实现规范 2.19 保留的静态对象，可以为空。每个保留对象必须有同一 immortal semantic ID 的登记，登记引用其实际 type registration；未引用对象及其登记同时缺席。输入库的候选登记表不构成链接保留理由，runtime 不额外读取库或补登记。
+
 RootEntry 依次包含 prefix、owner ConeIdentity、main callable ID、gateway callable ID、failure-root descriptor pointer 与 gateway pointer。main 的源码签名为语言规范 12.4.4 的四种 ordinary 形态之一：无参数或单个 `Array<String>` 参数，返回 `Unit` 或 `Int`。完整签名及 gateway 的参数构造、调用和返回适配由编译器检查并生成，不在 runtime record 中保存其摘要。
 
 四种 root gateway 使用统一的 C ABI；具体源码形态由编译器的 typed entry 和生成的 gateway 正文确定，runtime descriptor 不另加形态 tag，RootEntry 大小为 128 bytes。程序入口与 gateway 的原型为：
@@ -498,7 +500,7 @@ Scoop GC 适配层解释已登记的 image／stackmap、线程发布的 managed 
 - 各线程活跃 exception record 保存的 managed Throwable 引用槽（5.1）；
 - live GC handles 与 pinned 对象。
 
-immortal 对象只读且不含可移动引用。其普通 TD 可以具有引用 scan，例如 Array<EmbeddedFile>；编译器生成的非 null 槽只引用其他静态 immortal 对象。映像登记检查对象范围、大小和对象头，不因 TD 带有引用 scan 而拒绝，也不重放编译器已生成的静态值图。collector 不扫描或写入 immortal 内容；对其他 root/对象按其实际 scan 访问引用槽，移动后原地更新；异常 record 的引用槽随线程根扫描原位更新。
+immortal 对象只读且不含可移动引用。其普通 TD 可以具有引用 scan，例如 Array<EmbeddedFile>；编译器生成的非 null 槽只引用其他静态 immortal 对象。最终链接必须保留这些实际引用的子对象及各自登记，不能仅因 collector 不扫描 immortal 就丢弃子对象。映像登记检查对象范围、大小和对象头，不因 TD 带有引用 scan 而拒绝，也不重放编译器已生成的静态值图。collector 不扫描或写入 immortal 内容；对其他 root/对象按其实际 scan 访问引用槽，移动后原地更新；异常 record 的引用槽随线程根扫描原位更新。
 
 ### 3.4 Pin 与 handle
 
@@ -989,7 +991,7 @@ JSON／CLI 的现有解析适配通过 platform 数值入口复用精确解析�
 
 启动先保存 2.8 的原始 argc/argv，建立运行时基础状态并验证全部 image/registration，再建立 GC、主线程与可执行 managed boundary。任何 managed initializer、Context 分配、argv 的 managed 构造或 main 之前必须完成相应登记；C coordinator 不提前构造未登记的 String 或 Array。
 
-实现规范 2.19 的最终链接选择可以删除不可达的完整 callable 和类型／shape 物理成员；启动只登记实际保留的类型和 callable，删除成员的 GC 表与登记同时缺席。保留代码仍须满足完整的 owner、site、frame 与精确根合同，保留 TD 必须有同一 exact type 的登记，不能仅为减少启动工作而丢弃仍可执行代码或存活类型的记录。静态根、immortal 和初始化记录沿现有合同保留；此选择不增加对象字段、GC roots 或 runtime 测量代码。
+实现规范 2.19 的最终链接选择可以删除不可达的完整 callable、类型／shape 和 immortal 物理成员；启动只登记实际保留的类型、callable 和 immortal 对象，删除成员的 GC 表与登记同时缺席。保留代码仍须满足完整的 owner、site、frame 与精确根合同，保留 TD 必须有同一 exact type 的登记，保留 immortal 必须有同一对象的登记及完整静态引用闭包，不能仅为减少启动工作而丢弃仍可执行代码或存活对象的记录。静态根与初始化记录沿现有合同保留；此选择不增加对象字段、GC roots 或 runtime 测量代码。
 
 `--enable-startup-stats` 显式请求编入启动诊断，默认不编入；该构建开关独立于 profile 和 GC stress。runtime 的 C 生产配置以 `SCOOP_ENABLE_STARTUP_STATS=0/1` 控制预处理，关闭时不得生成计时、阶段状态、报告、诊断字符串和专用计数访问，也不能通过环境变量重新启用。编入后，每次启动在 `scoop_rt_run_program` 取得 platform／加载镜像范围前开始单调墙钟计时，在 eager 初始化完成、调用 root gateway 之前向 stderr 写一行 JSON：`scoop_startup:1`、`total_ns`、`phases_ns` 和 `counts`。七个互不重叠的阶段为 `loaded_images`、`collect_records`、`code_and_types`、`storage_and_units`、`stackmaps`、`runtime_init`、`eager_init`；阶段纳秒数之和等于 total。runtime_init 包含 String 绑定检查、registry 发布、线程／callback／GC 初始化与主线程 attach。时间不包含 runtime 入口之前的 dyld／CRT、root gateway 内的参数构造、main、shutdown 或诊断输出本身；前置阶段失败时不伪造完整启动记录。
 

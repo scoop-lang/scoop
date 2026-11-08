@@ -1,0 +1,3 @@
+package dev.immortalpruning.right
+import dev.immortalpruning.generic
+public fun right(): String = generic(2)

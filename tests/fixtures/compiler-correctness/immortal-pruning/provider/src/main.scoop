@@ -1,0 +1,17 @@
+package dev.immortalpruning
+import scoop.compiler.*
+
+public val text: String get() { return includeStr("live.txt") }
+public val otherText: String get() { return includeStr("other.txt") }
+public val unusedText: String get() { return includeStr("unused.txt") }
+public val bytes: Array<Byte> get() { return includeBytes("live.bin") }
+public val unusedBytes: Array<Byte> get() { return includeBytes("unused.bin") }
+public val directory: EmbeddedDir get() { return includeDir("live-dir") }
+public val unusedDirectory: EmbeddedDir get() { return includeDir("unused-dir") }
+
+public inline fun inlined(): String = includeStr("inline.txt")
+public fun <T> generic(value: T): String = includeStr("generic.txt")
+public fun defaulted(value: String = includeStr("default.txt")): String = value
+public fun literal(): String = "immortal-pruning-literal"
+public fun unusedLiteral(): String = "immortal-pruning-unused-literal"
+public fun child(): Array<Byte> = includeDir("child-dir").files[0].bytes

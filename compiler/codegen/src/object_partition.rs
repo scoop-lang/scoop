@@ -78,12 +78,14 @@ impl ScoopLirObjectPartitionV1 {
                 _ => None,
             })
             .collect::<BTreeMap<_, _>>();
-        let type_definitions = surface
+        let registered_definitions = surface
             .plans()
             .iter()
             .filter(|plan| {
-                plan.definition_role() == StrongDefinitionRole::TypeDescriptor
-                    && plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak
+                matches!(
+                    plan.definition_role(),
+                    StrongDefinitionRole::TypeDescriptor | StrongDefinitionRole::ImmortalObject
+                ) && plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak
             })
             .map(|plan| (plan.owner(), plan.definition_plan()))
             .collect::<BTreeMap<_, _>>();
@@ -124,6 +126,8 @@ impl ScoopLirObjectPartitionV1 {
                     StrongDefinitionRole::ImageDescriptor
                         | StrongDefinitionRole::TypeDescriptor
                         | StrongDefinitionRole::TypeRegistration
+                        | StrongDefinitionRole::ImmortalObject
+                        | StrongDefinitionRole::ImmortalRegistration
                         | StrongDefinitionRole::Layout
                         | StrongDefinitionRole::ScanProgram
                         | StrongDefinitionRole::DispatchTable
@@ -137,9 +141,20 @@ impl ScoopLirObjectPartitionV1 {
                                     != scoop_lir::LinkageClass::OdrWeak =>
                         {
                             // A live descriptor always needs its own registration.
-                            *type_definitions
+                            *registered_definitions
                                 .get(&plan.owner())
                                 .ok_or(ScoopLirObjectPartitionError::MissingTypeDescriptor(exact))?
+                        }
+                        StrongDefinitionEntityKind::ImmortalObject(immortal)
+                            if plan.definition_role()
+                                == StrongDefinitionRole::ImmortalRegistration
+                                && plan.primary_symbol().linkage()
+                                    != scoop_lir::LinkageClass::OdrWeak =>
+                        {
+                            // An immortal and its registration are selected together.
+                            *registered_definitions.get(&plan.owner()).ok_or(
+                                ScoopLirObjectPartitionError::MissingImmortalObject(immortal),
+                            )?
                         }
                         StrongDefinitionEntityKind::DispatchTable(table)
                             if table_storage.contains_key(&table) =>
@@ -209,6 +224,7 @@ pub enum ScoopLirObjectPartitionError {
     ProducerUnits(ProducerUnitPartitionError),
     MissingDefinition(ObjectDefinitionPlanId),
     MissingTypeDescriptor(scoop_lir::PersistentExactTypeId),
+    MissingImmortalObject(scoop_lir::PersistentImmortalObjectId),
     MissingDispatchStorage(scoop_lir::PersistentDispatchTableId),
     InvalidCallableDefinition(ObjectDefinitionPlanId),
     DuplicateCallableBody {
