@@ -189,17 +189,22 @@ Section "Install"
     let shortcut = &shortcut[1..shortcut.len() - 1];
     let main_escaped = quoted(&main);
     let main_escaped = &main_escaped[1..main_escaped.len() - 1];
+    let icon_arguments = if *has_icon {
+        format!(" \"\" \"$INSTDIR\\{ICON}\" 0")
+    } else {
+        String::new()
+    };
     if start_menu {
         writeln!(
             script,
-            "  CreateDirectory \"$SMPROGRAMS\\{id}\"\n  CreateShortcut \"$SMPROGRAMS\\{id}\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\""
+            "  CreateDirectory \"$SMPROGRAMS\\{id}\"\n  CreateShortcut \"$SMPROGRAMS\\{id}\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\"{icon_arguments}"
         )?;
         set_shortcut_identity(&mut script, &format!("$SMPROGRAMS\\{id}\\{shortcut}.lnk"))?;
     }
     if desktop {
         writeln!(
             script,
-            "  CreateShortcut \"$DESKTOP\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\""
+            "  CreateShortcut \"$DESKTOP\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\"{icon_arguments}"
         )?;
         set_shortcut_identity(&mut script, &format!("$DESKTOP\\{shortcut}.lnk"))?;
     }
