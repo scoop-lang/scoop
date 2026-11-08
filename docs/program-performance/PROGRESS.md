@@ -123,6 +123,8 @@
 
 ## 当前进展
 
+- 已完成[静态常量与图标资源按需裁剪](IMMORTAL-PRUNING.md)设计，待实现（2026-11-09）：当前 getter 已可删除，SVG immortal 仍因粗分组和无条件根全部保留。设计按对象与登记独立分组，复用 ODR 选择后的符号遍历和最终 image 过滤；包含跨 Cone 内联、静态对象图、GC 与真实 Lucide 扩充验收，保持全局存储及初始化规则。
+
 - 已完成[已知小型 box 生成分配](BOX-ALLOCATION.md)：≤128 B 实例复用 TLAB／慢路径，源值沿既有根计划移动回写，完整复制 padding 并保留值屏障；不再进入动态 box C 后备和额外 native region frame。三目标 ZST、整数和引用小值耗时降低约 67%～83%，实际分配／minor 保持，较大值继续共享后备；text 增加 896～960 B，冷编译无明显增长。两机 8 项 IR 单测及三目标跨 Cone／packed／identity／moving 专测通过，release 默认，ABI 不变。
 - 已完成[普通 String 拼接融合与热二元生成](STRING-CONCAT.md)：真实 MIR runtime 身份识别，常量合并、单用链一次分配，复用静态热度和 TLAB；共享中间结果及副作用边界保持。三目标热二元降低约 42%～62%，五段链降低约 83%～92%，十万次链减少 12.8 MB 分配。text 增加约 1 KB、完整文件缩小，冷编译变化 −2.95%～+2.25%；定向语义、IR／机器码和大小对象 moving 验证通过。release 默认，无 StringBuilder、布局、ABI 或测量代码变更。
 - 已完成[标量 core 正文与 Boolean 字符串常量](SCALAR-BODIES.md)：固定宽度 hash 与 Boolean equals／hash 进入普通正文，保留位型及原调用点评分；Boolean.toString 选择 immortal。三目标热内核消除标量调用，常量 hash 折叠；十万次 Boolean 字符串化减少 3.2 MB 分配、minor 3→0。text 增加 232～256 B、完整文件和 core 库缩小，consumer 编译增加 0.32%～2.05%；GNU 动态 hash 的初测小幅回退及固定 CPU 复核同时保留。三目标各 3 项 Cone 测试与成员内联／moving 专测通过，无 runtime、ABI 或测量代码变更。

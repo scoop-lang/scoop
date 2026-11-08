@@ -1,5 +1,7 @@
 # Scoop 实现路线图
 
+[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成设计，尚未实现（2026-11-09）：针对 Lucide 未使用 SVG 仍进入成品的问题，规划独立的 immortal 对象／登记分组及沿实际符号引用的最终选择，复用既有 callable／type 裁剪。范围、内联与 ODR 关联、真实图标验收和构建成本测量见设计；当前产物仍可能保留全部资源。
+
 [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
 
 Coroutine executor 与异步同步原语改造进行中（2026-11-04，见[设计](coroutine-executors/DESIGN.md)与[实施进度](coroutine-executors/PROGRESS.md)）。lambda 的期望挂起性、对称重载规则、编译器执行协议、receiver scope、blocking 入口，以及[并发库](specs/SCOOP-CONCURRENT-SPEC.md)的 Channel／AsyncMutex／AsyncConditionVariable、MultiThreadExecutor、通用 managed BlockingTaskPool，I/O LoopExecutor、共享池 AsyncRuntime、原生阻塞任务和 TLS 迁移已完成 Darwin 本地验收；接下来审计 HTTP 等上层消费者，并集中运行 Linux／Windows 验证。每项实际验收结果单独记录，尚未完成的 API 不视为可用。

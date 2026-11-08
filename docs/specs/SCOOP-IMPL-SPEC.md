@@ -1453,7 +1453,9 @@ HIR 在完成常量名称求值后、请求宿主查询环境前，拒绝空、�
 
 泛型具体化、默认参数展开、闭包、内联及跨 Cone 消费可以复用常量数据，但没有统一对象身份或唯一物理副本的强制合同。是否合并、在何阶段合并以及不同 profile 的选择由实际优化实现决定；未合并不能导致源码错误。复用既有 typed 常量、静态对象和产物定义／引用关系，不以本功能为由预建跨阶段的全局常量身份框架。普通字符串常量同样适用语言规范 9.1.2 的 identity 规则；普通运行期对象构造及要求独立副本的操作仍保留既有语义。
 
-MIR 保存完整常量值／对象引用，LIR 沿已有布局生成静态数组、enum／struct 值和 immortal relocation。Option<String> 使用运行时规范 2.5 的既有 niche；Some 空字符串引用实际非 null String。代码、初始化静态值和其他常量通过普通 relocation 引用实际发射的数据定义。链接按实际引用选择定义及其既有 immortal 登记，不将全部常量变成无条件根，未引用的数据可裁剪。debug／release 都直接生成静态内容，不在程序启动时构造数组、解码文件或组装目录；这一静态求值要求不等于必须合并相同内容。
+MIR 保存完整常量值／对象引用，LIR 沿已有布局生成静态数组、enum／struct 值和 immortal relocation。Option<String> 使用运行时规范 2.5 的既有 niche；Some 空字符串引用实际非 null String。代码、初始化静态值和其他常量通过普通 relocation 引用实际发射的数据定义。debug／release 都直接生成静态内容，不在程序启动时构造数组、解码文件或组装目录；这一静态求值要求不等于必须合并相同内容。
+
+静态常量的目标链接规则是按实际引用选择定义及其既有 immortal 登记，不将全部常量变成无条件根，未引用的数据与登记一起裁剪。当前已实现的物理选择仍按 2.19 保留全部 immortal；逐对象分组与登记按需选择尚未实现，见[静态常量与图标资源裁剪设计](../program-performance/IMMORTAL-PRUNING.md)。本段的目标规则不能作为当前产物已能逐资源裁剪的保证。
 
 沿 2.7 的成功响应／构建记录增加实际输入：定义 Cone 根与解析后的实际根、单文件的 host locator／实际目标／长度／修改时间；目录根及 include／exclude、归一化匹配集合、所选文件 metadata，以及条目范围和遍历更新所需的目录／链接解析状态；实际查询的合法 SCOOP_ 环境变量名称与缺失／有效值状态。成功记录只在整次编译成功时发布。下一次先按记录判断更新：目录必须发现新增、删除、改名及链接解析目标变化，不能只检查旧匹配文件；glob 排除项的新增或链接改指也须满足目录范围。实际目标变更使相关输入重新求值，越界／断链则按原源码位置报告并使本次构建失败，不能继续使用旧结果；未匹配普通文件的内容变化不触发源码重编。env 的缺失与空值不同，未查询变量不影响复用。全部输入未变且输出存在时直接复用，只观察必要 metadata、目录条目、链接解析结果与已查询环境值，不读取源码、资源内容、命中 `.slib` 或执行工具探测；文件内容更新沿既有修改时间／长度规则，不增设内容 hash 验证。目录与链接状态服务匹配集合和实际目标更新，不能只依赖根目录 mtime 发现深层变化；同次观察结果直接复用，不在后续 stage 重做范围检查。
 
@@ -1894,6 +1896,8 @@ program-link 在上述 ODR 选择之后，按已保存的逐物理 member 定义
 该选择复用 Link 输入中已有的符号、实体与物理成员数据，不重新读取机器对象或重建语言调用图，不改变源码可见性、类型检查、native 声明合同和 ABI。不可达物理 member 的内容与登记一起退出最终链接；静态存储、初始化与 immortal 的进一步裁剪不属于本次选择。输入 `.slib` 继续保存可供其他 consumer 使用的完整候选，消费 `link-identity-closure/20` 的分组符号使用表，不新增可达性 wire 字段；机器对象与实际分组变化正常进入原有内容指纹。所有 profile 统一使用前述完整符号使用表及相同布局。
 
 最终 image descriptors 和五张表由 program-link 从所选 records 生成，不改写输入 `.slib`。选择与实际内容进入 RuntimeImage、Code、Artifact 和 ResolvedLinkPlan 的对应摘要。
+
+上述分组与选择描述当前实现。2.10.1 的静态常量按引用选择目标由[静态常量与图标资源裁剪设计](../program-performance/IMMORTAL-PRUNING.md)继续推进，目前尚未实现。该设计将普通 Strong immortal 对象与同一对象的登记独立合组，在 ODR 选择后关联已选对象与登记，再从实际根沿符号引用保留；静态存储、初始化及 native 入口的现有保留规则不在该项裁剪范围内。
 
 OptimizationMode 在 machine request field 9 中编码 Debug=1、Release=2；生产端 Code 输入继续保存模式，production section 不再复制该值；compile cache domain 为 `scoop-cone-compile-cache-v2`，mode 位于 field 13。generated-C flag 的 SelectedOptimization tag 为 15，tag 6 保留不用。
 
