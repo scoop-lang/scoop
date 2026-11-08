@@ -212,12 +212,15 @@ impl WindowsCEnvironment {
     }
 
     pub(crate) fn configure_mingw_cxx(&self, command: &mut Command) {
-        command.arg("-stdlib=libc++");
         if let Some(resources) = &self.bundled_mingw {
+            // Explicit headers make -stdlib unused during object compilation;
+            // the final linker still selects libc++.
             command.arg("-nostdinc++");
             for include in &resources.cxx_includes {
                 command.arg("-isystem").arg(dunce::simplified(include));
             }
+        } else {
+            command.arg("-stdlib=libc++");
         }
     }
 }
