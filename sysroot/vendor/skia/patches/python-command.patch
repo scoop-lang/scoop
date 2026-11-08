@@ -1,0 +1,56 @@
+--- a/gn/toolchain/BUILD.gn
++++ b/gn/toolchain/BUILD.gn
+@@ -3,6 +3,7 @@
+ }
+ 
+ declare_args() {
++  python_executable = "python3"
+   host_ar = ar
+   host_cc = cc
+   host_cxx = cxx
+@@ -34,6 +35,11 @@
+ } else {
+   shell = ""
+   stamp = "touch"
++}
++
++python_command = "\"$python_executable\""
++if (host_os == "win") {
++  python_command = "cmd.exe /c call $python_command"
+ }
+ 
+ if (current_toolchain == default_toolchain) {
+@@ -201,7 +207,7 @@
+ 
+     tool("copy") {
+       cp_py = rebase_path("../cp.py")
+-      command = "$shell python3 \"$cp_py\" {{source}} {{output}}"
++      command = "$python_command \"$cp_py\" {{source}} {{output}}"
+       description = "copy {{source}} {{output}}"
+     }
+ 
+@@ -294,7 +300,7 @@
+         rspfile = "{{output}}.rsp"
+         rspfile_content = "{{inputs}}"
+         rm_py = rebase_path("../rm.py")
+-        command = "$shell python3 \"$rm_py\" \"{{output}}\" && $ar rcs {{output}} @$rspfile"
++        command = "$python_command \"$rm_py\" \"{{output}}\" && $ar rcs {{output}} @$rspfile"
+       }
+ 
+       outputs =
+@@ -395,13 +401,13 @@
+ 
+     tool("copy") {
+       cp_py = rebase_path("../cp.py")
+-      command = "python3 \"$cp_py\" {{source}} {{output}}"
++      command = "$python_command \"$cp_py\" {{source}} {{output}}"
+       description = "copy {{source}} {{output}}"
+     }
+ 
+     tool("copy_bundle_data") {
+       cp_py = rebase_path("../cp.py")
+-      command = "python3 \"$cp_py\" {{source}} {{output}}"
++      command = "$python_command \"$cp_py\" {{source}} {{output}}"
+       description = "copy_bundle_data {{source}} {{output}}"
+     }
+ 

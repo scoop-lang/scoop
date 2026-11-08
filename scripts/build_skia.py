@@ -176,6 +176,7 @@ def prepare(args):
     )
     patches = [
         *platform_patch,
+        vendor / "patches/python-command.patch",
         vendor / "patches/text-baselines.patch",
         vendor / "patches/graphics-pathops.patch",
     ]
@@ -257,7 +258,7 @@ def prepare(args):
         )
         source_record.write_text(json.dumps(sources) + "\n")
 
-    options = dict(OPTIONS, **platform_options)
+    options = dict(OPTIONS, **platform_options, python_executable=Path(sys.executable).as_posix())
     objects = args.build_dir / "objects"
     objects.mkdir(parents=True, exist_ok=True)
     (objects / "args.gn").write_text(

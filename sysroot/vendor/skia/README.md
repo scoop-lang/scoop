@@ -28,6 +28,8 @@ Darwin ARM64 与 x86_64 分别在独立工作目录构建。部署目标和 CPU 
 
 `patches/text-baselines.patch` 修正 SkParagraph 的公共基线与实际绘制坐标差异，并让同一行的 ideographic placeholder 使用计入对象高度前确定的文字基线距离。对象改变行高时仍共用同一参照，不因前一个对象的高度改变后一个对象的基线。补丁在公共文本层生效，Scoop 和 UI 无需移动已排好的对象作补偿；回归归属 graphics.text 的 scoop.test，平台验证范围见 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
 
+GN 生成与 Ninja 的 Python 辅助命令都使用启动准备脚本的解释器。`patches/python-command.patch` 将上游归档／复制规则写死的 python3 改为显式参数，避免 Windows PATH 中的旧启动器影响构建；路径按平台 shell 规则引用，不修改用户 PATH 中的工具。
+
 发布一个 `libscoop_skia.a`，合并实际构建的 Skia／SVG／资源／Expat／段落／shaping／Unicode／codec 静态依赖；头文件位于目标资源的 `include/skia`，包含 SVG 公开头文件实际引用的 Skia 内部基础头文件。GUI 组件包同时收集本目录许可，安装后无需额外 sources 包才能取得静态依赖的声明。这些都是普通 Cone native 输入，不进入编译器或 runtime。缓存命中只判断输入更新与输出存在，发生更新后才解包、探测工具和构建。
 
 graphics 绑定使用 `SK_RELEASE`，与预编译的 release Skia 保持相同头文件布局；应用的 Scoop profile 不改变该依赖的 C++ ABI。原生 C++ 标准使用 Cone driver 的 C++20 默认值，公共 Clang warning 选项使用 `-Wmost`，避免 clang-cl 将 `-Wall` 解释为 Microsoft 的全部 warning 等级。
