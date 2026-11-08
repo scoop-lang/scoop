@@ -68,6 +68,7 @@ typedef struct {
     NSMutableDictionary<NSNumber *, SWWindow *> *windows;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, id> *watches;
 @property(nonatomic, weak) SWMenu *menuBar;
+@property(nonatomic, weak) NSMenu *dockMenu;
 @property(nonatomic, strong) NSMutableArray *modalStack;
 - (void)enqueue:(SWEvent *)event;
 @end

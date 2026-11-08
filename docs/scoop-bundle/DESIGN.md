@@ -25,6 +25,8 @@
 
 首期不加入自动更新服务、商店上传、通用安装脚本 DSL 或打包插件系统。macOS 公证/装订、DMG/PKG、Universal 合并等扩展单独列在第 12 节。
 
+Windows 快捷方式写入与 bundle.identifier 一致的 AppUserModelID。`bundle.windows.notifications = true` 为 NSIS／MSI 增加通知所需的 ToastActivatorCLSID、AppUserModelId 和 COM LocalServer32 登记，要求所选安装格式保留开始菜单快捷方式。CLSID 由 identifier 稳定生成；普通应用构建与每次发送通知都不修改这些注册。卸载按原安装范围删除自己的登记。该配置对应 [系统桌面通知规范](../specs/SCOOP-DESKTOP-NOTIFICATION-SPEC.md)，不引入 Windows App SDK 或额外后台进程。
+
 ## 2. 工具组织与现有接口
 
 实际宿主程序安装为 `<SYSROOT>/commands/scoop-bundle`，Windows 为 `scoop-bundle.exe`。用户入口为 macOS/Linux 的 `scoop bundle` 与 Windows 的 `sco bundle`，复用已有 argv、cwd、环境、标准流和退出状态转发。
@@ -277,6 +279,11 @@ formats = ["deb", "rpm", "appimage"]
 categories = ["Utility", "TextEditor"]
 terminal = false
 
+[[bundle.linux.actions]]
+id = "new-window"
+title = "New Window"
+arguments = ["--new-window"]
+
 [bundle.linux.deb]
 maintainer = "Example Team <dev@example.com>"
 section = "utils"
@@ -291,6 +298,8 @@ requires = ["gtk4 >= 4.18", "libadwaita >= 1.4"]
 示例依赖名只说明字段结构，实施验收按所选发行版的实际包数据库确认，不将其固化为所有 Linux 目标的通用规则。
 
 三种格式共用主程序、资源、私有库、图标和 desktop metadata。desktop 的文件名以 identifier 为基准；deb/rpm 的 Exec 指向安装后的程序入口，AppImage 使用 AppDir 中的对应入口。生成器负责空格、Unicode 和 desktop Exec 的转义，不能把未经转义的配置拼入 shell。
+
+`bundle.linux.actions` 是可选的有序启动任务列表，生成原生 `Actions` 和 `[Desktop Action <id>]` 分组。每项必须有唯一非空 `id`（ASCII 字母、数字及 `-`）、非空显示 `title`，以及默认空的 `arguments` 字符串数组；文字和参数不含 NUL。每项 Exec 固定使用同一应用入口，逐项按 desktop Exec 规则转义，保留空参数、Unicode、引号、反斜线和字面百分号，不接受 shell 命令或运行期闭包。`StartupWMClass` 使用 identifier，与 Window 的 applicationId 对应。没有 actions 时不写空任务分组。
 
 deb 生成 control、payload、权限和普通包升级信息；rpm 生成对应 header、文件清单和依赖。架构名称从程序目标转换，例如 x86_64 对应 Debian amd64、RPM x86_64。license、description 等按格式要求提供。首期采用成熟后端和标准安装行为，不开放任意 post-install shell 脚本。
 
@@ -342,7 +351,7 @@ WiX 5 的原生 CAB 接口使用系统 ANSI 代码页表示压缩输出目录。
 
 可选 Authenticode 签名使用 Windows 证书存储引用和时间戳配置：先签署本次需要签名的 exe/DLL payload，再生成安装器并签署最终 NSIS/MSI。后端负责 NSIS uninstaller 等内部可执行文件的正确签名顺序，不能只签外层安装包后宣称内部程序已签名。显式要求签名时失败不发布新包。
 
-`[windows].rc` 仍是编译输入。本期 bundle 中的图标/版本用于安装包，不自动重写主程序的 PE 资源或生成 RC；需要 exe 内嵌信息的项目通过已有 RC 配置提供。安装包资源变化仅重打包，RC 及其依赖变化由正常 build 更新。
+`[windows].rc` 仍是编译输入。本期 bundle 中的图标/版本用于安装包，不自动重写主程序的 PE 资源或生成 RC；需要 exe 内嵌信息的项目通过已有 RC 配置提供。指定 bundle 图标时，NSIS 和 MSI 的开始菜单、桌面快捷方式均显式引用随包图标；未指定时使用主程序的默认图标。安装包资源变化仅重打包，RC 及其依赖变化由正常 build 更新。
 
 ## 10. 更新判断、失败与诊断
 

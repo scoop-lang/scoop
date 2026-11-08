@@ -18,7 +18,7 @@ window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin 
 
 ## 2. 应用与线程
 
-Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。
+Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。可选 applicationId 在首窗前设置原生应用关联，ActiveApplication.applicationId 暴露原快照；具体平台含义与部署一致性见[桌面集成规范](SCOOP-DESKTOP-SPEC.md)。
 
 同一 Application 的 handler、proxy 与集成回调共享一个稳定的 ActiveApplication 引用；它表达相同运行 owner，不在每次派发时重新创建包装对象。引用稳定不延长运行期，关闭后各操作仍遵守原有状态检查。
 
@@ -179,6 +179,8 @@ lease.close 可跨线程且幂等，原子结束借用并把实际释放排入 o
 
 已有 lease 阻止库主动销毁原生窗口，但不保证显示服务器永远可用，也不扩展平台图形对象的线程权限。renderer 先结束 surface 及有关原生使用，再释放 lease；GC release 不调用窗口 API。lease 不授权在隐藏、零尺寸、待配置或 Closing 时提交帧。
 
+NativeApplicationLease.acquireWindow 可接收可选 requestClose 回调，服务独立桌面资源的窗口绑定。窗口进入 Closing 时将回调排入 owner 收尾队列，最多交付一次；借用者必须停止原生使用并 close lease。显式先关闭 lease 会取消未交付回调，回调只负责现有资源收尾，不取得新的窗口借用。原有不带回调的调用行为保持不变。
+
 ## 7. 窗口及应用关闭
 
 `Window.requestClose(): Boolean` 从业务代码排队一次普通 CloseRequested，供自绘窗口关闭按钮沿同一退出确认入口工作；它不直接 requestDestroy。返回 true 表示已接受排队。窗口受模态限制、关闭按钮禁用或应用不再接受业务工作时返回 false；交付时再次检查窗口仍可处理关闭请求，失效后不交付旧请求。实际销毁继续由应用明确决定。
@@ -215,6 +217,8 @@ Darwin 使用语言规范 12.2.1、实现规范 2.7 的普通 native Objective-C
 ## 10. Win32 后端
 
 Windows 窗口使用 Unicode HWND，创建前确认 Per-Monitor V2；已声明其他 DPI 模式时明确失败，不改变现有 UI 的坐标合同。每次 WM_DPICHANGED 使用建议窗口矩形并重新读取内容像素尺寸，原子发布完整 metrics。内容逻辑坐标以窗口 DPI 换算；DesktopPosition／DesktopRect 使用物理虚拟桌面坐标。最小化提供零 drawable，隐藏／最小化期间保留 dirty；Windows 不提供普通顶层窗口完整遮挡查询，isOccluded 只报告系统可确认的最小化或 DWM cloaked 状态。
+
+通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 Per-Monitor V2 再创建任何 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
 
 窗口属性通过正常 Win32／DWM API 实施，原生返回值在边界保留并转换为 WindowException。native 薄层的创建结果同时返回资源和状态码；setter 以状态码报告失败，不使用另一个错误缓存。Windows 8 起 DwmEnableBlurBehindWindow 不产生模糊效果，setBlur(true) 返回 Unsupported 且无副作用；要求 blur 的创建失败。主题建议使用 DWM 支持的暗色标题栏属性；缺少该属性时返回 Unsupported。透明背景供实际 renderer 使用，不承诺所有渲染设备都有 alpha 支持。内容保护为 WDA_MONITOR 系统提示，仍返回 Requested。
 
@@ -284,7 +288,7 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 | 结果 | 构造入口与全部配置字段 |
 | --- | --- |
 | WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard)；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false；shadow: WindowShadow = WindowShadow.System |
-| ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning |
+| ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning；applicationId: String? = None |
 
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
 

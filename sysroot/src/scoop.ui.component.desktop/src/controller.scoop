@@ -1,0 +1,62 @@
+package scoop.ui.component.desktop
+
+import scoop.desktop.*
+import scoop.desktop.notification.*
+import scoop.ui.ApplicationScope
+import scoop.window.ActiveApplication
+
+/** Owns the application's desktop resources; the exposed resources are borrowed. */
+public class NativeDesktopController internal constructor(
+    active: ActiveApplication,
+    launch: NotificationLaunch?
+): Closeable {
+    public val application: DesktopApplication = active.openDesktop()
+    public val notifications: NotificationCenter? = connectNotifications(application, launch)
+    private var closed = false
+    private var shell: NativeDesktopAttachment? = None
+
+    public val isClosed: Boolean get() {
+        val nativeClosed = application.isClosed
+        return closed || nativeClosed
+    }
+    internal fun claim(owner: NativeDesktopAttachment) {
+        if (isClosed)
+            throw IllegalStateException(Some("desktop controller is closed"))
+        when (shell) {
+            case Some(previous) -> if (!(previous === owner))
+                throw IllegalStateException(Some("desktop controller already has a shell element"))
+            case None -> shell = Some(owner)
+        }
+    }
+    internal fun release(owner: NativeDesktopAttachment) {
+        when (shell) {
+            case Some(previous) -> if (previous === owner)
+                shell = None
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        if (isClosed)
+            return
+        closed = true
+        application.close()
+    }
+}
+
+private fun connectNotifications(
+    application: DesktopApplication,
+    launch: NotificationLaunch?
+): NotificationCenter? =
+    try {
+        when (launch) {
+            case Some(value) -> Some(application.openNotifications(value))
+            case None -> None
+        }
+    } catch (error: Throwable) {
+        application.close()
+        throw error
+    }
+
+public fun ApplicationScope.desktopController(
+    launch: NotificationLaunch? = None
+): NativeDesktopController = resource { NativeDesktopController(application, launch) }

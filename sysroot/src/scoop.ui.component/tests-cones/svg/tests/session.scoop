@@ -1,0 +1,150 @@
+package scoop.tests.ui.svg
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class SvgWindowTest {
+    @Test
+    fun `SVG icons follow theme and size replace their source and preserve borrowed views`() {
+        val probe = SvgUiProbe()
+        try {
+            context(probe.theme) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application(
+                        applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                    ).run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.mounts)
+            assertEquals(1, probe.unmounts)
+            assertFalse(probe.borrowed.isClosed)
+        } finally {
+            probe.borrowed.close()
+        }
+    }
+}
+
+internal fun svgUiTheme(color: Color): Theme =
+    shadcnTheme() {
+        tokens {
+            typography { action { this.color = color } }
+            palette { secondary = ColorPair(Color.White, color) }
+            motion { preference = MotionPreference.Reduced }
+        }
+    }
+
+internal class SvgUiProbe {
+    val theme = ThemeSource(svgUiTheme(Color(1.0, 0.0, 0.0)))
+    val generation = state(0)
+    val full =
+        SvgAsset(
+            """<svg width="24" height="24" viewBox="0 0 24 24"><rect width="24" height="24" fill="currentColor"/></svg>"""
+        )
+    val half =
+        SvgAsset(
+            """<svg width="24" height="24" viewBox="0 0 24 24"><rect width="12" height="24" fill="currentColor"/></svg>"""
+        )
+    val borrowed =
+        SvgDocument.parse(
+            """<svg viewBox="10 20 24 24"><rect x="10" y="20" width="24" height="24" fill="blue"/></svg>"""
+        )
+    val buttonColors = ArrayList<Color>()
+    var size = 24.0
+    var asset = full
+    var shown = true
+    var rtl = false
+    var window: Window? = None
+    var rendered = -1
+    var left = -1L
+    var right = -1L
+    var borrowedPixel = -1L
+    var mounts = 0
+    var unmounts = 0
+    var finished = false
+    private var waiting = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> when (window) {
+                case Some(_) -> {}
+                case None -> {
+                    val native =
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop SVG icons"
+                                size = LogicalSize(260.0, 130.0)
+                                visible = false
+                            }
+                        )
+                    window = Some(native)
+                    host.attach(native, { mount -> SvgUiRoot(this, mount) })
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    )
+                    active.proxy().post { _ -> native.setVisible(true) }
+                }
+            }
+            case AboutToWait -> if (!waiting && !finished && rendered == generation.value) {
+                waiting = true
+                active.proxy().post {
+                    _ ->
+                    waiting = false
+                    advance()
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(Some("SVG UI frame timeout"))
+            else -> {}
+        }
+    }
+
+    private fun advance() {
+        assertEquals(0xff0000L, borrowedPixel)
+        when (generation.value) {
+            case 0 -> {
+                assertEquals(0x0000ffL, left)
+                assertEquals(0xffffffL, right)
+                assertEquals(Color(1.0, 0.0, 0.0), buttonColors[buttonColors.size - 1L])
+                theme.current.value = svgUiTheme(Color(0.0, 1.0, 0.0))
+                size = 48.0
+            }
+            case 1 -> {
+                assertEquals(0x00ff00L, left)
+                assertEquals(0x00ff00L, right)
+                assertEquals(Color(0.0, 1.0, 0.0), buttonColors[buttonColors.size - 1L])
+                asset = half
+                rtl = true
+            }
+            case 2 -> {
+                assertEquals(0x00ff00L, left)
+                assertEquals(0xffffffL, right)
+                size = 0.0
+            }
+            case 3 -> {
+                assertEquals(0xffffffL, left)
+                assertEquals(0xffffffL, right)
+                shown = false
+            }
+            case 4 -> {
+                assertEquals(0xffffffL, left)
+                assertEquals(0xffffffL, right)
+                assertEquals(1, mounts)
+                finished = true
+                window!!.requestDestroy()
+                return
+            }
+            else -> fail(Some("unexpected SVG UI phase"))
+        }
+        generation.value += 1
+    }
+}

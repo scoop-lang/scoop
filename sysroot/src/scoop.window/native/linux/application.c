@@ -54,10 +54,22 @@ static void finish(SWApplication *app) {
     app->head = event->next;
     sw_free_event(event);
   }
+  g_free(app->application_id);
   free(app);
 }
 SWResult scoop_window_application_create(SWCallback callback, void *context,
-                                         int32_t policy) {
+                                         int32_t policy,
+                                         const uint8_t *identifier,
+                                         int64_t length) {
+  if (length > 0) {
+    char *id = g_strndup((const char *)identifier, (gsize)length);
+    if (!g_application_id_is_valid(id)) {
+      g_free(id);
+      return (SWResult){NULL, EINVAL};
+    }
+    g_set_prgname(id);
+    g_free(id);
+  }
   const char *requested = getenv("SCOOP_WINDOW_BACKEND");
   const char *backend = getenv("WAYLAND_DISPLAY") ? "wayland" : "x11";
   if (requested && *requested) {
@@ -90,6 +102,8 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
     return (SWResult){NULL, EBUSY};
   }
   app->kind = kind;
+  if (length > 0)
+    app->application_id = g_strndup((const char *)identifier, (gsize)length);
   app->callback = callback;
   app->context = context;
   app->deadline = -1;

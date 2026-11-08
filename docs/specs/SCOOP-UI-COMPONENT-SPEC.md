@@ -441,7 +441,7 @@ Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固
 
 验收覆盖实际 Input／Textarea 的外部更新、模型／字体更换、说明与主题状态、正常和无效表面、只读／禁用、留白聚焦、Tab／提交、长文滚动条，以及模态 IME 取消和虚拟编辑项保留。原生窗口行为使用 scoop.test，与纯编辑事务和主题像素用例分层验证。
 
-## 10. Image 与 Path 展示
+## 10. Image、Path、SVG 与图标展示
 
 `imageView(image, naturalSize, configure)` 和 `pathView(path, viewBox, configure)` 返回普通 Element 描述，对应 ImageViewProps／ImageView 与 PathViewProps／PathView；ChildrenBuilder 提供同名的追加成员。构造只保存输入，不访问文件、网络、挂载或取得资源所有权。
 
@@ -451,6 +451,16 @@ Image 的 naturalSize 是明确的正有限逻辑尺寸，像素密度由像素�
 
 Path 按 viewBox 原点和平移／缩放映射到目标矩形，stroke 与路径一起变换。Image 使用现有 graphics 绘图与采样合同。两者借用输入资源，更新或卸载不关闭调用方的 Image／Path；持有者必须在使用期间保持它们打开，关闭资源的错误沿普通绘图失败路径处理。替换内容通过 Props，绘制读取本轮输入，不跨更新保留旧资源缓存。展示本身不创建 InputArea、焦点、计时器或加载状态；加载／失败／重试属于应用或后续控件组合。
 
+
+### 10.1 SVG 与 Icon
+
+`svgView(document, configure)` 提供 SvgViewProps／SvgView，借用 `scoop.graphics.svg.SvgDocument`。SvgViewBuilder 包含 naturalSize=None、fit=Contain、alignment=Center／Center、clip=true、options=SvgDrawOptions() 和 key。自然尺寸依次取显式 naturalSize、文档 intrinsicSize、有效 viewBox.size；均不存在时报告参数错误。布局和外部 fit 使用本节的公共几何；绘制直接调用 Canvas.drawSvg，不再次平移／缩放 viewBox。卸载或替换 View 不关闭借用文档。
+
+`icon(asset, configure)` 提供 IconProps／Icon，在实际挂载时解析 SvgAsset.source。同一来源的重新配置复用文档，来源变化时先解析成功再关闭旧文档；卸载释放当前文档。构造 View 不解析，没有全局 DOM 缓存。IconBuilder 包含 size=24、color=None、strokeWidth=2、absoluteStrokeWidth=false、theme=None 和 key。缺省颜色跟随当前主题的操作文字颜色，显式 color 优先；`ActionContentStyle.icon(asset, configure)` 先应用该样式的 iconSize 与 text.color，再执行调用方覆盖。
+
+图标按自己的自然宽高比等比居中放入受父约束限制的方框；没有自然大小时可使用有效 viewBox。size 和 strokeWidth 必须有限非负，零目标不绘制。普通 strokeWidth 使用根图形坐标。absoluteStrokeWidth 保持逻辑单位线宽，适用于具有可解析自然尺寸、且根 viewport 与 viewBox 宽高比一致的图标；无 viewBox 时使用自然尺寸坐标。无法确定单一等比比例时报告参数错误，不将该选项解释为任意 SVG 的 vector-effect。Lucide 的固定 24×24 资源满足此条件。
+
+ChildrenBuilder 提供 svgView 与 icon 追加成员。两种展示均不创建输入、焦点或时钟；方向性图标由调用方按 LayoutDirection 选择或变换，普通图标不自动镜像。内部默认图标使用 `scoop.icons.lucide` 的同一资源；旋转和交互仍沿所属控件的现有实现。
 
 ## 11. 操作变体、Badge 与 Spinner
 
@@ -476,7 +486,7 @@ LabelProps／LabelBuilder 增加 underline: Color? = None。它是纯绘制装�
 
 `spinner(configure: SpinnerBuilder.() -> Unit = {})` 与 ChildrenBuilder.spinner 返回普通 SpinnerProps／Spinner 组件。字段为 size: Double? = None、color: Color? = None、running: Boolean = true、period: Duration = Duration.seconds(1L)、theme: ThemeSource? = None；builder 另有 key。size 为有限非负逻辑尺寸，None 使用操作字号的 16／14；color=None 使用当前操作文字颜色。尺寸为零合法且不请求动画帧，period 必须大于 ZERO。
 
-图形采用实际 Lucide loader-circle 路径，保存来源与许可证；路径由挂载作用域持有，不逐帧分配。rotation 使用 scope.animation、线性 Tween 与 Repeat.Restart，running／period／减少动态变化才调整动画，普通刷新不重启。停止或 Reduced 显示静态图形且不请求帧。Spinner 在成功帧后用自身图形范围与 Canvas.localClipBounds 的保守交集设置该 Animatable.isFrameEnabled，实际零尺寸或透明图形也不请求帧；滚回视口沿同一时间轴恢复，不扫描离屏子树或建立定时器。虚拟保留、窗口隐藏和卸载继续沿已有动画组与 Surface 参与规则处理；局部开关不越过所属组的资格。它没有计时线程、后台任务或全局状态；父控件通过 ActionContentStyle 显式传入大小与颜色。
+图形采用 scoop.icons.lucide.loaderCircle 的原始 SVG，保存来源与许可证；解析文档由挂载作用域持有，不逐帧分配。rotation 使用 scope.animation、线性 Tween 与 Repeat.Restart，running／period／减少动态变化才调整动画，普通刷新不重启。停止或 Reduced 显示静态图形且不请求帧。Spinner 在成功帧后用自身图形范围与 Canvas.localClipBounds 的保守交集设置该 Animatable.isFrameEnabled，实际零尺寸或透明图形也不请求帧；滚回视口沿同一时间轴恢复，不扫描离屏子树或建立定时器。虚拟保留、窗口隐藏和卸载继续沿已有动画组与 Surface 参与规则处理；局部开关不越过所属组的资格。它没有计时线程、后台任务或全局状态；父控件通过 ActionContentStyle 显式传入大小与颜色。
 
 ## 12. 内容面板、分隔线与比例布局
 

@@ -24,6 +24,9 @@ static void deadline(CFRunLoopTimerRef timer, void *context) {
 }
 
 @implementation SWApplication
+- (NSMenu *)applicationDockMenu:(NSApplication *)sender {
+  return self.dockMenu;
+}
 - (void)enqueue:(SWEvent *)event {
   [self.events addObject:event];
   sw_wake(self);
@@ -63,8 +66,19 @@ int32_t scoop_window_is_main_thread(void) {
 }
 
 SWResult scoop_window_application_create(SWCallback callback, void *context,
-                                         int32_t policy) {
+                                         int32_t policy,
+                                         const uint8_t *identifier,
+                                         int64_t length) {
   @autoreleasepool {
+    if (length > 0) {
+      NSString *requested =
+          [[NSString alloc] initWithBytes:identifier
+                                   length:(NSUInteger)length
+                                 encoding:NSUTF8StringEncoding];
+      NSString *actual = NSBundle.mainBundle.bundleIdentifier;
+      if (!requested || (actual && ![requested isEqualToString:actual]))
+        return (SWResult){NULL, -4};
+    }
     NSApplication *app = [NSApplication sharedApplication];
     SWApplication *owner = [SWApplication new];
     owner.callback = callback;
@@ -93,6 +107,13 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
     [app finishLaunching];
     return (SWResult){(__bridge_retained void *)owner, 0};
   }
+}
+
+int64_t scoop_window_application_dock_menu(void *menu) {
+  if (![NSApp.delegate isKindOfClass:SWApplication.class])
+    return -4;
+  ((SWApplication *)NSApp.delegate).dockMenu = (__bridge NSMenu *)menu;
+  return 0;
 }
 
 int32_t scoop_window_application_run(void *pointer) {

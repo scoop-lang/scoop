@@ -54,11 +54,11 @@ int32_t scoop_graphics_text_fonts_add(void *pointer, const void *bytes,
   try {
     auto fonts = static_cast<STFonts *>(pointer);
     auto data = SkData::MakeWithCopy(bytes, (size_t)length);
-    auto face = fonts->system->makeFromData(std::move(data), index);
-    if (!face)
+    auto faces = st_data_faces(fonts->system, data, index, 1);
+    if (faces.empty())
       return -1;
     fonts->entries.push_back(
-        {std::move(face), SkString(alias, (size_t)alias_length)});
+        {std::move(faces.front()), SkString(alias, (size_t)alias_length)});
     return 1;
   } catch (...) {
     return 0;

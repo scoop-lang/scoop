@@ -11,7 +11,8 @@ import scoop.window.native.dispatchWatch
 
 internal class ApplicationOwner(
     val lastWindowPolicy: LastWindowPolicy,
-    private val activationPolicy: Int
+    private val activationPolicy: Int,
+    val applicationId: String?
 ) {
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
@@ -95,7 +96,12 @@ internal class ApplicationOwner(
                 )
             try {
                 val pointer =
-                    nativeApplicationCreate(callback.function, callback.context, activationPolicy)
+                    nativeApplicationCreate(
+                        callback.function,
+                        callback.context,
+                        activationPolicy,
+                        applicationId
+                    )
                 native = Some(pointer)
                 mailbox.bind(pointer)
                 try {

@@ -1,0 +1,130 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.graphics.text.textStyle
+import scoop.icons.lucide.search
+import scoop.icons.lucide.x
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.InteractionVisual
+
+@Test
+private class SvgComponentTest {
+    @Test
+    fun `owned icons reuse equal sources replace atomically and close their current document`() {
+        val owner = IconDocument()
+        val first = owner.update(search)
+        assertSame(first, owner.update(SvgAsset(search.source)))
+        assertFailsWith<GraphicsException> { owner.update(SvgAsset("invalid XML")) }
+        assertSame(first, owner.document)
+        assertFalse(first.isClosed)
+        val second = owner.update(x)
+        assertTrue(first.isClosed)
+        assertFalse(second.isClosed)
+        owner.close()
+        owner.close()
+        assertTrue(second.isClosed)
+        assertFailsWith<IllegalStateException> { owner.update(search) }
+    }
+
+    @Test
+    fun `SVG natural sizing uses explicit size then intrinsic size then view box`() {
+        SvgDocument.parse("""<svg width="24" height="24" viewBox="4 8 12 12"/>""").use {
+            document ->
+            assertEquals(Size(24.0, 24.0), svgNaturalSize(document))
+            assertEquals(Size(48.0, 32.0), svgNaturalSize(document, Some(Size(48.0, 32.0))))
+        }
+        SvgDocument.parse("""<svg viewBox="4 8 12 6"/>""").use {
+            document ->
+            assertEquals(Size(12.0, 6.0), svgNaturalSize(document))
+            assertFailsWith<IllegalArgumentException> { iconStrokeCoordinates(document) }
+        }
+        SvgDocument.parse("<svg/>").use {
+            document ->
+            assertFailsWith<IllegalArgumentException> { svgNaturalSize(document) }
+            assertEquals(Size(20.0, 10.0), svgNaturalSize(document, Some(Size(20.0, 10.0))))
+        }
+    }
+
+    @Test
+    fun `icon painting scales strokes normally or holds their logical width at larger sizes`() {
+        SvgDocument.parse(
+            """<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12H22"/></svg>"""
+        ).use {
+            document -> RasterSurface(96, 48).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.drawIcon(
+                        document,
+                        Rect(0.0, 0.0, 48.0, 48.0),
+                        Color(1.0, 0.0, 0.0),
+                        2.0,
+                        false
+                    )
+                    canvas.drawIcon(
+                        document,
+                        Rect(48.0, 0.0, 48.0, 48.0),
+                        Color(0.0, 0.0, 1.0),
+                        2.0,
+                        true
+                    )
+                    canvas.drawIcon(document, Rect(0.0, 0.0, 0.0, 0.0), Color.Black, 2.0, true)
+                }
+                val pixels = surface.readPixels()
+                assertEquals(255, iconChannel(pixels, 24, 22, 0))
+                assertEquals(0, iconChannel(pixels, 72, 22, 3))
+                assertEquals(255, iconChannel(pixels, 72, 23, 2))
+                assertEquals(255, iconChannel(pixels, 72, 24, 2))
+                assertEquals(0, iconChannel(pixels, 72, 25, 3))
+            }
+        }
+        SvgDocument.parse("""<svg width="24" height="12" viewBox="0 0 24 24"/>""").use {
+            document -> assertFailsWith<IllegalArgumentException> {
+                iconStrokeCoordinates(document)
+            }
+        }
+    }
+
+    @Test
+    fun `builder construction is lazy and resolved action content supplies overridable size and color`() {
+        val style =
+            ActionContentStyle(
+                textStyle { color = Color(0.0, 1.0, 0.0) },
+                16.0,
+                4.0,
+                InteractionVisual(),
+                false
+            )
+        val captured = ArrayList<IconBuilder>()
+        style.icon(search) {
+            assertEquals(16.0, size)
+            assertEquals(Some(Color(0.0, 1.0, 0.0)), color)
+            size = 32.0
+            captured.add(this)
+        }
+        assertEquals(32.0, captured[0L].size)
+        icon(SvgAsset("not parsed while constructing a View"))
+        assertFailsWith<IllegalArgumentException> { icon(search) { size = -1.0 } }
+        assertFailsWith<IllegalArgumentException> { icon(search) { strokeWidth = Double.NaN } }
+        SvgDocument.parse(search.source).use {
+            document ->
+            val builders = ArrayList<LinearBuilder>()
+            column {
+                builders.add(this)
+                svgView(document) { options = SvgDrawOptions(opacity = 0.5) }
+                icon(search) { absoluteStrokeWidth = true }
+            }
+            assertEquals(2L, builders[0L].snapshot().children.size)
+            assertFailsWith<IllegalStateException> {
+                svgView(document) { throw IllegalStateException() }
+            }
+            assertFalse(document.isClosed)
+        }
+    }
+}
+
+private fun iconChannel(pixels: Array<Byte>, x: Int, y: Int, channel: Int): Int =
+    pixels[((y * 96 + x) * 4 + channel).toLong()].toUByte().toInt()

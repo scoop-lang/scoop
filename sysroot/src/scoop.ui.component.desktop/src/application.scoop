@@ -1,0 +1,69 @@
+package scoop.ui.component.desktop
+
+import scoop.desktop.JumpListTask
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.DesktopImage
+
+public class NativeDesktopBuilder internal constructor() {
+    public var icon: DesktopImage? = None
+    public var badgeText: String? = None
+    public var dockMenu: NativeMenuContent? = None
+    public var jumpListTasks: Array<JumpListTask>? = None
+}
+
+internal class NativeDesktopProps(
+    val controller: NativeDesktopController,
+    val icon: DesktopImage?,
+    val badgeText: String?,
+    val dockMenu: NativeMenuSnapshot?,
+    val jumpListTasks: Array<JumpListTask>?
+)
+
+public fun nativeDesktop(
+    controller: NativeDesktopController,
+    key: ViewKey,
+    configure: NativeDesktopBuilder.() -> Unit = {}
+): ApplicationItem {
+    val builder = NativeDesktopBuilder()
+    builder.configure()
+    return applicationElement(
+        NativeDesktopProps(
+            controller,
+            builder.icon,
+            builder.badgeText,
+            builder.dockMenu?.snapshot(),
+            builder.jumpListTasks
+        ),
+        { props, scope -> NativeDesktopElement(props, scope) },
+        key
+    )
+}
+
+internal class NativeDesktopElement(
+    private val props: Props<NativeDesktopProps>,
+    scope: ApplicationScope
+): ApplicationElement(scope) {
+    private var attachment: NativeDesktopAttachment? = None
+    public override fun update() {
+        when (val current = attachment) {
+            case Some(value) -> if (!(value.controller === props.value.controller)) {
+                value.close()
+                attachment = None
+            }
+            case None -> {}
+        }
+        when (attachment) {
+            case Some(value) -> value.update()
+            case None -> attachment =
+                Some(
+                    scope.resource {
+                        NativeDesktopAttachment(scope, props.value.controller, { props.value })
+                    }
+                )
+        }
+    }
+    public override fun onUnmount() {
+        attachment?.close()
+    }
+}

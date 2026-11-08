@@ -1,5 +1,6 @@
 mod dependencies;
 mod msi;
+mod notifications;
 mod nsis;
 mod signing;
 
@@ -33,6 +34,7 @@ pub fn build(
     tools: &mut Tools<'_>,
 ) -> Result<PathBuf> {
     let settings = &input.settings;
+    notifications::validate(settings, format)?;
     let version = package_version(settings, format)?;
     if format == "msi" {
         msi::upgrade_code(settings)?;

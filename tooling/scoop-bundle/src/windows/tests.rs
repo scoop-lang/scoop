@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use super::{msi, package_version};
+use super::{msi, notifications, nsis, package_version};
 use crate::{config::Loaded, deploy::Plan, target::Target};
 
 fn settings(version: &str, extra: &str) -> Loaded {
@@ -81,4 +81,38 @@ fn windows_payload_rejects_reserved_names_and_generated_uninstaller_collisions()
     }
     plan.generated("Uninstall.EXE", Vec::new()).unwrap();
     assert!(plan.require_unused(Path::new("uninstall.exe")).is_err());
+}
+
+#[test]
+fn notification_registration_uses_stable_ids_and_requires_a_start_menu_entry() {
+    let plain = settings("1.2.3", "");
+    let enabled = settings("1.2.3", "[windows]\nnotifications = true");
+    let next = settings("1.2.4", "[windows]\nnotifications = true");
+    assert_eq!(
+        notifications::clsid(&enabled.config.identifier),
+        notifications::clsid(&next.config.identifier)
+    );
+    assert_ne!(
+        notifications::clsid(&enabled.config.identifier),
+        notifications::clsid("dev.scoop.other")
+    );
+    assert!(notifications::validate(&enabled, "nsis").is_ok());
+    assert!(notifications::validate(&enabled, "msi").is_ok());
+    let missing = settings(
+        "1.2.3",
+        "[windows]\nnotifications = true\n[windows.nsis]\nstart-menu-shortcut = false",
+    );
+    assert!(notifications::validate(&missing, "nsis").is_err());
+    assert!(notifications::validate(&missing, "msi").is_ok());
+    let msi = msi::shortcut_properties(&enabled);
+    assert!(msi.contains("System.AppUserModel.ID"));
+    assert!(msi.contains(&notifications::clsid(&enabled.config.identifier)));
+    assert!(!msi::shortcut_properties(&plain).contains("ToastActivatorCLSID"));
+    let nsis = nsis::shortcut_function(&enabled.config.identifier, true);
+    assert!(nsis.contains("InitPropVariantFromCLSID"));
+    assert!(nsis.contains(&notifications::clsid(&enabled.config.identifier)));
+    assert!(!nsis.contains("@SCOOP_"));
+    assert!(
+        !nsis::shortcut_function(&plain.config.identifier, false).contains("ToastActivatorCLSID")
+    );
 }

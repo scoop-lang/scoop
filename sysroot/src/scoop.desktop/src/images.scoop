@@ -1,0 +1,52 @@
+package scoop.desktop
+
+import scoop.window.DesktopImage
+
+internal fun <R> withDesktopImage(image: DesktopImage?, action: (Ptr<Unit>?) -> R): R {
+    when (image) {
+        case None -> return action(None)
+        case Some(value) -> @Unsafe
+        {
+            val native =
+                desktopCreated(
+                    nativeImageCreate(
+                        value.size.width,
+                        value.size.height,
+                        if (value.template)
+                            1
+                        else
+                            0
+                    ),
+                    "desktop image"
+                )
+            try {
+                for (representation in value.representations)
+                    representation.pixels.withDataPointer {
+                        pixels,
+                        _ -> @Unsafe
+                        {
+                            desktopStatus(
+                                nativeImageAdd(
+                                    native,
+                                    representation.size.width,
+                                    representation.size.height,
+                                    pixels
+                                ),
+                                "desktop image pixels"
+                            )
+                        }
+                    }
+                return action(Some(native))
+            } finally {
+                nativeImageDestroy(native)
+            }
+        }
+    }
+}
+
+internal fun sameDesktopImage(left: DesktopImage?, right: DesktopImage?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }

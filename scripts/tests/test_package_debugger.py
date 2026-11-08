@@ -75,6 +75,7 @@ class DebuggerPackageTests(unittest.TestCase):
                     "version": "3.14",
                     "stdlib": str(stdlib),
                     "prefix": str(python),
+                    "libdir": str(python / "lib"),
                     "executable": str(python / "bin/python3.14"),
                 }
                 with patch.object(package_debugger, "python_paths", return_value=paths):
@@ -82,6 +83,7 @@ class DebuggerPackageTests(unittest.TestCase):
                         root, llvm, debugger, "python3", "x86_64-unknown-linux-gnu"
                     )
                 self.assertEqual(version, "3.14")
+                self.assertEqual(search, [python / "lib"])
                 self.assertEqual(license_, stdlib / "LICENSE.txt")
                 self.assertEqual(
                     native[(debugger / "lib/liblldb.so").resolve()],
@@ -168,6 +170,7 @@ int wmain(int argc, wchar_t **argv) {
                 "version": "3.14",
                 "stdlib": str(stdlib),
                 "prefix": str(python),
+                "libdir": str(python / "lib"),
                 "executable": str(python / "python.exe"),
             }
             root = work / "staged"

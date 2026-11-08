@@ -1,0 +1,103 @@
+package scoop.graphics.svg
+
+import scoop.graphics.*
+import scoop.platform.concurrent.currentThreadId
+
+/** Immutable SVG source; creating an asset does not parse or allocate native resources. */
+public struct SvgAsset(val source: String)
+
+/** A static Skia SVG document, owned and used by its creating thread. */
+public class SvgDocument private constructor(pointer: Ptr<Unit>): Closeable {
+    private val thread = currentThreadId()
+    private var handle: Ptr<Unit>? = Some(pointer)
+    private val info = readInfo(pointer)
+    public val intrinsicSize: Size? =
+        if ((info.flags and 1) != 0)
+            Some(Size(info.width, info.height))
+        else
+            None
+    public val viewBox: Rect? =
+        if ((info.flags and 2) != 0)
+            Some(info.viewBox)
+        else
+            None
+    public val isClosed: Boolean get() = handle == None
+
+    internal fun nativePointer(): Ptr<Unit> {
+        checkThread()
+        return handle ?: throw IllegalStateException(Some("SVG document is closed"))
+    }
+
+    private fun checkThread() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("SVG document requires its owner thread"))
+    }
+
+    public override fun close() {
+        checkThread()
+        when (handle) {
+            case Some(value) -> {
+                handle = None
+                @Unsafe
+                {
+                    svgDrop(value)
+                }
+            }
+            case None -> {}
+        }
+    }
+
+    public companion object {
+        /** Parses a copy of UTF-8 source; unsupported Skia elements may be skipped. */
+        public fun parse(source: String): SvgDocument {
+            @Unsafe
+            {
+                return source.withUtf8Bytes {
+                    bytes,
+                    count -> @Unsafe
+                    {
+                        return@withUtf8Bytes SvgDocument(
+                            svgDecode(bytes.cast<Byte>(), count) ?:
+                                throw GraphicsException("parse SVG document")
+                        )
+                    }
+                }
+            }
+        }
+
+        /** Parses a copy of an XML byte stream, including its encoding declaration. */
+        public fun decode(bytes: Array<Byte>): SvgDocument {
+            @Unsafe
+            {
+                return bytes.withDataPointer {
+                    data,
+                    count -> @Unsafe
+                    {
+                        return@withDataPointer SvgDocument(
+                            svgDecode(data, count) ?: throw GraphicsException("decode SVG document")
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@CLayout
+private struct SvgInfo(val width: Double, val height: Double, val viewBox: Rect, val flags: Int)
+
+private fun readInfo(pointer: Ptr<Unit>): SvgInfo {
+    @Unsafe
+    {
+        return svgInfo(pointer)
+    }
+}
+
+@Extern(name = "scoop_graphics_svg_decode")
+private fun svgDecode(bytes: Ptr<Byte>, length: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_svg_info")
+private fun svgInfo(document: Ptr<Unit>): SvgInfo
+
+@Extern(name = "scoop_graphics_svg_drop")
+private fun svgDrop(document: Ptr<Unit>)

@@ -44,11 +44,22 @@ pub struct Linux {
     #[serde(default)]
     pub terminal: bool,
     #[serde(default)]
+    pub actions: Vec<DesktopAction>,
+    #[serde(default)]
     pub deb: Deb,
     #[serde(default)]
     pub rpm: Rpm,
     #[serde(default)]
     pub appimage: AppImage,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct DesktopAction {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub arguments: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -86,6 +97,8 @@ pub struct Windows {
     #[serde(default)]
     pub install_mode: InstallMode,
     pub vc_runtime: Option<VcRuntime>,
+    #[serde(default)]
+    pub notifications: bool,
     #[serde(default)]
     pub nsis: Nsis,
     #[serde(default)]

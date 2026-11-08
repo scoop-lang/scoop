@@ -1,0 +1,116 @@
+package scoop.graphics.text
+
+import scoop.graphics.GraphicsException
+
+internal class FontCatalogIdentity
+
+public class FontFamilyId internal constructor(
+    internal val catalog: FontCatalogIdentity,
+    internal val index: Long
+): Equals<FontFamilyId> {
+    public override operator fun equals(other: FontFamilyId): Boolean =
+        catalog === other.catalog && index == other.index
+}
+
+public class FontFaceId internal constructor(
+    internal val catalog: FontCatalogIdentity,
+    internal val index: Long
+): Equals<FontFaceId> {
+    public override operator fun equals(other: FontFaceId): Boolean =
+        catalog === other.catalog && index == other.index
+}
+
+public struct FontFamilyInfo(val id: FontFamilyId, val name: String)
+
+public class FontFaceInfo internal constructor(
+    public val id: FontFaceId,
+    public val family: FontFamilyInfo,
+    public val styleName: String,
+    public val postScriptName: String?,
+    public val weight: Int,
+    public val width: Int,
+    public val slant: FontSlant,
+    public val isVariable: Boolean,
+    public val collectionIndex: Int?
+)
+
+public struct FontAxis(
+    val tag: String,
+    val name: String?,
+    val minimum: Double,
+    val defaultValue: Double,
+    val maximum: Double,
+    val hidden: Boolean
+)
+
+public class FontNamedInstance internal constructor(
+    public val name: String?,
+    public val postScriptName: String?,
+    public val coordinates: Array<FontVariation>
+)
+
+@CLayout
+internal struct NativeFontString(val data: Ptr<UInt8>?, val length: Long)
+
+@CLayout
+internal struct NativeFontInfo(
+    val style: NativeFontString,
+    val postScript: NativeFontString,
+    val family: Long,
+    val collectionIndex: Long,
+    val weight: Int,
+    val width: Int,
+    val slant: Int,
+    val variable: Int,
+    val valid: Int
+)
+
+internal fun fontString(value: NativeFontString): String {
+    @Unsafe
+    {
+        return when (value.data) {
+            case Some(data) -> String.fromUtf8(data, value.length)
+            case None -> ""
+        }
+    }
+}
+
+internal fun fontName(value: NativeFontString): String? =
+    if (value.length == 0L)
+        None
+    else
+        Some(fontString(value))
+
+internal fun fontInfo(value: NativeFontInfo, id: FontFaceId, family: FontFamilyInfo): FontFaceInfo {
+    if (value.valid == 0)
+        throw GraphicsException("read font face metadata")
+    return FontFaceInfo(
+        id,
+        family,
+        fontString(value.style),
+        fontName(value.postScript),
+        value.weight,
+        value.width,
+        when (value.slant) {
+            case 0 -> FontSlant.Upright
+            case 1 -> FontSlant.Italic
+            case 2 -> FontSlant.Oblique
+            else -> throw GraphicsException("read font slant")
+        },
+        value.variable != 0,
+        if (value.collectionIndex < 0L)
+            None
+        else
+            Some(value.collectionIndex.toInt())
+    )
+}
+
+internal fun fontTag(value: String): Int {
+    requireText(value.byteLength == 4L, "OpenType tags require four ASCII bytes")
+    var result = 0
+    for (character in value) {
+        requireText(character.code >= 32 && character.code <= 126, "invalid OpenType tag")
+        result = (result shl 8) or character.code
+    }
+    return result
+}

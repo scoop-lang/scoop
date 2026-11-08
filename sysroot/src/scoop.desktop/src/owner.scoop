@@ -1,0 +1,189 @@
+package scoop.desktop
+
+import scoop.window.*
+import scoop.window.native.*
+import scoop.desktop.notification.NotificationCenter
+
+internal class DesktopOwner(val application: ActiveApplication) {
+    var pointer: Ptr<Unit>? = None
+    var resource: NativeApplicationLease? = None
+    var closing = false
+    var closed = false
+    var menu: Menu? = None
+    var menuLease: NativeMenuLease? = None
+    var retireMenu = false
+    var icon: DesktopImage? = None
+    var iconStatus: RequestStatus? = None
+    var badge: String? = None
+    var badgeStatus: RequestStatus? = None
+    var notifications: NotificationCenter? = None
+    val windows = ArrayList<DesktopWindowOwner>()
+    val menuObservers = ArrayList<DesktopMenuObserver>()
+    private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
+
+    fun checkThread() {
+        resource!!.checkThread()
+    }
+    fun requireOpen() {
+        checkThread()
+        if (closing || closed || resource!!.isClosing)
+            throw WindowException("desktop operation", WindowErrorKind.InvalidState)
+    }
+    fun initialize() {
+        @Unsafe
+        {
+            resource = Some(application.registerNativeResource { close() })
+            try {
+                val bridge =
+                    foreignCallback<(Ptr<Unit>, Int) -> Int>(
+                        {
+                            event: Int ->
+                            resource!!.postControl { settle() }
+                            1
+                        },
+                        0,
+                        ForeignCallbackMode.Reusable
+                    )
+                callback = Some(bridge)
+                val result =
+                    (application.applicationId ?: "").withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeApplicationCreate(
+                                bridge.function,
+                                bridge.context,
+                                bytes,
+                                length
+                            )
+                        }
+                    }
+                pointer = Some(desktopCreated(result, "open desktop"))
+            } catch (error: Throwable) {
+                close()
+                throw error
+            }
+        }
+    }
+    fun close() {
+        checkThread()
+        if (closing || closed)
+            return
+        closing = true
+        for (observer in menuObservers.toArray())
+            observer.close()
+        notifications?.close()
+        for (window in windows.toArray())
+            window.close()
+        retireMenu = true
+        menuLease?.cancel()
+        @Unsafe
+        {
+            if (pointer != None)
+                nativeApplicationCancel(pointer!!)
+        }
+        settle()
+    }
+    fun settle() {
+        if (closed)
+            return
+        @Unsafe
+        {
+            if (pointer != None && nativeApplicationBusy(pointer!!) != 0)
+                return
+            if (menuLease?.isTracking == Some(true))
+                return
+            if (retireMenu) {
+                val previousUse = menuLease?.id
+                if (pointer != None)
+                    platformDockMenu(pointer!!, None)
+                menuLease?.close()
+                menuLease = None
+                menu = None
+                retireMenu = false
+                if (previousUse != None)
+                    menuBindingChanged()
+            }
+            if (!closing)
+                return
+            if (pointer != None)
+                nativeApplicationDestroy(pointer!!)
+            pointer = None
+            icon = None
+            badge = None
+            when (callback) {
+                case Some(value) -> releaseForeignCallback(value)
+                case None -> {}
+            }
+            callback = None
+            closed = true
+            resource!!.close()
+        }
+    }
+    fun setMenu(next: Menu?): RequestStatus {
+        when ((menu, next)) {
+            case(Some(previous), Some(value)) -> if (previous === value)
+                return RequestStatus.Applied
+            case(None, None) -> return RequestStatus.Applied
+            else -> {}
+        }
+        @Unsafe
+        {
+            if (nativeApplicationBusy(pointer!!) != 0 || menuLease?.isTracking == Some(true))
+                throw WindowException("Dock menu is tracking", WindowErrorKind.ResourceBusy)
+            var lease: NativeMenuLease? = None
+            when (next) {
+                case Some(value) -> lease =
+                    Some(
+                        resource!!.acquireMenu(value) {
+                            retireMenu = true
+                            @Unsafe
+                            {
+                                nativeApplicationCancel(pointer!!)
+                            }
+                            settle()
+                        }
+                    )
+                case None -> {}
+            }
+            try {
+                val result = platformDockMenu(pointer!!, lease)
+                menuLease?.cancel()
+                menuLease?.close()
+                menuLease = lease
+                menu = next
+                menuBindingChanged()
+                return result
+            } catch (error: Throwable) {
+                lease?.close()
+                throw error
+            }
+        }
+    }
+    private fun menuBindingChanged() {
+        if (closing || closed)
+            return
+        val use = menuLease?.id
+        for (observer in menuObservers.toArray())
+            resource!!.post { observer.deliver(use) }
+    }
+}
+
+internal class DesktopMenuObserver(
+    private val owner: DesktopOwner,
+    private var callback: ((NativeMenuUseId?) -> Unit)?
+): Closeable {
+    fun deliver(use: NativeMenuUseId?) {
+        if (!owner.closing && !owner.closed)
+            callback?.invoke(use)
+    }
+    public override fun close() {
+        owner.checkThread()
+        callback = None
+        for (index in 0L ..< owner.menuObservers.size)
+            if (owner.menuObservers[index] === this) {
+                owner.menuObservers.removeAt(index)
+                return
+            }
+    }
+}

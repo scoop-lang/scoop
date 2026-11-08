@@ -55,7 +55,9 @@ internal fun nativeIsMainThread(): Int
 internal fun nativeApplicationCreateResult(
     callback: FunPtr<(Ptr<Unit>, Long, Int) -> Int>,
     context: Ptr<Unit>,
-    policy: Int
+    policy: Int,
+    applicationId: Ptr<UInt8>,
+    length: Long
 ): NativeCreateResult
 
 @Extern(name = "scoop_window_application_run")

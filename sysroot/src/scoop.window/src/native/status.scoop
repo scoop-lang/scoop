@@ -48,9 +48,19 @@ internal fun created(result: NativeCreateResult, operation: String): Ptr<Unit> {
 internal fun nativeApplicationCreate(
     callback: FunPtr<(Ptr<Unit>, Long, Int) -> Int>,
     context: Ptr<Unit>,
-    policy: Int
+    policy: Int,
+    applicationId: String?
 ): Ptr<Unit> =
-    created(nativeApplicationCreateResult(callback, context, policy), "create application")
+    (applicationId ?: "").withUtf8Bytes {
+        bytes,
+        length -> @Unsafe
+        {
+            return@withUtf8Bytes created(
+                nativeApplicationCreateResult(callback, context, policy, bytes, length),
+                "create application"
+            )
+        }
+    }
 
 @Unsafe
 internal fun nativeWindowCreate(

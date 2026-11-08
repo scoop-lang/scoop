@@ -302,7 +302,7 @@ macOS 使用 AppKit lease 中的 NSView 安装 CAMetalLayer，保持原有输入
 
 支持基线沿用 [发行配置](../../scripts/release.toml)。当前配置为 macOS 27.0.1／SDK 27.0，满足 CAMetalDisplayLink 的 macOS 14 API 要求；本设计不据此宣称支持 macOS 14，也不新增旧系统定时器后备实现。
 
-Skia 与其 HarfBuzz／ICU 等依赖固定配套输入，由维护脚本显式准备为目标原生资源；普通应用使用预编译 Cone 和声明的链接依赖，不自动联网、下载或构建依赖。库行为测试归所属 Cone；实际 Metal 呈现、IME、拖动、混合 DPI 与主循环收尾另行验证并记录，不能用离屏测试代替。
+Skia 与其 HarfBuzz／ICU 等依赖固定配套输入，由维护脚本显式准备为目标原生资源；普通应用使用预编译 Cone 和声明的链接依赖，不自动联网、下载或构建依赖。静态 SVG 由独立的 [scoop.graphics.svg](SCOOP-GRAPHICS-SVG-SPEC.md) 经 withSkiaCanvas 绘制，随 Skia 增加 SVG／skresources／Expat，不进入 Surface 的窗口职责。库行为测试归所属 Cone；实际 Metal 呈现、IME、拖动、混合 DPI 与主循环收尾另行验证并记录，不能用离屏测试代替。
 
 ## 9. Windows 实现与交付
 

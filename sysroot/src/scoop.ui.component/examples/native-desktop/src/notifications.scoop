@@ -1,0 +1,97 @@
+package scoop.examples.native_desktop
+
+import scoop.Result
+import scoop.desktop.notification.*
+import scoop.window.*
+
+internal fun updateNotificationSettings(
+    demo: DesktopDemo,
+    result: Result<NotificationSettings, NotificationError>
+) {
+    when (result) {
+        case Success(settings) -> {
+            demo.notificationSettings.value = Some(settings)
+            demo.notificationStatus.value =
+                when (settings.availability) {
+                    case Available -> "System notifications are available."
+                    case PermissionRequired -> "Allow system notifications to send a message."
+                    case Disabled -> "Notifications are disabled in system settings."
+                    case NotConfigured -> "Install this application package to use system notifications."
+                    case ServiceUnavailable -> "The desktop notification service is currently unavailable."
+                }
+        }
+        case Failure(error) -> notificationError(demo, error)
+    }
+}
+
+private fun notificationError(demo: DesktopDemo, error: NotificationError) {
+    demo.notificationStatus.value =
+        when (error.kind) {
+            case Unsupported -> "This notification operation is unavailable."
+            case PermissionRequired -> "System notification permission is required."
+            case Disabled -> "Notifications are disabled in system settings."
+            case NotConfigured -> "Install this application package to use system notifications."
+            case Unavailable -> "The desktop notification service is unavailable."
+            case InvalidContent -> "The system rejected this notification's contents."
+            case NativeFailure -> "The system could not complete the notification request."
+        }
+    println(f"Notification error: ${error.message ?: ""}; native=${error.nativeCode ?: 0L}")
+}
+
+internal fun sendDemoNotification(demo: DesktopDemo) {
+    val center = demo.applicationView!!.notifications ?: return
+    demo.notificationCount += 1
+    val actions: Array<NotificationAction> =
+        if (demo.notificationSettings.value?.capabilities?.actions == Some(true))
+            [NotificationAction(NotificationActionId("open"), "Open document")]
+        else
+            []
+    center.post(
+        NotificationId("desktop-demo"),
+        NotificationContent(
+            "Scoop desktop notification",
+            f"Update ${demo.notificationCount}. Text stays literal: < > & 你好.",
+            "Open a Scoop document",
+            NotificationSound.Default,
+            actions
+        )
+    ) {
+        result -> when (result) {
+            case Success(_) -> demo.notificationStatus.value =
+                "Submitted to the system. Sending again replaces this notification."
+            case Failure(error) -> notificationError(demo, error)
+        }
+    }
+}
+
+internal fun withdrawDemoNotification(demo: DesktopDemo) {
+    demo.applicationView!!.notifications?.withdraw(NotificationId("desktop-demo")) {
+        result -> when (result) {
+            case Success(value) -> demo.notificationStatus.value =
+                if (value == NotificationWithdrawal.Requested)
+                    "Withdrawal requested."
+                else
+                    "No notification from this process was found."
+            case Failure(error) -> notificationError(demo, error)
+        }
+    }
+}
+
+internal fun handleDemoNotification(demo: DesktopDemo, event: NotificationEvent) {
+    when (event) {
+        case Activated(_, _, payload) -> {
+            val document =
+                if (demo.documents.size > 0L)
+                    demo.documents[0L]
+                else
+                    demo.newDocument()
+            if (!document.window.isInputBlocked)
+                document.window.requestFocus()
+            demo.notificationStatus.value = "Notification opened the document."
+            demo.report(payload)
+        }
+        case Closed(_, _) -> demo.notificationStatus.value =
+            "The system reported the notification closed."
+        case Failed(_, error) -> notificationError(demo, error)
+    }
+}

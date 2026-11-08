@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.icons.lucide.search as searchIcon
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
@@ -38,13 +39,10 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
         addons.add(
             InputGroupAddon(
                 input.searchIcon ?:
-                    element(
-                        CommandSearchIconProps(
-                            16.0 * density,
-                            theme.tokens.palette.muted.foreground
-                        ),
-                        { current, mount -> CommandSearchIcon(current, scope = mount) }
-                    ),
+                    makeIcon(searchIcon) {
+                        size = 16.0 * density
+                        color = Some(theme.tokens.palette.muted.foreground)
+                    },
                 key = ViewKey.Text("search")
             )
         )
@@ -72,45 +70,4 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             { current, mount -> InputGroup(current, scope = mount) }
         )
     return panelFrame(group, Insets(16.0 * density, 16.0 * density, 16.0 * density, 4.0 * density))
-}
-
-private class CommandSearchIconProps(val size: Double, val color: Color)
-
-private class CommandSearchIcon(
-    private val props: Props<CommandSearchIconProps>,
-    scope: ComponentScope
-): Element<Unit>(scope) {
-    private var handle: Path? = None
-    public override fun onMount() {
-        // Lucide search, ISC; see ../../LICENSE-LUCIDE.
-        handle =
-            Some(
-                scope.resource {
-                    path {
-                        moveTo(Point(16.65, 16.65));
-                        lineTo(Point(21.0, 21.0))
-                    }
-                }
-            )
-    }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
-    > =
-        LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
-            Unit
-        )
-    public override fun scene(context: SceneContext, measured: Unit) {
-        val value = props.value
-        val size = context.size
-        context.draw {
-            paint -> paint.canvas.withState {
-                canvas ->
-                canvas.scale(size.width / 24.0, size.height / 24.0)
-                val stroke = Paint(value.color, PaintingStyle.Stroke, 2.0)
-                canvas.drawCircle(Point(10.5, 10.5), 7.5, stroke)
-                canvas.drawPath(handle!!, stroke)
-            }
-        }
-    }
 }

@@ -1,0 +1,52 @@
+package scoop.desktop.tests
+
+import scoop.desktop.notification.*
+import scoop.test.*
+
+@Test
+private class NotificationValueTest {
+    @Test
+    fun `notification text stays plain and actions retain distinct ids`() {
+        val content =
+            NotificationContent(
+                "<Title> & 新消息",
+                "Line one\nLine two",
+                "quoted \"payload\" & value",
+                NotificationSound.Silent,
+                [NotificationAction(NotificationActionId("default"), "默认动作")]
+            )
+        assertEquals("<Title> & 新消息", content.title)
+        assertEquals("default", content.actions[0L].id.value)
+        assertEquals(NotificationSound.Silent, content.sound)
+        assertTrue(NotificationId("one") == NotificationId("one"))
+    }
+    @Test
+    fun `content rejects empty labels NUL and duplicate action ids`() {
+        assertFailsWith<IllegalArgumentException> { NotificationContent("") }
+        assertFailsWith<IllegalArgumentException> {
+            NotificationContent("Title", "bad\u{0000}body")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NotificationContent(
+                "Title",
+                actions = [NotificationAction(NotificationActionId(""), "Open")]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NotificationContent(
+                "Title",
+                actions = [NotificationAction(NotificationActionId("open"), "")]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NotificationContent(
+                "Title",
+                actions =
+                    [
+                        NotificationAction(NotificationActionId("open"), "Open"),
+                        NotificationAction(NotificationActionId("open"), "Again")
+                    ]
+            )
+        }
+    }
+}

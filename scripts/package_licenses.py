@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from build_rust_text import NOTICE_DIRECTORY
+from build_skia import TARGETS as SKIA_TARGETS
 from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
@@ -188,6 +189,13 @@ def collect_base_libraries(root, sysroot, target):
 def collect_gui_libraries(root, sysroot, target):
     """Licenses of one target's GUI package native components."""
     collector = Collector(root, "lib-gui-" + target)
+    if target in SKIA_TARGETS:
+        collector.add("Skia", "See included documents", license_files(sysroot / "vendor/skia"))
+        collector.add(
+            "Lucide",
+            "ISC and included MIT notices",
+            license_files(sysroot / "src/scoop.icons.lucide"),
+        )
     if target == GTK_TARGET:
         for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
             collector.add(

@@ -1,0 +1,30 @@
+[bundle]
+schema = 1
+identifier = "dev.scoop.examples.native-desktop"
+name = "native-desktop"
+version = "0.1.0"
+display-name = "Scoop Native Desktop"
+publisher = "Scoop"
+description = "Scoop SVG, fonts and native desktop capabilities"
+license = "MIT"
+icons = ["assets/icon.png"]
+files = [{ from = "../../../scoop.icons.lucide/LICENSE", to = "licenses/Lucide-LICENSE", kind = "resource" }]
+
+[bundle.macos]
+formats = ["app"]
+
+[bundle.linux]
+formats = ["deb"]
+categories = ["Development"]
+actions = [{ id = "NewDocument", title = "New document window", arguments = ["--shell-action", "new-document", 'space 雪 % "quote"'] }]
+
+[bundle.linux.deb]
+maintainer = "Scoop"
+
+[bundle.windows]
+formats = ["nsis", "msi"]
+notifications = true
+vc-runtime = "system"
+
+[bundle.windows.msi]
+upgrade-code = "4b698a28-7edb-4ddd-8447-63c397d09a84"

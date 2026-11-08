@@ -3,6 +3,19 @@
 
 sk_sp<SkFontMgr> st_system_fonts() { return SkFontMgr_New_DirectWrite(); }
 
+std::vector<sk_sp<SkTypeface>> st_data_faces(const sk_sp<SkFontMgr> &system,
+                                             const sk_sp<SkData> &data,
+                                             int first, int count) {
+  std::vector<sk_sp<SkTypeface>> result;
+  for (int index = 0; index < count; ++index) {
+    auto face = system->makeFromData(data, first + index);
+    if (!face)
+      return {};
+    result.push_back(std::move(face));
+  }
+  return result;
+}
+
 SkString st_system_family(int category) {
   const char *family;
   switch (category) {

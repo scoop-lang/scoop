@@ -193,5 +193,50 @@ fn desktop(settings: &Loaded, appimage: bool, icon: bool) -> Result<String> {
     if let Some(description) = &settings.config.description {
         result.push_str(&format!("Comment={}\n", text(description)));
     }
+    result.push_str(&format!("StartupWMClass={}\n", settings.config.identifier));
+    if !linux.actions.is_empty() {
+        let mut ids = std::collections::BTreeSet::new();
+        for action in &linux.actions {
+            ensure!(
+                !action.id.is_empty()
+                    && action
+                        .id
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || c == b'-')
+                    && ids.insert(&action.id),
+                "desktop action id must be unique and contain only ASCII letters, digits or -: {:?}",
+                action.id
+            );
+            ensure!(
+                !action.title.is_empty()
+                    && !action.title.contains('\0')
+                    && action.arguments.iter().all(|value| !value.contains('\0')),
+                "desktop action {:?} requires a nonempty title and NUL-free text",
+                action.id
+            );
+        }
+        result.push_str("Actions=");
+        for action in &linux.actions {
+            result.push_str(&action.id);
+            result.push(';');
+        }
+        result.push('\n');
+        for action in &linux.actions {
+            result.push_str(&format!(
+                "\n[Desktop Action {}]\nName={}\nExec={}",
+                action.id,
+                text(&action.title),
+                argument(&command)
+            ));
+            for value in &action.arguments {
+                result.push(' ');
+                result.push_str(&argument(value));
+            }
+            result.push('\n');
+            if icon {
+                result.push_str(&format!("Icon={}\n", settings.config.identifier));
+            }
+        }
+    }
     Ok(result)
 }

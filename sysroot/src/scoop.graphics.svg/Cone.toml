@@ -1,0 +1,46 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.graphics.svg"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+when = { os = ["darwin", "windows"] }
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.graphics" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
+
+[[test.sources]]
+path = "tests/document.scoop"
+[[test.sources]]
+path = "tests/drawing.scoop"
+[[test.sources]]
+path = "tests/resources.scoop"
+[[test.sources]]
+path = "tests/metal.scoop"
+when = { os = "darwin" }
+
+[native]
+cxx = true
+include = [{ sysroot = "include/skia" }]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_ENABLE_SVG", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
+
+[[native.sources]]
+path = "native/svg.cpp"
+
+[[native.libraries]]
+name = "scoop_skia"
+kind = "static"

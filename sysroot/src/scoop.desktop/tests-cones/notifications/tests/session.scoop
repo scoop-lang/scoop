@@ -1,0 +1,95 @@
+package scoop.tests.notifications
+
+import scoop.Result
+import scoop.desktop.*
+import scoop.desktop.notification.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class NotificationSessionTest {
+    @Test
+    fun `settings complete on the owner and cancellation needs no business window`() {
+        assertFailsWith<IllegalArgumentException> { prepareNotifications("") }
+        assertEquals(1L, JumpListTask("Open", ["arg"]).arguments.size)
+        prepareNotifications("dev.scoop.notifications.tests").use {
+            launch ->
+            assertEquals(
+                WindowErrorKind.ResourceBusy,
+                assertFailsWith<WindowException> {
+                    prepareNotifications("dev.scoop.notifications.tests")
+                }.kind
+            )
+            val probe = NotificationProbe(launch)
+            Application(
+                applicationOptions {
+                    applicationId = Some("dev.scoop.notifications.tests")
+                    lastWindowPolicy = LastWindowPolicy.KeepRunning
+                }
+            ).run(probe)
+            assertTrue(probe.finished)
+            assertTrue(launch.isClosed)
+        }
+    }
+}
+
+private class NotificationProbe(val launch: NotificationLaunch): ApplicationHandler {
+    val thread = currentThreadId()
+    var returned = false
+    var finished = false
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(8L))
+                )
+                val desktop = active.openDesktop()
+                val center = desktop.openNotifications(launch)
+                assertEquals(
+                    WindowErrorKind.ResourceBusy,
+                    assertFailsWith<WindowException> { desktop.openNotifications(launch) }.kind
+                )
+                assertFailsWith<IllegalArgumentException> {
+                    center.post(NotificationId(""), NotificationContent("Invalid")) { fail() }
+                }
+                center.settings { fail(Some("cancelled operation was delivered")) }.close()
+                center.settings {
+                    result ->
+                    assertTrue(returned)
+                    assertEquals(thread, currentThreadId())
+                    when (result) {
+                        case Success(settings) -> {
+                            assertTrue(
+                                settings.availability ==
+                                    NotificationAvailability.NotConfigured ||
+                                    settings.availability ==
+                                    NotificationAvailability.Available ||
+                                    settings.availability ==
+                                    NotificationAvailability.ServiceUnavailable
+                            )
+                            if (settings.availability == NotificationAvailability.NotConfigured)
+                                assertFalse(settings.capabilities.activation)
+                        }
+                        case Failure(error) -> fail(error.message)
+                    }
+                    center.settings { fail(Some("closed center delivered a late result")) }
+                    desktop.close()
+                    assertTrue(center.isClosed)
+                    center.close()
+                    assertEquals(
+                        WindowErrorKind.InvalidState,
+                        assertFailsWith<WindowException> { center.settings { fail() } }.kind
+                    )
+                    finished = true
+                    active.requestExit()
+                }
+                returned = true
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("notification settings timed out"))
+            else -> {}
+        }
+    }
+}

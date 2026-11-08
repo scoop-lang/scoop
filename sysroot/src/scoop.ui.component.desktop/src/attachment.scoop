@@ -1,0 +1,172 @@
+package scoop.ui.component.desktop
+
+import scoop.desktop.*
+import scoop.ui.ApplicationScope
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class NativeDesktopAttachment(
+    private val scope: ApplicationScope,
+    val controller: NativeDesktopController,
+    private val read: () -> NativeDesktopProps
+): Closeable {
+    private val application = controller.application
+    private var tree: NativeMenuTree? = None
+    private var menuEvents: Closeable? = None
+    private var bindingEvents: Closeable? = None
+    private var desired: NativeMenuSnapshot? = None
+    private var publishedTasks: Array<JumpListTask>? = None
+    private var closed = false
+
+    init {
+        controller.claim(this)
+        try {
+            bindingEvents =
+                Some(
+                    application.observeMenuBinding {
+                        _ -> scope.dispatch {
+                            if (!closed)
+                                reconcileMenu()
+                        }
+                    }
+                )
+            update()
+        } catch (error: Throwable) {
+            try {
+                close()
+            } catch (cleanup: Throwable) {
+                throw ResourceUseException(error, cleanup)
+            }
+            throw error
+        }
+    }
+    fun update() {
+        if (closed || controller.isClosed)
+            return
+        val input = read()
+        application.setIcon(input.icon)
+        application.setBadgeText(input.badgeText)
+        when (val tasks = input.jumpListTasks) {
+            case Some(value) -> if (!sameDesktopTasks(publishedTasks, value)) {
+                application.setJumpListTasks(value)
+                publishedTasks = Some(value)
+            }
+            case None -> {}
+        }
+        desired =
+            if (application.capabilities().dockMenu)
+                input.dockMenu
+            else
+                None
+        reconcileMenu()
+    }
+    private fun reconcileMenu() {
+        if (closed || controller.isClosed)
+            return
+        when (tree) {
+            case Some(current) -> {
+                if (!current.isClosed)
+                    when (desired) {
+                        case Some(snapshot) -> {
+                            current.update(snapshot)
+                            return
+                        }
+                        case None -> current.close()
+                    }
+                if (application.menuUseId != None)
+                    return
+                menuEvents?.close()
+                menuEvents = None
+                tree = None
+            }
+            case None -> {}
+        }
+        if (application.menuUseId != None)
+            return
+        when (desired) {
+            case Some(snapshot) -> {
+                val created = NativeMenuTree(scope.application, snapshot)
+                tree = Some(created)
+                menuEvents =
+                    Some(
+                        scope.observeMenu(created.menu) {
+                            activation -> when (activation.source) {
+                                case Native(id) -> {
+                                    if (application.menuUseId == Some(id))
+                                        created.activate(activation)
+                                }
+                                else -> {}
+                            }
+                        }
+                    )
+                application.setDockMenu(Some(created.menu))
+            }
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        scope.isMounted
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupDesktop(None) { bindingEvents?.close() }
+        failure = cleanupDesktop(failure) { menuEvents?.close() }
+        failure = cleanupDesktop(failure) { tree?.close() }
+        if (!controller.isClosed) {
+            failure = cleanupDesktop(failure) { application.setIcon(None) }
+            failure = cleanupDesktop(failure) { application.setBadgeText(None) }
+        }
+        bindingEvents = None
+        menuEvents = None
+        tree = None
+        desired = None
+        publishedTasks = None
+        controller.release(this)
+        when (failure) {
+            case Some(error) -> throw error
+            case None -> {}
+        }
+    }
+}
+
+internal fun cleanupDesktop(previous: Throwable?, action: () -> Unit): Throwable? =
+    try {
+        action()
+        previous
+    } catch (error: Throwable) {
+        when (previous) {
+            case Some(first) -> Some(ResourceUseException(first, error))
+            case None -> Some(error)
+        }
+    }
+
+private fun sameDesktopTasks(previous: Array<JumpListTask>?, next: Array<JumpListTask>): Boolean {
+    val values = previous ?: return false
+    if (values.size != next.size)
+        return false
+    for (index in 0L ..< values.size) {
+        val left = values[index]
+        val right = next[index]
+        if (
+            left.title !=
+                right.title ||
+                left.description !=
+                right.description ||
+                left.arguments.size !=
+                right.arguments.size
+        )
+            return false
+        for (argument in 0L ..< left.arguments.size)
+            if (left.arguments[argument] != right.arguments[argument])
+                return false
+        val sameIcon =
+            when ((left.icon, right.icon)) {
+                case(Some(a), Some(b)) -> a.path == b.path && a.index == b.index
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameIcon)
+            return false
+    }
+    return true
+}

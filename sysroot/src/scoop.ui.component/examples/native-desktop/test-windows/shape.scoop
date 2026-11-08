@@ -1,0 +1,147 @@
+package scoop.examples.native_desktop
+
+import scoop.asyncio.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.window.native.*
+
+@Test
+private class ShapedDemoTest {
+    private var completed = false
+    @Test
+    @Ignore("Requires an interactive Windows desktop")
+    fun `default shaped demo publishes a borderless native circle and updates after resize and restore`() {
+        val demo = DesktopDemo(false)
+        demo.publishTasks.value = false
+        val test = this
+        context(demo.theme) {
+            UiHost(
+                onRootError = { _, error -> demo.failed(error) },
+                onApplicationError = { error -> demo.failed(error) },
+                handler =
+                    {
+                        host, active, event ->
+                        demo.event(host, active, event)
+                        when (event) {
+                            case Resumed -> {
+                                currentApplicationScope().launch(
+                                    currentEventLoop().executor
+                                ) suspend {
+                                    try {
+                                        verifyShapedDemo(demo)
+                                        test.completed = true
+                                        active.requestExit()
+                                    } catch (error: Throwable) {
+                                        demo.failed(error)
+                                    }
+                                    Unit
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+            ).use {
+                host -> Application(
+                    applicationOptions {
+                        applicationId = Some("dev.scoop.tests.native-desktop-shape")
+                        lastWindowPolicy = LastWindowPolicy.KeepRunning
+                    }
+                )
+                .runWithAsyncio(host)
+            }
+        }
+        when (demo.failure) {
+            case Some(error) -> throw error
+            case None -> {}
+        }
+        assertTrue(completed)
+    }
+}
+
+private suspend fun awaitShape(label: String, ready: () -> Boolean) {
+    var count = 0
+    while (!ready()) {
+        assertTrue(count < 200, Some("Shaped demo timed out: " + label))
+        count += 1
+        currentEventLoop().sleep(Duration.milliseconds(25L))
+    }
+}
+
+private suspend fun verifyShapedDemo(demo: DesktopDemo) {
+    val document = demo.documents[0L]
+    awaitShape("document") { document.frames > 0 }
+    val root = document.root!!
+    root.showShape()
+    val window = root.shape.window!!
+    awaitShape("initial native circle") { nativeCircleReady(window, 390.0) }
+    window.requestSize(LogicalSize(480.0, 480.0))
+    awaitShape("resized native circle") { nativeCircleReady(window, 480.0) }
+    window.requestMinimized(true)
+    awaitShape("minimized") { window.isMinimized == Some(true) }
+    window.requestMinimized(false)
+    awaitShape("restored native circle") {
+        window.isMinimized == Some(false) && nativeCircleReady(window, 480.0)
+    }
+    root.shape.closeWindow()
+    awaitShape("closed") { window.state == WindowState.Destroyed }
+}
+
+private fun nativeCircleReady(window: Window, size: Double): Boolean {
+    val metrics = window.frameMetrics?.metrics ?: return false
+    if (metrics.logicalSize != LogicalSize(size, size))
+        return false
+    val width = metrics.physicalSize.width
+    val height = metrics.physicalSize.height
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                val native =
+                    when (lease.handle) {
+                        case Win32(handle, _) -> handle
+                    }
+                // WS_CAPTION includes the system border; WS_THICKFRAME adds resize chrome.
+                assertEquals(0L, windowStyle(native, -16).and(0x00c40000L))
+                val region = rectangleRegion(0, 0, 0, 0) ?: fail(Some("CreateRectRgn failed"))
+                try {
+                    if (windowRegion(native, region) == 0)
+                        return@use false
+                    if (
+                        containsPoint(region, width - 2, height / 2) ==
+                            0 ||
+                            containsPoint(region, width / 2, height - 2) ==
+                            0
+                    )
+                        return@use false
+                    assertTrue(containsPoint(region, width / 2, height / 2) != 0)
+                    assertEquals(0, containsPoint(region, 1, 1))
+                    assertEquals(0, containsPoint(region, width - 2, 1))
+                    assertEquals(0, containsPoint(region, 1, height - 2))
+                    assertEquals(0, containsPoint(region, width - 2, height - 2))
+                    return@use true
+                } finally {
+                    deleteRegion(region)
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "GetWindowLongPtrW", lib = "user32")
+private fun windowStyle(window: Ptr<Unit>, index: Int): Long
+
+@Extern(name = "CreateRectRgn", lib = "gdi32")
+private fun rectangleRegion(left: Int, top: Int, right: Int, bottom: Int): Ptr<Unit>?
+
+@Extern(name = "GetWindowRgn", lib = "user32")
+private fun windowRegion(window: Ptr<Unit>, region: Ptr<Unit>): Int
+
+@Extern(name = "PtInRegion", lib = "gdi32")
+private fun containsPoint(region: Ptr<Unit>, x: Int, y: Int): Int
+
+@Extern(name = "DeleteObject", lib = "gdi32")
+private fun deleteRegion(region: Ptr<Unit>): Int

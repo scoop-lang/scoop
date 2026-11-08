@@ -1,0 +1,45 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.GraphicsException
+import scoop.test.*
+import scoop.tests.textfonts.testCjkBytes
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.component.ChoiceEntry
+import scoop.window.Utf8Selection
+
+@Test
+private class FontPickerTest {
+    @Test
+    fun `picker selects collection faces and variants without replacing the preview editor`() {
+        FontPickerModel().use {
+            model ->
+            val preview = model.preview
+            preview.replaceAll("stable editor", Some(Utf8Selection(2L, 6L)))
+            model.loadData(testCjkBytes, "TTC")
+            assertEquals(5L, model.families.value.count)
+            when (model.families.value.entryAt(4L)) {
+                case Item(entry) -> model.chooseFamily(entry.choice.value)
+                else -> fail(Some("expected font family"))
+            }
+            assertEquals("Noto Sans CJK HK", model.current.value!!.info.family.name)
+            val base = model.current.value!!
+            model.chooseInstance(5L)
+            assertTrue(base.isClosed)
+            assertEquals(Some(700.0), model.coordinate("wght"))
+            model.changeAxis("wght", 550.0)
+            assertEquals(None, model.instance.value)
+            assertEquals(Some(550.0), model.coordinate("wght"))
+            val previous = model.current.value!!
+            assertFailsWith<GraphicsException> { model.loadData([0, 1], "broken") }
+            assertTrue(model.current.value!! === previous)
+            assertFalse(previous.isClosed)
+            model.loadData(testSansBytes, "Static font")
+            assertTrue(previous.isClosed)
+            assertEquals(0L, model.current.value!!.axes.size)
+            assertEquals(None, model.coordinate("wght"))
+            assertTrue(model.preview === preview)
+            assertEquals("stable editor", preview.text)
+            assertEquals(Utf8Selection(2L, 6L), preview.selection)
+        }
+    }
+}

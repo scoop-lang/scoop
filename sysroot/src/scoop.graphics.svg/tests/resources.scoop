@@ -1,0 +1,121 @@
+package scoop.graphics.svg
+
+import scoop.graphics.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class SvgResourceTest {
+    @Test
+    fun `recorded resources survive document closure and retain the conservative tile contract`() {
+        RasterSurface(40, 40).use {
+            surface ->
+            val document =
+                SvgDocument.parse(
+                    """<svg viewBox="0 0 20 20"><defs><linearGradient id="g"><stop stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><rect width="20" height="20" fill="url(#g)"/></svg>"""
+                )
+            val drawing =
+                try {
+                    surface.draw {
+                        canvas -> canvas.recordDrawing(Rect(0.0, 0.0, 20.0, 20.0)) {
+                            record -> record.drawSvg(document, Rect(0.0, 0.0, 20.0, 20.0))
+                        }
+                    }
+                } finally {
+                    document.close()
+                }
+            assertTrue(document.isClosed)
+            document.close()
+            drawing.use {
+                record ->
+                assertFalse(record.canRasterizeTiles)
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.translate(4.0, 6.0)
+                    canvas.drawDrawing(record)
+                }
+                val pixels = surface.readPixels()
+                assertEquals(255, svgChannel(pixels, 40, 10, 10, 3))
+                assertTrue(svgChannel(pixels, 40, 5, 10, 0) > 200)
+                assertTrue(svgChannel(pixels, 40, 22, 10, 2) > 200)
+            }
+        }
+    }
+
+    @Test
+    fun `closed foreign thread and expired resources reject draws including empty ones`() {
+        SvgDocument.parse("<svg/>").use {
+            document ->
+            Thread.start {
+                assertFailsWith<IllegalStateException> { document.close() }
+                RasterSurface(4, 4).use {
+                    surface -> surface.draw {
+                        canvas -> assertFailsWith<IllegalStateException> {
+                            canvas.drawSvg(document, Rect(0.0, 0.0, 0.0, 0.0))
+                        }
+                    }
+                }
+            }.use { thread -> thread.join() }
+            val expired = RasterSurface(4, 4).use { surface -> surface.draw { canvas -> canvas } }
+            assertFailsWith<IllegalStateException> {
+                expired.drawSvg(document, Rect(0.0, 0.0, 4.0, 4.0))
+            }
+            document.close()
+            RasterSurface(4, 4).use {
+                surface -> surface.draw {
+                    canvas -> assertFailsWith<IllegalStateException> {
+                        canvas.drawSvg(document, Rect(0.0, 0.0, 0.0, 0.0))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `invalid geometry and draw options fail without corrupting the canvas or document`() {
+        SvgDocument.parse(
+            """<svg viewBox="0 0 4 4"><rect width="4" height="4" fill="currentColor"/></svg>"""
+        ).use {
+            document -> RasterSurface(8, 8).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    val bounds = Rect(0.0, 0.0, 4.0, 4.0)
+                    for (
+                        bad in [
+                            Rect(0.0, 0.0, -1.0, 4.0),
+                            Rect(1.0 / 0.0, 0.0, 4.0, 4.0),
+                            Rect(0.0, 0.0, 1.0e100, 4.0)
+                        ]
+                    )
+                        assertFailsWith<IllegalArgumentException> { canvas.drawSvg(document, bad) }
+                    for (
+                        options in [
+                            SvgDrawOptions(opacity = -0.1),
+                            SvgDrawOptions(opacity = 1.1),
+                            SvgDrawOptions(opacity = 0.0 / 0.0),
+                            SvgDrawOptions(rootStrokeWidth = Some(-1.0)),
+                            SvgDrawOptions(currentColor = Some(Color(2.0, 0.0, 0.0)))
+                        ]
+                    )
+                        assertFailsWith<IllegalArgumentException> {
+                            canvas.drawSvg(document, bounds, options)
+                        }
+                    canvas.drawSvg(document, Rect(0.0, 0.0, 0.0, 4.0))
+                    canvas.drawSvg(
+                        document,
+                        Rect(0.0, 0.0, 8.0, 8.0),
+                        SvgDrawOptions(opacity = 0.0)
+                    )
+                    canvas.drawSvg(document, bounds)
+                    assertEquals(Transform(), canvas.pixelTransform)
+                }
+                val pixels = surface.readPixels()
+                assertEquals(255, svgChannel(pixels, 8, 2, 2, 3))
+                assertEquals(0, svgChannel(pixels, 8, 6, 6, 3))
+            }
+        }
+    }
+}

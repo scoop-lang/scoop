@@ -1,0 +1,32 @@
+package scoop.tests.desktopnative
+
+import scoop.window.*
+import scoop.window.native.*
+
+public fun desktopNativeWindow(window: Window, field: Int): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case Gtk(handle, _) -> return@use windowQuery(handle, field)
+                }
+            }
+        }
+    }
+}
+
+public fun desktopNativePopupDock(window: Window): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case Gtk(handle, _) -> return@use popupDock(handle)
+                }
+            }
+        }
+    }
+}

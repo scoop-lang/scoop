@@ -1,0 +1,14 @@
+package scoop.desktop
+
+import scoop.window.RequestStatus
+import scoop.window.native.*
+
+@Unsafe
+internal fun platformWindow(lease: NativeWindowLease): Ptr<Unit> =
+    when (lease.handle) {
+        case Win32(window, _) -> window
+    }
+
+@Unsafe
+internal fun platformDockMenu(pointer: Ptr<Unit>, lease: NativeMenuLease?): RequestStatus =
+    RequestStatus.Unsupported

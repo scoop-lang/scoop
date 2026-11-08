@@ -1,0 +1,137 @@
+package scoop.desktop
+
+import scoop.window.*
+import scoop.window.native.*
+
+/** Native application state; closing it does not close business windows. */
+public class DesktopApplication internal constructor(internal val owner: DesktopOwner): Closeable {
+    public val isClosed: Boolean get() {
+        owner.checkThread();
+        return owner.closed
+    }
+    public fun capabilities(): DesktopApplicationCapabilities {
+        owner.requireOpen()
+        @Unsafe
+        {
+            val flags = nativeApplicationCapabilities(owner.pointer!!)
+            return DesktopApplicationCapabilities(
+                flags.and(1) != 0,
+                flags.and(2) != 0,
+                flags.and(4) != 0,
+                flags.and(8) != 0
+            )
+        }
+    }
+    public fun setIcon(image: DesktopImage?): RequestStatus {
+        owner.requireOpen()
+        if (!capabilities().applicationIcon)
+            return RequestStatus.Unsupported
+        if (sameDesktopImage(owner.icon, image) && owner.iconStatus != None)
+            return owner.iconStatus!!
+        val result =
+            withDesktopImage(image) {
+                native -> @Unsafe
+                {
+                    return@withDesktopImage desktopStatus(
+                        nativeApplicationIcon(owner.pointer!!, native),
+                        "application icon"
+                    )
+                }
+            }
+        owner.icon = image
+        owner.iconStatus = Some(result)
+        return result
+    }
+    public fun setBadgeText(value: String?): RequestStatus {
+        owner.requireOpen()
+        checkDesktopText(value ?: "")
+        if (!capabilities().badgeText)
+            return RequestStatus.Unsupported
+        if (owner.badge == value && owner.badgeStatus != None)
+            return owner.badgeStatus!!
+        @Unsafe
+        {
+            val result =
+                (value ?: "").withUtf8Bytes {
+                    text,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes desktopStatus(
+                            nativeApplicationBadge(owner.pointer!!, text, length),
+                            "Dock badge"
+                        )
+                    }
+                }
+            owner.badge = value
+            owner.badgeStatus = Some(result)
+            return result
+        }
+    }
+    public fun setDockMenu(menu: Menu?): RequestStatus {
+        owner.requireOpen()
+        if (!capabilities().dockMenu)
+            return RequestStatus.Unsupported
+        return owner.setMenu(menu)
+    }
+    public val menuUseId: NativeMenuUseId? get() {
+        owner.requireOpen();
+        return owner.menuLease?.id
+    }
+    public fun observeMenuBinding(callback: (NativeMenuUseId?) -> Unit): Closeable {
+        owner.requireOpen()
+        val observer = DesktopMenuObserver(owner, Some(callback))
+        owner.menuObservers.add(observer)
+        return observer
+    }
+    public fun setJumpListTasks(tasks: Array<JumpListTask>): RequestStatus {
+        owner.requireOpen()
+        if (!capabilities().jumpListTasks)
+            return RequestStatus.Unsupported
+        if (owner.application.applicationId == None)
+            throw WindowException(
+                "Jump List requires an application id",
+                WindowErrorKind.InvalidState
+            )
+        return publishJumpList(owner, tasks)
+    }
+    public fun attachWindow(window: Window): DesktopWindow {
+        owner.requireOpen()
+        for (binding in owner.windows)
+            if (binding.window === window)
+                throw WindowException(
+                    "desktop window is already attached",
+                    WindowErrorKind.ResourceBusy
+                )
+        val binding = DesktopWindowOwner(owner, window)
+        binding.initialize()
+        owner.windows.add(binding)
+        return DesktopWindow(binding)
+    }
+    public override fun close() {
+        owner.close()
+    }
+}
+
+private object DesktopSlot {
+    var owner: DesktopOwner? = None
+}
+
+/** Opens the one live native desktop resource for this application. */
+public fun ActiveApplication.openDesktop(): DesktopApplication {
+    val previous = DesktopSlot.owner
+    when (previous) {
+        case Some(value) -> {
+            value.checkThread()
+            if (!value.closed)
+                throw WindowException(
+                    "desktop application is already open",
+                    WindowErrorKind.ResourceBusy
+                )
+        }
+        case None -> {}
+    }
+    val owner = DesktopOwner(this)
+    owner.initialize()
+    DesktopSlot.owner = Some(owner)
+    return DesktopApplication(owner)
+}

@@ -22,6 +22,14 @@ internal class FrameInputs(
     val dynamic: Boolean get() = animations.size > 0L || time != None || defaults.size > 0L
     val perFrame: Boolean get() = animations.size > 0L || time != None
     fun changed(mark: TimeMark): Boolean {
+        if (frameChanged(mark))
+            return true
+        for (read in fonts)
+            if (read.watch.revision != read.revision)
+                return true
+        return false
+    }
+    fun frameChanged(mark: TimeMark): Boolean {
         if (time != None && time != Some(mark))
             return true
         for (read in animations)
@@ -29,9 +37,6 @@ internal class FrameInputs(
                 return true
         for (read in defaults)
             if (read.source.revision != read.revision)
-                return true
-        for (read in fonts)
-            if (read.watch.revision != read.revision)
                 return true
         return false
     }
@@ -143,29 +148,36 @@ internal class FontBinding(val owner: NodeFrameInputs, val watch: FontWatch, var
             last.index = index
         }
         index = -1L
+        if (watch.readers.size == 0L)
+            watch.close()
     }
 }
 
 internal class FontWatch(val fonts: FontCollection) {
-    var revision = fonts.revision
+    val revision: Long get() = fonts.revision
     val readers = ArrayList<FontBinding>()
+    private var subscription: Closeable? = None
     fun bind(owner: NodeFrameInputs, layout: Boolean): FontBinding {
+        if (readers.size == 0L)
+            subscription = Some(fonts.observeChanges { _ -> changed() })
         val value = FontBinding(owner, this, layout)
         value.index = readers.size
         readers.add(value)
         return value
     }
-    fun check() {
-        val next = fonts.revision
-        if (revision == next)
-            return
-        revision = next
+    private fun changed() {
         for (reader in readers) {
-            if (reader.layout)
-                reader.owner.node.invalidateLayout()
-            else
-                reader.owner.node.invalidateScene()
+            reader.owner.node.request(
+                if (reader.layout)
+                    UiInvalidation.Layout
+                else
+                    UiInvalidation.Scene
+            )
         }
+    }
+    fun close() {
+        subscription?.close()
+        subscription = None
     }
 }
 
@@ -215,10 +227,10 @@ internal class NodeFrameInputs(val node: MountedNode) {
     fun check(time: TimeMark) {
         if (!node.active)
             return
-        if (layout.changed(time))
+        if (layout.frameChanged(time))
             node.invalidateLayout()
         else
-            if (scene.changed(time))
+            if (scene.frameChanged(time))
                 node.invalidateScene()
     }
     fun close() {
@@ -231,7 +243,7 @@ internal class NodeFrameInputs(val node: MountedNode) {
     }
 }
 
-/** Checks only registered dependencies at an already requested frame; never schedules frames. */
+/** Fonts notify their readers; only time-based inputs are checked at requested frames. */
 internal class FrameDependencies {
     private val animated = ArrayList<NodeFrameInputs>()
     private var collections = ArrayList<FontWatch>()
@@ -264,7 +276,6 @@ internal class FrameDependencies {
         for (watch in collections) {
             if (watch.readers.size > 0L) {
                 retained.add(watch)
-                watch.check()
             }
         }
         collections = retained
@@ -273,6 +284,8 @@ internal class FrameDependencies {
     }
     fun close() {
         animated.clear()
+        for (watch in collections)
+            watch.close()
         collections.clear()
     }
 }

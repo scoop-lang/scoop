@@ -5,6 +5,19 @@ import scoop.window.*
 /** An explicit native borrow that prevents active destruction until owner-side retirement. */
 public class NativeWindowLease internal constructor(private val owner: WindowOwner): Closeable {
     private val closed: AtomicBoolean = AtomicBoolean(false)
+    private var closing: (() -> Unit)? = None
+    internal fun onClosing(callback: () -> Unit) {
+        closing = Some(callback)
+        owner.closingLeases.add(this)
+    }
+    internal fun requestClose() {
+        val callback = closing ?: return
+        closing = None
+        owner.application.mailbox.postControl {
+            if (!closed.load())
+                callback()
+        }
+    }
     /** Queries the typed native handles on the owner thread while this lease is active. */
     public val handle: NativeWindowHandle@Unsafe get() {
         owner.application.checkThread()
@@ -16,7 +29,15 @@ public class NativeWindowLease internal constructor(private val owner: WindowOwn
     public override fun close() {
         if (closed.exchange(true))
             return
-        owner.application.mailbox.postControl { owner.leases -= 1L }
+        owner.application.mailbox.postControl {
+            closing = None
+            for (index in 0L ..< owner.closingLeases.size)
+                if (owner.closingLeases[index] === this) {
+                    owner.closingLeases.removeAt(index)
+                    break
+                }
+            owner.leases -= 1L
+        }
     }
 }
 

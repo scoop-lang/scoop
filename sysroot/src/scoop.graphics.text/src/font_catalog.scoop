@@ -1,0 +1,106 @@
+package scoop.graphics.text
+
+import scoop.graphics.GraphicsException
+import scoop.platform.fs.Path
+import scoop.platform.fs.readAllBytes
+
+/** A snapshot of system families or the actual faces stored in one font file. */
+public class FontCatalog internal constructor(internal val resource: TextResource): Closeable {
+    private val identity = FontCatalogIdentity()
+    private val entries = readFamilies(resource.get(), identity)
+    public val isClosed: Boolean get() = resource.isClosed
+
+    public fun families(): Array<FontFamilyInfo> {
+        resource.get()
+        return entries
+    }
+    public fun faces(family: FontFamilyId): Array<FontFaceInfo> {
+        val pointer = resource.get()
+        requireText(family.catalog === identity, "font family belongs to another catalog")
+        @Unsafe
+        {
+            return Array<FontFaceInfo>(catalogFaces(pointer, family.index)) {
+                index -> @Unsafe
+                {
+                    val id = FontFaceId(identity, catalogFaceId(pointer, family.index, index))
+                    return@Array fontInfo(
+                        catalogFaceInfo(pointer, id.index),
+                        id,
+                        entries[family.index]
+                    )
+                }
+            }
+        }
+    }
+    public fun openFace(id: FontFaceId): FontFace {
+        val pointer = resource.get()
+        requireText(id.catalog === identity, "font face belongs to another catalog")
+        @Unsafe
+        {
+            val info = catalogFaceInfo(pointer, id.index)
+            if (info.valid == 0)
+                throw GraphicsException("open font face")
+            return FontFace(
+                ownedText(catalogOpen(pointer, id.index), "open font face"),
+                id,
+                entries[info.family]
+            )
+        }
+    }
+    public override fun close() {
+        resource.close()
+    }
+    public companion object {
+        public fun fromData(data: Array<Byte>): FontCatalog {
+            @Unsafe
+            {
+                return data.withDataPointer {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withDataPointer FontCatalog(
+                            ownedText(catalogData(bytes, length), "open font data")
+                        )
+                    }
+                }
+            }
+        }
+        public fun load(path: Path): FontCatalog = fromData(path.readAllBytes())
+    }
+}
+
+private fun readFamilies(pointer: Ptr<Unit>, identity: FontCatalogIdentity): Array<FontFamilyInfo> {
+    @Unsafe
+    {
+        return Array<FontFamilyInfo>(catalogFamilies(pointer)) {
+            index -> @Unsafe
+            {
+                return@Array FontFamilyInfo(
+                    FontFamilyId(identity, index),
+                    fontString(catalogFamily(pointer, index))
+                )
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_text_catalog_data")
+private fun catalogData(bytes: Ptr<Byte>, length: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_text_catalog_families")
+private fun catalogFamilies(catalog: Ptr<Unit>): Long
+
+@Extern(name = "scoop_graphics_text_catalog_family")
+private fun catalogFamily(catalog: Ptr<Unit>, index: Long): NativeFontString
+
+@Extern(name = "scoop_graphics_text_catalog_faces")
+private fun catalogFaces(catalog: Ptr<Unit>, family: Long): Long
+
+@Extern(name = "scoop_graphics_text_catalog_face_id")
+private fun catalogFaceId(catalog: Ptr<Unit>, family: Long, index: Long): Long
+
+@Extern(name = "scoop_graphics_text_catalog_face_info")
+private fun catalogFaceInfo(catalog: Ptr<Unit>, index: Long): NativeFontInfo
+
+@Extern(name = "scoop_graphics_text_catalog_open")
+private fun catalogOpen(catalog: Ptr<Unit>, index: Long): Ptr<Unit>?

@@ -61,6 +61,7 @@ typedef struct SWEvent {
   struct SWEvent *next;
 } SWEvent;
 typedef struct SWWatch SWWatch;
+extern UINT sw_taskbar_created_message;
 typedef struct SWMenu SWMenu;
 typedef struct SWApplication {
   SWCallback callback;
@@ -76,6 +77,7 @@ typedef struct SWApplication {
   SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
+  bool taskbar_ready;
   SWApplication *application;
   struct SWWindow *owning_window;
   HWND hwnd;

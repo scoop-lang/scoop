@@ -97,6 +97,9 @@ internal fun documentSections(root: DocumentView): View {
                 }
             )
         )
+        add(iconSection(demo))
+        add(desktopSection(root))
+        add(component({ mount -> FontPicker(mount) }))
         add(
             panel(
                 "Window frame and native ordering",

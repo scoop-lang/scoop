@@ -1,0 +1,12 @@
+package scoop.ui.component.desktop
+
+import scoop.test.*
+
+@Test
+private class NativeDesktopLifetimeTests {
+    @Test
+    @Ignore("requires an interactive Windows desktop")
+    fun `desktop elements and notification callbacks follow their application scope`() {
+        runUiDesktop()
+    }
+}

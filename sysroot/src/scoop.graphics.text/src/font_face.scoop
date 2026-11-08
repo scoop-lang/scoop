@@ -1,0 +1,156 @@
+package scoop.graphics.text
+
+/** Owns an exact typeface; metadata is copied and remains readable after close. */
+public class FontFace internal constructor(
+    internal val resource: TextResource,
+    id: FontFaceId,
+    family: FontFamilyInfo
+): Closeable {
+    private val data = readFace(resource.get(), id, family)
+    public val info: FontFaceInfo = data.info
+    public val axes: Array<FontAxis> = data.axes
+    public val namedInstances: Array<FontNamedInstance> = data.instances
+    public val coordinates: Array<FontVariation> = data.coordinates
+    public val isClosed: Boolean get() = resource.isClosed
+
+    public fun withVariations(values: Array<FontVariation>): FontFace {
+        val pointer = resource.get()
+        val selected = MutableArray<Double>(coordinates.size) { index -> coordinates[index].value }
+        val seen = ArrayList<String>()
+        for (value in values) {
+            checkTextScalar(value.value)
+            for (tag in seen)
+                requireText(tag != value.tag, "duplicate font variation axis")
+            seen.add(value.tag)
+            var found = -1L
+            for (index in 0L ..< axes.size)
+                if (axes[index].tag == value.tag)
+                    found = index
+            requireText(found >= 0L, "unknown font variation axis")
+            val axis = axes[found]
+            requireText(
+                value.value >= axis.minimum && value.value <= axis.maximum,
+                "font variation is outside its axis range"
+            )
+            selected[found] = value.value
+        }
+        val coordinates =
+            Array<NativeFontCoordinate>(axes.size) {
+                index -> NativeFontCoordinate(fontTag(axes[index].tag), selected[index])
+            }
+        @Unsafe
+        {
+            return coordinates.withDataPointer {
+                values,
+                count -> @Unsafe
+                {
+                    return@withDataPointer FontFace(
+                        ownedText(
+                            faceVariations(pointer, values, count),
+                            "instantiate font variations"
+                        ),
+                        info.id,
+                        info.family
+                    )
+                }
+            }
+        }
+    }
+    public override fun close() {
+        resource.close()
+    }
+}
+
+private class FontFaceData(
+    val info: FontFaceInfo,
+    val axes: Array<FontAxis>,
+    val instances: Array<FontNamedInstance>,
+    val coordinates: Array<FontVariation>
+)
+
+private fun readFace(pointer: Ptr<Unit>, id: FontFaceId, family: FontFamilyInfo): FontFaceData {
+    @Unsafe
+    {
+        val information = fontInfo(faceInfo(pointer), id, family)
+        val axes = ArrayList<FontAxis>()
+        val coordinates = ArrayList<FontVariation>()
+        for (index in 0L ..< faceAxes(pointer)) {
+            val axis = faceAxis(pointer, index)
+            val tag = fontString(axis.tag)
+            axes.add(
+                FontAxis(
+                    tag,
+                    fontName(axis.name),
+                    axis.minimum,
+                    axis.defaultValue,
+                    axis.maximum,
+                    axis.hidden != 0
+                )
+            )
+            coordinates.add(FontVariation(tag, axis.current))
+        }
+        val instances =
+            Array<FontNamedInstance>(faceInstances(pointer)) {
+                index -> @Unsafe
+                {
+                    val instance = faceInstance(pointer, index)
+                    val positions =
+                        Array<FontVariation>(axes.size) {
+                            axis -> @Unsafe
+                            {
+                                return@Array FontVariation(
+                                    axes[axis].tag,
+                                    faceInstanceCoordinate(pointer, index, axis)
+                                )
+                            }
+                        }
+                    return@Array FontNamedInstance(
+                        fontName(instance.name),
+                        fontName(instance.postScript),
+                        positions
+                    )
+                }
+            }
+        return FontFaceData(information, axes.toArray(), instances, coordinates.toArray())
+    }
+}
+
+@CLayout
+private struct NativeFontCoordinate(val tag: Int, val value: Double)
+
+@CLayout
+private struct NativeFontAxis(
+    val tag: NativeFontString,
+    val name: NativeFontString,
+    val minimum: Double,
+    val defaultValue: Double,
+    val maximum: Double,
+    val current: Double,
+    val hidden: Int
+)
+
+@CLayout
+private struct NativeNamedFont(val name: NativeFontString, val postScript: NativeFontString)
+
+@Extern(name = "scoop_graphics_text_face_info")
+private fun faceInfo(face: Ptr<Unit>): NativeFontInfo
+
+@Extern(name = "scoop_graphics_text_face_axes")
+private fun faceAxes(face: Ptr<Unit>): Long
+
+@Extern(name = "scoop_graphics_text_face_axis")
+private fun faceAxis(face: Ptr<Unit>, index: Long): NativeFontAxis
+
+@Extern(name = "scoop_graphics_text_face_instances")
+private fun faceInstances(face: Ptr<Unit>): Long
+
+@Extern(name = "scoop_graphics_text_face_instance")
+private fun faceInstance(face: Ptr<Unit>, index: Long): NativeNamedFont
+
+@Extern(name = "scoop_graphics_text_face_instance_coordinate")
+private fun faceInstanceCoordinate(face: Ptr<Unit>, instance: Long, axis: Long): Double
+
+@Extern(name = "scoop_graphics_text_face_variations")
+private fun faceVariations(face: Ptr<Unit>, values: Ptr<NativeFontCoordinate>, count: Long): Ptr<
+    Unit
+>?

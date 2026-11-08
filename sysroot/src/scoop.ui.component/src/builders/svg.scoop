@@ -1,0 +1,64 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+
+public class SvgViewBuilder internal constructor() {
+    public var naturalSize: Size? = None
+    public var fit: ContentFit = ContentFit.Contain
+    public var alignment: Alignment = Alignment()
+    public var clip: Boolean = true
+    public var options: SvgDrawOptions = SvgDrawOptions()
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun svgView(document: SvgDocument, configure: SvgViewBuilder.() -> Unit = {}): View =
+    makeSvgView(document, configure)
+
+internal fun makeSvgView(document: SvgDocument, configure: SvgViewBuilder.() -> Unit): View {
+    val builder = SvgViewBuilder()
+    builder.configure()
+    return element(
+        SvgViewProps(
+            document,
+            builder.naturalSize,
+            builder.fit,
+            builder.alignment,
+            builder.clip,
+            builder.options
+        ),
+        { props, mount -> SvgView(props, mount) },
+        key = builder.key
+    )
+}
+
+public class IconBuilder internal constructor() {
+    public var size: Double = 24.0
+    public var color: Color? = None
+    public var strokeWidth: Double = 2.0
+    public var absoluteStrokeWidth: Boolean = false
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun icon(asset: SvgAsset, configure: IconBuilder.() -> Unit = {}): View =
+    makeIcon(asset, configure)
+
+internal fun makeIcon(asset: SvgAsset, configure: IconBuilder.() -> Unit): View {
+    val builder = IconBuilder()
+    builder.configure()
+    return component(
+        IconProps(
+            asset,
+            builder.size,
+            builder.color,
+            builder.strokeWidth,
+            builder.absoluteStrokeWidth,
+            builder.theme
+        ),
+        { props, mount -> Icon(props, mount) },
+        key = builder.key
+    )
+}

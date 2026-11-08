@@ -1,6 +1,8 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.icons.lucide.panelLeft
 import scoop.ui.*
 import scoop.ui.style.*
 
@@ -176,6 +178,10 @@ private class SidebarIcon(
     private val props: Props<SidebarIconInput>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
+    private var document: SvgDocument? = None
+    public override fun onMount() {
+        document = Some(scope.resource { SvgDocument.parse(panelLeft.source) })
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =
@@ -187,7 +193,6 @@ private class SidebarIcon(
         val input = props.value
         val rtl = context.layoutDirection == LayoutDirection.Rtl
         val size = context.size
-        // Lucide panel-left (ISC), on its original 24-unit grid.
         context.draw {
             paint -> paint.canvas.withState {
                 canvas ->
@@ -196,9 +201,11 @@ private class SidebarIcon(
                     canvas.translate(24.0, 0.0);
                     canvas.scale(-1.0, 1.0)
                 }
-                val pen = Paint(input.color, PaintingStyle.Stroke, 2.0)
-                canvas.drawRoundRect(Rect(3.0, 3.0, 18.0, 18.0), 2.0, 2.0, pen)
-                canvas.drawLine(Point(9.0, 3.0), Point(9.0, 21.0), pen)
+                canvas.drawSvg(
+                    document!!,
+                    Rect(0.0, 0.0, 24.0, 24.0),
+                    SvgDrawOptions(currentColor = Some(input.color))
+                )
             }
         }
     }

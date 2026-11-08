@@ -1,0 +1,74 @@
+package scoop.icons.lucide
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.test.*
+
+@Test
+private class LucideAssetTest {
+    @Test
+    fun `every selected original asset parses and produces themed pixels`() {
+        val assets =
+            [
+                check,
+                x,
+                chevronLeft,
+                chevronRight,
+                chevronUp,
+                chevronDown,
+                ellipsis,
+                search,
+                loaderCircle,
+                calendarDays,
+                panelLeft,
+                info,
+                circleCheck,
+                triangleAlert,
+                octagonX,
+                plus,
+                minus,
+                arrowLeft,
+                arrowRight,
+                arrowUp,
+                arrowDown,
+                file,
+                folder,
+                save,
+                copy,
+                trash2,
+                download,
+                upload,
+                settings,
+                menu,
+                externalLink
+            ]
+        RasterSurface(48, 48).use {
+            surface -> for (asset in assets)
+                SvgDocument.parse(asset.source).use {
+                    document ->
+                    assertEquals(Some(Size(24.0, 24.0)), document.intrinsicSize)
+                    assertEquals(Some(Rect(0.0, 0.0, 24.0, 24.0)), document.viewBox)
+                    surface.draw {
+                        canvas ->
+                        canvas.clear(Color.Transparent)
+                        canvas.drawSvg(
+                            document,
+                            Rect(0.0, 0.0, 48.0, 48.0),
+                            SvgDrawOptions(currentColor = Some(Color(1.0, 0.0, 0.0)))
+                        )
+                    }
+                    val pixels = surface.readPixels()
+                    var ink = 0
+                    for (index in 0L ..< 2304L) {
+                        if (pixels[index * 4L + 3L].toUByte().toInt() > 0) {
+                            ink += 1
+                            assertTrue(pixels[index * 4L].toUByte().toInt() > 0)
+                            assertEquals(0, pixels[index * 4L + 1L].toUByte().toInt())
+                            assertEquals(0, pixels[index * 4L + 2L].toUByte().toInt())
+                        }
+                    }
+                    assertTrue(ink > 20, Some(asset.source))
+                }
+        }
+    }
+}

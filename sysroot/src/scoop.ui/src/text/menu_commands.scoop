@@ -3,6 +3,8 @@ package scoop.ui.text
 import scoop.window.TextCommandAvailability
 
 internal fun TextEditHost.refreshMenuCommands() {
+    if (area.isClosed)
+        return
     val selected = current.selection.range.start != current.selection.range.end
     val editable = options.enabled && !options.readOnly
     area.scope.textCommandAvailability =
@@ -19,6 +21,8 @@ internal fun TextEditHost.refreshMenuCommands() {
 }
 
 internal fun SelectableTextHost.refreshMenuCommands() {
+    if (area.isClosed)
+        return
     val available =
         when (inputFrame()) {
             case Some(_) -> options.enabled;

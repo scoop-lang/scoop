@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.ui.*
+
+public class SvgViewProps public constructor(
+    public val document: SvgDocument,
+    public val naturalSize: Size? = None,
+    public val fit: ContentFit = ContentFit.Contain,
+    public val alignment: Alignment = Alignment(),
+    public val clip: Boolean = true,
+    public val options: SvgDrawOptions = SvgDrawOptions()
+)
+
+/** Borrows a parsed document. The caller keeps it open for the view's lifetime. */
+public class SvgView public constructor(
+    private val props: Props<SvgViewProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        requireComponent(!input.document.isClosed, "SVG view requires an open document")
+        svgNaturalSize(input.document, input.naturalSize)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            measureContent(
+                svgNaturalSize(props.value.document, props.value.naturalSize),
+                constraints
+            ),
+            Unit
+        )
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val destination =
+            fitContent(
+                svgNaturalSize(input.document, input.naturalSize),
+                bounds,
+                input.fit,
+                input.alignment,
+                context.layoutDirection
+            )
+        context.withState {
+            scene ->
+            if (input.clip)
+                scene.clipRect(bounds)
+            if (destination.width > 0.0 && destination.height > 0.0)
+                scene.draw {
+                    paint -> paint.canvas.drawSvg(input.document, destination, input.options)
+                }
+            Unit
+        }
+    }
+}
+
+internal fun svgNaturalSize(document: SvgDocument, explicit: Size? = None): Size {
+    val size =
+        explicit ?:
+            document.intrinsicSize ?:
+            when (document.viewBox) {
+                case Some(box) -> box.size
+                case None -> throw IllegalArgumentException(
+                    Some("SVG view requires an explicit natural size")
+                )
+            }
+    checkContentSize(size)
+    return size
+}
+
+/** One mounted icon's parsed resource; failed replacements keep the previous document. */
+internal class IconDocument: Closeable {
+    private var source: SvgAsset? = None
+    private var current: SvgDocument? = None
+    private var closed = false
+    val document: SvgDocument get() =
+        current ?: throw IllegalStateException(Some("icon has no document"))
+
+    fun update(asset: SvgAsset): SvgDocument {
+        if (closed)
+            throw IllegalStateException(Some("icon document is closed"))
+        if (source != Some(asset)) {
+            val next = SvgDocument.parse(asset.source)
+            when (current) {
+                case Some(previous) -> previous.close()
+                case None -> {}
+            }
+            current = Some(next)
+            source = Some(asset)
+        }
+        return document
+    }
+
+    public override fun close() {
+        when (current) {
+            case Some(previous) -> previous.close()
+            case None -> {}
+        }
+        current = None
+        source = None
+        closed = true
+    }
+}

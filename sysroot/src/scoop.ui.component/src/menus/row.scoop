@@ -1,6 +1,8 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.icons.lucide.check as checkIcon
 import scoop.graphics.text.*
 import scoop.surface.*
 import scoop.ui.*
@@ -335,19 +337,9 @@ internal class MenuCheckProps(val checked: Boolean, val size: Double, val color:
 internal class MenuCheck(private val props: Props<MenuCheckProps>, scope: ComponentScope): Element<
     Unit
 >(scope) {
-    private var glyph: Path? = None
+    private var glyph: SvgDocument? = None
     public override fun onMount() {
-        // Lucide check (ISC), on its original 24-unit grid.
-        glyph =
-            Some(
-                scope.resource {
-                    path {
-                        moveTo(Point(20.0, 6.0));
-                        lineTo(Point(9.0, 17.0));
-                        lineTo(Point(4.0, 12.0))
-                    }
-                }
-            )
+        glyph = Some(scope.resource { SvgDocument.parse(checkIcon.source) })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -364,7 +356,11 @@ internal class MenuCheck(private val props: Props<MenuCheckProps>, scope: Compon
                 paint -> paint.canvas.withState {
                     canvas ->
                     canvas.scale(size.width / 24.0, size.height / 24.0)
-                    canvas.drawPath(glyph!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
+                    canvas.drawSvg(
+                        glyph!!,
+                        Rect(0.0, 0.0, 24.0, 24.0),
+                        SvgDrawOptions(currentColor = Some(input.color))
+                    )
                 }
             }
     }

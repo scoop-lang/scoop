@@ -40,6 +40,9 @@ inline STRect st_rect(const SkRect &value) {
 }
 
 sk_sp<SkFontMgr> st_system_fonts();
+std::vector<sk_sp<SkTypeface>> st_data_faces(const sk_sp<SkFontMgr> &system,
+                                             const sk_sp<SkData> &data,
+                                             int first, int count);
 SkString st_system_family(int category);
 
 struct STFontEntry {

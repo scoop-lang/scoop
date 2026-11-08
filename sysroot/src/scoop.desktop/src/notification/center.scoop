@@ -1,0 +1,190 @@
+package scoop.desktop.notification
+
+import scoop.Result
+import scoop.desktop.*
+import scoop.window.*
+
+/** Prepares the native activation entry before Application starts. */
+public class NotificationLaunch internal constructor(
+    internal val owner: NotificationOwner
+): Closeable {
+    public val isClosed: Boolean get() {
+        owner.checkThread();
+        return owner.closed
+    }
+    public override fun close() {
+        owner.close()
+    }
+}
+
+private object NotificationSlot {
+    var current: NotificationOwner? = None
+}
+
+public fun prepareNotifications(applicationId: String): NotificationLaunch {
+    notificationLabel(applicationId)
+    when (NotificationSlot.current) {
+        case Some(previous) -> {
+            previous.checkThread()
+            if (!previous.closed)
+                throw WindowException(
+                    "notification launch is already active",
+                    WindowErrorKind.ResourceBusy
+                )
+        }
+        case None -> {}
+    }
+    val owner = NotificationOwner(applicationId)
+    owner.prepare()
+    NotificationSlot.current = Some(owner)
+    return NotificationLaunch(owner)
+}
+
+public fun DesktopApplication.openNotifications(launch: NotificationLaunch): NotificationCenter {
+    owner.requireOpen()
+    launch.owner.requireOpen()
+    if (owner.notifications?.isClosed != None || launch.owner.resource?.isClosing != None)
+        throw WindowException(
+            "notification center is already attached",
+            WindowErrorKind.ResourceBusy
+        )
+    if (owner.application.applicationId != Some(launch.owner.applicationId))
+        throw IllegalArgumentException(Some("notification and application identifiers differ"))
+    launch.owner.attach(owner)
+    val center = NotificationCenter(launch.owner)
+    owner.notifications = Some(center)
+    return center
+}
+
+/** Cancelling an operation only stops its local completion callback. */
+public class NotificationOperation internal constructor(
+    private val owner: NotificationOwner,
+    internal val id: Long,
+    internal var callback: ((NotificationReply) -> Unit)?
+): Closeable {
+    public override fun close() {
+        owner.checkThread()
+        callback = None
+        owner.removeOperation(this)
+    }
+}
+
+public class NotificationCenter internal constructor(
+    private val owner: NotificationOwner
+): Closeable {
+    public val isClosed: Boolean get() {
+        owner.checkThread();
+        return owner.closed
+    }
+
+    public fun settings(
+        callback: (Result<NotificationSettings, NotificationError>) -> Unit
+    ): NotificationOperation = query(false, callback)
+
+    public fun requestPermission(
+        callback: (Result<NotificationSettings, NotificationError>) -> Unit
+    ): NotificationOperation = query(true, callback)
+
+    private fun query(
+        permission: Boolean,
+        callback: (Result<NotificationSettings, NotificationError>) -> Unit
+    ): NotificationOperation {
+        owner.requireAttached()
+        return owner.start(
+            { reply -> callback(settingsReply(reply)) },
+            {
+                id -> @Unsafe
+                {
+                    return@start notificationSettings(
+                        owner.pointer!!,
+                        id,
+                        if (permission)
+                            1
+                        else
+                            0
+                    )
+                }
+            }
+        )
+    }
+
+    public fun post(
+        id: NotificationId,
+        content: NotificationContent,
+        callback: (Result<NotificationSubmission, NotificationError>) -> Unit
+    ): NotificationOperation {
+        owner.requireAttached()
+        notificationLabel(id.value)
+        return withNotificationContent(id, content) {
+            native -> owner.start(
+                {
+                    reply -> callback(
+                        if (reply.data.status == 0)
+                            Result.Success<NotificationSubmission, NotificationError>(
+                                NotificationSubmission.Submitted
+                            )
+                        else
+                            Result.Failure<NotificationSubmission, NotificationError>(
+                                replyError(reply)
+                            )
+                    )
+                },
+                {
+                    request -> @Unsafe
+                    {
+                        return@start notificationPost(owner.pointer!!, request, native)
+                    }
+                }
+            )
+        }
+    }
+
+    public fun withdraw(
+        id: NotificationId,
+        callback: (Result<NotificationWithdrawal, NotificationError>) -> Unit
+    ): NotificationOperation {
+        owner.requireAttached()
+        notificationLabel(id.value)
+        return owner.start(
+            {
+                reply -> callback(
+                    if (reply.data.status == 0)
+                        Result.Success<NotificationWithdrawal, NotificationError>(
+                            if (reply.data.detail == 0)
+                                NotificationWithdrawal.Requested
+                            else
+                                NotificationWithdrawal.NotFound
+                        )
+                    else
+                        Result.Failure<NotificationWithdrawal, NotificationError>(replyError(reply))
+                )
+            },
+            {
+                request -> @Unsafe
+                {
+                    return@start id.value.withUtf8Bytes {
+                        text,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes notificationWithdraw(
+                                owner.pointer!!,
+                                request,
+                                text,
+                                length
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    public fun observe(callback: (NotificationEvent) -> Unit): Closeable {
+        owner.requireAttached()
+        return owner.observe(callback)
+    }
+
+    public override fun close() {
+        owner.close()
+    }
+}

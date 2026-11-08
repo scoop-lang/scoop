@@ -86,6 +86,7 @@ typedef struct {
   void *context;
   GMainContext *main_context;
   GdkDisplay *display;
+  char *application_id;
   GListModel *monitors;
   gulong display_closed, monitors_changed, theme_changed;
   int kind, wake_fd, error, layout;

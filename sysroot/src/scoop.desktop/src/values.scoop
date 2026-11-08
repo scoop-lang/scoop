@@ -1,0 +1,48 @@
+package scoop.desktop
+
+import scoop.platform.fs.Path
+
+public struct DesktopApplicationCapabilities(
+    val applicationIcon: Boolean,
+    val badgeText: Boolean,
+    val dockMenu: Boolean,
+    val jumpListTasks: Boolean
+)
+
+public struct DesktopWindowCapabilities(
+    val windowIcon: Boolean,
+    val overlayIcon: Boolean,
+    val progress: Boolean,
+    val miniwindowCaption: Boolean,
+    val thumbnailTooltip: Boolean
+)
+
+public enum DesktopProgress {
+    None, Indeterminate, Normal(val completed: ULong, val total: ULong),
+    Paused(val completed: ULong, val total: ULong), Error(val completed: ULong, val total: ULong)
+}
+
+public class JumpListIcon public constructor(public val path: Path, public val index: Int = 0)
+
+/** A native task starts this application with arguments, including after this process exits. */
+public class JumpListTask public constructor(
+    public val title: String,
+    public val arguments: Array<String> = [],
+    public val description: String? = None,
+    public val icon: JumpListIcon? = None
+) {
+    init {
+        if (title.byteLength == 0L)
+            throw IllegalArgumentException(Some("Jump List task title is empty"))
+        checkDesktopText(title)
+        checkDesktopText(description ?: "")
+        for (argument in arguments)
+            checkDesktopText(argument)
+    }
+}
+
+internal fun checkDesktopText(value: String) {
+    for (character in value)
+        if (character.code == 0)
+            throw IllegalArgumentException(Some("desktop text contains NUL"))
+}

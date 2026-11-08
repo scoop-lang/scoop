@@ -1,0 +1,138 @@
+package scoop.examples.native_desktop
+
+import scoop.desktop.DesktopProgress
+import scoop.desktop.notification.*
+import scoop.icons.lucide.folder as folderIcon
+import scoop.icons.lucide.file as fileIcon
+import scoop.icons.lucide.save as saveIcon
+import scoop.icons.lucide.download as downloadIcon
+import scoop.icons.lucide.settings as settingsIcon
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as viewColumn
+
+internal fun iconSection(demo: DesktopDemo): View =
+    panel(
+        "SVG icons",
+        viewColumn {
+            spacing = 10.0
+            row {
+                spacing = 20.0
+                for (asset in [folderIcon, fileIcon, saveIcon, downloadIcon, settingsIcon])
+                    icon(asset) {
+                        size = 32.0;
+                        theme = Some(demo.theme)
+                    }
+                icon(folderIcon) {
+                    size = 56.0;
+                    absoluteStrokeWidth = true;
+                    theme = Some(demo.theme)
+                }
+                button(
+                    if (demo.dark.value)
+                        "Light theme"
+                    else
+                        "Dark theme",
+                    { demo.toggleTheme() }
+                )
+            }
+            label(
+                "Lucide uses SVG, follows the theme, and keeps its shape at different sizes. The larger folder keeps a fixed stroke width."
+            )
+        }
+    )
+
+internal fun desktopSection(root: DocumentView): View {
+    val demo = root.demo
+    val document = root.document
+    val app = demo.applicationView!!
+    val caps = app.desktop.application.capabilities()
+    return panel(
+        "Taskbar, Dock and notifications",
+        viewColumn {
+            spacing = 10.0
+            row {
+                spacing = 10.0
+                if (caps.applicationIcon)
+                    button(
+                        "Change application icon",
+                        {
+                            demo.color.value =
+                                if (demo.color.value == 1)
+                                    2
+                                else
+                                    1
+                        }
+                    )
+                if (caps.badgeText) {
+                    add(demoOption(demo.showBadge.binding(), "Dock text badge"))
+                    button(
+                        f"${demo.badgeCount.value} new — add one",
+                        { demo.badgeCount.value += 1 }
+                    )
+                }
+                if (caps.dockMenu)
+                    add(demoOption(demo.showDockMenu.binding(), "Dock menu"))
+                if (caps.jumpListTasks)
+                    add(demoOption(demo.publishTasks.binding(), "Publish taskbar launch tasks"))
+            }
+            when (document.desktopCapabilities) {
+                case Some(windowCaps) -> {
+                    row {
+                        spacing = 10.0
+                        if (windowCaps.windowIcon)
+                            add(demoOption(document.desktopIcon.binding(), "Window icon"))
+                        if (windowCaps.overlayIcon)
+                            add(demoOption(document.overlay.binding(), "Taskbar overlay"))
+                        if (windowCaps.miniwindowCaption)
+                            add(demoOption(document.caption.binding(), "Minimized window caption"))
+                        if (windowCaps.thumbnailTooltip)
+                            add(demoOption(document.caption.binding(), "Taskbar preview tooltip"))
+                    }
+                    if (windowCaps.progress)
+                        row {
+                            spacing = 8.0
+                            button(
+                                "Progress 25%",
+                                { document.progress.value = DesktopProgress.Normal(25UL, 100UL) }
+                            )
+                            button(
+                                "Paused",
+                                { document.progress.value = DesktopProgress.Paused(50UL, 100UL) }
+                            )
+                            button(
+                                "Error",
+                                { document.progress.value = DesktopProgress.Error(75UL, 100UL) }
+                            )
+                            button(
+                                "Working",
+                                { document.progress.value = DesktopProgress.Indeterminate }
+                            )
+                            button("Clear", { document.progress.value = DesktopProgress.None })
+                        }
+                }
+                case None -> {}
+            }
+            label(
+                "Only native features are shown. Window settings apply to this document; the normal window title remains editable above."
+            )
+            label(demo.notificationStatus.value)
+            row {
+                spacing = 8.0
+                button("Refresh notification settings", { app.queryNotifications() })
+                when (val settings = demo.notificationSettings.value) {
+                    case Some(value) -> {
+                        if (value.availability == NotificationAvailability.PermissionRequired)
+                            button("Allow notifications", { app.queryNotifications(true) })
+                        if (value.availability == NotificationAvailability.Available) {
+                            button("Send / replace notification", { sendDemoNotification(demo) })
+                            if (value.capabilities.withdraw)
+                                button("Withdraw notification", { withdrawDemoNotification(demo) })
+                        }
+                    }
+                    case None -> {}
+                }
+            }
+        }
+    )
+}

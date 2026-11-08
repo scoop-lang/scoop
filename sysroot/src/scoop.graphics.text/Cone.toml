@@ -24,6 +24,12 @@ when = { os = ["darwin", "windows"] }
 [[test.sources]]
 path = "tests/system_fonts.scoop"
 [[test.sources]]
+path = "tests/font_catalog.scoop"
+[[test.sources]]
+path = "tests/font_variants.scoop"
+[[test.sources]]
+path = "tests/font_changes.scoop"
+[[test.sources]]
 path = "tests/text.scoop"
 [[test.sources]]
 path = "tests/styled.scoop"
@@ -53,6 +59,10 @@ cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELE
 
 [[native.sources]]
 path = "native/shared/fonts.cpp"
+[[native.sources]]
+path = "native/shared/font_catalog.cpp"
+[[native.sources]]
+path = "native/shared/font_face.cpp"
 [[native.sources]]
 path = "native/shared/text.cpp"
 [[native.sources]]

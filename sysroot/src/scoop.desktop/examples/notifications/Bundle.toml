@@ -1,0 +1,22 @@
+[bundle]
+schema = 1
+identifier = "dev.scoop.examples.notifications"
+name = "notification-demo"
+version = "0.1.0"
+display-name = "Scoop Notifications"
+publisher = "Scoop"
+description = "Native desktop notification example"
+license = "MIT"
+[bundle.macos]
+formats = ["app"]
+[bundle.linux]
+formats = ["deb"]
+categories = ["Development"]
+[bundle.linux.deb]
+maintainer = "Scoop"
+[bundle.windows]
+formats = ["nsis", "msi"]
+notifications = true
+vc-runtime = "system"
+[bundle.windows.msi]
+upgrade-code = "ef887f8a-3781-414b-b514-fb0cc2a3b9b4"

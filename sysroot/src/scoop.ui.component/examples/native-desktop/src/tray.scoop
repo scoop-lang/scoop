@@ -1,57 +1,36 @@
 package scoop.examples.native_desktop
 
 import scoop.tray.*
+import scoop.graphics.Color
+import scoop.graphics.svg.SvgDrawOptions
+import scoop.icons.lucide.folder as folderIcon
+import scoop.ui.component.desktop.toDesktopImage
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal fun demoIcon(orange: Boolean): DesktopImage {
-    val images = ArrayList<DesktopImageRepresentation>()
-    for (size in [16, 32]) {
-        images.add(
-            DesktopImageRepresentation(
-                PhysicalSize(size, size),
-                Array<UInt8>(size.toLong() * size.toLong() * 4L) {
-                    index ->
-                    val pixel = index / 4L
-                    val x = (pixel % size.toLong()).toInt()
-                    val y = (pixel / size.toLong()).toInt()
-                    val margin = size / 8
-                    val inside =
-                        x >= margin && x < size - margin && y >= margin && y < size - margin
-                    when (index % 4L) {
-                        case 0L -> (
-                            if (orange)
-                                235
-                            else
-                                36
-                        ).toUByte()
-                        case 1L -> (
-                            if (orange)
-                                125
-                            else
-                                108
-                        ).toUByte()
-                        case 2L -> (
-                            if (orange)
-                                45
-                            else
-                                215
-                        ).toUByte()
-                        else -> (
-                            if (inside)
-                                255
-                            else
-                                0
-                        ).toUByte()
-                    }
-                }
+internal fun demoIcon(orange: Boolean): DesktopImage =
+    folderIcon.toDesktopImage(
+        LogicalSize(24.0, 24.0),
+        [
+            PhysicalSize(16, 16),
+            PhysicalSize(24, 24),
+            PhysicalSize(32, 32),
+            PhysicalSize(48, 48),
+            PhysicalSize(64, 64),
+            PhysicalSize(128, 128),
+            PhysicalSize(256, 256)
+        ],
+        SvgDrawOptions(
+            Some(
+                if (orange)
+                    Color(0.92, 0.49, 0.18, 1.0)
+                else
+                    Color(0.14, 0.42, 0.84, 1.0)
             )
         )
-    }
-    return DesktopImage(LogicalSize(16.0, 16.0), images.toArray())
-}
+    )
 
 internal fun rectText(value: DesktopRect?): String =
     when (value) {

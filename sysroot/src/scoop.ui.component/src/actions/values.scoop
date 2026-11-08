@@ -1,5 +1,8 @@
 package scoop.ui.component
 
+import scoop.graphics.svg.SvgAsset
+import scoop.ui.View
+
 import scoop.graphics.text.TextStyle
 import scoop.ui.style.InteractionVisual
 
@@ -18,7 +21,16 @@ public struct ActionContentStyle(
     val spacing: Double,
     val interaction: InteractionVisual,
     val underline: Boolean
-)
+) {
+    public fun icon(asset: SvgAsset, configure: IconBuilder.() -> Unit = {}): View {
+        val appearance = this
+        return makeIcon(asset) {
+            size = appearance.iconSize
+            color = Some(appearance.text.color)
+            this.configure()
+        }
+    }
+}
 
 internal enum ActionShape {
     Button(ButtonSize), Badge, Toggle(ToggleVariant, ToggleSize, Boolean), Tab(TabsVariant, Boolean)

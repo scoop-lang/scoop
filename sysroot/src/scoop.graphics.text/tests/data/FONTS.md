@@ -8,3 +8,5 @@
 测试用单独 family 别名登记这些字体，字体数据不进入生产 Cone 的默认字体集合。固定字体用于宽度、换行、variation 和绘图验证；系统 fallback 的测试只检查 Unicode 位置、方向和可用 glyph，不固定随操作系统变化的系统字体 metrics。
 
 本目录同时是普通测试数据 Cone `scoop.tests:text-fonts`，以 `scoop.tests.textfonts.testSansBytes`／`testCjkBytes` 提供同一份固定字节。外部 UI 测试声明该测试依赖，避免复制字体或从自己的 Cone 跨目录 includeBytes；它不创建 FontCollection 或其他 native 资源。
+
+`Variable.ttf` 同样来自固定 Skia revision 的 `resources/fonts/Variable.ttf`，Copyright (c) 2015, Google Inc，设计者 Ben Wagner；字体 name 表的许可地址指向 SIL OFL，完整 OFL 1.1 文本见 `Variable-LICENSE.txt`。它保留两个实际轴（hidden wght、wdth）及命名实例，用于部分坐标覆盖与隐藏轴查询测试。

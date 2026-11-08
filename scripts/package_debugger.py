@@ -32,6 +32,7 @@ print(json.dumps({
   'executable': executable,
   'stdlib': sysconfig.get_path('stdlib'),
   'prefix': sys.base_prefix,
+  'libdir': sysconfig.get_config_var('LIBDIR') or str(Path(sys.base_prefix) / 'lib'),
 }))
 """
     return json.loads(subprocess.check_output([executable, "-c", script], text=True))
@@ -160,4 +161,5 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
         output = root / "bin" / ("scoop-" + name)
         output.write_text(launcher(name, version, server))
         output.chmod(0o755)
-    return native, version, license_file, []
+    search = [Path(paths["libdir"])] if host_system == "Linux" else []
+    return native, version, license_file, search

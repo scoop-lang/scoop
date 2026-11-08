@@ -1,5 +1,7 @@
 package scoop.window
 
+import scoop.window.native.NativeWindowLease
+
 /** Mutable creation attributes, copied before creating the native object. */
 public class WindowAttributes internal constructor(
     public val title: String = "Scoop",
@@ -236,6 +238,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
     var dirty: Boolean = false
     var closingDelivered: Boolean = false
     var leases: Long = 0L
+    val closingLeases = ArrayList<NativeWindowLease>()
     var currentInput: NativeInputDelivery? = None
     var systemOperationPending: Boolean = false
     var systemOperationCancelled: Boolean = false
@@ -256,6 +259,8 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
         if (phase == WindowState.Closing || phase == WindowState.Destroyed)
             return
         phase = WindowState.Closing
+        for (lease in closingLeases.toArray())
+            lease.requestClose()
         application.cancelOwnedFileDialogs(
             this,
             if (application.exiting)

@@ -1,0 +1,53 @@
+package scoop.ui.component.desktop
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.window.DesktopImage
+import scoop.window.DesktopImageRepresentation
+import scoop.window.LogicalSize
+import scoop.window.PhysicalSize
+
+/** Explicit CPU conversion; callers retain and reuse the resulting representations. */
+public fun SvgAsset.toDesktopImage(
+    size: LogicalSize,
+    resolutions: Array<PhysicalSize>,
+    options: SvgDrawOptions = SvgDrawOptions(),
+    template: Boolean = false
+): DesktopImage =
+    SvgDocument.parse(source).use {
+        document -> document.toDesktopImage(size, resolutions, options, template)
+    }
+
+public fun SvgDocument.toDesktopImage(
+    size: LogicalSize,
+    resolutions: Array<PhysicalSize>,
+    options: SvgDrawOptions = SvgDrawOptions(),
+    template: Boolean = false
+): DesktopImage {
+    if (
+        !size.width.isFinite() || !size.height.isFinite() || size.width <= 0.0 || size.height <= 0.0
+    )
+        throw IllegalArgumentException(Some("invalid desktop SVG logical size"))
+    if (resolutions.size == 0L)
+        throw IllegalArgumentException(Some("desktop SVG needs a physical resolution"))
+    val representations =
+        Array<DesktopImageRepresentation>(resolutions.size) {
+            index ->
+            val pixels = resolutions[index]
+            RasterSurface(pixels.width, pixels.height).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.scale(
+                        pixels.width.toDouble() / size.width,
+                        pixels.height.toDouble() / size.height
+                    )
+                    canvas.drawSvg(this, Rect(0.0, 0.0, size.width, size.height), options)
+                }
+                val bytes = surface.readPixels()
+                DesktopImageRepresentation(pixels, Array<UInt8>(bytes.size) { bytes[it].toUByte() })
+            }
+        }
+    return DesktopImage(size, representations, template)
+}

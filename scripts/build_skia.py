@@ -8,6 +8,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tomllib
 from pathlib import Path
@@ -44,6 +45,11 @@ PACKAGES = (
     ),
     ("icu-d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738", "", "third_party/externals/icu"),
     (
+        "expat-6154446fccefbf3ca644894f598969113b0c7bcd",
+        "libexpat-6154446fccefbf3ca644894f598969113b0c7bcd",
+        "third_party/externals/expat",
+    ),
+    (
         "libpng-d5515b5b8be3901aac04e5bd8bd5c89f287bcd33",
         "libpng-d5515b5b8be3901aac04e5bd8bd5c89f287bcd33",
         "third_party/externals/libpng",
@@ -54,14 +60,62 @@ PACKAGES = (
         "third_party/externals/libjpeg-turbo",
     ),
 )
-GN_TARGETS = ("skia", "skparagraph", "skshaper", "skunicode_core", "skunicode_icu")
-ARCHIVES = (*GN_TARGETS, "harfbuzz", "icu", "png", "jpeg", "jpeg12", "jpeg16", "skcms")
+GN_TARGETS = (
+    "skia",
+    "skparagraph",
+    "skshaper",
+    "skunicode_core",
+    "skunicode_icu",
+    "svg",
+    "skresources",
+)
+ARCHIVES = (*GN_TARGETS, "harfbuzz", "icu", "expat", "png", "jpeg", "jpeg12", "jpeg16", "skcms")
 HEADERS = (
     "include",
     "src/core/SkUTF.h",
+    "src/core/SkTHash.h",
+    "src/core/SkChecksum.h",
+    "src/core/SkMathPriv.h",
+    "src/core/SkTLazy.h",
     "modules/skcms/skcms.h",
     "modules/skcms/src/skcms_public.h",
-    *(f"modules/{name}/include" for name in ("skparagraph", "skshaper", "skunicode")),
+    *(
+        f"third_party/externals/harfbuzz/src/{name}"
+        for name in (
+            "hb-blob.h",
+            "hb-buffer.h",
+            "hb-common.h",
+            "hb-deprecated.h",
+            "hb-draw.h",
+            "hb-face.h",
+            "hb-font.h",
+            "hb-map.h",
+            "hb-ot-color.h",
+            "hb-ot-deprecated.h",
+            "hb-ot-font.h",
+            "hb-ot-layout.h",
+            "hb-ot-math.h",
+            "hb-ot-meta.h",
+            "hb-ot-metrics.h",
+            "hb-ot-name.h",
+            "hb-ot-shape.h",
+            "hb-ot-var.h",
+            "hb-ot.h",
+            "hb-paint.h",
+            "hb-script-list.h",
+            "hb-set.h",
+            "hb-shape-plan.h",
+            "hb-shape.h",
+            "hb-style.h",
+            "hb-unicode.h",
+            "hb-version.h",
+            "hb.h",
+        )
+    ),
+    *(
+        f"modules/{name}/include"
+        for name in ("skparagraph", "skshaper", "skunicode", "svg", "skresources")
+    ),
 )
 OPTIONS = {
     "is_official_build": True,
@@ -78,9 +132,10 @@ OPTIONS = {
     "skia_use_partition_alloc": False,
     "skia_use_perfetto": False,
     "skia_enable_pdf": False,
-    "skia_enable_svg": False,
+    "skia_enable_svg": True,
     "skia_enable_skottie": False,
-    "skia_use_expat": False,
+    "skia_use_expat": True,
+    "skia_use_system_expat": False,
     "skia_use_piex": False,
     "skia_use_dng_sdk": False,
     "skia_use_wuffs": False,
@@ -121,6 +176,7 @@ def prepare(args):
     )
     patches = [
         *platform_patch,
+        vendor / "patches/python-command.patch",
         vendor / "patches/text-baselines.patch",
         vendor / "patches/graphics-pathops.patch",
     ]
@@ -142,6 +198,7 @@ def prepare(args):
         "configuration": target_configuration,
         "prefix": str(args.prefix),
         "gn": args.gn,
+        "python": sys.executable,
         "cc": args.cc,
         "cxx": args.cxx,
         "sdk": args.sdk,
@@ -201,13 +258,17 @@ def prepare(args):
         )
         source_record.write_text(json.dumps(sources) + "\n")
 
-    options = dict(OPTIONS, **platform_options)
+    options = dict(OPTIONS, **platform_options, python_executable=Path(sys.executable).as_posix())
     objects = args.build_dir / "objects"
     objects.mkdir(parents=True, exist_ok=True)
     (objects / "args.gn").write_text(
         "".join(f"{name} = {json.dumps(value)}\n" for name, value in options.items())
     )
-    subprocess.run([gn, "gen", str(objects)], cwd=source, check=True)
+    subprocess.run(
+        [gn, "gen", str(objects), f"--script-executable={sys.executable}"],
+        cwd=source,
+        check=True,
+    )
     subprocess.run([ninja, "-C", str(objects), "-j", str(args.jobs), *GN_TARGETS], check=True)
     staged = args.build_dir / LIBRARY
     if windows:

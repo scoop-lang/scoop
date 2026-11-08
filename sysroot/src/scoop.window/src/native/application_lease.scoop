@@ -54,10 +54,18 @@ public class NativeApplicationLease internal constructor(
     }
 
     @Unsafe
-    public fun acquireWindow(window: Window): NativeWindowLease {
+    public fun acquireWindow(
+        window: Window,
+        requestClose: (() -> Unit)? = None
+    ): NativeWindowLease {
         requireOpen()
         requireWindow(window.owner.application === owner, "window belongs to another application")
-        return window.acquireNativeWindow()
+        val lease = window.acquireNativeWindow()
+        when (requestClose) {
+            case Some(callback) -> lease.onClosing(callback)
+            case None -> {}
+        }
+        return lease
     }
 
     @Unsafe

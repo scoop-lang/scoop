@@ -1,0 +1,64 @@
+package scoop.desktop.notification
+
+import scoop.desktop.desktopCreated
+import scoop.desktop.desktopStatus
+
+internal fun <T> withNotificationContent(
+    id: NotificationId,
+    content: NotificationContent,
+    block: (Ptr<Unit>) -> T
+): T {
+    @Unsafe
+    {
+        val native =
+            desktopCreated(
+                notificationContentCreate(
+                    if (content.sound == NotificationSound.Silent)
+                        1
+                    else
+                        0
+                ),
+                "notification content"
+            )
+        try {
+            val fields = [id.value, content.title, content.body, content.payload]
+            for (index in 0L ..< fields.size)
+                fields[index].withUtf8Bytes {
+                    text,
+                    length -> @Unsafe
+                    {
+                        desktopStatus(
+                            notificationContentText(native, index.toInt(), text, length),
+                            "notification text"
+                        )
+                    }
+                }
+            for (action in content.actions)
+                action.id.value.withUtf8Bytes {
+                    id,
+                    idLength -> @Unsafe
+                    {
+                        action.title.withUtf8Bytes {
+                            title,
+                            titleLength -> @Unsafe
+                            {
+                                desktopStatus(
+                                    notificationContentAction(
+                                        native,
+                                        id,
+                                        idLength,
+                                        title,
+                                        titleLength
+                                    ),
+                                    "notification action"
+                                )
+                            }
+                        }
+                    }
+                }
+            return block(native)
+        } finally {
+            notificationContentDestroy(native)
+        }
+    }
+}

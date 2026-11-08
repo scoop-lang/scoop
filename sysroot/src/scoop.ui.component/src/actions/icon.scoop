@@ -1,0 +1,139 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class IconProps public constructor(
+    public val asset: SvgAsset,
+    public val size: Double = 24.0,
+    public val color: Color? = None,
+    public val strokeWidth: Double = 2.0,
+    public val absoluteStrokeWidth: Boolean = false,
+    public val theme: ThemeSource? = None
+) {
+    init {
+        nonnegative(size, "invalid icon size")
+        nonnegative(strokeWidth, "invalid icon stroke width")
+    }
+}
+
+/** An owned SVG icon whose default color follows the current theme. */
+public class Icon public constructor(
+    private val props: Props<IconProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess()
+    public override fun onMount() {
+        if (props.value.color == None)
+            themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            IconInkProps(
+                input.asset,
+                input.size,
+                input.color ?: themes.read(input.theme).tokens.typography.action.color,
+                input.strokeWidth,
+                input.absoluteStrokeWidth
+            ),
+            { current, mount -> IconInk(current, mount) }
+        )
+    }
+}
+
+private class IconInkProps(
+    val asset: SvgAsset,
+    val size: Double,
+    val color: Color,
+    val strokeWidth: Double,
+    val absoluteStrokeWidth: Boolean
+)
+
+private class IconInk(private val props: Props<IconInkProps>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private var owned: IconDocument? = None
+    private var previousSize: Double? = None
+    public override fun onMount() {
+        owned = Some(scope.resource { IconDocument() })
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        val document = owned!!.update(input.asset)
+        svgNaturalSize(document)
+        if (input.absoluteStrokeWidth)
+            iconStrokeCoordinates(document)
+        val resized = previousSize != Some(input.size)
+        previousSize = Some(input.size)
+        return if (resized)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val document = owned!!.document
+        val destination =
+            fitContent(
+                svgNaturalSize(document),
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+        if (destination.width > 0.0 && destination.height > 0.0) {
+            context.draw {
+                paint -> paint.canvas.drawIcon(
+                    document,
+                    destination,
+                    input.color,
+                    input.strokeWidth,
+                    input.absoluteStrokeWidth
+                )
+            }
+        }
+    }
+}
+
+internal fun Canvas.drawIcon(
+    document: SvgDocument,
+    destination: Rect,
+    color: Color,
+    strokeWidth: Double,
+    absoluteStrokeWidth: Boolean
+) {
+    if (destination.width <= 0.0 || destination.height <= 0.0)
+        return
+    val stroke =
+        if (absoluteStrokeWidth)
+            strokeWidth * iconStrokeCoordinates(document).width / destination.width
+        else
+            strokeWidth
+    drawSvg(document, destination, SvgDrawOptions(Some(color), Some(stroke)))
+}
+
+internal fun iconStrokeCoordinates(document: SvgDocument): Size {
+    val natural =
+        document.intrinsicSize ?:
+            throw IllegalArgumentException(
+                Some("absolute icon stroke requires fixed root dimensions")
+            )
+    val coordinates =
+        when (document.viewBox) {
+            case Some(box) -> box.size
+            case None -> natural
+        }
+    requireComponent(
+        natural.width * coordinates.height == natural.height * coordinates.width,
+        "absolute icon stroke requires matching viewport and viewBox aspect ratios"
+    )
+    return coordinates
+}

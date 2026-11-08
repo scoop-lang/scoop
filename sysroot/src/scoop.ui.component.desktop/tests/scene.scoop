@@ -1,0 +1,83 @@
+package scoop.ui.component.desktop
+
+import scoop.desktop.DesktopProgress
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class UiDesktopApplication(
+    private val probe: UiDesktopProbe,
+    scope: ApplicationScope
+): ApplicationComponent(scope) {
+    val controller = scope.desktopController(Some(probe.launch))
+    val notifications = scope.notificationController(controller.notifications!!)
+    init {
+        probe.root = Some(this)
+    }
+    public override fun render(): ApplicationContent {
+        val probe = this.probe
+        probe.renders += 1
+        val version = probe.version.value
+        val menu =
+            if (probe.hasMenu.value)
+                Some(nativeMenu { item(ViewKey.Text("action"), f"Action ${version}", {}) })
+            else
+                None
+        val items = ArrayList<ApplicationItem>()
+        items.add(
+            nativeDesktop(controller, ViewKey.Text("shell")) {
+                icon = Some(probe.image)
+                badgeText = Some(f"${version}")
+                dockMenu = menu
+            }
+        )
+        when (val window = probe.target.value) {
+            case Some(value) -> items.add(
+                nativeDesktopWindow(controller, value, ViewKey.Text("window")) {
+                    icon = Some(probe.image)
+                    progress = DesktopProgress.Normal(5UL, 10UL)
+                    miniwindowCaption = Some(f"Caption ${version}")
+                    thumbnailTooltip = Some(f"Tooltip ${version}")
+                }
+            )
+            case None -> {}
+        }
+        return ApplicationContent(items.toArray())
+    }
+    fun failNotification() {
+        scope.notificationController(controller.notifications!!).settings { throw probe.expected }
+    }
+}
+
+internal fun uiDesktopImage(): DesktopImage =
+    DesktopImage(
+        LogicalSize(16.0, 16.0),
+        [
+            DesktopImageRepresentation(
+                PhysicalSize(16, 16),
+                Array<UInt8>(1024L) {
+                    index -> if (index % 4L == 3L)
+                        255.toUByte()
+                    else
+                        100.toUByte()
+                }
+            )
+        ]
+    )
+
+internal class UiDesktopShutdown(probe: UiDesktopProbe, scope: ApplicationScope):
+ApplicationComponent(scope) {
+    private val controller = scope.desktopController()
+    init {
+        probe.exitController = Some(controller)
+    }
+    public override fun render(): ApplicationContent =
+        ApplicationContent(
+            [
+                nativeDesktop(controller, ViewKey.Text("exit-shell")) {
+                    badgeText = Some("Exit")
+                    dockMenu = Some(nativeMenu { item(ViewKey.Text("exit"), "Exit", {}) })
+                }
+            ]
+        )
+}

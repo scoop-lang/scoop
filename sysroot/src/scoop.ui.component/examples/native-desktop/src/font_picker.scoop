@@ -1,0 +1,185 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as viewColumn
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class FontPicker(scope: ComponentScope): Component(scope) {
+    private val model = scope.resource { FontPickerModel() }
+    private val files = scope.fileDialogController()
+
+    public override fun onMount() {
+        attempt { model.systemFonts() }
+    }
+    private fun attempt(action: () -> Unit) {
+        try {
+            action()
+        } catch (error: Exception) {
+            model.message.value = error.message ?: "Unable to open the selected font."
+        }
+    }
+    private fun openFile() {
+        files.openFile(
+            DialogTarget.Owner(scope.nativeWindow),
+            {
+                result -> when (result) {
+                    case Accepted(path) -> attempt { model.load(path) }
+                    case Cancelled(_) -> {}
+                    case Failed(error) -> model.message.value =
+                        error.message ?: "Font dialog failed."
+                }
+            },
+            OpenFileOptions(types = FileTypes.Extensions(["ttf", "otf", "ttc", "otc"]))
+        )
+    }
+    public override fun render(): View {
+        val owner = this
+        val m = model
+        val dialogs = files
+        val chosen = m.current.value
+        return panel(
+            "Fonts and variants",
+            viewColumn {
+                spacing = 10.0
+                row {
+                    spacing = 8.0
+                    button("System fonts", { owner.attempt { m.systemFonts() } })
+                    button("Open font file…", { owner.openFile() }) { enabled = !dialogs.isPending }
+                }
+                label(m.source.value)
+                combobox(
+                    binding(
+                        get = { m.family.value },
+                        set =
+                            {
+                                value -> when (value) {
+                                    case Some(id) -> owner.attempt { m.chooseFamily(id) }
+                                    case None -> {}
+                                }
+                            }
+                    ),
+                    m.families.value,
+                    m.query
+                ) {
+                    placeholder = "Search font families"
+                    width = 420.0
+                }
+                select(
+                    binding(
+                        get = { m.selected.value },
+                        set =
+                            {
+                                value -> when (value) {
+                                    case Some(id) -> owner.attempt { m.chooseFace(id) }
+                                    case None -> {}
+                                }
+                            }
+                    )
+                ) {
+                    placeholder = "Choose a face"
+                    width = Some(420.0)
+                    val options = m.faces.value
+                    for (index in 0L ..< options.size) {
+                        val info = options[index]
+                        item(
+                            Choice(
+                                ViewKey.Number(index),
+                                info.id,
+                                f"${info.styleName} · weight ${info.weight}, width ${info.width}"
+                            )
+                        )
+                    }
+                }
+                when (chosen) {
+                    case Some(face) -> {
+                        val info = face.info
+                        label(info.postScriptName ?: info.family.name)
+                        if (face.namedInstances.size > 0L)
+                            select(
+                                binding(
+                                    get = { m.instance.value },
+                                    set =
+                                        {
+                                            value -> when (value) {
+                                                case Some(index) -> owner.attempt {
+                                                    m.chooseInstance(index)
+                                                }
+                                                case None -> {}
+                                            }
+                                        }
+                                )
+                            ) {
+                                placeholder = "Named instance or custom coordinates"
+                                width = Some(420.0)
+                                for (index in 0L ..< face.namedInstances.size)
+                                    item(
+                                        Choice(
+                                            ViewKey.Number(index),
+                                            index,
+                                            face.namedInstances[index].name ?:
+                                                f"Instance ${index + 1L}"
+                                        )
+                                    )
+                            }
+                        if (face.axes.size > 0L)
+                            add(demoOption(m.showHidden.binding(), "Show hidden axes"))
+                        for (index in 0L ..< face.axes.size) {
+                            val axis = face.axes[index]
+                            if (!axis.hidden || m.showHidden.value) {
+                                label(
+                                    f"${axis.name ?: axis.tag} (${axis.tag}): ${
+                                        face.coordinates[index].value
+                                    }; default ${axis.defaultValue}"
+                                )
+                                slider(
+                                    binding(
+                                        get = { [m.coordinate(axis.tag) ?: axis.defaultValue] },
+                                        set =
+                                            {
+                                                values -> owner.attempt {
+                                                    m.changeAxis(axis.tag, values[0L])
+                                                }
+                                            }
+                                    ),
+                                    RangeSpec(axis.minimum, axis.maximum)
+                                ) {
+                                    key = ViewKey.Text(axis.tag)
+                                    enabled = axis.maximum > axis.minimum
+                                    keyboardStep =
+                                        Some(
+                                            if (axis.maximum > axis.minimum)
+                                                (axis.maximum - axis.minimum) / 100.0
+                                            else
+                                                1.0
+                                        )
+                                }
+                            }
+                        }
+                        textarea(m.preview) {
+                            rows = 3L
+                            fonts = Some(m.fonts)
+                            style {
+                                text {
+                                    families = Some(["Font preview"])
+                                    weight = Some(info.weight)
+                                    width = Some(info.width)
+                                    slant = Some(info.slant)
+                                    fontSize = Some(26.0)
+                                }
+                            }
+                        }
+                        label(
+                            "Preview uses this exact face. Missing characters remain visible as missing glyphs."
+                        )
+                    }
+                    case None -> {}
+                }
+                if (m.message.value.byteLength > 0L)
+                    label(m.message.value)
+            }
+        )
+    }
+}

@@ -18,6 +18,7 @@ public fun ApplicationOptions.copy(
 ): ApplicationOptions {
     val builder = ApplicationOptionsBuilder()
     builder.lastWindowPolicy = this.lastWindowPolicy
+    builder.applicationId = this.applicationId
     builder.activationPolicy = this.activationPolicy
     builder.configure()
     return builder.snapshot()
@@ -26,6 +27,16 @@ public fun ApplicationOptions.copy(
 public class ApplicationOptionsBuilder internal constructor() {
     internal var activationPolicy: Int = 0
     public var lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning
-    internal fun snapshot(): ApplicationOptions =
-        ApplicationOptions(lastWindowPolicy, activationPolicy)
+    public var applicationId: String? = None
+    internal fun snapshot(): ApplicationOptions {
+        when (applicationId) {
+            case Some(value) -> {
+                requireWindow(value.byteLength > 0L, "application id is empty")
+                for (character in value)
+                    requireWindow(character.code != 0, "application id contains NUL")
+            }
+            case None -> {}
+        }
+        return ApplicationOptions(lastWindowPolicy, applicationId, activationPolicy)
+    }
 }
