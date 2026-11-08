@@ -149,3 +149,27 @@ fn normalizes_registry_urls_and_reuses_source_and_native_validation() {
         ManifestParseErrorKind::InvalidNative(_)
     ));
 }
+
+#[test]
+fn bundle_metadata_is_tool_owned_and_does_not_change_compiler_input() {
+    let base = parse(CONE).unwrap();
+    let with_bundle = parse(&format!(
+        "{CONE}\n[bundle]\nschema = 1\nidentifier = 'dev.example.app'\n\
+         [bundle.macos]\ninfo-plist = 'missing-but-not-a-compiler-input.plist'\n"
+    ))
+    .unwrap();
+    let bundle = with_bundle.bundle.as_ref().unwrap();
+    assert_eq!(bundle.table["identifier"].as_str(), Some("dev.example.app"));
+    assert!(bundle.span.end > bundle.span.start);
+    let bind = |document: &PackageDocument| {
+        crate::ParsedConeManifest::bind_package(
+            document,
+            scoop_identity::ConeCoordinate::new("dev.example", "app", "0.1.0").unwrap(),
+            &BTreeMap::new(),
+            false,
+        )
+        .unwrap()
+    };
+    assert_eq!(bind(&base), bind(&with_bundle));
+    assert!(parse("schema = 1\n[workspace]\nmembers = []\n[bundle]\nschema = 1").is_err());
+}

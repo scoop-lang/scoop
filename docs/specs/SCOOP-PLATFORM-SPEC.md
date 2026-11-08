@@ -239,6 +239,8 @@ Windows 单项查询使用 GetEnvironmentVariableW，缺失返回 None，空值�
 
 currentDirectory(): Path 查询实际 cwd，不读取 PWD；POSIX 的 homeDirectory(): Path? 优先使用非空 HOME，否则查询当前真实 uid 的 passwd 目录，没有记录或空目录时返回 None，实际查询错误抛 PlatformException。temporaryDirectory(): Path 在 POSIX 使用非空 TMPDIR，否则为 `/tmp`；Windows 查询 GetTempPath2W，系统未提供该入口时使用 GetTempPathW，保留返回的 UTF-16。普通 Windows 进程沿系统的 TMP、TEMP、USERPROFILE、Windows 目录顺序，SYSTEM 进程沿 GetTempPath2W 的 SystemTemp 规则。查询返回独立副本，不保证路径存在、可访问或之后仍可创建文件；不提供全局 chdir。
 
+`scoop.platform.env.executablePath(): Path` 查询进程主程序的实际绝对路径，不读取 cwd、PWD 或 argv[0]。Darwin 使用 `_NSGetExecutablePath` 并解析启动符号链接，Linux 读取 `/proc/self/exe`，Windows 使用 `GetModuleFileNameW(NULL, ...)`；保留 OS 路径的原始编码。返回独立存储，失败按既有 PlatformException 保留系统错误。它不查询调用者所在 DLL/共享库，也不要求路径之后一直存在。应用可据固定安装布局定位资源；本接口不解释 bundle metadata，不增加 runtime ABI。
+
 Windows 的 currentDirectory 使用 GetCurrentDirectoryW；homeDirectory 优先使用非空 USERPROFILE，否则通过当前进程的 TOKEN_QUERY handle 查询 GetUserProfileDirectoryW，并关闭该临时 handle。空 profile 返回 None，实际查询失败保留 Win32 code；不读取 HOME、PWD 或把不存在的用户配置拼成路径。查询结果无损保留 UTF-16，路径存在性仍由后续实际文件系统操作判断。POSIX 的 HOME／passwd 规则保持。
 
 `scoop.platform.system` 提供 OperatingSystem(Darwin/Linux/Windows)、Architecture(Aarch64/X86_64)、operatingSystem 与 architecture 只读值，标识当前构建目标。POSIX 的 systemVersion(): String 返回 uname 的系统 release，logicalProcessorCount: Long 返回 OS 报告的在线逻辑 CPU 数；失败照常抛系统错误，不推导容器配额或调度能力。

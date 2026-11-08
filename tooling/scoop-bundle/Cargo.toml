@@ -1,0 +1,24 @@
+[package]
+name = "scoop-bundle"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+goblin = "0.10.7"
+image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
+plist = "1.10.3"
+rpm = { version = "0.30.2", default-features = false, features = ["gzip-compression", "payload"] }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+toml = "0.8"
+uuid = { version = "1.29.1", features = ["v5"] }
+walkdir = "2"
+

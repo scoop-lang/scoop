@@ -6,6 +6,7 @@
 ScoopPlatformString scoop_platform_environment_value_result(const void *name);
 ScoopPlatformString scoop_platform_environment_result(void);
 ScoopPlatformString scoop_platform_current_directory_result(void);
+ScoopPlatformString scoop_platform_executable_path_result(void);
 ScoopPlatformString scoop_platform_home_directory_result(void);
 
 #endif

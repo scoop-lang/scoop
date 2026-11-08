@@ -27,6 +27,7 @@ pub(super) struct RawPackage {
     pub windows: Option<Spanned<crate::windows::RawWindowsConfig>>,
     #[serde(default)]
     pub publish: RawPublish,
+    pub bundle: Option<Spanned<toml::Table>>,
 }
 
 #[derive(Deserialize)]

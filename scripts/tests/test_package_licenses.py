@@ -77,19 +77,27 @@ class ComponentLicenseTests(unittest.TestCase):
                     ]
                 },
             }
+            bundle = {
+                "packages": [package("scoop-bundle", False), package("bundle-only")],
+                "resolve": {"nodes": [node("scoop-bundle", ["bundle-only"]), node("bundle-only")]},
+            }
             installation = root / "installation"
             with patch.object(
                 package_licenses.subprocess,
                 "check_output",
-                side_effect=[json.dumps(main), json.dumps(example)],
+                side_effect=[json.dumps(main), json.dumps(example), json.dumps(bundle)],
             ) as metadata:
                 package_licenses.collect_bin(installation, repository, "aarch64-apple-darwin")
                 self.assertEqual(
                     [call.kwargs["cwd"] for call in metadata.call_args_list],
-                    [repository, repository / "tooling/scoop-example"],
+                    [
+                        repository,
+                        repository / "tooling/scoop-example",
+                        repository / "tooling/scoop-bundle",
+                    ],
                 )
             licenses = installation / "share/licenses"
-            for name in ("shared", "main-only", "example-only", "pubgrub"):
+            for name in ("shared", "main-only", "example-only", "bundle-only", "pubgrub"):
                 self.assertEqual(
                     (licenses / f"{name}-1.0.0/LICENSE").read_text(), f"{name} license"
                 )

@@ -153,9 +153,10 @@ class ComponentArchiveTests(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(relative)
                 if populated:
-                    command = sysroot / f"commands/scoop-example{suffix}"
-                    command.write_text("#!/bin/sh\nexit 37\n")
-                    command.chmod(0o755)
+                    for name in ("scoop-example", "scoop-bundle"):
+                        command = sysroot / f"commands/{name}{suffix}"
+                        command.write_text("#!/bin/sh\nexit 37\n")
+                        command.chmod(0o755)
                     (sysroot / "commands/target").mkdir()
                     (sysroot / "commands/target/data").write_text("command data")
                 extension = work / "extension.vsix"
@@ -336,9 +337,15 @@ class ComponentArchiveTests(unittest.TestCase):
                 self.assertTrue(commands.is_dir())
                 self.assertFalse((commands / ".gitkeep").exists())
                 if populated:
-                    self.assertEqual((commands / command.name).read_bytes(), command.read_bytes())
-                    if os.name != "nt":
-                        self.assertEqual((commands / command.name).stat().st_mode & 0o777, 0o755)
+                    for name in ("scoop-example", "scoop-bundle"):
+                        command = sysroot / f"commands/{name}{suffix}"
+                        self.assertEqual(
+                            (commands / command.name).read_bytes(), command.read_bytes()
+                        )
+                        if os.name != "nt":
+                            self.assertEqual(
+                                (commands / command.name).stat().st_mode & 0o777, 0o755
+                            )
                     self.assertEqual((commands / "target/data").read_text(), "command data")
                 else:
                     self.assertEqual(list(commands.iterdir()), [])

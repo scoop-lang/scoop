@@ -895,6 +895,12 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - [独立工具](../tooling/scoop-example/README.md)提供分类、搜索、Markdown/source/JSON、文件选择和错误退出；维护脚本与完整发行包携带命令、正文和源码。
 - 展示与验证引用同一份实际源码；本机独立测试覆盖 24 个主题，不修改编译器、不运行其测试套件、不做 Linux 验证。详见[验证记录](scoop-example/VALIDATION.md)；后续规划条目不进入可查询索引。
 
+### `scoop bundle` 应用打包（首期六种格式已实现）
+
+- [设计](scoop-bundle/DESIGN.md)复用 `commands/scoop-bundle` 外部命令和现有构建结果，metadata 支持 Cone.toml 内嵌或独立配置文件；统一文件、资源、辅助程序与原生库的部署。
+- [独立工具](../tooling/scoop-bundle/README.md)完成 macOS app/codesign、Linux deb/rpm/AppImage 与 Windows NSIS/MSI，接入工具链发行。安装后启动、资源读取、动态依赖、签名、升级和结果复用的实际覆盖见[实施记录](scoop-bundle/PROGRESS.md)；Windows 真实证书签名专项仍需配置受信任证书。
+- Flatpak 与 MSIX 明确放到首期之后，分别设计 runtime/sandbox 和 Windows 包身份/签名合同；不公开占位后端或将其作为首期完成条件。
+
 ### `scoop fmt` 与 `scoop check`（已实现，三目标定向验证通过）
 
 - [设计](fmt-check/DESIGN.md)明确固定格式规则、manifest 生产／测试及全平台源码并集、显式文件、写回和 `fmt --check`；复用保留原文的 CST，保留有语义作用的换行、相邻关系与注释附着。

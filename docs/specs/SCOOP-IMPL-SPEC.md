@@ -92,7 +92,7 @@ GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不�
 
 两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
-Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 5；PM 的清单解析记录使用 `manifests-v4`，含已解析清单的 registry 缓存使用 `registry-v2`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
+Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v5`，含已解析清单的 registry 缓存使用 `registry-v2`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
 
 Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
 
@@ -106,7 +106,7 @@ Mach-O／ELF／COFF 的容器事实与其 machine 规则分别表达。共享对
 
 ## 2. 编译阶段与产物契约
 
-`native.include` 按语言规范 12.2.1 保存普通路径或 target sysroot 相对路径。PM 展开配置、compiler 请求与解析缓存保存路径种类；compiler protocol 升至 27，package protocol 升至 5，相关本机记录直接重新生成。toolchain 显式接收本次 Scoop sysroot，按已选目标解析 include，同一结果用于 native C／C++／Objective-C 与独立 RC 构建。实际目录和使用的头文件／资源沿已有更新记录处理；缓存命中仍先于预处理与工具探测，未选中条目不参与更新。预处理结果只保存实际 translation unit 和观察到的输入，移除无生产调用的旧临时 flag／library 重复编码，实际 native 配置继续由对象构建记录负责。
+`native.include` 按语言规范 12.2.1 保存普通路径或 target sysroot 相对路径。PM 展开配置、compiler 请求与解析缓存保存路径种类；compiler protocol 升至 27，package protocol 当前为 6，相关本机记录直接重新生成。toolchain 显式接收本次 Scoop sysroot，按已选目标解析 include，同一结果用于 native C／C++／Objective-C 与独立 RC 构建。实际目录和使用的头文件／资源沿已有更新记录处理；缓存命中仍先于预处理与工具探测，未选中条目不参与更新。预处理结果只保存实际 translation unit 和观察到的输入，移除无生产调用的旧临时 flag／library 重复编码，实际 native 配置继续由对象构建记录负责。
 
 M51 的普通 native include 支持语言规范 12.2.1 的路径字符串或条件路径表。预处理搜索目录、选项投影与 native 对象更新判断只使用当前目标选中的路径，并保持声明顺序；复用现有目标谓词，不引入依赖准备回调或目标变量插值。M63 后原始 manifest 的本机解析记录由 PM 按实际输入更新复用，driver 不再保存原始清单解析缓存；PM 的解析记录还包含配套静态目录的 source-condition 投影，新增目标或修改谓词事实后重新解析，不复用旧的展开目标集合。系统库选库记录同样跟踪公共目录的目标事实，未变化时仍在 manifest 正文读取之前复用；语言实体、`.slib` 与 runtime ABI 不变。
 
@@ -972,6 +972,8 @@ scoopc build <file.scoop> [--direct-slib direct.slib]... [--support-slib support
 低层 `scoop-link` 使用相同的普通产物链接合同。manifest build/run省略root时按包管理规范3.1从cwd定位最近清单及所属workspace，成员内默认该成员，workspace根采用default-members；`run -- args`也采用该选择，必须得到唯一executable。低层scoopc输入必需。single-file与artifact-only link不启动PM或读取相邻workspace。
 
 `scoop` 优先解析内置子命令；其余子命令名称必须是单个文件名，并直接执行所选 `<SYSROOT>/commands/scoop-<名称>`，Windows 使用 `scoop-<名称>.exe`。目标为宿主可直接执行的程序（Unix 包括带解释器声明的脚本），不经过 shell 解释或 PATH 搜索。子命令名称之后的全部参数原样传递，包含选项、`--`、空字符串及宿主原始参数字节；Windows 保留原 UTF-16 参数。`scoop` 自身的选项必须放在外部子命令之前。`--sysroot` 采用本节既有的显式参数、`SCOOP_SYSROOT`、安装根优先顺序，对内置子命令仍可放在子命令前后。外部程序继承 cwd、环境和标准输入输出，正常退出码与信号终止状态由 `scoop` 传回；程序缺失、不可执行或启动失败按实际路径报告，不触发编译、链接或工具探测。
+
+`scoop bundle` 是上述外部命令，实际安装于 `commands/scoop-bundle`，负责已链接应用的资源、动态运行依赖、平台包与签名；其[设计](../scoop-bundle/DESIGN.md)首期覆盖 app、deb、rpm、AppImage、NSIS、MSI，Flatpak/MSIX 后置。它可以调用正常 build，但不参与编译 stage 或工具链/sysroot 发行准备。build 的 JSON 成功记录增加实际 canonical `target`，与 `output`、root coordinate、profile 一起供外部工具消费，不要求打开 `.slib` 推导安装信息。package machine protocol 当前为 6，成员 JSON 增加工具 metadata；编译请求和产物格式不因 bundle 改变。
 
 `scoop new` 创建普通 manifest Cone，group 必需，name 默认取目标目录名，kind 默认 executable，version 默认 0.1.0，package 默认 group；名称、版本与 package 使用现有 coordinate 和源码名称规则，显式 package 必须为 group 本身或其子包。生成 package 时按名称段转义连字符或关键字。固定模板包含 Cone.toml、executable 的 src/main.scoop 或 library 的 src/lib.scoop；默认还包含 tests/basic.scoop 及 scoop.test 测试依赖，`--no-tests` 同时省略两者。生产依赖沿用 manifest 的默认 core 规则，library 不生成 main。所有参数先验证，再创建目标目录；目标必须不存在，普通文件、空目录、非空目录均拒绝覆盖。父目录可按实际需要创建，I/O 失败按原路径报告；此命令不构建、不下载模板，也不读取 sysroot 或构建缓存。 `new` 的 CLI 参数校验可对内存中的 package 声明调用现有 parser，以复用转义标识符和关键字规则；它不读取或解析项目源码。构建编排库继续通过 scoopc 执行源码编译，不调用 HIR/MIR/LIR lowering 或 codegen 实现。
 

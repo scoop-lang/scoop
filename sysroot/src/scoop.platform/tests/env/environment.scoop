@@ -32,6 +32,14 @@ private class EnvironmentTest {
     }
 
     @Test
+    fun `executable path identifies the actual process image`() {
+        val path = executablePath()
+        assertTrue(path.isAbsolute)
+        assertEquals(path, executablePath())
+        assertEquals(path.canonicalize(), executablePath().canonicalize())
+    }
+
+    @Test
     fun `current directory queries actual cwd`() {
         assertEquals(Path.fromString(".").canonicalize(), currentDirectory().canonicalize())
     }

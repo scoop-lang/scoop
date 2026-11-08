@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageMembersV1 {
     pub format: u32,
@@ -8,7 +8,7 @@ pub struct PackageMembersV1 {
     pub members: Vec<PackageMemberV1>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageMemberV1 {
     #[serde(with = "format::coordinate")]
@@ -21,6 +21,8 @@ pub struct PackageMemberV1 {
     pub selected: bool,
     pub sources: scoop_manifest::SourceSelection,
     pub test_sources: scoop_manifest::SourceSelection,
+    pub metadata: BTreeMap<String, String>,
+    pub bundle: Option<scoop_manifest::package::BundleMetadata>,
 }
 
 impl PackageMembersV1 {

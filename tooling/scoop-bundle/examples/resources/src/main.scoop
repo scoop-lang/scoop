@@ -1,0 +1,19 @@
+package dev.scoop.bundle
+
+import scoop.platform.env.executablePath
+import scoop.platform.fs.Path
+import scoop.platform.fs.readText
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+
+fun main() {
+    val directory = executablePath().parent!!
+    val resource =
+        when (operatingSystem) {
+            case OperatingSystem.Darwin -> "../Resources/assets/message.txt"
+            case OperatingSystem.Linux -> "../../../share/dev.scoop.resource-app/assets/message.txt"
+            case OperatingSystem.Windows -> "resources/assets/message.txt"
+        }
+    val message = directory.resolve(Path.fromString(resource)).readText()
+    print(message)
+}
