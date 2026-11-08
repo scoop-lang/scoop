@@ -175,7 +175,8 @@ def environment(repo, work, fixtures, args):
         else [],
     }
     if args.cc:
-        common["compile_args"] += ["--cc", str(args.cc.resolve())]
+        # Keep the invocation name used to locate the paired C++ driver.
+        common["compile_args"] += ["--cc", str(args.cc.absolute())]
     common["compile_args"] += common["native_sysroot_args"]
     common["link_args"] = list(common["compile_args"])
     target_os = TARGETS[target]["os"]
@@ -238,7 +239,7 @@ def environment(repo, work, fixtures, args):
     if needed & {"cc", "ar"} and target_os == "darwin":
         common.update(
             cc_family="clang",
-            cc=str(args.cc.resolve())
+            cc=str(args.cc.absolute())
             if args.cc
             else tool_output(["/usr/bin/xcrun", "--find", "clang"]),
             ar=str(args.ar.resolve())

@@ -1,0 +1,10 @@
+schema = 1
+[cone]
+group = "dev.lucidepruning"
+name = "one"
+version = "0.1.0"
+kind = "executable"
+[dependencies]
+"scoop:scoop.icons.lucide" = { version = "0.1.0", path = "../library" }
+"scoop:scoop.graphics.svg" = "0.1.0"
+"scoop:scoop.graphics" = "0.1.0"

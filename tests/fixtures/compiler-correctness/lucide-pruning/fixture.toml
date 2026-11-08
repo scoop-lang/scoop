@@ -1,0 +1,77 @@
+schema = 1
+name = "lucide-pruning"
+inputs = ["zero", "one", "all", "expanded.Cone.toml", "inspect.py"]
+tools = ["scoop", "scoopc", "python"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc-ucrt", "x86_64-w64-windows-llvm-mingw-ucrt", "x86_64-w64-windows-llvm-mingw-msvcrt"]
+tags = ["link", "artifacts", "compiler-correctness"]
+
+[vars]
+options = ["--release", "--keep-symbols", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--message-format", "json"]
+
+[[steps]]
+name = "prepare"
+files = [
+    {copy = {from = "${fixture}/zero", to = "${work}/zero"}},
+    {copy = {from = "${fixture}/one", to = "${work}/one"}},
+    {copy = {from = "${fixture}/all", to = "${work}/all"}},
+]
+
+[[steps]]
+name = "zero"
+argv = ["${scoop}", "build", "${work}/zero", {each = "${link_args}"}, {each = "${options}"}, "--target-dir", "${work}/target"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "one"
+argv = ["${scoop}", "build", "${work}/one", {each = "${link_args}"}, {each = "${options}"}, "--target-dir", "${work}/target"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "all"
+argv = ["${scoop}", "build", "${work}/all", {each = "${link_args}"}, {each = "${options}"}, "--target-dir", "${work}/target"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "extend"
+files = [
+    {copy = {from = "${one.result.output}", to = "${work}/one-baseline.exe"}},
+    {copy = {from = "${sysroot}/src/scoop.icons.lucide", to = "${work}/library"}},
+    {copy = {from = "${fixture}/one", to = "${work}/expanded"}},
+    {copy = {from = "${fixture}/expanded.Cone.toml", to = "${work}/expanded/Cone.toml"}},
+    {write = {path = "${work}/library/assets/added-probe.svg", data = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path id=\"immortal-pruning-unused-probe\" d=\"M1 2L20 21\"/></svg>\n"}},
+    {write = {path = "${work}/library/src/generated/added-probe.scoop", data = """package scoop.icons.lucide
+import scoop.compiler.includeStr
+import scoop.graphics.svg.SvgAsset
+public val addedProbe: SvgAsset get() {
+    return SvgAsset(includeStr("../../assets/added-probe.svg"))
+}
+"""}},
+]
+
+[[steps]]
+name = "expanded"
+argv = ["${scoop}", "build", "${work}/expanded", {each = "${link_args}"}, {each = "${options}"}, "--target-dir", "${work}/target", "--emit", "all", "--dump-scope", "sources", "--dump-dir", "${work}/dump"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "inspect"
+argv = ["${python}", "${fixture}/inspect.py", "${work}", "${zero.result.output}", "${work}/one-baseline.exe", "${all.result.output}", "${expanded.result.output}"]
+exit = 0
+stdout = "Lucide keeps only referenced SVGs, getters and registrations\n"
+stderr = ""

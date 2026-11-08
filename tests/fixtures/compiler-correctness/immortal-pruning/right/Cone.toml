@@ -1,0 +1,9 @@
+schema = 1
+[cone]
+group = "dev.immortalpruning"
+name = "right"
+version = "0.1.0"
+kind = "library"
+
+[dependencies]
+"dev.immortalpruning:provider" = { version = "0.1.0", path = "../provider" }

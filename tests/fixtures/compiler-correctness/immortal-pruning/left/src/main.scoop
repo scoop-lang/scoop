@@ -1,0 +1,3 @@
+package dev.immortalpruning.left
+import dev.immortalpruning.generic
+public fun left(): String = generic(1)

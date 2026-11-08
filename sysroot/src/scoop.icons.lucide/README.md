@@ -16,6 +16,8 @@ val action = button({ style -> style.icon(search) }, { println("Search") })
 
 图标库本身只依赖 graphics.svg，不依赖 UI。离屏或自定义绘图可以 `SvgDocument.parse(search.source)` 后调用 Canvas.drawSvg。普通 icon 由挂载作用域管理文档，更新颜色、尺寸和描边时复用，来源改变或卸载时释放。`svgView` 则借用调用者已经持有的文档。
 
-独立入口不保证最终逐图标剔除。当前 macOS aarch64 release 消费者实际保留全部 31 份资源，原始 SVG 合计 12,159 字节；链接测量见 [GUI 扩展实施进度](../../../docs/desktop-ui/GUI-EXTENSIONS-PROGRESS.md)。
+使用新版编译器重新构建本库及依赖后，debug／release 的最终链接均按实际引用裁剪资源。未使用图标的 SVG、独立 getter、callable 登记和 immortal 登记不会进入成品；新增未使用图标也不增加这些内容。已内联的 getter 可以消失，所用资源继续保留。应用或 UI 组件实际引用的默认图标仍会保留，主动构建全量资产数组或运行时图标索引也会保留它引用的图标。
+
+macOS 双架构、Linux GNU 和 Windows 三种 native 环境的 release 离屏消费者均已验证零／单／全部引用分别只保留 0／1／31 份 SVG；仅用 search 时为 352 字节原始 SVG，新增一个未引用图标后保持不变。所有 GUI 目标的 31 图标像素测试均通过，macOS x86_64 经 Rosetta 验证。完整文件还含 Skia、runtime 等共享代码，不能将其大小全部归为图标开销。实现、构建成本和各平台验收见[静态常量与图标资源裁剪](../../../docs/program-performance/IMMORTAL-PRUNING.md)。
 
 维护入口为 `python3 scripts/update_lucide.py --archive /path/to/lucide-static-1.70.0.tgz`；不指定归档时从仓库已有资产重新生成独立声明，`--check` 检查声明和资产基线。维护脚本不下载文件，应用构建也不需要 npm。所有入选资源由本 Cone 的 scoop.test 实际解析并绘制。

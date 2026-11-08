@@ -16,6 +16,8 @@ runner 本身使用 Python 3.11+ 标准库；Python peer 和辅助进程统一�
 Linux amd64 默认选择 glibc；用 `--target x86_64-unknown-linux-musl` 运行 musl 用例，
 fixture 的 Scoop 命令通过 `${target}` 传递该选择。`${cc}` 默认分别为 GCC / musl-gcc，
 可用 `--cc` 覆盖；Linux 不提供 Darwin 的 `${sdk}` / `${deployment}`。
+显式 `--cc` 保留符号链接的调用路径，避免将 `clang` 展开为 `clang-22` 后误选配套 C++ driver；
+Scoop 构建和 native companion 使用同一调用名。
 Windows x64 可选择三个完整 Windows target，默认 Microsoft UCRT；命令默认使用 `.exe`。
 Windows 安装包的主驱动为 `sco.exe`，验证安装包时传 `--scoop <安装根>/bin/sco.exe`；
 `${scoop}` 与 `--scoop` 仍是 runner 的逻辑名称。未覆盖工具路径时使用 Cargo 内部构建产物 `target/debug/scoop.exe`，其他工具名不变。
