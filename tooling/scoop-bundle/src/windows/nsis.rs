@@ -2,7 +2,9 @@ use std::{fmt::Write, fs, process::Command};
 
 use anyhow::Result;
 
-use super::{ICON, Installer, path_text, per_user, registry_key, relative_text, signing};
+use super::{
+    ICON, Installer, notifications, path_text, per_user, registry_key, relative_text, signing,
+};
 use crate::{
     cache::Inputs,
     tools::{self, Tools},
@@ -192,17 +194,41 @@ Section "Install"
             script,
             "  CreateDirectory \"$SMPROGRAMS\\{id}\"\n  CreateShortcut \"$SMPROGRAMS\\{id}\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\""
         )?;
+        set_shortcut_identity(&mut script, &format!("$SMPROGRAMS\\{id}\\{shortcut}.lnk"))?;
     }
     if desktop {
         writeln!(
             script,
             "  CreateShortcut \"$DESKTOP\\{shortcut}.lnk\" \"$INSTDIR\\{main_escaped}\""
         )?;
+        set_shortcut_identity(&mut script, &format!("$DESKTOP\\{shortcut}.lnk"))?;
+    }
+    if settings.config.windows.notifications {
+        let clsid = notifications::clsid(id);
+        writeln!(
+            script,
+            r#"  WriteRegStr {hive} "Software\Classes\AppUserModelId\{id}" "DisplayName" {name}
+  WriteRegStr {hive} "Software\Classes\AppUserModelId\{id}" "CustomActivator" "{clsid}"
+  WriteRegStr {hive} "Software\Classes\CLSID\{clsid}\LocalServer32" "" '$\"$INSTDIR\{main_escaped}$\" -Embedding'"#
+        )?;
+        if *has_icon {
+            writeln!(
+                script,
+                "  WriteRegStr {hive} \"Software\\Classes\\AppUserModelId\\{id}\" \"IconUri\" \"$INSTDIR\\{ICON}\""
+            )?;
+        }
     }
     writeln!(
         script,
         "SectionEnd\nSection \"Uninstall\"\n  SetRegView 64\n  SetShellVarContext {shell}"
     )?;
+    if settings.config.windows.notifications {
+        writeln!(
+            script,
+            "  DeleteRegKey {hive} \"Software\\Classes\\AppUserModelId\\{id}\"\n  DeleteRegKey {hive} \"Software\\Classes\\CLSID\\{}\"",
+            notifications::clsid(id)
+        )?;
+    }
     for (index, file) in payload.files.iter().enumerate() {
         writeln!(
             script,
@@ -239,6 +265,12 @@ Section "Install"
     if settings.config.windows.signing.is_some() {
         script.push_str("!uninstfinalize '\"\"%SCOOP_BUNDLE_SIGN_SCRIPT%\" \"%1\"\"' = 0\n");
     }
+    if start_menu || desktop {
+        script.push_str(&shortcut_function(
+            id,
+            settings.config.windows.notifications,
+        ));
+    }
     let path = scratch.join("installer.nsi");
     fs::write(&path, script)?;
     let mut command = Command::new(tools.find("makensis", inputs)?);
@@ -253,4 +285,39 @@ Section "Install"
 fn escaped_path(path: &std::path::Path) -> Result<String> {
     let quoted = quoted(&relative_text(path)?);
     Ok(quoted[1..quoted.len() - 1].into())
+}
+
+fn set_shortcut_identity(script: &mut String, path: &str) -> Result<()> {
+    writeln!(
+        script,
+        "  Push \"{path}\"\n  Call SetShortcutIdentity\n  Pop $R0\n  ${{If}} $R0 < 0\n    DetailPrint \"Could not set the shortcut application identity: $R0\"\n    SetErrorLevel 1\n    Abort\n  ${{EndIf}}"
+    )?;
+    Ok(())
+}
+
+pub(super) fn shortcut_function(id: &str, notification: bool) -> String {
+    let activator = if notification {
+        format!(
+            r#"  System::Call 'ole32::PropVariantClear(p r4)'
+  System::Call 'propsys::PSGetPropertyKeyFromName(w "System.AppUserModel.ToastActivatorCLSID", p r3) i.r5'
+  ${{If}} $5 < 0
+    Goto identity_done
+  ${{EndIf}}
+  System::Call 'propsys::InitPropVariantFromCLSID(g "{}", p r4) i.r5'
+  ${{If}} $5 < 0
+    Goto identity_done
+  ${{EndIf}}
+  System::Call '$2->6(p r3, p r4) i.r5'
+  ${{If}} $5 < 0
+    Goto identity_done
+  ${{EndIf}}
+"#,
+            notifications::clsid(id)
+        )
+    } else {
+        String::new()
+    };
+    include_str!("shortcut.nsh")
+        .replace("@SCOOP_APPID@", &quoted(id))
+        .replace("@SCOOP_ACTIVATOR@", &activator)
 }

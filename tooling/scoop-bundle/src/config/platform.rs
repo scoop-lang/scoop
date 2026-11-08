@@ -98,6 +98,8 @@ pub struct Windows {
     pub install_mode: InstallMode,
     pub vc_runtime: Option<VcRuntime>,
     #[serde(default)]
+    pub notifications: bool,
+    #[serde(default)]
     pub nsis: Nsis,
     #[serde(default)]
     pub msi: Msi,

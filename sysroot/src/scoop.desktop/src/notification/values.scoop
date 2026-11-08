@@ -1,0 +1,93 @@
+package scoop.desktop.notification
+
+import scoop.desktop.checkDesktopText
+import scoop.collections.HashSet
+
+public struct NotificationId(val value: String): Equals<NotificationId>, Hash {
+    public override operator fun equals(other: NotificationId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct NotificationActionId(val value: String): Equals<NotificationActionId>, Hash {
+    public override operator fun equals(other: NotificationActionId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+public struct NotificationAction(val id: NotificationActionId, val title: String)
+
+public enum NotificationSound {
+    Default, Silent
+}
+
+public class NotificationContent public constructor(
+    public val title: String,
+    public val body: String = "",
+    public val payload: String = "",
+    public val sound: NotificationSound = NotificationSound.Default,
+    public val actions: Array<NotificationAction> = []
+) {
+    init {
+        notificationLabel(title)
+        checkDesktopText(body)
+        checkDesktopText(payload)
+        val ids = HashSet<NotificationActionId>()
+        for (action in actions) {
+            notificationLabel(action.id.value)
+            notificationLabel(action.title)
+            if (!ids.add(action.id))
+                throw IllegalArgumentException(Some("notification action ids must be unique"))
+        }
+    }
+}
+
+public enum NotificationAvailability {
+    Available, PermissionRequired, Disabled, NotConfigured, ServiceUnavailable
+}
+
+public struct NotificationCapabilities(
+    val actions: Boolean,
+    val replace: Boolean,
+    val withdraw: Boolean,
+    val activation: Boolean,
+    val closedEvents: Boolean,
+    val coldActivation: Boolean
+)
+
+public struct NotificationSettings(
+    val availability: NotificationAvailability,
+    val capabilities: NotificationCapabilities
+)
+
+public enum NotificationErrorKind {
+    Unsupported, PermissionRequired, Disabled, NotConfigured, Unavailable, InvalidContent, NativeFailure
+}
+
+public struct NotificationError(
+    val kind: NotificationErrorKind,
+    val nativeCode: Long? = None,
+    val message: String? = None
+)
+
+public enum NotificationSubmission {
+    Submitted
+}
+
+public enum NotificationWithdrawal {
+    Requested, NotFound
+}
+
+public enum NotificationCloseReason {
+    Expired, Dismissed, Withdrawn, Unknown
+}
+
+public enum NotificationEvent {
+    Activated(val id: NotificationId, val action: NotificationActionId?, val payload: String),
+    Closed(val id: NotificationId, val reason: NotificationCloseReason),
+    Failed(val id: NotificationId, val error: NotificationError)
+}
+
+internal fun notificationLabel(value: String) {
+    if (value.byteLength == 0L)
+        throw IllegalArgumentException(Some("notification label is empty"))
+    checkDesktopText(value)
+}

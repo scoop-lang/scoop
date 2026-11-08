@@ -22,10 +22,10 @@ public enum DesktopProgress {
     Paused(val completed: ULong, val total: ULong), Error(val completed: ULong, val total: ULong)
 }
 
-public class JumpListIcon(public val path: Path, public val index: Int = 0)
+public class JumpListIcon public constructor(public val path: Path, public val index: Int = 0)
 
 /** A native task starts this application with arguments, including after this process exits. */
-public class JumpListTask(
+public class JumpListTask public constructor(
     public val title: String,
     public val arguments: Array<String> = [],
     public val description: String? = None,

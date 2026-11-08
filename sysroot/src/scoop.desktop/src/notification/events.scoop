@@ -1,0 +1,81 @@
+package scoop.desktop.notification
+
+import scoop.Result
+import scoop.window.WindowErrorKind
+import scoop.window.WindowException
+
+internal fun replyError(reply: NotificationReply): NotificationError =
+    NotificationError(
+        when (reply.data.status) {
+            1 -> NotificationErrorKind.Unsupported
+            2 -> NotificationErrorKind.PermissionRequired
+            3 -> NotificationErrorKind.Disabled
+            4 -> NotificationErrorKind.NotConfigured
+            5 -> NotificationErrorKind.Unavailable
+            6 -> NotificationErrorKind.InvalidContent
+            else -> NotificationErrorKind.NativeFailure
+        },
+        if (reply.data.code != 0L)
+            Some(reply.data.code)
+        else
+            None,
+        if (reply.message.byteLength != 0L)
+            Some(reply.message)
+        else
+            None
+    )
+
+internal fun settingsReply(reply: NotificationReply): Result<
+    NotificationSettings,
+    NotificationError
+> {
+    if (reply.data.status != 0)
+        return Result.Failure<NotificationSettings, NotificationError>(replyError(reply))
+    val availability =
+        when (reply.data.detail) {
+            0 -> NotificationAvailability.Available
+            1 -> NotificationAvailability.PermissionRequired
+            2 -> NotificationAvailability.Disabled
+            3 -> NotificationAvailability.NotConfigured
+            else -> NotificationAvailability.ServiceUnavailable
+        }
+    val flags = reply.data.capabilities
+    return Result.Success<NotificationSettings, NotificationError>(
+        NotificationSettings(
+            availability,
+            NotificationCapabilities(
+                flags.and(1) != 0,
+                flags.and(2) != 0,
+                flags.and(4) != 0,
+                flags.and(8) != 0,
+                flags.and(16) != 0,
+                flags.and(32) != 0
+            )
+        )
+    )
+}
+
+internal fun eventReply(reply: NotificationReply): NotificationEvent {
+    val id = NotificationId(reply.id)
+    return when (reply.data.kind) {
+        5 -> NotificationEvent.Activated(
+            id,
+            if (reply.action.byteLength == 0L)
+                None
+            else
+                Some(NotificationActionId(reply.action)),
+            reply.payload
+        )
+        6 -> NotificationEvent.Closed(
+            id,
+            when (reply.data.detail) {
+                1 -> NotificationCloseReason.Expired
+                2 -> NotificationCloseReason.Dismissed
+                3 -> NotificationCloseReason.Withdrawn
+                else -> NotificationCloseReason.Unknown
+            }
+        )
+        7 -> NotificationEvent.Failed(id, replyError(reply))
+        else -> throw WindowException("invalid notification event", WindowErrorKind.NativeFailure)
+    }
+}

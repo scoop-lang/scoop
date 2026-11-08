@@ -3,7 +3,7 @@ use std::{fmt::Write, fs, path::Path, process::Command};
 use anyhow::{Context, Result, ensure};
 use uuid::Uuid;
 
-use super::{ICON, Installer, path_text, per_user, registry_key, relative_text};
+use super::{ICON, Installer, notifications, path_text, per_user, registry_key, relative_text};
 use crate::{
     cache::Inputs,
     config::Loaded,
@@ -211,8 +211,9 @@ pub fn build(installer: &Installer<'_>, inputs: &mut Inputs, tools: &mut Tools<'
                 source.push_str("  <StandardDirectory Id=\"DesktopFolder\" />\n");
             }
             let contents = format!(
-                "<Shortcut Id=\"s{directory}\" Name=\"{}\" Target=\"{main}\" WorkingDirectory=\"INSTALLFOLDER\"{icon} />{}{}",
+                "<Shortcut Id=\"s{directory}\" Name=\"{}\" Target=\"{main}\" WorkingDirectory=\"INSTALLFOLDER\"{icon}>{}</Shortcut>{}{}",
                 xml(&settings.display_name),
+                shortcut_properties(settings),
                 if location == "ProgramMenuFolder" {
                     "<RemoveFolder Id=\"RemoveProgramsFolder\" On=\"uninstall\" />"
                 } else {
@@ -234,6 +235,36 @@ pub fn build(installer: &Installer<'_>, inputs: &mut Inputs, tools: &mut Tools<'
                 &contents,
             )?;
         }
+    }
+    if settings.config.windows.notifications {
+        let id = &settings.config.identifier;
+        let clsid = notifications::clsid(id);
+        let mut contents = format!(
+            "<RegistryKey Root=\"{hive}\" Key=\"Software\\Classes\\AppUserModelId\\{id}\"><RegistryValue Name=\"DisplayName\" Type=\"string\" Value=\"{}\" /><RegistryValue Name=\"CustomActivator\" Type=\"string\" Value=\"{clsid}\" KeyPath=\"{}\" />",
+            xml(&settings.display_name),
+            if user { "no" } else { "yes" }
+        );
+        if *has_icon {
+            writeln!(
+                contents,
+                "<RegistryValue Name=\"IconUri\" Type=\"string\" Value=\"[INSTALLFOLDER]{ICON}\" />"
+            )?;
+        }
+        write!(
+            contents,
+            "</RegistryKey><RegistryKey Root=\"{hive}\" Key=\"Software\\Classes\\CLSID\\{clsid}\\LocalServer32\"><RegistryValue Type=\"string\" Value=\"{}\" /></RegistryKey>",
+            xml(&format!(
+                "\"[INSTALLFOLDER]{}.exe\" -Embedding",
+                settings.name
+            ))
+        )?;
+        component(
+            &mut source,
+            "notification",
+            Path::new("activation"),
+            "INSTALLFOLDER",
+            &contents,
+        )?;
     }
     let owner = identity(upgrade, user, "owner", Path::new(""))?;
     writeln!(
@@ -270,4 +301,20 @@ pub fn build(installer: &Installer<'_>, inputs: &mut Inputs, tools: &mut Tools<'
         "WiX 5 CAB output requires TEMP to be representable in the Windows ANSI code page",
     )?;
     Ok(())
+}
+
+pub(super) fn shortcut_properties(settings: &Loaded) -> String {
+    let mut properties = format!(
+        "<ShortcutProperty Key=\"System.AppUserModel.ID\" Value=\"{}\" />",
+        xml(&settings.config.identifier)
+    );
+    if settings.config.windows.notifications {
+        write!(
+            properties,
+            "<ShortcutProperty Key=\"System.AppUserModel.ToastActivatorCLSID\" Value=\"{}\" />",
+            notifications::clsid(&settings.config.identifier)
+        )
+        .expect("write String");
+    }
+    properties
 }

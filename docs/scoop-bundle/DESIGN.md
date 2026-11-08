@@ -25,6 +25,8 @@
 
 首期不加入自动更新服务、商店上传、通用安装脚本 DSL 或打包插件系统。macOS 公证/装订、DMG/PKG、Universal 合并等扩展单独列在第 12 节。
 
+Windows 快捷方式写入与 bundle.identifier 一致的 AppUserModelID。`bundle.windows.notifications = true` 为 NSIS／MSI 增加通知所需的 ToastActivatorCLSID、AppUserModelId 和 COM LocalServer32 登记，要求所选安装格式保留开始菜单快捷方式。CLSID 由 identifier 稳定生成；普通应用构建与每次发送通知都不修改这些注册。卸载按原安装范围删除自己的登记。该配置对应 [系统桌面通知规范](../specs/SCOOP-DESKTOP-NOTIFICATION-SPEC.md)，不引入 Windows App SDK 或额外后台进程。
+
 ## 2. 工具组织与现有接口
 
 实际宿主程序安装为 `<SYSROOT>/commands/scoop-bundle`，Windows 为 `scoop-bundle.exe`。用户入口为 macOS/Linux 的 `scoop bundle` 与 Windows 的 `sco bundle`，复用已有 argv、cwd、环境、标准流和退出状态转发。

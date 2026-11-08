@@ -2,6 +2,7 @@ package scoop.desktop
 
 import scoop.window.*
 import scoop.window.native.*
+import scoop.desktop.notification.NotificationCenter
 
 internal class DesktopOwner(val application: ActiveApplication) {
     var pointer: Ptr<Unit>? = None
@@ -15,6 +16,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
     var iconStatus: RequestStatus? = None
     var badge: String? = None
     var badgeStatus: RequestStatus? = None
+    var notifications: NotificationCenter? = None
     val windows = ArrayList<DesktopWindowOwner>()
     private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
 
@@ -67,6 +69,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
         if (closing || closed)
             return
         closing = true
+        notifications?.close()
         for (window in windows.toArray())
             window.close()
         retireMenu = true

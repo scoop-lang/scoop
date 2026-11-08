@@ -49,10 +49,18 @@ cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonp
 [[native.sources]]
 path = "native/image.c"
 [[native.sources]]
+path = "native/notification/common.c"
+[[native.sources]]
 path = "native/no_tasks.c"
 when = { os = ["darwin", "linux"] }
 [[native.sources]]
 path = "native/darwin/desktop.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/darwin/notification.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/darwin/notification_post.m"
 when = { os = "darwin" }
 [[native.sources]]
 path = "native/windows/desktop.cpp"
@@ -64,7 +72,28 @@ when = { os = "windows" }
 path = "native/windows/tasks.cpp"
 when = { os = "windows" }
 [[native.sources]]
+path = "native/windows/notification.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/windows/notification_text.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/windows/notification_callbacks.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/windows/notification_send.cpp"
+when = { os = "windows" }
+[[native.sources]]
 path = "native/linux/desktop.c"
+when = { os = "linux", env = "gnu" }
+[[native.sources]]
+path = "native/linux/notification.c"
+when = { os = "linux", env = "gnu" }
+[[native.sources]]
+path = "native/linux/notification_service.c"
+when = { os = "linux", env = "gnu" }
+[[native.sources]]
+path = "native/linux/notification_signals.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.libraries]]
@@ -73,6 +102,10 @@ kind = "framework"
 when = { os = "darwin" }
 [[native.libraries]]
 name = "CoreFoundation"
+kind = "framework"
+when = { os = "darwin" }
+[[native.libraries]]
+name = "UserNotifications"
 kind = "framework"
 when = { os = "darwin" }
 [[native.libraries]]
@@ -91,6 +124,13 @@ when = { os = "windows" }
 name = "uuid"
 when = { os = "windows" }
 [[native.libraries]]
+name = "runtimeobject"
+when = { os = "windows" }
+[[native.libraries]]
 name = "gtk-4"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "gio-2.0"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }

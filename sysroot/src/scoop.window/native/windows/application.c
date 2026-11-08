@@ -104,6 +104,17 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
 }
 
+int64_t scoop_window_windows_prepare_dpi(void) {
+  DPI_AWARENESS_CONTEXT required = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+  if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required)) {
+    if (!SetProcessDpiAwarenessContext(required))
+      return GetLastError();
+    if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required))
+      return ERROR_INVALID_STATE;
+  }
+  return 0;
+}
+
 SWResult scoop_window_application_create(SWCallback callback, void *context,
                                          int32_t policy,
                                          const uint8_t *identifier,
@@ -120,13 +131,9 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
   sw_taskbar_created_message = RegisterWindowMessageW(L"TaskbarButtonCreated");
   if (!sw_taskbar_created_message)
     return (SWResult){NULL, GetLastError()};
-  DPI_AWARENESS_CONTEXT required = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-  if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required)) {
-    if (!SetProcessDpiAwarenessContext(required))
-      return (SWResult){NULL, GetLastError()};
-    if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required))
-      return (SWResult){NULL, ERROR_INVALID_STATE};
-  }
+  int64_t dpi_error = scoop_window_windows_prepare_dpi();
+  if (dpi_error)
+    return (SWResult){NULL, dpi_error};
   HINSTANCE instance = GetModuleHandleW(NULL);
   WNDCLASSEXW cls = {.cbSize = sizeof(cls),
                      .lpfnWndProc = host_proc,

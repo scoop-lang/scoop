@@ -10,7 +10,7 @@
 | G4 字体更新与选择示例 | 已实现，macOS／Linux 验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合；Windows 实窗待完成 |
 | G5 Windows 圆形窗口 | 已修复，Windows 11 MSVC UCRT 实窗通过 | 默认 demo 路径、HWND style／region、resize、最小化恢复及既有窗框／输入回归 |
 | G6 Taskbar／Dock | 已实现，三平台定向测试通过 | 应用标识、原生图标与文字、菜单 tracking、窗口解绑、任务栏重放；集成呈现随 G8 验收 |
-| G7 桌面通知 | 待实施 | 提交／动作、部署注册、生命周期 |
+| G7 桌面通知 | 已实现，三平台定向验证通过 | macOS 实际点击冷启动；Linux 服务提交／动作；Windows NSIS／MSI 安装、替换／撤回、COM 冷启动与卸载 |
 | G8 集成与发行 | 待实施 | UI 适配、综合示例、各平台完整安装包 |
 
 ## G1：独立 SVG 图形库
@@ -70,3 +70,13 @@ macOS 使用 NSApplication 图标、NSDockTile 文字角标、miniwindow 图标�
 macOS、Linux 真实 Wayland 与 Xvfb X11、Windows 11 Session 1 MSVC UCRT 均通过两个 release Cone 测试。它们检查重复绑定、实际 OS 图标／应用标识、窗口隔离、业务窗口保持打开及关闭幂等。macOS 另覆盖原生菜单动作、tracking 时禁止替换，以及取消后释放；Windows 通过发送 TaskbarButtonCreated 验证重放路径，没有实际重启用户的 Explorer。Linux desktop actions 的三个打包单元测试验证顺序、参数引用、Unicode、百分号、空参数与配置错误；Rust fmt／clippy 通过。
 
 综合示例中的可见 Shell 呈现、Jump List／desktop actions 的实际启动参数，以及安装后的默认图标和显示名称在 G8 与通知部署合并验收，不能用本批编译或属性检查代替。原始日志和临时测试报告保留在仓库外。
+
+## G7：系统桌面通知
+
+新增 [通知规范](../specs/SCOOP-DESKTOP-NOTIFICATION-SPEC.md)、`scoop.desktop.notification` 和独立 notifications 示例。Application 创建前准备原生激活入口，Resumed 后由 DesktopApplication 接管；设置查询不触发授权。操作、事件及启动响应在应用线程交付，取消或关闭停止本地回调，已经交给系统的通知继续由 OS 管理。相同 ID 支持替换，撤回结果不承诺通知从未被用户看到。
+
+macOS 使用 UserNotifications，Linux 使用真实会话的 freedesktop 通知服务，Windows 使用 WinRT ABI 与 COM 激活入口。macOS 的两个值测试和一个独立生命周期测试、Linux 与 Windows 登录桌面的生命周期测试均通过。实际 `.app` 经用户授权后完成提交、替换、退出；用户点击 “Open & 你好” 后冷启动并打开窗口，动作和 `payload "<>&" 你好` 原文完整。Linux GNOME 会话完成提交、同 ID 替换、默认动作与关闭事件。
+
+Windows 11 Session 1 的 NSIS 和 MSI 都实际安装到带空格的路径；开始菜单快捷方式的 AppUserModelID／ToastActivatorCLSID、注册表和带引号的 LocalServer32 均已读回核实。两个安装形态均完成发送、替换、撤回；通过系统 COM 激活入口启动已经退出的示例，具名动作与 Unicode payload 完整。两个卸载器都移除了自身身份、激活入口和快捷方式。这里未把 COM 调用记为人工点击 toast 的视觉验收。
+
+实际安装发现并修复两个问题：NSIS 不能调用 SDK 中仅为 inline 的 InitPropVariantFromString，现用系统 SHStrDupW 构造真实 PROPVARIANT；Windows 首次 Show 前可能没有通知设置记录，只有明确的 ERROR_NOT_FOUND 按系统默认允许提交处理，其余错误继续报告。Windows 通知准备与 Application 共享既有 DPI 初始化，避免冷启动消息窗口抢先固定 DPI 模式。Rust fmt／clippy 及四项 Windows 打包单元测试通过，Scoop 与 native 源码格式化通过。两套 MinGW 与其他架构在 G8 发行收尾中集中验证。

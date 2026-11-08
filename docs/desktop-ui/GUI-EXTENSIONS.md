@@ -226,6 +226,8 @@ macOS 用 NSApplication／NSDockTile／NSWindow 的对应属性和 delegate，�
 
 NotificationCenter 由 DesktopApplication 取得，限 owner 线程操作。拟定接口为查询 settings、显式 requestPermission、post、withdraw 和 observe；异步原生操作的结果回到现有应用队列。
 
+具体入口与生命周期见 [系统桌面通知规范](../specs/SCOOP-DESKTOP-NOTIFICATION-SPEC.md)：正常 main 在启动 Application 前调用 prepareNotifications，Resumed 后由 DesktopApplication 接管。这样可在系统交付启动响应之前准备原生 delegate／COM 类工厂；设置查询仍不触发授权或发送。
+
 NotificationContent 首批包含标题、纯文本正文、默认／静音选择和可选具名动作；应用图标及显示名称来自 OS 应用注册。NotificationId 与 NotificationActionId 为不同类型的普通标识，用于替换、撤回和动作路由。平台对标识或动作的实际限制在请求入口报告，不任意截断。
 
 post 接收显式 NotificationId。相同 id 再次提交请求替换原通知；OS 可能再次提醒，这不承诺为无声进度更新。回调区分 Submitted 和 Failed：Submitted 只表示系统服务接受请求，不表示弹窗可见、已送达用户或已读。系统免打扰、用户设置与通知中心策略继续由 OS 决定。

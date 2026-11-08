@@ -1,0 +1,226 @@
+package scoop.examples.notifications
+
+import scoop.Result
+import scoop.desktop.*
+import scoop.desktop.notification.*
+import scoop.platform.env.temporaryDirectory
+import scoop.platform.fs.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.*
+
+private val notificationApplicationId = "dev.scoop.examples.notifications"
+
+fun main(arguments: Array<String>) {
+    if (has(arguments, "--help")) {
+        println(
+            "Scoop native notifications: --check, --permission, --send, --send-and-exit, --replace, --withdraw, --replace-and-withdraw, --bounded"
+        )
+        println(
+            "Package and install this application before using notifications on macOS or Windows."
+        )
+        println("Events are appended to " + logPath().display())
+        return
+    }
+    prepareNotifications(notificationApplicationId).use {
+        launch -> Application(
+            applicationOptions {
+                applicationId = Some(notificationApplicationId)
+                lastWindowPolicy = LastWindowPolicy.KeepRunning
+            }
+        ).run(NotificationDemo(launch, arguments))
+    }
+}
+
+private fun has(arguments: Array<String>, expected: String): Boolean {
+    for (argument in arguments)
+        if (argument == expected)
+            return true
+    return false
+}
+
+private fun logPath(): Path =
+    temporaryDirectory().resolve(Path.fromString("scoop-notification-demo.log"))
+
+private fun record(message: String) {
+    println(message)
+    logPath().writeText(message + "\n", append = true)
+}
+
+private fun availability(value: NotificationAvailability): String =
+    when (value) {
+        case Available -> "available"
+        case PermissionRequired -> "permission required"
+        case Disabled -> "disabled"
+        case NotConfigured -> "not configured"
+        case ServiceUnavailable -> "service unavailable"
+    }
+
+private fun failed(error: NotificationError) {
+    val kind =
+        when (error.kind) {
+            case Unsupported -> "unsupported"
+            case PermissionRequired -> "permission required"
+            case Disabled -> "disabled"
+            case NotConfigured -> "not configured"
+            case Unavailable -> "unavailable"
+            case InvalidContent -> "invalid content"
+            case NativeFailure -> "native failure"
+        }
+    record(f"failed: ${kind}; native=${error.nativeCode ?: 0L}; ${error.message ?: ""}")
+}
+
+private class NotificationDemo(
+    val launch: NotificationLaunch,
+    val arguments: Array<String>
+): ApplicationHandler {
+    var desktop: DesktopApplication? = None
+    var center: NotificationCenter? = None
+    var window: Window? = None
+    val id = NotificationId("example")
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                record("launch")
+                if (has(arguments, "--bounded"))
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+                    )
+                desktop = Some(active.openDesktop())
+                center = Some(desktop!!.openNotifications(launch))
+                center!!.observe {
+                    event -> when (event) {
+                        case Activated(identity, action, payload) -> {
+                            record(
+                                f"activated: ${identity.value}; ${action?.value ?: "default"}; ${
+                                    payload
+                                }"
+                            )
+                            if (action == Some(NotificationActionId("clear")))
+                                withdraw(active, false)
+                            else
+                                show(active, f"Notification: ${payload}")
+                        }
+                        case Closed(identity, reason) -> record("closed: " + identity.value)
+                        case Failed(identity, error) -> failed(error)
+                    }
+                }
+                if (has(arguments, "--permission"))
+                    center!!.requestPermission { result -> checked(active, result) }
+                else
+                    center!!.settings { result -> checked(active, result) }
+            }
+            case Window(identity, WindowEvent.CloseRequested) -> {
+                window?.requestDestroy()
+                active.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> active.requestExit()
+            else -> {}
+        }
+    }
+    private fun checked(
+        active: ActiveApplication,
+        result: Result<NotificationSettings, NotificationError>
+    ) {
+        when (result) {
+            case Success(settings) -> record("settings: " + availability(settings.availability))
+            case Failure(error) -> failed(error)
+        }
+        if (
+            has(arguments, "--send") ||
+                has(arguments, "--send-and-exit") ||
+                has(arguments, "--replace") ||
+                has(arguments, "--replace-and-withdraw")
+        )
+            send(active, false)
+        else
+            if (has(arguments, "--withdraw"))
+                withdraw(active, true)
+            else
+                if (has(arguments, "--check") || has(arguments, "--permission"))
+                    active.requestExit()
+                else
+                    if (!has(arguments, "-Embedding"))
+                        show(active, "Scoop Notifications — waiting for native actions")
+    }
+    private fun send(active: ActiveApplication, replacement: Boolean) {
+        val content =
+            NotificationContent(
+                "Scoop <native> & 新消息",
+                if (replacement)
+                    "Replacement: <plain text> & Unicode 你好"
+                else
+                    "Body: <plain text> & Unicode 你好",
+                "payload \"<>&\" 你好",
+                NotificationSound.Silent,
+                [
+                    NotificationAction(NotificationActionId("open&你好"), "Open & 你好"),
+                    NotificationAction(NotificationActionId("clear"), "Clear")
+                ]
+            )
+        center!!.post(id, content) {
+            result -> when (result) {
+                case Success(_) -> {
+                    record(
+                        if (replacement)
+                            "submitted replacement"
+                        else
+                            "submitted"
+                    )
+                    if (
+                        !replacement &&
+                            (
+                                has(arguments, "--replace") ||
+                                    has(arguments, "--replace-and-withdraw")
+                            )
+                    )
+                        send(active, true)
+                    else
+                        if (has(arguments, "--replace-and-withdraw"))
+                            withdraw(active, true)
+                        else
+                            if (has(arguments, "--send-and-exit"))
+                                active.requestExit()
+                }
+                case Failure(error) -> {
+                    failed(error);
+                    active.requestExit()
+                }
+            }
+        }
+    }
+    private fun withdraw(active: ActiveApplication, exit: Boolean) {
+        center!!.withdraw(id) {
+            result ->
+            when (result) {
+                case Success(value) -> record(
+                    if (value == NotificationWithdrawal.Requested)
+                        "withdraw requested"
+                    else
+                        "withdraw not found"
+                )
+                case Failure(error) -> failed(error)
+            }
+            if (exit)
+                active.requestExit()
+        }
+    }
+    private fun show(active: ActiveApplication, title: String) {
+        when (window) {
+            case Some(value) -> {
+                value.setTitle(title);
+                value.requestRaise()
+            }
+            case None -> window =
+                Some(
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = title;
+                            size = LogicalSize(500.0, 180.0)
+                        }
+                    )
+                )
+        }
+    }
+}

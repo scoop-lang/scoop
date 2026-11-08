@@ -1,0 +1,206 @@
+package scoop.desktop.notification
+
+import scoop.desktop.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.window.*
+import scoop.window.native.*
+
+internal class NotificationOwner(val applicationId: String) {
+    private val thread = currentThreadId()
+    var pointer: Ptr<Unit>? = None
+    var resource: NativeApplicationLease? = None
+    var desktop: DesktopOwner? = None
+    var closed = false
+    private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
+    private var nextRequest = 1L
+    private val operations = ArrayList<NotificationOperation>()
+    private val observers = ArrayList<NotificationObserver>()
+    private val startup = ArrayList<NotificationEvent>()
+    private var observed = false
+
+    fun checkThread() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("notification requires its owner thread"))
+    }
+    fun requireOpen() {
+        checkThread()
+        if (closed)
+            throw WindowException("notification resource is closed", WindowErrorKind.InvalidState)
+    }
+    fun requireAttached() {
+        requireOpen()
+        if (resource?.isClosing != Some(false))
+            throw WindowException("notification center is not active", WindowErrorKind.InvalidState)
+    }
+    fun prepare() {
+        @Unsafe
+        {
+            pointer =
+                Some(
+                    applicationId.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes desktopCreated(
+                                notificationCreate(bytes, length),
+                                "prepare notifications"
+                            )
+                        }
+                    }
+                )
+        }
+    }
+    fun attach(target: DesktopOwner) {
+        @Unsafe
+        {
+            desktop = Some(target)
+            resource = Some(target.application.registerNativeResource { close() })
+            try {
+                val bridge =
+                    foreignCallback<(Ptr<Unit>, Int) -> Int>(
+                        {
+                            event: Int ->
+                            resource!!.post { drain() };
+                            1
+                        },
+                        0,
+                        ForeignCallbackMode.Reusable
+                    )
+                callback = Some(bridge)
+                desktopStatus(
+                    notificationAttach(pointer!!, bridge.function, bridge.context),
+                    "attach notifications"
+                )
+            } catch (error: Throwable) {
+                close()
+                throw error
+            }
+        }
+    }
+    fun start(
+        callback: (NotificationReply) -> Unit,
+        submit: (Long) -> Long
+    ): NotificationOperation {
+        val operation = NotificationOperation(this, nextRequest, Some(callback))
+        nextRequest += 1L
+        operations.add(operation)
+        try {
+            desktopStatus(submit(operation.id), "notification request")
+        } catch (error: Throwable) {
+            operation.close()
+            throw error
+        }
+        return operation
+    }
+    fun removeOperation(operation: NotificationOperation) {
+        for (index in 0L ..< operations.size)
+            if (operations[index] === operation) {
+                operations.removeAt(index);
+                return
+            }
+    }
+    fun drain() {
+        if (closed)
+            return
+        @Unsafe
+        {
+            while (!closed) {
+                val event = notificationNextEvent(pointer!!) ?: return
+                val reply =
+                    try {
+                        NotificationReply(
+                            notificationEventData(event),
+                            notificationText(event, 0),
+                            notificationText(event, 1),
+                            notificationText(event, 2),
+                            notificationText(event, 3)
+                        )
+                    } finally {
+                        notificationEventDestroy(event)
+                    }
+                if (reply.data.request != 0L) {
+                    for (operation in operations.toArray())
+                        if (operation.id == reply.data.request) {
+                            val completion = operation.callback
+                            operation.close()
+                            completion?.invoke(reply)
+                            break
+                        }
+                } else {
+                    val value = eventReply(reply)
+                    val activation =
+                        when (value) {
+                            case Activated(_, _, _) -> true
+                            else -> false
+                        }
+                    if (!observed && activation)
+                        startup.add(value)
+                    else
+                        for (observer in observers.toArray())
+                            resource!!.post { observer.deliver(value) }
+                }
+            }
+        }
+    }
+    fun observe(callback: (NotificationEvent) -> Unit): NotificationObserver {
+        val observer = NotificationObserver(this, Some(callback))
+        observers.add(observer)
+        if (!observed) {
+            observed = true
+            val pending = startup.toArray()
+            startup.clear()
+            for (event in pending)
+                resource!!.post { observer.deliver(event) }
+        }
+        return observer
+    }
+    fun removeObserver(observer: NotificationObserver) {
+        for (index in 0L ..< observers.size)
+            if (observers[index] === observer) {
+                observers.removeAt(index);
+                return
+            }
+    }
+    fun close() {
+        checkThread()
+        if (closed)
+            return
+        closed = true
+        for (operation in operations.toArray())
+            operation.close()
+        for (observer in observers.toArray())
+            observer.close()
+        startup.clear()
+        @Unsafe
+        {
+            if (pointer != None)
+                notificationDestroy(pointer!!)
+            pointer = None
+            when (callback) {
+                case Some(value) -> releaseForeignCallback(value)
+                case None -> {}
+            }
+            callback = None
+        }
+        resource?.close()
+        when (desktop) {
+            case Some(value) -> value.notifications = None
+            case None -> {}
+        }
+    }
+}
+
+internal class NotificationObserver(
+    private val owner: NotificationOwner,
+    private var callback: ((NotificationEvent) -> Unit)?
+): Closeable {
+    fun deliver(event: NotificationEvent) {
+        if (!owner.closed)
+            callback?.invoke(event)
+    }
+    public override fun close() {
+        owner.checkThread()
+        callback = None
+        owner.removeObserver(this)
+    }
+}

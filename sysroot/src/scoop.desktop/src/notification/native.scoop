@@ -1,0 +1,97 @@
+package scoop.desktop.notification
+
+import scoop.desktop.DesktopNativeResult
+
+@CLayout
+internal struct NotificationNativeData(
+    val kind: Int,
+    val detail: Int,
+    val request: Long,
+    val status: Int,
+    val capabilities: Int,
+    val code: Long
+)
+
+@CLayout
+internal struct NotificationNativeText(val bytes: Ptr<UInt8>?, val length: Long)
+
+internal struct NotificationReply(
+    val data: NotificationNativeData,
+    val id: String,
+    val action: String,
+    val payload: String,
+    val message: String
+)
+
+@Extern(name = "scoop_notification_create")
+internal fun notificationCreate(id: Ptr<UInt8>, length: Long): DesktopNativeResult
+
+@Extern(name = "scoop_notification_attach")
+internal fun notificationAttach(
+    pointer: Ptr<Unit>,
+    callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
+    context: Ptr<Unit>
+): Long
+
+@Extern(name = "scoop_notification_destroy")
+internal fun notificationDestroy(pointer: Ptr<Unit>)
+
+@Extern(name = "scoop_notification_settings")
+internal fun notificationSettings(pointer: Ptr<Unit>, request: Long, permission: Int): Long
+
+@Extern(name = "scoop_notification_post")
+internal fun notificationPost(pointer: Ptr<Unit>, request: Long, content: Ptr<Unit>): Long
+
+@Extern(name = "scoop_notification_withdraw")
+internal fun notificationWithdraw(
+    pointer: Ptr<Unit>,
+    request: Long,
+    id: Ptr<UInt8>,
+    length: Long
+): Long
+
+@Extern(name = "scoop_notification_next_event")
+internal fun notificationNextEvent(pointer: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_notification_event_data")
+internal fun notificationEventData(event: Ptr<Unit>): NotificationNativeData
+
+@Extern(name = "scoop_notification_event_text")
+internal fun notificationEventText(event: Ptr<Unit>, field: Int): NotificationNativeText
+
+@Extern(name = "scoop_notification_event_destroy")
+internal fun notificationEventDestroy(event: Ptr<Unit>)
+
+@Extern(name = "scoop_notification_content_create")
+internal fun notificationContentCreate(silent: Int): DesktopNativeResult
+
+@Extern(name = "scoop_notification_content_text")
+internal fun notificationContentText(
+    content: Ptr<Unit>,
+    field: Int,
+    text: Ptr<UInt8>,
+    length: Long
+): Long
+
+@Extern(name = "scoop_notification_content_action")
+internal fun notificationContentAction(
+    content: Ptr<Unit>,
+    id: Ptr<UInt8>,
+    idLength: Long,
+    title: Ptr<UInt8>,
+    titleLength: Long
+): Long
+
+@Extern(name = "scoop_notification_content_destroy")
+internal fun notificationContentDestroy(content: Ptr<Unit>)
+
+internal fun notificationText(event: Ptr<Unit>, field: Int): String {
+    @Unsafe
+    {
+        val value = notificationEventText(event, field)
+        return when (value.bytes) {
+            case Some(bytes) -> String.fromUtf8(bytes, value.length)
+            case None -> ""
+        }
+    }
+}
