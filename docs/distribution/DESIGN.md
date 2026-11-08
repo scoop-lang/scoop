@@ -2,7 +2,7 @@
 
 日期：2026-11-09。
 
-状态：实施中。宿主 bin／LLVM 合并、运行资源筛选、归档内别名共享、目标库精简和 Windows native 拆分已接入，正在完成三平台候选包验证。当前验证范围在实施完成后单独记录。
+状态：实现与三平台打包已完成。宿主 bin／LLVM 合并、运行资源筛选、归档内别名共享、目标库精简和 Windows native 拆分均已接入。本轮已验证范围及 Windows 收尾时保留的限制见[验收记录](VALIDATION.md)。
 
 依据：[实现规范](../specs/SCOOP-IMPL-SPEC.md) 1、2.7、2.8、2.22，[Windows targets 设计](../windows-targets/DESIGN.md)，以及 [AGENTS.md](../../AGENTS.md) 的范围、缓存与验证约束。语言语义、对象模型和 GC 契约继续遵守[语言规范](../specs/SCOOP-SPEC.md)与[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)。
 
@@ -251,7 +251,7 @@ post-install 继续按已安装 base／GUI 选择文档来源。缺少 MinGW nat
 
 | 范围 | 代表性验证 |
 | --- | --- |
-| 三个发行宿主 | 在含空格／中文的安装路径解压；绝对路径运行 Scoop 各命令和内置外部命令；安装复制到另一目录后继续使用，检查实际加载与调用路径 |
+| 三个发行宿主 | 在各平台解压；绝对路径运行 Scoop 各命令和内置外部命令；代表性安装覆盖带空格路径及目录复制，检查实际加载与调用路径。系统 tar 的中文路径行为不作为本轮打包验收项 |
 | base 单独安装 | release 的真实系统库 consumer、运行和测试；空应用缓存直接消费预编译库；post-install 生成非 GUI 文档 |
 | 追加 GUI | GUI 程序编译、链接和可用环境中的运行；追加 GUI 文档；Linux 保留系统桌面依赖 |
 | 三种 Windows native 环境 | generated-C、native C/C++、C++ 标准库与原生异常、Unicode startup、RC 图标／版本资源、已支持的 DLL 链接与加载 |
