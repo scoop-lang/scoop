@@ -217,7 +217,7 @@ Darwin 开发安装在 CMake 调整加载路径后重新签名 debugserver，并
 源码兼容修补保留 Scoop 的 DW_AT_name 与精确 linkage identity，将同源文件的独立编译单元全局量放回当前栈帧，并补齐 Linux/amd64 静态程序的原生 TLS 定位；修补文件也进入 llvm-sources 包。
 可用 `--debugger-prefix` 复用匹配的已构建调试器，`--debugger-python` 指定构建时所用 Python；
 只有 LLVM SDK 时仍正常构建 LLDB，要求 SDK 包含 Clang headers／CMake targets／clang-cpp、构建用 `llvm-tblgen` 以及 TableGen／Support／Demangle／Debuginfod 静态库；`build_llvm.py` 会安装这些资源。
-Linux 构建的 LLDB 安装 RUNPATH 同时包含所选 Python 的 `LIBDIR`，使 Homebrew 等非系统目录中的 libpython 可被加载和收集；打包时仍复制 libpython 并改写为相对路径。
+Linux 构建的 LLDB 安装 RUNPATH 同时包含所选 Python 的 `LIBDIR`；复用既有 LLDB 时，打包也会从选定 Python 查询该目录以收集 libpython。共享库复制后改写为相对路径，附带解释器与其他 ELF 命令统一使用 Scoop 宿主命令的系统 loader，不保留 Homebrew 的绝对 interpreter 路径。
 
 `package_debugger.py` 收集匹配的 Python 标准库、原生模块和解释器，排除用户 site-packages、
 测试、Tk／IDLE 与 pip；包中不依赖用户 Python。Python 许可证随包保留，安装中缺失时可用

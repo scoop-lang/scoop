@@ -92,3 +92,5 @@ macOS 实际运行生成的应用包，验证图标与主题切换、系统字�
 LLVM-MinGW 的通知后端补齐缺失的标准 COM 激活声明，并局部修正 WIDL 将 WinRT Boolean 与 Byte 混成同一 C++ 类型的问题；两套 CRT 的窗口与通知库均编译通过。Windows 三目标的其余组件、实窗与图形测试，以及三个宿主的完整工具链安装包，继续集中验收；不以当前编译结果代替这些运行验证。
 
 完整工具链打包发现 Linux 的 LLDB 共享库没有记录配套非系统 Python 的运行库路径，仅选择解释器仍无法找到 libpython。打包现在从所选解释器的 sysconfig 取得 library 目录，按选定 LLVM、选定 Python、已有 LD_LIBRARY_PATH 的顺序解析依赖，再重定位到安装包。Ruff 与 macOS／Linux 的相关脚本测试通过；新增真实 ELF 用例验证无需环境覆盖也能找到共享运行库，安装目录移动后仍可执行。
+
+安装检查还发现 Homebrew Python 的 ELF interpreter 保留了构建机绝对路径。打包将附带 executable 的 interpreter 统一到 Scoop 宿主命令的系统 loader；已有正确路径和共享库不额外修改。真实 ELF 测试保留原程序、原共享库与自定义 loader，同时验证加工后的 helper 使用系统 loader 并在移动后的安装目录运行。Linux 的九项 native 打包测试通过八项，跳过仅适用 macOS 的一项。

@@ -124,6 +124,7 @@ def linux_system(name):
 def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None, *, search_directories=()):
     if shutil.which("patchelf") is None:
         raise ValueError("Linux packaging requires patchelf")
+    interpreter = output("patchelf", "--print-interpreter", str(binaries[0]))
     private = llvm_root / "libexec/llvm/lib"
     private.mkdir(parents=True, exist_ok=True)
     files = {path.resolve(): bin_root / "bin" / path.name for path in binaries}
@@ -164,6 +165,11 @@ def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None, *, search_di
                 queue.append(dependency)
             arguments += ["--replace-needed", name, dependency.name]
         destination = files[source]
+        source_interpreter = subprocess.run(
+            ["patchelf", "--print-interpreter", str(source)], capture_output=True, text=True
+        )
+        if source_interpreter.returncode == 0 and source_interpreter.stdout.strip() != interpreter:
+            arguments += ["--set-interpreter", interpreter]
         relative = "$ORIGIN/" + install_relpath(private, destination, bin_root, llvm_root)
         arguments += ["--set-rpath", relative]
         if destination.parent == private:

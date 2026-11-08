@@ -86,12 +86,22 @@ class LinuxDependenciesTests(unittest.TestCase):
                 check=True,
             )
             shutil.copy2(app, root / "bin/program")
+            interpreter = package_native.output("patchelf", "--print-interpreter", str(app))
+            custom_loader = work / "build-loader"
+            custom_loader.symlink_to(interpreter)
+            helper = work / "python-helper"
+            shutil.copy2(app, helper)
+            subprocess.run(
+                ["patchelf", "--set-interpreter", str(custom_loader), str(helper)], check=True
+            )
+            shutil.copy2(helper, root / "bin/helper")
             with patch.dict(os.environ, LD_LIBRARY_PATH="" if explicit else str(external)):
                 libraries = package_native.linux(
                     root,
                     root,
                     [app],
                     llvm,
+                    {helper: root / "bin/helper"},
                     search_directories=[external] if explicit else [],
                 )
             self.assertEqual(set(libraries), {library, llvm / "librelease_support.so.1"})
@@ -103,6 +113,17 @@ class LinuxDependenciesTests(unittest.TestCase):
                 env=dict(os.environ, LD_LIBRARY_PATH=""),
             )
             self.assertEqual(result, "42\n")
+            self.assertEqual(
+                package_native.output("patchelf", "--print-interpreter", str(moved / "bin/helper")),
+                interpreter,
+            )
+            self.assertEqual(
+                subprocess.check_output(
+                    [moved / "bin/helper"], text=True, env=dict(os.environ, LD_LIBRARY_PATH="")
+                ),
+                "42\n",
+            )
+            self.assertTrue(custom_loader.is_file())
             self.assertTrue(library.is_file())
             self.assertTrue(app.is_file())
 
