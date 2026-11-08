@@ -15,6 +15,7 @@ private class ShapedDemoTest {
     @Ignore("Requires an interactive Windows desktop")
     fun `default shaped demo publishes a borderless native circle and updates after resize and restore`() {
         val demo = DesktopDemo(false)
+        demo.publishTasks.value = false
         val test = this
         context(demo.theme) {
             UiHost(
@@ -44,7 +45,10 @@ private class ShapedDemoTest {
                     }
             ).use {
                 host -> Application(
-                    applicationOptions { lastWindowPolicy = LastWindowPolicy.KeepRunning }
+                    applicationOptions {
+                        applicationId = Some("dev.scoop.tests.native-desktop-shape")
+                        lastWindowPolicy = LastWindowPolicy.KeepRunning
+                    }
                 )
                 .runWithAsyncio(host)
             }

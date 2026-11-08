@@ -58,6 +58,8 @@ NotificationEvent 包含：
 
 使用 Windows.UI.Notifications WinRT ABI、ToastGeneric XML、显式 AppUserModelID 及 INotificationActivationCallback。XML 文本和属性正确转义，动作参数编码独立的 ID、action 与 payload；默认点击和具名动作共用激活路径。tag 使用原始 NotificationId，group 固定为本库通知组；原生长度不满足时失败。
 
+三个 Windows target 使用同一原生实现。LLVM-MinGW 未提供 notificationactivationcallback.h 时，库只补充这个公开 COM 接口的固定 IID、Activate 签名和输入字段声明，其布局与 Windows SDK 一致。其生成的 WinRT C++ 头文件使用 RPC 的 boolean 别名时，仅在包含 WinRT 头文件期间将 Boolean 映射为 bool，保持单字节 ABI 并与 Byte 区分；此前已声明的全局 RPC 类型不变，包含结束后恢复原有宏。其他 WinRT 接口继续使用工具链头文件，不引入 Windows App SDK。
+
 Windows Dismissed 表示当前 toast 展示结束，通知可能仍留在通知中心；不把该回调解释为用户已经读取或消息历史已被删除。撤回通过通知历史 API 执行，用户禁用新通知不妨碍清理已有通知。
 
 Windows 已有正确安装注册、但从未提交通知的应用可能尚无通知设置记录，get_Setting 返回 ERROR_NOT_FOUND。这个具体结果按系统默认允许提交处理；不为查询设置发送试探通知。首次 Show 创建系统记录，后续查询返回实际设置；其他服务或原生错误不据此忽略。

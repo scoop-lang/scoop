@@ -1,0 +1,54 @@
+package scoop.ui.component.desktop
+
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.test.*
+import scoop.window.LogicalSize
+import scoop.window.PhysicalSize
+
+private val desktopSvg =
+    SvgAsset(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect x=\"2\" y=\"2\" width=\"6\" height=\"6\" fill=\"currentColor\"/></svg>"
+    )
+
+@Test
+private class DesktopSvgTests {
+    @Test
+    fun `desktop representations retain straight alpha pixels after source closes`() {
+        val document = SvgDocument.parse(desktopSvg.source)
+        val image =
+            document.toDesktopImage(
+                LogicalSize(16.0, 16.0),
+                [PhysicalSize(16, 16), PhysicalSize(32, 32)],
+                SvgDrawOptions(Some(Color(1.0, 0.0, 0.0, 1.0)), opacity = 0.5),
+                true
+            )
+        document.close()
+        assertTrue(image.template)
+        assertEquals(2L, image.representations.size)
+        for (representation in image.representations) {
+            val side = representation.size.width.toLong()
+            val center = (side / 2L * side + side / 2L) * 4L
+            assertEquals(255, representation.pixels[center].toInt())
+            assertEquals(0, representation.pixels[center + 1L].toInt())
+            assertEquals(0, representation.pixels[center + 2L].toInt())
+            val alpha = representation.pixels[center + 3L].toInt()
+            assertTrue(alpha >= 127 && alpha <= 128)
+            assertEquals(0, representation.pixels[3L].toInt())
+        }
+        val direct = desktopSvg.toDesktopImage(LogicalSize(10.0, 10.0), [PhysicalSize(20, 20)])
+        assertEquals(1600L, direct.representations[0L].pixels.size)
+    }
+    @Test
+    fun `desktop SVG conversion requires logical size and physical representations`() {
+        assertFailsWith<IllegalArgumentException> {
+            desktopSvg.toDesktopImage(LogicalSize(0.0, 10.0), [PhysicalSize(10, 10)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            desktopSvg.toDesktopImage(LogicalSize(10.0, 10.0), [])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            desktopSvg.toDesktopImage(LogicalSize(10.0, 10.0), [PhysicalSize(0, 10)])
+        }
+    }
+}

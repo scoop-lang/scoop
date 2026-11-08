@@ -2,16 +2,27 @@
 #define SCOOP_NOTIFICATION_WINDOWS_H
 #include "../notification/common.h"
 #include "desktop.h"
+#include "notification_activation.h"
 #include <atomic>
 #include <deque>
 #include <memory>
 #include <mutex>
-#include <notificationactivationcallback.h>
 #include <optional>
 #include <roapi.h>
 #include <unordered_map>
+#if defined(__MINGW32__)
+#include <rpcndr.h>
+// WIDL uses RPC's unsigned-char boolean for WinRT C++ templates. WinRT Boolean
+// and Byte need distinct types while retaining their one-byte ABI.
+#pragma push_macro("boolean")
+#undef boolean
+#define boolean bool
+#endif
 #include <windows.data.xml.dom.h>
 #include <windows.ui.notifications.h>
+#if defined(__MINGW32__)
+#pragma pop_macro("boolean")
+#endif
 #include <winstring.h>
 
 namespace sn_toast = ABI::Windows::UI::Notifications;

@@ -293,6 +293,8 @@ demo 的“圆形窗口”默认示例改为：在 windowRegion 可用时显式�
 
 ## 8. UI 展示与应用生命周期
 
+具体的应用条目、显式窗口绑定、通知控制器与 SVG 图像转换遵守 [UI 桌面适配规范](../specs/SCOOP-UI-DESKTOP-INTEGRATION-SPEC.md)。
+
 native desktop demo 增加三个明确区域：SVG／Lucide 图标与主题切换、系统／文件字体选择及变体预览、当前 OS 的 Taskbar／Dock／通知操作。圆形窗口仍在原形状区域中展示修复结果。
 
 只显示当前后端支持的操作；需要部署注册、系统授权或当前没有 Shell 服务的状态以实际查询说明。示例文字使用普通产品术语，不把 HRESULT、native lease 或内部记录编号放进操作流程。错误详情仍可通过已有报告入口查看。

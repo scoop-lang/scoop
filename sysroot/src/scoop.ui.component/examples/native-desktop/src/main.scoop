@@ -3,6 +3,9 @@ package scoop.examples.native_desktop
 import scoop.ui.*
 import scoop.window.*
 import scoop.window.asyncio.*
+import scoop.desktop.notification.*
+
+internal val nativeDesktopApplicationId = "dev.scoop.examples.native-desktop"
 
 fun main(arguments: Array<String>) {
     if (hasArgument(arguments, "--help")) {
@@ -10,8 +13,16 @@ fun main(arguments: Array<String>) {
         println("--smoke runs a bounded GUI lifecycle scenario and exits; it requires a desktop.")
         return
     }
+    if (hasArgument(arguments, "--shell-action"))
+        recordShellLaunch(arguments)
+    prepareNotifications(nativeDesktopApplicationId).use {
+        launch -> runDesktopDemo(arguments, launch)
+    }
+}
+
+private fun runDesktopDemo(arguments: Array<String>, launch: NotificationLaunch) {
     val smoke = hasArgument(arguments, "--smoke")
-    val demo = DesktopDemo(smoke)
+    val demo = DesktopDemo(smoke, Some(launch))
     context(demo.theme) {
         UiHost(
             onRootError = { _, error -> demo.failed(error) },
@@ -19,7 +30,10 @@ fun main(arguments: Array<String>) {
             handler = { host, application, event -> demo.event(host, application, event) }
         ).use {
             host -> Application(
-                applicationOptions { lastWindowPolicy = LastWindowPolicy.KeepRunning }
+                applicationOptions {
+                    applicationId = Some(nativeDesktopApplicationId)
+                    lastWindowPolicy = LastWindowPolicy.KeepRunning
+                }
             )
             .runWithAsyncio(host)
         }

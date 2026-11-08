@@ -1,0 +1,147 @@
+package scoop.ui.component.desktop
+
+import scoop.asyncio.*
+import scoop.desktop.notification.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.*
+
+private suspend fun awaitDesktop(label: String, ready: () -> Boolean) {
+    var attempts = 0
+    while (!ready()) {
+        assertTrue(attempts < 200, Some("timed out waiting for " + label))
+        attempts += 1
+        currentEventLoop().sleep(Duration.milliseconds(25L))
+    }
+}
+
+internal fun runUiDesktop() {
+    prepareNotifications("dev.scoop.ui.desktop.tests").use {
+        launch ->
+        val probe = UiDesktopProbe(launch)
+        UiHost(
+            onApplicationError = { error -> probe.errors.add(error) },
+            handler = { host, application, event -> probe.event(host, application, event) }
+        ).use {
+            host -> Application(
+                applicationOptions {
+                    applicationId = Some("dev.scoop.ui.desktop.tests")
+                    lastWindowPolicy = LastWindowPolicy.KeepRunning
+                }
+            ).runWithAsyncio(host)
+        }
+        assertTrue(probe.finished)
+        assertEquals(1L, probe.errors.size)
+        assertTrue(probe.errors[0L] === probe.expected)
+        assertTrue(probe.exitController!!.isClosed)
+        assertTrue(launch.isClosed)
+    }
+}
+
+internal class UiDesktopProbe(val launch: NotificationLaunch) {
+    val version = state(1)
+    val hasMenu = state(true)
+    val target = state<Window?>(None)
+    val image = uiDesktopImage()
+    val errors = ArrayList<Throwable>()
+    val expected = IllegalStateException(Some("expected notification scope failure"))
+    var root: UiDesktopApplication? = None
+    var applicationUi: UiApplication? = None
+    var renders = 0
+    var windowEvents = 0
+    var finished = false
+    var exitController: NativeDesktopController? = None
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                applicationUi =
+                    host.attachApplication(application) { UiDesktopApplication(this, it) }
+                currentApplicationScope().launch {
+                    this @UiDesktopProbe.scenario(host, application)
+                }
+            }
+            case Window(_, _) -> windowEvents += 1
+            else -> {}
+        }
+    }
+    private suspend fun scenario(host: UiHost, application: ActiveApplication) {
+        val view = root!!
+        val desktop = view.controller.application
+        val center = view.controller.notifications!!
+        val use = desktop.menuUseId
+        assertEquals(0, windowEvents)
+        if (desktop.capabilities().dockMenu)
+            assertTrue(use != None)
+        val ready = state(false)
+        view.notifications.settings { fail(Some("cancelled UI request was delivered")) }.close()
+        view.notifications.settings { ready.value = true }
+        awaitDesktop("notification settings") { ready.value }
+        val before = renders
+        version.value = 2
+        awaitDesktop("desktop display update") { renders > before }
+        assertEquals(use, desktop.menuUseId)
+        assertEquals(0, windowEvents)
+        if (desktop.capabilities().dockMenu) {
+            hasMenu.value = false
+            awaitDesktop("Dock menu retirement") { desktop.menuUseId == None }
+            hasMenu.value = true
+            awaitDesktop("Dock menu replacement") { desktop.menuUseId != None }
+            assertTrue(use != desktop.menuUseId)
+        }
+        val first =
+            application.createWindow(
+                windowAttributes {
+                    title = "Desktop binding one";
+                    requestActivation = false;
+                    visible = false
+                }
+            )
+        val second =
+            application.createWindow(
+                windowAttributes {
+                    title = "Desktop binding two";
+                    requestActivation = false;
+                    visible = false
+                }
+            )
+        val firstRender = renders
+        target.value = Some(first)
+        awaitDesktop("explicit first window") { renders > firstRender }
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { desktop.attachWindow(first) }.kind
+        )
+        val secondRender = renders
+        target.value = Some(second)
+        awaitDesktop("explicit second window") { renders > secondRender }
+        desktop.attachWindow(first).close()
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { desktop.attachWindow(second) }.kind
+        )
+        assertTrue(first.state != WindowState.Closing && first.state != WindowState.Destroyed)
+        second.requestDestroy()
+        awaitDesktop("target window destruction") { second.state == WindowState.Destroyed }
+        val closedRender = renders
+        version.value = 3
+        awaitDesktop("closed target update") { renders > closedRender }
+        view.notifications.close()
+        assertFalse(center.isClosed)
+        view.failNotification()
+        awaitDesktop("notification application error boundary") { errors.size == 1L }
+        assertTrue(applicationUi!!.isClosed)
+        assertTrue(center.isClosed)
+        assertTrue(view.controller.isClosed)
+        assertTrue(first.state != WindowState.Closing && first.state != WindowState.Destroyed)
+        first.requestDestroy()
+        awaitDesktop("remaining business window destruction") {
+            first.state == WindowState.Destroyed
+        }
+        host.attachApplication(application) { UiDesktopShutdown(this, it) }
+        finished = true
+        application.requestExit()
+    }
+}

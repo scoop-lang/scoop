@@ -52,7 +52,6 @@ internal fun documentSections(root: DocumentView): View {
         label(
             "Menus, windows, dialogs and a tray share live application state. Changes below use the public Scoop APIs."
         )
-        add(component({ mount -> FontPicker(mount) }))
         add(
             panel(
                 "Native menus and text editing",
@@ -98,6 +97,9 @@ internal fun documentSections(root: DocumentView): View {
                 }
             )
         )
+        add(iconSection(demo))
+        add(desktopSection(root))
+        add(component({ mount -> FontPicker(mount) }))
         add(
             panel(
                 "Window frame and native ordering",

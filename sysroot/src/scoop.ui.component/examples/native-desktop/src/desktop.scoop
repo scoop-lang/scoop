@@ -1,0 +1,120 @@
+package scoop.examples.native_desktop
+
+import scoop.desktop.*
+import scoop.desktop.notification.*
+import scoop.platform.env.temporaryDirectory
+import scoop.platform.fs.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.desktop.*
+
+internal fun desktopItems(demo: DesktopDemo, controller: NativeDesktopController): Array<
+    ApplicationItem
+> {
+    val image =
+        if (demo.color.value == 1)
+            demo.blueIcon
+        else
+            demo.orangeIcon
+    val menu =
+        if (demo.showDockMenu.value)
+            Some(
+                nativeMenu {
+                    item(ViewKey.Text("new"), "New document window", { _ -> demo.newDocument() })
+                    item(
+                        ViewKey.Text("notify"),
+                        "Send notification",
+                        { _ -> sendDemoNotification(demo) }
+                    ) {
+                        enabled =
+                            demo.notificationSettings.value?.availability ==
+                                Some(NotificationAvailability.Available)
+                    }
+                    separator(ViewKey.Text("separator"))
+                    item(
+                        ViewKey.Text("quit"),
+                        "Quit…",
+                        { _ -> demo.applicationView!!.confirmExit() }
+                    )
+                }
+            )
+        else
+            None
+    val tasks: Array<JumpListTask>? =
+        if (demo.smoke)
+            None
+        else
+            Some(
+                if (demo.publishTasks.value)
+                    [
+                        JumpListTask(
+                            "New document window",
+                            ["--shell-action", "new-document", "space 雪 % \"quote\""],
+                            Some("Open a Scoop document")
+                        )
+                    ]
+                else
+                    []
+            )
+    val items = ArrayList<ApplicationItem>()
+    items.add(
+        nativeDesktop(controller, ViewKey.Text("desktop")) {
+            icon = Some(image)
+            badgeText =
+                if (demo.showBadge.value)
+                    Some(f"${demo.badgeCount.value} new")
+                else
+                    None
+            dockMenu = menu
+            jumpListTasks = tasks
+        }
+    )
+    demo.windowCount.value
+    for (document in demo.documents.toArray()) {
+        val visibleIcon = document.desktopIcon.value
+        val overlay = document.overlay.value
+        val caption = document.caption.value
+        val state = document.progress.value
+        items.add(
+            nativeDesktopWindow(
+                controller,
+                document.window,
+                ViewKey.Number(document.number.toLong())
+            ) {
+                icon =
+                    if (visibleIcon)
+                        Some(image)
+                    else
+                        None
+                overlayIcon =
+                    if (overlay)
+                        Some(demo.orangeIcon)
+                    else
+                        None
+                overlayDescription = "Document needs attention"
+                progress = state
+                miniwindowCaption =
+                    if (caption)
+                        Some(f"Working on document ${document.number}")
+                    else
+                        None
+                thumbnailTooltip =
+                    if (caption)
+                        Some(f"Document ${document.number}: a native preview tooltip")
+                    else
+                        None
+            }
+        )
+    }
+    return items.toArray()
+}
+
+internal fun recordShellLaunch(arguments: Array<String>) {
+    var text = "launch\n"
+    for (index in 0L ..< arguments.size)
+        text += f"[${index}] ${arguments[index]}\n"
+    temporaryDirectory().resolve(Path.fromString("scoop-native-desktop-launch.log")).writeText(
+        text,
+        append = true
+    )
+}

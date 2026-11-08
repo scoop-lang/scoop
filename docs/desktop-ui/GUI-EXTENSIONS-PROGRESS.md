@@ -11,7 +11,7 @@
 | G5 Windows 圆形窗口 | 已修复，Windows 11 MSVC UCRT 实窗通过 | 默认 demo 路径、HWND style／region、resize、最小化恢复及既有窗框／输入回归 |
 | G6 Taskbar／Dock | 已实现，三平台定向测试通过 | 应用标识、原生图标与文字、菜单 tracking、窗口解绑、任务栏重放；集成呈现随 G8 验收 |
 | G7 桌面通知 | 已实现，三平台定向验证通过 | macOS 实际点击冷启动；Linux 服务提交／动作；Windows NSIS／MSI 安装、替换／撤回、COM 冷启动与卸载 |
-| G8 集成与发行 | 待实施 | UI 适配、综合示例、各平台完整安装包 |
+| G8 集成与发行 | UI 适配已实现，发行验收进行中 | macOS 双架构／Linux UI 生命周期通过，综合应用包通过；Windows 实窗与完整工具链包待完成 |
 
 ## G1：独立 SVG 图形库
 
@@ -80,3 +80,13 @@ macOS 使用 UserNotifications，Linux 使用真实会话的 freedesktop 通知�
 Windows 11 Session 1 的 NSIS 和 MSI 都实际安装到带空格的路径；开始菜单快捷方式的 AppUserModelID／ToastActivatorCLSID、注册表和带引号的 LocalServer32 均已读回核实。两个安装形态均完成发送、替换、撤回；通过系统 COM 激活入口启动已经退出的示例，具名动作与 Unicode payload 完整。两个卸载器都移除了自身身份、激活入口和快捷方式。这里未把 COM 调用记为人工点击 toast 的视觉验收。
 
 实际安装发现并修复两个问题：NSIS 不能调用 SDK 中仅为 inline 的 InitPropVariantFromString，现用系统 SHStrDupW 构造真实 PROPVARIANT；Windows 首次 Show 前可能没有通知设置记录，只有明确的 ERROR_NOT_FOUND 按系统默认允许提交处理，其余错误继续报告。Windows 通知准备与 Application 共享既有 DPI 初始化，避免冷启动消息窗口抢先固定 DPI 模式。Rust fmt／clippy 及四项 Windows 打包单元测试通过，Scoop 与 native 源码格式化通过。两套 MinGW 与其他架构在 G8 发行收尾中集中验证。
+
+## G8：UI 适配与综合示例
+
+新增 `scoop.ui.component.desktop` 和 [UI 桌面集成规范](../specs/SCOOP-UI-DESKTOP-INTEGRATION-SPEC.md)。ApplicationScope 管理桌面资源，应用条目和显式窗口条目按描述变化更新；通知控制器借用中心，将回调送入原有 scope 错误边界。SVG 可显式生成多分辨率、straight-alpha 原生图标。Dock 菜单通过实际使用解绑事件退休并重新挂载，不轮询。Application 先退休原生资源时，UI 条目停止写入，随后幂等卸载。
+
+macOS aarch64、x86_64 和 Linux GNU 各通过三项 UI 桌面测试，覆盖 SVG 图像、取消、菜单更换、窗口切换、错误边界与完整退出。新 Cone 的离线 API 文档生成通过，未产生文档警告。macOS 与 Linux 的 native-desktop 完整 smoke、字体选择器测试通过。综合示例统一 applicationId 和 Bundle.toml，提供 Lucide 图标、主题变化、系统与临时字体、命名实例／轴坐标，以及按原生能力启用的桌面与通知操作。
+
+macOS 实际运行生成的应用包，验证图标与主题切换、系统字体预览、加载 Variable.ttf、选择 Heavy 命名实例及查看隐藏轴；预览说明保持使用正常 UI 字体。Linux 生成 Debian 包并在带空格路径解包，通过系统 DesktopAppInfo 执行其 NewDocument 动作，确认空格、中文、百分号与引号参数完整。Linux 通知也补验了同 ID 替换与撤回。macOS Dock 本身的视觉效果尚未实际观察。
+
+LLVM-MinGW 的通知后端补齐缺失的标准 COM 激活声明，并局部修正 WIDL 将 WinRT Boolean 与 Byte 混成同一 C++ 类型的问题；两套 CRT 的窗口与通知库均编译通过。Windows 三目标的其余组件、实窗与图形测试，以及三个宿主的完整工具链安装包，继续集中验收；不以当前编译结果代替这些运行验证。

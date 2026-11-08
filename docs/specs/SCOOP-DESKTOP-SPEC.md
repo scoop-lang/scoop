@@ -26,6 +26,8 @@ macOS 普通应用使用 NSApplication.applicationIconImage、NSDockTile.badgeLa
 
 Dock 菜单复用 Menu 和 NativeMenuLease，不能同时附着于菜单栏或托盘。NSMenu 自己的动作、tracking 和模型更新规则仍有效；菜单正在 tracking 时拒绝替换。关闭菜单或 DesktopApplication 时先取消 tracking，再在原生 tracking 返回后释放借用。应用关闭清除当前角标、图标覆盖和 Dock 菜单。
 
+`observeMenuBinding(callback: (NativeMenuUseId?) -> Unit): Closeable` 观察实际菜单使用的设置与解绑。变化后的 ID／None 经现有应用队列交付；不重放登记前的状态，不为未变化的值发事件。取消观察或关闭桌面资源后不交付排队的事件。该入口让 [UI 桌面条目](SCOOP-UI-DESKTOP-INTEGRATION-SPEC.md) 在 tracking 完成后绑定等待的菜单，不使用轮询。
+
 Windows JumpListTask 是启动任务，包含 title、arguments: Array<String>、可选 description 和可选 JumpListIcon(path: Path, index: Int)。执行目标固定为当前应用可执行文件，参数按 Windows argv 规则引用；图标路径保留原生路径编码。任务使用 ICustomDestinationList／IShellLink 发布到应用标识对应的 Jump List，不保存闭包，不转换任意 Menu 树。空数组显式清除任务；close 不删除已经发布的任务。没有显式应用标识时报告 InvalidState。
 
 Linux 的启动任务由 bundle.linux.actions 写入 desktop actions，运行期 setJumpListTasks 返回 Unsupported。

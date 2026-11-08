@@ -5,11 +5,19 @@ import scoop.ui.component.*
 import scoop.ui.component.tray.*
 import scoop.tray.*
 import scoop.window.*
+import scoop.desktop.notification.*
+import scoop.ui.component.desktop.*
 
 internal class DesktopApplication(
     private val demo: DesktopDemo,
     scope: ApplicationScope
 ): ApplicationComponent(scope) {
+    val desktop = scope.desktopController(demo.notificationLaunch)
+    val notifications =
+        when (val center = desktop.notifications) {
+            case Some(value) -> Some(scope.notificationController(value))
+            case None -> None
+        }
     val files = scope.fileDialogController()
     val dialog = scope.nativeDialogController<Boolean>(DialogTarget.Application)
     var response: NativeDialogResponse<Boolean>? = None
@@ -19,6 +27,10 @@ internal class DesktopApplication(
     init {
         demo.applicationView = Some(this)
         scope.onDispose { closeTrayWindow() }
+    }
+    public override fun onMount() {
+        notifications?.observe { event -> handleDemoNotification(demo, event) }
+        queryNotifications()
     }
     public override fun render(): ApplicationContent {
         val demo = this.demo
@@ -41,7 +53,8 @@ internal class DesktopApplication(
                 demo.blueIcon
             else
                 demo.orangeIcon
-        return ApplicationContent(
+        val items = ArrayList<ApplicationItem>()
+        val nativeItems: Array<ApplicationItem> =
             [
                 nativeApplicationMenuBar(applicationMenu(demo), ViewKey.Text("application-menu")),
                 nativeTrayIcon(icon, ViewKey.Text("tray")) {
@@ -67,7 +80,21 @@ internal class DesktopApplication(
                     onMenuClosed = { _ -> demo.report("Native tray menu closed") }
                 }
             ]
-        )
+        for (item in nativeItems)
+            items.add(item)
+        for (item in desktopItems(demo, desktop))
+            items.add(item)
+        return ApplicationContent(items.toArray())
+    }
+    fun queryNotifications(permission: Boolean = false) {
+        when (notifications) {
+            case Some(value) -> if (permission)
+                value.requestPermission { result -> updateNotificationSettings(demo, result) }
+            else
+                value.settings { result -> updateNotificationSettings(demo, result) }
+            case None -> demo.notificationStatus.value =
+                "Notifications are not configured for this run."
+        }
     }
     fun openFile() {
         files.openFile(DialogTarget.Application, { reportFile(demo, it) })

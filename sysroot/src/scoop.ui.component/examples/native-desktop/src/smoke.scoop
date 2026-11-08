@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.tray.*
 import scoop.ui.component.*
 import scoop.window.*
+import scoop.desktop.DesktopProgress
 
 private suspend fun waitDemo(label: String, ready: () -> Boolean) {
     println("Smoke: " + label)
@@ -29,6 +30,27 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     val root = first.root!!
     val second = demo.newDocument()
     waitDemo("second frame") { second.frames > 0 }
+    waitDemo("notification settings") {
+        when (demo.notificationSettings.value) {
+            case Some(_) -> true
+            case None -> false
+        }
+    }
+    val beforeDesktop = first.frames
+    demo.toggleTheme()
+    demo.showBadge.value = true
+    demo.badgeCount.value = 7
+    demo.showDockMenu.value = false
+    first.overlay.value = true
+    first.caption.value = true
+    when (first.desktopCapabilities) {
+        case Some(caps) -> if (caps.progress)
+            first.progress.value = DesktopProgress.Normal(25UL, 100UL)
+        case None -> {}
+    }
+    waitDemo("desktop and SVG update") { first.frames > beforeDesktop }
+    demo.showDockMenu.value = true
+    requireDemo(demo.notificationCount == 0, "render submitted an unsolicited notification")
     demo.checked.value = true
     demo.color.value = 2
     demo.activate("Smoke")

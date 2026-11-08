@@ -1,0 +1,11 @@
+package scoop.ui.component.desktop
+
+import scoop.test.*
+
+@Test
+private class NativeDesktopLifetimeTests {
+    @Test
+    fun `desktop elements and notification callbacks follow their application scope`() {
+        runUiDesktop()
+    }
+}

@@ -18,6 +18,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
     var badgeStatus: RequestStatus? = None
     var notifications: NotificationCenter? = None
     val windows = ArrayList<DesktopWindowOwner>()
+    val menuObservers = ArrayList<DesktopMenuObserver>()
     private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
 
     fun checkThread() {
@@ -69,6 +70,8 @@ internal class DesktopOwner(val application: ActiveApplication) {
         if (closing || closed)
             return
         closing = true
+        for (observer in menuObservers.toArray())
+            observer.close()
         notifications?.close()
         for (window in windows.toArray())
             window.close()
@@ -91,12 +94,15 @@ internal class DesktopOwner(val application: ActiveApplication) {
             if (menuLease?.isTracking == Some(true))
                 return
             if (retireMenu) {
+                val previousUse = menuLease?.id
                 if (pointer != None)
                     platformDockMenu(pointer!!, None)
                 menuLease?.close()
                 menuLease = None
                 menu = None
                 retireMenu = false
+                if (previousUse != None)
+                    menuBindingChanged()
             }
             if (!closing)
                 return
@@ -146,11 +152,38 @@ internal class DesktopOwner(val application: ActiveApplication) {
                 menuLease?.close()
                 menuLease = lease
                 menu = next
+                menuBindingChanged()
                 return result
             } catch (error: Throwable) {
                 lease?.close()
                 throw error
             }
         }
+    }
+    private fun menuBindingChanged() {
+        if (closing || closed)
+            return
+        val use = menuLease?.id
+        for (observer in menuObservers.toArray())
+            resource!!.post { observer.deliver(use) }
+    }
+}
+
+internal class DesktopMenuObserver(
+    private val owner: DesktopOwner,
+    private var callback: ((NativeMenuUseId?) -> Unit)?
+): Closeable {
+    fun deliver(use: NativeMenuUseId?) {
+        if (!owner.closing && !owner.closed)
+            callback?.invoke(use)
+    }
+    public override fun close() {
+        owner.checkThread()
+        callback = None
+        for (index in 0L ..< owner.menuObservers.size)
+            if (owner.menuObservers[index] === this) {
+                owner.menuObservers.removeAt(index)
+                return
+            }
     }
 }

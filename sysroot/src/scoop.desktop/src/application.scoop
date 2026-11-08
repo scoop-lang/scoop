@@ -77,6 +77,12 @@ public class DesktopApplication internal constructor(internal val owner: Desktop
         owner.requireOpen();
         return owner.menuLease?.id
     }
+    public fun observeMenuBinding(callback: (NativeMenuUseId?) -> Unit): Closeable {
+        owner.requireOpen()
+        val observer = DesktopMenuObserver(owner, Some(callback))
+        owner.menuObservers.add(observer)
+        return observer
+    }
     public fun setJumpListTasks(tasks: Array<JumpListTask>): RequestStatus {
         owner.requireOpen()
         if (!capabilities().jumpListTasks)

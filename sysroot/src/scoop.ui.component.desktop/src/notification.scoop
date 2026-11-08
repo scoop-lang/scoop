@@ -1,0 +1,133 @@
+package scoop.ui.component.desktop
+
+import scoop.Result
+import scoop.desktop.notification.*
+import scoop.ui.*
+
+/** Borrows a center and owns only this scope's requests and subscriptions. */
+public class NativeNotificationController internal constructor(
+    private val center: NotificationCenter,
+    private val mounted: () -> Boolean,
+    private val dispatch: (() -> Unit) -> Boolean
+): Closeable {
+    private var closed = false
+    private val registrations = ArrayList<NativeNotificationRegistration>()
+
+    internal fun checkThread() {
+        center.isClosed
+    }
+    private fun requireOpen() {
+        checkThread()
+        if (closed || !mounted() || center.isClosed)
+            throw IllegalStateException(Some("notification controller is not active"))
+    }
+    internal fun remove(value: NativeNotificationRegistration) {
+        for (index in 0L ..< registrations.size)
+            if (registrations[index] === value) {
+                registrations.removeAt(index)
+                return
+            }
+    }
+    public fun settings(
+        callback: (Result<NotificationSettings, NotificationError>) -> Unit
+    ): Closeable = start({ center.settings(it) }, callback)
+
+    public fun requestPermission(
+        callback: (Result<NotificationSettings, NotificationError>) -> Unit
+    ): Closeable = start({ center.requestPermission(it) }, callback)
+
+    public fun post(
+        id: NotificationId,
+        content: NotificationContent,
+        callback: (Result<NotificationSubmission, NotificationError>) -> Unit
+    ): Closeable = start({ center.post(id, content, it) }, callback)
+
+    public fun withdraw(
+        id: NotificationId,
+        callback: (Result<NotificationWithdrawal, NotificationError>) -> Unit
+    ): Closeable = start({ center.withdraw(id, it) }, callback)
+
+    private fun <T> start(
+        submit: ((Result<T, NotificationError>) -> Unit) -> NotificationOperation,
+        callback: (Result<T, NotificationError>) -> Unit
+    ): Closeable {
+        requireOpen()
+        val entry = NativeNotificationRegistration(this)
+        registrations.add(entry)
+        try {
+            entry.resource =
+                Some(
+                    submit {
+                        result -> if (entry.active) {
+                            entry.close()
+                            if (!closed)
+                                dispatch {
+                                    if (!closed)
+                                        callback(result)
+                                }
+                        }
+                    }
+                )
+        } catch (error: Throwable) {
+            entry.close()
+            throw error
+        }
+        return entry
+    }
+    public fun observe(callback: (NotificationEvent) -> Unit): Closeable {
+        requireOpen()
+        val entry = NativeNotificationRegistration(this)
+        registrations.add(entry)
+        try {
+            entry.resource =
+                Some(
+                    center.observe {
+                        event -> if (entry.active && !closed)
+                            dispatch {
+                                if (entry.active && !closed)
+                                    callback(event)
+                            }
+                    }
+                )
+        } catch (error: Throwable) {
+            entry.close()
+            throw error
+        }
+        return entry
+    }
+    public override fun close() {
+        checkThread()
+        if (closed)
+            return
+        closed = true
+        for (entry in registrations.toArray())
+            entry.close()
+    }
+}
+
+internal class NativeNotificationRegistration(
+    private val owner: NativeNotificationController
+): Closeable {
+    var resource: Closeable? = None
+    var active = true
+    public override fun close() {
+        owner.checkThread()
+        if (!active)
+            return
+        active = false
+        val previous = resource
+        resource = None
+        owner.remove(this)
+        previous?.close()
+    }
+}
+
+public fun ApplicationScope.notificationController(
+    center: NotificationCenter
+): NativeNotificationController =
+    resource { NativeNotificationController(center, { isMounted }, { action -> dispatch(action) }) }
+
+public fun ComponentScope.notificationController(
+    center: NotificationCenter
+): NativeNotificationController =
+    resource { NativeNotificationController(center, { isMounted }, { action -> dispatch(action) }) }

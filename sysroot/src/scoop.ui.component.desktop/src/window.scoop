@@ -1,0 +1,123 @@
+package scoop.ui.component.desktop
+
+import scoop.desktop.*
+import scoop.ui.*
+import scoop.window.*
+
+public class NativeDesktopWindowBuilder internal constructor() {
+    public var icon: DesktopImage? = None
+    public var overlayIcon: DesktopImage? = None
+    public var overlayDescription: String = ""
+    public var progress: DesktopProgress = DesktopProgress.None
+    public var miniwindowCaption: String? = None
+    public var thumbnailTooltip: String? = None
+}
+
+internal class NativeDesktopWindowProps(
+    val controller: NativeDesktopController,
+    val window: Window,
+    val icon: DesktopImage?,
+    val overlay: DesktopImage?,
+    val overlayDescription: String,
+    val progress: DesktopProgress,
+    val miniwindowCaption: String?,
+    val thumbnailTooltip: String?
+)
+
+public fun nativeDesktopWindow(
+    controller: NativeDesktopController,
+    window: Window,
+    key: ViewKey,
+    configure: NativeDesktopWindowBuilder.() -> Unit = {}
+): ApplicationItem {
+    val builder = NativeDesktopWindowBuilder()
+    builder.configure()
+    return applicationElement(
+        NativeDesktopWindowProps(
+            controller,
+            window,
+            builder.icon,
+            builder.overlayIcon,
+            builder.overlayDescription,
+            builder.progress,
+            builder.miniwindowCaption,
+            builder.thumbnailTooltip
+        ),
+        { props, scope -> NativeDesktopWindowElement(props, scope) },
+        key
+    )
+}
+
+internal class NativeDesktopWindowElement(
+    private val props: Props<NativeDesktopWindowProps>,
+    scope: ApplicationScope
+): ApplicationElement(scope) {
+    private var binding: DesktopWindow? = None
+    private var previous: NativeDesktopWindowProps? = None
+    public override fun update() {
+        val next = props.value
+        when (previous) {
+            case Some(old) -> if (
+                !(old.controller === next.controller) || !(old.window === next.window)
+            ) {
+                binding?.close()
+                binding = None
+                previous = None
+            }
+            case None -> {}
+        }
+        if (
+            next.controller.isClosed ||
+                next.window.state ==
+                WindowState.Closing ||
+                next.window.state ==
+                WindowState.Destroyed
+        )
+            return
+        val target =
+            when (binding) {
+                case Some(value) -> value
+                case None -> {
+                    val value =
+                        scope.resource { next.controller.application.attachWindow(next.window) }
+                    binding = Some(value)
+                    value
+                }
+            }
+        if (target.isClosed)
+            return
+        target.setIcon(next.icon)
+        target.setOverlayIcon(next.overlay, next.overlayDescription)
+        when (previous) {
+            case Some(old) -> {
+                if (!sameDesktopProgress(old.progress, next.progress))
+                    target.setProgress(next.progress)
+                if (old.miniwindowCaption != next.miniwindowCaption)
+                    target.setMiniwindowCaption(next.miniwindowCaption)
+                if (old.thumbnailTooltip != next.thumbnailTooltip)
+                    target.setThumbnailTooltip(next.thumbnailTooltip)
+            }
+            case None -> {
+                target.setProgress(next.progress)
+                target.setMiniwindowCaption(next.miniwindowCaption)
+                target.setThumbnailTooltip(next.thumbnailTooltip)
+            }
+        }
+        previous = Some(next)
+    }
+    public override fun onUnmount() {
+        binding?.close()
+        binding = None
+        previous = None
+    }
+}
+
+private fun sameDesktopProgress(left: DesktopProgress, right: DesktopProgress): Boolean =
+    when ((left, right)) {
+        case(None, None) -> true
+        case(Indeterminate, Indeterminate) -> true
+        case(Normal(a, b), Normal(c, d)) -> a == c && b == d
+        case(Paused(a, b), Paused(c, d)) -> a == c && b == d
+        case(Error(a, b), Error(c, d)) -> a == c && b == d
+        else -> false
+    }

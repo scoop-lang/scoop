@@ -161,8 +161,6 @@ internal class FontPicker(scope: ComponentScope): Component(scope) {
                         textarea(m.preview) {
                             rows = 3L
                             fonts = Some(m.fonts)
-                            description =
-                                "Preview uses this exact face. Missing characters remain visible as missing glyphs."
                             style {
                                 text {
                                     families = Some(["Font preview"])
@@ -173,6 +171,9 @@ internal class FontPicker(scope: ComponentScope): Component(scope) {
                                 }
                             }
                         }
+                        label(
+                            "Preview uses this exact face. Missing characters remain visible as missing glyphs."
+                        )
                     }
                     case None -> {}
                 }

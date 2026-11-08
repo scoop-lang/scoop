@@ -7,14 +7,25 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
 import scoop.window.asyncio.*
+import scoop.desktop.DesktopProgress
+import scoop.desktop.DesktopWindowCapabilities
+import scoop.desktop.notification.*
 
-internal class DemoDocument(val window: Window, val number: Int) {
+internal class DemoDocument(
+    val window: Window,
+    val number: Int,
+    val desktopCapabilities: DesktopWindowCapabilities? = None
+) {
     var ui: UiWindow? = None
     var root: DocumentView? = None
     var frames = 0
+    val desktopIcon = state(true)
+    val overlay = state(false)
+    val caption = state(false)
+    val progress = state(DesktopProgress.None)
 }
 
-internal class DesktopDemo(val smoke: Boolean) {
+internal class DesktopDemo(val smoke: Boolean, val notificationLaunch: NotificationLaunch? = None) {
     val theme = ThemeSource(shadcnTheme())
     val status = state("Ready. Open the native menu, edit text, or explore the window controls.")
     val actionCount = state(0)
@@ -27,6 +38,14 @@ internal class DesktopDemo(val smoke: Boolean) {
     val allowScreenBounds = state(false)
     val allowUnanchored = state(false)
     val tray = NativeTrayHandle()
+    val dark = state(false)
+    val showBadge = state(true)
+    val badgeCount = state(3)
+    val showDockMenu = state(true)
+    val publishTasks = state(true)
+    val notificationSettings = state<NotificationSettings?>(None)
+    val notificationStatus = state("Checking system notification settings…")
+    var notificationCount = 0
     val blueIcon = demoIcon(false)
     val orangeIcon = demoIcon(true)
     val documents = ArrayList<DemoDocument>()
@@ -110,7 +129,14 @@ internal class DesktopDemo(val smoke: Boolean) {
                     requestActivation = activate
                 }
             )
-        val document = DemoDocument(window, number)
+        val desktopCapabilities =
+            when (applicationView) {
+                case Some(view) -> Some(
+                    view.desktop.application.attachWindow(window).use { it.capabilities() }
+                )
+                case None -> None
+            }
+        val document = DemoDocument(window, number, desktopCapabilities)
         documents.add(document)
         windowCount.value = documents.size.toInt()
         document.ui = host!!.attach(window, { DocumentView(this, document, it) })
@@ -149,5 +175,15 @@ internal class DesktopDemo(val smoke: Boolean) {
                 color.value
             }"
         )
+    }
+    fun toggleTheme() {
+        dark.value = !dark.value
+        theme.current.value =
+            shadcnTheme(
+                if (dark.value)
+                    ThemeMode.Dark
+                else
+                    ThemeMode.Light
+            )
     }
 }
