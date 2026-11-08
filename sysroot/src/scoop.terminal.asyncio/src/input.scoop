@@ -25,8 +25,8 @@ internal class SessionInput(internal val reader: SessionReader) {
         while (true) {
             when (reader.next(inputRemaining(started, timeout))) {
                 case None -> return false
-                case Some(InputItem.User(event)) -> { ready = Some(event); return true }
-                case Some(InputItem.Invalid(detail)) -> throw TerminalInputException(detail)
+                case Some(InputItem.User(val event)) -> { ready = Some(event); return true }
+                case Some(InputItem.Invalid(val detail)) -> throw TerminalInputException(detail)
                 case Some(_) -> {}
             }
             if (reader.exhausted) throw TerminalDisconnectedException()

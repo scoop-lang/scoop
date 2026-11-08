@@ -78,7 +78,7 @@ internal fun <T> present(value: T?): Boolean = when (value) {
 
 internal fun requests(state: TlsConnection): ArrayList<TlsRequest> {
     val result = ArrayList<TlsRequest>()
-    when (state.exclusive) { case Some(value) -> result.add(value); case None -> return directions(state, result) }
+    when (state.exclusive) { case Some(val value) -> result.add(value); case None -> return directions(state, result) }
     return result
 }
 

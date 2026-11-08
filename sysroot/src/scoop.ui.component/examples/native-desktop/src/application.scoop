@@ -15,7 +15,7 @@ internal class DesktopApplication(
     val desktop = scope.desktopController(demo.notificationLaunch)
     val notifications =
         when (val center = desktop.notifications) {
-            case Some(value) -> Some(scope.notificationController(value))
+            case Some(val value) -> Some(scope.notificationController(value))
             case None -> None
         }
     val files = scope.fileDialogController()
@@ -88,7 +88,7 @@ internal class DesktopApplication(
     }
     fun queryNotifications(permission: Boolean = false) {
         when (notifications) {
-            case Some(value) -> if (permission)
+            case Some(val value) -> if (permission)
                 value.requestPermission { result -> updateNotificationSettings(demo, result) }
             else
                 value.settings { result -> updateNotificationSettings(demo, result) }
@@ -118,10 +118,10 @@ internal class DesktopApplication(
             },
             {
                 result -> when (result) {
-                    case Accepted(value) -> if (value && exit)
+                    case Accepted(val value) -> if (value && exit)
                         demo.application!!.requestExit()
                     case Cancelled(_) -> demo.report("Application modal cancelled")
-                    case Failed(error) -> demo.operationFailed(error)
+                    case Failed(val error) -> demo.operationFailed(error)
                 }
             },
             attributes =

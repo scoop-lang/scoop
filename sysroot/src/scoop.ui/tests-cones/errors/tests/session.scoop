@@ -271,7 +271,7 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         assertFalse(record.overlay.isAttached)
         assertFalse(record.anchor.isAttached)
         when (record.modalRoot) {
-            case Some(area) -> assertTrue(area.isClosed)
+            case Some(val area) -> assertTrue(area.isClosed)
             case None -> {}
         }
     }

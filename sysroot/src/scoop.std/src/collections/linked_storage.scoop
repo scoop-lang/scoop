@@ -16,7 +16,7 @@ internal class LinkedStorage<K, V> {
     internal val first: Long get() = head
 
     internal fun read(index: Long): LinkedEntry<K, V> = when (slots[index]) {
-        case LinkedSlot.Occupied(entry) -> entry
+        case LinkedSlot.Occupied(val entry) -> entry
         case LinkedSlot.Free(_) -> throw IllegalStateException(Some("unused linked entry"))
     }
 
@@ -48,7 +48,7 @@ internal class LinkedStorage<K, V> {
         } else {
             val index = free
             free = when (slots[index]) {
-                case LinkedSlot.Free(next) -> next
+                case LinkedSlot.Free(val next) -> next
                 case LinkedSlot.Occupied(_) -> throw IllegalStateException(Some("occupied free entry"))
             }
             index

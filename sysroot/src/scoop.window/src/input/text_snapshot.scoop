@@ -10,7 +10,7 @@ public fun Window.publishTextInputState(
     state.validate()
     val sequence =
         when (after) {
-            case Some(origin) -> {
+            case Some(val origin) -> {
                 requireWindow(
                     origin.connection == connection && origin.sequence > 0L,
                     "text batch belongs to another connection"
@@ -31,7 +31,7 @@ public fun Window.publishTextInputCaret(
     checkTextConnection(connection)
     requireWindow(revision >= 0L, "negative text revision")
     when (area) {
-        case Some(value) -> checkImeCursorArea(value)
+        case Some(val value) -> checkImeCursorArea(value)
         case None -> {}
     }
     return snapshotResult(platformPublishTextCaret(this, connection, revision, area))

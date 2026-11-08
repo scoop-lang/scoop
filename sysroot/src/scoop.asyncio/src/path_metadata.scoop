@@ -12,7 +12,7 @@ internal fun takeFileMetadata(pointer: Ptr<Unit>): FileMetadata {
 
 internal fun metadataResult(result: IoResult): FileMetadata =
     when (result) {
-        case Metadata(value) -> value
+        case Metadata(val value) -> value
         case _ -> throw IllegalStateException(Some("metadata returned no file information"))
     }
 
@@ -56,7 +56,7 @@ internal suspend fun metadataOnLoop(
                     selected -> when (
                         completionFailure("metadata", event.result, selected, Some(context))
                     ) {
-                        case Some(error) -> continuation.resumeWithException(error)
+                        case Some(val error) -> continuation.resumeWithException(error)
                         case None -> continuation.resume(metadataResult(event.result))
                     }
                 }

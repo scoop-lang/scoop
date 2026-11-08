@@ -30,17 +30,17 @@ private fun exerciseConsumer() {
     check(description.key == key && description.parameters.size == 2L)
     check(description.parameters[0L].name == "count")
     check(when (description.parameters[0L].defaultValue!!) {
-        case AnnotationValue.Integer(IntegerValue.Long(value)) -> value == 7L
+        case AnnotationValue.Integer(IntegerValue.Long(val value)) -> value == 7L
        ; else -> false
     })
     check(description.annotations[0L].key == query<Tag>())
     check(when (description.parameters[1L].type) {
-        case AnnotationParameterType.Array(AnnotationAtomType.Annotation(element)) -> element == query<Tag>()
+        case AnnotationParameterType.Array(AnnotationAtomType.Annotation(val element)) -> element == query<Tag>()
        ; else -> false
     })
     val tags = findAnnotations(typeInfo<Record>().describe().annotations, query<Tag>())
     check(tags.size == 2L)
-    check(when (tags[0L].arguments[0L].value) { case AnnotationValue.String(value) -> value == "first"; else -> false })
+    check(when (tags[0L].arguments[0L].value) { case AnnotationValue.String(val value) -> value == "first"; else -> false })
     check(findAnnotations(typeInfo<Record>().describe().annotations, key).size == 0L)
     var current = key
     for (index in 0L until 10L) {

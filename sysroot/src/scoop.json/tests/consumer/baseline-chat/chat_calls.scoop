@@ -7,11 +7,11 @@ enum ChatCall {
         public override fun encode(value: ChatCall, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatCall.Function(payload) -> {
+                case ChatCall.Function(val payload) -> {
                     String.encode("function", fields.field("type"))
                     ChatFunctionCall.Companion.encode(payload, encoder)
                 }
-                case ChatCall.Custom(payload) -> {
+                case ChatCall.Custom(val payload) -> {
                     String.encode("custom", fields.field("type"))
                     ChatCustomCall.Companion.encode(payload, encoder)
                 }

@@ -12,10 +12,10 @@ internal fun validSocks5Domain(bytes: Array<Byte>): Boolean {
 
 internal fun validateSocks5Address(address: Socks5Address) {
     when (address) {
-        case Ip(value) -> if (value.address.scopeId != 0u) {
+        case Ip(val value) -> if (value.address.scopeId != 0u) {
             throw IllegalArgumentException(Some("SOCKS5 cannot represent an IPv6 scope"))
         }
-        case Domain(name, port) -> {
+        case Domain(val name, val port) -> {
             if (port < 0 || port > 65535) throw IllegalArgumentException(Some("port is out of range"))
             if (!validSocks5Domain(name.toByteArray())) {
                 throw IllegalArgumentException(Some("SOCKS5 domain requires 1..255 printable ASCII bytes without spaces"))
@@ -29,7 +29,7 @@ internal suspend fun resolveSocks5Address(loop: EventLoop, address: Socks5Addres
     if (resolution == Socks5Resolution.Proxy) return address
     return when (address) {
         case Ip(_) -> address
-        case Domain(name, port) -> {
+        case Domain(val name, val port) -> {
             val addresses = loop.resolve(OsString.fromString(name), port)
             if (addresses.size == 0L) throw Socks5Exception(Socks5Phase.Connect, None, "SOCKS5 target resolved to no address")
             val result = Socks5Address.Ip(addresses[0L])
@@ -44,12 +44,12 @@ internal fun socks5ConnectRequest(address: Socks5Address): Array<Byte> {
     val bytes = ByteArrayBuilder()
     bytes.append(5.toByte()).append(1.toByte()).append(0.toByte())
     val port = when (address) {
-        case Ip(value) -> {
+        case Ip(val value) -> {
             bytes.append(if (value.address.family == AddressFamily.Ipv4) 1.toByte() else 4.toByte())
             bytes.append(value.address.toByteArray())
             value.port
         }
-        case Domain(name, number) -> {
+        case Domain(val name, val number) -> {
             val encoded = name.toByteArray()
             bytes.append(3.toByte()).append(encoded.size.toByte()).append(encoded)
             number

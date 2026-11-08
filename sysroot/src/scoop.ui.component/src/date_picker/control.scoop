@@ -33,7 +33,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
     }
     fun mount() {
         when (props.value.draft) {
-            case Some(draft) -> if (draft.editor.text.byteLength == 0L && !draft.editor.isComposing)
+            case Some(val draft) -> if (draft.editor.text.byteLength == 0L && !draft.editor.isComposing)
                 draft.reset(text())
             case None -> {}
         }
@@ -41,15 +41,15 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
     fun text(): String {
         val value = calendarRead(props.value.selection)
         return when (props.value.format) {
-            case Some(format) -> format(value, props.value.calendar.locale);
+            case Some(val format) -> format(value, props.value.calendar.locale);
             case None -> datePickerText(value, props.value.calendar.locale)
         }
     }
     fun synchronize(value: CalendarValue, showing: Boolean) {
         props.value.handle?.bind(this)
         when (bound) {
-            case Some(old) -> when (props.value.handle) {
-                case Some(next) -> if (old !== next)
+            case Some(val old) -> when (props.value.handle) {
+                case Some(val next) -> if (old !== next)
                     old.release(this);
                 case None -> old.release(this)
             }
@@ -57,7 +57,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
         }
         bound = props.value.handle
         when (previousValue) {
-            case Some(previous) -> if (!sameCalendarValue(previous, value)) {
+            case Some(val previous) -> if (!sameCalendarValue(previous, value)) {
                 if (!focus.hasFocus && !(props.value.draft?.editor?.isComposing ?: false))
                     props.value.draft?.reset(text())
             }
@@ -81,7 +81,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
         if (before == value)
             return
         when (props.value.open) {
-            case Some(target) -> target.value = value;
+            case Some(val target) -> target.value = value;
             case None -> localOpen.value = value
         }
         val accepted = open.value
@@ -121,7 +121,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
     }
     private fun error(message: String): Boolean {
         when (props.value.draft) {
-            case Some(draft) -> if (draft.error != Some(message))
+            case Some(val draft) -> if (draft.error != Some(message))
                 draft.problem.value = Some(message);
             case None -> {}
         }
@@ -136,7 +136,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
         val input = props.value
         val parsed =
             when (input.parser) {
-                case Some(parse) -> parse(
+                case Some(val parse) -> parse(
                     draft.editor.committedText,
                     input.referenceDate ?: input.initialPage,
                     input.calendar.locale
@@ -147,7 +147,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
                 )
             }
         when (parsed) {
-            case Invalid(message) -> return error(message);
+            case Invalid(val message) -> return error(message);
             else -> {}
         }
         val value =
@@ -186,7 +186,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
                 binding<LocalDate?>(
                     {
                         when (props.value.selection) {
-                            case Single(value) -> value.value;
+                            case Single(val value) -> value.value;
                             else -> None
                         }
                     },
@@ -201,7 +201,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
                 binding<DateRange?>(
                     {
                         when (props.value.selection) {
-                            case Range(value) -> value.value;
+                            case Range(val value) -> value.value;
                             else -> None
                         }
                     },
@@ -218,7 +218,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
         }
     fun edited() {
         when (props.value.draft) {
-            case Some(draft) -> if (draft.error != None)
+            case Some(val draft) -> if (draft.error != None)
                 draft.problem.value = None;
             case None -> {}
         }
@@ -229,7 +229,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
         val now = scope.input.activity.hasFocus
         if (previousFocus && !now && props.value.commitOnBlur && props.value.mutable && !open.value)
             when (props.value.draft) {
-                case Some(draft) -> {
+                case Some(val draft) -> {
                     pendingBlur = Some(DatePickerBlur(draft, draft.editor.revision))
                     blurTimer.schedule(MonotonicTimeSource.markNow())
                 }

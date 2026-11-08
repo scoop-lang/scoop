@@ -57,7 +57,7 @@ internal class LoopDriver {
                 owner.poll(native, true)
         }
         when (owner.destroy(native)) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }

@@ -110,7 +110,7 @@ public enum Color {
          * Parses a supported named color or throws for unrecognized input.
          */
         public fun parse(text: String): Color = when (parseOrNone(text)) {
-            case Some(color) -> color
+            case Some(val color) -> color
             case None -> throw IllegalArgumentException(Some("unknown terminal color"))
         }
         /**
@@ -143,9 +143,9 @@ public enum Colored {
      * command.
      */
     public fun toAnsiString(): String = when (this) {
-        case ForegroundColor(color) -> colorParameters(color, 38)
-        case BackgroundColor(color) -> colorParameters(color, 48)
-        case UnderlineColor(color) -> colorParameters(color, 58)
+        case ForegroundColor(val color) -> colorParameters(color, 38)
+        case BackgroundColor(val color) -> colorParameters(color, 48)
+        case UnderlineColor(val color) -> colorParameters(color, 58)
     }
 
     /**
@@ -179,11 +179,11 @@ internal fun colorParameters(color: Color, channel: Int): String {
         case Color.Green -> "5;10"; case Color.Yellow -> "5;11"
         case Color.Blue -> "5;12"; case Color.Magenta -> "5;13"
         case Color.Cyan -> "5;14"; case Color.White -> "5;15"
-        case Color.AnsiValue(index) -> {
+        case Color.AnsiValue(val index) -> {
             requireColorByte(index)
             "5;" + index.toString()
         }
-        case Color.Rgb(red, green, blue) -> {
+        case Color.Rgb(val red, val green, val blue) -> {
             requireColorByte(red); requireColorByte(green); requireColorByte(blue)
             "2;" + red.toString() + ";" + green.toString() + ";" + blue.toString()
         }

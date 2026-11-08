@@ -86,7 +86,7 @@ public fun <K, V : Equals<V>> Map<K, V>.containsValue(value: V): Boolean {
  * Returns the mapped value or throws NoSuchElementException when the key is absent.
  */
 public fun <K, V> Map<K, V>.getValue(key: K): V = when (get(key)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> throw NoSuchElementException("key is absent")
 }
 
@@ -94,7 +94,7 @@ public fun <K, V> Map<K, V>.getValue(key: K): V = when (get(key)) {
  * Returns the mapped value, or the supplied fallback when absent.
  */
 public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V = when (get(key)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> defaultValue
 }
 
@@ -102,7 +102,7 @@ public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V = when (get
  * Returns the mapped value, computing the fallback only when the key is absent.
  */
 public fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V = when (get(key)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> defaultValue()
 }
 
@@ -111,7 +111,7 @@ public fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V = when (
  * operation is not a concurrent-map primitive.
  */
 public fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V): V = when (get(key)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> {
         val value = defaultValue()
         put(key, value)

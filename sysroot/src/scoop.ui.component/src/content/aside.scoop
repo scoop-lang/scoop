@@ -24,11 +24,11 @@ internal fun panelAside(
 ): View {
     val children = ArrayList<View>()
     when (content) {
-        case Some(value) -> children.add(panelSlot(value, 0L));
+        case Some(val value) -> children.add(panelSlot(value, 0L));
         case None -> {}
     }
     when (action) {
-        case Some(value) -> children.add(panelSlot(value, 1L));
+        case Some(val value) -> children.add(panelSlot(value, 1L));
         case None -> {}
     }
     val shape =
@@ -93,7 +93,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>, scope: Compo
         val action = measureAction(context, 1L, constraints.maxWidth)
         val stacked =
             when (constraints.maxWidth) {
-                case Some(width) -> width - action.size.width - input.gap < input.minimumContent
+                case Some(val width) -> width - action.size.width - input.gap < input.minimumContent
                 case None -> false
             }
         val maximum =
@@ -155,7 +155,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>, scope: Compo
 private fun measureAction(context: MeasureContext, index: Long, maximum: Double?): LayoutMetrics {
     val natural = context.measureChild(index, Constraints())
     return when (maximum) {
-        case Some(width) -> if (natural.size.width > width)
+        case Some(val width) -> if (natural.size.width > width)
             context.measureChild(index, Constraints(maxWidth = Some(width)))
         else
             natural

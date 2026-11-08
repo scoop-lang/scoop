@@ -138,7 +138,7 @@ internal class SidebarCaption(
                         0.0
         val maximum =
             when (constraints.maxWidth) {
-                case Some(value) -> Some(max(0.0, value - icon.size.width - gap - tail))
+                case Some(val value) -> Some(max(0.0, value - icon.size.width - gap - tail))
                 case None -> None
             }
         val label =

@@ -22,7 +22,7 @@ internal fun nativeFrameQuery(
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Win32(window, _) -> return@use frameQuery(window, window, field, x, y)
+                    case Win32(val window, _) -> return@use frameQuery(window, window, field, x, y)
                 }
             }
         }

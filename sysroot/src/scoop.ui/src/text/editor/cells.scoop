@@ -216,9 +216,9 @@ internal fun sameEditorCells(left: TextEditCells?, right: TextEditCells?): Boole
             case None -> true;
             case Some(_) -> false
         }
-        case Some(a) -> when (right) {
+        case Some(val a) -> when (right) {
             case None -> false
-            case Some(b) -> {
+            case Some(val b) -> {
                 if (
                     a.count !=
                         b.count ||

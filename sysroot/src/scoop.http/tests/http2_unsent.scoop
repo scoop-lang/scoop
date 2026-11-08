@@ -55,7 +55,7 @@ private fun requireUnsentClosures(events: Array<Http2Event>, ids: Array<Int>) {
     for (id in ids) {
         var count = 0L
         for (event in events) when (event) {
-            case StreamClosed(stream, code) -> if (stream == id) {
+            case StreamClosed(val stream, val code) -> if (stream == id) {
                 assertEquals(7U, code)
                 count += 1L
             }

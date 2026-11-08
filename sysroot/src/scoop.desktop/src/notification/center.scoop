@@ -24,7 +24,7 @@ private object NotificationSlot {
 public fun prepareNotifications(applicationId: String): NotificationLaunch {
     notificationLabel(applicationId)
     when (NotificationSlot.current) {
-        case Some(previous) -> {
+        case Some(val previous) -> {
             previous.checkThread()
             if (!previous.closed)
                 throw WindowException(

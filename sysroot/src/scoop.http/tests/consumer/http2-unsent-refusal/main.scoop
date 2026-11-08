@@ -20,11 +20,11 @@ private fun exercise(initial: Boolean) {
             val events = refusedEvents(client)
             var closed = 0L; var goaway = 0L
             for (event in events) when (event) {
-                case StreamClosed(id, code) -> {
+                case StreamClosed(val id, val code) -> {
                     refusedCheck((id == pending || id == empty) && code == 7U)
                     closed += 1L
                 }
-                case GoAway(last, _, _, outgoing) -> { refusedCheck(!outgoing && last == accepted); goaway += 1L }
+                case GoAway(val last, _, _, val outgoing) -> { refusedCheck(!outgoing && last == accepted); goaway += 1L }
                 case Failure(_) -> refusedCheck(false)
                 else -> {}
             }
@@ -41,8 +41,8 @@ private fun exercise(initial: Boolean) {
                 refusedDrive(client, server)
                 var bytes = 0L; var ends = 0L
                 for (event in refusedEvents(client)) when (event) {
-                    case Data(id, value) -> { refusedCheck(id == accepted); bytes += value.size }
-                    case End(id) -> { refusedCheck(id == accepted); ends += 1L }
+                    case Data(val id, val value) -> { refusedCheck(id == accepted); bytes += value.size }
+                    case End(val id) -> { refusedCheck(id == accepted); ends += 1L }
                     case Failure(_) -> refusedCheck(false)
                     else -> {}
                 }

@@ -111,7 +111,7 @@ internal class SelectScrollButton(
             }
         }
         when (bounds) {
-            case Some(rect) -> {
+            case Some(val rect) -> {
                 context.place(area, rect)
                 val input = read()
                 val density = input.theme.tokens.typography.body.fontSize / 14.0

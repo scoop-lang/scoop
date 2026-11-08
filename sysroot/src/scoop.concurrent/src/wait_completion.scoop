@@ -23,7 +23,7 @@ internal class WaitNotifications {
             }
         }
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }
@@ -41,14 +41,14 @@ internal class PendingResume<T>(continuation: Continuation<T>) {
             cancellation = registration
         else
             when (registration) {
-                case Some(listener) -> notifications.add { listener.dispose() }
+                case Some(val listener) -> notifications.add { listener.dispose() }
                 case None -> {}
             }
     }
 
     internal fun detachCancellation(notifications: WaitNotifications) {
         when (cancellation) {
-            case Some(listener) -> notifications.add { listener.dispose() }
+            case Some(val listener) -> notifications.add { listener.dispose() }
             case None -> {}
         }
         cancellation = None

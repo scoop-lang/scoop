@@ -12,8 +12,8 @@ internal class RequestTarget(val kind: TargetKind, val path: String, val segment
 internal fun requestTarget(target: HttpRequestTarget, method: String): RequestTarget {
     if (method == "CONNECT") return RequestTarget(TargetKind.Connect, "", [], UrlQuery())
     val encoded = when (target) {
-        case HttpRequestTarget.Http1(value) -> inputText(value, "request target")
-        case HttpRequestTarget.Http2(_, _, value) -> inputText(value, "request path")
+        case HttpRequestTarget.Http1(val value) -> inputText(value, "request target")
+        case HttpRequestTarget.Http2(_, _, val value) -> inputText(value, "request path")
         case HttpRequestTarget.Connect(_) -> return RequestTarget(TargetKind.Connect, "", [], UrlQuery())
     }
     if (encoded == "*") return RequestTarget(TargetKind.Star, "*", [], UrlQuery())

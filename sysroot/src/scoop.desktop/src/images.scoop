@@ -5,7 +5,7 @@ import scoop.window.DesktopImage
 internal fun <R> withDesktopImage(image: DesktopImage?, action: (Ptr<Unit>?) -> R): R {
     when (image) {
         case None -> return action(None)
-        case Some(value) -> @Unsafe
+        case Some(val value) -> @Unsafe
         {
             val native =
                 desktopCreated(
@@ -46,7 +46,7 @@ internal fun <R> withDesktopImage(image: DesktopImage?, action: (Ptr<Unit>?) -> 
 
 internal fun sameDesktopImage(left: DesktopImage?, right: DesktopImage?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
+        case(Some(val a), Some(val b)) -> a === b
         case(None, None) -> true
         else -> false
     }

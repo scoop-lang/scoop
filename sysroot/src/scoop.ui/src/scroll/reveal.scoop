@@ -103,7 +103,7 @@ internal class RevealAttempt {
             return RevealProgress.Cancelled
         var rect =
             when (region) {
-                case Some(value) -> area.toWindow(value)
+                case Some(val value) -> area.toWindow(value)
                 case None -> area.windowBounds
             } ?:
                 return RevealProgress.Unavailable

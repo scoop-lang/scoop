@@ -22,12 +22,12 @@ internal class TextFieldLineHeight {
     fun measure(fonts: FontCollection, style: TextStyle): Double {
         val sameFonts =
             when (this.fonts) {
-                case Some(previous) -> previous === fonts
+                case Some(val previous) -> previous === fonts
                 case None -> false
             }
         val sameStyle =
             when (this.style) {
-                case Some(previous) -> previous === style
+                case Some(val previous) -> previous === style
                 case None -> false
             }
         if (sameFonts && sameStyle && revision == fonts.revision)

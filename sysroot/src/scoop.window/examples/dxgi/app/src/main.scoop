@@ -76,7 +76,7 @@ private class DxgiHandler(val automatic: Boolean): ApplicationHandler {
             case NewEvents(StartCause.Deadline) -> throw IllegalStateException(
                 Some("DXGI frame deadline expired")
             )
-            case Window(_, WindowEvent.GeometryChanged(metrics)) -> {
+            case Window(_, WindowEvent.GeometryChanged(val metrics)) -> {
                 if (frames > 0 && metrics.logicalSize == LogicalSize(640.0, 360.0))
                     resized = true
                 window!!.requestRedraw()
@@ -98,11 +98,11 @@ private class DxgiHandler(val automatic: Boolean): ApplicationHandler {
                     }
                 }
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                 text = text.apply(batch)
                 window!!.setTitle("Scoop · DXGI · " + text.surroundingText)
             }
-            case Window(_, WindowEvent.Keyboard(value)) -> {
+            case Window(_, WindowEvent.Keyboard(val value)) -> {
                 if (
                     value.logicalKey ==
                         LogicalKey.Named(NamedKey.Escape) &&
@@ -114,7 +114,7 @@ private class DxgiHandler(val automatic: Boolean): ApplicationHandler {
             case Window(_, WindowEvent.CloseRequested) -> application.requestExit()
             case Window(_, WindowEvent.Closing) -> {
                 when (surface) {
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         value.close()
                         value.close()
                     }

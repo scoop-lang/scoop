@@ -131,6 +131,6 @@ internal fun hitRoleCode(role: WindowHitRole): Int =
     when (role) {
         case Client -> 0;
         case Caption -> 1
-        case Resize(edge) -> 2 + resizeEdgeCode(edge)
-        case SystemButton(button) -> 10 + systemButtonCode(button)
+        case Resize(val edge) -> 2 + resizeEdgeCode(edge)
+        case SystemButton(val button) -> 10 + systemButtonCode(button)
     }

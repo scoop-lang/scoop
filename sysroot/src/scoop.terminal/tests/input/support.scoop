@@ -14,14 +14,14 @@ internal fun expectEmpty(parser: InputParser) {
 
 internal fun expectUser(parser: InputParser, expected: Event) {
     when (parser.next()) {
-        case Some(InputItem.User(event)) -> assertTrue(event == expected, Some("unexpected terminal event"))
+        case Some(InputItem.User(val event)) -> assertTrue(event == expected, Some("unexpected terminal event"))
         case _ -> fail(Some("expected a terminal user event"))
     }
 }
 
 internal fun expectInvalid(parser: InputParser) {
     when (parser.next()) {
-        case Some(InputItem.Invalid(detail)) -> assertTrue(detail != "")
+        case Some(InputItem.Invalid(val detail)) -> assertTrue(detail != "")
         case _ -> fail(Some("expected invalid terminal input"))
     }
 }

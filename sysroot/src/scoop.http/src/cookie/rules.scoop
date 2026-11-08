@@ -24,8 +24,8 @@ public object HttpCookieRules {
      * Checks an exact host or DNS suffix at a label boundary; IP hosts require exact equality.
      */
     public fun domainMatches(host: UrlHost, domain: UrlHost): Boolean = when (host) {
-        case Dns(name) -> when (domain) {
-            case Dns(suffix) -> name == suffix || name.endsWith("." + suffix)
+        case Dns(val name) -> when (domain) {
+            case Dns(val suffix) -> name == suffix || name.endsWith("." + suffix)
             else -> false
         }
         case Ipv4(_) -> host == domain

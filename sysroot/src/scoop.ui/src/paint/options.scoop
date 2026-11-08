@@ -14,7 +14,7 @@ public enum PaintCachePolicy {
 internal fun checkPaintCachePolicy(value: PaintCachePolicy) {
     when (value) {
         case None -> {}
-        case Tiles(size, overscan) -> {
+        case Tiles(val size, val overscan) -> {
             requireUi(size > 0, "paint tile size must be positive")
             requireUi(overscan >= 0, "paint tile overscan must be nonnegative")
         }

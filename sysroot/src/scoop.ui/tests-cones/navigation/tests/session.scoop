@@ -153,7 +153,7 @@ internal class NavigationProbe {
                 _ ->
                 assertFocus(target)
                 when (outerDelta) {
-                    case Some(delta) -> assertEquals(before + delta, outerKeys)
+                    case Some(val delta) -> assertEquals(before + delta, outerKeys)
                     case None -> {}
                 }
                 phase += 1

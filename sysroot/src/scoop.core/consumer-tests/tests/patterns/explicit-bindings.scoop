@@ -1,0 +1,64 @@
+package test.core.tests.patterns.explicit_bindings
+
+import scoop.test.*
+
+private enum Event {
+    Number(Int),
+    Text(String)
+}
+
+private struct Envelope(val event: Event, val count: Int)
+
+private fun number(event: Event): Int =
+    when (event) {
+        case Number(val value) -> value
+        case Text(_) -> 0
+    }
+
+private fun describe(event: Event): Int =
+    when (event) {
+        case Text(val value) if value == "hello" -> 1
+        case val NotBad -> number(NotBad)
+    }
+
+@Test
+private class ExplicitBindingTests {
+    @Test
+    fun payloadAndWholeValue() {
+        assertEquals(100, describe(Event.Number(100)))
+        assertEquals(1, describe(Event.Text("hello")))
+        assertEquals(0, describe(Event.Text("other")))
+    }
+
+    @Test
+    fun nestedFieldsTupleAndCapture() {
+        val envelope = Envelope(Event.Number(40), 2)
+        val read: () -> Int =
+            when (envelope) {
+                case Envelope {event: Number(val value), count: val count} -> {
+                    val captured: () -> Int = { value + count }
+                    captured
+                }
+                case Envelope {val event, count: _} -> {
+                    val captured: () -> Int = { number(event) }
+                    captured
+                }
+            }
+        assertEquals(42, read())
+        val pair = (Event.Number(40), 2)
+        val result =
+            when (pair) {
+                case(Number(val value), val count) -> value + count
+                case(Text(_), _) -> 0
+            }
+        assertEquals(42, result)
+    }
+
+    @Test
+    fun declarationsStillUseBareBindingNames() {
+        val(first, second) = (1, 2)
+        val Envelope {event, count} = Envelope(Event.Number(40), 2)
+        assertEquals(3, first + second)
+        assertEquals(42, number(event) + count)
+    }
+}

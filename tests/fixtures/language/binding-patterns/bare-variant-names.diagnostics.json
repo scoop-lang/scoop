@@ -1,0 +1,80 @@
+[
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `None` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 451,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 447
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `Ready` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 654,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 649
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `None` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 670,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 666
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `Payload` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 690,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 683
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `None` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 936,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 932
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `Ready` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 943,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 938
+    },
+    "severity": "warning"
+  }
+]

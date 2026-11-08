@@ -13,7 +13,7 @@ internal fun clearClientAuthenticationCache(state: ClientState, authenticator: H
             if (entry.authenticator !== authenticator) continue
             entry.discard = true; entry.value = None
             when (entry.flight) {
-                case Some(flight) -> active.add(flight)
+                case Some(val flight) -> active.add(flight)
                 case None -> state.bearerEntries.removeAt(index)
             }
         }

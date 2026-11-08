@@ -121,7 +121,7 @@ fun optionalOpaqueMatches(
     actual: Ptr<Unit>?,
     expected: Ptr<Unit>
 ): Boolean = when (actual) {
-    case Some(pointer) -> pointer.toULong() == expected.toULong()
+    case Some(val pointer) -> pointer.toULong() == expected.toULong()
     case None -> false
 }
 
@@ -130,17 +130,17 @@ fun optionalCellMatches(
     actual: Ptr<NativeCell>?,
     expected: Ptr<NativeCell>
 ): Boolean = when (actual) {
-    case Some(pointer) -> pointer.toULong() == expected.toULong()
+    case Some(val pointer) -> pointer.toULong() == expected.toULong()
     case None -> false
 }
 
 fun optionalOpaqueIsNone(actual: Ptr<Unit>?): Boolean = when (actual) {
-    case Some(pointer) -> false
+    case Some(val pointer) -> false
     case None -> true
 }
 
 fun optionalCellIsNone(actual: Ptr<NativeCell>?): Boolean = when (actual) {
-    case Some(pointer) -> false
+    case Some(val pointer) -> false
     case None -> true
 }
 
@@ -149,14 +149,14 @@ fun applyOptionalCallback(
     callback: FunPtr<(Int) -> Int>?,
     value: Int
 ): Int = when (callback) {
-    case Some(pointer) -> applyCallback(value, pointer)
+    case Some(val pointer) -> applyCallback(value, pointer)
     case None -> -1
 }
 
 fun optionalCallbackIsNone(
     callback: FunPtr<(Int) -> Int>?
 ): Boolean = when (callback) {
-    case Some(pointer) -> false
+    case Some(val pointer) -> false
     case None -> true
 }
 

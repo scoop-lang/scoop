@@ -33,7 +33,7 @@ internal class PaintLayers: Closeable {
         }
         if (!paintLayerVisible(canvas, input.bounds)) {
             when (found) {
-                case Some(value) -> value.clearTiles()
+                case Some(val value) -> value.clearTiles()
                 case None -> remove(key)
             }
             return found
@@ -102,7 +102,7 @@ internal class PaintLayers: Closeable {
 
 private fun paintLayerVisible(canvas: Canvas, bounds: Rect): Boolean =
     when (canvas.localClipBounds) {
-        case Some(clip) -> bounds.width >
+        case Some(val clip) -> bounds.width >
             0.0 &&
             bounds.height >
             0.0 &&

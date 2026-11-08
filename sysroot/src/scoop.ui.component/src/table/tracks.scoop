@@ -13,7 +13,7 @@ internal class TableTracks(
     fun resolve(width: Double): TableWidths {
         nonnegative(width, "invalid table available width")
         when (cached) {
-            case Some(value) -> if (width == available || width == value.total)
+            case Some(val value) -> if (width == available || width == value.total)
                 return value
             case None -> {}
         }
@@ -23,7 +23,7 @@ internal class TableTracks(
                 val column = columns[index]
                 column.constrain(
                     when (column.track) {
-                        case Fixed(value) -> value
+                        case Fixed(val value) -> value
                         case Auto -> natural[index]
                         case Fraction(_) -> column.minimum
                     }
@@ -40,7 +40,7 @@ internal class TableTracks(
             var scale = 0.0
             for (index in 0L ..< columns.size)
                 when (columns[index].track) {
-                    case Fraction(weight) -> {
+                    case Fraction(val weight) -> {
                         if (values[index] < (columns[index].maximum ?: Double.MAX_VALUE))
                             scale = lowerBound(scale, weight)
                     }
@@ -51,7 +51,7 @@ internal class TableTracks(
             var weightSum = 0.0
             for (index in 0L ..< columns.size)
                 when (columns[index].track) {
-                    case Fraction(weight) -> {
+                    case Fraction(val weight) -> {
                         if (values[index] < (columns[index].maximum ?: Double.MAX_VALUE))
                             weightSum += weight / scale
                     }
@@ -60,7 +60,7 @@ internal class TableTracks(
             val rest = remaining
             for (index in 0L ..< columns.size)
                 when (columns[index].track) {
-                    case Fraction(weight) -> {
+                    case Fraction(val weight) -> {
                         val before = values[index]
                         if (before < (columns[index].maximum ?: Double.MAX_VALUE)) {
                             values[index] =

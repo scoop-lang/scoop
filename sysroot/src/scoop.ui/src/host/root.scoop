@@ -177,7 +177,7 @@ internal class UiRoot(
     }
     fun closeSurface() {
         when (attached) {
-            case Some(value) -> value.close()
+            case Some(val value) -> value.close()
             case None -> close()
         }
     }
@@ -190,7 +190,7 @@ internal class UiRoot(
         val current = node
         node = None
         when (current) {
-            case Some(value) -> failure = cleanupUi(failure) { value.unmount() }
+            case Some(val value) -> failure = cleanupUi(failure) { value.unmount() }
             case None -> {}
         }
         failure = cleanupUi(failure) { layouts.close() }

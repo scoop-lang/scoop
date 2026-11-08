@@ -9,7 +9,7 @@ import scoop.window.*
 @Test
 private class CommandModelTest {
     @Test
-    fun `fuzzy scoring keeps cmdk weights and handles scalar case expansions`() {
+    fun `fuzzy scoring keeps cmdk weights and handles scalar case val expansions`() {
         val vectors =
             [
                 ("HTML", "HTML", 1.0),

@@ -85,7 +85,7 @@ private class FirstViewport(
                 event ->
                 probe.intents.add(event)
                 when (event) {
-                    case LayoutCorrection(revision) -> {
+                    case LayoutCorrection(val revision) -> {
                         assertEquals(revision, probe.first.requestRevision)
                         probe.corrections += 1
                     }
@@ -175,7 +175,7 @@ private class SecondViewport(private val probe: ScrollProbe, scope: ComponentSco
                 event ->
                 probe.intents.add(event)
                 when (event) {
-                    case LayoutCorrection(revision) -> {
+                    case LayoutCorrection(val revision) -> {
                         assertEquals(revision, probe.second.requestRevision)
                         probe.corrections += 1
                     }

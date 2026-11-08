@@ -8,7 +8,7 @@ fun main() {
     val packet = boxed as Packet
     when (packet) {
         case Missing -> { throw IllegalStateException() }
-        case Data(references, copied) -> {
+        case Data(val references, val copied) -> {
             println(references.text)
             println(references.nested._1)
             println(references.nested._3)

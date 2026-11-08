@@ -47,7 +47,7 @@ internal class NativeDesktopAttachment(
         application.setIcon(input.icon)
         application.setBadgeText(input.badgeText)
         when (val tasks = input.jumpListTasks) {
-            case Some(value) -> if (!sameDesktopTasks(publishedTasks, value)) {
+            case Some(val value) -> if (!sameDesktopTasks(publishedTasks, value)) {
                 application.setJumpListTasks(value)
                 publishedTasks = Some(value)
             }
@@ -64,10 +64,10 @@ internal class NativeDesktopAttachment(
         if (closed || controller.isClosed)
             return
         when (tree) {
-            case Some(current) -> {
+            case Some(val current) -> {
                 if (!current.isClosed)
                     when (desired) {
-                        case Some(snapshot) -> {
+                        case Some(val snapshot) -> {
                             current.update(snapshot)
                             return
                         }
@@ -84,14 +84,14 @@ internal class NativeDesktopAttachment(
         if (application.menuUseId != None)
             return
         when (desired) {
-            case Some(snapshot) -> {
+            case Some(val snapshot) -> {
                 val created = NativeMenuTree(scope.application, snapshot)
                 tree = Some(created)
                 menuEvents =
                     Some(
                         scope.observeMenu(created.menu) {
                             activation -> when (activation.source) {
-                                case Native(id) -> {
+                                case Native(val id) -> {
                                     if (application.menuUseId == Some(id))
                                         created.activate(activation)
                                 }
@@ -123,7 +123,7 @@ internal class NativeDesktopAttachment(
         publishedTasks = None
         controller.release(this)
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }
@@ -135,7 +135,7 @@ internal fun cleanupDesktop(previous: Throwable?, action: () -> Unit): Throwable
         previous
     } catch (error: Throwable) {
         when (previous) {
-            case Some(first) -> Some(ResourceUseException(first, error))
+            case Some(val first) -> Some(ResourceUseException(first, error))
             case None -> Some(error)
         }
     }
@@ -161,7 +161,7 @@ private fun sameDesktopTasks(previous: Array<JumpListTask>?, next: Array<JumpLis
                 return false
         val sameIcon =
             when ((left.icon, right.icon)) {
-                case(Some(a), Some(b)) -> a.path == b.path && a.index == b.index
+                case(Some(val a), Some(val b)) -> a.path == b.path && a.index == b.index
                 case(None, None) -> true
                 else -> false
             }

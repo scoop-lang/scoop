@@ -30,7 +30,7 @@ fun main() {
     }
     verify(mismatch.message == Some("wrong type"))
     verify(when (mismatch.cause) {
-        case Some(error) -> error is ParentFailure && error.code == 42 && error.token === token
+        case Some(val error) -> error is ParentFailure && error.code == 42 && error.token === token
         case None -> false
     })
     val supplied = AssertionFailure("supplied", None, currentSourceLocation())

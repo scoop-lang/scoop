@@ -25,19 +25,19 @@ public fun NativeMenuContent.snapshot(): NativeMenuSnapshot =
 
 private fun nativeMenuValue(entry: NativeMenuEntry): NativeMenuValue {
     return when (entry) {
-        case Action(item, action) -> NativeMenuValue(
+        case Action(val item, val action) -> NativeMenuValue(
             item.key,
             NativeMenuCategory.Action,
             nativeDescription(item, MenuItemKind.Action),
             Some(action)
         )
-        case Role(item, role) -> NativeMenuValue(
+        case Role(val item, val role) -> NativeMenuValue(
             item.key,
             NativeMenuCategory.Role,
             nativeDescription(item, MenuItemKind.Action, MenuCommand.Role(role)),
             None
         )
-        case Checkbox(item, checked, changed) -> NativeMenuValue(
+        case Checkbox(val item, val checked, val changed) -> NativeMenuValue(
             item.key,
             NativeMenuCategory.Checkbox,
             nativeDescription(item, MenuItemKind.Checkbox(checked.value)),
@@ -50,20 +50,20 @@ private fun nativeMenuValue(entry: NativeMenuEntry): NativeMenuValue {
                     changed(accepted)
             }
         )
-        case Radio(item, selected, action) -> NativeMenuValue(
+        case Radio(val item, val selected, val action) -> NativeMenuValue(
             item.key,
             NativeMenuCategory.Radio,
             nativeDescription(item, MenuItemKind.Radio(selected())),
             Some { _ -> action() }
         )
-        case Submenu(item, content) -> NativeMenuValue(
+        case Submenu(val item, val content) -> NativeMenuValue(
             item.key,
             NativeMenuCategory.Submenu,
             nativeDescription(item, MenuItemKind.Submenu),
             None,
             content.snapshot().entries
         )
-        case Separator(key) -> NativeMenuValue(
+        case Separator(val key) -> NativeMenuValue(
             key,
             NativeMenuCategory.Separator,
             MenuItemDescription(kind = MenuItemKind.Separator),

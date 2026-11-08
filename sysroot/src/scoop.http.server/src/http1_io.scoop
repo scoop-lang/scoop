@@ -34,7 +34,7 @@ internal class Http1ResponseOutput(val state: ServerState, val entry: ServerConn
         val framing = if (!content) Http1BodyFraming.Empty
             else if (present(length)) Http1BodyFraming.Length(length!!)
             else if (head.version == HttpVersion.Http10) Http1BodyFraming.Eof else Http1BodyFraming.Chunked
-        val reason: List<Byte>? = when (head.reason) { case None -> None; case Some(value) -> Some(value) }
+        val reason: List<Byte>? = when (head.reason) { case None -> None; case Some(val value) -> Some(value) }
         val output = connection.sendResponse(HttpResponseHead(head.version, head.status, reason, fields), framing)
         writer = Some(output)
         return output

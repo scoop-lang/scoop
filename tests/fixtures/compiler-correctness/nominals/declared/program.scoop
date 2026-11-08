@@ -23,7 +23,7 @@ fun <T> keep(value: T): T { gcCollect(); return value }
     println(derived.enabled)
     println(view.describe())
     when (optional) {
-        case Some({ payload, .. }) -> println(payload)
+        case Some({ val payload, .. }) -> println(payload)
         case None -> println("missing")
     }
     val scalars = keep(ScalarFields(2.5f, 'Q'))

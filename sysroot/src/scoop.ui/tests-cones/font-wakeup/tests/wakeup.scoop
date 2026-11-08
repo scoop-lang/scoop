@@ -203,7 +203,7 @@ private fun focusFontWindow(window: Window): Int {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(handle, _) -> nativeFontFocus(handle)
+                    case AppKit(val handle, _) -> nativeFontFocus(handle)
                 }
             }
         }
@@ -217,7 +217,7 @@ private fun beginFontComposition(window: Window) {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case AppKit(_, view) -> "preview".withUtf8Bytes {
+                    case AppKit(_, val view) -> "preview".withUtf8Bytes {
                         text,
                         size -> @Unsafe
                         {

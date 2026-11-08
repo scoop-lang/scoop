@@ -3,7 +3,7 @@ enum E { Num(Int), Empty }
 fun main() {
     val v = E.Num(1)
     when (v) {
-        case Num(n) if (n) -> println(n)
+        case Num(val n) if (n) -> println(n)
         else -> println("other")
     }
 }

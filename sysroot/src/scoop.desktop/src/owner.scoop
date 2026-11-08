@@ -112,7 +112,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
             icon = None
             badge = None
             when (callback) {
-                case Some(value) -> releaseForeignCallback(value)
+                case Some(val value) -> releaseForeignCallback(value)
                 case None -> {}
             }
             callback = None
@@ -122,7 +122,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
     }
     fun setMenu(next: Menu?): RequestStatus {
         when ((menu, next)) {
-            case(Some(previous), Some(value)) -> if (previous === value)
+            case(Some(val previous), Some(val value)) -> if (previous === value)
                 return RequestStatus.Applied
             case(None, None) -> return RequestStatus.Applied
             else -> {}
@@ -133,7 +133,7 @@ internal class DesktopOwner(val application: ActiveApplication) {
                 throw WindowException("Dock menu is tracking", WindowErrorKind.ResourceBusy)
             var lease: NativeMenuLease? = None
             when (next) {
-                case Some(value) -> lease =
+                case Some(val value) -> lease =
                     Some(
                         resource!!.acquireMenu(value) {
                             retireMenu = true

@@ -17,7 +17,7 @@ fun logical(input: Any): String = when {
 }
 
 fun guarded(input: Option<Any>): Int = when (input) {
-    case Some(value) if value is Count -> value.value
+    case Some(val value) if value is Count -> value.value
     case Some(_) -> -1
     case None -> -2
 }

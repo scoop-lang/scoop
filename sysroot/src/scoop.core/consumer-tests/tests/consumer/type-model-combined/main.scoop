@@ -8,14 +8,14 @@ fun check(condition: Boolean): Unit {
 }
 
 fun text(annotation: AnnotationInfo): String = when (annotation.arguments[0L].value) {
-    case AnnotationValue.String(value) -> value
+    case AnnotationValue.String(val value) -> value
     else -> throw IllegalStateException()
 }
 
 private fun exerciseConsumer() {
     val descriptor = withType<Long>(recordType()).describe()
     val shape = when (descriptor.shape) {
-        case TypeShape.Struct(value) -> value
+        case TypeShape.Struct(val value) -> value
         else -> throw IllegalStateException()
     }
     gcCollect()
@@ -26,7 +26,7 @@ private fun exerciseConsumer() {
     check(field.constructorParameter!! == shape.constructors[0L].parameters[0L].id)
     check(shape.constructors[0L].parameters[0L].hasDefault)
     check(when (shape.constructors[0L].parameters[0L].member) {
-        case ParameterMember.Field(id) -> id == field.id
+        case ParameterMember.Field(val id) -> id == field.id
         else -> false
     })
     check(text(descriptor.annotations[0L]) == "declaration")
@@ -41,7 +41,7 @@ private fun exerciseConsumer() {
     check(declaration.key == key)
     check(declaration.parameters[0L].id == field.annotations[0L].arguments[0L].parameter)
     check(when (declaration.parameters[0L].defaultValue!!) {
-        case AnnotationValue.String(value) -> value == "default"
+        case AnnotationValue.String(val value) -> value == "default"
         else -> false
     })
     val repeatable = findAnnotations([help("first"), AnnotationInfo(helpKey("other"), []), help("last")], key)
@@ -53,29 +53,29 @@ private fun exerciseConsumer() {
     gcCollect()
     check(values.size == 14L)
     check(when (values[9L]) {
-        case AnnotationValue.Integer(IntegerValue.ULong(value)) -> value == 18446744073709551615uL
+        case AnnotationValue.Integer(IntegerValue.ULong(val value)) -> value == 18446744073709551615uL
         else -> false
     })
     check(when (values[10L]) {
-        case AnnotationValue.FloatBits(bits) -> bits == 2147483648u
+        case AnnotationValue.FloatBits(val bits) -> bits == 2147483648u
         else -> false
     })
     check(when (values[11L]) {
-        case AnnotationValue.DoubleBits(bits) -> bits == 9223372036854775808uL
+        case AnnotationValue.DoubleBits(val bits) -> bits == 9223372036854775808uL
         else -> false
     })
     check(when (values[12L]) {
-        case AnnotationValue.Array(AnnotationAtomType.Annotation(nestedKey), items) -> {
+        case AnnotationValue.Array(AnnotationAtomType.Annotation(val nestedKey), val items) -> {
             check(nestedKey == key)
             when (items[0L]) {
-                case AnnotationValue.Annotation(item) -> text(item) == "nested"
+                case AnnotationValue.Annotation(val item) -> text(item) == "nested"
                 else -> false
             }
         }
         else -> false
     })
     check(when (values[13L]) {
-        case AnnotationValue.Array(AnnotationAtomType.Scalar(element), items) ->
+        case AnnotationValue.Array(AnnotationAtomType.Scalar(val element), val items) ->
             element == textType() && items.size == 0L
         else -> false
     })

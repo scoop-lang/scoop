@@ -92,12 +92,12 @@ internal class TtyEndpoint(internal val owner: OwnedEndpoint): AsyncTty {
 
     public override suspend fun size(): TtySize =
         when (controlTty(owner, TtyControl.Size)) {
-            case IoResult.TtySizeValue(size) -> size
+            case IoResult.TtySizeValue(val size) -> size
             case _ -> throw IllegalStateException(Some("TTY size returned no value"))
         }
     public override suspend fun isRawMode(): Boolean =
         when (controlTty(owner, TtyControl.ReadMode)) {
-            case IoResult.TtyMode(raw) -> raw
+            case IoResult.TtyMode(val raw) -> raw
             case _ -> throw IllegalStateException(Some("TTY mode returned no value"))
         }
     public override suspend fun enableRawMode() {

@@ -145,7 +145,7 @@ private fun sidebarRegion(
     density: Double
 ): View =
     when (content) {
-        case Some(value) -> panelFrame(sidebarContent(value, shown), Insets.all(8.0 * density))
+        case Some(val value) -> panelFrame(sidebarContent(value, shown), Insets.all(8.0 * density))
         case None -> empty()
     }
 
@@ -192,7 +192,7 @@ internal class SidebarPanel(
         val footer = context.measureChild(2L, Constraints(width, Some(width)))
         val height =
             when (constraints.maxHeight) {
-                case Some(value) -> Some(max(0.0, value - header.size.height - footer.size.height))
+                case Some(val value) -> Some(max(0.0, value - header.size.height - footer.size.height))
                 case None -> None
             }
         val body = context.measureChild(1L, Constraints(width, Some(width), maxHeight = height))

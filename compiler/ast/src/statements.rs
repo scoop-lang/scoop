@@ -71,8 +71,10 @@ pub enum SafetyMode {
 /// struct patterns share their shapes; HIR resolves which is which.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
-    /// A plain binding name.
+    /// A binding name: bare in declarations, explicit `val name` in matches.
     Binding(Ident),
+    /// A bare match name. It must resolve to a variant of the matched enum.
+    BareVariant(Ident),
     /// `_`
     Wildcard { span: Span },
     /// A literal matched by equality (`0`, `-1u`, `"x"`, `true`).
@@ -91,7 +93,7 @@ pub enum Pattern {
     },
     /// `Path?{ f1, f2: subpattern, .. }` — enum named-field variant or
     /// struct field pattern. A shorthand field is normalized exactly like
-    /// parsing its identifier as the RHS; notably, `Unit` stays a literal.
+    /// parsing its RHS in the same context; `val field` binds explicitly.
     Named {
         path: Vec<Ident>,
         fields: Vec<FieldPattern>,

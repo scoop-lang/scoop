@@ -10,7 +10,7 @@ fn when_guard_must_be_boolean() {
                 val("c", field(var("Color"), "Red")),
                 when_stmt(
                     var("c"),
-                    vec![arm(pat_bind("Red"), Some(int_lit(1)), vec![])],
+                    vec![arm(pat_variant("Red"), Some(int_lit(1)), vec![])],
                     Some(vec![]),
                 ),
             ],
@@ -71,7 +71,7 @@ fn non_exhaustive_when_reports_missing_variants() {
             "main",
             vec![
                 val("c", field(var("Color"), "Red")),
-                when_stmt(var("c"), vec![arm(pat_bind("Red"), None, vec![])], None),
+                when_stmt(var("c"), vec![arm(pat_variant("Red"), None, vec![])], None),
             ],
         ),
     ]);
@@ -94,9 +94,9 @@ fn guarded_arm_does_not_count_for_exhaustiveness() {
                 when_stmt(
                     var("c"),
                     vec![
-                        arm(pat_bind("Red"), Some(bool_lit(true)), vec![]),
-                        arm(pat_bind("Green"), None, vec![]),
-                        arm(pat_bind("Blue"), None, vec![]),
+                        arm(pat_variant("Red"), Some(bool_lit(true)), vec![]),
+                        arm(pat_variant("Green"), None, vec![]),
+                        arm(pat_variant("Blue"), None, vec![]),
                     ],
                     None,
                 ),
@@ -125,7 +125,7 @@ fn literal_payload_does_not_cover_the_whole_variant() {
                         None,
                         vec![],
                     ),
-                    arm(pat_bind("None"), None, vec![]),
+                    arm(pat_variant("None"), None, vec![]),
                 ],
                 None,
             ),
@@ -149,7 +149,7 @@ fn value_when_requires_irrefutable_variant_payload_coverage() {
                 None,
                 vec![stmt(int_lit(1))],
             ),
-            arm(pat_bind("None"), None, vec![stmt(int_lit(2))]),
+            arm(pat_variant("None"), None, vec![stmt(int_lit(2))]),
         ],
         else_body: None,
         span: sp(),
@@ -273,7 +273,7 @@ fn nested_literal_and_guarded_payloads_do_not_contribute_coverage() {
                         None,
                         vec![],
                     ),
-                    arm(pat_bind("None"), None, vec![]),
+                    arm(pat_variant("None"), None, vec![]),
                 ],
                 None,
             ),
@@ -301,7 +301,7 @@ fn recursively_irrefutable_payloads_produce_an_enum_proof() {
                         None,
                         vec![],
                     ),
-                    arm(pat_bind("None"), None, vec![]),
+                    arm(pat_variant("None"), None, vec![]),
                 ],
                 None,
             ),
@@ -456,7 +456,7 @@ fn recursive_value_layouts_are_rejected_before_when_proof() {
             None,
             vec![when_stmt(
                 var("value"),
-                vec![arm(pat_bind("DirectEnd"), None, vec![])],
+                vec![arm(pat_variant("DirectEnd"), None, vec![])],
                 None,
             )],
         ),
@@ -467,7 +467,7 @@ fn recursive_value_layouts_are_rejected_before_when_proof() {
             None,
             vec![when_stmt(
                 var("value"),
-                vec![arm(pat_bind("LeftEnd"), None, vec![])],
+                vec![arm(pat_variant("LeftEnd"), None, vec![])],
                 None,
             )],
         ),
@@ -478,7 +478,7 @@ fn recursive_value_layouts_are_rejected_before_when_proof() {
             None,
             vec![when_stmt(
                 var("value"),
-                vec![arm(pat_bind("GrowEnd"), None, vec![])],
+                vec![arm(pat_variant("GrowEnd"), None, vec![])],
                 None,
             )],
         ),

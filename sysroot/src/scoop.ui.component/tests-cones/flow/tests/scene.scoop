@@ -155,7 +155,7 @@ private class FlowCell(
                 None
         val metrics =
             when (measured) {
-                case Some(value) -> value.metrics
+                case Some(val value) -> value.metrics
                 case None -> LayoutMetrics(constraints.constrain(record.natural), record.baseline)
             }
         return LayoutResult(metrics, measured, { measured?.close() })
@@ -164,7 +164,7 @@ private class FlowCell(
         record.last = Some(context.size)
         context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
         when (measured) {
-            case Some(value) -> host!!.scene(context, value)
+            case Some(val value) -> host!!.scene(context, value)
             case None -> {}
         }
     }

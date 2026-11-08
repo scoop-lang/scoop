@@ -17,7 +17,7 @@ public class TextEditorState public constructor(
     internal fun checkHost(host: TextEditHost) {
         storage.checkMutation()
         when (activeHost) {
-            case Some(value) -> requireUi(value === host, "text state already has an active editor")
+            case Some(val value) -> requireUi(value === host, "text state already has an active editor")
             case None -> {}
         }
     }
@@ -27,7 +27,7 @@ public class TextEditorState public constructor(
     }
     internal fun ownsHost(host: TextEditHost): Boolean =
         when (activeHost) {
-            case Some(value) -> value === host
+            case Some(val value) -> value === host
             case None -> false
         }
     internal fun detachHost(host: TextEditHost): Boolean {
@@ -130,7 +130,7 @@ public class TextEditorState public constructor(
         storage.checkMutation()
         val value = composition?.baseline ?: storage.value
         when (history.undoDelta) {
-            case Some(delta) -> return publish(
+            case Some(val delta) -> return publish(
                 replayEditorDelta(value, delta, true),
                 None,
                 EditorHistoryChange.Undo
@@ -160,7 +160,7 @@ public class TextEditorState public constructor(
     private fun endingComposition(previous: EditorValue): ArrayList<EditorDelta> {
         val edits = ArrayList<EditorDelta>()
         when (composition) {
-            case Some(baseline) -> appendEditorDelta(
+            case Some(val baseline) -> appendEditorDelta(
                 edits,
                 baseline.baseline,
                 previous,
@@ -202,8 +202,8 @@ public class TextEditorState public constructor(
             )
         val compositionChanged =
             when (baseline) {
-                case Some(nextComposition) -> when (composition) {
-                    case Some(previousComposition) -> nextComposition !== previousComposition
+                case Some(val nextComposition) -> when (composition) {
+                    case Some(val previousComposition) -> nextComposition !== previousComposition
                     case None -> true
                 }
                 case None -> when (composition) {

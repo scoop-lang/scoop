@@ -10,7 +10,7 @@ internal class DeferredSequenceIterator<T>(private val factory: () -> Iterator<T
         if (ended) return None
         failed = true
         val input = when (source) {
-            case Some(existing) -> existing
+            case Some(val existing) -> existing
             case None -> {
                 val created = factory()
                 source = Some(created)

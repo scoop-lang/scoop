@@ -39,7 +39,7 @@ internal suspend fun sleepOnLoop(loop: LoopOwner, duration: Duration) {
                 {
                     event,
                     cancelled -> when (completionFailure("sleep", event.result, cancelled)) {
-                        case Some(error) -> continuation.resumeWithException(error)
+                        case Some(val error) -> continuation.resumeWithException(error)
                         case None -> continuation.resume(Unit)
                     }
                 }

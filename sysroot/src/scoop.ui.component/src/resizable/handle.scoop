@@ -53,7 +53,7 @@ internal class ResizableHandle(
             area!!.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (area!!.isFocusActive)
                             props.value.root.owner.control!!.key(props.value.index, context, key)
                     }

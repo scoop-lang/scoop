@@ -39,7 +39,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
             area.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (
                             sliderKeyAllowed(key) &&
                                 !key.isRepeat &&
@@ -108,7 +108,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
         val old = geometry
         val changed =
             when (old) {
-                case Some(value) -> !toastSameGeometry(value, shape);
+                case Some(val value) -> !toastSameGeometry(value, shape);
                 case None -> true
             }
         if (changed) {
@@ -124,7 +124,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
                     None
             val next = Point(shape.bounds.x, shape.bounds.y)
             when (spec) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     if (origin.target != next)
                         origin.animateTo(next, value)
                     if (zoom.target != shape.zoom)
@@ -156,7 +156,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
     }
     private fun dragged(event: DragEvent) {
         when (event) {
-            case Started(sample) -> {
+            case Started(val sample) -> {
                 if (!available()) {
                     drag.cancel();
                     return
@@ -170,8 +170,8 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
                 move(sample)
                 read().host.refresh()
             }
-            case Moved(sample) -> move(sample)
-            case Ended(sample) -> {
+            case Moved(val sample) -> move(sample)
+            case Ended(val sample) -> {
                 if (!dragging)
                     return
                 move(sample)
@@ -207,7 +207,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
         if (!active)
             return
         when (toastTransition(read())) {
-            case Some(spec) -> if (offset.value != 0.0)
+            case Some(val spec) -> if (offset.value != 0.0)
                 offset.animateTo(0.0, spec)
             case None -> if (offset.value != 0.0 || offset.state == AnimationState.Running)
                 offset.snapTo(0.0)
@@ -227,7 +227,7 @@ internal class ToastCardControl(val scope: ComponentScope, val read: () -> Toast
         ready = false;
         dragging = false
         when (read().entry.card) {
-            case Some(current) -> if (current === this)
+            case Some(val current) -> if (current === this)
                 read().entry.card = None
             case None -> {}
         }

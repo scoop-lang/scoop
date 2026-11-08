@@ -39,11 +39,11 @@ internal fun commandResults(
                 current = CommandSection(None, separator)
                 sections.add(current)
             }
-            case Item(item) -> {
+            case Item(val item) -> {
                 val score =
                     when (filter) {
                         case Ranked -> commandScore(item.label, query, item.keywords)
-                        case Custom(score) -> score(item, query)
+                        case Custom(val score) -> score(item, query)
                         case Provided -> 1.0
                     }
                 requireComponent(score.isFinite() && score >= 0.0, "invalid command score")
@@ -65,12 +65,12 @@ internal fun commandResults(
         if (section.items.size == 0L)
             continue
         when (section.separator) {
-            case Some(entry) -> if (result.size > 0L)
+            case Some(val entry) -> if (result.size > 0L)
                 result.add(entry)
             case None -> {}
         }
         when (section.label) {
-            case Some(entry) -> result.add(entry);
+            case Some(val entry) -> result.add(entry);
             case None -> {}
         }
         for (

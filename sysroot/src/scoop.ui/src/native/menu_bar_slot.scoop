@@ -24,7 +24,7 @@ internal class UiMenuBarSlot(private val owner: UiMenuBars, val window: Window?)
         if (!sameMenuBarSource(current?.source, source))
             close()
         when (waiting) {
-            case Some(binding) -> {
+            case Some(val binding) -> {
                 if (!binding.isDetached)
                     return
                 retiring = None
@@ -37,7 +37,7 @@ internal class UiMenuBarSlot(private val owner: UiMenuBars, val window: Window?)
         if (!selected.available)
             return
         when (current) {
-            case Some(value) -> if (value.revision != selected.revision) {
+            case Some(val value) -> if (value.revision != selected.revision) {
                 val revision = selected.revision
                 if (selected.dispatch { value.content.update() })
                     value.revision = revision
@@ -58,7 +58,7 @@ internal class UiMenuBarSlot(private val owner: UiMenuBars, val window: Window?)
                 }
                 val attached =
                     when (window) {
-                        case Some(value) -> value.attachMenuBar(content.menu)
+                        case Some(val value) -> value.attachMenuBar(content.menu)
                         case None -> owner.host.activeApplication.attachMenuBar(content.menu)
                     }
                 binding = Some(attached)

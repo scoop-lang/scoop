@@ -22,13 +22,13 @@ internal class PaneSeparator(private val model: LayoutCombination, scope: Compon
                     handler =
                         {
                             event -> when (event) {
-                                case Started(sample) -> {
+                                case Started(val sample) -> {
                                     base = model.acceptedFirst
                                     resize(sample)
                                 }
-                                case Moved(sample) -> resize(sample)
-                                case Ended(sample) -> resize(sample)
-                                case Cancelled(_, reason) -> {
+                                case Moved(val sample) -> resize(sample)
+                                case Ended(val sample) -> resize(sample)
+                                case Cancelled(_, val reason) -> {
                                     model.resizeCancels += 1
                                     if (reason != DragCancelReason.Closed)
                                         model.first.value = base
@@ -104,12 +104,12 @@ private class SnappingStrip(
                     handler =
                         {
                             event -> when (event) {
-                                case Started(sample) -> {
+                                case Started(val sample) -> {
                                     base = model.scroll.offset.x
                                     move(sample)
                                 }
-                                case Moved(sample) -> move(sample)
-                                case Ended(sample) -> {
+                                case Moved(val sample) -> move(sample)
+                                case Ended(val sample) -> {
                                     val target =
                                         snapTarget(
                                             base - sample.displacement,
@@ -122,7 +122,7 @@ private class SnappingStrip(
                                         ScrollOrigin.User
                                     )
                                 }
-                                case Cancelled(_, reason) -> {
+                                case Cancelled(_, val reason) -> {
                                     model.swipeCancels += 1
                                     if (reason != DragCancelReason.Closed)
                                         model.scroll.scrollTo(Point(base, 0.0), ScrollOrigin.User)

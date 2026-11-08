@@ -19,7 +19,7 @@ impl Parser {
                     "case patterns require a when subject",
                 ));
             }
-            let pattern = self.parse_pattern()?;
+            let pattern = self.parse_pattern(crate::pattern::PatternContext::Match)?;
             if matches!(self.peek().kind, TokenKind::Comma) {
                 return Err(Diagnostic::at(
                     self.peek().span,

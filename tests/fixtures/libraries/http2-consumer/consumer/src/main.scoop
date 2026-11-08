@@ -75,20 +75,20 @@ fun exchange(session: Http2Session, peer: ULong, serving: Boolean) {
                 when (next) {
                     case None -> draining = false
                     case Some(_) -> when (next!!) {
-                        case Data(id, bytes) -> { body.append(bytes); session.consume(id, bytes.size) }
-                        case Response(_, head) -> {
+                        case Data(val id, val bytes) -> { body.append(bytes); session.consume(id, bytes.size) }
+                        case Response(_, val head) -> {
                             check(head.status == 200U && head.fields.findAll("set-cookie".toByteArray()).size == 2L)
                             gcCollect()
                             check(head.fields.findAll("x-value".toByteArray())[0L].value[0L] == 255.toByte())
                         }
-                        case End(id) -> {
+                        case End(val id) -> {
                             if (serving) {
                                 session.submitResponse(id, HttpResponseHead(HttpVersion.Http2, 200U, None, fields), false)
                                 writeBody(session, id, "42")
                                 responded = true
                             }
                         }
-                        case Failure(error) -> throw error
+                        case Failure(val error) -> throw error
                         else -> {}
                     }
                 }

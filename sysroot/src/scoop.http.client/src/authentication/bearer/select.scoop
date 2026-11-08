@@ -6,10 +6,10 @@ internal suspend fun awaitClientBearer(call: ClientCall, session: ClientAuthenti
         requireClientCall(call)
         val decision = selectClientBearer(call, session, provider)
         when (decision) {
-            case Ready(value) -> return value
-            case Start(flight) -> return waitClientBearer(call, flight, true)
-            case Join(flight) -> return waitClientBearer(call, flight, false)
-            case Settle(flight) -> awaitClientBearerSettlement(flight)
+            case Ready(val value) -> return value
+            case Start(val flight) -> return waitClientBearer(call, flight, true)
+            case Join(val flight) -> return waitClientBearer(call, flight, false)
+            case Settle(val flight) -> awaitClientBearerSettlement(flight)
         }
     }
 }

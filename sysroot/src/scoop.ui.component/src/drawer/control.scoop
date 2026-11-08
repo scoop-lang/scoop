@@ -74,7 +74,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
             area.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> drawerKeyboard(this, context, key, false)
+                    case Keyboard(val key) -> drawerKeyboard(this, context, key, false)
                     else -> {}
                 }
             }
@@ -115,7 +115,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
             read().props.options.enabled &&
             read().props.open.value &&
             when (geometry) {
-                case Some(shape) -> shape.extent >
+                case Some(val shape) -> shape.extent >
                     0.0 &&
                     shape.bounds.width >
                     0.0 &&
@@ -147,7 +147,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         val input = read()
         val sameHandle =
             when ((handle, input.props.controller)) {
-                case(Some(old), Some(next)) -> old === next
+                case(Some(val old), Some(val next)) -> old === next
                 case(None, None) -> true
                 else -> false
             }
@@ -158,7 +158,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         }
         val sameScroll =
             when (scroll) {
-                case Some(old) -> old === input.scroll;
+                case Some(val old) -> old === input.scroll;
                 case None -> false
             }
         if (!sameScroll) {
@@ -193,7 +193,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
             index = selected;
             observed = input.props.snap?.value
             when (geometry) {
-                case Some(shape) -> if (matches(shape) && input.props.open.value)
+                case Some(val shape) -> if (matches(shape) && input.props.open.value)
                     moveTo(anchor(shape), false)
                 case None -> {}
             }
@@ -216,7 +216,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         shape.snaps[drawerIndex(current(), shape.snaps.size)]
     fun visualPosition(shape: DrawerGeometry): Double =
         when (geometry) {
-            case Some(old) -> if (sameDrawerGeometry(old, shape))
+            case Some(val old) -> if (sameDrawerGeometry(old, shape))
                 motion.value
             else
                 anchor(shape)
@@ -227,7 +227,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
             return
         val changed =
             when (geometry) {
-                case Some(old) -> !sameDrawerGeometry(old, shape);
+                case Some(val old) -> !sameDrawerGeometry(old, shape);
                 case None -> true
             }
         if (changed) {
@@ -240,7 +240,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         progress = presence;
         index = current()
         when (parent) {
-            case Some(value) -> if (value.frontExtent != shape.extent) {
+            case Some(val value) -> if (value.frontExtent != shape.extent) {
                 value.frontExtent = shape.extent;
                 value.scope.requestFrame()
             }
@@ -260,7 +260,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         val before = current()
         val input = read()
         when (input.props.snap) {
-            case Some(binding) -> if (binding.value != request)
+            case Some(val binding) -> if (binding.value != request)
                 binding.value = request
             case None -> input.owner.localSnap.value = request
         }
@@ -298,7 +298,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
             else
                 None
         when (spec) {
-            case Some(animation) -> if (
+            case Some(val animation) -> if (
                 motion.value !=
                     value &&
                     (motion.target != value || motion.state != AnimationState.Running)
@@ -323,7 +323,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         drag.cancel()
         if (active) {
             when (geometry) {
-                case Some(shape) -> moveTo(anchor(shape), true);
+                case Some(val shape) -> moveTo(anchor(shape), true);
                 case None -> {}
             }
             publish()
@@ -336,7 +336,7 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         read().overlay.requestClose()
         if (active && read().props.open.value)
             when (geometry) {
-                case Some(shape) -> moveTo(anchor(shape), true)
+                case Some(val shape) -> moveTo(anchor(shape), true)
                 case None -> {}
             }
     }

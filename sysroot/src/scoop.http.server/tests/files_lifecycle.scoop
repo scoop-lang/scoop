@@ -216,7 +216,7 @@ private class ServerFileLifecycleTests {
 private fun fileFailureDetail(failure: Throwable?): String =
     when (failure) {
         case None -> "request completed without a failure"
-        case Some(error) -> if (error is ResourceUseException)
+        case Some(val error) -> if (error is ResourceUseException)
             fileFailureDetail(Some(error.primaryFailure)) +
                 "; cleanup: " +
                 fileFailureDetail(Some(error.cleanupFailure))

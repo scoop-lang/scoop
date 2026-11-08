@@ -9,7 +9,7 @@ internal fun NodeLayout.finishMeasurement() {
         return
     selected = Some(round)
     when ((body, node.body)) {
-        case(Lazy(_, selection), Lazy(_, items)) -> items.finish(node, selection)
+        case(Lazy(_, val selection), Lazy(_, val items)) -> items.finish(node, selection)
         else -> {}
     }
     for (child in children)

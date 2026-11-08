@@ -4,14 +4,14 @@ internal class JsonDecoder(internal val value: JsonNode, public override val pat
     : Decoder, SingleValueDecodingContainer {
     public override fun keyed(): KeyedDecodingContainer {
         return when (value) {
-            case JsonNode.Record(members) -> JsonKeyedDecoder(this, members)
+            case JsonNode.Record(val members) -> JsonKeyedDecoder(this, members)
             else -> { throw DecodingException(path, "expected an object") }
         }
     }
 
     public override fun unkeyed(): UnkeyedDecodingContainer {
         return when (value) {
-            case JsonNode.Sequence(elements) -> JsonUnkeyedDecoder(this, elements)
+            case JsonNode.Sequence(val elements) -> JsonUnkeyedDecoder(this, elements)
             else -> { throw DecodingException(path, "expected an array") }
         }
     }
@@ -27,14 +27,14 @@ internal class JsonDecoder(internal val value: JsonNode, public override val pat
 
     public override fun readBoolean(): Boolean {
         return when (value) {
-            case JsonNode.BooleanValue(result) -> result
+            case JsonNode.BooleanValue(val result) -> result
             else -> { throw DecodingException(path, "expected a Boolean") }
         }
     }
 
     public override fun readString(): String {
         return when (value) {
-            case JsonNode.Text(result) -> result
+            case JsonNode.Text(val result) -> result
             else -> { throw DecodingException(path, "expected a String") }
         }
     }
@@ -48,7 +48,7 @@ internal class JsonDecoder(internal val value: JsonNode, public override val pat
 
     private fun number(expected: String): String {
         return when (value) {
-            case JsonNode.Number(text) -> text
+            case JsonNode.Number(val text) -> text
             else -> { throw DecodingException(path, expected) }
         }
     }
@@ -77,14 +77,14 @@ internal class JsonDecoder(internal val value: JsonNode, public override val pat
 
     public override fun readFloat(): Float {
         return when (parseFloat(number("expected a number"))) {
-            case Some(result) -> result
+            case Some(val result) -> result
             case None -> { throw DecodingException(path, "Float is out of range") }
         }
     }
 
     public override fun readDouble(): Double {
         return when (parseDouble(number("expected a number"))) {
-            case Some(result) -> result
+            case Some(val result) -> result
             case None -> { throw DecodingException(path, "Double is out of range") }
         }
     }

@@ -31,7 +31,7 @@ fun showULongRange(label: String, range: ULongRange) {
 fun showNext(iterator: Iterator<Int>) {
     val next = iterator.next()
     when (next) {
-        case Some(value) -> println(value)
+        case Some(val value) -> println(value)
         case None -> println("none")
     }
 }
@@ -39,7 +39,7 @@ fun showNext(iterator: Iterator<Int>) {
 fun showLongNext(iterator: Iterator<Long>) {
     val next = iterator.next()
     when (next) {
-        case Some(value) -> println(value)
+        case Some(val value) -> println(value)
         case None -> println("none-long")
     }
 }
@@ -47,7 +47,7 @@ fun showLongNext(iterator: Iterator<Long>) {
 fun showUIntNext(iterator: Iterator<UInt>) {
     val next = iterator.next()
     when (next) {
-        case Some(value) -> println(value)
+        case Some(val value) -> println(value)
         case None -> println("none-uint")
     }
 }
@@ -55,7 +55,7 @@ fun showUIntNext(iterator: Iterator<UInt>) {
 fun showULongNext(iterator: Iterator<ULong>) {
     val next = iterator.next()
     when (next) {
-        case Some(value) -> println(value)
+        case Some(val value) -> println(value)
         case None -> println("none-ulong")
     }
 }

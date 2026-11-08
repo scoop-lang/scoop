@@ -19,7 +19,7 @@ public class SpinnerProps public constructor(
 ) {
     init {
         when (size) {
-            case Some(value) -> nonnegative(value, "invalid spinner size")
+            case Some(val value) -> nonnegative(value, "invalid spinner size")
             case None -> {}
         }
         requireComponent(period > Duration.ZERO, "spinner period must be positive")

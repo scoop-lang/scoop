@@ -32,7 +32,7 @@ fun main() {
                         )
                     }
                 }
-                case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
+                case Window(val id, WindowEvent.CloseRequested) -> active.requestExit()
                 else -> {}
             }
         }

@@ -31,7 +31,7 @@ internal fun prepareEditorInput(
     editor.storage.checkMutation()
     val previous = editor.storage.value
     when (batch.baseRevision) {
-        case Some(value) -> if (value != previous.input.revision)
+        case Some(val value) -> if (value != previous.input.revision)
             throw IllegalStateException(Some("stale text input revision"))
         case None -> {}
     }
@@ -53,11 +53,11 @@ internal fun prepareEditorInput(
         val applied = current.input.apply(TextInputBatch(None, [operation]))
         val next = EditorValue(applied)
         when (operation) {
-            case Preedit(text, selection, replacement) -> {
+            case Preedit(val text, val selection, val replacement) -> {
                 boundary = true
                 if (text.byteLength == 0L) {
                     when (baseline) {
-                        case Some(saved) -> {
+                        case Some(val saved) -> {
                             restored =
                                 restored || saved.input.surroundingText != applied.surroundingText
                             current = editorVersion(saved, applied.revision)
@@ -93,7 +93,7 @@ internal fun prepareEditorInput(
                     current = next
                 }
             }
-            case Commit(text, replacement) -> {
+            case Commit(val text, val replacement) -> {
                 spans =
                     spliceEditorSpans(
                         spans,
@@ -112,7 +112,7 @@ internal fun prepareEditorInput(
                 pending.clear()
                 boundary = true
             }
-            case DeleteSurrounding(beforeCount, afterCount) -> {
+            case DeleteSurrounding(val beforeCount, val afterCount) -> {
                 val selected = current.input.selection.range
                 spans =
                     spliceEditorSpans(spans, Utf8Range(selected.end, selected.end + afterCount), 0L)
@@ -152,7 +152,7 @@ internal fun prepareEditorInput(
 internal fun editorReplacementRange(current: EditorValue, replacement: TextReplacement): Utf8Range =
     when (replacement) {
         case CurrentSelection -> current.input.markedRange ?: current.input.selection.range
-        case Range(value) -> value
+        case Range(val value) -> value
     }
 
 private fun explicitEditorRange(operation: TextInputOperation): Boolean =
@@ -183,21 +183,21 @@ internal fun finishEditorInput(
     if (!raw.completed) {
         val composition =
             when (raw.baseline) {
-                case Some(saved) -> Some(EditorComposition(saved, raw.spans))
+                case Some(val saved) -> Some(EditorComposition(saved, raw.spans))
                 case None -> None
             }
         return EditorPreparedEdit(raw.current, composition, EditorHistoryChange.Break, true)
     }
     var proposed = raw.baseline ?: raw.current
     when (selection) {
-        case Some(endpoints) -> proposed = editorSelect(proposed.input, endpoints)
+        case Some(val endpoints) -> proposed = editorSelect(proposed.input, endpoints)
         case None -> {}
     }
     val filtered =
         filterEditorCandidate(raw.before, proposed, raw.committedSpans, source, policy, singleLine)
     val result =
         when (filtered) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> return EditorPreparedEdit(
                 if (raw.hadComposition)
                     raw.before

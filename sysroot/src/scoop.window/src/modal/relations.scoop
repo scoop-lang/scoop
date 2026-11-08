@@ -3,7 +3,7 @@ package scoop.window
 public val Window.ownerWindow: Window? get() {
     owner.application.checkThread()
     return when (owner.owningWindow) {
-        case Some(value) -> Some(Window(value))
+        case Some(val value) -> Some(Window(value))
         case None -> None
     }
 }
@@ -60,14 +60,14 @@ internal fun WindowOwner.isDescendantOf(ancestor: WindowOwner): Boolean {
 
 internal fun WindowOwner.isOwnedBy(parent: WindowOwner): Boolean =
     when (owningWindow) {
-        case Some(value) -> value === parent
+        case Some(val value) -> value === parent
         case None -> false
     }
 
 internal fun ApplicationOwner.relationOwner(relation: WindowRelation): WindowOwner? =
     when (relation) {
         case Independent -> None
-        case Owned(value) -> {
+        case Owned(val value) -> {
             if (!(value.owner.application === this))
                 throw IllegalArgumentException(Some("owner window belongs to another application"))
             value.owner.requireOpen()

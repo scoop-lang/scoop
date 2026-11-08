@@ -60,7 +60,7 @@ fun current(): Measure = value
     check(holder.item.value() == 9)
     check(holder.pair.first.doubled() + holder.pair.second.value() == 51)
     check(values[0L].value() + values[1L].value() + values[2L].value() == 51)
-    check(when (envelope) { case Full(value, n) -> value.value() + n; case Empty -> 0 } == 24)
+    check(when (envelope) { case Full(val value, val n) -> value.value() + n; case Empty -> 0 } == 24)
     check(optional(Some(view))!! === view)
     check(when (optional(None)) { case Some(_) -> false; case None -> true })
     check(when (nested) { case Some(None) -> true; case Some(Some(_)) -> false; case None -> false })

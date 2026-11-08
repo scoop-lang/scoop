@@ -92,7 +92,7 @@ internal class OwnedDirectory(
             return
         val operation = lock.withLock { active }
         when (operation) {
-            case Some(value) -> value.requestFailure(IoClosedException());
+            case Some(val value) -> value.requestFailure(IoClosedException());
             case None -> {}
         }
         closeWhenIdle()
@@ -144,7 +144,7 @@ internal class OwnedDirectory(
     public override fun closeFromLoop() {
         closeOnLoop {
             error -> when (error) {
-                case Some(value) -> loop.cleanupFailed(value);
+                case Some(val value) -> loop.cleanupFailed(value);
                 case None -> {}
             }
         }

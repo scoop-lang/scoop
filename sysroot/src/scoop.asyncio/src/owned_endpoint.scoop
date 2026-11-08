@@ -91,7 +91,7 @@ internal class OwnedEndpoint(
             continuation -> loop.post {
                 closeOnLoop {
                     error -> when (error) {
-                        case Some(value) -> continuation.resumeWithException(value)
+                        case Some(val value) -> continuation.resumeWithException(value)
                         case None -> continuation.resume(Unit)
                     }
                 }
@@ -117,11 +117,11 @@ internal class OwnedEndpoint(
             return
         val active = lock.withLock { (input, output) }
         when (active._1) {
-            case Some(operation) -> operation.selectFailure(IoClosedException());
+            case Some(val operation) -> operation.selectFailure(IoClosedException());
             case None -> {}
         }
         when (active._2) {
-            case Some(operation) -> operation.selectFailure(IoClosedException());
+            case Some(val operation) -> operation.selectFailure(IoClosedException());
             case None -> {}
         }
         val closing =
@@ -167,7 +167,7 @@ internal class OwnedEndpoint(
                 Some(callbacks)
             }
         when (completed) {
-            case Some(callbacks) -> {
+            case Some(val callbacks) -> {
                 loop.forget(this)
                 for (callback in callbacks)
                     loop.ready.add { callback(closeFailure) }
@@ -179,7 +179,7 @@ internal class OwnedEndpoint(
     public override fun closeFromLoop() {
         closeOnLoop {
             error -> when (error) {
-                case Some(value) -> loop.cleanupFailed(value);
+                case Some(val value) -> loop.cleanupFailed(value);
                 case None -> {}
             }
         }

@@ -16,7 +16,7 @@ private class Http1DecodeTests {
         val head = requests[0L]
         assertEquals("POST", String.fromUtf8(head.method))
         when (head.target) {
-            case Http1(bytes) -> assertEquals("/raw%2fpath", String.fromUtf8(bytes))
+            case Http1(val bytes) -> assertEquals("/raw%2fpath", String.fromUtf8(bytes))
             else -> fail(Some("unexpected request target"))
         }
         val repeated = head.fields.findAll("X-ITEM".toByteArray())
@@ -27,7 +27,7 @@ private class Http1DecodeTests {
         assertEquals("body", String.fromUtf8(http1Data(events)))
         var trailers = 0L
         for (event in events) when (event) {
-            case Trailers(fields) -> {
+            case Trailers(val fields) -> {
                 assertEquals(1L, fields.size)
                 assertEquals("yes", String.fromUtf8(fields[0L].value))
                 trailers += 1L

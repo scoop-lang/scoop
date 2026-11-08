@@ -12,7 +12,7 @@ internal fun runShortcutBindings(
         return
     val key =
         when (event) {
-            case Keyboard(value) -> value
+            case Keyboard(val value) -> value
             else -> return
         }
     if (key.state != ElementState.Pressed || key.synthetic || !shortcutAllowed(context, key))
@@ -38,7 +38,7 @@ internal fun runShortcutBindings(
         }
     }
     when (chosen) {
-        case Some(binding) -> if (isActive()) {
+        case Some(val binding) -> if (isActive()) {
             context.consume()
             binding.action()
         }

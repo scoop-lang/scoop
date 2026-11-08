@@ -65,14 +65,14 @@ internal fun ApplicationOwner.drainFileDialogs() {
             session.phase = FileDialogState.Completed
             fileDialogs.removeAt(index)
             when (session.window) {
-                case Some(window) -> window.leases -= 1L
+                case Some(val window) -> window.leases -= 1L
                 case None -> {}
             }
         }
         updateModalInput()
         if (!exiting) {
             when (session.window) {
-                case Some(window) -> if (
+                case Some(val window) -> if (
                     window.phase ==
                         WindowState.Open &&
                         !window.inputBlocked &&
@@ -96,7 +96,7 @@ private fun readFileDialogResult(
     native: NativeFileResult
 ): FileDialogResult<Array<Path>> {
     when (session.cancellation) {
-        case Some(reason) -> return FileDialogResult.Cancelled<Array<Path>>(reason)
+        case Some(val reason) -> return FileDialogResult.Cancelled<Array<Path>>(reason)
         case None -> {}
     }
     if (native.outcome == 2)
@@ -104,7 +104,7 @@ private fun readFileDialogResult(
     if (native.outcome == 3) {
         val domain =
             when (native.domain) {
-                case Some(value) -> Some(String.fromUtf8(value, native.domainLength))
+                case Some(val value) -> Some(String.fromUtf8(value, native.domainLength))
                 case None -> None
             }
         val kind =

@@ -29,7 +29,7 @@ public fun sidebarTrigger(
     b.configure()
     val content =
         when (b.content) {
-            case Some(value) -> ButtonContent.Custom(value)
+            case Some(val value) -> ButtonContent.Custom(value)
             case None -> ButtonContent.Resolved(
                 { appearance -> sidebarIcon(appearance.iconSize, appearance.text.color) }
             )

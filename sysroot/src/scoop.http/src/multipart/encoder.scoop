@@ -108,7 +108,7 @@ public class MultipartEncoder public constructor(
             var known = true
             for (part in parts) {
                 total = multipartAdd(total, multipartAdd(boundary.bytes.size + 6L, part.encoded.size))
-                when (part.bodyLength) { case Some(length) -> total = multipartAdd(total, length); case None -> known = false }
+                when (part.bodyLength) { case Some(val length) -> total = multipartAdd(total, length); case None -> known = false }
             }
             return if (known) Some(total) else None
         }

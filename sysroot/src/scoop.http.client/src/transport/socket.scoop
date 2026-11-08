@@ -10,7 +10,7 @@ import scoop.url.UrlHost
 
 internal suspend fun connectClientSocket(call: ClientCall, host: UrlHost, port: Int): AsyncTcpStream {
     return when (host) {
-        case Dns(name) -> {
+        case Dns(val name) -> {
             val options = clientTcpConnectOptions(call)
             try { call.client.loop.connectTcp(OsString.fromString(name), port, options) }
             catch (error: Throwable) {
@@ -19,8 +19,8 @@ internal suspend fun connectClientSocket(call: ClientCall, host: UrlHost, port: 
                 throw mapped
             }
         }
-        case Ipv4(bytes) -> connectClientAddress(call, SocketAddress(IpAddress.fromByteArray(bytes), port))
-        case Ipv6(bytes) -> connectClientAddress(call, SocketAddress(IpAddress.fromByteArray(bytes), port))
+        case Ipv4(val bytes) -> connectClientAddress(call, SocketAddress(IpAddress.fromByteArray(bytes), port))
+        case Ipv6(val bytes) -> connectClientAddress(call, SocketAddress(IpAddress.fromByteArray(bytes), port))
     }
 }
 

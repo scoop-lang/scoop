@@ -42,7 +42,7 @@ internal fun filterEditorCandidate(
             result.replace(editorNewlineEdits(proposed.input.surroundingText))
         if (source == TextEditSource.Paste) {
             when (policy.paste) {
-                case Some(callback) -> if (
+                case Some(val callback) -> if (
                     !applyEditorDecision(result, callback(result.candidate(before, source)))
                 )
                     return@evaluateUi None
@@ -50,14 +50,14 @@ internal fun filterEditorCandidate(
             }
         }
         when (policy.transform) {
-            case Some(callback) -> if (
+            case Some(val callback) -> if (
                 !applyEditorDecision(result, callback(result.candidate(before, source)))
             )
                 return@evaluateUi None
             case None -> {}
         }
         when (policy.accepts) {
-            case Some(callback) -> {
+            case Some(val callback) -> {
                 val bytes = result.value.input.surroundingText.toByteArray()
                 for (range in editorInsertedRanges(result.spans))
                     if (!callback(editorSlice(bytes, range)))
@@ -66,7 +66,7 @@ internal fun filterEditorCandidate(
             case None -> {}
         }
         when (policy.maxLength) {
-            case Some(limit) -> {
+            case Some(val limit) -> {
                 val length = editorGraphemeBytes(before.input.surroundingText).size - 1L
                 val cap =
                     if (length > limit)
@@ -75,7 +75,7 @@ internal fun filterEditorCandidate(
                         limit
                 val trims = editorLengthEdits(result.value.input.surroundingText, result.spans, cap)
                 when (trims) {
-                    case Some(edits) -> result.replace(edits)
+                    case Some(val edits) -> result.replace(edits)
                     case None -> return@evaluateUi None
                 }
             }
@@ -88,7 +88,7 @@ private fun applyEditorDecision(result: EditorPolicyResult, decision: TextEditDe
     when (decision) {
         case Accept -> true
         case Reject -> false
-        case Transform(edits) -> {
+        case Transform(val edits) -> {
             result.replace(edits);
             true
         }

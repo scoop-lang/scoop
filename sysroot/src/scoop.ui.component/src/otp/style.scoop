@@ -21,7 +21,7 @@ public class InputOtpStyle internal constructor(
         nonnegative(gap, "invalid OTP gap")
         nonnegative(caretWidth, "invalid OTP caret width")
         when (cellSize) {
-            case Some(size) -> requireComponent(
+            case Some(val size) -> requireComponent(
                 size.width.isFinite() &&
                     size.height.isFinite() &&
                     size.width >

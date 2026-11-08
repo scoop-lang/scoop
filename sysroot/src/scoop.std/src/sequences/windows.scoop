@@ -26,7 +26,7 @@ private class WindowingIterator<T>(
         while (!ended && window.size < size) {
             when (source.next()) {
                 case None -> ended = true
-                case Some(value) -> window.addLast(value)
+                case Some(val value) -> window.addLast(value)
             }
         }
         if (window.size == 0L || (window.size < size && !partial)) return None

@@ -39,7 +39,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     public override fun update(): UiInvalidation {
         val value = props.value
         when (value.behavior) {
-            case Press(owner, action, focus) -> {
+            case Press(val owner, val action, val focus) -> {
                 val control = owner
                 control.press.update(
                     PressOptions(value.visual.interaction.enabled && value.actionable),
@@ -163,7 +163,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
         when (value.behavior) {
-            case Press(owner, _, _) -> context.place(owner.area, geometry.bounds)
+            case Press(val owner, _, _) -> context.place(owner.area, geometry.bounds)
             case Passive -> {}
         }
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {

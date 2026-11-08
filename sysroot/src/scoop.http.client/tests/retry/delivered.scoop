@@ -35,7 +35,7 @@ private class HttpClientRetryDeliveredTest {
                         connection ->
                         val incoming = connection.receiveRequest()!!
                         when (incoming.head.target) {
-                            case Http1(bytes) -> assertEquals("/manual", String.fromUtf8(bytes))
+                            case Http1(val bytes) -> assertEquals("/manual", String.fromUtf8(bytes))
                             else -> fail(Some("expected an HTTP/1 target"))
                         }
                         incoming.body.readAllBytes(0L)

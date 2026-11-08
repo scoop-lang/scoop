@@ -40,18 +40,18 @@ internal fun prepareMenuItem(description: MenuItemDescription): PreparedMenuItem
     }
     val checked =
         when (description.kind) {
-            case Checkbox(value) -> flag(value)
-            case Radio(value) -> flag(value)
+            case Checkbox(val value) -> flag(value)
+            case Radio(val value) -> flag(value)
             else -> 0
         }
     val role =
         when (description.command) {
             case Action -> 0
-            case Role(value) -> menuRoleCode(value)
+            case Role(val value) -> menuRoleCode(value)
         }
     val key =
         when (description.shortcut) {
-            case Some(chord) -> resolveMenuKey(chord)
+            case Some(val chord) -> resolveMenuKey(chord)
             case None -> NativeMenuKey(0, 0, 0L)
         }
     return PreparedMenuItem(description, kind, checked, role, key)
@@ -84,12 +84,12 @@ internal fun menuTextCommand(code: Int): TextEditCommand =
 private fun resolveMenuKey(chord: ShortcutChord): NativeMenuKey {
     val key =
         when (chord.key) {
-            case Logical(LogicalKey.Character(text)) -> {
+            case Logical(LogicalKey.Character(val text)) -> {
                 if (text.charLength != 1L || text.getCharAt(0L).code == 0)
                     throw WindowException("native menu shortcut", WindowErrorKind.Unsupported)
                 (0, text.getCharAt(0L).code)
             }
-            case Logical(LogicalKey.Named(named)) -> (1, menuNamedKey(named))
+            case Logical(LogicalKey.Named(val named)) -> (1, menuNamedKey(named))
             else -> throw WindowException("native menu shortcut", WindowErrorKind.Unsupported)
         }
     val modifiers = resolvedModifiers(chord.modifiers, platformPrimaryModifier())

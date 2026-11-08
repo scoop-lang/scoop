@@ -9,59 +9,59 @@ enum Block {
         public override fun encode(value: Block, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case Block.Text(payload) -> {
+                case Block.Text(val payload) -> {
                     String.encode("text", fields.field("type"))
                     TextBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Image(payload) -> {
+                case Block.Image(val payload) -> {
                     String.encode("image", fields.field("type"))
                     ImageBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Document(payload) -> {
+                case Block.Document(val payload) -> {
                     String.encode("document", fields.field("type"))
                     DocumentBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Thinking(payload) -> {
+                case Block.Thinking(val payload) -> {
                     String.encode("thinking", fields.field("type"))
                     ThinkingBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Redacted(payload) -> {
+                case Block.Redacted(val payload) -> {
                     String.encode("redacted_thinking", fields.field("type"))
                     RedactedBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Use(payload) -> {
+                case Block.Use(val payload) -> {
                     String.encode("tool_use", fields.field("type"))
                     ToolUse.Companion.encode(payload, encoder)
                 }
-                case Block.Result(payload) -> {
+                case Block.Result(val payload) -> {
                     String.encode("tool_result", fields.field("type"))
                     ToolResult.Companion.encode(payload, encoder)
                 }
-                case Block.Server(payload) -> {
+                case Block.Server(val payload) -> {
                     String.encode("server_tool_use", fields.field("type"))
                     ServerUse.Companion.encode(payload, encoder)
                 }
-                case Block.SearchResult(payload) -> {
+                case Block.SearchResult(val payload) -> {
                     String.encode("web_search_tool_result", fields.field("type"))
                     SearchResultBlock.Companion.encode(payload, encoder)
                 }
-                case Block.FetchResult(payload) -> {
+                case Block.FetchResult(val payload) -> {
                     String.encode("web_fetch_tool_result", fields.field("type"))
                     FetchResultBlock.Companion.encode(payload, encoder)
                 }
-                case Block.CodeResult(payload) -> {
+                case Block.CodeResult(val payload) -> {
                     String.encode("code_execution_tool_result", fields.field("type"))
                     CodeResultBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Search(payload) -> {
+                case Block.Search(val payload) -> {
                     String.encode("search_result", fields.field("type"))
                     SearchBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Upload(payload) -> {
+                case Block.Upload(val payload) -> {
                     String.encode("container_upload", fields.field("type"))
                     UploadBlock.Companion.encode(payload, encoder)
                 }
-                case Block.Unknown(raw) -> JsonValue.Companion.encode(raw, encoder)
+                case Block.Unknown(val raw) -> JsonValue.Companion.encode(raw, encoder)
             }
             fields.end()
         }
@@ -91,8 +91,8 @@ enum Content {
     companion object : ValueEncoder<Content>, ValueDecoder<Content> {
         public override fun encode(value: Content, encoder: Encoder) {
             when (value) {
-                case Content.Text(text) -> String.encode(text, encoder)
-                case Content.Blocks(payload) -> Array<Block>.encoder(Block.Companion).encode(payload, encoder)
+                case Content.Text(val text) -> String.encode(text, encoder)
+                case Content.Blocks(val payload) -> Array<Block>.encoder(Block.Companion).encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): Content {

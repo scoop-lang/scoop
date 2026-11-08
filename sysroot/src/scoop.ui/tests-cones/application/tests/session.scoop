@@ -62,14 +62,14 @@ internal class ApplicationProbe {
             throw error
         }
         when (ownership) {
-            case Some(probe) -> {
+            case Some(val probe) -> {
                 probe.report(error);
                 return
             }
             case None -> {}
         }
         when (currentFailure) {
-            case Some(record) -> {
+            case Some(val record) -> {
                 assertEquals(1, record.disposals)
                 assertFalse(record.borrowed)
                 assertTrue(includesFailure(error, record.cleanup))
@@ -155,7 +155,7 @@ internal class ApplicationProbe {
         scope.observeFileDialog(session) {
             result: FileDialogResult<Path> ->
             when (result) {
-                case Cancelled(reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
+                case Cancelled(val reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
                 else -> fail(Some("pending file request was not cancelled"))
             }
             files.value += 1

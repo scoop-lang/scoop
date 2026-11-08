@@ -104,7 +104,7 @@ public class SurfaceWindow internal constructor(
         }
         var drawable = false
         when (nativeWindow.metrics) {
-            case Some(metrics) -> {
+            case Some(val metrics) -> {
                 if (configured != Some(metrics)) {
                     renderer.configure(metrics)
                     configured = Some(metrics)
@@ -134,7 +134,7 @@ public class SurfaceWindow internal constructor(
         scheduledAnimationTime = next
         when (next) {
             case None -> animationDeadline?.cancel()
-            case Some(time) -> {
+            case Some(val time) -> {
                 val deadline =
                     animationDeadline ?:
                         nativeWindow.createDeadline {
@@ -187,7 +187,7 @@ public class SurfaceWindow internal constructor(
                 scheduler.request();
                 refresh()
             }
-            case Ready(frame) -> {
+            case Ready(val frame) -> {
                 val time = MonotonicTimeSource.markNow()
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
@@ -261,7 +261,7 @@ public class SurfaceWindow internal constructor(
         }
         depth -= 1
         when (error) {
-            case Some(value) -> fail(value)
+            case Some(val value) -> fail(value)
             case None -> finishClosing()
         }
     }
@@ -299,7 +299,7 @@ public class SurfaceWindow internal constructor(
         if (phase == SurfaceWindowState.Closing && depth == 0 && !host.callbackActive) {
             val error = retire()
             when (error) {
-                case Some(value) -> host.reportWindowError(nativeWindow.id, value)
+                case Some(val value) -> host.reportWindowError(nativeWindow.id, value)
                 case None -> {}
             }
         }

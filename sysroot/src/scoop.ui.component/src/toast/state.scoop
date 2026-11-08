@@ -110,7 +110,7 @@ public class ToastState public constructor() {
     internal fun attach(value: ToasterControl) {
         entries.value
         when (owner) {
-            case Some(current) -> requireComponent(
+            case Some(val current) -> requireComponent(
                 current === value,
                 "toast state already has an active toaster"
             )
@@ -136,12 +136,12 @@ public class ToastState public constructor() {
             } catch (error: Throwable) {
                 failure =
                     when (failure) {
-                        case Some(previous) -> Some(ResourceUseException(previous, error))
+                        case Some(val previous) -> Some(ResourceUseException(previous, error))
                         case None -> Some(error)
                     }
             }
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }

@@ -80,9 +80,9 @@ internal class TcpStream(
                                     cleanup ->
                                     val reported: Throwable? =
                                         when (cleanup) {
-                                            case Some(value) -> Some(
+                                            case Some(val value) -> Some(
                                                 when (error) {
-                                                    case Some(primary) -> ResourceUseException(
+                                                    case Some(val primary) -> ResourceUseException(
                                                         primary,
                                                         value
                                                     )

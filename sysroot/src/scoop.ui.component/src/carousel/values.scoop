@@ -75,7 +75,7 @@ public class CarouselProps public constructor(
         nonnegative(dragThreshold, "invalid carousel drag threshold")
         nonnegative(projectionSeconds, "invalid carousel projection duration")
         when (length) {
-            case Some(value) -> nonnegative(value, "invalid carousel length")
+            case Some(val value) -> nonnegative(value, "invalid carousel length")
             case None -> {}
         }
     }
@@ -84,11 +84,11 @@ public class CarouselProps public constructor(
 internal fun carouselExtent(size: CarouselItemSize, viewport: Double, spacing: Double): Double? =
     when (size) {
         case Content -> None
-        case Length(value) -> {
+        case Length(val value) -> {
             nonnegative(value, "invalid carousel item length");
             Some(value)
         }
-        case Fraction(value) -> {
+        case Fraction(val value) -> {
             requireComponent(value.isFinite() && value > 0.0, "invalid carousel item fraction")
             val extent = lowerBound(0.0, viewport * value - spacing * (1.0 - value))
             nonnegative(extent, "carousel item extent overflow")

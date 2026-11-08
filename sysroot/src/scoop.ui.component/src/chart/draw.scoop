@@ -25,8 +25,8 @@ internal fun chartDraw(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry)
             if (series.series.mark == ChartMark.Bar) {
                 for (sample in series.samples)
                     when (sample) {
-                        case Some(value) -> when (value.shape) {
-                            case Rectangle(bounds) -> canvas.drawRoundRect(
+                        case Some(val value) -> when (value.shape) {
+                            case Rectangle(val bounds) -> canvas.drawRoundRect(
                                 bounds,
                                 input.barRadius * d,
                                 input.barRadius * d,
@@ -108,7 +108,7 @@ internal fun chartDraw(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry)
                 if (input.pointRadius > 0.0)
                     for (sample in series.samples)
                         when (sample) {
-                            case Some(value) -> canvas.drawCircle(
+                            case Some(val value) -> canvas.drawCircle(
                                 value.point,
                                 input.pointRadius * d,
                                 Paint(color)
@@ -124,7 +124,7 @@ internal fun chartDraw(canvas: Canvas, plan: ChartPlan, geometry: ChartGeometry)
         for (series in geometry.series)
             for (sample in series.samples)
                 when (sample) {
-                    case Some(value) -> if (value.visible) {
+                    case Some(val value) -> if (value.visible) {
                         val text = chartNumber(value.value)
                         val extent = appearance.measure(text)
                         val origin =
@@ -158,19 +158,19 @@ internal fun chartDrawActive(
     }
     val active =
         when (selection) {
-            case Some(key) -> geometry.find(key);
+            case Some(val key) -> geometry.find(key);
             case None -> None
         }
     when (active) {
         case None -> {}
-        case Some(sample) -> {
+        case Some(val sample) -> {
             val d = plan.appearance.density
             val color = plan.appearance.theme.tokens.palette.ring
             canvas.withState {
                 canvas ->
                 canvas.clipRect(geometry.plot)
                 when (sample.shape) {
-                    case Rectangle(bounds) -> canvas.drawRoundRect(
+                    case Rectangle(val bounds) -> canvas.drawRoundRect(
                         bounds,
                         plan.input.barRadius * d,
                         plan.input.barRadius * d,

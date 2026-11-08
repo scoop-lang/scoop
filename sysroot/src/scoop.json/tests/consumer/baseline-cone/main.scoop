@@ -13,10 +13,10 @@ private fun exerciseConsumer(args: Array<String>) {
     val full = Json.decodeFromString(fullText(), Manifest.Companion)
     check(full.dependencies.values.size == 3L && full.testDependencies.values.size == 1L)
     check(when (full.dependencies.values["org.foo:bar"]!!) {
-        case Dependency.Detailed(value) -> value.path == Some("../bar") && value.artifact == None
+        case Dependency.Detailed(val value) -> value.path == Some("../bar") && value.artifact == None
         else -> false
     })
-    check(when (full.dependencies.values["org.other:log"]!!) { case Dependency.Short(value) -> value == "3.1.0"; else -> false })
+    check(when (full.dependencies.values["org.other:log"]!!) { case Dependency.Short(val value) -> value == "3.1.0"; else -> false })
     check(full.sources!!.size == 2L && full.test.sources!!.size == 1L)
     check(full.native.cxx && full.native.cFlags[1L] == "-I" && full.native.cxxFlags[0L] == "-std=c++20")
     check(full.native.libraries[1L].name == "Security" && full.native.include[0L] == "native/include")

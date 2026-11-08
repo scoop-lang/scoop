@@ -60,7 +60,7 @@ public class TextEditPolicyBuilder internal constructor(initial: TextEditPolicy)
     }
     internal fun snapshot(): TextEditPolicy {
         when (maxLength) {
-            case Some(value) -> requireUi(value >= 0L, "negative text length limit")
+            case Some(val value) -> requireUi(value >= 0L, "negative text length limit")
             case None -> {}
         }
         return TextEditPolicy(singleLine, maxLength, pasteTransform, editTransform, acceptance)

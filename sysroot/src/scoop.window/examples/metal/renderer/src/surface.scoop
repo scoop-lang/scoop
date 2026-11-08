@@ -42,7 +42,7 @@ public class MetalSurface private constructor(
     public override fun close() {
         checkThread()
         when (pointer) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 pointer = None
                 try {
                     @Unsafe
@@ -69,7 +69,7 @@ public class MetalSurface private constructor(
                 try {
                     val pointer =
                         when (lease.handle) {
-                            case AppKit(_, view) -> nativeCreate(view)
+                            case AppKit(_, val view) -> nativeCreate(view)
                         } ?:
                             throw WindowException(
                                 "create Metal surface",

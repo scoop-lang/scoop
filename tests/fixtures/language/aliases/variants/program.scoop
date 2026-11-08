@@ -8,8 +8,8 @@ typealias Fixed = Pick<Int>
 fun show(value: Pick<Int>) {
     when (value) {
         case Pick.Empty -> println("empty")
-        case Pick.Value(text, n, count) -> { println(text); println(n + count) }
-        case Pick.Many(text, values) -> { println(text); println(values.size) }
+        case Pick.Value(val text, val n, val count) -> { println(text); println(n + count) }
+        case Pick.Many(val text, val values) -> { println(text); println(values.size) }
     }
 }
 fun main() {

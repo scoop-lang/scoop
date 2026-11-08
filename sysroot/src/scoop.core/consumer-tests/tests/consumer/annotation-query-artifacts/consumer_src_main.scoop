@@ -16,7 +16,7 @@ private fun exerciseConsumer() {
     check(key != annotationKey<Label>())
     val description = key.describe()
     check(description.key == key && description.parameters.size == 1L)
-    check(when (description.parameters[0L].defaultValue!!) { case AnnotationValue.String(value) -> value == "provider"; else -> false })
+    check(when (description.parameters[0L].defaultValue!!) { case AnnotationValue.String(val value) -> value == "provider"; else -> false })
     val hidden = forwarded<Long>()
     check(hidden == built() && hidden == genericKey<String>())
     check(hidden.describe().visibility == DeclarationVisibility.Private)
@@ -26,7 +26,7 @@ private fun exerciseConsumer() {
     val closure = callback<Long>()
     gcCollect()
     check(closure() == hidden)
-    check(when (hidden.describe().parameters[0L].defaultValue!!) { case AnnotationValue.Integer(IntegerValue.Int(value)) -> value == 9; else -> false })
+    check(when (hidden.describe().parameters[0L].defaultValue!!) { case AnnotationValue.Integer(IntegerValue.Int(val value)) -> value == 9; else -> false })
 
 }
 

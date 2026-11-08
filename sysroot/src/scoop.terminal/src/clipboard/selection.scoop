@@ -23,7 +23,7 @@ public enum ClipboardType {
     public fun selector(): Char = when (this) {
         case Clipboard -> 'c'
         case Primary -> 'p'
-        case Other(value) -> value
+        case Other(val value) -> value
     }
 }
 

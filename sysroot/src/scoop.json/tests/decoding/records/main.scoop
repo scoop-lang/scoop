@@ -19,7 +19,7 @@ object RecordReader : ValueDecoder<Long> {
         val text = first.required("text")
         val number = second.required("id")
         check(when (second.optional("null")) {
-            case Some(child) -> child.singleValue().isNull()
+            case Some(val child) -> child.singleValue().isNull()
             case None -> false
         })
         first.end()

@@ -5,7 +5,7 @@ public class Clipboard internal constructor(private val owner: ApplicationOwner)
     public fun readText(): String? {
         checkActive("read clipboard")
         return when (platformReadClipboard()) {
-            case Some(text) -> Some(clipboardText(text, false))
+            case Some(val text) -> Some(clipboardText(text, false))
             case None -> None
         }
     }

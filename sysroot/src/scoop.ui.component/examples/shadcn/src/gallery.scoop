@@ -19,7 +19,7 @@ private fun galleryView(model: GalleryModel): View {
     val current = model.current(entries)
     val content =
         when (current) {
-            case Some(value) -> galleryDemo(model, value)
+            case Some(val value) -> galleryDemo(model, value)
             case None -> makeColumn {
                 spacing = 12.0
                 add(galleryText(model, "No matching examples", 24.0, 600))

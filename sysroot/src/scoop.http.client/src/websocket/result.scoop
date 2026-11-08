@@ -22,8 +22,8 @@ public enum HttpWebSocketResult: AsyncCloseable {
      */
     public override suspend fun close() {
         when (this) {
-            case Opened(session) -> session.close();
-            case Rejected(response, _) -> response.close()
+            case Opened(val session) -> session.close();
+            case Rejected(val response, _) -> response.close()
         }
     }
 }
@@ -42,7 +42,7 @@ internal suspend fun openClientWebSocket(
         }
     val sequence = ClientRequestSequence(client.config, http, webSocket = Some(options))
     return when (interceptClientSequence(client, http, sequence)) {
-        case WebSocket(result) -> result
+        case WebSocket(val result) -> result
         case Response(_) -> throw IllegalStateException(
             Some("WebSocket request returned an ordinary HTTP result")
         )

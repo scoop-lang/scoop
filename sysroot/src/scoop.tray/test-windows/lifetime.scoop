@@ -46,7 +46,7 @@ private class WindowsTrayHandler: ApplicationHandler {
                 }
                 icon.subscribe {
                     value -> when (value) {
-                        case Activated(activation) -> {
+                        case Activated(val activation) -> {
                             assertEquals(TrayActivationKind.Primary, activation.kind)
                             assertEquals(TrayActivationSource.Pointer, activation.source)
                             activations += 1
@@ -60,7 +60,7 @@ private class WindowsTrayHandler: ApplicationHandler {
                     activateWindowsTray(icon.owner.pointer!!)
                 }
             }
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(item, activation.item)
                 actions += 1
                 application.requestExit()

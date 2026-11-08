@@ -1,0 +1,15 @@
+schema = 1
+name = "patterns-explicit-bindings-unknown"
+root = "unknown.scoop"
+inputs = ["unknown.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["single-file", "negative", "language"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {"file" = "unknown.diagnostics.json"}

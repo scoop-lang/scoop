@@ -25,7 +25,7 @@ typealias ChoiceRenderer = (IntChoice) -> String
 fun <T> keep(value: T): T = value
 
 fun render(choice: IntChoice): String = when (choice) {
-    case IntChoice.Value(value) -> "value-" + value.toString()
+    case IntChoice.Value(val value) -> "value-" + value.toString()
     case IntChoice.Empty -> "empty"
 }
 

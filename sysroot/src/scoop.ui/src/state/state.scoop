@@ -12,7 +12,7 @@ public class State<T> internal constructor(initial: T) {
     get() {
         checkUiThread(thread)
         when (currentEvaluation()) {
-            case Some(evaluation) -> evaluation.collector?.read(signal)
+            case Some(val evaluation) -> evaluation.collector?.read(signal)
             case None -> {}
         }
         return current
@@ -80,7 +80,7 @@ public class Props<P> internal constructor(initial: P, comparison: InputComparis
         current = next
         comparison = rule
         return when ((previousRule, rule)) {
-            case(Some(before), Some(after)) -> before ===
+            case(Some(val before), Some(val after)) -> before ===
                 after &&
                 evaluateUi<Boolean>(None) { after.equivalent(previous, next) }
             else -> false

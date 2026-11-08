@@ -2,8 +2,8 @@ package test
 fun verifyDefault(value: Boolean) { if (!value) { throw IllegalStateException() } }
 
 fun invokeChoice(value: NestedParentChoice): String = when (value) {
-    case NestedParentChoice.First(callback) -> callback()
-    case NestedParentChoice.Second(callback) -> callback()
+    case NestedParentChoice.First(val callback) -> callback()
+    case NestedParentChoice.Second(val callback) -> callback()
 }
 
 fun main() {

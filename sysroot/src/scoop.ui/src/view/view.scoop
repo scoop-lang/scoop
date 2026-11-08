@@ -6,15 +6,15 @@ public enum ViewKey: Equals<ViewKey>, Hash {
     public override operator fun equals(other: ViewKey): Boolean =
         when ((this, other)) {
             case(Position, Position) -> true
-            case(Text(a), Text(b)) -> a == b
-            case(Number(a), Number(b)) -> a == b
+            case(Text(val a), Text(val b)) -> a == b
+            case(Number(val a), Number(val b)) -> a == b
             else -> false
         }
     public override fun hash(): Long =
         when (this) {
             case Position -> 0L
-            case Text(value) -> value.hash()
-            case Number(value) -> value.hash()
+            case Text(val value) -> value.hash()
+            case Number(val value) -> value.hash()
         }
 }
 
@@ -78,9 +78,9 @@ internal fun View.sameType(other: View): Boolean =
     when ((body, other.body)) {
         case(Empty, Empty) -> true
         case(Direction(_, _), Direction(_, _)) -> true
-        case(Component(a), Component(b)) -> a.sameType(b)
-        case(Element(a, _), Element(b, _)) -> a.sameType(b)
-        case(Lazy(a, _, _), Lazy(b, _, _)) -> a.sameType(b)
+        case(Component(val a), Component(val b)) -> a.sameType(b)
+        case(Element(val a, _), Element(val b, _)) -> a.sameType(b)
+        case(Lazy(val a, _, _), Lazy(val b, _, _)) -> a.sameType(b)
         case(Portal(_, _, _), Portal(_, _, _)) -> true
         else -> false
     }

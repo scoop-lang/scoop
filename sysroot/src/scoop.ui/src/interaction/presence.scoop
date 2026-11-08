@@ -82,7 +82,7 @@ public class Presence internal constructor(
         }
         desired = open
         when (transition) {
-            case Some(spec) -> {
+            case Some(val spec) -> {
                 setPhase(
                     if (open)
                         PresencePhase.Entering

@@ -74,11 +74,11 @@ internal class DateExamplesModel {
                     result
             }
             case 2 -> when (range.value) {
-                case Some(dates) -> locale.date(dates.start) + " — " + locale.date(dates.end);
+                case Some(val dates) -> locale.date(dates.start) + " — " + locale.date(dates.end);
                 case None -> "Choose a start and end date"
             }
             else -> when (single.value) {
-                case Some(date) -> locale.date(date);
+                case Some(val date) -> locale.date(date);
                 case None -> "No date selected"
             }
         }
@@ -97,7 +97,7 @@ internal class DateExamplesModel {
     }
     fun schedule(): String =
         when ((pickerDate.value, time.value)) {
-            case(Some(date), Some(time)) -> LocalDateTime(date, time).toString()
+            case(Some(val date), Some(val time)) -> LocalDateTime(date, time).toString()
             else -> "Choose a date and time"
         }
 }
@@ -165,7 +165,7 @@ internal fun exampleDateParser(
         case "next week" -> DatePickerParse.Date(reference.plusDays(7L))
         case "" -> DatePickerParse.Empty
         else -> when (LocalDate.parseOrNone(value)) {
-            case Some(date) -> DatePickerParse.Date(date)
+            case Some(val date) -> DatePickerParse.Date(date)
             case None -> DatePickerParse.Invalid("Use today, tomorrow, next week, or YYYY-MM-DD.")
         }
     }

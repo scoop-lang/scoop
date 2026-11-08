@@ -8,6 +8,6 @@ public fun result(): Int {
     val parcel = Parcel.Item(Number(42))
     return when (parcel) {
         case Empty -> 0
-        case Item(number) -> number.value
+        case Item(val number) -> number.value
     }
 }

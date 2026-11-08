@@ -68,9 +68,9 @@ private suspend fun receiveBorrowed(
                         event, selected ->
                         progress.count = resultProgress(event.result)
                         when (completionFailure("UDP receive", event.result, selected)) {
-                            case Some(error) -> continuation.resumeWithException(error)
+                            case Some(val error) -> continuation.resumeWithException(error)
                             case None -> when (event.result) {
-                                case Packet(value) -> continuation.resume(value)
+                                case Packet(val value) -> continuation.resume(value)
                                 case _ -> continuation.resumeWithException(
                                     IllegalStateException(Some("receive returned no datagram"))
                                 )

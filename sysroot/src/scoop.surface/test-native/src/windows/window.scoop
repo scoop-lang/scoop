@@ -11,7 +11,7 @@ public fun observeWindow(window: Window, customContent: Boolean = false): ViewPr
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case Win32(hwnd, _) -> ViewProbe(hwnd, customContent)
+                    case Win32(val hwnd, _) -> ViewProbe(hwnd, customContent)
                 }
             }
         }
@@ -27,7 +27,7 @@ public fun surfaceDocumentCaret(window: Window, rect: LogicalRect?, cursor: Long
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case Win32(hwnd, _) -> documentCaret(
+                    case Win32(val hwnd, _) -> documentCaret(
                         hwnd,
                         rect != None,
                         rect?.origin?.x ?: 0.0,
@@ -61,7 +61,7 @@ public fun sampleWindowPixel(window: Window, x: Double, y: Double): Long {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case Win32(hwnd, _) -> desktopPixel(hwnd, x, y)
+                    case Win32(val hwnd, _) -> desktopPixel(hwnd, x, y)
                 }
             }
         }
@@ -78,7 +78,7 @@ public fun scheduleSurfaceNativeMode(window: Window, kind: Int) {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Win32(hwnd, _) -> if (scheduleNativeMode(hwnd, kind, 250) != 1)
+                    case Win32(val hwnd, _) -> if (scheduleNativeMode(hwnd, kind, 250) != 1)
                         throw IllegalStateException(Some("cannot enter native modal loop"))
                 }
             }

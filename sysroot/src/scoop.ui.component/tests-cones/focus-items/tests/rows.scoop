@@ -47,7 +47,7 @@ internal class FocusRow(
         record.unmounts += 1
         for (area in record.areas)
             when (area) {
-                case Some(value) -> assertTrue(value.isClosed)
+                case Some(val value) -> assertTrue(value.isClosed)
                 case None -> {}
             }
     }
@@ -75,7 +75,7 @@ private class FocusRowInk(
         val rectangles = [Rect(2.0, 2.0, 50.0, extent), Rect(90.0, bottom, 50.0, extent)]
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
-                case Some(area) -> context.place(area, rectangles[index])
+                case Some(val area) -> context.place(area, rectangles[index])
                 case None -> {}
             }
         context.draw {

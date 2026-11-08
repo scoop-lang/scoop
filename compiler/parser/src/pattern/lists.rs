@@ -17,12 +17,14 @@ impl Parser {
         &mut self,
         path: Vec<Ident>,
         start: u32,
+        context: PatternContext,
     ) -> Result<Pattern, Diagnostic> {
         self.with_node(SyntaxKind::PatternList, |parser| {
             parser.bump();
             let diagnostic_start = parser.diagnostics.len();
-            let parsed =
-                parser.parse_delimited_items(ListKind::PatternElements, Self::parse_pattern_item);
+            let parsed = parser.parse_delimited_items(ListKind::PatternElements, |parser| {
+                parser.parse_pattern_item(context)
+            });
             if let Some(diagnostic) = parser.diagnostics.get(diagnostic_start) {
                 return Err(diagnostic.clone());
             }
@@ -36,12 +38,16 @@ impl Parser {
         })
     }
 
-    pub(super) fn parse_tuple_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+    pub(super) fn parse_tuple_pattern(
+        &mut self,
+        context: PatternContext,
+    ) -> Result<Pattern, Diagnostic> {
         self.with_node(SyntaxKind::PatternList, |parser| {
             let open = parser.bump();
             let diagnostic_start = parser.diagnostics.len();
-            let parsed =
-                parser.parse_delimited_items(ListKind::PatternElements, Self::parse_pattern_item);
+            let parsed = parser.parse_delimited_items(ListKind::PatternElements, |parser| {
+                parser.parse_pattern_item(context)
+            });
             if let Some(diagnostic) = parser.diagnostics.get(diagnostic_start) {
                 return Err(diagnostic.clone());
             }
@@ -64,11 +70,11 @@ impl Parser {
         })
     }
 
-    fn parse_pattern_item(&mut self) -> Result<PatternItem, Diagnostic> {
+    fn parse_pattern_item(&mut self, context: PatternContext) -> Result<PatternItem, Diagnostic> {
         if matches!(self.peek().kind, TokenKind::DotDot) {
             Ok(PatternItem::Rest(self.bump().span))
         } else {
-            self.parse_pattern().map(PatternItem::Value)
+            self.parse_pattern(context).map(PatternItem::Value)
         }
     }
 
@@ -76,14 +82,14 @@ impl Parser {
         &mut self,
         path: Vec<Ident>,
         start: u32,
+        context: PatternContext,
     ) -> Result<Pattern, Diagnostic> {
         self.with_node(SyntaxKind::PatternList, |parser| {
             parser.bump();
             let diagnostic_start = parser.diagnostics.len();
-            let parsed = parser.parse_delimited_items(
-                ListKind::NamedPatternElements,
-                Self::parse_named_pattern_item,
-            );
+            let parsed = parser.parse_delimited_items(ListKind::NamedPatternElements, |parser| {
+                parser.parse_named_pattern_item(context)
+            });
             if let Some(diagnostic) = parser.diagnostics.get(diagnostic_start) {
                 return Err(diagnostic.clone());
             }
@@ -114,30 +120,46 @@ impl Parser {
         })
     }
 
-    fn parse_named_pattern_item(&mut self) -> Result<NamedItem, Diagnostic> {
+    fn parse_named_pattern_item(
+        &mut self,
+        context: PatternContext,
+    ) -> Result<NamedItem, Diagnostic> {
         if matches!(self.peek().kind, TokenKind::DotDot) {
             return Ok(NamedItem::Rest(self.bump().span));
         }
-        let field = self.expect_ident("field name")?;
+        let start = self.peek().span.start;
+        let explicit_binding =
+            context == PatternContext::Match && matches!(self.peek().kind, TokenKind::Val);
+        let field = if explicit_binding {
+            self.bump();
+            self.parse_explicit_pattern_binding()?
+        } else {
+            self.expect_ident("field name")?
+        };
         if field.text == "_" {
             return Err(Diagnostic::at(
                 field.span,
                 "`_` is not allowed in a field pattern",
             ));
         }
-        let subpattern = if matches!(self.peek().kind, TokenKind::Colon) {
+        let subpattern = if explicit_binding {
+            Pattern::Binding(field.clone())
+        } else if matches!(self.peek().kind, TokenKind::Colon) {
             self.bump();
-            self.parse_pattern()?
+            self.parse_pattern(context)?
         } else if field.text == "Unit" {
             Pattern::Literal {
                 value: LiteralPattern::Unit,
                 span: field.span,
             }
         } else {
-            Pattern::Binding(field.clone())
+            match context {
+                PatternContext::Binding => Pattern::Binding(field.clone()),
+                PatternContext::Match => Pattern::BareVariant(field.clone()),
+            }
         };
         Ok(NamedItem::Field(FieldPattern {
-            span: Span::new(field.span.start, pattern_span(&subpattern).end),
+            span: Span::new(start, pattern_span(&subpattern).end),
             field,
             subpattern: Box::new(subpattern),
         }))

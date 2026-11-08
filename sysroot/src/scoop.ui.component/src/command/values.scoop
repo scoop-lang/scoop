@@ -91,13 +91,13 @@ public class CommandProps public constructor(
 
 internal fun commandItem(entry: CommandEntry): CommandItem? =
     when (entry) {
-        case Item(item) -> Some(item)
+        case Item(val item) -> Some(item)
         else -> None
     }
 
 internal fun commandKey(entry: CommandEntry): ViewKey =
     when (entry) {
-        case Item(item) -> item.key
-        case Label(key, _) -> key
-        case Separator(key) -> key
+        case Item(val item) -> item.key
+        case Label(val key, _) -> key
+        case Separator(val key) -> key
     }

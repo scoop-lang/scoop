@@ -15,7 +15,7 @@ internal fun prepareClientWebSocket(call: ClientCall) {
         fields.add(field)
     addClientAcceptEncoding(fields, call.request, call.client.config)
     when (call.route) {
-        case HttpForward(endpoint) -> for (field in clientProxyAuthorization(call, endpoint))
+        case HttpForward(val endpoint) -> for (field in clientProxyAuthorization(call, endpoint))
             fields.add(field)
         else -> {}
     }

@@ -66,7 +66,7 @@ public class Collapsible public constructor(
             )
         val trigger =
             when (input.trigger) {
-                case Some(value) -> disclosureTrigger(
+                case Some(val value) -> disclosureTrigger(
                     value,
                     input.enabled,
                     input.fonts,

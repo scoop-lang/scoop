@@ -106,7 +106,7 @@ public class WebSocketFrameEncoder public constructor(
     public override fun close() { withUse { if (!closed) { closed = true; frame = None; sequence.close() }; Unit } }
 
     private fun activeFrame(): WebSocketWritingFrame = when (frame) {
-        case Some(value) -> value
+        case Some(val value) -> value
         case None -> throw IllegalStateException(Some("WebSocket frame has not begun"))
     }
 

@@ -62,7 +62,7 @@ public class HttpAttempt internal constructor(call: ClientCall) {
      */
     public val fields: Array<HttpField> =
         when (call.webSocketHandshake) {
-            case Some(handshake) -> handshake.request.fields.toArray()
+            case Some(val handshake) -> handshake.request.fields.toArray()
             case None -> clientRequestSnapshotFields(call)
         }
     /**
@@ -71,9 +71,9 @@ public class HttpAttempt internal constructor(call: ClientCall) {
     public val proxyUrl: Url? =
         when (call.route) {
             case Direct -> None
-            case HttpForward(endpoint) -> Some(endpoint.url)
-            case HttpTunnel(endpoint) -> Some(endpoint.url)
-            case Socks5(endpoint) -> Some(endpoint.url)
+            case HttpForward(val endpoint) -> Some(endpoint.url)
+            case HttpTunnel(val endpoint) -> Some(endpoint.url)
+            case Socks5(val endpoint) -> Some(endpoint.url)
         }
 }
 

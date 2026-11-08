@@ -290,7 +290,7 @@ public class TextEditHost public constructor(
         )
             return
         when (connection) {
-            case Some(value) -> window.publishTextInputState(value, current.inputState, after)
+            case Some(val value) -> window.publishTextInputState(value, current.inputState, after)
             case None -> {}
         }
     }

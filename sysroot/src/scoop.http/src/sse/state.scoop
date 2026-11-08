@@ -55,7 +55,7 @@ internal class SseState(private val limits: SseLimits, initialLastEventId: Strin
             case "data" -> appendData(value)
             case "event" -> eventType = value
             case "id" -> if (value.indexOf('\u0000') < 0L) { idBuffer = value; blockId = Some(value) }
-            case "retry" -> when (sseRetry(value)) { case Some(milliseconds) -> retryMilliseconds = Some(milliseconds); case None -> {} }
+            case "retry" -> when (sseRetry(value)) { case Some(val milliseconds) -> retryMilliseconds = Some(milliseconds); case None -> {} }
             else -> {}
         }
     }

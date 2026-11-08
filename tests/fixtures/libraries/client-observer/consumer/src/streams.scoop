@@ -17,7 +17,7 @@ internal fun observedWebSocket(trust: TrustStore, url: Url, opened: Boolean) {
             val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(httpWebSocketRequest(target)) suspend {
                 result -> when (result) {
-                    case Opened(session) -> {
+                    case Opened(val session) -> {
                         assertTrue(opened)
                         assertEquals(1L, log.ofKind(HttpCallEventKind.Completed).size)
                         assertTrue(observationPresent(session.metrics!!.finishedAt))
@@ -28,7 +28,7 @@ internal fun observedWebSocket(trust: TrustStore, url: Url, opened: Boolean) {
                         assertEquals(count, log.events.size)
                         assertEquals(0L, session.metrics!!.responseBodyBytes)
                     }
-                    case Rejected(response, _) -> {
+                    case Rejected(val response, _) -> {
                         assertFalse(opened)
                         assertEquals("denied", response.body.text(6L))
                     }

@@ -57,7 +57,7 @@ internal class NativeDesktopWindowElement(
     public override fun update() {
         val next = props.value
         when (previous) {
-            case Some(old) -> if (
+            case Some(val old) -> if (
                 !(old.controller === next.controller) || !(old.window === next.window)
             ) {
                 binding?.close()
@@ -76,7 +76,7 @@ internal class NativeDesktopWindowElement(
             return
         val target =
             when (binding) {
-                case Some(value) -> value
+                case Some(val value) -> value
                 case None -> {
                     val value =
                         scope.resource { next.controller.application.attachWindow(next.window) }
@@ -89,7 +89,7 @@ internal class NativeDesktopWindowElement(
         target.setIcon(next.icon)
         target.setOverlayIcon(next.overlay, next.overlayDescription)
         when (previous) {
-            case Some(old) -> {
+            case Some(val old) -> {
                 if (!sameDesktopProgress(old.progress, next.progress))
                     target.setProgress(next.progress)
                 if (old.miniwindowCaption != next.miniwindowCaption)
@@ -116,8 +116,8 @@ private fun sameDesktopProgress(left: DesktopProgress, right: DesktopProgress): 
     when ((left, right)) {
         case(None, None) -> true
         case(Indeterminate, Indeterminate) -> true
-        case(Normal(a, b), Normal(c, d)) -> a == c && b == d
-        case(Paused(a, b), Paused(c, d)) -> a == c && b == d
-        case(Error(a, b), Error(c, d)) -> a == c && b == d
+        case(Normal(val a, val b), Normal(val c, val d)) -> a == c && b == d
+        case(Paused(val a, val b), Paused(val c, val d)) -> a == c && b == d
+        case(Error(val a, val b), Error(val c, val d)) -> a == c && b == d
         else -> false
     }

@@ -78,15 +78,15 @@ internal class UiMenuBars(internal val host: UiHost): Closeable {
         if (closed)
             return
         when (event) {
-            case MenuBarDetached(id) -> {
+            case MenuBarDetached(val id) -> {
                 for (slot in slots)
                     if (slot.waiting?.id == Some(id)) {
                         refresh()
                         break
                     }
             }
-            case Window(id, value) -> when (value) {
-                case Focused(focused) -> {
+            case Window(val id, val value) -> when (value) {
+                case Focused(val focused) -> {
                     if (focused && contains(id))
                         lastFocused = Some(id)
                     refresh()
@@ -133,7 +133,7 @@ internal class UiMenuBars(internal val host: UiHost): Closeable {
             case Some(_) -> {}
         }
         when (selected) {
-            case Some(window) -> when (val override = declared(Some(window))) {
+            case Some(val window) -> when (val override = declared(Some(window))) {
                 case Some(_) -> return override
                 case None -> {}
             }
@@ -180,7 +180,7 @@ internal class UiMenuBars(internal val host: UiHost): Closeable {
                     val source: UiMenuBarDeclaration? =
                         when (value.window) {
                             case None -> applicationSource()
-                            case Some(window) -> if (
+                            case Some(val window) -> if (
                                 contains(window.id) && window.state == WindowState.Open
                             )
                                 windowSource(window)

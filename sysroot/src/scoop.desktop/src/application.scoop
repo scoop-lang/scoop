@@ -120,7 +120,7 @@ private object DesktopSlot {
 public fun ActiveApplication.openDesktop(): DesktopApplication {
     val previous = DesktopSlot.owner
     when (previous) {
-        case Some(value) -> {
+        case Some(val value) -> {
             value.checkThread()
             if (!value.closed)
                 throw WindowException(

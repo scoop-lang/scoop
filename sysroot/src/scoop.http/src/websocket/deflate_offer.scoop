@@ -57,7 +57,7 @@ public class WebSocketDeflateOffer public constructor(
         return when (clientMaxWindowBits) {
             case Absent -> parameters.clientMaxWindowBits == None
             case Any -> true
-            case Limit(bits) -> parameters.clientMaxWindowBits == None || parameters.clientMaxWindowBits!! <= bits
+            case Limit(val bits) -> parameters.clientMaxWindowBits == None || parameters.clientMaxWindowBits!! <= bits
         }
     }
 
@@ -82,7 +82,7 @@ public class WebSocketDeflateOffer public constructor(
 
 internal fun checkedWebSocketWindow(value: Int?): Int? {
     when (value) {
-        case Some(bits) -> if (bits < 8 || bits > 15) throw IllegalArgumentException(Some("WebSocket window bits must be 8 through 15"))
+        case Some(val bits) -> if (bits < 8 || bits > 15) throw IllegalArgumentException(Some("WebSocket window bits must be 8 through 15"))
         case None -> {}
     }
     return value
@@ -90,7 +90,7 @@ internal fun checkedWebSocketWindow(value: Int?): Int? {
 
 private fun checkedWebSocketWindowOffer(value: WebSocketWindowBits): WebSocketWindowBits {
     when (value) {
-        case Limit(bits) -> { checkedWebSocketWindow(Some(bits)); }
+        case Limit(val bits) -> { checkedWebSocketWindow(Some(bits)); }
         case Absent -> {}
         case Any -> {}
     }

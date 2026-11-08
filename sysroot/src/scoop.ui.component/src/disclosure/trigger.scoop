@@ -36,7 +36,7 @@ internal fun disclosureTrigger(
                 appearance ->
                 val content =
                     when (input.content) {
-                        case Label(label) -> ButtonContent.Label(
+                        case Label(val label) -> ButtonContent.Label(
                             LabelProps(
                                 label.text,
                                 disclosureFonts(label.fonts, disclosureFonts(input.fonts, fonts)),

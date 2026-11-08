@@ -6,15 +6,15 @@ import scoop.window.native.*
 @Unsafe
 internal fun platformWindow(lease: NativeWindowLease): Ptr<Unit> =
     when (lease.handle) {
-        case AppKit(window, _) -> window
+        case AppKit(val window, _) -> window
     }
 
 @Unsafe
 internal fun platformDockMenu(pointer: Ptr<Unit>, lease: NativeMenuLease?): RequestStatus {
     val menu =
         when (lease) {
-            case Some(value) -> when (value.handle) {
-                case AppKit(handle) -> Some(handle)
+            case Some(val value) -> when (value.handle) {
+                case AppKit(val handle) -> Some(handle)
             }
             case None -> None
         }

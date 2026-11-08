@@ -32,7 +32,7 @@ internal class UiDesktopApplication(
             }
         )
         when (val window = probe.target.value) {
-            case Some(value) -> items.add(
+            case Some(val value) -> items.add(
                 nativeDesktopWindow(controller, value, ViewKey.Text("window")) {
                     icon = Some(probe.image)
                     progress = DesktopProgress.Normal(5UL, 10UL)

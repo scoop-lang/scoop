@@ -10,7 +10,7 @@ internal class AwsEventStreamReader(source: AsyncByteSource, owner: AsyncCloseab
     val io: MessageIo<AsyncByteSource> = MessageIo<AsyncByteSource>(source, owner, loop) {
         var failure = messageCleanup(None) { input.close() }
         failure = messageCleanup(failure) { decoder.close() }
-        when (failure) { case Some(error) -> throw error; case None -> {} }
+        when (failure) { case Some(val error) -> throw error; case None -> {} }
     }
 
     suspend fun next(): AwsEventStreamMessage? = io.run({}) suspend { source -> readNext(source) }
@@ -18,7 +18,7 @@ internal class AwsEventStreamReader(source: AsyncByteSource, owner: AsyncCloseab
     private suspend fun readNext(source: AsyncByteSource): AwsEventStreamMessage? {
         while (true) {
             ensureActive()
-            when (decoder.nextMessage()) { case Some(message) -> return Some(message); case None -> {} }
+            when (decoder.nextMessage()) { case Some(val message) -> return Some(message); case None -> {} }
             if (decoder.isFinished) return None
             if (input.readableBytes > 0L) decoder.receive(input)
             else {

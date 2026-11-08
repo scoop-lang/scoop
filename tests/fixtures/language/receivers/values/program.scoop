@@ -13,7 +13,7 @@ fun main() {
     println(unit(Unit, 6))
     val zeroFlat: (Empty) -> Int = zero
     println(zeroFlat(Empty()))
-    val maybe: Int?.() -> Int = { when (this) { case Some(value) -> value; case None -> 0 } }
+    val maybe: Int?.() -> Int = { when (this) { case Some(val value) -> value; case None -> 0 } }
     println(maybe(Some(9)))
     println(maybe(None))
 }

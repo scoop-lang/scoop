@@ -5,7 +5,7 @@ internal class MappingIterator<S, T> internal constructor(
     private val transform: (S) -> T
 ) : Iterator<T> {
     public override fun next(): T? = when (source.next()) {
-        case Some(value) -> Some(transform(value))
+        case Some(val value) -> Some(transform(value))
         case None -> None
     }
 }

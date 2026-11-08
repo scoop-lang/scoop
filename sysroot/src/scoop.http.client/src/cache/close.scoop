@@ -41,7 +41,7 @@ internal class ClientCacheClosure {
                 }
             for (waiter in waiting)
                 when (failed) {
-                    case Some(error) -> waiter.resumeWithException(error)
+                    case Some(val error) -> waiter.resumeWithException(error)
                     case None -> waiter.resume(Unit)
                 }
             if (clientPresent(failed))
@@ -60,7 +60,7 @@ internal class ClientCacheClosure {
                     }
                 if (finished)
                     when (lock.withLock { failure }) {
-                        case Some(error) -> continuation.resumeWithException(error)
+                        case Some(val error) -> continuation.resumeWithException(error)
                         case None -> continuation.resume(Unit)
                     }
             }

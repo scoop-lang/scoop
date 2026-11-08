@@ -31,11 +31,11 @@ fun main() {
         assertEquals(Value(1, calls, true), Value(2, calls, false), Some("original failure"))
     }
     verify(error.kind == "assertEquals" && error.message == Some("original failure"), "preserve original failure")
-    verify(when (error.expected) { case AssertionValue.RenderingFailed(cause) -> cause is RenderFailure; else -> false }, "preserve rendering exception")
-    verify(when (error.actual) { case AssertionValue.Text(text) -> text == "value 2"; else -> false }, "render the other value")
+    verify(when (error.expected) { case AssertionValue.RenderingFailed(val cause) -> cause is RenderFailure; else -> false }, "preserve rendering exception")
+    verify(when (error.actual) { case AssertionValue.Text(val text) -> text == "value 2"; else -> false }, "render the other value")
     verify(calls.rendered == 2, "render each failed value once")
     assertFailsWith<CompareFailure> { assertEquals(BrokenComparison(), BrokenComparison()) }
     gcCollect()
-    verify(when (error.expected) { case AssertionValue.RenderingFailed(cause) -> cause is RenderFailure; else -> false }, "keep rendering exception alive")
+    verify(when (error.expected) { case AssertionValue.RenderingFailed(val cause) -> cause is RenderFailure; else -> false }, "keep rendering exception alive")
     println("rendering assertions passed")
 }

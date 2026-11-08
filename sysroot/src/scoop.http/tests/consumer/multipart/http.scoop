@@ -41,10 +41,10 @@ fun readHttp(bytes: Array<Byte>): (HttpResponseHead, Array<Byte>) {
                 offset += count
                 while (true) when (decoder.nextEvent()) {
                     case None -> break
-                    case Some(Http1Event.Response(head)) -> heads.add(head)
-                    case Some(Http1Event.Data(data)) -> body.append(data)
+                    case Some(Http1Event.Response(val head)) -> heads.add(head)
+                    case Some(Http1Event.Data(val data)) -> body.append(data)
                     case Some(Http1Event.End(_)) -> ends.fetchAdd(1L)
-                    case Some(Http1Event.Trailers(fields)) -> {
+                    case Some(Http1Event.Trailers(val fields)) -> {
                         check(fields.size == 1L && String.fromUtf8(fields[0L].value) == "complete")
                         trailers.fetchAdd(1L)
                     }

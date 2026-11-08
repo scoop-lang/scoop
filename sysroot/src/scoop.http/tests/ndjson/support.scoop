@@ -15,7 +15,7 @@ internal fun feedNdjson(decoder: NdjsonDecoder, bytes: List<Byte>, chunkSize: Lo
             while (input.readableBytes > 0L) {
                 val consumed = decoder.receive(input)
                 when (decoder.nextRecord()) {
-                    case Some(record) -> records.add(record)
+                    case Some(val record) -> records.add(record)
                     case None -> assertTrue(consumed > 0L)
                 }
             }

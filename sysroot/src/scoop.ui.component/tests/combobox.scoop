@@ -192,7 +192,7 @@ private class LazyModelChoices: ChoiceSource<Long> {
     }
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> indexOfValue(index);
+            case Number(val index) -> indexOfValue(index);
             else -> None
         }
     public override fun indexOfValue(value: Long): Long? =

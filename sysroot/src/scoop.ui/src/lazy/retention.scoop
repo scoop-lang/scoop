@@ -8,7 +8,7 @@ public enum ItemRetention {
 internal fun retentionLimit(retention: ItemRetention): Long =
     when (retention) {
         case Dispose -> 0L
-        case KeepAlive(count) -> {
+        case KeepAlive(val count) -> {
             requireUi(count >= 0L, "negative offscreen item capacity")
             count
         }

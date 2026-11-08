@@ -27,7 +27,7 @@ fn partial_when_subjects_use_the_outer_scope_without_the_new_binding() {
 fn partial_when_guards_use_completed_primary_facts_and_bindings() {
     for text in [
         "fun editing(value: Any) { when (value) { is String if value.",
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) if value.",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) if value.",
     ] {
         let mut analysis = analyze(text);
         let facts = receiver(&mut analysis);
@@ -82,7 +82,7 @@ fn partial_when_calls_share_overloads_in_bodies_guards_and_condition_inputs() {
     let declarations = "fun predicate(value: Boolean, next: Boolean): Boolean = next\nfun predicate(value: String, next: Boolean): Boolean = next\n";
     for editing in [
         "fun editing(value: Any) { when (value) { is String -> predicate(value,",
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) if predicate(value,",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) if predicate(value,",
         "fun editing(value: Any) { when { value !is String, predicate(value,",
     ] {
         let candidates = call_candidates(&format!("{declarations}{editing}"));
@@ -97,7 +97,7 @@ fn partial_when_calls_share_overloads_in_bodies_guards_and_condition_inputs() {
 #[test]
 fn cancelled_when_queries_do_not_commit_subject_or_pattern_scopes() {
     let mut analysis = analyze(
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) -> value. } }",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) -> value. } }",
     );
     let id = function(&analysis, "editing");
     let checks = std::cell::Cell::new(0);

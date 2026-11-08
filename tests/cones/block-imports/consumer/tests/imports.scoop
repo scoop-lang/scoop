@@ -64,8 +64,8 @@ private class BlockImports {
         assertEquals(107, number.mark())
         val ready: Choice = Ready
         val payload: Choice = Value(9)
-        assertEquals(0, when (ready) { case Value(value) -> value; case Ready -> 0 })
-        assertEquals(9, when (payload) { case Value(value) -> value; case Ready -> 0 })
+        assertEquals(0, when (ready) { case Value(val value) -> value; case Ready -> 0 })
+        assertEquals(9, when (payload) { case Value(val value) -> value; case Ready -> 0 })
     }
 
     @Test

@@ -50,7 +50,7 @@ private suspend fun produceSse(
                 val heartbeat: Job? =
                     when (options.heartbeatInterval) {
                         case None -> None
-                        case Some(interval) -> Some(
+                        case Some(val interval) -> Some(
                             scope.launch suspend { runSseHeartbeat(writer, interval) }
                         )
                     }

@@ -3,11 +3,11 @@ package test.m57.program
 import test.m57.provider.*
 
 private fun shape(description: TypeDescription): ClassInfo = when (description.shape) {
-    case TypeShape.Class(value) -> value; else -> throw IllegalStateException()
+    case TypeShape.Class(val value) -> value; else -> throw IllegalStateException()
 }
 
 private fun text(annotations: Array<AnnotationInfo>): String = when (annotations[0L].arguments[0L].value) {
-    case AnnotationValue.String(value) -> value; else -> throw IllegalStateException()
+    case AnnotationValue.String(val value) -> value; else -> throw IllegalStateException()
 }
 
 fun conditionalDescriptions(): Boolean {
@@ -15,7 +15,7 @@ fun conditionalDescriptions(): Boolean {
     val local = shape(typeInfo<Described<HasDescription>>().describe())
     val absent = shape(typeInfo<Described<Plain>>().describe())
     val companion = when (typeInfo<Described<Int>.Companion>().describe().shape) {
-        case TypeShape.Object(value) -> value; else -> throw IllegalStateException()
+        case TypeShape.Object(val value) -> value; else -> throw IllegalStateException()
     }
     return enabled.interfaces.size == 1L && absent.interfaces.size == 0L &&
         enabled.interfaces[0L].type == local.interfaces[0L].type &&

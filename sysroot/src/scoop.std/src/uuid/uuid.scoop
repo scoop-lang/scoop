@@ -103,7 +103,7 @@ public struct Uuid(val mostSignificantBits: ULong, val leastSignificantBits: ULo
          * IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): Uuid = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid UUID"))
         }
         /**

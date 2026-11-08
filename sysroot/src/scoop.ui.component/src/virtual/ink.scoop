@@ -72,7 +72,7 @@ internal class VirtualListInk(
         itemEstimate(input.input.itemExtent)
         nonnegative(input.input.overscan, "invalid virtual overscan")
         when (input.input.endPadding) {
-            case Fixed(length) -> nonnegative(length, "invalid virtual end padding")
+            case Fixed(val length) -> nonnegative(length, "invalid virtual end padding")
             case FillViewport -> {}
         }
         control!!.update()
@@ -89,7 +89,7 @@ internal class VirtualListInk(
             focus!!.cancelRequest()
         val sameHandle =
             when ((handle, input.input.handle)) {
-                case(Some(old), Some(next)) -> old === next
+                case(Some(val old), Some(val next)) -> old === next
                 case(None, None) -> true
                 else -> false
             }
@@ -102,7 +102,7 @@ internal class VirtualListInk(
         }
         val sameState =
             when (state) {
-                case Some(old) -> old === input.controls.state
+                case Some(val old) -> old === input.controls.state
                 case None -> false
             }
         if (!sameState) {
@@ -112,7 +112,7 @@ internal class VirtualListInk(
             focus!!.cancelRequest()
         }
         when (pending) {
-            case Some(value) -> when (value.position) {
+            case Some(val value) -> when (value.position) {
                 case Reading(_) -> if (value.source !== input.input.source)
                     pending = None
                 case Item(_, _, _) -> {}
@@ -127,7 +127,7 @@ internal class VirtualListInk(
     ): LayoutResult<VirtualListFrame> {
         val item =
             when (focus!!.pendingItem) {
-                case Some(key) -> Some(
+                case Some(val key) -> Some(
                     ItemScrollRequest(
                         key,
                         VirtualPosition.Item(ScrollAlignment.Nearest, 0.0, 0.0),
@@ -178,7 +178,7 @@ internal class VirtualListInk(
                     committed = Some(frame.reading)
                 val sameRequest =
                     when ((pending, frame.request)) {
-                        case(Some(current), Some(previous)) -> current === previous
+                        case(Some(val current), Some(val previous)) -> current === previous
                         else -> false
                     }
                 if (sameRequest && frame.requestDone)

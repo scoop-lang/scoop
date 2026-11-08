@@ -16,7 +16,7 @@ internal fun readJsonIntegralLong(text: String): Long {
     var lastIndex = 0L
     var hasExponent = false
     while (true) {
-        val character = when (current) { case Some(value) -> value; case None -> break }
+        val character = when (current) { case Some(val value) -> value; case None -> break }
         if (character == 'e' || character == 'E') { hasExponent = true; break }
         if (character == '.') fraction = true
         else {
@@ -61,7 +61,7 @@ private fun readJsonIntegralExponent(source: Iterator<Char>, limit: Long): Long 
     // Beyond this magnitude, a nonzero mantissa cannot cancel the exponent into a Long.
     var exponent = 0L
     while (true) {
-        val character = when (current) { case Some(value) -> value; case None -> break }
+        val character = when (current) { case Some(val value) -> value; case None -> break }
         val digit = (character.code - 48).toLong()
         if (exponent > (limit - digit) / 10L) throw integralLongError()
         exponent = exponent * 10L + digit

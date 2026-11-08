@@ -26,7 +26,7 @@ internal class WebSocketReadState(private val role: HttpRole, compressionEnabled
         position += 1L
         when (frame) {
             case None -> receiveHeader(byte)
-            case Some(active) -> {
+            case Some(val active) -> {
                 val value = webSocketMask(byte, active.wire.mask, active.wire.head.payloadLength - active.remaining)
                 active.remaining -= 1L
                 if (webSocketControl(active.wire.head.opcode)) control.append(value)
@@ -64,7 +64,7 @@ internal class WebSocketReadState(private val role: HttpRole, compressionEnabled
     fun pump() {
         if (hasPending) return
         when (frame) {
-            case Some(active) -> {
+            case Some(val active) -> {
                 if (active.remaining != 0L) {
                     if (inputEnded) webSocketFrameError("EOF within frame payload")
                     return

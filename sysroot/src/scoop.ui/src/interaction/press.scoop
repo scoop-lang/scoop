@@ -62,7 +62,7 @@ public class Press internal constructor(
         if (closed || !options.enabled)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Button(_, MouseButton.Left, status, _)) -> {
+            case Pointer(InputPointerEvent.Button(_, MouseButton.Left, val status, _)) -> {
                 if (status == ElementState.Pressed) {
                     if (key == None && area.scope.isHovered)
                         pointer = true
@@ -77,7 +77,7 @@ public class Press internal constructor(
                         activate()
                 }
             }
-            case Keyboard(value) -> keyboard(context, value)
+            case Keyboard(val value) -> keyboard(context, value)
             else -> {}
         }
     }
@@ -122,7 +122,7 @@ public class Press internal constructor(
             case Pointer(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
             ) -> pointer = false
-            case Keyboard(value) -> {
+            case Keyboard(val value) -> {
                 if (value.state == ElementState.Released && key == Some(value.physicalKey)) {
                     key = None
                     releaseActivates = false

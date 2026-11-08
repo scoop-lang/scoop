@@ -24,10 +24,10 @@ internal class ServerHttp2(private val options: HttpServerOptions, private val s
         val cancel: Job? = lock.withLock {
             var job: Job? = None
             when (event) {
-                case RequestHeadStarted(id) -> { head = Some((id, MonotonicTimeSource.markNow())) }
-                case RequestHeadReceived(id) -> { clearHead(id); first = false; queued.add(id) }
-                case StreamFailure(id, _) -> { clearHead(id); queued.remove(id); job = requests[id] }
-                case StreamClosed(id, code) -> {
+                case RequestHeadStarted(val id) -> { head = Some((id, MonotonicTimeSource.markNow())) }
+                case RequestHeadReceived(val id) -> { clearHead(id); first = false; queued.add(id) }
+                case StreamFailure(val id, _) -> { clearHead(id); queued.remove(id); job = requests[id] }
+                case StreamClosed(val id, val code) -> {
                     clearHead(id)
                     if (code != 0U) queued.remove(id)
                 }

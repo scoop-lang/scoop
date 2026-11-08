@@ -71,5 +71,5 @@ public fun <T> StyleValue<T>.then(next: StyleValue<T>): StyleValue<T> =
 public fun <T> StyleValue<T>.resolve(inherited: T): T =
     when (this) {
         case Inherit -> inherited
-        case Set(value) -> value
+        case Set(val value) -> value
     }

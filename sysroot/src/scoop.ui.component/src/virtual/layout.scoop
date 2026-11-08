@@ -44,7 +44,7 @@ internal class ListGeometry(
             Size(total, viewport.height)
     val itemConstraints: Constraints get() =
         when (index.mode) {
-            case Fixed(extent) -> Constraints.tight(
+            case Fixed(val extent) -> Constraints.tight(
                 if (vertical)
                     Size(viewport.width, extent)
                 else

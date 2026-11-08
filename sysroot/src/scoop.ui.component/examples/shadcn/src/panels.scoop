@@ -34,7 +34,7 @@ private fun panelControls(model: GalleryModel, variantTitle: String? = None): Vi
             this.variant = ButtonVariant.Outline
         }
         when (variantTitle) {
-            case Some(title) -> this.button(
+            case Some(val title) -> this.button(
                 title,
                 { model.panelCompact.value = !model.panelCompact.value }
             ) { this.variant = ButtonVariant.Outline }

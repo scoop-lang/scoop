@@ -112,7 +112,7 @@ private class ShowcaseProbe {
                 )
                 waitFor(active, 25000L)
             }
-            case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)
+            case Window(_, WindowEvent.ThemeChanged(val value)) -> model.systemTheme(value)
             case AboutToWait -> {
                 if (phase < 0 && paints > 0 && !window!!.isFocused && !retriedFocus) {
                     retriedFocus = true

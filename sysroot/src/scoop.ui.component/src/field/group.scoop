@@ -110,7 +110,7 @@ public class FieldSet public constructor(
         val content =
             makeColumn {
                 when (input.legend) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(
                             panelCaption(
                                 value,
@@ -123,7 +123,7 @@ public class FieldSet public constructor(
                     case None -> {}
                 }
                 when (input.description) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(
                             panelCaption(
                                 value,

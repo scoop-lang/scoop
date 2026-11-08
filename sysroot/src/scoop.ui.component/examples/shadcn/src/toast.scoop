@@ -198,7 +198,7 @@ internal fun toastExamples(model: ToastExamplesModel): View =
                 "Close latest",
                 {
                     when (model.latest) {
-                        case Some(id) -> model.notifications.dismiss(id);
+                        case Some(val id) -> model.notifications.dismiss(id);
                         case None -> {}
                     }
                 }

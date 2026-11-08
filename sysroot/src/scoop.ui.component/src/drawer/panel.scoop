@@ -139,9 +139,9 @@ internal class DrawerSwipeHandle(
             current.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> if (current.isFocusActive) {
+                    case Keyboard(val key) -> if (current.isFocusActive) {
                         when (props.value.owner.control) {
-                            case Some(control) -> drawerKeyboard(control, context, key, true)
+                            case Some(val control) -> drawerKeyboard(control, context, key, true)
                             case None -> {}
                         }
                     }

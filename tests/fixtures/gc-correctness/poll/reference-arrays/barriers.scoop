@@ -65,7 +65,7 @@ fun writeYoungWrapped(target: MutableArray<MaybeUninit<Node>>, seed: Long) {
     collectYoung()
     i = 0L
     while (i < optional.size) {
-        check(when (optional[i]) { case None -> false; case Some(value) -> value.number() == 303L })
+        check(when (optional[i]) { case None -> false; case Some(val value) -> value.number() == 303L })
         i += 1L
     }
     writeYoungWrapped(wrapped, 404L)

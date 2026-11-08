@@ -9,7 +9,7 @@ fun check(ok: Boolean, location: SourceLocation = currentSourceLocation()) {
 fun duration(parts: (Long, Int)): Duration = Duration.seconds(parts._1, parts._2.toLong())
 fun verify(expected: (Long, Int)?, operation: () -> Duration) {
     when (expected) {
-        case Some(parts) -> {
+        case Some(val parts) -> {
             // Arithmetic vectors use normalized seconds and a nonnegative remainder.
             val actual = operation()
             check((actual.floorSeconds, actual.nanosecondsOfSecond) == parts)

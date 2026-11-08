@@ -32,7 +32,7 @@ internal fun loadingVisible(canvas: Canvas, bounds: Rect, alpha: Double): Boolea
         alpha >
         0.0 &&
         when (canvas.localClipBounds) {
-            case Some(clip) -> bounds.x <
+            case Some(val clip) -> bounds.x <
                 clip.x +
                 clip.width &&
                 bounds.x +

@@ -15,11 +15,11 @@ internal class MpCapture {
     fun drain(decoder: MultipartDecoder) {
         while (true) when (decoder.nextEvent()) {
             case None -> return
-            case Some(MultipartEvent.PartStarted(head)) -> {
+            case Some(MultipartEvent.PartStarted(val head)) -> {
                 if (parts.size != 0L) assertTrue(parts[parts.size - 1L].ended)
                 parts.add(MpPart(head))
             }
-            case Some(MultipartEvent.Data(bytes)) -> {
+            case Some(MultipartEvent.Data(val bytes)) -> {
                 assertTrue(parts.size != 0L && !parts[parts.size - 1L].ended)
                 parts[parts.size - 1L].body.append(bytes)
                 if (bytes.size > largestData) largestData = bytes.size

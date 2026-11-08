@@ -18,7 +18,7 @@ internal fun shell(script: String, input: Stdio = Stdio.Null): Command =
 
 internal fun exited(status: ExitStatus, expected: Int = 0) {
     when (status) {
-        case ExitStatus.Exited(code) -> assertEquals(expected, code)
+        case ExitStatus.Exited(val code) -> assertEquals(expected, code)
         case ExitStatus.Signaled(_) -> fail(Some("unexpected signal"))
     }
 }
@@ -141,7 +141,7 @@ private class CommandsTest {
                 else
                     child.terminate()
                 when (child.wait()) {
-                    case ExitStatus.Signaled(signal) -> assertEquals(
+                    case ExitStatus.Signaled(val signal) -> assertEquals(
                         if (force)
                             9
                         else

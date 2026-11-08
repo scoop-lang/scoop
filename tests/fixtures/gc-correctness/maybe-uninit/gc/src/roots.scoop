@@ -27,8 +27,8 @@ fun captured(value: Int): () -> MaybeUninit<Rooted> {
     check(when (none.assumeInit()) { case None -> true; case Some(_) -> false }, 40)
     when (packet.assumeInit()) {
         case Packet.Empty -> { throw IllegalStateException() }
-        case Packet.Number(value) -> { throw IllegalStateException() }
-        case Packet.Data(value) -> { check(value.payload.number == 53, 39) }
+        case Packet.Number(val value) -> { throw IllegalStateException() }
+        case Packet.Data(val value) -> { check(value.payload.number == 53, 39) }
     }
     check((boxed as MaybeUninit<Rooted>).assumeInit().payload.number == 42, 38)
     check(closure().assumeInit().payload.number == 64, 37)

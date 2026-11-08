@@ -53,7 +53,7 @@ public class Avatar public constructor(
             )
         val content =
             when (input.image) {
-                case Ready(image) -> imageView(
+                case Ready(val image) -> imageView(
                     image,
                     Size(image.width.toDouble(), image.height.toDouble())
                 ) { this.fit = ContentFit.Cover }
@@ -67,7 +67,7 @@ public class Avatar public constructor(
         val badge =
             when (input.badge) {
                 case None -> None
-                case Dot(color) -> Some(
+                case Dot(val color) -> Some(
                     avatarBadge(
                         empty(),
                         avatarBadgeSide(input.size) * density,
@@ -75,7 +75,7 @@ public class Avatar public constructor(
                         palette.background.background
                     )
                 )
-                case Content(view, color) -> Some(
+                case Content(val view, val color) -> Some(
                     avatarBadge(
                         if (input.size == AvatarSize.Sm)
                             empty()
@@ -106,7 +106,7 @@ public class Avatar public constructor(
             )
         )
         when (badge) {
-            case Some(value) -> children.add(panelSlot(value, 1L));
+            case Some(val value) -> children.add(panelSlot(value, 1L));
             case None -> {}
         }
         return element(

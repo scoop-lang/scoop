@@ -58,7 +58,7 @@ internal class InteractionMotion(scope: ComponentScope, initial: InteractionVisu
 
 internal fun changeProgress(value: Animatable<Double>, target: Double, transition: AnimationSpec?) {
     when (transition) {
-        case Some(spec) -> {
+        case Some(val spec) -> {
             if (value.target != target)
                 value.animateTo(target, spec)
         }

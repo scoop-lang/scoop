@@ -79,7 +79,7 @@ internal class DeadlineProbe: ApplicationHandler {
                     this.application = Some(application)
                     installDeadlines(this, application)
                 }
-                case NewEvents(cause) -> {
+                case NewEvents(val cause) -> {
                     batches += 1
                     if (cause == StartCause.Deadline) {
                         val expected =

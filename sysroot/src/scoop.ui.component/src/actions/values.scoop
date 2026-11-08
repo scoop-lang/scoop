@@ -39,12 +39,12 @@ internal enum ActionShape {
 internal fun actionFontScale(shape: ActionShape): Double =
     when (shape) {
         case Tab(_, _) -> 1.0
-        case Toggle(_, size, _) -> if (size == ToggleSize.Sm)
+        case Toggle(_, val size, _) -> if (size == ToggleSize.Sm)
             12.8 / 14.0
         else
             1.0
         case Badge -> 12.0 / 14.0
-        case Button(size) -> when (size) {
+        case Button(val size) -> when (size) {
             case Xs -> 12.0 / 14.0
             case IconXs -> 12.0 / 14.0
             case Sm -> 12.8 / 14.0
@@ -56,12 +56,12 @@ internal fun actionFontScale(shape: ActionShape): Double =
 internal fun actionIconSize(shape: ActionShape): Double =
     when (shape) {
         case Tab(_, _) -> 16.0
-        case Toggle(_, size, _) -> if (size == ToggleSize.Sm)
+        case Toggle(_, val size, _) -> if (size == ToggleSize.Sm)
             14.0
         else
             16.0
         case Badge -> 12.0
-        case Button(size) -> when (size) {
+        case Button(val size) -> when (size) {
             case Xs -> 12.0
             case IconXs -> 12.0
             case Sm -> 14.0
@@ -75,7 +75,7 @@ internal fun actionSpacing(shape: ActionShape): Double =
         case Tab(_, _) -> 6.0
         case Toggle(_, _, _) -> 4.0
         case Badge -> 4.0
-        case Button(size) -> when (size) {
+        case Button(val size) -> when (size) {
             case Xs -> 4.0
             case Sm -> 4.0
             case IconXs -> 4.0
@@ -89,7 +89,7 @@ internal fun isIconAction(shape: ActionShape): Boolean =
         case Tab(_, _) -> false
         case Toggle(_, _, _) -> false
         case Badge -> false
-        case Button(size) -> when (size) {
+        case Button(val size) -> when (size) {
             case IconXs -> true
             case IconSm -> true
             case Icon -> true

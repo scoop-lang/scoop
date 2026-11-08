@@ -28,7 +28,7 @@ internal class DatePickerRoot(
                         !(control.props.value.draft?.editor?.isComposing ?: false)
                 )
                     when (event) {
-                        case Keyboard(key) -> {
+                        case Keyboard(val key) -> {
                             if (
                                 menuKeyAllowed(key) &&
                                     key.logicalKey ==
@@ -90,7 +90,7 @@ private fun datePickerKey(
         return
     val key =
         when (event) {
-            case Keyboard(value) -> value;
+            case Keyboard(val value) -> value;
             else -> return
         }
     if (!menuKeyAllowed(key))

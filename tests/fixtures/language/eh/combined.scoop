@@ -53,7 +53,7 @@ fun main() {
         println(error.nested.pair._1)
         println(error.nested.pair._2)
         when (error.tagged) {
-            case Present(first, second) -> {
+            case Present(val first, val second) -> {
                 println(first)
                 println(second)
             }

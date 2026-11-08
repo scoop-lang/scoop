@@ -20,7 +20,7 @@ public fun sendSurfaceScroll(
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> sendScroll(
+                    case AppKit(_, val view) -> sendScroll(
                         view,
                         x,
                         y,

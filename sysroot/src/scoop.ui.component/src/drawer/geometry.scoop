@@ -65,8 +65,8 @@ internal fun drawerSnaps(points: Array<DrawerSnapPoint>, extent: Double, density
         index -> min(
             extent,
             when (points[index]) {
-                case Fraction(value) -> extent * value
-                case Length(value) -> value * density
+                case Fraction(val value) -> extent * value
+                case Length(val value) -> value * density
             }
         )
     }
@@ -83,7 +83,7 @@ internal fun drawerAdjacent(snaps: Array<Double>, index: Long, expand: Boolean):
         val next = snaps[candidate]
         if ((expand && next > current) || (!expand && next < current)) {
             when (best) {
-                case Some(old) -> if (abs(next - current) < abs(snaps[old] - current))
+                case Some(val old) -> if (abs(next - current) < abs(snaps[old] - current))
                     best = Some(candidate)
                 case None -> best = Some(candidate)
             }

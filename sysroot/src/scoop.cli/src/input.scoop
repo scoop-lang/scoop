@@ -21,7 +21,7 @@ internal fun childPath(path: String, name: String): String {
 
 internal fun inputError(path: String, source: Option<CliSource>, message: String): Nothing {
     val detail = when (source) {
-        case Some(location) -> message + " at token " + location.index.toString() + " (" + location.spelling + ")"
+        case Some(val location) -> message + " at token " + location.index.toString() + " (" + location.spelling + ")"
         case None -> message
     }
     throw DecodingException(path, detail)
@@ -51,7 +51,7 @@ internal fun choiceInput(choices: Array<CliChoice>, text: String, source: CliSou
 internal fun textInput(entry: CliEntry, text: String, source: CliSource): CliInput = when (entry.valueShape) {
     case CliValueShape.Text -> CliInput(CliNode.Text(text), Some(source))
     case CliValueShape.Repeated(CliElementShape.Text) -> CliInput(CliNode.Text(text), Some(source))
-    case CliValueShape.Choice(choices) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
-    case CliValueShape.Repeated(CliElementShape.Choice(choices)) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
+    case CliValueShape.Choice(val choices) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
+    case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
     case CliValueShape.Flag -> inputError(childPath("", entry.wireKey), Some(source), "flag does not accept a value")
 }

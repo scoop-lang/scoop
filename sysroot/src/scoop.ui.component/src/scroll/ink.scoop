@@ -18,7 +18,7 @@ internal class ScrollAreaInk(
         val input = props.value.input
         val changed =
             when (previous) {
-                case Some(old) -> old.input.axes !=
+                case Some(val old) -> old.input.axes !=
                     input.axes ||
                     old.input.width !=
                     input.width ||

@@ -48,8 +48,8 @@ enum ContainerChoice {
     companion object : ValueEncoder<ContainerChoice>, ValueDecoder<ContainerChoice> {
         public override fun encode(value: ContainerChoice, encoder: Encoder) {
             when (value) {
-                case ContainerChoice.Text(text) -> String.encode(text, encoder)
-                case ContainerChoice.Config(payload) -> ContainerObject.Companion.encode(payload, encoder)
+                case ContainerChoice.Text(val text) -> String.encode(text, encoder)
+                case ContainerChoice.Config(val payload) -> ContainerObject.Companion.encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): ContainerChoice {

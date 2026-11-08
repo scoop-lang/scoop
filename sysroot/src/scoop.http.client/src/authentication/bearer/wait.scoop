@@ -62,7 +62,7 @@ internal fun deliverClientBearer(flight: ClientBearerFlight, waiter: ClientBeare
         waiter.call.lock.withLock { waiter.call.bearerCleanup = flight.cleanup }
         val failure = when (outcome) {
             case Value(_) -> primary
-            case Failed(error) -> {
+            case Failed(val error) -> {
                 if (error === primary || error is CancellationException) primary
                 else if (error is ResourceUseException && error.primaryFailure is CancellationException)
                     ResourceUseException(primary, error.cleanupFailure)
@@ -72,8 +72,8 @@ internal fun deliverClientBearer(flight: ClientBearerFlight, waiter: ClientBeare
         continuation!!.resumeWithException(failure)
     } else {
         when (outcome) {
-            case Value(value) -> continuation!!.resume(value)
-            case Failed(error) -> continuation!!.resumeWithException(error)
+            case Value(val value) -> continuation!!.resume(value)
+            case Failed(val error) -> continuation!!.resumeWithException(error)
         }
     }
 }

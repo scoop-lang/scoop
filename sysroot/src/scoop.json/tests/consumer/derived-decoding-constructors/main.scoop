@@ -35,9 +35,9 @@ private fun exerciseConsumer() {
     check(Json.decodeFromString("{}", Row.Companion).total == 1L, 7)
     check(Json.decodeFromString("{\"values\":[1,2]}", Row.Companion).total == 2L, 8)
     val items = Json.decodeFromString("{\"Items\":{}}", Batches.Companion)
-    check(when (items) { case Batches.Items(values) -> values[0L] == 9; else -> false }, 9)
+    check(when (items) { case Batches.Items(val values) -> values[0L] == 9; else -> false }, 9)
     val omitted = Json.decodeFromString("{\"Omitted\":{\"values\":[1]}}", Batches.Companion)
-    check(when (omitted) { case Batches.Omitted(values) -> values[0L] == 10; else -> false }, 10)
+    check(when (omitted) { case Batches.Omitted(val values) -> values[0L] == 10; else -> false }, 10)
 
 }
 

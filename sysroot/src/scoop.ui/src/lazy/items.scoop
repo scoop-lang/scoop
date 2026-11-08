@@ -50,7 +50,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     fun entry(key: ViewKey): LazyItemEntry? = keyed[key]
     fun indexOf(key: ViewKey): Long? {
         when (keyed[key]) {
-            case Some(entry) -> return Some(entry.index)
+            case Some(val entry) -> return Some(entry.index)
             case None -> {}
         }
         return evaluateUi<Long?>(None) {
@@ -83,7 +83,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         evaluateUi<Unit>(None) {
             for (entry in entries) {
                 when (next.indexOfKey(entry.key)) {
-                    case Some(index) -> {
+                    case Some(val index) -> {
                         requireUi(
                             index >= 0L && index < nextCount,
                             "item reverse index is out of range"
@@ -115,7 +115,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     fun prepare(node: MountedNode, index: Long, time: TimeMark): LazyItemEntry {
         val key = checkedItemKey(source, total, index)
         when (keyed[key]) {
-            case Some(entry) -> {
+            case Some(val entry) -> {
                 requireUi(entry.index == index, "duplicate item ViewKey")
                 entry.lastUsed = time
                 return entry
@@ -147,8 +147,8 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
             if (entry.pinned)
                 result.add(entry.index)
         when (node.lazyFocus) {
-            case Some(focus) -> when (focus.pendingIndex()) {
-                case Some(index) -> if (!result.contains(index))
+            case Some(val focus) -> when (focus.pendingIndex()) {
+                case Some(val index) -> if (!result.contains(index))
                     result.add(index)
                 case None -> {}
             }
@@ -161,8 +161,8 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         for (item in selection)
             measured.put(item.entry.index, item)
         when (node.lazyFocus) {
-            case Some(focus) -> when (focus.pendingIndex()) {
-                case Some(index) -> if (!measured.containsKey(index))
+            case Some(val focus) -> when (focus.pendingIndex()) {
+                case Some(val index) -> if (!measured.containsKey(index))
                     throw IllegalStateException(
                         Some("a pending focus item must be measured and placed")
                     )

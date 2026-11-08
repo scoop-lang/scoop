@@ -108,7 +108,7 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
         {
             val pointer =
                 when (filter) {
-                    case Some(value) -> Some(value.resource.get())
+                    case Some(val value) -> Some(value.resource.get())
                     case None -> None
                 }
             graphicsResult(

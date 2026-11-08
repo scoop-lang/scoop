@@ -31,7 +31,7 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> keyboard(context, key)
+                    case Keyboard(val key) -> keyboard(context, key)
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                     ) -> {
@@ -61,7 +61,7 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
                     select(None)
                 }
             }
-            case FocusChanged(focused) -> {
+            case FocusChanged(val focused) -> {
                 if (context.phase == RoutedPhase.Notification) {
                     if (!focused) {
                         pointer = false;
@@ -141,19 +141,19 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
         val d = props.value.plan.appearance.density
         val width =
             when (input.width) {
-                case Some(value) -> value * d;
+                case Some(val value) -> value * d;
                 case None -> constraints.maxWidth ?: 480.0 * d
             }
         val height =
             when (input.height) {
-                case Some(value) -> value * d;
+                case Some(val value) -> value * d;
                 case None -> width * 9.0 / 16.0
             }
         val size = constraints.constrain(Size(width, height))
         val geometry = props.value.plan.cache.resolve(size)
         val active =
             when (props.value.active.value) {
-                case Some(key) -> geometry.find(key);
+                case Some(val key) -> geometry.find(key);
                 case None -> None
             }
         if (
@@ -221,7 +221,7 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
         }
         val same =
             when (drawn) {
-                case Some(value) -> value === geometry;
+                case Some(val value) -> value === geometry;
                 case None -> false
             }
         if (!same) {

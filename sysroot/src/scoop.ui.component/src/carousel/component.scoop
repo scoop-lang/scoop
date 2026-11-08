@@ -40,7 +40,7 @@ public class Carousel public constructor(
         val value = props.value
         val same =
             when (source) {
-                case Some(old) -> old === value.source;
+                case Some(val old) -> old === value.source;
                 case None -> false
             }
         if (!same) {
@@ -105,7 +105,7 @@ private fun carouselButton(input: CarouselInput, next: Boolean, available: Boole
     return component(
         ButtonProps(
             when (options.content) {
-                case Some(view) -> ButtonContent.Custom(view)
+                case Some(val view) -> ButtonContent.Custom(view)
                 case None -> ButtonContent.Resolved {
                     resolved -> navigationIcon(
                         if (input.props.orientation == Orientation.Vertical)

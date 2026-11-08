@@ -27,7 +27,7 @@ private class InputScrollTest {
                 {
                     context,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                        case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> {
                             assertEquals(original, delta)
                             assertEquals(Some(original), context.scrollRemaining)
                             context.consumeScroll(10.0) {
@@ -47,7 +47,7 @@ private class InputScrollTest {
                 {
                     context,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                        case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> {
                             assertEquals(original, delta)
                             context.consumeScroll(20.0) {
                                 amount ->
@@ -66,7 +66,7 @@ private class InputScrollTest {
                 {
                     context,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                        case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> {
                             assertEquals(original, delta)
                             context.consumeScroll(40.0) {
                                 amount ->
@@ -114,7 +114,7 @@ private class InputScrollTest {
                 {
                     context,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                        case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> {
                             assertEquals(InputScrollDelta.Pixels(8.0, -16.0), delta)
                             context.consumeScroll(10.0) {
                                 amount ->

@@ -47,7 +47,7 @@ internal class ComboboxControl<T: Equals<T>>(
         val input = props.value
         val query = input.query.committedText
         when (cached) {
-            case Some(previous) -> if (previous === input && query == cachedQuery)
+            case Some(val previous) -> if (previous === input && query == cachedQuery)
                 return filtered!!;
             case None -> {}
         }
@@ -60,7 +60,7 @@ internal class ComboboxControl<T: Equals<T>>(
     fun rows(source: ChoiceSource<T>, theme: Theme): ComboboxRows<T> {
         val input = props.value
         when (rowSource) {
-            case Some(previous) -> if (
+            case Some(val previous) -> if (
                 previous.source === source && previous.input === input && previous.theme === theme
             )
                 return previous;
@@ -87,7 +87,7 @@ internal class ComboboxControl<T: Equals<T>>(
         if (previous == value)
             return
         when (props.value.open) {
-            case Some(target) -> target.value = value;
+            case Some(val target) -> target.value = value;
             case None -> localOpen.value = value
         }
         if (open.value != previous)
@@ -102,7 +102,7 @@ internal class ComboboxControl<T: Equals<T>>(
             var selected: ViewKey? = None
             for (value in comboValues(input.selection))
                 when (source.indexOfValue(value)) {
-                    case Some(index) -> if (selected == None && source.enabledAt(index))
+                    case Some(val index) -> if (selected == None && source.enabledAt(index))
                         selected = Some(source.keyAt(index))
                     case None -> {}
                 }
@@ -220,7 +220,7 @@ internal class ComboboxControl<T: Equals<T>>(
                     previous = Some(chip.focus)
             }
             when (previous) {
-                case Some(focus) -> {
+                case Some(val focus) -> {
                     focus.requestFocus(FocusOrigin.Keyboard);
                     return
                 };
@@ -248,7 +248,7 @@ internal class ComboboxControl<T: Equals<T>>(
                 if (chip.value == value)
                     previous = Some(chip)
             when (previous) {
-                case Some(chip) -> next.add(chip)
+                case Some(val chip) -> next.add(chip)
                 case None -> {
                     next.add(ComboChip(value, ViewKey.Number(nextChip), FocusHandle()));
                     nextChip += 1L
@@ -271,7 +271,7 @@ internal class ComboboxControl<T: Equals<T>>(
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (owner.isMounted)
+            case Some(val reverse) -> if (owner.isMounted)
                 owner.moveFocus(reverse);
             case None -> {}
         }

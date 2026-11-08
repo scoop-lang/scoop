@@ -38,14 +38,14 @@ public class UiMenuBarDeclaration internal constructor(
 
 internal fun sameMenuBarSource(left: UiMenuBarDeclaration?, right: UiMenuBarDeclaration?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
+        case(Some(val a), Some(val b)) -> a === b
         case(None, None) -> true
         else -> false
     }
 
 internal fun sameMenuBarWindow(left: Window?, right: Window?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a.id == b.id
+        case(Some(val a), Some(val b)) -> a.id == b.id
         case(None, None) -> true
         else -> false
     }

@@ -32,7 +32,7 @@ internal class DataTablePlan<Row>(
             val size = column.size
             sizes.add(
                 when (state.columnWidth(column.id)) {
-                    case Some(width) -> TableColumnSize(
+                    case Some(val width) -> TableColumnSize(
                         GridTrack.Fixed(width),
                         size.minimum,
                         size.maximum,
@@ -74,7 +74,7 @@ public class DataTable<Row> public constructor(
         val widths = model.widths
         val reusable =
             when (plan) {
-                case Some(old) -> old.state ===
+                case Some(val old) -> old.state ===
                     model &&
                     old.hidden ===
                     hidden &&
@@ -118,8 +118,8 @@ public class DataTable<Row> public constructor(
                 virtualList(
                     items,
                     when (input.itemExtent) {
-                        case Fixed(value) -> ItemExtent.Fixed(value * density);
-                        case Variable(value) -> ItemExtent.Variable(value * density)
+                        case Fixed(val value) -> ItemExtent.Fixed(value * density);
+                        case Variable(val value) -> ItemExtent.Variable(value * density)
                     }
                 ) {
                     this.height = Some(input.bodyHeight * density)
@@ -163,7 +163,7 @@ public class DataTable<Row> public constructor(
                     this.spacing = 8.0 * density
                     this.alignment = CrossAlignment.Center
                     when (input.toolbar) {
-                        case Some(view) -> this.item(view) { this.grow = 1.0 };
+                        case Some(val view) -> this.item(view) { this.grow = 1.0 };
                         case None -> this.item(empty()) { this.grow = 1.0 }
                     }
                     if (input.columnMenu)
@@ -173,7 +173,7 @@ public class DataTable<Row> public constructor(
             if (input.pagination)
                 this.add(dataTablePagination(input, appearance))
             when (input.footer) {
-                case Some(view) -> this.add(view);
+                case Some(val view) -> this.add(view);
                 case None -> {}
             }
         }

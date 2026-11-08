@@ -243,7 +243,7 @@ impl Lowerer {
 
 pub(super) fn pattern_span(pattern: &ast::Pattern) -> Span {
     match pattern {
-        ast::Pattern::Binding(name) => name.span,
+        ast::Pattern::Binding(name) | ast::Pattern::BareVariant(name) => name.span,
         ast::Pattern::Wildcard { span }
         | ast::Pattern::Literal { span, .. }
         | ast::Pattern::Positional { span, .. }

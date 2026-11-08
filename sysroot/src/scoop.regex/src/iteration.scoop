@@ -27,7 +27,7 @@ internal class RegexIterator internal constructor(
                 finished = true
                 return None
             }
-            case Some(found) -> {
+            case Some(val found) -> {
                 position = found.start
                 flags = found.flags
                 finished = !found.hasNext

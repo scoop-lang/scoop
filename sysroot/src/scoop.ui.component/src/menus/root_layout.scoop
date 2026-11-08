@@ -36,7 +36,7 @@ internal class MenuRootLayout(
                     when (event) {
                         case Pointer(
                             InputPointerEvent.Button(
-                                pointer,
+                                val pointer,
                                 MouseButton.Right,
                                 ElementState.Pressed,
                                 _
@@ -75,7 +75,7 @@ internal class MenuRootLayout(
                 return@addDefaultAction
             val key =
                 when (event) {
-                    case Keyboard(value) -> value;
+                    case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
             if (!menuKeyAllowed(key, true))
@@ -87,7 +87,7 @@ internal class MenuRootLayout(
                         (key.logicalKey == LogicalKey.Named(NamedKey.F10) && key.modifiers.shift)
                 if (request)
                     when (target.visibleBounds) {
-                        case Some(bounds) -> {
+                        case Some(val bounds) -> {
                             context.consume()
                             input.show(
                                 Some(

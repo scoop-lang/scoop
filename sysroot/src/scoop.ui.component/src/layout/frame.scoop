@@ -17,11 +17,11 @@ public class FrameProps public constructor(
 ) {
     init {
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid frame width");
+            case Some(val value) -> nonnegative(value, "invalid frame width");
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid frame height");
+            case Some(val value) -> nonnegative(value, "invalid frame height");
             case None -> {}
         }
         padding?.totals()
@@ -73,7 +73,7 @@ private fun frameOptions(input: FrameInput, direction: LayoutDirection): Surface
     surfaceOptions {
         this.padding =
             when (input.value.logicalPadding) {
-                case Some(value) -> Some(value.resolve(direction))
+                case Some(val value) -> Some(value.resolve(direction))
                 case None -> input.value.padding
             }
         this.style = input.value.style
@@ -83,7 +83,7 @@ private fun frameLayoutInputs(input: FrameInput, direction: LayoutDirection): Fr
     val options = frameOptions(input, direction)
     val metrics =
         when (input.theme) {
-            case Some(theme) -> Some(
+            case Some(val theme) -> Some(
                 theme.surfaceMetrics(
                     SurfaceVisual(input.value.surface ?: SurfaceKind.Plain),
                     options,
@@ -116,13 +116,13 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
     public override fun update(): UiInvalidation {
         val input = props.value
         when (input.theme) {
-            case Some(theme) -> painters!!.get(theme)
+            case Some(val theme) -> painters!!.get(theme)
             case None -> painters!!.clear()
         }
         val next = frameLayoutInputs(input, scope.layoutDirection)
         val themeChanged =
             when (input.theme) {
-                case Some(theme) -> !sameTheme(previousTheme, theme)
+                case Some(val theme) -> !sameTheme(previousTheme, theme)
                 case None -> panelPresent(previousTheme)
             }
         val changed = previous != Some(next) || themeChanged
@@ -165,7 +165,7 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
         val bounds = Rect(0.0, 0.0, size.width, size.height)
         val content =
             when (input.theme) {
-                case Some(theme) -> theme.surfaceGeometry(
+                case Some(val theme) -> theme.surfaceGeometry(
                     bounds,
                     SurfaceVisual(value.surface ?: SurfaceKind.Plain),
                     frameOptions(input, context.layoutDirection),
@@ -188,7 +188,7 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
             case None -> style!!.scene(context, input.value.style.resolve(style())) {
                 content -> content.children()
             }
-            case Some(theme) -> {
+            case Some(val theme) -> {
                 val visual = SurfaceVisual(input.value.surface ?: SurfaceKind.Plain)
                 val geometry =
                     theme.surfaceGeometry(

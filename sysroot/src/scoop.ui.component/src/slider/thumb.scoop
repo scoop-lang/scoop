@@ -39,7 +39,7 @@ internal class SliderThumb(
             area!!.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (area!!.isFocusActive)
                             props.value.control.key(props.value.index, context, key)
                     }

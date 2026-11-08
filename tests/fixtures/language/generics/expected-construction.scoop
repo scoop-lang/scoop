@@ -64,13 +64,13 @@ fun main() {
     println(reference.value.name)
     println(value.value.name)
     when (choice) {
-        case Choice.Item(animal) -> println(animal.name)
+        case Choice.Item(val animal) -> println(animal.name)
         case Choice.Empty -> println("empty")
     }
     println(returned()!!.name)
     println(branched(true)!!.name)
     when (selected(Switch.On)) {
-        case Choice.Item(animal) -> println(animal.name)
+        case Choice.Item(val animal) -> println(animal.name)
         case Choice.Empty -> println("empty")
     }
     println(recovered()!!.name)

@@ -59,7 +59,7 @@ public class Drag internal constructor(
             return
         if (context.phase == RoutedPhase.Notification) {
             when (event) {
-                case Pointer(InputPointerEvent.Cancelled(reason, _)) -> cancel(
+                case Pointer(InputPointerEvent.Cancelled(val reason, _)) -> cancel(
                     DragCancelReason.Input(reason),
                     false
                 )
@@ -68,7 +68,7 @@ public class Drag internal constructor(
             return
         }
         when (event) {
-            case Pointer(InputPointerEvent.Button(point, button, ElementState.Pressed, _)) -> {
+            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)) -> {
                 if (options.enabled && start == None && button == options.button) {
                     val local = context.localPosition ?: return
                     if (accept(local) && !closed && !area.isClosed) {
@@ -85,12 +85,12 @@ public class Drag internal constructor(
         if (closed || !options.enabled || start == None)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Button(point, button, ElementState.Pressed, _)) -> if (
+            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)) -> if (
                 button == options.button && options.threshold == 0.0
             )
                 advance(context, point)
-            case Pointer(InputPointerEvent.Moved(point)) -> advance(context, point)
-            case Pointer(InputPointerEvent.Button(point, button, ElementState.Released, _)) -> {
+            case Pointer(InputPointerEvent.Moved(val point)) -> advance(context, point)
+            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Released, _)) -> {
                 if (button == options.button && claimed) {
                     val value = sample(point)
                     context.consume()
@@ -173,7 +173,7 @@ public class Drag internal constructor(
         if (closed)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Button(_, button, ElementState.Released, _)) -> {
+            case Pointer(InputPointerEvent.Button(_, val button, ElementState.Released, _)) -> {
                 if (button == options.button && start != None)
                     cancel(DragCancelReason.PreventedRelease)
             }

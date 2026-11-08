@@ -14,6 +14,33 @@ function check(source, inspect) {
   }
 }
 
+test("explicit match bindings keep whole values, payloads, and named fields", () => {
+  check(
+    "fun f(value: E) = when(value) { case Some(val item) -> item; case Box { val field, other: val renamed } -> field; case val whole -> whole }",
+    (root) => {
+      const bindings = root.descendantsOfType("explicit_binding_pattern");
+      assert.deepEqual(
+        bindings.map((binding) => binding.childForFieldName("name").text),
+        ["item", "renamed", "whole"],
+      );
+      assert.equal(
+        root.descendantsOfType("field_pattern")[0].text,
+        "val field",
+      );
+    },
+  );
+});
+
+test("an array on the next line starts its own statement in a match arm", () => {
+  check(
+    "fun f(value: E) = when(value) { case Left(val item) -> { inside = false\n[] } }",
+    (root) => {
+      assert.equal(root.descendantsOfType("array_literal").length, 1);
+      assert.equal(root.descendantsOfType("index_expression").length, 0);
+    },
+  );
+});
+
 test("all catch clauses remain part of the same try expression", () => {
   check(
     "fun f() { try { run() } catch (error: First) {} catch (_: Second) {} catch (error: Last) { throw error } finally { finish() } }",

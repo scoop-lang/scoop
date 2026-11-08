@@ -15,7 +15,7 @@
 - 整数字面量在HIR winner commit前是candidate-local literal constraint，不是提前定型的`Int`。无后缀的无上下文默认阶梯为`Int`，超出后为`Long`；`u/U`阶梯为`UInt`，超出后为`ULong`；`L`与`UL`分别精确固定为`Long`与`ULong`。expected exact整数类型可接收domain内可表示的字面量；不存在非字面量的隐式整数转换或混宽运算；
 - M22只实现不带标签的`break`/`continue`以及`for`；目标是同一callable内的最内层循环。`do-while`、带标签的`break`/`continue`/`return`不进入本里程碑；
 - `for`只消费M18已有的普通`iterator` operator候选。其结果必须唯一满足某个exact `Iterator<T>` conformance；`next()`及`Option.Some/None`来自一次验证后保存的typed core contract，不按名称/FQN查找；
-- `val`/`var`、lambda参数与`for`变量使用递归、不可失败的binding pattern；其中除内建`Unit` literal外的普通裸标识符恒为新binding，不查询enum/import/value，只有按subject exact enum解析成功的显式variant shape才按refutable pattern拒绝。`when`使用允许literal/variant的refutable match pattern，并保留enum subject下的variant-first裸名解析。`for (Some(x) in xs)`不是过滤语法，而是编译错误；
+- `val`/`var`、lambda参数与`for`变量使用递归、不可失败的binding pattern；其中除内建`Unit` literal外的普通裸标识符恒为新binding，不查询enum/import/value，只有按subject exact enum解析成功的显式variant shape才按refutable pattern拒绝。`when`使用允许literal/variant的refutable match pattern，要求 binding 显式写作 `val name`，裸名只按 subject exact enum 解析 variant，未命中时报错。`for (Some(x) in xs)`不是过滤语法，而是编译错误；
 - 穷尽性统一使用递归constructor/pattern-matrix算法。enum variant的payload、Boolean、Unit、tuple和struct都递归参与覆盖；guard不贡献覆盖；缺失诊断给出一个稳定witness；
 - 副本更新只支持具有声明字段的exact struct。任何enum目标（包括命名字段variant）都是稳定编译错误，必须用`when`匹配并显式重建；编译器不生成active-variant检查或`IllegalStateException`路径；
 - 表达式位裸variant只由普通可见候选或唯一expected exact enum application引入，不扫描全程序全部enum；`Option`不再拥有另一套硬编码表达式解析；
@@ -357,9 +357,9 @@ VariantPayload = Unit | Positional(MatchElement*)
                | Fields(FieldMatchElement*)
 ```
 
-`Field(...)`包含显式`field: pattern`；字段shorthand在AST中精确展开为同名的普通pattern syntax，RHS仍按所在上下文的完整规则分类。binding上下文通常把它分类为同名binding，但名称`Unit`仍优先成为内建literal并被拒绝，必须写成`Unit: value`等显式不同绑定名；match上下文也先应用Unit literal特例，再对其他名称执行variant-first分类。`FieldRest`在同一字段列表至多出现一次且只能位于末尾。`EnumVariant`始终保存已经解析的variant id及unit/位置/具名字段三种互斥payload shape，不能把具名enum payload伪装成struct pattern。`Rest`不是可独立出现的pattern，只能出现在position/variant element list或字段列表中，并遵守language spec §4.6的数量与位置约束。源码`Positional`在subject type确定后分类：binding位置可成为tuple投影、struct投影或class component plan，match位置只能成为tuple/struct投影；class component只属于binding位置，不能把可能有副作用的`componentN`调用放入match或coverage算法，且其element list不允许`Rest`。`val`/`var`、lambda与`for`只接受递归irrefutable的`BindingPattern`；`when`的模式分支接受`MatchPattern`。一个外层tuple/struct不能用嵌套literal或variant绕过binding限制。单variant enum仍是sum constructor，M22不为它引入特殊的“声明式可失败解构”。
+`Field(...)`包含显式`field: pattern`；字段shorthand在AST中精确展开为同名的普通pattern syntax，RHS仍按所在上下文的完整规则分类。binding上下文通常把它分类为同名binding，但名称`Unit`仍优先成为内建literal并被拒绝，必须写成`Unit: value`等显式不同绑定名；match 上下文中 `val field` 展开为 `field: val field`，裸 shorthand 的 RHS 只能匹配 variant 或 Unit literal。`FieldRest`在同一字段列表至多出现一次且只能位于末尾。`EnumVariant`始终保存已经解析的variant id及unit/位置/具名字段三种互斥payload shape，不能把具名enum payload伪装成struct pattern。`Rest`不是可独立出现的pattern，只能出现在position/variant element list或字段列表中，并遵守language spec §4.6的数量与位置约束。源码`Positional`在subject type确定后分类：binding位置可成为tuple投影、struct投影或class component plan，match位置只能成为tuple/struct投影；class component只属于binding位置，不能把可能有副作用的`componentN`调用放入match或coverage算法，且其element list不允许`Rest`。`val`/`var`、lambda与`for`只接受递归irrefutable的`BindingPattern`；`when`的模式分支接受`MatchPattern`。一个外层tuple/struct不能用嵌套literal或variant绕过binding限制。单variant enum仍是sum constructor，M22不为它引入特殊的“声明式可失败解构”。
 
-两种上下文对裸标识符的分类刻意不同。除4.3的内建`Unit` literal外，`BindingPattern`中的普通裸标识符在任何深度都直接形成`Binding`，绝不尝试解析同名enum variant、import或value；`Unit`/`()`仍按literal拒绝。只有`E.V`、`V()`、`V(...)`与`V { ... }`等显式shape按subject exact enum解析成功时，才会被识别为refutable variant并拒绝；解析为struct时仍是irrefutable struct pattern。`MatchPattern`先把`Unit`/`()`分类为内建literal；其他裸标识符再按subject exact enum查询，unit variant形成variant pattern，payload variant缺少shape时直接诊断，只有名称未命中时才形成catch-all binding。同名enum variant `Unit`因此必须限定为`E.Unit`或写出payload shape。lambda参数的parser文法按language spec §8.1.2为`PatternSyntax [':' Type]`，成功语义节点必须是`BindingPattern`；一个composite pattern保留一个logical source/function-type parameter identity和一个typed ABI classification entry，annotation属于完整subject，物理payload分类以及closure environment/suspend continuation按language spec §4.7/§8.2另行处理。
+两种上下文对裸标识符的分类刻意不同。除4.3的内建`Unit` literal外，`BindingPattern`中的普通裸标识符在任何深度都直接形成`Binding`，绝不尝试解析同名enum variant、import或value；`Unit`/`()`仍按literal拒绝。只有`E.V`、`V()`、`V(...)`与`V { ... }`等显式shape按subject exact enum解析成功时，才会被识别为refutable variant并拒绝；解析为struct时仍是irrefutable struct pattern。`MatchPattern`先把`Unit`/`()`分类为内建literal；其他裸标识符再按subject exact enum查询，unit variant形成variant pattern，payload variant缺少shape时直接诊断，名称未命中时报告错误，catch-all binding 必须显式写作 `val name`。同名enum variant `Unit`因此必须限定为`E.Unit`或写出payload shape。lambda参数的parser文法按language spec §8.1.2为`PatternSyntax [':' Type]`，成功语义节点必须是`BindingPattern`；一个composite pattern保留一个logical source/function-type parameter identity和一个typed ABI classification entry，annotation属于完整subject，物理payload分类以及closure environment/suspend continuation按language spec §4.7/§8.2另行处理。
 
 ### 4.2 命名字段子模式
 
@@ -371,7 +371,7 @@ field: pattern    // RHS是完整递归子模式
 ..                // 仅末尾一次，补齐未列字段为wildcard
 ```
 
-因此`S { f1: 0, nested: (x, _), ignored: _, .. }`在`when`中合法；`{ f1, f2: renamed }`中的`f1`仍精确展开为`f1: f1`，其RHS再按binding或match上下文分类。`{ Unit }`同理展开为`{ Unit: Unit }`并命中内建literal特例，不会建立名为`Unit`的binding。`_`不能作为字段key，但可作为`field: _`的RHS。字段名必须存在且不能重复；所有binding名称在整个pattern内唯一。未列出全部字段时仍必须以`..`结尾。
+因此 `S { f1: 0, nested: (val x, _), ignored: _, .. }` 在 `when` 中合法；`{ f1, f2: renamed }`中的`f1`仍精确展开为`f1: f1`，其RHS再按binding或match上下文分类。`{ Unit }`同理展开为`{ Unit: Unit }`并命中内建literal特例，不会建立名为`Unit`的binding。`_`不能作为字段key，但可作为`field: _`的RHS。字段名必须存在且不能重复；所有binding名称在整个pattern内唯一。未列出全部字段时仍必须以`..`结尾。
 
 AST的`FieldPattern`保存`field: Ident`与boxed完整`subpattern`，不再保存只能表示rename的`Option<Ident>`。HIR先把每个源码字段解析为subject exact type中的封闭typed field identity：struct字段使用`AppliedStructFieldRef`，enum payload字段使用`AppliedEnumVariantFieldRef`（或类型上同样隔离的封闭sum），不得用可混用的裸index。随后同时建立两种共享同一identity的顺序：按声明顺序补全wildcard的完整field vector供shape检查、match coverage与layout映射使用；按源码显式字段顺序保存的binding action entries供运行期depth-first执行。`FieldRest`只向前一种表示补wildcard，不生成后一种action。MIR不按名称查字段，也不得从声明序vector反推运行期binding顺序。
 
@@ -388,7 +388,7 @@ qualified `E.V(...)`始终按普通variant constructor解析；显式/default st
 
 `scoop.core.Option.*`通过prelude的typed default-import条目工作；编译器不再写`Some`/`None`短名称特判。未来M23只需把同一候选层换成真实import metadata。
 
-match pattern位variant仍由subject exact enum type解析。未解析为该enum variant的裸标识符保持合法catch-all binding，在任意嵌套深度均不因未命中variant名而产生warning。需要明确匹配variant时可使用全限定名，未知的限定variant仍是编译错误。该variant-first规则不进入4.1定义的binding上下文。
+match pattern 的 variant 由 subject exact enum type 解析，未命中的裸标识符在任意嵌套深度均为编译错误，提示绑定需写 `val name`。parser 将裸 variant 名与显式 binding 分别保存，HIR 不再回退。声明位置仍使用 4.1 的裸 binding 语法；新绑定遮蔽该位置实际可用的 variant 时，按语言规范 4.6 给出 warning，既不按大小写猜测，也不扫描无关 enum。
 
 ### 4.4 递归pattern matrix
 

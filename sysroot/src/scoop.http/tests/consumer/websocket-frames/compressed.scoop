@@ -34,7 +34,7 @@ fun decompressMessage(decoder: DeflateMessageDecoder, events: List<WebSocketFram
                 val result = ByteArrayBuilder()
                 for (event in events) {
                     when (event) {
-                        case Data(bytes) -> {
+                        case Data(val bytes) -> {
                             input.clear(); input.writeBytes(bytes)
                             while (true) {
                                 output.clear()

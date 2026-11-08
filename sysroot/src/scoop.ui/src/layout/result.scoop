@@ -65,8 +65,8 @@ internal class NodeLayout(
         closed = true
         sceneCache = None
         when (body) {
-            case Element(value) -> value.close()
-            case Lazy(value, _) -> value.close()
+            case Element(val value) -> value.close()
+            case Lazy(val value, _) -> value.close()
             else -> {}
         }
     }
@@ -86,7 +86,7 @@ internal class LayoutStore: Closeable {
         node.layoutRound = Some(round)
         node.layoutRequests.clear()
         when (node.currentLayout) {
-            case Some(value) -> node.layoutRequests.add(value)
+            case Some(val value) -> node.layoutRequests.add(value)
             case None -> {}
         }
         touched.add(node)
@@ -122,7 +122,7 @@ internal class LayoutStore: Closeable {
         for (node in touched) {
             node.layoutRequests.clear()
             when (node.currentLayout) {
-                case Some(value) -> node.layoutRequests.add(value)
+                case Some(val value) -> node.layoutRequests.add(value)
                 case None -> {}
             }
         }
@@ -142,12 +142,12 @@ internal class LayoutStore: Closeable {
 
 internal fun sameLayoutRound(previous: LayoutRound?, current: LayoutRound): Boolean =
     when (previous) {
-        case Some(value) -> value === current
+        case Some(val value) -> value === current
         case None -> false
     }
 
 private fun sameNodeLayout(previous: NodeLayout?, current: NodeLayout): Boolean =
     when (previous) {
-        case Some(value) -> value === current
+        case Some(val value) -> value === current
         case None -> false
     }

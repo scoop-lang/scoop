@@ -49,7 +49,7 @@ private class ErrorHandler: ApplicationHandler {
                 throw IllegalArgumentException(Some("body"))
             }
             case Exiting -> exiting += 1
-            case Window(identity, WindowEvent.Closing) -> {
+            case Window(val identity, WindowEvent.Closing) -> {
                 closing += 1
                 if (identity == first!!.id) {
                     val held = lease!!

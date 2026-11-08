@@ -150,7 +150,7 @@ internal class DesktopProbe {
         native.requestSize(LogicalSize(420.0, 260.0))
         waitDesktop("resized accepted regions") {
             when (native.metrics) {
-                case Some(value) -> value.logicalSize.width == 420.0 && accepted > beforeResize
+                case Some(val value) -> value.logicalSize.width == 420.0 && accepted > beforeResize
                 case None -> false
             }
         }

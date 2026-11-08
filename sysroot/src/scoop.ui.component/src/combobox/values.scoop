@@ -63,7 +63,7 @@ public class ComboboxProps<T: Equals<T>> public constructor(
         nonnegative(width, "invalid combobox width")
         nonnegative(maxHeight, "invalid combobox list height")
         when (popupWidth) {
-            case Some(width) -> nonnegative(width, "invalid combobox popup width");
+            case Some(val width) -> nonnegative(width, "invalid combobox popup width");
             case None -> {}
         }
         requireComponent(
@@ -75,11 +75,11 @@ public class ComboboxProps<T: Equals<T>> public constructor(
 
 internal fun <T: Equals<T>> comboValues(selection: ComboboxSelection<T>): Array<T> =
     when (selection) {
-        case Single(binding) -> when (binding.value) {
-            case Some(value) -> [value];
+        case Single(val binding) -> when (binding.value) {
+            case Some(val value) -> [value];
             case None -> []
         }
-        case Multiple(binding) -> binding.value
+        case Multiple(val binding) -> binding.value
     }
 
 internal fun <T: Equals<T>> comboContains(values: Array<T>, value: T): Boolean {
@@ -104,25 +104,25 @@ internal fun <T: Equals<T>> comboWrite(input: ComboboxProps<T>, values: Array<T>
     if (comboSame(previous, values))
         return false
     when (input.selection) {
-        case Single(binding) -> binding.value =
+        case Single(val binding) -> binding.value =
             if (values.size == 0L)
                 None
             else
                 Some(values[0L])
-        case Multiple(binding) -> binding.value = values
+        case Multiple(val binding) -> binding.value = values
     }
     val accepted = comboValues(input.selection)
     if (comboSame(previous, accepted))
         return false
     when (input.selection) {
-        case Single(binding) -> input.onValueChange(binding.value)
-        case Multiple(binding) -> input.onValuesChange(binding.value)
+        case Single(val binding) -> input.onValueChange(binding.value)
+        case Multiple(val binding) -> input.onValuesChange(binding.value)
     }
     return true
 }
 
 internal fun <T: Equals<T>> comboValueText(input: ComboboxProps<T>, value: T): String =
     when (input.valueText) {
-        case Some(text) -> text(value)
+        case Some(val text) -> text(value)
         case None -> sourceChoice(input.source, value)?.label ?: input.unavailableText
     }

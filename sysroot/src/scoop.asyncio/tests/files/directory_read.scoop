@@ -93,7 +93,7 @@ internal suspend fun collectDirectoryEntries(directory: AsyncDirectoryEntries): 
     while (true) {
         when (directory.next()) {
             case None -> return entries
-            case Some(entry) -> entries.add(entry)
+            case Some(val entry) -> entries.add(entry)
         }
     }
 }

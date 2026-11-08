@@ -69,11 +69,11 @@ internal fun motionPlan(
     velocity.check();
     to.subtract(from).check()
     return when (spec) {
-        case Tween(duration, easing) -> {
+        case Tween(val duration, val easing) -> {
             requireAnimation(duration >= Duration.ZERO, "negative animation duration")
             TweenPlan(from, to, durationSeconds(duration), easing)
         }
-        case Spring(stiffness, damping, displacement, speed) -> springPlan(
+        case Spring(val stiffness, val damping, val displacement, val speed) -> springPlan(
             from,
             to,
             velocity,
@@ -98,22 +98,22 @@ internal class MotionRun(
     private val backward = motionPlan(destination, origin, AnimationVector(), spec)
     private val iterations: Long? =
         when (repeat) {
-            case Some(value) -> value.iterations;
+            case Some(val value) -> value.iterations;
             case None -> Some(1L)
         }
     private val reverse =
         when (repeat) {
-            case Some(value) -> value.mode == RepeatMode.Reverse;
+            case Some(val value) -> value.mode == RepeatMode.Reverse;
             case None -> false
         }
     val duration: Double? get() =
         when (iterations) {
-            case Some(count) -> Some(first.duration + (count - 1L).toDouble() * forward.duration)
+            case Some(val count) -> Some(first.duration + (count - 1L).toDouble() * forward.duration)
             case None -> None
         }
     init {
         when (iterations) {
-            case Some(value) -> requireAnimation(value > 0L, "repeat count must be positive");
+            case Some(val value) -> requireAnimation(value > 0L, "repeat count must be positive");
             case None -> {}
         }
         when (repeat) {
@@ -126,7 +126,7 @@ internal class MotionRun(
     }
     fun sample(seconds: Double): RunSample {
         when (iterations) {
-            case Some(count) -> {
+            case Some(val count) -> {
                 val end = duration!!
                 if (seconds >= end) {
                     val finalValue =

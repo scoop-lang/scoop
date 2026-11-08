@@ -60,7 +60,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         val anchor = display.value
         if (cachedAnchor == Some(anchor))
             when (cachedOptions) {
-                case Some(old) -> if (old === options)
+                case Some(val old) -> if (old === options)
                     return cachedPages
                 case None -> {}
             }
@@ -90,9 +90,9 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         val candidate = preview.value
         val range =
             when (start) {
-                case Some(first) -> Some(orderedDateRange(first, candidate ?: first))
+                case Some(val first) -> Some(orderedDateRange(first, candidate ?: first))
                 case None -> when (selected) {
-                    case Range(value) -> value;
+                    case Range(val value) -> value;
                     else -> None
                 }
             }
@@ -104,7 +104,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
             for (week in page.weeks) {
                 for (column in 0L ..< 7L)
                     when (week.days[column]) {
-                        case Some(data) -> {
+                        case Some(val data) -> {
                             val key =
                                 ViewKey.Text(page.anchor.toString() + ":" + data.date.toString())
                             var own: FocusHandle? = None
@@ -158,8 +158,8 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
     fun synchronize(snapshot: CalendarSnapshot) {
         props.value.handle?.bind(this)
         when (bound) {
-            case Some(old) -> when (props.value.handle) {
-                case Some(next) -> if (old !== next)
+            case Some(val old) -> when (props.value.handle) {
+                case Some(val next) -> if (old !== next)
                     old.release(this)
                 case None -> old.release(this)
             }
@@ -167,11 +167,11 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         }
         bound = props.value.handle
         when (lastSelection) {
-            case Some(previous) -> if (!sameCalendarValue(previous, snapshot.selection)) {
+            case Some(val previous) -> if (!sameCalendarValue(previous, snapshot.selection)) {
                 cancelRange()
                 if (props.value.options.syncSelection)
                     when (calendarFirst(snapshot.selection)) {
-                        case Some(date) -> setPage(date)
+                        case Some(val date) -> setPage(date)
                         case None -> {}
                     }
             }
@@ -190,11 +190,11 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         val before = calendarRead(input.selection)
         when (calendarActivate(before, pending.value, member.data.date, input.options.rules)) {
             case Rejected -> {}
-            case Pending(date) -> {
+            case Pending(val date) -> {
                 pending.value = Some(date);
                 preview.value = Some(date)
             }
-            case Commit(next) -> {
+            case Commit(val next) -> {
                 if (!calendarWrite(input.selection, next))
                     return
                 val accepted = calendarRead(props.value.selection)
@@ -266,7 +266,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         for (week in page.weeks)
             for (cell in week.days)
                 when (cell) {
-                    case Some(day) -> if (
+                    case Some(val day) -> if (
                         day.date ==
                             date &&
                             (!focus || (day.enabled && props.value.options.rules.allows(date)))
@@ -310,7 +310,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
             for (week in page.weeks)
                 for (cell in week.days)
                     when (cell) {
-                        case Some(day) -> if (
+                        case Some(val day) -> if (
                             !day.outside &&
                                 day.enabled &&
                                 props.value.options.rules.allows(day.date)
@@ -341,7 +341,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
             for (week in page.weeks)
                 for (cell in week.days)
                     when (cell) {
-                        case Some(day) -> if (
+                        case Some(val day) -> if (
                             day.enabled && props.value.options.rules.allows(day.date)
                         ) {
                             val eligible =
@@ -352,7 +352,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
                             val closer =
                                 when (candidate) {
                                     case None -> true;
-                                    case Some(old) -> if (forward)
+                                    case Some(val old) -> if (forward)
                                         day.date < old
                                     else
                                         day.date > old
@@ -376,7 +376,7 @@ internal class CalendarControl(val props: Props<CalendarProps>, val scope: Compo
         val request = focusRequest ?: return
         focusRequest = None
         when (request.date) {
-            case Some(date) -> {
+            case Some(val date) -> {
                 var fallback: FocusHandle? = None
                 for (member in snapshot.members)
                     if (member.data.date == date) {

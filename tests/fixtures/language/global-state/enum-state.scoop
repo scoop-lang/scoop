@@ -11,11 +11,11 @@ public fun <T> exercise(value: T): Int {
     if (allocated.number != 0) { return 1 }
     val cleared = when (stored) {
         case Empty -> true
-        case Item(cell) -> false
+        case Item(val cell) -> false
     }
     if (!cleared) { return 2 }
     return when (saved) {
-        case Item(cell) -> cell.number
+        case Item(val cell) -> cell.number
         case Empty -> 3
     }
 }

@@ -11,7 +11,7 @@ internal class EditorGlyphCache: Closeable {
         val previous = content
         val next =
             when (previous) {
-                case Some(value) -> if (value.text == text && value.style === style)
+                case Some(val value) -> if (value.text == text && value.style === style)
                     value
                 else
                     styledText {
@@ -37,7 +37,7 @@ internal fun editorGeometry(
     plan: TextEditCells?
 ): TextEditLayout {
     when (host.currentLayout) {
-        case Some(previous) -> if (
+        case Some(val previous) -> if (
             previous.paragraph === paragraph && sameEditorCells(previous.cells?.plan, plan)
         )
             return previous
@@ -50,7 +50,7 @@ internal fun editorGeometry(
             val cells =
                 when (plan) {
                     case None -> None
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         val bytes = paragraph.text.toByteArray()
                         val boundaries = paragraph.graphemeBoundaries
                         val count = boundaries.size - 1L

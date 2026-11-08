@@ -141,7 +141,7 @@ internal class ProcessPipes internal constructor(
             }
         }
         when (failure) {
-            case Some(error) -> throw error;
+            case Some(val error) -> throw error;
             case None -> {}
         }
     }

@@ -42,21 +42,21 @@ public class CarouselHandle public constructor() {
     internal fun wheel(amount: Double): Double {
         checkThread()
         return when (target) {
-            case Some(control) -> carouselWheel(control, amount)
+            case Some(val control) -> carouselWheel(control, amount)
             case None -> 0.0
         }
     }
     internal fun finishWheel() {
         checkThread()
         when (target) {
-            case Some(control) -> carouselFinishWheel(control)
+            case Some(val control) -> carouselFinishWheel(control)
             case None -> {}
         }
     }
     internal fun bind(control: CarouselControl) {
         checkThread()
         when (target) {
-            case Some(old) -> requireComponent(
+            case Some(val old) -> requireComponent(
                 old === control || !old.active,
                 "carousel handle already has a target"
             )
@@ -68,7 +68,7 @@ public class CarouselHandle public constructor() {
     internal fun unbind(control: CarouselControl) {
         checkThread()
         when (target) {
-            case Some(old) -> if (old === control) {
+            case Some(val old) -> if (old === control) {
                 target = None;
                 publish(CarouselSnapshot())
             }

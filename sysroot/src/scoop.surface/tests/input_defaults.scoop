@@ -55,7 +55,7 @@ private class InputDefaultsTest {
                 {
                     _,
                     event -> when (event) {
-                        case Keyboard(value) -> {
+                        case Keyboard(val value) -> {
                             assertTextCommands(commands, value.textCommands)
                             state.trace += "target,"
                         }
@@ -66,7 +66,7 @@ private class InputDefaultsTest {
                 {
                     _,
                     event -> when (event) {
-                        case Keyboard(value) -> {
+                        case Keyboard(val value) -> {
                             assertTextCommands(commands, value.textCommands);
                             state.trace += "bubble,"
                         }
@@ -77,7 +77,7 @@ private class InputDefaultsTest {
                 {
                     context,
                     event -> when (event) {
-                        case Keyboard(value) -> {
+                        case Keyboard(val value) -> {
                             for (command in value.textCommands)
                                 when (command) {
                                     case Move(TextMovement.WordLeft, true) -> state.trace += "move,"

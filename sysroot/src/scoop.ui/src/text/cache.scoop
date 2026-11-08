@@ -28,7 +28,7 @@ internal class ParagraphCache: Closeable {
     ): TextLayout {
         observeFonts(fonts)
         when (current) {
-            case Some(previous) -> {
+            case Some(val previous) -> {
                 if (previous.matches(fonts, content, settings)) {
                     if (previous.width == width && equalMetrics(previous.metrics, metrics))
                         return previous.layout
@@ -116,7 +116,7 @@ private fun createLayout(
     metrics: Array<InlineMetrics>
 ): TextLayout =
     when (width) {
-        case Some(value) -> paragraph.layout(value, metrics)
+        case Some(val value) -> paragraph.layout(value, metrics)
         case None -> paragraph.layoutUnwrapped(metrics)
     }
 

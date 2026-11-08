@@ -224,7 +224,7 @@ internal class NativeTableSource(
     }
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> if (index >= 0L && index < count)
+            case Number(val index) -> if (index >= 0L && index < count)
                 Some(index)
             else
                 None

@@ -19,25 +19,25 @@ internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
 
 private fun darwinShortcutLabel(key: ShortcutKey): String {
     return when (key) {
-        case Logical(LogicalKey.Character(text)) -> text
-        case Logical(LogicalKey.Named(key)) -> darwinNamedLabel(key)
+        case Logical(LogicalKey.Character(val text)) -> text
+        case Logical(LogicalKey.Named(val key)) -> darwinNamedLabel(key)
         case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
             Some("dead shortcut key")
         )
         case Logical(LogicalKey.Unidentified(_)) -> "Unknown"
         case Physical(PhysicalKey.Unidentified(_)) -> "Unknown"
-        case Physical(PhysicalKey.Code(key)) -> {
+        case Physical(PhysicalKey.Code(val key)) -> {
             val code = darwinScanCode(key)
             when (code) {
-                case Some(scan) -> {
+                case Some(val scan) -> {
                     val named = darwinNamedKey(scan)
                     when (named) {
-                        case Some(value) -> return darwinNamedLabel(value)
+                        case Some(val value) -> return darwinNamedLabel(value)
                         case None -> {}
                     }
                     val text = darwinLayoutLabel(scan.toUInt())
                     when (text) {
-                        case Some(value) -> return value
+                        case Some(val value) -> return value
                         case None -> {}
                     }
                 }

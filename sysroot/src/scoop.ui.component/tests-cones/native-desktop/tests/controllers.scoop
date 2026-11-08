@@ -13,7 +13,7 @@ private class DialogReplies {
 
 private fun <T> assertCancelled(result: FileDialogResult<T>) {
     when (result) {
-        case Cancelled(reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
+        case Cancelled(val reason) -> assertEquals(FileDialogCancelReason.Cancelled, reason)
         else -> fail(Some("file request did not complete as cancelled"))
     }
 }
@@ -96,7 +96,7 @@ internal suspend fun runControllerCases(
     assertTrue(dialog.isPending)
     awaitNative("accepted modal result") { replies.values.size == 1L }
     when (replies.values[0L]) {
-        case Accepted(value) -> assertEquals("accepted", value)
+        case Accepted(val value) -> assertEquals("accepted", value)
         else -> fail(Some("accepted value was lost"))
     }
     assertFalse(dialog.isPending)
@@ -116,7 +116,7 @@ internal suspend fun runControllerCases(
     )
     awaitNative("reply during child mount") { replies.values.size == 2L }
     when (replies.values[1L]) {
-        case Accepted(value) -> assertEquals("from mount", value)
+        case Accepted(val value) -> assertEquals("from mount", value)
         else -> fail(Some("early response was lost"))
     }
     val early = replies.response!!
@@ -137,7 +137,7 @@ internal suspend fun runControllerCases(
     assertTrue(cancelled.window.requestClose())
     awaitNative("native dialog close cancellation") { replies.values.size == 3L }
     when (replies.values[2L]) {
-        case Cancelled(reason) -> assertEquals(ModalCancelReason.Cancelled, reason)
+        case Cancelled(val reason) -> assertEquals(ModalCancelReason.Cancelled, reason)
         else -> fail(Some("native close did not cancel dialog"))
     }
     awaitNative("cancelled modal native destruction") {

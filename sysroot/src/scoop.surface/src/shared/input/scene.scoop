@@ -65,7 +65,7 @@ internal class InputFrame(val owner: InputRouter): Closeable {
             val local = area.caret
             val visible =
                 when (local) {
-                    case Some(rect) -> canvas.withState {
+                    case Some(val rect) -> canvas.withState {
                         child ->
                         clip(child)
                         @Unsafe
@@ -123,7 +123,7 @@ internal fun InputRouter.path(scope: InputScope, boundary: InputScope = inputRoo
             return []
         if (!reached) {
             when (current.area) {
-                case Some(area) -> {
+                case Some(val area) -> {
                     val placement = scene.find(area) ?: return []
                     if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
                         return []

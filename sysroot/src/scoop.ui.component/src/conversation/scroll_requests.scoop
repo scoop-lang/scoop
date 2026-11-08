@@ -14,13 +14,13 @@ internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput
         return
     }
     when (model.request) {
-        case Some(request) -> {
+        case Some(val request) -> {
             when (request.issued) {
                 case None -> {
                     messageIssue(owner, request);
                     return
                 }
-                case Some(revision) -> {
+                case Some(val revision) -> {
                     if (model.list.isPending || revision != model.scroll.requestRevision)
                         return
                     when (request.destination) {
@@ -37,7 +37,7 @@ internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput
                         case Reading(_) -> {
                             val unchanged =
                                 when (request.source) {
-                                    case Some(old) -> old === source
+                                    case Some(val old) -> old === source
                                     case None -> false
                                 }
                             if (!unchanged) {
@@ -56,7 +56,7 @@ internal fun messageAccepted(owner: MessageViewport, frame: MessageViewportInput
                                 MessageScrollMode.Following
                             else
                                 MessageScrollMode.Holding
-                            case Initial(position) ->
+                            case Initial(val position) ->
                             if (
                                 position != MessageInitialPosition.Start && model.options.autoScroll
                             )
@@ -124,7 +124,7 @@ internal fun messageIssue(owner: MessageViewport, request: MessageRequest) {
         return
     when (request.destination) {
         case Reading(_) -> when (request.source) {
-            case Some(old) -> {
+            case Some(val old) -> {
                 if (old !== source && old.count > 0L) {
                     model.request = None
                     model.present(MessageScrollMode.Holding, model.presentation.value.padding, true)
@@ -139,15 +139,15 @@ internal fun messageIssue(owner: MessageViewport, request: MessageRequest) {
         when (request.destination) {
             case Start -> source.keyAt(0L)
             case End -> source.keyAt(source.count - 1L)
-            case Initial(position) -> source.keyAt(
+            case Initial(val position) -> source.keyAt(
                 if (position == MessageInitialPosition.Start)
                     0L
                 else
                     source.count - 1L
             )
-            case Turn(value) -> value
-            case Item(value, _) -> value
-            case Reading(value) -> value.key
+            case Turn(val value) -> value
+            case Item(val value, _) -> value
+            case Reading(val value) -> value.key
         }
     if (virtualIndex(source, source.count, key) == None) {
         model.request = None
@@ -173,21 +173,21 @@ internal fun messageIssue(owner: MessageViewport, request: MessageRequest) {
     try {
         accepted =
             when (request.destination) {
-                case Reading(anchor) -> model.list.restore(anchor)
+                case Reading(val anchor) -> model.list.restore(anchor)
                 case Turn(_) -> model.list.scrollToItem(
                     key,
                     ScrollAlignment.Start,
                     model.options.scrollMargin * input.density,
                     model.options.previousItemPeek * input.density
                 )
-                case Item(_, alignment) -> model.list.scrollToItem(
+                case Item(_, val alignment) -> model.list.scrollToItem(
                     key,
                     alignment,
                     model.options.scrollMargin * input.density
                 )
                 case Start -> model.list.scrollToItem(key, ScrollAlignment.Start)
                 case End -> model.list.scrollToItem(key, ScrollAlignment.End)
-                case Initial(position) -> model.list.scrollToItem(
+                case Initial(val position) -> model.list.scrollToItem(
                     key,
                     if (position == MessageInitialPosition.Start)
                         ScrollAlignment.Start

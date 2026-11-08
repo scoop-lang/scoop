@@ -33,7 +33,7 @@ internal fun chartPayload(plan: ChartPlan, selection: ChartSelection?): ChartToo
     val entries = ArrayList<ChartTooltipEntry>()
     for (series in plan.prepared.series)
         when (data.series[series.source].values[at]) {
-            case Some(value) -> entries.add(
+            case Some(val value) -> entries.add(
                 ChartTooltipEntry(
                     data.series[series.source],
                     value,
@@ -143,7 +143,7 @@ internal fun chartLegend(input: ChartProps, plan: ChartPlan): View {
             val color = a.color(plan.snapshot, index)
             val text =
                 when (options.formatter) {
-                    case Some(format) -> format(series);
+                    case Some(val format) -> format(series);
                     case None -> series.label
                 }
             val content =
@@ -194,7 +194,7 @@ internal fun chartTooltip(
     val d = a.density
     val title =
         when (options.labelFormatter) {
-            case Some(format) -> format(payload.datum);
+            case Some(val format) -> format(payload.datum);
             case None -> payload.datum.label
         }
     val values =
@@ -202,7 +202,7 @@ internal fun chartTooltip(
             at ->
             val entry = payload.entries[at];
             when (options.formatter) {
-                case Some(format) -> format(entry);
+                case Some(val format) -> format(entry);
                 case None -> chartNumber(entry.value)
             }
         }

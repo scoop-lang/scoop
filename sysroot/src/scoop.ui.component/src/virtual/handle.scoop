@@ -57,7 +57,7 @@ public class VirtualListHandle public constructor() {
     internal fun bind(value: VirtualListInk) {
         checkThread()
         when (target) {
-            case Some(current) -> requireComponent(
+            case Some(val current) -> requireComponent(
                 current === value || !current.active,
                 "virtual list handle already has a target"
             )
@@ -69,7 +69,7 @@ public class VirtualListHandle public constructor() {
     internal fun unbind(value: VirtualListInk) {
         checkThread()
         when (target) {
-            case Some(current) -> if (current === value) {
+            case Some(val current) -> if (current === value) {
                 target = None
                 replaceSnapshot(None)
             }
@@ -79,7 +79,7 @@ public class VirtualListHandle public constructor() {
     internal fun publish(owner: VirtualListInk, value: VirtualReadingSnapshot) {
         checkThread()
         when (target) {
-            case Some(current) -> if (current === owner && current.active)
+            case Some(val current) -> if (current === owner && current.active)
                 replaceSnapshot(Some(value))
             case None -> {}
         }

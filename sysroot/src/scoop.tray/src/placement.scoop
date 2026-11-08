@@ -16,7 +16,7 @@ internal fun TrayOwner.placeWindow(window: Window, options: TrayWindowPlacement)
             var target: Monitor? = None
             for (monitor in application.monitors())
                 when (monitor.desktopBounds) {
-                    case Some(bounds) -> if (containsPoint(bounds, centerX, centerY))
+                    case Some(val bounds) -> if (containsPoint(bounds, centerX, centerY))
                         target = Some(monitor)
                     case None -> {}
                 }
@@ -54,7 +54,7 @@ internal fun TrayOwner.placeWindow(window: Window, options: TrayWindowPlacement)
             // Win32 delivers WM_DPICHANGED during SetWindowPos. Use the actual
             // new frame without waiting for a managed metrics event to arrive.
             when (window.outerBounds) {
-                case Some(actual) -> if (
+                case Some(val actual) -> if (
                     actual.width != plan.width || actual.height != plan.height
                 ) {
                     val adjusted =
@@ -80,15 +80,15 @@ internal fun TrayOwner.placeWindow(window: Window, options: TrayWindowPlacement)
 private fun TrayOwner.placementAnchor(options: TrayWindowPlacement): DesktopRect {
     if (capabilities().iconBounds)
         when (geometry()) {
-            case Some(value) -> return value.bounds
+            case Some(val value) -> return value.bounds
             case None -> {}
         }
     return when (options.anchor) {
-        case Some(TrayAnchor.Rectangle(value)) -> {
+        case Some(TrayAnchor.Rectangle(val value)) -> {
             validBounds(value.bounds, false)
             value.bounds
         }
-        case Some(TrayAnchor.PointHint(point)) -> {
+        case Some(TrayAnchor.PointHint(val point)) -> {
             if (!options.allowPointHint)
                 throw WindowException(
                     "tray point hint requires explicit opt-in",

@@ -1,6 +1,6 @@
 fun greeting(name: String?): String =
     when (name) {
-        case Some(value) -> f"Hello, ${value}!"
+        case Some(val value) -> f"Hello, ${value}!"
         case None -> "Hello, guest!"
     }
 

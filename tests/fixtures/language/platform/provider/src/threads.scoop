@@ -19,7 +19,7 @@ public fun spawn(action: () -> Int): Thread {
                 releaseForeignCallback(observer)
                 throw IllegalStateException()
             }
-            case Some(handle) -> { return Thread(handle, observer) }
+            case Some(val handle) -> { return Thread(handle, observer) }
         }
     }
 }
@@ -31,7 +31,7 @@ public fun join(thread: Thread): Int {
         try {
             when (foreignCallbackFailure(thread.observer)) {
                 case None -> {}
-                case Some(failure) -> { throw failure }
+                case Some(val failure) -> { throw failure }
             }
             if (foreignCallbackState(thread.observer) != ForeignCallbackState.Completed) {
                 throw IllegalStateException()

@@ -96,4 +96,4 @@ internal fun clientMergeCachedHead(stored: HttpResponseHead, validating: HttpRes
 }
 
 internal fun clientCacheReason(head: HttpResponseHead): List<Byte>? =
-    when (head.reason) { case Some(value) -> Some<List<Byte>>(value); case None -> None }
+    when (head.reason) { case Some(val value) -> Some<List<Byte>>(value); case None -> None }

@@ -21,7 +21,7 @@ internal class LimitedCollectSource(private val bytes: Array<Byte>) : AsyncByteS
         if (count > largestRequested) largestRequested = count
         currentEventLoop().sleep(Duration.nanoseconds(1L))
         if (failAt != None && position >= failAt!!) throw failure
-        when (invalidProgress) { case Some(value) -> return value; case None -> {} }
+        when (invalidProgress) { case Some(val value) -> return value; case None -> {} }
         val remaining = bytes.size - position
         val amount = if (remaining < count) remaining else count
         buffer.writeBytes(bytes, position, amount)

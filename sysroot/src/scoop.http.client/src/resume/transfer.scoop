@@ -47,14 +47,14 @@ internal suspend fun prepareClientResume(
                     )
                 }
             when (step) {
-                case Complete(result) -> {
+                case Complete(val result) -> {
                     download.requireActive()
                     if (options.syncOnCommit)
                         owned.file.syncAll()
                     download.requireActive()
                     return@useAsync result
                 }
-                case Continue(next) -> range = Some(next)
+                case Continue(val next) -> range = Some(next)
                 case Restart -> range = None
             }
         }

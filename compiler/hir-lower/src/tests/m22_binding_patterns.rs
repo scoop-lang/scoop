@@ -289,7 +289,7 @@ fn unit_literals_are_refutable_but_an_explicit_unit_field_binding_is_valid() {
 }
 
 #[test]
-fn bare_unit_variant_in_match_remains_variant_first() {
+fn bare_unit_variant_in_match_resolves_to_its_variant() {
     let source = file(vec![
         signal_decl(),
         fun_sig(
@@ -299,7 +299,7 @@ fn bare_unit_variant_in_match_remains_variant_first() {
             None,
             vec![when_stmt(
                 var("signal"),
-                vec![arm(pat_bind("Ready"), None, vec![])],
+                vec![arm(pat_variant("Ready"), None, vec![])],
                 Some(vec![]),
             )],
         ),
@@ -337,7 +337,7 @@ fn bare_payload_variant_in_match_requires_an_explicit_shape() {
             None,
             vec![when_stmt(
                 var("signal"),
-                vec![arm(pat_bind("Payload"), None, vec![])],
+                vec![arm(pat_variant("Payload"), None, vec![])],
                 Some(vec![]),
             )],
         ),
@@ -371,13 +371,13 @@ fn match_field_shorthand_classifies_its_same_named_subpattern_from_the_field_typ
         (
             "Ready",
             ty_named("Signal"),
-            pat_bind("Ready"),
+            pat_variant("Ready"),
             Expected::UnitVariant,
         ),
         (
             "Payload",
             ty_named("Signal"),
-            pat_bind("Payload"),
+            pat_variant("Payload"),
             Expected::PayloadVariantError,
         ),
     ] {

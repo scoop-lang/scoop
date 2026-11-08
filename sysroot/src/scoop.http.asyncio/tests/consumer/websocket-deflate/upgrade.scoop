@@ -12,8 +12,8 @@ suspend fun readUpgrade(source: AsyncByteSource): (HttpRequestHead, Array<Byte>)
             var ended = false
             while (!ended) {
                 when (decoder.nextEvent()) {
-                    case Some(Http1Event.Request(head)) -> request = Some(head)
-                    case Some(Http1Event.Trailers(fields)) -> check(fields.size == 0L)
+                    case Some(Http1Event.Request(val head)) -> request = Some(head)
+                    case Some(Http1Event.Trailers(val fields)) -> check(fields.size == 0L)
                     case Some(Http1Event.End(_)) -> ended = true
                     case Some(_) -> throw IllegalStateException(Some("unexpected WebSocket upgrade body"))
                     case None -> {

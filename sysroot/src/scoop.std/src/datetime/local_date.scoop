@@ -139,14 +139,14 @@ public class LocalDate public constructor(
          * Parses ISO calendar date, returning None for malformed or out-of-range input.
          */
         public fun parseOrNone(text: String): LocalDate? = when (parseCalendarFields(text, true)) {
-            case Some(parts) -> Some(LocalDate(parts._1, parts._2, parts._3))
+            case Some(val parts) -> Some(LocalDate(parts._1, parts._2, parts._3))
             case None -> None
         }
         /**
          * Parses ISO calendar date or throws IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): LocalDate = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid date"))
         }
     }

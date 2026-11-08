@@ -41,8 +41,8 @@ private fun exerciseConsumer() {
                     when (next) {
                         case None -> break
                         case Some(_) -> when (next!!) {
-                            case Request(head) -> heads.add(head)
-                            case Data(bytes) -> received.append(bytes)
+                            case Request(val head) -> heads.add(head)
+                            case Data(val bytes) -> received.append(bytes)
                             case End(_) -> ends += 1L
                             else -> {}
                         }

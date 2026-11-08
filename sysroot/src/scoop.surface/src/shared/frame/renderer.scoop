@@ -32,7 +32,7 @@ internal fun cleanupFailure(previous: Throwable?, action: () -> Unit): Throwable
     catch (error: Throwable) {
         return Some(
             when (previous) {
-                case Some(primary) -> ResourceUseException(primary, error)
+                case Some(val primary) -> ResourceUseException(primary, error)
                 case None -> error
             }
         )
@@ -41,7 +41,7 @@ internal fun cleanupFailure(previous: Throwable?, action: () -> Unit): Throwable
 
 internal fun throwFailure(failure: Throwable?) {
     when (failure) {
-        case Some(error) -> throw error;
+        case Some(val error) -> throw error;
         case None -> {}
     }
 }

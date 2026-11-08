@@ -25,7 +25,7 @@ internal fun nativeFrameQuery(
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Gtk(window, view) -> return@use frameQuery(window, view, field, x, y)
+                    case Gtk(val window, val view) -> return@use frameQuery(window, view, field, x, y)
                 }
             }
         }

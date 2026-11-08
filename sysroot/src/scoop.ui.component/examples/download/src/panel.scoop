@@ -34,7 +34,7 @@ internal class DownloadPanel(
         val theme = themes.current.value
         val text =
             when (value.progress.total) {
-                case Some(total) -> f"${value.progress.bytes} / ${total} bytes"
+                case Some(val total) -> f"${value.progress.bytes} / ${total} bytes"
                 case None -> f"${value.progress.bytes} bytes · total unknown"
             }
         return frame(
@@ -84,7 +84,7 @@ internal class DownloadPanel(
                 this.label(
                     value.error ?:
                         when (value.digest) {
-                            case Some(digest) -> "SHA-256: " + digest
+                            case Some(val digest) -> "SHA-256: " + digest
                             case None -> "Try the click counter during download or background verification."
                         }
                 ) { this.fonts = Some(this @DownloadPanel.fonts) }

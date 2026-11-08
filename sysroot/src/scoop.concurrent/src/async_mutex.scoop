@@ -67,7 +67,7 @@ public class AsyncMutex public constructor() {
     internal fun validate(guard: AsyncMutexGuard) {
         val owns =
             when (holder) {
-                case Some(current) -> current === guard
+                case Some(val current) -> current === guard
                 case None -> false
             }
         if (guard.mutex !== this || guard.state != GuardState.Held || !owns)
@@ -101,7 +101,7 @@ public class AsyncMutex public constructor() {
 
     private fun handoff(notifications: WaitNotifications) {
         when (waiters.takeFirst()) {
-            case Some(waiter) -> grant(waiter, notifications)
+            case Some(val waiter) -> grant(waiter, notifications)
             case None -> holder = None
         }
     }
@@ -117,7 +117,7 @@ public class AsyncMutex public constructor() {
         stateLock.withLock {
             if (waiter.result.isPending) {
                 when (waiter.link) {
-                    case Some(link) -> waiters.remove(link)
+                    case Some(val link) -> waiters.remove(link)
                     case None -> {}
                 }
                 waiter.link = None

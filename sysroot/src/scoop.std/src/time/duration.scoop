@@ -166,7 +166,7 @@ public class Duration private constructor(
          * Parses ISO duration or throws IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): Duration = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid duration"))
         }
         internal fun fromParts(parts: DurationParts): Duration {

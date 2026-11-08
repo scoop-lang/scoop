@@ -10,7 +10,7 @@ internal class ClientH1Exchange(val call: ClientCall, val connection: AsyncHttp1
     public override val version: HttpVersion, val readIdle: Duration?) : ClientExchange {
     private var input: AsyncHttp1Body? = None
     public override val isReadComplete: Boolean get() = clientPresent(input) && input!!.isComplete
-    public override val trailers: Array<HttpField>? get() = when (input) { case Some(body) -> body.trailers; case None -> None }
+    public override val trailers: Array<HttpField>? get() = when (input) { case Some(val body) -> body.trailers; case None -> None }
     public override suspend fun receiveResponse(): HttpResponseHead {
         val response = try { connection.receiveResponse(readIdle = readIdle) }
         catch (error: Throwable) {

@@ -30,14 +30,14 @@ class Owner(initial: Ptr<Unit>?, fail: Boolean = false) : Base(7) {
         val saved = handle
         handle = None
         when (saved) {
-            case Some(pointer) -> { @Unsafe { drop(pointer) } }
+            case Some(val pointer) -> { @Unsafe { drop(pointer) } }
             case None -> {}
         }
     }
 
     release {
         when (handle) {
-            case Some(pointer) -> { @Unsafe { drop(pointer) } }
+            case Some(val pointer) -> { @Unsafe { drop(pointer) } }
             case None -> {}
         }
     }
@@ -50,7 +50,7 @@ class GetterOwner(pointer: Ptr<Unit>) {
     release {
         val empty = empty
         when (handle) {
-            case Some(pointer) -> { @Unsafe { drop(pointer) } }
+            case Some(val pointer) -> { @Unsafe { drop(pointer) } }
             case None -> {}
         }
     }

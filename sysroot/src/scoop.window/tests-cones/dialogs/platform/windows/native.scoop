@@ -8,11 +8,11 @@ internal fun dialogQuery(target: Window?, action: Int, kind: Int = -1): Int {
     {
         when (target) {
             case None -> return nativeDialogQuery(None, action, kind)
-            case Some(window) -> return window.acquireNativeWindow().use {
+            case Some(val window) -> return window.acquireNativeWindow().use {
                 lease -> @Unsafe
                 {
                     when (lease.handle) {
-                        case Win32(pointer, _) -> return@use nativeDialogQuery(
+                        case Win32(val pointer, _) -> return@use nativeDialogQuery(
                             Some(pointer),
                             action,
                             kind

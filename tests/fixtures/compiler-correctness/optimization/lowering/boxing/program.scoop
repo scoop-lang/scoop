@@ -19,7 +19,7 @@ fun snapshots() {
     val alias = boxed
     check(!(boxed is Boolean))
     check(when (boxed as? Boolean) { case Some(_) -> false; case None -> true })
-    check(when (boxed as? Value) { case Some(value) -> value.number == 1; case None -> false })
+    check(when (boxed as? Value) { case Some(val value) -> value.number == 1; case None -> false })
     check(boxed is Value)
     source = Value(70)
     gcCollect()
@@ -86,7 +86,7 @@ fun importedInterfaces(value: Int) {
     gcCollect()
     check((boxed as Equals<Int>).equals(value))
     check(when (boxed as? Equals<Int>) {
-        case Some(equal) -> equal.equals(value)
+        case Some(val equal) -> equal.equals(value)
         case None -> false
     })
 }

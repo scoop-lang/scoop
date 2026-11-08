@@ -102,15 +102,15 @@ private fun groupContent(
         else
             None
     return when (content) {
-        case Button(value) -> component(
+        case Button(val value) -> component(
             groupButtonProps(value, group, props.fonts, props.theme),
             { current, mount -> Button(current, scope = mount) }
         )
-        case Input(value) -> component(
+        case Input(val value) -> component(
             groupInputProps(value, group, props.fonts, props.theme),
             { current, mount -> Input(current, scope = mount) }
         )
-        case Text(value, fonts, style) -> groupText(
+        case Text(val value, val fonts, val style) -> groupText(
             value,
             if (panelPresent(fonts))
                 fonts
@@ -120,10 +120,10 @@ private fun groupContent(
             group,
             theme
         )
-        case Separator(color) -> groupSeparator(position.axis, color ?: theme.tokens.palette.input)
-        case Custom(render) -> render(position)
-        case Plain(view) -> view
-        case Nested(view) -> view
+        case Separator(val color) -> groupSeparator(position.axis, color ?: theme.tokens.palette.input)
+        case Custom(val render) -> render(position)
+        case Plain(val view) -> view
+        case Nested(val view) -> view
     }
 }
 
@@ -215,7 +215,7 @@ internal fun groupButtonProps(
 ): ButtonProps {
     val content =
         when (input.content) {
-            case Label(value) -> ButtonContent.Label(
+            case Label(val value) -> ButtonContent.Label(
                 LabelProps(
                     value.text,
                     if (panelPresent(value.fonts))

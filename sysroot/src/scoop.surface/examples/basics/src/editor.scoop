@@ -14,7 +14,7 @@ internal class DemoEditor(private val fonts: FontCollection, initial: String = "
 
     fun layout(availableWidth: Double): TextLayout {
         when (cached) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 if (width == availableWidth && value.text == snapshot.surroundingText)
                     return value
             }
@@ -25,7 +25,7 @@ internal class DemoEditor(private val fonts: FontCollection, initial: String = "
                 paragraph -> paragraph.layout(availableWidth)
             }
         when (cached) {
-            case Some(value) -> value.close();
+            case Some(val value) -> value.close();
             case None -> {}
         }
         cached = Some(next)
@@ -102,7 +102,7 @@ internal class DemoEditor(private val fonts: FontCollection, initial: String = "
         val old = cached
         cached = None
         when (old) {
-            case Some(value) -> value.close();
+            case Some(val value) -> value.close();
             case None -> {}
         }
     }

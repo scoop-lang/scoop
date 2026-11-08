@@ -19,8 +19,8 @@ public enum SidebarAdornment {
 
 internal fun sidebarAdornment(content: SidebarAdornment?, style: ActionContentStyle): View =
     when (content) {
-        case Some(SidebarAdornment.Custom(view)) -> view
-        case Some(SidebarAdornment.Resolved(build)) -> build(style)
+        case Some(SidebarAdornment.Custom(val view)) -> view
+        case Some(SidebarAdornment.Resolved(val build)) -> build(style)
         case None -> empty()
     }
 

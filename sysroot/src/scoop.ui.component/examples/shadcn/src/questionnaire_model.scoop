@@ -23,7 +23,7 @@ internal class QuestionnaireExamplesModel {
     fun definitions(owner: QuestionnaireState) {
         val branch =
             when (owner.answer(QuestionKey("role"))) {
-                case Single(QuestionAnswer.Choice(key)) -> key == QuestionChoiceKey("developer")
+                case Single(QuestionAnswer.Choice(val key)) -> key == QuestionChoiceKey("developer")
                 else -> false
             }
         owner.replaceQuestions(questionnaireExampleQuestions(chinese.value, branch, empty.value))
@@ -48,7 +48,7 @@ internal class QuestionnaireExamplesModel {
     }
     fun restore() {
         when (saved) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 // Restore while all snapshot keys are available, then apply the answer's branch.
                 survey.replaceQuestions(questionnaireExampleQuestions(chinese.value, true))
                 empty.value = false

@@ -20,7 +20,7 @@ private class LinuxRendererHost: RendererHost {
             try {
                 val view =
                     when (lease.handle) {
-                        case Gtk(_, view) -> view
+                        case Gtk(_, val view) -> view
                     }
                 val device = context ?: GLESContext.createGtk(linuxSurfaceDisplay(view))
                 context = Some(device)
@@ -99,7 +99,7 @@ private class LinuxWindowRenderer(
         @Unsafe
         {
             when (callback) {
-                case Some(value) -> throwFailure(foreignCallbackFailure(value))
+                case Some(val value) -> throwFailure(foreignCallbackFailure(value))
                 case None -> throw IllegalStateException(Some("window renderer is closed"))
             }
         }
@@ -110,7 +110,7 @@ private class LinuxWindowRenderer(
     }
     public override fun configure(value: WindowMetrics) {
         when (metrics) {
-            case Some(previous) -> if (previous.physicalSize != value.physicalSize)
+            case Some(val previous) -> if (previous.physicalSize != value.physicalSize)
                 context.drain()
             case None -> {}
         }
@@ -131,7 +131,7 @@ private class LinuxWindowRenderer(
     public override fun setFrameDemand(required: Boolean) {
         wanted = required
         when (native) {
-            case Some(value) -> @Unsafe
+            case Some(val value) -> @Unsafe
             {
                 val drawable =
                     window.state == WindowState.Open && window.isVisible && !window.isOccluded
@@ -176,7 +176,7 @@ private class LinuxWindowRenderer(
         wanted = false
         var failure: Throwable? = None
         when (previous) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 failure = cleanupFailure(failure) { context.drain() }
                 failure =
                     cleanupFailure(failure) {
@@ -191,7 +191,7 @@ private class LinuxWindowRenderer(
         @Unsafe
         {
             when (callback) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     callback = None
                     failure =
                         cleanupFailure(failure) {

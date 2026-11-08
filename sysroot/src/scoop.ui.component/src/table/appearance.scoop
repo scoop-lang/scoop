@@ -54,8 +54,8 @@ internal class TableAppearance(
         }
     fun content(content: PanelContent, header: Boolean = false, dim: Boolean = false): View =
         when (content) {
-            case Custom(view) -> view
-            case Label(input) -> component(
+            case Custom(val view) -> view
+            case Label(val input) -> component(
                 LabelProps(
                     input.text,
                     Some(input.fonts ?: fonts),

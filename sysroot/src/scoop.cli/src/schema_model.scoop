@@ -8,10 +8,10 @@ internal struct CliModelField(
 internal fun automaticEntries(type: TypeRef): Array<CliEntry> {
     val fields = ArrayList<CliModelField>()
     val constructors = when (type.describe().shape) {
-        case TypeShape.Struct(info) -> {
+        case TypeShape.Struct(val info) -> {
             for (field in info.fields) {
                 val name = when (field.name) {
-                    case MemberName.Named(text) -> text
+                    case MemberName.Named(val text) -> text
                     else -> configuration("CLI record fields must have names")
                 }
                 fields.add(CliModelField(name, field.type, field.annotations, field.isOptionAtDeclaration,
@@ -19,7 +19,7 @@ internal fun automaticEntries(type: TypeRef): Array<CliEntry> {
             }
             info.constructors
         }
-        case TypeShape.Class(info) -> {
+        case TypeShape.Class(val info) -> {
             if (!info.isFinal || when (info.base) { case Some(_) -> true; case None -> false }) {
                 configuration("automatic CLI schema requires a final class without a class base")
             }
@@ -39,7 +39,7 @@ internal fun automaticEntries(type: TypeRef): Array<CliEntry> {
                     configuration("custom getter requires an explicit CLI schema: " + property.name)
                 }
                 when (property.setter) {
-                    case Some(setter) -> {
+                    case Some(val setter) -> {
                         if (setter.kind != AccessorKind.Storage) {
                             configuration("custom setter requires an explicit CLI schema: " + property.name)
                         }
@@ -64,7 +64,7 @@ internal fun automaticEntries(type: TypeRef): Array<CliEntry> {
     for (field in fields) {
         val parameter = mappedParameter(field, primary)
         when (automaticEntry(field, parameter)) {
-            case Some(entry) -> entries.add(entry)
+            case Some(val entry) -> entries.add(entry)
             case None -> {}
         }
     }
@@ -80,7 +80,7 @@ internal fun primaryConstructor(constructors: Array<ConstructorInfo>): Construct
 
 internal fun mappedParameter(field: CliModelField, primary: ConstructorInfo): ParameterInfo {
     when (field.parameter) {
-        case Some(id) -> {
+        case Some(val id) -> {
             for (parameter in primary.parameters) { if (parameter.id == id) { return parameter } }
         }
         case None -> {}

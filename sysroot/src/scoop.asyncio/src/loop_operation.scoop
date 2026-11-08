@@ -59,7 +59,7 @@ internal class LoopOperation internal constructor(
             }
         when (result) {
             case Pending -> {}
-            case Finished(event) -> loop.complete(event)
+            case Finished(val event) -> loop.complete(event)
         }
     }
 
@@ -73,13 +73,13 @@ internal class LoopOperation internal constructor(
                 val previous = choice
                 choice = OperationChoice.Completed
                 when (previous) {
-                    case Stopped(error) -> Some(error)
+                    case Stopped(val error) -> Some(error)
                     case Pending -> None
                     case Completed -> throw IllegalStateException(Some("operation completed twice"))
                 }
             }
         when (subscription) {
-            case Some(value) -> value.dispose();
+            case Some(val value) -> value.dispose();
             case None -> {}
         }
         subscription = None

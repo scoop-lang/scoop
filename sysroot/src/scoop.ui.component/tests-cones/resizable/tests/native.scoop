@@ -15,7 +15,7 @@ internal fun splitEditorRight(window: Window) {
                 lease -> @Unsafe
                 {
                     return@use when (lease.handle) {
-                        case AppKit(_, view) -> text.withUtf8Bytes {
+                        case AppKit(_, val view) -> text.withUtf8Bytes {
                             bytes,
                             length -> @Unsafe
                             {

@@ -37,15 +37,15 @@ enum MCPError {
         public override fun encode(value: MCPError, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case MCPError.Protocol(payload) -> {
+                case MCPError.Protocol(val payload) -> {
                     String.encode("mcp_protocol_error", fields.field("type"))
                     MCPStatusError.Companion.encode(payload, encoder)
                 }
-                case MCPError.Execution(payload) -> {
+                case MCPError.Execution(val payload) -> {
                     String.encode("mcp_tool_execution_error", fields.field("type"))
                     MCPExecutionError.Companion.encode(payload, encoder)
                 }
-                case MCPError.HTTP(payload) -> {
+                case MCPError.HTTP(val payload) -> {
                     String.encode("http_error", fields.field("type"))
                     MCPStatusError.Companion.encode(payload, encoder)
                 }

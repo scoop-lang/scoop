@@ -12,7 +12,7 @@ import scoop.test.*
                 assertEquals(2L, decoder.receive(input))
                 assertEquals(0L, decoder.receive(input))
                 assertEquals(2L, input.readPosition)
-                assertTrue(when (decoder.nextEvent()!!) { case FrameStarted(head) -> head.payloadLength == 5L; else -> false })
+                assertTrue(when (decoder.nextEvent()!!) { case FrameStarted(val head) -> head.payloadLength == 5L; else -> false })
                 assertEquals(3L, decoder.receive(input))
                 assertEquals(0L, decoder.receive(input))
                 val first = decoder.nextEvent()!!
@@ -41,8 +41,8 @@ import scoop.test.*
             var ping = 0L; var pong = 0L; var ended = 0L
             for (event in events) {
                 when (event) {
-                    case Ping(bytes) -> { assertEquals("?", String.fromUtf8(bytes)); ping += 1L }
-                    case Pong(bytes) -> { assertEquals("!", String.fromUtf8(bytes)); pong += 1L }
+                    case Ping(val bytes) -> { assertEquals("?", String.fromUtf8(bytes)); ping += 1L }
+                    case Pong(val bytes) -> { assertEquals("!", String.fromUtf8(bytes)); pong += 1L }
                     case FrameEnded -> ended += 1L
                     else -> {}
                 }

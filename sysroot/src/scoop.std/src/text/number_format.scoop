@@ -18,7 +18,7 @@ internal fun textDigit(value: Char): Int {
 }
 
 internal fun <T> requireParsedNumber(value: T?): T = when (value) {
-    case Some(result) -> result
+    case Some(val result) -> result
     case None -> throw NumberFormatException("invalid number")
 }
 

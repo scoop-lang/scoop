@@ -4,23 +4,23 @@ import scoop.ui.*
 
 internal fun inputGroupControlEnabled(control: InputGroupControl): Boolean =
     when (control) {
-        case Input(value) -> value.enabled
-        case Textarea(value) -> value.enabled
+        case Input(val value) -> value.enabled
+        case Textarea(val value) -> value.enabled
         case Custom(_, _) -> true
     }
 
 internal fun inputGroupControlInvalid(control: InputGroupControl): Boolean =
     when (control) {
-        case Input(value) -> value.invalid
-        case Textarea(value) -> value.invalid
+        case Input(val value) -> value.invalid
+        case Textarea(val value) -> value.invalid
         case Custom(_, _) -> false
     }
 
 internal fun inputGroupFocus(control: InputGroupControl, own: FocusHandle): FocusHandle =
     when (control) {
-        case Input(value) -> value.focus.handle ?: own
-        case Textarea(value) -> value.focus.handle ?: own
-        case Custom(_, focus) -> focus
+        case Input(val value) -> value.focus.handle ?: own
+        case Textarea(val value) -> value.focus.handle ?: own
+        case Custom(_, val focus) -> focus
     }
 
 internal fun inputGroupControlView(
@@ -30,7 +30,7 @@ internal fun inputGroupControlView(
     invalid: Boolean
 ): View =
     when (group.control) {
-        case Input(value) -> component(
+        case Input(val value) -> component(
             InputProps(
                 value.state,
                 placeholder = value.placeholder,
@@ -64,7 +64,7 @@ internal fun inputGroupControlView(
             ),
             { current, mount -> Input(current, scope = mount) }
         )
-        case Textarea(value) -> component(
+        case Textarea(val value) -> component(
             TextareaProps(
                 value.state,
                 placeholder = value.placeholder,
@@ -103,5 +103,5 @@ internal fun inputGroupControlView(
             ),
             { current, mount -> Textarea(current, scope = mount) }
         )
-        case Custom(view, _) -> view
+        case Custom(val view, _) -> view
     }

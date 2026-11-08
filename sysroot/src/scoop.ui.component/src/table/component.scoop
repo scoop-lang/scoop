@@ -22,7 +22,7 @@ public class Table public constructor(
         val old = appearance
         val changed =
             when (old) {
-                case Some(value) -> value.theme !==
+                case Some(val value) -> value.theme !==
                     theme ||
                     value.fonts !==
                     fonts ||
@@ -32,7 +32,7 @@ public class Table public constructor(
             }
         val sameInput =
             when (checked) {
-                case Some(value) -> value === input;
+                case Some(val value) -> value === input;
                 case None -> false
             }
         if (changed || !sameInput) {
@@ -45,10 +45,10 @@ public class Table public constructor(
                     for (cell in row.cells) {
                         if (cell.span == 1L)
                             when (cell.content) {
-                                case Label(label) -> headers[at] =
+                                case Label(val label) -> headers[at] =
                                     when (label.text) {
-                                        case Plain(text, _) -> text;
-                                        case Styled(text) -> text.text
+                                        case Plain(val text, _) -> text;
+                                        case Styled(val text) -> text.text
                                     }
                                 else -> {}
                             }
@@ -110,7 +110,7 @@ public class Table public constructor(
             this.alignment = CrossAlignment.Stretch
             this.add(viewport)
             when (input.caption) {
-                case Some(value) -> this.add(visuals.content(value, dim = true));
+                case Some(val value) -> this.add(visuals.content(value, dim = true));
                 case None -> {}
             }
         }

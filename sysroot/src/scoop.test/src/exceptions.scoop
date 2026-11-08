@@ -17,7 +17,7 @@ public fun <E : Throwable> assertFailsWith(
         Some(error)
     }
     when (caught) {
-        case Some(error) -> {
+        case Some(val error) -> {
             if (error is E) return error
             throw AssertionFailure("assertFailsWith", message, location, cause = Some(error))
         }

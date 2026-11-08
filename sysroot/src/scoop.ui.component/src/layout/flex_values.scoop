@@ -34,14 +34,14 @@ public class FlexItemOptions public constructor(
         nonnegative(shrink, "invalid flex shrink weight")
         nonnegative(min, "invalid flex minimum")
         when (max) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 nonnegative(value, "invalid flex maximum")
                 requireComponent(value >= min, "flex maximum is less than minimum")
             }
             case None -> {}
         }
         when (basis) {
-            case Fixed(value) -> nonnegative(value, "invalid flex basis")
+            case Fixed(val value) -> nonnegative(value, "invalid flex basis")
             case Content -> {}
         }
     }

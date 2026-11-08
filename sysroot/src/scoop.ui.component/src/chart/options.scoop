@@ -26,7 +26,7 @@ public class ChartAxis public constructor(
     init {
         requireComponent(tickCount > 0, "chart tick count must be positive")
         when (domain) {
-            case Fixed(low, high) -> requireComponent(
+            case Fixed(val low, val high) -> requireComponent(
                 low.isFinite() && high.isFinite() && high > low,
                 "chart domain must be finite and increasing"
             );
@@ -90,11 +90,11 @@ public class ChartProps public constructor(
             "chart bar gap must be in [0, 1)"
         )
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid chart width");
+            case Some(val value) -> nonnegative(value, "invalid chart width");
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid chart height");
+            case Some(val value) -> nonnegative(value, "invalid chart height");
             case None -> {}
         }
         requireComponent(yAxis.kind == ChartAxisKind.Linear, "chart value axis must be linear")

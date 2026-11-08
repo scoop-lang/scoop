@@ -14,9 +14,9 @@ fun main() {
                 while (true) {
                     val event = decoder.nextEvent() ?: break
                     when (event) {
-                        case Request(head) -> println(String.fromUtf8(head.method))
-                        case Data(bytes) -> println(String.fromUtf8(bytes))
-                        case Trailers(fields) -> {
+                        case Request(val head) -> println(String.fromUtf8(head.method))
+                        case Data(val bytes) -> println(String.fromUtf8(bytes))
+                        case Trailers(val fields) -> {
                             for (field in fields) {
                                 println(f"${String.fromUtf8(field.name)}: ${String.fromUtf8(field.value)}")
                             }

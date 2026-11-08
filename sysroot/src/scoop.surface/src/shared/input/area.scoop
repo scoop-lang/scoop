@@ -189,11 +189,11 @@ public class InputArea internal constructor(
     public fun setCaret(rect: Rect?, revision: Long? = None) {
         checkOpen()
         when (revision) {
-            case Some(value) -> requireInput(value >= 0L, "negative text revision");
+            case Some(val value) -> requireInput(value >= 0L, "negative text revision");
             case None -> {}
         }
         when (rect) {
-            case Some(value) -> requireInput(
+            case Some(val value) -> requireInput(
                 value.x.isFinite() &&
                     value.y.isFinite() &&
                     value.width.isFinite() &&
@@ -224,8 +224,8 @@ public class InputArea internal constructor(
 
 internal fun sameArea(left: InputArea?, right: InputArea?): Boolean =
     when (left) {
-        case Some(a) -> when (right) {
-            case Some(b) -> a === b;
+        case Some(val a) -> when (right) {
+            case Some(val b) -> a === b;
             case None -> false
         }
         case None -> when (right) {

@@ -32,7 +32,7 @@ internal class TraceLineLayout(
                 0.0
         val descriptionMax =
             when (constraints.maxWidth) {
-                case Some(width) -> Some(lowerBound(0.0, width - iconSpace - arrowSpace) * 0.4)
+                case Some(val width) -> Some(lowerBound(0.0, width - iconSpace - arrowSpace) * 0.4)
                 case None -> None
             }
         val description =

@@ -129,14 +129,14 @@ private class DesktopProbe: ApplicationHandler {
                 begin(active)
             }
             case Window(_, WindowEvent.GeometryChanged(_)) -> begin(active)
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(1, stage)
                 assertEquals(menu!!.id, activation.menu)
                 assertEquals(item!!, activation.item)
                 assertEquals(MenuSource.Native(desktop!!.menuUseId!!), activation.source)
                 checkDockTracking(active)
             }
-            case Window(identity, WindowEvent.Destroyed) -> {
+            case Window(val identity, WindowEvent.Destroyed) -> {
                 if (identity == first!!.id) {
                     assertEquals(2, stage)
                     assertTrue(firstBinding!!.isClosed)

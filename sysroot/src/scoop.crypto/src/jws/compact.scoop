@@ -89,11 +89,11 @@ public fun signCompact(protectedHeader: String, payload: List<Byte>, algorithm: 
     val input = urlEncoding.encode(protectedHeader.toByteArray()) + "." + urlEncoding.encode(payload)
     val bytes = input.toByteArray()
     val signature = when (key) {
-        case Mac(secret) -> {
+        case Mac(val secret) -> {
             requireMac(algorithm, secret)
             hmac(DigestAlgorithm.Sha256, secret, bytes)
         }
-        case Signature(privateKey) -> {
+        case Signature(val privateKey) -> {
             val der = sign(signatureAlgorithm(algorithm), privateKey, bytes)
             if (algorithm == JwsAlgorithm.ES256) convertEcdsa(der, true) else der
         }
@@ -116,11 +116,11 @@ public fun verifyCompactOrNone(token: String, algorithm: JwsAlgorithm, key: JwsV
     val signature = decodePart(parts[2L])
     val input = (parts[0L] + "." + parts[1L]).toByteArray()
     val valid = when (key) {
-        case Mac(secret) -> {
+        case Mac(val secret) -> {
             requireMac(algorithm, secret)
             verifyHmac(DigestAlgorithm.Sha256, secret, input, signature)
         }
-        case Signature(publicKey) -> {
+        case Signature(val publicKey) -> {
             val selected = signatureAlgorithm(algorithm)
             val der = if (algorithm == JwsAlgorithm.ES256) convertEcdsa(signature, false) else signature
             verify(selected, publicKey, input, der)

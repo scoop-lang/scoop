@@ -53,7 +53,7 @@ internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? {
     @Unsafe
     {
         return when (owner.pointer) {
-            case Some(pointer) -> platformWindowMetrics(pointer)
+            case Some(val pointer) -> platformWindowMetrics(pointer)
             case None -> owner.metrics
         }
     }

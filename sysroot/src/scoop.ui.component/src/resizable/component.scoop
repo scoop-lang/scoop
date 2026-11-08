@@ -42,7 +42,7 @@ public class Resizable public constructor(
         val values = input.sizes.value
         val same =
             when (checked) {
-                case Some(previous) -> previous === values;
+                case Some(val previous) -> previous === values;
                 case None -> false
             }
         if (!same) {

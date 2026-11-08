@@ -53,7 +53,7 @@ internal suspend fun failH1Operation(state: H1State, primary: Throwable): Nothin
     val cleanup = try { closeH1(state); state.lock.withLock { state.closeFailure } }
         catch (error: Throwable) { Some(error) }
     when (cleanup) {
-        case Some(error) -> throw ResourceUseException(primary, error)
+        case Some(val error) -> throw ResourceUseException(primary, error)
         case None -> throw primary
     }
 }

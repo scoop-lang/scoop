@@ -96,7 +96,7 @@ private class ClientSseCloseCompletion(val state: ClientSseState): Continuation<
                 if (clientPresent(error)) {
                     state.cleanupFailure =
                         when (state.failure) {
-                            case Some(primary) -> collectClientSecondary(
+                            case Some(val primary) -> collectClientSecondary(
                                 primary,
                                 state.cleanupFailure,
                                 error!!

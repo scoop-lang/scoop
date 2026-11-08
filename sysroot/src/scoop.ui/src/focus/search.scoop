@@ -83,7 +83,7 @@ internal class FocusSearch(private val reverse: Boolean) {
         val position = cursor.focusedPosition() ?: return
         cursor.seekAfter(position)
         when (cursor.stops[position]) {
-            case Items(owner) -> {
+            case Items(val owner) -> {
                 if (owner.options.navigation != ItemNavigation.Sequential)
                     return
                 val entry = owner.focusedEntry() ?: return
@@ -119,7 +119,7 @@ internal class FocusSearch(private val reverse: Boolean) {
         cursors.add(FocusCursor.Nodes(cursor))
         for (position in 0L ..< cursor.stops.size) {
             when (cursor.stops[position]) {
-                case Items(owner) -> {
+                case Items(val owner) -> {
                     if (owner.node === previous || !withinFocusScope(previous, owner.node))
                         continue
                     cursor.seekAfter(position)
@@ -172,7 +172,7 @@ internal class FocusSearch(private val reverse: Boolean) {
     fun keyFor(owner: LazyFocus): ViewKey? {
         for (cursor in cursors)
             when (cursor) {
-                case Items(value) -> if (value.owner === owner)
+                case Items(val value) -> if (value.owner === owner)
                     return value.current
                 case Nodes(_) -> {}
             }
@@ -200,7 +200,7 @@ internal class FocusSearch(private val reverse: Boolean) {
     }
     fun ownsBoundary(node: MountedNode): Boolean =
         when (boundary) {
-            case Some(value) -> value === node
+            case Some(val value) -> value === node
             case None -> false
         }
     fun prepared() {
@@ -218,7 +218,7 @@ internal class FocusSearch(private val reverse: Boolean) {
     }
     fun next(continueParents: Boolean = true): FocusSearchStep {
         when (group) {
-            case Some(scope) -> {
+            case Some(val scope) -> {
                 if (!scope.available)
                     return FocusSearchStep.End
                 if (!groupStarted) {
@@ -226,7 +226,7 @@ internal class FocusSearch(private val reverse: Boolean) {
                     cursors.add(FocusCursor.Nodes(NodeFocusCursor(scope.node, false, false)))
                     val target = explicitFocus(scope, scope.options.defaultFocus)
                     when (target) {
-                        case Some(value) -> if (!skipped(value))
+                        case Some(val value) -> if (!skipped(value))
                             return FocusSearchStep.Target(value)
                         case None -> {}
                     }
@@ -237,11 +237,11 @@ internal class FocusSearch(private val reverse: Boolean) {
         while (true) {
             if (cursors.size == 0L) {
                 when (group) {
-                    case Some(scope) -> if (!fallbackUsed) {
+                    case Some(val scope) -> if (!fallbackUsed) {
                         fallbackUsed = true
                         val target = explicitFocus(scope, scope.options.fallback)
                         when (target) {
-                            case Some(value) -> if (!skipped(value))
+                            case Some(val value) -> if (!skipped(value))
                                 return FocusSearchStep.Target(value)
                             case None -> {}
                         }
@@ -254,19 +254,19 @@ internal class FocusSearch(private val reverse: Boolean) {
             }
             val position = cursors.size - 1L
             when (cursors[position]) {
-                case Nodes(cursor) -> {
+                case Nodes(val cursor) -> {
                     when (cursor.next()) {
-                        case Some(FocusStop.Target(target)) -> if (
+                        case Some(FocusStop.Target(val target)) -> if (
                             !skipped(target) && target.acceptsTab
                         )
                             return FocusSearchStep.Target(target)
-                        case Some(FocusStop.Items(owner)) -> enter(owner, cursor.reverse)
+                        case Some(FocusStop.Items(val owner)) -> enter(owner, cursor.reverse)
                         case None -> cursors.removeAt(position)
                     }
                 }
-                case Items(cursor) -> {
+                case Items(val cursor) -> {
                     when (cursor.next()) {
-                        case Some(key) -> {
+                        case Some(val key) -> {
                             val visit = FocusItemVisit(cursor.owner, key, cursor.edge)
                             waiting = Some(visit)
                             return FocusSearchStep.Item(visit)
@@ -279,7 +279,7 @@ internal class FocusSearch(private val reverse: Boolean) {
     }
     private fun skipped(target: FocusTarget): Boolean =
         when (skip) {
-            case Some(value) -> value === target
+            case Some(val value) -> value === target
             case None -> false
         }
     private fun parentBoundary(): Boolean {
@@ -297,7 +297,7 @@ internal class FocusSearch(private val reverse: Boolean) {
             val scope = node.focusScope
             val accepts =
                 when (scope) {
-                    case Some(value) -> value.available;
+                    case Some(val value) -> value.available;
                     case None -> atRoot
                 }
             if (accepts) {

@@ -8,77 +8,77 @@ enum ResponseItem {
     companion object : ValueEncoder<ResponseItem>, ValueDecoder<ResponseItem> {
         public override fun encode(value: ResponseItem, encoder: Encoder) {
             when (value) {
-                case ResponseItem.Easy(payload) -> { EasyMessage.Companion.encode(payload, encoder); return }
+                case ResponseItem.Easy(val payload) -> { EasyMessage.Companion.encode(payload, encoder); return }
                 else -> {}
             }
             val fields = encoder.keyed()
             when (value) {
-                case ResponseItem.Easy(payload) -> EasyMessage.Companion.encode(payload, encoder)
-                case ResponseItem.Input(payload) -> {
+                case ResponseItem.Easy(val payload) -> EasyMessage.Companion.encode(payload, encoder)
+                case ResponseItem.Input(val payload) -> {
                     String.encode("message", fields.field("type"))
                     InputMessage.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Message(payload) -> {
+                case ResponseItem.Message(val payload) -> {
                     String.encode("message", fields.field("type"))
                     OutputMessage.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Reasoning(payload) -> {
+                case ResponseItem.Reasoning(val payload) -> {
                     String.encode("reasoning", fields.field("type"))
                     ReasoningItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Function(payload) -> {
+                case ResponseItem.Function(val payload) -> {
                     String.encode("function_call", fields.field("type"))
                     FunctionItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Result(payload) -> {
+                case ResponseItem.Result(val payload) -> {
                     String.encode("function_call_output", fields.field("type"))
                     FunctionResult.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.FileSearch(payload) -> {
+                case ResponseItem.FileSearch(val payload) -> {
                     String.encode("file_search_call", fields.field("type"))
                     FileSearchItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.WebSearch(payload) -> {
+                case ResponseItem.WebSearch(val payload) -> {
                     String.encode("web_search_call", fields.field("type"))
                     WebSearchItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Computer(payload) -> {
+                case ResponseItem.Computer(val payload) -> {
                     String.encode("computer_call", fields.field("type"))
                     ComputerItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Screenshot(payload) -> {
+                case ResponseItem.Screenshot(val payload) -> {
                     String.encode("computer_call_output", fields.field("type"))
                     ComputerResult.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Image(payload) -> {
+                case ResponseItem.Image(val payload) -> {
                     String.encode("image_generation_call", fields.field("type"))
                     ImageItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Code(payload) -> {
+                case ResponseItem.Code(val payload) -> {
                     String.encode("code_interpreter_call", fields.field("type"))
                     CodeItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.MCP(payload) -> {
+                case ResponseItem.MCP(val payload) -> {
                     String.encode("mcp_call", fields.field("type"))
                     MCPItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.MCPTools(payload) -> {
+                case ResponseItem.MCPTools(val payload) -> {
                     String.encode("mcp_list_tools", fields.field("type"))
                     MCPToolsItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.MCPApproval(payload) -> {
+                case ResponseItem.MCPApproval(val payload) -> {
                     String.encode("mcp_approval_request", fields.field("type"))
                     MCPApprovalItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.MCPDecision(payload) -> {
+                case ResponseItem.MCPDecision(val payload) -> {
                     String.encode("mcp_approval_response", fields.field("type"))
                     MCPDecisionItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Compaction(payload) -> {
+                case ResponseItem.Compaction(val payload) -> {
                     String.encode("compaction", fields.field("type"))
                     CompactionItem.Companion.encode(payload, encoder)
                 }
-                case ResponseItem.Unknown(raw) -> JsonValue.Companion.encode(raw, encoder)
+                case ResponseItem.Unknown(val raw) -> JsonValue.Companion.encode(raw, encoder)
             }
             fields.end()
         }

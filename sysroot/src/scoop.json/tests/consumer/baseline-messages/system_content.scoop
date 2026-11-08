@@ -6,8 +6,8 @@ enum SystemContent {
     companion object : ValueEncoder<SystemContent>, ValueDecoder<SystemContent> {
         public override fun encode(value: SystemContent, encoder: Encoder) {
             when (value) {
-                case SystemContent.Text(text) -> String.encode(text, encoder)
-                case SystemContent.Blocks(payload) -> Array<TextOnly>.encoder(TextOnly.Companion).encode(payload, encoder)
+                case SystemContent.Text(val text) -> String.encode(text, encoder)
+                case SystemContent.Blocks(val payload) -> Array<TextOnly>.encoder(TextOnly.Companion).encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): SystemContent {

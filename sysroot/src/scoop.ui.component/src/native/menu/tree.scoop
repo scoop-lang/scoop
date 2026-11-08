@@ -61,7 +61,7 @@ public class NativeMenuTree public constructor(
         for (node in previous) {
             val replacement = nativeMenuValueForKey(next, node.value.key)
             when (replacement) {
-                case Some(value) -> if (value.category == node.value.category) {
+                case Some(val value) -> if (value.category == node.value.category) {
                     node.children = retire(node.children, value.children)
                     kept.add(node)
                 } else
@@ -109,7 +109,7 @@ public class NativeMenuTree public constructor(
             val existing = nativeMenuNodeForKey(previous, value.key)
             val node =
                 when (existing) {
-                    case Some(current) -> {
+                    case Some(val current) -> {
                         if (!sameNativeMenuDisplay(current.description, value.description))
                             menu.update(current.id, value.description)
                         menu.move(current.id, index)
@@ -172,14 +172,14 @@ private fun sameNativeMenuDisplay(left: MenuItemDescription, right: MenuItemDesc
         left.command ==
         right.command &&
         when ((left.image, right.image)) {
-            case(Some(a), Some(b)) -> a === b
+            case(Some(val a), Some(val b)) -> a === b
             case(None, None) -> true
             else -> false
         }
 
 private fun sameNativeShortcut(left: ShortcutChord?, right: ShortcutChord?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a.key == b.key && a.modifiers == b.modifiers
+        case(Some(val a), Some(val b)) -> a.key == b.key && a.modifiers == b.modifiers
         case(None, None) -> true
         else -> false
     }

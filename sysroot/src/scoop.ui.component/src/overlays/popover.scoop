@@ -56,13 +56,13 @@ public class Popover public constructor(
                         panelSlot(
                             popupColumn {
                                 when (input.title) {
-                                    case Some(value) -> add(
+                                    case Some(val value) -> add(
                                         panelSlot(panelCaption(value, titleStyle, input.fonts), 0L)
                                     )
                                     case None -> {}
                                 }
                                 when (input.description) {
-                                    case Some(value) -> add(
+                                    case Some(val value) -> add(
                                         panelSlot(
                                             panelCaption(value, descriptionStyle, input.fonts),
                                             1L
@@ -94,7 +94,7 @@ public class Popover public constructor(
             )
         val trigger =
             when (input.trigger) {
-                case Some(value) -> component(
+                case Some(val value) -> component(
                     ButtonProps(
                         navigationLabel(
                             value.content,

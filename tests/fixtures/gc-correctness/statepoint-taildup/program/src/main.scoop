@@ -5,7 +5,7 @@ class Value(val seconds: Long, val nanos: Int) {
 fun check(ok: Boolean) { if (!ok) throw IllegalStateException() }
 fun verify(expected: (Long, Int)?, operation: () -> Value) {
     when (expected) {
-        case Some(parts) -> check(operation().toComponents() == parts)
+        case Some(val parts) -> check(operation().toComponents() == parts)
         case None -> {
             var failed = false
             try { operation() } catch (error: ArithmeticException) { failed = true }

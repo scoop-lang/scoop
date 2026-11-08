@@ -20,7 +20,7 @@ internal class PointerCancellationProbe {
         @Unsafe
         {
             when (lease.handle) {
-                case Win32(hwnd, _) -> nativePointerCancellation(hwnd)
+                case Win32(val hwnd, _) -> nativePointerCancellation(hwnd)
             }
         }
         after = Some(MonotonicTimeSource.markNow())
@@ -28,7 +28,7 @@ internal class PointerCancellationProbe {
 
     fun pointer(event: PointerEvent) {
         when (event) {
-            case Moved(state) -> {
+            case Moved(val state) -> {
                 assertEquals(PhysicalPosition(-17.0, -19.0), state.physicalPosition)
                 observe(state.time)
                 sequence += "m"
@@ -37,7 +37,7 @@ internal class PointerCancellationProbe {
                 if (sequence == "dm")
                     sequence += "l"
             }
-            case Button(state, button, action, _) -> {
+            case Button(val state, val button, val action, _) -> {
                 observe(state.time)
                 sequence += when (action) {
                     case Pressed -> if (button == MouseButton.Left)
@@ -47,7 +47,7 @@ internal class PointerCancellationProbe {
                     case Released -> "u"
                 }
             }
-            case Cancelled(reason, time) -> {
+            case Cancelled(val reason, val time) -> {
                 observe(time)
                 sequence += when (reason) {
                     case FocusLost -> "f"

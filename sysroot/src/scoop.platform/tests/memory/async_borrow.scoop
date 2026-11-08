@@ -113,7 +113,7 @@ private class NativeByteBufferAsyncBorrowTest {
                 attempted.fetchAdd(1)
                 while (attempted.load() != 2) yield()
                 when (borrow) {
-                    case Some(owner) -> @Unsafe { owner.complete(0L) }
+                    case Some(val owner) -> @Unsafe { owner.complete(0L) }
                     case None -> {}
                 }
             } }

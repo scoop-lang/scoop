@@ -45,7 +45,7 @@ public class MultiThreadExecutor internal constructor(
             if (phase == ExecutorPhase.Draining) {
                 val admitted =
                     when (parent) {
-                        case Some(parent) -> parent is
+                        case Some(val parent) -> parent is
                             MultiThreadTicket &&
                             parent.owner ===
                             this &&
@@ -192,7 +192,7 @@ public class MultiThreadExecutor internal constructor(
     private fun checkNotSelf() {
         val current = currentCoroutineExecutorOrNone()
         when (current) {
-            case Some(executor) -> if (executor === this)
+            case Some(val executor) -> if (executor === this)
                 throw IllegalStateException(Some("executor task cannot wait for its own executor"))
             case None -> {}
         }

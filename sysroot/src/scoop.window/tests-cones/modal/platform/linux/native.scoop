@@ -10,7 +10,7 @@ internal fun nativeQuery(target: Window, field: Int, value: Int = 0): Int {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Gtk(window, _) -> return@use query(window, None, field, value)
+                    case Gtk(val window, _) -> return@use query(window, None, field, value)
                 }
             }
         }
@@ -28,11 +28,11 @@ internal fun nativeRelation(target: Window, parent: Window): Boolean {
                     {
                         val child =
                             when (childLease.handle) {
-                                case Gtk(window, _) -> window
+                                case Gtk(val window, _) -> window
                             }
                         val owner =
                             when (parentLease.handle) {
-                                case Gtk(window, _) -> window
+                                case Gtk(val window, _) -> window
                             }
                         return@use query(child, Some(owner), 0, 0) != 0
                     }

@@ -71,7 +71,7 @@ internal fun chartPrepare(
             if ((series.mark ?: chartMark(input.kind)) != ChartMark.Line)
                 for (at in 0L ..< count)
                     when (series.values[at]) {
-                        case Some(value) -> if (value >= 0.0)
+                        case Some(val value) -> if (value >= 0.0)
                             totals[at] += value
                         else
                             negativeTotals[at] -= value
@@ -100,7 +100,7 @@ internal fun chartPrepare(
         for (at in 0L ..< count)
             when (series.values[at]) {
                 case None -> values.add(None)
-                case Some(raw) -> {
+                case Some(val raw) -> {
                     if (input.kind == ChartKind.Pie)
                         requireComponent(raw >= 0.0, "pie values must be nonnegative")
                     var value = raw
@@ -223,8 +223,8 @@ private fun chartSameAxis(left: ChartAxis, right: ChartAxis): Boolean {
         return true
     val formatter =
         when (left.formatter) {
-            case Some(a) -> when (right.formatter) {
-                case Some(b) -> a === b;
+            case Some(val a) -> when (right.formatter) {
+                case Some(val b) -> a === b;
                 case None -> false
             };
             case None -> when (right.formatter) {

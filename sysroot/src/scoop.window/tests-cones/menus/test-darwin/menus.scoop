@@ -73,19 +73,19 @@ private class MenuHandler: ApplicationHandler {
             when (event) {
                 case Resumed -> start(application)
                 case NewEvents(StartCause.Deadline) -> fail(Some("menu test deadline"))
-                case Menu(activation) -> handleActivation(application, activation)
-                case ExitRequested(reason) -> {
+                case Menu(val activation) -> handleActivation(application, activation)
+                case ExitRequested(val reason) -> {
                     assertEquals(ExitReason.User, reason)
                     quitRequests += 1
                 }
-                case PopupCompleted(identity, result) -> {
+                case PopupCompleted(val identity, val result) -> {
                     completed += 1
                     if (identity == cancelled!!.id)
                         assertCancelled(result, PopupCancelReason.ExplicitClose)
                     else
                         if (identity == selected!!.id) {
                             when (result) {
-                                case Selected(item) -> assertEquals(command, item)
+                                case Selected(val item) -> assertEquals(command, item)
                                 else -> fail(Some("popup selection was not recorded"))
                             }
                             assertEquals(1, popupActions)
@@ -193,7 +193,7 @@ private class MenuHandler: ApplicationHandler {
                     val lease = window!!.acquireNativeWindow()
                     try {
                         when (lease.handle) {
-                            case AppKit(nativeWindow, _) -> assertEquals(
+                            case AppKit(val nativeWindow, _) -> assertEquals(
                                 1,
                                 nativeMenuShortcut(nativeWindow)
                             )
@@ -216,7 +216,7 @@ private class MenuHandler: ApplicationHandler {
             assertEquals(popupMenu!!.id, activation.menu)
             assertEquals(command, activation.item)
             when (activation.source) {
-                case Popup(identity, target) -> {
+                case Popup(val identity, val target) -> {
                     assertEquals(selected!!.id, identity)
                     assertEquals(window!!.id, target)
                 }
@@ -242,7 +242,7 @@ private class MenuHandler: ApplicationHandler {
                     }
                 )
             when (borrowed!!.handle) {
-                case AppKit(menu) -> {
+                case AppKit(val menu) -> {
                     assertEquals(1L, menuProperty(menu, "Checked", 0))
                     assertEquals(2L, menuProperty(menu, "Image", 1))
                 }
@@ -258,7 +258,7 @@ private class MenuHandler: ApplicationHandler {
         @Unsafe
         {
             when (borrowed!!.handle) {
-                case AppKit(menu) -> assertEquals(1, nativeClosingMenuRole(menu))
+                case AppKit(val menu) -> assertEquals(1, nativeClosingMenuRole(menu))
             }
         }
     }
@@ -307,7 +307,7 @@ private class MenuHandler: ApplicationHandler {
 
 private fun assertCancelled(result: PopupResult, reason: PopupCancelReason) {
     when (result) {
-        case Cancelled(value) -> assertEquals(reason, value)
+        case Cancelled(val value) -> assertEquals(reason, value)
         else -> fail(Some("expected popup cancellation"))
     }
 }

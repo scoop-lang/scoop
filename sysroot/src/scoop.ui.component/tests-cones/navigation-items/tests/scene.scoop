@@ -55,7 +55,7 @@ private class NavigationPanel(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (probe.capture && key.state == ElementState.Pressed) {
                             probe.captureKeys += 1
                             context.consume()
@@ -68,7 +68,7 @@ private class NavigationPanel(
             {
                 _,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (key.state == ElementState.Pressed) {
                             when (key.logicalKey) {
                                 case Named(NamedKey.ArrowLeft) -> probe.outerKeys += 1

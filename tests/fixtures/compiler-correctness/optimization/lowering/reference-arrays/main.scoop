@@ -55,9 +55,9 @@ fun exercise(count: Long) {
         check(target[i] === (if (even) first else second))
         check(viewTarget[i].number() == (if (even) 7L else 19L))
         check(if (even) anyTarget[i] === first else (anyTarget[i] as Long) == 42L)
-        check(when (optionTarget[i]) { case None -> !even; case Some(value) -> even && value === first })
-        check(when (nullableTarget[i]) { case None -> !even; case Some(value) -> even && value.number() == 19L })
-        check(when (choiceTarget[i]) { case Choice.Missing -> !even; case Choice.Present(value) -> even && value === first })
+        check(when (optionTarget[i]) { case None -> !even; case Some(val value) -> even && value === first })
+        check(when (nullableTarget[i]) { case None -> !even; case Some(val value) -> even && value.number() == 19L })
+        check(when (choiceTarget[i]) { case Choice.Missing -> !even; case Choice.Present(val value) -> even && value === first })
         check(stringTarget[i] == text && functionTarget[i](3L) == 10L)
         i += 1L
     }

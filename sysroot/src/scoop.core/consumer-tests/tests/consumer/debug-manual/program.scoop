@@ -19,7 +19,7 @@ fun observe(value: Node, counts: Counts): ValueView {
     return ValueObservation(type, Some(value), {
         counts.shapes = counts.shapes + 1L
         val info = when (type.describe().shape) {
-            case TypeShape.Class(info) -> info
+            case TypeShape.Class(val info) -> info
             else -> { throw IllegalStateException() }
         }
         ValueShape.Record(RecordView([
@@ -46,7 +46,7 @@ fun secrets(value: Secrets, counts: Counts): ValueView {
     val type = typeInfo<Secrets>().type
     return ValueObservation(type, Some(value), {
         val info = when (type.describe().shape) {
-            case TypeShape.Class(info) -> info
+            case TypeShape.Class(val info) -> info
             else -> { throw IllegalStateException() }
         }
         ValueShape.Record(RecordView(Array<MemberView>(4L) { index ->
@@ -141,7 +141,7 @@ open class Ancestor(protected val code: Int) {
             val type = typeInfo<Ancestor>().type
             return ValueObservation(type, Some(value), {
                 val info = when (type.describe().shape) {
-                    case TypeShape.Class(info) -> info
+                    case TypeShape.Class(val info) -> info
                     else -> throw IllegalStateException()
                 }
                 ValueShape.Record(RecordView([
@@ -160,7 +160,7 @@ class Descendant(number: Int, val label: String) : Ancestor(number), ValueInspec
         val type = typeInfo<Descendant>().type
         return ValueObservation(type, Some(value), {
             val info = when (type.describe().shape) {
-                case TypeShape.Class(info) -> info
+                case TypeShape.Class(val info) -> info
                 else -> throw IllegalStateException()
             }
             check(value.code == 7)

@@ -37,7 +37,7 @@ internal fun annotation(items: Array<AnnotationInfo>, key: AnnotationKey): Optio
 
 internal fun argument(item: Option<AnnotationInfo>, name: String): Option<AnnotationValue> {
     when (item) {
-        case Some(info) -> {
+        case Some(val info) -> {
             for (value in info.arguments) { if (value.name == name) { return Some(value.value) } }
         }
         case None -> {}
@@ -47,31 +47,31 @@ internal fun argument(item: Option<AnnotationInfo>, name: String): Option<Annota
 
 internal fun annotationText(item: Option<AnnotationInfo>, name: String): String =
     when (argument(item, name)) {
-        case Some(AnnotationValue.String(value)) -> value
+        case Some(AnnotationValue.String(val value)) -> value
         case None -> ""
         else -> configuration("expected String annotation argument " + name)
     }
 
 internal fun annotationBoolean(item: Option<AnnotationInfo>, name: String): Boolean =
     when (argument(item, name)) {
-        case Some(AnnotationValue.Boolean(value)) -> value
+        case Some(AnnotationValue.Boolean(val value)) -> value
         case None -> false
         else -> configuration("expected Boolean annotation argument " + name)
     }
 
 internal fun annotationPosition(item: Option<AnnotationInfo>): Long =
     when (argument(item, "position")) {
-        case Some(AnnotationValue.Integer(IntegerValue.Long(value))) -> value
+        case Some(AnnotationValue.Integer(IntegerValue.Long(val value))) -> value
         else -> configuration("CliArgument requires a Long position")
     }
 
 internal fun annotationNames(item: Option<AnnotationInfo>, name: String): Array<String> {
     val result = ArrayList<String>()
     when (argument(item, name)) {
-        case Some(AnnotationValue.Array(_, values)) -> {
+        case Some(AnnotationValue.Array(_, val values)) -> {
             for (value in values) {
                 result.add(when (value) {
-                    case AnnotationValue.String(text) -> text
+                    case AnnotationValue.String(val text) -> text
                     else -> configuration("expected String array annotation argument " + name)
                 })
             }

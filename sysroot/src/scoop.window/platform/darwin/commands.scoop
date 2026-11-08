@@ -14,7 +14,7 @@ internal fun platformTextCommands(
         val count = nativeTextCommandCount(pointer)
         if (count == 0L)
             return when (darwinEditingCommand(key, modifiers)) {
-                case Some(command) -> [command]
+                case Some(val command) -> [command]
                 case None -> []
             }
         return Array<TextEditCommand>(count) {

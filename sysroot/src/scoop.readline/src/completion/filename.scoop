@@ -130,7 +130,7 @@ private fun filenameToken(line: String, cursor: Long): FilenameToken {
 private fun escapeFilename(text: String, quote: Char?): String {
     if (operatingSystem == OperatingSystem.Windows) {
         when (quote) {
-            case Some(character) -> {
+            case Some(val character) -> {
                 val mark = character.toString()
                 return text.replace(mark, mark + mark)
             }

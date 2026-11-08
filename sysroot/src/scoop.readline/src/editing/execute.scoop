@@ -16,33 +16,33 @@ internal fun EditingSession.applyCommand(command: Command): EditResult {
         }
         case Interrupt -> return EditResult.Interrupted
         case Suspend -> return EditResult.Suspended
-        case Sequence(commands) -> {
+        case Sequence(val commands) -> {
             for (item in commands) {
                 val result = applyCommand(item)
                 if (result != EditResult.Continue) return result
             }
         }
-        case Move(movement) -> {
+        case Move(val movement) -> {
             buffer.moveTo(buffer.destination(movement))
             if (config.editMode == EditMode.Vi && keys.mode == ViMode.Command && cursor == buffer.lineEnd(cursor) && cursor > buffer.lineStart(cursor)) {
                 buffer.moveTo(buffer.previous(cursor))
             }
             undo.boundary()
         }
-        case Insert(text, count) -> { requireRepeat(count); buffer.insert(text.repeat(count)) }
+        case Insert(val text, val count) -> { requireRepeat(count); buffer.insert(text.repeat(count)) }
         case Newline -> buffer.insert("\n")
-        case Kill(movement) -> {
+        case Kill(val movement) -> {
             kill(movement)
             if (config.editMode == EditMode.Vi && keys.mode == ViMode.Command && cursor > buffer.lineStart(cursor) && cursor == buffer.lineEnd(cursor)) buffer.moveTo(buffer.previous(cursor))
         }
-        case Change(movement) -> { kill(movement); keys.mode = ViMode.Insert }
-        case Copy(movement) -> {
+        case Change(val movement) -> { kill(movement); keys.mode = ViMode.Insert }
+        case Copy(val movement) -> {
             val (start, end) = buffer.range(movement)
             kills.boundary()
             kills.kill(line.slice(start, end), false)
         }
-        case Replace(movement, text) -> { val (start, end) = buffer.range(movement); buffer.replace(start, end, text) }
-        case ReplaceChar(character, count) -> {
+        case Replace(val movement, val text) -> { val (start, end) = buffer.range(movement); buffer.replace(start, end, text) }
+        case ReplaceChar(val character, val count) -> {
             requireRepeat(count)
             val end = buffer.destination(Movement.ForwardChar(count))
             if (end > cursor) {
@@ -51,19 +51,19 @@ internal fun EditingSession.applyCommand(command: Command): EditResult {
             }
             if (keys.mode == ViMode.Command && cursor > 0L) buffer.moveTo(buffer.previous(cursor))
         }
-        case Overwrite(character) -> buffer.replace(cursor, buffer.next(cursor), character.toString())
-        case Yank(count, anchor) -> yank(count, anchor)
+        case Overwrite(val character) -> buffer.replace(cursor, buffer.next(cursor), character.toString())
+        case Yank(val count, val anchor) -> yank(count, anchor)
         case YankPop -> yankPop()
-        case Undo(count) -> undo.undo(buffer, count)
-        case Redo(count) -> undo.redo(buffer, count)
+        case Undo(val count) -> undo.undo(buffer, count)
+        case Redo(val count) -> undo.redo(buffer, count)
         case TransposeChars -> transposeChars()
         case TransposeWords -> transposeWords()
         case UpcaseWord -> changeCase(1)
         case DowncaseWord -> changeCase(-1)
         case CapitalizeWord -> changeCase(0)
-        case Indent(movement) -> indentLines(movement, false)
-        case Dedent(movement) -> indentLines(movement, true)
-        case OpenLine(above) -> {
+        case Indent(val movement) -> indentLines(movement, false)
+        case Dedent(val movement) -> indentLines(movement, true)
+        case OpenLine(val above) -> {
             val position = if (above) buffer.lineStart(cursor) else buffer.lineEnd(cursor)
             buffer.moveTo(position)
             buffer.insert("\n")
@@ -72,7 +72,7 @@ internal fun EditingSession.applyCommand(command: Command): EditResult {
         }
         case PreviousHistory -> navigateHistory(true)
         case NextHistory -> navigateHistory(false)
-        case NavigateHistory(backward, count) -> {
+        case NavigateHistory(val backward, val count) -> {
             requireRepeat(count)
             var left = count
             while (left > 0L) {
@@ -98,14 +98,14 @@ internal fun EditingSession.applyCommand(command: Command): EditResult {
         case QuotedInsert -> { quoted = true }
         case ClearScreen -> { clearValue = true }
         case Repaint -> return EditResult.Continue
-        case SetViMode(mode) -> {
+        case SetViMode(val mode) -> {
             if (mode == ViMode.Command && keys.mode != ViMode.Command && cursor > buffer.lineStart(cursor)) {
                 buffer.moveTo(buffer.previous(cursor))
             }
             keys.mode = mode
             undo.boundary()
         }
-        case RepeatLastChange(count) -> {
+        case RepeatLastChange(val count) -> {
             val change = lastChange
             if ((when (change) { case Some(_) -> true; case None -> false }) && !replaying) {
                 replaying = true
@@ -120,12 +120,12 @@ internal fun EditingSession.applyCommand(command: Command): EditResult {
 private fun EditingSession.acceptLine(insert: Boolean): EditResult {
     if (insert) { buffer.insert("\n"); return EditResult.Continue }
     when (val result = validator.validate(line)) {
-        case Valid(message) -> {
+        case Valid(val message) -> {
             messageValue = message
             if (config.autoAddHistory) history.add(line)
             return EditResult.Accepted(line)
         }
-        case Invalid(message) -> { messageValue = message; bellValue = true }
+        case Invalid(val message) -> { messageValue = message; bellValue = true }
         case Incomplete -> buffer.insert("\n")
     }
     return EditResult.Continue

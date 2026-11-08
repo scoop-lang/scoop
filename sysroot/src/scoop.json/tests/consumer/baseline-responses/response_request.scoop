@@ -34,8 +34,8 @@ enum ResponseInput {
     companion object : ValueEncoder<ResponseInput>, ValueDecoder<ResponseInput> {
         public override fun encode(value: ResponseInput, encoder: Encoder) {
             when (value) {
-                case ResponseInput.Text(text) -> String.encode(text, encoder)
-                case ResponseInput.Items(payload) -> Array<ResponseItem>.encoder(ResponseItem.Companion).encode(payload, encoder)
+                case ResponseInput.Text(val text) -> String.encode(text, encoder)
+                case ResponseInput.Items(val payload) -> Array<ResponseItem>.encoder(ResponseItem.Companion).encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): ResponseInput {
@@ -52,8 +52,8 @@ enum Conversation {
     companion object : ValueEncoder<Conversation>, ValueDecoder<Conversation> {
         public override fun encode(value: Conversation, encoder: Encoder) {
             when (value) {
-                case Conversation.Text(text) -> String.encode(text, encoder)
-                case Conversation.ID(payload) -> ConversationID.Companion.encode(payload, encoder)
+                case Conversation.Text(val text) -> String.encode(text, encoder)
+                case Conversation.ID(val payload) -> ConversationID.Companion.encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): Conversation {
@@ -77,7 +77,7 @@ enum ResponseFormat {
                 case ResponseFormat.Object -> {
                     String.encode("json_object", fields.field("type"))
                 }
-                case ResponseFormat.Schema(payload) -> {
+                case ResponseFormat.Schema(val payload) -> {
                     String.encode("json_schema", fields.field("type"))
                     SchemaFormat.Companion.encode(payload, encoder)
                 }

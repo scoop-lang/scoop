@@ -89,7 +89,7 @@ private class WindowControl(
         maximized.value = scope.nativeWindow.isMaximized ?: false
         scope.observeWindow(scope.nativeWindow) {
             event -> when (event) {
-                case FrameButtonChanged(button, hovered, pressed) -> if (
+                case FrameButtonChanged(val button, val hovered, val pressed) -> if (
                     button == props.value.button
                 ) {
                     val next = InteractionState(hovered, pressed)
@@ -184,7 +184,7 @@ private class WindowControlHit(
     }
     public override fun scene(context: SceneContext, measured: Unit) {
         when (region) {
-            case Some(value) -> context.place(
+            case Some(val value) -> context.place(
                 value,
                 Rect(0.0, 0.0, context.size.width, context.size.height)
             )

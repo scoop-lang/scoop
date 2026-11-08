@@ -119,7 +119,7 @@ public class ConditionVariable public constructor(
 
     release {
         when (native) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeConditionDestroy(pointer)
             }

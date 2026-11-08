@@ -54,7 +54,7 @@ public class ViewProbe public constructor(
     }
     public override fun close() {
         when (native) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 native = None
                 @Unsafe
                 {

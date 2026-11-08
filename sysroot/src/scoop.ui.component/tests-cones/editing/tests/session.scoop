@@ -76,11 +76,11 @@ private fun fieldFailure(error: Throwable) {
                     (error.message ?: "assertion")
             )
             when (error.expected) {
-                case Text(value) -> println("expected: " + value);
+                case Text(val value) -> println("expected: " + value);
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println("actual: " + value);
+                case Text(val value) -> println("actual: " + value);
                 else -> {}
             }
         } else
@@ -265,7 +265,7 @@ internal class FieldProbe {
                         selected
                     }
         return when (model) {
-            case Some(value) -> editorDocument(native!!, value)
+            case Some(val value) -> editorDocument(native!!, value)
             case None -> true
         }
     }

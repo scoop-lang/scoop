@@ -44,7 +44,7 @@ internal class FocusedMenuHandler: ApplicationHandler {
                     checkFocus(application)
             }
             case Window(_, WindowEvent.Focused(true)) -> checkFocus(application)
-            case Window(_, WindowEvent.TextCommand(command)) -> {
+            case Window(_, WindowEvent.TextCommand(val command)) -> {
                 assertEquals(TextEditCommand.SelectAll, command)
                 editCommands += 1
             }
@@ -63,7 +63,7 @@ internal class FocusedMenuHandler: ApplicationHandler {
             val lease = window!!.acquireNativeWindow()
             try {
                 when (lease.handle) {
-                    case AppKit(nativeWindow, _) -> {
+                    case AppKit(val nativeWindow, _) -> {
                         assertEquals(1, nativeMenuEditor(nativeWindow))
                         nativeEditorSelected = true
                     }

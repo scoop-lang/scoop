@@ -8,13 +8,13 @@ enum PromptValue {
     companion object : ValueEncoder<PromptValue>, ValueDecoder<PromptValue> {
         public override fun encode(value: PromptValue, encoder: Encoder) {
             when (value) {
-                case PromptValue.Text(text) -> String.encode(text, encoder)
-                case PromptValue.Image(payload) -> {
+                case PromptValue.Text(val text) -> String.encode(text, encoder)
+                case PromptValue.Image(val payload) -> {
                     val fields = encoder.keyed()
                     String.encode("input_image", fields.field("type"))
                     ResponseImage.Companion.encode(payload, encoder)
                 }
-                case PromptValue.File(payload) -> {
+                case PromptValue.File(val payload) -> {
                     val fields = encoder.keyed()
                     String.encode("input_file", fields.field("type"))
                     ResponseFile.Companion.encode(payload, encoder)

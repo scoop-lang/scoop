@@ -61,7 +61,7 @@ public struct TextInputState(
         val bytes = surroundingText.toByteArray()
         checkTextRange(bytes, selection.range)
         when (markedRange) {
-            case Some(range) -> checkTextRange(bytes, range);
+            case Some(val range) -> checkTextRange(bytes, range);
             case None -> {}
         }
         checkRect(caretRect)

@@ -137,7 +137,7 @@ internal class CounterInk(
                             props.value.activate();
                             current.consume()
                         }
-                        case Keyboard(value) -> {
+                        case Keyboard(val value) -> {
                             if (value.state == ElementState.Released && !value.synthetic) {
                                 when (value.logicalKey) {
                                     case Named(NamedKey.Space) -> props.value.activate();

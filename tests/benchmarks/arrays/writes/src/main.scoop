@@ -50,7 +50,7 @@ fun mixed(index: Long): Boolean =
         val left = Array<Node?>(count) { _ -> if (mode == 3) None else Some(first) }
         val right = Array<Node?>(count) { i -> if (mode == 2 && mixed(i)) Some(first) else Some(second) }
         println(exercise(left, right, mode == 1 || mode == 2) { key ->
-            when (key) { case None -> 0L; case Some(value) -> value.value }
+            when (key) { case None -> 0L; case Some(val value) -> value.value }
         })
     } else if (mode < 8) {
         val a: Key = first
@@ -58,7 +58,7 @@ fun mixed(index: Long): Boolean =
         val left = Array<Key?>(count) { _ -> if (mode == 7) None else Some(a) }
         val right = Array<Key?>(count) { i -> if (mode == 6 && mixed(i)) Some(a) else Some(b) }
         println(exercise(left, right, mode == 5 || mode == 6) { key ->
-            when (key) { case None -> 0L; case Some(value) -> value.number() }
+            when (key) { case None -> 0L; case Some(val value) -> value.number() }
         })
     } else if (mode == 8) {
         val left = Array<Pair>(count) { _ -> Pair(first, second) }

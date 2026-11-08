@@ -121,7 +121,7 @@ internal fun failClientCall(call: ClientCall, error: Throwable, preserveSecondar
 
 internal fun clientCallFailure(call: ClientCall): Throwable? = call.lock.withLock {
     when (call.cleanupFailure) {
-        case Some(cleanup) -> Some(clientCombined(call.failure, cleanup))
+        case Some(val cleanup) -> Some(clientCombined(call.failure, cleanup))
         case None -> call.failure
     }
 }
@@ -129,7 +129,7 @@ internal fun clientCallFailure(call: ClientCall): Throwable? = call.lock.withLoc
 internal fun observeClientCallFailure(call: ClientCall): Throwable? {
     return call.lock.withLock {
         val failure = when (call.cleanupFailure) {
-            case Some(cleanup) -> Some(clientCombined(call.failure, cleanup))
+            case Some(val cleanup) -> Some(clientCombined(call.failure, cleanup))
             case None -> call.failure
         }
         if (clientPresent(failure)) {

@@ -10,7 +10,7 @@ import scoop.text.endsWith
 suspend fun serveWebSocket(peer: AsyncByteStream) {
     val request = decodeRequest(awaitHead(peer))
     val handshake = WebSocketHandshake.parse(request)
-    check(when (request.target) { case Http1(bytes) -> String.fromUtf8(bytes) == "/chat?x=%2F"; else -> false })
+    check(when (request.target) { case Http1(val bytes) -> String.fromUtf8(bytes) == "/chat?x=%2F"; else -> false })
     check(String.fromUtf8(request.fields.findAll("Host".toByteArray())[0L].value) == "xn--bcher-kva.example")
     val response = handshake.response(Some("chat"), Some(WebSocketDeflate(true, false, Some(10), Some(9))))
     val output = ByteArrayBuilder().append(encodeResponse(response))

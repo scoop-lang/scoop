@@ -90,7 +90,7 @@ internal class ApplicationMailbox {
     }
     private fun wakeLocked() {
         when (native) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeApplicationWake(pointer)
             };

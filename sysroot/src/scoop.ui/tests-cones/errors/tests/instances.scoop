@@ -40,7 +40,7 @@ private class RetiredRoot(private val record: FailureRecord, scope: ComponentSco
             case RetiredComponent -> component(
                 {
                     scope -> when (record.retiredComponent) {
-                        case Some(value) -> value
+                        case Some(val value) -> value
                         case None -> {
                             val value = SmallComponent(scope)
                             record.retiredComponent = Some(value)
@@ -52,7 +52,7 @@ private class RetiredRoot(private val record: FailureRecord, scope: ComponentSco
             case RetiredElement -> element(
                 {
                     scope -> when (record.retiredElement) {
-                        case Some(value) -> value
+                        case Some(val value) -> value
                         case None -> {
                             val value = SmallElement(scope)
                             record.retiredElement = Some(value)
@@ -65,7 +65,7 @@ private class RetiredRoot(private val record: FailureRecord, scope: ComponentSco
                 NoItems(),
                 {
                     scope -> when (record.retiredLazy) {
-                        case Some(value) -> value
+                        case Some(val value) -> value
                         case None -> {
                             val value = SmallLazy(scope)
                             record.retiredLazy = Some(value)

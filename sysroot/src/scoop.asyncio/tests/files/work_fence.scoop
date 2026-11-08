@@ -29,7 +29,7 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
                             pointer = result.pointer
                             loop.state.post {
                                 when (cancelAfterPriorWork) {
-                                    case Some(job) -> {
+                                    case Some(val job) -> {
                                         // The prior turn submitted all gates to the managed pool.
                                         @Unsafe
                                         {
@@ -48,12 +48,12 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
                     {
                         event,
                         _ -> when (resultFailure("test worker fence", event.result)) {
-                            case Some(error) -> continuation.resumeWithException(error)
+                            case Some(val error) -> continuation.resumeWithException(error)
                             case None -> {
                                 pointer = None
                                 completed = true
                                 when (waiter) {
-                                    case Some(value) -> value.resume(Unit);
+                                    case Some(val value) -> value.resume(Unit);
                                     case None -> {}
                                 }
                                 waiter = None

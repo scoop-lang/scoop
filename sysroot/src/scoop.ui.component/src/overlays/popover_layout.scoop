@@ -84,7 +84,7 @@ internal class PopupMotion(
         context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
         context.children()
         when (props.value.arrow) {
-            case Some(ink) -> drawPopupArrow(context, arrow!!, ink)
+            case Some(val ink) -> drawPopupArrow(context, arrow!!, ink)
             case None -> {}
         }
         context.restore()

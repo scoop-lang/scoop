@@ -70,7 +70,7 @@ private class EditPanel(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (
                             key.state ==
                                 ElementState.Pressed &&
@@ -192,7 +192,7 @@ private class EditField(
                 adapter.area.scope.addEventHandler {
                     _,
                     event -> when (event) {
-                        case TextInput(TextInputEvent.Enabled(connection)) -> {
+                        case TextInput(TextInputEvent.Enabled(val connection)) -> {
                             probe.displayTest.imeStarts += 1
                             probe.displayTest.connection = connection
                         }

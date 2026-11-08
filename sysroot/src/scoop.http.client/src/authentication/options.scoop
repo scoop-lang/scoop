@@ -98,7 +98,7 @@ public class HttpAuthenticator private constructor(
      */
     public val realm: Array<Byte>? =
         when (realm) {
-            case Some(value) -> Some(value.toArray());
+            case Some(val value) -> Some(value.toArray());
             case None -> None
         }
     init {

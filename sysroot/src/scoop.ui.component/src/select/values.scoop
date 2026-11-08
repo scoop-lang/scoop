@@ -36,7 +36,7 @@ public class SelectContent<T: Equals<T>> public constructor(
             for (previous in 0L ..< index)
                 requireComponent(selectKey(entries[previous]) != key, "duplicate select entry key")
             when (entries[index]) {
-                case Item(item) -> choices.add(item.choice)
+                case Item(val item) -> choices.add(item.choice)
                 else -> {}
             }
         }
@@ -87,7 +87,7 @@ public class SelectProps<T: Equals<T>> public constructor(
     public val typeahead: TypeaheadOptions = typeahead ?: menuTypeahead()
     init {
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid select width");
+            case Some(val value) -> nonnegative(value, "invalid select width");
             case None -> {}
         }
         nonnegative(maxHeight, "invalid select max height")
@@ -96,15 +96,15 @@ public class SelectProps<T: Equals<T>> public constructor(
 
 internal fun <T: Equals<T>> selectKey(entry: SelectEntry<T>): ViewKey =
     when (entry) {
-        case Item(item) -> item.choice.key
-        case Label(key, _) -> key
-        case Separator(key) -> key
+        case Item(val item) -> item.choice.key
+        case Label(val key, _) -> key
+        case Separator(val key) -> key
     }
 
 internal fun <T: Equals<T>> selectedChoice(content: SelectContent<T>, value: T?): Choice<T>? {
     for (entry in content.entries)
         when (entry) {
-            case Item(item) -> {
+            case Item(val item) -> {
                 if (Some(item.choice.value) == value)
                     return Some(item.choice)
             }
@@ -118,7 +118,7 @@ internal fun <T: Equals<T>> selectChoice(input: SelectProps<T>, key: ViewKey) {
         return
     for (entry in input.content.entries)
         when (entry) {
-            case Item(item) -> {
+            case Item(val item) -> {
                 if (item.choice.key == key && item.choice.enabled) {
                     val previous = input.value.value
                     if (previous != Some(item.choice.value))

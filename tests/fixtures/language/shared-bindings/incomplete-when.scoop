@@ -1,5 +1,5 @@
 package dev.example
 import dev.example.upstream.bindings.Pair
 public fun check(): Int = when (Pair<Int>(42, 0)) {
-    case Pair(value, _) if (value == 42) -> 42
+    case Pair(val value, _) if (value == 42) -> 42
 }

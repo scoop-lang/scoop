@@ -277,7 +277,7 @@ impl Parser {
         let header_start = self.checkpoint();
         let keyword = self.bump();
         let mutable = matches!(keyword.kind, TokenKind::Var);
-        let target = self.parse_pattern()?;
+        let target = self.parse_pattern(crate::pattern::PatternContext::Binding)?;
         let ty = if matches!(self.peek().kind, TokenKind::Colon) {
             self.bump();
             Some(self.parse_type_ref()?)
@@ -383,7 +383,7 @@ fn place_span(place: &scoop_ast::PlaceExpr) -> Span {
 
 fn pattern_span(pattern: &Pattern) -> Span {
     match pattern {
-        Pattern::Binding(name) => name.span,
+        Pattern::Binding(name) | Pattern::BareVariant(name) => name.span,
         Pattern::Wildcard { span }
         | Pattern::Literal { span, .. }
         | Pattern::Positional { span, .. }

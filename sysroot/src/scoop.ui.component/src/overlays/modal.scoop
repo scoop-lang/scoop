@@ -126,7 +126,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                     if (alert) {
                         val media =
                             when (input.media) {
-                                case Some(view) -> frame(view) {
+                                case Some(val view) -> frame(view) {
                                     width = Some(40.0 * density);
                                     height = Some(40.0 * density)
                                     style {
@@ -159,13 +159,13 @@ internal class ModalContent(private val read: () -> ModalInput) {
                     } else
                         modalColumn {
                             when (options.title) {
-                                case Some(value) -> add(
+                                case Some(val value) -> add(
                                     panelSlot(panelCaption(value, titleStyle, options.fonts), 0L)
                                 )
                                 case None -> {}
                             }
                             when (options.description) {
-                                case Some(value) -> add(
+                                case Some(val value) -> add(
                                     panelSlot(
                                         panelCaption(value, descriptionStyle, options.fonts),
                                         1L
@@ -182,7 +182,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                         }
         val cancelHandle =
             when (input.cancel) {
-                case Some(value) -> value.focus.handle ?: cancelFocus
+                case Some(val value) -> value.focus.handle ?: cancelFocus
                 case None -> cancelFocus
             }
         val footer =
@@ -192,7 +192,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                 val cancelView = modalButton(cancel, { close() }, options, Some(focus))
                 val actions =
                     when (input.action) {
-                        case Some(view) -> [panelSlot(cancelView, 0L), panelSlot(view, 1L)]
+                        case Some(val view) -> [panelSlot(cancelView, 0L), panelSlot(view, 1L)]
                         case None -> [panelSlot(cancelView, 0L)]
                     }
                 Some(modalActions(actions, density, small))
@@ -200,7 +200,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                 input.footer
         val footerView =
             when (footer) {
-                case Some(view) -> panelFrame(
+                case Some(val view) -> panelFrame(
                     view,
                     Insets.all(options.contentPadding * density),
                     styleOverride {
@@ -242,7 +242,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                 empty()
         val bodyScroll =
             when (input.kind) {
-                case Drawer(_, owner) -> Some(options.scrollState ?: owner.scroll)
+                case Drawer(_, val owner) -> Some(options.scrollState ?: owner.scroll)
                 else -> options.scrollState
             }
         val bodyContent =
@@ -252,7 +252,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                     theme,
                     bodyScroll,
                     when (input.kind) {
-                        case Drawer(value, _) ->
+                        case Drawer(val value, _) ->
                         value.side ==
                             SheetSide.Start ||
                             value.side ==
@@ -269,7 +269,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
             )
         val body =
             when (input.kind) {
-                case Drawer(_, owner) -> element(
+                case Drawer(_, val owner) -> element(
                     owner,
                     { current, mount -> DrawerBodyMarker(current, scope = mount) },
                     [bodyContent]
@@ -285,7 +285,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
         val panel =
             panelFrame(
                 when (input.kind) {
-                    case Drawer(props, owner) -> drawerPanel(
+                    case Drawer(val props, val owner) -> drawerPanel(
                         DrawerInput(props, theme, owner, overlayHandle),
                         panelContent
                     )
@@ -304,7 +304,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                         )
                         corners(
                             when (input.kind) {
-                                case Drawer(props, _) -> drawerCorners(props.side, 12.0 * density)
+                                case Drawer(val props, _) -> drawerCorners(props.side, 12.0 * density)
                                 else -> Corners.all(
                                     if (sheet)
                                         0.0
@@ -361,7 +361,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                 motion
         val surface =
             when (input.kind) {
-                case Drawer(props, owner) -> element(
+                case Drawer(val props, val owner) -> element(
                     DrawerInput(props, theme, owner, overlayHandle),
                     { value, mount -> DrawerSurface(value, scope = mount) },
                     [panel]
@@ -374,7 +374,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
             }
         val overlayMode =
             when (input.kind) {
-                case Drawer(props, _) -> props.mode
+                case Drawer(val props, _) -> props.mode
                 else -> OverlayMode.Modal
             }
         val popup =
@@ -390,7 +390,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
             }
         val trigger =
             when (options.trigger) {
-                case Some(spec) -> modalButton(spec, { activate() }, options)
+                case Some(val spec) -> modalButton(spec, { activate() }, options)
                 case None -> empty()
             }
         return element({ mount -> ModalTriggerLayout(scope = mount) }, [trigger, popup])
@@ -404,7 +404,7 @@ private fun modalCaption(
     centered: Boolean = false
 ): View =
     when (content) {
-        case Some(value) -> panelCaption(value, style, fonts, centered);
+        case Some(val value) -> panelCaption(value, style, fonts, centered);
         case None -> empty()
     }
 
@@ -437,8 +437,8 @@ private fun modalButton(
 
 private fun modalPanelBorder(kind: ModalKind, color: Color): Border =
     when (kind) {
-        case Sheet(side) -> modalSideBorder(side, color)
-        case Drawer(props, _) -> modalSideBorder(props.side, color)
+        case Sheet(val side) -> modalSideBorder(side, color)
+        case Drawer(val props, _) -> modalSideBorder(props.side, color)
         else -> Border.all(1.0, color)
     }
 

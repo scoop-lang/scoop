@@ -24,12 +24,12 @@ internal fun aspectSize(
     var width = 0.0
     var height = 0.0
     when (constraints.maxWidth) {
-        case Some(value) -> {
+        case Some(val value) -> {
             width = value;
             height = value / ratio
         }
         case None -> when (constraints.maxHeight) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 height = value;
                 width = value * ratio
             }
@@ -40,14 +40,14 @@ internal fun aspectSize(
         }
     }
     when (constraints.maxHeight) {
-        case Some(limit) -> if (height > limit) {
+        case Some(val limit) -> if (height > limit) {
             height = limit;
             width = height * ratio
         };
         case None -> {}
     }
     when (constraints.maxWidth) {
-        case Some(limit) -> if (width > limit) {
+        case Some(val limit) -> if (width > limit) {
             width = limit;
             height = width / ratio
         };

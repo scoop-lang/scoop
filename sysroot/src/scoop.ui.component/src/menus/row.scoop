@@ -68,7 +68,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
         val theme = input.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
         when (input.entry) {
-            case Label(_, content, inset) -> return menuFrame(
+            case Label(_, val content, val inset) -> return menuFrame(
                 panelCaption(
                     content,
                     theme.tokens.typography.body.copy {
@@ -137,7 +137,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
         val child =
             menuRow {
                 when (item.icon) {
-                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 }
+                    case Some(val icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 }
                     case None -> {}
                 }
                 this.item(
@@ -162,8 +162,8 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                     )
                 ) { grow = 1.0 }
                 when (item.shortcut) {
-                    case Some(chord) -> when (native) {
-                        case Some(value) -> this.item(
+                    case Some(val chord) -> when (native) {
+                        case Some(val value) -> this.item(
                             panelSlot(
                                 menuDirection(
                                     menuLabel(
@@ -234,7 +234,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
             }
         val popup =
             when (input.entry) {
-                case Submenu(_, content) -> component(
+                case Submenu(_, val content) -> component(
                     MenuPopupProps(
                         portalOpen,
                         content,

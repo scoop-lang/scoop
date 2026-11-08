@@ -21,7 +21,7 @@ internal class NavigationScene(
             scope.input.addDefaultAction {
                 _,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (key.state == ElementState.Pressed)
                             probe.outerKeys += 1
                     }

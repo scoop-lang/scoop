@@ -53,7 +53,7 @@ fun main() {
 
     val input = Input.Number(7)
     val text = when (input) {
-        case Number(value) -> {
+        case Number(val value) -> {
             if (value > 0) { "positive" } else { "negative" }
         }
         case Empty -> "empty"
@@ -62,7 +62,7 @@ fun main() {
 
     val maybeWhen = when (input) {
         case Empty -> None
-        case Number(value) -> Some(value)
+        case Number(val value) -> Some(value)
     }
     println(maybeWhen!!)
 

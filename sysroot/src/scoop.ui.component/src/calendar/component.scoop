@@ -47,7 +47,7 @@ public class Calendar public constructor(
                         val days = this @Calendar.monthGrid(page, snapshot, appearance)
                         this.add(
                             when (input.monthGrid) {
-                                case Some(build) -> build(page, days);
+                                case Some(val build) -> build(page, days);
                                 case None -> days
                             }
                         )
@@ -75,7 +75,7 @@ public class Calendar public constructor(
                     )
                 )
                 when (input.footer) {
-                    case Some(footer) -> this.add(footer);
+                    case Some(val footer) -> this.add(footer);
                     case None -> {}
                 }
                 this.spacing = 12.0 * appearance.density
@@ -133,14 +133,14 @@ public class Calendar public constructor(
                 val text = week.number ?: ""
                 val content =
                     when (input.weekNumber) {
-                        case Some(build) -> build(text);
+                        case Some(val build) -> build(text);
                         case None -> calendarLabel(text, appearance.weekday, input.fonts)
                     }
                 entries.add(GridItem(content, 0L, row + 1L, vertical = CrossAlignment.Center))
             }
             for (column in 0L ..< 7L)
                 when (week.days[column]) {
-                    case Some(data) -> {
+                    case Some(val data) -> {
                         var member: CalendarMember? = None
                         for (item in snapshot.members)
                             if (item.page === page && item.data === data)
@@ -164,7 +164,7 @@ public class Calendar public constructor(
                                 ButtonProps(
                                     ButtonContent.Resolved {
                                         style -> when (input.day) {
-                                            case Some(build) -> build(day, style)
+                                            case Some(val build) -> build(day, style)
                                             case None -> calendarLabel(
                                                 data.label,
                                                 style.text,

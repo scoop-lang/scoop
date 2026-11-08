@@ -1,5 +1,8 @@
 use super::*;
 
+mod explicit;
+mod warnings;
+
 fn signal_decl() -> Decl {
     enum_decl(
         "Signal",
@@ -9,7 +12,7 @@ fn signal_decl() -> Decl {
 }
 
 #[test]
-fn unknown_bare_enum_pattern_binds_without_a_warning() {
+fn explicit_enum_pattern_binding_binds_without_a_warning() {
     let output = lower_user_output(file(vec![
         signal_decl(),
         fun(
@@ -19,7 +22,7 @@ fn unknown_bare_enum_pattern_binds_without_a_warning() {
                 when_stmt(
                     var("signal"),
                     vec![
-                        arm(pat_bind("Ready"), None, vec![]),
+                        arm(pat_variant("Ready"), None, vec![]),
                         arm(pat_bind("Raedy"), None, vec![val("matched", var("Raedy"))]),
                     ],
                     None,
@@ -27,7 +30,7 @@ fn unknown_bare_enum_pattern_binds_without_a_warning() {
             ],
         ),
     ]))
-    .expect("an unknown bare enum name introduces a usable binding");
+    .expect("an explicit binding may use a name absent from the enum");
 
     assert!(output.warnings.is_empty());
 }
@@ -43,7 +46,7 @@ fn resolved_variant_wildcard_non_enum_and_non_when_bindings_do_not_warn() {
                 when_stmt(
                     var("signal"),
                     vec![
-                        arm(pat_bind("Ready"), None, vec![]),
+                        arm(pat_variant("Ready"), None, vec![]),
                         arm(pat_wild(), None, vec![]),
                     ],
                     None,
@@ -164,7 +167,7 @@ fn contextual_value_arm_preserves_enum_bindings_without_warnings() {
                         subject: ast::WhenSubject::Expression(var("input")),
                         arms: vec![
                             arm(
-                                pat_bind("First"),
+                                pat_variant("First"),
                                 None,
                                 vec![stmt(field(var("Outcome"), "Done"))],
                             ),

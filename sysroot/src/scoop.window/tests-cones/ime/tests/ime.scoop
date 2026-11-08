@@ -63,13 +63,13 @@ private class WindowsImeHandler: ApplicationHandler {
                 created.setImeAllowed(true)
                 created.setImeAllowed(true)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(value))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> {
                 enabled += 1
                 connection = value
                 assertEquals(0L, batches.size)
                 createdTextProbe()
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                 assertEquals(None, batch.baseRevision)
                 assertEquals(
                     if (batches.size == 8L)
@@ -84,7 +84,7 @@ private class WindowsImeHandler: ApplicationHandler {
                 batches.add(batch)
                 text = text.apply(batch)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(value))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(val value))) -> {
                 disabled += 1
                 assertEquals(connection, value)
                 assertEquals(13L, batches.size)
@@ -105,7 +105,7 @@ private class WindowsImeHandler: ApplicationHandler {
             lease = Some(held)
             val hwnd =
                 when (held.handle) {
-                    case Win32(value, _) -> value
+                    case Win32(val value, _) -> value
                 }
             val result = exerciseNativeText(hwnd)
             assertEquals(0, result)
@@ -118,7 +118,7 @@ private class WindowsImeHandler: ApplicationHandler {
 
 private fun preedit(batch: TextInputBatch, text: String) {
     when (val operation = batch.operations[0L]) {
-        case TextInputOperation.Preedit(value, _, TextReplacement.CurrentSelection) ->
+        case TextInputOperation.Preedit(val value, _, TextReplacement.CurrentSelection) ->
         assertEquals(text, value)
         else -> fail(Some("expected a TSF preedit"))
     }
@@ -126,7 +126,7 @@ private fun preedit(batch: TextInputBatch, text: String) {
 
 private fun commit(batch: TextInputBatch, text: String, index: Long = 0L) {
     when (val operation = batch.operations[index]) {
-        case TextInputOperation.Commit(value, TextReplacement.CurrentSelection) ->
+        case TextInputOperation.Commit(val value, TextReplacement.CurrentSelection) ->
         assertEquals(text, value)
         else -> fail(Some("expected a TSF commit"))
     }

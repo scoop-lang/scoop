@@ -21,15 +21,15 @@ typealias Pick = Choice
 
 @NoGC fun score(value: Draft): Long = when (value) {
     case Absent -> 0
-    case Position(left, _, right) -> left + right
-    case Named { left, right, .. } -> left + right
-    case Defaults { left, right, .. } -> left + right
+    case Position(val left, _, val right) -> left + right
+    case Named { val left, val right, .. } -> left + right
+    case Defaults { val left, val right, .. } -> left + right
 }
 
 @NoGC public fun test(): Long {
     val named = Renamed.Pair(right = -29, marker = Token(), left = 17)
     if (sum(relay(named)) != -12) { return 1 }
-    val difference = when (named) { case Empty -> 0; case Pair { left, right, .. } -> left - right }
+    val difference = when (named) { case Empty -> 0; case Pair { val left, val right, .. } -> left - right }
     if (difference != 46) { return 2 }
     if (score(Coordinates(47, Token(), 48)) != 95) { return 3 }
     if (score(Draft.Named(right = 42, marker = Token(), left = 53)) != 95) { return 4 }

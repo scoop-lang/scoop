@@ -18,7 +18,7 @@ public fun direction(content: View, value: LayoutDirection, key: ViewKey = ViewK
 
 internal val View.directionOverride: LayoutDirection? get() =
     when (body) {
-        case Direction(_, value) -> Some(value)
+        case Direction(_, val value) -> Some(value)
         else -> None
     }
 
@@ -35,14 +35,14 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
     inputChanged = false
     stateDirty = false
     when (body) {
-        case Component(instance) -> rebuildComponent(instance, turn, true)
-        case Element(instance) -> {
+        case Component(val instance) -> rebuildComponent(instance, turn, true)
+        case Element(val instance) -> {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
                 request(updateInputs { instance.update() })
         }
-        case Lazy(instance, _) -> {
+        case Lazy(val instance, _) -> {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)

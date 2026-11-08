@@ -24,13 +24,13 @@ internal fun compressionIoResources(codec: CompressionCodec, bufferSize: Long, e
 internal fun compressionCleanup(previous: Throwable?, cleanup: () -> Unit): Throwable? {
     try { cleanup(); return previous }
     catch (error: Throwable) { return Some(when (previous) {
-        case Some(primary) -> ResourceUseException(primary, error)
+        case Some(val primary) -> ResourceUseException(primary, error)
         case None -> error
     }) }
 }
 
 internal fun throwCompressionFailure(failure: Throwable?) {
-    when (failure) { case Some(error) -> throw error; case None -> {} }
+    when (failure) { case Some(val error) -> throw error; case None -> {} }
 }
 
 internal fun requireCompressionTransfer(count: Long, available: Long) {

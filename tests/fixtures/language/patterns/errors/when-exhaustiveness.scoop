@@ -21,7 +21,7 @@ fun partialSingle(value: Only) {
 
 fun partialNested(value: (Int, Boolean)?) {
     when (value) {
-        case Some((number, _)) if (number > 0) -> println("positive")
+        case Some((val number, _)) if (number > 0) -> println("positive")
         case Some((0, _)) -> println("zero")
         case None -> println("none")
     }

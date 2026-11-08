@@ -18,14 +18,14 @@ fun responsesBaseline(moving: Boolean) {
     val request = Json.decodeFromString(responseRequestText(), ResponseRequest.Companion)
     check(request.tools.size == 7L && request.instructions == None)
     check(request.prompt!!.variables.values.size == 3L)
-    check(when (request.input) { case ResponseInput.Items(items) -> items.size == 17L; else -> false })
+    check(when (request.input) { case ResponseInput.Items(val items) -> items.size == 17L; else -> false })
     val encoded = Json.encodeToString(request, ResponseRequest.Companion)
     check(encoded.contains("\"instructions\":null"))
     check(encoded.contains("\"type\":\"function\",\"name\":\"weather\""))
     check(Json.encodeToString(Json.decodeFromString(encoded, ResponseRequest.Companion), ResponseRequest.Companion) == encoded)
     val body = Json.decodeFromString(responseBodyText(), ResponseBody.Companion)
     check(body.output.size == 15L && body.usage!!.output_tokens_details.reasoning_tokens == 5L)
-    check(when (body.output[1L]) { case ResponseItem.Reasoning(value) -> value.encrypted_content == Some("opaque+/=="); else -> false })
+    check(when (body.output[1L]) { case ResponseItem.Reasoning(val value) -> value.encrypted_content == Some("opaque+/=="); else -> false })
     val output = Json.encodeToString(body.output, Array<ResponseItem>.encoder(ResponseItem.Companion))
     check(Json.encodeToString(Json.decodeFromString(output, Array<ResponseItem>.decoder(ResponseItem.Companion)), Array<ResponseItem>.encoder(ResponseItem.Companion)) == output)
     for (text in extraResponseItems()) {
@@ -50,10 +50,10 @@ fun responsesBaseline(moving: Boolean) {
     for (text in responseEvents()) {
         val event = Json.decodeFromString(text, ResponseEvent.Companion)
         when (event) {
-            case ResponseEvent.ArgumentsDelta(value) -> { arguments += value.delta }
-            case ResponseEvent.Failed(value) -> { check(value.response.error!!.code == "server_error") }
-            case ResponseEvent.Incomplete(value) -> { check(value.response.incomplete_details!!.reason == "max_output_tokens") }
-            case ResponseEvent.Unknown(raw) -> { check(Json.encodeToString(raw, JsonValue.Companion) == text); unknown += 1L }
+            case ResponseEvent.ArgumentsDelta(val value) -> { arguments += value.delta }
+            case ResponseEvent.Failed(val value) -> { check(value.response.error!!.code == "server_error") }
+            case ResponseEvent.Incomplete(val value) -> { check(value.response.incomplete_details!!.reason == "max_output_tokens") }
+            case ResponseEvent.Unknown(val raw) -> { check(Json.encodeToString(raw, JsonValue.Companion) == text); unknown += 1L }
             else -> {}
         }
         val canonical = Json.encodeToString(event, ResponseEvent.Companion)

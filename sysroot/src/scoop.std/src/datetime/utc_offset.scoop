@@ -94,7 +94,7 @@ public class UtcOffset private constructor(
          * IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): UtcOffset = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid UTC offset"))
         }
     }

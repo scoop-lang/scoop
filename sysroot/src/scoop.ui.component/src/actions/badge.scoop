@@ -22,7 +22,7 @@ public class Badge public constructor(
     public override fun render(): View {
         val input = props.value
         return when (input.onClick) {
-            case Some(action) -> component(
+            case Some(val action) -> component(
                 BadgeActionInput(input, action),
                 { current, mount -> BadgeAction(current, scope = mount) }
             )

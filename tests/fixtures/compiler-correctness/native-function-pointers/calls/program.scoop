@@ -137,7 +137,7 @@ fun main() {
     expect(
         when (t.pick.asGCLeaf()(true)) {
             case None -> false;
-            case Some(pointer) -> pointer(41) == 42
+            case Some(val pointer) -> pointer(41) == 42
         }
     )
     expect(t.observe(0, 5) == 5)

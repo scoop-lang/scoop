@@ -148,7 +148,7 @@ private class ConsumerWebSocketState {
     fun receive(value: HttpWebSocketCompletion) {
         completion = Some(value)
         when (waiter) {
-            case Some(pending) -> {
+            case Some(val pending) -> {
                 waiter = None;
                 pending.tryResume(value)
             };
@@ -158,7 +158,7 @@ private class ConsumerWebSocketState {
     suspend fun awaitCompletion(): HttpWebSocketCompletion =
         suspendCancellableCoroutine<HttpWebSocketCompletion> {
             pending -> when (completion) {
-                case Some(value) -> pending.tryResume(value);
+                case Some(val value) -> pending.tryResume(value);
                 case None -> waiter = Some(pending)
             }
         }

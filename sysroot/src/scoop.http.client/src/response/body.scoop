@@ -88,6 +88,6 @@ public class HttpResponseBody internal constructor(private val input: ClientResp
 
 private fun responseTextCharset(fields: Array<HttpField>): Charset {
     val media = HttpMediaType.parseFields(fields)
-    val charset = when (media) { case Some(value) -> value.parameter("charset"); case None -> None }
-    return when (charset) { case Some(value) -> Charset.forName(String.fromUtf8(value.value)); case None -> Charset.Utf8 }
+    val charset = when (media) { case Some(val value) -> value.parameter("charset"); case None -> None }
+    return when (charset) { case Some(val value) -> Charset.forName(String.fromUtf8(value.value)); case None -> Charset.Utf8 }
 }

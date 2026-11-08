@@ -88,7 +88,7 @@ public fun projectText(
         "invalid projection selection"
     )
     when (input.markedRange) {
-        case Some(range) -> checkEditorRange(bytes, range)
+        case Some(val range) -> checkEditorRange(bytes, range)
         case None -> {}
     }
     return projectEditorText(input, projection)

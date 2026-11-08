@@ -36,7 +36,7 @@ internal class ScopedNativeEvents(
     fun popup(session: PopupSession, action: (PopupResult) -> Unit): Closeable {
         checkMounted()
         when (session.result) {
-            case Some(value) -> return completed(value, action)
+            case Some(val value) -> return completed(value, action)
             case None -> {}
         }
         return own(
@@ -48,7 +48,7 @@ internal class ScopedNativeEvents(
     fun modal(session: ModalSession, action: (ModalResult) -> Unit): Closeable {
         checkMounted()
         when (session.result) {
-            case Some(value) -> return completed(value, action)
+            case Some(val value) -> return completed(value, action)
             case None -> {}
         }
         return own(
@@ -60,7 +60,7 @@ internal class ScopedNativeEvents(
     fun <T> file(session: FileDialogSession<T>, action: (FileDialogResult<T>) -> Unit): Closeable {
         checkMounted()
         when (session.result) {
-            case Some(value) -> return completed(value, action)
+            case Some(val value) -> return completed(value, action)
             case None -> {}
         }
         return own(

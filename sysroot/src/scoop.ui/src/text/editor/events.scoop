@@ -20,13 +20,13 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
         return
     if (context.phase == RoutedPhase.Notification) {
         when (event) {
-            case FocusChanged(value) -> editorFocused(host, value)
+            case FocusChanged(val value) -> editorFocused(host, value)
             case FocusVisibilityChanged(_) -> editorInteraction(
                 host,
                 host.area.isFocusActive,
                 host.visual.value.hovered
             )
-            case TextInput(value) -> editorNative(host, value)
+            case TextInput(val value) -> editorNative(host, value)
             case Pointer(InputPointerEvent.Entered(_)) -> editorInteraction(
                 host,
                 host.area.isFocusActive,
@@ -45,16 +45,16 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
     if (context.phase != RoutedPhase.Default || !host.options.enabled)
         return
     when (event) {
-        case TextCommand(command) -> if (host.execute(command))
+        case TextCommand(val command) -> if (host.execute(command))
             context.consume()
-        case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
+        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)) -> {
             if (state == ElementState.Pressed)
                 editorPress(host, pointer, context.localPosition, count)
             else
                 editorStopDrag(host, true)
             context.consume()
         }
-        case Pointer(InputPointerEvent.Moved(pointer)) -> {
+        case Pointer(InputPointerEvent.Moved(val pointer)) -> {
             if (editorDragging(host)) {
                 editorDragMove(host, pointer)
                 context.consume()
@@ -79,7 +79,7 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 Point(-consumed.x, -consumed.y)
             }
         }
-        case Keyboard(key) -> {
+        case Keyboard(val key) -> {
             if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
                 return
             var handled = false
@@ -126,12 +126,12 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
 
 private fun editorNative(host: TextEditHost, event: TextInputEvent) {
     when (event) {
-        case Enabled(connection) -> {
+        case Enabled(val connection) -> {
             host.connection = connection
             host.sessionEnabled = true
             host.publishNative()
         }
-        case Disabled(connection) -> {
+        case Disabled(val connection) -> {
             if (host.connection != None && host.connection != connection)
                 return
             host.connection = None
@@ -140,7 +140,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             if (host.current.ownsHost(host))
                 host.perform({ host.current.cancelComposition() })
         }
-        case Edit(batch) -> {
+        case Edit(val batch) -> {
             if (
                 !host.sessionEnabled ||
                     host.retiring ||
@@ -150,7 +150,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             )
                 return
             when (batch.origin) {
-                case Some(origin) -> if (host.connection != Some(origin.connection))
+                case Some(val origin) -> if (host.connection != Some(origin.connection))
                     return
                 case None -> {}
             }
@@ -177,7 +177,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             val changed =
                 try {
                     when (raw) {
-                        case Some(prepared) -> finishEditorInput(
+                        case Some(val prepared) -> finishEditorInput(
                             prepared,
                             host.options.policy,
                             TextEditSource.NativeInput,

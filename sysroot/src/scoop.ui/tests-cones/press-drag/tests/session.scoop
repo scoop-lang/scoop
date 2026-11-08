@@ -54,11 +54,11 @@ private fun reportGestureFailure(error: Throwable) {
                 }"
             )
             when (error.expected) {
-                case Text(value) -> println(f"expected ${value}");
+                case Text(val value) -> println(f"expected ${value}");
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println(f"actual ${value}");
+                case Text(val value) -> println(f"actual ${value}");
                 else -> {}
             }
         } else
@@ -96,16 +96,16 @@ internal class GestureProbe {
 
     fun dragged(event: DragEvent) {
         when (event) {
-            case Started(value) -> {
+            case Started(val value) -> {
                 starts += 1;
                 last = Some(value)
             }
-            case Moved(value) -> last = Some(value)
-            case Ended(value) -> {
+            case Moved(val value) -> last = Some(value)
+            case Ended(val value) -> {
                 ends += 1;
                 last = Some(value)
             }
-            case Cancelled(value, _) -> {
+            case Cancelled(val value, _) -> {
                 cancels += 1;
                 last = Some(value)
             }

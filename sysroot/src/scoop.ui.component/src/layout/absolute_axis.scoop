@@ -7,10 +7,10 @@ internal struct AbsoluteRange(val minimum: Double, val maximum: Double)
 
 internal fun validateAbsoluteAxis(axis: AbsoluteAxis) {
     when (axis) {
-        case Start(offset, size) -> validateAbsoluteFixed(offset, size)
-        case End(offset, size) -> validateAbsoluteFixed(offset, size)
-        case Center(offset, size) -> validateAbsoluteFixed(offset, size)
-        case Stretch(start, end) -> requireComponent(
+        case Start(val offset, val size) -> validateAbsoluteFixed(offset, size)
+        case End(val offset, val size) -> validateAbsoluteFixed(offset, size)
+        case Center(val offset, val size) -> validateAbsoluteFixed(offset, size)
+        case Stretch(val start, val end) -> requireComponent(
             start.isFinite() && end.isFinite(),
             "invalid absolute stretch offset"
         )
@@ -20,7 +20,7 @@ internal fun validateAbsoluteAxis(axis: AbsoluteAxis) {
 private fun validateAbsoluteFixed(offset: Double, size: Double?) {
     requireComponent(offset.isFinite(), "invalid absolute offset")
     when (size) {
-        case Some(value) -> nonnegative(value, "invalid absolute child size")
+        case Some(val value) -> nonnegative(value, "invalid absolute child size")
         case None -> {}
     }
 }
@@ -47,7 +47,7 @@ internal fun absoluteSize(parent: Constraints, width: Double?, height: Double?):
 
 private fun absoluteFixedRange(size: Double?, available: Double): AbsoluteRange =
     when (size) {
-        case Some(value) -> AbsoluteRange(value, value)
+        case Some(val value) -> AbsoluteRange(value, value)
         case None -> {
             val maximum = lowerBound(available, 0.0)
             nonnegative(maximum, "absolute measurement range overflow")
@@ -57,10 +57,10 @@ private fun absoluteFixedRange(size: Double?, available: Double): AbsoluteRange 
 
 internal fun absoluteRange(axis: AbsoluteAxis, extent: Double): AbsoluteRange =
     when (axis) {
-        case Start(offset, size) -> absoluteFixedRange(size, extent - offset)
-        case End(offset, size) -> absoluteFixedRange(size, extent - offset)
-        case Center(_, size) -> absoluteFixedRange(size, extent)
-        case Stretch(start, end) -> {
+        case Start(val offset, val size) -> absoluteFixedRange(size, extent - offset)
+        case End(val offset, val size) -> absoluteFixedRange(size, extent - offset)
+        case Center(_, val size) -> absoluteFixedRange(size, extent)
+        case Stretch(val start, val end) -> {
             val size = extent - start - end
             nonnegative(size, "absolute stretch has a negative or non-finite size")
             AbsoluteRange(size, size)
@@ -70,10 +70,10 @@ internal fun absoluteRange(axis: AbsoluteAxis, extent: Double): AbsoluteRange =
 internal fun absoluteOrigin(axis: AbsoluteAxis, extent: Double, size: Double): Double {
     val result =
         when (axis) {
-            case Start(offset, _) -> offset
-            case End(offset, _) -> extent - offset - size
-            case Center(offset, _) -> (extent - size) / 2.0 + offset
-            case Stretch(start, _) -> start
+            case Start(val offset, _) -> offset
+            case End(val offset, _) -> extent - offset - size
+            case Center(val offset, _) -> (extent - size) / 2.0 + offset
+            case Stretch(val start, _) -> start
         }
     requireComponent(result.isFinite(), "absolute position overflow")
     return result

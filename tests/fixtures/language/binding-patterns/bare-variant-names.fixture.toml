@@ -12,7 +12,7 @@ exit = 0
 stdout = ""
 stderr = ""
 json = "stderr"
-diagnostics = []
+diagnostics = {"file" = "bare-variant-names.diagnostics.json"}
 checks = []
 
 [[steps]]

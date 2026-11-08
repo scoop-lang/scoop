@@ -9,7 +9,7 @@ internal fun updateNotificationSettings(
     result: Result<NotificationSettings, NotificationError>
 ) {
     when (result) {
-        case Success(settings) -> {
+        case Success(val settings) -> {
             demo.notificationSettings.value = Some(settings)
             demo.notificationStatus.value =
                 when (settings.availability) {
@@ -20,7 +20,7 @@ internal fun updateNotificationSettings(
                     case ServiceUnavailable -> "The desktop notification service is currently unavailable."
                 }
         }
-        case Failure(error) -> notificationError(demo, error)
+        case Failure(val error) -> notificationError(demo, error)
     }
 }
 
@@ -59,7 +59,7 @@ internal fun sendDemoNotification(demo: DesktopDemo) {
         result -> when (result) {
             case Success(_) -> demo.notificationStatus.value =
                 "Submitted to the system. Sending again replaces this notification."
-            case Failure(error) -> notificationError(demo, error)
+            case Failure(val error) -> notificationError(demo, error)
         }
     }
 }
@@ -67,19 +67,19 @@ internal fun sendDemoNotification(demo: DesktopDemo) {
 internal fun withdrawDemoNotification(demo: DesktopDemo) {
     demo.applicationView!!.notifications?.withdraw(NotificationId("desktop-demo")) {
         result -> when (result) {
-            case Success(value) -> demo.notificationStatus.value =
+            case Success(val value) -> demo.notificationStatus.value =
                 if (value == NotificationWithdrawal.Requested)
                     "Withdrawal requested."
                 else
                     "No notification from this process was found."
-            case Failure(error) -> notificationError(demo, error)
+            case Failure(val error) -> notificationError(demo, error)
         }
     }
 }
 
 internal fun handleDemoNotification(demo: DesktopDemo, event: NotificationEvent) {
     when (event) {
-        case Activated(_, _, payload) -> {
+        case Activated(_, _, val payload) -> {
             val document =
                 if (demo.documents.size > 0L)
                     demo.documents[0L]
@@ -92,6 +92,6 @@ internal fun handleDemoNotification(demo: DesktopDemo, event: NotificationEvent)
         }
         case Closed(_, _) -> demo.notificationStatus.value =
             "The system reported the notification closed."
-        case Failed(_, error) -> notificationError(demo, error)
+        case Failed(_, val error) -> notificationError(demo, error)
     }
 }

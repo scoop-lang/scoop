@@ -26,7 +26,7 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
         continuation = None
         cancellation = reason
         when (jobRegistration) {
-            case Some(registration) -> registration.dispose()
+            case Some(val registration) -> registration.dispose()
             case None -> {}
         }
         jobRegistration = None
@@ -43,7 +43,7 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
     public fun tryResume(value: T): Boolean {
         when (take(None)) {
             case None -> return false
-            case Some(target) -> {
+            case Some(val target) -> {
                 discardListeners()
                 target.resume(value)
                 return true
@@ -57,7 +57,7 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
     public fun tryResumeWithException(exception: Throwable): Boolean {
         when (take(None)) {
             case None -> return false
-            case Some(target) -> {
+            case Some(val target) -> {
                 discardListeners()
                 target.resumeWithException(exception)
                 return true
@@ -68,7 +68,7 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
     private fun cancel(error: CancellationException) {
         when (take(Some(error))) {
             case None -> {}
-            case Some(target) -> {
+            case Some(val target) -> {
                 try { notifyCoroutineListeners(listeners.take()) }
                 finally { target.resumeWithException(error) }
             }
@@ -99,7 +99,7 @@ public suspend fun <T> suspendCancellableCoroutine(registration: (CancellableCon
     suspendCoroutine<T> { raw ->
         val continuation = CancellableContinuation<T>(raw)
         when (currentJobOrNone()) {
-            case Some(job) -> continuation.bind(job)
+            case Some(val job) -> continuation.bind(job)
             case None -> {}
         }
         if (!continuation.isCompleted) {

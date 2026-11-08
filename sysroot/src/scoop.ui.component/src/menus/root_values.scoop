@@ -92,7 +92,7 @@ internal fun dropdownInput(value: DropdownMenuProps): MenuRootInput =
         value.content,
         value.options,
         when (value.trigger) {
-            case Some(trigger) -> MenuRootTrigger.Button(trigger, value.group)
+            case Some(val trigger) -> MenuRootTrigger.Button(trigger, value.group)
             case None -> MenuRootTrigger.Anchor(value.anchor!!)
         },
         value.anchor,

@@ -34,7 +34,7 @@ private class LazySourceTest {
                 { index -> ViewKey.Number(index) },
                 {
                     key -> when (key) {
-                        case Number(index) -> Some(index)
+                        case Number(val index) -> Some(index)
                         else -> None
                     }
                 }

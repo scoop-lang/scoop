@@ -69,7 +69,7 @@ public class TlsServerContext private constructor(private val state: ContextStat
 
 private fun trustState(trust: TlsTrustSource, options: TlsOptions, identity: TlsIdentity?): ContextState {
     when (trust) {
-        case Store(store) -> return storeState(store, options, identity)
+        case Store(val store) -> return storeState(store, options, identity)
         case System -> @Unsafe {
             val work = prepareSystemContext(options, identity)
             try { runSystemContext(work); return ContextState(takeSystemContextHandle(work)) }

@@ -31,7 +31,7 @@ internal fun integerParse(text: String, radix: Int): IntegerStorage? {
     var power = 1u
     var value = IntegerStorage.Small(0L)
     while (true) {
-        val character = when (next) { case Some(c) -> c; case None -> break }
+        val character = when (next) { case Some(val c) -> c; case None -> break }
         val digit = mathDigit(character)
         if (digit < 0 || digit >= radix) return None
         if (power > UInt.MAX_VALUE / base) {

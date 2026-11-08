@@ -13,7 +13,7 @@ internal class NoticeLog {
     fun receive(event: Http2Notice) {
         lock.withLock { entries.add(event) }
         when (event) {
-            case Settings(_, ack) -> {
+            case Settings(_, val ack) -> {
                 if (!ack)
                     settings.signal()
             }

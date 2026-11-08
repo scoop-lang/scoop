@@ -18,7 +18,7 @@ public class RangeSpec public constructor(
         )
         nonnegative(minimumGap, "invalid range minimum gap")
         when (step) {
-            case Some(value) -> requireComponent(
+            case Some(val value) -> requireComponent(
                 value.isFinite() && value > 0.0,
                 "range step must be finite and positive"
             )
@@ -27,17 +27,17 @@ public class RangeSpec public constructor(
     }
     private val steps: Long? =
         when (step) {
-            case Some(value) -> Some(rangeStepCount(extent / value))
+            case Some(val value) -> Some(rangeStepCount(extent / value))
             case None -> None
         }
     private val gapSteps: Long =
         when (step) {
-            case Some(value) -> rangeGapSteps(minimumGap / value)
+            case Some(val value) -> rangeGapSteps(minimumGap / value)
             case None -> 0L
         }
     public val lastValue: Double get() =
         when (steps) {
-            case Some(value) -> fromStep(value)
+            case Some(val value) -> fromStep(value)
             case None -> maximum
         }
     public fun clamp(value: Double): Double {
@@ -93,7 +93,7 @@ public class RangeSpec public constructor(
     }
     internal fun thumbLimits(values: Array<Double>, index: Long): ThumbLimits =
         when (steps) {
-            case Some(last) -> ThumbLimits(
+            case Some(val last) -> ThumbLimits(
                 fromStep(
                     if (index == 0L)
                         0L
@@ -126,7 +126,7 @@ public class RangeSpec public constructor(
                 values.size - 1L
         val required =
             when (steps) {
-                case Some(last) -> count.toDouble() * gapSteps.toDouble() <= last.toDouble()
+                case Some(val last) -> count.toDouble() * gapSteps.toDouble() <= last.toDouble()
                 case None -> count.toDouble() * minimumGap <= extent
             }
         requireComponent(required, "range cannot contain all thumbs at the minimum gap")

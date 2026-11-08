@@ -34,7 +34,7 @@ public class FieldSeparator public constructor(
             )
         )
         when (input.content) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 children.add(
                     component(
                         line,

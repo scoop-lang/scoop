@@ -96,7 +96,7 @@ private class InputAreaTest {
             rig.move(50.0, 30.0)
             assertEquals("parent/enter,child/enter,child/move,parent/move", rig.log.trace())
             when (rig.log.events[2L].event) {
-                case Pointer(InputPointerEvent.Moved(value)) -> {
+                case Pointer(InputPointerEvent.Moved(val value)) -> {
                     assertEquals(Some(Point(5.0, 5.0)), rig.log.events[2L].position)
                     assertTrue(rig.log.events[2L].target === child.scope)
                 }
@@ -182,7 +182,7 @@ private class InputAreaTest {
             rig.move(120.0, 10.0)
             assertEquals("b/enter,a/move", rig.log.trace())
             when (rig.log.events[1L].event) {
-                case Pointer(InputPointerEvent.Moved(value)) -> assertEquals(
+                case Pointer(InputPointerEvent.Moved(val value)) -> assertEquals(
                     Point(80.0, 10.0),
                     rig.log.events[1L].position!!
                 )
@@ -329,21 +329,21 @@ private class InputAreaTest {
                 )
             )
             when (rig.log.events[0L].event) {
-                case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> assertEquals(
+                case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> assertEquals(
                     InputScrollDelta.Pixels(4.0, -3.0),
                     delta
                 )
                 else -> fail(Some("expected wheel"))
             }
             when (rig.log.events[1L].event) {
-                case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> assertEquals(
+                case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> assertEquals(
                     InputCancelReason.ScrollInterrupted,
                     reason
                 )
                 else -> fail(Some("expected the old phased scroll to end"))
             }
             when (rig.log.events[2L].event) {
-                case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> assertEquals(
+                case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> assertEquals(
                     InputScrollDelta.Lines(2.0, -1.0),
                     delta
                 )

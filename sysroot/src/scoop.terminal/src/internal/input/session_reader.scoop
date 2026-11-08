@@ -61,7 +61,7 @@ internal class SessionReader(escapeDelay: Duration) {
         if ((flags and 5) == 0) return
         when (terminal.readInput((flags and 4) != 0)) {
             case None -> {}
-            case Some(bytes) -> {
+            case Some(val bytes) -> {
                 if (bytes.size == 0L) { ended = true; parser.finish() }
                 else parser.feed(bytes, inputNow(), terminal.isRaw)
             }

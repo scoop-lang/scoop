@@ -10,7 +10,7 @@ internal fun nativeMenuLabel(target: Window, activate: Boolean = false): Int {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case AppKit(window, _) -> return@use menuProbe(
+                    case AppKit(val window, _) -> return@use menuProbe(
                         window,
                         if (activate)
                             1

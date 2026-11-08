@@ -94,7 +94,7 @@ public class LocalTime public constructor(
          * Parses ISO local time or throws IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): LocalTime = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid time"))
         }
     }

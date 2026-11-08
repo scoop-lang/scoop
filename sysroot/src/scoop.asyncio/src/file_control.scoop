@@ -34,7 +34,7 @@ internal suspend fun filePosition(owner: OwnedFile, offset: Long, current: Boole
         },
         {
             result -> when (result) {
-                case Position(value) -> value
+                case Position(val value) -> value
                 case _ -> throw IllegalStateException(Some("seek returned no position"))
             }
         }
@@ -115,7 +115,7 @@ private suspend fun <R> fileControl(
                                 Some(owner.context)
                             )
                         when (failure) {
-                            case Some(error) -> continuation.resumeWithException(error)
+                            case Some(val error) -> continuation.resumeWithException(error)
                             case None -> {
                                 val value =
                                     try {

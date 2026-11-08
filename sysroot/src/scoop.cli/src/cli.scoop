@@ -177,6 +177,6 @@ public class CliParser<T> public constructor(private val schema: CliSchema<T>, p
     private fun parseFrom(arguments: Array<String>, start: Long): CliResult<T> =
         when (CliTokens(schema.entries, schema.positions, arguments, start).parse()) {
             case CliInputResult.Help -> CliResult.HelpRequested
-            case CliInputResult.Value(input) -> CliResult.Parsed(codec.decode(CliDecoder(input, "")))
+            case CliInputResult.Value(val input) -> CliResult.Parsed(codec.decode(CliDecoder(input, "")))
         }
 }

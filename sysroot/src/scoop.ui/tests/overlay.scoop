@@ -148,7 +148,7 @@ private class OverlayPlacementTest {
             }
         val copied = original.copy { contentAligned(anchor) { alignment = OverlayAlignment.End } }
         when (copied.placement) {
-            case ContentAligned(value, side, alignment, gap, padding, match) -> {
+            case ContentAligned(val value, val side, val alignment, val gap, val padding, val match) -> {
                 assertTrue(value === anchor);
                 assertEquals(OverlaySide.Bottom, side)
                 assertEquals(OverlayAlignment.End, alignment);

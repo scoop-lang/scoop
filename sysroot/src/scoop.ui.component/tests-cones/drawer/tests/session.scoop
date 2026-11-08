@@ -171,7 +171,7 @@ internal class DrawerProbe {
     }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
-            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(point))) -> trace.add(
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(val point))) -> trace.add(
                 f"phase ${phase}: native ${point.logicalPosition.x}, ${point.logicalPosition.y}"
             )
             case Resumed -> {

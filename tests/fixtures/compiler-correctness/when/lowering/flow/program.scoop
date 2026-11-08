@@ -29,8 +29,8 @@ suspend fun reject(gate: Gate): Boolean {
 }
 suspend fun <T> choose(gate: Gate, value: Option<T>, render: (T) -> String): String =
     when (val saved = value) {
-        case Some(item) if reject(gate) -> "wrong"
-        case Some(item) -> when { true -> render(item); else -> "wrong" }
+        case Some(val item) if reject(gate) -> "wrong"
+        case Some(val item) -> when { true -> render(item); else -> "wrong" }
         case None -> "none"
     }
 

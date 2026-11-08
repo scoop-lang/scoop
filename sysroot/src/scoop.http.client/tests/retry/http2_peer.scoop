@@ -37,8 +37,8 @@ internal class RetryTestHttp2Peer(val socket: AsyncTcpStream) : Closeable {
     suspend fun request(): (Int, HttpRequestHead) {
         while (true) {
             when (next()) {
-                case Request(id, head) -> return (id, head)
-                case Failure(error) -> throw error
+                case Request(val id, val head) -> return (id, head)
+                case Failure(val error) -> throw error
                 else -> {}
             }
         }
@@ -48,9 +48,9 @@ internal class RetryTestHttp2Peer(val socket: AsyncTcpStream) : Closeable {
         val bytes = ByteArrayBuilder()
         while (true) {
             when (next()) {
-                case Data(stream, data) -> { assertEquals(id, stream); bytes.append(data); session.consume(id, data.size) }
-                case End(stream) -> { assertEquals(id, stream); return String.fromUtf8(bytes.toByteArray()) }
-                case Failure(error) -> throw error
+                case Data(val stream, val data) -> { assertEquals(id, stream); bytes.append(data); session.consume(id, data.size) }
+                case End(val stream) -> { assertEquals(id, stream); return String.fromUtf8(bytes.toByteArray()) }
+                case Failure(val error) -> throw error
                 else -> {}
             }
         }

@@ -80,7 +80,7 @@ public class OffsetDateTime public constructor(
          * for invalid input.
          */
         public fun parse(text: String): OffsetDateTime = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid offset date-time"))
         }
     }

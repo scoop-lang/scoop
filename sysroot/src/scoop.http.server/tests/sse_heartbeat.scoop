@@ -86,7 +86,7 @@ private class ServerSseHeartbeatTests {
                     assertFalse(present(stream.failure))
                     for (event in notices.snapshot())
                         when (event) {
-                            case StreamClosed(_, code) -> assertEquals(0U, code)
+                            case StreamClosed(_, val code) -> assertEquals(0U, code)
                             else -> {}
                         }
                 }

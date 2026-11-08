@@ -74,7 +74,7 @@ internal fun allocateFlex(
 internal fun flexClamp(value: Double, options: FlexItemOptions): Double {
     val lower = lowerBound(value, options.min)
     return when (options.max) {
-        case Some(upper) -> upperBound(lower, upper)
+        case Some(val upper) -> upperBound(lower, upper)
         case None -> lower
     }
 }

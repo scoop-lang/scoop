@@ -58,8 +58,8 @@ fun readResponse(data: Array<Byte>): (HttpResponseHead, Array<Byte>) {
                     when (next) {
                         case None -> break
                         case Some(_) -> when (next!!) {
-                            case Response(head) -> heads.add(head)
-                            case Data(bytes) -> body.append(bytes)
+                            case Response(val head) -> heads.add(head)
+                            case Data(val bytes) -> body.append(bytes)
                             case End(_) -> ends += 1L
                             else -> {}
                         }

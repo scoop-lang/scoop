@@ -16,7 +16,7 @@ private class Gate : SuspendRegistration<Unit> {
         val continuation = waiter!!
         waiter = None
         when (error) {
-            case Some(failure) -> continuation.resumeWithException(failure)
+            case Some(val failure) -> continuation.resumeWithException(failure)
             case None -> continuation.resume(Unit)
         }
     }
@@ -32,7 +32,7 @@ private class Completion : Continuation<Unit> {
 private class Observed { var item: Item? = None }
 
 private fun mayThrow(error: Throwable?) {
-    when (error) { case Some(failure) -> throw failure; case None -> {} }
+    when (error) { case Some(val failure) -> throw failure; case None -> {} }
 }
 
 private suspend fun callCleanup(gate: Gate, old: Item, next: Item, observed: Observed) {
@@ -79,7 +79,7 @@ private fun exercise() {
         gcCollect()
         check(completion.done)
         when (completion.failure) {
-            case Some(error) -> check(fails && error === failure!!)
+            case Some(val error) -> check(fails && error === failure!!)
             case None -> check(!fails)
         }
         check(observed.item!! === (if (fails) before else after))

@@ -35,6 +35,7 @@ mod binding;
 mod exhaustiveness;
 mod structure;
 mod variants;
+mod warnings;
 
 pub(crate) use binding::BindingSubject;
 use structure::pattern_span;
@@ -96,19 +97,30 @@ impl Lowerer {
         self.check_intrinsic_pattern_shape(pattern, matched_ty)?;
         match pattern {
             ast::Pattern::Binding(name) => {
-                // Variant-first bare-name lookup belongs exclusively to
-                // match patterns. In binding positions every ordinary bare
-                // identifier introduces a new local, even when the subject
-                // enum has a variant with the same name. `Unit` / `()` reach
-                // this stage as literal patterns and remain rejected below.
-                if ctx.in_when
-                    && matches!(self.types[matched_ty], Type::Enum(_))
-                    && let Some(application) = self.named_enum_variant(matched_ty, &name.text)
-                {
+                let local = self.bind_local(name, matched_ty, ctx)?;
+                Some(hir::Pattern::Binding { local })
+            }
+            ast::Pattern::BareVariant(name) => {
+                if let Some(application) = self.named_enum_variant(matched_ty, &name.text) {
                     return self.bare_variant_pattern(name, application, ctx);
                 }
-                let local = self.bind_local(name, matched_ty, ctx.mutable)?;
-                Some(hir::Pattern::Binding { local })
+                let message = if matches!(self.types[matched_ty], Type::Enum(_)) {
+                    format!(
+                        "enum `{}` has no variant `{}`; use `val {}` to bind the matched value",
+                        self.type_name(matched_ty),
+                        name.text,
+                        name.text,
+                    )
+                } else {
+                    format!(
+                        "bare pattern `{}` cannot match {}; use `val {}` to bind the matched value",
+                        name.text,
+                        self.type_name(matched_ty),
+                        name.text,
+                    )
+                };
+                self.error(name.span, message);
+                None
             }
             ast::Pattern::Wildcard { .. } => Some(hir::Pattern::Wildcard),
             ast::Pattern::Literal { value, span } => {
@@ -266,7 +278,12 @@ impl Lowerer {
     }
 
     /// Declare a pattern binding in the current scope.
-    fn bind_local(&mut self, name: &ast::Ident, ty: TypeId, mutable: bool) -> Option<hir::LocalId> {
+    fn bind_local(
+        &mut self,
+        name: &ast::Ident,
+        ty: TypeId,
+        ctx: PatternCtx,
+    ) -> Option<hir::LocalId> {
         if self.scopes.is_declared_here(&name.text) {
             self.error(
                 name.span,
@@ -274,7 +291,8 @@ impl Lowerer {
             );
             return None;
         }
-        let local = self.alloc_declared_local(name.text.clone(), ty, mutable, name.span);
+        self.warn_variant_shadowing(name, ty, ctx.in_when);
+        let local = self.alloc_declared_local(name.text.clone(), ty, ctx.mutable, name.span);
         self.scopes.declare(name.text.clone(), local);
         Some(local)
     }

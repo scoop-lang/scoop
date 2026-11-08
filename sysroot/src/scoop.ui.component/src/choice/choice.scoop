@@ -52,8 +52,8 @@ public enum ToggleGroupSelection<T: Equals<T>> {
 
 internal fun <T: Equals<T>> choiceSelected(selection: ToggleGroupSelection<T>, value: T): Boolean =
     when (selection) {
-        case Single(binding) -> binding.value == Some(value)
-        case Multiple(binding) -> {
+        case Single(val binding) -> binding.value == Some(value)
+        case Multiple(val binding) -> {
             var found = false
             for (entry in binding.value)
                 if (entry == value)
@@ -68,12 +68,12 @@ internal fun <T: Equals<T>> setChoice(
     selected: Boolean
 ) {
     when (selection) {
-        case Single(binding) -> if (selected)
+        case Single(val binding) -> if (selected)
             binding.value = Some(value)
         else
             if (binding.value == Some(value))
                 binding.value = None
-        case Multiple(binding) -> {
+        case Multiple(val binding) -> {
             val entries = ArrayList<T>()
             var found = false
             for (entry in binding.value) {

@@ -135,7 +135,7 @@ private fun runProxyWs(mode: String, port: Int) {
                     }
                 ) suspend {
                     result -> when (result) {
-                        case Opened(session) -> {
+                        case Opened(val session) -> {
                             assertEquals(HttpVersion.Http11, session.head.version)
                             assertEquals(
                                 if (mode == "connect-auth")
@@ -150,7 +150,7 @@ private fun runProxyWs(mode: String, port: Int) {
                             assertEquals("echo:through proxy", session.receive()!!.readText())
                             session.shutdownGracefully()
                         }
-                        case Rejected(_, error) -> throw error
+                        case Rejected(_, val error) -> throw error
                     }
                 }
                 assertEquals(

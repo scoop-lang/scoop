@@ -103,7 +103,7 @@ public class HttpTransport internal constructor(
             result
         }
         for (waiter in waiters) when (failure) {
-            case Some(error) -> waiter.resumeWithException(error)
+            case Some(val error) -> waiter.resumeWithException(error)
             case None -> waiter.resume(Unit)
         }
     }

@@ -41,7 +41,7 @@ internal fun measureOtp(
     var pendingGap = 0.0
     for (part in input.groups()) {
         when (part) {
-            case Group(group) -> {
+            case Group(val group) -> {
                 if (next > 0L)
                     gaps[next - 1L] = pendingGap + gap
                 for (index in 0L ..< group.slots.size) {
@@ -139,7 +139,7 @@ internal fun measureOtp(
         next = 0L
         for (part in input.groups()) {
             when (part) {
-                case Group(group) -> next += group.slots.size
+                case Group(val group) -> next += group.slots.size
                 case Separator(_) -> {
                     val previous = rects[next - 1L]
                     val extent = separators[child]

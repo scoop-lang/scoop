@@ -23,8 +23,8 @@ internal fun NodeLayout.scene(
             paintCache,
             epochs
         )
-        case Portal(instance) -> node.root.overlays.include(instance)
-        case Element(value) -> sceneElement(
+        case Portal(val instance) -> node.root.overlays.include(instance)
+        case Element(val value) -> sceneElement(
             frame,
             origin,
             overlay,
@@ -33,7 +33,7 @@ internal fun NodeLayout.scene(
             epochs,
             value
         )
-        case Lazy(value, _) -> sceneElement(
+        case Lazy(val value, _) -> sceneElement(
             frame,
             origin,
             overlay,
@@ -59,7 +59,7 @@ private fun NodeLayout.sceneElement(
         childFrame.canvas.translate(origin.x, origin.y)
         val cached =
             when (sceneCache) {
-                case Some(previous) -> if (
+                case Some(val previous) -> if (
                     epochs.size >
                         0L &&
                         previous.matches(node, epochs, childFrame.canvas, frame.time)
@@ -92,7 +92,7 @@ private fun NodeLayout.sceneElement(
             )
         try {
             when (cached) {
-                case Some(previous) -> {
+                case Some(val previous) -> {
                     previous.replay(context)
                     if (node.active && node.root.isOpen)
                         context.finish()
@@ -107,7 +107,7 @@ private fun NodeLayout.sceneElement(
                         val inputs = reads.finish()
                         node.frameInputs.setScene(inputs)
                         when (recorder) {
-                            case Some(commands) -> if (pass.cacheable && !inputs.perFrame)
+                            case Some(val commands) -> if (pass.cacheable && !inputs.perFrame)
                                 sceneCache =
                                     Some(
                                         CachedScene(

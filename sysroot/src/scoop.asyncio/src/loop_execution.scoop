@@ -23,7 +23,7 @@ internal class LoopExecution(
 
     val rootExecutor: CoroutineExecutor get() =
         when (runtime) {
-            case Some(workers) -> workers.executor
+            case Some(val workers) -> workers.executor
             case None -> executor
         }
 
@@ -31,7 +31,7 @@ internal class LoopExecution(
         if (stopsPool)
             pool.invokeOnTermination { owner.wakeExecution() }
         when (runtime) {
-            case Some(workers) -> workers.executor.invokeOnTermination {
+            case Some(val workers) -> workers.executor.invokeOnTermination {
                 owner.post { executor.requestShutdown() }
             }
             case None -> {}
@@ -40,7 +40,7 @@ internal class LoopExecution(
 
     fun finishRoot() {
         when (runtime) {
-            case Some(workers) -> workers.executor.requestShutdown()
+            case Some(val workers) -> workers.executor.requestShutdown()
             case None -> executor.requestShutdown()
         }
     }
@@ -65,11 +65,11 @@ internal class LoopExecution(
 internal fun prepareLoopExecution(owner: LoopOwner, plan: LoopExecutionPlan): LoopExecution {
     val selected: (BlockingTaskPool, Boolean, RuntimeWorkers?) =
         when (plan) {
-            case Owner(config) -> when (config) {
-                case Owned(threads) -> (BlockingTaskPool(threads), true, None)
-                case Shared(pool) -> (pool, false, None)
+            case Owner(val config) -> when (config) {
+                case Owned(val threads) -> (BlockingTaskPool(threads), true, None)
+                case Shared(val pool) -> (pool, false, None)
             }
-            case Runtime(workers) -> (workers.pool, false, Some(workers))
+            case Runtime(val workers) -> (workers.pool, false, Some(workers))
         }
     val(pool, owned, runtime) = selected
     try {

@@ -87,9 +87,9 @@ public class HttpResponse internal constructor() {
         val draft = HttpResponseDraft(result.status, result.fields)
         if (!minimal) {
             for (change in edits) when (change) {
-                case HeaderChange.Set(value) -> draft.set(value)
-                case HeaderChange.Add(value) -> draft.add(value)
-                case HeaderChange.Remove(name) -> draft.remove(name)
+                case HeaderChange.Set(val value) -> draft.set(value)
+                case HeaderChange.Add(val value) -> draft.add(value)
+                case HeaderChange.Remove(val name) -> draft.remove(name)
             }
             try { for (callback in beforeCommit) callback(draft) }
             catch (error: Throwable) { draft.seal(); throw CommitCallbackFailure(error) }

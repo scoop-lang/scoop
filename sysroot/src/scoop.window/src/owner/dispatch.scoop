@@ -27,7 +27,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 val pointer = nativeNextEvent(native!!) ?: break
                 try {
                     when (copyNativeEvent(pointer)) {
-                        case Some(event) -> events.add(
+                        case Some(val event) -> events.add(
                             NativeDelivery(event, copyNativeInput(pointer))
                         )
                         case None -> {}
@@ -65,7 +65,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
         var flowDeadline = false
         var timed: Array<DeadlineDelivery> = []
         when (armedDeadline) {
-            case Some(time) -> {
+            case Some(val time) -> {
                 val now = MonotonicTimeSource.markNow()
                 if (time <= now) {
                     flowDeadline = consumeFlowDeadline(now)
@@ -144,7 +144,7 @@ internal fun ApplicationOwner.deliverBusiness(block: () -> Unit) {
             }
         }
     when (attachment) {
-        case Some(value) -> if (!value.post(invocation))
+        case Some(val value) -> if (!value.post(invocation))
             beginExit()
         case None -> invocation()
     }
@@ -164,7 +164,7 @@ internal fun ApplicationOwner.deliverWindow(
             if (window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure) {
                 var ready = !window.inputBlocked || modalInputAllowed(event)
                 when (event) {
-                    case GeometryChanged(value) -> {
+                    case GeometryChanged(val value) -> {
                         window.metrics = Some(value)
                         window.phase = WindowState.Open
                         window.notifyActivity()
@@ -192,7 +192,7 @@ internal fun ApplicationOwner.deliverWindow(
                     handler!!.onEvent(active, ApplicationEvent.Window(window.id, event))
                     window.currentInput = None
                     when (window.pendingSystemCancellation) {
-                        case Some(time) -> {
+                        case Some(val time) -> {
                             window.pendingSystemCancellation = None
                             if (window.phase == WindowState.Open && !exiting)
                                 handler!!.onEvent(
@@ -215,7 +215,7 @@ internal fun ApplicationOwner.deliverWindow(
         } finally {
             window.currentInput = None
             when (input) {
-                case Some(value) -> value.close();
+                case Some(val value) -> value.close();
                 case None -> {}
             }
         }
@@ -224,13 +224,13 @@ internal fun ApplicationOwner.deliverWindow(
 
 internal fun ApplicationOwner.dispatchNative(event: ApplicationEvent, input: NativeInputDelivery?) {
     when (event) {
-        case Menu(activation) -> deliverMenu(activation)
-        case Window(identity, notification) -> {
+        case Menu(val activation) -> deliverMenu(activation)
+        case Window(val identity, val notification) -> {
             val window = findWindow(identity.value)
             when (window) {
-                case Some(value) -> deliverWindow(value, notification, input)
+                case Some(val value) -> deliverWindow(value, notification, input)
                 case None -> when (input) {
-                    case Some(value) -> value.close();
+                    case Some(val value) -> value.close();
                     case None -> {}
                 }
             }

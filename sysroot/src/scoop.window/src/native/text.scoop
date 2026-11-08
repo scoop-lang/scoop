@@ -88,7 +88,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
             val edit = nativeTextEdit(pointer, index)
             val text =
                 when (edit.text) {
-                    case Some(bytes) -> String.fromUtf8(bytes, edit.textLength)
+                    case Some(val bytes) -> String.fromUtf8(bytes, edit.textLength)
                     case None -> ""
                 }
             val replacement =
@@ -123,7 +123,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
                 None,
             operations,
             when (platformTextConnection(event)) {
-                case Some(connection) -> Some(TextInputOrigin(connection, event.c))
+                case Some(val connection) -> Some(TextInputOrigin(connection, event.c))
                 case None -> None
             }
         )

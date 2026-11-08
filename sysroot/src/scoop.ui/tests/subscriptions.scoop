@@ -16,7 +16,7 @@ internal class SubscriptionSnapshot private constructor(
         var removed = 0
         for ((id, subscription) in entries) {
             when (node.dependencies[id]) {
-                case Some(current) -> assertTrue(current === subscription)
+                case Some(val current) -> assertTrue(current === subscription)
                 case None -> {
                     removed += 1
                     assertDetached(subscription)
@@ -47,7 +47,7 @@ internal class SubscriptionSnapshot private constructor(
         }
         private fun findNode(node: MountedNode, component: Component): MountedNode? {
             when (node.body) {
-                case Component(instance) -> {
+                case Component(val instance) -> {
                     if (instance.value === component)
                         return Some(node)
                 }

@@ -24,15 +24,15 @@ private suspend fun sendResponseBody(ctx: HttpContext, plan: ResponsePlan, write
     try {
         if (plan.allowsContent) when (plan.body) {
             case HttpBody.Empty -> writer.flush()
-            case HttpBody.Bytes(value) -> writer.writeAll(value)
-            case HttpBody.Stream(value) -> value.produce(writer)
+            case HttpBody.Bytes(val value) -> writer.writeAll(value)
+            case HttpBody.Stream(val value) -> value.produce(writer)
             case HttpBody.File(_) -> throw IllegalStateException(Some("file response was not prepared by its executor"))
             case HttpBody.WebSocket(_) -> throw IllegalStateException(Some("upgrade response was not prepared by its executor"))
         }
         writer.complete()
         if (present(compressor)) { compressor!!.finish(); wire.complete() }
         val trailers: List<HttpField> = if (plan.allowsContent) when (plan.body) {
-            case HttpBody.Stream(value) -> if (present(value.trailers)) value.trailers!!() else ArrayList<HttpField>()
+            case HttpBody.Stream(val value) -> if (present(value.trailers)) value.trailers!!() else ArrayList<HttpField>()
             else -> ArrayList<HttpField>()
         } else ArrayList<HttpField>()
         ctx.output.finish(if (present(compressor)) compressedFields(trailers) else trailers)

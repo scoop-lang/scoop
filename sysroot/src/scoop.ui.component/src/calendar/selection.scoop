@@ -53,7 +53,7 @@ public class CalendarRules public constructor(
         if (date < (minDate ?: LocalDate.MIN) || date > (maxDate ?: LocalDate.MAX))
             return false
         return when (disabled) {
-            case Some(test) -> !test(date);
+            case Some(val test) -> !test(date);
             case None -> true
         }
     }
@@ -69,7 +69,7 @@ public class CalendarRules public constructor(
             return false
         if (!allowDisabledInside)
             when (disabled) {
-                case Some(test) -> {
+                case Some(val test) -> {
                     var day = range.start
                     while (day < range.end) {
                         if (test(day))
@@ -85,8 +85,8 @@ public class CalendarRules public constructor(
 
 internal fun calendarRead(selection: CalendarSelection): CalendarValue =
     when (selection) {
-        case Single(value) -> CalendarValue.Single(value.value)
-        case Multiple(value) -> {
+        case Single(val value) -> CalendarValue.Single(value.value)
+        case Multiple(val value) -> {
             val dates = value.value
             for (index in 0L ..< dates.size)
                 for (previous in 0L ..< index)
@@ -96,14 +96,14 @@ internal fun calendarRead(selection: CalendarSelection): CalendarValue =
                     )
             CalendarValue.Multiple(dates)
         }
-        case Range(value) -> CalendarValue.Range(value.value)
+        case Range(val value) -> CalendarValue.Range(value.value)
     }
 
 internal fun sameCalendarValue(a: CalendarValue, b: CalendarValue): Boolean =
     when ((a, b)) {
-        case(Single(left), Single(right)) -> left == right
-        case(Range(left), Range(right)) -> left == right
-        case(Multiple(left), Multiple(right)) -> {
+        case(Single(val left), Single(val right)) -> left == right
+        case(Range(val left), Range(val right)) -> left == right
+        case(Multiple(val left), Multiple(val right)) -> {
             var same = left.size == right.size
             if (same)
                 for (index in 0L ..< left.size)
@@ -116,12 +116,12 @@ internal fun sameCalendarValue(a: CalendarValue, b: CalendarValue): Boolean =
 
 internal fun calendarFirst(value: CalendarValue): LocalDate? =
     when (value) {
-        case Single(date) -> date
-        case Multiple(dates) -> if (dates.size == 0L)
+        case Single(val date) -> date
+        case Multiple(val dates) -> if (dates.size == 0L)
             None
         else
             Some(dates[0L])
-        case Range(range) -> range?.start
+        case Range(val range) -> range?.start
     }
 
 internal fun calendarContains(dates: Array<LocalDate>, date: LocalDate): Boolean {
@@ -133,16 +133,16 @@ internal fun calendarContains(dates: Array<LocalDate>, date: LocalDate): Boolean
 
 internal fun calendarSelected(value: CalendarValue, date: LocalDate): Boolean =
     when (value) {
-        case Single(current) -> current == Some(date)
-        case Multiple(dates) -> calendarContains(dates, date)
-        case Range(range) -> range?.contains(date) ?: false
+        case Single(val current) -> current == Some(date)
+        case Multiple(val dates) -> calendarContains(dates, date)
+        case Range(val range) -> range?.contains(date) ?: false
     }
 
 internal fun calendarWrite(selection: CalendarSelection, next: CalendarValue): Boolean {
     when ((selection, next)) {
-        case(Single(target), Single(value)) -> target.value = value
-        case(Multiple(target), Multiple(value)) -> target.value = value
-        case(Range(target), Range(value)) -> target.value = value
+        case(Single(val target), Single(val value)) -> target.value = value
+        case(Multiple(val target), Multiple(val value)) -> target.value = value
+        case(Range(val target), Range(val value)) -> target.value = value
         else -> throw IllegalArgumentException(
             Some("calendar selection mode does not match its value")
         )
@@ -163,11 +163,11 @@ internal fun calendarActivate(
     if (!rules.allows(date))
         return CalendarActivation.Rejected
     return when (value) {
-        case Single(selected) -> if (selected == Some(date) && !rules.required)
+        case Single(val selected) -> if (selected == Some(date) && !rules.required)
             CalendarActivation.Commit(CalendarValue.Single(None))
         else
             CalendarActivation.Commit(CalendarValue.Single(Some(date)))
-        case Multiple(dates) -> {
+        case Multiple(val dates) -> {
             val removing = calendarContains(dates, date)
             val minimum =
                 if (rules.required && rules.minimumDates == 0L)
@@ -191,7 +191,7 @@ internal fun calendarActivate(
         }
         case Range(_) -> when (pending) {
             case None -> CalendarActivation.Pending(date)
-            case Some(start) -> {
+            case Some(val start) -> {
                 val range = orderedDateRange(start, date)
                 if (rules.allows(range))
                     CalendarActivation.Commit(CalendarValue.Range(Some(range)))
@@ -210,15 +210,15 @@ internal fun orderedDateRange(a: LocalDate, b: LocalDate): DateRange =
 
 internal fun calendarValueAllowed(value: CalendarValue, rules: CalendarRules): Boolean =
     when (value) {
-        case Single(date) -> when (date) {
-            case Some(day) -> rules.allows(day);
+        case Single(val date) -> when (date) {
+            case Some(val day) -> rules.allows(day);
             case None -> !rules.required
         }
-        case Range(range) -> when (range) {
-            case Some(dates) -> rules.allows(dates);
+        case Range(val range) -> when (range) {
+            case Some(val dates) -> rules.allows(dates);
             case None -> !rules.required
         }
-        case Multiple(dates) -> {
+        case Multiple(val dates) -> {
             var valid =
                 (!rules.required || dates.size > 0L) &&
                     dates.size >=

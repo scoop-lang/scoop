@@ -20,7 +20,7 @@ public class HttpCacheDirective internal constructor(
     internal val nameOffset: Long, private val valueOffset: Long, private val sourceValue: Array<Byte>?
 ) {
     public constructor(name: String, value: List<Byte>? = None) : this(httpNormalizedToken(name),
-        when (value) { case Some(bytes) -> Some(checkedHttpParameter(bytes)); case None -> None }, false, 0L, 0L, None) {}
+        when (value) { case Some(val bytes) -> Some(checkedHttpParameter(bytes)); case None -> None }, false, 0L, 0L, None) {}
     public constructor(name: String, value: List<Byte>) : this(name, Some<List<Byte>>(value)) {}
 
     /**
@@ -45,14 +45,14 @@ public class HttpCacheDirective internal constructor(
     }
 
     private fun requiredValue(): Array<Byte> = when (value) {
-        case Some(bytes) -> bytes
+        case Some(val bytes) -> bytes
         case None -> failAt(0L, "cache directive requires an argument")
     }
 
     internal fun failAt(offset: Long, detail: String): Nothing {
         var sourceOffset = valueOffset + offset
         when (sourceValue) {
-            case Some(source) -> if (wasQuoted) {
+            case Some(val source) -> if (wasQuoted) {
                 sourceOffset = valueOffset + 1L
                 var decoded = 0L
                 while (decoded < offset) {

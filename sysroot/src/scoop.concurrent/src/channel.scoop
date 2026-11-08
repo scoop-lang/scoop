@@ -62,7 +62,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
     /** Receives the next message, or throws after closure and draining. */
     public suspend fun receive(): T =
         when (receiveOrNone()) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw ChannelClosedException()
         }
 
@@ -79,7 +79,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
                 receiver.result.bind(registration, notifications)
                 if (receiver.result.isPending) {
                     when (receiveLocked(notifications)) {
-                        case Value(value) -> receiver.result.succeed(Some(value), notifications)
+                        case Value(val value) -> receiver.result.succeed(Some(value), notifications)
                         case Closed -> receiver.result.succeed(None, notifications)
                         case Empty -> receiver.link = Some(receivers.append(receiver))
                     }
@@ -135,7 +135,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
         if (closed)
             return TrySendResult.Closed
         when (receivers.takeFirst()) {
-            case Some(receiver) -> {
+            case Some(val receiver) -> {
                 receiver.link = None
                 receiver.result.succeed(Some(value), notifications)
                 return TrySendResult.Sent
@@ -155,7 +155,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
         if (buffer.size > 0L) {
             val value = buffer.removeFirst()
             when (senders.takeFirst()) {
-                case Some(sender) -> {
+                case Some(val sender) -> {
                     sender.link = None
                     buffer.addLast(sender.value!!)
                     sender.value = None
@@ -166,7 +166,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
             return TryReceiveResult.Value(value)
         }
         when (senders.takeFirst()) {
-            case Some(sender) -> {
+            case Some(val sender) -> {
                 sender.link = None
                 val value = sender.value!!
                 sender.value = None
@@ -185,7 +185,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
         lock.withLock {
             if (sender.result.isPending) {
                 when (sender.link) {
-                    case Some(link) -> senders.remove(link)
+                    case Some(val link) -> senders.remove(link)
                     case None -> {}
                 }
                 sender.link = None
@@ -202,7 +202,7 @@ public class Channel<T> public constructor(private val capacity: Long) {
         lock.withLock {
             if (receiver.result.isPending) {
                 when (receiver.link) {
-                    case Some(link) -> receivers.remove(link)
+                    case Some(val link) -> receivers.remove(link)
                     case None -> {}
                 }
                 receiver.link = None

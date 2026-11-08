@@ -47,8 +47,8 @@ internal fun panelCaption(
     centered: Boolean = false
 ): View =
     when (content) {
-        case Custom(view) -> view
-        case Label(input) -> component(
+        case Custom(val view) -> view
+        case Label(val input) -> component(
             LabelProps(
                 input.text,
                 if (!panelPresent(input.fonts))

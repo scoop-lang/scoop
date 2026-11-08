@@ -15,7 +15,7 @@ internal class OverlayMeasurePlan(
         contentAnchor: Rect? = None
     ): OverlayLayout =
         when (placement) {
-            case Viewport(horizontal, vertical) -> OverlayLayout(
+            case Viewport(val horizontal, val vertical) -> OverlayLayout(
                 Rect(
                     aligned(available.x, available.width, size.width, horizontal),
                     aligned(available.y, available.height, size.height, vertical),
@@ -27,7 +27,7 @@ internal class OverlayMeasurePlan(
                 None,
                 presence
             )
-            case Anchored(anchor, side, alignment, preferred, opposite, contentAligned) -> {
+            case Anchored(val anchor, val side, val alignment, val preferred, val opposite, val contentAligned) -> {
                 if (contentAligned && contentAnchor != None) {
                     val local = contentAnchor!!
                     OverlayLayout(
@@ -127,7 +127,7 @@ internal fun planOverlay(
 ): OverlayMeasurePlan {
     checkLayoutSize(viewport)
     return when (placement) {
-        case Viewport(horizontal, vertical, padding) -> {
+        case Viewport(val horizontal, val vertical, val padding) -> {
             val available = insetViewport(viewport, padding)
             OverlayMeasurePlan(
                 Constraints(maxWidth = Some(available.width), maxHeight = Some(available.height)),
@@ -135,7 +135,7 @@ internal fun planOverlay(
                 OverlayPlanPlacement.Viewport(overlayHorizontal(horizontal, direction), vertical)
             )
         }
-        case Anchored(_, side, alignment, gap, padding, matchWidth) -> pointOverlayPlan(
+        case Anchored(_, val side, val alignment, val gap, val padding, val matchWidth) -> pointOverlayPlan(
             anchor ?: throw IllegalStateException(Some("anchor has no current geometry")),
             side,
             alignment,
@@ -145,7 +145,7 @@ internal fun planOverlay(
             viewport,
             direction
         )
-        case ContentAligned(_, side, alignment, gap, padding, matchWidth) -> pointOverlayPlan(
+        case ContentAligned(_, val side, val alignment, val gap, val padding, val matchWidth) -> pointOverlayPlan(
             anchor ?: throw IllegalStateException(Some("anchor has no current geometry")),
             side,
             alignment,
@@ -156,7 +156,7 @@ internal fun planOverlay(
             direction,
             true
         )
-        case AtPoint(point, side, alignment, gap, padding) -> pointOverlayPlan(
+        case AtPoint(val point, val side, val alignment, val gap, val padding) -> pointOverlayPlan(
             Rect(point.x, point.y, 0.0, 0.0),
             side,
             alignment,

@@ -6,7 +6,7 @@ import scoop.test.*
 private fun starts2(events: List<Http2Event>, streamId: Int): Long {
     var count = 0L
     for (event in events) when (event) {
-        case RequestHeadStarted(id) -> { if (id == streamId) count += 1L }
+        case RequestHeadStarted(val id) -> { if (id == streamId) count += 1L }
         else -> {}
     }
     return count

@@ -16,15 +16,15 @@ public struct SetStyle(val style: ContentStyle) : Command {
 
 internal fun styleSequence(style: ContentStyle, colors: Boolean): String {
     val background = when (style.backgroundColor) {
-        case Some(color) -> Colored.BackgroundColor(color).toAnsiString()
+        case Some(val color) -> Colored.BackgroundColor(color).toAnsiString()
         case None -> ""
     }
     val foreground = when (style.foregroundColor) {
-        case Some(color) -> Colored.ForegroundColor(color).toAnsiString()
+        case Some(val color) -> Colored.ForegroundColor(color).toAnsiString()
         case None -> ""
     }
     val underline = when (style.underlineColor) {
-        case Some(color) -> Colored.UnderlineColor(color).toAnsiString()
+        case Some(val color) -> Colored.UnderlineColor(color).toAnsiString()
         case None -> ""
     }
     val writer = StringWriter()

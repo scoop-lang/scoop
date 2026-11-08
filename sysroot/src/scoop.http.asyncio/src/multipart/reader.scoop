@@ -13,7 +13,7 @@ internal class MultipartReader(source: AsyncByteSource, owner: AsyncCloseable?, 
     }) suspend { source ->
         if (finished) None
         else when (nextEvent(source)) {
-            case PartStarted(head) -> {
+            case PartStarted(val head) -> {
                 val body = MultipartBody(this)
                 state.current = Some(body)
                 Some(MultipartPart(head, body))
@@ -47,7 +47,7 @@ internal class MultipartReader(source: AsyncByteSource, owner: AsyncCloseable?, 
                 return copied
             }
             when (nextEvent(source)) {
-                case Data(bytes) -> { body.data = bytes; body.offset = 0L }
+                case Data(val bytes) -> { body.data = bytes; body.offset = 0L }
                 case PartEnded -> { body.complete = true; state.current = None; return 0L }
                 else -> throw IllegalStateException(Some("unexpected multipart event inside a part"))
             }

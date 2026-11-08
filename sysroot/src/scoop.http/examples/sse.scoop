@@ -13,7 +13,7 @@ fun main() {
                 // Feed small fragments to demonstrate incremental parsing.
                 decoder.receive(buffer, if (buffer.readableBytes < 3L) buffer.readableBytes else 3L)
                 when (val event = decoder.nextEvent()) {
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         println(f"${value.event} #${value.lastEventId}")
                         println(value.data)
                     }

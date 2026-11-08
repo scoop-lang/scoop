@@ -50,7 +50,7 @@ internal suspend fun prepareClientAuthentication(
             if (provider.origin == scope.origin(call) && provider.sendWithoutChallenge) {
                 val available =
                     when (provider.provider) {
-                        case Digest(options) -> cachedClientDigest(call, scope, provider, options)
+                        case Digest(val options) -> cachedClientDigest(call, scope, provider, options)
                         else -> Some(ClientAuthenticationSession(scope, provider, None, "/"))
                     }
                 if (!clientPresent(available))
@@ -67,14 +67,14 @@ internal suspend fun prepareClientAuthentication(
     val session = selected!!
     val field =
         when (session.authenticator.provider) {
-            case Basic(provider) -> session.field ?: clientBasicField(call, session, provider)
-            case Bearer(provider) -> {
+            case Basic(val provider) -> session.field ?: clientBasicField(call, session, provider)
+            case Bearer(val provider) -> {
                 val value = awaitClientBearer(call, session, provider)
                 requireClientCall(call)
                 session.bearerValue = Some(value)
                 value.field
             }
-            case Digest(provider) -> clientDigestField(call, authentication, session, provider)
+            case Digest(val provider) -> clientDigestField(call, authentication, session, provider)
         }
     requireClientCall(call)
     session.field = Some(field)

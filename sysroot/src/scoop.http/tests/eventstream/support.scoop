@@ -15,7 +15,7 @@ internal fun feedAwsEventStream(decoder: AwsEventStreamDecoder, bytes: List<Byte
             while (buffer.readableBytes > 0L) {
                 val consumed = decoder.receive(buffer)
                 when (decoder.nextMessage()) {
-                    case Some(message) -> messages.add(message)
+                    case Some(val message) -> messages.add(message)
                     case None -> assertTrue(consumed > 0L)
                 }
             }

@@ -12,7 +12,7 @@ fun makeComposite(): () -> String {
     val choice = CapturedChoice.Text("enum")
     return {
         val prefix = when (choice) {
-            case Text(value) -> value
+            case Text(val value) -> value
             case Empty -> "empty"
         }
         prefix + "-" + tuple._2

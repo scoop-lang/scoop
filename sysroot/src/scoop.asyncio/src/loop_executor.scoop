@@ -21,7 +21,7 @@ internal class LoopExecutor(
             if (phase == LoopExecutorPhase.Draining) {
                 val accepted =
                     when (parent) {
-                        case Some(parent) -> parent is
+                        case Some(val parent) -> parent is
                             LoopTask &&
                             parent.owner ===
                             this &&

@@ -32,7 +32,7 @@ internal class TcpRaceMailbox(private val loop: LoopOwner) {
                 if (stopped)
                     return@withLock TcpRaceOffer.Stopped
                 when (waiter) {
-                    case Some(target) -> {
+                    case Some(val target) -> {
                         waiter = None;
                         TcpRaceOffer.Waiting(target)
                     }
@@ -45,7 +45,7 @@ internal class TcpRaceMailbox(private val loop: LoopOwner) {
         return when (offer) {
             case Stopped -> false
             case Queued -> true
-            case Waiting(target) -> {
+            case Waiting(val target) -> {
                 loop.post { target.resume(event) };
                 true
             }
@@ -81,8 +81,8 @@ internal class TcpRaceMailbox(private val loop: LoopOwner) {
     suspend fun close() {
         for (event in stop()) {
             when (event) {
-                case Connected(stream) -> closeUnselected(stream)
-                case Aborted(error) -> if (error is ResourceUseException)
+                case Connected(val stream) -> closeUnselected(stream)
+                case Aborted(val error) -> if (error is ResourceUseException)
                     cleanupFailed(error)
                 case _ -> {}
             }
@@ -100,7 +100,7 @@ internal class TcpRaceMailbox(private val loop: LoopOwner) {
                 Some(
                     when (cleanupError) {
                         case None -> error
-                        case Some(primary) -> ResourceUseException(primary, error)
+                        case Some(val primary) -> ResourceUseException(primary, error)
                     }
                 )
         }

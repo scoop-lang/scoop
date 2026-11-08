@@ -48,16 +48,16 @@ public class Kbd public constructor(
             }.then(input.style)
         val label =
             when (input.content) {
-                case Chord(value) -> when (Some(scope.nativeWindow)) {
-                    case Some(native) -> Some(native.shortcutLabel(value))
+                case Chord(val value) -> when (Some(scope.nativeWindow)) {
+                    case Some(val native) -> Some(native.shortcutLabel(value))
                     case None -> return empty()
                 }
-                case Label(value) -> Some(value)
+                case Label(val value) -> Some(value)
                 else -> None
             }
         if (input.grouped)
             when (label) {
-                case Some(value) -> return direction(
+                case Some(val value) -> return direction(
                     makeRow {
                         this.spacing = 4.0 * density
                         this.alignment = CrossAlignment.Center
@@ -80,8 +80,8 @@ public class Kbd public constructor(
             }
         val child =
             when (input.content) {
-                case Text(value) -> kbdCaption(value, style, input.fonts)
-                case Custom(view) -> view
+                case Text(val value) -> kbdCaption(value, style, input.fonts)
+                case Custom(val view) -> view
                 else -> direction(
                     kbdCaption(shortcutCaption(label!!), style, input.fonts),
                     LayoutDirection.Ltr

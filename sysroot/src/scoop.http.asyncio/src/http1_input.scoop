@@ -52,8 +52,8 @@ internal fun advanceH1End(state: H1State, body: H1Input) {
         val (changed, ended) = state.lock.withLock {
             if (present(body.bytes) || state.events.size == 0L) return@withLock (false, false)
             when (state.events.firstOrNone()!!) {
-                case Trailers(fields) -> { state.events.removeFirst(); body.trailers = Some(fields); (true, false) }
-                case End(keepAlive) -> {
+                case Trailers(val fields) -> { state.events.removeFirst(); body.trailers = Some(fields); (true, false) }
+                case End(val keepAlive) -> {
                     state.events.removeFirst()
                     body.keepAlive = keepAlive
                     body.life.completed = true
@@ -97,7 +97,7 @@ internal suspend fun receiveH1Request(state: H1State, readIdle: Duration?): Http
         val next = nextH1Event(state)
         if (!present(next)) return@h1Operation None
         when (next!!) {
-            case Request(head) -> {
+            case Request(val head) -> {
                 val body = incomingH1(state, readIdle)
                 state.lock.withLock { state.requests.addLast(H1RequestContext(head.method, body)) }
                 Some(Http1IncomingRequest(head, AsyncHttp1Body(state, body)))
@@ -111,7 +111,7 @@ internal suspend fun receiveH1Response(state: H1State, readIdle: Duration?): Htt
         val next = nextH1Event(state)
         if (!present(next)) throw UnexpectedEofException()
         when (next!!) {
-            case Response(head) -> {
+            case Response(val head) -> {
                 if (head.status >= 200U || head.status == 101U) state.lock.withLock { state.clientPending -= 1L }
                 val firstByteAt = state.lock.withLock {
                     if (state.captureTimings) Some(state.responseStarts!!.removeFirst()) else None

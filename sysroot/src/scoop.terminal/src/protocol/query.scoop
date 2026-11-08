@@ -45,11 +45,11 @@ public class QueryReply public constructor(private val kind: QueryKind) {
      */
     public fun accept(item: InputItem): InputItem? = when (item) {
         case InputItem.CursorPosition(_, _) -> if (kind == QueryKind.Cursor) Some(item) else None
-        case InputItem.KeyboardFlags(flags) -> {
+        case InputItem.KeyboardFlags(val flags) -> {
             if (kind == QueryKind.Keyboard) keyboard = Some(flags)
             None
         }
-        case InputItem.DeviceAttributes(secondary, _) -> {
+        case InputItem.DeviceAttributes(val secondary, _) -> {
             if (kind == QueryKind.Keyboard && !secondary) {
                 if (keyboard == None) Some(item) else Some(InputItem.KeyboardFlags(keyboard!!))
             } else if ((kind == QueryKind.Primary && !secondary) || (kind == QueryKind.Secondary && secondary))

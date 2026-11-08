@@ -6,7 +6,7 @@ enum Reply<T> {
 }
 
 fun describe(value: Reply<Payload>): String = when (value) {
-    case Item(Payload { active: true, value: number }) if (number > 9) -> "large"
+    case Item(Payload { active: true, value: val number }) if (number > 9) -> "large"
     case Item(Payload { active: true, .. }) -> "small"
     case Item(Payload { active: false, .. }) -> "inactive"
     case Empty -> "empty"
@@ -19,7 +19,7 @@ fun main() {
     println(describe(Reply.Empty))
     val choice: Option<(Boolean, String)> = Some((true, "nested"))
     when (choice) {
-        case Some((true, text)) -> println(text)
+        case Some((true, val text)) -> println(text)
         case Some((false, _)) -> println("false")
         case None -> println("none")
     }

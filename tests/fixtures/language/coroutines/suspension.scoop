@@ -34,7 +34,7 @@ public fun result(): Int {
     }) != 42) { return 7 }
     return exercise(Payload.Full(Node(42)), { value: Payload<Node> ->
         when (value) {
-            case Full(node) -> node.value
+            case Full(val node) -> node.value
             case Empty -> 8
         }
     })

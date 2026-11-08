@@ -230,7 +230,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
             else
                 entry.clock.pause(now)
             when (entry.clock.deadline) {
-                case Some(end) -> if (first == None || end < first!!)
+                case Some(val end) -> if (first == None || end < first!!)
                     first = Some(end)
                 case None -> {}
             }
@@ -239,7 +239,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
             return
         scheduled = first
         when (first) {
-            case Some(end) -> timer.schedule(end)
+            case Some(val end) -> timer.schedule(end)
             case None -> timer.cancel()
         }
     }
@@ -251,7 +251,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
         val now = MonotonicTimeSource.markNow()
         for (entry in visible.value)
             when (entry.clock.deadline) {
-                case Some(end) -> if (end <= now)
+                case Some(val end) -> if (end <= now)
                     entry.model.close(entry.id, ToastCloseReason.Timeout)
                 case None -> {}
             }

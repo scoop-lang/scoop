@@ -25,8 +25,8 @@ public class HttpContentRange private constructor(
      * Formats the structured value as HTTP field text.
      */
     public override fun toString(): String {
-        val part = when (range) { case Some(value) -> value.toString(); case None -> "*" }
-        val length = when (completeLength) { case Some(value) -> value.toString(); case None -> "*" }
+        val part = when (range) { case Some(val value) -> value.toString(); case None -> "*" }
+        val length = when (completeLength) { case Some(val value) -> value.toString(); case None -> "*" }
         return "bytes " + part + "/" + length
     }
     /**
@@ -76,8 +76,8 @@ public class HttpContentRange private constructor(
             } else Some(reader.decimal())
             when (range) {
                 case None -> if (length == None) reader.failAt(lengthOffset, "unsatisfied range needs a known length")
-                case Some(value) -> when (length) {
-                    case Some(total) -> if (total <= value.last) reader.failAt(lengthOffset, "complete length does not exceed range endpoint")
+                case Some(val value) -> when (length) {
+                    case Some(val total) -> if (total <= value.last) reader.failAt(lengthOffset, "complete length does not exceed range endpoint")
                     case None -> {}
                 }
             }
@@ -107,7 +107,7 @@ public class HttpContentRange private constructor(
 
 private fun checkedContentLength(range: HttpResolvedRange, length: Long?): Long? {
     when (length) {
-        case Some(total) -> if (total <= range.last) throw IllegalArgumentException(Some("complete length does not exceed range endpoint"))
+        case Some(val total) -> if (total <= range.last) throw IllegalArgumentException(Some("complete length does not exceed range endpoint"))
         case None -> {}
     }
     return length

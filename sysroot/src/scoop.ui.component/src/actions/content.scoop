@@ -7,7 +7,7 @@ import scoop.ui.style.InteractionVisual
 internal fun actionLineHeight(shape: ActionShape): Double? =
     when (shape) {
         case Tab(_, _) -> Some(20.0 / 14.0)
-        case Toggle(_, size, _) -> Some(
+        case Toggle(_, val size, _) -> Some(
             20.0 /
                 (
                     if (size == ToggleSize.Sm)
@@ -17,7 +17,7 @@ internal fun actionLineHeight(shape: ActionShape): Double? =
                 )
         )
         case Badge -> Some(16.0 / 12.0)
-        case Button(size) -> when (size) {
+        case Button(val size) -> when (size) {
             case Xs -> Some(16.0 / 12.0)
             case IconXs -> Some(16.0 / 12.0)
             case Sm -> Some(20.0 / 12.8)
@@ -44,12 +44,12 @@ internal fun actionContentStyle(
 
 internal fun actionContent(content: ButtonContent, appearance: ActionContentStyle): View =
     when (content) {
-        case Custom(view) -> view
-        case Resolved(build) -> build(appearance)
-        case Label(label) -> {
+        case Custom(val view) -> view
+        case Resolved(val build) -> build(appearance)
+        case Label(val label) -> {
             val base =
                 when (label.baseStyle) {
-                    case Some(value) -> Some(value)
+                    case Some(val value) -> Some(value)
                     case None -> when (label.theme) {
                         case Some(_) -> None
                         case None -> Some(appearance.text)

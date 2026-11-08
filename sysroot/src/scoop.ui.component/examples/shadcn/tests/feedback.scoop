@@ -74,13 +74,13 @@ private class FeedbackProbe {
     fun pointer(event: PointerObservation) {
         val prefix = f"phase ${phase}: "
         when (event) {
-            case Pointer(value) -> when (value) {
-                case Moved(state) -> events.add(
+            case Pointer(val value) -> when (value) {
+                case Moved(val state) -> events.add(
                     prefix + f"move ${state.logicalPosition.x}, ${state.logicalPosition.y}"
                 )
                 case Entered(_) -> events.add(prefix + "enter window")
                 case Left(_) -> events.add(prefix + "leave window")
-                case Button(state, _, status, _) -> events.add(
+                case Button(val state, _, val status, _) -> events.add(
                     prefix +
                         f"button ${status == ElementState.Pressed} at ${state.logicalPosition.x}, ${
                             state.logicalPosition.y

@@ -15,7 +15,7 @@ internal fun questionnaireActions(
     val enabled = input.enabled && !input.busy
     val hasSkip =
         when (input.state.current) {
-            case Some(question) -> !question.required;
+            case Some(val question) -> !question.required;
             case None -> false
         }
     val previous =

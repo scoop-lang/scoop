@@ -40,7 +40,7 @@ internal fun InputRouter.selectScroll(
         return None
     val route =
         when (scrollRoute) {
-            case Some(current) -> current
+            case Some(val current) -> current
             case None -> {
                 val created = InputScrollRoute(fallback, boundaryRevision)
                 scrollRoute = Some(created)
@@ -70,8 +70,8 @@ private fun InputRouter.scrollRouteAllowed(route: InputScrollRoute): Boolean =
 
 internal fun InputRouter.scrollDeliveryAllowed(consumption: ScrollConsumption?): Boolean =
     when (consumption) {
-        case Some(value) -> when (value.route) {
-            case Some(route) -> scrollRouteAllowed(route)
+        case Some(val value) -> when (value.route) {
+            case Some(val route) -> scrollRouteAllowed(route)
             case None -> true
         }
         case None -> true
@@ -93,7 +93,7 @@ internal fun InputRouter.finishScroll(
     )
         return
     when (scrollRoute) {
-        case Some(current) -> if (current === ending) {
+        case Some(val current) -> if (current === ending) {
             scrollRoute = None
         }
         case None -> {}
@@ -102,7 +102,7 @@ internal fun InputRouter.finishScroll(
 
 internal fun InputRouter.reconcileScroll() {
     when (scrollRoute) {
-        case Some(route) -> if (
+        case Some(val route) -> if (
             route.scopes.size >
                 0L &&
                 (

@@ -234,7 +234,7 @@ private class FrameProbe(
                     }
                     assertTrue(metrics!!.systemButtons.size > 0L)
                     when (metrics!!.contentLayout) {
-                        case Some(rect) -> {
+                        case Some(val rect) -> {
                             assertTrue(
                                 rect.origin.y >
                                     0.0 &&

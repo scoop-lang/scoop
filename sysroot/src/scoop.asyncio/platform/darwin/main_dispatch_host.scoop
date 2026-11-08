@@ -23,7 +23,7 @@ public class MainDispatchHost public constructor(): EventLoopHost {
             throw IllegalStateException(Some("main dispatch watch requires the main thread"))
         val descriptor =
             when (notification) {
-                case ReadableDescriptor(value) -> value
+                case ReadableDescriptor(val value) -> value
                 case WindowsEvent(_) -> throw IllegalArgumentException(
                     Some("main dispatch requires a descriptor")
                 )
@@ -112,7 +112,7 @@ private class MainDispatchWatch(private val ready: () -> Unit): EventLoopWatch {
                 else
                     removal!!
             when (foreignCallbackFailure(callback)) {
-                case Some(error) -> report(error)
+                case Some(val error) -> report(error)
                 case None -> {}
             }
             if (stage == 1) {

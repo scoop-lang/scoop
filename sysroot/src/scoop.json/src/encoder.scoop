@@ -39,7 +39,7 @@ internal class JsonEncoder(public override val path: String)
 
     public override fun keyed(): KeyedEncodingContainer {
         return when (container) {
-            case JsonEncodingContainer.Record(view) -> view
+            case JsonEncodingContainer.Record(val view) -> view
             case JsonEncodingContainer.Unselected -> {
                 val view = JsonKeyedEncoder(this)
                 container = JsonEncodingContainer.Record(view)
@@ -51,7 +51,7 @@ internal class JsonEncoder(public override val path: String)
 
     public override fun unkeyed(): UnkeyedEncodingContainer {
         return when (container) {
-            case JsonEncodingContainer.Sequence(view) -> view
+            case JsonEncodingContainer.Sequence(val view) -> view
             case JsonEncodingContainer.Unselected -> {
                 val view = JsonUnkeyedEncoder(this)
                 container = JsonEncodingContainer.Sequence(view)

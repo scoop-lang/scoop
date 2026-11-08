@@ -10,7 +10,7 @@ public fun String.toFloatOrNone(): Float? {
     if (this == "-Infinity") return Some(Float.NEGATIVE_INFINITY)
     val rounded = when (roundDecimal(this, 24L, -149L, -46L, 38L)) {
         case None -> return None
-        case Some(value) -> value
+        case Some(val value) -> value
     }
     var scale = 1f
     var exponent = rounded.exponent
@@ -31,7 +31,7 @@ public fun String.toDoubleOrNone(): Double? {
     if (this == "-Infinity") return Some(Double.NEGATIVE_INFINITY)
     val rounded = when (roundDecimal(this, 53L, -1074L, -324L, 308L)) {
         case None -> return None
-        case Some(value) -> value
+        case Some(val value) -> value
     }
     var scale = 1.0
     var exponent = rounded.exponent

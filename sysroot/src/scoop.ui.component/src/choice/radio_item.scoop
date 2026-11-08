@@ -50,7 +50,7 @@ internal class RadioItem(
             )
         val content =
             when (input.content) {
-                case Some(render) -> render(
+                case Some(val render) -> render(
                     RadioItemContent(indicator, input.selected, input.enabled, input.invalid, base)
                 )
                 case None -> {

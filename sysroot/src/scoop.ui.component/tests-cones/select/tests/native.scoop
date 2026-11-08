@@ -12,7 +12,7 @@ internal fun selectKey(window: Window, code: Int, text: String, flags: Int = 0):
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> text.withUtf8Bytes {
+                    case AppKit(_, val view) -> text.withUtf8Bytes {
                         bytes,
                         length -> @Unsafe
                         {
@@ -35,11 +35,11 @@ internal fun selectFailure(error: Throwable) {
                 f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
             )
             when (error.expected) {
-                case Text(value) -> println(f"expected: ${value}");
+                case Text(val value) -> println(f"expected: ${value}");
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println(f"actual: ${value}");
+                case Text(val value) -> println(f"actual: ${value}");
                 else -> {}
             }
         } else

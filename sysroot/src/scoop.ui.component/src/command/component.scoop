@@ -30,7 +30,7 @@ public class Command public constructor(
         val input = props.value
         val query = input.query.committedText
         when (cached) {
-            case Some(previous) -> if (previous === input && query == cachedQuery)
+            case Some(val previous) -> if (previous === input && query == cachedQuery)
                 return result!!
             case None -> {}
         }
@@ -66,7 +66,7 @@ public class Command public constructor(
     }
     private fun rows(source: CommandSource, input: CommandProps, theme: Theme): CommandRows {
         when (rowSource) {
-            case Some(previous) -> if (
+            case Some(val previous) -> if (
                 previous.source === source && previous.input === input && previous.theme === theme
             )
                 return previous
@@ -180,7 +180,7 @@ private class CommandLayout(
             )
         val available =
             when (constraints.maxHeight) {
-                case Some(height) -> lowerBound(0.0, height - head.size.height)
+                case Some(val height) -> lowerBound(0.0, height - head.size.height)
                 case None -> props.value.listHeight
             }
         val height = upperBound(props.value.listHeight, available)

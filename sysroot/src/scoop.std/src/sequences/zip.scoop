@@ -3,9 +3,9 @@ package scoop.sequences
 private class ZippingIterator<T, R>(private val left: Iterator<T>, private val right: Iterator<R>) : Iterator<(T, R)> {
     public override fun next(): (T, R)? = when (left.next()) {
         case None -> None
-        case Some(first) -> when (right.next()) {
+        case Some(val first) -> when (right.next()) {
             case None -> None
-            case Some(second) -> Some((first, second))
+            case Some(val second) -> Some((first, second))
         }
     }
 }

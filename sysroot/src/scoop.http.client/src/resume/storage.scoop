@@ -88,7 +88,7 @@ internal suspend fun selectClientResumeRange(
     val reason: HttpResumeFailureReason? =
         when (record) {
             case None -> Some(HttpResumeFailureReason.MissingMetadata)
-            case Some(value) -> {
+            case Some(val value) -> {
                 if (value.originalUrl != clientCacheUrl(original.url))
                     Some(HttpResumeFailureReason.RequestChanged)
                 else

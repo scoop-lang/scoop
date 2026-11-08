@@ -29,7 +29,7 @@ internal fun encodeClientCacheMetadata(record: HttpCacheRecord, trailers: List<H
     output.writeInt64(record.receivedAt.epochSeconds, ByteOrder.BigEndian)
     output.writeInt32(record.receivedAt.nanosecondsOfSecond, ByteOrder.BigEndian)
     when (record.head.reason) {
-        case Some(reason) -> cacheWriteBytes(output, reason, limit)
+        case Some(val reason) -> cacheWriteBytes(output, reason, limit)
         case None -> { requireCacheMetadataRoom(output, 8L, limit); output.writeInt64(-1L, ByteOrder.BigEndian) }
     }
     cacheWriteFields(output, record.head.fields, limit)

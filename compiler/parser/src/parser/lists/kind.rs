@@ -99,10 +99,12 @@ impl ListKind {
                 TokenKind::At | TokenKind::LParen | TokenKind::Suspend
             ),
             Self::NamedVariantFields => matches!(token, TokenKind::At),
-            Self::NamedPatternElements => matches!(token, TokenKind::DotDot),
+            Self::NamedPatternElements => matches!(token, TokenKind::DotDot | TokenKind::Val),
             Self::PatternElements => matches!(
                 token,
-                TokenKind::DotDot
+                TokenKind::Val
+                    | TokenKind::DotDot
+                    | TokenKind::LBrace
                     | TokenKind::LParen
                     | TokenKind::Minus
                     | TokenKind::Int(_)

@@ -25,7 +25,7 @@ public class QuestionnaireStrings public constructor(
         when (value) {
             case AnswerRequired -> answerRequired;
             case TextRequired -> textRequired;
-            case Message(text) -> text
+            case Message(val text) -> text
         }
 }
 

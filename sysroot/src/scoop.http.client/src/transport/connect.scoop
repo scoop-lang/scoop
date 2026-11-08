@@ -18,8 +18,8 @@ internal enum ClientConnectResult<T> {
 
 internal suspend fun closeClientConnection(connection: ClientConnection) {
     when (connection) {
-        case Http1(value) -> value.close();
-        case Http2(value) -> value.close()
+        case Http1(val value) -> value.close();
+        case Http2(val value) -> value.close()
     }
 }
 
@@ -55,7 +55,7 @@ internal fun startClientDial(state: ClientState, call: ClientCall, entry: Client
         ) {
             try {
                 when (connectClient(call, entry)) {
-                    case Authenticate(session) -> {
+                    case Authenticate(val session) -> {
                         val waiter =
                             call.lock.withLock {
                                 val saved = call.dialWaiter;
@@ -66,7 +66,7 @@ internal fun startClientDial(state: ClientState, call: ClientCall, entry: Client
                         if (clientPresent(waiter))
                             waiter!!.resume(ClientConnectResult.Authenticate(session))
                     }
-                    case Connected(_connection) -> {
+                    case Connected(val _connection) -> {
                         val connection = _connection
                         if (
                             call.lock.withLock { call.ending } ||
@@ -121,9 +121,9 @@ private suspend fun connectClient(call: ClientCall, entry: ClientPoolEntry): Cli
         requireClientCall(call)
         return when (call.route) {
             case Direct -> ClientConnectResult.Connected(connectClientOrigin(call, entry, tcp))
-            case HttpForward(endpoint) -> connectClientHttpProxy(call, entry, tcp, endpoint, true)
-            case HttpTunnel(endpoint) -> connectClientHttpProxy(call, entry, tcp, endpoint, false)
-            case Socks5(endpoint) -> ClientConnectResult.Connected(
+            case HttpForward(val endpoint) -> connectClientHttpProxy(call, entry, tcp, endpoint, true)
+            case HttpTunnel(val endpoint) -> connectClientHttpProxy(call, entry, tcp, endpoint, false)
+            case Socks5(val endpoint) -> ClientConnectResult.Connected(
                 connectClientSocks5(call, entry, tcp, endpoint)
             )
         }
@@ -178,7 +178,7 @@ where T: AsyncByteStream, T: AsyncCloseable {
                     }
             val selected: List<Byte>? =
                 when (tls.connectionInfo.alpn) {
-                    case Some(bytes) -> Some(bytes);
+                    case Some(val bytes) -> Some(bytes);
                     case None -> None
                 }
             val protocol =
@@ -211,9 +211,9 @@ where T: AsyncByteStream, T: AsyncCloseable {
 
 internal fun clientTlsPeer(host: UrlHost): TlsPeerName =
     when (host) {
-        case Dns(name) -> TlsPeerName.Dns(name)
-        case Ipv4(bytes) -> TlsPeerName.Ip(IpAddress.fromByteArray(bytes))
-        case Ipv6(bytes) -> TlsPeerName.Ip(IpAddress.fromByteArray(bytes))
+        case Dns(val name) -> TlsPeerName.Dns(name)
+        case Ipv4(val bytes) -> TlsPeerName.Ip(IpAddress.fromByteArray(bytes))
+        case Ipv6(val bytes) -> TlsPeerName.Ip(IpAddress.fromByteArray(bytes))
     }
 
 internal suspend fun <T> adoptClientConnection(

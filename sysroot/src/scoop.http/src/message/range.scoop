@@ -29,15 +29,15 @@ public class HttpRange private constructor(
         var satisfiable = false
         for (range in ranges) {
             when (range) {
-                case FromTo(first, last) -> if (first < completeLength) {
+                case FromTo(val first, val last) -> if (first < completeLength) {
                     satisfiable = true
                     result.add(HttpResolvedRange(first, if (last < completeLength) last else completeLength - 1L))
                 }
-                case From(first) -> if (first < completeLength) {
+                case From(val first) -> if (first < completeLength) {
                     satisfiable = true
                     result.add(HttpResolvedRange(first, completeLength - 1L))
                 }
-                case Suffix(length) -> if (length > 0L) {
+                case Suffix(val length) -> if (length > 0L) {
                     satisfiable = true
                     if (completeLength > 0L) result.add(HttpResolvedRange(
                         if (length >= completeLength) 0L else completeLength - length, completeLength - 1L))

@@ -16,9 +16,9 @@ fun main() {
     val choice = choose(Pick.Keep(10), Keep(same(mark(2))))
     val inferred = firstOr(empty(), same(same(same(mark(3)))))
     val callback = apply({ value -> same(same(value)) }, mark(4))
-    val chosen = when (choice) { case Keep(value) -> value }
+    val chosen = when (choice) { case Keep(val value) -> value }
     println(chosen + inferred + callback)
     println(trace)
     val values: Array<Pick<Int>> = [Keep(same(5)), Pick.Keep(6)]
-    println(when (values[0L]) { case Keep(value) -> value })
+    println(when (values[0L]) { case Keep(val value) -> value })
 }

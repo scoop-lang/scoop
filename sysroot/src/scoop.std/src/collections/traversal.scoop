@@ -48,7 +48,7 @@ public fun <T> Iterable<T>.reduceOrNone(operation: (T, T) -> T): T? {
     for (element in this) {
         result = when (result) {
             case None -> Some(element)
-            case Some(previous) -> Some(operation(previous, element))
+            case Some(val previous) -> Some(operation(previous, element))
         }
     }
     return result

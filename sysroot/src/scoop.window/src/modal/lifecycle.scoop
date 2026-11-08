@@ -33,7 +33,7 @@ internal fun ApplicationOwner.updateModalInput() {
                 window.pendingSystemCancellation = None
                 for (menu in menus.toArray()) {
                     when (menu.use) {
-                        case Some(MenuUse.Popup(session)) -> {
+                        case Some(MenuUse.Popup(val session)) -> {
                             if (session.window === window)
                                 session.cancel(PopupCancelReason.TargetBlocked)
                         }
@@ -83,7 +83,7 @@ internal fun ApplicationOwner.drainModals() {
         window.modalSession = None
         window.leases -= 1L
         when (parent) {
-            case Some(value) -> value.leases -= 1L;
+            case Some(val value) -> value.leases -= 1L;
             case None -> {}
         }
         modals.removeAt(index)
@@ -92,7 +92,7 @@ internal fun ApplicationOwner.drainModals() {
         updateModalInput()
         if (!exiting) {
             when (parent) {
-                case Some(value) -> if (
+                case Some(val value) -> if (
                     value.phase ==
                         WindowState.Open &&
                         !value.inputBlocked &&
@@ -112,8 +112,8 @@ internal fun ApplicationOwner.drainModals() {
 
 internal fun modalInputAllowed(event: WindowEvent): Boolean =
     when (event) {
-        case Keyboard(key) -> key.synthetic
-        case Pointer(value) -> when (value) {
+        case Keyboard(val key) -> key.synthetic
+        case Pointer(val value) -> when (value) {
             case Cancelled(_, _) -> true;
             else -> false
         }

@@ -14,7 +14,7 @@ internal fun checkedCookieBytes(value: List<Byte>, name: Boolean): Array<Byte> {
 
 internal fun checkedCookieOptional(value: List<Byte>?): Array<Byte>? = when (value) {
     case None -> None
-    case Some(bytes) -> Some(checkedCookieBytes(bytes, false))
+    case Some(val bytes) -> Some(checkedCookieBytes(bytes, false))
 }
 
 internal fun cookieWsp(value: Byte): Boolean = value == 32.toByte() || value == 9.toByte()

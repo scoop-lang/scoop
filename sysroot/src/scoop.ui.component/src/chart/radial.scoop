@@ -28,7 +28,7 @@ internal fun chartRadial(plan: ChartPlan, size: Size): ChartGeometry {
             samples.add(
                 when (series.samples[at]) {
                     case None -> None
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         val outer = layout.radius - ring.toDouble() * band
                         val inner = lowerBound(layout.hole, outer - band + gap)
                         ring += 1L

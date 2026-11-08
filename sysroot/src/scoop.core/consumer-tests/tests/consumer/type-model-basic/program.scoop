@@ -38,7 +38,7 @@ private fun exerciseConsumer() {
     for (index in 0L until 20L) {
         val description = reference.describe()
         reference = when (description.shape) {
-            case TypeShape.Tuple(tuple) -> {
+            case TypeShape.Tuple(val tuple) -> {
                 val element = tuple.elements[0L]
                 check(element.index == 0L && element.name == "_1")
                 check(element.typeUse.children.size == 0L)

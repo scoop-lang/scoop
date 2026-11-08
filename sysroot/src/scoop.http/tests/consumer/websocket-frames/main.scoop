@@ -37,7 +37,7 @@ private fun exercise() {
                             val events = readEvents(parser, wire.toByteArray(), 5L, false)
                             var pings = 0L
                             for (event in events) {
-                                when (event) { case Ping(bytes) -> { check(String.fromUtf8(bytes) == "?"); pings += 1L }; else -> {} }
+                                when (event) { case Ping(val bytes) -> { check(String.fromUtf8(bytes) == "?"); pings += 1L }; else -> {} }
                             }
                             check(pings == 1L && decompressMessage(decompressor, events, 128L) == text)
                             gcCollect()

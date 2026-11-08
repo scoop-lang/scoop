@@ -90,7 +90,7 @@ internal fun notificationText(event: Ptr<Unit>, field: Int): String {
     {
         val value = notificationEventText(event, field)
         return when (value.bytes) {
-            case Some(bytes) -> String.fromUtf8(bytes, value.length)
+            case Some(val bytes) -> String.fromUtf8(bytes, value.length)
             case None -> ""
         }
     }

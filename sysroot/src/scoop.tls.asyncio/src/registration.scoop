@@ -9,7 +9,7 @@ internal suspend fun request(state: TlsConnection, kind: RequestKind, buffer: Na
         val operation = state.lock.withLock { register(state, kind, job, continuation, buffer, count) }
         when (operation) {
             case None -> continuation.resume(0L)
-            case Some(entry) -> {
+            case Some(val entry) -> {
                 val listener = job.invokeOnCancellation { error -> cancelRequest(state, entry, error) }
                 val finished = state.lock.withLock {
                     if (entry.released) true else { entry.listener = Some(listener); false }
@@ -82,7 +82,7 @@ internal fun releaseRequest(state: TlsConnection, entry: TlsRequest, actions: Ar
     actions.add {
         if (present(listener)) listener!!.dispose()
         when (failure) {
-            case Some(error) -> entry.continuation.resumeWithException(error)
+            case Some(val error) -> entry.continuation.resumeWithException(error)
             case None -> entry.continuation.resume(entry.progress)
         }
     }

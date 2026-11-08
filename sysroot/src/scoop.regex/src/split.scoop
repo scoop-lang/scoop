@@ -30,7 +30,7 @@ private class RegexSplitIterator(regex: Regex, private val input: String, privat
         if (input.byteLength == 0L || (limit > 0L && emitted == limit - 1L)) return tail()
         when (val match = matches.next()) {
             case None -> return tail()
-            case Some(value) -> {
+            case Some(val value) -> {
                 val result = regexSlice(input, position, value.byteStart)
                 position = value.byteEnd
                 emitted += 1L

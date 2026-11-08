@@ -443,7 +443,7 @@ public class NativeByteBuffer private constructor() : Closeable {
             writer = 0L
             closed = true
             when (owned) {
-                case Some(pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-capacity) }
+                case Some(val pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-capacity) }
                 case None -> {}
             }
         }
@@ -452,7 +452,7 @@ public class NativeByteBuffer private constructor() : Closeable {
 
     release {
         when (memory) {
-            case Some(pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-storageCapacity) }
+            case Some(val pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-storageCapacity) }
             case None -> {}
         }
     }

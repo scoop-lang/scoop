@@ -24,6 +24,8 @@ fn whitespace_sensitive_expressions() {
         "fun <T> f(a: Box<T?>): Box<Box<T>> = call<T>(a)",
         "fun f(){ val x=thing.{a:1,b:2}; val y=items[0,1]; call(*items) { x -> x+1 } }",
         "fun f(){ when(x) { 1 -> yes()\n 2 -> no()\n else -> other() } }",
+        "fun f(){ when(x) { case Some(val x)->x\ncase val whole->whole } }",
+        "fun f(){ when(x) { case Box{val item,other:val next}->item\ncase (val x,_)->x } }",
     ] {
         checked(source);
     }

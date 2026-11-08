@@ -6,6 +6,10 @@ pub(crate) fn pat_bind(name: &str) -> ast::Pattern {
     ast::Pattern::Binding(ident(name))
 }
 
+pub(crate) fn pat_variant(name: &str) -> ast::Pattern {
+    ast::Pattern::BareVariant(ident(name))
+}
+
 pub(crate) fn pat_bind_at(name: &str, span: Span) -> ast::Pattern {
     ast::Pattern::Binding(ident_at(name, span))
 }

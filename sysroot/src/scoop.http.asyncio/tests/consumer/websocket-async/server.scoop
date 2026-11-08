@@ -11,7 +11,7 @@ suspend fun serveUpgrade(raw: AsyncTcpStream, scope: CoroutineScope) {
     try {
         val (request, prefix) = readUpgrade(raw)
         val handshake = WebSocketHandshake.parse(request)
-        check(when (request.target) { case Http1(bytes) -> String.fromUtf8(bytes) == "/chat?x=%2F"; else -> false })
+        check(when (request.target) { case Http1(val bytes) -> String.fromUtf8(bytes) == "/chat?x=%2F"; else -> false })
         val response = handshake.response(Some("chat"))
         val bytes = Http1Encoder(HttpRole.Server).use { encoder ->
             val header = encoder.beginResponse(response, "GET".toByteArray())
@@ -60,8 +60,8 @@ private suspend fun readUpgrade(source: AsyncByteSource): (HttpRequestHead, Arra
             var ended = false
             while (!ended) {
                 when (decoder.nextEvent()) {
-                    case Some(Http1Event.Request(head)) -> request = Some(head)
-                    case Some(Http1Event.Trailers(fields)) -> check(fields.size == 0L)
+                    case Some(Http1Event.Request(val head)) -> request = Some(head)
+                    case Some(Http1Event.Trailers(val fields)) -> check(fields.size == 0L)
                     case Some(Http1Event.End(_)) -> ended = true
                     case Some(_) -> throw IllegalStateException(Some("unexpected WebSocket request body"))
                     case None -> {

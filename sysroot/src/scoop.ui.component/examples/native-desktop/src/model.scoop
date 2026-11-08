@@ -96,11 +96,11 @@ internal class DesktopDemo(val smoke: Boolean, val notificationLaunch: Notificat
                     currentApplicationScope().launch { runDemoSmoke(this @DesktopDemo, first) }
             }
             case ExitRequested(_) -> applicationView!!.confirmExit()
-            case Window(id, WindowEvent.CloseRequested) -> when (find(id)) {
-                case Some(document) -> document.root?.confirmClose()
+            case Window(val id, WindowEvent.CloseRequested) -> when (find(id)) {
+                case Some(val document) -> document.root?.confirmClose()
                 case None -> {}
             }
-            case Window(id, WindowEvent.Destroyed) -> {
+            case Window(val id, WindowEvent.Destroyed) -> {
                 var index = 0L
                 while (index < documents.size) {
                     if (documents[index].window.id == id) {
@@ -131,7 +131,7 @@ internal class DesktopDemo(val smoke: Boolean, val notificationLaunch: Notificat
             )
         val desktopCapabilities =
             when (applicationView) {
-                case Some(view) -> Some(
+                case Some(val view) -> Some(
                     view.desktop.application.attachWindow(window).use { it.capabilities() }
                 )
                 case None -> None
@@ -150,12 +150,12 @@ internal class DesktopDemo(val smoke: Boolean, val notificationLaunch: Notificat
     }
     fun source(event: MenuActivation): DemoDocument? =
         when (event.source) {
-            case WindowMenuBar(id) -> find(id)
-            case ApplicationMenuBar(id) -> when (id) {
-                case Some(value) -> find(value);
+            case WindowMenuBar(val id) -> find(id)
+            case ApplicationMenuBar(val id) -> when (id) {
+                case Some(val value) -> find(value);
                 case None -> None
             }
-            case Popup(_, id) -> find(id)
+            case Popup(_, val id) -> find(id)
             case Native(_) -> None
         }
     fun closeDocument(document: DemoDocument) {

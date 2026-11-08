@@ -16,7 +16,7 @@ suspend fun exerciseH2(loop: EventLoop, scope: CoroutineScope, address: SocketAd
     val options = if (mode == "h2-write" || mode == "h2-pause") HttpIoTimeoutOptions(writeIdle = Some(idleLimit()))
         else HttpIoTimeoutOptions(readIdle = Some(idleLimit()))
     val client = AsyncHttp2Connection.takeOwnershipAsClient(loop.connectTcp(address), scope, ioTimeouts = options,
-        onEvent = { notice -> when (notice) { case Settings(_, ack) -> { if (!ack) settings.signal() }; else -> {} } })
+        onEvent = { notice -> when (notice) { case Settings(_, val ack) -> { if (!ack) settings.signal() }; else -> {} } })
     try {
         settings.await()
         if (mode == "h2-write") exerciseH2Write(client)

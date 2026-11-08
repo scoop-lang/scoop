@@ -9,37 +9,37 @@ enum MessageEvent {
         public override fun encode(value: MessageEvent, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case MessageEvent.Start(payload) -> {
+                case MessageEvent.Start(val payload) -> {
                     String.encode("message_start", fields.field("type"))
                     MessageStart.Companion.encode(payload, encoder)
                 }
-                case MessageEvent.Delta(payload) -> {
+                case MessageEvent.Delta(val payload) -> {
                     String.encode("message_delta", fields.field("type"))
                     MessageDelta.Companion.encode(payload, encoder)
                 }
                 case MessageEvent.Stop -> {
                     String.encode("message_stop", fields.field("type"))
                 }
-                case MessageEvent.BlockStart(payload) -> {
+                case MessageEvent.BlockStart(val payload) -> {
                     String.encode("content_block_start", fields.field("type"))
                     BlockStart.Companion.encode(payload, encoder)
                 }
-                case MessageEvent.BlockDelta(payload) -> {
+                case MessageEvent.BlockDelta(val payload) -> {
                     String.encode("content_block_delta", fields.field("type"))
                     BlockDelta.Companion.encode(payload, encoder)
                 }
-                case MessageEvent.BlockStop(payload) -> {
+                case MessageEvent.BlockStop(val payload) -> {
                     String.encode("content_block_stop", fields.field("type"))
                     BlockStop.Companion.encode(payload, encoder)
                 }
                 case MessageEvent.Ping -> {
                     String.encode("ping", fields.field("type"))
                 }
-                case MessageEvent.Error(payload) -> {
+                case MessageEvent.Error(val payload) -> {
                     String.encode("error", fields.field("type"))
                     ErrorEvent.Companion.encode(payload, encoder)
                 }
-                case MessageEvent.Unknown(raw) -> JsonValue.Companion.encode(raw, encoder)
+                case MessageEvent.Unknown(val raw) -> JsonValue.Companion.encode(raw, encoder)
             }
             fields.end()
         }

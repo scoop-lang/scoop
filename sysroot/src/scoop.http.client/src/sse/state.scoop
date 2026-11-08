@@ -23,7 +23,7 @@ internal class ClientSseState(
     var lastEventId: String = initialId
     var delay: Duration =
         when (options.reconnect) {
-            case Some(value) -> value.initialDelay;
+            case Some(val value) -> value.initialDelay;
             case None -> Duration.ZERO
         }
     var reconnects: Long = 0L
@@ -83,7 +83,7 @@ internal fun recordClientSseFailure(state: ClientSseState, error: Throwable) {
 
 internal fun clientSseFailure(state: ClientSseState): Throwable? =
     when (state.cleanupFailure) {
-        case Some(cleanup) -> Some(clientCombined(state.failure, cleanup))
+        case Some(val cleanup) -> Some(clientCombined(state.failure, cleanup))
         case None -> state.failure
     }
 

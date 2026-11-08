@@ -104,15 +104,15 @@ internal suspend fun openFileOnLoop(loop: LoopOwner, path: Path, options: OpenOp
                 {
                     event,
                     selected -> when (event.result) {
-                        case Created(pointer) -> {
+                        case Created(val pointer) -> {
                             val owner = OwnedFile(loop, pointer, context)
                             loop.retain(owner)
                             when (selected) {
                                 case None -> continuation.resume(WorkerFile(owner))
-                                case Some(error) -> owner.closeOnLoop {
+                                case Some(val error) -> owner.closeOnLoop {
                                     cleanup -> continuation.resumeWithException(
                                         when (cleanup) {
-                                            case Some(value) -> ResourceUseException(error, value)
+                                            case Some(val value) -> ResourceUseException(error, value)
                                             case None -> error
                                         }
                                     )

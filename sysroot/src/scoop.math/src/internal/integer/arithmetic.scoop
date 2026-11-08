@@ -31,8 +31,8 @@ internal fun magnitudeSubtract(a: Array<UInt>, b: Array<UInt>): Array<UInt> {
 }
 
 internal fun integerAdd(a: IntegerStorage, b: IntegerStorage): IntegerStorage {
-    when (a) { case Small(x) -> when (b) {
-        case Small(y) -> {
+    when (a) { case Small(val x) -> when (b) {
+        case Small(val y) -> {
             val sum = x + y
             if (((x xor sum) and (y xor sum)) >= 0L) return IntegerStorage.Small(sum)
             return integerAddMagnitude(a, b)
@@ -77,8 +77,8 @@ internal fun magnitudeMultiplySchoolbook(a: Array<UInt>, b: Array<UInt>): Array<
 }
 
 internal fun integerMultiply(a: IntegerStorage, b: IntegerStorage): IntegerStorage {
-    when (a) { case Small(x) -> when (b) {
-        case Small(y) -> {
+    when (a) { case Small(val x) -> when (b) {
+        case Small(val y) -> {
             if (x == 0L || y == 0L) return IntegerStorage.Small(0L)
             if (!((x == Long.MIN_VALUE && y == -1L) || (y == Long.MIN_VALUE && x == -1L))) {
                 val product = x * y

@@ -34,7 +34,7 @@ public class Field public constructor(
             parts.add(FieldPart.Heading)
         }
         when (input.description) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 children.add(
                     panelSlot(
                         panelCaption(
@@ -86,11 +86,11 @@ private fun fieldHeading(input: FieldProps, theme: Theme): View {
         }
     return makeRow {
         when (input.heading) {
-            case Some(heading) -> {
+            case Some(val heading) -> {
                 val view =
                     when (heading) {
-                        case Title(content) -> panelCaption(content, base, input.fonts)
-                        case Label(content, target) -> component(
+                        case Title(val content) -> panelCaption(content, base, input.fonts)
+                        case Label(val content, val target) -> component(
                             FieldLabelProps(
                                 content,
                                 target,

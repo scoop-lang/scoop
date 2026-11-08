@@ -118,7 +118,7 @@ impl Parser {
             .as_ref()
             .map_or(keyword.span.start, |label| label.span.start);
         self.expect("`(`", |kind| matches!(kind, TokenKind::LParen))?;
-        let pattern = self.parse_pattern()?;
+        let pattern = self.parse_pattern(crate::pattern::PatternContext::Binding)?;
         self.expect("`in`", |kind| matches!(kind, TokenKind::In))?;
         let iterable =
             self.parse_statement_operand(start, || ast::RecoveredOperandContext::ForIterable)?;

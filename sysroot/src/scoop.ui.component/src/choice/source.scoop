@@ -40,7 +40,7 @@ public class ChoiceContent<T: Equals<T>> public constructor(
             requireComponent(indices[key] == None, "duplicate choice entry key")
             indices.put(key, index)
             when (choiceEntryItem(entries[index])) {
-                case Some(item) -> {
+                case Some(val item) -> {
                     for (previous in values)
                         requireComponent(
                             previous.value != item.choice.value,
@@ -73,19 +73,19 @@ public fun <T: Equals<T>> choiceSource(choices: Array<Choice<T>>): ChoiceContent
 
 internal fun <T: Equals<T>> choiceEntryKey(entry: ChoiceEntry<T>): ViewKey =
     when (entry) {
-        case Item(item) -> item.choice.key
-        case Label(key, _) -> key
-        case Separator(key) -> key
+        case Item(val item) -> item.choice.key
+        case Label(val key, _) -> key
+        case Separator(val key) -> key
     }
 
 internal fun <T: Equals<T>> choiceEntryItem(entry: ChoiceEntry<T>): ChoiceItem<T>? =
     when (entry) {
-        case Item(item) -> Some(item)
+        case Item(val item) -> Some(item)
         else -> None
     }
 
 internal fun <T: Equals<T>> sourceChoice(source: ChoiceSource<T>, value: T): Choice<T>? =
     when (source.indexOfValue(value)) {
-        case Some(index) -> choiceEntryItem(source.entryAt(index))?.choice
+        case Some(val index) -> choiceEntryItem(source.entryAt(index))?.choice
         case None -> None
     }

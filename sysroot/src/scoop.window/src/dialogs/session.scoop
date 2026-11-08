@@ -23,9 +23,9 @@ public class FileDialogSession<T> internal constructor(
         cached =
             Some(
                 when (value) {
-                    case Accepted(paths) -> FileDialogResult.Accepted<T>(decode(paths))
-                    case Cancelled(reason) -> FileDialogResult.Cancelled<T>(reason)
-                    case Failed(error) -> FileDialogResult.Failed<T>(error)
+                    case Accepted(val paths) -> FileDialogResult.Accepted<T>(decode(paths))
+                    case Cancelled(val reason) -> FileDialogResult.Cancelled<T>(reason)
+                    case Failed(val error) -> FileDialogResult.Failed<T>(error)
                 }
             )
         return cached
@@ -51,12 +51,12 @@ internal class FileDialogOwner(
 
     fun blocks(target: WindowOwner): Boolean =
         when (window) {
-            case Some(value) -> value === target
+            case Some(val value) -> value === target
             case None -> true
         }
     fun owns(target: WindowOwner): Boolean =
         when (window) {
-            case Some(value) -> value === target || value.isDescendantOf(target)
+            case Some(val value) -> value === target || value.isDescendantOf(target)
             case None -> false
         }
     fun cancel(reason: FileDialogCancelReason) {

@@ -26,7 +26,7 @@ private class CertificateConsumerTests {
                         assertTrue(result.isSuccess)
                         when (store.verify(leaf, time, CertificatePurpose.ServerAuth)) {
                             case Result.Success(_) -> fail(Some("missing intermediate accepted"))
-                            case Result.Failure(error) -> assertEquals(20L, error.code)
+                            case Result.Failure(val error) -> assertEquals(20L, error.code)
                         }
                         leaf.publicKey().use { key -> assertTrue(key.toDer().size > 0L) }
                     }

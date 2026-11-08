@@ -20,7 +20,7 @@ internal class DownloadSnapshot(
             return Some(1.0)
         return when (progress.total) {
             case None -> None
-            case Some(total) -> Some(
+            case Some(val total) -> Some(
                 if (total <= 0L)
                     0.0
                 else
@@ -43,7 +43,7 @@ internal class ProgressCadence {
     private var displayed: DownloadProgress? = None
     fun accept(value: DownloadProgress, now: TimeMark): Boolean {
         when (displayed) {
-            case Some(previous) -> {
+            case Some(val previous) -> {
                 if (previous.bytes == value.bytes && previous.total == value.total)
                     return false
                 if (

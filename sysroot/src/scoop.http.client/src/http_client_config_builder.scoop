@@ -125,7 +125,7 @@ public class HttpClientConfigBuilder internal constructor() {
         val current = cache
         val builder = HttpCacheOptionsBuilder()
         when (current) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 builder.partition = value.partition;
                 builder.clock = value.clock
             }

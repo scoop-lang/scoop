@@ -18,7 +18,7 @@ suspend fun wsTransport(raw: AsyncTcpStream, profile: WsProfile, server: Boolean
             else clientContext().use suspend { context -> AsyncTlsStream.takeOwnershipAsClient(raw, context, TlsPeerName.Dns("localhost")) }
         try {
             val alpn: List<Byte>? = when (stream.connectionInfo.alpn) {
-                case Some(value) -> Some(value)
+                case Some(val value) -> Some(value)
                 case None -> None
             }
             check(selectHttpAlpn(alpn, [HttpProtocol.Http1]) == HttpProtocol.Http1)

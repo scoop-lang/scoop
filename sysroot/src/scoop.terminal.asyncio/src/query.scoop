@@ -12,7 +12,7 @@ import scoop.time.Duration
  */
 public suspend fun AsyncTerminalSession.cursorPosition(timeout: Duration = Duration.seconds(1L)): CursorPosition =
     when (query(QueryKind.Cursor, timeout)) {
-        case InputItem.CursorPosition(column, row) -> CursorPosition(column, row)
+        case InputItem.CursorPosition(val column, val row) -> CursorPosition(column, row)
         case _ -> throw IllegalStateException(Some("unexpected cursor query result"))
     }
 
@@ -23,7 +23,7 @@ public suspend fun AsyncTerminalSession.cursorPosition(timeout: Duration = Durat
 public suspend fun AsyncTerminalSession.deviceAttributes(kind: DeviceAttributeKind = DeviceAttributeKind.Primary,
     timeout: Duration = Duration.seconds(1L)): Array<Long> =
     when (query(if (kind == DeviceAttributeKind.Primary) QueryKind.Primary else QueryKind.Secondary, timeout)) {
-        case InputItem.DeviceAttributes(_, parameters) -> parameters
+        case InputItem.DeviceAttributes(_, val parameters) -> parameters
         case _ -> throw IllegalStateException(Some("unexpected device attributes result"))
     }
 
@@ -33,7 +33,7 @@ public suspend fun AsyncTerminalSession.deviceAttributes(kind: DeviceAttributeKi
  */
 public suspend fun AsyncTerminalSession.keyboardEnhancementFlags(
     timeout: Duration = Duration.seconds(1L)): KeyboardEnhancementFlags? = when (query(QueryKind.Keyboard, timeout)) {
-    case InputItem.KeyboardFlags(flags) -> Some(flags)
+    case InputItem.KeyboardFlags(val flags) -> Some(flags)
     case InputItem.DeviceAttributes(false, _) -> None
     case _ -> throw IllegalStateException(Some("unexpected keyboard query result"))
 }

@@ -49,7 +49,7 @@ internal class CarouselViewport(
                 constraints.maxWidth
         val innerMaxCross =
             when (maxCross) {
-                case Some(value) -> Some(lowerBound(0.0, value - padding * 2.0));
+                case Some(val value) -> Some(lowerBound(0.0, value - padding * 2.0));
                 case None -> None
             }
         val spacing = input.props.spacing * density
@@ -187,7 +187,7 @@ internal class CarouselViewport(
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 for (index in 0L ..< input.items.size)
                     when (input.items[index].scope) {
-                        case Some(scope) -> if (scope.isMounted)
+                        case Some(val scope) -> if (scope.isMounted)
                             scope.input.enabled = layout.visible[index]
                         case None -> {}
                     }
@@ -215,7 +215,7 @@ internal class CarouselItemLayout(
     }
     public override fun update(): UiInvalidation {
         when (owner) {
-            case Some(previous) -> previous.scope = None
+            case Some(val previous) -> previous.scope = None
             case None -> {}
         }
         owner = Some(props.value)
@@ -224,7 +224,7 @@ internal class CarouselItemLayout(
     }
     public override fun onUnmount() {
         when (owner) {
-            case Some(previous) -> previous.scope = None
+            case Some(val previous) -> previous.scope = None
             case None -> {}
         }
     }

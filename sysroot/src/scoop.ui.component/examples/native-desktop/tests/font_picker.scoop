@@ -18,7 +18,7 @@ private class FontPickerTest {
             model.loadData(testCjkBytes, "TTC")
             assertEquals(5L, model.families.value.count)
             when (model.families.value.entryAt(4L)) {
-                case Item(entry) -> model.chooseFamily(entry.choice.value)
+                case Item(val entry) -> model.chooseFamily(entry.choice.value)
                 else -> fail(Some("expected font family"))
             }
             assertEquals("Noto Sans CJK HK", model.current.value!!.info.family.name)

@@ -18,7 +18,7 @@ internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = N
         var local: Point? = None
         var geometry: CanvasGeometry? = None
         when ((scope.area, point)) {
-            case(Some(area), Some(position)) -> {
+            case(Some(val area), Some(val position)) -> {
                 val placement = scene.find(area) ?: return []
                 geometry = Some(placement.geometry)
                 local = placement.geometry.toLocal(position)
@@ -70,7 +70,7 @@ private fun InputRouter.invoke(
         )
     try {
         when (callback) {
-            case Some(action) -> action(context, event)
+            case Some(val action) -> action(context, event)
             case None -> when (phase) {
                 case Capture -> scope.captureHandler(context, event)
                 case Default -> scope.defaultAction(context, event)
@@ -127,7 +127,7 @@ private fun InputRouter.routeStages(
             continue
         if (!focused && focusesOnPress(event) && containsScope(hover, delivery.scope)) {
             when (delivery.scope.area) {
-                case Some(area) -> if (area.focusable) {
+                case Some(val area) -> if (area.focusable) {
                     focus(area, FocusOrigin.Pointer)
                     focused = true
                 }

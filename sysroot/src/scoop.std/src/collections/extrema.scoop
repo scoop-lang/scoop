@@ -12,7 +12,7 @@ public fun <T> Iterable<T>.minWithOrNone(comparator: Comparator<T>): T? {
     for (element in this) {
         result = when (result) {
             case None -> Some(element)
-            case Some(previous) -> if (comparator.compare(element, previous) < 0L) Some(element) else result
+            case Some(val previous) -> if (comparator.compare(element, previous) < 0L) Some(element) else result
         }
     }
     return result

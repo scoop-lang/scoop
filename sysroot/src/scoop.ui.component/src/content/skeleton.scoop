@@ -24,11 +24,11 @@ public class SkeletonProps public constructor(
 ) {
     init {
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid skeleton width");
+            case Some(val value) -> nonnegative(value, "invalid skeleton width");
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid skeleton height");
+            case Some(val value) -> nonnegative(value, "invalid skeleton height");
             case None -> {}
         }
         requireComponent(period > Duration.ZERO, "skeleton period must be positive")
@@ -130,7 +130,7 @@ private class SkeletonInk(
         )
         val changed =
             when (previous) {
-                case Some(old) -> old.width !=
+                case Some(val old) -> old.width !=
                     value.input.width ||
                     old.height !=
                     value.input.height ||
@@ -187,12 +187,12 @@ private class SkeletonInk(
 internal fun skeletonConstraints(input: SkeletonProps, limits: Constraints): Constraints {
     val width =
         when (input.width) {
-            case Some(value) -> Some(limits.constrain(Size(value, 0.0)).width)
+            case Some(val value) -> Some(limits.constrain(Size(value, 0.0)).width)
             case None -> limits.maxWidth
         }
     val height =
         when (input.height) {
-            case Some(value) -> Some(limits.constrain(Size(0.0, value)).height)
+            case Some(val value) -> Some(limits.constrain(Size(0.0, value)).height)
             case None -> None
         }
     return Constraints(
@@ -200,7 +200,7 @@ internal fun skeletonConstraints(input: SkeletonProps, limits: Constraints): Con
         width,
         height ?: limits.minHeight,
         when (height) {
-            case Some(value) -> Some(value);
+            case Some(val value) -> Some(value);
             case None -> limits.maxHeight
         }
     )

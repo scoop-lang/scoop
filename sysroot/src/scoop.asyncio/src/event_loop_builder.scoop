@@ -21,7 +21,7 @@ public class EventLoopBuilder public constructor() {
 
     internal fun snapshot(): LoopBlockingConfig {
         when (pool) {
-            case Owned(threads) -> if (threads <= 0)
+            case Owned(val threads) -> if (threads <= 0)
                 throw IllegalArgumentException(Some("blocking thread count must be positive"))
             case Shared(_) -> {}
         }

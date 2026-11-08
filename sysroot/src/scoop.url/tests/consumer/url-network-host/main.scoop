@@ -26,7 +26,7 @@ private fun exerciseConsumer() {
     val address = Url.parse("socks5://%31%32%37.0.0.1:1080").authority!!.networkHost()
     assertEquals(Url.parse("http://127.0.0.1").httpOrigin().host, address)
     when (address) {
-        case Ipv4(bytes) -> {
+        case Ipv4(val bytes) -> {
             assertEquals(4L, bytes.size);
             assertEquals(127.toByte(), bytes[0L])
         }
@@ -35,7 +35,7 @@ private fun exerciseConsumer() {
     val ipv6 = Url.parse("custom://[::1]:1080").authority!!.networkHost()
     assertEquals(Url.parse("https://[0:0:0:0:0:0:0:1]").httpOrigin().host, ipv6)
     when (ipv6) {
-        case Ipv6(bytes) -> {
+        case Ipv6(val bytes) -> {
             assertEquals(16L, bytes.size);
             assertEquals(1.toByte(), bytes[15L])
         }
@@ -67,7 +67,7 @@ private fun exerciseConsumer() {
     val second = assertFailsWith<UrlParseException> { invalid.authority!!.networkHost() }
     val originalCause =
         when (first.cause) {
-            case Some(value) -> value;
+            case Some(val value) -> value;
             case None -> throw IllegalStateException()
         }
     assertTrue(originalCause === second.cause!!)

@@ -34,7 +34,7 @@ enum Choice<T> {
     Value(val value: T)
     override interface Read where T : Read {
         public override fun read(): Int = when (this) {
-            case Value(value) -> value.read()
+            case Value(val value) -> value.read()
         }
     }
 }

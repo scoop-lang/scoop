@@ -62,13 +62,21 @@ impl Lowerer {
         self.check_intrinsic_pattern_shape(pattern, subject.ty)?;
         match pattern {
             ast::Pattern::Binding(name) => {
-                let local = self.bind_local(name, subject.ty, mutable)?;
+                let local = self.bind_local(
+                    name,
+                    subject.ty,
+                    PatternCtx {
+                        mutable,
+                        in_when: false,
+                    },
+                )?;
                 let init = subject.expression(name.span, self.expression_origin(name.span));
                 statements.push(binding_statement(local, init, name.span));
                 Some(())
             }
             ast::Pattern::Wildcard { .. } => Some(()),
-            ast::Pattern::Literal { span, .. } => {
+            ast::Pattern::BareVariant(ast::Ident { span, .. })
+            | ast::Pattern::Literal { span, .. } => {
                 self.error(
                     *span,
                     "refutable patterns are only allowed in `when`".into(),

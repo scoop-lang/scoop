@@ -6,7 +6,7 @@ import scoop.collections.IndexedValue
 private class MappingIterator<T, R>(private val source: Iterator<T>, private val transform: (T) -> R) : Iterator<R> {
     public override fun next(): R? = when (source.next()) {
         case None -> None
-        case Some(value) -> Some(transform(value))
+        case Some(val value) -> Some(transform(value))
     }
 }
 
@@ -14,7 +14,7 @@ private class IndexedMappingIterator<T, R>(private val source: Iterator<T>, priv
     private var index: Long = 0L
     public override fun next(): R? = when (source.next()) {
         case None -> None
-        case Some(value) -> {
+        case Some(val value) -> {
             val result = transform(index, value)
             index = nextCollectionCount(index)
             Some(result)
@@ -27,9 +27,9 @@ private class OptionalMappingIterator<T, R>(private val source: Iterator<T>, pri
         while (true) {
             when (source.next()) {
                 case None -> return None
-                case Some(value) -> when (transform(value)) {
+                case Some(val value) -> when (transform(value)) {
                     case None -> continue
-                    case Some(result) -> return Some(result)
+                    case Some(val result) -> return Some(result)
                 }
             }
         }

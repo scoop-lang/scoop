@@ -30,7 +30,7 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
     private fun observeState() {
         checkUiThread(thread)
         when (currentEvaluation()) {
-            case Some(evaluation) -> evaluation.collector?.read(signal)
+            case Some(val evaluation) -> evaluation.collector?.read(signal)
             case None -> {}
         }
     }
@@ -136,7 +136,7 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
                     plan(current.viewport, current.content).offset
                 else
                     when (request) {
-                        case Position(value) -> value
+                        case Position(val value) -> value
                         case Reveal(_, _, _) -> current.offset
                     }
         val next = Point(base.x + delta.x, base.y + delta.y)
@@ -224,7 +224,7 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
     }
     internal fun detach(owner: ScrollViewport) {
         when (viewportOwner) {
-            case Some(value) -> if (value === owner) {
+            case Some(val value) -> if (value === owner) {
                 viewportOwner = None
                 signal.changed()
             }

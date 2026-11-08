@@ -16,7 +16,7 @@ internal class MiniSource(private val row: RowRecord): ItemSource {
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> if (index >= 0L && index < 3L)
+            case Number(val index) -> if (index >= 0L && index < 3L)
                 Some(index)
             else
                 None

@@ -29,7 +29,7 @@ object Singleton { val value: Int = 5 }
 fun <T> genericInfo(): TypeInfo<T> = typeInfo<T>()
 
 fun asStruct(reference: TypeRef): StructInfo = when (reference.describe().shape) {
-    case TypeShape.Struct(shape) -> shape
+    case TypeShape.Struct(val shape) -> shape
    ; else -> throw IllegalStateException()
 }
 
@@ -44,7 +44,7 @@ private fun exerciseConsumer() {
     val label = description.annotations[0L]
     check(label.key.displayName == "Label")
     check(label.arguments.size == 2L)
-    check(when (label.arguments[0L].value) { case AnnotationValue.String(text) -> text == "node"; else -> false })
+    check(when (label.arguments[0L].value) { case AnnotationValue.String(val text) -> text == "node"; else -> false })
     check(when (label.key.describe().parameters[1L].defaultValue) { case Some(_) -> true; else -> false })
     val shape = asStruct(reference)
     check(shape.fields.size == 2L)
@@ -65,17 +65,17 @@ private fun exerciseConsumer() {
     check(optional.fields[1L].isOptionAtDeclaration)
 
     val choice = when (typeInfo<Choice<String>>().describe().shape) {
-        case TypeShape.Enum(shape) -> shape
+        case TypeShape.Enum(val shape) -> shape
        ; else -> throw IllegalStateException()
     }
     check(choice.variants.size == 3L)
     check(when (choice.variants[0L].payload) { case VariantPayload.Unit -> true; else -> false })
-    val payload = when (choice.variants[1L].payload) { case VariantPayload.Named(fields) -> fields; else -> throw IllegalStateException() }
+    val payload = when (choice.variants[1L].payload) { case VariantPayload.Named(val fields) -> fields; else -> throw IllegalStateException() }
     check(payload[0L].type == typeInfo<String>().type)
-    check(payload[0L].id != when (choice.variants[2L].payload) { case VariantPayload.Positional(fields) -> fields[0L].id; else -> throw IllegalStateException() })
+    check(payload[0L].id != when (choice.variants[2L].payload) { case VariantPayload.Positional(val fields) -> fields[0L].id; else -> throw IllegalStateException() })
     check(choice.variants[1L].constructor.parameters[1L].hasDefault)
 
-    val row = when (typeInfo<Row<String>>().describe().shape) { case TypeShape.Class(shape) -> shape; else -> throw IllegalStateException() }
+    val row = when (typeInfo<Row<String>>().describe().shape) { case TypeShape.Class(val shape) -> shape; else -> throw IllegalStateException() }
     check(row.base!!.type == typeInfo<Base>().type)
     check(row.properties.size == 3L && row.storage.size == 2L)
     check(row.isFinal && row.properties[0L].getter.kind == AccessorKind.Storage)
@@ -83,14 +83,14 @@ private fun exerciseConsumer() {
     check(row.properties[0L].constructorParameter!! == row.constructors[0L].parameters[1L].id)
     check(row.constructors[1L].parameters[0L].member == ParameterMember.None)
     check(row.properties[2L].getter.kind == AccessorKind.Body)
-    check(when (typeInfo<View<Long>>().describe().shape) { case TypeShape.Interface(shape) -> shape.properties[0L].type == typeInfo<Long>().type; else -> false })
-    check(when (typeInfo<Singleton>().describe().shape) { case TypeShape.Object(shape) -> shape.properties.size == 1L; else -> false })
-    check(when (typeInfo<(Long, String)>().describe().shape) { case TypeShape.Tuple(shape) -> shape.elements[1L].name == "_2"; else -> false })
-    check(when (typeInfo<(Long) -> String>().describe().shape) { case TypeShape.Function(shape) -> shape.result.type == typeInfo<String>().type; else -> false })
-    check(when (typeInfo<Ptr<Long>>().describe().shape) { case TypeShape.Pointer(PointerTypeInfo.Ptr(pointee)) -> pointee.type == typeInfo<Long>().type; else -> false })
+    check(when (typeInfo<View<Long>>().describe().shape) { case TypeShape.Interface(val shape) -> shape.properties[0L].type == typeInfo<Long>().type; else -> false })
+    check(when (typeInfo<Singleton>().describe().shape) { case TypeShape.Object(val shape) -> shape.properties.size == 1L; else -> false })
+    check(when (typeInfo<(Long, String)>().describe().shape) { case TypeShape.Tuple(val shape) -> shape.elements[1L].name == "_2"; else -> false })
+    check(when (typeInfo<(Long) -> String>().describe().shape) { case TypeShape.Function(val shape) -> shape.result.type == typeInfo<String>().type; else -> false })
+    check(when (typeInfo<Ptr<Long>>().describe().shape) { case TypeShape.Pointer(PointerTypeInfo.Ptr(val pointee)) -> pointee.type == typeInfo<Long>().type; else -> false })
     check(when (typeInfo<Unit>().describe().shape) { case TypeShape.Unit -> true; else -> false })
-    check(when (typeInfo<Long>().describe().shape) { case TypeShape.Intrinsic(IntrinsicInfo(IntrinsicKind.Integer(signed, bits))) -> signed && bits == 64L; else -> false })
-    check(when (typeInfo<Array<Long>>().describe().shape) { case TypeShape.Intrinsic(shape) -> shape.kind == IntrinsicKind.Array; else -> false })
+    check(when (typeInfo<Long>().describe().shape) { case TypeShape.Intrinsic(IntrinsicInfo(IntrinsicKind.Integer(val signed, val bits))) -> signed && bits == 64L; else -> false })
+    check(when (typeInfo<Array<Long>>().describe().shape) { case TypeShape.Intrinsic(val shape) -> shape.kind == IntrinsicKind.Array; else -> false })
 
 }
 

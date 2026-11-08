@@ -20,7 +20,7 @@ private suspend fun scan(loop: EventLoop, path: Path): ArrayList<Path> {
         while (true) {
             when (directory.next()) {
                 case None -> break
-                case Some(entry) -> {
+                case Some(val entry) -> {
                     check(entry.path == path.resolve(Path.fromOsString(entry.name)))
                     check(loop.metadata(entry.path).size == 1L)
                     val bytes =

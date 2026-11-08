@@ -30,7 +30,7 @@ fun main() {
         expect(
             when (functions.optional) {
                 case None -> true;
-                case Some(value) -> false
+                case Some(val value) -> false
             }
         )
         val boxed: Any = leaf

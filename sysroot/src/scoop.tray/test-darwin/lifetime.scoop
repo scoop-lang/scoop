@@ -98,7 +98,7 @@ private class TrayLifecycleHandler: ApplicationHandler {
                     }
                 }
             }
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 actions += 1
                 assertEquals(action, activation.item)
                 val icon =
@@ -107,7 +107,7 @@ private class TrayLifecycleHandler: ApplicationHandler {
                     else
                         second!!
                 when (activation.source) {
-                    case Native(identity) -> assertEquals(icon.menuUseId, Some(identity))
+                    case Native(val identity) -> assertEquals(icon.menuUseId, Some(identity))
                     else -> fail(Some("wrong tray menu source"))
                 }
                 if (actions == 1) {

@@ -33,7 +33,7 @@ public fun selectHttpAlpn(selected: List<Byte>?, allowed: List<HttpProtocol>, al
             if (!allowHttp1Fallback) throw HttpNegotiationException("select ALPN", "peer did not negotiate an HTTP protocol")
             HttpProtocol.Http1
         }
-        case Some(bytes) -> {
+        case Some(val bytes) -> {
             if (httpBytesEqual(bytes, "h2".toByteArray())) HttpProtocol.Http2
             else if (httpBytesEqual(bytes, "http/1.1".toByteArray())) HttpProtocol.Http1
             else throw HttpNegotiationException("select ALPN", "peer negotiated an unknown HTTP protocol")

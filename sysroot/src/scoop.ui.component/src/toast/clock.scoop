@@ -8,7 +8,7 @@ internal class ToastClock(duration: Duration?) {
     private var started: TimeMark? = None
     val deadline: TimeMark? get() =
         when ((started, remaining)) {
-            case(Some(time), Some(value)) -> Some(time + value)
+            case(Some(val time), Some(val value)) -> Some(time + value)
             else -> None
         }
     fun reset(duration: Duration?) {
@@ -17,7 +17,7 @@ internal class ToastClock(duration: Duration?) {
     }
     fun pause(now: TimeMark) {
         when (deadline) {
-            case Some(end) -> remaining =
+            case Some(val end) -> remaining =
                 Some(
                     if (end > now)
                         end - now

@@ -40,8 +40,8 @@ internal suspend fun <T> connectClientHttpTunnel(call: ClientCall, transport: T,
             else ClientConnectResult.Connected(connection.takeTransport())
         }
         return when (result) {
-            case Connected(tunnel) -> ClientConnectResult.Connected(finishClientNetworkStage(call, deadline, tunnel))
-            case Authenticate(session) -> {
+            case Connected(val tunnel) -> ClientConnectResult.Connected(finishClientNetworkStage(call, deadline, tunnel))
+            case Authenticate(val session) -> {
                 requireClientCall(call)
                 finishClientDeadline(deadline)
                 requireClientCall(call)

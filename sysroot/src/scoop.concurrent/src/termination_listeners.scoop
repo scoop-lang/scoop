@@ -34,7 +34,7 @@ internal class TerminationListeners(private val lock: Mutex) {
     internal fun remove(entry: TerminationListener) {
         lock.withLock {
             when (entry.link) {
-                case Some(link) -> entries.remove(link)
+                case Some(val link) -> entries.remove(link)
                 case None -> {}
             }
             entry.link = None
@@ -50,7 +50,7 @@ internal class TerminationListeners(private val lock: Mutex) {
                 handler
             }
         when (action) {
-            case Some(handler) -> handler()
+            case Some(val handler) -> handler()
             case None -> {}
         }
     }

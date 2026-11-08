@@ -45,7 +45,7 @@ public class ParagraphHost public constructor(): Closeable {
                 val item = ordered[index]
                 val limits =
                     when (item.size) {
-                        case Some(size) -> Constraints.tight(size)
+                        case Some(val size) -> Constraints.tight(size)
                         case None -> Constraints(maxWidth = constraints.maxWidth)
                     }
                 item.metrics(context.measureChild(index, limits))
@@ -56,7 +56,7 @@ public class ParagraphHost public constructor(): Closeable {
         var index = 0L
         for (placement in result.inlineObjects) {
             when (placement.box) {
-                case Some(box) -> context.placeChild(index, Point(box.rect.x, box.rect.y))
+                case Some(val box) -> context.placeChild(index, Point(box.rect.x, box.rect.y))
                 case None -> {}
             }
             index += 1L

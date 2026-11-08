@@ -248,11 +248,11 @@ internal fun reportDownloadFailure(error: Throwable) {
                 }"
             )
             when (error.expected) {
-                case Text(text) -> println("expected: " + text);
+                case Text(val text) -> println("expected: " + text);
                 else -> {}
             }
             when (error.actual) {
-                case Text(text) -> println("actual: " + text);
+                case Text(val text) -> println("actual: " + text);
                 else -> {}
             }
         } else

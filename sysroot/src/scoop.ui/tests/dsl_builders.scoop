@@ -31,13 +31,13 @@ private class UiReceiverDslTests {
         captured[0L].placement = OverlayPlacement.Viewport()
         assertEquals(ViewKey.Text("portal"), view.key)
         when (view.body) {
-            case Portal(content, _, options) -> {
+            case Portal(val content, _, val options) -> {
                 assertSame(child, content)
                 assertEquals(OverlayMode.Modal, options.mode)
                 assertFalse(options.focus!!.restoreFocus)
                 assertTrue(options.dismiss.escape)
                 when (options.placement) {
-                    case Anchored(value, _, _, gap, _, matchWidth) -> {
+                    case Anchored(val value, _, _, val gap, _, val matchWidth) -> {
                         assertSame(anchor, value)
                         assertEquals(12.0, gap)
                         assertTrue(matchWidth)

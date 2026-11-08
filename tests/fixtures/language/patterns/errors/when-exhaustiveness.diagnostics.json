@@ -31,7 +31,7 @@
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 530,
+      "end": 534,
       "kind": "source",
       "path": "main.scoop",
       "start": 358
@@ -44,10 +44,10 @@
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 695,
+      "end": 699,
       "kind": "source",
       "path": "main.scoop",
-      "start": 583
+      "start": 587
     },
     "severity": "error"
   },
@@ -57,10 +57,10 @@
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 797,
+      "end": 801,
       "kind": "source",
       "path": "main.scoop",
-      "start": 734
+      "start": 738
     },
     "severity": "error"
   },
@@ -70,10 +70,10 @@
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 895,
+      "end": 899,
       "kind": "source",
       "path": "main.scoop",
-      "start": 838
+      "start": 842
     },
     "severity": "error"
   },
@@ -83,10 +83,10 @@
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 1065,
+      "end": 1069,
       "kind": "source",
       "path": "main.scoop",
-      "start": 998
+      "start": 1002
     },
     "severity": "error"
   }

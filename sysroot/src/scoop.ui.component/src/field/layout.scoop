@@ -8,7 +8,7 @@ internal fun fieldHorizontal(input: FieldProps, density: Double, width: Double?)
         case Horizontal -> true
         case Vertical -> false
         case Responsive -> when (width) {
-            case Some(value) -> value >= (input.breakpoint ?: 448.0 * density)
+            case Some(val value) -> value >= (input.breakpoint ?: 448.0 * density)
             case None -> false
         }
     }
@@ -76,7 +76,7 @@ private fun fieldVerticalLayout(
             val gap =
                 when (previousColumn) {
                     case None -> 0.0
-                    case Some(previous) -> if (part != FieldPart.Error && previous != column)
+                    case Some(val previous) -> if (part != FieldPart.Error && previous != column)
                         spacing
                     else
                         contentSpacing
@@ -130,9 +130,9 @@ private fun fieldHorizontalLayout(
     val available = insetMaximum(constraints.maxWidth, gap)
     val controlLimit =
         when (input.input.controlWidth) {
-            case Some(value) -> Some(upperBound(value, available ?: value))
+            case Some(val value) -> Some(upperBound(value, available ?: value))
             case None -> when (available) {
-                case Some(value) -> Some(
+                case Some(val value) -> Some(
                     value *
                         if (hasHeadingColumn)
                             0.6

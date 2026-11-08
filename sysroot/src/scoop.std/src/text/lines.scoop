@@ -10,7 +10,7 @@ private class LineIterator(private val source: Iterator<Char>) : Iterator<String
     private var lastLine: Boolean = false
 
     private fun character(): Char? = when (pending) {
-        case Some(value) -> { pending = None; Some(value) }
+        case Some(val value) -> { pending = None; Some(value) }
         case None -> if (ended) None else source.next()
     }
 
@@ -20,12 +20,12 @@ private class LineIterator(private val source: Iterator<Char>) : Iterator<String
         while (true) {
             when (character()) {
                 case None -> { lastLine = true; return Some(String.fromChars(chars)) }
-                case Some(value) -> {
+                case Some(val value) -> {
                     if (value == '\n') return Some(String.fromChars(chars))
                     if (value == '\r') {
                         when (source.next()) {
                             case None -> ended = true
-                            case Some(next) -> { if (next != '\n') pending = Some(next) }
+                            case Some(val next) -> { if (next != '\n') pending = Some(next) }
                         }
                         return Some(String.fromChars(chars))
                     }

@@ -13,7 +13,7 @@ private fun exerciseConsumer() {
     var requestEnds = 0L
     for (event in decode(requestBytes(condition), HttpRole.Server)) {
         when (event) {
-            case Request(head) -> requests.add(head)
+            case Request(val head) -> requests.add(head)
             case End(_) -> requestEnds += 1L
             case Data(_) -> throw IllegalStateException()
             else -> {}
@@ -32,7 +32,7 @@ private fun exerciseConsumer() {
     var responseEnds = 0L
     for (event in decode(response.toByteArray(), HttpRole.Client)) {
         when (event) {
-            case Response(head) -> responses.add(head)
+            case Response(val head) -> responses.add(head)
             case End(_) -> responseEnds += 1L
             case Data(_) -> throw IllegalStateException()
             else -> {}

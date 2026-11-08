@@ -68,7 +68,7 @@ internal class LoopOwner {
     fun wakeExecution() {
         lock.withLock {
             when (pointer) {
-                case Some(native) -> @Unsafe
+                case Some(val native) -> @Unsafe
                 {
                     nativeLoopWake(native)
                 }
@@ -111,7 +111,7 @@ internal class LoopOwner {
     fun post(command: () -> Unit) {
         lock.withLock {
             when (pointer) {
-                case Some(native) -> {
+                case Some(val native) -> {
                     commands.add(command)
                     @Unsafe
                     {
@@ -144,7 +144,7 @@ internal class LoopOwner {
 
     fun cancel(id: Long) {
         when (operations[id]) {
-            case Some(operation) -> operation.cancelNative(pointer!!)
+            case Some(val operation) -> operation.cancelNative(pointer!!)
             case None -> {}
         }
     }
@@ -176,7 +176,7 @@ internal class LoopOwner {
             failure =
                 Some(
                     when (failure) {
-                        case Some(primary) -> ResourceUseException(primary, error)
+                        case Some(val primary) -> ResourceUseException(primary, error)
                         case None -> error
                     }
                 )
@@ -223,8 +223,8 @@ internal class LoopOwner {
         lock.withLock {
             when (failure) {
                 case None -> failure = error
-                case Some(primary) -> when (error) {
-                    case Some(next) -> if (!(next is CancellationException))
+                case Some(val primary) -> when (error) {
+                    case Some(val next) -> if (!(next is CancellationException))
                         failure = Some(ResourceUseException(primary, next))
                     case None -> {}
                 }
@@ -232,7 +232,7 @@ internal class LoopOwner {
             root = None
             rootEnded = true
             when (pointer) {
-                case Some(native) -> @Unsafe
+                case Some(val native) -> @Unsafe
                 {
                     nativeLoopWake(native)
                 };

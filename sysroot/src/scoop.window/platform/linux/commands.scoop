@@ -10,7 +10,7 @@ internal fun platformTextCommands(
     if (state != ElementState.Pressed || synthetic)
         return []
     return when (linuxEditingCommand(key, modifiers)) {
-        case Some(command) -> [command]
+        case Some(val command) -> [command]
         case None -> []
     }
 }

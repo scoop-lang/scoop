@@ -85,7 +85,7 @@ public class CalendarPage public constructor(
         for (week in weeks)
             for (cell in week.days)
                 when (cell) {
-                    case Some(day) -> {
+                    case Some(val day) -> {
                         requireComponent(
                             (last?.compareTo(day.date) ?: -1L) < 0L,
                             "calendar page dates must be unique and increasing"
@@ -179,7 +179,7 @@ public class GregorianCalendarPages public constructor(): CalendarPageSource {
                     when (request.weekNumbers) {
                         case None -> None
                         else -> when (representative) {
-                            case Some(date) -> Some(
+                            case Some(val date) -> Some(
                                 request.locale.number(calendarWeekNumber(date, request))
                             )
                             case None -> None

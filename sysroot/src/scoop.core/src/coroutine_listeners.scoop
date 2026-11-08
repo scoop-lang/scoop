@@ -54,7 +54,7 @@ internal class CoroutineRegistration(
         }
         owner.remove(this)
         when (callback) {
-            case Some(invoke) -> invoke()
+            case Some(val invoke) -> invoke()
             case None -> {}
         }
     }
@@ -72,7 +72,7 @@ internal fun notifyCoroutineListeners(entries: ArrayList<CoroutineRegistration>)
         catch (error: Throwable) { if (coroutineAbsent(failure)) failure = Some(error) }
     }
     when (failure) {
-        case Some(error) -> throw error
+        case Some(val error) -> throw error
         case None -> {}
     }
 }

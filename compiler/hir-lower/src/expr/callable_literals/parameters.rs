@@ -121,6 +121,9 @@ impl Lowerer {
                     );
                     return None;
                 }
+                if parameter.is_some() {
+                    self.warn_variant_shadowing(&name, parameter_ty, false);
+                }
                 let local =
                     self.alloc_parameter_local(name.text.clone(), parameter_ty, index, name.span);
                 self.scopes.declare(name.text.clone(), local);

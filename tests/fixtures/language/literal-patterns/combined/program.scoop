@@ -5,7 +5,7 @@ enum Event {
 }
 fun <T> check(value: T, test: (T) -> Boolean): Boolean = test(value)
 fun describe(event: Event): Int = when (event) {
-    case Ready(Payload { number: -1, text }) if check(text) { s -> s == "ok" } -> 11
+    case Ready(Payload { number: -1, val text }) if check(text) { s -> s == "ok" } -> 11
     case Ready(Payload { number: 0, text: "zero" }) -> 12
     case Ready(_) -> 13
     case Empty -> 14

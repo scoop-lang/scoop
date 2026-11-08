@@ -10,19 +10,19 @@ public enum InlineKey: Equals<InlineKey>, Hash {
 
     public override operator fun equals(other: InlineKey): Boolean =
         when (this) {
-            case Text(value) -> when (other) {
-                case Text(right) -> value == right;
+            case Text(val value) -> when (other) {
+                case Text(val right) -> value == right;
                 else -> false
             }
-            case Number(value) -> when (other) {
-                case Number(right) -> value == right;
+            case Number(val value) -> when (other) {
+                case Number(val right) -> value == right;
                 else -> false
             }
         }
     public override fun hash(): Long =
         when (this) {
-            case Text(value) -> value.hash()
-            case Number(value) -> value.hash().xor(-1L)
+            case Text(val value) -> value.hash()
+            case Number(val value) -> value.hash().xor(-1L)
         }
 }
 
@@ -70,9 +70,9 @@ internal fun resolveInlineMetrics(content: StyledText, values: Array<InlineMetri
         requireText(value.size.width >= 0.0 && value.size.height >= 0.0, "negative inline size")
         val(alignment, kind, offset) =
             when (value.alignment) {
-                case Baseline(kind, offset) -> (0, kind, offset)
-                case AboveBaseline(kind) -> (1, kind, 0.0)
-                case BelowBaseline(kind) -> (2, kind, 0.0)
+                case Baseline(val kind, val offset) -> (0, kind, offset)
+                case AboveBaseline(val kind) -> (1, kind, 0.0)
+                case BelowBaseline(val kind) -> (2, kind, 0.0)
                 case Top -> (3, TextBaseline.Alphabetic, 0.0)
                 case Bottom -> (4, TextBaseline.Alphabetic, 0.0)
                 case Middle -> (5, TextBaseline.Alphabetic, 0.0)

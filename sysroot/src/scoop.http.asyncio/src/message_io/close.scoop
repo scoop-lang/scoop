@@ -17,7 +17,7 @@ internal suspend fun <T> closeMessageIo(state: MessageIo<T>) {
         val (closed, active) = result
         if (closed) continuation.resume(Unit)
         else {
-            when (active) { case Some(value) -> value.cancel(); case None -> {} }
+            when (active) { case Some(val value) -> value.cancel(); case None -> {} }
             startMessageClose(state)
         }
     }
@@ -35,16 +35,16 @@ internal fun <T> startMessageClose(state: MessageIo<T>) {
         startCoroutine<Unit>(suspend {
             var failure = messageCleanup(None) { val cleanup = state.cleanup!!; cleanup() }
             when (state.owner) {
-                case Some(owner) -> {
+                case Some(val owner) -> {
                     try { owner.close() }
                     catch (error: Throwable) { failure = Some(when (failure) {
-                        case Some(primary) -> ResourceUseException(primary, error)
+                        case Some(val primary) -> ResourceUseException(primary, error)
                         case None -> error
                     }) }
                 }
                 case None -> {}
             }
-            when (failure) { case Some(error) -> throw error; case None -> {} }
+            when (failure) { case Some(val error) -> throw error; case None -> {} }
         }, MessageCloseCompletion(state))
     } }
 }
@@ -64,7 +64,7 @@ private class MessageCloseCompletion<T>(val state: MessageIo<T>) : Continuation<
             result
         }
         for (waiter in waiters) when (failure) {
-            case Some(error) -> waiter.resumeWithException(error)
+            case Some(val error) -> waiter.resumeWithException(error)
             case None -> waiter.resume(Unit)
         }
     }
@@ -73,7 +73,7 @@ private class MessageCloseCompletion<T>(val state: MessageIo<T>) : Continuation<
 internal fun messageCleanup(primary: Throwable?, block: () -> Unit): Throwable? {
     try { block(); return primary }
     catch (error: Throwable) { return Some(when (primary) {
-        case Some(first) -> ResourceUseException(first, error)
+        case Some(val first) -> ResourceUseException(first, error)
         case None -> error
     }) }
 }

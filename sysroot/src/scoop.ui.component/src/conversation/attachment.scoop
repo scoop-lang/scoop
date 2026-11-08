@@ -139,14 +139,14 @@ public class Attachment(
             )
         val detail =
             when (input.description) {
-                case Some(PanelContent.Label(value)) -> conversationCaption(
+                case Some(PanelContent.Label(val value)) -> conversationCaption(
                     ButtonContent.Label(value),
                     detailStyle,
                     input.fonts,
                     scope.layoutDirection,
                     Some(1L)
                 )
-                case Some(value) -> panelCaption(value, detailStyle, input.fonts)
+                case Some(val value) -> panelCaption(value, detailStyle, input.fonts)
                 case None -> empty()
             }
         val text =
@@ -174,7 +174,7 @@ public class Attachment(
                     16.0 * d
         val media =
             when (input.media) {
-                case Some(AttachmentMedia.Image(image, natural)) -> imageView(image, natural) {
+                case Some(AttachmentMedia.Image(val image, val natural)) -> imageView(image, natural) {
                     this.fit = ContentFit.Cover
                     this.opacity =
                         if (
@@ -187,7 +187,7 @@ public class Attachment(
                         else
                             0.6
                 }
-                case Some(AttachmentMedia.Icon(value)) -> actionContent(
+                case Some(AttachmentMedia.Icon(val value)) -> actionContent(
                     value,
                     ActionContentStyle(
                         titleStyle.copy { this.color = color },

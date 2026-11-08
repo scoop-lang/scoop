@@ -26,7 +26,7 @@ internal fun measureInputGroup(
     val innerWidth = lowerBound(width - inset.width, 0.0)
     var remainingHeight =
         when (constraints.maxHeight) {
-            case Some(value) -> Some(lowerBound(value - inset.height, 0.0))
+            case Some(val value) -> Some(lowerBound(value - inset.height, 0.0))
             case None -> None
         }
     val measured =
@@ -53,7 +53,7 @@ internal fun measureInputGroup(
             bottom += child.size.height
         remainingHeight =
             when (remainingHeight) {
-                case Some(value) -> Some(lowerBound(value - child.size.height, 0.0))
+                case Some(val value) -> Some(lowerBound(value - child.size.height, 0.0))
                 case None -> None
             }
     }

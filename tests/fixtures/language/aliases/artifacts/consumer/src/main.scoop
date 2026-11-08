@@ -13,16 +13,16 @@ fun main() {
     val value: Pick<Int> = Pick.Value("imported", 40)
     when (value) {
         case Pick.Empty -> println("empty")
-        case Pick.Value(text, n, count) -> { println(text); println(n + count) }
-        case Pick.Many(text, values) -> println(values.size)
+        case Pick.Value(val text, val n, val count) -> { println(text); println(n + count) }
+        case Pick.Many(val text, val values) -> println(values.size)
     }
     val empty: Pick<Int> = Pick.Empty
     println(empty is Pick<Int>)
     val many = Pick.Many("many", 1, *[2, 3])
     when (many) {
         case Pick.Empty -> println(0)
-        case Pick.Value(text, n, count) -> println(n)
-        case Pick.Many(text, values) -> println(values.size)
+        case Pick.Value(val text, val n, val count) -> println(n)
+        case Pick.Many(val text, val values) -> println(values.size)
     }
     println(Build("function", 41))
     println(Fixed("alias", 42).second)

@@ -41,7 +41,7 @@ public class FrameProbe internal constructor(view: Ptr<Unit>): Closeable {
     }
     public override fun close() {
         when (native) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 native = None;
                 @Unsafe
                 {
@@ -60,7 +60,7 @@ public fun observeFrames(window: Window): FrameProbe {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> FrameProbe(view)
+                    case AppKit(_, val view) -> FrameProbe(view)
                 }
             }
         }

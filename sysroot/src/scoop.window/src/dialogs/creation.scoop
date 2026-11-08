@@ -74,7 +74,7 @@ private fun ApplicationOwner.createFileDialog(
     requireRunning("file dialog")
     val parent =
         when (target) {
-            case Owner(value) -> {
+            case Owner(val value) -> {
                 if (!(value.owner.application === this))
                     throw IllegalArgumentException(
                         Some("dialog owner belongs to another application")
@@ -84,7 +84,7 @@ private fun ApplicationOwner.createFileDialog(
             case Application -> None
         }
     when (parent) {
-        case Some(value) -> {
+        case Some(val value) -> {
             requireDialogOwnerAvailable(value)
             for (session in modals)
                 if (session.window.owner.isOwnedBy(value))
@@ -98,12 +98,12 @@ private fun ApplicationOwner.createFileDialog(
             throw WindowException("application file dialog is busy", WindowErrorKind.ResourceBusy)
     }
     when (title) {
-        case Some(value) -> for (character in value)
+        case Some(val value) -> for (character in value)
             requireWindow(character.code != 0, "dialog title contains NUL")
         case None -> {}
     }
     when (name) {
-        case Some(value) -> requireWindow(
+        case Some(val value) -> requireWindow(
             Path.fromOsString(value).fileName == Some(value),
             "suggested name must be a nonempty file name"
         )
@@ -112,7 +112,7 @@ private fun ApplicationOwner.createFileDialog(
     val extensions =
         when (types) {
             case Any -> Array<String>(0L) { _ -> "" }
-            case Extensions(values) -> {
+            case Extensions(val values) -> {
                 requireWindow(values.size > 0L, "file extensions cannot be empty")
                 for (value in values) {
                     requireWindow(
@@ -154,15 +154,15 @@ private fun ApplicationOwner.createFileDialog(
             )
         try {
             when (title) {
-                case Some(value) -> setFileText(native, 0, value)
+                case Some(val value) -> setFileText(native, 0, value)
                 case None -> {}
             }
             when (directory) {
-                case Some(value) -> setFilePathOption(native, 1, value.toOsString())
+                case Some(val value) -> setFilePathOption(native, 1, value.toOsString())
                 case None -> {}
             }
             when (name) {
-                case Some(value) -> setFilePathOption(native, 2, value)
+                case Some(val value) -> setFilePathOption(native, 2, value)
                 case None -> {}
             }
             for (extension in extensions)
@@ -175,7 +175,7 @@ private fun ApplicationOwner.createFileDialog(
             FileDialogOwner(this, FileDialogSessionId(nextFileDialog), parent, kind, native)
         nextFileDialog += 1L
         when (parent) {
-            case Some(value) -> value.leases += 1L
+            case Some(val value) -> value.leases += 1L
             case None -> {}
         }
         fileDialogs.add(session)

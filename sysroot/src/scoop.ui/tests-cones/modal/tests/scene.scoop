@@ -210,7 +210,7 @@ private class ModalPane(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (
                             index ==
                                 2L &&
@@ -297,7 +297,7 @@ private fun recordInput(
     event: InputEvent
 ) {
     when (event) {
-        case Pointer(InputPointerEvent.Button(_, _, state, _)) -> if (
+        case Pointer(InputPointerEvent.Button(_, _, val state, _)) -> if (
             context.phase == RoutedPhase.Target
         ) {
             if (state == ElementState.Pressed)

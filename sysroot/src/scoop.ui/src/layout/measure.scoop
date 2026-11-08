@@ -50,7 +50,7 @@ public class MeasureContext internal constructor(
         if (entry.measuring)
             throw IllegalStateException(Some("child measurement is reentrant"))
         when (entry.result) {
-            case Some(result) -> if (
+            case Some(val result) -> if (
                 entry.constraints == Some(constraints) && result.version == entry.node.layoutVersion
             )
                 return result.metrics
@@ -135,7 +135,7 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Node
                 [],
                 LayoutBody.Empty
             )
-            case Portal(instance) -> layoutResult(
+            case Portal(val instance) -> layoutResult(
                 constraints,
                 LayoutMetrics(Size(constraints.minWidth, constraints.minHeight)),
                 [],
@@ -143,8 +143,8 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Node
             )
             case Direction -> transparentLayout(constraints, time)
             case Component(_) -> transparentLayout(constraints, time)
-            case Element(instance) -> measureElement(instance, constraints, time)
-            case Lazy(instance, items) -> measureLazy(instance, items, constraints, time)
+            case Element(val instance) -> measureElement(instance, constraints, time)
+            case Lazy(val instance, val items) -> measureLazy(instance, items, constraints, time)
         }
     store.add(result)
     return result

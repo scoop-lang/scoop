@@ -187,7 +187,7 @@ private fun withEditLayout(text: String, width: Double?, action: (TextEditLayout
             paragraph ->
             val layout =
                 when (width) {
-                    case Some(value) -> paragraph.layout(value)
+                    case Some(val value) -> paragraph.layout(value)
                     case None -> paragraph.layoutUnwrapped()
                 }
             layout.use { current -> action(TextEditLayout(current)) }

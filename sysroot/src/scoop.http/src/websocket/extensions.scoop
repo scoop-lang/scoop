@@ -15,7 +15,7 @@ public class WebSocketExtensionParameter public constructor(
     /**
      * The optional decoded parameter value.
      */
-    public val value: String? = when (value) { case Some(text) -> Some(webSocketToken(text)); case None -> None }
+    public val value: String? = when (value) { case Some(val text) -> Some(webSocketToken(text)); case None -> None }
     /**
      * Whether the source parameter used quoted-string syntax.
      */
@@ -44,7 +44,7 @@ public class WebSocketExtension public constructor(name: String,
         for (parameter in parameters) {
             output.append("; ").append(parameter.name)
             when (parameter.value) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     output.append("=")
                     if (parameter.wasQuoted) output.append("\"")
                     output.append(value)

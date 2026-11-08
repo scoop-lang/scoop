@@ -22,7 +22,7 @@ internal fun runModalProbe() {
 
 private fun assertCancelled(session: ModalSession, expected: ModalCancelReason) {
     when (session.result) {
-        case Some(ModalResult.Cancelled(reason)) -> assertEquals(expected, reason)
+        case Some(ModalResult.Cancelled(val reason)) -> assertEquals(expected, reason)
         else -> assertTrue(false, Some("expected cancelled modal result"))
     }
 }
@@ -56,16 +56,16 @@ private class ModalProbe: ApplicationHandler {
         try {
             when (event) {
                 case Resumed -> setup(application)
-                case ModalCompleted(id, _) -> {
+                case ModalCompleted(val id, _) -> {
                     for (previous in completed)
                         assertTrue(previous != id)
                     completed.add(id)
                 }
-                case Window(id, WindowEvent.CloseRequested) -> {
+                case Window(val id, WindowEvent.CloseRequested) -> {
                     if (id == a!!.id)
                         blockedCloseRequests += 1
                 }
-                case Window(id, WindowEvent.Destroyed) -> {
+                case Window(val id, WindowEvent.Destroyed) -> {
                     if (id == a!!.id) {
                         assertEquals(WindowState.Destroyed, c!!.state)
                         assertEquals(WindowState.Destroyed, f!!.state)
@@ -235,7 +235,7 @@ private class ModalProbe: ApplicationHandler {
                     )
                 assertEquals(ModalState.Pending, first!!.state)
                 when (popup.result) {
-                    case Some(PopupResult.Cancelled(reason)) -> assertEquals(
+                    case Some(PopupResult.Cancelled(val reason)) -> assertEquals(
                         PopupCancelReason.TargetBlocked,
                         reason
                     )

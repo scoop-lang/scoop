@@ -86,7 +86,7 @@ public class Paint public constructor(
                     throw GraphicsException("create paint")
             try {
                 when (gradient) {
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         for (stop in value.stops)
                             graphicsResult(
                                 paintStop(pointer, stop.offset, stop.color),

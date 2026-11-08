@@ -25,7 +25,7 @@ internal class FailingContent(
             return
         image.close()
         when (canvas) {
-            case Some(value) -> assertFailsWith<IllegalStateException> { value.clear(Color.White) }
+            case Some(val value) -> assertFailsWith<IllegalStateException> { value.clear(Color.White) }
             case None -> {}
         }
         retire()

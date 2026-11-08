@@ -27,7 +27,7 @@ public class TrayMenuSession internal constructor(
 
 internal fun TrayOwner.setMenu(next: Menu?) {
     when ((menu, next)) {
-        case(Some(previous), Some(value)) -> if (previous === value)
+        case(Some(val previous), Some(val value)) -> if (previous === value)
             return
         case(None, None) -> return
         else -> {}
@@ -36,14 +36,14 @@ internal fun TrayOwner.setMenu(next: Menu?) {
         throw WindowException("replace tray menu", WindowErrorKind.ResourceBusy)
     var lease: NativeMenuLease? = None
     when (next) {
-        case Some(value) -> @Unsafe
+        case Some(val value) -> @Unsafe
         {
             lease = Some(resource!!.acquireMenu(value) { menuClosed(value) })
         }
         case None -> {}
     }
     when (session) {
-        case Some(active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
+        case Some(val active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
         case None -> {}
     }
     try {
@@ -53,14 +53,14 @@ internal fun TrayOwner.setMenu(next: Menu?) {
         }
     } catch (error: Throwable) {
         when (lease) {
-            case Some(value) -> value.close();
+            case Some(val value) -> value.close();
             case None -> {}
         }
         close(TrayMenuCancelReason.TrayClosed)
         throw error
     }
     when (menuLease) {
-        case Some(previous) -> {
+        case Some(val previous) -> {
             previous.cancel();
             previous.close()
         };
@@ -75,12 +75,12 @@ internal fun TrayOwner.detachMenu() {
     @Unsafe
     {
         when (pointer) {
-            case Some(native) -> installTrayMenu(native, None);
+            case Some(val native) -> installTrayMenu(native, None);
             case None -> {}
         }
     }
     when (menuLease) {
-        case Some(lease) -> {
+        case Some(val lease) -> {
             lease.cancel();
             lease.close()
         };
@@ -92,7 +92,7 @@ internal fun TrayOwner.detachMenu() {
 
 private fun TrayOwner.menuClosed(closed: Menu) {
     when (menu) {
-        case Some(value) -> if (!(value === closed))
+        case Some(val value) -> if (!(value === closed))
             return
         case None -> return
     }
@@ -103,7 +103,7 @@ private fun TrayOwner.menuClosed(closed: Menu) {
         nativeTrayCancel(pointer!!)
     }
     when (session) {
-        case Some(active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
+        case Some(val active) -> cancelSession(active, TrayMenuCancelReason.MenuClosed);
         case None -> {}
     }
     settle()
@@ -142,16 +142,16 @@ private fun TrayOwner.launch(active: TrayMenuSession) {
             checkTrayStatus(result.error, "show tray menu")
             if (result.command != 0)
                 when (lease.itemForNativeCommand(result.command)) {
-                    case Some(item) -> lease.activate(item)
+                    case Some(val item) -> lease.activate(item)
                     case None -> {}
                 }
         }
         val selected = lease.endTracking()
         val result =
             when (active.cancellation) {
-                case Some(reason) -> TrayMenuResult.Cancelled(reason)
+                case Some(val reason) -> TrayMenuResult.Cancelled(reason)
                 case None -> when (selected) {
-                    case Some(item) -> TrayMenuResult.Selected(item)
+                    case Some(val item) -> TrayMenuResult.Selected(item)
                     case None -> TrayMenuResult.Cancelled(TrayMenuCancelReason.User)
                 }
             }
@@ -161,7 +161,7 @@ private fun TrayOwner.launch(active: TrayMenuSession) {
         finish(
             active,
             when (active.cancellation) {
-                case Some(reason) -> TrayMenuResult.Cancelled(reason)
+                case Some(val reason) -> TrayMenuResult.Cancelled(reason)
                 case None -> TrayMenuResult.Failed(error)
             }
         )
@@ -180,7 +180,7 @@ internal fun TrayOwner.cancelSession(active: TrayMenuSession, reason: TrayMenuCa
     }
     if (active.started) {
         when (menuLease) {
-            case Some(lease) -> lease.cancel();
+            case Some(val lease) -> lease.cancel();
             case None -> {}
         }
         if (!detaching && state == TrayState.Open)

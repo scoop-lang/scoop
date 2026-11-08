@@ -57,7 +57,7 @@ public class ToastProps public constructor(
 ) {
     init {
         when (duration) {
-            case Some(value) -> requireComponent(
+            case Some(val value) -> requireComponent(
                 value > Duration.ZERO,
                 "toast duration must be positive"
             )

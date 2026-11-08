@@ -56,7 +56,7 @@ internal class ChecksumMailbox(
                 result
             }
         when (value) {
-            case Some(progress) -> callback!!(progress);
+            case Some(val progress) -> callback!!(progress);
             case None -> {}
         }
     }

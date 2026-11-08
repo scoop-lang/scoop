@@ -20,7 +20,7 @@ fun enumChoice(): Int {
     val value: Choice = Choice.Value(23)
     val copied = value
     return when (copied) {
-        case Value(number) -> number
+        case Value(val number) -> number
         case Empty -> { gcCollect(); -1 }
     }
 }
@@ -29,7 +29,7 @@ fun optionChoice(): Int {
     val value: Int? = Some(19)
     val copied = value
     return when (copied) {
-        case Some(number) -> number
+        case Some(val number) -> number
         case None -> { gcCollect(); -1 }
     }
 }

@@ -40,12 +40,12 @@ public class Label public constructor(
         val input = props.value
         val content =
             when (input.text) {
-                case Plain(text, style) -> plainContent(
+                case Plain(val text, val style) -> plainContent(
                     text,
                     input.baseStyle ?: themes.read(input.theme).tokens.typography.body,
                     style
                 )
-                case Styled(content) -> content
+                case Styled(val content) -> content
             }
         return element(
             LabelInkProps(content, input),
@@ -55,7 +55,7 @@ public class Label public constructor(
     }
     private fun plainContent(text: String, base: TextStyle, style: SpanStyle?): StyledText {
         when (plain) {
-            case Some(previous) -> {
+            case Some(val previous) -> {
                 if (
                     previous.text ==
                         text &&
@@ -69,7 +69,7 @@ public class Label public constructor(
         }
         val resolved =
             when (style) {
-                case Some(value) -> value.resolve(base);
+                case Some(val value) -> value.resolve(base);
                 case None -> base
             }
         val next =
@@ -116,7 +116,7 @@ private class LabelInk(private val props: Props<LabelInkProps>, scope: Component
         val changed =
             fontChanged ||
                 when (previous) {
-                    case Some(old) -> old.content !==
+                    case Some(val old) -> old.content !==
                         value.content ||
                         !sameLabelParagraph(old.input.settings, value.input.settings) ||
                         !(
@@ -150,7 +150,7 @@ private class LabelInk(private val props: Props<LabelInkProps>, scope: Component
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
         paragraph.scene(context, measured)
         when (props.value.input.underline) {
-            case Some(color) -> {
+            case Some(val color) -> {
                 val boxes =
                     measured.layout.selection(TextRange(0L, props.value.content.text.byteLength))
                 context.draw {

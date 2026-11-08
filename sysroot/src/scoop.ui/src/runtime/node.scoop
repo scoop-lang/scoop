@@ -46,7 +46,7 @@ internal class MountedNode(
 
     val lazyItems: LazyChildren? =
         when (view.body) {
-            case Lazy(_, source, capacity) -> Some(LazyChildren(source, capacity))
+            case Lazy(_, val source, val capacity) -> Some(LazyChildren(source, capacity))
             else -> None
         }
     val body: NodeBody = createBody(this, view)
@@ -77,7 +77,7 @@ internal class MountedNode(
 
     fun clearPaintSubtree() {
         when (currentLayout) {
-            case Some(value) -> value.sceneCache = None
+            case Some(val value) -> value.sceneCache = None
             case None -> {}
         }
         var failure: Throwable? = None
@@ -127,16 +127,19 @@ internal class MountedNode(
         when ((body, next.body)) {
             case(Empty, Empty) -> {}
             case(Direction, Direction(_, _)) -> {}
-            case(Component(instance), Component(description)) -> {
+            case(Component(val instance), Component(val description)) -> {
                 if (!instance.replace(description))
                     inputChanged = true
             }
-            case(Element(instance), Element(description, _)) -> {
+            case(Element(val instance), Element(val description, _)) -> {
                 if (!instance.replace(description))
                     inputChanged = true
             }
-            case(Portal(instance), Portal(_, open, options)) -> instance.replace(open, options)
-            case(Lazy(instance, _), Lazy(description, _, _)) -> {
+            case(Portal(val instance), Portal(_, val open, val options)) -> instance.replace(
+                open,
+                options
+            )
+            case(Lazy(val instance, _), Lazy(val description, _, _)) -> {
                 if (!instance.replace(description))
                     inputChanged = true
             }
@@ -158,7 +161,7 @@ internal class MountedNode(
         when (body) {
             case Empty -> {}
             case Direction -> when (view.body) {
-                case Direction(content, _) -> {
+                case Direction(val content, _) -> {
                     if (children.size == 1L && children[0L].view === content)
                         children[0L].refreshDirection(turn)
                     else
@@ -168,17 +171,17 @@ internal class MountedNode(
                     Some("direction description was replaced by another shape")
                 )
             }
-            case Portal(instance) -> when (view.body) {
-                case Portal(content, _, _) -> instance.prepare(this, content, turn)
+            case Portal(val instance) -> when (view.body) {
+                case Portal(val content, _, _) -> instance.prepare(this, content, turn)
                 else -> throw IllegalStateException(
                     Some("portal description was replaced by another shape")
                 )
             }
-            case Component(instance) -> if (shouldUpdate)
+            case Component(val instance) -> if (shouldUpdate)
                 rebuildComponent(instance, turn, false)
-            case Element(instance) -> {
+            case Element(val instance) -> {
                 when (view.body) {
-                    case Element(_, descriptions) -> reconcile(descriptions, turn)
+                    case Element(_, val descriptions) -> reconcile(descriptions, turn)
                     else -> throw IllegalStateException(
                         Some("element description was replaced by another shape")
                     )
@@ -186,9 +189,14 @@ internal class MountedNode(
                 if (shouldUpdate && active && root.isOpen && mounted)
                     request(updateInputs { instance.update() })
             }
-            case Lazy(instance, items) -> {
+            case Lazy(val instance, val items) -> {
                 when (view.body) {
-                    case Lazy(_, source, capacity) -> items.replace(this, source, capacity, turn)
+                    case Lazy(_, val source, val capacity) -> items.replace(
+                        this,
+                        source,
+                        capacity,
+                        turn
+                    )
                     else -> throw IllegalStateException(
                         Some("lazy description was replaced by another shape")
                     )
@@ -208,18 +216,18 @@ internal class MountedNode(
             when (body) {
                 case Empty -> {}
                 case Direction -> {}
-                case Component(instance) -> instance.value.onMount()
-                case Element(instance) -> instance.onMount()
-                case Portal(instance) -> instance.mount(this)
-                case Lazy(instance, _) -> instance.onMount()
+                case Component(val instance) -> instance.value.onMount()
+                case Element(val instance) -> instance.onMount()
+                case Portal(val instance) -> instance.mount(this)
+                case Lazy(val instance, _) -> instance.onMount()
             }
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
-                    case Element(instance) -> {
+                    case Element(val instance) -> {
                         updateInputs { instance.update() }
                     }
-                    case Lazy(instance, items) -> {
+                    case Lazy(val instance, val items) -> {
                         items.mount(this)
                         updateInputs { instance.update() }
                     }
@@ -239,7 +247,7 @@ internal class MountedNode(
         failure =
             cleanupUi(failure) {
                 when (body) {
-                    case Portal(instance) -> instance.retireInput()
+                    case Portal(val instance) -> instance.retireInput()
                     else -> {}
                 }
             }
@@ -268,10 +276,10 @@ internal class MountedNode(
                     when (body) {
                         case Empty -> {}
                         case Direction -> {}
-                        case Component(instance) -> instance.value.onUnmount()
-                        case Element(instance) -> instance.onUnmount()
+                        case Component(val instance) -> instance.value.onUnmount()
+                        case Element(val instance) -> instance.onUnmount()
                         case Portal(_) -> {}
-                        case Lazy(instance, _) -> instance.onUnmount()
+                        case Lazy(val instance, _) -> instance.onUnmount()
                     }
                 }
         }
@@ -289,6 +297,6 @@ internal class MountedNode(
 
 internal fun sameTurn(previous: UpdateTurn?, current: UpdateTurn): Boolean =
     when (previous) {
-        case Some(value) -> value === current
+        case Some(val value) -> value === current
         case None -> false
     }

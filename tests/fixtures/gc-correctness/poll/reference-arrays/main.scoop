@@ -59,7 +59,7 @@ fun exercise(worker: Int): Int {
             val even = i.and(1L) == 0L
             check(target[i].value == (if (i == count - 1L) seed + 1L else seed))
             check(viewTarget[i].number() == (if (even) seed else seed + 2L))
-            check(when (optionTarget[i]) { case None -> !even; case Some(value) -> even && value.value == seed })
+            check(when (optionTarget[i]) { case None -> !even; case Some(val value) -> even && value.value == seed })
             check(stringTarget[i] == text && functionTarget[i](3L) == seed + 3L)
             i += 1L
         }

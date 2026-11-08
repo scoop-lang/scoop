@@ -191,6 +191,14 @@ impl Lowerer {
         &self,
         name: &str,
     ) -> (Option<ImportLookupLayer>, LookupResult<ValueOrigin>) {
+        self.lookup_value_origin_excluding_property(name, None)
+    }
+
+    pub(crate) fn lookup_value_origin_excluding_property(
+        &self,
+        name: &str,
+        excluded_property: Option<hir::PropertyId>,
+    ) -> (Option<ImportLookupLayer>, LookupResult<ValueOrigin>) {
         let core = || {
             let (_, suppressed_callables) = self.core_named_callable_partition(name);
             LookupLayer {
@@ -237,6 +245,12 @@ impl Lowerer {
         for layer in layers {
             let mut visible = Vec::new();
             for origin in layer.candidates {
+                if let Some(excluded) = excluded_property
+                    && self.materialized_value_target(&origin)
+                        == Some(ValueTarget::Property(excluded))
+                {
+                    continue;
+                }
                 let candidates = if self.value_origin_accessible(&origin) {
                     &mut visible
                 } else {

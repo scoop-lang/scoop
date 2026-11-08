@@ -61,7 +61,7 @@ private class WindowsSessionHandler: ApplicationHandler {
         {
             lease = Some(window.acquireNativeWindow())
             when (lease!!.handle) {
-                case Win32(handle, _) -> hwnd = Some(handle)
+                case Win32(val handle, _) -> hwnd = Some(handle)
             }
         }
         application.setControlFlow(

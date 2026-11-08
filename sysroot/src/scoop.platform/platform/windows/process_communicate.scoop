@@ -10,7 +10,7 @@ private class ProcessPipeReader(private val source: PipeSource?) {
     fun start(abort: () -> Unit) {
         when (source) {
             case None -> {}
-            case Some(pipe) -> worker =
+            case Some(val pipe) -> worker =
                 Some(
                     Thread.start {
                         try {
@@ -45,7 +45,7 @@ private class ProcessPipeReader(private val source: PipeSource?) {
             failure = Some(combineProcessFailure(failure, error))
         }
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> return bytes
         }
     }
@@ -119,7 +119,7 @@ internal fun ChildProcess.transferPipes(
         }
     }
     when (failure) {
-        case Some(error) -> throw error
+        case Some(val error) -> throw error
         case None -> return (out, err)
     }
 }

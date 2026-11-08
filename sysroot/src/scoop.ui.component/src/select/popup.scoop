@@ -116,7 +116,7 @@ internal class SelectPanel(
                         popup.options,
                         input.theme,
                         when (menuItem(entry)) {
-                            case Some(item) -> Some(popup.focus.handle(item.key));
+                            case Some(val item) -> Some(popup.focus.handle(item.key));
                             case None -> None
                         },
                         binding({ false }, { _ -> }),

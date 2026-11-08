@@ -37,7 +37,7 @@ import scoop.test.*
             drive2(client, server)
             var observed = false
             for (event in events2(client)) when (event) {
-                case Failure(error) -> { assertEquals(rejected, error.streamId); assertTrue(error.scope == HttpFailureScope.Stream); observed = true }
+                case Failure(val error) -> { assertEquals(rejected, error.streamId); assertTrue(error.scope == HttpFailureScope.Stream); observed = true }
                 else -> {}
             }
             assertTrue(observed)
@@ -91,6 +91,6 @@ import scoop.test.*
 }
 
 internal fun localGoAway2(events: List<Http2Event>, code: UInt): Boolean {
-    for (event in events) when (event) { case GoAway(_, value, _, local) -> { if (local && value == code) return true }; else -> {} }
+    for (event in events) when (event) { case GoAway(_, val value, _, val local) -> { if (local && value == code) return true }; else -> {} }
     return false
 }

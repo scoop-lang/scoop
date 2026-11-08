@@ -58,7 +58,7 @@ enum CustomFormat {
                 case CustomFormat.Text -> {
                     String.encode("text", fields.field("type"))
                 }
-                case CustomFormat.Grammar(payload) -> {
+                case CustomFormat.Grammar(val payload) -> {
                     String.encode("grammar", fields.field("type"))
                     GrammarFormat.Companion.encode(payload, encoder)
                 }

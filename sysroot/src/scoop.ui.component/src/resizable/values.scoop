@@ -20,7 +20,7 @@ public class ResizablePanelProps public constructor(
         nonnegative(minimum, "invalid panel minimum")
         nonnegative(collapsedSize, "invalid collapsed panel size")
         when (maximum) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 nonnegative(value, "invalid panel maximum")
                 requireComponent(value >= minimum, "panel maximum is less than minimum")
             }
@@ -60,7 +60,7 @@ public class ResizableProps public constructor(
 ) {
     init {
         when (length) {
-            case Some(value) -> nonnegative(value, "invalid resizable length")
+            case Some(val value) -> nonnegative(value, "invalid resizable length")
             case None -> {}
         }
         requireComponent(

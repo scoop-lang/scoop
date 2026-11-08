@@ -141,7 +141,7 @@ internal class WindowRegionStore(
             when (kind) {
                 case Shape -> capabilities.windowRegion
                 case Input -> capabilities.inputRegion
-                case Hit(role) -> when (role) {
+                case Hit(val role) -> when (role) {
                     case Resize(_) -> capabilities.resizeHitRegions
                     case SystemButton(_) -> capabilities.systemButtonHitRegions
                     else -> true
@@ -189,7 +189,7 @@ internal class WindowRegionStore(
         if (closed || frame.generation != generation)
             return
         when (frame.revision) {
-            case Some(value) -> if (value != window.frameRevision) {
+            case Some(val value) -> if (value != window.frameRevision) {
                 geometryChanged()
                 surface.requestFrame()
                 return
@@ -257,7 +257,7 @@ internal class WindowRegionStore(
             when (placement.handle.kind) {
                 case Shape -> shape = Some(placement.region)
                 case Input -> inputRegion = Some(placement.region)
-                case Hit(role) -> hits.add(WindowHitRegion(placement.region, role))
+                case Hit(val role) -> hits.add(WindowHitRegion(placement.region, role))
             }
         }
         if (ownsShape || shapeApplied) {

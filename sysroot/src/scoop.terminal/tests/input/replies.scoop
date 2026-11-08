@@ -16,32 +16,32 @@ private class InputReplyTest {
             parser.feed(Array<Byte>(bytes.size - cut) { index -> bytes[index + cut] }, Duration.ZERO)
             expectUser(parser, key(KeyCode.Char('x')))
             when (parser.next()) {
-                case Some(InputItem.CursorPosition(column, row)) -> {
+                case Some(InputItem.CursorPosition(val column, val row)) -> {
                     assertEquals(0L, column); assertEquals(65535L, row)
                 }
                 case _ -> fail(Some("missing cursor reply"))
             }
             for (expected in [0u, 15u]) {
                 when (parser.next()) {
-                    case Some(InputItem.KeyboardFlags(flags)) -> assertEquals(expected, flags.bits)
+                    case Some(InputItem.KeyboardFlags(val flags)) -> assertEquals(expected, flags.bits)
                     case _ -> fail(Some("missing keyboard flags reply"))
                 }
             }
             when (parser.next()) {
-                case Some(InputItem.DeviceAttributes(secondary, values)) -> {
+                case Some(InputItem.DeviceAttributes(val secondary, val values)) -> {
                     assertFalse(secondary); assertEquals(3L, values.size)
                     assertEquals(62L, values[0L]); assertEquals(1L, values[1L]); assertEquals(6L, values[2L])
                 }
                 case _ -> fail(Some("missing primary attributes"))
             }
             when (parser.next()) {
-                case Some(InputItem.DeviceAttributes(secondary, values)) -> {
+                case Some(InputItem.DeviceAttributes(val secondary, val values)) -> {
                     assertTrue(secondary); assertEquals(3L, values.size); assertEquals(4000L, values[1L])
                 }
                 case _ -> fail(Some("missing secondary attributes"))
             }
             when (parser.next()) {
-                case Some(InputItem.DeviceStatus(status)) -> assertEquals(0L, status)
+                case Some(InputItem.DeviceStatus(val status)) -> assertEquals(0L, status)
                 case _ -> fail(Some("missing device status"))
             }
             expectUser(parser, key(KeyCode.Char('y')))
@@ -54,7 +54,7 @@ private class InputReplyTest {
         val parser = InputParser()
         parser.feed("\u001b[?4294967295u".toByteArray(), Duration.ZERO)
         when (parser.next()) {
-            case Some(InputItem.KeyboardFlags(flags)) -> assertEquals(4294967295u, flags.bits)
+            case Some(InputItem.KeyboardFlags(val flags)) -> assertEquals(4294967295u, flags.bits)
             case _ -> fail(Some("missing capability bits"))
         }
         for (reply in ["\u001b[0;1R", "\u001b[1;0R", "\u001b[1;65537R",

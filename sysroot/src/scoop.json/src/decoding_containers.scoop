@@ -17,7 +17,7 @@ internal class JsonKeyedDecoder(private val owner: JsonDecoder, private val memb
     public override fun required(name: String): Decoder {
         val result = optional(name)
         return when (result) {
-            case Some(child) -> child
+            case Some(val child) -> child
             case None -> { throw DecodingException(childPath(owner.path, name), "missing required field") }
         }
     }

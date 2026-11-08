@@ -20,7 +20,7 @@ public class Pagination public constructor(
     private fun move(forward: Boolean) {
         val input = props.value
         when (paginationNeighbor(input.page.value, input.pageCount, forward)) {
-            case Some(page) -> select(page);
+            case Some(val page) -> select(page);
             case None -> {}
         }
     }
@@ -38,11 +38,11 @@ public class Pagination public constructor(
                     this.add(this @Pagination.edge(input, false))
                 for (index in 0L ..< entries.size) {
                     when (entries[index]) {
-                        case Page(number) -> this.add(
+                        case Page(val number) -> this.add(
                             component(
                                 ButtonProps(
                                     when (input.pageContent) {
-                                        case Some(build) -> ButtonContent.Resolved {
+                                        case Some(val build) -> ButtonContent.Resolved {
                                             appearance -> build(number, appearance)
                                         }
                                         case None -> navigationLabel(

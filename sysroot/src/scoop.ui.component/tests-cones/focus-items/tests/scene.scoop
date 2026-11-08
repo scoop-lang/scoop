@@ -55,7 +55,7 @@ private class FocusOuterSource(private val content: View): ItemSource {
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> if (index >= 0L && index < 2L)
+            case Number(val index) -> if (index >= 0L && index < 2L)
                 Some(index)
             else
                 None
@@ -170,12 +170,12 @@ internal class FocusSource(
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(id) -> when (order) {
+            case Number(val id) -> when (order) {
                 case None -> if (id >= 0L && id < count)
                     Some(id)
                 else
                     None
-                case Some(keys) -> {
+                case Some(val keys) -> {
                     var found: Long? = None
                     for (index in 0L ..< keys.size)
                         if (keys[index] == id)

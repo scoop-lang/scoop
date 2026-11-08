@@ -105,7 +105,7 @@ public class AsyncHttp2Connection internal constructor(internal val state: H2Sta
      * directly as HTTP/2.
      */
     public val upgradedStream: AsyncHttp2Stream? get() = state.lock.withLock {
-        when (state.upgrade) { case Some(stream) -> Some(AsyncHttp2Stream(state, stream)); case None -> None }
+        when (state.upgrade) { case Some(val stream) -> Some(AsyncHttp2Stream(state, stream)); case None -> None }
     }
 
     /**

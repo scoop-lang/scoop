@@ -7,23 +7,23 @@ enum ChatPart {
         public override fun encode(value: ChatPart, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatPart.Text(payload) -> {
+                case ChatPart.Text(val payload) -> {
                     String.encode("text", fields.field("type"))
                     TextPart.Companion.encode(payload, encoder)
                 }
-                case ChatPart.Image(payload) -> {
+                case ChatPart.Image(val payload) -> {
                     String.encode("image_url", fields.field("type"))
                     ChatImage.Companion.encode(payload, encoder)
                 }
-                case ChatPart.Audio(payload) -> {
+                case ChatPart.Audio(val payload) -> {
                     String.encode("input_audio", fields.field("type"))
                     ChatAudio.Companion.encode(payload, encoder)
                 }
-                case ChatPart.File(payload) -> {
+                case ChatPart.File(val payload) -> {
                     String.encode("file", fields.field("type"))
                     ChatFile.Companion.encode(payload, encoder)
                 }
-                case ChatPart.Refusal(payload) -> {
+                case ChatPart.Refusal(val payload) -> {
                     String.encode("refusal", fields.field("type"))
                     RefusalPart.Companion.encode(payload, encoder)
                 }
@@ -49,8 +49,8 @@ enum ChatContent {
     companion object : ValueEncoder<ChatContent>, ValueDecoder<ChatContent> {
         public override fun encode(value: ChatContent, encoder: Encoder) {
             when (value) {
-                case ChatContent.Text(text) -> String.encode(text, encoder)
-                case ChatContent.Blocks(payload) -> Array<ChatPart>.encoder(ChatPart.Companion).encode(payload, encoder)
+                case ChatContent.Text(val text) -> String.encode(text, encoder)
+                case ChatContent.Blocks(val payload) -> Array<ChatPart>.encoder(ChatPart.Companion).encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): ChatContent {

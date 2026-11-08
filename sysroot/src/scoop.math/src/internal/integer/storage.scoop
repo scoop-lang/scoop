@@ -6,17 +6,17 @@ internal enum IntegerStorage {
 }
 
 internal fun integerSign(value: IntegerStorage): Int = when (value) {
-    case Small(number) -> signum(number)
-    case Large(negative, _) -> if (negative) -1 else 1
+    case Small(val number) -> signum(number)
+    case Large(val negative, _) -> if (negative) -1 else 1
 }
 
 internal fun integerMagnitude(value: IntegerStorage): Array<UInt> = when (value) {
-    case Small(number) -> {
+    case Small(val number) -> {
         val bits = (if (number < 0L) -number else number).toULong()
         val count = if (bits == 0uL) 0L else if (bits <= UInt.MAX_VALUE.toULong()) 1L else 2L
         Array<UInt>(count) { index -> (bits shr (index * 32L)).toUInt() }
     }
-    case Large(_, magnitude) -> magnitude
+    case Large(_, val magnitude) -> magnitude
 }
 
 internal fun magnitudeLength(words: List<UInt>): Long {
@@ -47,8 +47,8 @@ internal fun integerUnsigned(value: ULong): IntegerStorage {
 }
 
 internal fun integerNegate(value: IntegerStorage): IntegerStorage = when (value) {
-    case Small(number) -> if (number == Long.MIN_VALUE) integerUnsigned(0x8000000000000000uL) else IntegerStorage.Small(-number)
-    case Large(negative, magnitude) -> integerFromMagnitude(!negative, magnitude)
+    case Small(val number) -> if (number == Long.MIN_VALUE) integerUnsigned(0x8000000000000000uL) else IntegerStorage.Small(-number)
+    case Large(val negative, val magnitude) -> integerFromMagnitude(!negative, magnitude)
 }
 
 internal fun integerAbs(value: IntegerStorage): IntegerStorage = if (integerSign(value) < 0) integerNegate(value) else value
@@ -65,8 +65,8 @@ internal fun magnitudeCompare(a: Array<UInt>, b: Array<UInt>): Long {
 
 internal fun integerCompare(a: IntegerStorage, b: IntegerStorage): Long {
     return when (a) {
-        case Small(x) -> when (b) {
-            case Small(y) -> if (x < y) -1L else if (x > y) 1L else 0L
+        case Small(val x) -> when (b) {
+            case Small(val y) -> if (x < y) -1L else if (x > y) 1L else 0L
             case Large(_, _) -> integerCompareMagnitude(a, b)
         }
         case Large(_, _) -> integerCompareMagnitude(a, b)
@@ -84,8 +84,8 @@ private fun integerCompareMagnitude(a: IntegerStorage, b: IntegerStorage): Long 
 internal fun magnitudeWord(words: Array<UInt>, index: Long): UInt = if (index >= 0L && index < words.size) words[index] else 0u
 
 internal fun integerLowBits(value: IntegerStorage): ULong = when (value) {
-    case Small(number) -> number.toULong()
-    case Large(negative, words) -> {
+    case Small(val number) -> number.toULong()
+    case Large(val negative, val words) -> {
         val bits = words[0L].toULong() or (magnitudeWord(words, 1L).toULong() shl 32L)
         if (negative) 0uL - bits else bits
     }
@@ -93,7 +93,7 @@ internal fun integerLowBits(value: IntegerStorage): ULong = when (value) {
 
 internal fun integerHash(value: IntegerStorage): Long {
     return when (value) {
-        case Small(number) -> number
+        case Small(val number) -> number
         case Large(_, _) -> integerMagnitudeHash(value)
     }
 }

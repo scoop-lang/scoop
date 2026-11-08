@@ -16,7 +16,7 @@ public class TrayIcon internal constructor(internal val owner: TrayOwner): Close
     public val menuUseId: NativeMenuUseId? get() {
         owner.requireOpen()
         return when (owner.menuLease) {
-            case Some(lease) -> Some(lease.id)
+            case Some(val lease) -> Some(lease.id)
             case None -> None
         }
     }
@@ -74,7 +74,7 @@ internal class TraySubscription(
     }
     fun deliver(event: TrayEvent) {
         when (callback) {
-            case Some(handler) -> handler(event)
+            case Some(val handler) -> handler(event)
             case None -> {}
         }
     }

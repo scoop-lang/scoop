@@ -34,7 +34,7 @@ fun guard(value: Int): Int {
 
 fun condition(): Int { when { (return 9) -> return 0; else -> return 0 } }
 fun blockValue(value: Int?): String = when (value) {
-    case Some(number) -> number.toString()
+    case Some(val number) -> number.toString()
     case None -> throw UnwrapException()
 }
 

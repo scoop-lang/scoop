@@ -44,7 +44,7 @@ private class VariablePanel(
                 probe.intents.add(event)
                 when (event) {
                     case User(_) -> probe.userIntents += 1
-                    case LayoutCorrection(revision) -> {
+                    case LayoutCorrection(val revision) -> {
                         assertEquals(revision, probe.scroll.requestRevision)
                         probe.corrections += 1
                     }
@@ -109,8 +109,8 @@ internal class VariableSource(
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(key(index))
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(id) -> when (order) {
-                case Some(keys) -> {
+            case Number(val id) -> when (order) {
+                case Some(val keys) -> {
                     var found: Long? = None
                     for (at in 0L ..< keys.size)
                         if (keys[at] == id)

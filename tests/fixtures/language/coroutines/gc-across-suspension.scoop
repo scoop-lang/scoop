@@ -28,7 +28,7 @@ suspend fun middle(gate: Gate, payload: Payload): Int {
     val value = deepest(gate)
     println(marker)
     when (payload) {
-        case Full(bundle) -> {
+        case Full(val bundle) -> {
             println(bundle.text)
             println(bundle.node.name)
         }
@@ -48,7 +48,7 @@ class GcTask(val gate: Gate) : SuspendTask<Int> {
         println(node.name)
         println(bundle.text)
         when (payload) {
-            case Full(saved) -> {
+            case Full(val saved) -> {
                 println(saved.text)
                 println(saved.node.name)
             }

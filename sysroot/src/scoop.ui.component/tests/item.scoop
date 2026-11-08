@@ -113,7 +113,7 @@ private class ItemTest {
             assertSame(source, input.theme!!)
             assertEquals(ItemMediaVariant.Image, input.mediaVariant)
             when (input.transition) {
-                case Set(value) -> assertFalse(panelPresent(value))
+                case Set(val value) -> assertFalse(panelPresent(value))
                 case Inherit -> fail(Some("explicit transition must override the default"))
             }
             assertEquals(0, calls.value)

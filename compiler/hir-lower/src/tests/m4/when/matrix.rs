@@ -10,7 +10,7 @@ fn explicit_empty_else_is_preserved_in_both_hir_products() {
                 val("c", field(var("Color"), "Red")),
                 when_stmt(
                     var("c"),
-                    vec![arm(pat_bind("Red"), None, vec![])],
+                    vec![arm(pat_variant("Red"), None, vec![])],
                     Some(vec![]),
                 ),
             ],
@@ -102,7 +102,7 @@ fn recursive_matrix_combines_nested_enum_tuple_struct_boolean_and_unit_rows() {
                 vec![
                     arm(nested_pattern(false), None, vec![]),
                     arm(nested_pattern(true), None, vec![]),
-                    arm(pat_bind("Empty"), None, vec![]),
+                    arm(pat_variant("Empty"), None, vec![]),
                 ],
                 None,
             )],
@@ -315,7 +315,7 @@ fn finite_nested_values_empty_payloads_and_reference_cycles_remain_valid() {
             None,
             vec![when_stmt(
                 var("value"),
-                vec![arm(pat_bind("OnlyInhabited"), None, vec![])],
+                vec![arm(pat_variant("OnlyInhabited"), None, vec![])],
                 None,
             )],
         ),
@@ -332,7 +332,7 @@ fn finite_nested_values_empty_payloads_and_reference_cycles_remain_valid() {
                         None,
                         vec![],
                     ),
-                    arm(pat_bind("NoLink"), None, vec![]),
+                    arm(pat_variant("NoLink"), None, vec![]),
                 ],
                 None,
             )],

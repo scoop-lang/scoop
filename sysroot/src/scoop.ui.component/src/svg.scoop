@@ -64,7 +64,7 @@ internal fun svgNaturalSize(document: SvgDocument, explicit: Size? = None): Size
         explicit ?:
             document.intrinsicSize ?:
             when (document.viewBox) {
-                case Some(box) -> box.size
+                case Some(val box) -> box.size
                 case None -> throw IllegalArgumentException(
                     Some("SVG view requires an explicit natural size")
                 )
@@ -87,7 +87,7 @@ internal class IconDocument: Closeable {
         if (source != Some(asset)) {
             val next = SvgDocument.parse(asset.source)
             when (current) {
-                case Some(previous) -> previous.close()
+                case Some(val previous) -> previous.close()
                 case None -> {}
             }
             current = Some(next)
@@ -98,7 +98,7 @@ internal class IconDocument: Closeable {
 
     public override fun close() {
         when (current) {
-            case Some(previous) -> previous.close()
+            case Some(val previous) -> previous.close()
             case None -> {}
         }
         current = None

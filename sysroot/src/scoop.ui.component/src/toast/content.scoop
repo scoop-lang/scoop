@@ -38,7 +38,7 @@ internal fun toastContents(input: ToastItemInput): View {
             alignment = CrossAlignment.Stretch
             add(panelSlot(panelCaption(data.title, titleStyle, input.props.fonts), 0L))
             when (data.description) {
-                case Some(value) -> add(
+                case Some(val value) -> add(
                     panelSlot(panelCaption(value, descriptionStyle, input.props.fonts), 1L)
                 )
                 case None -> {}
@@ -46,7 +46,7 @@ internal fun toastContents(input: ToastItemInput): View {
         }
     val action =
         when (data.action) {
-            case Some(value) -> component(
+            case Some(val value) -> component(
                 ButtonProps(
                     navigationLabel(value.content, input.props.fonts, TextAlignment.Center),
                     { toastRunAction(entry, input.host) },
@@ -153,7 +153,7 @@ private class ToastPanel(private val props: Props<ToastItemInput>, scope: Compon
                     Some(textWidth),
                     maxHeight =
                         when (constraints.maxHeight) {
-                            case Some(value) -> Some(
+                            case Some(val value) -> Some(
                                 max(
                                     0.0,
                                     value -

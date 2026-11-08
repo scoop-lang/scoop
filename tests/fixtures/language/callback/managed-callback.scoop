@@ -92,7 +92,7 @@ fun main() {
                 }
                 gcCollect()
                 when (payloads[0]) {
-                    case Text(saved) -> if (saved == text) { value } else { -100 }
+                    case Text(val saved) -> if (saved == text) { value } else { -100 }
                     case Empty -> -200
                 }
             },

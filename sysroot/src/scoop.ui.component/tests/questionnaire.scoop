@@ -49,7 +49,7 @@ private fun questionText(state: QuestionnaireState, key: String, text: String) {
 
 private fun singleQuestionChoice(answer: QuestionnaireAnswer): String =
     when (answer) {
-        case Single(QuestionAnswer.Choice(key)) -> key.value;
+        case Single(QuestionAnswer.Choice(val key)) -> key.value;
         else -> ""
     }
 
@@ -102,7 +102,7 @@ private class QuestionnaireModelTest {
         questionText(state, "files", "音频")
         val result = state.submit()!!
         when (result.answers[1L].answer) {
-            case Multiple(answers) -> {
+            case Multiple(val answers) -> {
                 assertEquals(3L, answers.size)
                 assertTrue(answers[0L] == QuestionAnswer.Choice(QuestionChoiceKey("logs")))
                 assertTrue(answers[1L] == QuestionAnswer.Choice(QuestionChoiceKey("images")))

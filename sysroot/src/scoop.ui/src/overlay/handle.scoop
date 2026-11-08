@@ -19,7 +19,7 @@ public class OverlayHandle public constructor() {
     public val lastCloseReason: OverlayCloseReason? get() {
         checkUiThread(thread)
         return when (session) {
-            case Some(value) -> value.closeReason
+            case Some(val value) -> value.closeReason
             case None -> lastReason
         }
     }
@@ -33,7 +33,7 @@ public class OverlayHandle public constructor() {
     internal fun checkBinding(value: PortalInstance) {
         checkUiThread(thread)
         when (session) {
-            case Some(current) -> requireUi(
+            case Some(val current) -> requireUi(
                 current === value || !current.active,
                 "overlay handle already has a session"
             )
@@ -46,7 +46,7 @@ public class OverlayHandle public constructor() {
     }
     internal fun unbind(value: PortalInstance) {
         when (session) {
-            case Some(current) -> if (current === value) {
+            case Some(val current) -> if (current === value) {
                 lastReason = current.closeReason
                 session = None
             }

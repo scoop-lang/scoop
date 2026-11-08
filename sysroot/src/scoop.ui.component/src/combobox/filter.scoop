@@ -23,7 +23,7 @@ private class FilteredChoices<T: Equals<T>>(val entries: Array<ChoiceEntry<T>>):
     public override fun indexOfValue(value: T): Long? {
         for (index in 0L ..< entries.size)
             when (choiceEntryItem(entries[index])) {
-                case Some(item) -> if (item.choice.value == value)
+                case Some(val item) -> if (item.choice.value == value)
                     return Some(index)
                 case None -> {}
             }
@@ -86,22 +86,22 @@ internal fun <T: Equals<T>> comboFilter(
                 separator = Some(entry);
                 label = None
             }
-            case Item(item) -> {
+            case Item(val item) -> {
                 val matches =
                     when (filter) {
                         case Contains -> comboMatches(item, folded)
-                        case Custom(test) -> test(item, query)
+                        case Custom(val test) -> test(item, query)
                         case Provided -> true
                     }
                 if (!matches)
                     continue
                 when (separator) {
-                    case Some(value) -> if (entries.size > 0L)
+                    case Some(val value) -> if (entries.size > 0L)
                         entries.add(value);
                     case None -> {}
                 }
                 when (label) {
-                    case Some(value) -> entries.add(value);
+                    case Some(val value) -> entries.add(value);
                     case None -> {}
                 }
                 separator = None;

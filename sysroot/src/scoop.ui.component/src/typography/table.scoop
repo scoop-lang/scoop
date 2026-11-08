@@ -70,7 +70,7 @@ internal fun typographyTableTracks(
 ): Array<GridTrack> {
     if (rows.size == 0L) {
         when (columns) {
-            case Some(value) -> checkGridTracks(value);
+            case Some(val value) -> checkGridTracks(value);
             case None -> {}
         }
         return []
@@ -103,8 +103,8 @@ private fun typographyRowKey(row: TypographyTableRow, index: Long): ViewKey =
 
 private fun typographyCellKey(row: ViewKey, column: Long): ViewKey =
     when (row) {
-        case Text(value) -> ViewKey.Text(f"text:${value}:${column}")
-        case Number(value) -> ViewKey.Text(f"number:${value}:${column}")
+        case Text(val value) -> ViewKey.Text(f"text:${value}:${column}")
+        case Number(val value) -> ViewKey.Text(f"number:${value}:${column}")
         case Position -> throw IllegalArgumentException(Some("table row key must be resolved"))
     }
 

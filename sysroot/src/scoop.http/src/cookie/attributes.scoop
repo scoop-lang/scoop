@@ -37,12 +37,12 @@ internal fun interpretCookieAttributes(attributes: List<HttpCookieAttribute>): C
     var httpOnly = false
     var sameSite = HttpCookieSameSite.Default
     for (attribute in attributes) {
-        val value: Array<Byte> = when (attribute.value) { case None -> []; case Some(bytes) -> bytes }
+        val value: Array<Byte> = when (attribute.value) { case None -> []; case Some(val bytes) -> bytes }
         if (value.size > 1024L) continue
         if (attribute.hasName("expires")) {
-            when (HttpCookieDate.parseOrNone(value)) { case None -> {}; case Some(date) -> expires = Some(date) }
+            when (HttpCookieDate.parseOrNone(value)) { case None -> {}; case Some(val date) -> expires = Some(date) }
         } else if (attribute.hasName("max-age")) {
-            when (cookieMaxAge(value)) { case None -> {}; case Some(seconds) -> maxAge = Some(seconds) }
+            when (cookieMaxAge(value)) { case None -> {}; case Some(val seconds) -> maxAge = Some(seconds) }
         } else if (attribute.hasName("domain")) domain = Some(cookieDomainBytes(value))
         else if (attribute.hasName("path")) path = Some(value)
         else if (attribute.hasName("secure")) secure = true

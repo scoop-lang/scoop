@@ -16,7 +16,7 @@ public enum Entry<T>: Readable<T> {
     Value(T)
 
     public override fun read(): T = when (this) {
-        case Value(value) -> value
+        case Value(val value) -> value
     }
 }
 
@@ -24,5 +24,5 @@ public fun <T> singleton(value: T): Chain<T> = Chain.Cons(Link(value, Chain.End)
 
 public fun <T> total(value: Chain<T>, read: (T) -> Int): Int = when (value) {
     case End -> 0
-    case Cons(link) -> read(link.value) + total(link.tail, read)
+    case Cons(val link) -> read(link.value) + total(link.tail, read)
 }

@@ -24,7 +24,7 @@ public class SliderProps public constructor(
 ) {
     init {
         when (keyboardStep) {
-            case Some(step) -> requireComponent(
+            case Some(val step) -> requireComponent(
                 step.isFinite() && step > 0.0,
                 "slider keyboard step must be finite and positive"
             )

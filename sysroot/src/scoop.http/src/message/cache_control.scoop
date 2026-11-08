@@ -140,7 +140,7 @@ private fun appendCacheDirective(output: ByteArrayBuilder, directive: HttpCacheD
     output.append(directive.name.toByteArray())
     when (directive.value) {
         case None -> if (cacheSecondsDirective(directive.name) && directive.name != "max-stale") directive.deltaSeconds()
-        case Some(bytes) -> {
+        case Some(val bytes) -> {
             if (cacheFlagDirective(directive.name)) directive.failAt(0L, "cache directive does not allow an argument")
             output.append(61.toByte())
             if (cacheSecondsDirective(directive.name)) {

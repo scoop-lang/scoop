@@ -11,7 +11,7 @@ import scoop.tls.asyncio.*
 
 internal fun alpnBytes(bytes: Array<Byte>?): List<Byte>? =
     when (bytes) {
-        case Some(value) -> Some(value)
+        case Some(val value) -> Some(value)
         case None -> None
     }
 

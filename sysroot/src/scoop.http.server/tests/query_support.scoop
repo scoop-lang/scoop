@@ -22,7 +22,7 @@ internal fun <T> expectQueryError(input: String, codec: ValueDecoder<T>, path: S
         val cause = error.cause!! as DecodingException
         assertEquals(path, cause.path)
         when (error.result.body) {
-            case HttpBody.Bytes(value) -> {
+            case HttpBody.Bytes(val value) -> {
                 assertTrue(String.fromUtf8(value).contains(path))
                 assertTrue(String.fromUtf8(value).contains(location))
             }

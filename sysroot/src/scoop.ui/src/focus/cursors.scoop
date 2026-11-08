@@ -35,7 +35,7 @@ internal class NodeFocusCursor(
                 found = Some(position)
         }
         when (found) {
-            case Some(position) -> seekAfter(position)
+            case Some(val position) -> seekAfter(position)
             case None -> {}
         }
     }
@@ -43,8 +43,8 @@ internal class NodeFocusCursor(
         for (position in 0L ..< stops.size) {
             val focused =
                 when (stops[position]) {
-                    case Target(target) -> target.active && target.area.hasFocus
-                    case Items(owner) -> when (owner.focusedEntry()) {
+                    case Target(val target) -> target.active && target.area.hasFocus
+                    case Items(val owner) -> when (owner.focusedEntry()) {
                         case Some(_) -> true
                         case None -> false
                     }
@@ -75,7 +75,7 @@ internal class NodeFocusCursor(
             val stop = stops[index]
             val skip =
                 when (excluded) {
-                    case Some(boundary) -> withinFocusScope(focusStopNode(stop), boundary)
+                    case Some(val boundary) -> withinFocusScope(focusStopNode(stop), boundary)
                     case None -> false
                 }
             if (!skip)
@@ -101,7 +101,7 @@ internal class ItemFocusCursor(
         if (!owner.available || remaining == 0L)
             return None
         when (exact) {
-            case Some(key) -> {
+            case Some(val key) -> {
                 exact = None
                 remaining = 0L
                 current = Some(key)
@@ -114,7 +114,7 @@ internal class ItemFocusCursor(
             return None
         var index = initialIndex
         when (current) {
-            case Some(key) -> {
+            case Some(val key) -> {
                 val previous = owner.indexOf(key) ?: return None
                 index =
                     previous +

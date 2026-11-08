@@ -58,7 +58,7 @@ private fun insideActivity(scope: InputScope?, boundary: InputScope): InputScope
 
 private fun firstActivity(path: Array<InputScope>?): InputScope? =
     when (path) {
-        case Some(value) -> if (value.size > 0L)
+        case Some(val value) -> if (value.size > 0L)
             Some(value[0L])
         else
             None
@@ -71,7 +71,7 @@ internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
         return InputActivitySnapshot()
     val scroll =
         when (scrollRoute) {
-            case Some(route) -> if (!route.cancelled)
+            case Some(val route) -> if (!route.cancelled)
                 firstActivity(Some(route.scopes))
             else
                 None
@@ -80,9 +80,9 @@ internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
     val text =
         when (ime) {
             case Off -> None
-            case Opening(area) -> Some(area.scope)
-            case On(area) -> Some(area.scope)
-            case Closing(area) -> Some(area.scope)
+            case Opening(val area) -> Some(area.scope)
+            case On(val area) -> Some(area.scope)
+            case Closing(val area) -> Some(area.scope)
         }
     val ownedBoundaries = ArrayList<InputBoundary>()
     for (boundary in boundaries)

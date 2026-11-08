@@ -29,7 +29,7 @@ fun main() {
         while (true) {
             when (current) {
                 case None -> break
-                case Some(node) -> {
+                case Some(val node) -> {
                     actual += node.value
                     current = node.next
                 }

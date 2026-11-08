@@ -60,7 +60,7 @@ fun sumOptional(values: Array<Node?>): Long {
     var i = 0L
     var result = 0L
     while (i < values.size) {
-        result += when (values[i]) { case None -> 0L; case Some(value) -> value.value }
+        result += when (values[i]) { case None -> 0L; case Some(val value) -> value.value }
         i += 1L
     }
     return result

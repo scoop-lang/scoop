@@ -85,7 +85,7 @@ public class InputGroupAddonBuilder internal constructor(private val align: Inpu
     }
     internal fun snapshot(fonts: FontCollection?, theme: ThemeSource?): InputGroupAddon {
         when (spacing) {
-            case Some(value) -> nonnegative(value, "invalid input group addon spacing")
+            case Some(val value) -> nonnegative(value, "invalid input group addon spacing")
             case None -> {}
         }
         padding?.totals()
@@ -93,17 +93,17 @@ public class InputGroupAddonBuilder internal constructor(private val align: Inpu
         for (part in parts)
             children.add(
                 when (part) {
-                    case Text(value) -> typography(value, TypographyRole.Muted) {
+                    case Text(val value) -> typography(value, TypographyRole.Muted) {
                         this.fonts = fonts
                         this.theme = theme
                         this.selectable = false
                     }
-                    case Button(value, key) -> component(
+                    case Button(val value, val key) -> component(
                         groupButtonProps(value, None, fonts, theme),
                         { current, mount -> Button(current, scope = mount) },
                         key
                     )
-                    case Custom(view) -> view
+                    case Custom(val view) -> view
                 }
             )
         return InputGroupAddon(

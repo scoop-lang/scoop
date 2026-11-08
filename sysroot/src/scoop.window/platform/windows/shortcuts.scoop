@@ -46,17 +46,17 @@ internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
 
 private fun windowsShortcutLabel(key: ShortcutKey): String {
     return when (key) {
-        case Logical(LogicalKey.Character(text)) -> text
-        case Logical(LogicalKey.Named(key)) -> windowsNamedLabel(key)
+        case Logical(LogicalKey.Character(val text)) -> text
+        case Logical(LogicalKey.Named(val key)) -> windowsNamedLabel(key)
         case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
             Some("dead shortcut key")
         )
         case Logical(LogicalKey.Unidentified(_)) -> "Unknown"
         case Physical(PhysicalKey.Unidentified(_)) -> "Unknown"
-        case Physical(PhysicalKey.Code(key)) -> {
+        case Physical(PhysicalKey.Code(val key)) -> {
             when (val scan = windowsScanCode(key)) {
-                case Some(value) -> when (val text = windowsLayoutLabel(value)) {
-                    case Some(label) -> return label
+                case Some(val value) -> when (val text = windowsLayoutLabel(value)) {
+                    case Some(val label) -> return label
                     case None -> {}
                 }
                 case None -> {}
@@ -81,7 +81,7 @@ private fun windowsLayoutLabel(scan: UInt): String? {
         try {
             checkNativeStatus(result.error, "query shortcut label")
             return when (result.bytes) {
-                case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                case Some(val bytes) -> Some(String.fromUtf8(bytes, result.length))
                 case None -> None
             }
         } finally {

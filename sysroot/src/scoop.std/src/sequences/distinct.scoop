@@ -10,7 +10,7 @@ private class DistinctSequenceIterator<T, K>(private val source: Iterator<T>, pr
         while (true) {
             when (source.next()) {
                 case None -> return None
-                case Some(value) -> { if (seen.add(selector(value))) return Some(value) }
+                case Some(val value) -> { if (seen.add(selector(value))) return Some(value) }
             }
         }
     }

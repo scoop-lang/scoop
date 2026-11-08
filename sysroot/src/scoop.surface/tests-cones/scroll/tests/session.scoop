@@ -73,7 +73,7 @@ internal class NativeScrollSession {
                         _,
                         event -> when (event) {
                             case Pointer(
-                                InputPointerEvent.Wheel(pointer, _, _, _)
+                                InputPointerEvent.Wheel(val pointer, _, _, _)
                             ) -> lastPosition =
                                 Point(
                                     pointer.state.logicalPosition.x,
@@ -108,7 +108,7 @@ internal class NativeScrollSession {
                     {
                         context,
                         event -> when (event) {
-                            case Pointer(InputPointerEvent.Wheel(_, delta, contact, momentum)) -> {
+                            case Pointer(InputPointerEvent.Wheel(_, val delta, val contact, val momentum)) -> {
                                 assertTrue(context.target === child.scope)
                                 innerEvents += 1
                                 contacts.add(contact)
@@ -126,7 +126,7 @@ internal class NativeScrollSession {
                     {
                         context,
                         event -> when (event) {
-                            case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                            case Pointer(InputPointerEvent.Wheel(_, val delta, _, _)) -> {
                                 outerEvents += 1
                                 context.consumeScroll(20.0) {
                                     amount ->

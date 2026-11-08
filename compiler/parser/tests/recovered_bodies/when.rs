@@ -54,7 +54,8 @@ fn previous_complete_heads_and_eof_are_retained_without_copying_complete_bodies(
 
 #[test]
 fn an_incomplete_guard_retains_its_real_pattern_and_expression_start() {
-    let text = "fun editing(value: (Boolean, String)) { when (value) { case (flag, 文本) if 文本.";
+    let text =
+        "fun editing(value: (Boolean, String)) { when (value) { case (val flag, val 文本) if 文本.";
     let parsed = parse_recovering(text).unwrap();
     let body = body(&parsed, "editing");
     let ast::RecoveredWhenArm::Guard {

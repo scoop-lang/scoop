@@ -6,9 +6,9 @@
 //! 4.6 disambiguation rule).
 //! Enum variant patterns and struct patterns share their shapes
 //! (`Path(...)`, `Path { ... }`, tuple patterns); HIR resolves which is
-//! which. Except for the built-in `Unit` literal spelling, an unqualified
-//! bare identifier stays unresolved binding-shaped syntax; HIR classifies it
-//! according to the binding or match context. A dotted path without an
+//! which. Binding positions accept bare names; match positions require
+//! `val name` for bindings and keep bare variant names distinct in AST.
+//! A dotted path without an
 //! argument list (`E.V`) is a unit variant pattern, encoded as a positional
 //! pattern with no elements.
 
@@ -19,10 +19,16 @@ use crate::parser::Parser;
 
 mod lists;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PatternContext {
+    Binding,
+    Match,
+}
+
 /// Every pattern carries a span; `Binding` uses its identifier's.
 pub(crate) fn pattern_span(pattern: &Pattern) -> Span {
     match pattern {
-        Pattern::Binding(ident) => ident.span,
+        Pattern::Binding(ident) | Pattern::BareVariant(ident) => ident.span,
         Pattern::Wildcard { span }
         | Pattern::Literal { span, .. }
         | Pattern::Positional { span, .. }
@@ -32,15 +38,19 @@ pub(crate) fn pattern_span(pattern: &Pattern) -> Span {
 }
 
 impl Parser {
-    pub(crate) fn parse_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+    pub(crate) fn parse_pattern(&mut self, context: PatternContext) -> Result<Pattern, Diagnostic> {
         self.with_node(scoop_syntax::SyntaxKind::Pattern, |parser| {
-            parser.parse_pattern_inner()
+            parser.parse_pattern_inner(context)
         })
     }
 
-    fn parse_pattern_inner(&mut self) -> Result<Pattern, Diagnostic> {
+    fn parse_pattern_inner(&mut self, context: PatternContext) -> Result<Pattern, Diagnostic> {
         let token = self.peek().clone();
         match token.kind {
+            TokenKind::Val if context == PatternContext::Match => {
+                self.bump();
+                self.parse_explicit_pattern_binding().map(Pattern::Binding)
+            }
             TokenKind::Minus => self.parse_negated_numeric_literal_pattern(token),
             TokenKind::Float(lexeme) => {
                 self.pos += 1;
@@ -90,12 +100,24 @@ impl Parser {
                     span: token.span,
                 })
             }
-            TokenKind::LParen => self.parse_tuple_pattern(),
-            TokenKind::LBrace => self.parse_named_pattern(Vec::new(), token.span.start),
-            TokenKind::Ident(text) => self.parse_ident_pattern(text, token.span, false),
-            TokenKind::EscapedIdent(text) => self.parse_ident_pattern(text, token.span, true),
+            TokenKind::LParen => self.parse_tuple_pattern(context),
+            TokenKind::LBrace => self.parse_named_pattern(Vec::new(), token.span.start, context),
+            TokenKind::Ident(text) => self.parse_ident_pattern(text, token.span, false, context),
+            TokenKind::EscapedIdent(text) => {
+                self.parse_ident_pattern(text, token.span, true, context)
+            }
             _ => self.unexpected("pattern"),
         }
+    }
+
+    fn parse_explicit_pattern_binding(&mut self) -> Result<Ident, Diagnostic> {
+        if matches!(&self.peek().kind, TokenKind::Ident(name) if name == "_") {
+            return Err(Diagnostic::at(
+                self.peek().span,
+                "use `_` without `val` to ignore a matched value",
+            ));
+        }
+        self.expect_ident("binding name after `val`")
     }
 
     /// Unary minus is part of literal-pattern syntax only when its operand is
@@ -158,6 +180,7 @@ impl Parser {
         text: String,
         span: Span,
         escaped: bool,
+        context: PatternContext,
     ) -> Result<Pattern, Diagnostic> {
         self.pos += 1;
         if text == "_" && !escaped {
@@ -183,11 +206,14 @@ impl Parser {
             path.push(self.expect_ident("variant name")?);
         }
         match self.peek().kind {
-            TokenKind::LParen => self.parse_positional_pattern(path, start),
-            TokenKind::LBrace => self.parse_named_pattern(path, start),
+            TokenKind::LParen => self.parse_positional_pattern(path, start, context),
+            TokenKind::LBrace => self.parse_named_pattern(path, start, context),
             _ if path.len() == 1 => {
                 let name = path.into_iter().next().expect("path holds one ident");
-                Ok(Pattern::Binding(name))
+                Ok(match context {
+                    PatternContext::Binding => Pattern::Binding(name),
+                    PatternContext::Match => Pattern::BareVariant(name),
+                })
             }
             // `E.V` without an argument list is a unit variant pattern.
             _ => {

@@ -11,7 +11,7 @@ internal fun <T> adoptSync(engine: TlsEngine, transport: T): TlsStream
     catch (error: Throwable) {
         val resources: Array<Closeable> = [owner, engine]
         when (closeAll(resources)) {
-            case Some(cleanup) -> throw ResourceUseException(error, cleanup)
+            case Some(val cleanup) -> throw ResourceUseException(error, cleanup)
             case None -> throw error
         }
     }

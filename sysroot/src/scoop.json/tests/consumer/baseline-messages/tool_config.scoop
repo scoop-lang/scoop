@@ -35,18 +35,18 @@ enum ToolChoice {
         public override fun encode(value: ToolChoice, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ToolChoice.Auto(payload) -> {
+                case ToolChoice.Auto(val payload) -> {
                     String.encode("auto", fields.field("type"))
                     ChoiceOptions.Companion.encode(payload, encoder)
                 }
-                case ToolChoice.Any(payload) -> {
+                case ToolChoice.Any(val payload) -> {
                     String.encode("any", fields.field("type"))
                     ChoiceOptions.Companion.encode(payload, encoder)
                 }
                 case ToolChoice.None -> {
                     String.encode("none", fields.field("type"))
                 }
-                case ToolChoice.Named(payload) -> {
+                case ToolChoice.Named(val payload) -> {
                     String.encode("tool", fields.field("type"))
                     NamedChoice.Companion.encode(payload, encoder)
                 }
@@ -71,7 +71,7 @@ enum Thinking {
         public override fun encode(value: Thinking, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case Thinking.Enabled(payload) -> {
+                case Thinking.Enabled(val payload) -> {
                     String.encode("enabled", fields.field("type"))
                     ThinkingBudget.Companion.encode(payload, encoder)
                 }

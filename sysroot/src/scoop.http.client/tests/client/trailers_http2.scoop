@@ -30,7 +30,7 @@ private class HttpClientTrailersHttp2Test {
                                 for (incoming in requests) {
                                     val path =
                                         when (incoming.head.target) {
-                                            case Http2(_, _, value) -> String.fromUtf8(value)
+                                            case Http2(_, _, val value) -> String.fromUtf8(value)
                                             else -> throw IllegalStateException()
                                         }
                                     val text = String.fromUtf8(incoming.stream.readAllBytes(10L))

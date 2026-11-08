@@ -60,14 +60,14 @@ private class WindowAttachment(private val host: ApplicationHost): ApplicationAt
         var result = error
         try {
             when (cancellation) {
-                case Some(value) -> value.dispose();
+                case Some(val value) -> value.dispose();
                 case None -> {}
             }
         } catch (cleanup: Throwable) {
             result =
                 Some(
                     when (error) {
-                        case Some(primary) -> ResourceUseException(primary, cleanup);
+                        case Some(val primary) -> ResourceUseException(primary, cleanup);
                         case None -> cleanup
                     }
                 )

@@ -34,7 +34,7 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
     public fun ensureActive() {
         val reason = lock.withLock { cancellation }
         when (reason) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }
@@ -103,7 +103,7 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
         lock.withLock { bodyEnded = true; cancelling += 1 }
         try {
             when (error) {
-                case Some(reason) -> requestCancellation(Some(reason))
+                case Some(val reason) -> requestCancellation(Some(reason))
                 case None -> {}
             }
         } finally {
@@ -117,7 +117,7 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
             if (completed) return@withLock None
             var propagate: Throwable? = None
             when (error) {
-                case Some(reason) -> {
+                case Some(val reason) -> {
                     if (!(reason is CancellationException) && coroutineAbsent(failure)) {
                         failure = Some(reason)
                         propagate = Some(reason)
@@ -131,12 +131,12 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
         }
         when (dispatch) {
             case None -> return
-            case Some(batch) -> {
+            case Some(val batch) -> {
                 try {
                     when (batch.failure) {
-                        case Some(reason) -> {
+                        case Some(val reason) -> {
                             when (batch.parent) {
-                                case Some(owner) -> if (propagatesFailure) owner.requestCancellation(Some(reason))
+                                case Some(val owner) -> if (propagatesFailure) owner.requestCancellation(Some(reason))
                                 case None -> {}
                             }
                         }
@@ -166,10 +166,10 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
         }
         when (batch) {
             case None -> {}
-            case Some(done) -> {
+            case Some(val done) -> {
                 try {
                     when (done.parent) {
-                        case Some(owner) -> owner.removeChild(this)
+                        case Some(val owner) -> owner.removeChild(this)
                         case None -> {}
                     }
                 } finally { notifyCoroutineListeners(done.listeners) }
@@ -187,7 +187,7 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
         if (!completed) throw IllegalStateException(Some("task has not completed"))
         if (!coroutineAbsent(failure)) return@withLock failure
         when (cancellation) {
-            case Some(reason) -> Some(reason)
+            case Some(val reason) -> Some(reason)
             case None -> None
         }
     }

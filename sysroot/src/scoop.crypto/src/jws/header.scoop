@@ -24,7 +24,7 @@ private object HeaderDecoder : ValueDecoder<ProtectedHeader> {
             if (name == "crit") throw JwsException("critical header extensions are unsupported")
         }
         val encoded = when (fields.optional("b64")) {
-            case Some(value) -> value.singleValue().readBoolean()
+            case Some(val value) -> value.singleValue().readBoolean()
             case None -> true
         }
         if (!encoded) throw JwsException("unencoded JWS payload is unsupported")
@@ -34,7 +34,7 @@ private object HeaderDecoder : ValueDecoder<ProtectedHeader> {
 }
 
 internal fun optionalText(fields: KeyedDecodingContainer, name: String): String? = when (fields.optional(name)) {
-    case Some(value) -> Some(value.singleValue().readString())
+    case Some(val value) -> Some(value.singleValue().readString())
     case None -> None
 }
 
@@ -50,7 +50,7 @@ internal fun parseHeader(text: String, algorithm: JwsAlgorithm): ProtectedHeader
 }
 
 internal fun decodePart(text: String): Array<Byte> = when (urlEncoding.decodeOrNone(text)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> throw JwsException("invalid unpadded Base64URL")
 }
 

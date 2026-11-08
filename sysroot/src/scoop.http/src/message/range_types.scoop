@@ -62,9 +62,9 @@ internal fun checkedHttpRanges(ranges: List<HttpByteRange>): Array<HttpByteRange
     val result = ranges.toArray()
     for (range in result) {
         val valid = when (range) {
-            case FromTo(first, last) -> first >= 0L && last >= first
-            case From(first) -> first >= 0L
-            case Suffix(length) -> length >= 0L
+            case FromTo(val first, val last) -> first >= 0L && last >= first
+            case From(val first) -> first >= 0L
+            case Suffix(val length) -> length >= 0L
         }
         if (!valid) throw IllegalArgumentException(Some("invalid byte range"))
     }
@@ -72,7 +72,7 @@ internal fun checkedHttpRanges(ranges: List<HttpByteRange>): Array<HttpByteRange
 }
 
 internal fun formatHttpByteRange(range: HttpByteRange): String = when (range) {
-    case FromTo(first, last) -> first.toString() + "-" + last.toString()
-    case From(first) -> first.toString() + "-"
-    case Suffix(length) -> "-" + length.toString()
+    case FromTo(val first, val last) -> first.toString() + "-" + last.toString()
+    case From(val first) -> first.toString() + "-"
+    case Suffix(val length) -> "-" + length.toString()
 }

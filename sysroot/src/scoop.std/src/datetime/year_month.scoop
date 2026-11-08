@@ -85,14 +85,14 @@ public class YearMonth public constructor(
          * Parses ISO year-month, returning None for malformed or out-of-range input.
          */
         public fun parseOrNone(text: String): YearMonth? = when (parseCalendarFields(text, false)) {
-            case Some(parts) -> Some(YearMonth(parts._1, parts._2))
+            case Some(val parts) -> Some(YearMonth(parts._1, parts._2))
             case None -> None
         }
         /**
          * Parses ISO year-month or throws IllegalArgumentException for invalid input.
          */
         public fun parse(text: String): YearMonth = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid year-month"))
         }
     }

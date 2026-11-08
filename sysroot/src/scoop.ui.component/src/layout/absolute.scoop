@@ -31,11 +31,11 @@ public class AbsoluteProps public constructor(
     init {
         logicalPadding?.resolve(LayoutDirection.Ltr)
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid absolute width")
+            case Some(val value) -> nonnegative(value, "invalid absolute width")
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid absolute height")
+            case Some(val value) -> nonnegative(value, "invalid absolute height")
             case None -> {}
         }
         for (child in children) {

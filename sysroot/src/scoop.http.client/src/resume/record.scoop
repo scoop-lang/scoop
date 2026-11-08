@@ -38,7 +38,7 @@ internal fun clientResumePartialRange(range: ClientResumeRange, response: HttpRe
     for (index in 0L..<encodings.size) if (encodings[index] != range.record.encodings[index])
         throw HttpResumeException(HttpResumeFailureReason.RepresentationChanged, "resumed response encoding changed", Some(response.head))
     val field = clientCacheField(response.head.fields, "Content-Range")
-    val value = when (field) { case Some(part) -> HttpContentRange.parseOrNone(part.value); case None -> None }
+    val value = when (field) { case Some(val part) -> HttpContentRange.parseOrNone(part.value); case None -> None }
     if (!clientPresent(value) || !clientPresent(value!!.range) || !clientPresent(value!!.completeLength))
         throw HttpResumeException(HttpResumeFailureReason.InvalidRange, "resume needs a complete byte range", Some(response.head))
     val actual = value!!

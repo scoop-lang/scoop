@@ -57,7 +57,7 @@ internal fun ApplicationOwner.refreshMonitors(): Array<Monitor> {
                 val value = nativeMonitorData(pointer, index)
                 val name =
                     when (value.name) {
-                        case Some(bytes) -> Some(String.fromUtf8(bytes, value.nameLength))
+                        case Some(val bytes) -> Some(String.fromUtf8(bytes, value.nameLength))
                         case None -> None
                     }
                 val monitor =

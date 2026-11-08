@@ -122,6 +122,7 @@ impl Lowerer {
                 setter,
             },
         );
+        self.warn_variant_shadowing(&declaration.name, property_ty, false);
         self.scopes.declare(declaration.name.text.clone(), storage);
         out.extend(sink);
         out.push(hir::Statement {

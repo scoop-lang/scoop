@@ -62,7 +62,7 @@ private class ItemMedia(private val props: Props<ItemMediaProps>, scope: Compone
             context.measureChild(
                 0L,
                 when (input.side) {
-                    case Some(side) -> Constraints.tight(constraints.constrain(Size(side, side)))
+                    case Some(val side) -> Constraints.tight(constraints.constrain(Size(side, side)))
                     case None -> constraints
                 }
             )
@@ -72,7 +72,7 @@ private class ItemMedia(private val props: Props<ItemMediaProps>, scope: Compone
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         when (input.radius) {
-            case Some(radius) -> painter!!.scene(
+            case Some(val radius) -> painter!!.scene(
                 context,
                 Rect(0.0, input.offset, context.size.width, context.size.height),
                 style {

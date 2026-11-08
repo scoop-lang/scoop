@@ -20,6 +20,6 @@ public fun result(): Int {
     val singleton = Parcel.Item(Singleton)
     return when (parcel) {
         case Empty -> 0
-        case Item(pair) -> pair.first.value + pair.second.value
+        case Item(val pair) -> pair.first.value + pair.second.value
     }
 }

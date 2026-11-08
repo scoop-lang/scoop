@@ -14,8 +14,8 @@ internal fun choicesText(choices: Array<CliChoice>): String =
 
 internal fun metavar(entry: CliEntry): String {
     val label = if (entry.valueName != "") { entry.valueName } else { when (entry.valueShape) {
-        case CliValueShape.Choice(choices) -> choicesText(choices)
-        case CliValueShape.Repeated(CliElementShape.Choice(choices)) -> choicesText(choices)
+        case CliValueShape.Choice(val choices) -> choicesText(choices)
+        case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> choicesText(choices)
         else -> "VALUE"
     } }
     return "<" + label + ">" + if (isRepeated(entry.valueShape)) { "..." } else { "" }
@@ -36,8 +36,8 @@ internal fun helpEntry(entry: CliEntry, writer: TextWriter) {
     if (entry.help != "") { writer.write("  " + entry.help) }
     if (entry.valueName != "") {
         when (entry.valueShape) {
-            case CliValueShape.Choice(choices) -> writer.write(" [choices: " + choicesText(choices) + "]")
-            case CliValueShape.Repeated(CliElementShape.Choice(choices)) -> writer.write(" [choices: " + choicesText(choices) + "]")
+            case CliValueShape.Choice(val choices) -> writer.write(" [choices: " + choicesText(choices) + "]")
+            case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> writer.write(" [choices: " + choicesText(choices) + "]")
             else -> {}
         }
     }

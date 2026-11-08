@@ -11,9 +11,9 @@ public fun result(): Int {
     if (left == Choice.Item(40)) { return 2 }
     val score = when (left) {
         case Renamed.Empty -> 3
-        case Renamed.Item(payload) -> payload
-        case Renamed.Named { amount, payload } -> payload + amount
-        case Renamed.Defaults { payload, amount } -> payload + amount
+        case Renamed.Item(val payload) -> payload
+        case Renamed.Named { val amount, val payload } -> payload + amount
+        case Renamed.Defaults { val payload, val amount } -> payload + amount
     }
     return exercise<Int>(score, { value -> value })
 }

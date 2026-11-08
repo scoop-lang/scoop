@@ -1,6 +1,6 @@
 fun case(case: Int): Int = when (case) {
     case 0 -> 10
-    case value -> value + 1
+    case val value -> value + 1
 }
 
 fun main() {

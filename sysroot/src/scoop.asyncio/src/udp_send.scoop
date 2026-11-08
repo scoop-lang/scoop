@@ -70,7 +70,7 @@ private suspend fun sendBorrowed(
                         event, selected ->
                         progress.count = resultProgress(event.result)
                         when (completionFailure("UDP send", event.result, selected)) {
-                            case Some(error) -> continuation.resumeWithException(error)
+                            case Some(val error) -> continuation.resumeWithException(error)
                             case None -> continuation.resume(progress.count)
                         }
                     }

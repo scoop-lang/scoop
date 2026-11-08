@@ -9,7 +9,7 @@ fun consume(value: Signal): Int = 2
 
 fun describe(value: Signal): Int = when (value) {
     case Ready -> 1
-    case Raedy -> consume(Raedy)
+    case val Raedy -> consume(Raedy)
 }
 
 enum Word { Emacs, Vi, Big }
@@ -26,27 +26,27 @@ enum Command {
 struct Selection(val end: WordEnd, val movement: Movement)
 
 fun inclusive(movement: Movement): Boolean = when (movement) {
-    case ForwardWord(_, _, end) -> end == WordEnd.BeforeEnd
+    case ForwardWord(_, _, val end) -> end == WordEnd.BeforeEnd
     else -> false
 }
 
 fun execute(command: Command): Boolean = when (command) {
-    case Move(movement) -> inclusive(movement)
-    case Kill(movement) -> inclusive(movement)
-    case Change(movement) -> inclusive(movement)
+    case Move(val movement) -> inclusive(movement)
+    case Kill(val movement) -> inclusive(movement)
+    case Change(val movement) -> inclusive(movement)
 }
 
 fun selected(selection: Selection): Boolean = when (selection) {
-    case Selection { end, movement } if (end == WordEnd.BeforeEnd) -> inclusive(movement)
+    case Selection { val end, val movement } if (end == WordEnd.BeforeEnd) -> inclusive(movement)
     else -> false
 }
 
 fun tupleEnd(value: (WordEnd, Movement)): Boolean = when (value) {
-    case (end, movement) -> end == WordEnd.BeforeEnd && inclusive(movement)
+    case (val end, val movement) -> end == WordEnd.BeforeEnd && inclusive(movement)
 }
 
 fun optionalEnd(value: WordEnd?): Boolean = when (value) {
-    case Some(end) -> end == WordEnd.BeforeEnd
+    case Some(val end) -> end == WordEnd.BeforeEnd
     case None -> false
 }
 

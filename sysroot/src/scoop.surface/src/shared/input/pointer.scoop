@@ -5,11 +5,11 @@ import scoop.window.*
 
 internal fun InputRouter.pointerEvent(event: PointerEvent) {
     when (event) {
-        case Cancelled(reason, time) -> {
+        case Cancelled(val reason, val time) -> {
             cancelPointerInput(InputCancelReason.Window(reason), time)
             return
         }
-        case Wheel(state, _, phase, momentum) -> prepareScroll(phase, momentum, state.time)
+        case Wheel(val state, _, val phase, val momentum) -> prepareScroll(phase, momentum, state.time)
         else -> {}
     }
     if (closed)
@@ -31,12 +31,12 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
         }
     val scroll =
         when (event) {
-            case Wheel(_, _, phase, momentum) -> selectScroll(fallback, phase, momentum)
+            case Wheel(_, _, val phase, val momentum) -> selectScroll(fallback, phase, momentum)
             else -> None
         }
     val selected =
         when (event) {
-            case Button(_, button, ElementState.Pressed, _) -> {
+            case Button(_, val button, ElementState.Pressed, _) -> {
                 if (buttons.size == 0L) {
                     pointerClaim = None
                     pressed = Some(fallback)
@@ -45,7 +45,7 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
                     buttons.add(button)
                 pressed ?: []
             }
-            case Button(_, button, ElementState.Released, _) -> {
+            case Button(_, val button, ElementState.Released, _) -> {
                 val route: Array<InputScope> =
                     if (hasButton(buttons, button))
                         pressed ?: []
@@ -63,7 +63,7 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
                 []
             }
             case Wheel(_, _, _, _) -> when (scroll) {
-                case Some(route) -> scrollPath(route)
+                case Some(val route) -> scrollPath(route)
                 case None -> fallback
             }
             else -> pressed ?: fallback
@@ -81,16 +81,16 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
             InputEvent.Pointer(InputPointerEvent.Moved(value)),
             state.time
         )
-        case Button(_, button, state, clicks) -> route(
+        case Button(_, val button, val state, val clicks) -> route(
             chain,
             InputEvent.Pointer(InputPointerEvent.Button(value, button, state, clicks)),
             value.time
         )
-        case Wheel(_, delta, phase, momentum) -> {
+        case Wheel(_, val delta, val phase, val momentum) -> {
             val logical =
                 when (delta) {
-                    case LineDelta(x, y) -> InputScrollDelta.Lines(x, y)
-                    case PixelDelta(x, y) -> {
+                    case LineDelta(val x, val y) -> InputScrollDelta.Lines(x, y)
+                    case PixelDelta(val x, val y) -> {
                         requireInput(
                             state.scaleFactor.isFinite() && state.scaleFactor > 0.0,
                             "invalid scroll scale"
@@ -124,7 +124,7 @@ private fun InputRouter.interceptPress(
         return false
     val(button, clicks) =
         when (event) {
-            case Button(_, value, ElementState.Pressed, count) -> (value, count)
+            case Button(_, val value, ElementState.Pressed, val count) -> (value, count)
             else -> return false
         }
     val root = inputRoot
@@ -146,7 +146,7 @@ private fun InputRouter.interceptPress(
 
 internal fun InputRouter.reconcilePress(boundaryChange: Boolean = false) {
     when (pressed) {
-        case Some(route) -> {
+        case Some(val route) -> {
             if (route.size > 0L && (boundaryChange || !samePath(route, path(route[0L]))))
                 cancelPress(
                     if (boundaryChange)
@@ -189,7 +189,7 @@ internal fun InputRouter.cancelPress(reason: InputCancelReason, time: InputTime,
 internal fun InputRouter.refreshHover(time: InputTime) {
     val next: Array<InputScope> =
         when (pointer) {
-            case Some(state) -> if (inside && !closed)
+            case Some(val state) -> if (inside && !closed)
                 hit(Point(state.logicalPosition.x, state.logicalPosition.y))
             else
                 []
@@ -204,7 +204,7 @@ internal fun InputRouter.replaceHover(next: Array<InputScope>, time: InputTime) 
     val state = pointer
     val entries: Array<RouteDelivery> =
         when (state) {
-            case Some(value) -> deliveries(
+            case Some(val value) -> deliveries(
                 next,
                 Some(Point(value.logicalPosition.x, value.logicalPosition.y))
             )
@@ -245,11 +245,11 @@ internal fun InputRouter.replaceHover(next: Array<InputScope>, time: InputTime) 
 
 private fun eventState(event: PointerEvent): PointerState =
     when (event) {
-        case Entered(state) -> state
-        case Left(state) -> state
-        case Moved(state) -> state
-        case Button(state, _, _, _) -> state
-        case Wheel(state, _, _, _) -> state
+        case Entered(val state) -> state
+        case Left(val state) -> state
+        case Moved(val state) -> state
+        case Button(val state, _, _, _) -> state
+        case Wheel(val state, _, _, _) -> state
         case Cancelled(_, _) -> throw IllegalStateException(Some("cancel has no pointer position"))
     }
 

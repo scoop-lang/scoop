@@ -19,7 +19,7 @@ internal fun cleanupUi(previous: Throwable?, action: () -> Unit): Throwable? {
     }
     catch (error: Throwable) {
         return when (previous) {
-            case Some(primary) -> Some(ResourceUseException(primary, error))
+            case Some(val primary) -> Some(ResourceUseException(primary, error))
             case None -> Some(error)
         }
     }
@@ -28,7 +28,7 @@ internal fun cleanupUi(previous: Throwable?, action: () -> Unit): Throwable? {
 
 internal fun throwUi(failure: Throwable?) {
     when (failure) {
-        case Some(error) -> throw error
+        case Some(val error) -> throw error
         case None -> {}
     }
 }

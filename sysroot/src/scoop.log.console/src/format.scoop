@@ -10,7 +10,7 @@ import scoop.time.Instant
 public fun defaultConsoleLogFormat(record: LogRecord, timestamp: Instant): String {
     val text = f"${timestamp} [${record.level}] ${record.target}: ${record.message}"
     return when (record.cause) {
-        case Some(failure) -> {
+        case Some(val failure) -> {
             val summary = if (failure is Exception) failure.message ?: "Exception (no message)" else "Throwable"
             text + " | cause: " + summary
         }

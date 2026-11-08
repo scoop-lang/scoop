@@ -23,18 +23,18 @@ public enum HttpCallResult : AsyncCloseable {
 }
 
 internal fun clientResultResource(result: HttpCallResult): AsyncCloseable = when (result) {
-    case Response(response) -> response
-    case WebSocket(value) -> when (value) {
-        case Opened(session) -> session
-        case Rejected(response, _) -> response
+    case Response(val response) -> response
+    case WebSocket(val value) -> when (value) {
+        case Opened(val session) -> session
+        case Rejected(val response, _) -> response
     }
 }
 
 internal fun clientResultOwner(result: HttpCallResult): ClientState = when (result) {
-    case Response(response) -> response.call.client
-    case WebSocket(value) -> when (value) {
-        case Opened(session) -> session.state.client
-        case Rejected(response, _) -> response.call.client
+    case Response(val response) -> response.call.client
+    case WebSocket(val value) -> when (value) {
+        case Opened(val session) -> session.state.client
+        case Rejected(val response, _) -> response.call.client
     }
 }
 

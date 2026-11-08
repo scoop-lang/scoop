@@ -27,7 +27,7 @@ public class Editor public constructor(
     /** Creates a printer that can be shared with worker threads before reading begins. */
     public fun createExternalPrinter(): ExternalPrinter {
         when (printer) {
-            case Some(value) -> return value
+            case Some(val value) -> return value
             case None -> {
                 val value = ExternalPrinter()
                 printer = Some(value)
@@ -119,7 +119,7 @@ public class Editor public constructor(
                     buffer.insert(character.toString())
             }
             when (val result = validator.validate(buffer.text)) {
-                case Valid(message) -> {
+                case Valid(val message) -> {
                     if (message != None) {
                         output.writeText(message!!);
                         output.flush()
@@ -128,7 +128,7 @@ public class Editor public constructor(
                         history.add(buffer.text)
                     return buffer.text
                 }
-                case Invalid(message) -> {
+                case Invalid(val message) -> {
                     if (message != None) {
                         output.writeText(message!!);
                         output.flush()

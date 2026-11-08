@@ -64,7 +64,7 @@ public class Select<T: Equals<T>> public constructor(
     }
     private fun initialFocus(): FocusHandle? =
         when (selectedKey()) {
-            case Some(key) -> Some(candidates.handle(key))
+            case Some(val key) -> Some(candidates.handle(key))
             case None -> candidates.edge(last.value)
         }
     private fun setOpen(value: Boolean) {
@@ -74,7 +74,7 @@ public class Select<T: Equals<T>> public constructor(
         if (value == previous)
             return
         when (props.value.open) {
-            case Some(binding) -> binding.value = value
+            case Some(val binding) -> binding.value = value
             case None -> local.value = value
         }
         if (open.value != previous)
@@ -110,7 +110,7 @@ public class Select<T: Equals<T>> public constructor(
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (scope.isMounted)
+            case Some(val reverse) -> if (scope.isMounted)
                 scope.moveFocus(reverse)
             case None -> {}
         }
@@ -120,9 +120,9 @@ public class Select<T: Equals<T>> public constructor(
         MenuContent(
             Array<MenuEntry>(props.value.content.entries.size) {
                 index -> when (props.value.content.entries[index]) {
-                    case Label(key, content) -> MenuEntry.Label(key, content)
-                    case Separator(key) -> MenuEntry.Separator(key)
-                    case Item(item) -> MenuEntry.Radio(
+                    case Label(val key, val content) -> MenuEntry.Label(key, content)
+                    case Separator(val key) -> MenuEntry.Separator(key)
+                    case Item(val item) -> MenuEntry.Radio(
                         MenuItemSpec(
                             item.choice.key,
                             item.choice.label,
@@ -221,7 +221,7 @@ public class Select<T: Equals<T>> public constructor(
         val density = theme.tokens.typography.body.fontSize / 14.0
         val content =
             when (input.valueContent) {
-                case Some(build) -> build(SelectValue(input.value.value, choice, appearance))
+                case Some(val build) -> build(SelectValue(input.value.value, choice, appearance))
                 case None -> selectLabel(
                     styledText {
                         style =

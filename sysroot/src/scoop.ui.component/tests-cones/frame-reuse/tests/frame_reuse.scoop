@@ -214,7 +214,7 @@ private class ComponentFrameRoot(
                     pixels[2L] = framePixel(native, 4L, sizes[4L], Point(0.25, 0.5))
                     pixels[3L] = framePixel(native, 5L, sizes[5L], Point(0.2, 0.5))
                     when (probe.editor!!.area.visibleCaretBounds) {
-                        case Some(rect) -> @Unsafe
+                        case Some(val rect) -> @Unsafe
                         {
                             pixels[4L] =
                                 readNativePixel(

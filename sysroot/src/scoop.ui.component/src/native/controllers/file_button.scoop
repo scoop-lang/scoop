@@ -37,10 +37,10 @@ public class NativeFileButton public constructor(
             val input = props.value
             if (input.enabled && !controller.isPending)
                 when (input.request) {
-                    case Open(options) -> {
+                    case Open(val options) -> {
                         controller.openFile(input.target, completed, options)
                     }
-                    case Save(options) -> {
+                    case Save(val options) -> {
                         controller.saveFile(input.target, completed, options)
                     }
                 }

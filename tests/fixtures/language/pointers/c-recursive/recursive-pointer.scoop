@@ -12,7 +12,7 @@ fun main() {
         val result = bumpNode(Node(None, 41))
         println(result.value)
         when (result.next) {
-            case Some(pointer) -> println(pointer.toULong())
+            case Some(val pointer) -> println(pointer.toULong())
             case None -> println(0)
         }
     }

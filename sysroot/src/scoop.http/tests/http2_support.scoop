@@ -50,30 +50,30 @@ internal fun events2(session: Http2Session): Array<Http2Event> {
 
 internal fun requests2(events: List<Http2Event>): Array<HttpRequestHead> {
     val heads = ArrayList<HttpRequestHead>()
-    for (event in events) when (event) { case Request(_, head) -> heads.add(head); else -> {} }
+    for (event in events) when (event) { case Request(_, val head) -> heads.add(head); else -> {} }
     return heads.toArray()
 }
 
 internal fun responses2(events: List<Http2Event>): Array<HttpResponseHead> {
     val heads = ArrayList<HttpResponseHead>()
-    for (event in events) when (event) { case Response(_, head) -> heads.add(head); else -> {} }
+    for (event in events) when (event) { case Response(_, val head) -> heads.add(head); else -> {} }
     return heads.toArray()
 }
 
 internal fun data2(events: List<Http2Event>, streamId: Int): Array<Byte> {
     val output = ByteArrayBuilder()
-    for (event in events) when (event) { case Data(id, bytes) -> { if (id == streamId) output.append(bytes) }; else -> {} }
+    for (event in events) when (event) { case Data(val id, val bytes) -> { if (id == streamId) output.append(bytes) }; else -> {} }
     return output.toByteArray()
 }
 
 internal fun closed2(events: List<Http2Event>, streamId: Int, code: UInt): Boolean {
-    for (event in events) when (event) { case StreamClosed(id, value) -> { if (id == streamId && value == code) return true }; else -> {} }
+    for (event in events) when (event) { case StreamClosed(val id, val value) -> { if (id == streamId && value == code) return true }; else -> {} }
     return false
 }
 
 internal fun ends2(events: List<Http2Event>, streamId: Int): Int {
     var count = 0
-    for (event in events) when (event) { case End(id) -> { if (id == streamId) count += 1 }; else -> {} }
+    for (event in events) when (event) { case End(val id) -> { if (id == streamId) count += 1 }; else -> {} }
     return count
 }
 

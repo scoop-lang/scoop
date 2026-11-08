@@ -1,0 +1,67 @@
+[
+  {
+    "code": "SCOOPC_PARSE_ERROR",
+    "message": "use `_` without `val` to ignore a matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 51,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 50
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_PARSE_ERROR",
+    "message": "expected pattern, found `var`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 110,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 107
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_PARSE_ERROR",
+    "message": "expected binding name after `val`, found `(`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 183,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 182
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_PARSE_ERROR",
+    "message": "expected `->`, found `:`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 256,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 255
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_PARSE_ERROR",
+    "message": "expected pattern, found `val`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 299,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 296
+    },
+    "severity": "error"
+  }
+]

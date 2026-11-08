@@ -48,7 +48,7 @@ internal class ClientCachePolicy(val record: HttpCacheRecord) {
 }
 
 private fun cacheDelta(control: HttpCacheControl, name: String): Duration? =
-    when (control.single(name)) { case Some(value) -> Some(Duration.seconds(value.deltaSeconds())); case None -> None }
+    when (control.single(name)) { case Some(val value) -> Some(Duration.seconds(value.deltaSeconds())); case None -> None }
 
 internal fun clientCacheElapsed(later: Instant, earlier: Instant): Duration {
     try { return if (later > earlier) later - earlier else Duration.ZERO }

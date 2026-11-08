@@ -41,7 +41,7 @@ internal class SessionReader(private val tty: AsyncTty, internal val parser: Inp
             try {
                 return when (tty.receive(buffer, buffer.capacity, timeout)) {
                     case Bytes(_) -> true
-                    case Resize(columns, rows) -> { parser.feedResize(columns, rows); true }
+                    case Resize(val columns, val rows) -> { parser.feedResize(columns, rows); true }
                     case End -> { ended = true; parser.finish(); true }
                     case TimedOut -> false
                 }

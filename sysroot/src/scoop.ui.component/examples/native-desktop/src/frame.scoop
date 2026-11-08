@@ -28,7 +28,7 @@ internal class DemoFrame(
             path(FillRule.EvenOdd) {
                 addRect(bounds)
                 when (value.metrics) {
-                    case Some(metrics) -> for (button in metrics.systemButtons) {
+                    case Some(val metrics) -> for (button in metrics.systemButtons) {
                         val rect = button.bounds
                         addRect(
                             Rect(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)

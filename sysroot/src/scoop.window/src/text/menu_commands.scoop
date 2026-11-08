@@ -22,7 +22,7 @@ set(value) {
     val flags =
         when (value) {
             case None -> 0
-            case Some(commands) -> 64 +
+            case Some(val commands) -> 64 +
                 flag(commands.cut) +
                 flag(commands.copy) *
                 2 +

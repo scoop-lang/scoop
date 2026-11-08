@@ -26,11 +26,11 @@ fun checkFailure(failing: Int, cleanupFails: Boolean, expectedEvents: Int, expec
     assertEquals(expectedCalls, trace.finalized)
     when (result) {
         case TestResult.Passed -> fail(Some("expected a lifecycle failure"))
-        case TestResult.Failed(primary, None) -> {
+        case TestResult.Failed(val primary, None) -> {
             checkPrimary(primary, failing)
             assertTrue(!cleanupFails || failing == 1 || failing == 4)
         }
-        case TestResult.Failed(primary, Some(second)) -> {
+        case TestResult.Failed(val primary, Some(val second)) -> {
             checkPrimary(primary, failing)
             assertTrue(cleanupFails && failing > 1 && failing < 4)
             assertTrue(second.phase == TestPhase.AfterTest)

@@ -17,7 +17,7 @@ public class QuestionnaireState public constructor(
     private var baseline = QuestionnaireSnapshot([])
     init {
         when (initial) {
-            case Some(value) -> restore(value)
+            case Some(val value) -> restore(value)
             case None -> baseline = snapshot()
         }
     }
@@ -26,7 +26,7 @@ public class QuestionnaireState public constructor(
     public val activeKey: QuestionKey? get() = active.value
     public val current: Question? get() =
         when (active.value) {
-            case Some(key) -> Some(record(key).question);
+            case Some(val key) -> Some(record(key).question);
             case None -> None
         }
     internal val focusRevision: Long get() = focusRequest.value
@@ -182,7 +182,7 @@ public class QuestionnaireState public constructor(
             if (old.key != key)
                 next.add(old)
         when (record(key).issue()) {
-            case Some(value) -> next.add(QuestionnaireIssue(key, value));
+            case Some(val value) -> next.add(QuestionnaireIssue(key, value));
             case None -> {}
         }
         localIssues.value = next.toArray()
@@ -197,7 +197,7 @@ public class QuestionnaireState public constructor(
         for (entry in records.value)
             if (entry.question.enabled)
                 when (entry.issue()) {
-                    case Some(value) -> next.add(QuestionnaireIssue(entry.question.key, value))
+                    case Some(val value) -> next.add(QuestionnaireIssue(entry.question.key, value))
                     case None -> {}
                 }
         localIssues.value = next.toArray()
@@ -243,7 +243,7 @@ public class QuestionnaireState public constructor(
                     if (entry.question.key == question.key)
                         previous = Some(entry)
                 when (previous) {
-                    case Some(entry) -> entry.replace(question);
+                    case Some(val entry) -> entry.replace(question);
                     case None -> QuestionRecord(question)
                 }
             }

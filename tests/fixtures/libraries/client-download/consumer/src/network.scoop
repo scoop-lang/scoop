@@ -60,7 +60,7 @@ internal fun downloadNetwork(trust: TrustStore, mode: String, url: Url, director
                     Some<CookieJar>(MemoryCookieJar(suffixes = PublicSuffixList.parse("com\n")))
                 this.cache =
                     when (cache) {
-                        case Some(storage) -> Some(HttpCacheOptions(storage));
+                        case Some(val storage) -> Some(HttpCacheOptions(storage));
                         case None -> None
                     }
             }

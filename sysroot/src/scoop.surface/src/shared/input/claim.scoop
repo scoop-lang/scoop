@@ -27,7 +27,7 @@ internal fun InputRouter.claimPointer(scope: InputScope, button: MouseButton): B
     if (!hasButton(buttons, button) || path(scope).size == 0L)
         return false
     when (pointerClaim) {
-        case Some(current) -> return current === scope
+        case Some(val current) -> return current === scope
         case None -> {}
     }
     val original = pressed ?: return false

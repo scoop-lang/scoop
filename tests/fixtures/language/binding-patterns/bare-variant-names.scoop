@@ -14,12 +14,12 @@ struct UnitBox(val Unit: Unit)
 
 fun classify(value: Signal): Int = when (value) {
     case Ready -> 1
-    case Payload(number) -> number
+    case Payload(val number) -> number
 }
 
 fun optionValue(value: Int?): Int = when (value) {
     case None -> 0
-    case Some(number) -> number
+    case Some(val number) -> number
 }
 
 fun plainBinding(): Int {

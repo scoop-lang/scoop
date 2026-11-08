@@ -21,7 +21,7 @@ fun main(args: Array<String>): Int {
     try {
         when (CliParser(schema, Options.Companion).parseCommandLine(args)) {
             case CliResult.HelpRequested -> print(schema.help())
-            case CliResult.Parsed(options) -> {
+            case CliResult.Parsed(val options) -> {
                 for (directory in options.include) println(f"include=${directory}")
                 println(when (options.mode) {
                     case Mode.Fast -> "mode=Fast"

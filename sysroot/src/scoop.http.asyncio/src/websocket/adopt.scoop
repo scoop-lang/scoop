@@ -100,7 +100,7 @@ private fun allocateWs(
         try {
             val deflate =
                 when (negotiated) {
-                    case Some(value) -> Some(createWsDeflate(value, role, options))
+                    case Some(val value) -> Some(createWsDeflate(value, role, options))
                     case None -> None
                 }
             try {

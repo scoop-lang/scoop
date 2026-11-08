@@ -26,7 +26,7 @@ internal fun decodeBase64(source: String, urlSafe: Boolean, padding: PaddingOpti
             if (pads != 0) return None
             val digit = when (base64Digit(character, urlSafe)) {
                 case None -> return None
-                case Some(value) -> value
+                case Some(val value) -> value
             }
             buffer = (buffer shl 6L) or digit
             symbols += 1

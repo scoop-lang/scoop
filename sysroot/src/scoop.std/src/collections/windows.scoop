@@ -19,7 +19,7 @@ private class IndexedIterator<T>(private val source: Iterator<T>) : Iterator<Ind
 
     public override fun next(): IndexedValue<T>? = when (source.next()) {
         case None -> None
-        case Some(value) -> {
+        case Some(val value) -> {
             val result = IndexedValue<T>(index, value)
             index = nextCollectionCount(index)
             Some(result)
@@ -38,9 +38,9 @@ public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<(T, R)> {
         val first = left.next()
         when (first) {
             case None -> break
-            case Some(value) -> when (right.next()) {
+            case Some(val value) -> when (right.next()) {
                 case None -> break
-                case Some(otherValue) -> result.add((value, otherValue))
+                case Some(val otherValue) -> result.add((value, otherValue))
             }
         }
     }
@@ -61,7 +61,7 @@ public fun <T> Iterable<T>.windowed(size: Long, step: Long = 1L, partialWindows:
         while (!ended && window.size < size) {
             when (source.next()) {
                 case None -> ended = true
-                case Some(element) -> window.addLast(element)
+                case Some(val element) -> window.addLast(element)
             }
         }
         if (window.isEmpty()) break

@@ -15,27 +15,27 @@ internal fun sameLabelInputs(a: LabelProps, b: LabelProps): Boolean {
         return false
     val text =
         when ((a.text, b.text)) {
-            case(Plain(left, leftStyle), Plain(right, rightStyle)) ->
+            case(Plain(val left, val leftStyle), Plain(val right, val rightStyle)) ->
             left == right && sameSpanStyle(leftStyle, rightStyle)
-            case(Styled(left), Styled(right)) -> left === right
+            case(Styled(val left), Styled(val right)) -> left === right
             else -> false
         }
     val fonts =
         when ((a.fonts, b.fonts)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     val theme =
         when ((a.theme, b.theme)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     val base =
         when ((a.baseStyle, b.baseStyle)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     return text &&
@@ -50,7 +50,7 @@ internal fun sameLabelInputs(a: LabelProps, b: LabelProps): Boolean {
 internal fun sameLabelParagraph(a: ParagraphStyle?, b: ParagraphStyle?): Boolean =
     when ((a, b)) {
         case(None, None) -> true
-        case(Some(left), Some(right)) -> left.alignment ==
+        case(Some(val left), Some(val right)) -> left.alignment ==
             right.alignment &&
             left.direction ==
             right.direction &&
@@ -64,25 +64,25 @@ internal fun sameLabelParagraph(a: ParagraphStyle?, b: ParagraphStyle?): Boolean
 private fun sameButtonInputs(a: ButtonProps, b: ButtonProps): Boolean {
     val content =
         when ((a.content, b.content)) {
-            case(Label(left), Label(right)) -> sameLabelInputs(left, right)
+            case(Label(val left), Label(val right)) -> sameLabelInputs(left, right)
             else -> false
         }
     val theme =
         when ((a.theme, b.theme)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     val target =
         when ((a.labelTarget, b.labelTarget)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     val focus =
         when ((a.focus.handle, b.focus.handle)) {
             case(None, None) -> true
-            case(Some(left), Some(right)) -> left === right
+            case(Some(val left), Some(val right)) -> left === right
             else -> false
         }
     return content &&

@@ -29,7 +29,7 @@ public class RequestHeaders internal constructor(private val fields: Array<HttpF
     /** Reads one optional UTF-8 field and rejects duplicate occurrences. */
     public fun getSingle(name: String): String? = when (getSingleBytes(name)) {
         case None -> None
-        case Some(value) -> Some(inputText(value, "header " + name))
+        case Some(val value) -> Some(inputText(value, "header " + name))
     }
 }
 

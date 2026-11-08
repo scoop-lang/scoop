@@ -90,7 +90,7 @@ private class HttpClientPoolHttp1Test {
                                 assertEquals(
                                     "/last",
                                     when (next.head.target) {
-                                        case Http1(bytes) -> String.fromUtf8(bytes);
+                                        case Http1(val bytes) -> String.fromUtf8(bytes);
                                         else -> ""
                                     }
                                 )

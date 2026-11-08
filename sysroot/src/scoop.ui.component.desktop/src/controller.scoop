@@ -23,14 +23,14 @@ public class NativeDesktopController internal constructor(
         if (isClosed)
             throw IllegalStateException(Some("desktop controller is closed"))
         when (shell) {
-            case Some(previous) -> if (!(previous === owner))
+            case Some(val previous) -> if (!(previous === owner))
                 throw IllegalStateException(Some("desktop controller already has a shell element"))
             case None -> shell = Some(owner)
         }
     }
     internal fun release(owner: NativeDesktopAttachment) {
         when (shell) {
-            case Some(previous) -> if (previous === owner)
+            case Some(val previous) -> if (previous === owner)
                 shell = None
             case None -> {}
         }
@@ -49,7 +49,7 @@ private fun connectNotifications(
 ): NotificationCenter? =
     try {
         when (launch) {
-            case Some(value) -> Some(application.openNotifications(value))
+            case Some(val value) -> Some(application.openNotifications(value))
             case None -> None
         }
     } catch (error: Throwable) {

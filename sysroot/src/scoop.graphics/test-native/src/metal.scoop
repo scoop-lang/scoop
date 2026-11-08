@@ -10,7 +10,7 @@ public class TestMetalSurface private constructor(private var handle: Ptr<Unit>?
     public fun texture(): Ptr<Unit> = metalObject(handle!!, 2)
     public override fun close() {
         when (handle) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 handle = None;
                 @Unsafe
                 {

@@ -2,6 +2,6 @@ package scoop
 
 internal fun <T> decodeTextValue(decoder: Decoder, parse: (String) -> T?, description: String): T =
     when (parse(decoder.singleValue().readString())) {
-        case Some(value) -> value
+        case Some(val value) -> value
         case None -> throw DecodingException(decoder.path, "invalid " + description)
     }

@@ -7,19 +7,19 @@ enum Source {
         public override fun encode(value: Source, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case Source.Base64(payload) -> {
+                case Source.Base64(val payload) -> {
                     String.encode("base64", fields.field("type"))
                     Base64Source.Companion.encode(payload, encoder)
                 }
-                case Source.URL(payload) -> {
+                case Source.URL(val payload) -> {
                     String.encode("url", fields.field("type"))
                     URLSource.Companion.encode(payload, encoder)
                 }
-                case Source.Text(payload) -> {
+                case Source.Text(val payload) -> {
                     String.encode("text", fields.field("type"))
                     TextSource.Companion.encode(payload, encoder)
                 }
-                case Source.Content(payload) -> {
+                case Source.Content(val payload) -> {
                     String.encode("content", fields.field("type"))
                     ContentSource.Companion.encode(payload, encoder)
                 }

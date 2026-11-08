@@ -39,7 +39,7 @@ internal fun dismissOverlayKey(
         return
     val key =
         when (event) {
-            case Keyboard(value) -> value
+            case Keyboard(val value) -> value
             else -> return
         }
     if (

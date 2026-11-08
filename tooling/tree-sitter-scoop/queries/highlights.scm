@@ -28,6 +28,7 @@
 (requirement_argument name: (identifier) @variable.parameter)
 (enum_field name: (identifier) @variable.member)
 (field_pattern name: (identifier) @variable.member)
+(explicit_binding_pattern name: (identifier) @variable.readonly)
 (field_update name: (identifier) @variable.member)
 (navigation_expression member: (identifier) @variable.member)
 (property_declaration "val" name: (identifier) @variable.readonly)

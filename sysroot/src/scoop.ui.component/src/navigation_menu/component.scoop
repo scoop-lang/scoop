@@ -12,7 +12,7 @@ internal class NavMenuControl(val props: Props<NavigationMenuProps>) {
     var handles: Array<FocusHandle> = []
     val open: ViewKey? get() =
         when (props.value.open) {
-            case Some(value) -> value.value
+            case Some(val value) -> value.value
             case None -> local.value
         }
     fun setOpen(key: ViewKey?) {
@@ -29,7 +29,7 @@ internal class NavMenuControl(val props: Props<NavigationMenuProps>) {
                 val entry = input.entries[index]
                 setOpen(
                     when (entry) {
-                        case Panel(key, _) -> Some(key)
+                        case Panel(val key, _) -> Some(key)
                         case Link(_, _) -> None
                     }
                 )
@@ -62,11 +62,11 @@ public class NavigationMenu public constructor(
                 index ->
                 val focus = control.handles[index]
                 when (input.entries[index]) {
-                    case Panel(key, panel) -> component(
+                    case Panel(val key, val panel) -> component(
                         NavPanelInput(control, key, panel, focus),
                         { current, mount -> NavMenuPanel(current, scope = mount) }
                     )
-                    case Link(_, link) -> {
+                    case Link(_, val link) -> {
                         val button = link.button
                         component(
                             NavigationMenuLinkProps(

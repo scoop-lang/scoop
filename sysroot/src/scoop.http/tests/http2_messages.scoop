@@ -55,7 +55,7 @@ import scoop.test.*
             assertTrue(closed2(events, id, 0U))
             var trailers = 0
             for (event in events) when (event) {
-                case Trailers(_, fields) -> { assertEquals("yes", String.fromUtf8(fields[0L].value)); assertTrue(fields[0L].neverIndex); trailers += 1 }
+                case Trailers(_, val fields) -> { assertEquals("yes", String.fromUtf8(fields[0L].value)); assertTrue(fields[0L].neverIndex); trailers += 1 }
                 else -> {}
             }
             assertEquals(1, trailers)

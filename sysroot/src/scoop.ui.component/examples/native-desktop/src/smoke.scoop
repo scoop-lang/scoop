@@ -44,7 +44,7 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     first.overlay.value = true
     first.caption.value = true
     when (first.desktopCapabilities) {
-        case Some(caps) -> if (caps.progress)
+        case Some(val caps) -> if (caps.progress)
             first.progress.value = DesktopProgress.Normal(25UL, 100UL)
         case None -> {}
     }
@@ -101,7 +101,7 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     app.showTrayWindow(None)
     app.closeTrayWindow()
     when (demo.tray.icon) {
-        case Some(icon) -> if (icon.capabilities().programmaticMenu) {
+        case Some(val icon) -> if (icon.capabilities().programmaticMenu) {
             demo.tray.requestMenu()
             demo.tray.cancelMenu()
             waitDemo("tray menu completion") { !demo.tray.isMenuPending }

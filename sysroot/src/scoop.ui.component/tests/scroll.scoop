@@ -86,7 +86,7 @@ private class ScrollLayoutTest {
                 )
                 assertEquals(None, scrollbarPart(shape, Point(-5.0, -5.0)))
                 when (shape.decrement) {
-                    case Some(button) -> assertEquals(
+                    case Some(val button) -> assertEquals(
                         Some(ScrollbarRegion.Decrement),
                         scrollbarPart(
                             shape,

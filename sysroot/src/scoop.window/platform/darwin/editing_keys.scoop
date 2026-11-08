@@ -60,7 +60,7 @@ internal fun darwinEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEd
                                 else
                                     None
         when (movement) {
-            case Some(value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
+            case Some(val value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
             case None -> {}
         }
         if (!modifiers.shift) {
@@ -108,7 +108,7 @@ internal fun darwinEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEd
             else -> None
         }
     when (movement) {
-        case Some(value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
+        case Some(val value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
         case None -> {}
     }
     return when (key) {

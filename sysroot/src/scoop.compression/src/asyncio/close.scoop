@@ -18,7 +18,7 @@ internal suspend fun closeCompression(state: AsyncCompressionOwner) {
         val (closed, active) = result
         if (closed) continuation.resume(Unit)
         else {
-            when (active) { case Some(value) -> value.cancel(); case None -> {} }
+            when (active) { case Some(val value) -> value.cancel(); case None -> {} }
             startCompressionClose(state)
         }
     }
@@ -36,10 +36,10 @@ internal fun startCompressionClose(state: AsyncCompressionOwner) {
         startCoroutine<Unit>(suspend {
             var failure = compressionCleanup(None) { state.resources.close() }
             when (state.owner) {
-                case Some(owner) -> {
+                case Some(val owner) -> {
                     try { owner.close() }
                     catch (error: Throwable) { failure = Some(when (failure) {
-                        case Some(primary) -> ResourceUseException(primary, error)
+                        case Some(val primary) -> ResourceUseException(primary, error)
                         case None -> error
                     }) }
                 }
@@ -62,7 +62,7 @@ private class CompressionCloseCompletion(val state: AsyncCompressionOwner) : Con
             result
         }
         for (waiter in waiters) {
-            when (error) { case Some(failure) -> waiter.resumeWithException(failure); case None -> waiter.resume(Unit) }
+            when (error) { case Some(val failure) -> waiter.resumeWithException(failure); case None -> waiter.resume(Unit) }
         }
     }
 }

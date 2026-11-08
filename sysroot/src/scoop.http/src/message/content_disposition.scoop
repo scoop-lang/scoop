@@ -45,7 +45,7 @@ public class HttpContentDisposition private constructor(
         : this(httpNormalizedToken(disposition), uniqueHttpParameters(parameters), None) {}
 
     /**
-     * Looks up a named parameter using ASCII case folding, returning None when absent.
+     * Looks up a named parameter using ASCII case val folding, returning None when absent.
      */
     public fun parameter(name: String): HttpParameter? = findHttpParameter(parameters, name)
     /**
@@ -64,7 +64,7 @@ public class HttpContentDisposition private constructor(
     public fun filename(allowIso88591: Boolean = false): HttpFilename {
         var failure: HttpFieldParseException? = None
         when (parameter("filename*")) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 try {
                     val decoded = value.decodeExtended(allowIso88591)
                     return HttpFilename(Some(decoded.text), Some(decoded.language), None)
@@ -73,7 +73,7 @@ public class HttpContentDisposition private constructor(
             case None -> {}
         }
         val text = when (parameter("filename")) {
-            case Some(value) -> Some(Charset.Iso8859_1.decode(value.value))
+            case Some(val value) -> Some(Charset.Iso8859_1.decode(value.value))
             case None -> None
         }
         return HttpFilename(text, None, failure)

@@ -83,7 +83,7 @@ private class CommandScorer(
                 0.99
         val cache = memo[part]
         when (cache[start]) {
-            case Some(value) -> return value;
+            case Some(val value) -> return value;
             case None -> {}
         }
         var high = 0.0

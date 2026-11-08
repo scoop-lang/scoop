@@ -76,11 +76,11 @@ internal fun frameChildConstraints(
 private fun frameMaximum(requested: Double?, minimum: Double, maximum: Double?): Double? =
     when (requested) {
         case None -> maximum
-        case Some(value) -> {
+        case Some(val value) -> {
             val lower = lowerBound(value, minimum)
             Some(
                 when (maximum) {
-                    case Some(limit) -> upperBound(lower, limit);
+                    case Some(val limit) -> upperBound(lower, limit);
                     case None -> lower
                 }
             )

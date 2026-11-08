@@ -29,7 +29,7 @@ internal class EarlyCloseTransport(wire: String) : AsyncByteStream, AsyncCloseab
     }
     public override suspend fun flush() {
         if (closes != 0L) throw IoClosedException()
-        when (writeFailure) { case Some(error) -> throw error; case None -> {} }
+        when (writeFailure) { case Some(val error) -> throw error; case None -> {} }
     }
     public override suspend fun close() { closes += 1L }
 }

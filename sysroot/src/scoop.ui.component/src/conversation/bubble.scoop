@@ -36,7 +36,7 @@ public class BubbleProps public constructor(
 ) {
     init {
         when (maxWidthFraction) {
-            case Some(value) -> requireComponent(
+            case Some(val value) -> requireComponent(
                 value.isFinite() && value > 0.0 && value <= 1.0,
                 "bubble width fraction must be in (0, 1]"
             )
@@ -133,7 +133,7 @@ public class Bubble(private val props: Props<BubbleProps>, scope: ComponentScope
             )
         val reactions =
             when (input.reactions) {
-                case Some(value) -> panelFrame(
+                case Some(val value) -> panelFrame(
                     value.content,
                     Insets(6.0 * density, reactionInset, 6.0 * density, reactionInset),
                     styleOverride {

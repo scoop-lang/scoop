@@ -7,19 +7,19 @@ enum CacheMiss {
         public override fun encode(value: CacheMiss, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case CacheMiss.Model(payload) -> {
+                case CacheMiss.Model(val payload) -> {
                     String.encode("model_changed", fields.field("type"))
                     CacheChanged.Companion.encode(payload, encoder)
                 }
-                case CacheMiss.System(payload) -> {
+                case CacheMiss.System(val payload) -> {
                     String.encode("system_changed", fields.field("type"))
                     CacheChanged.Companion.encode(payload, encoder)
                 }
-                case CacheMiss.Tools(payload) -> {
+                case CacheMiss.Tools(val payload) -> {
                     String.encode("tools_changed", fields.field("type"))
                     CacheChanged.Companion.encode(payload, encoder)
                 }
-                case CacheMiss.Messages(payload) -> {
+                case CacheMiss.Messages(val payload) -> {
                     String.encode("messages_changed", fields.field("type"))
                     CacheChanged.Companion.encode(payload, encoder)
                 }

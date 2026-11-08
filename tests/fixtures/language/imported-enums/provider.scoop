@@ -12,7 +12,7 @@ public enum Flag { Off, On }
 @NoGC public fun empty(): Choice = Choice.Empty
 @NoGC public fun sum(value: Choice): Long = when (value) {
     case Empty -> 0
-    case Pair { left, right, .. } -> left + right
+    case Pair { val left, val right, .. } -> left + right
 }
 @NoGC public fun flag(): Flag = Flag.On
 @NoGC public fun flagValue(value: Flag): Long = when (value) { case Off -> 0; case On -> 1 }

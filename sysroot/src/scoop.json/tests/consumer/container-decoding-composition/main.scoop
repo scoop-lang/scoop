@@ -42,7 +42,7 @@ private fun exerciseConsumer() {
     val units = Json.decodeFromString("[null,null]", MutableArray<Unit>.decoder(UnitDecoder))
     check(units.size == 2L, 6)
     val optionalUnit = Json.decodeFromString("null", Option<Unit>.decoder(UnitDecoder))
-    check(when (optionalUnit) { case Some(value) -> false; case None -> true }, 7)
+    check(when (optionalUnit) { case Some(val value) -> false; case None -> true }, 7)
     val functions = ValueDecoderFunction<() -> Int>({ decoder ->
         val number = Int.Companion.decode(decoder)
         val function: () -> Int = { -> number }

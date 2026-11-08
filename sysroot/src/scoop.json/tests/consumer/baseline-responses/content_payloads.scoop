@@ -39,11 +39,11 @@ enum ResponseAnnotation {
         public override fun encode(value: ResponseAnnotation, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ResponseAnnotation.URL(payload) -> {
+                case ResponseAnnotation.URL(val payload) -> {
                     String.encode("url_citation", fields.field("type"))
                     URLCitation.Companion.encode(payload, encoder)
                 }
-                case ResponseAnnotation.File(payload) -> {
+                case ResponseAnnotation.File(val payload) -> {
                     String.encode("file_citation", fields.field("type"))
                     FileCitation.Companion.encode(payload, encoder)
                 }

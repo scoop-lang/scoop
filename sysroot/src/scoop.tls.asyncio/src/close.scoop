@@ -41,7 +41,7 @@ internal fun advanceClose(state: TlsConnection, actions: ArrayList<() -> Unit>):
     state.closed = true
     for (entry in pending) {
         if (present(state.closeFailure)) entry.failure = Some(when (entry.failure) {
-            case Some(primary) -> ResourceUseException(primary, state.closeFailure!!)
+            case Some(val primary) -> ResourceUseException(primary, state.closeFailure!!)
             case None -> state.closeFailure!!
         })
         releaseRequest(state, entry, actions)
@@ -50,7 +50,7 @@ internal fun advanceClose(state: TlsConnection, actions: ArrayList<() -> Unit>):
     for (waiter in state.closeWaiters) {
         actions.add {
             when (failure) {
-                case Some(error) -> waiter.resumeWithException(error)
+                case Some(val error) -> waiter.resumeWithException(error)
                 case None -> waiter.resume(Unit)
             }
         }
@@ -82,7 +82,7 @@ private class CloseCompletion(val state: TlsConnection) : Continuation<Unit> {
 
 private fun addCloseFailure(state: TlsConnection, error: Throwable) {
     state.closeFailure = Some(when (state.closeFailure) {
-        case Some(primary) -> ResourceUseException(primary, error)
+        case Some(val primary) -> ResourceUseException(primary, error)
         case None -> error
     })
 }

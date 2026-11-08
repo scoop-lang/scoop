@@ -52,7 +52,7 @@ public class FocusHandle public constructor() {
         checkUiThread(thread)
         navigation?.checkMember(value.node)
         when (target) {
-            case Some(current) -> requireUi(
+            case Some(val current) -> requireUi(
                 current === value || !current.active,
                 "focus handle already has a target"
             )
@@ -69,7 +69,7 @@ public class FocusHandle public constructor() {
     internal fun unbind(value: FocusTarget) {
         checkUiThread(thread)
         when (target) {
-            case Some(current) -> if (current === value)
+            case Some(val current) -> if (current === value)
                 target = None
             case None -> {}
         }

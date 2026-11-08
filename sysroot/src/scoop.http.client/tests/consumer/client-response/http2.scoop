@@ -62,7 +62,7 @@ internal fun exerciseResponseHttp2(trust: TrustStore) {
                                 scope.async suspend {
                                     val path =
                                         when (incoming.head.target) {
-                                            case Http2(_, _, value) -> String.fromUtf8(value)
+                                            case Http2(_, _, val value) -> String.fromUtf8(value)
                                             else -> throw IllegalStateException()
                                         }
                                     responseCheck(path == "/br" || path == "/zstd")

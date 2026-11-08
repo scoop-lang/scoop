@@ -9,7 +9,7 @@
 ```scoop
 fun greeting(name: String?): String =
     when (name) {
-        case Some(value) -> f"Hello, ${value}!"
+        case Some(val value) -> f"Hello, ${value}!"
         case None -> "Hello, guest!"
     }
 ```
@@ -19,7 +19,7 @@ fun greeting(name: String?): String =
 ## 值类型、引用与能力
 
 - `struct Point(val x: Int, val y: Int)` 是不可变值，存储字段只能用 `val`。更新写 `point.{x: 8}`，产生副本；不使用 Kotlin 的 `data class` 或 `.copy(x = 8)`。
-- `enum Lookup { Found(String), Missing }` 是带标签的值类型；构造写 `Lookup.Found("Ada")`，匹配写 `case Lookup.Found(name)`。它不是 `enum class`。
+- `enum Lookup { Found(String), Missing }` 是带标签的值类型；构造写 `Lookup.Found("Ada")`，匹配并绑定载荷写 `case Lookup.Found(val name)`，绑定完整值写 `case val whole`。裸模式名只匹配 variant，拼错时为编译错误。它不是 `enum class`。
 - tuple、struct 和 enum 的复制都是值复制；其中的引用字段仍指向同一对象。`val` 禁止重新绑定，不禁止修改引用对象。
 - `==` 的结构比较不自动让自定义值类型实现 `Equals<T>`、`Hash` 或 `ToString`。字典 key、泛型断言、插值和序列化需满足各入口实际的名义约束或成员要求；先查声明，再按需声明 conformance 或提供公开方法。
 - `===`／`!==` 仅比较引用身份。不要用它们比较值类型。

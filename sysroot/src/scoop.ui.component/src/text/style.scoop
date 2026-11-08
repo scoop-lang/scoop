@@ -5,8 +5,8 @@ import scoop.graphics.text.*
 
 internal fun sameSpanStyle(left: SpanStyle?, right: SpanStyle?): Boolean =
     when (left) {
-        case Some(a) -> when (right) {
-            case Some(b) -> a === b;
+        case Some(val a) -> when (right) {
+            case Some(val b) -> a === b;
             case None -> false
         }
         case None -> when (right) {
@@ -35,7 +35,7 @@ internal class ActionTextStyle {
         lineHeight: Double? = None
     ): TextStyle {
         when (cached) {
-            case Some(previous) -> if (
+            case Some(val previous) -> if (
                 previous.base ===
                     base &&
                     previous.color ==
@@ -58,7 +58,7 @@ internal class ActionTextStyle {
             }
         val resolved =
             when (local) {
-                case Some(value) -> value.resolve(colored);
+                case Some(val value) -> value.resolve(colored);
                 case None -> colored
             }
         cached = Some(TextAppearance(base, color, local, scale, lineHeight, resolved))

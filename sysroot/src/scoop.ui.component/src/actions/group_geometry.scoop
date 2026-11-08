@@ -38,7 +38,7 @@ internal fun groupSurfaceMetrics(
     val zero = Size(0.0, 0.0)
     val end =
         when (endRadius) {
-            case Some(value) -> Some(Size(value, value))
+            case Some(val value) -> Some(Size(value, value))
             case None -> None
         }
     val startLeft = group.first && (vertical || leadingLeft)
@@ -137,7 +137,7 @@ internal fun groupSurfaceGeometry(
     val outline = RoundedOutline(original.bounds, metrics.corners).normalized()
     val border =
         when (original.style.border) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val edge = value.resolve(direction)
                 Some(
                     Border.Physical(
@@ -156,7 +156,7 @@ internal fun groupSurfaceGeometry(
     val inset = metrics.contentInsets
     val ring =
         when (original.ring) {
-            case Some(value) -> Some(
+            case Some(val value) -> Some(
                 OutlineRing(
                     outline.expanded(
                         lowerBound(original.outline.bounds.x - value.outline.bounds.x, 0.0)

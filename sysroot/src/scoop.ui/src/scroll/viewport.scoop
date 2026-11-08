@@ -98,7 +98,7 @@ public class ScrollViewport internal constructor(
         observeScroll(this)
         var result = sample(viewport, content)
         when (adjustment) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 checkScrollPoint(value.offset)
                 if (value.requestRevision == current.revision && !moving)
                     result =
@@ -131,7 +131,7 @@ public class ScrollViewport internal constructor(
                 complete(layout)
         }
         when (content) {
-            case Some(block) -> context.scrollContent(this, layout, contentOrigin, block)
+            case Some(val block) -> context.scrollContent(this, layout, contentOrigin, block)
             case None -> {}
         }
     }
@@ -159,7 +159,7 @@ public class ScrollViewport internal constructor(
         ready = true
         state.publish(offered, layout.revision == state.revision && !moving, layout.revision)
         when (motion) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val target = clampScroll(value.target, offered.viewport, offered.content)
                 val changedTarget = value.started && target != animation.target
                 if (

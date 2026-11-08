@@ -98,7 +98,7 @@ internal class ScrollBarControl(
             )
         val next =
             when (bounds) {
-                case Some(rect) -> if (rect.width > 0.0 && rect.height > 0.0) {
+                case Some(val rect) -> if (rect.width > 0.0 && rect.height > 0.0) {
                     val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
                     if (visual.enabled)
                         context.place(area, rect)
@@ -124,8 +124,8 @@ internal class ScrollBarControl(
     private fun refreshHover() {
         val next =
             when (geometry) {
-                case Some(shape) -> when (pointer) {
-                    case Some(point) -> if (hovered)
+                case Some(val shape) -> when (pointer) {
+                    case Some(val point) -> if (hovered)
                         scrollbarPart(shape, point)
                     else
                         None
@@ -225,15 +225,15 @@ internal class ScrollBarControl(
         )
     private fun acceptsThumb(point: Point): Boolean =
         when (geometry) {
-            case Some(shape) -> scrollbarPart(shape, point) == Some(ScrollbarRegion.Thumb)
+            case Some(val shape) -> scrollbarPart(shape, point) == Some(ScrollbarRegion.Thumb)
             case None -> false
         }
     private fun handleDrag(event: DragEvent) {
         when (event) {
-            case Started(value) -> {
+            case Started(val value) -> {
                 val shape =
                     when (geometry) {
-                        case Some(value) -> value
+                        case Some(val value) -> value
                         case None -> {
                             drag!!.cancel();
                             return
@@ -253,8 +253,8 @@ internal class ScrollBarControl(
                 changed()
                 currentState.beginLayoutRequest(ScrollOrigin.User)
             }
-            case Moved(value) -> dragTo(value.position)
-            case Ended(value) -> {
+            case Moved(val value) -> dragTo(value.position)
+            case Ended(val value) -> {
                 dragTo(value.position);
                 release()
             }
@@ -264,7 +264,7 @@ internal class ScrollBarControl(
     private fun dragTo(point: Point) {
         val shape =
             when (geometry) {
-                case Some(value) -> value
+                case Some(val value) -> value
                 case None -> {
                     drag!!.cancel();
                     return

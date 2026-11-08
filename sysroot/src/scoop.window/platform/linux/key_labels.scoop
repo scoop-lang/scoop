@@ -8,7 +8,7 @@ internal fun linuxLayoutLabel(scan: UInt): (UInt, String?) {
             checkNativeStatus(result.error, "query shortcut key label")
             val text =
                 when (result.bytes) {
-                    case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                    case Some(val bytes) -> Some(String.fromUtf8(bytes, result.length))
                     case None -> None
                 }
             return (result.symbol, text)

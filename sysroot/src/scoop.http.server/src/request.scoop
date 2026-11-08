@@ -68,7 +68,7 @@ public class RequestQuery internal constructor(
     /** Reads one optional signed decimal integer, rejecting invalid present input. */
     public fun optionalLong(name: String): Long? = when (optionalText(name)) {
         case None -> None
-        case Some(value) -> Some(value.toLongOrNone() ?: reject(400U, "invalid query integer: " + name))
+        case Some(val value) -> Some(value.toLongOrNone() ?: reject(400U, "invalid query integer: " + name))
     }
     /** Reads one required signed decimal integer. */
     public fun requiredLong(name: String): Long = optionalLong(name) ?: reject(400U, "missing query field: " + name)
