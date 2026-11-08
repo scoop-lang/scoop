@@ -15,6 +15,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_toolchain
+from build_rust_text import HEADER as RUST_TEXT_HEADER
 from package_toolchain import (
     archive,
     assemble_base_libraries,
@@ -102,7 +103,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     *[
                         f"include/{name}"
                         for name in (
-                            package_toolchain.RUST_TEXT_HEADER,
+                            RUST_TEXT_HEADER,
                             "uriparser/Uri.h",
                             "pcre2.h",
                             "zstd.h",
@@ -120,13 +121,14 @@ class ComponentArchiveTests(unittest.TestCase):
                         for library in package["libraries"]
                     ],
                     *[
-                        f"{variant}/index.cbor"
+                        f"{variant}/{name}"
                         for variant in (
                             "runtime",
                             "runtime-stress",
                             "runtime-startup-stats",
                             "runtime-stress-startup-stats",
                         )
+                        for name in ("index.cbor", "objects/runtime.o", "objects/unneeded.h")
                     ],
                     "openssl/include/openssl/ssl.h",
                     "openssl/lib/libssl.a",
@@ -163,7 +165,11 @@ class ComponentArchiveTests(unittest.TestCase):
                 extension.write_bytes(b"extension")
                 llvm_prefix = work / "llvm-prefix"
                 (llvm_prefix / "bin").mkdir(parents=True)
-                (llvm_prefix / "bin" / f"clang{suffix}").write_text("clang")
+                for name in (
+                    *package_toolchain.package_llvm.TOOLS,
+                    *package_toolchain.package_llvm.WINDOWS_TOOLS,
+                ):
+                    (llvm_prefix / "bin" / (name + suffix)).write_text(name)
                 (llvm_prefix / "bin" / f"llvm-config{suffix}").write_text("llvm-config")
                 resource = llvm_prefix / "lib/clang/22/include/stddef.h"
                 resource.parent.mkdir(parents=True)
@@ -197,7 +203,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 host_system = host_definition(host)["system"]
                 roots = {
                     name: work / "roots" / name
-                    for name in ("bin", "llvm", "sources", "lib-base", "lib-gui")
+                    for name in ("bin", "sources", "lib-base", "lib-gui")
                 }
                 with (
                     patch.object(package_toolchain, "ROOT", repository),
@@ -212,8 +218,9 @@ class ComponentArchiveTests(unittest.TestCase):
                     patch.object(package_toolchain.package_licenses, "collect_base_libraries"),
                     patch.object(package_toolchain.package_licenses, "collect_gui_libraries"),
                 ):
-                    assemble_llvm(roots["llvm"], args, host_system)
                     stage_binaries(roots["bin"], binaries, host_system)
+                    assemble_llvm(roots["bin"], args, host_system)
+                    package_toolchain.stage_commands(roots["bin"], args)
                     assemble_bin(
                         roots["bin"], [target], args, release, extension, orders, "3.14", []
                     )
@@ -229,7 +236,6 @@ class ComponentArchiveTests(unittest.TestCase):
                 output.mkdir(parents=True)
                 names = {
                     "bin": f"scoop-1.2.3-bin-{host}",
-                    "llvm": f"scoop-1.2.3-llvm-{host}",
                     "sources": "scoop-1.2.3-sources",
                     "lib-base": f"scoop-1.2.3-lib-base-{target}",
                     "lib-gui": f"scoop-1.2.3-lib-gui-{target}",
@@ -242,10 +248,12 @@ class ComponentArchiveTests(unittest.TestCase):
                         members = package.getnames()
                         self.assertFalse(any("/docs/" in name for name in members))
                         if component == "lib-base":
+                            self.assertFalse(any(name.endswith(".h") for name in members))
                             self.assertIn(f"./lib/{target}/scoop.core.slib", members)
                             self.assertIn(f"./lib/{target}/library.slib", members)
                             self.assertNotIn(f"./lib/{target}/widget.slib", members)
                         elif component == "lib-gui":
+                            self.assertFalse(any(name.endswith(".h") for name in members))
                             self.assertEqual(
                                 sorted(name for name in members if name.endswith(".slib")),
                                 [
@@ -350,7 +358,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 else:
                     self.assertEqual(list(commands.iterdir()), [])
 
-                llvm_root = installed["llvm"]
+                llvm_root = installed["bin"]
                 self.assertEqual(
                     (llvm_root / "libexec/llvm/bin" / f"clang{suffix}").read_text(), "clang"
                 )
@@ -358,14 +366,9 @@ class ComponentArchiveTests(unittest.TestCase):
                     (llvm_root / "libexec/llvm/lib/clang/22/include/stddef.h").read_bytes(),
                     resource.read_bytes(),
                 )
-                self.assertEqual(
-                    (llvm_root / "libexec/llvm/include/llvm-c/Core.h").read_text(),
-                    "LLVM development header",
-                )
-                if os.name != "nt":
-                    symlink = llvm_root / "libexec/llvm/lib/libLLVM-22.dylib"
-                    self.assertTrue(symlink.is_symlink())
-                    self.assertEqual(os.readlink(symlink), "libLLVM.dylib")
+                self.assertFalse((llvm_root / "libexec/llvm/include").exists())
+                self.assertFalse((llvm_root / "libexec/llvm/bin" / f"llvm-config{suffix}").exists())
+                self.assertFalse((llvm_root / "libexec/llvm/lib/libLLVM.dylib").exists())
 
                 sources_root = installed["sources"]
                 self.assertEqual(
@@ -410,10 +413,10 @@ class ComponentArchiveTests(unittest.TestCase):
                         (gui_root / package_toolchain.SKIA_LIBRARY).read_text(),
                         package_toolchain.SKIA_LIBRARY,
                     )
-                    self.assertTrue((gui_root / "include/skia/include/core/SkCanvas.h").is_file())
+                    self.assertFalse((gui_root / "include").exists())
                 self.assertFalse((lib_root / "include/gtk").exists())
                 if target == package_toolchain.GTK_TARGET:
-                    self.assertTrue((gui_root / "include/gtk/gtk/gtk.h").is_file())
+                    self.assertFalse((gui_root / "include").exists())
                     for library in package_toolchain.GTK_LINK_INPUTS:
                         self.assertEqual((gui_root / library).read_text(), library)
                         self.assertFalse((lib_root / library).exists())
@@ -421,7 +424,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     self.assertFalse((gui_root / "include/gtk").exists())
                 self.assertFalse((lib_root / "include/tray").exists())
                 if target == package_toolchain.TRAY_TARGET:
-                    self.assertTrue(
+                    self.assertFalse(
                         (gui_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
                     )
                     for library in package_toolchain.TRAY_LINK_INPUTS:

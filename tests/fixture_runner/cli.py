@@ -181,12 +181,8 @@ def environment(repo, work, fixtures, args):
     common["link_args"] = list(common["compile_args"])
     target_os = TARGETS[target]["os"]
     if target_os in {"linux", "windows"}:
-        unwind = (
-            args.unwind_prefix.resolve()
-            if args.unwind_prefix
-            else sysroot / "lib" / target / "unwind"
-        )
-        common["link_args"] += ["--unwind-prefix", str(unwind)]
+        if args.unwind_prefix:
+            common["link_args"] += ["--unwind-prefix", str(args.unwind_prefix.resolve())]
     elif target_os != "darwin":
         raise EnvironmentError(f"no fixture final-link companion for target OS {target_os!r}")
     if args.linker:
@@ -264,7 +260,7 @@ def environment(repo, work, fixtures, args):
     elif needed & {"cc", "ar"} and target_os == "windows":
         from .windows_tools import companions
 
-        common.update(companions(target, args, sysroot, needed))
+        common.update(companions(target, args, sysroot, needed, Path(common["scoop"])))
         if "cc" in needed:
             common["cc_family"] = "clang"
     elif needed & {"cc", "ar"} and target_os == "linux":

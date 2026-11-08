@@ -24,6 +24,8 @@
 
 Windows target、COFF、调用 ABI、runtime、GC / EH 与链接支持由 [Windows 移植](../windows-targets/DESIGN.md)实现；调试信息复用本设计的共享源码记录，选择 CodeView／PDB 后端。实际 Windows 验收范围和剩余工作见[实施进度](../windows-targets/PROGRESS.md)。
 
+发行时 LLDB、配套 Python、Clang builtin headers、formatter 与 Scoop 命令统一进入宿主 bin 组件。只收集实际动态依赖，Windows 在所需加载位置使用同一归档内的硬链接共享相同文件；完整 LLVM 开发 SDK 留在维护 prefix。详见[发行组件设计](../distribution/DESIGN.md)。
+
 ## 2. 实施前的仓库基线
 
 以下记录设计开始时的代码状态，用于解释实施动机，不是当前缺口清单。最终实现与验证见实施记录。

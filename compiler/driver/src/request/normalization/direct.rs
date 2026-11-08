@@ -99,13 +99,19 @@ fn normalize_direct(
             scoop_toolchain::host_target_triple().map_err(BuildRequestNormalizationError::Target)?
         }
     };
+    let sysroot = scoop_toolchain::configured_sysroot_root(options.sysroot)
+        .map_err(BuildRequestNormalizationError::Target)?;
     let target = if matches!(output, SingleConeOutput::Check) {
         target::SelectedTarget::Frontend(
             scoop_toolchain::select_target(triple)
                 .map_err(BuildRequestNormalizationError::Target)?,
         )
     } else {
-        let target = ResolvedTargetProfile::resolve_with(triple, &options.c_toolchain)
+        let tools = scoop_toolchain::CToolchainOptions {
+            sysroot: Some(sysroot.clone()),
+            ..options.c_toolchain
+        };
+        let target = ResolvedTargetProfile::resolve_with(triple, &tools)
             .map_err(BuildRequestNormalizationError::Target)?;
         scoop_codegen::ValidatedBackendProfile::from_selection(
             target.lir_target_selection(),
@@ -114,8 +120,6 @@ fn normalize_direct(
         .map_err(BuildRequestNormalizationError::Backend)?;
         target::SelectedTarget::Production(Box::new(target))
     };
-    let sysroot = scoop_toolchain::configured_sysroot_root(options.sysroot)
-        .map_err(BuildRequestNormalizationError::Target)?;
     let trusted_core = TrustedCoreInput::DependenciesOrDefault {
         sysroot: sysroot.clone(),
     };

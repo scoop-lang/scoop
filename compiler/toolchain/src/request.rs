@@ -31,7 +31,15 @@ impl CToolchainOptions {
                         .map_err(|e| ToolchainError(e.to_string()))?,
                 )?,
                 path(&self.cxx_compiler)?,
-            ))
+            )
+            .with_sysroot(path(
+                &self
+                    .sysroot
+                    .as_deref()
+                    .map(std::path::absolute)
+                    .transpose()
+                    .map_err(|e| ToolchainError(e.to_string()))?,
+            )?))
     }
 
     pub fn from_request(request: &TargetSelectionRequestV1) -> Result<Self, ToolchainError> {
@@ -45,6 +53,7 @@ impl CToolchainOptions {
             compiler: path(request.compiler())?,
             cxx_compiler: path(request.cxx_compiler())?,
             native_sysroot: path(request.native_sysroot())?,
+            sysroot: path(request.sysroot())?,
         })
     }
 }

@@ -239,7 +239,8 @@ fn target_request_retains_native_tool_paths_and_rejects_the_old_shape() {
     ] {
         let request = TargetSelectionRequestV1::new("x86_64-unknown-linux-gnu".into())
             .unwrap()
-            .with_native_toolchain(compiler, sysroot, Some(path("/tools/compiler cxx")));
+            .with_native_toolchain(compiler, sysroot, Some(path("/tools/compiler cxx")))
+            .with_sysroot(Some(path("/Scoop sysroot")));
         let decoded =
             decode_canonical::<DecodedTargetSelectionRequestV1>(&encode(&request).unwrap())
                 .unwrap()
@@ -252,12 +253,12 @@ fn target_request_retains_native_tool_paths_and_rejects_the_old_shape() {
     assert!(matches!(
         error.kind(),
         WireErrorKind::InvalidLength {
-            expected: 2,
+            expected: 3,
             actual: 1
         }
     ));
     let multiple_drivers = [
-        0xa2, 0x01, 0x61, b'x', 0x02, 0x84, 0, 0x82, 0, 0, 0x80, 0x80,
+        0xa3, 0x01, 0x61, b'x', 0x02, 0x84, 0, 0x82, 0, 0, 0x80, 0x80, 0x03, 0x80,
     ];
     let error = decode_canonical::<DecodedTargetSelectionRequestV1>(&multiple_drivers).unwrap_err();
     assert!(matches!(

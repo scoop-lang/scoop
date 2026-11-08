@@ -82,8 +82,8 @@ pub(super) fn check(
         .args(["-v", "-MD", "-MT", "link-probe", "-MF"])
         .arg(&dependencies);
     compile.args(["-funwind-tables", "-fno-omit-frame-pointer"]);
-    if let Some(prefix) = profile.unwind_prefix() {
-        compile.arg("-I").arg(prefix.join("include"));
+    if let Some(include) = profile.data.runtime.unwind_include() {
+        compile.arg("-I").arg(include);
     }
     let compiled = run(&mut compile)?;
     observed.extend(super::super::dependencies::read(

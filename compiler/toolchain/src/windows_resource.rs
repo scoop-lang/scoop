@@ -166,7 +166,9 @@ fn compile(
     ));
     includes.extend(environment.includes.iter().cloned());
     if let Some(prefix) = &environment.native_sysroot {
-        if invocation.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt {
+        if invocation.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
+            && environment.bundled_mingw.is_none()
+        {
             includes.push(
                 prefix
                     .join(environment.machine.llvm_mingw_target_directory())
@@ -217,7 +219,9 @@ fn find_tool(
     let environment = invocation.windows_environment().map_err(error)?;
     let executable = crate::host_executable_name(name);
     let mut candidates = vec![invocation.compiler_driver().with_file_name(&executable)];
-    if let Some(prefix) = &environment.native_sysroot {
+    if let Some(prefix) = &environment.native_sysroot
+        && environment.bundled_mingw.is_none()
+    {
         candidates.push(prefix.join("bin").join(&executable));
     }
     candidates

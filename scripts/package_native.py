@@ -7,6 +7,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from package_llvm import share_file
+
 
 def output(*args):
     return subprocess.check_output(args, text=True, env=dict(os.environ, LC_ALL="C")).strip()
@@ -42,19 +44,6 @@ def install_relpath(private, destination, bin_root, llvm_root):
     return os.path.relpath(private.relative_to(llvm_root), destination_rel)
 
 
-def prefix_libraries(files, llvm_lib, private):
-    """Reuse the already staged LLVM prefix libraries as-is.
-
-    The full LLVM prefix is packaged under libexec/llvm; its libraries were
-    installed with relative loader paths, so they are mapped to their staged
-    location without copying or editing, and are not queued for processing.
-    """
-    if private.is_dir():
-        for staged in private.iterdir():
-            if staged.is_file() and not staged.is_symlink():
-                files.setdefault((llvm_lib / staged.name).resolve(), staged)
-
-
 def darwin(bin_root, llvm_root, binaries, llvm_lib, additional=None):
     private = llvm_root / "libexec/llvm/lib"
     private.mkdir(parents=True, exist_ok=True)
@@ -62,7 +51,6 @@ def darwin(bin_root, llvm_root, binaries, llvm_lib, additional=None):
     files.update(additional or {})
     executable = binaries[0].parent
     queue = [(path, []) for path in files]
-    prefix_libraries(files, llvm_lib, private)
     libraries = {}
     edits = []
     while queue:
@@ -96,10 +84,11 @@ def darwin(bin_root, llvm_root, binaries, llvm_lib, additional=None):
                 queue.append((dependency, search))
             arguments += ["-change", name, "@rpath/" + dependency.name]
         has_private_dependencies = bool(arguments)
-        for path in rpaths:
-            arguments += ["-delete_rpath", path]
         relative = "@loader_path/" + install_relpath(private, destination, bin_root, llvm_root)
-        if has_private_dependencies:
+        for path in rpaths:
+            if not has_private_dependencies or path != relative:
+                arguments += ["-delete_rpath", path]
+        if has_private_dependencies and relative not in rpaths:
             arguments += ["-add_rpath", relative]
         if own_name is not None:
             arguments += ["-id", "@rpath/" + destination.name]
@@ -130,7 +119,6 @@ def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None, *, search_di
     files = {path.resolve(): bin_root / "bin" / path.name for path in binaries}
     files.update(additional or {})
     queue = list(files)
-    prefix_libraries(files, llvm_lib, private)
     libraries = {}
     edits = []
     search = [str(llvm_lib), *map(str, search_directories)]
@@ -226,7 +214,7 @@ def windows(bin_root, llvm_root, binaries, llvm_bin, additional=None, *, search_
             [source.parent for source in (additional or {})] + list(search_directories) + search
         )
     )
-    libraries, copied, visited = {}, set(), set()
+    libraries, shared, copied, visited = {}, {}, set(), set()
     while queue:
         source, directory = queue.pop(0)
         if (source, directory) in visited:
@@ -261,8 +249,11 @@ def windows(bin_root, llvm_root, binaries, llvm_bin, additional=None, *, search_
             libraries[key] = dependency
             destination = directory / dependency.name
             if (directory, key) not in copied:
-                if dependency != destination.resolve():
+                if key in shared:
+                    share_file(shared[key], destination, windows=True)
+                elif dependency != destination.resolve():
                     shutil.copy2(dependency, destination)
+                shared.setdefault(key, destination)
                 copied.add((directory, key))
                 queue.append((dependency, directory))
     return list(libraries.values())

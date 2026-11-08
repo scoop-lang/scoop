@@ -11,7 +11,7 @@ from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
 from prepare_tray import TARGET as TRAY_TARGET
-from target_catalog import host_definition, llvm_mingw_resource_triple, native_configuration
+from target_catalog import host_definition, llvm_mingw_resource_triple
 
 
 def llvm_mingw_license_root(prefix, architecture):
@@ -133,6 +133,10 @@ def collect_llvm(root, source, host, native, python_license=None):
     if host_definition(host)["system"] == "Windows":
         for component in ("libcxx", "libcxxabi", "libunwind", "compiler-rt"):
             collector.add(component, "See included documents", [source / component / "LICENSE.TXT"])
+    elif (root / "libexec/scoop/include/unwind").is_dir():
+        collector.add(
+            "libunwind", "Apache-2.0 WITH LLVM-exception", [source / "libunwind/LICENSE.TXT"]
+        )
     if python_license is not None:
         collector.add("Python", "PSF-2.0 and included notices", [python_license])
     if any(path.name.startswith(("libstdc++", "libgcc_s")) for path in native):
@@ -172,17 +176,19 @@ def collect_base_libraries(root, sysroot, target):
     collector = Collector(root, "lib-base-" + target)
     notices = sysroot / "lib" / target / NOTICE_DIRECTORY
     collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
-    configuration = native_configuration(target)
-    if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
-        prefix = root / "lib" / target / "toolchain"
-        collector.add(
-            "LLVM-MinGW-" + target,
-            "See included documents",
-            [
-                prefix / "LICENSE.TXT",
-                *license_files(llvm_mingw_license_root(prefix, configuration["arch"])),
-            ],
-        )
+    collector.finish()
+
+
+def collect_mingw(root, prefix, component, architecture):
+    collector = Collector(root, component)
+    collector.add(
+        "LLVM-MinGW",
+        "See included documents",
+        [
+            prefix / "LICENSE.TXT",
+            *license_files(llvm_mingw_license_root(prefix, architecture)),
+        ],
+    )
     collector.finish()
 
 

@@ -65,6 +65,8 @@ pub(super) struct Discovery {
     linker_digest: Digest256,
     #[serde(with = "crate::build_record::values::path")]
     unwind_prefix: PathBuf,
+    #[serde(with = "crate::build_record::values::path")]
+    unwind_include: PathBuf,
     cxx: Option<ValidatedCxxToolchain>,
     #[serde(with = "crate::build_record::values::paths")]
     observed_paths: Vec<PathBuf>,
@@ -106,10 +108,16 @@ impl WindowsFinalLinkProfile {
         let microsoft =
             startup.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
         let mut observed = BTreeSet::new();
-        let driver = if microsoft {
+        let driver = if microsoft || environment.bundled_mingw.is_some() {
             startup
                 .compiler_driver()
-                .with_file_name(crate::host_executable_name("clang-cl"))
+                .with_file_name(crate::host_executable_name(if microsoft {
+                    "clang-cl"
+                } else if cxx.is_some() {
+                    "clang++"
+                } else {
+                    "clang"
+                }))
         } else {
             let prefix = environment.native_sysroot.as_ref().expect("MinGW prefix");
             prefix
@@ -177,16 +185,14 @@ impl WindowsFinalLinkProfile {
             options.unwind_prefix.as_deref(),
         )?)
         .map_err(error)?;
-        for path in [
-            unwind_prefix.join("include/unwind.h"),
-            unwind_prefix.join("lib/libunwind.a"),
-        ] {
-            if !path.is_file() {
-                return Err(error(format!(
-                    "missing Windows LLVM unwind resource {}",
-                    path.display()
-                )));
-            }
+        let unwind_include =
+            crate::unwind::link_unwind_include(&unwind_prefix, options.unwind_prefix.is_some())?;
+        let archive = unwind_prefix.join("lib/libunwind.a");
+        if !archive.is_file() {
+            return Err(error(format!(
+                "missing Windows LLVM unwind resource {}",
+                archive.display()
+            )));
         }
         observed.extend(environment.libraries.iter().cloned());
         observed.extend([driver.clone(), linker.clone()]);
@@ -206,6 +212,7 @@ impl WindowsFinalLinkProfile {
                 compiler_digest,
                 linker_digest,
                 unwind_prefix,
+                unwind_include,
                 cxx,
                 observed_paths: Vec::new(),
                 inputs: Vec::new(),

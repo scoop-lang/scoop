@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import package_debugger_windows
+import package_llvm
 from build_support import ROOT
 from target_catalog import host_definition
 
@@ -91,7 +92,9 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
             native[source] = destination
 
     for name in LLVM_TOOLS:
-        binary(llvm / "bin" / name, root / "bin" / ("scoop-" + name))
+        package_llvm.share_file(
+            root / "libexec/llvm/bin" / name, root / "bin" / ("scoop-" + name), windows=False
+        )
     server = "debugserver" if host_system == "Darwin" else "lldb-server"
     for name in ("lldb", "lldb-dap", "lldb-argdumper", server):
         binary(debugger / "bin" / name, root / "libexec/lldb/bin" / name)
@@ -145,9 +148,6 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
             output.symlink_to(os.path.relpath(native[source], output.parent))
         else:
             binary(source, output)
-    resources = llvm / "lib/clang"
-    if not (private / "clang").is_dir():
-        shutil.copytree(resources, private / "clang")
     support = debugger / "share/lldb"
     if support.is_dir():
         shutil.copytree(support, root / "libexec/lldb/share/lldb")

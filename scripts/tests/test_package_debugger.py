@@ -13,6 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_debugger
+import package_llvm
 import package_native
 
 
@@ -59,7 +60,7 @@ class DebuggerPackageTests(unittest.TestCase):
                     module / "native/__init__.py": "native",
                 }
                 command = '#!/bin/sh\nprintf "%s\\n" "$PYTHONHOME" "$PYTHONPATH" "$LLDB_DEBUGSERVER_PATH"\nprintf "<%s>\\n" "$@"\n'
-                for name in package_debugger.LLVM_TOOLS:
+                for name in package_llvm.TOOLS:
                     files[llvm / "bin" / name] = command
                 for name in ("lldb", "lldb-dap", "lldb-argdumper", "lldb-server"):
                     files[debugger / "bin" / name] = command
@@ -71,6 +72,7 @@ class DebuggerPackageTests(unittest.TestCase):
                 (module / "lldb-argdumper").symlink_to(debugger / "bin/lldb-argdumper")
                 root = work / "staged"
                 (root / "bin").mkdir(parents=True)
+                package_llvm.stage(root, llvm, "Linux")
                 paths = {
                     "version": "3.14",
                     "stdlib": str(stdlib),
@@ -158,7 +160,10 @@ int wmain(int argc, wchar_t **argv) {
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content)
             programs = [python / "python.exe"]
-            programs += [llvm / "bin" / (name + ".exe") for name in package_debugger.LLVM_TOOLS]
+            programs += [
+                llvm / "bin" / (name + ".exe")
+                for name in (*package_llvm.TOOLS, *package_llvm.WINDOWS_TOOLS)
+            ]
             programs += [
                 debugger / "bin" / (name + ".exe")
                 for name in ("lldb", "lldb-dap", "lldb-server", "lldb-argdumper")
@@ -174,6 +179,7 @@ int wmain(int argc, wchar_t **argv) {
                 "executable": str(python / "python.exe"),
             }
             root = work / "staged"
+            package_llvm.stage(root, llvm, "Windows")
             with patch.object(package_debugger, "python_paths", return_value=paths):
                 native, version, license_, search = package_debugger.stage(
                     root,

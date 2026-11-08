@@ -78,18 +78,19 @@ pub(crate) fn command(
         .expect("selected Windows native environment");
     if !kind.microsoft() {
         let mut command = environment.bare_command(driver);
+        if !preprocessed
+            && language == NativeSourceLanguage::Cxx
+            && c.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
+        {
+            // libc++ wrappers use include_next, so their roots precede the C SDK.
+            environment.configure_mingw_cxx(&mut command);
+        }
         environment.configure(
             &mut command,
             crate::windows_c::target_triple(c.target().id()).expect("validated Windows target"),
             c.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt,
             preprocessed,
         );
-        if !preprocessed
-            && language == NativeSourceLanguage::Cxx
-            && c.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
-        {
-            command.arg("-stdlib=libc++");
-        }
         return command;
     }
     let mut command = environment.bare_command(driver);

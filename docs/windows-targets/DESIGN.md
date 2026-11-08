@@ -66,20 +66,22 @@ Windows 宿主的主驱动安装为 `sco.exe`，避免与已有 Scoop 包管理�
                                             scoop-lldb.exe、scoop-lldb-dap.exe 及其他带 scoop- 前缀的 LLVM 命令
   libexec/llvm/bin/                          宿主 Clang、LLD、LLVM 工具
   libexec/llvm/lib/                          宿主 LLVM 库
-  libexec/llvm/lib/clang/<version>/include/   Clang resource headers
+  libexec/llvm/lib/clang/<version>/include/   Clang builtin headers
+  libexec/mingw/include/                     公共 MinGW 与 libc++ 头（bin）
+  libexec/scoop/include/unwind/              最终链接探测用 unwind 头（bin）
   lib/x86_64-pc-windows-msvc-ucrt/
     *.slib、runtime、各 native 组件
-    toolchain/                              Microsoft 开发资源入口及 Scoop 辅助库
+    toolchain/                              可选的本地 msvc.toml，不发行 SDK 副本
   lib/x86_64-w64-windows-llvm-mingw-msvcrt/
     *.slib、runtime、各 native 组件
-    toolchain/                              MSVCRT 配套开发资源
+    toolchain/                              MSVCRT 配置头与机器库（native）
   lib/x86_64-w64-windows-llvm-mingw-ucrt/
     *.slib、runtime、各 native 组件
-    toolchain/                              LLVM-MinGW UCRT 配套开发资源
+    toolchain/                              UCRT 配置头与机器库（native）
   include/                                  Scoop 公开 C 头文件
 ```
 
-MinGW 的 `toolchain/` 保留上游 prefix 的目录关系；Microsoft 环境引用实际 SDK／VC include 和 library 根，并放置相应 Scoop／LLVM 辅助资源。Clang 内建头可共用，目标 runtime 搜索路径必须属于所选完整 target。一个安装根可同时提供上述三个目录，继续按 `<sysroot>/lib/<canonical-target-triple>` 唯一定位；不需要另选一套 C++ profile 才能解释同名产物，也不合并不同环境的 headers／archives。
+MinGW 的目标 toolchain 仅保存数据：`include/_mingw.h`、`include/c++/v1/__config_site`、`x86_64-w64-mingw32/lib` 和所需的 `lib/clang/22/lib/windows`。公共头和宿主工具只随 bin 交付一次，目标 native 包不带 executable、Python、其他架构或操作系统资源；base／GUI 只保存链接产物、runtime 索引和许可。C、C++、RC 与最终链接共用解析结果，按目标配置头、Clang builtin 和公共 SDK 的实际顺序设置搜索路径；compiler-rt 指向所选目标。宿主工具位置由实际 executable 确定，Scoop `--sysroot` 单独选择目标数据。显式完整外部 native prefix 不混入随包公共头。详见[发行组件设计](../distribution/DESIGN.md)。
 
 显式 Microsoft native sysroot 使用根下的 `msvc.toml` 指向开发资源；相对路径以该根解析，三个宿主使用相同格式。未提供显式根时，Windows 宿主从 Build Tools／SDK 定位实际 include 与 library 路径。下面是本地验证配置示例，版本号不是 canonical target 的组成部分：
 

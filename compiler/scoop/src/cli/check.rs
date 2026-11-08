@@ -90,6 +90,7 @@ pub(super) fn execute(
         args.cache_dir,
     )?;
     let target = scoop_toolchain::CToolchainOptions {
+        sysroot: Some(sysroot.clone()),
         cxx_compiler: args.cxx,
         compiler: args
             .cc

@@ -2,6 +2,7 @@
 """Build a complete Scoop archive, including sysroot, VS Code tooling, and programming skill."""
 
 import argparse
+import concurrent.futures
 import json
 import os
 import platform
@@ -24,7 +25,6 @@ import package_native
 import package_tooling
 import package_windows
 from build_llvm import VERSION
-from build_rust_text import HEADER as RUST_TEXT_HEADER
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
 from build_skia import LIBRARY as SKIA_LIBRARY
 from build_skia import TARGETS as SKIA_TARGETS
@@ -208,16 +208,16 @@ def relocate_markdown_links(root, revision):
 
 
 def stage_binaries(root, binaries, host_system):
-    (root / "bin").mkdir(parents=True)
+    (root / "bin").mkdir(parents=True, exist_ok=True)
     for binary in binaries:
         name = "sco.exe" if host_system == "Windows" and binary.name == "scoop.exe" else binary.name
         shutil.copy2(binary, root / "bin" / name)
 
 
 def assemble_llvm(root, args, host_system):
-    """Stage the complete patched LLVM prefix (with development files) and the debugger."""
-    shutil.copytree(args.llvm_prefix, root / "libexec/llvm", symlinks=True)
-    return package_debugger.stage(
+    """Stage selected LLVM tools and the debugger in the host command component."""
+    native = package_llvm.stage(root, args.llvm_prefix, host_system)
+    debugger, version, license_file, search = package_debugger.stage(
         root,
         args.llvm_prefix,
         args.debugger_prefix,
@@ -226,6 +226,20 @@ def assemble_llvm(root, args, host_system):
         args.python_license,
         windows_compiler=args.mingw_ucrt / "bin/clang.exe" if host_system == "Windows" else None,
     )
+    native.update(debugger)
+    return native, version, license_file, search
+
+
+def stage_commands(root, args):
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    shutil.copytree(
+        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
+    )
+    suffix = ".exe" if host_definition(args.host)["system"] == "Windows" else ""
+    return {
+        (sysroot / "commands" / (name + suffix)).resolve(): root / "commands" / (name + suffix)
+        for name in ("scoop-example", "scoop-bundle")
+    }
 
 
 def assemble_sources(root, args):
@@ -235,7 +249,9 @@ def assemble_sources(root, args):
         shutil.copytree(
             sysroot / name,
             root / name,
-            ignore=shutil.ignore_patterns("target", "Cone.lock", "*.slib", "__pycache__"),
+            ignore=shutil.ignore_patterns(
+                "target", "Cone.lock", "*.slib", "__pycache__", ".DS_Store"
+            ),
         )
     relocate_markdown_links(root, args.revision)
     shutil.copytree(
@@ -288,13 +304,6 @@ def split_gui_cones(sysroot, order):
     )
 
 
-def copy_entry(source, destination):
-    if source.is_dir():
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy2(source, destination)
-
-
 def assemble_base_libraries(root, target, args, cones):
     """Stage one target's base system libraries, native inputs and runtimes."""
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
@@ -303,20 +312,6 @@ def assemble_base_libraries(root, target, args, cones):
     destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
-    (destination / "include").mkdir()
-    for header in (
-        RUST_TEXT_HEADER,
-        "uriparser",
-        "pcre2.h",
-        "zstd.h",
-        "zstd_errors.h",
-        "zdict.h",
-        "zlib-ng.h",
-        "zconf-ng.h",
-        "zlib_name_mangling-ng.h",
-        "brotli",
-    ):
-        copy_entry(source / "include" / header, destination / "include" / header)
     shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
     shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
     shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
@@ -329,7 +324,12 @@ def assemble_base_libraries(root, target, args, cones):
         "runtime-startup-stats",
         "runtime-stress-startup-stats",
     ):
-        shutil.copytree(source / variant, destination / variant)
+        objects = destination / variant / "objects"
+        objects.mkdir(parents=True)
+        shutil.copy2(source / variant / "index.cbor", destination / variant / "index.cbor")
+        for path in (source / variant / "objects").iterdir():
+            if path.suffix == ".o":
+                shutil.copy2(path, objects / path.name)
     for component, libraries in (
         ("openssl", ("libcrypto.a", "libssl.a")),
         ("nghttp2", ("libnghttp2.a",)),
@@ -337,12 +337,9 @@ def assemble_base_libraries(root, target, args, cones):
     ):
         if component == "unwind" and TARGETS[target]["os"] == "darwin":
             continue
-        shutil.copytree(source / component / "include", destination / component / "include")
-        (destination / component / "lib").mkdir()
+        (destination / component / "lib").mkdir(parents=True)
         for name in libraries:
             shutil.copy2(source / component / "lib" / name, destination / component / "lib" / name)
-    if host_definition(args.host)["system"] == "Windows":
-        package_windows.install_toolchain(root, target, args)
     package_licenses.collect_base_libraries(root, sysroot, target)
 
 
@@ -351,18 +348,15 @@ def assemble_gui_libraries(root, target, args, cones):
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
     source = sysroot / "lib" / target
     destination = root / "lib" / target
-    (destination / "include").mkdir(parents=True)
+    destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
     if target in SKIA_TARGETS:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
-        shutil.copytree(source / "include/skia", destination / "include/skia")
     if target == GTK_TARGET:
-        shutil.copytree(source / "include/gtk", destination / "include/gtk")
         for library in GTK_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
     if target == TRAY_TARGET:
-        shutil.copytree(source / "include/tray", destination / "include/tray")
         for library in TRAY_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
     package_licenses.collect_gui_libraries(root, sysroot, target)
@@ -378,9 +372,6 @@ def assemble_bin(root, targets, args, release, extension, orders, python_version
     (root / "tooling").mkdir()
     shutil.copy2(extension, root / "tooling" / extension.name)
     shutil.copytree(ROOT / "tooling/scoop-programming", root / "tooling/scoop-programming")
-    shutil.copytree(
-        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
-    )
     cone_manifests = [
         tomllib.loads(path.read_text(encoding="utf-8"))
         for path in sorted((sysroot / "src").glob("*/Cone.toml"))
@@ -709,18 +700,32 @@ def main():
         orders[target] = cone_order(sysroot, selection, target)
     output = args.output_dir / f"scoop-{args.version}"
     output.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary:
+    packages = []
+    pending = []
+
+    def publish(component, directory, *, arcname="."):
+        name = f"scoop-{args.version}-{component}.tar.xz"
+        pending.append((name, archiver.submit(archive, directory, output / name, arcname=arcname)))
+
+    with (
+        tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary,
+        concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as archiver,
+    ):
         base = Path(temporary)
-        llvm_root = base / "llvm"
-        debugger_files, python_version, python_license, debugger_search = assemble_llvm(
-            llvm_root, args, host_system
-        )
         bin_root = base / "bin"
         stage_binaries(bin_root, binaries, host_system)
+        debugger_files, python_version, python_license, debugger_search = assemble_llvm(
+            bin_root, args, host_system
+        )
+        debugger_files.update(stage_commands(bin_root, args))
+        if host_system != "Darwin":
+            package_llvm.stage_unwind_headers(bin_root, args.llvm_source)
+        if windows:
+            package_windows.stage_shared_headers(bin_root, args)
         if host_system == "Windows":
             native = package_native.windows(
                 bin_root,
-                llvm_root,
+                bin_root,
                 binaries,
                 args.llvm_prefix / "bin",
                 debugger_files,
@@ -728,35 +733,38 @@ def main():
             )
         elif host_system == "Darwin":
             native = package_native.darwin(
-                bin_root, llvm_root, binaries, args.llvm_prefix / "lib", debugger_files
+                bin_root, bin_root, binaries, args.llvm_prefix / "lib", debugger_files
             )
         else:
             native = package_native.linux(
                 bin_root,
-                llvm_root,
+                bin_root,
                 binaries,
                 args.llvm_prefix / "lib",
                 debugger_files,
                 search_directories=debugger_search,
             )
-        package_licenses.collect_llvm(
-            llvm_root, args.llvm_source, args.host, native, python_license
-        )
+        package_licenses.collect_llvm(bin_root, args.llvm_source, args.host, native, python_license)
         assemble_bin(bin_root, targets, args, release, extension, orders, python_version, native)
+        if windows:
+            package_llvm.share_windows_aliases(bin_root, package_debugger.LLVM_TOOLS)
         sources_root = base / "sources"
         assemble_sources(sources_root, args)
-        archive(bin_root, output / f"scoop-{args.version}-bin-{args.host}.tar.xz")
-        archive(llvm_root, output / f"scoop-{args.version}-llvm-{args.host}.tar.xz")
-        archive(sources_root, output / f"scoop-{args.version}-sources.tar.xz")
+        publish(f"bin-{args.host}", bin_root)
+        publish("sources", sources_root)
         for target in targets:
             base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
             lib_root = base / f"lib-base-{target}"
             assemble_base_libraries(lib_root, target, args, base_cones)
-            archive(lib_root, output / f"scoop-{args.version}-lib-base-{target}.tar.xz")
+            publish(f"lib-base-{target}", lib_root)
             if gui_cones:
                 gui_root = base / f"lib-gui-{target}"
                 assemble_gui_libraries(gui_root, target, args, gui_cones)
-                archive(gui_root, output / f"scoop-{args.version}-lib-gui-{target}.tar.xz")
+                publish(f"lib-gui-{target}", gui_root)
+            if windows and package_windows.mingw_prefix(args, target) is not None:
+                native_root = base / f"native-{target}"
+                package_windows.stage_target_sdk(native_root, target, args)
+                publish(f"native-{target}", native_root)
         llvm_sources = base / f"scoop-{args.version}-llvm-sources"
         vendor = llvm_sources / "vendor/llvm-project" / VERSION
         shutil.copytree(
@@ -771,7 +779,14 @@ def main():
         )
         shutil.copy2(args.llvm_archive, vendor / f"llvm-project-{VERSION}.src.tar.xz")
         shutil.copy2(args.llvm_source / "llvm/LICENSE.TXT", vendor / "LICENSE.TXT")
-        archive(llvm_sources, output / f"{llvm_sources.name}.tar.xz", arcname=llvm_sources.name)
+        publish("llvm-sources", llvm_sources, arcname=llvm_sources.name)
+        for name, task in pending:
+            task.result()
+            packages.append(name)
+    listing = output / f"packages-{args.host}.list"
+    staged = listing.with_suffix(".list.new")
+    staged.write_text("\n".join(packages) + "\n", encoding="utf-8")
+    staged.replace(listing)
 
 
 if __name__ == "__main__":

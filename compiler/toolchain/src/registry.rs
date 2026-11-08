@@ -11,6 +11,7 @@ pub struct CToolchainOptions {
     pub compiler: Option<PathBuf>,
     pub cxx_compiler: Option<PathBuf>,
     pub native_sysroot: Option<PathBuf>,
+    pub sysroot: Option<PathBuf>,
 }
 
 /// Complete target selection resolved atomically by the shared registry.

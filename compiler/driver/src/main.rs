@@ -141,9 +141,10 @@ fn main() -> ExitCode {
                         Profile::Release => scoop_lir::DebugInfoLevel::None,
                     }),
                     target,
-                    sysroot,
+                    sysroot: sysroot.clone(),
                     generators,
                     c_toolchain: scoop_toolchain::CToolchainOptions {
+                        sysroot,
                         compiler: cc,
                         cxx_compiler: cxx,
                         native_sysroot,

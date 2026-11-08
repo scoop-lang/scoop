@@ -36,7 +36,7 @@ stderr = ""
 
 [[steps]]
 name = "dll"
-argv = ["${python}", "${fixture}/build_dll.py", "${cc}", "${target}", "${work}/dynamic", "${fixture}/native", {each = "${cc_args}"}]
+argv = ["${python}", "${fixture}/build_dll.py", "${cc}", "${target}", "${work}/dynamic", "${fixture}/native", {each = "${cc_args}"}, {each = "${cc_link_args}"}]
 exit = 0
 stdout = ""
 stderr = ""
