@@ -50,20 +50,20 @@ public class KeyNavigation internal constructor(
         for (index in 0L ..< value.items.size) {
             val item = value.items[index]
             when (value.preferredTab) {
-                case Some(handle) -> if (handle === item.handle)
+                case Some(val handle) -> if (handle === item.handle)
                     preferredFound = true
                 case None -> preferredFound = true
             }
             item.handle.checkThread()
             when (item.handle.navigation) {
-                case Some(group) -> requireUi(
+                case Some(val group) -> requireUi(
                     group === this || !group.active,
                     "focus handle already belongs to a navigation group"
                 )
                 case None -> {}
             }
             when (item.handle.target) {
-                case Some(target) -> if (target.active)
+                case Some(val target) -> if (target.active)
                     checkMember(target.node)
                 case None -> {}
             }
@@ -96,7 +96,7 @@ public class KeyNavigation internal constructor(
     private fun unbind() {
         for (item in current.items) {
             when (item.handle.navigation) {
-                case Some(group) -> if (group === this)
+                case Some(val group) -> if (group === this)
                     item.handle.navigation = None
                 case None -> {}
             }
@@ -125,11 +125,11 @@ public class KeyNavigation internal constructor(
                 case Some(_) -> {}
             }
             when (target.area.focusRevision) {
-                case Some(revision) -> {
+                case Some(val revision) -> {
                     val age = now - revision
                     val newer =
                         when (distance) {
-                            case Some(previous) -> age < previous
+                            case Some(val previous) -> age < previous
                             case None -> true
                         }
                     if (newer) {
@@ -141,8 +141,8 @@ public class KeyNavigation internal constructor(
             }
         }
         when (current.preferredTab) {
-            case Some(handle) -> when (handle.target) {
-                case Some(target) -> if (target.tabCandidate)
+            case Some(val handle) -> when (handle.target) {
+                case Some(val target) -> if (target.tabCandidate)
                     return Some(target)
                 case None -> {}
             }
@@ -163,7 +163,7 @@ public class KeyNavigation internal constructor(
     private fun focusedIndex(): Long? {
         for (index in 0L ..< current.items.size) {
             when (current.items[index].handle.target) {
-                case Some(target) -> if (target.active && target.area.hasFocus)
+                case Some(val target) -> if (target.active && target.area.hasFocus)
                     return Some(index)
                 case None -> {}
             }
@@ -175,7 +175,7 @@ public class KeyNavigation internal constructor(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value
+                case Keyboard(val value) -> value
                 else -> return
             }
         if (!navigationKeyAllowed(key))
@@ -191,7 +191,7 @@ public class KeyNavigation internal constructor(
             }
         context.consume()
         when (next) {
-            case Some(position) -> {
+            case Some(val position) -> {
                 val target = member(position) ?: return
                 val callback = current.onNavigate
                 if (target.handle.requestFocus(FocusOrigin.Keyboard) && active)

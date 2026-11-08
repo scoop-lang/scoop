@@ -94,7 +94,7 @@ public class AsyncSocks5Tunnel private constructor(
             when (action) {
                 case Done -> continuation.resume(Unit)
                 case Pending -> {}
-                case Start(target) -> context(job) { context(loop) {
+                case Start(val target) -> context(job) { context(loop) {
                     startCoroutine<Unit>(suspend { target.close() }, Socks5CloseCompletion(this))
                 } }
             }
@@ -111,7 +111,7 @@ public class AsyncSocks5Tunnel private constructor(
             pending
         }
         for (waiter in waiters) when (error) {
-            case Some(failure) -> waiter.resumeWithException(failure)
+            case Some(val failure) -> waiter.resumeWithException(failure)
             case None -> waiter.resume(Unit)
         }
     }

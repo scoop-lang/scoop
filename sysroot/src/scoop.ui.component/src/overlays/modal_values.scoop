@@ -139,11 +139,11 @@ public class SheetProps public constructor(
 ) {
     init {
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid sheet width")
+            case Some(val value) -> nonnegative(value, "invalid sheet width")
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid sheet height")
+            case Some(val value) -> nonnegative(value, "invalid sheet height")
             case None -> {}
         }
         modalDismiss(dismiss)

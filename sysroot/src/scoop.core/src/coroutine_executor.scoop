@@ -57,13 +57,13 @@ public suspend fun yieldCoroutine() {
 
 internal fun currentExecutorTask(): ExecutorTask? =
     when (currentCoroutineExecution()) {
-        case Some(execution) -> execution.task()
+        case Some(val execution) -> execution.task()
         case None -> None
     }
 
 internal fun executorParent(executor: CoroutineExecutor, parent: ExecutorTask?): ExecutorTask? =
     when (parent) {
-        case Some(parent) -> if (parent.executor === executor)
+        case Some(val parent) -> if (parent.executor === executor)
             Some(parent)
         else
             None
@@ -76,10 +76,10 @@ internal fun prepareCoroutineExecution(
 ): CoroutineExecution {
     val registration =
         when (executor) {
-            case Some(executor) -> {
+            case Some(val executor) -> {
                 val parent =
                     when (executorParent(executor, preferredParent)) {
-                        case Some(parent) -> Some(parent)
+                        case Some(val parent) -> Some(parent)
                         case None -> executorParent(executor, currentExecutorTask())
                     }
                 Some(executor.registerTask(parent))
@@ -92,6 +92,6 @@ internal fun prepareCoroutineExecution(
 /** Returns the executor selected for the current coroutine, or None for an independent entry. */
 public fun currentCoroutineExecutorOrNone(): CoroutineExecutor? =
     when (currentExecutorTask()) {
-        case Some(task) -> Some(task.executor)
+        case Some(val task) -> Some(task.executor)
         case None -> None
     }

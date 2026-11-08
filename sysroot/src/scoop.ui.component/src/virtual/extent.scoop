@@ -17,8 +17,8 @@ public enum VirtualListEndPadding {
 internal fun itemEstimate(mode: ItemExtent): Double {
     val value =
         when (mode) {
-            case Fixed(extent) -> extent
-            case Variable(estimate) -> estimate
+            case Fixed(val extent) -> extent
+            case Variable(val estimate) -> estimate
         }
     requireComponent(value.isFinite() && value > 0.0, "invalid item extent or estimate")
     return value

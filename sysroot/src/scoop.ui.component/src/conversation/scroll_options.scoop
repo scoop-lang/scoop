@@ -59,11 +59,11 @@ public class MessageScrollerProps public constructor(
         nonnegative(spacing, "invalid message spacing")
         nonnegative(overscan, "invalid message overscan")
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid message width");
+            case Some(val value) -> nonnegative(value, "invalid message width");
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid message height");
+            case Some(val value) -> nonnegative(value, "invalid message height");
             case None -> {}
         }
         itemEstimate(itemExtent)

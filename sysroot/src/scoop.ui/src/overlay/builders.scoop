@@ -25,7 +25,7 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public fun viewport(configure: ViewportPlacementBuilder.() -> Unit = {}): Unit {
         val builder = ViewportPlacementBuilder()
         when (placement) {
-            case Viewport(horizontal, vertical, padding) -> {
+            case Viewport(val horizontal, val vertical, val padding) -> {
                 builder.horizontal = horizontal
                 builder.vertical = vertical
                 builder.viewportPadding = padding
@@ -42,7 +42,7 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     ): Unit {
         val builder = AnchoredPlacementBuilder()
         when (placement) {
-            case Anchored(_, side, alignment, gap, padding, matchWidth) -> {
+            case Anchored(_, val side, val alignment, val gap, val padding, val matchWidth) -> {
                 builder.preferredSide = side
                 builder.alignment = alignment
                 builder.gap = gap
@@ -70,7 +70,7 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
         builder.alignment = OverlayAlignment.Center
         builder.matchAnchorWidth = true
         when (placement) {
-            case ContentAligned(_, side, alignment, gap, padding, matchWidth) -> {
+            case ContentAligned(_, val side, val alignment, val gap, val padding, val matchWidth) -> {
                 builder.preferredSide = side
                 builder.alignment = alignment
                 builder.gap = gap
@@ -93,7 +93,7 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public fun atPoint(point: Point, configure: PointPlacementBuilder.() -> Unit = {}): Unit {
         val builder = PointPlacementBuilder()
         when (placement) {
-            case AtPoint(_, side, alignment, gap, padding) -> {
+            case AtPoint(_, val side, val alignment, val gap, val padding) -> {
                 builder.preferredSide = side
                 builder.alignment = alignment
                 builder.gap = gap

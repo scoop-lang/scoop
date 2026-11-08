@@ -26,7 +26,7 @@ public suspend fun <R : AsyncCloseable, T> R.useAsync(block: suspend (R) -> T): 
 
 internal fun finishUnit(continuation: Continuation<Unit>, failure: Throwable?) {
     when (failure) {
-        case Some(error) -> continuation.resumeWithException(error)
+        case Some(val error) -> continuation.resumeWithException(error)
         case None -> continuation.resume(Unit)
     }
 }

@@ -116,7 +116,7 @@ public class HttpField public constructor(name: List<Byte>, value: List<Byte>,
 }
 
 /**
- * Returns all fields whose names match under ASCII case folding, preserving order without
+ * Returns all fields whose names match under ASCII case val folding, preserving order without
  * combining their values.
  */
 public fun List<HttpField>.findAll(name: List<Byte>): Array<HttpField> {
@@ -207,7 +207,7 @@ public class HttpResponseHead public constructor(
      * The optional HTTP/1 reason-phrase bytes; absent for HTTP/2.
      */
     public val reason: Array<Byte>? = when (reason) {
-        case Some(bytes) -> Some(bytes.toArray())
+        case Some(val bytes) -> Some(bytes.toArray())
         case None -> None
     }
     /**

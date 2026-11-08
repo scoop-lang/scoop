@@ -43,7 +43,7 @@ internal class LoopThreadResult<T>: Continuation<T> {
                 (value, failure)
             }
         when (error) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> return result!!
         }
     }

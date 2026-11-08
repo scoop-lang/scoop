@@ -50,9 +50,9 @@ private fun exercise(declaration: HttpTrailerDeclaration) {
                     when (event) {
                         case None -> break
                         case Some(_) -> when (event!!) {
-                            case Request(head) -> heads.add(head)
-                            case Data(bytes) -> body.append(bytes)
-                            case Trailers(fields) -> { for (field in fields) trailers.add(field) }
+                            case Request(val head) -> heads.add(head)
+                            case Data(val bytes) -> body.append(bytes)
+                            case Trailers(val fields) -> { for (field in fields) trailers.add(field) }
                             else -> {}
                         }
                     }

@@ -56,7 +56,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
         if (previous == next)
             return
         when (input.open) {
-            case Some(value) -> value.value = next
+            case Some(val value) -> value.value = next
             case None -> local.value = next
         }
         val accepted = open.value

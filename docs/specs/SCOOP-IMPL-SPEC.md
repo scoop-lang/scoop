@@ -162,6 +162,8 @@ parser 中仅有存在性与位置的修饰符使用可选 span；带取值的�
 
 when 的 AST 明确区分无 subject、表达式 subject 与 val subject 声明；声明保存完整 binding pattern、可选完整类型及初始化表达式。arm 区分普通条件序列、case 模式与后备条件，保留 guard 和各条件位置。return/throw 可处于表达式位置；调用保留尾随实参来源及分组边界；annotation 数组保留每个元素的位置。
 
+pattern parser 按声明位置与 `case` 位置的语法区分 binding 和裸 variant 名。`case` 中只有 `val name` 产生 binding，裸名称保存为独立的 variant pattern；字段 shorthand 按同一上下文展开，`val field` 等价于 `field: val field`。解析不查询 subject 类型或符号表。HIR 按该位置的 exact enum 解析裸 variant，未命中时报错，不能回退为 binding。实际同名 variant 的遮蔽 warning 在前端建立 binding 时复用名称查询与已知类型，在原绑定名范围报告；warning 随现有诊断通道传递，不影响成功 HIR、穷尽性、产物格式或 runtime ABI。
+
 ### 2.2 HIR
 
 M47 与语言服务共享既有语义查询的数据和实现。编辑态查询可以返回明确的不可用原因，但不能向成功 ExportHir／LocalConcreteHir 写入缺失类型或正文；查询与完整编译输出的边界见 2.20。

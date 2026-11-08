@@ -22,8 +22,8 @@ public class AccordionEntry<T: Equals<T>> public constructor(
 
 internal fun <T: Equals<T>> accordionOpen(selection: AccordionSelection<T>, value: T): Boolean =
     when (selection) {
-        case Single(binding, _) -> binding.value == Some(value)
-        case Multiple(binding) -> {
+        case Single(val binding, _) -> binding.value == Some(value)
+        case Multiple(val binding) -> {
             var found = false
             for (entry in binding.value)
                 if (entry == value)
@@ -40,12 +40,12 @@ internal fun <T: Equals<T>> setAccordionOpen(
     if (accordionOpen(selection, value) == open)
         return
     when (selection) {
-        case Single(binding, allowCollapse) -> if (open)
+        case Single(val binding, val allowCollapse) -> if (open)
             binding.value = Some(value)
         else
             if (allowCollapse)
                 binding.value = None
-        case Multiple(binding) -> {
+        case Multiple(val binding) -> {
             val next = ArrayList<T>()
             for (entry in binding.value)
                 if (entry != value)

@@ -1,12 +1,12 @@
 internal fun debugInteger(value: IntegerValue): String = when (value) {
-    case IntegerValue.Int8(number) -> number.toString()
-    case IntegerValue.Int16(number) -> number.toString()
-    case IntegerValue.Int(number) -> number.toString()
-    case IntegerValue.Long(number) -> number.toString()
-    case IntegerValue.UInt8(number) -> number.toString()
-    case IntegerValue.UInt16(number) -> number.toString()
-    case IntegerValue.UInt(number) -> number.toString()
-    case IntegerValue.ULong(number) -> number.toString()
+    case IntegerValue.Int8(val number) -> number.toString()
+    case IntegerValue.Int16(val number) -> number.toString()
+    case IntegerValue.Int(val number) -> number.toString()
+    case IntegerValue.Long(val number) -> number.toString()
+    case IntegerValue.UInt8(val number) -> number.toString()
+    case IntegerValue.UInt16(val number) -> number.toString()
+    case IntegerValue.UInt(val number) -> number.toString()
+    case IntegerValue.ULong(val number) -> number.toString()
 }
 
 internal fun debugQuoted(text: String, quote: Char, maxLength: Long): String {

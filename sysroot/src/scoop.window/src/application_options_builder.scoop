@@ -30,7 +30,7 @@ public class ApplicationOptionsBuilder internal constructor() {
     public var applicationId: String? = None
     internal fun snapshot(): ApplicationOptions {
         when (applicationId) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 requireWindow(value.byteLength > 0L, "application id is empty")
                 for (character in value)
                     requireWindow(character.code != 0, "application id contains NUL")

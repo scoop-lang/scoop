@@ -115,7 +115,7 @@ private class ServerHttp2LifecycleTests {
                     var boundary = 0
                     for (event in notices.snapshot())
                         when (event) {
-                            case GoAway(last, code, _, local) -> {
+                            case GoAway(val last, val code, _, val local) -> {
                                 assertFalse(local);
                                 assertEquals(0U, code);
                                 boundary = last

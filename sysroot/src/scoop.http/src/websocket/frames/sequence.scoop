@@ -37,12 +37,12 @@ internal class WebSocketSequence(private val compressionEnabled: Boolean, privat
 
     fun receive(head: WebSocketFrameHead, data: Array<Byte>) {
         if (webSocketControl(head.opcode)) return
-        when (validator) { case Some(value) -> value.receive(data); case None -> {} }
+        when (validator) { case Some(val value) -> value.receive(data); case None -> {} }
     }
 
     fun finish(head: WebSocketFrameHead) {
         if (webSocketControl(head.opcode) || !head.isFinal) return
-        when (validator) { case Some(value) -> value.finish(); case None -> {} }
+        when (validator) { case Some(val value) -> value.finish(); case None -> {} }
         close()
     }
 
@@ -53,6 +53,6 @@ internal class WebSocketSequence(private val compressionEnabled: Boolean, privat
         validator = None
         message = None
         bytes = 0L
-        when (owned) { case Some(value) -> value.close(); case None -> {} }
+        when (owned) { case Some(val value) -> value.close(); case None -> {} }
     }
 }

@@ -52,7 +52,7 @@ internal class InputProbe {
         @Unsafe
         {
             when (lease.handle) {
-                case AppKit(_, view) -> assertEquals(0, exerciseNativeInput(view))
+                case AppKit(_, val view) -> assertEquals(0, exerciseNativeInput(view))
             }
         }
         receivedBefore = Some(MonotonicTimeSource.markNow())
@@ -68,7 +68,7 @@ internal class InputProbe {
     }
     private fun observe(time: InputTime) {
         when (time) {
-            case Observed(value) -> {
+            case Observed(val value) -> {
                 assertTrue(value.source === MonotonicTimeSource)
                 assertTrue(value >= receivedAfter!!)
                 assertTrue(value <= receivedBefore!!)
@@ -83,7 +83,7 @@ internal class InputProbe {
         assertEquals(None, batch.baseRevision)
         for (operation in batch.operations)
             when (operation) {
-                case Commit(value, TextReplacement.CurrentSelection) -> text += value
+                case Commit(val value, TextReplacement.CurrentSelection) -> text += value
                 else -> fail(Some("unexpected plain-key edit"))
             }
     }
@@ -91,7 +91,7 @@ internal class InputProbe {
         if (!started)
             return
         when (event) {
-            case Cancelled(reason, time) -> {
+            case Cancelled(val reason, val time) -> {
                 observe(time)
                 pointerSequence += when (reason) {
                     case FocusLost -> "c"
@@ -100,13 +100,13 @@ internal class InputProbe {
                     case Modal -> "m"
                 }
             }
-            case Left(state) -> {
+            case Left(val state) -> {
                 if (state.logicalPosition == LogicalPosition(-17.0, -19.0)) {
                     observe(state.time)
                     pointerSequence += "l"
                 }
             }
-            case Moved(state) -> {
+            case Moved(val state) -> {
                 if (state.logicalPosition == LogicalPosition(20.0, 30.0)) {
                     observe(state.time)
                     moved = true
@@ -117,7 +117,7 @@ internal class InputProbe {
                     assertEquals(None, state.deviceId)
                 }
             }
-            case Button(state, MouseButton.Left, action, count) -> {
+            case Button(val state, MouseButton.Left, val action, val count) -> {
                 observe(state.time)
                 if (count == 2) {
                     buttons += 1;
@@ -129,14 +129,14 @@ internal class InputProbe {
                     else
                         "u"
             }
-            case Wheel(_, ScrollDelta.LineDelta(x, y), ScrollPhase.None, ScrollPhase.None) -> {
+            case Wheel(_, ScrollDelta.LineDelta(val x, val y), ScrollPhase.None, ScrollPhase.None) -> {
                 assertEquals(3.0, x);
                 assertEquals(5.0, y);
                 lineWheel = true
             }
             case Wheel(
-                state,
-                ScrollDelta.PixelDelta(x, y),
+                val state,
+                ScrollDelta.PixelDelta(val x, val y),
                 ScrollPhase.Began,
                 ScrollPhase.None
             ) -> {

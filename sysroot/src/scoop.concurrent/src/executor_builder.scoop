@@ -30,7 +30,7 @@ public class ExecutorBuilder public constructor() {
         if (workers <= 0)
             throw IllegalArgumentException(Some("worker count must be positive"))
         when (pool) {
-            case Owned(threads) -> if (threads <= 0)
+            case Owned(val threads) -> if (threads <= 0)
                 throw IllegalArgumentException(Some("blocking thread count must be positive"))
             case Borrowed(_) -> {}
         }
@@ -59,11 +59,11 @@ public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): Mult
     configure(builder)
     val configuration = builder.snapshot()
     when (configuration.pool) {
-        case Borrowed(pool) -> {
+        case Borrowed(val pool) -> {
             pool.ensureOpen()
             return MultiThreadExecutor(configuration.workers, pool, false)
         }
-        case Owned(threads) -> {
+        case Owned(val threads) -> {
             val pool = BlockingTaskPool(threads)
             try {
                 return MultiThreadExecutor(configuration.workers, pool, true)

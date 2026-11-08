@@ -68,7 +68,7 @@ public class PublicSuffixList internal constructor(
      * hosts. Private rules are included by default.
      */
     public fun lookup(origin: UrlOrigin, includePrivate: Boolean = true): PublicSuffixMatch? = when (origin.host) {
-        case Dns(name) -> Some(lookupAscii(name, includePrivate))
+        case Dns(val name) -> Some(lookupAscii(name, includePrivate))
         case Ipv4(_) -> None
         case Ipv6(_) -> None
     }

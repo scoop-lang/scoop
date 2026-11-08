@@ -5,7 +5,7 @@
  */
 public suspend fun <T> blocking(block: () -> T): T =
     when (currentCoroutineExecutorOrNone()) {
-        case Some(executor) -> executor.blocking(block)
+        case Some(val executor) -> executor.blocking(block)
         case None -> throw IllegalStateException(Some("blocking requires a coroutine executor"))
     }
 
@@ -50,7 +50,7 @@ private class BlockingOperation<T>(
     fun submit(job: Job?) {
         try {
             when (job) {
-                case Some(job) -> {
+                case Some(val job) -> {
                     val listener = job.invokeOnCancellation { error -> cancel(error) }
                     val installed =
                         lock.withLock {
@@ -77,7 +77,7 @@ private class BlockingOperation<T>(
         val claimed: (BlockingRequest<T>, Disposable?)? =
             lock.withLock {
                 when (state) {
-                    case BlockingOperationState.Queued(request) -> {
+                    case BlockingOperationState.Queued(val request) -> {
                         state = BlockingOperationState.Cancelling(false)
                         val listener = cancellation
                         cancellation = None
@@ -87,7 +87,7 @@ private class BlockingOperation<T>(
                 }
             }
         when (claimed) {
-            case Some((request, listener)) -> {
+            case Some((val request, val listener)) -> {
                 try {
                     listener?.dispose()
                     request.cancel(error)
@@ -103,7 +103,7 @@ private class BlockingOperation<T>(
         val retired =
             lock.withLock {
                 when (state) {
-                    case BlockingOperationState.Cancelling(retired) -> {
+                    case BlockingOperationState.Cancelling(val retired) -> {
                         state =
                             if (retired)
                                 BlockingOperationState.Finished
@@ -126,7 +126,7 @@ private class BlockingOperation<T>(
                 var complete = true
                 val request: BlockingRequest<T>? =
                     when (state) {
-                        case BlockingOperationState.Queued(request) -> {
+                        case BlockingOperationState.Queued(val request) -> {
                             state = BlockingOperationState.Running
                             Some(request)
                         }
@@ -183,8 +183,8 @@ private class BlockingInvocation<T>(private val block: () -> T) {
         @Unsafe
         {
             when (result.assumeInit()) {
-                case BlockingResult.Value(value) -> continuation.resume(value)
-                case BlockingResult.Failure(error) -> continuation.resumeWithException(error)
+                case BlockingResult.Value(val value) -> continuation.resume(value)
+                case BlockingResult.Failure(val error) -> continuation.resumeWithException(error)
             }
         }
     }

@@ -70,14 +70,14 @@ private class TextContentBuilder {
     fun append(spans: Array<TextSpan>, style: TextStyle) {
         for (span in spans) {
             when (span.content) {
-                case Plain(value) -> {
+                case Plain(val value) -> {
                     if (value.byteLength > 0L) {
                         appendText(value)
                         runs.add(TextRun.Text(value, style))
                     }
                 }
-                case Styled(overrides, children) -> append(children, overrides.resolve(style))
-                case Object(key, alternateText) -> {
+                case Styled(val overrides, val children) -> append(children, overrides.resolve(style))
+                case Object(val key, val alternateText) -> {
                     requireText(keys.add(key), "duplicate inline object key")
                     val start = length
                     appendText("\u{fffc}")

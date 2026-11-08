@@ -27,8 +27,8 @@ public fun inlineChildren(content: StyledText, inlines: Array<InlineView>): Arra
         val item = ordered[index]
         val key =
             when (item.key) {
-                case Text(value) -> ViewKey.Text(value)
-                case Number(value) -> ViewKey.Number(value)
+                case Text(val value) -> ViewKey.Text(value)
+                case Number(val value) -> ViewKey.Number(value)
             }
         component(item.view, { props, mount -> InlineChild(props, scope = mount) }, key)
     }
@@ -59,7 +59,7 @@ internal fun orderedInlines(content: StyledText, inlines: Array<InlineView>): Ar
 internal fun InlineView.metrics(measured: LayoutMetrics): InlineMetrics {
     val resolved =
         when (alignment) {
-            case Baseline(kind) -> {
+            case Baseline(val kind) -> {
                 val value =
                     if (kind == TextBaseline.Alphabetic)
                         measured.alphabeticBaseline
@@ -67,7 +67,7 @@ internal fun InlineView.metrics(measured: LayoutMetrics): InlineMetrics {
                         measured.ideographicBaseline
                 InlineAlignment.Baseline(kind, value ?: measured.size.height)
             }
-            case Explicit(value) -> value
+            case Explicit(val value) -> value
         }
     return InlineMetrics(key, measured.size, resolved)
 }

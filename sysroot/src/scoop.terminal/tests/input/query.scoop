@@ -12,7 +12,7 @@ private class QueryTest {
         assertFalse(cursor.accept(InputItem.DeviceStatus(0L)).hasItem())
         assertFalse(cursor.accept(InputItem.DeviceAttributes(false, [1L, 2L])).hasItem())
         when (cursor.accept(InputItem.CursorPosition(8L, 3L))) {
-            case Some(InputItem.CursorPosition(column, row)) -> {
+            case Some(InputItem.CursorPosition(val column, val row)) -> {
                 assertEquals(8L, column)
                 assertEquals(3L, row)
             }
@@ -21,7 +21,7 @@ private class QueryTest {
         val secondary = QueryReply(QueryKind.Secondary)
         assertFalse(secondary.accept(InputItem.DeviceAttributes(false, [1L])).hasItem())
         when (secondary.accept(InputItem.DeviceAttributes(true, [0L, 100L, 0L]))) {
-            case Some(InputItem.DeviceAttributes(kind, parameters)) -> {
+            case Some(InputItem.DeviceAttributes(val kind, val parameters)) -> {
                 assertTrue(kind)
                 assertEquals(100L, parameters[1L])
             }
@@ -36,7 +36,7 @@ private class QueryTest {
             assertFalse(reply.accept(InputItem.KeyboardFlags(KeyboardEnhancementFlags(bits))).hasItem())
             assertFalse(reply.accept(InputItem.DeviceAttributes(true, [1L])).hasItem())
             when (reply.accept(InputItem.DeviceAttributes(false, [1L, 2L]))) {
-                case Some(InputItem.KeyboardFlags(flags)) -> assertEquals(bits, flags.bits)
+                case Some(InputItem.KeyboardFlags(val flags)) -> assertEquals(bits, flags.bits)
                 case _ -> fail(Some("missing keyboard flags"))
             }
         }

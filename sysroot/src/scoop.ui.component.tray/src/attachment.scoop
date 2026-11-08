@@ -69,7 +69,7 @@ internal class NativeTrayAttachment(
         val input = read()
         val sameImage =
             when (image) {
-                case Some(previous) -> previous === input.image;
+                case Some(val previous) -> previous === input.image;
                 case None -> false
             }
         if (!sameImage) {
@@ -82,7 +82,7 @@ internal class NativeTrayAttachment(
         }
         val sameHandle =
             when ((handle, input.handle)) {
-                case(Some(previous), Some(next)) -> previous === next
+                case(Some(val previous), Some(val next)) -> previous === next
                 case(None, None) -> true
                 else -> false
             }
@@ -97,10 +97,10 @@ internal class NativeTrayAttachment(
 
     private fun reconcileMenu() {
         when (tree) {
-            case Some(current) -> {
+            case Some(val current) -> {
                 if (!current.isClosed)
                     when (desired) {
-                        case Some(snapshot) -> {
+                        case Some(val snapshot) -> {
                             current.update(snapshot);
                             return
                         }
@@ -115,14 +115,14 @@ internal class NativeTrayAttachment(
             case None -> {}
         }
         when (desired) {
-            case Some(snapshot) -> {
+            case Some(val snapshot) -> {
                 val created = NativeMenuTree(scope.application, snapshot)
                 tree = Some(created)
                 menuEvents =
                     Some(
                         scope.observeMenu(created.menu) {
                             activation -> when (activation.source) {
-                                case Native(id) -> {
+                                case Native(val id) -> {
                                     if (icon.menuUseId == Some(id))
                                         created.activate(activation)
                                 }
@@ -138,14 +138,14 @@ internal class NativeTrayAttachment(
 
     private fun receive(event: TrayEvent) {
         when (event) {
-            case Activated(value) -> read().onActivated(value)
-            case AvailabilityChanged(value) -> {
+            case Activated(val value) -> read().onActivated(value)
+            case AvailabilityChanged(val value) -> {
                 available.value = value
                 read().onAvailabilityChanged(value)
             }
             case MenuBindingChanged(_) -> reconcileMenu()
-            case MenuCompleted(id, result) -> when (session) {
-                case Some(current) -> if (current.id == id) {
+            case MenuCompleted(val id, val result) -> when (session) {
+                case Some(val current) -> if (current.id == id) {
                     session = None
                     pending.value = false
                     read().onMenuClosed(result)
@@ -159,7 +159,7 @@ internal class NativeTrayAttachment(
         if (closed || !scope.isMounted || pending.value)
             return false
         when (tree) {
-            case Some(value) -> if (value.isClosed)
+            case Some(val value) -> if (value.isClosed)
                 return false;
             case None -> return false
         }
@@ -194,7 +194,7 @@ internal class NativeTrayAttachment(
         tray = None;
         tree = None
         when (failure) {
-            case Some(error) -> throw error;
+            case Some(val error) -> throw error;
             case None -> {}
         }
     }
@@ -207,7 +207,7 @@ private fun <R: Closeable> closeTrayResource(previous: Throwable?, resource: R?)
     }
     catch (error: Throwable) {
         when (previous) {
-            case Some(first) -> Some(ResourceUseException(first, error));
+            case Some(val first) -> Some(ResourceUseException(first, error));
             case None -> Some(error)
         }
     }

@@ -86,7 +86,7 @@ public class DatePickerHandle public constructor() {
     public fun closeCalendar(): Boolean = owner?.close() ?: false
     internal fun bind(control: DatePickerControl) {
         when (owner) {
-            case Some(previous) -> requireComponent(
+            case Some(val previous) -> requireComponent(
                 previous === control || !previous.active,
                 "date picker handle is already attached"
             );
@@ -96,7 +96,7 @@ public class DatePickerHandle public constructor() {
     }
     internal fun release(control: DatePickerControl) {
         when (owner) {
-            case Some(previous) -> if (previous === control)
+            case Some(val previous) -> if (previous === control)
                 owner = None;
             case None -> {}
         }

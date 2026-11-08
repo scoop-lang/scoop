@@ -11,8 +11,8 @@ internal fun SessionInput.query(terminal: TerminalHandle, kind: QueryKind, timeo
     while (true) {
         when (reader.parser.next()) {
             case None -> break
-            case Some(InputItem.User(event)) -> deferred.addLast(event)
-            case Some(InputItem.Invalid(detail)) -> throw TerminalInputException(detail)
+            case Some(InputItem.User(val event)) -> deferred.addLast(event)
+            case Some(InputItem.Invalid(val detail)) -> throw TerminalInputException(detail)
             case Some(_) -> {}
         }
     }
@@ -22,9 +22,9 @@ internal fun SessionInput.query(terminal: TerminalHandle, kind: QueryKind, timeo
     while (true) {
         when (reader.next(terminal, inputRemaining(started, Some(timeout)))) {
             case None -> throw TerminalQueryTimeoutException()
-            case Some(InputItem.User(event)) -> deferred.addLast(event)
-            case Some(InputItem.Invalid(detail)) -> throw TerminalInputException(detail)
-            case Some(item) -> {
+            case Some(InputItem.User(val event)) -> deferred.addLast(event)
+            case Some(InputItem.Invalid(val detail)) -> throw TerminalInputException(detail)
+            case Some(val item) -> {
                 val result = reply.accept(item)
                 if (result.hasItem()) return result!!
             }

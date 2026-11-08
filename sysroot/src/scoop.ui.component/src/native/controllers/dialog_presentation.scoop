@@ -24,13 +24,13 @@ internal class NativeDialogPresentation<T>(
                     val value: NativeDialogResult<T> =
                         when (result) {
                             case Completed -> when (accepted) {
-                                case Some(value) -> NativeDialogResult.Accepted(value)
+                                case Some(val value) -> NativeDialogResult.Accepted(value)
                                 case None -> NativeDialogResult.Cancelled(
                                     ModalCancelReason.Cancelled
                                 )
                             }
-                            case Cancelled(reason) -> NativeDialogResult.Cancelled(reason)
-                            case Failed(error) -> NativeDialogResult.Failed(error)
+                            case Cancelled(val reason) -> NativeDialogResult.Cancelled(reason)
+                            case Failed(val error) -> NativeDialogResult.Failed(error)
                         }
                     close()
                     finished(value)

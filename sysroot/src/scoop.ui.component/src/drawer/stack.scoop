@@ -8,14 +8,14 @@ internal fun drawerUpdateParent(control: DrawerControl) {
     val requested =
         if (control.read().props.open.value)
             when (control.read().props.parent) {
-                case Some(handle) -> handle.target
+                case Some(val handle) -> handle.target
                 case None -> None
             }
         else
             None
     val next =
         when (requested) {
-            case Some(value) -> if (value.active)
+            case Some(val value) -> if (value.active)
                 Some(value)
             else
                 None;
@@ -23,14 +23,14 @@ internal fun drawerUpdateParent(control: DrawerControl) {
         }
     val same =
         when ((control.parent, next)) {
-            case(Some(old), Some(value)) -> old === value
+            case(Some(val old), Some(val value)) -> old === value
             case(None, None) -> true
             else -> false
         }
     if (same)
         return
     when (next) {
-        case Some(value) -> {
+        case Some(val value) -> {
             requireComponent(
                 value.scope.nativeWindow === control.scope.nativeWindow,
                 "drawer parent must share its window"
@@ -38,7 +38,7 @@ internal fun drawerUpdateParent(control: DrawerControl) {
             var ancestor: DrawerControl? = Some(value)
             while (true)
                 when (ancestor) {
-                    case Some(current) -> {
+                    case Some(val current) -> {
                         requireComponent(current !== control, "drawer parent cycle")
                         ancestor = current.parent
                     }
@@ -50,7 +50,7 @@ internal fun drawerUpdateParent(control: DrawerControl) {
     drawerDetachParent(control)
     control.parent = next
     when (next) {
-        case Some(value) -> {
+        case Some(val value) -> {
             value.children.add(control)
             value.frontExtent = control.geometry?.extent ?: value.frontExtent
             value.cancel(DragCancelReason.ConfigurationChanged)
@@ -84,7 +84,7 @@ private fun drawerRefreshStack(control: DrawerControl) {
         return
     val amount = control.depth.toDouble()
     when (control.transition()) {
-        case Some(spec) -> if (
+        case Some(val spec) -> if (
             control.stackMotion.target !=
                 amount ||
                 control.stackMotion.state !=
@@ -103,7 +103,7 @@ private fun drawerRefreshStack(control: DrawerControl) {
     control.publish();
     control.scope.requestFrame()
     when (control.parent) {
-        case Some(parent) -> drawerRefreshStack(parent);
+        case Some(val parent) -> drawerRefreshStack(parent);
         case None -> {}
     }
 }
@@ -113,7 +113,7 @@ internal fun drawerStackAmount(control: DrawerControl): Double {
     if (control.children.size > 0L) {
         val child = control.children[control.children.size - 1L]
         when (child.geometry) {
-            case Some(shape) -> {
+            case Some(val shape) -> {
                 val anchor = child.anchor(shape)
                 if (anchor > 0.0)
                     amount -= min(1.0, max(0.0, 1.0 - child.position / anchor))

@@ -78,7 +78,7 @@ internal fun chartRadar(plan: ChartPlan, size: Size): ChartGeometry {
             Array<ChartSample?>(count) {
                 at -> when (item.samples[at]) {
                     case None -> None
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         val unit = plan.prepared.yRange.unit(value.value)
                         Some(
                             ChartSample(

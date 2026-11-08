@@ -2,8 +2,8 @@ package scoop.compression
 
 internal fun createCompressionEncoder(options: CompressionOptions): CompressionCodec {
     val config = encoderConfiguration(options)
-    val dictionary = when (options) { case Zstd(value) -> value.dictionary; else -> None }
-    val metadata = when (options) { case Gzip(value) -> Some(value.metadata); else -> None }
+    val dictionary = when (options) { case Zstd(val value) -> value.dictionary; else -> None }
+    val metadata = when (options) { case Gzip(val value) -> Some(value.metadata); else -> None }
     return openCompressionCodec(config, options.format, dictionary, metadata)
 }
 
@@ -19,12 +19,12 @@ internal fun createCompressionDecoder(options: DecompressionOptions): Compressio
 
 private fun encoderConfiguration(options: CompressionOptions): NativeCompressionOptions {
     val (level, window, strategy, checksum) = when (options) {
-        case Gzip(value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
-        case Zlib(value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
-        case RawDeflate(value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
-        case Brotli(value) -> (value.quality, value.windowBits,
+        case Gzip(val value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
+        case Zlib(val value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
+        case RawDeflate(val value) -> (value.level, value.windowBits, deflateStrategyCode(value.strategy), 0)
+        case Brotli(val value) -> (value.quality, value.windowBits,
             when (value.mode) { case Generic -> 0; case Text -> 1; case Font -> 2 }, 0)
-        case Zstd(value) -> (value.level, 0, 0, if (value.checksum) 1 else 0)
+        case Zstd(val value) -> (value.level, 0, 0, if (value.checksum) 1 else 0)
     }
     return NativeCompressionOptions(compressionFormatCode(options.format), 1, level, window, strategy, checksum, 0, -1L, -1L)
 }
@@ -34,7 +34,7 @@ private fun openCompressionCodec(config: NativeCompressionOptions, format: Compr
     @Unsafe {
         val handle = when (dictionary) {
             case None -> compressionNew(config, None, 0L)
-            case Some(value) -> value.withBytes { data, count -> @Unsafe { return@withBytes compressionNew(config, data, count) } }
+            case Some(val value) -> value.withBytes { data, count -> @Unsafe { return@withBytes compressionNew(config, data, count) } }
         }
         return ownCompressionHandle(handle, format, config.encoding != 0, metadata)
     }
@@ -46,7 +46,7 @@ private fun openCompressionCodec(config: NativeCompressionOptions, format: Compr
     try {
         val initial = checkCompressionConstruction(handle, format)
         val info = when (metadata) {
-            case Some(value) -> { configureGzip(handle, value); checkCompressionConstruction(handle, format) }
+            case Some(val value) -> { configureGzip(handle, value); checkCompressionConstruction(handle, format) }
             case None -> initial
         }
         val codec = CompressionCodec(handle, info.memory, format, encoding)

@@ -25,7 +25,7 @@ internal class ManualExecutor: CoroutineExecutor {
     fun runOne(): Boolean {
         val next = lock.withLock { queue.removeFirstOrNone() }
         when (next) {
-            case Some(work) -> {
+            case Some(val work) -> {
                 work();
                 return true
             }
@@ -71,7 +71,7 @@ internal class TestResult<T>: Continuation<T> {
     fun get(): T {
         assertEquals(1, calls)
         when (error) {
-            case Some(failure) -> throw failure
+            case Some(val failure) -> throw failure
             case None -> return value!!
         }
     }

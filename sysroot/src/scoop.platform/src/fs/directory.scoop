@@ -84,7 +84,7 @@ public class DirectoryEntries private constructor(private val path: Path)
         val owned = directory
         directory = None
         when (owned) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeDirectoryClose(pointer).checked("close directory", Some(path.toOsString()))
             }
@@ -105,7 +105,7 @@ public class DirectoryEntries private constructor(private val path: Path)
 
     release {
         when (directory) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeDirectoryClose(pointer)
             }

@@ -79,7 +79,7 @@ internal fun parseWebSocketHandshake(request: HttpRequestHead): WebSocketHandsha
     )
         throw WebSocketHandshakeException("expected HTTP/1.1 GET")
     when (request.target) {
-        case Http1(bytes) -> if (bytes.size == 0L)
+        case Http1(val bytes) -> if (bytes.size == 0L)
             throw WebSocketHandshakeException("empty HTTP/1 request target")
         case Http2(_, _, _) -> throw WebSocketHandshakeException(
             "expected an HTTP/1 request target"
@@ -92,7 +92,7 @@ internal fun parseWebSocketHandshake(request: HttpRequestHead): WebSocketHandsha
     val key = webSocketSingleField(fields, "Sec-WebSocket-Key", true)!!
     val validKey =
         when (Base64.Default.decodeOrNone(key)) {
-            case Some(bytes) -> bytes.size == 16L;
+            case Some(val bytes) -> bytes.size == 16L;
             case None -> false
         }
     if (!validKey)
@@ -109,7 +109,7 @@ internal fun parseWebSocketHandshake(request: HttpRequestHead): WebSocketHandsha
         )
     val length = webSocketSingleField(fields, "Content-Length", false)
     when (length) {
-        case Some(value) -> {
+        case Some(val value) -> {
             val reader = HttpFieldReader("Content-Length", value.toByteArray())
             if (reader.decimal() != 0L || !reader.ended)
                 reader.fail("WebSocket request body must be empty")

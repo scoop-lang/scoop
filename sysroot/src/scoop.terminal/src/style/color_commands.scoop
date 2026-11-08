@@ -50,11 +50,11 @@ public struct SetColors(val colors: Colors) : Command {
      */
     public override fun writeAnsi(writer: TextWriter) {
         val foreground = when (colors.foreground) {
-            case Some(color) -> Colored.ForegroundColor(color).toAnsiString()
+            case Some(val color) -> Colored.ForegroundColor(color).toAnsiString()
             case None -> ""
         }
         val background = when (colors.background) {
-            case Some(color) -> Colored.BackgroundColor(color).toAnsiString()
+            case Some(val color) -> Colored.BackgroundColor(color).toAnsiString()
             case None -> ""
         }
         if (!isColorOutputEnabled()) return

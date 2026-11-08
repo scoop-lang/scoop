@@ -70,7 +70,7 @@ import scoop.url.Url
 }
 
 private fun wsTarget(head: HttpRequestHead): String = when (head.target) {
-    case Http1(bytes) -> String.fromUtf8(bytes)
+    case Http1(val bytes) -> String.fromUtf8(bytes)
     case Http2(_, _, _) -> throw IllegalStateException()
     case Connect(_) -> throw IllegalStateException()
 }

@@ -58,7 +58,7 @@ private class TcpConnectionRace(
     private var ipv6Resolver: Job? = None
     private val trace: TcpConnectTrace? =
         when (options.onEvent) {
-            case Some(callback) -> Some(TcpConnectTrace(callback))
+            case Some(val callback) -> Some(TcpConnectTrace(callback))
             case None -> None
         }
 
@@ -73,7 +73,7 @@ private class TcpConnectionRace(
             scope.job.ensureActive()
             trace?.start(TcpConnectPhase.Resolve)
             when (options.resolveTimeout) {
-                case Some(limit) -> {
+                case Some(val limit) -> {
                     val deadline = TcpConnectionDeadline(limit)
                     resolutionDeadline = Some(deadline)
                     delay(scope, deadline.remaining(), TcpRaceEvent.CheckDeadlines)
@@ -103,12 +103,12 @@ private class TcpConnectionRace(
                 delay(scope, options.resolutionDelay, TcpRaceEvent.ResolutionDelay)
             }
             when (plan.takeNext()) {
-                case Some(address) -> {
+                case Some(val address) -> {
                     beginConnectionDeadline(scope)
                     checkDeadlines()
                     connect(scope, address)
                     when (attemptTimer) {
-                        case Some(timer) -> timer.cancel();
+                        case Some(val timer) -> timer.cancel();
                         case None -> {}
                     }
                     attemptTimer =
@@ -126,37 +126,37 @@ private class TcpConnectionRace(
             if (plan.exhausted)
                 throw TcpConnectException(host, port, attempts.toArray(), resolutions.toArray())
             when (mailbox.next()) {
-                case Resolved(AddressFamily.Ipv4, addresses) -> {
+                case Resolved(AddressFamily.Ipv4, val addresses) -> {
                     checkDeadlines();
                     plan.resolved(AddressFamily.Ipv4, addresses)
                 }
-                case Resolved(AddressFamily.Ipv6, addresses) -> {
+                case Resolved(AddressFamily.Ipv6, val addresses) -> {
                     checkDeadlines();
                     plan.resolved(AddressFamily.Ipv6, addresses)
                 }
-                case ResolutionFailed(AddressFamily.Ipv4, error) -> resolutionFailed(
+                case ResolutionFailed(AddressFamily.Ipv4, val error) -> resolutionFailed(
                     AddressFamily.Ipv4,
                     error
                 )
-                case ResolutionFailed(AddressFamily.Ipv6, error) -> resolutionFailed(
+                case ResolutionFailed(AddressFamily.Ipv6, val error) -> resolutionFailed(
                     AddressFamily.Ipv6,
                     error
                 )
-                case Connected(stream) -> {
+                case Connected(val stream) -> {
                     winner = Some(stream)
                     trace?.finish(TcpConnectPhase.Connect)
                     scope.job.ensureActive();
                     checkDeadlines();
                     return
                 }
-                case ConnectionFailed(address, error) -> {
+                case ConnectionFailed(val address, val error) -> {
                     attempts.add(TcpConnectionFailure(address, error))
                     plan.attemptFailed()
                 }
                 case ResolutionDelay -> plan.resolutionDelayElapsed()
-                case AttemptDelay(id) -> plan.attemptDelayElapsed(id)
+                case AttemptDelay(val id) -> plan.attemptDelayElapsed(id)
                 case CheckDeadlines -> {}
-                case Aborted(error) -> throw error
+                case Aborted(val error) -> throw error
             }
             if (plan.resolutionComplete)
                 trace?.finish(TcpConnectPhase.Resolve)
@@ -204,7 +204,7 @@ private class TcpConnectionRace(
             case None -> {}
         }
         when (options.connectTimeout) {
-            case Some(limit) -> {
+            case Some(val limit) -> {
                 val deadline = TcpConnectionDeadline(limit)
                 connectionDeadline = Some(deadline)
                 delay(scope, deadline.remaining(), TcpRaceEvent.CheckDeadlines)
@@ -218,14 +218,14 @@ private class TcpConnectionRace(
             return
         val now = MonotonicTimeSource.markNow()
         when (resolutionDeadline) {
-            case Some(deadline) -> if (
+            case Some(val deadline) -> if (
                 !plan.resolutionComplete && deadline.elapsed(now) >= deadline.limit
             )
                 expireResolution(deadline, now)
             case None -> {}
         }
         when (connectionDeadline) {
-            case Some(deadline) -> if (deadline.elapsed(now) >= deadline.limit)
+            case Some(val deadline) -> if (deadline.elapsed(now) >= deadline.limit)
                 throw TcpConnectTimeoutException(
                     host,
                     port,
@@ -258,7 +258,7 @@ private class TcpConnectionRace(
                 else
                     ipv6Resolver
             when (task) {
-                case Some(value) -> value.cancel();
+                case Some(val value) -> value.cancel();
                 case None -> {}
             }
         }
@@ -312,16 +312,16 @@ private class TcpConnectionRace(
             failure =
                 Some(
                     when (failure) {
-                        case Some(first) -> ResourceUseException(first, error)
+                        case Some(val first) -> ResourceUseException(first, error)
                         case None -> error
                     }
                 )
         }
         when (mailbox.cleanupFailure) {
-            case Some(error) -> failure =
+            case Some(val error) -> failure =
                 Some(
                     when (failure) {
-                        case Some(first) -> ResourceUseException(first, error)
+                        case Some(val first) -> ResourceUseException(first, error)
                         case None -> error
                     }
                 )
@@ -334,9 +334,9 @@ private class TcpConnectionRace(
                 winner = None
                 return result
             }
-            case Some(error) -> {
+            case Some(val error) -> {
                 when (winner) {
-                    case Some(stream) -> {
+                    case Some(val stream) -> {
                         winner = None
                         try {
                             stream.close()

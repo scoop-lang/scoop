@@ -7,11 +7,11 @@ enum CodeOutput {
         public override fun encode(value: CodeOutput, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case CodeOutput.Logs(payload) -> {
+                case CodeOutput.Logs(val payload) -> {
                     String.encode("logs", fields.field("type"))
                     CodeLogs.Companion.encode(payload, encoder)
                 }
-                case CodeOutput.Image(payload) -> {
+                case CodeOutput.Image(val payload) -> {
                     String.encode("image", fields.field("type"))
                     CodeImage.Companion.encode(payload, encoder)
                 }
@@ -50,15 +50,15 @@ enum SearchAction {
         public override fun encode(value: SearchAction, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case SearchAction.Search(payload) -> {
+                case SearchAction.Search(val payload) -> {
                     String.encode("search", fields.field("type"))
                     SearchQuery.Companion.encode(payload, encoder)
                 }
-                case SearchAction.Open(payload) -> {
+                case SearchAction.Open(val payload) -> {
                     String.encode("open_page", fields.field("type"))
                     SearchPage.Companion.encode(payload, encoder)
                 }
-                case SearchAction.Find(payload) -> {
+                case SearchAction.Find(val payload) -> {
                     String.encode("find_in_page", fields.field("type"))
                     SearchFind.Companion.encode(payload, encoder)
                 }

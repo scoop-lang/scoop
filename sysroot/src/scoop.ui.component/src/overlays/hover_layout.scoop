@@ -16,7 +16,7 @@ internal class HoverPopupLink {
     }
     fun unbind(value: Hover) {
         when (behavior) {
-            case Some(current) -> if (current === value)
+            case Some(val current) -> if (current === value)
                 behavior = None
             case None -> {}
         }
@@ -28,7 +28,7 @@ internal class HoverPopupLink {
             return
         current.setContent(
             when (value) {
-                case Some(area) -> [area]
+                case Some(val area) -> [area]
                 case None -> []
             }
         )
@@ -45,7 +45,7 @@ internal class HoverPopupLink {
     }
     fun dismiss(fallback: () -> Unit = {}) {
         when (behavior) {
-            case Some(current) -> if (!current.isClosed) {
+            case Some(val current) -> if (!current.isClosed) {
                 current.dismiss();
                 return
             }
@@ -96,7 +96,7 @@ internal class HoverPopupLayout(
                                     _
                                 )
                             ) -> true
-                            case Keyboard(key) -> key.state ==
+                            case Keyboard(val key) -> key.state ==
                                 ElementState.Pressed &&
                                 !key.synthetic &&
                                 (space.matches(key) || enter.matches(key))
@@ -166,7 +166,7 @@ internal class HoverPopupContent(
         val limit = props.value.maxWidth
         val bounded =
             when (limit) {
-                case Some(width) -> {
+                case Some(val width) -> {
                     val natural =
                         context.measureChild(0L, Constraints(maxHeight = constraints.maxHeight))
                     val limit = min(width, constraints.maxWidth ?: width)

@@ -26,7 +26,7 @@ internal class DownloadController(
     private fun owns(attempt: DownloadAttempt): Boolean =
         !closed &&
             when (current) {
-                case Some(value) -> value === attempt
+                case Some(val value) -> value === attempt
                 case None -> false
             }
     fun start(request: HttpRequest, destination: Path): Job {
@@ -37,7 +37,7 @@ internal class DownloadController(
         val attempt = DownloadAttempt()
         current = Some(attempt)
         when (previous) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 value.accepting = false
                 value.job?.cancel()
                 value.checksum?.cancel()
@@ -118,8 +118,8 @@ internal class DownloadController(
                                             if (controller.owns(attempt)) {
                                                 when (outcome) {
                                                     case Completed(
-                                                        bytes,
-                                                        digest
+                                                        val bytes,
+                                                        val digest
                                                     ) -> controller.finish(
                                                         attempt,
                                                         DownloadSnapshot(
@@ -135,7 +135,7 @@ internal class DownloadController(
                                                             attempt.latest
                                                         )
                                                     )
-                                                    case Failed(error) -> controller.finish(
+                                                    case Failed(val error) -> controller.finish(
                                                         attempt,
                                                         DownloadSnapshot(
                                                             DownloadPhase.Failed,
@@ -188,7 +188,7 @@ internal class DownloadController(
     fun cancel() {
         checkThread()
         when (current) {
-            case Some(attempt) -> if (attempt.accepting && !attempt.done) {
+            case Some(val attempt) -> if (attempt.accepting && !attempt.done) {
                 attempt.accepting = false
                 model.snapshot.value = DownloadSnapshot(DownloadPhase.Cancelling, attempt.latest)
                 attempt.job?.cancel()
@@ -207,7 +207,7 @@ internal class DownloadController(
         val previous = current
         current = None
         when (previous) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 value.accepting = false
                 value.job?.cancel()
                 value.checksum?.cancel()

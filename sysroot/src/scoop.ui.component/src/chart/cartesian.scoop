@@ -270,7 +270,7 @@ internal fun chartCartesian(plan: ChartPlan, size: Size): ChartGeometry {
             Array<ChartSample?>(count) {
                 at -> when (series.samples[at]) {
                     case None -> None
-                    case Some(sample) -> {
+                    case Some(val sample) -> {
                         val center =
                             category(at) +
                                 (
@@ -318,7 +318,7 @@ internal fun chartCartesian(plan: ChartPlan, size: Size): ChartGeometry {
                                 ChartShape.Point
                         val visible =
                             when (shape) {
-                                case Rectangle(rect) -> rect.width >
+                                case Rectangle(val rect) -> rect.width >
                                     0.0 &&
                                     rect.height >
                                     0.0 &&

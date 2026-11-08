@@ -8,7 +8,7 @@ internal class SseReader(source: AsyncByteSource, owner: AsyncCloseable?, loop: 
     val io: MessageIo<AsyncByteSource> = MessageIo<AsyncByteSource>(source, owner, loop) {
         var failure = messageCleanup(None) { input.close() }
         failure = messageCleanup(failure) { decoder.close() }
-        when (failure) { case Some(error) -> throw error; case None -> {} }
+        when (failure) { case Some(val error) -> throw error; case None -> {} }
     }
 
     suspend fun next(): SseEvent? = io.run({}) suspend { source -> readNext(source) }
@@ -16,7 +16,7 @@ internal class SseReader(source: AsyncByteSource, owner: AsyncCloseable?, loop: 
     private suspend fun readNext(source: AsyncByteSource): SseEvent? {
         while (true) {
             ensureActive()
-            when (decoder.nextEvent()) { case Some(event) -> return Some(event); case None -> {} }
+            when (decoder.nextEvent()) { case Some(val event) -> return Some(event); case None -> {} }
             if (decoder.isFinished) return None
             if (input.readableBytes > 0L) decoder.receive(input)
             else {

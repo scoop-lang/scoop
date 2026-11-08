@@ -53,7 +53,7 @@ private class ComboRow<T: Equals<T>>(
                 color = ink.popover.foreground
             }
         when (row.entry) {
-            case Label(_, content) -> return panelFrame(
+            case Label(_, val content) -> return panelFrame(
                 panelCaption(
                     content,
                     text.copy {
@@ -81,7 +81,7 @@ private class ComboRow<T: Equals<T>>(
         val body =
             comboRow {
                 when (item.icon) {
-                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
+                    case Some(val icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
                     case None -> {}
                 }
                 this.item(

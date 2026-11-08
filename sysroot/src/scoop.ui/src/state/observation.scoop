@@ -37,7 +37,7 @@ internal class StateSignal {
     fun changed(invalidation: UiInvalidation = UiInvalidation.None) {
         for (observer in observers.toArray()) {
             when (observer.node) {
-                case Some(node) -> {
+                case Some(val node) -> {
                     node.stateChanged(invalidation)
                 }
                 case None -> {}

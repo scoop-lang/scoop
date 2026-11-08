@@ -18,7 +18,7 @@ public suspend fun openTlsClientContext(
     val loop = currentEventLoop()
     val job = requireJob(loop, true)
     when (trust) {
-        case Store(store) -> return TlsClientContext(store, options, identity)
+        case Store(val store) -> return TlsClientContext(store, options, identity)
         case System -> {
             return SystemTrustWork(options, identity).use {
                 work ->

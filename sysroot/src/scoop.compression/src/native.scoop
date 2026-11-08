@@ -19,7 +19,7 @@ internal fun callCompression(handle: ULong, input: NativeByteBuffer?, count: Lon
         val result = try {
             when (input) {
                 case None -> compressionProcess(handle, None, 0L, write.pointer(), write.length, action)
-                case Some(buffer) -> {
+                case Some(val buffer) -> {
                     val read = buffer.borrowReadable(count)
                     val step = try { compressionProcess(handle, read.pointer(), read.length, write.pointer(), write.length, action) }
                     catch (error: Throwable) { read.complete(0L); throw error }
@@ -35,7 +35,7 @@ internal fun callCompression(handle: ULong, input: NativeByteBuffer?, count: Lon
 
 @Unsafe internal fun <T> withCompressionBytes(bytes: Array<Byte>?, block: (Ptr<Byte>?, Long) -> T): T = when (bytes) {
     case None -> block(None, 0L)
-    case Some(value) -> value.withDataPointer { data, count -> @Unsafe { return@withDataPointer block(Some(data), count) } }
+    case Some(val value) -> value.withDataPointer { data, count -> @Unsafe { return@withDataPointer block(Some(data), count) } }
 }
 
 @Extern(name = "scoop_compression_new") internal fun compressionNew(options: NativeCompressionOptions, dictionary: Ptr<Byte>?, size: Long): ULong

@@ -59,7 +59,7 @@ internal fun http2RequestFields(head: HttpRequestHead): Http2Fields {
         fields.add(":method".toByteArray(), head.method, head.indexing.method)
         val connect = httpBytesEqual(head.method, "CONNECT".toByteArray())
         when (head.target) {
-            case Http2(scheme, authority, path) -> {
+            case Http2(val scheme, val authority, val path) -> {
                 if (connect || scheme.size == 0L || path.size == 0L)
                     throw IllegalArgumentException(Some("invalid HTTP/2 request pseudo-headers"))
                 requireHttp2Scheme(scheme)
@@ -67,7 +67,7 @@ internal fun http2RequestFields(head: HttpRequestHead): Http2Fields {
                 if (authority.size != 0L) fields.add(":authority".toByteArray(), authority, head.indexing.authority)
                 fields.add(":path".toByteArray(), path, head.indexing.path)
             }
-            case Connect(authority) -> {
+            case Connect(val authority) -> {
                 if (!connect || authority.size == 0L) throw IllegalArgumentException(Some("CONNECT requires authority"))
                 fields.add(":authority".toByteArray(), authority, head.indexing.authority)
             }

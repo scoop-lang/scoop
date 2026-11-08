@@ -14,9 +14,9 @@ public fun <T> exercise(value: T): Int {
     val text: String? = None
     val checked = restore(wrap(value), value)
     return when (present) {
-        case Some(item) -> when (deep) {
+        case Some(val item) -> when (deep) {
             case Some(None) -> when (nested) {
-                case Some(Some(inner)) -> restore(intValue, 0) + restore(absent<Int>(), 22)
+                case Some(Some(val inner)) -> restore(intValue, 0) + restore(absent<Int>(), 22)
                 else -> 1
             }
             else -> 2

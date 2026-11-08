@@ -15,7 +15,7 @@ internal class ContentFilterCache: Closeable {
             for (effect in effects) {
                 val part = createFilter(effect)
                 when (next) {
-                    case Some(previous) -> {
+                    case Some(val previous) -> {
                         val joined =
                             try {
                                 previous.then(part)
@@ -87,9 +87,9 @@ internal class BoxFilterCache: Closeable {
 
 private fun createFilter(effect: ContentEffect): ImageFilter =
     when (effect) {
-        case Blur(x, y) -> ImageFilter.blur(x, y)
-        case DropShadow(offset, x, y, color) -> ImageFilter.dropShadow(offset, x, y, color)
-        case Glow(x, y, color) -> ImageFilter.dropShadow(Point(0.0, 0.0), x, y, color)
+        case Blur(val x, val y) -> ImageFilter.blur(x, y)
+        case DropShadow(val offset, val x, val y, val color) -> ImageFilter.dropShadow(offset, x, y, color)
+        case Glow(val x, val y, val color) -> ImageFilter.dropShadow(Point(0.0, 0.0), x, y, color)
     }
 
 private fun sameEffects(a: Array<ContentEffect>, b: Array<ContentEffect>): Boolean {

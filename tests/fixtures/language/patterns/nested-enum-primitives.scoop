@@ -26,15 +26,15 @@ fun guarded(value: Int): Boolean {
 }
 
 fun classify(value: Outer): Int = when (traced(value)) {
-    case Wrapped(Flag(false, amount), false) if (guarded(amount)) -> amount
-    case Wrapped(Flag(_, amount), _) -> amount + 100
+    case Wrapped(Flag(false, val amount), false) if (guarded(amount)) -> amount
+    case Wrapped(Flag(_, val amount), _) -> amount + 100
     case Wrapped(Empty, _) -> -2
     case Other -> -1
 }
 
 fun finalPayload(value: Ticket): Int = when (value) {
     case Empty -> -1
-    case Value(payload) -> payload
+    case Value(val payload) -> payload
 }
 
 fun main() {

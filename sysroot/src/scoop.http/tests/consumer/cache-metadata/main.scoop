@@ -51,7 +51,7 @@ fun decodeFields(bytes: Array<Byte>): Array<HttpField> {
                     val next = decoder.nextEvent()
                     when (next) { case None -> break; case Some(_) -> {} }
                     when (next!!) {
-                        case Response(head) -> heads.add(head)
+                        case Response(val head) -> heads.add(head)
                         case End(_) -> ends += 1L
                         case Data(_) -> throw IllegalStateException()
                         else -> {}

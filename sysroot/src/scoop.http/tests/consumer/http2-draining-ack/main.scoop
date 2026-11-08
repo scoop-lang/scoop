@@ -46,25 +46,25 @@ private fun exercise(flushSettings: Boolean, size: Long) {
                 val event = client.nextEvent()
                 when (event) { case None -> break; case Some(_) -> {} }
                 when (event!!) {
-                    case GoAway(last, code, _, local) -> {
+                    case GoAway(val last, val code, _, val local) -> {
                         check(last == accepted && code == 0U && !local, "remote GOAWAY")
                         goAway += 1
                     }
-                    case Response(id, head) -> {
+                    case Response(val id, val head) -> {
                         check(id == accepted && head.status == 200U, "completed response head")
                         heads += 1
                     }
-                    case Data(id, data) -> {
+                    case Data(val id, val data) -> {
                         check(id == accepted, "completed response body stream")
                         for (value in data) body.add(value)
                         bytes += data.size
                     }
-                    case End(id) -> { check(id == accepted, "completed response end"); ends += 1 }
-                    case StreamClosed(id, code) -> {
+                    case End(val id) -> { check(id == accepted, "completed response end"); ends += 1 }
+                    case StreamClosed(val id, val code) -> {
                         check(id == accepted && code == 0U, "normal stream close")
                         closed += 1
                     }
-                    case Failure(error) -> throw error
+                    case Failure(val error) -> throw error
                     else -> {}
                 }
             }

@@ -20,7 +20,7 @@ private fun exerciseConsumer() {
                     when (next) {
                         case None -> break
                         case Some(_) -> when (next!!) {
-                            case Response(head) -> heads.add(head)
+                            case Response(val head) -> heads.add(head)
                             else -> {}
                         }
                     }

@@ -34,7 +34,7 @@ private class UnitCompanionTest {
         assertEquals(Unit, roundTripWithCompanion(Unit))
         val original: UnitEnvelope<Unit> = Present(Unit)
         val restored = roundTripWithCompanion(original)
-        assertTrue(when (restored) { case Present(value) -> value == Unit; else -> false })
+        assertTrue(when (restored) { case Present(val value) -> value == Unit; else -> false })
         val sequence = roundTripWithCompanion<Array<Unit>>([Unit, Unit])
         assertEquals(2L, sequence.size)
         assertEquals(Unit, sequence[1L])

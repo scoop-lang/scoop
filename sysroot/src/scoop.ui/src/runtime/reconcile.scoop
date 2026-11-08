@@ -36,7 +36,7 @@ internal fun MountedNode.reconcile(descriptions: Array<View>, turn: UpdateTurn) 
         for (match in plan.positions) {
             val child =
                 when (match) {
-                    case Some(value) -> previous[value]
+                    case Some(val value) -> previous[value]
                     case None -> {
                         val value = createNode(root, Some(this), descriptions[position])
                         created.add(value)

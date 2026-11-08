@@ -38,7 +38,7 @@ internal class CliTokens(
     }
 
     private fun alias(name: String, source: CliSource): CliAlias = when (findAlias(entries, name)) {
-        case Some(result) -> result
+        case Some(val result) -> result
         case None -> inputError("", Some(source), "unknown option " + name)
     }
 
@@ -51,7 +51,7 @@ internal class CliTokens(
 
     private fun takeValue(index: Long, attached: Option<String>, source: CliSource): CliInput {
         when (attached) {
-            case Some(text) -> { return textInput(entries[index], text, source) }
+            case Some(val text) -> { return textInput(entries[index], text, source) }
             case None -> {}
         }
         if (cursor == arguments.size || optionToken(arguments[cursor])) {

@@ -43,7 +43,7 @@ internal class InputRig(val log: InputLog = InputLog()): Closeable {
                 value ->
                 log.caretUpdates.add(value)
                 when (value.rect) {
-                    case Some(rect) -> log.carets.add(rect);
+                    case Some(val rect) -> log.carets.add(rect);
                     case None -> {}
                 }
                 true
@@ -144,11 +144,11 @@ internal fun inputKind(event: InputEvent): String =
         case TextInput(TextInputEvent.Enabled(_)) -> "enabled"
         case TextInput(TextInputEvent.Disabled(_)) -> "disabled"
         case TextInput(TextInputEvent.Edit(_)) -> "edit"
-        case FocusChanged(value) -> if (value)
+        case FocusChanged(val value) -> if (value)
             "focus"
         else
             "blur"
-        case FocusVisibilityChanged(value) -> if (value)
+        case FocusVisibilityChanged(val value) -> if (value)
             "focus-visible"
         else
             "focus-hidden"

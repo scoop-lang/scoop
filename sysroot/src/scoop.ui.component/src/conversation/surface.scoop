@@ -45,7 +45,7 @@ internal class ConversationSurface(
     private val click: () -> Unit =
         {
             when (props.value.onClick) {
-                case Some(action) -> action();
+                case Some(val action) -> action();
                 case None -> {}
             }
         }
@@ -57,7 +57,7 @@ internal class ConversationSurface(
         val shape = ActionShape.Button(ButtonSize.Default)
         val content =
             when (input.content) {
-                case Label(value) -> ButtonContent.Label(
+                case Label(val value) -> ButtonContent.Label(
                     LabelProps(
                         value.text,
                         when (value.fonts) {
@@ -135,7 +135,7 @@ internal fun conversationCaption(
 ): View {
     val resolved =
         when (content) {
-            case Label(value) -> ButtonContent.Label(
+            case Label(val value) -> ButtonContent.Label(
                 LabelProps(
                     value.text,
                     when (value.fonts) {

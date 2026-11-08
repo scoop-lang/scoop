@@ -10,7 +10,7 @@ internal fun failureNotices(log: NoticeLog): ArrayList<(Int, Throwable)> {
     val result = ArrayList<(Int, Throwable)>()
     for (notice in log.snapshot()) {
         when (notice) {
-            case StreamFailure(id, error) -> result.add((id, error))
+            case StreamFailure(val id, val error) -> result.add((id, error))
             else -> {}
         }
     }

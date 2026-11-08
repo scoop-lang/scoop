@@ -16,7 +16,7 @@ internal suspend fun negotiateSocks5(transport: AsyncByteStream, destination: So
             Some(selection[1L].toUByte()), "SOCKS5 proxy did not select the offered authentication method")
         when (credentials) {
             case None -> {}
-            case Some(identity) -> authenticateSocks5(transport, buffer, identity)
+            case Some(val identity) -> authenticateSocks5(transport, buffer, identity)
         }
         sendSocks5Packet(transport, buffer, socks5ConnectRequest(address))
         val reply = readSocks5Packet(transport, buffer, 4L)

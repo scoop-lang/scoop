@@ -93,7 +93,7 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
                             window!!.isFocused.toString()
                     )
                 )
-                case Window(identity, WindowEvent.GeometryChanged(value)) -> {
+                case Window(val identity, WindowEvent.GeometryChanged(val value)) -> {
                     if (identity == window!!.id) {
                         assertTrue(value.logicalSize.width > 0.0 && value.logicalSize.height > 0.0)
                         assertTrue(value.physicalSize.isDrawable)
@@ -133,27 +133,27 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
                             window!!.requestDestroy()
                         }
                 }
-                case Window(identity, WindowEvent.Focused(true)) -> {
+                case Window(val identity, WindowEvent.Focused(true)) -> {
                     if (identity == window!!.id && redraws == 0)
                         window!!.requestRedraw()
                 }
-                case Window(_, WindowEvent.Keyboard(value)) -> {
+                case Window(_, WindowEvent.Keyboard(val value)) -> {
                     if (ime.started)
                         ime.key(value)
                     else
                         input.key(value)
                 }
-                case Window(_, WindowEvent.Pointer(value)) -> input.pointer(value)
-                case Window(_, WindowEvent.TextInput(value)) -> {
+                case Window(_, WindowEvent.Pointer(val value)) -> input.pointer(value)
+                case Window(_, WindowEvent.TextInput(val value)) -> {
                     if (ime.started)
                         ime.event(value)
                     else
                         when (value) {
-                            case Edit(batch) -> input.edit(batch)
+                            case Edit(val batch) -> input.edit(batch)
                             else -> {}
                         }
                 }
-                case Window(identity, WindowEvent.Closing) -> {
+                case Window(val identity, WindowEvent.Closing) -> {
                     closing += 1
                     if (identity == window!!.id) {
                         assertFailsWith<WindowException> {
@@ -251,7 +251,7 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
         {
             val held = first.acquireNativeWindow()
             when (held.handle) {
-                case AppKit(window, view) -> {
+                case AppKit(val window, val view) -> {
                     assertTrue(window.toULong() != 0uL);
                     assertTrue(view.toULong() != 0uL)
                 }

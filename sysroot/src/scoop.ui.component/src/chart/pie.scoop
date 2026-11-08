@@ -17,14 +17,14 @@ internal fun chartPie(plan: ChartPlan, size: Size): ChartGeometry {
         var maximum = 0.0
         for (sample in series.samples)
             when (sample) {
-                case Some(value) -> maximum = lowerBound(maximum, value.value);
+                case Some(val value) -> maximum = lowerBound(maximum, value.value);
                 case None -> {}
             }
         var total = 0.0
         if (maximum > 0.0)
             for (sample in series.samples)
                 when (sample) {
-                    case Some(value) -> total += value.value / maximum;
+                    case Some(val value) -> total += value.value / maximum;
                     case None -> {}
                 }
         val outer = layout.radius - ring.toDouble() * band
@@ -40,7 +40,7 @@ internal fun chartPie(plan: ChartPlan, size: Size): ChartGeometry {
             samples.add(
                 when (series.samples[at]) {
                     case None -> None
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         if (total == 0.0 || value.value == 0.0 || outer <= inner)
                             None
                         else {

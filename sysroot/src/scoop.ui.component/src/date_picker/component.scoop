@@ -113,7 +113,7 @@ public class DatePicker public constructor(
                     )
                 )
                 when (input.footer) {
-                    case Some(content) -> this.add(content);
+                    case Some(val content) -> this.add(content);
                     case None -> {}
                 }
                 this.spacing = 8.0 * d
@@ -176,7 +176,7 @@ public class DatePicker public constructor(
                         { props, scope -> Button(props, scope) }
                     )
                 }
-                case Some(draft) -> dateColumn {
+                case Some(val draft) -> dateColumn {
                     this.add(
                         dateRow {
                             this.item(
@@ -223,7 +223,7 @@ public class DatePicker public constructor(
                         }
                     )
                     when (draft.error) {
-                        case Some(error) -> this.add(
+                        case Some(val error) -> this.add(
                             calendarLabel(
                                 error,
                                 theme.tokens.typography.body.copy {

@@ -34,7 +34,7 @@ fun main() {
     val saved = state.exchange(State.Empty)
     when (saved) {
         case State.Empty -> { throw IllegalStateException() }
-        case State.Item(serial, node) -> { check(serial == 4 && node === second) }
+        case State.Item(val serial, val node) -> { check(serial == 4 && node === second) }
     }
     val values = MutableArray<Atomic<Snapshot>>(2L) { index -> snapshot }
     values[1L].store(Snapshot(8, second))

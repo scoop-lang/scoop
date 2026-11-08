@@ -3,7 +3,7 @@ package scoop.window
 internal fun applyTextBatch(original: TextInputState, batch: TextInputBatch): TextInputState {
     original.validate()
     when (batch.baseRevision) {
-        case Some(value) -> if (value != original.revision)
+        case Some(val value) -> if (value != original.revision)
             throw IllegalStateException(Some("stale text input revision"))
         case None -> {}
     }
@@ -21,15 +21,15 @@ internal fun applyTextBatch(original: TextInputState, batch: TextInputBatch): Te
                     state.caretRect,
                     state.revision
                 )
-                case Commit(text, replacement) -> replaceText(state, text, replacement, None, false)
-                case Preedit(text, selection, replacement) -> replaceText(
+                case Commit(val text, val replacement) -> replaceText(state, text, replacement, None, false)
+                case Preedit(val text, val selection, val replacement) -> replaceText(
                     state,
                     text,
                     replacement,
                     selection,
                     true
                 )
-                case DeleteSurrounding(before, after) -> deleteSurrounding(state, before, after)
+                case DeleteSurrounding(val before, val after) -> deleteSurrounding(state, before, after)
             }
     }
     return TextInputState(
@@ -51,7 +51,7 @@ private fun replaceText(
     val range =
         when (replacement) {
             case CurrentSelection -> state.markedRange ?: state.selection.range
-            case Range(value) -> value
+            case Range(val value) -> value
         }
     checkTextRange(state.surroundingText.toByteArray(), range)
     val relative = selection ?: Utf8Selection(text.byteLength, text.byteLength)

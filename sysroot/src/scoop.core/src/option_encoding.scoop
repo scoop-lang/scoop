@@ -2,7 +2,7 @@ internal class OptionEncoder<T>(private val element: ValueEncoder<T>) : ValueEnc
     public override fun encode(value: Option<T>, encoder: Encoder): Unit {
         when (value) {
             case Option.None -> { encoder.singleValue().writeNull() }
-            case Option.Some(item) -> { element.encode(item, encoder) }
+            case Option.Some(val item) -> { element.encode(item, encoder) }
         }
     }
 }

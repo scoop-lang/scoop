@@ -6,12 +6,12 @@ private class FlatteningIterator<T, R>(private val source: Iterator<T>, private 
     public override fun next(): R? {
         while (true) {
             when (inner) {
-                case Some(active) -> when (active.next()) {
-                    case Some(value) -> return Some(value)
+                case Some(val active) -> when (active.next()) {
+                    case Some(val value) -> return Some(value)
                     case None -> inner = None
                 }
                 case None -> when (source.next()) {
-                    case Some(value) -> inner = Some(transform(value).iterator())
+                    case Some(val value) -> inner = Some(transform(value).iterator())
                     case None -> return None
                 }
             }

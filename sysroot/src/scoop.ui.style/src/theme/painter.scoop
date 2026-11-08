@@ -155,7 +155,7 @@ internal class ShapeThemePainter(
         visual: InteractionVisual
     ) {
         when (geometry) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 drawRound(canvas, value.outline, scrollbar.button.resolve(visual))
                 drawStroke(canvas, value.arrow, scrollbar.arrow.resolve(visual))
             }
@@ -199,7 +199,7 @@ private fun drawStroke(canvas: Canvas, stroke: StrokeSegment, color: Color) {
 
 private fun drawFocus(canvas: Canvas, focus: OutlineRing?, painter: StylePainter) {
     when (focus) {
-        case Some(value) -> painter.paint(
+        case Some(val value) -> painter.paint(
             canvas,
             value.outline.bounds,
             Style(

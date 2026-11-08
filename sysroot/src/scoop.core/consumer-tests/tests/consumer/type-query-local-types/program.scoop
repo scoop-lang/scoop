@@ -21,7 +21,7 @@ class Host<T> public constructor(val original: T) {
 }
 
 fun classShape(reference: TypeRef): ClassInfo = when (reference.describe().shape) {
-    case TypeShape.Class(value) -> value
+    case TypeShape.Class(val value) -> value
    ; else -> throw IllegalStateException()
 }
 

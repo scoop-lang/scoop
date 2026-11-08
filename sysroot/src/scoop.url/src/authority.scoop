@@ -40,7 +40,7 @@ public class UrlAuthority internal constructor(
         var host = encodedHost
         if (iri) {
             host = when (resolution) {
-                case HostResolution.Dns(name) -> name.unicode
+                case HostResolution.Dns(val name) -> name.unicode
                 else -> iriDisplay(encodedHost)
             }
         }
@@ -54,11 +54,11 @@ public class UrlAuthority internal constructor(
      * Validates and returns the DNS or IP network-host representation.
      */
     public fun networkHost(): UrlHost = when (resolution) {
-        case HostResolution.Dns(name) -> UrlHost.Dns(stripRootDot(name.ascii))
-        case HostResolution.Ipv4(bytes) -> UrlHost.Ipv4(bytes)
-        case HostResolution.Ipv6(bytes) -> UrlHost.Ipv6(bytes)
-        case HostResolution.Invalid(detail, None) -> throw UrlParseException(UrlComponent.Host, None, detail)
-        case HostResolution.Invalid(detail, Some(error)) -> throw UrlParseException(UrlComponent.Host, None, detail, Some(error))
+        case HostResolution.Dns(val name) -> UrlHost.Dns(stripRootDot(name.ascii))
+        case HostResolution.Ipv4(val bytes) -> UrlHost.Ipv4(bytes)
+        case HostResolution.Ipv6(val bytes) -> UrlHost.Ipv6(bytes)
+        case HostResolution.Invalid(val detail, None) -> throw UrlParseException(UrlComponent.Host, None, detail)
+        case HostResolution.Invalid(val detail, Some(val error)) -> throw UrlParseException(UrlComponent.Host, None, detail, Some(error))
     }
 }
 

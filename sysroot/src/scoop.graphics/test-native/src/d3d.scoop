@@ -12,7 +12,7 @@ public class TestD3DSurface private constructor(private var handle: Ptr<Unit>?):
     public fun texture(): Ptr<Unit> = d3dObject(handle!!, 3)
     public override fun close() {
         when (handle) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 handle = None
                 @Unsafe
                 {

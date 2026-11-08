@@ -29,7 +29,7 @@ public fun <T, R> Iterable<T>.mapNotNone(transform: (T) -> R?): List<R> {
     val result = ArrayList<R>()
     for (element in this) {
         when (transform(element)) {
-            case Some(value) -> result.add(value)
+            case Some(val value) -> result.add(value)
             case None -> continue
         }
     }

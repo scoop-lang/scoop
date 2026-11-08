@@ -11,8 +11,8 @@ import scoop.test.*
             var starts = 0L
             var received = 0L
             for (event in pair.serverEvents.snapshot()) when (event) {
-                case RequestHeadStarted(id) -> { assertEquals(stream.id, id); starts += 1L }
-                case RequestHeadReceived(id) -> {
+                case RequestHeadStarted(val id) -> { assertEquals(stream.id, id); starts += 1L }
+                case RequestHeadReceived(val id) -> {
                     assertEquals(stream.id, id); assertEquals(1L, starts); received += 1L
                 }
                 else -> {}

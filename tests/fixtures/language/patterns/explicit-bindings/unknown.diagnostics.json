@@ -1,0 +1,80 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 100,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 97
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "bare pattern `text` cannot match String; use `val text` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 172,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 168
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "bare pattern `first` cannot match Int; use `val first` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 250,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 245
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "enum `E` has no variant `payload`; use `val payload` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 333,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 326
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "enum `E` has no variant `Bad`; use `val Bad` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 409,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 406
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "enum `E` has no variant `saved`; use `val saved` to bind the matched value",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 508,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 503
+    },
+    "severity": "error"
+  }
+]

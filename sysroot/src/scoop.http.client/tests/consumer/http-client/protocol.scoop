@@ -67,7 +67,7 @@ where T: AsyncByteStream, T: AsyncCloseable {
             check(String.fromUtf8(incoming.head.method) == "POST")
             check(
                 when (incoming.head.target) {
-                    case Http1(bytes) -> String.fromUtf8(bytes) == "/send?q=one&q=two";
+                    case Http1(val bytes) -> String.fromUtf8(bytes) == "/send?q=one&q=two";
                     else -> false
                 }
             )
@@ -94,7 +94,7 @@ where T: AsyncByteStream, T: AsyncCloseable {
             check(String.fromUtf8(incoming.head.method) == "POST")
             check(
                 when (incoming.head.target) {
-                    case Http2(scheme, _, path) -> String.fromUtf8(scheme) ==
+                    case Http2(val scheme, _, val path) -> String.fromUtf8(scheme) ==
                         "https" &&
                         String.fromUtf8(path) ==
                         "/send?q=one&q=two";

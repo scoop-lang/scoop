@@ -184,7 +184,7 @@ private class ShadcnThemeTest {
             )
         }
         when (full.tokens.motion.resolve(custom)) {
-            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(500L), duration)
+            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(500L), duration)
             else -> fail(Some("full motion lost the explicit transition"))
         }
         assertEquals(full.tokens.palette.primary, reduced.tokens.palette.primary)

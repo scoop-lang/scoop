@@ -6,7 +6,7 @@ fun check(condition: Boolean, message: String, location: SourceLocation = curren
 }
 
 fun intrinsic(reference: TypeRef): IntrinsicKind = when (reference.describe().shape) {
-    case TypeShape.Intrinsic(value) -> value.kind
+    case TypeShape.Intrinsic(val value) -> value.kind
    ; else -> throw IllegalStateException()
 }
 
@@ -31,20 +31,20 @@ private fun exerciseConsumer() {
     check(intrinsic(typeInfo<MaybeUninit<Long>>().type) == IntrinsicKind.MaybeUninit, "MaybeUninit")
     check(intrinsic(typeInfo<AtomicInt>().type) == IntrinsicKind.Atomic(AtomicTypeKind.Int), "AtomicInt")
     check(intrinsic(typeInfo<AtomicRef<String>>().type) == IntrinsicKind.Atomic(AtomicTypeKind.Reference), "AtomicRef")
-    check(when (intrinsic(typeInfo<UInt16>().type)) { case IntrinsicKind.Integer(signed, bits) -> !signed && bits == 16L; else -> false }, "UInt16")
+    check(when (intrinsic(typeInfo<UInt16>().type)) { case IntrinsicKind.Integer(val signed, val bits) -> !signed && bits == 16L; else -> false }, "UInt16")
     check(typeInfo<Empty>().type != typeInfo<Unit>().type, "empty nominal identity")
 
-    val shape = when (typeInfo<Functions>().describe().shape) { case TypeShape.Struct(value) -> value; else -> throw IllegalStateException() }
-    val action = when (shape.fields[0L].type.describe().shape) { case TypeShape.Function(value) -> value; else -> throw IllegalStateException() }
+    val shape = when (typeInfo<Functions>().describe().shape) { case TypeShape.Struct(val value) -> value; else -> throw IllegalStateException() }
+    val action = when (shape.fields[0L].type.describe().shape) { case TypeShape.Function(val value) -> value; else -> throw IllegalStateException() }
     check(action.isSuspend && action.receiver!!.type == typeInfo<String>().type, "receiver and effect")
     check(action.parameters.size == 2L && action.parameters[1L].type == typeInfo<Long>().type, "function parameters")
     check(action.result.type == typeInfo<Boolean>().type, "function result")
     check(shape.fields[0L].type != typeInfo<String.(Int, Long) -> Boolean>().type, "effect identity")
     check(shape.fields[0L].typeUse.children[0L].role == TypeUseRole.Receiver, "receiver role")
     check(shape.fields[0L].typeUse.children[3L].role == TypeUseRole.Result, "result role")
-    check(when (shape.fields[1L].type.describe().shape) { case TypeShape.Pointer(PointerTypeInfo.FunPtr(value)) -> value.parameters[0L].type == typeInfo<Int>().type && value.result.type == typeInfo<Long>().type; else -> false }, "native signature")
+    check(when (shape.fields[1L].type.describe().shape) { case TypeShape.Pointer(PointerTypeInfo.FunPtr(val value)) -> value.parameters[0L].type == typeInfo<Int>().type && value.result.type == typeInfo<Long>().type; else -> false }, "native signature")
     check(shape.fields[1L].typeUse.children[0L].role == TypeUseRole.Pointee, "function pointer role")
-    check(when (shape.fields[2L].type.describe().shape) { case TypeShape.Pointer(PointerTypeInfo.GCLeafFunPtr(value)) -> value.parameters[0L].type == typeInfo<Int>().type && value.result.type == typeInfo<Long>().type; else -> false }, "GC leaf native signature")
+    check(when (shape.fields[2L].type.describe().shape) { case TypeShape.Pointer(PointerTypeInfo.GCLeafFunPtr(val value)) -> value.parameters[0L].type == typeInfo<Int>().type && value.result.type == typeInfo<Long>().type; else -> false }, "GC leaf native signature")
     check(shape.fields[1L].type != shape.fields[2L].type, "native call mode identity")
     check(shape.fields[2L].typeUse.children[0L].role == TypeUseRole.Pointee, "GC leaf function pointer role")
     check(shape.fields[3L].typeUse.children[0L].value.type == typeInfo<Char>().type, "raw pointer role")

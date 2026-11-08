@@ -54,7 +54,7 @@ public class Tabs<T: Equals<T>> public constructor(
                         )
                 val content =
                     when (configured) {
-                        case Label(label) -> ButtonContent.Label(
+                        case Label(val label) -> ButtonContent.Label(
                             LabelProps(
                                 label.text,
                                 when (label.fonts) {
@@ -100,7 +100,7 @@ public class Tabs<T: Equals<T>> public constructor(
                     input.enabled,
                     styleOverride(),
                     when (selected) {
-                        case Some(index) -> Some(focus[index]);
+                        case Some(val index) -> Some(focus[index]);
                         case None -> None
                     },
                     {

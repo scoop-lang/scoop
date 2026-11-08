@@ -20,7 +20,7 @@ internal fun chartNumber(value: Double): String =
 
 internal fun chartFormat(axis: ChartAxis, value: Double): String =
     when (axis.formatter) {
-        case Some(format) -> format(value);
+        case Some(val format) -> format(value);
         case None -> chartNumber(value)
     }
 
@@ -31,7 +31,7 @@ internal fun chartDomain(
     baseline: Boolean = false
 ): ChartRange {
     when (axis.domain) {
-        case Fixed(low, high) -> return ChartRange(low, high);
+        case Fixed(val low, val high) -> return ChartRange(low, high);
         case Auto -> {}
     }
     var low = minimum ?: 0.0

@@ -23,7 +23,7 @@ internal class HostInputAction(
             return
         closed = true
         when (owner.shortcutAction) {
-            case Some(action) -> if (action === this) {
+            case Some(val action) -> if (action === this) {
                 owner.shortcutAction = None
             }
             case None -> {}
@@ -50,7 +50,7 @@ internal fun SurfaceHost.bindShortcuts(input: InputScope) {
     input.addHostShortcutAction {
         context,
         event -> when (shortcutAction) {
-            case Some(action) -> if (action.accepts(context.currentTarget)) {
+            case Some(val action) -> if (action.accepts(context.currentTarget)) {
                 action.handler(context, event)
             }
             case None -> {}

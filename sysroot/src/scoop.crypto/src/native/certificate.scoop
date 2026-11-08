@@ -20,7 +20,7 @@ import scoop.crypto.x509.PeerIdentity
  */
 public fun peerIdentityData(identity: PeerIdentity): (Int, Array<Byte>) {
     when (identity) {
-        case PeerIdentity.Dns(name) -> {
+        case PeerIdentity.Dns(val name) -> {
             val bytes = name.toByteArray().toArray()
             if (bytes.size == 0L) throw IllegalArgumentException(Some("DNS identity must not be empty"))
             for (byte in bytes) {
@@ -29,7 +29,7 @@ public fun peerIdentityData(identity: PeerIdentity): (Int, Array<Byte>) {
             }
             return (0, bytes)
         }
-        case PeerIdentity.Ip(bytes) -> {
+        case PeerIdentity.Ip(val bytes) -> {
             if (bytes.size != 4L && bytes.size != 16L) throw IllegalArgumentException(Some("IP identity must contain 4 or 16 bytes"))
             return (1, bytes)
         }

@@ -89,7 +89,7 @@ fun checkInitializationStorage() {
         kept[4L] = Some(Interrupted(80L, true))
         check(false)
     } catch (error: IllegalStateException) {
-        check(when (kept[4L]) { case None -> true; case Some(value) -> false })
+        check(when (kept[4L]) { case None -> true; case Some(val value) -> false })
     }
     kept[4L] = Some(Interrupted(81L, false))
     kept[5L] = Some(Initialized<Measured>(Some(Node(82)), 6.toByte(), Node(83)))
@@ -109,7 +109,7 @@ fun checkInitializationStorage() {
     val tuple = kept[8L]!! as Initialized<(Node, Measured)>
     val absent = kept[9L]!! as Initialized<Measured?>
     check(scalar.node!!.value == 71 && scalar.tag == 1.toByte() && scalar.value == 72L)
-    check(when (padded.node) { case None -> true; case Some(value) -> false })
+    check(when (padded.node) { case None -> true; case Some(val value) -> false })
     check(padded.tag == 2.toByte())
     check(padded.value.flag == 3.toByte() && padded.value.value == 73L)
     check(rooted.node!!.value == 74 && rooted.value.value == 75)
@@ -120,7 +120,7 @@ fun checkInitializationStorage() {
     check(pair.value.node.value == 85 && pair.value.other.measure() == 86)
     val (left, right) = tuple.value
     check(left.value == 87 && right.measure() == 88)
-    check(when (absent.value) { case None -> true; case Some(value) -> false })
+    check(when (absent.value) { case None -> true; case Some(val value) -> false })
 }
 
 fun main() {
@@ -137,7 +137,7 @@ fun main() {
     var index = 0L
     var sum = 0
     while (index < values.size) {
-        sum += when (values[index]) { case None -> 0; case Some(value) -> value.value }
+        sum += when (values[index]) { case None -> 0; case Some(val value) -> value.value }
         index += 1L
     }
     check(sum == 1024)

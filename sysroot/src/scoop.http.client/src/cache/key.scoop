@@ -17,7 +17,7 @@ internal fun clientCachePartition(config: HttpClientConfig): String? {
 internal fun clientRequestSnapshotFields(call: ClientCall): Array<HttpField> {
     val fields = clientRequestFields(call, HttpVersion.Http11)
     when (call.route) {
-        case HttpForward(endpoint) -> for (field in clientProxyAuthorization(call, endpoint)) fields.add(field)
+        case HttpForward(val endpoint) -> for (field in clientProxyAuthorization(call, endpoint)) fields.add(field)
         else -> {}
     }
     fields.add(HttpField("Host".toByteArray(),

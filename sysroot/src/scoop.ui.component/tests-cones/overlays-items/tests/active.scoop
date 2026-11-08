@@ -157,7 +157,7 @@ private class ComboEditor(private val probe: InteractionProbe, scope: ComponentS
             host.area.scope.addEventHandler {
                 _,
                 event -> when (event) {
-                    case TextInput(TextInputEvent.Enabled(connection)) -> {
+                    case TextInput(TextInputEvent.Enabled(val connection)) -> {
                         probe.imeStarts += 1;
                         probe.connection = connection
                     }

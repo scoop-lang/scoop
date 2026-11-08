@@ -78,7 +78,7 @@ private class AsyncTcpConnectCancellationTest {
             assertTrue(mailbox.send(TcpRaceEvent.Connected(first)))
             assertTrue(mailbox.send(TcpRaceEvent.Connected(second)))
             when (mailbox.next()) {
-                case Connected(stream) -> assertSame(first, stream)
+                case Connected(val stream) -> assertSame(first, stream)
                 case _ -> fail(Some("connection event missing"))
             }
             mailbox.close()

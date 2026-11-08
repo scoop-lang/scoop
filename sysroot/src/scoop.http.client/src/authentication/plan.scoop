@@ -18,7 +18,7 @@ internal fun planClientAuthentication(call: ClientCall, head: HttpResponseHead,
     for (authenticator in options.providers) {
         if (authenticator.origin != scope.origin(call)) continue
         val session = when (authenticator.provider) {
-            case Digest(provider) -> planClientDigest(call, head, authentication, authenticator, provider, challenges)
+            case Digest(val provider) -> planClientDigest(call, head, authentication, authenticator, provider, challenges)
             else -> {
                 val selected = planClientSimpleAuthentication(call, head, authentication, authenticator, challenges)
                 if (clientPresent(selected)) requireClientAuthenticationFollowUp(call, head, scope)

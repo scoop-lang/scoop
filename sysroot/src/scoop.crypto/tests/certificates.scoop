@@ -20,8 +20,8 @@ private class CertificateTests {
             Certificate.fromDer(certificate.toDer()).use { copy -> assertEquals(certificate.toPem(), copy.toPem()) }
             val names = certificate.subjectAlternativeNames()
             assertEquals(3L, names.size)
-            assertEquals("localhost", when (names[0L]) { case SubjectAlternativeName.Dns(name) -> name; else -> "" })
-            assertEquals("7f000001", when (names[1L]) { case SubjectAlternativeName.Ip(bytes) -> bytes.toHexString(); else -> "" })
+            assertEquals("localhost", when (names[0L]) { case SubjectAlternativeName.Dns(val name) -> name; else -> "" })
+            assertEquals("7f000001", when (names[1L]) { case SubjectAlternativeName.Ip(val bytes) -> bytes.toHexString(); else -> "" })
         }
         val certificate = Certificate.fromPem(serverPem())
         val publicKey = certificate.publicKey()
@@ -102,14 +102,14 @@ private fun checkChain(store: TrustStore, issuer: Certificate, leaf: Certificate
 private fun requireVerified(result: Result<Unit, CertificateValidationFailure>) {
     when (result) {
         case Result.Success(_) -> return
-        case Result.Failure(error) -> fail(Some(error.detail))
+        case Result.Failure(val error) -> fail(Some(error.detail))
     }
 }
 
 private fun requireFailure(result: Result<Unit, CertificateValidationFailure>, code: Long) {
     when (result) {
         case Result.Success(_) -> fail(Some("unexpected trusted certificate"))
-        case Result.Failure(error) -> {
+        case Result.Failure(val error) -> {
             assertEquals(code, error.code)
             assertTrue(error.depth >= 0)
             assertTrue(error.detail.charLength > 0L)

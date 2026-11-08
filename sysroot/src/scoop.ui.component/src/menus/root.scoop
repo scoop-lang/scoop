@@ -68,7 +68,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
             Some(
                 {
                     reverse -> when (read().horizontal) {
-                        case Some(move) -> move(reverse);
+                        case Some(val move) -> move(reverse);
                         case None -> {}
                     }
                 }
@@ -84,7 +84,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
         if (previous == value)
             return
         when (read().open) {
-            case Some(binding) -> binding.value = value
+            case Some(val binding) -> binding.value = value
             case None -> local.value = value
         }
         val accepted = open.value
@@ -104,7 +104,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (scope.isMounted)
+            case Some(val reverse) -> if (scope.isMounted)
                 scope.moveFocus(reverse);
             case None -> {}
         }
@@ -138,7 +138,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
             }
         val child =
             when (input.trigger) {
-                case Button(value, group) -> component(
+                case Button(val value, val group) -> component(
                     ButtonProps(
                         navigationLabel(
                             value.content,
@@ -160,11 +160,11 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
                     { current, mount -> Button(current, scope = mount) }
                 )
                 case Anchor(_) -> empty()
-                case Context(view) -> view
+                case Context(val view) -> view
             }
         val position =
             when (point.value) {
-                case Some(value) -> OverlayPlacement.AtPoint(
+                case Some(val value) -> OverlayPlacement.AtPoint(
                     value,
                     input.side,
                     input.alignment,

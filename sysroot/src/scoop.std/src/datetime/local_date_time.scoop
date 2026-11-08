@@ -139,7 +139,7 @@ public class LocalDateTime public constructor(
          * invalid input.
          */
         public fun parse(text: String): LocalDateTime = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid local date-time"))
         }
     }

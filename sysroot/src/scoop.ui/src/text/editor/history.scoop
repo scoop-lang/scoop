@@ -61,7 +61,7 @@ internal class EditorHistory {
                 breakGroup();
                 return true
             }
-            case Append(edits, before, after) -> {
+            case Append(val edits, val before, val after) -> {
                 if (before)
                     breakGroup()
                 for (edit in edits)
@@ -82,11 +82,11 @@ internal class EditorHistory {
                 None
         val merged =
             when (previous) {
-                case Some(value) -> mergeEditorDelta(value, edit)
+                case Some(val value) -> mergeEditorDelta(value, edit)
                 case None -> None
             }
         when (merged) {
-            case Some(value) -> entries[position - 1L] = value
+            case Some(val value) -> entries[position - 1L] = value
             case None -> {
                 entries.add(edit);
                 position += 1L

@@ -60,7 +60,7 @@ private fun calendarKey(
         return
     val key =
         when (event) {
-            case Keyboard(value) -> value;
+            case Keyboard(val value) -> value;
             else -> return
         }
     if (!menuKeyAllowed(key, true))
@@ -92,7 +92,7 @@ private fun calendarKey(
                 else
                     member.page.previous
         when (target) {
-            case Some(anchor) -> {
+            case Some(val anchor) -> {
                 val options = owner.props.value.options
                 val nextPage = options.source.page(options.request(anchor))
                 val oldDays = calendarPrimaryDates(member.page)
@@ -139,10 +139,10 @@ private fun calendarKey(
     if (logical == LogicalKey.Named(NamedKey.End))
         step = Some(6L - offset.toLong())
     when (step) {
-        case Some(days) -> {
+        case Some(val days) -> {
             context.consume()
             when (calendarShiftDay(member.data.date, days)) {
-                case Some(date) -> owner.seek(date, days >= 0L)
+                case Some(val date) -> owner.seek(date, days >= 0L)
                 case None -> {}
             }
         }
@@ -155,7 +155,7 @@ internal fun calendarPrimaryDates(page: CalendarPage): Array<LocalDate> {
     for (week in page.weeks)
         for (cell in week.days)
             when (cell) {
-                case Some(day) -> if (!day.outside)
+                case Some(val day) -> if (!day.outside)
                     dates.add(day.date)
                 case None -> {}
             }

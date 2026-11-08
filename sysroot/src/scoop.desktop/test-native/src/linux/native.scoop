@@ -10,7 +10,7 @@ public fun desktopNativeWindow(window: Window, field: Int): Int {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Gtk(handle, _) -> return@use windowQuery(handle, field)
+                    case Gtk(val handle, _) -> return@use windowQuery(handle, field)
                 }
             }
         }
@@ -24,7 +24,7 @@ public fun desktopNativePopupDock(window: Window): Int {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Gtk(handle, _) -> return@use popupDock(handle)
+                    case Gtk(val handle, _) -> return@use popupDock(handle)
                 }
             }
         }

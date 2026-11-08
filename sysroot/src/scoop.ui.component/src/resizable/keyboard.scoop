@@ -60,8 +60,8 @@ internal fun resizableKeyboard(
         when (key) {
             case Minimum -> -total
             case Maximum -> total
-            case Step(sign) -> sign * step
-            case Page(sign) -> sign *
+            case Step(val sign) -> sign * step
+            case Page(val sign) -> sign *
                 (
                     if (step >= total / 10.0)
                         total

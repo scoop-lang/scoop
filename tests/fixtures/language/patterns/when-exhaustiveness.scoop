@@ -18,13 +18,13 @@ enum Never {}
 fun impossible(value: Never): Int = when (value) {}
 
 fun optionValue(value: Int?): Int = when (value) {
-    case Some(number) -> number
+    case Some(val number) -> number
     case None -> -1
 }
 
 fun nestedValue(value: Nested): Int = when (value) {
-    case Item((number, flag)) if (flag) -> number
-    case Item((number, _)) -> number + 100
+    case Item((val number, val flag)) if (flag) -> number
+    case Item((val number, _)) -> number + 100
     case Empty -> -1
 }
 

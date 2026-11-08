@@ -154,7 +154,7 @@ internal fun controlBorder(
         return (options.validation ?: theme.tokens.validation).borderColor ?: base
     if (visual.enabled && visual.focusVisible)
         return when (options.focus) {
-            case Some(value) -> value.borderColor ?: base
+            case Some(val value) -> value.borderColor ?: base
             case None -> theme.tokens.palette.ring
         }
     return base

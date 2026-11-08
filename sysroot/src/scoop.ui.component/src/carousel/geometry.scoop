@@ -128,7 +128,7 @@ internal fun carouselSelected(
     if (keys.size == 0L)
         return -1L
     when (controlled) {
-        case Some(index) -> return max(0L, min(index, keys.size - 1L))
+        case Some(val index) -> return max(0L, min(index, keys.size - 1L))
         case None -> for (index in 0L ..< keys.size)
             if (Some(keys[index]) == retained)
                 return index

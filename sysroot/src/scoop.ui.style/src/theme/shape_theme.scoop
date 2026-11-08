@@ -107,7 +107,7 @@ public class ShapeTheme internal constructor(
         val edge = options.style.border.resolve(Some(themeBorder(base.borderInsets, Color.Black)))
         val insets =
             when (edge) {
-                case Some(value) -> value.resolve(direction).insets
+                case Some(val value) -> value.resolve(direction).insets
                 case None -> Insets()
             }
         val focus = options.focus ?: checkbox.appearance.focus
@@ -189,7 +189,7 @@ public class ShapeTheme internal constructor(
         val edge = options.border.resolve(Some(BorderEdge(base.ringWidth, Color.Black)))
         val width =
             when (edge) {
-                case Some(value) -> value.width;
+                case Some(val value) -> value.width;
                 case None -> 0.0
             }
         val focus = options.focus ?: radio.appearance.focus
@@ -247,8 +247,8 @@ public class ShapeTheme internal constructor(
                 this.border =
                     when (options.border) {
                         case Inherit -> this.border
-                        case Set(value) -> when (value) {
-                            case Some(edge) -> Some(Border.all(edge.width, edge.color))
+                        case Set(val value) -> when (value) {
+                            case Some(val edge) -> Some(Border.all(edge.width, edge.color))
                             case None -> None
                         }
                     }

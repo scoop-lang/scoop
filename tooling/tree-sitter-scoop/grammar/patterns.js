@@ -6,10 +6,12 @@ module.exports = {
   _pattern: ($) =>
     choice(
       $._binding_pattern,
+      $.explicit_binding_pattern,
       $.variant_pattern,
       $._literal,
       $.negative_literal_pattern,
     ),
+  explicit_binding_pattern: ($) => seq("val", field("name", $.identifier)),
   rest_pattern: (_) => "..",
   tuple_pattern: ($) =>
     seq("(", commaSep(choice($._pattern, $.rest_pattern)), ")"),
@@ -18,9 +20,12 @@ module.exports = {
   field_patterns: ($) =>
     seq("{", commaSep(choice($.field_pattern, $.rest_pattern)), "}"),
   field_pattern: ($) =>
-    seq(
-      field("name", $.identifier),
-      optional(seq(":", field("pattern", $._pattern))),
+    choice(
+      seq("val", field("name", $.identifier)),
+      seq(
+        field("name", $.identifier),
+        optional(seq(":", field("pattern", $._pattern))),
+      ),
     ),
   variant_pattern: ($) =>
     choice(

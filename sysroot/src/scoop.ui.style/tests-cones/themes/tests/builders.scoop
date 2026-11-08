@@ -209,7 +209,7 @@ private class ThemeBuilderTest {
         assertEquals(seed.scrollbar.metrics.buttonLength, complete.scrollbar.metrics.buttonLength)
         assertEquals(2L, complete.copy().tokens.effects.raised.size)
         when (complete.tokens.motion.hover) {
-            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(150L), duration);
+            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(150L), duration);
             else -> fail(Some("configured motion was lost"))
         }
         assertTrue(

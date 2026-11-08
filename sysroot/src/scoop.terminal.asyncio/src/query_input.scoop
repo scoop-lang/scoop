@@ -10,8 +10,8 @@ internal suspend fun SessionInput.query(sink: AsyncByteSink, kind: QueryKind, ti
     reader.receiveAvailable()
     while (reader.parser.hasPending) {
         when (reader.parser.next()!!) {
-            case User(event) -> deferred.addLast(event)
-            case Invalid(detail) -> throw TerminalInputException(detail)
+            case User(val event) -> deferred.addLast(event)
+            case Invalid(val detail) -> throw TerminalInputException(detail)
             case _ -> {}
         }
     }
@@ -21,10 +21,10 @@ internal suspend fun SessionInput.query(sink: AsyncByteSink, kind: QueryKind, ti
     while (true) {
         when (reader.next(inputRemaining(started, Some(timeout)))) {
             case None -> throw TerminalQueryTimeoutException()
-            case Some(InputItem.User(event)) -> deferred.addLast(event)
-            case Some(InputItem.Invalid(detail)) -> throw TerminalInputException(detail)
-            case Some(item) -> when (reply.accept(item)) {
-                case Some(result) -> return result
+            case Some(InputItem.User(val event)) -> deferred.addLast(event)
+            case Some(InputItem.Invalid(val detail)) -> throw TerminalInputException(detail)
+            case Some(val item) -> when (reply.accept(item)) {
+                case Some(val result) -> return result
                 case None -> {}
             }
         }

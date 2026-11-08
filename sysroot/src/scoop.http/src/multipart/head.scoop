@@ -36,10 +36,10 @@ public class MultipartPartHead private constructor(
             bodyLength: Long? = None): MultipartPartHead {
             val parameters = ArrayList<HttpParameter>()
             parameters.add(HttpParameter("name", name.toByteArray(), true))
-            when (filename) { case Some(value) -> parameters.add(HttpParameter("filename", value.toByteArray(), true)); case None -> {} }
+            when (filename) { case Some(val value) -> parameters.add(HttpParameter("filename", value.toByteArray(), true)); case None -> {} }
             val fields = ArrayList<HttpField>()
             fields.add(HttpContentDisposition("form-data", parameters).toHttpField())
-            when (contentType) { case Some(value) -> fields.add(value.toHttpField()); case None -> {} }
+            when (contentType) { case Some(val value) -> fields.add(value.toHttpField()); case None -> {} }
             return MultipartPartHead(fields, bodyLength)
         }
         internal fun parsed(fields: Array<HttpField>): MultipartPartHead = MultipartPartHead(fields, None, multipartHeaders(fields, false))

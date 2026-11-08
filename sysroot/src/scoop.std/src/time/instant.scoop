@@ -128,7 +128,7 @@ public class Instant private constructor(
          * out-of-range input.
          */
         public fun parseOrNone(text: String): Instant? = when (OffsetDateTime.parseOrNone(text)) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val seconds = localEpochSeconds(value.dateTime) - value.offset.totalSeconds.toLong()
                 if (seconds < MIN.epochSeconds || seconds > MAX.epochSeconds) None
                 else Some(Instant(seconds, value.dateTime.nanosecond))
@@ -140,7 +140,7 @@ public class Instant private constructor(
          * invalid input.
          */
         public fun parse(text: String): Instant = when (parseOrNone(text)) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> throw IllegalArgumentException(Some("invalid instant"))
         }
     }

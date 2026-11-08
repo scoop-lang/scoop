@@ -41,7 +41,7 @@ internal class VirtualListLayout(
             size,
             context.layoutDirection,
             when (input.endPadding) {
-                case Fixed(length) -> length
+                case Fixed(val length) -> length
                 case FillViewport -> 0.0
             }
         )
@@ -56,7 +56,7 @@ internal class VirtualListLayout(
         input.anchor !=
             VirtualListAnchor.None &&
             when (previous) {
-                case Some(value) -> value.state ===
+                case Some(val value) -> value.state ===
                     state &&
                     value.orientation ==
                     input.orientation &&
@@ -81,7 +81,7 @@ internal class VirtualListLayout(
             None
     private val anchorIndex: Long? =
         when (anchor) {
-            case Some(value) -> if (index.count > 0L)
+            case Some(val value) -> if (index.count > 0L)
                 Some(
                     virtualIndex(input.source, index.count, value.key) ?:
                         if (value.index < index.count)
@@ -97,10 +97,10 @@ internal class VirtualListLayout(
     fun measure(): VirtualListFrame {
         if (hasViewport) {
             when (destination) {
-                case Some(at) -> {
+                case Some(val at) -> {
                     ensure(at)
                     when (request!!.position) {
-                        case Item(alignment, _, peek) -> {
+                        case Item(val alignment, _, val peek) -> {
                             if (alignment == ScrollAlignment.Start && peek > 0.0 && at > 0L)
                                 ensure(at - 1L)
                         }
@@ -108,7 +108,7 @@ internal class VirtualListLayout(
                     }
                 }
                 case None -> when (anchorIndex) {
-                    case Some(at) -> ensure(at)
+                    case Some(val at) -> ensure(at)
                     case None -> {}
                 }
             }
@@ -166,7 +166,7 @@ internal class VirtualListLayout(
                 VirtualReadingSnapshot(
                     geometry.visibleRange(offset),
                     when (nextAnchor) {
-                        case Some(value) -> Some(VirtualReadingAnchor(value.key, value.inside))
+                        case Some(val value) -> Some(VirtualReadingAnchor(value.key, value.inside))
                         case None -> None
                     },
                     offset == geometry.maximum,
@@ -207,19 +207,19 @@ internal class VirtualListLayout(
         val base = control.layout(size, geometry.content)
         var adjustment: ScrollAdjustment? = None
         when (destination) {
-            case Some(at) -> adjustment =
+            case Some(val at) -> adjustment =
                 Some(
                     ScrollAdjustment(
                         revision,
                         when (request!!.position) {
-                            case Item(alignment, margin, peek) -> geometry.alignedOffset(
+                            case Item(val alignment, val margin, val peek) -> geometry.alignedOffset(
                                 base.snapshot,
                                 at,
                                 alignment,
                                 margin,
                                 peek
                             )
-                            case Reading(inside) -> geometry.scrollOffset(
+                            case Reading(val inside) -> geometry.scrollOffset(
                                 index.prefix(at) + upperBound(inside, index.extent(at))
                             )
                         }
@@ -231,7 +231,7 @@ internal class VirtualListLayout(
                         Some(ScrollAdjustment(revision, geometry.scrollOffset(geometry.maximum)))
                 else
                     when (anchorIndex) {
-                        case Some(at) -> adjustment =
+                        case Some(val at) -> adjustment =
                             Some(
                                 ScrollAdjustment(
                                     revision,
@@ -254,19 +254,19 @@ internal class VirtualListLayout(
         if (followEnd)
             return 0.0
         when (destination) {
-            case Some(at) -> return when (request!!.position) {
-                case Item(ScrollAlignment.Start, margin, peek) -> geometry.startOffset(
+            case Some(val at) -> return when (request!!.position) {
+                case Item(ScrollAlignment.Start, val margin, val peek) -> geometry.startOffset(
                     at,
                     margin,
                     peek
                 )
                 case Item(_, _, _) -> 0.0
-                case Reading(inside) -> index.prefix(at) + upperBound(inside, index.extent(at))
+                case Reading(val inside) -> index.prefix(at) + upperBound(inside, index.extent(at))
             }
             case None -> {}
         }
         when (anchorIndex) {
-            case Some(at) -> return index.prefix(at) + upperBound(anchor!!.inside, index.extent(at))
+            case Some(val at) -> return index.prefix(at) + upperBound(anchor!!.inside, index.extent(at))
             case None -> {}
         }
         return if (vertical)

@@ -41,7 +41,7 @@ public class AsyncWebSocketSession internal constructor(
      */
     public val deflate: WebSocketDeflateNegotiation? get() =
         when (state.deflate) {
-            case Some(value) -> Some(value.negotiated)
+            case Some(val value) -> Some(value.negotiated)
             case None -> None
         }
     /**

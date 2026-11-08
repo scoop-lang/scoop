@@ -20,13 +20,13 @@ internal fun testJsonString(value: String): String {
 
 private fun optionalText(value: String?): String = when (value) {
     case None -> "null"
-    case Some(text) -> testJsonString(text)
+    case Some(val text) -> testJsonString(text)
 }
 
 private fun describeThrowable(error: Throwable): String {
     if (error is Exception) {
         return when (error.message) {
-            case Some(message) -> message
+            case Some(val message) -> message
             case None -> "Exception"
         }
     }
@@ -39,8 +39,8 @@ private fun describeThrowable(error: Throwable): String {
 
 private fun assertionValue(value: AssertionValue): String = when (value) {
     case AssertionValue.Unavailable -> "{\"kind\":\"unavailable\"}"
-    case AssertionValue.Text(text) -> "{\"kind\":\"text\",\"text\":" + testJsonString(text) + "}"
-    case AssertionValue.RenderingFailed(error) ->
+    case AssertionValue.Text(val text) -> "{\"kind\":\"text\",\"text\":" + testJsonString(text) + "}"
+    case AssertionValue.RenderingFailed(val error) ->
         "{\"kind\":\"rendering-failed\",\"message\":" + testJsonString(describeThrowable(error)) + "}"
 }
 
@@ -62,7 +62,7 @@ internal fun testFailureJson(failure: TestFailure): String {
     if (error is AssertionFailure) {
         val cause: String = when (error.cause) {
             case None -> "null"
-            case Some(value) -> testJsonString(describeThrowable(value))
+            case Some(val value) -> testJsonString(describeThrowable(value))
         }
         return start + ",\"kind\":\"assertion\",\"assertion\":" + testJsonString(error.kind) +
             ",\"message\":" + optionalText(error.message) +

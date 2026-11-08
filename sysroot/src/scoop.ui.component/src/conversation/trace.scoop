@@ -94,7 +94,7 @@ public class Trace(private val props: Props<TraceProps>, scope: ComponentScope):
             return
         val previous = opened.value
         when (input.open) {
-            case Some(binding) -> binding.value = value
+            case Some(val binding) -> binding.value = value
             case None -> expansion.choose(value)
         }
         if (scope.isMounted && previous != opened.value)
@@ -213,19 +213,19 @@ internal class TraceLine(
             conversationCaption(input.title, base, input.fonts, scope.layoutDirection, Some(1L))
         val description =
             when (input.description) {
-                case Some(PanelContent.Label(label)) -> conversationCaption(
+                case Some(PanelContent.Label(val label)) -> conversationCaption(
                     ButtonContent.Label(label),
                     detail,
                     input.fonts,
                     scope.layoutDirection,
                     Some(1L)
                 )
-                case Some(value) -> panelCaption(value, detail, input.fonts)
+                case Some(val value) -> panelCaption(value, detail, input.fonts)
                 case None -> empty()
             }
         val arrow =
             when (frame.expanded) {
-                case Some(open) -> navigationIcon(
+                case Some(val open) -> navigationIcon(
                     if (open)
                         NavigationGlyph.Down
                     else

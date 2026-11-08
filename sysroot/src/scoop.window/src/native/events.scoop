@@ -82,7 +82,7 @@ private fun copyNativeText(event: NativeEvent): String {
     @Unsafe
     {
         return when (event.text) {
-            case Some(bytes) -> String.fromUtf8(bytes, event.textLength)
+            case Some(val bytes) -> String.fromUtf8(bytes, event.textLength)
             case None -> ""
         }
     }
@@ -92,7 +92,7 @@ private fun copyKeyEvent(pointer: Ptr<Unit>, event: NativeEvent): KeyEvent {
     val text = copyNativeText(event)
     val logical =
         when (platformNamedKey(event.a, event.c)) {
-            case Some(value) -> LogicalKey.Named(value)
+            case Some(val value) -> LogicalKey.Named(value)
             case None -> if (event.flags.and(8) != 0)
                 LogicalKey.Dead(
                     if (text.byteLength > 0L)

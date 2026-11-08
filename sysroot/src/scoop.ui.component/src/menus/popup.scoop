@@ -18,7 +18,7 @@ internal class MenuFocus: NavigationSource {
         val next = ArrayList<MenuItemSpec>()
         for (entry in content.entries)
             when (menuItem(entry)) {
-                case Some(item) -> next.add(item)
+                case Some(val item) -> next.add(item)
                 case None -> {}
             }
         items = next.toArray()
@@ -137,7 +137,7 @@ internal class MenuPopup(
             )
         val content =
             when (input.link) {
-                case Some(link) -> element(
+                case Some(val link) -> element(
                     HoverPopupContentProps(link, false, None),
                     { current, mount -> HoverPopupContent(current, scope = mount) },
                     [panel]
@@ -284,7 +284,7 @@ internal class MenuNavigation(
             context, event ->
             val key =
                 when (event) {
-                    case Keyboard(value) -> value;
+                    case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
             if (!menuKeyAllowed(key, true))
@@ -297,13 +297,13 @@ internal class MenuNavigation(
                 if (!key.modifiers.shift) {
                     val backwards = menuBackward(key, scope.layoutDirection)
                     when (backwards) {
-                        case Some(reverse) -> if (!input.root && reverse) {
+                        case Some(val reverse) -> if (!input.root && reverse) {
                             context.consume();
                             input.handle!!.requestClose()
                         } else
                             if (input.root)
                                 when (input.chain.horizontal) {
-                                    case Some(move) -> {
+                                    case Some(val move) -> {
                                         context.consume();
                                         move(reverse)
                                     }

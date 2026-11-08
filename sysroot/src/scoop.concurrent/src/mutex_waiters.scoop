@@ -37,7 +37,7 @@ internal class ConditionWaiter(
         val error = failure
         failure = None
         when (error) {
-            case Some(reason) -> result.fail(reason, notifications)
+            case Some(val reason) -> result.fail(reason, notifications)
             case None -> result.succeed(Unit, notifications)
         }
     }

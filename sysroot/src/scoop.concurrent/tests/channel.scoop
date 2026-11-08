@@ -122,7 +122,7 @@ private class ChannelTest {
         val end = startRaw(executor) { channel.receiveOrNone() }
         executor.drain()
         when (message.get()) {
-            case Some(value) -> assertTrue(absent(value))
+            case Some(val value) -> assertTrue(absent(value))
             case None -> fail(Some("nullable message was lost"))
         }
         assertTrue(absent(end.get()))
@@ -132,7 +132,7 @@ private class ChannelTest {
         assertEquals(TrySendResult.Sent, rendezvous.trySend(None))
         executor.drain()
         when (waiting.get()) {
-            case Some(value) -> assertTrue(absent(value))
+            case Some(val value) -> assertTrue(absent(value))
             case None -> fail(Some("nullable rendezvous message was lost"))
         }
     }

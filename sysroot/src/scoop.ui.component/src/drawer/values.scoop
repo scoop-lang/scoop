@@ -56,11 +56,11 @@ public class DrawerProps public constructor(
 ) {
     init {
         when (width) {
-            case Some(value) -> nonnegative(value, "invalid drawer width");
+            case Some(val value) -> nonnegative(value, "invalid drawer width");
             case None -> {}
         }
         when (height) {
-            case Some(value) -> nonnegative(value, "invalid drawer height");
+            case Some(val value) -> nonnegative(value, "invalid drawer height");
             case None -> {}
         }
         nonnegative(viewportGap, "invalid drawer viewport gap")
@@ -76,11 +76,11 @@ public class DrawerProps public constructor(
         )
         for (point in snapPoints)
             when (point) {
-                case Fraction(value) -> requireComponent(
+                case Fraction(val value) -> requireComponent(
                     value.isFinite() && value > 0.0 && value <= 1.0,
                     "drawer snap fractions must be in (0, 1]"
                 )
-                case Length(value) -> requireComponent(
+                case Length(val value) -> requireComponent(
                     value.isFinite() && value > 0.0,
                     "drawer snap lengths must be positive and finite"
                 )

@@ -108,18 +108,18 @@ internal fun typographyCaption(
     theme: ThemeSource?
 ): View =
     when (content) {
-        case Custom(view) -> view
-        case Label(input) -> {
+        case Custom(val view) -> view
+        case Label(val input) -> {
             val text =
                 when (input.text) {
-                    case Plain(value, local) -> TypographyContent.Styled(
+                    case Plain(val value, val local) -> TypographyContent.Styled(
                         styledText {
                             this.style =
                                 local?.resolve(input.baseStyle ?: base) ?: (input.baseStyle ?: base)
                             this.text(value)
                         }
                     )
-                    case Styled(value) -> TypographyContent.Styled(value)
+                    case Styled(val value) -> TypographyContent.Styled(value)
                 }
             makeTypography(text, TypographyRole.P) {
                 this.fonts =

@@ -40,7 +40,7 @@ internal class ProgressInk(
             input.period
         )
         when (input.position) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 if (!panelPresent(previous) || !panelPresent(input.transition)) {
                     if (selection!!.value != value || selection!!.state == AnimationState.Running)
                         selection!!.snapTo(value)

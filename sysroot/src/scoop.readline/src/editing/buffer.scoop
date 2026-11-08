@@ -104,12 +104,12 @@ public class LineBuffer public constructor(initial: String = "", cursor: Long = 
     internal fun range(movement: Movement): (Long, Long) {
         when (movement) {
             case WholeBuffer -> return (0L, length)
-            case Find(character, count, forward, till) -> {
+            case Find(val character, val count, val forward, val till) -> {
                 val found = findDestination(this, character, count, forward, till)
                 if (found == None) return (position, position)
                 return if (forward) (position, next(found!!)) else (found!!, position)
             }
-            case WholeLine(count) -> {
+            case WholeLine(val count) -> {
                 requireRepeat(count)
                 var end = position
                 var left = count
@@ -129,8 +129,8 @@ public class LineBuffer public constructor(initial: String = "", cursor: Long = 
     private fun destinationRange(movement: Movement): (Long, Long) {
         var target = destination(movement)
         val inclusive = when (movement) {
-            case ForwardWord(_, _, end) -> end == WordEnd.BeforeEnd && target < length
-            case Find(_, _, forward, till) -> forward && !till && target != position
+            case ForwardWord(_, _, val end) -> end == WordEnd.BeforeEnd && target < length
+            case Find(_, _, val forward, val till) -> forward && !till && target != position
             else -> false
         }
         if (inclusive) target = next(target)

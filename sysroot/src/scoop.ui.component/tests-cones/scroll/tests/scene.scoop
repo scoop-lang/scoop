@@ -210,7 +210,7 @@ private class ContentInput(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(value) -> if (
+                    case Keyboard(val value) -> if (
                         value.state ==
                             ElementState.Pressed &&
                             value.logicalKey ==

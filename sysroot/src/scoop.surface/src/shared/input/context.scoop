@@ -57,7 +57,7 @@ public class RoutedEventContext internal constructor(
     public val scrollRemaining: InputScrollDelta? get() {
         checkActive()
         return when (flags.scroll) {
-            case Some(scroll) -> Some(scroll.remaining)
+            case Some(val scroll) -> Some(scroll.remaining)
             case None -> None
         }
     }

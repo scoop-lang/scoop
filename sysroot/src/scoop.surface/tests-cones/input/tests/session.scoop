@@ -166,7 +166,7 @@ private class InputSession: Closeable {
     private fun receive(context: RoutedEventContext, event: InputEvent, isFirst: Boolean) {
         val area = context.currentTarget.area!!
         when (event) {
-            case Pointer(InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)) -> {
+            case Pointer(InputPointerEvent.Button(val pointer, _, ElementState.Pressed, _)) -> {
                 downs += 1
                 assertEquals(Point(10.0, 10.0), context.localPosition!!)
                 assertTrue(area.requestFocus())
@@ -192,7 +192,7 @@ private class InputSession: Closeable {
                 if (isFirst)
                     oldDisabled = true
             }
-            case TextInput(TextInputEvent.Edit(batch)) -> {
+            case TextInput(TextInputEvent.Edit(val batch)) -> {
                 if (isFirst) {
                     firstText = firstText.apply(batch)
                     if (phase == InputPhase.Preedit) {
@@ -219,11 +219,11 @@ private class InputSession: Closeable {
 
     public override fun close() {
         when (surfaceWindow) {
-            case Some(value) -> value.close();
+            case Some(val value) -> value.close();
             case None -> {}
         }
         when (view) {
-            case Some(value) -> value.close();
+            case Some(val value) -> value.close();
             case None -> {}
         }
     }

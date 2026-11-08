@@ -13,12 +13,12 @@ internal fun InputRouter.refreshTextCommands() {
     var value = TextCommandAvailability()
     if (osFocused) {
         when (activeFocus) {
-            case Some(area) -> if (allowsFocus(area.scope) && allows(area.scope)) {
+            case Some(val area) -> if (allowsFocus(area.scope) && allows(area.scope)) {
                 var cursor: InputScope? = Some(area.scope)
                 while (true) {
                     val current = cursor ?: break
                     when (current.textCommandAvailability) {
-                        case Some(commands) -> {
+                        case Some(val commands) -> {
                             value = commands;
                             break
                         }

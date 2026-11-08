@@ -38,9 +38,9 @@ fn subject_declarations_preserve_shadowing_and_irrefutable_binding_sources() {
 #[test]
 fn case_bindings_use_tuple_struct_and_enum_declarations() {
     for text in [
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) -> value. } }",
-        "struct Record(val field: String)\nfun editing(source: Record) { when (source) { case Record { field: value } -> value. } }",
-        "enum Item<T> { Empty, Full(T) }\nfun editing(source: Item<String>) { when (source) { case Full(value) -> value. } }",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) -> value. } }",
+        "struct Record(val field: String)\nfun editing(source: Record) { when (source) { case Record { field: val value } -> value. } }",
+        "enum Item<T> { Empty, Full(T) }\nfun editing(source: Item<String>) { when (source) { case Full(val value) -> value. } }",
     ] {
         let mut analysis = analyze(text);
         let facts = receiver(&mut analysis);
@@ -89,7 +89,7 @@ fn when_branches_isolate_body_failures_shadowing_and_mutable_facts() {
 fn guarded_arms_keep_primary_bindings_and_guard_false_paths() {
     for text in [
         "fun editing(value: Any, flag: Boolean) { when (value) { is String if flag -> value. } }",
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) if flag -> value. } }",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) if flag -> value. } }",
         "fun editing(value: Any) { when (value) { else if value !is String -> {}\nelse -> value. } }",
     ] {
         let mut analysis = analyze(text);
@@ -103,8 +103,8 @@ fn failed_subjects_conditions_patterns_and_guards_do_not_publish_branch_bindings
     for text in [
         "fun editing(value: String) { when (missing) { else -> value. } }",
         "fun editing(value: String) { when { \"not Boolean\" -> value. } }",
-        "fun editing(source: (Boolean, String)) { when (source) { case (value, value) -> value. } }",
-        "fun editing(source: (Boolean, String)) { when (source) { case (flag, value) if \"not Boolean\" -> value. } }",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val value, val value) -> value. } }",
+        "fun editing(source: (Boolean, String)) { when (source) { case (val flag, val value) if \"not Boolean\" -> value. } }",
         "fun editing(value: String) { when { missing -> {}\nelse -> value. } }",
     ] {
         let mut analysis = analyze(text);

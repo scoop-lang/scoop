@@ -40,7 +40,7 @@ internal fun <N, D> matchSiblings(
                 } else
                     keyed[key]
             when (candidate) {
-                case Some(position) -> if (canReuse(previous[position], description)) {
+                case Some(val position) -> if (canReuse(previous[position], description)) {
                     used[position] = true
                     Some(position)
                 } else

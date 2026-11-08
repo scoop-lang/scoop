@@ -131,10 +131,10 @@ private class SidebarMenuItem(
             }
         val submenu =
             when (item.submenu) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     val content = sidebarSubmenu(value) { this.theme = menu.theme }
                     when (item.submenuOpen) {
-                        case Some(open) -> collapsible(open, content) {
+                        case Some(val open) -> collapsible(open, content) {
                             retention = ContentRetention.KeepMounted;
                             spacing = 0.0;
                             this.theme = menu.theme

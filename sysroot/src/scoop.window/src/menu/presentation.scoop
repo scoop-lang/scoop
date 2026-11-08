@@ -61,7 +61,7 @@ private fun MenuOwner.attachBar(window: WindowOwner?): MenuBarBinding {
     requireUnused()
     for (menu in application.menus) {
         when (menu.use) {
-            case Some(MenuUse.Bar(binding)) -> {
+            case Some(MenuUse.Bar(val binding)) -> {
                 if (sameMenuWindow(binding.window, window))
                     throw WindowException(
                         "menu bar target already bound",
@@ -79,7 +79,7 @@ private fun MenuOwner.attachBar(window: WindowOwner?): MenuBarBinding {
     val binding = MenuBarBinding(this, window, takeUseSerial())
     val nativeWindow =
         when (window) {
-            case Some(value) -> value.pointer
+            case Some(val value) -> value.pointer
             case None -> None
         }
     @Unsafe
@@ -98,7 +98,7 @@ private fun MenuOwner.attachBar(window: WindowOwner?): MenuBarBinding {
         )
     }
     when (window) {
-        case Some(value) -> value.leases += 1L
+        case Some(val value) -> value.leases += 1L
         case None -> {}
     }
     use = Some(MenuUse.Bar(binding))
@@ -107,7 +107,7 @@ private fun MenuOwner.attachBar(window: WindowOwner?): MenuBarBinding {
 
 internal fun sameMenuWindow(left: WindowOwner?, right: WindowOwner?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
+        case(Some(val a), Some(val b)) -> a === b
         case(None, None) -> true
         else -> false
     }
@@ -167,8 +167,8 @@ public class PopupSession internal constructor(
         started = true
         val rect =
             when (placement) {
-                case Pointer(position) -> LogicalRect(position, LogicalSize(0.0, 0.0))
-                case Anchor(value) -> value
+                case Pointer(val position) -> LogicalRect(position, LogicalSize(0.0, 0.0))
+                case Anchor(val value) -> value
             }
         val anchor =
             when (placement) {
@@ -204,10 +204,10 @@ public class PopupSession internal constructor(
             return None
         val value: PopupResult =
             when (cancellation) {
-                case Some(reason) -> PopupResult.Cancelled(reason)
+                case Some(val reason) -> PopupResult.Cancelled(reason)
                 case None -> {
                     when (menu.findItem(MenuItemId(selected))) {
-                        case Some(node) -> if (node.enabled())
+                        case Some(val node) -> if (node.enabled())
                             PopupResult.Selected(node.id)
                         else
                             PopupResult.Cancelled(PopupCancelReason.User)
@@ -252,8 +252,8 @@ public fun Window.showPopup(menu: Menu, placement: PopupPlacement): PopupSession
         "menu belongs to another application"
     )
     when (placement) {
-        case Pointer(position) -> checkPosition(position)
-        case Anchor(rect) -> checkRect(rect)
+        case Pointer(val position) -> checkPosition(position)
+        case Anchor(val rect) -> checkRect(rect)
     }
     menu.owner.requireUnused()
     val application = owner.application

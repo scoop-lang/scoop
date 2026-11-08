@@ -8,7 +8,7 @@ import scoop.window.*
 
 internal fun carouselDrag(control: CarouselControl, event: DragEvent) {
     when (event) {
-        case Started(sample) -> {
+        case Started(val sample) -> {
             if (!control.available()) {
                 control.cancel(DragCancelReason.GeometryUnavailable);
                 return
@@ -22,8 +22,8 @@ internal fun carouselDrag(control: CarouselControl, event: DragEvent) {
             control.publish();
             control.refreshAutoplay()
         }
-        case Moved(sample) -> carouselDragged(control, sample)
-        case Ended(sample) -> {
+        case Moved(val sample) -> carouselDragged(control, sample)
+        case Ended(val sample) -> {
             val gesture = control.gesture ?: return
             carouselDragged(control, sample)
             if (!control.active)
@@ -38,13 +38,13 @@ internal fun carouselDrag(control: CarouselControl, event: DragEvent) {
                     control.read().props.projectionSeconds
                 )
             when (target) {
-                case Some(value) -> control.select(value.index, true, Some(value.position));
+                case Some(val value) -> control.select(value.index, true, Some(value.position));
                 case None -> {}
             }
             control.publish();
             control.refreshAutoplay()
         }
-        case Cancelled(_, reason) -> control.cancel(reason)
+        case Cancelled(_, val reason) -> control.cancel(reason)
     }
 }
 
@@ -106,11 +106,11 @@ internal fun carouselKeyboard(
             context.consume();
             control.select(shape.keys.size - 1L, true)
         }
-        case Step(value) -> {
+        case Step(val value) -> {
             context.consume();
             control.step(value > 0.0, true)
         }
-        case Page(value) -> {
+        case Page(val value) -> {
             context.consume()
             val target =
                 carouselNearest(
@@ -120,7 +120,7 @@ internal fun carouselKeyboard(
                     0.0
                 )
             when (target) {
-                case Some(selected) -> control.select(selected.index, true, Some(selected.position))
+                case Some(val selected) -> control.select(selected.index, true, Some(selected.position))
                 case None -> {}
             }
         }

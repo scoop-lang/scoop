@@ -6,7 +6,7 @@ enum Lookup {
 }
 
 fun describe(result: Lookup): String = when (result) {
-    case Lookup.Found(Point(x, y)) -> f"point=(${x}, ${y})"
+    case Lookup.Found(Point(val x, val y)) -> f"point=(${x}, ${y})"
     case Lookup.Missing -> "point missing"
 }
 

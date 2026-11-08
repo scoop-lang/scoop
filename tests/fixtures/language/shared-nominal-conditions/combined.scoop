@@ -12,13 +12,13 @@ public fun <T> exercise(value: T, read: (T) -> Int): Int {
     val state: State<T> = Set(copied)
     val selected: Option<Scalar<T>> = when (state) {
         case Unset -> None
-        case Set(item) -> Some(item)
+        case Set(val item) -> Some(item)
     }
     val phantom: Phantom<Managed> = Phantom<Managed>()
     if (hidden(phantom) != 42) { return 1 }
     return when (selected) {
         case None -> 2
-        case Some(item) -> read(item.value)
+        case Some(val item) -> read(item.value)
     }
 }
 

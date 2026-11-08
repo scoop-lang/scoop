@@ -89,12 +89,12 @@ internal class SidebarHost(
                 margins
         val mainMaximum =
             when (constraints.maxWidth) {
-                case Some(value) -> Some(max(0.0, value - occupied - near - margins))
+                case Some(val value) -> Some(max(0.0, value - occupied - near - margins))
                 case None -> None
             }
         val mainHeight =
             when (constraints.maxHeight) {
-                case Some(value) -> Some(max(0.0, value - margins * 2.0))
+                case Some(val value) -> Some(max(0.0, value - margins * 2.0))
                 case None -> None
             }
         val main =
@@ -227,7 +227,7 @@ internal class SidebarPane(
                 available
         val height =
             when (constraints.maxHeight) {
-                case Some(value) -> Some(max(0.0, value - outside * 2.0))
+                case Some(val value) -> Some(max(0.0, value - outside * 2.0))
                 case None -> None
             }
         val child = context.measureChild(0L, Constraints(full, Some(full), height ?: 0.0, height))
@@ -297,7 +297,7 @@ private class SidebarGate(
 internal fun sidebarKeyBindings(scope: ShortcutScope, input: SidebarProps, toggle: () -> Unit) {
     scope.bindings =
         when (input.shortcut) {
-            case Some(chord) -> [
+            case Some(val chord) -> [
                 shortcutBinding(chord, toggle) {
                     enabled = input.enabled && input.collapsible != SidebarCollapse.None
                 }

@@ -24,7 +24,7 @@ internal fun prepareResponse(ctx: HttpContext, result: HttpResult, initial: Http
         else ResponseCompressionChoice.Identity
     val encoding: ResponseEncoding? = when (choice) {
         case ResponseCompressionChoice.Identity -> None
-        case ResponseCompressionChoice.Encoded(value) -> {
+        case ResponseCompressionChoice.Encoded(val value) -> {
             draft = HttpResponseDraft(draft.status, compressedFields(draft.fields))
             draft.remove("Content-Length")
             draft.set(field("Content-Encoding", value.name))
@@ -39,7 +39,7 @@ internal fun prepareResponse(ctx: HttpContext, result: HttpResult, initial: Http
             None
         }
     }
-    val trailers = when (body) { case HttpBody.Stream(value) -> present(value.trailers); else -> false }
+    val trailers = when (body) { case HttpBody.Stream(val value) -> present(value.trailers); else -> false }
     val chunkedTrailers = allows && trailers && version != HttpVersion.Http2
     if (chunkedTrailers && version == HttpVersion.Http10) throw IllegalArgumentException(Some("HTTP/1.0 cannot send trailers"))
     if (chunkedTrailers && present(declared)) throw IllegalArgumentException(Some("HTTP/1 trailers conflict with Content-Length"))

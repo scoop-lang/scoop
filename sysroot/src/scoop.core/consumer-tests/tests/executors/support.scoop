@@ -16,7 +16,7 @@ internal class QueueExecutor(private val beforeRegistration: () -> Unit = {}): C
         if (draining) {
             val accepted =
                 when (parent) {
-                    case Some(parent) -> parent is
+                    case Some(val parent) -> parent is
                         QueueTicket &&
                         parent.owner ===
                         this &&

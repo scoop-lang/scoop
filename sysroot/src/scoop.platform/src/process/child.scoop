@@ -130,7 +130,7 @@ public class ChildProcess internal constructor(
 
     private fun observe(noHang: Boolean): ExitStatus? {
         when (waitFailure) {
-            case Some(failure) -> throw failure;
+            case Some(val failure) -> throw failure;
             case None -> {}
         }
         when (result) {
@@ -226,7 +226,7 @@ public class ChildProcess internal constructor(
         }
         val snapshot: Array<Byte>? =
             when (input) {
-                case Some(bytes) -> Some(bytes.toArray())
+                case Some(val bytes) -> Some(bytes.toArray())
                 case None -> None
             }
         val sink = takeStdin()
@@ -275,7 +275,7 @@ public class ChildProcess internal constructor(
             failure = Some(combineProcessFailure(failure, error))
         }
         when (failure) {
-            case Some(error) -> throw error;
+            case Some(val error) -> throw error;
             case None -> {}
         }
     }
@@ -292,7 +292,7 @@ public class ChildProcess internal constructor(
 
 internal fun combineProcessFailure(previous: Throwable?, next: Throwable): Throwable =
     when (previous) {
-        case Some(error) -> ResourceUseException(error, next)
+        case Some(val error) -> ResourceUseException(error, next)
         case None -> next
     }
 

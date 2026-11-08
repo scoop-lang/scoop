@@ -13,7 +13,7 @@ public class HttpAuthenticationInfo private constructor(
     public constructor(parameters: List<HttpParameter>) : this(uniqueHttpParameters(parameters)) {}
 
     /**
-     * Looks up a named parameter using ASCII case folding, returning None when absent.
+     * Looks up a named parameter using ASCII case val folding, returning None when absent.
      */
     public fun parameter(name: String): HttpParameter? = findHttpParameter(parameters, name)
     /**

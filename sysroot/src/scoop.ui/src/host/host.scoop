@@ -111,7 +111,7 @@ public class UiHost public constructor(
 
     internal fun detachedApplication(root: UiApplicationRoot) {
         when (applicationRoot) {
-            case Some(current) -> if (current === root)
+            case Some(val current) -> if (current === root)
                 applicationRoot = None
             case None -> {}
         }
@@ -183,7 +183,7 @@ public class UiHost public constructor(
         checkThread()
         when (active) {
             case None -> active = Some(application)
-            case Some(value) -> if (!(value === application))
+            case Some(val value) -> if (!(value === application))
                 throw IllegalStateException(Some("UI host belongs to another application"))
         }
         when (proxy) {
@@ -357,7 +357,7 @@ public fun <C: Component> runUiApplication(
                 create,
                 fonts
             )
-            case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
+            case Window(val id, WindowEvent.CloseRequested) -> active.requestExit()
             else -> {}
         }
     }.use { host -> application.run(host) }

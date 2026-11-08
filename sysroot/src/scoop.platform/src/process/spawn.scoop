@@ -105,7 +105,7 @@ private fun <R> withRedirect(value: Stdio, block: (NativeStdio) -> R): R =
         case Stdio.Inherit -> block(NativeStdio(0, NativeFileHandle(ULong.MAX_VALUE)))
         case Stdio.Null -> block(NativeStdio(1, NativeFileHandle(ULong.MAX_VALUE)))
         case Stdio.Pipe -> block(NativeStdio(2, NativeFileHandle(ULong.MAX_VALUE)))
-        case Stdio.Redirect(file) -> file.withHandle { handle -> block(NativeStdio(3, handle)) }
+        case Stdio.Redirect(val file) -> file.withHandle { handle -> block(NativeStdio(3, handle)) }
     }
 
 private fun appendString(builder: ByteArrayBuilder, value: OsString, terminate: Boolean = true) {

@@ -122,7 +122,7 @@ fun castParent(value: Any): Int {
 }
 fun tryParent(value: Any): Int {
     return when (value as? Parent) {
-        case Some(view) -> view.first() + view.second()
+        case Some(val view) -> view.first() + view.second()
         case None -> -1
     }
 }
@@ -160,7 +160,7 @@ fun repeatedCasts(value: Any, count: Int): Int {
             total += view.first()
         } catch (error: ClassCastException) { total -= 1 }
         when (value as? Parent) {
-            case Some(view) -> total += view.second()
+            case Some(val view) -> total += view.second()
             case None -> total -= 2
         }
         index += 1

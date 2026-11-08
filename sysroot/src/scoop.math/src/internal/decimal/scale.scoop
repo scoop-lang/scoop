@@ -32,7 +32,7 @@ internal fun decimalScaleMin(a: DecimalScale, b: DecimalScale): DecimalScale = i
 internal struct DecimalValue(val coefficient: IntegerStorage, val scale: DecimalScale)
 
 internal fun decimalPrecision(value: IntegerStorage): Long = when (value) {
-    case Small(number) -> {
+    case Small(val number) -> {
         // Small coefficients stay scalar; counting digits does not allocate a magnitude or text.
         var rest = if (number < 0L) 0uL - number.toULong() else number.toULong()
         var digits = 1L

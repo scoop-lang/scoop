@@ -10,7 +10,7 @@ import scoop.test.*
             assertEquals(0L, requests2(events)[0L].fields.size)
             var ignored = 0
             for (event in events) when (event) {
-                case IgnoredField(id, field) -> { assertEquals(1, id); assertEquals(" value\t", String.fromUtf8(field.value)); assertTrue(field.neverIndex); ignored += 1 }
+                case IgnoredField(val id, val field) -> { assertEquals(1, id); assertEquals(" value\t", String.fromUtf8(field.value)); assertTrue(field.neverIndex); ignored += 1 }
                 else -> {}
             }
             assertEquals(1, ignored)

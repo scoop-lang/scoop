@@ -25,7 +25,7 @@ public class TextEditLayout internal constructor(
     public val paintBounds: Rect get() {
         checkOpen()
         return when (cells) {
-            case Some(value) -> Rect(0.0, 0.0, value.size.width, value.size.height)
+            case Some(val value) -> Rect(0.0, 0.0, value.size.width, value.size.height)
             case None -> paragraph.paintBounds
         }
     }
@@ -37,14 +37,14 @@ public class TextEditLayout internal constructor(
         checkOpen()
         requireUi(thickness.isFinite() && thickness >= 0.0, "invalid caret thickness")
         return when (cells) {
-            case Some(value) -> Some(value.caret(position, thickness))
+            case Some(val value) -> Some(value.caret(position, thickness))
             case None -> paragraph.caret(position, thickness)
         }
     }
     public fun selection(range: TextRange): Array<TextBox> {
         checkOpen()
         return when (cells) {
-            case Some(value) -> value.selection(range)
+            case Some(val value) -> value.selection(range)
             case None -> paragraph.selection(range)
         }
     }
@@ -52,7 +52,7 @@ public class TextEditLayout internal constructor(
         checkOpen()
         requireUi(point.x.isFinite() && point.y.isFinite(), "invalid text hit point")
         return when (cells) {
-            case Some(value) -> value.hitTest(point)
+            case Some(val value) -> value.hitTest(point)
             case None -> paragraph.hitTest(point)
         }
     }
@@ -71,7 +71,7 @@ public class TextEditLayout internal constructor(
     public fun logicalLineRange(position: TextPosition): TextRange? {
         checkOpen()
         return when (cells) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 value.checkPosition(position)
                 Some(TextRange(0L, text.byteLength))
             }
@@ -85,11 +85,11 @@ public class TextEditLayout internal constructor(
     ): CaretMove? {
         checkOpen()
         when (preferredX) {
-            case Some(value) -> requireUi(value.isFinite(), "invalid caret column")
+            case Some(val value) -> requireUi(value.isFinite(), "invalid caret column")
             case None -> {}
         }
         return when (cells) {
-            case Some(value) -> Some(value.move(paragraph, position, movement, preferredX))
+            case Some(val value) -> Some(value.move(paragraph, position, movement, preferredX))
             case None -> paragraph.moveCaret(position, movement, preferredX)
         }
     }
@@ -133,7 +133,7 @@ public fun Canvas.drawText(layout: TextEditLayout, origin: Point = Point(0.0, 0.
     layout.checkOpen()
     requireUi(origin.x.isFinite() && origin.y.isFinite(), "invalid text origin")
     when (layout.cells) {
-        case Some(value) -> {
+        case Some(val value) -> {
             for (index in 0L ..< value.glyphs.size) {
                 val cell = value.rects[index]
                 val offset = value.origins[index]

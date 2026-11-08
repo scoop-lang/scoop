@@ -24,7 +24,7 @@ internal class TrayPopupHandler: ApplicationHandler {
                 assertTrue(icon.geometry()!!.bounds.width > 0.0)
                 icon.subscribe {
                     value -> when (value) {
-                        case MenuCompleted(id, result) -> {
+                        case MenuCompleted(val id, val result) -> {
                             assertEquals(popup!!.id, id)
                             completions += 1
                             if (completions == 1) {
@@ -40,7 +40,7 @@ internal class TrayPopupHandler: ApplicationHandler {
                                 )
                             } else {
                                 when (result) {
-                                    case Selected(item) -> assertEquals(action, item)
+                                    case Selected(val item) -> assertEquals(action, item)
                                     else -> fail(Some("tray popup did not select"))
                                 }
                                 application.requestExit()
@@ -71,7 +71,7 @@ internal class TrayPopupHandler: ApplicationHandler {
                     else
                         fail(Some("tray popup deadline"))
             }
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(action, activation.item);
                 actions += 1
             }

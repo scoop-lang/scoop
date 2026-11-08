@@ -44,7 +44,7 @@ public enum Result<T, E> {
  * Returns the successful value as Some, or None on failure.
  */
 public fun <T, E> Result<T, E>.getOrNone(): T? = when (this) {
-    case Result.Success(value) -> Some(value)
+    case Result.Success(val value) -> Some(value)
     case Result.Failure(_) -> None
 }
 
@@ -53,31 +53,31 @@ public fun <T, E> Result<T, E>.getOrNone(): T? = when (this) {
  */
 public fun <T, E> Result<T, E>.errorOrNone(): E? = when (this) {
     case Result.Success(_) -> None
-    case Result.Failure(error) -> Some(error)
+    case Result.Failure(val error) -> Some(error)
 }
 
 /**
  * Returns the success value, or evaluates the failure callback.
  */
 public fun <T, E> Result<T, E>.getOrElse(onFailure: (E) -> T): T = when (this) {
-    case Result.Success(value) -> value
-    case Result.Failure(error) -> onFailure(error)
+    case Result.Success(val value) -> value
+    case Result.Failure(val error) -> onFailure(error)
 }
 
 /**
  * Runs exactly the callback corresponding to the success or failure variant.
  */
 public fun <T, E, R> Result<T, E>.fold(onSuccess: (T) -> R, onFailure: (E) -> R): R = when (this) {
-    case Result.Success(value) -> onSuccess(value)
-    case Result.Failure(error) -> onFailure(error)
+    case Result.Success(val value) -> onSuccess(value)
+    case Result.Failure(val error) -> onFailure(error)
 }
 
 /**
  * Returns the success value or throws the stored Throwable.
  */
 public fun <T, E : Throwable> Result<T, E>.getOrThrow(): T = when (this) {
-    case Result.Success(value) -> value
-    case Result.Failure(error) -> throw error
+    case Result.Success(val value) -> value
+    case Result.Failure(val error) -> throw error
 }
 
 /**

@@ -26,7 +26,7 @@ internal class SyncCompressionOwner(val resources: CompressionIoResources, priva
             closed = true
             var error = compressionCleanup(None) { resources.close() }
             when (owner) {
-                case Some(value) -> { error = compressionCleanup(error) { value.close() } }
+                case Some(val value) -> { error = compressionCleanup(error) { value.close() } }
                 case None -> {}
             }
             throwCompressionFailure(error)

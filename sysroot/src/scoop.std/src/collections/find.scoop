@@ -1,7 +1,7 @@
 package scoop.collections
 
 internal fun <T> requireCollectionElement(value: T?): T = when (value) {
-    case Some(element) -> element
+    case Some(val element) -> element
     case None -> throw NoSuchElementException("no matching element")
 }
 
@@ -119,7 +119,7 @@ public fun <T> Iterable<T>.elementAtOrNone(index: Long): T? {
  * IndexOutOfBoundsException.
  */
 public fun <T> Iterable<T>.elementAt(index: Long): T = when (elementAtOrNone<T>(index)) {
-    case Some(element) -> element
+    case Some(val element) -> element
     case None -> throw IndexOutOfBoundsException()
 }
 

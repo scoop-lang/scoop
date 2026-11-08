@@ -15,7 +15,7 @@ private class HttpServerFileConsumerTests {
     fun `published file and static handlers support ranges and conditional responses`() {
         val parent =
             when (environmentVariable("TMPDIR")) {
-                case Some(value) -> Path.fromOsString(value);
+                case Some(val value) -> Path.fromOsString(value);
                 case None -> currentDirectory()
             }
         val directory = createTempDirectory(Some(parent), "scoop-file-consumer-")

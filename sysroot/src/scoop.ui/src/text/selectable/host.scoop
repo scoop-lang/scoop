@@ -126,7 +126,7 @@ public class SelectableTextHost public constructor(
             checkEditorRange(bytes, Utf8Range(decoration.range.start, decoration.range.end))
             for (color in [decoration.background, decoration.underline])
                 when (color) {
-                    case Some(value) -> checkSelectableColor(value)
+                    case Some(val value) -> checkSelectableColor(value)
                     case None -> {}
                 }
         }

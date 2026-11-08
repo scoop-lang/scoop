@@ -10,7 +10,7 @@ internal fun nativeRegionQuery(target: Window, field: Int, x: Double = 0.0, y: D
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Gtk(window, view) -> return@use regionQuery(window, view, field, x, y)
+                    case Gtk(val window, val view) -> return@use regionQuery(window, view, field, x, y)
                 }
             }
         }

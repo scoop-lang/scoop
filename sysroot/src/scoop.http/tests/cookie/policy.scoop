@@ -7,7 +7,7 @@ import scoop.url.Url
 @Test
 private class HttpCookiePolicyTests {
     @Test
-    fun `prefixes require their resolved scope and are checked case insensitively`() {
+    fun `prefixes require their resolved scope and are checked case val insensitively`() {
         val url = Url.parse("https://example.com/")
         val scope = cookieRuleList()
         for (text in ["__Secure-SID=x", "__SeCuRe-SID=x", "__Host-SID=x; Secure", "__Host-SID=x; Path=/",

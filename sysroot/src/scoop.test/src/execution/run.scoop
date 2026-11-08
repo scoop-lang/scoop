@@ -27,21 +27,21 @@ public fun runTestCase(
         return TestResult.Failed(TestFailure(TestPhase.Initialization, error, source), None)
     }
     val prepared: TestFailure? = when (actions.before) {
-        case Some(action) -> execute(action, TestPhase.BeforeTest)
+        case Some(val action) -> execute(action, TestPhase.BeforeTest)
         case None -> None
     }
     val failure: TestFailure? = when (prepared) {
         case None -> execute(actions.body, TestPhase.Body)
-        case Some(error) -> Some(error)
+        case Some(val error) -> Some(error)
     }
     val cleanup: TestFailure? = when (actions.after) {
-        case Some(action) -> execute(action, TestPhase.AfterTest)
+        case Some(val action) -> execute(action, TestPhase.AfterTest)
         case None -> None
     }
     return when (failure) {
-        case Some(error) -> TestResult.Failed(error, cleanup)
+        case Some(val error) -> TestResult.Failed(error, cleanup)
         case None -> when (cleanup) {
-            case Some(error) -> TestResult.Failed(error, None)
+            case Some(val error) -> TestResult.Failed(error, None)
             case None -> TestResult.Passed
         }
     }

@@ -120,7 +120,7 @@ public class FontCollection public constructor(systemFallback: Boolean = true): 
                 }
             }
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }

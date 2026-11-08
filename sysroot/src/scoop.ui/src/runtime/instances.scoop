@@ -9,12 +9,12 @@ internal fun createBody(node: MountedNode, view: View): NodeBody {
         return when (view.body) {
             case Empty -> NodeBody.Empty
             case Direction(_, _) -> NodeBody.Direction
-            case Component(description) -> NodeBody.Component(description.create(node.scope))
-            case Element(description, _) -> NodeBody.Element(description.create(node.scope))
-            case Portal(_, open, options) -> NodeBody.Portal(
+            case Component(val description) -> NodeBody.Component(description.create(node.scope))
+            case Element(val description, _) -> NodeBody.Element(description.create(node.scope))
+            case Portal(_, val open, val options) -> NodeBody.Portal(
                 PortalInstance(node.root, open, options)
             )
-            case Lazy(description, _, _) -> NodeBody.Lazy(
+            case Lazy(val description, _, _) -> NodeBody.Lazy(
                 description.create(node.scope),
                 node.lazyItems!!
             )
@@ -31,7 +31,7 @@ internal fun createBody(node: MountedNode, view: View): NodeBody {
 
 internal fun releaseInstance(body: NodeBody) {
     when (body) {
-        case Portal(instance) -> instance.dispose()
+        case Portal(val instance) -> instance.dispose()
         else -> {}
     }
 }

@@ -18,7 +18,7 @@ public class SliderStyle internal constructor(
     init {
         for (size in [length, thickness, thumbSize])
             when (size) {
-                case Some(value) -> nonnegative(value, "invalid slider dimension");
+                case Some(val value) -> nonnegative(value, "invalid slider dimension");
                 case None -> {}
             }
         hitInsets?.totals()

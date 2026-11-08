@@ -126,9 +126,9 @@ public class SceneContext internal constructor(
                     }
                 }
             when (layer) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     when (currentEvaluation()) {
-                        case Some(evaluation) -> evaluation.frameReads?.include(value.inputs)
+                        case Some(val evaluation) -> evaluation.frameReads?.include(value.inputs)
                         case None -> {}
                     }
                     pass.layers.add(value)
@@ -220,7 +220,7 @@ public class SceneContext internal constructor(
                 try {
                     val result = block(child)
                     when (commands) {
-                        case Some(value) -> recorder?.add(SceneCommand.Scope(value.finish()))
+                        case Some(val value) -> recorder?.add(SceneCommand.Scope(value.finish()))
                         case None -> {}
                     }
                     result
@@ -315,7 +315,7 @@ public class SceneContext internal constructor(
         if (pass.presentedChildren)
             throw IllegalStateException(Some("children were already presented"))
         when (order) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 requireUi(
                     value.size == layout.children.size,
                     "child order must include every child"
@@ -336,7 +336,7 @@ public class SceneContext internal constructor(
         recorder?.add(SceneCommand.Children(order, epoch))
         val childEpochs =
             when (epoch) {
-                case Some(value) -> Array<SceneEpoch>(epochs.size + 1L) {
+                case Some(val value) -> Array<SceneEpoch>(epochs.size + 1L) {
                     index -> if (index < epochs.size)
                         epochs[index]
                     else
@@ -346,7 +346,7 @@ public class SceneContext internal constructor(
             }
         try {
             when (order) {
-                case Some(value) -> for (index in value)
+                case Some(val value) -> for (index in value)
                     presentChild(index, childEpochs)
                 case None -> for (index in 0L ..< layout.children.size)
                     presentChild(index, childEpochs)
@@ -365,7 +365,7 @@ public class SceneContext internal constructor(
                     child.node.setFrameParticipation(placed)
             }
         when (child.origin) {
-            case Some(origin) -> child.result!!.scene(
+            case Some(val origin) -> child.result!!.scene(
                 frame,
                 origin,
                 overlay,

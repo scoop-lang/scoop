@@ -50,15 +50,15 @@ internal fun <Row> tableCompute(
     requireComponent(source.count >= 0L, "negative table source count")
     val ordered =
         when (data) {
-            case Provided(_, total) -> {
+            case Provided(_, val total) -> {
                 requireComponent(total >= source.count, "provided table total must cover its page")
                 source
             }
             case Local(_) -> {
                 var cached: TableSource<Row>? = None
                 when (previous) {
-                    case Some(old) -> when (old.data) {
-                        case Local(oldSource) -> {
+                    case Some(val old) -> when (old.data) {
+                        case Local(val oldSource) -> {
                             if (source === oldSource && tableCriteriaEqual(query, old.query))
                                 cached = Some(old.ordered)
                         }
@@ -72,7 +72,7 @@ internal fun <Row> tableCompute(
     val total =
         when (data) {
             case Local(_) -> ordered.count;
-            case Provided(_, rows) -> rows
+            case Provided(_, val rows) -> rows
         }
     val pages =
         total /

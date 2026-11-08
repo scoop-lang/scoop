@@ -92,17 +92,17 @@ public class PortalOptions internal constructor(
             "modal outside presses cannot continue to the background"
         )
         when (placement) {
-            case Viewport(_, _, padding) -> checkOverlayDistance(padding)
-            case AtPoint(point, _, _, gap, padding) -> {
+            case Viewport(_, _, val padding) -> checkOverlayDistance(padding)
+            case AtPoint(val point, _, _, val gap, val padding) -> {
                 requireUi(point.x.isFinite() && point.y.isFinite(), "non-finite overlay point")
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
             }
-            case ContentAligned(_, _, _, gap, padding, _) -> {
+            case ContentAligned(_, _, _, val gap, val padding, _) -> {
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
             }
-            case Anchored(_, _, _, gap, padding, _) -> {
+            case Anchored(_, _, _, val gap, val padding, _) -> {
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
             }
@@ -132,8 +132,8 @@ internal val OverlayPlacement.anchor: LayoutAnchor? get() =
     when (this) {
         case Viewport(_, _, _) -> None
         case AtPoint(_, _, _, _, _) -> None
-        case Anchored(value, _, _, _, _, _) -> Some(value)
-        case ContentAligned(value, _, _, _, _, _) -> Some(value)
+        case Anchored(val value, _, _, _, _, _) -> Some(value)
+        case ContentAligned(val value, _, _, _, _, _) -> Some(value)
     }
 
 internal fun checkOverlayMutation() {

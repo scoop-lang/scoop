@@ -16,26 +16,26 @@ fun main() {
     }
     val s = Shape.Circle(5)
     when (s) {
-        case Circle(r) -> println(r)
-        case Rect(w, h) -> println(w + h)
-        case Named { w, .. } -> println(w)
-        case WithDefault(d) -> println(d)
+        case Circle(val r) -> println(r)
+        case Rect(val w, val h) -> println(w + h)
+        case Named { val w, .. } -> println(w)
+        case WithDefault(val d) -> println(d)
     }
     val r = Shape.Rect(3, 4)
     when (r) {
-        case Circle(x) -> println(x)
-        case Rect(w, h) -> println(w + h)
-        case Named { w, .. } -> println(w)
-        case WithDefault(d) -> println(d)
+        case Circle(val x) -> println(x)
+        case Rect(val w, val h) -> println(w + h)
+        case Named { val w, .. } -> println(w)
+        case WithDefault(val d) -> println(d)
     }
     val d = Shape.WithDefault()
     when (d) {
-        case WithDefault(x) -> println(x)
+        case WithDefault(val x) -> println(x)
         else -> println("other")
     }
     val d2 = Shape.WithDefault(3)
     when (d2) {
-        case WithDefault(x) -> println(x)
+        case WithDefault(val x) -> println(x)
         else -> println("other")
     }
 }

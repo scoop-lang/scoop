@@ -7,7 +7,7 @@ private class SeedSequenceIterator<T>(seed: T, private val advance: (T) -> T?) :
     public override fun next(): T? {
         if (!started) { started = true; return previous }
         previous = when (previous) {
-            case Some(value) -> advance(value)
+            case Some(val value) -> advance(value)
             case None -> None
         }
         return previous

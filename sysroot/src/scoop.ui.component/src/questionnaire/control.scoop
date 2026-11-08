@@ -54,7 +54,7 @@ internal class QuestionnaireControl(
         val state = props.value.state
         val changed =
             when (choice) {
-                case Some(value) -> state.select(key, value)
+                case Some(val value) -> state.select(key, value)
                 case None -> state.selectText(key)
             }
         if (choice == None && state.usesText(key)) {
@@ -93,7 +93,7 @@ internal class QuestionnaireControl(
         submitting = true
         try {
             when (value.state.submit()) {
-                case Some(result) -> {
+                case Some(val result) -> {
                     // A second activation may arrive before the caller's busy prop is rendered.
                     deliveryPending = true
                     delivery.value += 1L
@@ -135,7 +135,7 @@ internal class QuestionnaireControl(
             return
         val issue =
             when (snapshot.question) {
-                case Some(key) -> snapshot.state.issue(key);
+                case Some(val key) -> snapshot.state.issue(key);
                 case None -> None
             }
         if (
@@ -165,7 +165,7 @@ internal class QuestionnaireControl(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value;
+                case Keyboard(val value) -> value;
                 else -> return
             }
         if (key.state != ElementState.Pressed || key.synthetic)

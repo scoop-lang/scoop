@@ -162,7 +162,7 @@ internal fun clientWsRejectedDeadline(trust: TrustStore) {
                 )
             when (result) {
                 case Opened(_) -> throw IllegalStateException(Some("expected rejected handshake"))
-                case Rejected(response, cause) -> {
+                case Rejected(val response, val cause) -> {
                     assertTrue(cause is scoop.http.WebSocketHandshakeException)
                     assertEquals(403U, response.status)
                     val error =

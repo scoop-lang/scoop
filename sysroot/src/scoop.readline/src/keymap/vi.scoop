@@ -79,11 +79,11 @@ internal fun viCommand(state: KeyMap, key: KeyEvent, count: Long, explicitCount:
         'r', 'd', 'c', 'y', '>', '<' -> { state.pending = Some(character); state.operatorCount = count; Command.Noop }
         'f', 'F', 't', 'T' -> { state.findOperation = Some(character); state.operatorCount = count; Command.Noop }
         ';' -> when (val find = state.lastFind) {
-            case Some(Movement.Find(c, _, forward, till)) -> Command.Move(Movement.Find(c, count, forward, till))
+            case Some(Movement.Find(val c, _, val forward, val till)) -> Command.Move(Movement.Find(c, count, forward, till))
             else -> Command.Unknown
         }
         ',' -> when (val find = state.lastFind) {
-            case Some(Movement.Find(c, _, forward, till)) -> Command.Move(Movement.Find(c, count, !forward, till))
+            case Some(Movement.Find(val c, _, val forward, val till)) -> Command.Move(Movement.Find(c, count, !forward, till))
             else -> Command.Unknown
         }
         'x' -> Command.Kill(Movement.ForwardChar(count))

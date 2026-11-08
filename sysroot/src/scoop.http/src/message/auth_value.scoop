@@ -7,7 +7,7 @@ internal class HttpAuthValue(val scheme: String, val token68: String?, val param
         val output = ByteArrayBuilder()
         output.append(scheme.toByteArray())
         when (token68) {
-            case Some(token) -> { output.append(32.toByte()); output.append(token.toByteArray()) }
+            case Some(val token) -> { output.append(32.toByte()); output.append(token.toByteArray()) }
             case None -> if (parameters.size > 0L) {
                 output.append(32.toByte())
                 appendHttpAuthParameters(output, parameters)

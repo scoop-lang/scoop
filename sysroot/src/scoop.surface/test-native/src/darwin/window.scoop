@@ -11,7 +11,7 @@ public fun observeWindow(window: Window, customContent: Boolean = false): ViewPr
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> ViewProbe(view, customContent)
+                    case AppKit(_, val view) -> ViewProbe(view, customContent)
                 }
             }
         }
@@ -27,7 +27,7 @@ public fun surfaceDocumentCaret(window: Window, rect: LogicalRect?, cursor: Long
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> documentCaret(
+                    case AppKit(_, val view) -> documentCaret(
                         view,
                         rect != None,
                         rect?.origin?.x ?: 0.0,
@@ -60,7 +60,7 @@ public fun moveSurfacePointer(window: Window, x: Double, y: Double): Boolean {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> movePointer(view, x, y)
+                    case AppKit(_, val view) -> movePointer(view, x, y)
                 }
             }
         }
@@ -81,7 +81,7 @@ public fun sendSurfaceKey(
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> sendKey(view, code, pressed, repeat, command, shift)
+                    case AppKit(_, val view) -> sendKey(view, code, pressed, repeat, command, shift)
                 }
             }
         }
@@ -108,7 +108,7 @@ public fun scheduleSurfaceNativeMode(window: Window, kind: Int) {
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case AppKit(nativeWindow, _) -> scheduleNativeMode(nativeWindow, kind, 0.25)
+                    case AppKit(val nativeWindow, _) -> scheduleNativeMode(nativeWindow, kind, 0.25)
                 }
             }
         }

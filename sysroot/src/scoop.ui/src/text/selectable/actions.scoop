@@ -33,7 +33,7 @@ internal class SelectableAction(
     fun refresh(available: Boolean, frame: SelectableFrame?) {
         var accepted = false
         when (frame) {
-            case Some(value) -> for (range in value.ranges)
+            case Some(val value) -> for (range in value.ranges)
                 if (range.key == input.key && range.range == input.range)
                     accepted = true
             case None -> {}

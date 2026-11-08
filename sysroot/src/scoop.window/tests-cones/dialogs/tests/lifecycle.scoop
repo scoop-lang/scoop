@@ -27,8 +27,8 @@ internal fun runDialogProbe() {
 
 private fun <T> assertCancelled(session: FileDialogSession<T>, reason: FileDialogCancelReason) {
     when (session.result) {
-        case Some(FileDialogResult.Cancelled(value)) -> assertEquals(reason, value)
-        case Some(FileDialogResult.Failed(error)) -> fail(Some(error.operation))
+        case Some(FileDialogResult.Cancelled(val value)) -> assertEquals(reason, value)
+        case Some(FileDialogResult.Failed(val error)) -> fail(Some(error.operation))
         else -> fail(Some("file dialog did not complete with the expected cancellation"))
     }
 }
@@ -66,7 +66,7 @@ private suspend fun <T> accepted(
     completed(session)
     session.cancel()
     return when (session.result) {
-        case Some(FileDialogResult.Accepted(value)) -> value
+        case Some(FileDialogResult.Accepted(val value)) -> value
         else -> fail(Some("native selection did not produce an accepted path"))
     }
 }
@@ -107,7 +107,7 @@ private class DialogProbe(val directory: Path): ApplicationHandler {
                     scope.launch { this @DialogProbe.scenario(application, this) }
                 }
                 case NewEvents(StartCause.Deadline) -> fail(Some("file dialog test deadline"))
-                case FileDialogCompleted(id) -> {
+                case FileDialogCompleted(val id) -> {
                     for (previous in delivered)
                         assertTrue(previous != id)
                     delivered.add(id)

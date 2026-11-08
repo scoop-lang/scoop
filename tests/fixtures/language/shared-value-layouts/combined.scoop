@@ -18,9 +18,9 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     val tail: Nested = Nested.End
     val nested = Nested.Next(Local(Reference(Link(tail))))
     val ended: Boolean = when (nested) {
-        case Next(local) -> when (local.payload.link.value) {
+        case Next(val local) -> when (local.payload.link.value) {
             case End -> true
-            case Next(next) -> false
+            case Next(val next) -> false
         }
         case End -> false
     }

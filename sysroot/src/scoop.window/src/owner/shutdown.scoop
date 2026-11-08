@@ -38,7 +38,7 @@ internal fun ApplicationOwner.drainShutdown() {
     if (exiting && !attachmentCloseRequested) {
         attachmentCloseRequested = true
         when (attachment) {
-            case Some(value) -> try {
+            case Some(val value) -> try {
                 value.requestClose()
             } catch (error: Throwable) {
                 recordFailure(error)

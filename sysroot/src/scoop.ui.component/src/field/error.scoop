@@ -42,7 +42,7 @@ public class FieldError public constructor(
         val base = fieldTextStyle(FieldTextRole.Error, theme)
         val text = input.textStyle?.resolve(base) ?: base
         when (input.content) {
-            case Some(content) -> return panelFrame(
+            case Some(val content) -> return panelFrame(
                 panelCaption(content, text, input.fonts),
                 visual = input.style
             )

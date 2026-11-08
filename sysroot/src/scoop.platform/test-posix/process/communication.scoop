@@ -48,7 +48,7 @@ private class CommunicationTest {
             }
             assertTrue(error.kind == PlatformErrorKind.BrokenPipe)
             when (child.wait()) {
-                case ExitStatus.Signaled(signal) -> assertEquals(9, signal)
+                case ExitStatus.Signaled(val signal) -> assertEquals(9, signal)
                 case ExitStatus.Exited(_) -> fail(Some("expected killed child"))
             }
         }

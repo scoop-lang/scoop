@@ -6,7 +6,7 @@ private fun checkFinished2(events: List<Http2Event>, id: Int, value: String = ""
     assertEquals(1, ends2(events, id))
     var trailers = 0
     for (event in events) when (event) {
-        case Trailers(streamId, fields) -> {
+        case Trailers(val streamId, val fields) -> {
             if (streamId == id) {
                 trailers += 1
                 assertEquals(if (value == "") 0L else 1L, fields.size)

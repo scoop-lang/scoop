@@ -80,7 +80,7 @@ public class HttpCookie internal constructor(
      * Tests expiry against the supplied current instant; session cookies do not expire by this
      * check.
      */
-    public fun isExpired(now: Instant): Boolean = when (expiresAt) { case None -> false; case Some(date) -> date <= now }
+    public fun isExpired(now: Instant): Boolean = when (expiresAt) { case None -> false; case Some(val date) -> date <= now }
     /**
      * Checks expiry, secure scheme, host/domain, and path for the URL; apply SameSite policy
      * separately.
@@ -122,7 +122,7 @@ internal fun resolveHttpCookie(value: HttpSetCookie, url: Url, now: Instant, suf
 
 private fun finishHttpCookie(value: HttpSetCookie, encodedPath: String, scheme: String, expiry: Instant?, host: UrlHost, hostOnly: Boolean): Result<HttpCookie, HttpCookieRejection> {
     val path = when (value.path) {
-        case Some(bytes) -> if (bytes.size > 0L && bytes[0L] == 47.toByte()) bytes else HttpCookieRules.defaultPath(encodedPath)
+        case Some(val bytes) -> if (bytes.size > 0L && bytes[0L] == 47.toByte()) bytes else HttpCookieRules.defaultPath(encodedPath)
         case None -> HttpCookieRules.defaultPath(encodedPath)
     }
     if (value.secure && !secureCookieScheme(scheme)) return Result.Failure(HttpCookieRejection.InsecureTransport)

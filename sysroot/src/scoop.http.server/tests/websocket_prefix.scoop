@@ -90,8 +90,8 @@ private suspend fun readWebSocketTestUpgrade(source: AsyncByteSource): (
             var response: HttpResponseHead? = None
             while (true) {
                 when (decoder.nextEvent()) {
-                    case Some(Http1Event.Response(head)) -> response = Some(head)
-                    case Some(Http1Event.Trailers(fields)) -> assertEquals(0L, fields.size)
+                    case Some(Http1Event.Response(val head)) -> response = Some(head)
+                    case Some(Http1Event.Trailers(val fields)) -> assertEquals(0L, fields.size)
                     case Some(Http1Event.End(_)) -> return@use (
                         response!!,
                         buffer.readBytes(buffer.readableBytes)

@@ -63,7 +63,7 @@ public class Accordion<T: Equals<T>> public constructor(
                         {
                             val latest = props.value
                             when (accordionEntry(latest.entries, key)) {
-                                case Some(value) -> accordionOpen(
+                                case Some(val value) -> accordionOpen(
                                     latest.selected,
                                     value.choice.value
                                 )
@@ -74,7 +74,7 @@ public class Accordion<T: Equals<T>> public constructor(
                             desired ->
                             val latest = props.value
                             when (accordionEntry(latest.entries, key)) {
-                                case Some(value) -> if (latest.enabled && value.choice.enabled)
+                                case Some(val value) -> if (latest.enabled && value.choice.enabled)
                                     setAccordionOpen(latest.selected, value.choice.value, desired)
                                 case None -> {}
                             }
@@ -110,7 +110,7 @@ public class Accordion<T: Equals<T>> public constructor(
                                 accepted ->
                                 val latest = props.value
                                 when (accordionEntry(latest.entries, key)) {
-                                    case Some(value) -> latest.onOpenChange(
+                                    case Some(val value) -> latest.onOpenChange(
                                         value.choice.value,
                                         accepted
                                     )

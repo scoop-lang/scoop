@@ -21,7 +21,7 @@ internal fun clientDigestProof(use: ClientDigestUse, method: List<Byte>, entity:
     val input = ByteArrayBuilder()
     input.append(use.ha1.toByteArray()); input.append(58.toByte()); input.append(challenge.nonce); input.append(58.toByte())
     when (challenge.qop) {
-        case Some(qop) -> {
+        case Some(val qop) -> {
             input.append(use.nc.toByteArray()); input.append(58.toByte())
             input.append(use.nonce.cnonce.toByteArray()); input.append(58.toByte())
             input.append(qop.toByteArray()); input.append(58.toByte())

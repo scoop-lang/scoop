@@ -63,8 +63,8 @@ private class InputHandler: ApplicationHandler {
         when (event) {
             case Resumed -> start(application)
             case NewEvents(StartCause.Deadline) -> fail(Some("input protocol timed out"))
-            case Window(_, WindowEvent.Keyboard(key)) -> keys.add(key)
-            case Window(_, WindowEvent.Pointer(pointer)) -> {
+            case Window(_, WindowEvent.Keyboard(val key)) -> keys.add(key)
+            case Window(_, WindowEvent.Pointer(val pointer)) -> {
                 if (cancellation.started)
                     cancellation.pointer(pointer)
                 else
@@ -72,7 +72,7 @@ private class InputHandler: ApplicationHandler {
             }
             case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(_))) -> enabled += 1
             case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(_))) -> disabled += 1
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                 gcCollect()
                 batches += 1
                 assertEquals(1L, batch.operations.size)
@@ -94,12 +94,12 @@ private class InputHandler: ApplicationHandler {
 
     private fun checkPointer(event: PointerEvent) {
         when (event) {
-            case Moved(state) -> {
+            case Moved(val state) -> {
                 assertEquals(PhysicalPosition(24.0, 36.0), state.physicalPosition)
                 assertEquals(24.0, state.logicalPosition.x * state.scaleFactor)
                 moved = true
             }
-            case Button(state, button, phase, clicks) -> {
+            case Button(val state, val button, val phase, val clicks) -> {
                 assertEquals(MouseButton.Left, button)
                 assertEquals(PhysicalPosition(24.0, 36.0), state.physicalPosition)
                 assertEquals(
@@ -111,7 +111,7 @@ private class InputHandler: ApplicationHandler {
                 )
                 buttons += 1
             }
-            case Wheel(state, delta, phase, momentum) -> {
+            case Wheel(val state, val delta, val phase, val momentum) -> {
                 assertEquals(PhysicalPosition(24.0, 36.0), state.physicalPosition)
                 assertEquals(ScrollPhase.None, phase)
                 assertEquals(ScrollPhase.None, momentum)
@@ -167,7 +167,7 @@ private class InputHandler: ApplicationHandler {
             lease = Some(held)
             val hwnd =
                 when (held.handle) {
-                    case Win32(value, _) -> value
+                    case Win32(val value, _) -> value
                 }
             nativeInputSequence(hwnd)
             window.setImeAllowed(true)

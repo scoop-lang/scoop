@@ -68,17 +68,17 @@ public class Card public constructor(
         val headerText =
             panelColumn {
                 when (input.header) {
-                    case Some(value) -> this.add(panelSlot(value, 0L));
+                    case Some(val value) -> this.add(panelSlot(value, 0L));
                     case None -> {}
                 }
                 when (input.title) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, titleStyle, input.fonts), 1L)
                     );
                     case None -> {}
                 }
                 when (input.description) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, descriptionStyle, input.fonts), 2L)
                     );
                     case None -> {}
@@ -141,7 +141,7 @@ public class Card public constructor(
                     )
                 )
                 when (input.footer) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelFrame(
                             value,
                             Insets.all(spacing),

@@ -12,8 +12,8 @@ public class SseMessage public constructor(
     public val retryMilliseconds: Long? = None
 ) {
     init {
-        when (event) { case Some(value) -> requireSseLine(value, false); case None -> {} }
-        when (id) { case Some(value) -> requireSseLine(value, true); case None -> {} }
+        when (event) { case Some(val value) -> requireSseLine(value, false); case None -> {} }
+        when (id) { case Some(val value) -> requireSseLine(value, true); case None -> {} }
         if (retryMilliseconds != None && retryMilliseconds!! < 0L)
             throw IllegalArgumentException(Some("negative SSE retry interval"))
     }
@@ -28,12 +28,12 @@ internal class SseOutputField(val prefix: Array<Byte>, val value: String)
 
 internal fun sseMessageFields(message: SseMessage): Array<SseOutputField> {
     val fields = ArrayList<SseOutputField>()
-    when (message.id) { case Some(value) -> fields.add(SseOutputField("id: ".toByteArray(), value)); case None -> {} }
-    when (message.event) { case Some(value) -> fields.add(SseOutputField("event: ".toByteArray(), value)); case None -> {} }
+    when (message.id) { case Some(val value) -> fields.add(SseOutputField("id: ".toByteArray(), value)); case None -> {} }
+    when (message.event) { case Some(val value) -> fields.add(SseOutputField("event: ".toByteArray(), value)); case None -> {} }
     when (message.retryMilliseconds) {
-        case Some(value) -> fields.add(SseOutputField("retry: ".toByteArray(), value.toString()))
+        case Some(val value) -> fields.add(SseOutputField("retry: ".toByteArray(), value.toString()))
         case None -> {}
     }
-    when (message.data) { case Some(value) -> fields.add(SseOutputField("data: ".toByteArray(), value)); case None -> {} }
+    when (message.data) { case Some(val value) -> fields.add(SseOutputField("data: ".toByteArray(), value)); case None -> {} }
     return fields.toArray()
 }

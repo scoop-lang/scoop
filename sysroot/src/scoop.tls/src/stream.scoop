@@ -122,7 +122,7 @@ public class TlsStream internal constructor(private val pump: SyncPump, private 
         closed = true
         val resources: Array<Closeable> = [owner, pump.engine, pump.input, pump.output]
         when (closeAll(resources)) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> return
         }
     }
@@ -145,7 +145,7 @@ internal fun closeAll(resources: Array<Closeable>): Throwable? {
         catch (error: Throwable) {
             failure = Some(when (failure) {
                 case None -> error
-                case Some(primary) -> ResourceUseException(primary, error)
+                case Some(val primary) -> ResourceUseException(primary, error)
             })
         }
     }

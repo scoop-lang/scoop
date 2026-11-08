@@ -66,7 +66,7 @@ public class ActiveItems internal constructor(
     private fun reconcile() {
         requireUi(source.count >= 0L, "negative navigation source count")
         when (value.value) {
-            case Some(key) -> if (navigationIndex(source, key) == None)
+            case Some(val key) -> if (navigationIndex(source, key) == None)
                 value.value = None
             case None -> {}
         }
@@ -74,14 +74,14 @@ public class ActiveItems internal constructor(
     public fun setActive(key: ViewKey?): Boolean {
         checkOpen()
         when (key) {
-            case Some(candidate) -> if (navigationIndex(source, candidate) == None)
+            case Some(val candidate) -> if (navigationIndex(source, candidate) == None)
                 return false
             case None -> {}
         }
         value.value = key
         if (!isClosed && value.value == key) {
             when (key) {
-                case Some(candidate) -> reveal(candidate);
+                case Some(val candidate) -> reveal(candidate);
                 case None -> {}
             }
             return true
@@ -101,7 +101,7 @@ public class ActiveItems internal constructor(
                 return false
         val current =
             when (value.value) {
-                case Some(key) -> navigationIndex(source, key)
+                case Some(val key) -> navigationIndex(source, key)
                 case None -> None
             }
         val next =
@@ -115,7 +115,7 @@ public class ActiveItems internal constructor(
                 { index -> source.enabledAt(index) }
             )
         when (next) {
-            case Some(index) -> setActive(Some(navigationKey(source, index)));
+            case Some(val index) -> setActive(Some(navigationKey(source, index)));
             case None -> {}
         }
         return true
@@ -125,13 +125,13 @@ public class ActiveItems internal constructor(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value;
+                case Keyboard(val value) -> value;
                 else -> return
             }
         if (!navigationKeyAllowed(key))
             return
         when (key.logicalKey) {
-            case Named(value) -> {
+            case Named(val value) -> {
                 if (
                     options.enabled &&
                         input.isInputAllowed &&

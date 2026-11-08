@@ -14,7 +14,7 @@ internal fun wrapLines(bases: Array<Double>, gap: Double, maximum: Double?): Arr
                 extent + gap + bases[index]
         val wraps =
             when (maximum) {
-                case Some(limit) -> index > start && candidate > limit
+                case Some(val limit) -> index > start && candidate > limit
                 case None -> false
             }
         if (wraps) {

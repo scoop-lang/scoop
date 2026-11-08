@@ -156,8 +156,8 @@ public class InputScope internal constructor(
 
 internal fun sameScope(left: InputScope?, right: InputScope?): Boolean =
     when (left) {
-        case Some(a) -> when (right) {
-            case Some(b) -> a === b
+        case Some(val a) -> when (right) {
+            case Some(val b) -> a === b
             case None -> false
         }
         case None -> when (right) {

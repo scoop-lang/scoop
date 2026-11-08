@@ -31,6 +31,6 @@ internal fun parseUuid(text: String): Uuid? {
     }
     return when (compact.hexToByteArrayOrNone()) {
         case None -> None
-        case Some(bytes) -> Some(uuidFromBytes(bytes))
+        case Some(val bytes) -> Some(uuidFromBytes(bytes))
     }
 }

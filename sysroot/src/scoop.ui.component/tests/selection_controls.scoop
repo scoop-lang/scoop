@@ -275,7 +275,7 @@ private class SelectionControlTest {
             assertEquals(ToggleSize.Sm, input.size)
             assertEquals(Some(700), input.style.text!!.weight)
             when (input.content) {
-                case Label(label) -> assertSame(fonts, label.fonts!!)
+                case Label(val label) -> assertSame(fonts, label.fonts!!)
                 else -> fail(Some("expected a label"))
             }
             val children = ChildrenBuilder()

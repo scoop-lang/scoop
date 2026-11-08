@@ -93,7 +93,7 @@ private class WrapInk(private val props: Props<WrapProps>, scope: ComponentScope
                 index ->
                 val basis =
                     when (options[index].basis) {
-                        case Fixed(value) -> value
+                        case Fixed(val value) -> value
                         case Content -> {
                             val measured =
                                 context.measureChild(
@@ -179,13 +179,13 @@ private class WrapInk(private val props: Props<WrapProps>, scope: ComponentScope
                 context.placeChild(index, origin)
                 if (alphabetic == None) {
                     when (metric.alphabeticBaseline) {
-                        case Some(value) -> alphabetic = Some(value + origin.y)
+                        case Some(val value) -> alphabetic = Some(value + origin.y)
                         case None -> {}
                     }
                 }
                 if (ideographic == None) {
                     when (metric.ideographicBaseline) {
-                        case Some(value) -> ideographic = Some(value + origin.y)
+                        case Some(val value) -> ideographic = Some(value + origin.y)
                         case None -> {}
                     }
                 }
@@ -219,7 +219,7 @@ private fun measureLine(
     val gaps = flexGaps(line.count, gap)
     val allocation =
         when (mainMaximum) {
-            case Some(value) -> allocateFlex(natural, localOptions, lowerBound(value - gaps, 0.0))
+            case Some(val value) -> allocateFlex(natural, localOptions, lowerBound(value - gaps, 0.0))
             case None -> natural
         }
     val first =

@@ -34,7 +34,7 @@ internal class ScrollConsumption(
         val start = localPosition ?: point
         val end =
             when (geometry) {
-                case Some(value) -> value.toLocal(endpoint) ?:
+                case Some(val value) -> value.toLocal(endpoint) ?:
                     throw IllegalArgumentException(Some("scroll transformation overflow"))
                 case None -> endpoint
             }
@@ -60,7 +60,7 @@ internal class ScrollConsumption(
         }
         val window =
             when (geometry) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     val origin = value.toWindow(start)
                     val moved = value.toWindow(Point(start.x + consumed.x, start.y + consumed.y))
                     Point(moved.x - origin.x, moved.y - origin.y)
@@ -75,7 +75,7 @@ internal class ScrollConsumption(
 
 internal fun scrollConsumption(event: InputEvent, route: InputScrollRoute?): ScrollConsumption? =
     when (event) {
-        case Pointer(InputPointerEvent.Wheel(pointer, delta, _, _)) -> Some(
+        case Pointer(InputPointerEvent.Wheel(val pointer, val delta, _, _)) -> Some(
             ScrollConsumption(
                 delta,
                 Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y),
@@ -87,8 +87,8 @@ internal fun scrollConsumption(event: InputEvent, route: InputScrollRoute?): Scr
 
 internal fun scrollVector(delta: InputScrollDelta): Point =
     when (delta) {
-        case Lines(x, y) -> Point(x, y)
-        case Pixels(x, y) -> Point(x, y)
+        case Lines(val x, val y) -> Point(x, y)
+        case Pixels(val x, val y) -> Point(x, y)
     }
 
 private fun scrollWithVector(delta: InputScrollDelta, value: Point): InputScrollDelta =

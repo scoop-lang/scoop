@@ -10,26 +10,26 @@ internal enum NativeControllerScope {
 
 internal val NativeControllerScope.application: ActiveApplication get() =
     when (this) {
-        case Window(scope) -> scope.application
-        case Application(scope) -> scope.application
+        case Window(val scope) -> scope.application
+        case Application(val scope) -> scope.application
     }
 
 internal val NativeControllerScope.host: UiHost get() =
     when (this) {
-        case Window(scope) -> scope.uiHost
-        case Application(scope) -> scope.uiHost
+        case Window(val scope) -> scope.uiHost
+        case Application(val scope) -> scope.uiHost
     }
 
 internal val NativeControllerScope.mounted: Boolean get() =
     when (this) {
-        case Window(scope) -> scope.isMounted
-        case Application(scope) -> scope.isMounted
+        case Window(val scope) -> scope.isMounted
+        case Application(val scope) -> scope.isMounted
     }
 
 internal fun NativeControllerScope.dispatch(action: () -> Unit): Boolean =
     when (this) {
-        case Window(scope) -> scope.dispatch(action)
-        case Application(scope) -> scope.dispatch(action)
+        case Window(val scope) -> scope.dispatch(action)
+        case Application(val scope) -> scope.dispatch(action)
     }
 
 internal fun NativeControllerScope.observeWindow(
@@ -37,8 +37,8 @@ internal fun NativeControllerScope.observeWindow(
     action: (WindowEvent) -> Unit
 ): Closeable =
     when (this) {
-        case Window(scope) -> scope.observeWindow(window, action)
-        case Application(scope) -> scope.observeWindow(window, action)
+        case Window(val scope) -> scope.observeWindow(window, action)
+        case Application(val scope) -> scope.observeWindow(window, action)
     }
 
 internal fun NativeControllerScope.observeModal(
@@ -46,8 +46,8 @@ internal fun NativeControllerScope.observeModal(
     action: (ModalResult) -> Unit
 ): Closeable =
     when (this) {
-        case Window(scope) -> scope.observeModal(session, action)
-        case Application(scope) -> scope.observeModal(session, action)
+        case Window(val scope) -> scope.observeModal(session, action)
+        case Application(val scope) -> scope.observeModal(session, action)
     }
 
 internal fun <T> NativeControllerScope.observeFile(
@@ -55,8 +55,8 @@ internal fun <T> NativeControllerScope.observeFile(
     action: (FileDialogResult<T>) -> Unit
 ): Closeable =
     when (this) {
-        case Window(scope) -> scope.observeFileDialog(session, action)
-        case Application(scope) -> scope.observeFileDialog(session, action)
+        case Window(val scope) -> scope.observeFileDialog(session, action)
+        case Application(val scope) -> scope.observeFileDialog(session, action)
     }
 
 private class NativeRequestResult {
@@ -77,14 +77,14 @@ internal fun cleanupNative(previous: Throwable?, action: () -> Unit): Throwable?
     }
     catch (error: Throwable) {
         when (previous) {
-            case Some(first) -> Some(ResourceUseException(first, error));
+            case Some(val first) -> Some(ResourceUseException(first, error));
             case None -> Some(error)
         }
     }
 
 internal fun throwNative(error: Throwable?) {
     when (error) {
-        case Some(value) -> throw value;
+        case Some(val value) -> throw value;
         case None -> {}
     }
 }

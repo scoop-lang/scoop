@@ -16,7 +16,7 @@ fun contains(text: String, part: String): Boolean {
     return false
 }
 fun <T> parsed(value: CliResult<T>): T = when (value) {
-    case CliResult.Parsed(result) -> result
+    case CliResult.Parsed(val result) -> result
     case CliResult.HelpRequested -> throw IllegalStateException()
 }
 fun fails(path: String, action: () -> Unit) {

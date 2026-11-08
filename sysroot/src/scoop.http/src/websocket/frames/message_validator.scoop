@@ -52,7 +52,7 @@ public class WebSocketMessageValidator public constructor(
             val bytes = data.toArray()
             try {
                 if (bytes.size > maxBytes - count) throw WebSocketFrameException(1009U, "message exceeds its byte limit")
-                when (validator) { case Some(value) -> value.receive(bytes); case None -> {} }
+                when (validator) { case Some(val value) -> value.receive(bytes); case None -> {} }
                 count += bytes.size
             } catch (failure: Throwable) { fail(failure) }
             Unit
@@ -67,7 +67,7 @@ public class WebSocketMessageValidator public constructor(
         withUse {
             requireActive()
             try {
-                when (validator) { case Some(value) -> value.finish(); case None -> {} }
+                when (validator) { case Some(val value) -> value.finish(); case None -> {} }
                 closeValidator()
                 finished = true
             } catch (failure: Throwable) { fail(failure) }
@@ -83,7 +83,7 @@ public class WebSocketMessageValidator public constructor(
     private fun closeValidator() {
         val owned = validator
         validator = None
-        when (owned) { case Some(value) -> value.close(); case None -> {} }
+        when (owned) { case Some(val value) -> value.close(); case None -> {} }
     }
 
     private fun requireActive() {

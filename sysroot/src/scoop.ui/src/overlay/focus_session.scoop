@@ -147,7 +147,7 @@ internal class OverlayFocusSession(
         failure = cleanupUi(failure) { fallbackTarget?.close() }
         failure = cleanupUi(failure) { proxy.close() }
         when (portal.focusSession) {
-            case Some(current) -> if (current === this) {
+            case Some(val current) -> if (current === this) {
                 portal.focusSession = None
                 portal.domain = containingModal(node.parent)
             }
@@ -157,13 +157,13 @@ internal class OverlayFocusSession(
     }
     fun wasPresented(frame: OverlayFrame): Boolean =
         when (presented) {
-            case Some(value) -> value === frame
+            case Some(val value) -> value === frame
             case None -> false
         }
     val isModal: Boolean get() = mode == OverlayMode.Modal
     val inCurrentDomain: Boolean get() =
         when (boundary) {
-            case Some(value) -> value.isCurrent
+            case Some(val value) -> value.isCurrent
             case None -> withinCurrentFocusDomain()
         }
     private fun withinCurrentFocusDomain(): Boolean {
@@ -183,7 +183,7 @@ internal class OverlayFocusSession(
         }
     private val isCurrentFocus: Boolean get() =
         when (root.overlays.currentFocus) {
-            case Some(value) -> value === this
+            case Some(val value) -> value === this
             case None -> false
         }
     fun complete(frame: OverlayFrame) {
@@ -216,11 +216,11 @@ internal class OverlayFocusSession(
             return
         val candidates = ArrayList<FocusHandle>()
         when (restoreTarget) {
-            case Some(handle) -> candidates.add(handle)
+            case Some(val handle) -> candidates.add(handle)
             case None -> {}
         }
         when (saved) {
-            case Some(handle) -> candidates.add(handle)
+            case Some(val handle) -> candidates.add(handle)
             case None -> {}
         }
         var cursor = previous
@@ -230,11 +230,11 @@ internal class OverlayFocusSession(
                 break
             if (prior.restoreOnClose) {
                 when (prior.restoreTarget) {
-                    case Some(handle) -> candidates.add(handle)
+                    case Some(val handle) -> candidates.add(handle)
                     case None -> {}
                 }
                 when (prior.saved) {
-                    case Some(handle) -> candidates.add(handle)
+                    case Some(val handle) -> candidates.add(handle)
                     case None -> {}
                 }
             }
@@ -249,8 +249,8 @@ internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
     while (true) {
         val node = cursor ?: return None
         when (node.body) {
-            case Portal(value) -> when (value.focusSession) {
-                case Some(modal) -> if (modal.isModal)
+            case Portal(val value) -> when (value.focusSession) {
+                case Some(val modal) -> if (modal.isModal)
                     return Some(modal)
                 case None -> {}
             }
@@ -262,7 +262,7 @@ internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
 
 internal fun sameModal(left: OverlayFocusSession?, right: OverlayFocusSession?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
+        case(Some(val a), Some(val b)) -> a === b
         case(None, None) -> true
         else -> false
     }

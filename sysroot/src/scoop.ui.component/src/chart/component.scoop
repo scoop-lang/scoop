@@ -14,13 +14,13 @@ public class Chart public constructor(
         binding(
             {
                 when (props.value.active) {
-                    case Some(value) -> value.value;
+                    case Some(val value) -> value.value;
                     case None -> localActive.value
                 }
             },
             {
                 selection -> when (props.value.active) {
-                    case Some(value) -> value.value = selection;
+                    case Some(val value) -> value.value = selection;
                     case None -> localActive.value = selection
                 }
             }
@@ -36,7 +36,7 @@ public class Chart public constructor(
         val snapshot = input.model.snapshot
         val plan =
             when (previous) {
-                case Some(value) -> if (
+                case Some(val value) -> if (
                     chartPlanMatches(value, input, snapshot, theme, fonts, scope.layoutDirection)
                 )
                     value
@@ -57,8 +57,8 @@ public class Chart public constructor(
         val tooltip =
             when (payload) {
                 case None -> empty()
-                case Some(value) -> when (input.tooltipContent) {
-                    case Some(content) -> content(value);
+                case Some(val value) -> when (input.tooltipContent) {
+                    case Some(val content) -> content(value);
                     case None -> chartTooltip(value, input.tooltipOptions, plan.appearance)
                 }
             }

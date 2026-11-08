@@ -21,7 +21,7 @@ internal fun withSocks5Peer(script: Path, scenario: String, block: (Int) -> Unit
         val output = child.communicate()
         val passed =
             when (output.status) {
-                case Exited(code) -> code == 0;
+                case Exited(val code) -> code == 0;
                 case Signaled(_) -> false
             }
         if (!passed)

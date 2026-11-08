@@ -7,11 +7,11 @@ enum ChatTool {
         public override fun encode(value: ChatTool, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatTool.Function(payload) -> {
+                case ChatTool.Function(val payload) -> {
                     String.encode("function", fields.field("type"))
                     NestedFunction.Companion.encode(payload, encoder)
                 }
-                case ChatTool.Custom(payload) -> {
+                case ChatTool.Custom(val payload) -> {
                     String.encode("custom", fields.field("type"))
                     NestedCustom.Companion.encode(payload, encoder)
                 }
@@ -34,15 +34,15 @@ enum ChatNamedTool {
         public override fun encode(value: ChatNamedTool, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatNamedTool.Function(payload) -> {
+                case ChatNamedTool.Function(val payload) -> {
                     String.encode("function", fields.field("type"))
                     NestedNamedFunction.Companion.encode(payload, encoder)
                 }
-                case ChatNamedTool.Custom(payload) -> {
+                case ChatNamedTool.Custom(val payload) -> {
                     String.encode("custom", fields.field("type"))
                     NestedCustom.Companion.encode(payload, encoder)
                 }
-                case ChatNamedTool.Allowed(payload) -> {
+                case ChatNamedTool.Allowed(val payload) -> {
                     String.encode("allowed_tools", fields.field("type"))
                     AllowedChoice.Companion.encode(payload, encoder)
                 }
@@ -65,8 +65,8 @@ enum ChatChoice {
     companion object : ValueEncoder<ChatChoice>, ValueDecoder<ChatChoice> {
         public override fun encode(value: ChatChoice, encoder: Encoder) {
             when (value) {
-                case ChatChoice.Text(text) -> String.encode(text, encoder)
-                case ChatChoice.Named(payload) -> NamedChatChoice.Companion.encode(payload, encoder)
+                case ChatChoice.Text(val text) -> String.encode(text, encoder)
+                case ChatChoice.Named(val payload) -> NamedChatChoice.Companion.encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): ChatChoice {
@@ -90,7 +90,7 @@ enum ChatFormat {
                 case ChatFormat.Object -> {
                     String.encode("json_object", fields.field("type"))
                 }
-                case ChatFormat.Schema(payload) -> {
+                case ChatFormat.Schema(val payload) -> {
                     String.encode("json_schema", fields.field("type"))
                     SchemaFormat.Companion.encode(payload, encoder)
                 }

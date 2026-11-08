@@ -18,7 +18,7 @@ internal class RecordingResource(
         events.add(name)
         if (collectOnDispose) gcCollect()
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> return
         }
     }

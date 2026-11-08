@@ -24,7 +24,7 @@ public class LayoutAnchor public constructor() {
     internal fun bind(node: MountedNode): AnchorBinding {
         checkUiThread(thread)
         when (binding) {
-            case Some(current) -> requireUi(!current.active, "layout anchor already has an owner")
+            case Some(val current) -> requireUi(!current.active, "layout anchor already has an owner")
             case None -> {}
         }
         val change = AnchorOwnerChange(this, node)
@@ -51,7 +51,7 @@ public class LayoutAnchor public constructor() {
     }
     internal fun unbind(value: AnchorBinding) {
         when (binding) {
-            case Some(current) -> if (current !== value)
+            case Some(val current) -> if (current !== value)
                 return
             case None -> return
         }
@@ -98,7 +98,7 @@ internal class AnchorBinding(val handle: LayoutAnchor, val node: MountedNode): C
 
     fun capture(frame: OverlayFrame, canvas: Canvas, rect: Rect) {
         when (captured) {
-            case Some(value) -> if (value.frame === frame)
+            case Some(val value) -> if (value.frame === frame)
                 throw IllegalStateException(Some("layout anchor was already placed this frame"))
             case None -> {}
         }

@@ -89,20 +89,20 @@ internal class CalendarAppearance(
                     this.focus = input.dayStyle.surface.focus
                     this.validation = input.dayStyle.surface.validation
                     when (input.dayStyle.surface.padding) {
-                        case Some(value) -> this.padding = Some(value);
+                        case Some(val value) -> this.padding = Some(value);
                         case None -> {}
                     }
                     when (input.dayStyle.surface.suggestedSize) {
-                        case Some(value) -> this.suggestedSize = Some(value);
+                        case Some(val value) -> this.suggestedSize = Some(value);
                         case None -> {}
                     }
                     when (input.dayStyle.surface.minimumSize) {
-                        case Some(value) -> this.minimumSize = Some(value);
+                        case Some(val value) -> this.minimumSize = Some(value);
                         case None -> {}
                     }
                 }
                 when (input.dayStyle.text) {
-                    case Some(value) -> this.text = Some(value);
+                    case Some(val value) -> this.text = Some(value);
                     case None -> {}
                 }
                 this.states = input.dayStyle.states
@@ -128,7 +128,7 @@ internal class CalendarAppearanceCache {
     private var direction = LayoutDirection.Ltr
     fun resolve(input: CalendarProps, theme: Theme, current: LayoutDirection): CalendarAppearance {
         when (cached) {
-            case Some(value) -> if (
+            case Some(val value) -> if (
                 value.theme ===
                     theme &&
                     value.input.dayStyle ===

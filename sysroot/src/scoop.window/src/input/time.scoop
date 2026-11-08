@@ -11,8 +11,8 @@ public enum InputTime {
 /** Both variants use MonotonicTimeSource; the variant preserves their provenance. */
 public fun InputTime.mark(): TimeMark =
     when (this) {
-        case Event(value) -> value
-        case Observed(value) -> value
+        case Event(val value) -> value
+        case Observed(val value) -> value
     }
 
 internal fun copyInputTime(event: NativeEvent): InputTime {

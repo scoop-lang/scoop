@@ -128,11 +128,11 @@ private class ThemeGeometryTest {
                         if (fraction == 1.0)
                             near(0.0, first.travel)
                         when (first.decrement) {
-                            case Some(button) -> contains(bounds, button.outline.bounds);
+                            case Some(val button) -> contains(bounds, button.outline.bounds);
                             case None -> {}
                         }
                         when (first.increment) {
-                            case Some(button) -> contains(bounds, button.outline.bounds);
+                            case Some(val button) -> contains(bounds, button.outline.bounds);
                             case None -> {}
                         }
                     }

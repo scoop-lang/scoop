@@ -70,6 +70,7 @@ impl Lowerer {
             self.current_file = file;
             self.current_owner = None;
             self.type_params_in_scope.clear();
+            self.warn_top_level_variant_shadowing(declaration, file);
             self.annotate_property_declaration(declaration, file);
         }
         self.annotate_type_aliases();

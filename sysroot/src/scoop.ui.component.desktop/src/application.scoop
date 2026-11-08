@@ -47,14 +47,14 @@ internal class NativeDesktopElement(
     private var attachment: NativeDesktopAttachment? = None
     public override fun update() {
         when (val current = attachment) {
-            case Some(value) -> if (!(value.controller === props.value.controller)) {
+            case Some(val value) -> if (!(value.controller === props.value.controller)) {
                 value.close()
                 attachment = None
             }
             case None -> {}
         }
         when (attachment) {
-            case Some(value) -> value.update()
+            case Some(val value) -> value.update()
             case None -> attachment =
                 Some(
                     scope.resource {

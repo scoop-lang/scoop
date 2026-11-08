@@ -400,11 +400,11 @@ private fun reportFailureDetail(error: Throwable) {
                 }"
             )
             when (error.expected) {
-                case Text(value) -> println(f"expected ${value}");
+                case Text(val value) -> println(f"expected ${value}");
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println(f"actual ${value}");
+                case Text(val value) -> println(f"actual ${value}");
                 else -> {}
             }
         } else

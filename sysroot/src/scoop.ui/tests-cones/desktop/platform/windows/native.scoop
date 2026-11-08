@@ -10,7 +10,7 @@ internal fun nativeRegionQuery(target: Window, field: Int, x: Double = 0.0, y: D
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case Win32(window, _) -> return@use regionQuery(window, window, field, x, y)
+                    case Win32(val window, _) -> return@use regionQuery(window, window, field, x, y)
                 }
             }
         }

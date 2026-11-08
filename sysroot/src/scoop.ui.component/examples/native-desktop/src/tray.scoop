@@ -35,14 +35,14 @@ internal fun demoIcon(orange: Boolean): DesktopImage =
 internal fun rectText(value: DesktopRect?): String =
     when (value) {
         case None -> "unknown"
-        case Some(rect) -> f"(${rect.origin.x}, ${rect.origin.y}) ${rect.width} × ${rect.height}"
+        case Some(val rect) -> f"(${rect.origin.x}, ${rect.origin.y}) ${rect.width} × ${rect.height}"
     }
 
 internal fun describeAnchor(anchor: TrayAnchor?): String =
     when (anchor) {
-        case Some(TrayAnchor.Rectangle(value)) -> "native icon rectangle " +
+        case Some(TrayAnchor.Rectangle(val value)) -> "native icon rectangle " +
             rectText(Some(value.bounds))
-        case Some(TrayAnchor.PointHint(point)) -> f"host point hint (${point.x}, ${point.y})"
+        case Some(TrayAnchor.PointHint(val point)) -> f"host point hint (${point.x}, ${point.y})"
         case None -> "no anchor"
     }
 
@@ -83,20 +83,20 @@ internal fun queryDesktop(demo: DesktopDemo) {
         (
             if (caps.positioning.systemMenuBarHeight)
                 when (app.systemMenuBarHeight()) {
-                    case Some(height) -> height.toString();
+                    case Some(val height) -> height.toString();
                     case None -> "unknown"
                 }
             else
                 "unsupported"
         )
     when (demo.tray.icon) {
-        case Some(icon) -> {
+        case Some(val icon) -> {
             val trayCaps = icon.capabilities()
             message += "\nTray rectangle: " +
                 (
                     if (trayCaps.iconBounds)
                         when (icon.geometry()) {
-                            case Some(geometry) -> rectText(Some(geometry.bounds));
+                            case Some(val geometry) -> rectText(Some(geometry.bounds));
                             case None -> "temporarily unknown"
                         }
                     else
@@ -115,7 +115,7 @@ internal fun traySection(demo: DesktopDemo): View {
     val available = demo.tray.availability == Some(TrayAvailability.Available)
     val menu =
         when (demo.tray.icon) {
-            case Some(icon) -> icon.capabilities().programmaticMenu;
+            case Some(val icon) -> icon.capabilities().programmaticMenu;
             case None -> false
         }
     return panel(

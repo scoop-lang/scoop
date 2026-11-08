@@ -74,7 +74,7 @@ public class SidebarGroup public constructor(
         val d = theme.tokens.typography.body.fontSize / 14.0
         val label =
             when (input.label) {
-                case Some(value) -> panelCaption(
+                case Some(val value) -> panelCaption(
                     sidebarGroupDirection(value, scope.layoutDirection.textDirection()),
                     theme.tokens.typography.body.copy {
                         fontSize = 12.0 * d;
@@ -111,7 +111,7 @@ public class SidebarGroup public constructor(
 
 private fun sidebarGroupDirection(content: PanelContent, direction: TextDirection): PanelContent =
     when (content) {
-        case Label(value) -> PanelContent.Label(
+        case Label(val value) -> PanelContent.Label(
             LabelProps(
                 value.text,
                 value.fonts,
@@ -145,7 +145,7 @@ private class SidebarGroupHeading(
                 0.0
         val maximum =
             when (constraints.maxWidth) {
-                case Some(value) -> Some(max(0.0, value - action.size.width - gap));
+                case Some(val value) -> Some(max(0.0, value - action.size.width - gap));
                 case None -> None
             }
         val label =

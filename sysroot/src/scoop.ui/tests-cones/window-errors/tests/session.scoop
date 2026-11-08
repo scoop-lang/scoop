@@ -114,7 +114,7 @@ internal class FailureProbe {
         assertFalse(sibling!!.isClosed)
         assertEquals(0, siblingCloses)
         when (record.canvas) {
-            case Some(canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
+            case Some(val canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
             case None -> {}
         }
         record.reports += 1

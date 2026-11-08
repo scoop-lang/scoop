@@ -446,12 +446,14 @@ val (a, b, { f1, f2: renamedF2 }) = t2   // 解构可以嵌套
 
 本节定义 **binding pattern**，用于 `val` / `var` 声明、`for` 循环变量和 lambda 参数，必须对输入静态类型递归不可失败。第 5 章的 **match pattern** 额外允许 literal 与 enum variant；这些可失败模式在 binding 位置非法，嵌套在 tuple 或 struct 中也不例外。`for (Some(x) in values)` 不是过滤语法。
 
-binding上下文中，除`_`以及4.3定义的内建Unit字面量写法`Unit`/`()`外，语法上只有一个普通标识符的pattern在任意嵌套深度都恒为新的binding；它不按subject type查询enum variant，也不查询import或既有value。例如`val None = o`合法并声明名为`None`的新binding，即使`o`的类型拥有或当前作用域导入了`None` variant。`Unit`与`()`仍是literal而不是binding；binding pattern不接收literal，所以二者在`val`/`var`、lambda与`for`中拒绝。对enum variant而言，只有显式写出variant shape的`E.V`、`V()`、`V(...)`或`V { ... }`（包括其限定形式）并按subject exact enum解析成功时，才会被识别为refutable variant pattern并在这些binding位置的任意深度拒绝；同形语法若解析为struct pattern，仍按本节的irrefutable struct规则处理。第5章“enum variant优先于binding”的规则只属于match pattern，不适用于本节。
+binding 上下文中，除 `_` 以及 4.3 定义的内建 Unit 字面量写法 `Unit` / `()` 外，单个裸标识符在任意嵌套深度都声明新的 binding，不因同名 enum variant 或既有 value 改成匹配。例如 `val None = o` 仍声明名为 `None` 的新 binding。`Unit` 与 `()` 仍是 literal，在本节的 binding 位置拒绝。显式 variant shape `E.V`、`V()`、`V(...)` 或 `V { ... }`（包括其限定形式）若按输入 exact enum 解析成功，则在 binding 位置的任意深度拒绝；同形语法若解析为 struct pattern，仍按不可失败 struct 规则处理。声明、for 和 lambda 的 binding pattern 不重复写叶位置的 `val`；第 5 章的 match pattern 则要求每个 binding 显式写 `val name`。
+
+新声明的变量或 pattern binding 若遮蔽该位置实际可用的 bare enum variant，编译器在绑定名处给出 warning，声明仍合法。候选来自实际词法／import／core prelude 名称查询，或该位置已经确定的 exact enum 类型；遵守普通可见性、别名和名称层级，不扫描其他 enum，也不按大小写或 `Some` / `None` 拼写特判。已有更高优先级的普通 value 已遮蔽 variant 时，不把再次声明同名变量重复报告为遮蔽 variant。match pattern 中的 `val name` 还按该位置的 subject exact enum 查询同名 variant，因为裸模式名独立于普通 value 解析。例如通常的 `val None = 1` 会提示遮蔽 prelude 导入的 `Option.None`，仅声明了 `enum E { Ready }` 而未导入其变体、输入类型又不是 E 时，`val Ready = 1` 不告警。warning 不改变类型推断、名字解析或模式穷尽性。
 
 规则：
 
 - **tuple/struct固定元数位置模式**`(p1, p2, ...)`按位置解构；每个位置可以是绑定名、`_`、`..`或递归binding pattern。不使用`..`时元数必须与被解构值一致。component位置模式不适用该元数规则，单独按下文处理。
-- **字段模式**由`field`、`field: subpattern`和末尾可选`..`组成。`field`精确等价于`field: field`，展开后的RHS仍按所在上下文的完整规则分类；因此在本节的binding上下文中通常建立同名binding，但字段名恰为`Unit`时，RHS仍是内建Unit literal并被拒绝，需要写成`Unit: value`等显式不同绑定名。第5章的match上下文先应用同一个Unit literal特例，再对其他名称应用variant-first规则；若字段的exact enum type恰有同名unit variant，shorthand会匹配该variant，需要catch-all binding时应显式写成`field: value`等不同名称。`field: renamed`绑定到`renamed`；`field: _`显式忽略该字段。冒号右侧是完整递归pattern，不再只是rename。`_`不能作为字段key，但可以作为RHS。字段不能未知或重复，整个pattern内的binding名称必须唯一。
+- **字段模式**由 `field`、`field: subpattern` 和末尾可选 `..` 组成。`field` 精确等价于 `field: field`，展开后的 RHS 按所在上下文分类；本节中通常建立同名 binding，但字段名恰为 `Unit` 时仍是被拒绝的 Unit literal，需写成 `Unit: value`。第 5 章中裸 RHS 只能匹配 variant 或 Unit literal；同名字段绑定写 `val field`，等价于 `field: val field`，重命名绑定写 `field: val renamed`。本节的 `field: renamed` 仍直接绑定到 `renamed`；`field: _` 显式忽略该字段。冒号右侧是完整递归 pattern。`_` 不能作为字段 key，但可以作为 RHS。字段不能未知或重复，整个 pattern 内的 binding 名称必须唯一。
 - 每个显式字段名必须属于 subject 的 exact type。位置模式按字段声明顺序匹配；命名字段模式按源码书写顺序递归执行。末尾 `..` 忽略未列出的字段，不读取这些字段。未列出全部字段时必须以 `..` 结尾；列全时可省略。字段模式可带类型前缀（`S { f1: x, .. }`），前缀必须解析到 subject 的 exact type。
 - struct既可按主构造字段顺序位置解构，也可按字段名解构；tuple/struct投影是语言内建能力，不查找`componentN`。
 - 普通class、interface静态类型和具有相应上界的类型参数可以按位置使用9.3的`componentN` operator解构。候选从该静态类型的普通成员、继承成员、上界成员与适用扩展中选择，不要求特定core接口身份。每个实际位置按顺序选择并调用唯一typed operator；写出的N个位置精确调用`component1`至`componentN`，包括子模式为`_`的位置。每次调用正常返回后，结果先保存到新的immutable hidden temporary，再depth-first处理对应子模式。component协议没有声明式总元数，因此该位置模式不能包含`..`；调用可以按普通规则抛出或在允许的上下文挂起，但pattern本身没有“匹配失败”分支。挂起调用以异常恢复时等价于在原调用点抛出，后续动作不执行；在不允许挂起的求值上下文中选到`suspend componentN`是effect错误。
@@ -511,7 +513,8 @@ when 支持值、类型、成员关系与无 subject 的条件分支；显式 ca
 模式when适用两条全局规则：
 
 - **穷尽性**：含 case 的 when 无论作为语句还是表达式，都必须覆盖输入类型的全部可能值；无法静态确定穷尽时是编译错误，并给出至少一个稳定、可重新解析的未覆盖示例，也可显式加 `else`。带 guard 的分支不贡献覆盖，因为 guard 可能为 false。普通 when 的规则见 5.7。
-- **match中的绑定优先**：本条只适用于`when`的match pattern，不改变4.6的binding上下文。分支模式中的裸标识符不引用既有变量；只允许literal直接匹配值，匹配既有const须改用guard，限定名只用于enum variant。4.3的内建`Unit`/`()`首先按Unit literal分类；enum即使声明同名`Unit` variant，也必须以`E.Unit`或相应显式payload shape匹配。除此之外，enum subject下先按其exact type查询同名variant：命中unit variant时形成variant pattern，命中带payload的variant时报告缺少显式payload shape的错误，只有名称完全未命中时才建立匹配该位置任意值的新binding。该绑定合法，不因名称未命中variant而产生warning；此规则在tuple、struct与variant payload的任意嵌套深度一致，不取消外围模式的结构匹配。显式限定的`E.V`未命中variant仍是编译错误。相反，4.6中除`Unit`字面量外的普通裸标识符不执行这一步variant查询，即使名称相同也恒为新binding。
+- **显式 binding**：match pattern 的每个 binding 必须写作 `val name`，例如 `case val whole`、`case Some(val value)`、`case (val first, _)`。它匹配该位置的任意值并建立不可重新绑定的局部变量；`val` 只修饰紧随其后的单个名称，不接受 `var`、类型标注或 `val (a, b)` 这类整组解构。`_` 仍直接表示忽略，不写 `val _`。此规则在 tuple、struct 与 variant payload 的任意嵌套深度一致。
+- **裸名称只匹配 variant**：除 4.3 的内建 `Unit` / `()` literal 外，裸标识符只按该位置的 subject exact enum 查询同名 variant，不引用既有变量，也绝不隐式建立 binding。命中 unit variant 时形成 variant pattern；命中带 payload 的 variant 时报告缺少显式 payload shape；名称未命中或该位置不是 enum 时为编译错误，并提示绑定应写 `val name`。例如 `case Bad` 不会因 variant 拼错而成为兜底分支，显式 `case val Bad` 才绑定完整值。`case val None` 明确建立 binding，按 4.6 的实际同名 variant 规则告警。内建 `Unit` literal 不受同名 variant 影响，匹配该 variant 需写 `E.Unit` 或显式 payload shape；`val Unit` 则明确绑定该名称。既有 const 的匹配使用普通值条件或 guard，限定模式名只用于 enum variant。
 
 穷尽性按以下typed constructor递归定义：
 
@@ -531,10 +534,10 @@ val v: E = ...
 
 when (v) {
     case SimpleVariant -> print("simple")
-    case VariantWithValue(n) if (n > 42) -> print(n)   // 解构 + if 守卫
-    case VariantWithValue(n) -> print(n)               // 上一分支的回退
-    case CompositedVariant(_, s) -> print(s)           // _ 省略不关心的字段
-    case VariantWithNamedField { f1, f2: renamedF2 } -> {
+    case VariantWithValue(val n) if (n > 42) -> print(n)   // 解构 + if 守卫
+    case VariantWithValue(val n) -> print(n)               // 上一分支的回退
+    case CompositedVariant(_, val s) -> print(s)           // _ 省略不关心的字段
+    case VariantWithNamedField { val f1, f2: val renamedF2 } -> {
         print(f1)                                 // 按名绑定
         print(renamedF2)                          // 字段重命名绑定
     }
@@ -545,8 +548,8 @@ when (v) {
 
 - 匹配对象是 enum 值时，分支条件可以是**变体模式**：
   - 单元变体：直接写变体名；
-  - 位置参数变体：`Variant(p1, p2, ...)`，参数位可以是绑定名、字面量（等值匹配）、`_`（通配）、`..`（忽略其余，规则见 4.6）或嵌套模式；
-  - 命名字段变体：`Variant { f1, f2: subpattern, .. }`；`f1`是`f1: f1`的shorthand，冒号右侧可为binding、literal、`_`或任意嵌套match pattern；未列出全部字段时必须以`..`结尾。
+  - 位置参数变体：`Variant(p1, p2, ...)`，参数位可以是 `val name`、字面量（等值匹配）、`_`（通配）、`..`（忽略其余，规则见 4.6）或嵌套模式；
+  - 命名字段变体：`Variant { val f1, f2: subpattern, .. }`；`val f1` 是 `f1: val f1` 的 shorthand，裸 `f1` 是 `f1: f1` 的 shorthand，后者不建立 binding。冒号右侧可为 `val name`、literal、`_` 或任意嵌套 match pattern；未列出全部字段时必须以 `..` 结尾。
 - 变体名可省略 enum 类型前缀（`E.`），编译器按被匹配值的类型解析；存在歧义时需写全限定名。显式前缀遵守普通类型名称的包、import、嵌套声明和可见性规则。前缀直接命名泛型 enum 声明时，以 subject 的完整 application 确定类型实参，不要求在模式前缀重复写实参；前缀是 typealias 时，其展开后的完整类型必须与 subject 相同。
 - enum穷尽性按全局pattern matrix递归检查variant payload；仅列出全部variant名称但payload覆盖不全仍不穷尽。
 
@@ -556,14 +559,14 @@ when (v) {
 val t = (1, 2, "hello")
 
 when (t) {
-    case (x, _, s) if (x == 42) -> { print(x); print(s) }
+    case (val x, _, val s) if (x == 42) -> { print(x); print(s) }
     else -> { /* ... */ }
 }
 ```
 
 规则：
 
-- 匹配对象是 tuple 时，分支条件可以是 **tuple 模式** `(p1, p2, ...)`；元素位规则同 4.6 的解构（绑定名、字面量、`_`、`..`、嵌套模式）。
+- 匹配对象是 tuple 时，分支条件可以是 **tuple 模式** `(p1, p2, ...)`；元素位使用 match pattern（`val name`、variant、字面量、`_`、`..` 或嵌套模式）。
 - tuple 模式要求 subject 的静态类型就是 tuple；tuple 没有类型名，不能像 struct 模式那样作为类型测试使用。
 - 不使用 `..` 时，模式的元数必须与被匹配 tuple 的元数一致，否则编译错误。
 - tuple无sum variant，但各字段的有限constructor组合可由多个arm共同覆盖；是否需要`else`完全由全局pattern matrix决定，而不是只寻找单个irrefutable arm。
@@ -577,21 +580,21 @@ val s = S(1, 2, 3)
 
 when (s) {
     case S { f1: 0, .. } -> print("f1 is zero")              // 字面量匹配 + ..
-    case S { f1, f2: y, .. } if (f1 == y) -> print("equal")  // 绑定 + 重命名 + 守卫
-    case S { f1, .. } -> print(f1)                           // 兜底，穷尽
+    case S { val f1, f2: val y, .. } if (f1 == y) -> print("equal")  // 绑定 + 重命名 + 守卫
+    case S { val f1, .. } -> print(f1)                           // 兜底，穷尽
 }
 
 when (s) {
-    case (x, 0, _) -> print("positional")   // 位置模式同样可用
-    case (x, ..) -> print(x)
+    case (val x, 0, _) -> print("positional")   // 位置模式同样可用
+    case (val x, ..) -> print(x)
 }
 ```
 
 规则：
 
-- struct 模式的形式与 4.6 的解构声明完全对齐：字段模式（可带类型名前缀）或位置模式；元素位可以是绑定名、字面量（等值匹配）、`_`、`..` 或嵌套模式，与 enum 变体模式、tuple 模式一致。
+- struct 模式复用 4.6 的字段结构（可带类型名前缀）或位置结构；元素位遵守 match pattern 的显式 `val name` 绑定规则，允许 variant、字面量（等值匹配）、`_`、`..` 或嵌套模式，与 enum 变体模式、tuple 模式一致。
 - 字段模式未列出全部字段时必须以 `..` 结尾（同 4.6，与 Rust 一致）。
-- 被匹配值的静态类型就是该struct时，type前缀可省略（`(x, ..)`或`{ f1, .. }`均可）；多个struct arm可以通过字段子模式组合证明穷尽，不要求存在单个全wildcard arm。
+- 被匹配值的静态类型就是该 struct 时，type 前缀可省略（`(val x, ..)` 或 `{ val f1, .. }` 均可）；多个 struct arm 可以通过字段子模式组合证明穷尽，不要求存在单个全 wildcard arm。
 - struct 模式要求 subject 的静态类型就是该 struct。对父类型（`Any`、interface、装箱后的值等）的类型判断使用 Kotlin 的 `is` 分支（`is S -> ...`），智能转换后可在分支体内按 4.6 解构。
 
 ### 5.4 守卫、分支体与 smart cast
@@ -791,16 +794,16 @@ enum Option<T> {
 
 ### 7.3 空安全运算符的语义
 
-- `a?.b`：脱糖为 `when (a) { case Some(v) -> Some(v.b); case None -> None }`（结果类型为 `Option<B>`，其中 `B` 是 `b` 的类型）。
-- `a?.f(args...)`：脱糖为 `when (a) { case Some(v) -> Some(v.f(args...)); case None -> None }`。receiver `a`先求值且只求值一次；只有运行期进入`Some`分支后才会求值显式实参、物化`vararg`、执行缺省表达式并进入callee。方法、extension与property-like `invoke`的选择均在payload静态类型上按第8章完成。
+- `a?.b`：脱糖为 `when (a) { case Some(val v) -> Some(v.b); case None -> None }`（结果类型为 `Option<B>`，其中 `B` 是 `b` 的类型）。
+- `a?.f(args...)`：脱糖为 `when (a) { case Some(val v) -> Some(v.f(args...)); case None -> None }`。receiver `a`先求值且只求值一次；只有运行期进入`Some`分支后才会求值显式实参、物化`vararg`、执行缺省表达式并进入callee。方法、extension与property-like `invoke`的选择均在payload静态类型上按第8章完成。
 - 安全调用**不展平**结果。若`f`返回`Option<R>`，`a?.f()`的类型是`Option<Option<R>>`；若返回`Unit`，结果是`Option<Unit>`。这遵守7.1的逐层`Option`语义，不采用Kotlin nullable type的幂等合并。
 - 安全调用也可作为丢弃结果的调用语句，例如 `resource?.dispose()`；是否为调用按源程序的调用形式判定，不能因脱糖结果是临时 Option 而拒绝。接收者、参数与缺省值仍遵守上述按分支求值规则，单纯的安全字段读取不会因此成为调用语句。
-- `a ?: b`：脱糖为 `when (a) { case Some(v) -> v; case None -> b }`，按 5.7 合并正常分支结果。右侧 `return`、`throw` 或 Nothing 调用不贡献正常值，结果来自 Some 的 payload；普通右值使用期望类型适配或最小上界，不能要求 exact type 相等。左侧只求值一次，右侧仅在 None 路径执行。Elvis 右结合。
+- `a ?: b`：脱糖为 `when (a) { case Some(val v) -> v; case None -> b }`，按 5.7 合并正常分支结果。右侧 `return`、`throw` 或 Nothing 调用不贡献正常值，结果来自 Some 的 payload；普通右值使用期望类型适配或最小上界，不能要求 exact type 相等。左侧只求值一次，右侧仅在 None 路径执行。Elvis 右结合。
 - `a!!`：`a` 为 `Some` 时取值；为 `None` 时抛出核心库异常 `UnwrapException`。
 - 空安全表达式可以出现在`while`条件中；条件脱糖产生的临时绑定与其他条件求值步骤一起在每次条件检查时重新执行，不能提升到循环外。
 - 不支持 `a?.b = c` 形式的赋值：`a?.b` 的结果是临时 `Option`，对其赋值无意义。
 - `null` 字面量不存在；表示"无值"使用 `None`。
-- 取值使用 `when` 解构：`when (s) { case Some(v) -> ...; case None -> ... }`。对 `Option<T>` 不提供智能转换，`isSome()` 一类判断不会收窄类型。
+- 取值使用 `when` 解构：`when (s) { case Some(val v) -> ...; case None -> ... }`。对 `Option<T>` 不提供智能转换，`isSome()` 一类判断不会收窄类型。
 
 ### 7.4 enum 布局与 `Option` niche 保证
 

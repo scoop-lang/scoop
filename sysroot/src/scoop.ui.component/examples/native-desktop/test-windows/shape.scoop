@@ -54,7 +54,7 @@ private class ShapedDemoTest {
             }
         }
         when (demo.failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
         assertTrue(completed)
@@ -102,7 +102,7 @@ private fun nativeCircleReady(window: Window, size: Double): Boolean {
             {
                 val native =
                     when (lease.handle) {
-                        case Win32(handle, _) -> handle
+                        case Win32(val handle, _) -> handle
                     }
                 // WS_CAPTION includes the system border; WS_THICKFRAME adds resize chrome.
                 assertEquals(0L, windowStyle(native, -16).and(0x00c40000L))

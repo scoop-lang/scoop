@@ -12,7 +12,7 @@ internal fun galleryText(window: Window, text: String, marked: Boolean): Int {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> text.withUtf8Bytes {
+                    case AppKit(_, val view) -> text.withUtf8Bytes {
                         bytes,
                         length -> @Unsafe
                         {
@@ -47,7 +47,7 @@ internal fun galleryKey(window: Window, code: Int, text: String, flags: Int = 0)
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> text.withUtf8Bytes {
+                    case AppKit(_, val view) -> text.withUtf8Bytes {
                         bytes,
                         length -> @Unsafe
                         {

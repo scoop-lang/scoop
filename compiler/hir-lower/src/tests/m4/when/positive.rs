@@ -15,7 +15,7 @@ fn when_over_enum_with_bare_and_qualified_variants() {
                     vec![
                         // Bare unit variant (spec 5.1: prefix optional).
                         arm(
-                            pat_bind("Red"),
+                            pat_variant("Red"),
                             None,
                             vec![stmt(call("println", vec![str_lit("red")]))],
                         ),
@@ -26,7 +26,7 @@ fn when_over_enum_with_bare_and_qualified_variants() {
                             vec![stmt(call("println", vec![str_lit("green")]))],
                         ),
                         arm(
-                            pat_bind("Blue"),
+                            pat_variant("Blue"),
                             None,
                             vec![stmt(call("println", vec![str_lit("blue")]))],
                         ),
@@ -69,7 +69,7 @@ fn when_over_option_with_guard() {
                         vec![stmt(call("println", vec![int_lit(0)]))],
                     ),
                     arm(
-                        pat_bind("None"),
+                        pat_variant("None"),
                         None,
                         vec![stmt(call("println", vec![str_lit("none")]))],
                     ),
@@ -159,7 +159,7 @@ fn when_catch_all_binding_arm_is_exhaustive() {
                     var("c"),
                     vec![
                         arm(
-                            pat_bind("Red"),
+                            pat_variant("Red"),
                             None,
                             vec![stmt(call("println", vec![str_lit("red")]))],
                         ),
@@ -189,7 +189,7 @@ fn when_else_covers_missing_variants() {
                 when_stmt(
                     var("c"),
                     vec![arm(
-                        pat_bind("Red"),
+                        pat_variant("Red"),
                         None,
                         vec![stmt(call("println", vec![str_lit("red")]))],
                     )],

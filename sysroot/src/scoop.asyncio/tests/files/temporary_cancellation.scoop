@@ -113,7 +113,7 @@ private fun firstTemporaryPath(directory: Path): Path? =
     directory.entries().use {
         entries -> when (entries.next()) {
             case None -> None
-            case Some(entry) -> Some(entry.path)
+            case Some(val entry) -> Some(entry.path)
         }
     }
 
@@ -121,7 +121,7 @@ private fun awaitTemporaryFile(directory: Path): Path {
     val start = MonotonicTimeSource.markNow()
     while (true) {
         when (firstTemporaryPath(directory)) {
-            case Some(path) -> return path;
+            case Some(val path) -> return path;
             case None -> {}
         }
         assertTrue(

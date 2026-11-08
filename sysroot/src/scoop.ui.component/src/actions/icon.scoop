@@ -128,7 +128,7 @@ internal fun iconStrokeCoordinates(document: SvgDocument): Size {
             )
     val coordinates =
         when (document.viewBox) {
-            case Some(box) -> box.size
+            case Some(val box) -> box.size
             case None -> natural
         }
     requireComponent(

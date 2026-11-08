@@ -21,7 +21,7 @@ private class HttpClientResponseNegotiationTest {
                     val incoming = connection.receiveRequest()!!
                     val fields = incoming.head.fields.findAll("Accept-Encoding".toByteArray())
                     when (proposal) {
-                        case Some(value) -> {
+                        case Some(val value) -> {
                             assertEquals(1L, fields.size);
                             assertEquals(value, String.fromUtf8(fields[0L].value))
                         }

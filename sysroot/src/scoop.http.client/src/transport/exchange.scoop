@@ -17,12 +17,12 @@ internal interface ClientExchange : ClientResponseStream, AsyncByteStream, Async
 internal suspend fun openClientExchange(call: ClientCall, connection: ClientConnection): ClientExchange {
     val request = call.request
     return when (connection) {
-        case Http1(value) -> {
+        case Http1(val value) -> {
             val version = if (clientPresent(call.sequence.webSocket)) HttpVersion.Http11 else call.client.config.http1RequestVersion
             validateClientHttp1Request(request, version)
             val framing = if (request.body.trailerNames.size != 0L) Http1BodyFraming.Chunked else when (request.contentLength) {
                 case Some(0L) -> Http1BodyFraming.Empty
-                case Some(length) -> Http1BodyFraming.Length(length)
+                case Some(val length) -> Http1BodyFraming.Length(length)
                 case None -> Http1BodyFraming.Chunked
             }
             val entry = call.lock.withLock { call.lease!! }
@@ -34,7 +34,7 @@ internal suspend fun openClientExchange(call: ClientCall, connection: ClientConn
             val exchange = ClientH1Exchange(call, value, output, version, call.timeouts.readIdle)
             if (upgrading) ClientH2cExchange(call, entry, exchange) else exchange
         }
-        case Http2(value) -> {
+        case Http2(val value) -> {
             val stream = try {
                 value.openRequest(clientRequestHead(call, HttpVersion.Http2), false, clientIoTimeouts(call))
             } catch (error: Throwable) { recordClientIoFailure(call, error, true); throw error }
@@ -48,7 +48,7 @@ private fun clientRequestHead(call: ClientCall, version: HttpVersion): HttpReque
     val request = call.request
     val fields = clientRequestFields(call, version)
     when (call.route) {
-        case HttpForward(endpoint) -> {
+        case HttpForward(val endpoint) -> {
             for (field in clientProxyAuthorization(call, endpoint)) fields.add(field)
             return httpProxyRequest(request.url, request.methodBytes, fields, version)
         }
@@ -70,7 +70,7 @@ internal fun clientRequestFields(call: ClientCall, version: HttpVersion): ArrayL
     addClientAcceptEncoding(fields, request, call.client.config)
     if (version == HttpVersion.Http2 || request.body.trailerNames.size == 0L) {
         when (request.contentLength) {
-            case Some(length) -> fields.add(HttpField("Content-Length".toByteArray(), length.toString().toByteArray()))
+            case Some(val length) -> fields.add(HttpField("Content-Length".toByteArray(), length.toString().toByteArray()))
             case None -> {}
         }
     }

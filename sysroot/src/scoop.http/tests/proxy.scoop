@@ -90,7 +90,7 @@ import scoop.url.UrlParseException
 }
 
 private fun proxyTarget(request: HttpRequestHead): String = when (request.target) {
-    case Http1(value) -> String.fromUtf8(value)
-    case Connect(value) -> String.fromUtf8(value)
+    case Http1(val value) -> String.fromUtf8(value)
+    case Connect(val value) -> String.fromUtf8(value)
     else -> fail(Some("unexpected target model"))
 }

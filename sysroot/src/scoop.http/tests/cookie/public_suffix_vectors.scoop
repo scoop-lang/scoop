@@ -14,8 +14,8 @@ private class PublicSuffixVectorTests {
         assertEquals(10398L, list.ruleCount)
         for ((input, expected) in officialPublicSuffixVectors()) {
             val result = list.lookupOrNone(input)
-            val actual = when (result) { case None -> None; case Some(match) -> match.registrableDomain }
-            val canonical = when (expected) { case None -> None; case Some(name) -> Some(Idna.toAscii(name)) }
+            val actual = when (result) { case None -> None; case Some(val match) -> match.registrableDomain }
+            val canonical = when (expected) { case None -> None; case Some(val name) -> Some(Idna.toAscii(name)) }
             assertTrue(actual == canonical, Some(input))
         }
         assertEquals("github.io", list.lookup("a.github.io").publicSuffix)

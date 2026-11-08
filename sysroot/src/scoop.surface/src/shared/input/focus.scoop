@@ -34,7 +34,7 @@ internal fun InputRouter.clearFocus() {
 
 internal fun InputRouter.reconcileFocus() {
     when (logicalFocus) {
-        case Some(area) -> {
+        case Some(val area) -> {
             if (!area.focusable || !allowsFocus(area.scope) || path(area.scope).size == 0L)
                 logicalFocus = None
         }
@@ -50,11 +50,11 @@ internal fun InputRouter.reconcileFocus() {
         val previous = activeFocus
         activeFocus = next
         when (previous) {
-            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(false), terminal = true);
+            case Some(val area) -> notify(area.scope, InputEvent.FocusChanged(false), terminal = true);
             case None -> {}
         }
         when (next) {
-            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(true));
+            case Some(val area) -> notify(area.scope, InputEvent.FocusChanged(true));
             case None -> {}
         }
     }
@@ -63,7 +63,7 @@ internal fun InputRouter.reconcileFocus() {
         activeFocusVisible = visible
         if (!ownerChanged) {
             when (next) {
-                case Some(area) -> notify(area.scope, InputEvent.FocusVisibilityChanged(visible))
+                case Some(val area) -> notify(area.scope, InputEvent.FocusVisibilityChanged(visible))
                 case None -> {}
             }
         }
@@ -77,9 +77,9 @@ internal fun InputRouter.routeFocused(event: InputEvent) {
         return
     val chain = focusedPath()
     when (event) {
-        case Keyboard(key) -> {
+        case Keyboard(val key) -> {
             when (activeFocus) {
-                case Some(area) -> if (
+                case Some(val area) -> if (
                     !key.synthetic &&
                         key.state ==
                         ElementState.Pressed &&
@@ -104,7 +104,7 @@ internal fun InputRouter.routeFocused(event: InputEvent) {
 
 private fun InputRouter.focusedPath(): Array<InputScope> =
     when (activeFocus) {
-        case Some(area) -> {
+        case Some(val area) -> {
             val current =
                 if (allowsFocus(area.scope))
                     path(area.scope, focusRoot)
@@ -139,9 +139,9 @@ internal fun InputRouter.restartTextInput(area: InputArea): Boolean {
 internal fun InputRouter.textEvent(event: TextInputEvent) {
     val previous = imeOwner(ime)
     when (event) {
-        case Enabled(connection) -> {
+        case Enabled(val connection) -> {
             when (ime) {
-                case Opening(area) -> ime = ImeSession.On(area)
+                case Opening(val area) -> ime = ImeSession.On(area)
                 case Closing(_) -> {
                     if (imeConnection != None && imeConnection != connection)
                         return
@@ -151,7 +151,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
             imeConnection = connection
             pending = true
         }
-        case Disabled(connection) -> {
+        case Disabled(val connection) -> {
             if (imeConnection != None && imeConnection != connection)
                 return
             ime = ImeSession.Off;
@@ -159,14 +159,14 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
             imeConnection = None
             pending = true
         }
-        case Edit(batch) -> {
+        case Edit(val batch) -> {
             when (batch.origin) {
-                case Some(origin) -> if (imeConnection != Some(origin.connection))
+                case Some(val origin) -> if (imeConnection != Some(origin.connection))
                     return
                 case None -> {}
             }
             when (previous) {
-                case Some(area) -> if (area.caretRevision != None) {
+                case Some(val area) -> if (area.caretRevision != None) {
                     imeCaret = None
                     pending = true
                 }
@@ -175,7 +175,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
         }
     }
     when (previous) {
-        case Some(area) -> notify(area.scope, InputEvent.TextInput(event), inactive = true)
+        case Some(val area) -> notify(area.scope, InputEvent.TextInput(event), inactive = true)
         case None -> {}
     }
 }
@@ -183,7 +183,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
 private fun InputRouter.reconcileIme() {
     val desired =
         when (activeFocus) {
-            case Some(area) -> if (area.textInput && !area.closed && path(area.scope).size > 0L)
+            case Some(val area) -> if (area.textInput && !area.closed && path(area.scope).size > 0L)
                 Some(area)
             else
                 None
@@ -192,7 +192,7 @@ private fun InputRouter.reconcileIme() {
     when (ime) {
         case Off -> {
             when (desired) {
-                case Some(area) -> {
+                case Some(val area) -> {
                     publishCaret(area)
                     ime = ImeSession.Opening(area)
                     imeRequest = area.textInputRevision
@@ -201,8 +201,8 @@ private fun InputRouter.reconcileIme() {
                 case None -> {}
             }
         }
-        case Opening(area) -> continueIme(area, desired)
-        case On(area) -> continueIme(area, desired)
+        case Opening(val area) -> continueIme(area, desired)
+        case On(val area) -> continueIme(area, desired)
         case Closing(_) -> {}
     }
 }
@@ -219,7 +219,7 @@ private fun InputRouter.continueIme(area: InputArea, desired: InputArea?) {
 private fun imeOwner(session: ImeSession): InputArea? =
     when (session) {
         case Off -> None
-        case Opening(area) -> Some(area)
-        case On(area) -> Some(area)
-        case Closing(area) -> Some(area)
+        case Opening(val area) -> Some(area)
+        case On(val area) -> Some(area)
+        case Closing(val area) -> Some(area)
     }

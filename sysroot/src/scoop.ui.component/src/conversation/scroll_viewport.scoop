@@ -31,7 +31,7 @@ internal class MessageViewport(
         val next = input.props.state
         val same =
             when (bound) {
-                case Some(old) -> old === next;
+                case Some(val old) -> old === next;
                 case None -> false
             }
         if (!same) {
@@ -62,7 +62,7 @@ internal class MessageViewport(
             return
         when (event) {
             case LayoutCorrection(_) -> return
-            case User(revision) -> model.userRevision = Some(revision)
+            case User(val revision) -> model.userRevision = Some(revision)
             case Programmatic(_) -> model.userRevision = None
         }
         model.epoch += 1L
@@ -90,7 +90,7 @@ internal class MessageViewport(
             case Pointer(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
             ) -> model.selecting = false
-            case Keyboard(key) -> {
+            case Keyboard(val key) -> {
                 if (key.state == ElementState.Pressed)
                     model.hold()
             }

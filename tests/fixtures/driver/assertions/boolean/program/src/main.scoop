@@ -26,9 +26,9 @@ fun main() {
     verify(calls.count == 4)
     verify(yes.kind == "assertTrue" && yes.message == Some("custom message"))
     verify(no.kind == "assertFalse" && no.message == None)
-    verify(when (yes.expected) { case AssertionValue.Text(text) -> text == "true"; else -> false })
-    verify(when (yes.actual) { case AssertionValue.Text(text) -> text == "false"; else -> false })
-    verify(when (no.expected) { case AssertionValue.Text(text) -> text == "false"; else -> false })
+    verify(when (yes.expected) { case AssertionValue.Text(val text) -> text == "true"; else -> false })
+    verify(when (yes.actual) { case AssertionValue.Text(val text) -> text == "false"; else -> false })
+    verify(when (no.expected) { case AssertionValue.Text(val text) -> text == "false"; else -> false })
     val explicit = capture { fail(Some("explicit")) }
     verify(explicit.kind == "fail" && explicit.message == Some("explicit"))
     verify(when (explicit.expected) { case AssertionValue.Unavailable -> true; else -> false })

@@ -9,63 +9,63 @@ enum ResponseEvent {
         public override fun encode(value: ResponseEvent, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ResponseEvent.Created(payload) -> {
+                case ResponseEvent.Created(val payload) -> {
                     String.encode("response.created", fields.field("type"))
                     StateEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Progress(payload) -> {
+                case ResponseEvent.Progress(val payload) -> {
                     String.encode("response.in_progress", fields.field("type"))
                     StateEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Completed(payload) -> {
+                case ResponseEvent.Completed(val payload) -> {
                     String.encode("response.completed", fields.field("type"))
                     StateEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Failed(payload) -> {
+                case ResponseEvent.Failed(val payload) -> {
                     String.encode("response.failed", fields.field("type"))
                     StateEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Incomplete(payload) -> {
+                case ResponseEvent.Incomplete(val payload) -> {
                     String.encode("response.incomplete", fields.field("type"))
                     StateEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.ItemAdded(payload) -> {
+                case ResponseEvent.ItemAdded(val payload) -> {
                     String.encode("response.output_item.added", fields.field("type"))
                     ItemEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.ItemDone(payload) -> {
+                case ResponseEvent.ItemDone(val payload) -> {
                     String.encode("response.output_item.done", fields.field("type"))
                     ItemEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.PartAdded(payload) -> {
+                case ResponseEvent.PartAdded(val payload) -> {
                     String.encode("response.content_part.added", fields.field("type"))
                     PartEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.PartDone(payload) -> {
+                case ResponseEvent.PartDone(val payload) -> {
                     String.encode("response.content_part.done", fields.field("type"))
                     PartEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.TextDelta(payload) -> {
+                case ResponseEvent.TextDelta(val payload) -> {
                     String.encode("response.output_text.delta", fields.field("type"))
                     TextDeltaEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.TextDone(payload) -> {
+                case ResponseEvent.TextDone(val payload) -> {
                     String.encode("response.output_text.done", fields.field("type"))
                     TextDoneEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.ArgumentsDelta(payload) -> {
+                case ResponseEvent.ArgumentsDelta(val payload) -> {
                     String.encode("response.function_call_arguments.delta", fields.field("type"))
                     ArgumentsDeltaEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.ArgumentsDone(payload) -> {
+                case ResponseEvent.ArgumentsDone(val payload) -> {
                     String.encode("response.function_call_arguments.done", fields.field("type"))
                     ArgumentsDoneEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Error(payload) -> {
+                case ResponseEvent.Error(val payload) -> {
                     String.encode("error", fields.field("type"))
                     ResponseErrorEvent.Companion.encode(payload, encoder)
                 }
-                case ResponseEvent.Unknown(raw) -> JsonValue.Companion.encode(raw, encoder)
+                case ResponseEvent.Unknown(val raw) -> JsonValue.Companion.encode(raw, encoder)
             }
             fields.end()
         }

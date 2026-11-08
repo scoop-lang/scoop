@@ -22,7 +22,7 @@ private class StatusNotifierTests {
             @Unsafe
             {
                 when (handler.host) {
-                    case Some(value) -> destroyLinuxTrayHost(value)
+                    case Some(val value) -> destroyLinuxTrayHost(value)
                     case None -> {}
                 }
             }
@@ -47,10 +47,10 @@ private class StatusNotifierHandler: ApplicationHandler {
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> start(application)
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(command, activation.item)
                 when (activation.source) {
-                    case Native(id) -> assertEquals(tray!!.menuUseId, Some(id))
+                    case Native(val id) -> assertEquals(tray!!.menuUseId, Some(id))
                     else -> fail(Some("incorrect DBusMenu activation source"))
                 }
                 actions += 1
@@ -135,11 +135,11 @@ private class StatusNotifierHandler: ApplicationHandler {
                         assertEquals(1, cycleLinuxTrayHost(host!!, 1))
                     }
                 }
-                case Activated(activation) -> {
+                case Activated(val activation) -> {
                     assertEquals(TrayActivationKind.Primary, activation.kind)
                     assertEquals(TrayActivationSource.Unknown, activation.source)
                     when (activation.anchor) {
-                        case Some(TrayAnchor.PointHint(point)) -> {
+                        case Some(TrayAnchor.PointHint(val point)) -> {
                             assertEquals(-75.0, point.x)
                             assertEquals(22.0, point.y)
                         }

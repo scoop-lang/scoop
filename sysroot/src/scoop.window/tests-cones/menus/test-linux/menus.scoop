@@ -57,20 +57,20 @@ private class GtkMenuHandler: ApplicationHandler {
             case Resumed -> start(application)
             case Window(_, WindowEvent.GeometryChanged(_)) -> startShortcut()
             case NewEvents(StartCause.Deadline) -> fail(Some("GTK menu test deadline"))
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(action, activation.item)
                 when (activation.source) {
-                    case WindowMenuBar(target) -> {
+                    case WindowMenuBar(val target) -> {
                         assertEquals(window!!.id, target)
                         barActions += 1
                         borrow(application)
                     }
-                    case Native(identity) -> {
+                    case Native(val identity) -> {
                         assertEquals(lease!!.id, identity)
                         borrowedActions += 1
                         menu!!.close()
                     }
-                    case Popup(identity, target) -> {
+                    case Popup(val identity, val target) -> {
                         assertEquals(popup!!.id, identity)
                         assertEquals(window!!.id, target)
                         popupActions += 1
@@ -78,12 +78,12 @@ private class GtkMenuHandler: ApplicationHandler {
                     else -> fail(Some("wrong GTK menu source"))
                 }
             }
-            case PopupCompleted(identity, result) -> {
+            case PopupCompleted(val identity, val result) -> {
                 assertEquals(popup!!.id, identity)
                 completions += 1
                 if (!targetClosing) {
                     when (result) {
-                        case Selected(selected) -> assertEquals(action, selected)
+                        case Selected(val selected) -> assertEquals(action, selected)
                         else -> fail(Some("GTK popup did not select the item"))
                     }
                     assertEquals(1, popupActions)
@@ -97,7 +97,7 @@ private class GtkMenuHandler: ApplicationHandler {
                     application.requestExit()
                 }
             }
-            case Window(_, WindowEvent.Keyboard(key)) -> {
+            case Window(_, WindowEvent.Keyboard(val key)) -> {
                 if (key.state == ElementState.Pressed)
                     fail(Some("native menu shortcut was delivered twice"))
             }
@@ -166,7 +166,7 @@ private class GtkMenuHandler: ApplicationHandler {
                     val native = window!!.acquireNativeWindow()
                     try {
                         when (native.handle) {
-                            case Gtk(_, view) -> assertEquals(1, activateShortcut(view))
+                            case Gtk(_, val view) -> assertEquals(1, activateShortcut(view))
                         }
                     } finally {
                         native.close()
@@ -180,7 +180,7 @@ private class GtkMenuHandler: ApplicationHandler {
             val native = window!!.acquireNativeWindow()
             try {
                 when (native.handle) {
-                    case Gtk(_, view) -> assertEquals(1, openMenuBar(view))
+                    case Gtk(_, val view) -> assertEquals(1, openMenuBar(view))
                 }
             } finally {
                 native.close()
@@ -205,7 +205,7 @@ private class GtkMenuHandler: ApplicationHandler {
                     }
                 )
             when (lease!!.handle) {
-                case Gtk(model, actions) -> assertEquals(
+                case Gtk(val model, val actions) -> assertEquals(
                     0,
                     checkModel(model, actions, checked.value)
                 )
@@ -244,7 +244,7 @@ private class GtkMenuHandler: ApplicationHandler {
                         val native = window!!.acquireNativeWindow()
                         try {
                             when (native.handle) {
-                                case Gtk(_, view) -> assertEquals(1, activatePopup(view, 0L))
+                                case Gtk(_, val view) -> assertEquals(1, activatePopup(view, 0L))
                             }
                         } finally {
                             native.close()
@@ -262,7 +262,7 @@ private class GtkMenuHandler: ApplicationHandler {
                         val native = window!!.acquireNativeWindow()
                         try {
                             when (native.handle) {
-                                case Gtk(_, view) -> assertEquals(
+                                case Gtk(_, val view) -> assertEquals(
                                     1,
                                     activatePopup(view, action.value)
                                 )

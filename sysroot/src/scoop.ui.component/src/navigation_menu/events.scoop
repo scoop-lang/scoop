@@ -20,7 +20,7 @@ internal class NavPanelEvents(
                         control.props.value.focus.hasFocus
                 )
                     when (event) {
-                        case Keyboard(key) -> {
+                        case Keyboard(val key) -> {
                             if (menuKeyAllowed(key)) {
                                 val towards =
                                     if (control.input.orientation == FlexAxis.Horizontal)

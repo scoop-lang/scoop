@@ -5,7 +5,7 @@ import scoop.window.Utf8Range
 
 internal fun otpPolicy(pattern: InputOtpPattern, length: Long): TextEditPolicy {
     return when (pattern) {
-        case Custom(policy) -> policy.copy {
+        case Custom(val policy) -> policy.copy {
             this.singleLine = true
             val limit = this.maxLength ?: length
             this.maxLength =

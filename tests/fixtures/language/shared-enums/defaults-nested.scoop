@@ -5,8 +5,8 @@ public enum Carrier<T> { Vacant, Wrapped(Choice<T>, T?) }
 
 public fun <T> selected(value: Carrier<T>, fallback: T, result: T = when (value) {
     case Vacant -> fallback
-    case Wrapped(choice, Some(payload)) -> select<T>(choice, payload)
-    case Wrapped(choice, None) -> select<T>(choice, fallback)
+    case Wrapped(val choice, Some(val payload)) -> select<T>(choice, payload)
+    case Wrapped(val choice, None) -> select<T>(choice, fallback)
 }): T = result
 
 public fun <T> exercise(seed: T, read: (T) -> Int): Int {
@@ -15,7 +15,7 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     if (read(selected<T>(value, seed)) != 42) { return 1 }
     return when (value) {
         case Vacant -> 2
-        case Wrapped(Defaults { payload, amount }, Some(extra)) if (amount == 2) -> {
+        case Wrapped(Defaults { val payload, val amount }, Some(val extra)) if (amount == 2) -> {
             if (read(extra) != 42) { return 3 }
             read(payload)
         }

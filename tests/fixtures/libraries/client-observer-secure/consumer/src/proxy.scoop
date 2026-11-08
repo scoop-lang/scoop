@@ -73,14 +73,14 @@ internal fun observedProxyTls(trust: TrustStore, port: Int, mode: String) {
                 }
             ) suspend {
                 result -> when (result) {
-                    case Opened(session) -> {
+                    case Opened(val session) -> {
                         assertTrue(observationPresent(session.metrics!!.finishedAt))
                         assertEquals("tunneled", session.receive()!!.readText())
                         session.sendText("through proxy")
                         assertEquals("echo:through proxy", session.receive()!!.readText())
                         session.shutdownGracefully()
                     }
-                    case Rejected(_, error) -> throw error
+                    case Rejected(_, val error) -> throw error
                 }
             }
         }

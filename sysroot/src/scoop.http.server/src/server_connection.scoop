@@ -38,7 +38,7 @@ internal suspend fun runServerConnection(state: ServerState, entry: ServerConnec
                     val alpn: List<Byte>? =
                         when (info.alpn) {
                             case None -> None;
-                            case Some(value) -> Some(value)
+                            case Some(val value) -> Some(value)
                         }
                     val allowed =
                         if (state.options.allowTlsHttp2)

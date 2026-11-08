@@ -17,7 +17,7 @@ internal fun clientRetryDelay(options: HttpRetryOptions, completedRetries: Long,
     }
     if (!options.respectRetryAfter) return delay
     val fields = when (head) {
-        case Some(response) -> response.fields.findAll("Retry-After".toByteArray())
+        case Some(val response) -> response.fields.findAll("Retry-After".toByteArray())
         case None -> return delay
     }
     if (fields.size != 1L) return delay

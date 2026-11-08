@@ -15,7 +15,7 @@ public class NativeTrayHandle public constructor() {
     }
     internal fun bind(owner: NativeTrayAttachment) {
         when (binding.value) {
-            case Some(current) -> if (!(current === owner))
+            case Some(val current) -> if (!(current === owner))
                 throw IllegalStateException(Some("tray handle already belongs to a mounted icon"))
             case None -> {
                 binding.value = Some(owner)
@@ -24,7 +24,7 @@ public class NativeTrayHandle public constructor() {
     }
     internal fun unbind(owner: NativeTrayAttachment) {
         when (binding.value) {
-            case Some(current) -> if (current === owner)
+            case Some(val current) -> if (current === owner)
                 binding.value = None
             case None -> {}
         }

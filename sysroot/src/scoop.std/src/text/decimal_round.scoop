@@ -20,7 +20,7 @@ private fun roundedQuotient(numerator: DecimalMagnitude, denominator: DecimalMag
 internal fun roundDecimal(text: String, precision: Long, minExponent: Long, minOrder: Long, maxOrder: Long): RoundedDecimal? {
     val parsed = when (scanDecimal(text, precision + 2L - minExponent)) {
         case None -> return None
-        case Some(value) -> value
+        case Some(val value) -> value
     }
     if (parsed.digits == 0L || parsed.order < minOrder) return Some(RoundedDecimal(0uL, 0L, parsed.negative))
     if (parsed.order > maxOrder) return None

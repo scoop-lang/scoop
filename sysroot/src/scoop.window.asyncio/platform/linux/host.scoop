@@ -10,7 +10,7 @@ internal fun platformWatch(
     ready: () -> Unit
 ): ApplicationWatch =
     when (notification) {
-        case ReadableDescriptor(descriptor) -> host.watchReadable(descriptor, ready)
+        case ReadableDescriptor(val descriptor) -> host.watchReadable(descriptor, ready)
         case WindowsEvent(_) -> throw IllegalArgumentException(
             Some("Linux requires a readable descriptor")
         )

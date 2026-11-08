@@ -70,7 +70,7 @@ private fun Window.windowsColor(attribute: Int, color: WindowsFrameColor): Reque
                 requireWindow(attribute == 34, "only the DWM border color supports None")
                 4294967294u
             }
-            case Rgb(red, green, blue) -> red.toUInt() +
+            case Rgb(val red, val green, val blue) -> red.toUInt() +
                 green.toUInt() *
                 256u +
                 blue.toUInt() *

@@ -127,7 +127,7 @@ public class AnimationTimeline public constructor(
         for (entry in active) {
             if (includeFrameWork || !entry.frameEnabled()) {
                 when (entry.deadline()) {
-                    case Some(time) -> if (next == None || time < next!!)
+                    case Some(val time) -> if (next == None || time < next!!)
                         next = Some(time)
                     case None -> {}
                 }
@@ -138,7 +138,7 @@ public class AnimationTimeline public constructor(
     internal fun now(): TimeMark {
         checkOpen()
         when (frame) {
-            case Some(value) -> return value;
+            case Some(val value) -> return value;
             case None -> {}
         }
         val result = source.markNow()
@@ -148,7 +148,7 @@ public class AnimationTimeline public constructor(
     private fun checkTime(time: TimeMark) {
         requireAnimation(time.source === source, "animation clock source mismatch")
         when (previous) {
-            case Some(value) -> requireAnimation(time >= value, "animation time moved backwards");
+            case Some(val value) -> requireAnimation(time >= value, "animation time moved backwards");
             case None -> {}
         }
         previous = Some(time)

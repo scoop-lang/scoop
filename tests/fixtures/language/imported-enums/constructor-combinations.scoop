@@ -20,11 +20,11 @@ enum Wrapper { Empty, Value(Choice, (Token, Token), Draft) }
     val wrapped = Wrapper.Value(relay(carrier.value), carrier.markers, Defaults(47))
     return when (wrapped) {
         case Empty -> 0
-        case Value(choice, _, draft) -> sum(choice) + when (draft) {
+        case Value(val choice, _, val draft) -> sum(choice) + when (draft) {
             case Absent -> 0
-            case Position(left, _, right) -> left + right
-            case Named { left, right, .. } -> left + right
-            case Defaults { left, right, .. } -> left + right
+            case Position(val left, _, val right) -> left + right
+            case Named { val left, val right, .. } -> left + right
+            case Defaults { val left, val right, .. } -> left + right
         }
     }
 }

@@ -6,7 +6,7 @@ import scoop.window.native.*
 @Unsafe
 internal fun platformWindow(lease: NativeWindowLease): Ptr<Unit> =
     when (lease.handle) {
-        case Win32(window, _) -> window
+        case Win32(val window, _) -> window
     }
 
 @Unsafe

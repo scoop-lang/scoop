@@ -70,8 +70,8 @@ internal class AsyncCompressionOwner(
                     }
                 }
             return when (outcome) {
-                case Value(value) -> value;
-                case Error(error) -> throw error
+                case Value(val value) -> value;
+                case Error(val error) -> throw error
             }
         } catch (error: Throwable) {
             if (advancing)

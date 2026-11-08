@@ -23,10 +23,10 @@ private fun target(scenario: String): Socks5Address {
 
 private fun checkBinding(address: Socks5Address, scenario: String) {
     when (address) {
-        case Domain(name, port) -> check(
+        case Domain(val name, val port) -> check(
             scenario == "domain" && name == "proxy-bound" && port == 3210
         )
-        case Ip(value) -> {
+        case Ip(val value) -> {
             check(value.port == 3210)
             check(
                 value.address ==

@@ -8,7 +8,7 @@ internal fun requireRepeat(count: Long) {
 
 internal fun bufferDestination(buffer: LineBuffer, movement: Movement): Long {
     when (movement) {
-        case Find(character, count, forward, till) -> return findDestination(buffer, character, count, forward, till) ?: buffer.cursor
+        case Find(val character, val count, val forward, val till) -> return findDestination(buffer, character, count, forward, till) ?: buffer.cursor
         else -> return ordinaryDestination(buffer, movement)
     }
 }
@@ -36,13 +36,13 @@ internal fun findDestination(buffer: LineBuffer, character: Char, count: Long, f
 private fun ordinaryDestination(buffer: LineBuffer, movement: Movement): Long {
     var position = buffer.cursor
     var count = when (movement) {
-        case BackwardChar(n) -> n
-        case ForwardChar(n) -> n
-        case BackwardWord(n, _) -> n
-        case ForwardWord(n, _, _) -> n
-        case LineUp(n) -> n
-        case LineDown(n) -> n
-        case Find(_, n, _, _) -> n
+        case BackwardChar(val n) -> n
+        case ForwardChar(val n) -> n
+        case BackwardWord(val n, _) -> n
+        case ForwardWord(val n, _, _) -> n
+        case LineUp(val n) -> n
+        case LineDown(val n) -> n
+        case Find(_, val n, _, _) -> n
         else -> 1L
     }
     requireRepeat(count)
@@ -63,8 +63,8 @@ private fun ordinaryDestination(buffer: LineBuffer, movement: Movement): Long {
                 while (index < buffer.lineEnd(position) && buffer.charAt(index).toString().isBlank()) index = buffer.next(index)
                 index
             }
-            case BackwardWord(_, word) -> buffer.backwardWord(position, word)
-            case ForwardWord(_, word, end) -> buffer.forwardWord(position, word, end)
+            case BackwardWord(_, val word) -> buffer.backwardWord(position, word)
+            case ForwardWord(_, val word, val end) -> buffer.forwardWord(position, word, end)
             case LineUp(_) -> {
                 val start = buffer.lineStart(position)
                 if (start == 0L) position else {
@@ -81,7 +81,7 @@ private fun ordinaryDestination(buffer: LineBuffer, movement: Movement): Long {
                     buffer.snap(if (column < nextEnd - start) start + column else nextEnd, false)
                 }
             }
-            case Find(character, n, forward, till) -> findDestination(buffer, character, n, forward, till) ?: position
+            case Find(val character, val n, val forward, val till) -> findDestination(buffer, character, n, forward, till) ?: position
         }
         count -= 1L
         if (position == before) break

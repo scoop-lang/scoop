@@ -170,7 +170,7 @@ public class MessageScrollState public constructor(
     internal fun bind(value: MessageViewport) {
         checkThread()
         when (owner) {
-            case Some(old) -> requireComponent(
+            case Some(val old) -> requireComponent(
                 old === value || !old.active,
                 "message scroll state already has a host"
             )
@@ -181,7 +181,7 @@ public class MessageScrollState public constructor(
     }
     internal fun unbind(value: MessageViewport) {
         when (owner) {
-            case Some(old) -> if (old === value) {
+            case Some(val old) -> if (old === value) {
                 owner = None
                 request = None
                 userRevision = None
@@ -203,7 +203,7 @@ public class MessageScrollState public constructor(
     ) {
         val sameSource =
             when (previousSource) {
-                case Some(old) -> old === source
+                case Some(val old) -> old === source
                 case None -> false
             }
         val threshold = options.edgeThreshold * density
@@ -238,7 +238,7 @@ public class MessageScrollState public constructor(
                     keys,
                     virtual.anchor,
                     when (anchor) {
-                        case Some(at) -> Some(source.keyAt(at));
+                        case Some(val at) -> Some(source.keyAt(at));
                         case None -> None
                     },
                     start,

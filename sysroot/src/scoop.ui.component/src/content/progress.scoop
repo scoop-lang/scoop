@@ -27,7 +27,7 @@ public class ProgressProps public constructor(
     public val position: Double? = progressPosition(value, minimum, maximum)
     init {
         when (thickness) {
-            case Some(value) -> nonnegative(value, "invalid progress thickness");
+            case Some(val value) -> nonnegative(value, "invalid progress thickness");
             case None -> {}
         }
         requireComponent(period > Duration.ZERO, "progress period must be positive")
@@ -38,7 +38,7 @@ internal fun progressPosition(value: Double?, minimum: Double, maximum: Double):
     val range = RangeSpec(minimum, maximum)
     requireComponent(maximum > minimum, "progress maximum must exceed minimum")
     return when (value) {
-        case Some(current) -> Some(range.positionOf(current));
+        case Some(val current) -> Some(range.positionOf(current));
         case None -> None
     }
 }
@@ -64,7 +64,7 @@ public class Progress public constructor(
             values.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
         val valueCaption =
             when (input.valueLabel) {
-                case Some(value) -> Some(panelCaption(value, valueStyle, input.fonts))
+                case Some(val value) -> Some(panelCaption(value, valueStyle, input.fonts))
                 case None -> if (input.showValue)
                     Some(
                         panelCaption(
@@ -80,7 +80,7 @@ public class Progress public constructor(
             }
         val labelCaption =
             when (input.label) {
-                case Some(value) -> Some(panelCaption(value, labelStyle, input.fonts))
+                case Some(val value) -> Some(panelCaption(value, labelStyle, input.fonts))
                 case None -> None
             }
         val track =
@@ -121,7 +121,7 @@ public class Progress public constructor(
 
 internal fun progressCaption(position: Double?): String =
     when (position) {
-        case Some(value) -> f"${floor(value * 100.0 + 0.5).toLong()}%"
+        case Some(val value) -> f"${floor(value * 100.0 + 0.5).toLong()}%"
         case None -> "…"
     }
 

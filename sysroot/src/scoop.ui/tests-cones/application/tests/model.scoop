@@ -112,7 +112,7 @@ internal class MenuEntry(
                     event ->
                     assertEquals(item, event.item)
                     when (event.source) {
-                        case Native(value) -> assertEquals(nativeUse!!.id, value)
+                        case Native(val value) -> assertEquals(nativeUse!!.id, value)
                         else -> fail(Some("menu activation lost its native use identity"))
                     }
                     props.value.action()

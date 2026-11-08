@@ -27,7 +27,7 @@ private class InputGroupTest {
         assertFalse(first.invalid)
         assertTrue(second.invalid)
         when (second.control) {
-            case Input(value) -> {
+            case Input(val value) -> {
                 assertSame(state, value.state)
                 assertTrue(value.readOnly)
             }

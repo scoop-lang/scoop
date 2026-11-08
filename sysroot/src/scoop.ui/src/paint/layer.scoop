@@ -21,7 +21,7 @@ internal class CachedPaintLayer(
 
     fun current(time: TimeMark?): Boolean =
         when (time) {
-            case Some(mark) -> !inputs.changed(mark)
+            case Some(val mark) -> !inputs.changed(mark)
             case None -> !inputs.dynamic && inputs.fonts.size == 0L
         }
 
@@ -29,7 +29,7 @@ internal class CachedPaintLayer(
         val next =
             when (policy) {
                 case None -> None
-                case Tiles(size, overscan) -> if (canTile)
+                case Tiles(val size, val overscan) -> if (canTile)
                     paintTileGrid(canvas.pixelTransform, input, size, overscan)
                 else
                     None
@@ -39,14 +39,14 @@ internal class CachedPaintLayer(
             grid = next
         }
         when (next) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val range =
                     when (canvas.localClipBounds) {
-                        case Some(clip) -> value.range(input.bounds, clip)
+                        case Some(val clip) -> value.range(input.bounds, clip)
                         case None -> None
                     }
                 when (range) {
-                    case Some(visible) -> if (value.representable(visible)) {
+                    case Some(val visible) -> if (value.representable(visible)) {
                         paintTiles(canvas, value, visible)
                     } else {
                         clearTiles()

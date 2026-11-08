@@ -53,12 +53,12 @@ fun records(events: List<WebSocketFrameEvent>): Array<FrameRecord> {
     val data = ByteArrayBuilder()
     for (event in events) {
         when (event) {
-            case FrameStarted(value) -> { head = Some(value); data.clear() }
-            case Data(bytes) -> data.append(bytes)
+            case FrameStarted(val value) -> { head = Some(value); data.clear() }
+            case Data(val bytes) -> data.append(bytes)
             case FrameEnded -> { result.add(FrameRecord(head!!, data.toByteArray())); head = None }
-            case Ping(bytes) -> result.add(FrameRecord(WebSocketFrameHead(WebSocketOpcode.Ping, bytes.size), bytes))
-            case Pong(bytes) -> result.add(FrameRecord(WebSocketFrameHead(WebSocketOpcode.Pong, bytes.size), bytes))
-            case Close(value) -> {
+            case Ping(val bytes) -> result.add(FrameRecord(WebSocketFrameHead(WebSocketOpcode.Ping, bytes.size), bytes))
+            case Pong(val bytes) -> result.add(FrameRecord(WebSocketFrameHead(WebSocketOpcode.Pong, bytes.size), bytes))
+            case Close(val value) -> {
                 val bytes = value.toByteArray()
                 result.add(FrameRecord(WebSocketFrameHead(WebSocketOpcode.Close, bytes.size), bytes))
             }

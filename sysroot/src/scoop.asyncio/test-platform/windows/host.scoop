@@ -5,14 +5,14 @@ import scoop.asyncio.host.EventLoopNotification
 @Unsafe
 internal fun testNotificationPoll(notification: EventLoopNotification, timeout: Int): Int =
     when (notification) {
-        case WindowsEvent(value) -> nativeTestHostWait(value, timeout)
+        case WindowsEvent(val value) -> nativeTestHostWait(value, timeout)
         case ReadableDescriptor(_) -> throw IllegalArgumentException(Some("expected Windows event"))
     }
 
 @Unsafe
 internal fun testNotificationOpen(notification: EventLoopNotification): Boolean =
     when (notification) {
-        case WindowsEvent(value) -> nativeTestEventOpen(value)
+        case WindowsEvent(val value) -> nativeTestEventOpen(value)
         case ReadableDescriptor(_) -> throw IllegalArgumentException(Some("expected Windows event"))
     }
 

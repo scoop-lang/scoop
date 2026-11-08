@@ -90,7 +90,7 @@ private class AsyncHandler: ApplicationHandler {
         @Unsafe
         {
             when (lease!!.handle) {
-                case AppKit(window, _) -> scheduleNativeMode(window, 1, 0.15)
+                case AppKit(val window, _) -> scheduleNativeMode(window, 1, 0.15)
             }
         }
         scope.launch {
@@ -145,7 +145,7 @@ private class AsyncHandler: ApplicationHandler {
                     if (this @AsyncHandler.menuTicks >= 3) {
                         this @AsyncHandler.popup!!.close()
                         when (this @AsyncHandler.popup!!.result) {
-                            case Some(PopupResult.Cancelled(reason)) -> {
+                            case Some(PopupResult.Cancelled(val reason)) -> {
                                 assertEquals(PopupCancelReason.ExplicitClose, reason)
                                 break
                             }

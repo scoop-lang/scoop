@@ -32,7 +32,7 @@ internal fun upperBound(value: Double, upper: Double): Double =
 
 internal fun insetMaximum(value: Double?, padding: Double): Double? =
     when (value) {
-        case Some(limit) -> Some(lowerBound(limit - padding, 0.0))
+        case Some(val limit) -> Some(lowerBound(limit - padding, 0.0))
         case None -> None
     }
 
@@ -51,6 +51,6 @@ internal fun offsetMetrics(child: LayoutMetrics, size: Size, y: Double): LayoutM
 
 private fun offsetBaseline(value: Double?, y: Double): Double? =
     when (value) {
-        case Some(baseline) -> Some(baseline + y)
+        case Some(val baseline) -> Some(baseline + y)
         case None -> None
     }

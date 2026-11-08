@@ -19,18 +19,18 @@ private fun fallback(body: () -> String) {
 private fun requestDetails(level: LogLevel, target: String, location: SourceLocation?): String {
     val text = f"level=${level} target=${target}"
     return when (location) {
-        case Some(source) -> text + f" source=${source.file}:${source.line}:${source.column}"
+        case Some(val source) -> text + f" source=${source.file}:${source.line}:${source.column}"
         case None -> text
     }
 }
 
 private fun exceptionDetails(cause: Throwable?, messageFailure: Throwable?): String {
     val original = when (cause) {
-        case Some(failure) -> " cause=" + logExceptionSummary(failure)
+        case Some(val failure) -> " cause=" + logExceptionSummary(failure)
         case None -> ""
     }
     return original + when (messageFailure) {
-        case Some(failure) -> " messageFailure=" + logExceptionSummary(failure)
+        case Some(val failure) -> " messageFailure=" + logExceptionSummary(failure)
         case None -> ""
     }
 }

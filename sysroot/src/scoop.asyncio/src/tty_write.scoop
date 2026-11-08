@@ -44,7 +44,7 @@ internal suspend fun writeTty(owner: OwnedEndpoint, buffer: NativeByteBuffer, co
                             event, selected ->
                             progress.count = resultProgress(event.result)
                             when (completionFailure("TTY write", event.result, selected)) {
-                                case Some(error) -> continuation.resumeWithException(error)
+                                case Some(val error) -> continuation.resumeWithException(error)
                                 case None -> {
                                     if (progress.count == 0L)
                                         continuation.resumeWithException(WriteZeroException())

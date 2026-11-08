@@ -110,7 +110,7 @@ private class SliderTestLayout(
             {
                 context,
                 event -> when (event) {
-                    case Pointer(InputPointerEvent.Moved(point)) -> {
+                    case Pointer(InputPointerEvent.Moved(val point)) -> {
                         p.lastX = point.state.logicalPosition.x;
                         p.lastY = point.state.logicalPosition.y;
                         p.moves += 1

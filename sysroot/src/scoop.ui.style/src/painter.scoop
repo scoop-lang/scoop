@@ -54,7 +54,7 @@ public class StylePainter public constructor(): Closeable {
                 if (style.clipContent)
                     local.clipPath(drawing.paths!!.outline)
                 when (drawing.filter) {
-                    case Some(value) -> local.saveLayer(filter = Some(value))
+                    case Some(val value) -> local.saveLayer(filter = Some(value))
                     case None -> {}
                 }
                 local.withState(content)
@@ -86,7 +86,7 @@ public class StylePainter public constructor(): Closeable {
                 if (style.clipContent)
                     local.clipPath(drawing.paths!!.outline)
                 when (drawing.filter) {
-                    case Some(value) -> local.saveLayer(filter = Some(value))
+                    case Some(val value) -> local.saveLayer(filter = Some(value))
                     case None -> {}
                 }
                 local.withState(content)
@@ -104,7 +104,7 @@ public class StylePainter public constructor(): Closeable {
 
     private fun prepare(bounds: Rect, style: Style, direction: LayoutDirection): DecorationDrawing {
         when (style.background) {
-            case Some(value) -> requireStyle(
+            case Some(val value) -> requireStyle(
                 value.style == PaintingStyle.Fill,
                 "style background must be a fill"
             )
@@ -128,7 +128,7 @@ public class StylePainter public constructor(): Closeable {
                 mask.restore()
             }
         when (style.background) {
-            case Some(paint) -> canvas.drawPath(drawing.paths!!.outline, paint)
+            case Some(val paint) -> canvas.drawPath(drawing.paths!!.outline, paint)
             case None -> {}
         }
     }
@@ -136,7 +136,7 @@ public class StylePainter public constructor(): Closeable {
         val paths = drawing.paths ?: return
         val ring = paths.border ?: return
         when (drawing.edges.uniformColor()) {
-            case Some(color) -> canvas.drawPath(ring, Paint(color))
+            case Some(val color) -> canvas.drawPath(ring, Paint(color))
             case None -> canvas.withState {
                 local ->
                 local.clipRect(bounds)

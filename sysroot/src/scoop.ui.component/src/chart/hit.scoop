@@ -27,12 +27,12 @@ internal fun chartHit(
     if (geometry.kind == ChartKind.Pie) {
         val selected =
             when (active) {
-                case Some(key) -> geometry.find(key);
+                case Some(val key) -> geometry.find(key);
                 case None -> None
             }
         when (selected) {
-            case Some(sample) -> when (sample.shape) {
-                case Sector(arc) -> {
+            case Some(val sample) -> when (sample.shape) {
+                case Sector(val arc) -> {
                     if (arc.expanded().contains(point))
                         return Some(sample.selection)
                 }
@@ -47,13 +47,13 @@ internal fun chartHit(
     for (series in geometry.series)
         for (entry in series.samples)
             when (entry) {
-                case Some(sample) -> if (sample.visible) {
+                case Some(val sample) -> if (sample.visible) {
                     when (sample.shape) {
-                        case Sector(arc) -> {
+                        case Sector(val arc) -> {
                             if (arc.contains(point))
                                 return Some(sample.selection)
                         }
-                        case Rectangle(bounds) -> if (
+                        case Rectangle(val bounds) -> if (
                             bounds.width > 0.0 && bounds.height > 0.0 && chartInside(bounds, point)
                         )
                             return Some(sample.selection);
@@ -104,11 +104,11 @@ internal fun chartNavigate(
     var selectedSeries = 0L;
     var selectedDatum = -1L
     when (selection) {
-        case Some(key) -> for (s in 0L ..< geometry.series.size) {
+        case Some(val key) -> for (s in 0L ..< geometry.series.size) {
             val series = geometry.series[s]
             for (at in 0L ..< series.samples.size)
                 when (series.samples[at]) {
-                    case Some(value) -> if (value.selection == key) {
+                    case Some(val value) -> if (value.selection == key) {
                         selectedSeries = s;
                         selectedDatum = at
                     };
@@ -123,7 +123,7 @@ internal fun chartNavigate(
         var at = selectedSeries + seriesStep
         while (at >= 0L && at < geometry.series.size) {
             when (geometry.series[at].samples[selectedDatum]) {
-                case Some(value) -> if (value.visible)
+                case Some(val value) -> if (value.visible)
                     return Some(value.selection);
                 case None -> {}
             }
@@ -162,7 +162,7 @@ internal fun chartNavigate(
         for (offset in 0L ..< candidates) {
             val s = (selectedSeries + offset) % geometry.series.size
             when (geometry.series[s].samples[at]) {
-                case Some(value) -> if (value.visible)
+                case Some(val value) -> if (value.visible)
                     return Some(value.selection);
                 case None -> {}
             }

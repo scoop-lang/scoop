@@ -16,9 +16,9 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     val tail: Chain = Chain.End
     val chain = Chain.Next(Reference(Link(tail)))
     val ended: Boolean = when (chain) {
-        case Next(reference) -> when (reference.link.value) {
+        case Next(val reference) -> when (reference.link.value) {
             case End -> true
-            case Next(next) -> false
+            case Next(val next) -> false
         }
         case End -> false
     }

@@ -8,7 +8,7 @@ import scoop.time.Duration
 private fun sseFailureText(error: Throwable?): String =
     when (error) {
         case None -> "no failure"
-        case Some(value) -> if (value is ResourceUseException)
+        case Some(val value) -> if (value is ResourceUseException)
             sseFailureText(Some(value.primaryFailure)) +
                 "; cleanup: " +
                 sseFailureText(Some(value.cleanupFailure))

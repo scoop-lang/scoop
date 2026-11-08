@@ -75,7 +75,7 @@ private class LinuxHandler: ApplicationHandler {
                 case NewEvents(StartCause.Deadline) -> fail(
                     Some("Linux window lifecycle timed out")
                 )
-                case Window(identity, WindowEvent.RedrawRequested) -> {
+                case Window(val identity, WindowEvent.RedrawRequested) -> {
                     if (identity == window!!.id) {
                         val value = window!!
                         assertEquals(WindowState.Open, value.state)
@@ -88,7 +88,7 @@ private class LinuxHandler: ApplicationHandler {
                                 @Unsafe
                                 {
                                     when (lease!!.handle) {
-                                        case Gtk(native, view) -> assertEquals(
+                                        case Gtk(val native, val view) -> assertEquals(
                                             1,
                                             sendGtkInput(native, view)
                                         )
@@ -126,7 +126,7 @@ private class LinuxHandler: ApplicationHandler {
                                 }
                     }
                 }
-                case Window(identity, WindowEvent.Closing) -> {
+                case Window(val identity, WindowEvent.Closing) -> {
                     closing += 1
                     if (identity == window!!.id) {
                         val held = lease!!
@@ -140,7 +140,7 @@ private class LinuxHandler: ApplicationHandler {
                     }
                 }
                 case Window(_, WindowEvent.Destroyed) -> destroyed += 1
-                case Window(_, WindowEvent.Keyboard(key)) -> {
+                case Window(_, WindowEvent.Keyboard(val key)) -> {
                     assertEquals(PhysicalKey.Code(KeyCode.KeyA), key.physicalKey)
                     assertEquals(LogicalKey.Character("a"), key.logicalKey)
                     if (key.state == ElementState.Pressed)
@@ -148,17 +148,17 @@ private class LinuxHandler: ApplicationHandler {
                     else
                         keyUp += 1
                 }
-                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                     for (operation in batch.operations)
                         when (operation) {
-                            case Commit(value, _) -> text += value
+                            case Commit(val value, _) -> text += value
                             else -> fail(Some("ordinary XKB key produced a composition"))
                         }
                 }
-                case Window(_, WindowEvent.Pointer(event)) -> {
+                case Window(_, WindowEvent.Pointer(val event)) -> {
                     when (event) {
                         case Button(_, _, _, _) -> buttons += 1
-                        case Wheel(_, delta, _, _) -> wheels.add(delta)
+                        case Wheel(_, val delta, _, _) -> wheels.add(delta)
                         else -> {}
                     }
                 }
@@ -174,11 +174,11 @@ private class LinuxHandler: ApplicationHandler {
                     }"
                 )
                 when (error.expected) {
-                    case Text(value) -> println(f"expected: ${value}")
+                    case Text(val value) -> println(f"expected: ${value}")
                     else -> {}
                 }
                 when (error.actual) {
-                    case Text(value) -> println(f"actual: ${value}")
+                    case Text(val value) -> println(f"actual: ${value}")
                     else -> {}
                 }
             } else
@@ -245,7 +245,7 @@ private class LinuxHandler: ApplicationHandler {
             val held = value.acquireNativeWindow()
             lease = Some(held)
             when (held.handle) {
-                case Gtk(native, view) -> {
+                case Gtk(val native, val view) -> {
                     x11 = usesX11(native)
                     assertTrue(native.toULong() != 0uL && view.toULong() != 0uL)
                     assertEquals(WindowState.PendingConfigure, value.state)
@@ -308,7 +308,7 @@ private class LinuxHandler: ApplicationHandler {
         @Unsafe
         {
             when (lease!!.handle) {
-                case Gtk(native, _) -> {
+                case Gtk(val native, _) -> {
                     val expected =
                         if (x11 && !isComposited(native))
                             RequestStatus.Unsupported

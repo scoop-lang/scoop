@@ -52,7 +52,7 @@ internal fun decimalParse(text: String): DecimalValue? {
 }
 
 internal fun decimalRequireParsed(text: String): DecimalValue = when (decimalParse(text)) {
-    case Some(value) -> value
+    case Some(val value) -> value
     case None -> throw NumberFormatException("invalid decimal")
 }
 

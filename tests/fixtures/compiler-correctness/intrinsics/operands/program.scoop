@@ -26,7 +26,7 @@ fun operations() {
     check(convert() == 12L && !bit() && floating(2.0) == 3.5)
     check(code == 65 && narrow() == 1 && compare('B') < 0L)
     check(through(Some(8), fun(value: Option<Int>): Int { return when (value) {
-        case Some(item) -> item
+        case Some(val item) -> item
         case None -> 0
     } }) == 4)
     try { divide(0) } catch (error: ArithmeticException) { println("zero") }

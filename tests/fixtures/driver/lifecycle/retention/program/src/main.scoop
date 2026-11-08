@@ -47,7 +47,7 @@ fun main() {
     when (result) {
         case TestResult.Passed -> fail(Some("expected both failures"))
         case TestResult.Failed(_, None) -> fail(Some("missing cleanup failure"))
-        case TestResult.Failed(first, Some(second)) -> {
+        case TestResult.Failed(val first, Some(val second)) -> {
             assertTrue(first.phase == TestPhase.Body)
             assertTrue(first.location == assertionSite)
             val cause = first.cause
@@ -56,11 +56,11 @@ fun main() {
                 assertEquals("assertEquals", cause.kind)
                 assertTrue(cause.message == Some("original failure"))
                 assertTrue(when (cause.expected) {
-                    case AssertionValue.Text(text) -> text == "1"
+                    case AssertionValue.Text(val text) -> text == "1"
                     else -> false
                 })
                 assertTrue(when (cause.actual) {
-                    case AssertionValue.Text(text) -> text == "2"
+                    case AssertionValue.Text(val text) -> text == "2"
                     else -> false
                 })
             }

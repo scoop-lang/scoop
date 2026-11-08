@@ -52,11 +52,11 @@ private class HttpRequestObservationWebSocketTest {
                                 }
                             ) suspend {
                                 result -> when (result) {
-                                    case Opened(session) -> {
+                                    case Opened(val session) -> {
                                         assertEquals(Some(101U), session.metrics!!.status)
                                         checkRequestObservation(session.metrics!!)
                                     }
-                                    case Rejected(_, error) -> throw error
+                                    case Rejected(_, val error) -> throw error
                                 }
                             }
                         }

@@ -134,7 +134,7 @@ private fun runAuthWs(mode: String, port: Int) {
                     } else
                         client.withWebSocket(request) suspend {
                             result -> when (result) {
-                                case Opened(session) -> {
+                                case Opened(val session) -> {
                                     assertEquals("application", wsAuthContext())
                                     assertEquals(
                                         if (proxy)
@@ -154,7 +154,7 @@ private fun runAuthWs(mode: String, port: Int) {
                                     assertEquals("authenticated", session.receive()!!.readText())
                                     session.shutdownGracefully()
                                 }
-                                case Rejected(_, error) -> throw error
+                                case Rejected(_, val error) -> throw error
                             }
                         }
                 }

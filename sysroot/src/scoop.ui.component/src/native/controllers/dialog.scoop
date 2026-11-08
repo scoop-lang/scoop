@@ -46,7 +46,7 @@ public class NativeDialogController<T> internal constructor(
                 return@request false
             val relation =
                 when (target) {
-                    case Owner(window) -> WindowRelation.Owned(window)
+                    case Owner(val window) -> WindowRelation.Owned(window)
                     case Application -> WindowRelation.Independent
                 }
             val modal =

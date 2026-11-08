@@ -126,8 +126,8 @@ private suspend fun runClientCallScope(call: ClientCall) {
             )
             val connection =
                 when (awaitClientConnection(call)) {
-                    case Connected(_connection) -> _connection
-                    case Authenticate(session) -> {
+                    case Connected(val _connection) -> _connection
+                    case Authenticate(val session) -> {
                         requireClientCall(call)
                         selectClientFollowUp(call, ClientFollowUp.Authenticate(session))
                         return@coroutineScope

@@ -86,11 +86,11 @@ private class MetalWindowHandler(val closeAfterFrame: Boolean): ApplicationHandl
                 }
             }
             case Window(_, WindowEvent.CloseRequested) -> application.requestExit()
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                 text = text.apply(batch)
                 window!!.setTitle("Scoop · Metal · " + text.surroundingText)
             }
-            case Window(_, WindowEvent.Keyboard(value)) -> {
+            case Window(_, WindowEvent.Keyboard(val value)) -> {
                 if (
                     value.logicalKey ==
                         LogicalKey.Named(NamedKey.Escape) &&
@@ -101,7 +101,7 @@ private class MetalWindowHandler(val closeAfterFrame: Boolean): ApplicationHandl
             }
             case Window(_, WindowEvent.Closing) -> {
                 when (surface) {
-                    case Some(value) -> value.close();
+                    case Some(val value) -> value.close();
                     case None -> {}
                 }
                 closed = true

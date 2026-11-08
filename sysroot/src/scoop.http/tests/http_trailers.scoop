@@ -28,7 +28,7 @@ private class HttpTrailerEncodingTest {
                 assertEquals(1L, http1EndCount(events))
                 var count = 0
                 for (event in events) when (event) {
-                    case Trailers(actual) -> {
+                    case Trailers(val actual) -> {
                         assertEquals(2L, actual.size)
                         assertEquals("first", String.fromUtf8(actual[0L].value))
                         assertEquals(255.toByte(), actual[1L].value[0L])
@@ -62,7 +62,7 @@ private class HttpTrailerEncodingTest {
             assertEquals(1, ends2(events, id))
             var count = 0
             for (event in events) when (event) {
-                case Trailers(stream, actual) -> {
+                case Trailers(val stream, val actual) -> {
                     assertEquals(id, stream)
                     assertEquals(2L, actual.size)
                     assertEquals("first", String.fromUtf8(actual[0L].value))

@@ -34,7 +34,7 @@ private fun readTerminalActive(terminal: TerminalSession, prompt: String, sessio
             }
         }
         when (result) {
-            case Accepted(line) -> return line
+            case Accepted(val line) -> return line
             case Eof -> throw ReadlineEofException()
             case Interrupted -> throw ReadlineInterruptedException()
             case Suspended -> suspendCurrentProcess()
@@ -49,7 +49,7 @@ private fun terminalLoop(terminal: TerminalSession, prompt: String, session: Edi
     renderer.draw(renderLine(prompt, session, size.columns, size.rows))
     while (true) {
         when (val printer = session.printer) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val messages = value.drain()
                 if (messages.size > 0L) {
                     renderer.erase()
@@ -142,7 +142,7 @@ private fun showCandidates(terminal: TerminalSession, session: EditingSession, r
         terminal.flush()
         val event = terminal.read()
         val accept = when (event) {
-            case Key(key) -> key.code == KeyCode.Char('y') || key.code == KeyCode.Char('Y') || key.code == KeyCode.Tab
+            case Key(val key) -> key.code == KeyCode.Char('y') || key.code == KeyCode.Char('Y') || key.code == KeyCode.Tab
             else -> false
         }
         terminal.writeText("\r\n")
@@ -159,7 +159,7 @@ private fun showCandidates(terminal: TerminalSession, session: EditingSession, r
             terminal.flush()
             val event = terminal.read()
             val quit = when (event) {
-                case Key(key) -> key.code == KeyCode.Char('q') || key.code == KeyCode.Esc || controlCharacter(key) == Some('c')
+                case Key(val key) -> key.code == KeyCode.Char('q') || key.code == KeyCode.Esc || controlCharacter(key) == Some('c')
                 else -> false
             }
             terminal.writeText("\r\u001b[K")

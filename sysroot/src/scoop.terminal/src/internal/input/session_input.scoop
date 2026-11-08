@@ -29,8 +29,8 @@ internal class SessionInput(escapeDelay: Duration) {
         while (true) {
             when (reader.next(terminal, inputRemaining(started, timeout))) {
                 case None -> return false
-                case Some(InputItem.User(event)) -> { ready = Some(event); return true }
-                case Some(InputItem.Invalid(detail)) -> throw TerminalInputException(detail)
+                case Some(InputItem.User(val event)) -> { ready = Some(event); return true }
+                case Some(InputItem.Invalid(val detail)) -> throw TerminalInputException(detail)
                 // Unsolicited device replies are not user input.
                 case Some(_) -> {}
             }

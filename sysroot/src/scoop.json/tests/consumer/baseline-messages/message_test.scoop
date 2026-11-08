@@ -16,7 +16,7 @@ fun messagesBaseline(moving: Boolean) {
     }
     val request = Json.decodeFromString(messagesRequestText(), MessagesRequest.Companion)
     check(request.messages.size == 2L && request.tools!!.size == 7L)
-    check(when (request.messages[1L].content) { case Content.Blocks(blocks) -> blocks.size == 15L; else -> false })
+    check(when (request.messages[1L].content) { case Content.Blocks(val blocks) -> blocks.size == 15L; else -> false })
     val encoded = Json.encodeToString(request, MessagesRequest.Companion)
     check(Json.encodeToString(Json.decodeFromString(encoded, MessagesRequest.Companion), MessagesRequest.Companion) == encoded)
     for (text in extraBlocks()) {
@@ -38,8 +38,8 @@ fun messagesBaseline(moving: Boolean) {
     val response = Json.decodeFromString(messageBodyText(), ExtendedCodec)
     check(response.message.content.size == 4L && response.message.usage.cache_read_input_tokens == Some(3L))
     check(response.message.stop_reason == Some("tool_use") && response.message.stop_sequence == None)
-    check(when (response.message.content[0L]) { case Block.Text(value) -> value.citations!!.size == 5L; else -> false })
-    check(when (response.message.content[1L]) { case Block.Thinking(value) -> value.signature == "signed+/==\n"; else -> false })
+    check(when (response.message.content[0L]) { case Block.Text(val value) -> value.citations!!.size == 5L; else -> false })
+    check(when (response.message.content[1L]) { case Block.Thinking(val value) -> value.signature == "signed+/==\n"; else -> false })
     check(Json.encodeToString(response.extra["future/~"]!!, JsonValue.Companion).contains("[18446744073709551616,0.12345678901234567890123456789,1e400,-0]"))
     val saved = Json.encodeToString(response, ExtendedCodec)
     check(Json.encodeToString(Json.decodeFromString(saved, ExtendedCodec), ExtendedCodec) == saved)
@@ -49,15 +49,15 @@ fun messagesBaseline(moving: Boolean) {
     for (text in messageEvents()) {
         val event = Json.decodeFromString(text, MessageEvent.Companion)
         when (event) {
-            case MessageEvent.BlockDelta(value) -> {
+            case MessageEvent.BlockDelta(val value) -> {
                 when (value.delta) {
-                    case Delta.JSON(part) -> { arguments += part.partial_json }
-                    case Delta.Signature(part) -> { signature += part.signature }
+                    case Delta.JSON(val part) -> { arguments += part.partial_json }
+                    case Delta.Signature(val part) -> { signature += part.signature }
                     else -> {}
                 }
             }
-            case MessageEvent.Unknown(raw) -> { check(Json.encodeToString(raw, JsonValue.Companion) == text); unknown += 1L }
-            case MessageEvent.Error(value) -> { check(value.error.type == "overloaded_error") }
+            case MessageEvent.Unknown(val raw) -> { check(Json.encodeToString(raw, JsonValue.Companion) == text); unknown += 1L }
+            case MessageEvent.Error(val value) -> { check(value.error.type == "overloaded_error") }
             else -> {}
         }
         val canonical = Json.encodeToString(event, MessageEvent.Companion)

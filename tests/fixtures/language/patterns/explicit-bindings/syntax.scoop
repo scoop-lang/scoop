@@ -1,0 +1,6 @@
+fun wildcard(value: Int) { when(value) { case val _ -> {} } }
+fun mutable(value: Int) { when(value) { case var item -> {} } }
+fun grouped(value: (Int, Int)) { when(value) { case val (x, y) -> {} } }
+fun annotation(value: Int) { when(value) { case val item: Int -> {} } }
+fun declaration() { val (val first, second) = (1, 2) }
+fun main() {}

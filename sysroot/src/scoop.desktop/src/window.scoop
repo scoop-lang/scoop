@@ -84,17 +84,17 @@ public class DesktopWindow internal constructor(private val owner: DesktopWindow
         when (progress) {
             case None -> {}
             case Indeterminate -> state = 1
-            case Normal(value, limit) -> {
+            case Normal(val value, val limit) -> {
                 state = 2;
                 completed = value;
                 total = limit
             }
-            case Paused(value, limit) -> {
+            case Paused(val value, val limit) -> {
                 state = 3;
                 completed = value;
                 total = limit
             }
-            case Error(value, limit) -> {
+            case Error(val value, val limit) -> {
                 state = 4;
                 completed = value;
                 total = limit

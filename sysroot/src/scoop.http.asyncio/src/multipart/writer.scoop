@@ -47,7 +47,7 @@ internal class MultipartWriter(sink: AsyncByteSink, owner: AsyncCloseable?, loop
     suspend fun flush(part: MultipartPartWriter?) {
         io.run({
             when (part) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     if (value.closed) throw IoClosedException()
                     if (!value.complete) requirePart(value)
                 }

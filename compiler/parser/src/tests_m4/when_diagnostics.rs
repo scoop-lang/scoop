@@ -5,24 +5,24 @@ use super::*;
 #[test]
 fn when_rest_twice_in_positional_pattern() {
     let (span, message) =
-        err("fun main() {\n    when (s) {\n        case V(a, .., ..) -> { }\n    }\n}\n");
-    assert_eq!(span, Span::new(50, 52));
+        err("fun main() {\n    when (s) {\n        case V(val a, .., ..) -> { }\n    }\n}\n");
+    assert_eq!(span, Span::new(54, 56));
     assert_eq!(message, "`..` may appear at most once in a pattern");
 }
 
 #[test]
 fn when_rest_twice_in_tuple_pattern() {
     let (span, message) =
-        err("fun main() {\n    when (s) {\n        case (a, .., b, ..) -> { }\n    }\n}\n");
-    assert_eq!(span, Span::new(52, 54));
+        err("fun main() {\n    when (s) {\n        case (val a, .., val b, ..) -> { }\n    }\n}\n");
+    assert_eq!(span, Span::new(60, 62));
     assert_eq!(message, "`..` may appear at most once in a pattern");
 }
 
 #[test]
 fn when_rest_must_be_last_in_field_pattern() {
     let (span, message) =
-        err("fun main() {\n    when (s) {\n        case S { .., x } -> { }\n    }\n}\n");
-    assert_eq!(span, Span::new(49, 50));
+        err("fun main() {\n    when (s) {\n        case S { .., val x } -> { }\n    }\n}\n");
+    assert_eq!(span, Span::new(53, 54));
     assert_eq!(message, "`..` must be the last element in a field pattern");
 }
 

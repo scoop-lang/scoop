@@ -15,7 +15,7 @@ internal fun recordClientDownloadFailure(download: ClientDownload, error: Throwa
 
 internal fun clientDownloadFailure(download: ClientDownload): Throwable? = download.client.lock.withLock {
     when (download.cleanupFailure) {
-        case Some(cleanup) -> Some(clientCombined(download.failure, cleanup))
+        case Some(val cleanup) -> Some(clientCombined(download.failure, cleanup))
         case None -> download.failure
     }
 }

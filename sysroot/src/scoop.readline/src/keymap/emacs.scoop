@@ -3,7 +3,7 @@ package scoop.readline
 import scoop.terminal.event.*
 
 internal fun keyCharacter(key: KeyEvent): Char? = when (key.code) {
-    case Char(character) -> Some(character)
+    case Char(val character) -> Some(character)
     else -> None
 }
 
@@ -62,7 +62,7 @@ internal fun emacsCommand(key: KeyEvent, count: Long, negative: Boolean): Comman
         else -> Command.Unknown
     }
     return when (key.code) {
-        case Char(character) -> Command.Insert(character.toString(), count)
+        case Char(val character) -> Command.Insert(character.toString(), count)
         case Backspace -> Command.Kill(if (key.modifiers.has(KeyModifier.Alt)) Movement.BackwardWord(count) else backward)
         case Delete -> Command.Kill(forward)
         case Left -> Command.Move(if (key.modifiers.has(KeyModifier.Control) || key.modifiers.has(KeyModifier.Alt)) Movement.BackwardWord(count) else backward)

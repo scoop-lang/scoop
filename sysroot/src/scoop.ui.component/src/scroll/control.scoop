@@ -154,7 +154,7 @@ internal class ScrollControl(
                 if (input.chain == ScrollChain.Contain)
                     context.preventDefault()
             }
-            case Keyboard(key) -> {
+            case Keyboard(val key) -> {
                 if (context.target === area.scope && scrollKey(state, input.axes, direction, key))
                     context.consume()
             }

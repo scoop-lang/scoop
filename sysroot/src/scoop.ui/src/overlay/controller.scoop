@@ -20,7 +20,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         val boundary = root.surface.inputBoundary ?: return None
         for (session in focusSessions) {
             when (session.boundary) {
-                case Some(value) -> if (value === boundary)
+                case Some(val value) -> if (value === boundary)
                     return Some(session)
                 case None -> {}
             }
@@ -64,7 +64,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 if (root.isOpen) {
                     focusSessions.add(session)
                     when (value.retirementRevision) {
-                        case Some(revision) -> session.beginClose(revision)
+                        case Some(val revision) -> session.beginClose(revision)
                         case None -> {}
                     }
                 } else
@@ -79,7 +79,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             val session = portal.focusSession
             portal.domain =
                 when (session) {
-                    case Some(value) -> if (value.isModal)
+                    case Some(val value) -> if (value.isModal)
                         Some(value)
                     else
                         containingModal(portal.node.parent)
@@ -114,7 +114,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         for (portal in sessions) {
             val included = portal.included
             when (included) {
-                case Some(value) -> if (value !== frame)
+                case Some(val value) -> if (value !== frame)
                     portal.node.clearPaintSubtree()
                 case None -> portal.node.clearPaintSubtree()
             }
@@ -127,11 +127,11 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 continue
             val anchor =
                 when (portal.anchor) {
-                    case Some(handle) -> {
+                    case Some(val handle) -> {
                         val geometry = handle.geometry(frame)
                         val usable =
                             when (geometry) {
-                                case Some(value) -> value.visible ||
+                                case Some(val value) -> value.visible ||
                                     portal.options.anchorVisibility ==
                                     AnchorVisibility.KeepVisible
                                 case None -> false
@@ -162,7 +162,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             result.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
             portal.presented = Some(frame)
             when (portal.focusSession) {
-                case Some(modal) -> modal.presented = Some(frame)
+                case Some(val modal) -> modal.presented = Some(frame)
                 case None -> {}
             }
         }

@@ -15,9 +15,9 @@ internal class ThemeAccess {
     fun read(explicit: ThemeSource?): Theme {
         val source =
             when (explicit) {
-                case Some(value) -> value
+                case Some(val value) -> value
                 case None -> when (ambient) {
-                    case Some(value) -> value
+                    case Some(val value) -> value
                     case None -> {
                         val value = currentThemeSource()
                         ambient = Some(value)
@@ -36,6 +36,6 @@ internal fun InteractionState.asVisual(
 
 internal fun sameTheme(previous: Theme?, current: Theme): Boolean =
     when (previous) {
-        case Some(value) -> value === current
+        case Some(val value) -> value === current
         case None -> false
     }

@@ -20,14 +20,14 @@ public class RequestPart internal constructor(part: MultipartPart, owner: Reques
     /** The raw filename parameter; missing and empty filenames remain distinct. */
     public val filenameBytes: Array<Byte>? = when (disposition.parameter("filename")) {
         case None -> None
-        case Some(value) -> Some(value.value)
+        case Some(val value) -> Some(value.value)
     }
     /** The name interpreted strictly as UTF-8. */
     public val name: String get() = inputText(nameBytes, "multipart name")
     /** The optional filename interpreted strictly as UTF-8, without path processing. */
     public val filename: String? get() = when (filenameBytes) {
         case None -> None
-        case Some(value) -> Some(inputText(value, "multipart filename"))
+        case Some(val value) -> Some(inputText(value, "multipart filename"))
     }
     /** Whether this part reached its boundary through a positive-sized read or discard. */
     public val isComplete: Boolean get() = input.isComplete

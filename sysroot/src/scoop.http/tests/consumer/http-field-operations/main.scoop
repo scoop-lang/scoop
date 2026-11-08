@@ -24,8 +24,8 @@ private fun exercise(wire: Array<Byte>) {
                     when (event) {
                         case None -> break
                         case Some(_) -> when (event!!) {
-                            case Response(head) -> for (field in head.fields) fields.add(field)
-                            case End(keepAlive) -> ended.add(keepAlive)
+                            case Response(val head) -> for (field in head.fields) fields.add(field)
+                            case End(val keepAlive) -> ended.add(keepAlive)
                             case Data(_) -> throw IllegalStateException()
                             else -> {}
                         }

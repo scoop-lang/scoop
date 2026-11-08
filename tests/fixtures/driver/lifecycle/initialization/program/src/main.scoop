@@ -24,7 +24,7 @@ fun checkConstruction(trace: Trace, part: Int, construct: () -> Unit) {
     }
     when (result) {
         case TestResult.Passed -> fail(Some("expected construction failure"))
-        case TestResult.Failed(error, None) -> {
+        case TestResult.Failed(val error, None) -> {
             assertTrue(error.phase == TestPhase.Initialization)
             assertTrue(error.location == location)
             val cause = error.cause

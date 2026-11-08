@@ -171,7 +171,7 @@ private suspend fun consume(channel: Channel<Int>, state: WorkerState) {
     var receiving = true
     while (receiving) {
         when (channel.receiveOrNone()) {
-            case Some(value) -> state.mutex.withLock { state.total += value }
+            case Some(val value) -> state.mutex.withLock { state.total += value }
             case None -> receiving = false
         }
     }

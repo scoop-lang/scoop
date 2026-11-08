@@ -62,7 +62,7 @@ public class NativeApplicationLease internal constructor(
         requireWindow(window.owner.application === owner, "window belongs to another application")
         val lease = window.acquireNativeWindow()
         when (requestClose) {
-            case Some(callback) -> lease.onClosing(callback)
+            case Some(val callback) -> lease.onClosing(callback)
             case None -> {}
         }
         return lease

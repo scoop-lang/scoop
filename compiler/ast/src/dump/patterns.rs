@@ -3,7 +3,7 @@ use super::super::*;
 /// Compact one-line pattern rendering for dumps.
 pub fn dump_pattern(pattern: &Pattern) -> String {
     match pattern {
-        Pattern::Binding(name) => name.text.clone(),
+        Pattern::Binding(name) | Pattern::BareVariant(name) => name.text.clone(),
         Pattern::Wildcard { .. } => "_".to_string(),
         Pattern::Literal { value, .. } => dump_literal(value),
         Pattern::Positional {

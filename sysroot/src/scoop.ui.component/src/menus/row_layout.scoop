@@ -67,7 +67,7 @@ internal class MenuRowLayout(
                 return@addDefaultAction
             val key =
                 when (event) {
-                    case Keyboard(value) -> value;
+                    case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
             if (menuKeyAllowed(key) && menuBackward(key, scope.layoutDirection) == Some(false)) {

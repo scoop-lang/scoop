@@ -70,7 +70,7 @@ internal fun linuxEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEdi
             else -> None
         }
     when (movement) {
-        case Some(value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
+        case Some(val value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
         case None -> {}
     }
     return when (key) {

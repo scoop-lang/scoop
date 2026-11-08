@@ -24,7 +24,7 @@ internal suspend fun openClientSseResponse(state: ClientSseState) {
         state.response = Some(response)
         state.lastCall = Some(response.call)
         when (state.info) {
-            case Some(info) -> { info.url = response.url; info.head = response.head }
+            case Some(val info) -> { info.url = response.url; info.head = response.head }
             case None -> state.info = Some(ClientSseInfo(response.url, response.head))
         }
     }

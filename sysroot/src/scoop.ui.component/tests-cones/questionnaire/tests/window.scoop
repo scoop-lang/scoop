@@ -85,7 +85,7 @@ internal class QuestionnaireProbe {
     }
     fun focus(name: String): FocusHandle {
         when (choices.get(name)) {
-            case Some(value) -> return value;
+            case Some(val value) -> return value;
             case None -> {}
         }
         val value = FocusHandle();

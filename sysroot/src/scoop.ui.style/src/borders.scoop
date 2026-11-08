@@ -34,7 +34,7 @@ public struct BorderEdges(
             if (edge.width == 0.0)
                 continue
             when (result) {
-                case Some(color) -> if (color != edge.color)
+                case Some(val color) -> if (color != edge.color)
                     return None
                 case None -> result = Some(edge.color)
             }
@@ -59,8 +59,8 @@ public enum Border {
     }
     public fun resolve(direction: LayoutDirection): BorderEdges =
         when (this) {
-            case Physical(edges) -> edges
-            case Logical(start, top, end, bottom) -> if (direction == LayoutDirection.Ltr)
+            case Physical(val edges) -> edges
+            case Logical(val start, val top, val end, val bottom) -> if (direction == LayoutDirection.Ltr)
                 BorderEdges(start, top, end, bottom)
             else
                 BorderEdges(end, top, start, bottom)
@@ -82,8 +82,8 @@ public enum Corners {
     }
     public fun resolve(direction: LayoutDirection): CornerRadii =
         when (this) {
-            case Physical(radii) -> radii
-            case Logical(topStart, topEnd, bottomEnd, bottomStart) -> if (
+            case Physical(val radii) -> radii
+            case Logical(val topStart, val topEnd, val bottomEnd, val bottomStart) -> if (
                 direction == LayoutDirection.Ltr
             )
                 CornerRadii(topStart, topEnd, bottomEnd, bottomStart)

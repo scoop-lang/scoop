@@ -69,7 +69,7 @@ internal fun sliderKeyValue(input: SliderProps, current: Double, key: SliderKey)
     return when (key) {
         case Minimum -> range.minimum
         case Maximum -> range.lastValue
-        case Step(amount) -> {
+        case Step(val amount) -> {
             val step = range.step ?: input.keyboardStep!!
             if (amount > 0.0) {
                 if ((range.maximum - current) / step <= amount)

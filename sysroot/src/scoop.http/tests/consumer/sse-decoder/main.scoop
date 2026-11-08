@@ -17,8 +17,8 @@ private fun exerciseConsumer() {
                     val next = http.nextEvent()
                     when (next) { case None -> break; case Some(_) -> {} }
                     when (next!!) {
-                        case Response(head) -> heads.add(head)
-                        case Data(bytes) -> feedEvents(sse, bytes, events)
+                        case Response(val head) -> heads.add(head)
+                        case Data(val bytes) -> feedEvents(sse, bytes, events)
                         case End(_) -> sse.endInput()
                         else -> {}
                     }
@@ -45,7 +45,7 @@ fun feedEvents(decoder: SseDecoder, bytes: Array<Byte>, output: ArrayList<SseEve
         while (input.readableBytes > 0L) {
             val count = decoder.receive(input)
             when (decoder.nextEvent()) {
-                case Some(event) -> output.add(event)
+                case Some(val event) -> output.add(event)
                 case None -> if (count == 0L) throw IllegalStateException()
             }
         }

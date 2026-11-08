@@ -19,8 +19,8 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
     /** Object member or array element count; other kinds throw DecodingException. */
     public val size: Long get() =
         when (node) {
-            case JsonNode.Record(members) -> members.size
-            case JsonNode.Sequence(elements) -> elements.size
+            case JsonNode.Record(val members) -> members.size
+            case JsonNode.Sequence(val elements) -> elements.size
             else -> throw DecodingException("", "expected an object or array")
         }
 
@@ -41,19 +41,19 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
     /** Returns the original number token without imposing a machine-number range. */
     public fun asNumberToken(): String =
         when (node) {
-            case JsonNode.Number(text) -> text
+            case JsonNode.Number(val text) -> text
             else -> throw DecodingException("", "expected a number")
         }
 
     private fun objectMembers(): ArrayList<JsonMember> =
         when (node) {
-            case JsonNode.Record(members) -> members
+            case JsonNode.Record(val members) -> members
             else -> throw DecodingException("", "expected an object")
         }
 
     private fun arrayElements(): ArrayList<JsonNode> =
         when (node) {
-            case JsonNode.Sequence(elements) -> elements
+            case JsonNode.Sequence(val elements) -> elements
             else -> throw DecodingException("", "expected an array")
         }
 
@@ -181,20 +181,20 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
 internal fun encodeJsonNode(node: JsonNode, encoder: JsonEncoder) {
     when (node) {
         case JsonNode.Null -> encoder.singleValue().writeNull()
-        case JsonNode.BooleanValue(value) -> encoder.singleValue().writeBoolean(value)
-        case JsonNode.Text(text) -> encoder.singleValue().writeString(text)
-        case JsonNode.Number(text) -> {
+        case JsonNode.BooleanValue(val value) -> encoder.singleValue().writeBoolean(value)
+        case JsonNode.Text(val text) -> encoder.singleValue().writeString(text)
+        case JsonNode.Number(val text) -> {
             encoder.singleValue()
             encoder.writeNumberToken(text)
         }
-        case JsonNode.Record(members) -> {
+        case JsonNode.Record(val members) -> {
             val fields = encoder.keyed()
             for (member in members) {
                 encodeJsonNode(member.value, fields.field(member.name) as JsonEncoder)
             }
             fields.end()
         }
-        case JsonNode.Sequence(elements) -> {
+        case JsonNode.Sequence(val elements) -> {
             val sequence = encoder.unkeyed()
             for (element in elements) {
                 encodeJsonNode(element, sequence.element() as JsonEncoder)

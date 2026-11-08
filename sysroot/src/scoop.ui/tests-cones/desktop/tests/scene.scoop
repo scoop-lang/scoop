@@ -83,14 +83,14 @@ internal class RegionContent(
         context.draw { paint -> paint.canvas.drawPath(outline, Paint(Color.White)) }
         if (layout != 3) {
             when (shape) {
-                case Some(value) -> if (layout == 2)
+                case Some(val value) -> if (layout == 2)
                     context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
                 else
                     context.place(value, outline)
                 case None -> {}
             }
             when (inputRegion) {
-                case Some(value) -> if (layout == 2)
+                case Some(val value) -> if (layout == 2)
                     context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
                 else
                     context.place(value, outline)

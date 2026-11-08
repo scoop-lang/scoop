@@ -13,13 +13,13 @@ fun main() {
     while (true) {
         val item = parser.next() ?: break
         when (item) {
-            case InputItem.User(Event.Key(key)) -> println(when (key.code) {
-                case KeyCode.Char(character) -> f"character=${character}"
+            case InputItem.User(Event.Key(val key)) -> println(when (key.code) {
+                case KeyCode.Char(val character) -> f"character=${character}"
                 case KeyCode.Up -> "up"
                 case KeyCode.Esc -> "escape"
                 else -> "other key"
             })
-            case InputItem.Invalid(detail) -> println(detail)
+            case InputItem.Invalid(val detail) -> println(detail)
             else -> println("other terminal event")
         }
     }

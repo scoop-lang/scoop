@@ -61,7 +61,7 @@ fun main() {
 
         val optional: Ptr<Int>? = Some(pointer)
         when (optional) {
-            case Some(present) -> println(present.load())
+            case Some(val present) -> println(present.load())
             case None -> println(0)
         }
     }

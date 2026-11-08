@@ -4,21 +4,21 @@ internal fun MenuOwner.settleUse() {
     if (busy())
         return
     when (use) {
-        case Some(MenuUse.Bar(binding)) -> {
+        case Some(MenuUse.Bar(val binding)) -> {
             if (binding.closed) {
                 @Unsafe
                 {
                     checkNativeStatus(nativeMenuUnbind(pointer!!), "detach menu bar")
                 }
                 when (binding.window) {
-                    case Some(window) -> window.leases -= 1L
+                    case Some(val window) -> window.leases -= 1L
                     case None -> {}
                 }
                 use = None
                 binding.didDetach()
             }
         }
-        case Some(MenuUse.Native(lease)) -> {
+        case Some(MenuUse.Native(val lease)) -> {
             if (lease.closed) {
                 @Unsafe
                 {
@@ -61,11 +61,11 @@ internal fun ApplicationOwner.drainMenus() {
 internal fun ApplicationOwner.closeWindowMenus(window: WindowOwner) {
     for (menu in menus.toArray()) {
         when (menu.use) {
-            case Some(MenuUse.Bar(binding)) -> {
+            case Some(MenuUse.Bar(val binding)) -> {
                 if (sameMenuWindow(binding.window, Some(window)))
                     binding.close()
             }
-            case Some(MenuUse.Popup(session)) -> {
+            case Some(MenuUse.Popup(val session)) -> {
                 if (session.window === window)
                     session.cancel(PopupCancelReason.TargetClosed)
             }
@@ -81,8 +81,8 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
         return None
     val source =
         when (use) {
-            case Bar(binding) -> when (binding.window) {
-                case Some(window) -> MenuSource.WindowMenuBar(window.id)
+            case Bar(val binding) -> when (binding.window) {
+                case Some(val window) -> MenuSource.WindowMenuBar(window.id)
                 case None -> MenuSource.ApplicationMenuBar(
                     if (event.d == 0L)
                         None
@@ -90,8 +90,8 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
                         Some(WindowId(event.d))
                 )
             }
-            case Popup(session) -> MenuSource.Popup(session.id, session.window.id)
-            case Native(lease) -> MenuSource.Native(lease.id)
+            case Popup(val session) -> MenuSource.Popup(session.id, session.window.id)
+            case Native(val lease) -> MenuSource.Native(lease.id)
         }
     return Some(
         ApplicationEvent.Menu(
@@ -112,7 +112,7 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
 internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): ApplicationEvent? {
     val menu = findMenu(event.a) ?: return None
     when (menu.use) {
-        case Some(MenuUse.Popup(session)) -> {
+        case Some(MenuUse.Popup(val session)) -> {
             if (session.serial == event.c)
                 return session.completeNative(event.b)
         }
@@ -124,7 +124,7 @@ internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): Applicati
 internal fun ApplicationOwner.deliverMenu(activation: MenuActivation) {
     deliverBusiness {
         when (activation.target) {
-            case Some(id) -> {
+            case Some(val id) -> {
                 val target = findWindow(id.value) ?: return@deliverBusiness
                 if (target.inputBlocked || target.phase != WindowState.Open)
                     return@deliverBusiness
@@ -132,10 +132,10 @@ internal fun ApplicationOwner.deliverMenu(activation: MenuActivation) {
             case None -> {}
         }
         when (findMenu(activation.menu.value)) {
-            case Some(menu) -> {
+            case Some(val menu) -> {
                 if (menu.phase == MenuState.Open && activation.use.acceptsActions()) {
                     when (menu.findItem(activation.item)) {
-                        case Some(node) -> {
+                        case Some(val node) -> {
                             if (
                                 node.enabled() &&
                                     node.prepared.kind <

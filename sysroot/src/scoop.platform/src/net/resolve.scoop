@@ -47,7 +47,7 @@ public fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Ar
             return addresses.toArray()
         } finally {
             when (result.head) {
-                case Some(head) -> nativeResolveFree(head);
+                case Some(val head) -> nativeResolveFree(head);
                 case None -> {}
             }
         }

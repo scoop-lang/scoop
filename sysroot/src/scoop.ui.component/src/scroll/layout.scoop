@@ -44,14 +44,14 @@ internal fun scrollExtent(
 ): Double? {
     val candidate =
         when (explicit) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 nonnegative(value, "invalid scroll viewport extent");
                 Some(value)
             }
             case None -> maximum
         }
     return when (candidate) {
-        case Some(value) -> {
+        case Some(val value) -> {
             val lower = lowerBound(value, minimum)
             Some(upperBound(lower, maximum ?: lower))
         }

@@ -80,7 +80,7 @@ enum ChatAnnotation {
         public override fun encode(value: ChatAnnotation, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatAnnotation.URL(payload) -> {
+                case ChatAnnotation.URL(val payload) -> {
                     String.encode("url_citation", fields.field("type"))
                     ChatCitation.Companion.encode(payload, encoder)
                 }

@@ -37,7 +37,7 @@ internal fun planClientPool(state: ClientState): ClientPoolPlan {
                     delay = earlierClientDelay(delay, state.config.pool.idleTimeout - (now - entry.idle))
                 if (!clientPresent(entry.initial)) {
                     when (state.config.pool.maxLifetime) {
-                        case Some(lifetime) -> delay = earlierClientDelay(delay, lifetime - (now - entry.created))
+                        case Some(val lifetime) -> delay = earlierClientDelay(delay, lifetime - (now - entry.created))
                         case None -> {}
                     }
                 }
@@ -79,12 +79,12 @@ private fun maintainClientPool(state: ClientState, now: TimeMark, actions: Array
         if (entry.connecting || entry.closing) continue
         val connection = entry.connection!!
         when (connection) {
-            case Http1(value) -> if (entry.active == 0L && !value.isReusable) entry.draining = true
-            case Http2(value) -> if (value.isClosing || value.isDraining) entry.draining = true
+            case Http1(val value) -> if (entry.active == 0L && !value.isReusable) entry.draining = true
+            case Http2(val value) -> if (value.isClosing || value.isDraining) entry.draining = true
         }
         if (!clientPresent(entry.initial)) {
             when (state.config.pool.maxLifetime) {
-                case Some(lifetime) -> if (now - entry.created >= lifetime) entry.draining = true
+                case Some(val lifetime) -> if (now - entry.created >= lifetime) entry.draining = true
                 case None -> {}
             }
         }
@@ -96,7 +96,7 @@ private fun maintainClientPool(state: ClientState, now: TimeMark, actions: Array
                 entry.initial = None
                 if (waitingClientCall(first)) {
                     val error = entry.failure ?: when (connection) {
-                        case Http2(value) -> if (value.isDraining) Http2ConnectionDrainingException() else IoClosedException()
+                        case Http2(val value) -> if (value.isDraining) Http2ConnectionDrainingException() else IoClosedException()
                         case Http1(_) -> IoClosedException()
                     }
                     recordClientIoFailure(first, error, when (connection) { case Http2(_) -> true; case Http1(_) -> false })
@@ -116,8 +116,8 @@ private fun assignClientLease(state: ClientState, call: ClientCall, now: TimeMar
         if (clientPresent(entry.initial) && entry.initial!! !== call) continue
         val connection = entry.connection!!
         val available = when (connection) {
-            case Http1(value) -> entry.active == 0L && value.isReusable
-            case Http2(value) -> !value.isClosing && !value.isDraining &&
+            case Http1(val value) -> entry.active == 0L && value.isReusable
+            case Http2(val value) -> !value.isClosing && !value.isDraining &&
                 entry.active < entry.peerStreams && entry.active < state.config.pool.maxStreamsPerHttp2
         }
         if (!available) continue

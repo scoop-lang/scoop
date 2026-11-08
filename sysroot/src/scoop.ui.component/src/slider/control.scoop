@@ -56,7 +56,7 @@ internal class SliderControl(
         val result = props.values.value
         val same =
             when (checkedValues) {
-                case Some(previous) -> previous ===
+                case Some(val previous) -> previous ===
                     result &&
                     sameSliderRange(checkedRange!!, props.range)
                 case None -> false
@@ -76,7 +76,7 @@ internal class SliderControl(
             "slider thumb options must match its values"
         )
         when (gesture) {
-            case Some(active) -> if (!props.enabled || !compatible(active, current))
+            case Some(val active) -> if (!props.enabled || !compatible(active, current))
                 cancel(
                     if (!props.enabled)
                         DragCancelReason.Disabled
@@ -140,9 +140,9 @@ internal class SliderControl(
             sameSliderValues(current, active.expected)
     private fun handle(event: DragEvent) {
         when (event) {
-            case Started(sample) -> start(sample.position)
-            case Moved(sample) -> move(sample.position)
-            case Ended(sample) -> {
+            case Started(val sample) -> start(sample.position)
+            case Moved(val sample) -> move(sample.position)
+            case Ended(val sample) -> {
                 move(sample.position)
                 val active = gesture ?: return
                 val current = values()
@@ -151,7 +151,7 @@ internal class SliderControl(
                 if (!sameSliderValues(active.initial, current) && scope.isMounted)
                     input().props.onValueCommit(current)
             }
-            case Cancelled(_, reason) -> cancel(reason)
+            case Cancelled(_, val reason) -> cancel(reason)
         }
     }
     private fun start(point: Point) {

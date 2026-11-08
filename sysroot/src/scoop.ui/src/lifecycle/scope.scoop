@@ -24,7 +24,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         fontReads?.read(root.fonts.signal)
         when (currentEvaluation()) {
-            case Some(evaluation) -> {
+            case Some(val evaluation) -> {
                 evaluation.collector?.read(root.fonts.signal)
                 evaluation.frameReads?.readDefaults(root.fonts)
             }
@@ -92,12 +92,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public val input: InputScope get() {
         checkMounted()
         when (route) {
-            case Some(value) -> return value
+            case Some(val value) -> return value
             case None -> {}
         }
         val value =
             when (node.parent) {
-                case Some(parent) -> root.surface.createScope(Some(parent.scope.forChildren()))
+                case Some(val parent) -> root.surface.createScope(Some(parent.scope.forChildren()))
                 case None -> root.surface.input
             }
         route = Some(value)
@@ -107,7 +107,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     internal fun forChildren(): InputScope = childRoute ?: input
     internal val hasInputActivity: Boolean get() =
         when (route) {
-            case Some(value) -> !value.activity.isEmpty
+            case Some(val value) -> !value.activity.isEmpty
             case None -> false
         }
     /** Routes logical descendants through an area owned by this mount. */
@@ -120,7 +120,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     private fun reparentInput(parent: InputScope) {
         when (route) {
-            case Some(value) -> if (!value.isClosed)
+            case Some(val value) -> if (!value.isClosed)
                 value.parent = Some(parent)
             case None -> {}
         }
@@ -224,7 +224,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         val route =
             when (parent) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     requireBehaviorArea(value);
                     value.scope
                 }
@@ -317,7 +317,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     private fun animations(): AnimationGroup {
         when (animationGroup) {
-            case Some(value) -> return value
+            case Some(val value) -> return value
             case None -> {}
         }
         val value = root.surface.animations.group(node.frameEnabled)
@@ -327,7 +327,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     internal fun updateFrameParticipation() {
         when (animationGroup) {
-            case Some(value) -> if (!value.isClosed)
+            case Some(val value) -> if (!value.isClosed)
                 value.isFrameEnabled = node.frameEnabled
             case None -> {}
         }
@@ -335,7 +335,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     internal fun deactivate() {
         active = false
         when (route) {
-            case Some(value) -> if (!value.isClosed)
+            case Some(val value) -> if (!value.isClosed)
                 value.enabled = false
             case None -> {}
         }

@@ -14,7 +14,7 @@ internal fun <T: Equals<T>> comboKey(
         return
     val key =
         when (event) {
-            case Keyboard(key) -> key;
+            case Keyboard(val key) -> key;
             else -> return
         }
     if (!menuKeyAllowed(key, true))

@@ -115,7 +115,7 @@ private class ServerHttp2QueuedTests {
                                         if (!present(event))
                                             break
                                         when (event!!) {
-                                            case Response(_, head) -> {
+                                            case Response(_, val head) -> {
                                                 assertEquals(200U, head.status);
                                                 responses += 1L
                                             }

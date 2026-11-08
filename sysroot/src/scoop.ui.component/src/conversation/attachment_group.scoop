@@ -133,7 +133,7 @@ internal class AttachmentGroupInk(
     public override fun update(): UiInvalidation {
         val input = props.value
         when (previous) {
-            case Some(old) -> if (
+            case Some(val old) -> if (
                 !input.props.enabled ||
                     old.props.source !==
                     input.props.source ||
@@ -155,7 +155,7 @@ internal class AttachmentGroupInk(
                 InputPointerEvent.Button(_, _, ElementState.Pressed, _)
             ) -> deadline.cancel()
             case Keyboard(_) -> deadline.cancel()
-            case Pointer(InputPointerEvent.Wheel(_, _, phase, momentum)) -> {
+            case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
                 context.consumeScroll(40.0 * props.value.density) {
                     amount ->
                     if (amount.x != 0.0) {

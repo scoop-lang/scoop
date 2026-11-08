@@ -69,7 +69,7 @@ fun rewriteWideViews(target: MutableArray<WideEntry<Token<Long>?>>) {
     while (i < views.size) {
         val entry = views[i]
         check(entry.tag == i + 3L && entry.value == 815L)
-        check(when (entry.key) { case None -> false; case Some(value) -> value.number() == 809L })
+        check(when (entry.key) { case None -> false; case Some(val value) -> value.number() == 809L })
         i += 1L
     }
     try {

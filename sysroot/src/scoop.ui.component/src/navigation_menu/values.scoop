@@ -77,20 +77,20 @@ internal fun navigationMenuHover(): HoverOptions =
 
 internal fun navMenuKey(entry: NavigationMenuEntry): ViewKey =
     when (entry) {
-        case Panel(key, _) -> key;
-        case Link(key, _) -> key
+        case Panel(val key, _) -> key;
+        case Link(val key, _) -> key
     }
 
 internal fun navMenuFocus(entry: NavigationMenuEntry): FocusOptions =
     when (entry) {
-        case Panel(_, panel) -> panel.trigger.focus;
-        case Link(_, link) -> link.button.focus
+        case Panel(_, val panel) -> panel.trigger.focus;
+        case Link(_, val link) -> link.button.focus
     }
 
 internal fun navMenuEnabled(entry: NavigationMenuEntry): Boolean =
     when (entry) {
-        case Panel(_, panel) -> panel.trigger.enabled;
-        case Link(_, link) -> link.button.enabled
+        case Panel(_, val panel) -> panel.trigger.enabled;
+        case Link(_, val link) -> link.button.enabled
     }
 
 internal fun navMenuEntry(input: NavigationMenuProps, key: ViewKey): NavigationMenuEntry? {
@@ -103,7 +103,7 @@ internal fun navMenuEntry(input: NavigationMenuProps, key: ViewKey): NavigationM
 internal fun navMenuPanel(input: NavigationMenuProps, key: ViewKey): Boolean =
     input.enabled &&
         when (navMenuEntry(input, key)) {
-            case Some(NavigationMenuEntry.Panel(_, panel)) -> panel.trigger.enabled
+            case Some(NavigationMenuEntry.Panel(_, val panel)) -> panel.trigger.enabled
             else -> false
         }
 

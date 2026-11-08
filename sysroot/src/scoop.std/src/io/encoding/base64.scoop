@@ -57,7 +57,7 @@ public class Base64 private constructor(private val urlSafe: Boolean,
      * Decodes text or throws IllegalArgumentException for invalid Base64.
      */
     public fun decode(source: String): Array<Byte> = when (decodeOrNone(source)) {
-        case Some(value) -> value
+        case Some(val value) -> value
         case None -> throw IllegalArgumentException(Some("invalid Base64"))
     }
 }

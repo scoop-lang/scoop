@@ -12,9 +12,9 @@ public enum ScrollIntent {
 
     public val requestRevision: ULong get() =
         when (this) {
-            case User(value) -> value
-            case Programmatic(value) -> value
-            case LayoutCorrection(value) -> value
+            case User(val value) -> value
+            case Programmatic(val value) -> value
+            case LayoutCorrection(val value) -> value
         }
 }
 

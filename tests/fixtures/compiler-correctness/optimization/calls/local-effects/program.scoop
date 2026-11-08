@@ -25,7 +25,7 @@ fun selected(): Int {
     val value: Item? = Some(payload())
     val copied = value
     return when (copied) {
-        case Some(item) -> { gcCollect(); item.number }
+        case Some(val item) -> { gcCollect(); item.number }
         case None -> { effects = effects + 100; -1 }
     }
 }

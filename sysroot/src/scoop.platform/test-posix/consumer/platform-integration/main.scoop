@@ -109,7 +109,7 @@ private fun exerciseConsumer() {
         if (OsString.fromByteArray(output.stdout).decodeUtf8() != "artifact process 中")
             throw IllegalStateException()
         when (output.status) {
-            case ExitStatus.Exited(code) -> if (code != 0)
+            case ExitStatus.Exited(val code) -> if (code != 0)
                 throw IllegalStateException()
             case ExitStatus.Signaled(_) -> throw IllegalStateException()
         }

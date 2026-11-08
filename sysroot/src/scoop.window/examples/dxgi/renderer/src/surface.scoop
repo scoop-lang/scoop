@@ -37,7 +37,7 @@ public class DxgiSurface private constructor(
     public override fun close() {
         checkThread()
         when (pointer) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 pointer = None
                 try {
                     @Unsafe
@@ -66,7 +66,7 @@ public class DxgiSurface private constructor(
                 try {
                     val result =
                         when (lease.handle) {
-                            case Win32(hwnd, _) -> nativeCreate(hwnd)
+                            case Win32(val hwnd, _) -> nativeCreate(hwnd)
                         }
                     checkStatus(result.status, "create DXGI surface")
                     val pointer =

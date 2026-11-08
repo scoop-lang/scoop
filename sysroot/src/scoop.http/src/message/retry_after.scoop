@@ -20,15 +20,15 @@ public enum HttpRetryAfter : ToString {
      * Computes the nonnegative wait from the supplied current time.
      */
     public fun delayFrom(now: Instant): Duration = when (this) {
-        case DelaySeconds(value) -> Duration.seconds(retrySeconds(value))
-        case At(value) -> if (value <= now) Duration.ZERO else value - now
+        case DelaySeconds(val value) -> Duration.seconds(retrySeconds(value))
+        case At(val value) -> if (value <= now) Duration.ZERO else value - now
     }
     /**
      * Formats the structured value as HTTP field text.
      */
     public override fun toString(): String = when (this) {
-        case DelaySeconds(value) -> retrySeconds(value).toString()
-        case At(value) -> HttpDate.format(value)
+        case DelaySeconds(val value) -> retrySeconds(value).toString()
+        case At(val value) -> HttpDate.format(value)
     }
     /**
      * Builds the corresponding named HTTP field from the structured value.

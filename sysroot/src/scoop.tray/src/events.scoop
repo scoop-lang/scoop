@@ -90,7 +90,7 @@ private fun TrayOwner.activation(event: NativeTrayEvent): TrayActivation {
 internal fun TrayOwner.monitorFor(x: Double, y: Double): MonitorId? {
     for (monitor in application.monitors())
         when (monitor.desktopBounds) {
-            case Some(bounds) -> if (containsPoint(bounds, x, y))
+            case Some(val bounds) -> if (containsPoint(bounds, x, y))
                 return Some(monitor.id)
             case None -> {}
         }

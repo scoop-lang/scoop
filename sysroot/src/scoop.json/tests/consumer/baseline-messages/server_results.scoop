@@ -21,8 +21,8 @@ enum SearchResults {
     companion object : ValueEncoder<SearchResults>, ValueDecoder<SearchResults> {
         public override fun encode(value: SearchResults, encoder: Encoder) {
             when (value) {
-                case SearchResults.Hits(hits) -> Array<SearchHit>.encoder(SearchHit.Companion).encode(hits, encoder)
-                case SearchResults.Error(error) -> SearchError.Companion.encode(error, encoder)
+                case SearchResults.Hits(val hits) -> Array<SearchHit>.encoder(SearchHit.Companion).encode(hits, encoder)
+                case SearchResults.Error(val error) -> SearchError.Companion.encode(error, encoder)
             }
         }
         public override fun decode(decoder: Decoder): SearchResults {

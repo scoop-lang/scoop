@@ -77,7 +77,7 @@ fun main() {
             expect(current() == 9)
             expect(foreignCallbackState(empty) == ForeignCallbackState.Failed)
             expect(when (foreignCallbackFailure(empty)) {
-                case Some(error) -> error is MissingContextException
+                case Some(val error) -> error is MissingContextException
                 case None -> false
             })
             releaseForeignCallback(empty)
@@ -115,7 +115,7 @@ fun main() {
         }
         expect(foreignCallbackState(failing) == ForeignCallbackState.Failed)
         expect(when (foreignCallbackFailure(failing)) {
-            case Some(error) -> error is IllegalStateException
+            case Some(val error) -> error is IllegalStateException
             case None -> false
         })
         releaseForeignCallback(failing)

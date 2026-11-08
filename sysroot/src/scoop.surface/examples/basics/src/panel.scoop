@@ -97,7 +97,7 @@ internal class DemoPanel(
             canvas.drawRect(box.rect, Paint(Color(0.75, 0.86, 0.98)))
         canvas.drawText(layout)
         when (editor.state.markedRange) {
-            case Some(range) -> {
+            case Some(val range) -> {
                 for (box in layout.selection(TextRange(range.start, range.end)))
                     canvas.drawRect(
                         Rect(box.rect.x, box.rect.y + box.rect.height - 2.0, box.rect.width, 2.0),
@@ -136,14 +136,14 @@ internal class DemoPanel(
                 }
             }
             case Pointer(
-                InputPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
+                InputPointerEvent.Button(val pointer, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 drag!!.press(
                     Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y)
                 )
                 surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Grabbing)
             }
-            case Pointer(InputPointerEvent.Moved(pointer)) -> {
+            case Pointer(InputPointerEvent.Moved(val pointer)) -> {
                 drag!!.move(Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y))
             }
             case Pointer(
@@ -176,7 +176,7 @@ internal class DemoPanel(
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Default)
             }
             case Pointer(
-                InputPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
+                InputPointerEvent.Button(val pointer, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 if (area.requestFocus())
                     editor.choose(
@@ -184,11 +184,11 @@ internal class DemoPanel(
                     )
                 repaint()
             }
-            case TextInput(TextInputEvent.Edit(batch)) -> {
+            case TextInput(TextInputEvent.Edit(val batch)) -> {
                 editor.apply(batch);
                 repaint()
             }
-            case Keyboard(key) -> {
+            case Keyboard(val key) -> {
                 if (
                     key.state ==
                         ElementState.Pressed &&
@@ -211,7 +211,7 @@ internal class DemoPanel(
     }
     private fun isOpen(): Boolean =
         when (surfaceWindow) {
-            case Some(window) -> window.state == SurfaceWindowState.Open;
+            case Some(val window) -> window.state == SurfaceWindowState.Open;
             case None -> false
         }
     private fun repaint() {

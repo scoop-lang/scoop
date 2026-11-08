@@ -5,8 +5,8 @@ import scoop.window.native.NativeMenuLease
 @Unsafe
 internal fun installTrayMenu(pointer: Ptr<Unit>, menu: NativeMenuLease?) {
     when (menu) {
-        case Some(lease) -> when (lease.handle) {
-            case Gtk(model, actions) -> checkTrayStatus(
+        case Some(val lease) -> when (lease.handle) {
+            case Gtk(val model, val actions) -> checkTrayStatus(
                 nativeTrayMenu(pointer, Some(model), Some(actions)),
                 "tray menu"
             )

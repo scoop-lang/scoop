@@ -38,7 +38,7 @@ public class Questionnaire(
         val keys = ArrayList<ViewKey>()
         val options = ArrayList<FocusOptions>()
         when (current) {
-            case Some(question) -> {
+            case Some(val question) -> {
                 for (choice in question.choices) {
                     keys.add(ViewKey.Text(question.key.value + ":choice:" + choice.key.value))
                     options.add(input.choiceFocus(question.key, Some(choice.key)))
@@ -53,7 +53,7 @@ public class Questionnaire(
         val focus = handles.resolve(keys.toArray(), options.toArray())
         var shortcutIndex = 0L
         when (current) {
-            case Some(question) -> {
+            case Some(val question) -> {
                 for (index in 0L ..< question.choices.size) {
                     val choice = question.choices[index]
                     val shortcut =
@@ -120,12 +120,12 @@ public class Questionnaire(
         val activeInput = input.inputFocus.handle ?: editorFocus
         val editor =
             when (current) {
-                case Some(question) -> state.editor(question.key);
+                case Some(val question) -> state.editor(question.key);
                 case None -> None
             }
         val showsInput =
             when (current) {
-                case Some(question) -> question.kind ==
+                case Some(val question) -> question.kind ==
                     QuestionKind.Freeform ||
                     state.usesText(question.key)
                 case None -> false
@@ -155,7 +155,7 @@ public class Questionnaire(
             )
         val body =
             when (current) {
-                case Some(question) -> item(
+                case Some(val question) -> item(
                     question,
                     input,
                     theme,
@@ -325,7 +325,7 @@ public class Questionnaire(
                     )
                 }
                 when (state.issue(question.key)) {
-                    case Some(issue) -> this.add(
+                    case Some(val issue) -> this.add(
                         panelSlot(
                             input.part(
                                 QuestionnairePart.Error,

@@ -12,11 +12,11 @@ private class FileDialogValueTests {
         val one: FileDialogResult<Path> = FileDialogResult.Accepted<Path>(path)
         val many: FileDialogResult<Array<Path>> = FileDialogResult.Accepted<Array<Path>>([path])
         when (one) {
-            case Accepted(value) -> assertEquals(path, value)
+            case Accepted(val value) -> assertEquals(path, value)
             else -> fail()
         }
         when (many) {
-            case Accepted(values) -> assertEquals(path, values[0L])
+            case Accepted(val values) -> assertEquals(path, values[0L])
             else -> fail()
         }
         assertTrue(FileDialogSessionId(1L) != FileDialogSessionId(2L))

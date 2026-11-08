@@ -30,7 +30,7 @@ internal class NativePopupPresentation(
     fun update() {
         val next = read().handle
         when (handle) {
-            case Some(current) -> if (current !== next) {
+            case Some(val current) -> if (current !== next) {
                 next.bind(this)
                 current.unbind(this)
                 handle = Some(next)
@@ -56,7 +56,7 @@ internal class NativePopupPresentation(
         val bounds = area.visibleBounds ?: return false
         val placement =
             when (pointer) {
-                case Some(position) -> PopupPlacement.Pointer(position)
+                case Some(val position) -> PopupPlacement.Pointer(position)
                 case None -> PopupPlacement.Anchor(
                     LogicalRect(
                         LogicalPosition(bounds.x, bounds.y),

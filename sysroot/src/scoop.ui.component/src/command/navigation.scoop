@@ -55,7 +55,7 @@ internal class CandidateNavigation(
         val input = props.value
         val source = input.source()
         when (previous) {
-            case Some(value) -> if (value !== source)
+            case Some(val value) -> if (value !== source)
                 revealed = None;
             case None -> {}
         }
@@ -80,7 +80,7 @@ internal class CandidateNavigation(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value;
+                case Keyboard(val value) -> value;
                 else -> return
             }
         reconcile()
@@ -112,7 +112,7 @@ internal class CandidateNavigation(
             context.consume()
             if (!key.isRepeat)
                 when (input.active.value) {
-                    case Some(active) -> input.select(active)
+                    case Some(val active) -> input.select(active)
                     case None -> {}
                 }
         } else
@@ -140,7 +140,7 @@ internal class CandidateNavigation(
                     revealed
             ) {
                 when (active) {
-                    case Some(key) -> if (props.value.reveal(key))
+                    case Some(val key) -> if (props.value.reveal(key))
                         revealed = active
                     case None -> revealed = None
                 }

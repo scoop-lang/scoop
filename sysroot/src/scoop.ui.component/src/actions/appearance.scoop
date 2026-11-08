@@ -10,7 +10,7 @@ internal fun actionTextColor(
     visual: SurfaceVisual
 ): Color {
     when (shape) {
-        case Tab(_, selected) -> return tabTextColor(theme, selected, visual.interaction)
+        case Tab(_, val selected) -> return tabTextColor(theme, selected, visual.interaction)
         else -> {}
     }
     val colors = theme.tokens.palette
@@ -41,16 +41,16 @@ internal fun actionOptions(
 ): SurfaceOptions {
     val size =
         when (shape) {
-            case Tab(tabVariant, selected) -> return tabOptions(
+            case Tab(val tabVariant, val selected) -> return tabOptions(
                 theme,
                 tabVariant,
                 selected,
                 style,
                 visual
             )
-            case Button(size) -> Some(size)
+            case Button(val size) -> Some(size)
             case Badge -> None
-            case Toggle(toggleVariant, size, selected) -> return toggleOptions(
+            case Toggle(val toggleVariant, val size, val selected) -> return toggleOptions(
                 theme,
                 toggleVariant,
                 size,
@@ -152,7 +152,7 @@ internal fun actionOptions(
         if (visual.enabled && visual.focusVisible)
             border =
                 when (focus) {
-                    case Some(value) -> value.borderColor ?: border
+                    case Some(val value) -> value.borderColor ?: border
                     case None -> colors.ring
                 }
     val disabled =
@@ -217,7 +217,7 @@ private fun actionSizeOptions(
                 this.padding = Some(Insets(8.0 * density, density, 8.0 * density, density))
                 style { this.corners(Corners.all(1000.0)) }
             }
-            case Some(size) -> {
+            case Some(val size) -> {
                 val ratio =
                     when (size) {
                         case Xs -> 0.75

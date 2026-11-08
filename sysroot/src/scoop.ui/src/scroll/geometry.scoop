@@ -72,8 +72,8 @@ internal fun resolveScroll(
     checkLayoutSize(content)
     val point =
         when (request) {
-            case Position(value) -> value
-            case Reveal(rect, horizontal, vertical) ->
+            case Position(val value) -> value
+            case Reveal(val rect, val horizontal, val vertical) ->
             ScrollSnapshot(previous, viewport, content).revealedOffset(rect, horizontal, vertical)
         }
     return ScrollSnapshot(clampScroll(point, viewport, content), viewport, content)

@@ -35,7 +35,7 @@ internal fun shortcutAllowed(context: RoutedEventContext, event: KeyEvent): Bool
     if (!textModifier && (modifiers.superKey || modifiers.control))
         return true
     return when (event.logicalKey) {
-        case Named(value) -> value != NamedKey.Space
+        case Named(val value) -> value != NamedKey.Space
         else -> false
     }
 }

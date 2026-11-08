@@ -101,7 +101,7 @@ public class Thread private constructor(private val completion: ThreadCompletion
      */
     public fun join() {
         when (native) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeThreadJoin(pointer).check("thread join")
                 native = None
@@ -109,7 +109,7 @@ public class Thread private constructor(private val completion: ThreadCompletion
             case None -> {}
         }
         when (completion.failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> {}
         }
     }
@@ -124,7 +124,7 @@ public class Thread private constructor(private val completion: ThreadCompletion
 
     release {
         when (native) {
-            case Some(pointer) -> @Unsafe
+            case Some(val pointer) -> @Unsafe
             {
                 nativeThreadAbandon(pointer)
             }

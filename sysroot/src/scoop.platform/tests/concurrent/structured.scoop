@@ -79,7 +79,7 @@ fun scopeClosingRace() {
     check(state.success.load() == state.cleaned.load())
     check(state.cleaned.load() + state.cancelled.load() == 24)
     when (state.failure) {
-        case Some(error) -> throw error;
+        case Some(val error) -> throw error;
         case None -> {}
     }
 }
@@ -121,7 +121,7 @@ fun checkFinished(state: State) {
     check(state.cleaned.load() == 1)
     check(!state.pending!!.tryResume(31))
     when (state.failure) {
-        case Some(error) -> check(error is CancellationException)
+        case Some(val error) -> check(error is CancellationException)
         case None -> {}
     }
 }

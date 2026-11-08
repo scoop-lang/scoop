@@ -49,9 +49,9 @@ internal suspend fun nextDirectoryName(owner: OwnedDirectory, job: Job): OsStrin
                             Some(owner.context)
                         )
                     ) {
-                        case Some(error) -> continuation.resumeWithException(error)
+                        case Some(val error) -> continuation.resumeWithException(error)
                         case None -> when (event.result) {
-                            case DirectoryName(name) -> continuation.resume(Some(name))
+                            case DirectoryName(val name) -> continuation.resume(Some(name))
                             case Eof -> {
                                 owner.reachedEnd();
                                 continuation.resume(None)

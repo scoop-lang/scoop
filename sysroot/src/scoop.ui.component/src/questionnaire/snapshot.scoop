@@ -38,7 +38,7 @@ internal fun questionnaireValidateSnapshot(
             )
     }
     when (snapshot.active) {
-        case Some(key) -> {
+        case Some(val key) -> {
             var valid = false
             for (entry in records)
                 if (entry.question.enabled && entry.question.key == key)

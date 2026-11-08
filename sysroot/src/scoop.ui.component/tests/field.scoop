@@ -62,7 +62,7 @@ private class FieldTest {
         assertEquals(0L, first.errors.size)
         assertTrue(second.invalid)
         when (first.heading) {
-            case Some(FieldHeading.Label(_, value)) -> assertSame(target, value)
+            case Some(FieldHeading.Label(_, val value)) -> assertSame(target, value)
             else -> fail(Some("expected associated label"))
         }
         when (second.heading) {

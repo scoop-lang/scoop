@@ -20,15 +20,15 @@ fun inspectValues(number: Long, text: String, values: MutableArray<Long>, box: B
     gcCollect() // BREAK: before-gc
     val after = text.charLength + values[0L] + box.value // BREAK: after-gc
     val payload = when (tagged) {
-        case Number(n) -> n
+        case Number(val n) -> n
         else -> 0L
     }
     val present = when (optional) {
-        case Some(s) -> s.charLength
+        case Some(val s) -> s.charLength
         case None -> 0L
     }
     val empty = when (absent) {
-        case Some(s) -> s.charLength
+        case Some(val s) -> s.charLength
         case None -> 0L
     }
     return local + before + after + payload + present + empty + view.number()

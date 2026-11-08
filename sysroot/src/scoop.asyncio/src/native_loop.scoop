@@ -88,7 +88,7 @@ internal fun resultFailure(
     context: OsString? = None
 ): Throwable? =
     when (result) {
-        case Failed(error, _) -> Some(
+        case Failed(val error, _) -> Some(
             PlatformException(operation, error.kind, Some(error), context)
         )
         case _ -> None
@@ -107,8 +107,8 @@ internal fun completionFailure(
 
 internal fun resultProgress(result: IoResult): Long =
     when (result) {
-        case Bytes(count) -> count
-        case Packet(value) -> value.count
-        case Failed(_, count) -> count
+        case Bytes(val count) -> count
+        case Packet(val value) -> value.count
+        case Failed(_, val count) -> count
         case _ -> 0L
     }

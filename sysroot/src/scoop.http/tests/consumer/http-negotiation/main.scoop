@@ -58,8 +58,8 @@ private fun exerciseConsumer() {
             when (next) {
                 case None -> done = true
                 case Some(_) -> when (next!!) {
-                    case Data(id, bytes) -> { body.append(bytes); client.consume(id, bytes.size) }
-                    case Failure(error) -> throw error
+                    case Data(val id, val bytes) -> { body.append(bytes); client.consume(id, bytes.size) }
+                    case Failure(val error) -> throw error
                     else -> {}
                 }
             }

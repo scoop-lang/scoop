@@ -19,8 +19,8 @@ internal fun receiveH2Events(state: H2State, actions: ArrayList<() -> Unit>): Bo
         if (!present(event)) return changed
         changed = true
         when (event!!) {
-            case RequestHeadStarted(id) -> notifyH2(state, Http2Notice.RequestHeadStarted(id), actions)
-            case Request(id, head) -> {
+            case RequestHeadStarted(val id) -> notifyH2(state, Http2Notice.RequestHeadStarted(id), actions)
+            case Request(val id, val head) -> {
                 if (state.acceptingEnded || state.requests.size >= state.requestCapacity) state.session.reset(id, 7U)
                 else {
                     val stream = H2Stream(id, state.ioTimeouts)
@@ -29,7 +29,7 @@ internal fun receiveH2Events(state: H2State, actions: ArrayList<() -> Unit>): Bo
                     notifyH2(state, Http2Notice.RequestHeadReceived(id), actions)
                 }
             }
-            case Response(id, head) -> {
+            case Response(val id, val head) -> {
                 val stream = state.streams[id]
                 if (present(stream)) {
                     if (stream!!.responses.size >= 16L)
@@ -37,20 +37,20 @@ internal fun receiveH2Events(state: H2State, actions: ArrayList<() -> Unit>): Bo
                     else stream!!.responses.addLast(head)
                 }
             }
-            case Data(id, bytes) -> {
+            case Data(val id, val bytes) -> {
                 val stream = state.streams[id]
                 if (!present(stream)) state.session.reset(id)
                 else if (bytes.size != 0L) stream!!.data.addLast(bytes)
             }
-            case Trailers(id, fields) -> {
+            case Trailers(val id, val fields) -> {
                 val stream = state.streams[id]
                 if (present(stream)) stream!!.trailers = Some(fields)
             }
-            case End(id) -> {
+            case End(val id) -> {
                 val stream = state.streams[id]
                 if (present(stream)) stream!!.inputEnded = true
             }
-            case StreamClosed(id, code) -> {
+            case StreamClosed(val id, val code) -> {
                 val stream = state.streams[id]
                 if (present(stream)) {
                     if (code != 0U || !stream!!.inputEnded) {
@@ -60,14 +60,14 @@ internal fun receiveH2Events(state: H2State, actions: ArrayList<() -> Unit>): Bo
                 }
                 notifyH2(state, Http2Notice.StreamClosed(id, code), actions)
             }
-            case GoAway(last, code, data, local) -> {
+            case GoAway(val last, val code, val data, val local) -> {
                 state.acceptingEnded = true
                 if (local) state.goAwaySerialized = true
                 notifyH2(state, Http2Notice.GoAway(last, code, data, local), actions)
             }
-            case Settings(values, ack) -> notifyH2(state, Http2Notice.Settings(values, ack), actions)
-            case IgnoredField(id, field) -> notifyH2(state, Http2Notice.IgnoredField(id, field), actions)
-            case Failure(error) -> {
+            case Settings(val values, val ack) -> notifyH2(state, Http2Notice.Settings(values, ack), actions)
+            case IgnoredField(val id, val field) -> notifyH2(state, Http2Notice.IgnoredField(id, field), actions)
+            case Failure(val error) -> {
                 val stream = state.streams[error.streamId]
                 if (error.scope == HttpFailureScope.Connection) terminateH2(state, error)
                 else if (present(stream)) resetH2Stream(state, stream!!, error, 2U, actions)

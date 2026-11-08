@@ -67,7 +67,7 @@ internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePl
                             { model.columnWidth(column.id) },
                             {
                                 width -> when (width) {
-                                    case Some(value) -> model.resizeColumn(column.id, value);
+                                    case Some(val value) -> model.resizeColumn(column.id, value);
                                     case None -> model.resetColumnWidth(column.id)
                                 }
                             }
@@ -151,7 +151,7 @@ internal fun <Row> dataTablePagination(
                         { Some(model.query.pageSize) },
                         {
                             value -> when (value) {
-                                case Some(size) -> model.setPageSize(size);
+                                case Some(val size) -> model.setPageSize(size);
                                 case None -> {}
                             }
                         }

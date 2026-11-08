@@ -20,7 +20,7 @@ internal fun requestPartCharset(head: MultipartPartHead, explicit: Charset?): Ch
         val parameter = if (present(media)) media!!.parameter("charset") else None
         when (parameter) {
             case None -> None
-            case Some(value) -> Some(Charset.forNameOrNone(inputText(value.value, "part charset"))
+            case Some(val value) -> Some(Charset.forNameOrNone(inputText(value.value, "part charset"))
                 ?: reject(415U, "unsupported multipart charset"))
         }
     } catch (_: HttpFieldParseException) { reject(400U, "invalid part Content-Type") }

@@ -9,17 +9,17 @@ internal fun publishWindowCaret(window: Window, caret: ImeCaret): Boolean {
             window.clearImeCursorArea();
             return true
         }
-        case Some(value) -> {
+        case Some(val value) -> {
             val logical =
                 LogicalRect(
                     LogicalPosition(value.x, value.y),
                     LogicalSize(value.width, value.height)
                 )
             when (caret.revision) {
-                case Some(revision) -> {
+                case Some(val revision) -> {
                     val connection = caret.connection
                     when (connection) {
-                        case Some(value) -> return window.publishTextInputCaret(
+                        case Some(val value) -> return window.publishTextInputCaret(
                             value,
                             revision,
                             Some(logical)

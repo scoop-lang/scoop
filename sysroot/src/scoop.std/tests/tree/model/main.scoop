@@ -8,7 +8,7 @@ fun check(value: Boolean, label: String, location: SourceLocation = currentSourc
 }
 
 fun key(entry: Map.Entry<Int, Int?>?): Int? = when (entry) {
-    case Some(value) -> Some(value.key)
+    case Some(val value) -> Some(value.key)
     case None -> None
 }
 

@@ -49,7 +49,7 @@ public class ChartDatum public constructor(
 ) {
     init {
         when (x) {
-            case Some(value) -> requireComponent(
+            case Some(val value) -> requireComponent(
                 value.isFinite(),
                 "chart coordinate must be finite"
             );
@@ -69,7 +69,7 @@ public class ChartSeries public constructor(
     init {
         for (sample in values)
             when (sample) {
-                case Some(value) -> requireComponent(
+                case Some(val value) -> requireComponent(
                     value.isFinite(),
                     "chart value must be finite; use None for a missing value"
                 );
@@ -172,7 +172,7 @@ public class ChartModel public constructor(data: ChartData) {
         val colors = ArrayList<Int>()
         for (series in data.series) {
             when (previous.data.indexOfSeries(series.key)) {
-                case Some(index) -> colors.add(previous.colors[index])
+                case Some(val index) -> colors.add(previous.colors[index])
                 case None -> {
                     colors.add(next);
                     next = (next + 1) % 5

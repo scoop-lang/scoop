@@ -28,7 +28,7 @@ private class HttpClientHttp1Test {
                                 assertEquals(
                                     "/actual?q=1",
                                     when (request.head.target) {
-                                        case Http1(bytes) -> String.fromUtf8(bytes);
+                                        case Http1(val bytes) -> String.fromUtf8(bytes);
                                         else -> ""
                                     }
                                 )

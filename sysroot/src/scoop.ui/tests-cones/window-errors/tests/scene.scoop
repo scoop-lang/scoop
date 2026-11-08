@@ -23,7 +23,7 @@ internal class FailingRoot(
                     _, event ->
                     record.callbacks += 1
                     when (event) {
-                        case Keyboard(key) -> {
+                        case Keyboard(val key) -> {
                             if (
                                 record.point ==
                                     FailurePoint.Input &&

@@ -92,7 +92,7 @@ internal fun measureFlex(
             val option = options[index]
             val basis =
                 when (option.basis) {
-                    case Fixed(value) -> value
+                    case Fixed(val value) -> value
                     case Content -> {
                         val measured =
                             context.measureChild(
@@ -109,7 +109,7 @@ internal fun measureFlex(
     nonnegative(gaps, "flex spacing overflow")
     val allocated =
         when (mainMaximum) {
-            case Some(maximum) -> allocateFlex(bases, options, lowerBound(maximum - gaps, 0.0))
+            case Some(val maximum) -> allocateFlex(bases, options, lowerBound(maximum - gaps, 0.0))
             case None -> bases
         }
     val first =
@@ -202,13 +202,13 @@ internal fun measureFlex(
         context.placeChild(index, origin)
         if (alphabetic == None) {
             when (metric.alphabeticBaseline) {
-                case Some(value) -> alphabetic = Some(value + origin.y)
+                case Some(val value) -> alphabetic = Some(value + origin.y)
                 case None -> {}
             }
         }
         if (ideographic == None) {
             when (metric.ideographicBaseline) {
-                case Some(value) -> ideographic = Some(value + origin.y)
+                case Some(val value) -> ideographic = Some(value + origin.y)
                 case None -> {}
             }
         }

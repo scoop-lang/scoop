@@ -37,7 +37,7 @@ internal fun readWebSocketDeflate(extension: WebSocketExtension, offer: Boolean)
 
 private fun webSocketWindowValue(parameter: WebSocketExtensionParameter): Int {
     when (parameter.value) {
-        case Some(text) -> {
+        case Some(val text) -> {
             var bits = 8
             while (bits <= 15) { if (text == bits.toString()) return bits; bits += 1 }
         }

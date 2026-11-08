@@ -45,8 +45,8 @@ public class TableResult<Row> internal constructor(
 
 internal fun <Row> tableDataSource(data: TableData<Row>): TableSource<Row> =
     when (data) {
-        case Local(source) -> source
-        case Provided(source, _) -> source
+        case Local(val source) -> source
+        case Provided(val source, _) -> source
     }
 
 internal class TableSlice<Row>(

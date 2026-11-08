@@ -33,7 +33,7 @@ internal fun extensionOwnership(trust: TrustStore, url: Url, mode: String) {
                     )
                 if (mode == "kind")
                     return@HttpInterceptor when (result) {
-                        case Response(response) -> HttpCallResult.WebSocket(
+                        case Response(val response) -> HttpCallResult.WebSocket(
                             HttpWebSocketResult.Rejected(response, state.failure)
                         )
                         case WebSocket(_) -> throw IllegalStateException()

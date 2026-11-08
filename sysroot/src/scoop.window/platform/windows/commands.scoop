@@ -10,7 +10,7 @@ internal fun platformTextCommands(
     if (state != ElementState.Pressed || synthetic)
         return []
     return when (windowsEditingCommand(key, modifiers)) {
-        case Some(command) -> [command]
+        case Some(val command) -> [command]
         case None -> []
     }
 }
@@ -71,7 +71,7 @@ internal fun windowsEditingCommand(key: LogicalKey, modifiers: Modifiers): TextE
             else -> None
         }
     when (movement) {
-        case Some(value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
+        case Some(val value) -> return Some(TextEditCommand.Move(value, modifiers.shift))
         case None -> {}
     }
     return when (key) {

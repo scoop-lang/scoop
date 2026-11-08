@@ -2,7 +2,7 @@ fun verify(value: String?, expected: String) {
     // Both branches produce complete String objects; one is immortal.
     val selected = when (value) {
         case None -> "constant"
-        case Some(text) -> text
+        case Some(val text) -> text
     }
     val result = "prefix:" + selected
     gcCollect()

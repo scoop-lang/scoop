@@ -48,7 +48,7 @@ internal class ToastRegionSurface(
                 Some(
                     when (bounds) {
                         case None -> box
-                        case Some(old) -> {
+                        case Some(val old) -> {
                             val x = min(old.x, box.x);
                             val y = min(old.y, box.y)
                             Rect(
@@ -62,7 +62,7 @@ internal class ToastRegionSurface(
                 )
         }
         when (bounds) {
-            case Some(box) -> context.place(region.area, box);
+            case Some(val box) -> context.place(region.area, box);
             case None -> {}
         }
     }

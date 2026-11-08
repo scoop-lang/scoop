@@ -34,19 +34,19 @@ internal fun drainHttp1(decoder: Http1Decoder, events: ArrayList<Http1Event>) {
 
 internal fun http1Requests(events: List<Http1Event>): Array<HttpRequestHead> {
     val result = ArrayList<HttpRequestHead>()
-    for (event in events) when (event) { case Request(head) -> result.add(head); else -> {} }
+    for (event in events) when (event) { case Request(val head) -> result.add(head); else -> {} }
     return result.toArray()
 }
 
 internal fun http1Responses(events: List<Http1Event>): Array<HttpResponseHead> {
     val result = ArrayList<HttpResponseHead>()
-    for (event in events) when (event) { case Response(head) -> result.add(head); else -> {} }
+    for (event in events) when (event) { case Response(val head) -> result.add(head); else -> {} }
     return result.toArray()
 }
 
 internal fun http1Data(events: List<Http1Event>): Array<Byte> {
     val result = ByteArrayBuilder()
-    for (event in events) when (event) { case Data(bytes) -> result.append(bytes); else -> {} }
+    for (event in events) when (event) { case Data(val bytes) -> result.append(bytes); else -> {} }
     return result.toByteArray()
 }
 

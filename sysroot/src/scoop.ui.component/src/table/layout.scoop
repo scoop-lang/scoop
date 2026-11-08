@@ -130,7 +130,7 @@ internal class TableRowInk(private val props: Props<TableRowInput>, scope: Compo
         context.draw {
             paint ->
             when (background) {
-                case Some(color) -> paint.canvas.drawRect(bounds, Paint(color));
+                case Some(val color) -> paint.canvas.drawRect(bounds, Paint(color));
                 case None -> {}
             }
             if (input.border)

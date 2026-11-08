@@ -85,7 +85,7 @@ internal class UiApplicationRoot(
                     break
                 val entry =
                     when (plan.positions[index]) {
-                        case Some(position) -> previous[position]
+                        case Some(val position) -> previous[position]
                         case None -> {
                             val entry = MountedApplicationEntry(this, descriptions[index])
                             created.add(entry)
@@ -161,7 +161,7 @@ internal class UiApplicationRoot(
         val reported = failure
         failure = None
         when (reported) {
-            case Some(error) -> host.reportApplicationError(error)
+            case Some(val error) -> host.reportApplicationError(error)
             case None -> {}
         }
     }

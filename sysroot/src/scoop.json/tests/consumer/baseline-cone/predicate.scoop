@@ -6,8 +6,8 @@ enum Values {
     companion object : ValueEncoder<Values>, ValueDecoder<Values> {
         public override fun encode(value: Values, encoder: Encoder) {
             when (value) {
-                case Values.Text(text) -> String.encode(text, encoder)
-                case Values.Many(values) -> Array<String>.encoder(String.Companion).encode(values, encoder)
+                case Values.Text(val text) -> String.encode(text, encoder)
+                case Values.Many(val values) -> Array<String>.encoder(String.Companion).encode(values, encoder)
             }
         }
         public override fun decode(decoder: Decoder): Values {
@@ -19,8 +19,8 @@ enum Values {
         }
     }
     fun matches(value: String): Boolean = when (this) {
-        case Values.Text(text) -> text == value
-        case Values.Many(values) -> member(values, value)
+        case Values.Text(val text) -> text == value
+        case Values.Many(val values) -> member(values, value)
     }
 }
 struct Predicate(val os: Values? = None, val arch: Values? = None, val env: Values? = None) {
@@ -48,8 +48,8 @@ fun validateValues(child: Decoder?, value: Values?, allowed: Array<String>) {
         case None -> { return }
         case Some(_) -> {
             when (value!!) {
-                case Values.Text(text) -> requireValid(member(allowed, text), child!!, "unknown target value")
-                case Values.Many(values) -> {
+                case Values.Text(val text) -> requireValid(member(allowed, text), child!!, "unknown target value")
+                case Values.Many(val values) -> {
                     val sequence = child!!.unkeyed()
                     for (text in values) { requireValid(member(allowed, text), sequence.element(), "unknown target value") }
                 }

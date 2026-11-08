@@ -82,7 +82,7 @@ fun main() {
                         )
                         window.requestFocus()
                     }
-                    case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)
+                    case Window(_, WindowEvent.ThemeChanged(val value)) -> model.systemTheme(value)
                     case Window(_, WindowEvent.CloseRequested) -> active.requestExit()
                     else -> {}
                 }

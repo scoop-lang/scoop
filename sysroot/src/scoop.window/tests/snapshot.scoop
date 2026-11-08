@@ -61,13 +61,13 @@ private class SnapshotHandler: ApplicationHandler {
                 started = true
                 window!!.setImeAllowed(true)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(value))) -> opened(value!!)
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(value))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(value!!)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(val value))) -> {
                 closes += 1
                 assertEquals(connection, value)
                 window!!.setImeAllowed(true)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> apply(batch)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> apply(batch)
             else -> {}
         }
     }
@@ -141,7 +141,7 @@ private class SnapshotHandler: ApplicationHandler {
             assertEquals(Some(20L), batch.baseRevision)
             assertEquals(2L, batch.operations.size)
             when (batch.operations[0L]) {
-                case Preedit(value, selection, replacement) -> {
+                case Preedit(val value, val selection, val replacement) -> {
                     assertEquals("仮😀", value)
                     assertEquals(Some(Utf8Selection(3L, 7L)), selection)
                     assertEquals(TextReplacement.Range(Utf8Range(5L, 10L)), replacement)
@@ -192,7 +192,7 @@ private class SnapshotHandler: ApplicationHandler {
                 lease -> @Unsafe
                 {
                     when (lease.handle) {
-                        case AppKit(_, view) -> assertEquals(
+                        case AppKit(_, val view) -> assertEquals(
                             0,
                             exerciseNativeSnapshot(view, phase),
                             Some("native snapshot phase " + phase.toString())

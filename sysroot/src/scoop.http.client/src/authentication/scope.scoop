@@ -8,24 +8,24 @@ internal enum ClientAuthenticationScope {
     Origin, Proxy(HttpProxyEndpoint)
 
     val isProxy: Boolean get() = when (this) { case Origin -> false; case Proxy(_) -> true }
-    val proxyUrl: Url? get() = when (this) { case Origin -> None; case Proxy(endpoint) -> Some(endpoint.url) }
+    val proxyUrl: Url? get() = when (this) { case Origin -> None; case Proxy(val endpoint) -> Some(endpoint.url) }
     val challengeField: String get() = if (isProxy) "Proxy-Authenticate" else "WWW-Authenticate"
     val infoField: String get() = if (isProxy) "Proxy-Authentication-Info" else "Authentication-Info"
 
     fun url(call: ClientCall): Url = proxyUrl ?: call.originalRequest.url
     fun origin(call: ClientCall): UrlOrigin = when (this) {
         case Origin -> call.originalRequest.origin
-        case Proxy(endpoint) -> endpoint.url.httpOrigin()
+        case Proxy(val endpoint) -> endpoint.url.httpOrigin()
     }
     fun options(call: ClientCall): HttpAuthenticationOptions = when (this) {
         case Origin -> call.sequence.authentication
-        case Proxy(endpoint) -> endpoint.authentication
+        case Proxy(val endpoint) -> endpoint.authentication
     }
     fun count(sequence: ClientRequestSequence): Long =
         if (isProxy) sequence.proxyAuthenticationCount else sequence.authenticationCount
     fun hasExplicitCredentials(call: ClientCall): Boolean = when (this) {
         case Origin -> hasClientAuthorization(call.originalRequest) || call.attemptAuthorization
-        case Proxy(endpoint) -> clientPresent(endpoint.authorization)
+        case Proxy(val endpoint) -> clientPresent(endpoint.authorization)
     }
     fun request(call: ClientCall, challenge: HttpAuthChallenge?): HttpAuthenticationRequest =
         HttpAuthenticationRequest(call.originalRequest, challenge, count(call.sequence), proxyUrl)
@@ -49,5 +49,5 @@ internal class ClientCallAuthentication(val scope: ClientAuthenticationScope) {
 
 internal fun sameClientAuthenticationScope(first: ClientAuthenticationScope, second: ClientAuthenticationScope): Boolean = when (first) {
     case Origin -> when (second) { case Origin -> true; else -> false }
-    case Proxy(endpoint) -> when (second) { case Proxy(other) -> endpoint === other; else -> false }
+    case Proxy(val endpoint) -> when (second) { case Proxy(val other) -> endpoint === other; else -> false }
 }

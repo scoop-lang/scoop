@@ -27,7 +27,7 @@ internal class MultipartState(boundary: MultipartBoundary, val limits: Multipart
             case Preamble -> { if (matcher.accept(byte, None)) startDelimiter() }
             case Body -> { if (matcher.accept(byte, Some(body))) startDelimiter() }
             case Headers -> when (headers.accept(byte, at)) {
-                case Some(head) -> { phase = MultipartPhase.Body; matcher.reset(); pending = Some(MultipartEvent.PartStarted(head)) }
+                case Some(val head) -> { phase = MultipartPhase.Body; matcher.reset(); pending = Some(MultipartEvent.PartStarted(head)) }
                 case None -> {}
             }
             case Delimiter -> {

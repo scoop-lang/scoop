@@ -28,7 +28,7 @@ public class DataTableState<Row> public constructor(
         for (key in selection.value.keys) {
             val keep =
                 when (data) {
-                    case Local(source) -> source.indexOfKey(key) != None;
+                    case Local(val source) -> source.indexOfKey(key) != None;
                     case Provided(_, _) -> true
                 }
             if (keep)
@@ -89,7 +89,7 @@ public class DataTableState<Row> public constructor(
         if (previous == next)
             return
         when (onQueryChange) {
-            case Some(action) -> action(next);
+            case Some(val action) -> action(next);
             case None -> {}
         }
     }
@@ -145,7 +145,7 @@ public class DataTableState<Row> public constructor(
             val index = source.indexOfKey(key)
             val targeted =
                 when (index) {
-                    case Some(at) -> selectable(source.rowAt(at));
+                    case Some(val at) -> selectable(source.rowAt(at));
                     case None -> false
                 }
             if (!targeted || value)
@@ -206,7 +206,7 @@ public class DataTableState<Row> public constructor(
             if (value.column != id)
                 next.add(value)
         when (width) {
-            case Some(value) -> next.add(TableColumnWidth(id, value));
+            case Some(val value) -> next.add(TableColumnWidth(id, value));
             case None -> {}
         }
         sizes.value = next.toArray()

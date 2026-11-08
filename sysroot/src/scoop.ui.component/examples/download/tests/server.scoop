@@ -32,7 +32,7 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
                             val request = connection.receiveRequest()!!
                             val target =
                                 when (request.head.target) {
-                                    case Http1(bytes) -> String.fromUtf8(bytes)
+                                    case Http1(val bytes) -> String.fromUtf8(bytes)
                                     else -> throw IllegalStateException(
                                         Some("test requires HTTP/1")
                                     )

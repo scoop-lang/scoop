@@ -7,8 +7,8 @@ def check(peer, root):
         "fun whenChoice(value: Boolean, next: Boolean): Boolean = next\n"
         "fun whenChoice(value: String, next: Boolean): Boolean = next\n"
         "fun whenValue(value: Any) { when (value) { is String -> { value. }; else -> { value. } } }\n"
-        "fun whenPattern(source: (Boolean, String)) { when (source) { case (flag, 文本) -> { 文本. } } }\n"
-        "fun whenGuard(source: (Boolean, String)) { when (source) { case (flag, 文本) if whenChoice(文本, } }\n"
+        "fun whenPattern(source: (Boolean, String)) { when (source) { case (val flag, val 文本) -> { 文本. } } }\n"
+        "fun whenGuard(source: (Boolean, String)) { when (source) { case (val flag, val 文本) if whenChoice(文本, } }\n"
         "fun whenCondition(value: Any) { when { value !is String, whenChoice(value, } }\n"
         "fun whenUnknown(value: String) { when { missing -> {}; else -> { value. } } }\n"
     )

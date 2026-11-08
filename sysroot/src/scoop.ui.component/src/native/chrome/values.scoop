@@ -24,7 +24,7 @@ public class WindowChromeProps public constructor(
         nonnegative(titleBarHeight, "invalid title bar height")
         for (shape in [clip, windowShape, inputShape])
             when (shape) {
-                case Some(WindowChromeShape.Rounded(radius)) -> nonnegative(
+                case Some(WindowChromeShape.Rounded(val radius)) -> nonnegative(
                     radius,
                     "invalid window corner radius"
                 )

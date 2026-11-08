@@ -106,7 +106,7 @@ private suspend fun exerciseSecureWs(client: HttpClient, url: Url, mode: String)
         }
     ) suspend {
         result -> when (result) {
-            case Opened(session) -> {
+            case Opened(val session) -> {
                 assertEquals(Some("wss"), session.url.scheme)
                 wsClientSession(
                     client,
@@ -120,7 +120,7 @@ private suspend fun exerciseSecureWs(client: HttpClient, url: Url, mode: String)
                             "plain"
                 )
             }
-            case Rejected(_, error) -> throw error
+            case Rejected(_, val error) -> throw error
         }
     }
 }

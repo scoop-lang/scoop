@@ -115,7 +115,7 @@ private class HttpClientRetryStatusTest {
                             val incoming = connection.receiveRequest()!!
                             assertEquals(method, String.fromUtf8(incoming.head.method))
                             when (incoming.head.target) {
-                                case Http1(bytes) -> assertEquals(path, String.fromUtf8(bytes))
+                                case Http1(val bytes) -> assertEquals(path, String.fromUtf8(bytes))
                                 else -> fail(Some("expected an HTTP/1 target"))
                             }
                             incoming.body.readAllBytes(0L)

@@ -71,6 +71,6 @@ internal fun encodeOptions(options: TlsOptions): Array<Byte> {
 }
 
 internal fun peerData(peer: TlsPeerName): (Int, Array<Byte>) = when (peer) {
-    case Dns(name) -> peerIdentityData(PeerIdentity.Dns(name))
-    case Ip(address) -> peerIdentityData(PeerIdentity.Ip(address.toByteArray()))
+    case Dns(val name) -> peerIdentityData(PeerIdentity.Dns(name))
+    case Ip(val address) -> peerIdentityData(PeerIdentity.Ip(address.toByteArray()))
 }

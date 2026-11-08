@@ -200,7 +200,7 @@ public class BigDecimal internal constructor(
         public fun parse(text: String): BigDecimal = decimalResult(decimalRequireParsed(text))
         /** Returns None for malformed text or an unrepresentable parsed scale. */
         public fun parseOrNone(text: String): BigDecimal? = when (decimalParse(text)) {
-            case Some(value) -> Some(decimalResult(value))
+            case Some(val value) -> Some(decimalResult(value))
             case None -> None
         }
         /** Parses the finite binary32 value's shortest round-trip decimal text. */

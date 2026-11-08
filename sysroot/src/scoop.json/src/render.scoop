@@ -28,10 +28,10 @@ internal fun writeJsonString(text: String, output: StringBuilder) {
 internal fun writeJson(value: JsonNode, output: StringBuilder) {
     when (value) {
         case JsonNode.Null -> { output.append("null") }
-        case JsonNode.BooleanValue(result) -> { output.append(result) }
-        case JsonNode.Number(text) -> { output.append(text) }
-        case JsonNode.Text(text) -> { writeJsonString(text, output) }
-        case JsonNode.Record(members) -> {
+        case JsonNode.BooleanValue(val result) -> { output.append(result) }
+        case JsonNode.Number(val text) -> { output.append(text) }
+        case JsonNode.Text(val text) -> { writeJsonString(text, output) }
+        case JsonNode.Record(val members) -> {
             output.append('{')
             var first: Boolean = true
             for (member in members) {
@@ -43,7 +43,7 @@ internal fun writeJson(value: JsonNode, output: StringBuilder) {
             }
             output.append('}')
         }
-        case JsonNode.Sequence(elements) -> {
+        case JsonNode.Sequence(val elements) -> {
             output.append('[')
             var first: Boolean = true
             for (element in elements) {

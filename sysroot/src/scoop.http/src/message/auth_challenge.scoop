@@ -23,7 +23,7 @@ public class HttpAuthChallenge private constructor(private val content: HttpAuth
      */
     public val parameters: Array<HttpParameter> get() = content.parameters
     /**
-     * Looks up a named parameter using ASCII case folding, returning None when absent.
+     * Looks up a named parameter using ASCII case val folding, returning None when absent.
      */
     public fun parameter(name: String): HttpParameter? = findHttpParameter(parameters, name)
     /**

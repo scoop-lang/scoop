@@ -81,12 +81,12 @@ private class MultipartCapture(val dataChunk: Long) {
         while (true)
             when (decoder.nextEvent()) {
                 case None -> return
-                case Some(MultipartEvent.PartStarted(head)) -> {
+                case Some(MultipartEvent.PartStarted(val head)) -> {
                     check(heads.size == ended && !done)
                     heads.add(head);
                     bodies.add(ByteArrayBuilder())
                 }
-                case Some(MultipartEvent.Data(bytes)) -> {
+                case Some(MultipartEvent.Data(val bytes)) -> {
                     check(heads.size == ended + 1L && !done && bytes.size <= dataChunk)
                     bodies[ended].append(bytes)
                 }

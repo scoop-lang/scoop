@@ -30,7 +30,7 @@ internal class ImeProbe {
         @Unsafe
         {
             when (lease.handle) {
-                case AppKit(_, view) -> assertEquals(0, exerciseNativeText(view))
+                case AppKit(_, val view) -> assertEquals(0, exerciseNativeText(view))
             }
         }
         window.setImeAllowed(false)
@@ -53,7 +53,7 @@ internal class ImeProbe {
                 assertEquals(11L, batches.size)
                 disabled += 1
             }
-            case Edit(batch) -> {
+            case Edit(val batch) -> {
                 assertEquals(None, batch.baseRevision)
                 batches.add(batch)
                 text = text.apply(batch)
@@ -104,7 +104,7 @@ internal class ImeProbe {
 
 private fun preedit(operation: TextInputOperation, text: String, selection: Utf8Selection?) {
     when (operation) {
-        case Preedit(actual, selected, TextReplacement.CurrentSelection) -> {
+        case Preedit(val actual, val selected, TextReplacement.CurrentSelection) -> {
             assertEquals(text, actual)
             assertEquals(selection, selected)
         }
@@ -114,7 +114,7 @@ private fun preedit(operation: TextInputOperation, text: String, selection: Utf8
 
 private fun commit(operation: TextInputOperation, text: String) {
     when (operation) {
-        case Commit(actual, TextReplacement.CurrentSelection) -> assertEquals(text, actual)
+        case Commit(val actual, TextReplacement.CurrentSelection) -> assertEquals(text, actual)
         else -> fail(Some("expected a native commit"))
     }
 }

@@ -19,23 +19,23 @@ internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
 
 private fun linuxShortcutLabel(key: ShortcutKey): String {
     return when (key) {
-        case Logical(LogicalKey.Character(text)) -> text
-        case Logical(LogicalKey.Named(key)) -> linuxNamedLabel(key)
+        case Logical(LogicalKey.Character(val text)) -> text
+        case Logical(LogicalKey.Named(val key)) -> linuxNamedLabel(key)
         case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
             Some("dead shortcut key")
         )
         case Logical(LogicalKey.Unidentified(_)) -> "Unknown"
         case Physical(PhysicalKey.Unidentified(_)) -> "Unknown"
-        case Physical(PhysicalKey.Code(key)) -> {
+        case Physical(PhysicalKey.Code(val key)) -> {
             when (linuxScanCode(key)) {
-                case Some(scan) -> {
+                case Some(val scan) -> {
                     val(symbol, text) = linuxLayoutLabel(scan)
                     when (platformNamedKey(scan.toLong(), symbol.toLong())) {
-                        case Some(named) -> return linuxNamedLabel(named)
+                        case Some(val named) -> return linuxNamedLabel(named)
                         case None -> {}
                     }
                     when (text) {
-                        case Some(value) -> return value
+                        case Some(val value) -> return value
                         case None -> {}
                     }
                 }

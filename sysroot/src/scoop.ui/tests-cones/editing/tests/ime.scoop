@@ -22,7 +22,7 @@ internal class SystemImeProbe {
 
     fun restoreSource() {
         when (source) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 source = None
                 @Unsafe
                 {

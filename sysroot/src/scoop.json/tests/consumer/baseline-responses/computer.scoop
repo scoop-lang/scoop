@@ -38,15 +38,15 @@ enum ComputerAction {
         public override fun encode(value: ComputerAction, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ComputerAction.Click(payload) -> {
+                case ComputerAction.Click(val payload) -> {
                     String.encode("click", fields.field("type"))
                     ClickAction.Companion.encode(payload, encoder)
                 }
-                case ComputerAction.Drag(payload) -> {
+                case ComputerAction.Drag(val payload) -> {
                     String.encode("drag", fields.field("type"))
                     DragAction.Companion.encode(payload, encoder)
                 }
-                case ComputerAction.Type(payload) -> {
+                case ComputerAction.Type(val payload) -> {
                     String.encode("type", fields.field("type"))
                     TypeAction.Companion.encode(payload, encoder)
                 }

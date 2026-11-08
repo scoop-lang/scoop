@@ -35,7 +35,7 @@ private class WindowInteractionLayout(
                 if (input.enabled)
                     when (event) {
                         case Pointer(
-                            InputPointerEvent.Button(_, button, ElementState.Pressed, count)
+                            InputPointerEvent.Button(_, val button, ElementState.Pressed, val count)
                         ) -> {
                             val capabilities = scope.application.desktopCapabilities().frame
                             if (button == MouseButton.Left) {
@@ -52,7 +52,7 @@ private class WindowInteractionLayout(
                                             scope.nativeWindow.beginMove(),
                                             "move window"
                                         )
-                                    case Resize(edge) -> requireChromeRequest(
+                                    case Resize(val edge) -> requireChromeRequest(
                                         scope.nativeWindow.beginResize(edge),
                                         "resize window"
                                     )
@@ -93,7 +93,7 @@ private class WindowInteractionLayout(
             region?.close()
             region =
                 when (value.kind) {
-                    case Resize(edge) -> if (capabilities.resizeHitRegions)
+                    case Resize(val edge) -> if (capabilities.resizeHitRegions)
                         Some(
                             scope.createWindowRegion(
                                 WindowRegionKind.Hit(WindowHitRole.Resize(edge))
@@ -106,7 +106,7 @@ private class WindowInteractionLayout(
             previous = Some(value.kind)
         }
         when (region) {
-            case Some(value) -> value.enabled = props.value.enabled;
+            case Some(val value) -> value.enabled = props.value.enabled;
             case None -> {}
         }
         return UiInvalidation.Scene
@@ -122,7 +122,7 @@ private class WindowInteractionLayout(
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, bounds)
         when (region) {
-            case Some(value) -> context.place(value, bounds);
+            case Some(val value) -> context.place(value, bounds);
             case None -> {}
         }
         context.children()

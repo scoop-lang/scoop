@@ -44,7 +44,7 @@ internal class ResizableControl(
     fun update() {
         val props = input().props
         when (gesture) {
-            case Some(active) -> {
+            case Some(val active) -> {
                 if (
                     !compatible(active.geometry) ||
                         props.dragThreshold !=
@@ -76,7 +76,7 @@ internal class ResizableControl(
             return
         geometry = Some(shape)
         when (gesture) {
-            case Some(active) -> if (
+            case Some(val active) -> if (
                 shape.size !=
                     active.geometry.size ||
                     shape.size.width ==
@@ -90,7 +90,7 @@ internal class ResizableControl(
     }
     fun available(index: Long): Boolean =
         when (geometry) {
-            case Some(shape) -> enabled(index) &&
+            case Some(val shape) -> enabled(index) &&
                 compatible(shape) &&
                 shape.size.width >
                 0.0 &&
@@ -100,7 +100,7 @@ internal class ResizableControl(
         }
     fun handle(index: Long, drag: Drag, focus: FocusTarget, event: DragEvent) {
         when (event) {
-            case Started(sample) -> {
+            case Started(val sample) -> {
                 if (!available(index)) {
                     drag.cancel();
                     return
@@ -125,8 +125,8 @@ internal class ResizableControl(
                 gesture = Some(ResizableGesture(index, initial, lengths, shape, drag))
                 move(sample.displacement)
             }
-            case Moved(sample) -> move(sample.displacement)
-            case Ended(sample) -> {
+            case Moved(val sample) -> move(sample.displacement)
+            case Ended(val sample) -> {
                 move(sample.displacement)
                 val active = gesture ?: return
                 gesture = None
@@ -134,7 +134,7 @@ internal class ResizableControl(
                 if (scope.isMounted && !sameResizableSizes(active.initial, props.sizes.value))
                     props.onSizesCommit(props.sizes.value)
             }
-            case Cancelled(_, reason) -> cancel(reason)
+            case Cancelled(_, val reason) -> cancel(reason)
         }
     }
     private fun move(displacement: Double) {
@@ -194,7 +194,7 @@ internal class ResizableControl(
         val accepted = props.sizes.value
         resizableValues(accepted)
         when (active) {
-            case Some(value) -> value.expected = accepted
+            case Some(val value) -> value.expected = accepted
             case None -> {}
         }
         if (scope.isMounted && !sameResizableSizes(previous, accepted))
@@ -211,7 +211,7 @@ internal class ResizableControl(
     }
     fun lostFocus(key: ViewKey) {
         when (gesture) {
-            case Some(active) -> if (active.geometry.input.panels[active.index].key == key)
+            case Some(val active) -> if (active.geometry.input.panels[active.index].key == key)
                 cancel(DragCancelReason.Explicit)
             case None -> {}
         }

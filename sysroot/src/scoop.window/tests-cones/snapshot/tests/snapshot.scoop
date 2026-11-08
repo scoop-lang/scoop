@@ -53,13 +53,13 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("Windows TSF snapshot deadline"))
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(value))) -> opened(value!!)
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(value))) -> {
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(value!!)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(val value))) -> {
                 closes += 1
                 assertEquals(connection, value)
                 window!!.setImeAllowed(true)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> apply(batch)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> apply(batch)
             case Window(_, WindowEvent.Closing) -> {}
             case Window(_, WindowEvent.Destroyed) -> finished = true
             else -> {}
@@ -145,7 +145,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
         if (edits == 1) {
             assertEquals(2L, batch.operations.size)
             when (val operation = batch.operations[0L]) {
-                case TextInputOperation.Preedit(value, selection, replacement) -> {
+                case TextInputOperation.Preedit(val value, val selection, val replacement) -> {
                     assertEquals("仮", value)
                     assertEquals(Some(Utf8Selection(3L, 3L)), selection)
                     assertEquals(TextReplacement.Range(Utf8Range(5L, 10L)), replacement)
@@ -153,7 +153,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                 else -> fail(Some("expected the first TSF projection"))
             }
             when (val operation = batch.operations[1L]) {
-                case TextInputOperation.Preedit(value, selection, replacement) -> {
+                case TextInputOperation.Preedit(val value, val selection, val replacement) -> {
                     assertEquals("仮😀", value)
                     assertEquals(Some(Utf8Selection(3L, 7L)), selection)
                     assertEquals(TextReplacement.Range(Utf8Range(5L, 8L)), replacement)
@@ -198,7 +198,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                 lease -> @Unsafe
                 {
                     when (lease.handle) {
-                        case Win32(hwnd, _) -> assertEquals(
+                        case Win32(val hwnd, _) -> assertEquals(
                             0,
                             exerciseNativeSnapshot(hwnd, phase),
                             Some("native TSF snapshot phase " + phase.toString())

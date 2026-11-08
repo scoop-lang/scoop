@@ -80,11 +80,11 @@ internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
 
     fun deliver(event: ApplicationEvent) {
         when (event) {
-            case Menu(value) -> menus.deliver(value.menu, value)
-            case PopupCompleted(id, result) -> popups.deliver(id, result)
-            case ModalCompleted(id, result) -> modals.deliver(id, result)
-            case FileDialogCompleted(id) -> files.deliver(id, Unit)
-            case Window(id, value) -> {
+            case Menu(val value) -> menus.deliver(value.menu, value)
+            case PopupCompleted(val id, val result) -> popups.deliver(id, result)
+            case ModalCompleted(val id, val result) -> modals.deliver(id, result)
+            case FileDialogCompleted(val id) -> files.deliver(id, Unit)
+            case Window(val id, val value) -> {
                 windows.deliver(id, value)
                 when (value) {
                     case FrameChanged -> frames.deliver(id, Unit)

@@ -15,7 +15,7 @@ internal fun questionnaireNativeText(window: Window, text: String, marked: Boole
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> text.withUtf8Bytes {
+                    case AppKit(_, val view) -> text.withUtf8Bytes {
                         bytes,
                         length -> @Unsafe
                         {
@@ -50,7 +50,7 @@ internal fun questionnaireNativeKey(window: Window, code: Int, text: String, fla
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> text.withUtf8Bytes {
+                    case AppKit(_, val view) -> text.withUtf8Bytes {
                         bytes,
                         length -> @Unsafe
                         {
@@ -73,11 +73,11 @@ internal fun questionnaireNativeFailure(error: Throwable) {
                 f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
             )
             when (error.expected) {
-                case Text(value) -> println(f"expected: ${value}");
+                case Text(val value) -> println(f"expected: ${value}");
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println(f"actual: ${value}");
+                case Text(val value) -> println(f"actual: ${value}");
                 else -> {}
             }
         } else
@@ -97,7 +97,7 @@ internal fun questionnaireNativePointer(
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> nativeEditorPointer(view, x, y, pressed, 1, false)
+                    case AppKit(_, val view) -> nativeEditorPointer(view, x, y, pressed, 1, false)
                 }
             }
         }

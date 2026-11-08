@@ -96,7 +96,7 @@ private class FieldPainter(
                     None
         val text =
             when (model) {
-                case Some(value) -> Some(fieldText(canvas, geometry, probe, value))
+                case Some(val value) -> Some(fieldText(canvas, geometry, probe, value))
                 case None -> None
             }
         val value = FieldSurface(geometry, visual, bounds, text)

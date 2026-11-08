@@ -6,8 +6,8 @@ import scoop.window.native.NativeMenuLease
 internal fun installTrayMenu(pointer: Ptr<Unit>, menu: NativeMenuLease?) {
     val native =
         when (menu) {
-            case Some(lease) -> when (lease.handle) {
-                case AppKit(handle) -> Some(handle)
+            case Some(val lease) -> when (lease.handle) {
+                case AppKit(val handle) -> Some(handle)
             }
             case None -> None
         }

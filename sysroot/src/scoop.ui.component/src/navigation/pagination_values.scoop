@@ -35,9 +35,9 @@ public class PaginationProps public constructor(
     init {
         validatePagination(pageCount, siblings, boundaries)
         when (items) {
-            case Some(entries) -> for (index in 0L ..< entries.size) {
+            case Some(val entries) -> for (index in 0L ..< entries.size) {
                 when (entries[index]) {
-                    case Page(number) -> {
+                    case Page(val number) -> {
                         requireComponent(
                             number > 0L && number <= pageCount,
                             "pagination item is outside the page range"

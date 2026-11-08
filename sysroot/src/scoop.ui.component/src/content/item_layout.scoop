@@ -47,13 +47,13 @@ internal class ItemRenderer(private val scope: ComponentScope) {
                 Some(
                     itemColumn {
                         when (input.title) {
-                            case Some(value) -> this.add(
+                            case Some(val value) -> this.add(
                                 panelSlot(itemCaption(value, title, input.fonts, 1L, direction), 0L)
                             )
                             case None -> {}
                         }
                         when (input.description) {
-                            case Some(value) -> this.add(
+                            case Some(val value) -> this.add(
                                 panelSlot(
                                     itemCaption(value, description, input.fonts, 2L, direction),
                                     1L
@@ -62,7 +62,7 @@ internal class ItemRenderer(private val scope: ComponentScope) {
                             case None -> {}
                         }
                         when (input.content) {
-                            case Some(value) -> this.add(panelSlot(value, 2L))
+                            case Some(val value) -> this.add(panelSlot(value, 2L))
                             case None -> {}
                         }
                         this.spacing =
@@ -78,7 +78,7 @@ internal class ItemRenderer(private val scope: ComponentScope) {
         val middle =
             itemRow {
                 when (input.media) {
-                    case Some(value) -> this.item(
+                    case Some(val value) -> this.item(
                         panelSlot(
                             itemMedia(
                                 value,
@@ -116,7 +116,7 @@ internal class ItemRenderer(private val scope: ComponentScope) {
         val content =
             itemColumn {
                 when (input.header) {
-                    case Some(value) -> this.add(panelSlot(value, 0L))
+                    case Some(val value) -> this.add(panelSlot(value, 0L))
                     case None -> {}
                 }
                 if (hasText || panelPresent(input.media) || panelPresent(input.actions))
@@ -125,7 +125,7 @@ internal class ItemRenderer(private val scope: ComponentScope) {
                         this.align = Some(CrossAlignment.Start)
                     }
                 when (input.footer) {
-                    case Some(value) -> this.add(panelSlot(value, 2L))
+                    case Some(val value) -> this.add(panelSlot(value, 2L))
                     case None -> {}
                 }
                 this.spacing = gap
@@ -153,8 +153,8 @@ private fun itemCaption(
     direction: LayoutDirection
 ): View =
     when (content) {
-        case Custom(view) -> view
-        case Label(input) -> panelCaption(
+        case Custom(val view) -> view
+        case Label(val input) -> panelCaption(
             PanelContent.Label(
                 LabelProps(
                     input.text,

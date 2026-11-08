@@ -83,7 +83,7 @@ private class CalendarModelTest {
         val single = state<LocalDate?>(Some(a))
         val clear = calendarActivate(CalendarValue.Single(Some(a)), None, a, CalendarRules())
         when (clear) {
-            case Commit(value) -> assertTrue(
+            case Commit(val value) -> assertTrue(
                 calendarWrite(CalendarSelection.Single(single.binding()), value)
             );
             else -> fail(Some("expected a clear"))
@@ -92,7 +92,7 @@ private class CalendarModelTest {
         when (
             calendarActivate(CalendarValue.Single(Some(a)), None, a, CalendarRules(required = true))
         ) {
-            case Commit(Single(value)) -> assertEquals(Some(a), value)
+            case Commit(Single(val value)) -> assertEquals(Some(a), value)
             else -> fail(Some("required selected date must be retained"))
         }
         val rules = CalendarRules(minimumDates = 1L, maximumDates = Some(2L))
@@ -105,7 +105,7 @@ private class CalendarModelTest {
             else -> fail(Some("cannot exceed maximum"))
         }
         when (calendarActivate(CalendarValue.Multiple([a, b]), None, a, rules)) {
-            case Commit(Multiple(values)) -> {
+            case Commit(Multiple(val values)) -> {
                 assertEquals(1L, values.size);
                 assertEquals(b, values[0L]);
             };
@@ -129,7 +129,7 @@ private class CalendarModelTest {
                 disabled = Some({ date -> date == blocked })
             )
         when (calendarActivate(CalendarValue.Range(None), None, b, rules)) {
-            case Pending(date) -> assertEquals(b, date);
+            case Pending(val date) -> assertEquals(b, date);
             else -> fail(Some("range must remain tentative"))
         }
         when (calendarActivate(CalendarValue.Range(None), Some(b), a, rules)) {
@@ -143,7 +143,7 @@ private class CalendarModelTest {
                 allowDisabledInside = true
             )
         when (calendarActivate(CalendarValue.Range(None), Some(b), a, permissive)) {
-            case Commit(Range(value)) -> assertEquals(Some(DateRange(a, b)), value);
+            case Commit(Range(val value)) -> assertEquals(Some(DateRange(a, b)), value);
             else -> fail(Some("expected ordered complete range"))
         }
         assertFalse(permissive.allows(DateRange(a, a)))
@@ -162,11 +162,11 @@ private class CalendarModelTest {
         }
         assertEquals("2026-02-30", draft.editor.text)
         when (datePickerParse(" 2024-02-29 ", false)) {
-            case Date(date) -> assertEquals(LocalDate(2024, 2, 29), date);
+            case Date(val date) -> assertEquals(LocalDate(2024, 2, 29), date);
             else -> fail(Some("valid leap date"))
         }
         when (datePickerParse("2026-11-04 .. 2026-11-08", true)) {
-            case Range(range) -> assertEquals(4L, range.nights);
+            case Range(val range) -> assertEquals(4L, range.nights);
             else -> fail(Some("valid ISO range"))
         }
         when (datePickerParse("2026-11-08 .. 2026-11-04", true)) {

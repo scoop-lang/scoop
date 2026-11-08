@@ -31,7 +31,7 @@ internal class MessageTestSource(val bytes: Array<Byte>, val chunkSize: Long = 1
 
     public override suspend fun close() {
         closes += 1
-        when (closeGate) { case Some(gate) -> gate.await(); case None -> {} }
+        when (closeGate) { case Some(val gate) -> gate.await(); case None -> {} }
         if (failClose) throw CleanupFailure()
     }
 }

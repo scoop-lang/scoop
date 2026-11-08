@@ -73,7 +73,7 @@ private fun exercise(trust: TrustStore) {
                         val request = connection.receiveRequest()!!
                         val path =
                             when (request.head.target) {
-                                case Http1(value) -> String.fromUtf8(value)
+                                case Http1(val value) -> String.fromUtf8(value)
                                 else -> throw IllegalStateException()
                             }
                         if (path == "/load" || path == "/refresh") {

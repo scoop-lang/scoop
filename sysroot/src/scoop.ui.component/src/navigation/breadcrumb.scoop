@@ -64,7 +64,7 @@ private class BreadcrumbRow(
             }
         val body =
             when (entry.content) {
-                case Link(content, action) -> component(
+                case Link(val content, val action) -> component(
                     ButtonProps(
                         ButtonContent.Resolved {
                             appearance ->
@@ -76,12 +76,12 @@ private class BreadcrumbRow(
                                     )
                             val overrideText =
                                 when (entry.style) {
-                                    case Some(value) -> value.text;
+                                    case Some(val value) -> value.text;
                                     case None -> None
                                 }
                             val overrideColor =
                                 when (overrideText) {
-                                    case Some(value) -> value.color;
+                                    case Some(val value) -> value.color;
                                     case None -> None
                                 }
                             val color =
@@ -110,7 +110,7 @@ private class BreadcrumbRow(
                     ),
                     { current, mount -> Button(current, scope = mount) }
                 )
-                case Current(content) -> actionContent(
+                case Current(val content) -> actionContent(
                     navigationLabel(content, input.root.fonts),
                     ActionContentStyle(
                         plain,
@@ -125,7 +125,7 @@ private class BreadcrumbRow(
                     16.0 * density,
                     theme.tokens.palette.muted.foreground
                 )
-                case Custom(content) -> content
+                case Custom(val content) -> content
             }
         return makeRow {
             this.add(
@@ -156,7 +156,7 @@ internal fun navigationLabel(
     alignment: TextAlignment = TextAlignment.Start
 ): ButtonContent =
     when (content) {
-        case Label(label) -> ButtonContent.Label(
+        case Label(val label) -> ButtonContent.Label(
             LabelProps(
                 label.text,
                 if (!panelPresent(label.fonts))

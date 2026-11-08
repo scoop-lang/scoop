@@ -4,8 +4,8 @@ use scoop_syntax::SyntaxKind;
 #[test]
 fn pattern_lists_keep_bindings_after_a_bad_item() {
     for source in [
-        "fun f(x: Any) = when(x) { case Pair(, good) -> good\nelse -> 0 }",
-        "fun f(x: Any) = when(x) { case User {bad: , good} -> good\nelse -> 0 }",
+        "fun f(x: Any) = when(x) { case Pair(, val good) -> good\nelse -> 0 }",
+        "fun f(x: Any) = when(x) { case User {bad: , val good} -> good\nelse -> 0 }",
         "fun f() { val (first, , good) = value\nreturn good }",
     ] {
         let parsed = parse_recovering(source).unwrap();
@@ -30,12 +30,12 @@ fn pattern_lists_keep_bindings_after_a_bad_item() {
 fn rest_markers_and_parenthesized_patterns_keep_their_meaning() {
     for pattern in [
         "()",
-        "(value)",
-        "(value,)",
+        "(val value)",
+        "(val value,)",
         "(..)",
-        "(first, .., last)",
-        "Pair(.., x)",
-        "User {Unit, field, ..}",
+        "(val first, .., val last)",
+        "Pair(.., val x)",
+        "User {Unit, val field, ..}",
     ] {
         let source = format!("fun f(x: Any) = when(x) {{ case {pattern} -> 1\nelse -> 0 }}");
         let parsed = parse_recovering(&source).unwrap();
@@ -56,7 +56,7 @@ fn rest_markers_and_parenthesized_patterns_keep_their_meaning() {
 
 #[test]
 fn incomplete_nested_patterns_leave_following_arms_in_the_when() {
-    let source = "fun f(x: Any) = when(x) {\ncase Pair(first, -> 1\ncase User {bad: , good} -> 2\nelse -> 0\n}";
+    let source = "fun f(x: Any) = when(x) {\ncase Pair(val first, -> 1\ncase User {bad: , val good} -> 2\nelse -> 0\n}";
     let parsed = parse_recovering(source).unwrap();
     assert!(parsed.ast().is_none());
     let syntax = parsed.syntax();

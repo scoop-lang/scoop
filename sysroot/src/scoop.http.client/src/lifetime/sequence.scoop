@@ -40,7 +40,7 @@ internal suspend fun executeClientRequest(state: ClientState, request: HttpReque
 
 internal suspend fun executeClientSequence(state: ClientState, request: HttpRequest, sequence: ClientRequestSequence): HttpResponse =
     when (interceptClientSequence(state, request, sequence)) {
-        case Response(response) -> response
+        case Response(val response) -> response
         case WebSocket(_) -> throw IllegalStateException(Some("ordinary HTTP request returned a WebSocket result"))
     }
 
@@ -53,18 +53,18 @@ internal suspend fun runClientSequence(state: ClientState, request: HttpRequest,
         sequence.lastTransportFailure = None
         val result = executeClientAttempt(state, current, caller, sequence)
         when (result) {
-            case Response(response) -> return response
-            case FollowUp(ClientFollowUp.Redirect(redirect)) -> {
+            case Response(val response) -> return response
+            case FollowUp(ClientFollowUp.Redirect(val redirect)) -> {
                 sequence.history.add(redirect.history)
                 current = redirect.request
                 sequence.attemptReason = HttpAttemptReason.Redirect
             }
-            case FollowUp(ClientFollowUp.Retry(delay)) -> {
+            case FollowUp(ClientFollowUp.Retry(val delay)) -> {
                 awaitClientRetry(state, caller, sequence, delay)
                 sequence.retryCount += 1L
                 sequence.attemptReason = HttpAttemptReason.Retry
             }
-            case FollowUp(ClientFollowUp.Authenticate(session)) -> {
+            case FollowUp(ClientFollowUp.Authenticate(val session)) -> {
                 sequence.authenticationSessions.add(session)
                 if (session.scope.isProxy) sequence.proxyAuthenticationCount += 1L
                 else sequence.authenticationCount += 1L
@@ -74,7 +74,7 @@ internal suspend fun runClientSequence(state: ClientState, request: HttpRequest,
                 sequence.cacheRefresh = true
                 sequence.attemptReason = HttpAttemptReason.CacheRefresh
             }
-            case Failed(failure, bodyStarted) -> {
+            case Failed(val failure, val bodyStarted) -> {
                 val delay = planClientFailureRetry(sequence, current, failure, bodyStarted) ?: throw failure.cause
                 awaitClientRetry(state, caller, sequence, delay)
                 sequence.retryCount += 1L

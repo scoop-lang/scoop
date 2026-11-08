@@ -17,7 +17,7 @@ internal class WaitQueue<T> {
         val link = WaitLink(value)
         link.previous = last
         when (last) {
-            case Some(tail) -> tail.next = Some(link)
+            case Some(val tail) -> tail.next = Some(link)
             case None -> first = Some(link)
         }
         last = Some(link)
@@ -26,11 +26,11 @@ internal class WaitQueue<T> {
 
     internal fun remove(link: WaitLink<T>): T {
         when (link.previous) {
-            case Some(previous) -> previous.next = link.next
+            case Some(val previous) -> previous.next = link.next
             case None -> first = link.next
         }
         when (link.next) {
-            case Some(next) -> next.previous = link.previous
+            case Some(val next) -> next.previous = link.previous
             case None -> last = link.previous
         }
         val value = link.value!!
@@ -42,7 +42,7 @@ internal class WaitQueue<T> {
 
     internal fun takeFirst(): T? =
         when (first) {
-            case Some(link) -> Some(remove(link))
+            case Some(val link) -> Some(remove(link))
             case None -> None
         }
 }

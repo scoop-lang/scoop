@@ -30,7 +30,7 @@ internal fun windowsCommand(script: String, input: Stdio = Stdio.Null): Command 
 
 internal fun windowsExited(status: ExitStatus, expected: Int = 0) {
     when (status) {
-        case ExitStatus.Exited(code) -> assertEquals(expected, code)
+        case ExitStatus.Exited(val code) -> assertEquals(expected, code)
         case ExitStatus.Signaled(_) -> fail(Some("Windows exit was decoded as a POSIX signal"))
     }
 }

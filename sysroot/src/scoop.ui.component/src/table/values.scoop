@@ -12,7 +12,7 @@ public class TableColumnSize public constructor(
         checkGridTracks([track])
         nonnegative(minimum, "invalid table minimum column width")
         when (maximum) {
-            case Some(value) -> requireComponent(
+            case Some(val value) -> requireComponent(
                 value.isFinite() && value >= minimum,
                 "invalid table maximum column width"
             )

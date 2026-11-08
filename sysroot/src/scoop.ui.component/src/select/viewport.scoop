@@ -73,7 +73,7 @@ internal class SelectViewport(
                 Constraints(
                     lowerBound(0.0, constraints.minWidth - padding * 2.0),
                     when (constraints.maxWidth) {
-                        case Some(width) -> Some(lowerBound(0.0, width - padding * 2.0));
+                        case Some(val width) -> Some(lowerBound(0.0, width - padding * 2.0));
                         case None -> None
                     }
                 )
@@ -95,7 +95,7 @@ internal class SelectViewport(
             Size(lowerBound(0.0, total.width - padding * 2.0), lowerBound(0.0, room - arrows * 2.0))
         val adjustment =
             when (child.overlayAnchor) {
-                case Some(rect) -> if (reference == None) {
+                case Some(val rect) -> if (reference == None) {
                     val initial = ScrollSnapshot(Point(0.0, 0.0), viewport, child.size)
                     Some(
                         ScrollAdjustment(
@@ -112,7 +112,7 @@ internal class SelectViewport(
         context.placeChild(0L, Point(0.0, 0.0))
         val anchor =
             when (child.overlayAnchor) {
-                case Some(rect) -> Some(
+                case Some(val rect) -> Some(
                     Rect(
                         rect.x + padding,
                         rect.y + padding + arrows - initial.y,

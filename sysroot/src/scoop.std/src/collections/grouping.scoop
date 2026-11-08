@@ -10,7 +10,7 @@ public fun <T, K, V> Iterable<T>.groupByTo(
         val key = keySelector(element)
         val value = valueTransform(element)
         val group = when (destination[key]) {
-            case Some(existing) -> existing
+            case Some(val existing) -> existing
             case None -> {
                 val created: MutableList<V> = ArrayList<V>()
                 destination[key] = created

@@ -120,7 +120,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
             owner.application.cancelOwnedFileDialogs(owner, FileDialogCancelReason.OwnerHidden)
             owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
             when (owner.modalSession) {
-                case Some(session) -> session.end(
+                case Some(val session) -> session.end(
                     ModalResult.Cancelled(ModalCancelReason.WindowHidden)
                 )
                 case None -> {}
@@ -279,7 +279,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
             if (window.hasOwner && window.owningWindow!! === this)
                 window.close()
         when (modalSession) {
-            case Some(session) -> session.end(
+            case Some(val session) -> session.end(
                 ModalResult.Cancelled(
                     if (application.exiting)
                         ModalCancelReason.ApplicationExit

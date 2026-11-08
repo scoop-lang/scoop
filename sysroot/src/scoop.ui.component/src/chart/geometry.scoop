@@ -42,7 +42,7 @@ internal class ChartGeometry(
         for (series in series)
             for (value in series.samples)
                 when (value) {
-                    case Some(sample) -> if (sample.selection == selection && sample.visible)
+                    case Some(val sample) -> if (sample.selection == selection && sample.visible)
                         return Some(sample);
                     case None -> {}
                 }
@@ -54,7 +54,7 @@ private fun chartHasSamples(series: Array<ChartSeriesGeometry>): Boolean {
     for (line in series)
         for (value in line.samples)
             when (value) {
-                case Some(sample) -> if (sample.visible)
+                case Some(val sample) -> if (sample.visible)
                     return true;
                 case None -> {}
             }
@@ -65,7 +65,7 @@ internal class ChartGeometryCache(private val plan: ChartPlan) {
     private var previous: ChartGeometry? = None
     fun resolve(size: Size): ChartGeometry {
         when (previous) {
-            case Some(value) -> if (value.size == size)
+            case Some(val value) -> if (value.size == size)
                 return value;
             case None -> {}
         }

@@ -52,7 +52,7 @@ internal fun appendHttp1Headers(
                 throw IllegalArgumentException(Some("Content-Length disagrees with the empty HTTP body"))
             if (kind == Http1HeadKind.Response && length == None) output.append("Content-Length: 0\r\n".toByteArray())
         }
-        case Length(count) -> {
+        case Length(val count) -> {
             if (count < 0L || encodings.size != 0L || (length != None && length!! != count))
                 throw IllegalArgumentException(Some("Content-Length disagrees with HTTP body length"))
             if (length == None) output.append(("Content-Length: " + count.toString() + "\r\n").toByteArray())

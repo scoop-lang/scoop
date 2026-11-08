@@ -26,8 +26,8 @@ fn when_expr(first: Expr, second: Expr) -> Expr {
     Expr::When(Box::new(ast::When {
         subject: ast::WhenSubject::Expression(field(var("Choice"), "First")),
         arms: vec![
-            arm(pat_bind("First"), None, vec![stmt(first)]),
-            arm(pat_bind("Second"), None, vec![stmt(second)]),
+            arm(pat_variant("First"), None, vec![stmt(first)]),
+            arm(pat_variant("Second"), None, vec![stmt(second)]),
         ],
         else_body: None,
         span: sp(),

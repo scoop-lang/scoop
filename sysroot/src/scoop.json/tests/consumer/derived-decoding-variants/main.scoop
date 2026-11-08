@@ -29,7 +29,7 @@ private fun exerciseConsumer() {
     val pair = Json.decodeFromString("{\"Pair\":[\"pair\",2]}", Choice.Companion)
     check(Json.encodeToString(pair, Choice.Companion) == "{\"Pair\":[\"pair\",2]}", 2)
     val named = Json.decodeFromString("{\"Named\":{}}", Choice.Companion)
-    check(when (named) { case Choice.Named(value, ignored) -> value == 5 && ignored == 6; else -> false }, 3)
+    check(when (named) { case Choice.Named(val value, val ignored) -> value == 5 && ignored == 6; else -> false }, 3)
     check(Json.encodeToString(named, Choice.Companion) == "{\"Named\":{\"v/~\":5}}", 4)
     val record = Json.decodeFromString("{\"Record\":{\"count\":4,\"value\":\"record\"}}", Choice.Companion)
     check(Json.encodeToString(record, Choice.Companion) == "{\"Record\":{\"value\":\"record\",\"count\":4}}", 5)

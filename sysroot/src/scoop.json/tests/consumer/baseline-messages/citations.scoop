@@ -7,23 +7,23 @@ enum Citation {
         public override fun encode(value: Citation, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case Citation.Char(payload) -> {
+                case Citation.Char(val payload) -> {
                     String.encode("char_location", fields.field("type"))
                     CharCitation.Companion.encode(payload, encoder)
                 }
-                case Citation.Page(payload) -> {
+                case Citation.Page(val payload) -> {
                     String.encode("page_location", fields.field("type"))
                     PageCitation.Companion.encode(payload, encoder)
                 }
-                case Citation.Block(payload) -> {
+                case Citation.Block(val payload) -> {
                     String.encode("content_block_location", fields.field("type"))
                     BlockCitation.Companion.encode(payload, encoder)
                 }
-                case Citation.Web(payload) -> {
+                case Citation.Web(val payload) -> {
                     String.encode("web_search_result_location", fields.field("type"))
                     WebCitation.Companion.encode(payload, encoder)
                 }
-                case Citation.Search(payload) -> {
+                case Citation.Search(val payload) -> {
                     String.encode("search_result_location", fields.field("type"))
                     SearchCitation.Companion.encode(payload, encoder)
                 }

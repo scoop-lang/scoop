@@ -56,7 +56,7 @@ public fun ActiveApplication.macOSApplicationIdentifier(): String? {
     {
         val text = nativeBundleIdentifier()
         return when (text.data) {
-            case Some(pointer) -> Some(String.fromUtf8(pointer, text.length));
+            case Some(val pointer) -> Some(String.fromUtf8(pointer, text.length));
             case None -> None
         }
     }

@@ -16,7 +16,7 @@ internal class FocusScene(private val probe: FocusProbe, scope: ComponentScope):
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (probe.preventTab && key.logicalKey == LogicalKey.Named(NamedKey.Tab))
                             context.preventDefault()
                     }
@@ -117,7 +117,7 @@ private class FocusCell(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (
                             input.index ==
                                 2L &&

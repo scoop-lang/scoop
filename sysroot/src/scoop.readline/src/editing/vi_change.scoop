@@ -4,14 +4,14 @@ internal class ViChange(val before: BufferState) {
     val commands: ArrayList<Command> = ArrayList<Command>()
     fun add(command: Command) {
         val normalized = when (command) {
-            case Overwrite(character) -> Command.Replace(Movement.ForwardChar(), character.toString())
+            case Overwrite(val character) -> Command.Replace(Movement.ForwardChar(), character.toString())
             else -> command
         }
         if (commands.size > 0L) {
             val previous = commands[commands.size - 1L]
             val combined = combineInput(previous, normalized)
             when (combined) {
-                case Some(value) -> { commands[commands.size - 1L] = value; return }
+                case Some(val value) -> { commands[commands.size - 1L] = value; return }
                 case None -> commands.add(normalized)
             }
         } else commands.add(normalized)
@@ -29,7 +29,7 @@ internal fun EditingSession.recordViChange(command: Command, before: BufferState
         viChange = current
     }
     when (current) {
-        case Some(group) -> {
+        case Some(val group) -> {
             group.add(command)
             if (keys.mode == ViMode.Command || (result != EditResult.Continue && result != EditResult.Suspended)) finishViChange()
         }
@@ -42,7 +42,7 @@ internal fun EditingSession.recordViChange(command: Command, before: BufferState
 
 internal fun EditingSession.finishViChange() {
     when (viChange) {
-        case Some(group) -> {
+        case Some(val group) -> {
             viChange = None
             undo.record(group.before, buffer.state(), false)
             if (group.before.text != line) lastChange = Some(Command.Sequence(group.commands.toArray()))
@@ -52,12 +52,12 @@ internal fun EditingSession.finishViChange() {
 }
 
 private fun combineInput(previous: Command, current: Command): Command? = when (previous) {
-    case Insert(text, 1L) -> when (current) {
-        case Insert(next, 1L) -> Some(Command.Insert(text + next))
+    case Insert(val text, 1L) -> when (current) {
+        case Insert(val next, 1L) -> Some(Command.Insert(text + next))
         else -> None
     }
-    case Replace(Movement.ForwardChar(count), text) -> when (current) {
-        case Replace(Movement.ForwardChar(nextCount), next) -> Some(Command.Replace(Movement.ForwardChar(count + nextCount), text + next))
+    case Replace(Movement.ForwardChar(val count), val text) -> when (current) {
+        case Replace(Movement.ForwardChar(val nextCount), val next) -> Some(Command.Replace(Movement.ForwardChar(count + nextCount), text + next))
         else -> None
     }
     else -> None

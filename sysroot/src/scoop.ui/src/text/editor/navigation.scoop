@@ -66,7 +66,7 @@ internal fun editorMove(
                 else -> None
             }
         when (collapse) {
-            case Some(value) -> return EditorNavigation(EditorSelection(value, value), None)
+            case Some(val value) -> return EditorNavigation(EditorSelection(value, value), None)
             case None -> {}
         }
     }
@@ -118,7 +118,7 @@ internal fun editorMove(
                 else -> {
                     val result = layout.moveCaret(cursor, editorCaretMovement(movement), preferredX)
                     when (result) {
-                        case Some(value) -> {
+                        case Some(val value) -> {
                             if (vertical)
                                 column = Some(value.preferredX)
                             value.position

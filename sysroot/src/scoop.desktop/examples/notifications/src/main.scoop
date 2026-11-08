@@ -91,7 +91,7 @@ private class NotificationDemo(
                 center = Some(desktop!!.openNotifications(launch))
                 center!!.observe {
                     event -> when (event) {
-                        case Activated(identity, action, payload) -> {
+                        case Activated(val identity, val action, val payload) -> {
                             record(
                                 f"activated: ${identity.value}; ${action?.value ?: "default"}; ${
                                     payload
@@ -102,8 +102,8 @@ private class NotificationDemo(
                             else
                                 show(active, f"Notification: ${payload}")
                         }
-                        case Closed(identity, reason) -> record("closed: " + identity.value)
-                        case Failed(identity, error) -> failed(error)
+                        case Closed(val identity, val reason) -> record("closed: " + identity.value)
+                        case Failed(val identity, val error) -> failed(error)
                     }
                 }
                 if (has(arguments, "--permission"))
@@ -111,7 +111,7 @@ private class NotificationDemo(
                 else
                     center!!.settings { result -> checked(active, result) }
             }
-            case Window(identity, WindowEvent.CloseRequested) -> {
+            case Window(val identity, WindowEvent.CloseRequested) -> {
                 window?.requestDestroy()
                 active.requestExit()
             }
@@ -124,8 +124,8 @@ private class NotificationDemo(
         result: Result<NotificationSettings, NotificationError>
     ) {
         when (result) {
-            case Success(settings) -> record("settings: " + availability(settings.availability))
-            case Failure(error) -> failed(error)
+            case Success(val settings) -> record("settings: " + availability(settings.availability))
+            case Failure(val error) -> failed(error)
         }
         if (
             has(arguments, "--send") ||
@@ -183,7 +183,7 @@ private class NotificationDemo(
                             if (has(arguments, "--send-and-exit"))
                                 active.requestExit()
                 }
-                case Failure(error) -> {
+                case Failure(val error) -> {
                     failed(error);
                     active.requestExit()
                 }
@@ -194,13 +194,13 @@ private class NotificationDemo(
         center!!.withdraw(id) {
             result ->
             when (result) {
-                case Success(value) -> record(
+                case Success(val value) -> record(
                     if (value == NotificationWithdrawal.Requested)
                         "withdraw requested"
                     else
                         "withdraw not found"
                 )
-                case Failure(error) -> failed(error)
+                case Failure(val error) -> failed(error)
             }
             if (exit)
                 active.requestExit()
@@ -208,7 +208,7 @@ private class NotificationDemo(
     }
     private fun show(active: ActiveApplication, title: String) {
         when (window) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 value.setTitle(title);
                 value.requestRaise()
             }

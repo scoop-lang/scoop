@@ -15,7 +15,7 @@ internal fun InputRouter.currentCaret(area: InputArea): ImeCaret {
         else
             None
     when (placement) {
-        case Some(value) -> if (
+        case Some(val value) -> if (
             caretFrameValid && value.localCaret == area.caret && value.caretRevision == revision
         )
             return ImeCaret(value.visibleCaret, revision, connection)

@@ -38,7 +38,7 @@ fn when_single_expression_arms_separate_like_statements() {
 #[test]
 fn when_guard_with_single_expression_body() {
     // The fixture shape from when-guards.scoop: guard, then a call body.
-    let when = when_with_arms("        case Num(n) if (n > 100) -> println(\"big\")\n");
+    let when = when_with_arms("        case Num(val n) if (n > 100) -> println(\"big\")\n");
     let arm = &when.arms[0];
     assert!(arm.guard.is_some());
     assert_eq!(arm.body.statements.len(), 1);

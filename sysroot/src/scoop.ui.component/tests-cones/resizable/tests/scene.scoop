@@ -109,7 +109,7 @@ private class SplitTestLayout(
             {
                 context,
                 event -> when (event) {
-                    case Pointer(InputPointerEvent.Moved(point)) -> p.pointerTrace.add(
+                    case Pointer(InputPointerEvent.Moved(val point)) -> p.pointerTrace.add(
                         f"phase ${p.phase}: move ${point.state.logicalPosition.x}, ${
                             point.state.logicalPosition.y
                         }"

@@ -114,7 +114,7 @@ internal fun selectorServe(
             connection ->
             val incoming = connection.receiveRequest()!!
             when (val target = incoming.head.target) {
-                case Http1(bytes) -> selectorCheck(
+                case Http1(val bytes) -> selectorCheck(
                     String.fromUtf8(bytes) == "http://origin.invalid/resource"
                 )
                 else -> throw IllegalStateException(Some("proxy received a non-HTTP/1 target"))

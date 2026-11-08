@@ -103,7 +103,7 @@ public class Typeahead internal constructor(
         }
         val origin =
             when (currentKey()) {
-                case Some(key) -> navigationIndex(source, key)
+                case Some(val key) -> navigationIndex(source, key)
                 case None -> None
             }
         val result = findTypeahead(source, query, origin, repeated, options.matches) ?: return false
@@ -115,7 +115,7 @@ public class Typeahead internal constructor(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value;
+                case Keyboard(val value) -> value;
                 else -> return
             }
         val modifiers = key.modifiers
@@ -130,7 +130,7 @@ public class Typeahead internal constructor(
             return
         val text =
             when (key.logicalKey) {
-                case Character(value) -> value;
+                case Character(val value) -> value;
                 else -> return
             }
         if (text == "")

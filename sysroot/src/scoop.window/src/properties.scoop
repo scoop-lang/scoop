@@ -4,15 +4,15 @@ package scoop.window
 public struct WindowSizeConstraints(val min: LogicalSize? = None, val max: LogicalSize? = None) {
     internal fun validate() {
         when (min) {
-            case Some(value) -> checkSize(value);
+            case Some(val value) -> checkSize(value);
             case None -> {}
         }
         when (max) {
-            case Some(value) -> checkSize(value);
+            case Some(val value) -> checkSize(value);
             case None -> {}
         }
         when ((min, max)) {
-            case(Some(low), Some(high)) -> requireWindow(
+            case(Some(val low), Some(val high)) -> requireWindow(
                 low.width <= high.width && low.height <= high.height,
                 "inconsistent size constraints"
             )
@@ -21,14 +21,14 @@ public struct WindowSizeConstraints(val min: LogicalSize? = None, val max: Logic
     }
     internal fun check(size: LogicalSize) {
         when (min) {
-            case Some(value) -> requireWindow(
+            case Some(val value) -> requireWindow(
                 size.width >= value.width && size.height >= value.height,
                 "size is below its minimum"
             );
             case None -> {}
         }
         when (max) {
-            case Some(value) -> requireWindow(
+            case Some(val value) -> requireWindow(
                 size.width <= value.width && size.height <= value.height,
                 "size exceeds its maximum"
             );
@@ -151,7 +151,9 @@ public fun Window.requestMinimized(value: Boolean): RequestStatus {
         owner.application.cancelOwnedFileDialogs(owner, FileDialogCancelReason.OwnerHidden)
         owner.application.cancelOwnedModals(owner, ModalCancelReason.OwnerHidden)
         when (owner.modalSession) {
-            case Some(session) -> session.end(ModalResult.Cancelled(ModalCancelReason.WindowHidden))
+            case Some(val session) -> session.end(
+                ModalResult.Cancelled(ModalCancelReason.WindowHidden)
+            )
             case None -> {}
         }
     }
@@ -285,14 +287,14 @@ internal fun validateAttributes(attributes: WindowAttributes) {
     attributes.constraints.validate()
     attributes.constraints.check(attributes.size)
     when (attributes.position) {
-        case Some(value) -> requireWindow(
+        case Some(val value) -> requireWindow(
             value.x.isFinite() && value.y.isFinite(),
             "non-finite desktop position"
         );
         case None -> {}
     }
     when (attributes.resizeIncrements) {
-        case Some(value) -> checkIncrements(value);
+        case Some(val value) -> checkIncrements(value);
         case None -> {}
     }
 }
@@ -319,7 +321,7 @@ internal fun applyCreationProperties(owner: WindowOwner, attributes: WindowAttri
         "content_protection"
     )
     when (attributes.position) {
-        case Some(value) -> requireCreationStatus(window.requestPosition(value), "position");
+        case Some(val value) -> requireCreationStatus(window.requestPosition(value), "position");
         case None -> {}
     }
 }

@@ -16,7 +16,7 @@ private class PosixEnvironmentTest {
                 OsString.fromString("/tmp")
         assertEquals(expected, temporaryDirectory().toOsString())
         when (environmentVariable("HOME")) {
-            case Some(value) -> if (value.toByteArray().size != 0L)
+            case Some(val value) -> if (value.toByteArray().size != 0L)
                 assertEquals(value, homeDirectory()!!.toOsString())
             case None -> {
                 homeDirectory()

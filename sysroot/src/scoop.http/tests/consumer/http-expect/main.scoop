@@ -24,8 +24,8 @@ private fun exercise(wire: Array<Byte>) {
                     when (event) {
                         case None -> break
                         case Some(_) -> when (event!!) {
-                            case Request(head) -> received.add(head)
-                            case Data(bytes) -> body.append(bytes)
+                            case Request(val head) -> received.add(head)
+                            case Data(val bytes) -> body.append(bytes)
                             else -> {}
                         }
                     }

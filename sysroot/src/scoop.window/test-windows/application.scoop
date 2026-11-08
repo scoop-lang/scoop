@@ -81,7 +81,7 @@ private class WindowsHandler: ApplicationHandler {
             when (event) {
                 case Resumed -> start(application)
                 case NewEvents(StartCause.Deadline) -> fail(Some("Win32 lifecycle timed out"))
-                case Window(identity, WindowEvent.RedrawRequested) -> {
+                case Window(val identity, WindowEvent.RedrawRequested) -> {
                     if (identity == window!!.id) {
                         assertTrue(window!!.isVisible)
                         redraws += 1
@@ -91,18 +91,18 @@ private class WindowsHandler: ApplicationHandler {
                         }
                     }
                 }
-                case Window(_, WindowEvent.Keyboard(key)) -> {
+                case Window(_, WindowEvent.Keyboard(val key)) -> {
                     assertEquals(PhysicalKey.Code(KeyCode.KeyA), key.physicalKey)
                     if (key.state == ElementState.Pressed)
                         keyDown += 1
                     else
                         keyUp += 1
                 }
-                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
                     gcCollect()
                     for (operation in batch.operations)
                         when (operation) {
-                            case Commit(value, _) -> text += value
+                            case Commit(val value, _) -> text += value
                             else -> fail(Some("ordinary input produced a preedit"))
                         }
                 }
@@ -111,7 +111,7 @@ private class WindowsHandler: ApplicationHandler {
                     assertEquals(WindowState.Open, window!!.state)
                     application.proxy().post { active -> active.requestExit() }
                 }
-                case Window(identity, WindowEvent.Closing) -> {
+                case Window(val identity, WindowEvent.Closing) -> {
                     closing += 1
                     if (identity == window!!.id) {
                         assertFailsWith<WindowException> {
@@ -218,7 +218,7 @@ private class WindowsHandler: ApplicationHandler {
             val held = first.acquireNativeWindow()
             lease = Some(held)
             when (held.handle) {
-                case Win32(handle, instance) -> {
+                case Win32(val handle, val instance) -> {
                     hwnd = Some(handle);
                     assertTrue(instance.toULong() != 0uL)
                     first.setEnabledButtons(WindowButtons(close = false))

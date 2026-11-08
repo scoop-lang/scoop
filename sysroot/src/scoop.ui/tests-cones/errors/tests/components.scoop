@@ -25,7 +25,7 @@ internal class FailureImage(private val record: FailureRecord, val name: String)
         image.close()
         record.log.add("close " + name)
         when (record.factoryFonts) {
-            case Some(fonts) -> assertFalse(fonts.isClosed)
+            case Some(val fonts) -> assertFalse(fonts.isClosed)
             case None -> {}
         }
         if (record.mode == FailureMode.Mount || record.mode == FailureMode.Factory)

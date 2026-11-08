@@ -88,7 +88,7 @@ where K: Equals<K>, K: Hash {
      */
     public override operator fun get(key: K): V? {
         return when (val probe = locate(key)) {
-            case HashProbe.Found(index, _) -> Some(storage.read(index).value)
+            case HashProbe.Found(val index, _) -> Some(storage.read(index).value)
             case HashProbe.Absent(_, _) -> None
         }
     }
@@ -130,7 +130,7 @@ where K: Equals<K>, K: Hash {
 
     private fun putEntry(key: K, value: V, replace: Boolean): V? {
         return when (val probe = locate(key)) {
-            case HashProbe.Found(index, _) -> {
+            case HashProbe.Found(val index, _) -> {
                 val old = storage.read(index)
                 if (replace) {
                     storage.replace(index, HashEntry<K, V>(old.key, value, old.mixedHash))
@@ -138,7 +138,7 @@ where K: Equals<K>, K: Hash {
                 }
                 Some(old.value)
             }
-            case HashProbe.Absent(index, mixedHash) -> {
+            case HashProbe.Absent(val index, val mixedHash) -> {
                 insertAbsent(key, value, index, mixedHash)
                 None
             }
@@ -161,7 +161,7 @@ where K: Equals<K>, K: Hash {
      */
     public override fun remove(key: K): V? {
         return when (val probe = locate(key)) {
-            case HashProbe.Found(index, _) -> Some(removeAt(index))
+            case HashProbe.Found(val index, _) -> Some(removeAt(index))
             case HashProbe.Absent(_, _) -> None
         }
     }

@@ -1,0 +1,21 @@
+import Signal.*
+
+enum Signal { Ready, Payload(Int) }
+enum Unimported { Uppercase }
+
+val Ready = 1
+
+fun prelude(): Int {
+    val None = 2
+    if (true) { val None = 3; return None }
+    return None
+}
+
+fun imported(): Int { val Payload = 4; return Payload }
+fun unrelated(): Int { val Uppercase = 5; return Uppercase }
+fun exact(value: Signal): Signal = when(value) { case val Ready -> Ready }
+
+fun main() {
+    println(Ready + prelude() + imported() + unrelated())
+    println(exact(Signal.Ready) == Signal.Ready)
+}

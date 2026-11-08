@@ -12,15 +12,15 @@ internal enum FocusStop {
 
 internal fun focusStopNode(stop: FocusStop): MountedNode =
     when (stop) {
-        case Target(value) -> value.node
-        case Items(value) -> value.node
+        case Target(val value) -> value.node
+        case Items(val value) -> value.node
     }
 
 private fun entryOrder(entry: FocusEntry): Int =
     when (entry) {
-        case Target(value) -> value.options.order
-        case Group(value) -> value.options.order
-        case Items(value) -> value.options.order
+        case Target(val value) -> value.options.order
+        case Group(val value) -> value.options.order
+        case Items(val value) -> value.options.order
     }
 
 private fun collectFocus(
@@ -33,7 +33,7 @@ private fun collectFocus(
         return
     if (node !== boundary) {
         when (node.focusScope) {
-            case Some(group) -> {
+            case Some(val group) -> {
                 entries.add(FocusEntry.Group(group))
                 return
             }
@@ -44,7 +44,7 @@ private fun collectFocus(
         entries.add(FocusEntry.Target(target))
     if (virtual) {
         when (node.lazyFocus) {
-            case Some(value) -> if (value.usesItems) {
+            case Some(val value) -> if (value.usesItems) {
                 entries.add(FocusEntry.Items(value))
                 return
             }
@@ -61,12 +61,12 @@ internal fun focusOrder(node: MountedNode): Array<FocusTarget> {
     val result = ArrayList<FocusTarget>()
     for (entry in entries.sortedBy<FocusEntry, Int> { value -> entryOrder(value) }) {
         when (entry) {
-            case Target(value) -> result.add(value)
-            case Group(value) -> {
+            case Target(val value) -> result.add(value)
+            case Group(val value) -> {
                 for (target in focusOrder(value.node))
                     result.add(target)
             }
-            case Items(value) -> {
+            case Items(val value) -> {
                 for (child in value.node.children)
                     for (target in focusOrder(child))
                         result.add(target)
@@ -83,9 +83,9 @@ internal fun tabOrder(node: MountedNode): Array<FocusStop> {
     val result = ArrayList<FocusStop>()
     for (entry in entries.sortedBy<FocusEntry, Int> { value -> entryOrder(value) }) {
         when (entry) {
-            case Target(value) -> result.add(FocusStop.Target(value))
-            case Items(value) -> result.add(FocusStop.Items(value))
-            case Group(value) -> {
+            case Target(val value) -> result.add(FocusStop.Target(value))
+            case Items(val value) -> result.add(FocusStop.Items(value))
+            case Group(val value) -> {
                 for (stop in tabOrder(value.node))
                     result.add(stop)
             }

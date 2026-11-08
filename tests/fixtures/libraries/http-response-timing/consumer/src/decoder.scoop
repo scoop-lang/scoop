@@ -24,9 +24,9 @@ internal fun http1StartProgress() {
             while (true) {
                 val event = decoder.nextEvent() ?: break
                 when (event) {
-                    case Response(head) -> statuses.add(head.status)
+                    case Response(val head) -> statuses.add(head.status)
                     case End(_) -> ended += 1L
-                    case Trailers(fields) -> assertEquals(0L, fields.size)
+                    case Trailers(val fields) -> assertEquals(0L, fields.size)
                     else -> throw IllegalStateException(Some("unexpected decoder event"))
                 }
             }

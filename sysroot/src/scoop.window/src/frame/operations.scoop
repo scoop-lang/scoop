@@ -93,7 +93,7 @@ internal fun ApplicationOwner.copyNativeInput(event: Ptr<Unit>): NativeInputDeli
         val result = nativeInputCopy(event)
         checkNativeStatus(result.error, "copy native window input")
         when (result.pointer) {
-            case Some(pointer) -> {
+            case Some(val pointer) -> {
                 val input =
                     NativeInputDelivery(this, pointer, copyInputTime(nativeEventData(event)))
                 pendingInputs.add(input)

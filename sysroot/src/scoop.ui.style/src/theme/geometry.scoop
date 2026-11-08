@@ -63,7 +63,7 @@ internal fun physicalEdges(
     direction: LayoutDirection = LayoutDirection.Ltr
 ): BorderEdges =
     when (style.border) {
-        case Some(value) -> value.resolve(direction)
+        case Some(val value) -> value.resolve(direction)
         case None -> BorderEdges()
     }
 
@@ -81,7 +81,7 @@ internal fun physicalStyle(style: Style, direction: LayoutDirection): Style =
     Style(
         style.background,
         when (style.border) {
-            case Some(value) -> Some(Border.Physical(value.resolve(direction)))
+            case Some(val value) -> Some(Border.Physical(value.resolve(direction)))
             case None -> None
         },
         Corners.Physical(style.corners.resolve(direction)),

@@ -52,12 +52,12 @@ internal suspend fun createTemporaryFileOnLoop(
                 {
                     event,
                     selected -> when (event.result) {
-                        case Temporary(value) -> {
+                        case Temporary(val value) -> {
                             val owner = OwnedFile(loop, value.file, value.path.toOsString())
                             loop.retain(owner)
                             val failure: Throwable? =
                                 when (selected) {
-                                    case Some(error) -> Some(error)
+                                    case Some(val error) -> Some(error)
                                     case None -> if (value.status.code == 0)
                                         None
                                     else {
@@ -76,7 +76,7 @@ internal suspend fun createTemporaryFileOnLoop(
                                 case None -> continuation.resume(
                                     TemporaryFile(value.path, WorkerFile(owner))
                                 )
-                                case Some(error) -> discardTemporaryFile(
+                                case Some(val error) -> discardTemporaryFile(
                                     owner,
                                     value.path,
                                     error,
@@ -113,17 +113,17 @@ private fun discardTemporaryFile(
             val cleanup =
                 when (closeFailure) {
                     case None -> deleteFailure
-                    case Some(error) -> Some(
+                    case Some(val error) -> Some(
                         when (deleteFailure) {
                             case None -> error
-                            case Some(other) -> ResourceUseException(error, other)
+                            case Some(val other) -> ResourceUseException(error, other)
                         }
                     )
                 }
             continuation.resumeWithException(
                 when (cleanup) {
                     case None -> primary
-                    case Some(error) -> ResourceUseException(primary, error)
+                    case Some(val error) -> ResourceUseException(primary, error)
                 }
             )
         }

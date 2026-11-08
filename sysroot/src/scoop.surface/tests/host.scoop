@@ -109,7 +109,7 @@ private class HostProbe {
                     waitFor(application, 5000L)
                 }
             }
-            case Window(id, WindowEvent.Destroyed) -> {
+            case Window(val id, WindowEvent.Destroyed) -> {
                 if (id == first!!.id && phase == HostPhase.Reattach) {
                     assertTrue(repainted)
                     assertEquals(SurfaceWindowState.Closed, firstSurface!!.state)

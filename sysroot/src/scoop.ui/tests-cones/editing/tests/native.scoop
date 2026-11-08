@@ -15,7 +15,7 @@ private fun <R> editorView(window: Window, action: (Ptr<Unit>) -> R): R {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> action(view)
+                    case AppKit(_, val view) -> action(view)
                 }
             }
         }
@@ -172,7 +172,7 @@ internal fun editorNativeCaret(window: Window, state: TextEditorState, bounds: R
             1L
     val rect =
         when (bounds) {
-            case Some(value) -> Some(
+            case Some(val value) -> Some(
                 LogicalRect(
                     LogicalPosition(value.x, value.y),
                     LogicalSize(value.width, value.height)

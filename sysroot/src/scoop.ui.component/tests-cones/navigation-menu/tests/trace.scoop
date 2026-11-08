@@ -7,10 +7,10 @@ import scoop.window.PointerEvent
 internal fun NavProbe.pointerObserved(event: PointerObservation) {
     val description =
         when (event) {
-            case Pointer(PointerEvent.Moved(value)) -> f"move=${value.logicalPosition.x},${
+            case Pointer(PointerEvent.Moved(val value)) -> f"move=${value.logicalPosition.x},${
                 value.logicalPosition.y
             }"
-            case Pointer(PointerEvent.Entered(value)) -> f"enter=${value.logicalPosition.x},${
+            case Pointer(PointerEvent.Entered(val value)) -> f"enter=${value.logicalPosition.x},${
                 value.logicalPosition.y
             }"
             case Pointer(PointerEvent.Left(_)) -> "left"

@@ -75,7 +75,7 @@ private class InputMenuCommandsTest {
                 {
                     context,
                     event -> when (event) {
-                        case TextCommand(command) -> {
+                        case TextCommand(val command) -> {
                             commands.add(command);
                             context.consume()
                         }

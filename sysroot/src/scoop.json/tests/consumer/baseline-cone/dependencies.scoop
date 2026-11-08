@@ -9,8 +9,8 @@ enum Dependency {
     companion object : ValueEncoder<Dependency>, ValueDecoder<Dependency> {
         public override fun encode(value: Dependency, encoder: Encoder) {
             when (value) {
-                case Dependency.Short(text) -> String.encode(text, encoder)
-                case Dependency.Detailed(details) -> DependencyDetail.Companion.encode(details, encoder)
+                case Dependency.Short(val text) -> String.encode(text, encoder)
+                case Dependency.Detailed(val details) -> DependencyDetail.Companion.encode(details, encoder)
             }
         }
         public override fun decode(decoder: Decoder): Dependency {

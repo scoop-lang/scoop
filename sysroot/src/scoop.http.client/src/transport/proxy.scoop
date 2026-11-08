@@ -17,7 +17,7 @@ internal suspend fun connectClientHttpProxy(call: ClientCall, entry: ClientPoolE
         connectClientTls(call, tcp, clientTlsPeer(endpoint.address.host), context, ClientObservedPhase.ProxyTls)
     }
     try {
-        val selected: List<Byte>? = when (tls.connectionInfo.alpn) { case Some(bytes) -> Some(bytes); case None -> None }
+        val selected: List<Byte>? = when (tls.connectionInfo.alpn) { case Some(val bytes) -> Some(bytes); case None -> None }
         selectHttpAlpn(selected, [HttpProtocol.Http1], true)
         requireClientCall(call)
         return connectClientHttpProxyTransport(call, entry, tls, endpoint, forward)
@@ -31,8 +31,8 @@ private suspend fun <T> connectClientHttpProxyTransport(call: ClientCall, entry:
     endpoint: HttpProxyEndpoint, forward: Boolean): ClientConnectResult<ClientConnection> where T : AsyncByteStream, T : AsyncCloseable {
     if (forward) return ClientConnectResult.Connected(adoptClientConnection(call, entry, transport, HttpProtocol.Http1))
     return when (connectClientHttpTunnel(call, transport, endpoint)) {
-        case Connected(tunnel) -> ClientConnectResult.Connected(connectClientOrigin(call, entry, tunnel))
-        case Authenticate(session) -> ClientConnectResult.Authenticate(session)
+        case Connected(val tunnel) -> ClientConnectResult.Connected(connectClientOrigin(call, entry, tunnel))
+        case Authenticate(val session) -> ClientConnectResult.Authenticate(session)
     }
 }
 
@@ -40,9 +40,9 @@ internal suspend fun connectClientSocks5(call: ClientCall, entry: ClientPoolEntr
     endpoint: HttpSocks5Endpoint): ClientConnection {
     val origin = call.request.origin
     val destination = when (origin.host) {
-        case Dns(name) -> Socks5Address.Domain(name, origin.port)
-        case Ipv4(bytes) -> Socks5Address.Ip(SocketAddress(IpAddress.fromByteArray(bytes), origin.port))
-        case Ipv6(bytes) -> Socks5Address.Ip(SocketAddress(IpAddress.fromByteArray(bytes), origin.port))
+        case Dns(val name) -> Socks5Address.Domain(name, origin.port)
+        case Ipv4(val bytes) -> Socks5Address.Ip(SocketAddress(IpAddress.fromByteArray(bytes), origin.port))
+        case Ipv6(val bytes) -> Socks5Address.Ip(SocketAddress(IpAddress.fromByteArray(bytes), origin.port))
     }
     observeClientPhase(call, ClientObservedPhase.ProxyHandshake, true)
     val deadline = startClientDeadline(call, call.scope!!, HttpTimeoutPhase.ProxyHandshake, call.timeouts.proxyHandshake)

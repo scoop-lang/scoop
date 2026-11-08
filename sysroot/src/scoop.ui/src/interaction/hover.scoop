@@ -115,7 +115,7 @@ public class Hover internal constructor(
     }
     private fun areaEvent(event: InputEvent) {
         when (event) {
-            case Pointer(InputPointerEvent.Entered(pointer)) -> {
+            case Pointer(InputPointerEvent.Entered(val pointer)) -> {
                 val point = Some(pointerPoint(pointer.state))
                 previous = point
                 refresh(point)
@@ -230,13 +230,13 @@ public class Hover internal constructor(
             case Pointer(PointerEvent.Cancelled(_, _)) -> dismiss()
             case FocusLost -> dismiss()
             case Closed -> dismiss()
-            case Pointer(value) -> {
+            case Pointer(val value) -> {
                 val point =
                     when (value) {
-                        case Entered(state) -> pointerPoint(state)
-                        case Moved(state) -> pointerPoint(state)
-                        case Button(state, _, _, _) -> pointerPoint(state)
-                        case Wheel(state, _, _, _) -> pointerPoint(state)
+                        case Entered(val state) -> pointerPoint(state)
+                        case Moved(val state) -> pointerPoint(state)
+                        case Button(val state, _, _, _) -> pointerPoint(state)
+                        case Wheel(val state, _, _, _) -> pointerPoint(state)
                         else -> return
                     }
                 refresh(Some(point))

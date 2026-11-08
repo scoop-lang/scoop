@@ -61,7 +61,7 @@ private class NotificationProbe(val launch: NotificationLaunch): ApplicationHand
                     assertTrue(returned)
                     assertEquals(thread, currentThreadId())
                     when (result) {
-                        case Success(settings) -> {
+                        case Success(val settings) -> {
                             assertTrue(
                                 settings.availability ==
                                     NotificationAvailability.NotConfigured ||
@@ -73,7 +73,7 @@ private class NotificationProbe(val launch: NotificationLaunch): ApplicationHand
                             if (settings.availability == NotificationAvailability.NotConfigured)
                                 assertFalse(settings.capabilities.activation)
                         }
-                        case Failure(error) -> fail(error.message)
+                        case Failure(val error) -> fail(error.message)
                     }
                     center.settings { fail(Some("closed center delivered a late result")) }
                     desktop.close()

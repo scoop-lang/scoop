@@ -100,7 +100,7 @@ internal suspend fun receiveWsMessage(state: WsState): WebSocketMessage? =
         }
         when (message) {
             case None -> None
-            case Some(value) -> {
+            case Some(val value) -> {
                 val job = httpJob(state.loop, true)
                 listenWsLife(state, value.life, job)
                 job.ensureActive()

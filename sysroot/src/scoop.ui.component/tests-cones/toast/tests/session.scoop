@@ -203,7 +203,7 @@ internal class ToastProbe {
     fun clear() {
         for (item in items)
             when (item.id) {
-                case Some(id) -> model.dismiss(id);
+                case Some(val id) -> model.dismiss(id);
                 case None -> {}
             }
     }
@@ -276,11 +276,11 @@ private fun reportToastFailure(error: Throwable) {
                 f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
             )
             when (error.expected) {
-                case Text(value) -> println(f"expected: ${value}");
+                case Text(val value) -> println(f"expected: ${value}");
                 else -> {}
             }
             when (error.actual) {
-                case Text(value) -> println(f"actual: ${value}");
+                case Text(val value) -> println(f"actual: ${value}");
                 else -> {}
             }
         } else

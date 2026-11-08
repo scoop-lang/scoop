@@ -7,7 +7,7 @@ use crate::tests::{block_body, err, ok, only_function};
 #[test]
 fn case_is_contextual_and_introduces_the_entire_recursive_pattern() {
     let file = ok(
-        "fun case(case: Int) {\n    when (case) {\n        case Some((value, _)) -> {}\n        case None -> {}\n    }\n}",
+        "fun case(case: Int) {\n    when (case) {\n        case Some((val value, _)) -> {}\n        case None -> {}\n    }\n}",
     );
     let function = only_function(&file);
     assert_eq!(function.name.text, "case");
@@ -19,7 +19,7 @@ fn case_is_contextual_and_introduces_the_entire_recursive_pattern() {
     };
     assert!(matches!(&elements[0], Pattern::Tuple { .. }));
     assert!(
-        matches!(crate::tests::case_pattern(&when.arms[1]), Pattern::Binding(name) if name.text == "None")
+        matches!(crate::tests::case_pattern(&when.arms[1]), Pattern::BareVariant(name) if name.text == "None")
     );
 }
 
@@ -81,7 +81,7 @@ fn subjectless_when_has_boolean_conditions_and_control_bodies() {
 #[test]
 fn case_and_ordinary_conditions_can_alternate() {
     let file = ok(
-        "fun f() { when (value) { case Some(x) if x > 0 -> x; None -> 0; in allowed -> 1; !in denied -> 2; !is Missing -> 3; else -> -1 } }",
+        "fun f() { when (value) { case Some(val x) if x > 0 -> x; None -> 0; in allowed -> 1; !in denied -> 2; !is Missing -> 3; else -> -1 } }",
     );
     let StatementKind::When(when) = &block_body(only_function(&file)).statements[0].kind else {
         panic!("expected when")

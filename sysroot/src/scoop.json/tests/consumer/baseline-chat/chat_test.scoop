@@ -13,7 +13,7 @@ fun chatBaseline(moving: Boolean) {
     check(request.metadata!!.values["escaped/~"]!! == "value" && request.logit_bias!!.values["42"]!! == -2.5)
     check(request.temperature == None)
     check(when (request.messages[3L]) {
-        case ChatMessage.Assistant(value) -> value.tool_calls!!.size == 2L
+        case ChatMessage.Assistant(val value) -> value.tool_calls!!.size == 2L
         else -> false
     })
     val encoded = Json.encodeToString(request, ChatRequest.Companion)

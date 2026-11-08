@@ -34,15 +34,15 @@ internal fun expect(
 
 private fun keyDetails(code: KeyCode): String =
     when (code) {
-        case KeyCode.Char(value) -> f"Char(${value.code})"
+        case KeyCode.Char(val value) -> f"Char(${value.code})"
         case KeyCode.Left -> "Left"
         case _ -> "other key"
     }
 
 private fun eventDetails(event: Event): String =
     when (event) {
-        case Event.Key(value) -> keyDetails(value.code) + f" modifiers=${value.modifiers.bits}"
-        case Event.Resize(columns, rows) -> f"Resize(${columns},${rows})"
+        case Event.Key(val value) -> keyDetails(value.code) + f" modifiers=${value.modifiers.bits}"
+        case Event.Resize(val columns, val rows) -> f"Resize(${columns},${rows})"
         case Event.FocusGained -> "FocusGained"
         case Event.FocusLost -> "FocusLost"
         case _ -> "other event"

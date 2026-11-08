@@ -81,7 +81,7 @@ private fun checkOutputChunks2(chunks: Array<Http2OutputChunk>, id: Int, kind: H
             assertEquals(1, ends2(received, id))
             var trailer = false
             for (event in received) when (event) {
-                case Trailers(stream, fields) -> {
+                case Trailers(val stream, val fields) -> {
                     assertEquals(id, stream)
                     assertEquals("yes", String.fromUtf8(fields[0L].value))
                     trailer = true

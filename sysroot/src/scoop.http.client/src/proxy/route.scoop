@@ -11,7 +11,7 @@ internal suspend fun selectClientRoute(call: ClientCall) {
     requireClientCall(call)
     call.route = when (selected) {
         case Direct -> ClientRoute.Direct
-        case Http(endpoint) -> {
+        case Http(val endpoint) -> {
             call.proxyAuthentication = Some(ClientCallAuthentication(ClientAuthenticationScope.Proxy(endpoint)))
             val config = call.client.config
             if (call.request.origin.scheme == "http" && (clientPresent(call.sequence.webSocket) || (config.cleartext == HttpCleartextProtocol.Http1 &&
@@ -19,26 +19,26 @@ internal suspend fun selectClientRoute(call: ClientCall) {
                 ClientRoute.HttpForward(endpoint)
             else ClientRoute.HttpTunnel(endpoint)
         }
-        case Socks5(endpoint) -> ClientRoute.Socks5(endpoint)
+        case Socks5(val endpoint) -> ClientRoute.Socks5(endpoint)
     }
 }
 
 internal fun sameClientRoute(left: ClientRoute, right: ClientRoute): Boolean = when (left) {
     case Direct -> when (right) { case Direct -> true; else -> false }
-    case HttpForward(endpoint) -> when (right) { case HttpForward(other) -> endpoint === other; else -> false }
-    case HttpTunnel(endpoint) -> when (right) { case HttpTunnel(other) -> endpoint === other; else -> false }
-    case Socks5(endpoint) -> when (right) { case Socks5(other) -> endpoint === other; else -> false }
+    case HttpForward(val endpoint) -> when (right) { case HttpForward(val other) -> endpoint === other; else -> false }
+    case HttpTunnel(val endpoint) -> when (right) { case HttpTunnel(val other) -> endpoint === other; else -> false }
+    case Socks5(val endpoint) -> when (right) { case Socks5(val other) -> endpoint === other; else -> false }
 }
 
 internal fun clientRouteAddress(call: ClientCall): (UrlHost, Int) {
     val address: ClientProxyAddress? = when (call.route) {
         case Direct -> None
-        case HttpForward(endpoint) -> Some(endpoint.address)
-        case HttpTunnel(endpoint) -> Some(endpoint.address)
-        case Socks5(endpoint) -> Some(endpoint.address)
+        case HttpForward(val endpoint) -> Some(endpoint.address)
+        case HttpTunnel(val endpoint) -> Some(endpoint.address)
+        case Socks5(val endpoint) -> Some(endpoint.address)
     }
     return when (address) {
-        case Some(value) -> (value.host, value.port)
+        case Some(val value) -> (value.host, value.port)
         case None -> (call.request.origin.host, call.request.origin.port)
     }
 }

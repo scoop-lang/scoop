@@ -156,19 +156,19 @@ private fun closeBufferAndOwner(internalBuffer: NativeByteBuffer, owner: Closeab
     try { internalBuffer.close() }
     catch (error: Throwable) { failure = Some(appendCleanupFailure(failure, error)) }
     when (owner) {
-        case Some(value) -> {
+        case Some(val value) -> {
             try { value.close() }
             catch (error: Throwable) { failure = Some(appendCleanupFailure(failure, error)) }
         }
         case None -> {}
     }
     when (failure) {
-        case Some(error) -> throw error
+        case Some(val error) -> throw error
         case None -> {}
     }
 }
 
 private fun appendCleanupFailure(previous: Throwable?, next: Throwable): Throwable = when (previous) {
-    case Some(error) -> ResourceUseException(error, next)
+    case Some(val error) -> ResourceUseException(error, next)
     case None -> next
 }

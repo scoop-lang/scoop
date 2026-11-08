@@ -65,7 +65,7 @@ public class LazyMeasureContext internal constructor(
         if (entry.placed)
             throw IllegalStateException(Some("item was already placed"))
         when (entry.result) {
-            case Some(result) -> if (
+            case Some(val result) -> if (
                 entry.constraints ==
                     Some(constraints) &&
                     result.version ==

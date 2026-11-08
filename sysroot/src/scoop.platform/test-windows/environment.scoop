@@ -12,7 +12,7 @@ private fun setWindowsEnvironment(name: OsString, value: OsString?) {
             key -> @Unsafe
             {
                 when (value) {
-                    case Some(text) -> text.withPlatformString {
+                    case Some(val text) -> text.withPlatformString {
                         data -> @Unsafe
                         {
                             assertTrue(nativeSetEnvironment(key, Some(data)) != 0)

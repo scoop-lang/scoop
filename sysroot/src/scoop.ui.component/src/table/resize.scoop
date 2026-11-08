@@ -56,7 +56,7 @@ internal class TableResizeHeader(
             {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> {
+                    case Keyboard(val key) -> {
                         if (
                             key.state ==
                                 ElementState.Pressed &&
@@ -110,7 +110,7 @@ internal class TableResizeHeader(
     }
     private fun receive(event: DragEvent) {
         when (event) {
-            case Started(sample) -> {
+            case Started(val sample) -> {
                 val width = accepted ?: return
                 gesture =
                     Some(
@@ -123,8 +123,8 @@ internal class TableResizeHeader(
                     )
                 move(sample.displacement)
             }
-            case Moved(sample) -> move(sample.displacement)
-            case Ended(sample) -> {
+            case Moved(val sample) -> move(sample.displacement)
+            case Ended(val sample) -> {
                 move(sample.displacement);
                 gesture = None
             }
@@ -171,7 +171,7 @@ internal class TableResizeHeader(
     }
     public override fun update(): UiInvalidation {
         when (gesture) {
-            case Some(value) -> if (
+            case Some(val value) -> if (
                 props.value.width.value !=
                     value.expected ||
                     value.density !=

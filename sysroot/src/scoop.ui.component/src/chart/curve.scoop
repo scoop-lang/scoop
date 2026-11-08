@@ -8,7 +8,7 @@ internal fun chartRuns(samples: Array<ChartSample?>, connect: Boolean): Array<Ar
     var run = ArrayList<ChartSample>()
     for (sample in samples)
         when (sample) {
-            case Some(value) -> run.add(value)
+            case Some(val value) -> run.add(value)
             case None -> if (!connect && run.size > 0L) {
                 result.add(run.toArray());
                 run = ArrayList<ChartSample>()

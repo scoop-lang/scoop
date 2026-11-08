@@ -30,7 +30,7 @@ internal class BubbleLayout(
         val input = props.value
         val maximum =
             when (constraints.maxWidth) {
-                case Some(width) -> Some(width * input.fraction)
+                case Some(val width) -> Some(width * input.fraction)
                 case None -> None
             }
         val body = conversationMeasure(context, 0L, maximum, constraints.maxHeight)
@@ -76,7 +76,7 @@ internal class BubbleLayout(
             Point(logicalX(x, body.size.width, size.width, context.layoutDirection), top)
         )
         when (input.reactions) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 val ideal =
                     x +
                         if (value.align == MessageAlignment.Start)

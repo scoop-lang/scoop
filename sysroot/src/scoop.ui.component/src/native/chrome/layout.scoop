@@ -19,9 +19,9 @@ internal fun measureWindowChrome(
             case None -> 0.0
         }
     when (input.metrics) {
-        case Some(metrics) -> if (metrics.frame == WindowFrame.System(WindowContentMode.Extended)) {
+        case Some(val metrics) -> if (metrics.frame == WindowFrame.System(WindowContentMode.Extended)) {
             when (metrics.contentLayout) {
-                case Some(layout) -> {
+                case Some(val layout) -> {
                     left = lowerBound(layout.origin.x, 0.0)
                     right =
                         lowerBound(
@@ -50,12 +50,12 @@ internal fun measureWindowChrome(
             Constraints(
                 lowerBound(constraints.minWidth - horizontal, 0.0),
                 when (constraints.maxWidth) {
-                    case Some(width) -> Some(lowerBound(width - horizontal, 0.0))
+                    case Some(val width) -> Some(lowerBound(width - horizontal, 0.0))
                     case None -> None
                 },
                 lowerBound(constraints.minHeight - vertical, 0.0),
                 when (constraints.maxHeight) {
-                    case Some(height) -> Some(lowerBound(height - vertical, 0.0))
+                    case Some(val height) -> Some(lowerBound(height - vertical, 0.0))
                     case None -> None
                 }
             )
@@ -66,7 +66,7 @@ internal fun measureWindowChrome(
     var titleLeft = left
     var titleRight = right
     when (input.metrics) {
-        case Some(metrics) -> for (button in metrics.systemButtons) {
+        case Some(val metrics) -> for (button in metrics.systemButtons) {
             val rect = button.bounds
             if (rect.origin.y < top && rect.origin.y + rect.size.height > 0.0) {
                 if (rect.origin.x + rect.size.width / 2.0 < size.width / 2.0)

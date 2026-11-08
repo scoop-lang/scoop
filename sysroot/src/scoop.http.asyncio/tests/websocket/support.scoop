@@ -70,18 +70,18 @@ internal class RawWebSocketPeer(
         var head: WebSocketFrameHead? = None
         while (true) {
             when (val event = decoder.nextEvent()) {
-                case Some(WebSocketFrameEvent.FrameStarted(value)) -> head = Some(value)
-                case Some(WebSocketFrameEvent.Data(value)) -> bytes.append(value)
+                case Some(WebSocketFrameEvent.FrameStarted(val value)) -> head = Some(value)
+                case Some(WebSocketFrameEvent.Data(val value)) -> bytes.append(value)
                 case Some(WebSocketFrameEvent.FrameEnded) -> return (head!!, bytes.toByteArray())
-                case Some(WebSocketFrameEvent.Ping(value)) -> return (
+                case Some(WebSocketFrameEvent.Ping(val value)) -> return (
                     WebSocketFrameHead(WebSocketOpcode.Ping, value.size),
                     value
                 )
-                case Some(WebSocketFrameEvent.Pong(value)) -> return (
+                case Some(WebSocketFrameEvent.Pong(val value)) -> return (
                     WebSocketFrameHead(WebSocketOpcode.Pong, value.size),
                     value
                 )
-                case Some(WebSocketFrameEvent.Close(value)) -> {
+                case Some(WebSocketFrameEvent.Close(val value)) -> {
                     val raw = value.toByteArray()
                     return (WebSocketFrameHead(WebSocketOpcode.Close, raw.size), raw)
                 }
@@ -159,7 +159,7 @@ internal class WebSocketTestTransport(
         closes += 1
         closeStarted.signal()
         when (closeGate) {
-            case Some(gate) -> gate.await();
+            case Some(val gate) -> gate.await();
             case None -> {}
         }
         if (failClose)

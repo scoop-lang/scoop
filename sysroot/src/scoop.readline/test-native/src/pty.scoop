@@ -144,7 +144,7 @@ public class Pty private constructor(): ByteSource, ByteSink, Closeable {
     }
     public override fun close() {
         when (handle) {
-            case Some(pointer) -> {
+            case Some(val pointer) -> {
                 handle = None;
                 @Unsafe
                 {

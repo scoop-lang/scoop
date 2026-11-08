@@ -33,21 +33,21 @@ internal enum ClientPoolAction {
 
 internal fun clientPoolNotice(state: ClientState, entry: ClientPoolEntry, notice: Http2Notice) {
     when (notice) {
-        case StreamFailure(id, error) -> { failClientHttp2Stream(state, entry, id, error); return }
+        case StreamFailure(val id, val error) -> { failClientHttp2Stream(state, entry, id, error); return }
         else -> {}
     }
     val changed = state.lock.withLock {
         when (notice) {
-            case Settings(values, false) -> {
+            case Settings(val values, false) -> {
                 for (value in values) if (value.id == 3.toUShort()) entry.peerStreams = value.value.toLong()
                 true
             }
-            case GoAway(last, _, _, local) -> {
+            case GoAway(val last, _, _, val local) -> {
                 entry.draining = true
                 if (!local) entry.lastStreamId = Some(last)
                 true
             }
-            case Failure(error) -> {
+            case Failure(val error) -> {
                 if (error.scope != HttpFailureScope.Connection) false else {
                     entry.draining = true
                     if (!clientPresent(entry.failure)) entry.failure = Some(error)

@@ -36,7 +36,7 @@ internal class ThreadResult<T>: Continuation<T> {
                 (value, error)
             }
         when (failure) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> return result!!
         }
     }
@@ -58,7 +58,7 @@ private fun checkChannelThreads(capacity: Long) {
                 var receiving = true
                 while (receiving) {
                     when (channel.receiveOrNone()) {
-                        case Some(value) -> seen[value].fetchAdd(1)
+                        case Some(val value) -> seen[value].fetchAdd(1)
                         case None -> receiving = false
                     }
                 }
@@ -134,7 +134,7 @@ private class ThreadedSynchronizationTest {
                             result
                         }
                     when (message) {
-                        case Some(value) -> sum.fetchAdd(value)
+                        case Some(val value) -> sum.fetchAdd(value)
                         case None -> receiving = false
                     }
                 }

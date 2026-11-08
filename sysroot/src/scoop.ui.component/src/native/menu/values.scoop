@@ -40,10 +40,10 @@ public class NativeMenuContent public constructor(public val entries: Array<Nati
 
 internal fun nativeMenuKey(entry: NativeMenuEntry): ViewKey =
     when (entry) {
-        case Action(item, _) -> item.key
-        case Role(item, _) -> item.key
-        case Checkbox(item, _, _) -> item.key
-        case Radio(item, _, _) -> item.key
-        case Submenu(item, _) -> item.key
-        case Separator(key) -> key
+        case Action(val item, _) -> item.key
+        case Role(val item, _) -> item.key
+        case Checkbox(val item, _, _) -> item.key
+        case Radio(val item, _, _) -> item.key
+        case Submenu(val item, _) -> item.key
+        case Separator(val key) -> key
     }

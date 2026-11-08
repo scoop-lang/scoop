@@ -30,7 +30,7 @@ import scoop.test.*
             assertEquals(1L, http1EndCount(events))
             var found = false
             for (event in events) when (event) {
-                case Trailers(fields) -> { if (fields.size != 0L) found = String.fromUtf8(fields[0L].value) == "rule" }
+                case Trailers(val fields) -> { if (fields.size != 0L) found = String.fromUtf8(fields[0L].value) == "rule" }
                 else -> {}
             }
             assertTrue(found)

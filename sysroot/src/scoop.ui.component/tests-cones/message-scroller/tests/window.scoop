@@ -94,7 +94,7 @@ internal class MessageProbe {
     fun row(id: Long): MessageTestRow {
         val old = rows.get(id)
         when (old) {
-            case Some(value) -> return value;
+            case Some(val value) -> return value;
             case None -> {}
         }
         val height =
@@ -138,7 +138,7 @@ internal class MessageProbe {
     fun top(id: Long): Double = row(id).area!!.windowBounds!!.y
     fun checkpointId(): Long =
         when (checkpoint!!.key) {
-            case Number(value) -> value
+            case Number(val value) -> value
             else -> throw IllegalStateException(Some("unexpected message checkpoint key"))
         }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {

@@ -14,7 +14,7 @@ public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: B
 
     internal fun getCompleted(): T {
         when (finalFailure()) {
-            case Some(error) -> throw error
+            case Some(val error) -> throw error
             case None -> @Unsafe
             {
                 return result.assumeInit()
@@ -59,7 +59,7 @@ public class CoroutineScope internal constructor(
     private fun parentRegistration(): ExecutorTask? =
         lock.withLock {
             when (state) {
-                case CoroutineScopeState.Open(parent) -> parent
+                case CoroutineScopeState.Open(val parent) -> parent
                 case CoroutineScopeState.Closed -> throw IllegalStateException(
                     Some("coroutine scope is closed")
                 )
@@ -106,7 +106,7 @@ public fun currentJobOrNone(): Job? = contextOrNone<Job>()
  */
 public fun ensureActive() {
     when (currentJobOrNone()) {
-        case Some(job) -> job.ensureActive()
+        case Some(val job) -> job.ensureActive()
         case None -> {}
     }
 }
@@ -121,7 +121,7 @@ private fun <T> startStructuredTask(
 ): Deferred<T> {
     val task = Deferred<T>(parent, propagatesFailure)
     when (parent) {
-        case Some(owner) -> owner.attach(task)
+        case Some(val owner) -> owner.attach(task)
         case None -> {}
     }
     val job: Job = task

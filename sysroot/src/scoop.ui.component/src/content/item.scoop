@@ -47,7 +47,7 @@ public class Item public constructor(
     public override fun render(): View {
         val input = props.value
         return when (input.onClick) {
-            case Some(action) -> component(
+            case Some(val action) -> component(
                 ItemActionProps(input, action),
                 { current, mount -> ItemAction(current, scope = mount) }
             )

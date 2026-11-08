@@ -48,7 +48,7 @@ public class TreeSet<T> public constructor(
 
     private fun key(entry: Map.Entry<T, Unit>?): T? = when (entry) {
         case None -> None
-        case Some(value) -> Some(value.key)
+        case Some(val value) -> Some(value.key)
     }
 
     /**

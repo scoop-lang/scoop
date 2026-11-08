@@ -30,7 +30,7 @@ public struct User(val id: Long, val name: String) {
             val fields = decoder.keyed()
             val id = Long.decode(fields.required("id/~"))
             val name = when (fields.optional("name")) {
-                case Some(source) -> String.decode(source)
+                case Some(val source) -> String.decode(source)
                 case None -> "anonymous"
             }
             fields.end()

@@ -71,7 +71,7 @@ internal class DrawingPanel(
                     current, event ->
                     when (event) {
                         case Pointer(
-                            InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)
+                            InputPointerEvent.Button(val pointer, _, ElementState.Pressed, _)
                         ) -> {
                             probe.parentDowns += 1
                             assertTrue(current.localPosition!!.x >= 0.0)
@@ -226,7 +226,7 @@ internal class DrawingLeaf(
                     when (event) {
                         case Pointer(
                             InputPointerEvent.Button(
-                                pointer,
+                                val pointer,
                                 MouseButton.Left,
                                 ElementState.Pressed,
                                 _
@@ -331,7 +331,7 @@ internal class DrawingSibling(private val probe: DrawingProbe, scope: ComponentS
             paint ->
             probe.sequence.add("sibling")
             when (probe.lastCanvas) {
-                case Some(canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
+                case Some(val canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
                 case None -> {}
             }
             @Unsafe

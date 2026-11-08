@@ -81,7 +81,7 @@ private fun deliverWsInput(state: WsState, actions: ArrayList<() -> Unit>): Bool
 
 private fun receiveWsEvent(state: WsState, event: WebSocketFrameEvent, actions: ArrayList<() -> Unit>) {
     when (event) {
-        case FrameStarted(head) -> {
+        case FrameStarted(val head) -> {
             state.frameFinal = head.isFinal
             if (!present(state.shutdown) && head.opcode != WebSocketOpcode.Continuation) {
                 if (present(state.incoming)) throw IllegalStateException(Some("WebSocket message is still buffered"))
@@ -91,7 +91,7 @@ private fun receiveWsEvent(state: WsState, event: WebSocketFrameEvent, actions: 
                 if (message.isCompressed) startWsDeflateInput(state, message)
             }
         }
-        case Data(bytes) -> {
+        case Data(val bytes) -> {
             if (!present(state.shutdown)) {
                 val message = state.incoming!!
                 if (message.isCompressed) {
@@ -111,9 +111,9 @@ private fun receiveWsEvent(state: WsState, event: WebSocketFrameEvent, actions: 
                 else state.incoming!!.ended = true
             }
         }
-        case Ping(bytes) -> state.automaticPong = Some(bytes)
-        case Pong(bytes) -> matchWsPong(state, bytes, actions)
-        case Close(value) -> {
+        case Ping(val bytes) -> state.automaticPong = Some(bytes)
+        case Pong(val bytes) -> matchWsPong(state, bytes, actions)
+        case Close(val value) -> {
             state.peerClose = Some(value)
             beginWsShutdown(state, value, true)
         }
@@ -126,7 +126,7 @@ private fun matchWsPong(state: WsState, bytes: Array<Byte>, actions: ArrayList<(
     if (!present(state.writer) || !state.writer!!.prepared) return
     val request = state.writer!!
     when (request.action) {
-        case Ping(payload) -> {
+        case Ping(val payload) -> {
             if (payload.size != bytes.size) return
             var index = 0L
             while (index < bytes.size) {

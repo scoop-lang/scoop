@@ -9,11 +9,11 @@ internal fun <T> finishEndpointCreation(
     make: (OwnedEndpoint) -> T
 ) {
     when (result) {
-        case Created(pointer) -> {
+        case Created(val pointer) -> {
             val owner = OwnedEndpoint(loop, pointer, kind)
             loop.retain(owner)
             when (selected) {
-                case Some(error) -> {
+                case Some(val error) -> {
                     failEndpointCreation(owner, error, continuation);
                     return
                 }
@@ -47,7 +47,7 @@ private fun <T> failEndpointCreation(
         cleanup ->
         val reported =
             when (cleanup) {
-                case Some(value) -> ResourceUseException(error, value);
+                case Some(val value) -> ResourceUseException(error, value);
                 case None -> error
             }
         continuation.resumeWithException(reported)

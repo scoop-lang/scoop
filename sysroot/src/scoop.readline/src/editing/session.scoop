@@ -112,11 +112,11 @@ public class EditingSession public constructor(
         clearValue = false
         displayedCandidates = []
         return when (event) {
-            case Key(key) -> handleKey(key)
-            case Paste(text) -> {
+            case Key(val key) -> handleKey(key)
+            case Paste(val text) -> {
                 val normalized = text.replace("\r\n", "\n").replace("\r", "\n")
                 when (fuzzy) {
-                    case Some(state) -> {
+                    case Some(val state) -> {
                         state.query += normalized;
                         updateFuzzy();
                         EditResult.Continue
@@ -259,7 +259,7 @@ public class EditingSession public constructor(
             if (recordsUndo) {
                 val insertion =
                     when (command) {
-                        case Insert(text, count) -> text.charLength == 1L && count == 1L;
+                        case Insert(val text, val count) -> text.charLength == 1L && count == 1L;
                         else -> false
                     }
                 undo.record(before, buffer.state(), insertion)

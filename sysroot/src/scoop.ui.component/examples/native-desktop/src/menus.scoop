@@ -80,7 +80,7 @@ internal fun applicationMenu(demo: DesktopDemo, document: DemoDocument? = None):
                     "Open file…",
                     {
                         event -> when (demo.source(event)) {
-                            case Some(owner) -> owner.root!!.openFile()
+                            case Some(val owner) -> owner.root!!.openFile()
                             case None -> demo.applicationView!!.openFile()
                         }
                     }

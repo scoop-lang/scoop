@@ -12,8 +12,8 @@ fun pass(value: Signal): Signal = value
 
 fun score(value: Signal): Int = when (value) {
     case Ready -> 0
-    case Value(number) -> number
-    case Named(code, _) -> code
+    case Value(val number) -> number
+    case Named(val code, _) -> code
 }
 
 fun main() {

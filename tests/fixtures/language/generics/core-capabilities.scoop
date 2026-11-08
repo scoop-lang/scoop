@@ -27,7 +27,7 @@ enum RenderState<T : ToString> : ToString {
     Empty
 
     public override fun toString(): String = when (this) {
-        case Value(value) -> value.toString()
+        case Value(val value) -> value.toString()
         case Empty -> "Empty"
     }
 }

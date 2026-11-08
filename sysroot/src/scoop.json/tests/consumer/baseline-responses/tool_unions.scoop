@@ -7,31 +7,31 @@ enum ResponseTool {
         public override fun encode(value: ResponseTool, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ResponseTool.Function(payload) -> {
+                case ResponseTool.Function(val payload) -> {
                     String.encode("function", fields.field("type"))
                     FunctionSpec.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.FileSearch(payload) -> {
+                case ResponseTool.FileSearch(val payload) -> {
                     String.encode("file_search", fields.field("type"))
                     FileSearchTool.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.WebSearch(payload) -> {
+                case ResponseTool.WebSearch(val payload) -> {
                     String.encode("web_search", fields.field("type"))
                     WebSearchTool.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.Computer(payload) -> {
+                case ResponseTool.Computer(val payload) -> {
                     String.encode("computer_use_preview", fields.field("type"))
                     ComputerTool.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.Code(payload) -> {
+                case ResponseTool.Code(val payload) -> {
                     String.encode("code_interpreter", fields.field("type"))
                     CodeTool.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.Image(payload) -> {
+                case ResponseTool.Image(val payload) -> {
                     String.encode("image_generation", fields.field("type"))
                     ImageTool.Companion.encode(payload, encoder)
                 }
-                case ResponseTool.MCP(payload) -> {
+                case ResponseTool.MCP(val payload) -> {
                     String.encode("mcp", fields.field("type"))
                     MCPConfig.Companion.encode(payload, encoder)
                 }
@@ -59,7 +59,7 @@ enum ResponseNamedTool {
         public override fun encode(value: ResponseNamedTool, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ResponseNamedTool.Function(payload) -> {
+                case ResponseNamedTool.Function(val payload) -> {
                     String.encode("function", fields.field("type"))
                     NamedFunction.Companion.encode(payload, encoder)
                 }
@@ -94,8 +94,8 @@ enum ResponseChoice {
     companion object : ValueEncoder<ResponseChoice>, ValueDecoder<ResponseChoice> {
         public override fun encode(value: ResponseChoice, encoder: Encoder) {
             when (value) {
-                case ResponseChoice.Text(text) -> String.encode(text, encoder)
-                case ResponseChoice.Named(payload) -> NamedChoice.Companion.encode(payload, encoder)
+                case ResponseChoice.Text(val text) -> String.encode(text, encoder)
+                case ResponseChoice.Named(val payload) -> NamedChoice.Companion.encode(payload, encoder)
             }
         }
         public override fun decode(decoder: Decoder): ResponseChoice {

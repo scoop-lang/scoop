@@ -18,7 +18,7 @@ internal fun scanDecimal(text: String, digitLimit: Long): ParsedDecimal? {
     var kept = 0L
     var sticky = false
     while (true) {
-        val character = when (current) { case None -> break; case Some(value) -> value }
+        val character = when (current) { case None -> break; case Some(val value) -> value }
         if (character == '.' && !dot) {
             dot = true
         } else if (character >= '0' && character <= '9') {
@@ -48,7 +48,7 @@ internal fun scanDecimal(text: String, digitLimit: Long): ParsedDecimal? {
         if (exponentNegative || current == Some('+')) current = source.next()
         if (current == None) return None
         while (true) {
-            val character = when (current) { case None -> break; case Some(value) -> value }
+            val character = when (current) { case None -> break; case Some(val value) -> value }
             if (character < '0' || character > '9') return None
             exponent = appendDecimalExponent(exponent, (character.code - 48).toULong())
             current = source.next()

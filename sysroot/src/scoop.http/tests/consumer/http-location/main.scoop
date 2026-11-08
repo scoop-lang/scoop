@@ -27,7 +27,7 @@ private fun http1() {
                     val next = decoder.nextEvent()
                     when (next) { case None -> break; case Some(_) -> {} }
                     when (next!!) {
-                        case Response(head) -> { check(head.fields, "https://example.test/go,a?x=1,2#saved"); received += 1 }
+                        case Response(val head) -> { check(head.fields, "https://example.test/go,a?x=1,2#saved"); received += 1 }
                         else -> {}
                     }
                 }
@@ -66,7 +66,7 @@ private fun http2() {
                 val next = client.nextEvent()
                 when (next) { case None -> break; case Some(_) -> {} }
                 when (next!!) {
-                    case Response(_, head) -> { check(head.fields, "https://other.test/go#"); responses += 1 }
+                    case Response(_, val head) -> { check(head.fields, "https://other.test/go#"); responses += 1 }
                     else -> {}
                 }
             }

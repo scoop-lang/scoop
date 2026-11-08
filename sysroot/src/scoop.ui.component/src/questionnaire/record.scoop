@@ -53,7 +53,7 @@ internal class QuestionRecord(
             else -> {}
         }
         return when (question.validate(value)) {
-            case Some(message) -> Some(QuestionnaireIssueKind.Message(message))
+            case Some(val message) -> Some(QuestionnaireIssueKind.Message(message))
             case None -> None
         }
     }
@@ -64,7 +64,7 @@ internal class QuestionRecord(
             selected.value.choices,
             selected.value.useText,
             when (editor) {
-                case Some(value) -> Some(value.committedText);
+                case Some(val value) -> Some(value.committedText);
                 case None -> None
             },
             selected.value.skipped

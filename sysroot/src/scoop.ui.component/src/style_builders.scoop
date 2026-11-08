@@ -149,6 +149,6 @@ internal fun configureOptionalSpanStyle(
     configure: SpanStyleBuilder.() -> Unit
 ): SpanStyle =
     when (initial) {
-        case Some(value) -> value.copy(configure);
+        case Some(val value) -> value.copy(configure);
         case None -> spanStyle(configure)
     }

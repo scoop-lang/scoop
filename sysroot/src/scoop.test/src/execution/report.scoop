@@ -45,8 +45,8 @@ public fun runReportedTestCase(
         if (elapsed < 0L) { throw IllegalStateException(Some("cannot finish test capture")) }
         val failures: String = when (result) {
             case TestResult.Passed -> "[]"
-            case TestResult.Failed(first, None) -> "[" + testFailureJson(first) + "]"
-            case TestResult.Failed(first, Some(last)) ->
+            case TestResult.Failed(val first, None) -> "[" + testFailureJson(first) + "]"
+            case TestResult.Failed(val first, Some(val last)) ->
                 "[" + testFailureJson(first) + "," + testFailureJson(last) + "]"
         }
         event("{\"event\":\"end\",\"case\":" + testJsonString(caseIndex) +

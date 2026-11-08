@@ -63,11 +63,11 @@ internal fun measureContent(naturalSize: Size, constraints: Constraints): Layout
     checkContentSize(naturalSize)
     var scale = 1.0
     when (constraints.maxWidth) {
-        case Some(width) -> scale = upperBound(scale, width / naturalSize.width)
+        case Some(val width) -> scale = upperBound(scale, width / naturalSize.width)
         case None -> {}
     }
     when (constraints.maxHeight) {
-        case Some(height) -> scale = upperBound(scale, height / naturalSize.height)
+        case Some(val height) -> scale = upperBound(scale, height / naturalSize.height)
         case None -> {}
     }
     return LayoutMetrics(

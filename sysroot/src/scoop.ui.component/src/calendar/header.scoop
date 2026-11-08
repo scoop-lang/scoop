@@ -36,7 +36,7 @@ internal fun calendarHeader(
             calendarLabel(page.caption, appearance.caption, input.fonts)
     val parts = CalendarHeaderParts(page, before, after, caption)
     when (input.header) {
-        case Some(build) -> return build(parts);
+        case Some(val build) -> return build(parts);
         case None -> {}
     }
     val layout =
@@ -125,7 +125,7 @@ private fun calendarPageSelect(
             { owner.captionPage(index) },
             {
                 next -> when (next) {
-                    case Some(date) -> {
+                    case Some(val date) -> {
                         owner.showCaption(date, index);
                     };
                     case None -> {}

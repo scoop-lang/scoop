@@ -19,7 +19,7 @@ class Case(val trace: Trace) {
 fun passed(result: TestResult) {
     when (result) {
         case TestResult.Passed -> return
-        case TestResult.Failed(error, _) -> throw error.cause
+        case TestResult.Failed(val error, _) -> throw error.cause
     }
 }
 

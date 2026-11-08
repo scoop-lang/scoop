@@ -201,7 +201,7 @@ private class ButtonGroupTest {
         assertFalse(buttonGroupHasNested(snapshot.entries))
         val position = Some(GroupPosition(FlexAxis.Horizontal, false, true))
         when (snapshot.entries[0L].content) {
-            case Button(input) -> {
+            case Button(val input) -> {
                 val grouped = groupButtonProps(input, position, None, Some(source))
                 grouped.onClick()
                 assertEquals(1, action.value)
@@ -213,7 +213,7 @@ private class ButtonGroupTest {
             else -> fail(Some("missing typed button"))
         }
         when (snapshot.entries[4L].content) {
-            case Input(input) -> {
+            case Input(val input) -> {
                 val grouped = groupInputProps(input, position, None, Some(source))
                 assertSame(editor, grouped.state)
                 assertSame(alternate, grouped.theme!!)

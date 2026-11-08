@@ -70,7 +70,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
             area.scope.addDefaultAction {
                 context,
                 event -> when (event) {
-                    case Keyboard(key) -> carouselKeyboard(this, context, key)
+                    case Keyboard(val key) -> carouselKeyboard(this, context, key)
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                     ) -> {
@@ -120,7 +120,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         active &&
             read().props.enabled &&
             when (geometry) {
-                case Some(shape) -> matches(shape) &&
+                case Some(val shape) -> matches(shape) &&
                     shape.inner.width >
                     0.0 &&
                     shape.inner.height >
@@ -133,7 +133,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         val input = read()
         val sameHandle =
             when ((handle, input.props.handle)) {
-                case(Some(old), Some(next)) -> old === next
+                case(Some(val old), Some(val next)) -> old === next
                 case(None, None) -> true
                 else -> false
             }
@@ -150,7 +150,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
             index = selected;
             observed = input.props.selected?.value
             when (geometry) {
-                case Some(shape) -> if (matches(shape)) {
+                case Some(val shape) -> if (matches(shape)) {
                     val position = anchor(shape)
                     if (motion.value != position || motion.state == AnimationState.Running)
                         motion.snapTo(position)
@@ -189,7 +189,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
     }
     fun visualPosition(shape: CarouselGeometry): Double =
         when (geometry) {
-            case Some(old) -> if (sameCarouselGeometry(old, shape))
+            case Some(val old) -> if (sameCarouselGeometry(old, shape))
                 motion.value
             else
                 anchor(shape)
@@ -200,7 +200,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
             return
         val changed =
             when (geometry) {
-                case Some(old) -> !sameCarouselGeometry(old, shape);
+                case Some(val old) -> !sameCarouselGeometry(old, shape);
                 case None -> true
             }
         if (changed) {
@@ -235,7 +235,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         val input = read()
         val before = current()
         when (input.props.selected) {
-            case Some(binding) -> if (binding.value != request)
+            case Some(val binding) -> if (binding.value != request)
                 binding.value = request
             case None -> input.owner.key.value = Some(input.keys[request])
         }
@@ -303,7 +303,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         if (motion.value == value || immediate) {
             val destination =
                 when (geometry) {
-                    case Some(shape) -> if (shape.track.looping)
+                    case Some(val shape) -> if (shape.track.looping)
                         carouselModulo(value, shape.track.cycle)
                     else
                         value
@@ -321,7 +321,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                     {
                         _ -> if (active) {
                             when (geometry) {
-                                case Some(shape) -> if (shape.track.looping)
+                                case Some(val shape) -> if (shape.track.looping)
                                     motion.snapTo(carouselModulo(motion.value, shape.track.cycle));
                                 case None -> {}
                             }
@@ -343,7 +343,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         drag.cancel()
         if (active) {
             when (geometry) {
-                case Some(shape) -> moveTo(anchor(shape), true);
+                case Some(val shape) -> moveTo(anchor(shape), true);
                 case None -> {}
             }
             publish();

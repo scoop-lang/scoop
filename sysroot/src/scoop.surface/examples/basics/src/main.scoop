@@ -71,14 +71,14 @@ internal fun closeDemoResources(resources: Array<Closeable>) {
             failure =
                 Some(
                     when (failure) {
-                        case Some(primary) -> ResourceUseException(primary, error)
+                        case Some(val primary) -> ResourceUseException(primary, error)
                         case None -> error
                     }
                 )
         }
     }
     when (failure) {
-        case Some(error) -> throw error;
+        case Some(val error) -> throw error;
         case None -> {}
     }
 }

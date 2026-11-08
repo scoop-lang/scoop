@@ -107,7 +107,7 @@ private class CaretSession: SurfaceContent {
 
     private fun receive(input: InputEvent) {
         when (input) {
-            case TextInput(TextInputEvent.Enabled(value)) -> {
+            case TextInput(TextInputEvent.Enabled(val value)) -> {
                 assertTrue(value != None)
                 assertTrue(value != connection)
                 connection = value
@@ -124,7 +124,7 @@ private class CaretSession: SurfaceContent {
                     else -> fail(Some("unexpected native text connection"))
                 }
             }
-            case TextInput(TextInputEvent.Disabled(value)) -> {
+            case TextInput(TextInputEvent.Disabled(val value)) -> {
                 assertEquals(connection, value)
                 disabled += 1
             }
@@ -205,7 +205,7 @@ private class CaretSession: SurfaceContent {
         assertEquals(rect, area!!.visibleCaretBounds)
         val logical =
             when (rect) {
-                case Some(value) -> Some(
+                case Some(val value) -> Some(
                     LogicalRect(
                         LogicalPosition(value.x, value.y),
                         LogicalSize(value.width, value.height)

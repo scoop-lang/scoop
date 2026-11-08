@@ -133,11 +133,11 @@ public class GzipMetadata public constructor(
     /**
      * An optional copied gzip original-filename field.
      */
-    public val filename: Array<Byte>? = when (filename) { case Some(bytes) -> Some(bytes.toArray()); case None -> None }
+    public val filename: Array<Byte>? = when (filename) { case Some(val bytes) -> Some(bytes.toArray()); case None -> None }
     /**
      * An optional copied gzip comment field.
      */
-    public val comment: Array<Byte>? = when (comment) { case Some(bytes) -> Some(bytes.toArray()); case None -> None }
+    public val comment: Array<Byte>? = when (comment) { case Some(val bytes) -> Some(bytes.toArray()); case None -> None }
 }
 
 /**

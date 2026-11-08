@@ -30,7 +30,7 @@ public class DrawerHandle public constructor() {
     internal fun bind(control: DrawerControl) {
         checkThread()
         when (current) {
-            case Some(old) -> requireComponent(
+            case Some(val old) -> requireComponent(
                 old === control || !old.active,
                 "drawer handle already has a target"
             )
@@ -41,7 +41,7 @@ public class DrawerHandle public constructor() {
     internal fun unbind(control: DrawerControl) {
         checkThread()
         when (current) {
-            case Some(old) -> if (old === control) {
+            case Some(val old) -> if (old === control) {
                 current = None;
                 publish(DrawerSnapshot())
             }

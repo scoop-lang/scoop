@@ -175,7 +175,7 @@ internal class TrayOwner(
                 return true
         }
         return when (menuLease) {
-            case Some(lease) -> lease.isTracking;
+            case Some(val lease) -> lease.isTracking;
             case None -> false
         }
     }
@@ -190,18 +190,18 @@ internal class TrayOwner(
         for (subscription in subscriptions.toArray())
             subscription.close()
         when (menuLease) {
-            case Some(lease) -> lease.cancel();
+            case Some(val lease) -> lease.cancel();
             case None -> {}
         }
         @Unsafe
         {
             when (pointer) {
-                case Some(native) -> nativeTrayRequestClose(native);
+                case Some(val native) -> nativeTrayRequestClose(native);
                 case None -> {}
             }
         }
         when (session) {
-            case Some(active) -> cancelSession(active, reason);
+            case Some(val active) -> cancelSession(active, reason);
             case None -> {}
         }
         settle()
@@ -230,13 +230,13 @@ internal class TrayOwner(
         @Unsafe
         {
             when (pointer) {
-                case Some(native) -> nativeTrayDestroy(native);
+                case Some(val native) -> nativeTrayDestroy(native);
                 case None -> {}
             }
             pointer = None
             var failure: Throwable? = None
             when (callback) {
-                case Some(bridge) -> {
+                case Some(val bridge) -> {
                     failure = foreignCallbackFailure(bridge)
                     releaseForeignCallback(bridge)
                 }
@@ -246,7 +246,7 @@ internal class TrayOwner(
             state = TrayState.Closed
             resource!!.close()
             when (failure) {
-                case Some(error) -> throw error;
+                case Some(val error) -> throw error;
                 case None -> {}
             }
         }

@@ -11,5 +11,18 @@
       "start": 95
     },
     "severity": "error"
+  },
+  {
+    "code": "SCOOPC_COMPILER_WARNING",
+    "message": "binding `None` shadows an enum variant available here; rename the binding or qualify the variant",
+    "notes": [],
+    "origin": {
+      "cone": "cf0062f00d9a72578e2470f1f5b5e00d3fbdabe85c7c7ba02abc380ba8ea1e2a",
+      "end": 78,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 74
+    },
+    "severity": "warning"
   }
 ]

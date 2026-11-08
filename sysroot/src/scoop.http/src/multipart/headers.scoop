@@ -60,7 +60,7 @@ internal class MultipartHeaders(val limits: MultipartLimits) {
     private val hasName: Boolean get() = when (name) { case Some(_) -> true; case None -> false }
     private fun commit() {
         when (name) {
-            case Some(bytes) -> {
+            case Some(val bytes) -> {
                 val raw = value.toByteArray()
                 fields.add(HttpField(bytes, httpTrim(raw, 0L, raw.size)))
             }

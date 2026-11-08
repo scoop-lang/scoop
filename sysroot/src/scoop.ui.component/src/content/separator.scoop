@@ -14,7 +14,7 @@ public class SeparatorProps public constructor(
     init {
         nonnegative(thickness, "invalid separator thickness")
         when (length) {
-            case Some(value) -> nonnegative(value, "invalid separator length");
+            case Some(val value) -> nonnegative(value, "invalid separator length");
             case None -> {}
         }
     }

@@ -26,7 +26,7 @@ internal class SelectRootLayout(
                 return@addDefaultAction
             val key =
                 when (event) {
-                    case Keyboard(value) -> value;
+                    case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
             if (!menuKeyAllowed(key))
@@ -51,7 +51,7 @@ internal class SelectRootLayout(
     > {
         val limits =
             when (props.value.width) {
-                case Some(width) -> {
+                case Some(val width) -> {
                     val constrained =
                         constraints.constrain(Size(width, constraints.minHeight)).width
                     Constraints(

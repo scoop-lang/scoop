@@ -21,11 +21,11 @@ enum FetchResult {
         public override fun encode(value: FetchResult, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case FetchResult.Document(payload) -> {
+                case FetchResult.Document(val payload) -> {
                     String.encode("web_fetch_result", fields.field("type"))
                     FetchedDocument.Companion.encode(payload, encoder)
                 }
-                case FetchResult.Error(payload) -> {
+                case FetchResult.Error(val payload) -> {
                     String.encode("web_fetch_tool_result_error", fields.field("type"))
                     ServerError.Companion.encode(payload, encoder)
                 }
@@ -59,15 +59,15 @@ enum CodeResult {
         public override fun encode(value: CodeResult, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case CodeResult.Output(payload) -> {
+                case CodeResult.Output(val payload) -> {
                     String.encode("code_execution_result", fields.field("type"))
                     CodeOutput.Companion.encode(payload, encoder)
                 }
-                case CodeResult.Encrypted(payload) -> {
+                case CodeResult.Encrypted(val payload) -> {
                     String.encode("encrypted_code_execution_result", fields.field("type"))
                     EncryptedOutput.Companion.encode(payload, encoder)
                 }
-                case CodeResult.Error(payload) -> {
+                case CodeResult.Error(val payload) -> {
                     String.encode("code_execution_tool_result_error", fields.field("type"))
                     ServerError.Companion.encode(payload, encoder)
                 }

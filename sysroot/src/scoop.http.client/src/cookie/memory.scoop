@@ -72,7 +72,7 @@ public class MemoryCookieJar public constructor(
             if (!field.hasName("Set-Cookie".toByteArray())) continue
             val parsed = HttpSetCookie.parseOrNone(field.value) ?: continue
             when (parsed.resolve(request.url, now, suffixes, maxLifetimeSeconds)) {
-                case Success(cookie) -> if (!enforceSameSite || cookie.allowsSetting(sameSite, navigation)) cookies.add(cookie)
+                case Success(val cookie) -> if (!enforceSameSite || cookie.allowsSetting(sameSite, navigation)) cookies.add(cookie)
                 case Failure(_) -> {}
             }
         }

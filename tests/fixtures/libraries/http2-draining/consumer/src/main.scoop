@@ -37,12 +37,12 @@ private class Notices {
     var refused: Boolean = false
     fun receive(notice: Http2Notice) {
         when (notice) {
-            case GoAway(last, code, _, local) -> {
+            case GoAway(val last, val code, _, val local) -> {
                 check(!local && last == 1 && code == 0U)
                 check(connection!!.isDraining)
                 goAway.signal()
             }
-            case StreamFailure(id, error) -> {
+            case StreamFailure(val id, val error) -> {
                 check(id == 3 && connection!!.isDraining)
                 if (error is HttpException)
                     check(error.code == 7 && error.streamId == id)
@@ -94,7 +94,7 @@ private fun exercise(mode: String, address: SocketAddress) {
                     check(error.streamId == 3 && error.code == 7)
                 } finally {
                     when (second) {
-                        case Some(stream) -> stream.close();
+                        case Some(val stream) -> stream.close();
                         case None -> {}
                     }
                 }

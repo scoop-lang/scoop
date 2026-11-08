@@ -126,7 +126,7 @@ private class HostShortcutSession: Closeable {
                     second!!.requestFocus()
                 }
             }
-            case Window(id, WindowEvent.Destroyed) -> {
+            case Window(val id, WindowEvent.Destroyed) -> {
                 if (id == first!!.id) {
                     assertEquals(6, phase)
                     assertTrue(local!!.isClosed)

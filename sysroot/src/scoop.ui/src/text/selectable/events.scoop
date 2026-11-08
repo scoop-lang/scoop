@@ -37,11 +37,11 @@ internal fun selectableHandle(
     )
         return
     when (event) {
-        case TextCommand(command) -> if (
+        case TextCommand(val command) -> if (
             context.phase == RoutedPhase.Default && host.execute(command)
         )
             context.consume()
-        case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
+        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)) -> {
             if (state == ElementState.Pressed) {
                 if (context.phase == RoutedPhase.Capture) {
                     selectablePrepareDrag(host, pointer, context.localPosition, count)
@@ -64,7 +64,7 @@ internal fun selectableHandle(
                     context.consume()
                 }
         }
-        case Pointer(InputPointerEvent.Moved(pointer)) -> {
+        case Pointer(InputPointerEvent.Moved(val pointer)) -> {
             val drag = host.drag ?: return
             if (!drag.started) {
                 val x = pointer.state.logicalPosition.x - drag.origin.x
@@ -79,7 +79,7 @@ internal fun selectableHandle(
             selectableExtend(host, drag, point)
             context.consume()
         }
-        case Keyboard(key) -> {
+        case Keyboard(val key) -> {
             if (
                 context.phase !=
                     RoutedPhase.Default ||
@@ -222,7 +222,7 @@ internal fun selectableCommand(host: SelectableTextHost, command: TextEditComman
             host.area.requestFocus()
             host.setSelection(TextPosition(0L), TextPosition(frame.content.text.byteLength))
         }
-        case Move(movement, extend) -> {
+        case Move(val movement, val extend) -> {
             val result =
                 editorMove(
                     TextEditLayout(frame.layout),
@@ -241,7 +241,7 @@ internal fun selectableCommand(host: SelectableTextHost, command: TextEditComman
                         editorVisualPosition(TextEditLayout(frame.layout), host.cursor)
                     )
                 ) {
-                    case Some(rect) -> host.focus.reveal(rect)
+                    case Some(val rect) -> host.focus.reveal(rect)
                     case None -> {}
                 }
             }

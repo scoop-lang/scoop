@@ -16,7 +16,7 @@ internal suspend fun closeClientInvocationResults(
 ) {
     val retained =
         when (keep) {
-            case Some(value) -> Some(clientResultResource(value));
+            case Some(val value) -> Some(clientResultResource(value));
             case None -> None
         }
     nonCancellableScope<Unit> {

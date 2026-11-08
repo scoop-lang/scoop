@@ -1,0 +1,13 @@
+enum E { N(Int), S(String) }
+struct Box(val payload: E)
+
+fun typo(value: E) { when(value) { case Bad -> {}; else -> {} } }
+fun payload(value: E) { when(value) { case S(text) -> {}; else -> {} } }
+fun tuple(value: (Int, E)) { when(value) { case (first, _) -> {}; else -> {} } }
+fun field(value: Box) { when(value) { case Box { payload } -> {}; else -> {} } }
+fun nested(value: E?) { when(value) { case Some(Bad) -> {}; else -> {} } }
+fun existing(value: E) {
+    val saved = value
+    when(value) { case saved -> {}; else -> {} }
+}
+fun main() {}

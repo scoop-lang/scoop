@@ -159,7 +159,7 @@ internal class PortalInstance(
         retirementRevision = Some(revision)
         focusSession?.beginClose(revision)
         when (route) {
-            case Some(value) -> if (!value.isClosed)
+            case Some(val value) -> if (!value.isClosed)
                 value.enabled = false;
             case None -> {}
         }
@@ -184,7 +184,7 @@ internal class PortalInstance(
     }
     fun wasPresented(frame: OverlayFrame): Boolean =
         when (presented) {
-            case Some(value) -> value === frame
+            case Some(val value) -> value === frame
             case None -> false
         }
     fun complete(frame: OverlayFrame) {

@@ -5,7 +5,7 @@ internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val max
     private val extents =
         MutableArray<Double>(tracks.size) {
             index -> when (tracks[index]) {
-                case Fixed(value) -> value;
+                case Fixed(val value) -> value;
                 else -> 0.0
             }
         }
@@ -34,7 +34,7 @@ internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val max
         var scale = 1.0
         for (index in start ..< start + span) {
             when (tracks[index]) {
-                case Fraction(value) -> scale = lowerBound(scale, value)
+                case Fraction(val value) -> scale = lowerBound(scale, value)
                 else -> {}
             }
         }
@@ -52,7 +52,7 @@ internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val max
     private fun weight(index: Long, scale: Double): Double =
         when (tracks[index]) {
             case Auto -> 1.0 / scale
-            case Fraction(value) -> if (maximum == None)
+            case Fraction(val value) -> if (maximum == None)
                 value / scale
             else
                 0.0
@@ -65,7 +65,7 @@ internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val max
         var scale = 0.0
         for (index in 0L ..< tracks.size) {
             when (tracks[index]) {
-                case Fraction(value) -> scale = lowerBound(scale, value)
+                case Fraction(val value) -> scale = lowerBound(scale, value)
                 else -> fixed += extents[index]
             }
         }
@@ -75,14 +75,14 @@ internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val max
         var weight = 0.0
         for (track in tracks) {
             when (track) {
-                case Fraction(value) -> weight += value / scale;
+                case Fraction(val value) -> weight += value / scale;
                 else -> {}
             }
         }
         val remaining = lowerBound(available - fixed, 0.0)
         for (index in 0L ..< tracks.size) {
             when (tracks[index]) {
-                case Fraction(value) -> extents[index] = remaining * ((value / scale) / weight)
+                case Fraction(val value) -> extents[index] = remaining * ((value / scale) / weight)
                 else -> {}
             }
         }
@@ -112,8 +112,8 @@ internal fun checkGridTracks(tracks: Array<GridTrack>) {
     requireComponent(tracks.size > 0L, "grid requires at least one track per axis")
     for (track in tracks) {
         when (track) {
-            case Fixed(value) -> nonnegative(value, "invalid fixed grid track")
-            case Fraction(value) -> requireComponent(
+            case Fixed(val value) -> nonnegative(value, "invalid fixed grid track")
+            case Fraction(val value) -> requireComponent(
                 value.isFinite() && value > 0.0,
                 "grid fraction weight must be finite and positive"
             )

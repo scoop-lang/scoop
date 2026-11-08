@@ -8,37 +8,37 @@ enum Tool {
     companion object : ValueEncoder<Tool>, ValueDecoder<Tool> {
         public override fun encode(value: Tool, encoder: Encoder) {
             when (value) {
-                case Tool.User(payload) -> { UserTool.Companion.encode(payload, encoder); return }
+                case Tool.User(val payload) -> { UserTool.Companion.encode(payload, encoder); return }
                 else -> {}
             }
             val fields = encoder.keyed()
             when (value) {
-                case Tool.User(payload) -> UserTool.Companion.encode(payload, encoder)
-                case Tool.Computer(payload) -> {
+                case Tool.User(val payload) -> UserTool.Companion.encode(payload, encoder)
+                case Tool.Computer(val payload) -> {
                     String.encode("computer_20250124", fields.field("type"))
                     ComputerConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Search(payload) -> {
+                case Tool.Search(val payload) -> {
                     String.encode("web_search_20250305", fields.field("type"))
                     SearchConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Fetch(payload) -> {
+                case Tool.Fetch(val payload) -> {
                     String.encode("web_fetch_20250910", fields.field("type"))
                     SearchConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Code(payload) -> {
+                case Tool.Code(val payload) -> {
                     String.encode("code_execution_20250522", fields.field("type"))
                     BasicToolConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Bash(payload) -> {
+                case Tool.Bash(val payload) -> {
                     String.encode("bash_20250124", fields.field("type"))
                     BasicToolConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Editor(payload) -> {
+                case Tool.Editor(val payload) -> {
                     String.encode("text_editor_20250124", fields.field("type"))
                     BasicToolConfig.Companion.encode(payload, encoder)
                 }
-                case Tool.Unknown(raw) -> JsonValue.Companion.encode(raw, encoder)
+                case Tool.Unknown(val raw) -> JsonValue.Companion.encode(raw, encoder)
             }
             fields.end()
         }

@@ -47,7 +47,7 @@ public struct LayoutMetrics(
 private fun checkAxis(minimum: Double, maximum: Double?) {
     requireUi(minimum.isFinite() && minimum >= 0.0, "invalid minimum layout extent")
     when (maximum) {
-        case Some(value) -> requireUi(
+        case Some(val value) -> requireUi(
             value.isFinite() && value >= minimum,
             "invalid maximum layout extent"
         )
@@ -62,7 +62,7 @@ private fun constrainAxis(value: Double, minimum: Double, maximum: Double?): Dou
         else
             value
     return when (maximum) {
-        case Some(upper) -> if (lower > upper)
+        case Some(val upper) -> if (lower > upper)
             upper
         else
             lower
@@ -72,7 +72,7 @@ private fun constrainAxis(value: Double, minimum: Double, maximum: Double?): Dou
 
 private fun underMaximum(value: Double, maximum: Double?): Boolean =
     when (maximum) {
-        case Some(upper) -> value <= upper
+        case Some(val upper) -> value <= upper
         case None -> true
     }
 
@@ -87,7 +87,7 @@ internal fun checkLayoutMetrics(metrics: LayoutMetrics, constraints: Constraints
     checkLayoutSize(metrics.size)
     requireUi(constraints.accepts(metrics.size), "measured size is outside its constraints")
     when (metrics.overlayAnchor) {
-        case Some(rect) -> requireUi(
+        case Some(val rect) -> requireUi(
             rect.x.isFinite() &&
                 rect.y.isFinite() &&
                 rect.width.isFinite() &&
@@ -104,7 +104,7 @@ internal fun checkLayoutMetrics(metrics: LayoutMetrics, constraints: Constraints
     }
     for (baseline in [metrics.alphabeticBaseline, metrics.ideographicBaseline]) {
         when (baseline) {
-            case Some(value) -> requireUi(value.isFinite(), "non-finite layout baseline")
+            case Some(val value) -> requireUi(value.isFinite(), "non-finite layout baseline")
             case None -> {}
         }
     }

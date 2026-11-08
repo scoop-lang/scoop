@@ -40,7 +40,7 @@ public class AsyncConditionVariable public constructor(public val mutex: AsyncMu
         mutex.stateLock.withLock {
             mutex.validate(guard)
             when (waiters.takeFirst()) {
-                case Some(waiter) -> select(waiter, None, notifications)
+                case Some(val waiter) -> select(waiter, None, notifications)
                 case None -> {}
             }
         }

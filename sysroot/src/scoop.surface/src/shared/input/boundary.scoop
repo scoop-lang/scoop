@@ -65,7 +65,7 @@ public class InputBoundary public constructor(
 
 internal fun sameBoundary(left: InputBoundary?, right: InputBoundary?): Boolean =
     when ((left, right)) {
-        case(Some(a), Some(b)) -> a === b
+        case(Some(val a), Some(val b)) -> a === b
         case(None, None) -> true
         else -> false
     }

@@ -11,13 +11,13 @@ private enum LocalEntry<T>: Readable<T> {
     Value(T)
 
     public override fun read(): T = when (this) {
-        case Value(value) -> value
+        case Value(val value) -> value
     }
 }
 
 private fun <T> localTotal(value: LocalChain<T>, read: (T) -> Int): Int = when (value) {
     case End -> 0
-    case Cons(link) -> read(link.value) + localTotal(link.tail, read)
+    case Cons(val link) -> read(link.value) + localTotal(link.tail, read)
 }
 
 public fun <T> exercise(seed: T, read: (T) -> Int): Int {
@@ -26,7 +26,7 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     if (localTotal(local, read) != 42) { return 1 }
     val external: Chain<T>? = Some(singleton(seed))
     val value: T = when (external) {
-        case Some(Cons(link)) -> link.value
+        case Some(Cons(val link)) -> link.value
         else -> seed
     }
     val first: Readable<T> = Entry.Value(value)

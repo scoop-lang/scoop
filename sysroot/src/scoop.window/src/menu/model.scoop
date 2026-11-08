@@ -12,7 +12,7 @@ internal fun MenuOwner.insert(
         throw IndexOutOfBoundsException()
     val parentNode =
         when (parent) {
-            case Some(identity) -> Some(requireItem(identity))
+            case Some(val identity) -> Some(requireItem(identity))
             case None -> None
         }
     checkRoot(description.kind, parentNode)
@@ -51,7 +51,7 @@ internal fun MenuOwner.move(item: MenuItemId, index: Long): RequestStatus {
     val node = requireItem(item)
     val siblings =
         when (node.parent) {
-            case Some(parent) -> parent.children
+            case Some(val parent) -> parent.children
             case None -> roots
         }
     if (index < 0L || index >= siblings.size)
@@ -71,7 +71,7 @@ internal fun MenuOwner.remove(item: MenuItemId): RequestStatus {
     val node = requireItem(item)
     val siblings =
         when (node.parent) {
-            case Some(parent) -> parent.children
+            case Some(val parent) -> parent.children
             case None -> roots
         }
     if (busy())
@@ -176,7 +176,7 @@ private fun MenuOwner.appendNative(node: MenuNode, parent: Long) {
             }
         }
         when (description.image) {
-            case Some(image) -> for (representation in image.representations) {
+            case Some(val image) -> for (representation in image.representations) {
                 representation.pixels.withDataPointer {
                     bytes,
                     count -> @Unsafe

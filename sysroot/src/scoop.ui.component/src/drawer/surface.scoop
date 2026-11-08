@@ -49,7 +49,7 @@ internal class DrawerSurface(private val props: Props<DrawerInput>, scope: Compo
                 min(
                     available.height,
                     when (input.props.height) {
-                        case Some(value) -> value * scale
+                        case Some(val value) -> value * scale
                         case None -> max(0.0, available.height - input.props.viewportGap * scale)
                     }
                 )
@@ -110,7 +110,7 @@ internal class DrawerSurface(private val props: Props<DrawerInput>, scope: Compo
         if (input.props.mode == OverlayMode.Modal) {
             context.saveLayer(progress * dragOpacity)
             when (input.props.options.backdrop) {
-                case Some(paint) -> context.draw {
+                case Some(val paint) -> context.draw {
                     output -> output.canvas.drawRect(
                         Rect(0.0, 0.0, shape.viewport.width, shape.viewport.height),
                         paint

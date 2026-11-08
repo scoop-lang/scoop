@@ -9,13 +9,13 @@ internal fun datePickerParse(text: String, range: Boolean): DatePickerParse {
         return DatePickerParse.Empty
     if (!range)
         return when (LocalDate.parseOrNone(value)) {
-            case Some(date) -> DatePickerParse.Date(date)
+            case Some(val date) -> DatePickerParse.Date(date)
             case None -> DatePickerParse.Invalid("Enter a date as YYYY-MM-DD.")
         }
     val parts = value.split("..")
     if (parts.size == 2L)
         when ((LocalDate.parseOrNone(parts[0L].trim()), LocalDate.parseOrNone(parts[1L].trim()))) {
-            case(Some(start), Some(end)) -> {
+            case(Some(val start), Some(val end)) -> {
                 if (start <= end)
                     return DatePickerParse.Range(DateRange(start, end));
             }
@@ -32,11 +32,11 @@ internal fun datePickerRange(selection: CalendarSelection): Boolean =
 
 internal fun datePickerValue(parsed: DatePickerParse, range: Boolean): CalendarValue? =
     when (parsed) {
-        case Date(value) -> if (range)
+        case Date(val value) -> if (range)
             None
         else
             Some(CalendarValue.Single(Some(value)))
-        case Range(value) -> if (range)
+        case Range(val value) -> if (range)
             Some(CalendarValue.Range(Some(value)))
         else
             None
@@ -51,12 +51,12 @@ internal fun datePickerValue(parsed: DatePickerParse, range: Boolean): CalendarV
 
 internal fun datePickerText(value: CalendarValue, locale: CalendarLocale): String =
     when (value) {
-        case Single(date) -> when (date) {
-            case Some(day) -> locale.date(day);
+        case Single(val date) -> when (date) {
+            case Some(val day) -> locale.date(day);
             case None -> ""
         }
-        case Range(range) -> when (range) {
-            case Some(days) -> locale.date(days.start) + " .. " + locale.date(days.end);
+        case Range(val range) -> when (range) {
+            case Some(val days) -> locale.date(days.start) + " .. " + locale.date(days.end);
             case None -> ""
         }
         case Multiple(_) -> throw IllegalArgumentException(

@@ -12,14 +12,14 @@ fun <T> writeField(value: FieldState<T>, fields: KeyedEncodingContainer, name: S
     when (value) {
         case FieldState.Missing -> { return }
         case FieldState.Null -> fields.field(name).singleValue().writeNull()
-        case FieldState.Value(item) -> codec.encode(item, fields.field(name))
+        case FieldState.Value(val item) -> codec.encode(item, fields.field(name))
     }
 }
 
 fun <T> readField(fields: KeyedDecodingContainer, name: String, codec: ValueDecoder<T>): FieldState<T> {
     return when (fields.optional(name)) {
         case None -> FieldState.Missing
-        case Some(child) -> if (child.singleValue().isNull()) FieldState.Null else FieldState.Value(codec.decode(child))
+        case Some(val child) -> if (child.singleValue().isNull()) FieldState.Null else FieldState.Value(codec.decode(child))
     }
 }
 

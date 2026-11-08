@@ -22,7 +22,7 @@ public class MessageScroller public constructor(
         val spacing = input.spacing * density
         val same =
             when (spaced) {
-                case Some(old) -> old.source === input.source && old.spacing == spacing
+                case Some(val old) -> old.source === input.source && old.spacing == spacing
                 case None -> false
             }
         if (!same)
@@ -30,7 +30,7 @@ public class MessageScroller public constructor(
         val previous = model.previousSource
         val prepend =
             when (previous) {
-                case Some(old) -> old !==
+                case Some(val old) -> old !==
                     input.source &&
                     old.count >
                     0L &&
@@ -42,20 +42,20 @@ public class MessageScroller public constructor(
             transcriptList(
                 spaced!!,
                 when (input.itemExtent) {
-                    case Fixed(value) -> ItemExtent.Fixed(value * density)
-                    case Variable(value) -> ItemExtent.Variable(value * density)
+                    case Fixed(val value) -> ItemExtent.Fixed(value * density)
+                    case Variable(val value) -> ItemExtent.Variable(value * density)
                 }
             ) {
                 this.state = Some(model.scroll)
                 this.handle = Some(model.list)
                 this.width =
                     when (input.width) {
-                        case Some(value) -> Some(value * density);
+                        case Some(val value) -> Some(value * density);
                         case None -> None
                     }
                 this.height =
                     when (input.height) {
-                        case Some(value) -> Some(value * density);
+                        case Some(val value) -> Some(value * density);
                         case None -> None
                     }
                 this.overscan = input.overscan * density
@@ -134,7 +134,7 @@ private class MessageScrollButton(
         val pending = input.state.isPending
         val visible =
             when (reading) {
-                case Some(value) -> input.state.isAttached &&
+                case Some(val value) -> input.state.isAttached &&
                     !pending &&
                     value.visibleKeys.size >
                     0L &&

@@ -26,8 +26,8 @@ enum RangeSignal {
 fun classifyRangeSignal(signal: RangeSignal): Int = when (signal) {
     case Data {
         payload: {
-            entry: { payload: (node, label), .. },
-            marker: (true, ordinal)
+            entry: { payload: (val node, val label), .. },
+            marker: (true, val ordinal)
         },
         enabled: true
     } -> {
@@ -107,7 +107,7 @@ internal class RangeEntryIterator(val inner: Iterator<Int>) : Iterator<Entry<Nod
     public final override fun next(): Option<Entry<Node>> {
         val next = inner.next()
         return when (next) {
-            case Some(value) -> Some(Entry(
+            case Some(val value) -> Some(Entry(
                 value.toLong(),
                 (
                     Node("range-node-" + value.toString()),

@@ -32,7 +32,7 @@ private class ServerHttp2ShutdownTests {
                     var count = 0L
                     for (event in notices.snapshot())
                         when (event) {
-                            case GoAway(last, code, _, _) -> {
+                            case GoAway(val last, val code, _, _) -> {
                                 assertEquals(0, last);
                                 assertEquals(0U, code);
                                 count += 1L

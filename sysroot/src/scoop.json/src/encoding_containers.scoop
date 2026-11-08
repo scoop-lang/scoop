@@ -6,7 +6,7 @@ internal class JsonKeyedEncoder(private val owner: JsonEncoder) : KeyedEncodingC
 
     private fun flush() {
         when (pending) {
-            case Some((name, child)) -> {
+            case Some((val name, val child)) -> {
                 members.add(JsonMember(name, child.result()))
                 pending = None
             }
@@ -40,7 +40,7 @@ internal class JsonUnkeyedEncoder(private val owner: JsonEncoder) : UnkeyedEncod
 
     private fun flush() {
         when (pending) {
-            case Some(child) -> {
+            case Some(val child) -> {
                 elements.add(child.result())
                 pending = None
             }

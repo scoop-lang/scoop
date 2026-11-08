@@ -40,15 +40,15 @@ private fun exercise(bytes: Array<Byte>, capacity: Long): String = Http2Session.
         when (event) {
             case None -> break
             case Some(_) -> when (event!!) {
-                case Request(id, _) -> { check(id == 1 || id == 3); heads += 1 }
-                case Data(id, data) -> {
+                case Request(val id, _) -> { check(id == 1 || id == 3); heads += 1 }
+                case Data(val id, val data) -> {
                     check(id == 1 || id == 3)
                     if (id == 1) first.append(data)
                     if (id == 3) second.append(data)
                 }
                 case End(_) -> ends += 1
-                case StreamClosed(id, code) -> { check(id == 3 && code == 8U); reset = true }
-                case Failure(error) -> throw error
+                case StreamClosed(val id, val code) -> { check(id == 3 && code == 8U); reset = true }
+                case Failure(val error) -> throw error
                 else -> {}
             }
         }

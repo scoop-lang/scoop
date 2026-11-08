@@ -69,7 +69,7 @@ internal fun fontString(value: NativeFontString): String {
     @Unsafe
     {
         return when (value.data) {
-            case Some(data) -> String.fromUtf8(data, value.length)
+            case Some(val data) -> String.fromUtf8(data, value.length)
             case None -> ""
         }
     }

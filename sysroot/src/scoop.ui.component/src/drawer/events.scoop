@@ -7,7 +7,7 @@ import scoop.window.*
 
 internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
     when (event) {
-        case Started(sample) -> {
+        case Started(val sample) -> {
             if (!control.available()) {
                 control.cancel(DragCancelReason.GeometryUnavailable);
                 return
@@ -20,11 +20,11 @@ internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
             drawerDragged(control, sample);
             control.publish()
         }
-        case Moved(sample) -> {
+        case Moved(val sample) -> {
             drawerDragged(control, sample);
             control.publish()
         }
-        case Ended(sample) -> {
+        case Ended(val sample) -> {
             val gesture = control.gesture ?: return
             drawerDragged(control, sample)
             if (!control.active)
@@ -40,7 +40,7 @@ internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
                     input.props.swipeToClose
                 )
             when (target) {
-                case Some(value) -> if (value.index < 0L)
+                case Some(val value) -> if (value.index < 0L)
                     control.close()
                 else
                     control.select(value.index, true)
@@ -48,7 +48,7 @@ internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
             }
             control.publish()
         }
-        case Cancelled(_, reason) -> control.cancel(reason)
+        case Cancelled(_, val reason) -> control.cancel(reason)
     }
 }
 

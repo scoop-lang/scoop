@@ -10,22 +10,22 @@ import scoop.window.*
 
 internal fun reportFile(demo: DesktopDemo, result: FileDialogResult<Path>) {
     when (result) {
-        case Accepted(path) -> demo.report("Selected: " + path.display())
+        case Accepted(val path) -> demo.report("Selected: " + path.display())
         case Cancelled(_) -> demo.report("File dialog cancelled")
-        case Failed(error) -> demo.operationFailed(error)
+        case Failed(val error) -> demo.operationFailed(error)
     }
 }
 
 internal fun reportFiles(demo: DesktopDemo, result: FileDialogResult<Array<Path>>) {
     when (result) {
-        case Accepted(paths) -> {
+        case Accepted(val paths) -> {
             var message = "Selected paths:"
             for (path in paths)
                 message += "\n" + path.display()
             demo.report(message)
         }
         case Cancelled(_) -> demo.report("Multiple-file dialog cancelled")
-        case Failed(error) -> demo.operationFailed(error)
+        case Failed(val error) -> demo.operationFailed(error)
     }
 }
 

@@ -124,7 +124,7 @@ private class ProbeChoices(private val p: ComboProbe): ChoiceSource<Long> {
         )
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(value) -> indexOfValue(value);
+            case Number(val value) -> indexOfValue(value);
             else -> None
         }
     public override fun indexOfValue(value: Long): Long? =
@@ -148,7 +148,7 @@ private class ProbeChoices(private val p: ComboProbe): ChoiceSource<Long> {
     public override fun entryAt(index: Long): ChoiceEntry<Long> {
         val number =
             when (keyAt(index)) {
-                case Number(value) -> value;
+                case Number(val value) -> value;
                 else -> 0L
             }
         val label =

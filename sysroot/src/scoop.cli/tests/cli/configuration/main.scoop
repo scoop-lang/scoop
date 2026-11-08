@@ -44,8 +44,8 @@ fun explicit(entries: Array<CliEntry>): CliSchema<Unit> = CliSchema(typeInfo<Uni
 fun option(name: String, wire: String = "value"): CliEntry = CliEntry(wire, wire, CliRole.Option, CliValueShape.Text, [name])
 
 private fun exercise() {
-    check(!when (typeInfo<Open>().describe().shape) { case TypeShape.Class(info) -> info.isFinal; else -> throw IllegalStateException() })
-    check(when (typeInfo<Extra>().describe().shape) { case TypeShape.Class(info) -> info.isFinal; else -> throw IllegalStateException() })
+    check(!when (typeInfo<Open>().describe().shape) { case TypeShape.Class(val info) -> info.isFinal; else -> throw IllegalStateException() })
+    check(when (typeInfo<Extra>().describe().shape) { case TypeShape.Class(val info) -> info.isFinal; else -> throw IllegalStateException() })
     bad({ Cli.schema(typeInfo<Open>(), CliConfig("bad")) })
     bad({ Cli.schema(typeInfo<Child>(), CliConfig("bad")) })
     bad({ Cli.schema(typeInfo<Extra>(), CliConfig("bad")) })

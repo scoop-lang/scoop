@@ -97,7 +97,7 @@ public fun Window.showModal(options: ModalOptions = ModalOptions()): ModalSessio
     if (options.scope == ModalScope.Application && application.fileDialogs.size != 0L)
         throw WindowException("application file dialog is active", WindowErrorKind.ResourceBusy)
     when (parent) {
-        case Some(value) -> {
+        case Some(val value) -> {
             application.requireDialogOwnerAvailable(value)
             value.requireInteractive()
             val snapshot = value.snapshot()
@@ -151,7 +151,7 @@ public fun Window.showModal(options: ModalOptions = ModalOptions()): ModalSessio
         val session = ModalSession(id, this, options, presentation, Some(native))
         owner.leases += 1L
         when (parent) {
-            case Some(value) -> value.leases += 1L;
+            case Some(val value) -> value.leases += 1L;
             case None -> {}
         }
         owner.modalSession = Some(session)

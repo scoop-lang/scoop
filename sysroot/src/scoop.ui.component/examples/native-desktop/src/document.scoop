@@ -122,14 +122,14 @@ internal class DocumentView(
             },
             {
                 result -> when (result) {
-                    case Accepted(value) -> {
+                    case Accepted(val value) -> {
                         if (value && close)
                             demo.closeDocument(document)
                         else
                             demo.report("Owner modal accepted")
                     }
                     case Cancelled(_) -> demo.report("Owner modal cancelled")
-                    case Failed(error) -> demo.operationFailed(error)
+                    case Failed(val error) -> demo.operationFailed(error)
                 }
             },
             attributes =

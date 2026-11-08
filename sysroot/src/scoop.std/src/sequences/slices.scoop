@@ -24,7 +24,7 @@ private class DroppingIterator<T>(private val source: Iterator<T>, private var r
 
 private class TakingWhileIterator<T>(private val source: Iterator<T>, private val predicate: (T) -> Boolean) : Iterator<T> {
     public override fun next(): T? = when (source.next()) {
-        case Some(value) -> if (predicate(value)) Some(value) else None
+        case Some(val value) -> if (predicate(value)) Some(value) else None
         case None -> None
     }
 }
@@ -35,7 +35,7 @@ private class DroppingWhileIterator<T>(private val source: Iterator<T>, private 
         while (true) {
             when (source.next()) {
                 case None -> return None
-                case Some(value) -> {
+                case Some(val value) -> {
                     if (!dropping) return Some(value)
                     dropping = predicate(value)
                     if (!dropping) return Some(value)

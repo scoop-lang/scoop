@@ -304,7 +304,9 @@ impl Lowerer {
                     self.reject_initializer_bindings(&field.subpattern);
                 }
             }
-            ast::Pattern::Wildcard { .. } | ast::Pattern::Literal { .. } => {}
+            ast::Pattern::BareVariant(_)
+            | ast::Pattern::Wildcard { .. }
+            | ast::Pattern::Literal { .. } => {}
         }
     }
 

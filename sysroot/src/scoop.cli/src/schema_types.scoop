@@ -20,7 +20,7 @@ internal fun valueShape(type: TypeRef): CliValueShape {
     if (repeated) { return CliValueShape.Repeated(element) }
     return when (element) {
         case CliElementShape.Text -> CliValueShape.Text
-        case CliElementShape.Choice(choices) -> CliValueShape.Choice(choices)
+        case CliElementShape.Choice(val choices) -> CliValueShape.Choice(choices)
     }
 }
 
@@ -31,7 +31,7 @@ internal fun scalarShape(type: TypeRef): CliElementShape = when (type.describe()
     case TypeShape.Intrinsic(IntrinsicInfo(IntrinsicKind.Double)) -> CliElementShape.Text
     case TypeShape.Intrinsic(IntrinsicInfo(IntrinsicKind.Char)) -> CliElementShape.Text
     case TypeShape.Intrinsic(IntrinsicInfo(IntrinsicKind.String)) -> CliElementShape.Text
-    case TypeShape.Enum(info) -> {
+    case TypeShape.Enum(val info) -> {
         val choices = ArrayList<CliChoice>()
         for (variant in info.variants) {
             when (variant.payload) {

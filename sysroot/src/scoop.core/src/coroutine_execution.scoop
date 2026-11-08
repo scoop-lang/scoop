@@ -47,7 +47,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
         val ready =
             lock.withLock {
                 when (state) {
-                    case CoroutineDriveState.Running(pending, finishing) -> {
+                    case CoroutineDriveState.Running(val pending, val finishing) -> {
                         if (finishing || !coroutineAbsent(pending)) {
                             throw IllegalStateException(Some("coroutine already resumed"))
                         }
@@ -72,7 +72,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
     internal fun finish() {
         lock.withLock {
             when (state) {
-                case CoroutineDriveState.Running(pending, finishing) -> {
+                case CoroutineDriveState.Running(val pending, val finishing) -> {
                     if (finishing || !coroutineAbsent(pending)) {
                         throw IllegalStateException(Some("coroutine already completed"))
                     }
@@ -87,7 +87,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
         val work =
             lock.withLock {
                 when (state) {
-                    case CoroutineDriveState.Queued(work) -> {
+                    case CoroutineDriveState.Queued(val work) -> {
                         state = CoroutineDriveState.Running(None, false)
                         work
                     }
@@ -99,7 +99,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
 
     private fun schedule() {
         when (task()) {
-            case Some(task) -> task.dispatch(this)
+            case Some(val task) -> task.dispatch(this)
             case None -> run()
         }
     }
@@ -116,13 +116,13 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
                     throw error
                 }
             when (next) {
-                case CoroutineDriveAction.Continue(nextWork) -> work = nextWork
+                case CoroutineDriveAction.Continue(val nextWork) -> work = nextWork
                 case CoroutineDriveAction.Dispatch -> {
                     schedule();
                     return
                 }
                 case CoroutineDriveAction.Stop -> return
-                case CoroutineDriveAction.Complete(task) -> {
+                case CoroutineDriveAction.Complete(val task) -> {
                     completeRegistration(task);
                     return
                 }
@@ -133,7 +133,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
     private fun afterDrive(): CoroutineDriveAction =
         lock.withLock {
             when (state) {
-                case CoroutineDriveState.Running(pending, finishing) -> {
+                case CoroutineDriveState.Running(val pending, val finishing) -> {
                     if (finishing) {
                         state = CoroutineDriveState.Finished
                         val task = registration
@@ -141,7 +141,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
                         return@withLock CoroutineDriveAction.Complete(task)
                     }
                     when (pending) {
-                        case Some(next) -> {
+                        case Some(val next) -> {
                             if (next.external && !coroutineAbsent(registration)) {
                                 state = CoroutineDriveState.Queued(next.work)
                                 CoroutineDriveAction.Dispatch
@@ -170,7 +170,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
 
     private fun completeRegistration(task: ExecutorTask?) {
         when (task) {
-            case Some(task) -> task.complete()
+            case Some(val task) -> task.complete()
             case None -> {}
         }
     }

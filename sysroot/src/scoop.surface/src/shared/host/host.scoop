@@ -56,7 +56,7 @@ public class SurfaceHost public constructor(
                 proxy ?: throw IllegalStateException(Some("attach requires a running Surface host"))
             val device =
                 when (renderer) {
-                    case Some(value) -> value
+                    case Some(val value) -> value
                     case None -> {
                         sharedFailure = true
                         val value = createRendererHost()
@@ -75,11 +75,11 @@ public class SurfaceHost public constructor(
         } catch (error: Throwable) {
             var failure: Throwable? = Some(error)
             when (attached) {
-                case Some(value) -> failure = cleanupFailure(failure) { value.rollbackAttach() }
+                case Some(val value) -> failure = cleanupFailure(failure) { value.rollbackAttach() }
                 case None -> {
                     failure = cleanupFailure(failure) { content.close() }
                     when (target) {
-                        case Some(value) -> failure = cleanupFailure(failure) { value.close() }
+                        case Some(val value) -> failure = cleanupFailure(failure) { value.close() }
                         case None -> {}
                     }
                 }
@@ -105,9 +105,9 @@ public class SurfaceHost public constructor(
         var failure: Throwable? = None
         try {
             when (event) {
-                case Window(id, _event) -> {
+                case Window(val id, val _event) -> {
                     when (find(id)) {
-                        case Some(window) -> window.event(_event);
+                        case Some(val window) -> window.event(_event);
                         case None -> {}
                     }
                 }
@@ -185,7 +185,7 @@ public class SurfaceHost public constructor(
         if (windows.size != 0L)
             return
         when (renderer) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 renderer = None
                 try {
                     value.close()
@@ -203,7 +203,7 @@ public class SurfaceHost public constructor(
         closing = true
         var failure: Throwable? = None
         when (shortcutAction) {
-            case Some(action) -> failure = cleanupFailure(failure) { action.close() }
+            case Some(val action) -> failure = cleanupFailure(failure) { action.close() }
             case None -> {}
         }
         for (window in windows.toArray())

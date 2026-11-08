@@ -41,7 +41,7 @@ public class Animatable<T> internal constructor(
     internal val requestsFrames: Boolean get() = frameEnabled && (group?.isFrameEnabled ?: true)
     internal val deadline: TimeMark? get() =
         when (playback) {
-            case Running(segment) -> segment.deadline
+            case Running(val segment) -> segment.deadline
             else -> None
         }
     private var current: T = initial
@@ -132,7 +132,7 @@ public class Animatable<T> internal constructor(
         val now = timeline.now()
         sample(now)
         when (playback) {
-            case Running(segment) -> {
+            case Running(val segment) -> {
                 playback = AnimationPlayback.Paused(segment, now)
                 serial += 1L
                 timeline.unschedule(this)
@@ -144,7 +144,7 @@ public class Animatable<T> internal constructor(
     public fun resume() {
         checkOpen()
         when (playback) {
-            case Paused(segment, paused) -> {
+            case Paused(val segment, val paused) -> {
                 val now = timeline.now()
                 playback =
                     AnimationPlayback.Running(
@@ -162,16 +162,16 @@ public class Animatable<T> internal constructor(
         checkOpen()
         val run =
             when (playback) {
-                case Running(segment) -> segment.run
-                case Paused(segment, _) -> segment.run
-                case Finished(value) -> value
+                case Running(val segment) -> segment.run
+                case Paused(val segment, _) -> segment.run
+                case Finished(val value) -> value
                 else -> throw IllegalStateException(Some("no animation segment to reverse"))
             }
         animateTo(converter.fromVector(run.origin), run.spec, run.repeat, callback)
     }
     internal fun sample(time: TimeMark) {
         when (playback) {
-            case Running(segment) -> {
+            case Running(val segment) -> {
                 val run = segment.run
                 val sampled = run.sample(durationSeconds(time - segment.start))
                 sampled.value.check()
@@ -196,9 +196,9 @@ public class Animatable<T> internal constructor(
                     playback = AnimationPlayback.Finished(run)
                     timeline.unschedule(this)
                     when (callback) {
-                        case Some(handler) -> timeline.finished(time, { requestsFrames }) {
+                        case Some(val handler) -> timeline.finished(time, { requestsFrames }) {
                             when (playback) {
-                                case Finished(currentRun) -> {
+                                case Finished(val currentRun) -> {
                                     if (currentRun === run)
                                         handler(current)
                                 }

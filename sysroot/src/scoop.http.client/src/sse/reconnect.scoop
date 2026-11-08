@@ -29,7 +29,7 @@ private fun canReconnectClientSse(state: ClientSseState, error: Throwable): Bool
     val recorded = state.sequence.lastTransportFailure
     if (!clientPresent(recorded) || recorded!! !== error) return false
     val http2 = when (state.lastCall) {
-        case Some(call) -> clientPresent(call.http2StreamId)
+        case Some(val call) -> clientPresent(call.http2StreamId)
         case None -> false
     }
     return clientPresent(clientRetryReason(error, http2)) || (error is HttpException && error.isUnexpectedEof) ||

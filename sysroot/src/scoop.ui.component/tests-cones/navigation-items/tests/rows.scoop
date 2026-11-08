@@ -18,8 +18,8 @@ internal class NavigationSource(
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(id) -> when (order) {
-                case Some(keys) -> {
+            case Number(val id) -> when (order) {
+                case Some(val keys) -> {
                     var result: Long? = None
                     for (index in 0L ..< keys.size)
                         if (keys[index] == id)
@@ -128,7 +128,7 @@ private class NavigationRow(
                 {
                     context,
                     event -> when (event) {
-                        case Keyboard(key) -> {
+                        case Keyboard(val key) -> {
                             if (
                                 probe.local &&
                                     key.state ==
@@ -151,7 +151,7 @@ private class NavigationRow(
         record.unmounts += 1
         for (area in record.areas)
             when (area) {
-                case Some(value) -> assertTrue(value.isClosed);
+                case Some(val value) -> assertTrue(value.isClosed);
                 case None -> {}
             }
     }
@@ -165,7 +165,7 @@ private class NavigationRowInk(
     public override fun update(): UiInvalidation {
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
-                case Some(area) -> area.scope.enabled =
+                case Some(val area) -> area.scope.enabled =
                     record.id != 2L && index < props.value.parts.toLong()
                 case None -> {}
             }
@@ -198,7 +198,7 @@ private class NavigationRowInk(
         val rectangles = [Rect(2.0, 2.0, 8.0, height), Rect(size.width - 10.0, 2.0, 8.0, height)]
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
-                case Some(area) -> context.place(area, rectangles[index])
+                case Some(val area) -> context.place(area, rectangles[index])
                 case None -> {}
             }
         context.draw {

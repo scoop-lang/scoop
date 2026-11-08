@@ -39,18 +39,18 @@ public class FieldLabel public constructor(
             }
         val child =
             when (input.content) {
-                case Custom(view) -> view
-                case Text(value) -> {
+                case Custom(val view) -> view
+                case Text(val value) -> {
                     val content =
                         when (value) {
-                            case Plain(value, local) -> LabelText.Styled(
+                            case Plain(val value, val local) -> LabelText.Styled(
                                 typographyContent(
                                     TypographyContent.Plain(value),
                                     local?.resolve(base) ?: base,
                                     input.textStyle
                                 )
                             )
-                            case Styled(value) -> LabelText.Styled(
+                            case Styled(val value) -> LabelText.Styled(
                                 typographyContent(
                                     TypographyContent.Styled(value),
                                     base,
@@ -99,7 +99,7 @@ private class FieldLabelInk(
     public override fun update(): UiInvalidation {
         val value = props.value
         when (previous) {
-            case Some(old) -> if (
+            case Some(val old) -> if (
                 old.target !== value.target || !sameFieldLink(old.connection, value.connection)
             )
                 press!!.update(PressOptions(false, false)) {}
@@ -133,8 +133,8 @@ private class FieldLabelInk(
 
 private fun sameFieldLink(left: FieldLink?, right: FieldLink?): Boolean =
     when (left) {
-        case Some(a) -> when (right) {
-            case Some(b) -> a === b
+        case Some(val a) -> when (right) {
+            case Some(val b) -> a === b
             case None -> false
         }
         case None -> when (right) {

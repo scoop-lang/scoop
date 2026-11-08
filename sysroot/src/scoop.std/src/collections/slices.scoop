@@ -16,7 +16,7 @@ public fun <T> Iterable<T>.take(count: Long): List<T> {
     while (remaining > 0L) {
         when (source.next()) {
             case None -> break
-            case Some(element) -> result.add(element)
+            case Some(val element) -> result.add(element)
         }
         remaining -= 1L
     }

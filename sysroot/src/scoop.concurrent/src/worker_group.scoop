@@ -94,7 +94,7 @@ internal class WorkerGroup private constructor() {
         return lock.withLock {
             for (record in workers) {
                 when (record.id) {
-                    case Some(id) -> if (id == current)
+                    case Some(val id) -> if (id == current)
                         return@withLock true
                     case None -> {}
                 }
@@ -132,7 +132,7 @@ internal class WorkerGroup private constructor() {
             for (record in workers) {
                 val handle = lock.withLock { record.thread }
                 when (handle) {
-                    case Some(thread) -> {
+                    case Some(val thread) -> {
                         thread.join()
                         lock.withLock {
                             record.thread = None;
@@ -163,7 +163,7 @@ internal class WorkerGroup private constructor() {
                             queue.removeFirstOrNone()
                         }
                     when (next) {
-                        case Some(work) -> work()
+                        case Some(val work) -> work()
                         case None -> return
                     }
                 }

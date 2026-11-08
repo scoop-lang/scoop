@@ -47,7 +47,7 @@ public fun parseHttpContentLength(fields: List<HttpField>): Long? {
             val offset = reader.position
             val value = reader.decimal()
             when (length) {
-                case Some(expected) -> if (value != expected) reader.failAt(offset, "conflicting Content-Length values")
+                case Some(val expected) -> if (value != expected) reader.failAt(offset, "conflicting Content-Length values")
                 case None -> length = Some(value)
             }
             reader.skipOws()

@@ -31,7 +31,7 @@ private fun editorLayout(
     val cached = host.currentDisplay
     val display =
         when (cached) {
-            case Some(previous) -> if (
+            case Some(val previous) -> if (
                 previous.source == input && host.currentProjection === host.options.projection
             )
                 previous
@@ -43,7 +43,7 @@ private fun editorLayout(
     val style = host.appearance.textStyle
     val content =
         when (host.content) {
-            case Some(previous) -> if (previous.text == text && previous.style === style)
+            case Some(val previous) -> if (previous.text == text && previous.style === style)
                 previous
             else
                 styledText {
@@ -85,7 +85,7 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
     val style = host.appearance.placeholderStyle
     val content =
         when (host.hintContent) {
-            case Some(previous) -> if (previous.text == text && previous.style === style)
+            case Some(val previous) -> if (previous.text == text && previous.style === style)
                 previous
             else
                 styledText {
@@ -117,7 +117,7 @@ private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
     if (!host.options.multiline || !host.options.wrap)
         return None
     return when (viewport) {
-        case Some(width) -> Some(max(0.0, width - host.appearance.caretWidth))
+        case Some(val width) -> Some(max(0.0, width - host.appearance.caretWidth))
         case None -> None
     }
 }
@@ -172,7 +172,7 @@ internal fun editorMeasure(
 /** Pointer geometry stays paired with the last successful frame, even after a failed resize. */
 internal fun editorInputText(host: TextEditHost): EditorInputLayout {
     when (host.accepted) {
-        case Some(frame) -> {
+        case Some(val frame) -> {
             if (frame.display.source.text == host.current.text)
                 return EditorInputLayout(frame.layout, frame.display)
             return editorLayout(
@@ -209,7 +209,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
     val selection = layout.selection(frame.display.displayRange(input.selection.range))
     val marked =
         when (input.markedRange) {
-            case Some(range) -> layout.selection(frame.display.displayRange(range))
+            case Some(val range) -> layout.selection(frame.display.displayRange(range))
             case None -> []
         }
     val active = host.area.isFocusActive
@@ -268,7 +268,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                     active && host.caretVisible && input.selection.anchor == input.selection.cursor
                 ) {
                     when (caret) {
-                        case Some(rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                        case Some(val rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
                         case None -> {}
                     }
                 }
@@ -278,7 +278,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
     context.onFrameComplete {
         completion ->
         when (host.staged) {
-            case Some(staged) -> if (staged === frame)
+            case Some(val staged) -> if (staged === frame)
                 host.staged = None
             case None -> {}
         }
@@ -299,7 +299,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             ) {
                 host.revealNeeded = false
                 when (caret) {
-                    case Some(rect) -> host.focus.reveal(rect)
+                    case Some(val rect) -> host.focus.reveal(rect)
                     case None -> {}
                 }
             }

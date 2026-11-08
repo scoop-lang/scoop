@@ -16,46 +16,46 @@ private class AwsEventStreamHeaderTests {
             assertEquals("{'foo':'bar'}", String.fromUtf8(message.payload))
             assertEquals("event-type", message.headers[0L].name)
             when (message.header("event-type")!!) {
-                case Int32(value) -> assertEquals(40972, value);
+                case Int32(val value) -> assertEquals(40972, value);
                 else -> fail()
             }
             when (message.header("content-type")!!) {
-                case Text(value) -> assertEquals("application/json", value);
+                case Text(val value) -> assertEquals("application/json", value);
                 else -> fail()
             }
             when (message.header("bool false")!!) {
-                case Bool(value) -> assertFalse(value);
+                case Bool(val value) -> assertFalse(value);
                 else -> fail()
             }
             when (message.header("bool true")!!) {
-                case Bool(value) -> assertTrue(value);
+                case Bool(val value) -> assertTrue(value);
                 else -> fail()
             }
             when (message.header("byte")!!) {
-                case Int8(value) -> assertEquals((-49).toByte(), value);
+                case Int8(val value) -> assertEquals((-49).toByte(), value);
                 else -> fail()
             }
             when (message.header("byte buf")!!) {
-                case Bytes(value) -> assertEquals("I'm a little teapot!", String.fromUtf8(value));
+                case Bytes(val value) -> assertEquals("I'm a little teapot!", String.fromUtf8(value));
                 else -> fail()
             }
             when (message.header("timestamp")!!) {
-                case Timestamp(value) -> assertEquals(
+                case Timestamp(val value) -> assertEquals(
                     Instant.fromEpochMilliseconds(8675309L),
                     value
                 );
                 else -> fail()
             }
             when (message.header("int16")!!) {
-                case Int16(value) -> assertEquals(42.toShort(), value);
+                case Int16(val value) -> assertEquals(42.toShort(), value);
                 else -> fail()
             }
             when (message.header("int64")!!) {
-                case Int64(value) -> assertEquals(42424242L, value);
+                case Int64(val value) -> assertEquals(42424242L, value);
                 else -> fail()
             }
             when (message.header("uuid")!!) {
-                case Uuid(value) -> assertEquals(
+                case Uuid(val value) -> assertEquals(
                     "01020304-0506-0708-090a-0b0c0d0e0f10",
                     value.toString()
                 );
@@ -74,37 +74,37 @@ private class AwsEventStreamHeaderTests {
     fun `AWS EventStream headers retain signed extrema negative milliseconds empty values and case sensitive names`() {
         val message = readAwsTestMessage(awsBoundaryHeaders, 3L)
         when (message.header("i8")!!) {
-            case Int8(value) -> assertEquals(Byte.MIN_VALUE, value);
+            case Int8(val value) -> assertEquals(Byte.MIN_VALUE, value);
             else -> fail()
         }
         when (message.header("i16")!!) {
-            case Int16(value) -> assertEquals(Short.MIN_VALUE, value);
+            case Int16(val value) -> assertEquals(Short.MIN_VALUE, value);
             else -> fail()
         }
         when (message.header("i32")!!) {
-            case Int32(value) -> assertEquals(Int.MIN_VALUE, value);
+            case Int32(val value) -> assertEquals(Int.MIN_VALUE, value);
             else -> fail()
         }
         when (message.header("i64")!!) {
-            case Int64(value) -> assertEquals(Long.MIN_VALUE, value);
+            case Int64(val value) -> assertEquals(Long.MIN_VALUE, value);
             else -> fail()
         }
         when (message.header("time")!!) {
-            case Timestamp(value) -> assertEquals(Instant.fromEpochMilliseconds(-1L), value);
+            case Timestamp(val value) -> assertEquals(Instant.fromEpochMilliseconds(-1L), value);
             else -> fail()
         }
         when (message.header("A")!!) {
-            case Text(value) -> assertEquals("", value);
+            case Text(val value) -> assertEquals("", value);
             else -> fail()
         }
         when (message.header("a")!!) {
-            case Bytes(value) -> assertEquals(0L, value.size);
+            case Bytes(val value) -> assertEquals(0L, value.size);
             else -> fail()
         }
         assertEquals("00ff", message.payload.toHexString())
         val unicode = readAwsTestMessage(awsUnicodeHeaders)
         when (unicode.header("雪")!!) {
-            case Text(value) -> assertEquals("😀雪", value);
+            case Text(val value) -> assertEquals("😀雪", value);
             else -> fail()
         }
     }
@@ -123,7 +123,7 @@ private class AwsEventStreamHeaderTests {
         assertEquals(3L, message.headers.size)
         for (header in message.headers) {
             when (header.value) {
-                case Text(value) -> assertEquals(65535L, value.byteLength);
+                case Text(val value) -> assertEquals(65535L, value.byteLength);
                 else -> fail()
             }
         }

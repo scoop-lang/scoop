@@ -60,7 +60,7 @@ internal fun finishH1Close(state: H1State, actions: ArrayList<() -> Unit>) {
     try { releaseH1Buffers(state) }
     catch (error: Throwable) {
         state.closeFailure = Some(when (state.closeFailure) {
-            case Some(primary) -> ResourceUseException(primary, error)
+            case Some(val primary) -> ResourceUseException(primary, error)
             case None -> error
         })
     }
@@ -82,7 +82,7 @@ internal fun finishH1Close(state: H1State, actions: ArrayList<() -> Unit>) {
     }
     val failure = state.closeFailure
     for (waiter in state.closeWaiters) actions.add {
-        when (failure) { case Some(error) -> waiter.resumeWithException(error); case None -> waiter.resume(Unit) }
+        when (failure) { case Some(val error) -> waiter.resumeWithException(error); case None -> waiter.resume(Unit) }
     }
     state.closeWaiters.clear()
 }

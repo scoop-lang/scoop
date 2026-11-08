@@ -79,17 +79,17 @@ internal fun menuPrefix(text: String, query: String): Boolean =
 
 internal fun menuItem(entry: MenuEntry): MenuItemSpec? =
     when (entry) {
-        case Action(item, _, _) -> Some(item)
-        case Checkbox(item, _, _, _) -> Some(item)
-        case Radio(item, _, _, _) -> Some(item)
-        case Submenu(item, _) -> Some(item)
+        case Action(val item, _, _) -> Some(item)
+        case Checkbox(val item, _, _, _) -> Some(item)
+        case Radio(val item, _, _, _) -> Some(item)
+        case Submenu(val item, _) -> Some(item)
         else -> None
     }
 
 internal fun menuKey(entry: MenuEntry): ViewKey =
     when (entry) {
-        case Label(key, _, _) -> key
-        case Separator(key) -> key
+        case Label(val key, _, _) -> key
+        case Separator(val key) -> key
         else -> menuItem(entry)!!.key
     }
 
@@ -105,11 +105,11 @@ internal fun activateMenu(entry: MenuEntry): Boolean {
     if (!(menuItem(entry)?.enabled ?: false))
         return false
     return when (entry) {
-        case Action(_, action, close) -> {
+        case Action(_, val action, val close) -> {
             action();
             close
         }
-        case Checkbox(_, checked, close, changed) -> {
+        case Checkbox(_, val checked, val close, val changed) -> {
             val previous = checked.value
             checked.value = !previous
             val accepted = checked.value
@@ -117,7 +117,7 @@ internal fun activateMenu(entry: MenuEntry): Boolean {
                 changed(accepted)
             close && accepted != previous
         }
-        case Radio(_, selected, action, close) -> {
+        case Radio(_, val selected, val action, val close) -> {
             action();
             close && selected()
         }
@@ -127,7 +127,7 @@ internal fun activateMenu(entry: MenuEntry): Boolean {
 
 internal fun menuChecked(entry: MenuEntry): Boolean =
     when (entry) {
-        case Checkbox(_, checked, _, _) -> checked.value
-        case Radio(_, selected, _, _) -> selected()
+        case Checkbox(_, val checked, _, _) -> checked.value
+        case Radio(_, val selected, _, _) -> selected()
         else -> false
     }

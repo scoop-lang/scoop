@@ -41,7 +41,7 @@ public class RequestCookies internal constructor(private val fields: Array<HttpF
     /** Returns one UTF-8 value or None; duplicates are a request rejection. */
     public fun getSingle(name: String): String? = when (getSingleBytes(name)) {
         case None -> None
-        case Some(value) -> Some(inputText(value, "Cookie " + name))
+        case Some(val value) -> Some(inputText(value, "Cookie " + name))
     }
 }
 

@@ -16,7 +16,7 @@ internal fun routeNode(root: RouteNode, pattern: RoutePattern): RouteNode {
     var node = root
     for (part in pattern.parts) {
         when (part) {
-            case RoutePart.Literal(bytes) -> {
+            case RoutePart.Literal(val bytes) -> {
                 var selected: RouteNode? = None
                 for (edge in node.literals) if (sameBytes(edge.bytes, bytes)) selected = Some(edge.node)
                 if (!present(selected)) {

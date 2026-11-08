@@ -106,16 +106,16 @@ internal fun typographyContent(
 ): StyledText {
     val resolved =
         when (input) {
-            case Styled(value) -> value.style
+            case Styled(val value) -> value.style
             else -> base
         }
     return styledText {
         this.style = local?.resolve(resolved) ?: resolved
         when (input) {
-            case Plain(value) -> this.text(value)
-            case Styled(value) -> for (fragment in value.spans)
+            case Plain(val value) -> this.text(value)
+            case Styled(val value) -> for (fragment in value.spans)
                 this.add(fragment)
-            case Fragments(values) -> for (fragment in values)
+            case Fragments(val values) -> for (fragment in values)
                 this.add(fragment)
         }
     }

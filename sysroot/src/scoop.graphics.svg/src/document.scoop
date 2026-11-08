@@ -36,7 +36,7 @@ public class SvgDocument private constructor(pointer: Ptr<Unit>): Closeable {
     public override fun close() {
         checkThread()
         when (handle) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 handle = None
                 @Unsafe
                 {

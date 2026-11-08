@@ -75,8 +75,8 @@ internal suspend fun clientWsOpen(
     options: HttpCallOptions = httpCallOptions()
 ): HttpWebSocketSession =
     when (client.openWebSocket(httpWebSocketRequest(url) { this.options = options })) {
-        case Opened(session) -> session
-        case Rejected(response, error) -> {
+        case Opened(val session) -> session
+        case Rejected(val response, val error) -> {
             response.close();
             throw error
         }

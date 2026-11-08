@@ -15,7 +15,7 @@ public class UrlQueryParameter public constructor(name: List<Byte>, value: List<
     /**
      * The copied raw value bytes, or None for a parameter with no equals/value component.
      */
-    public val valueBytes: Array<Byte>? = when (value) { case None -> None; case Some(bytes) -> Some(bytes.toArray()) }
+    public val valueBytes: Array<Byte>? = when (value) { case None -> None; case Some(val bytes) -> Some(bytes.toArray()) }
     /**
      * Decodes the parameter name as strict UTF-8.
      */
@@ -23,7 +23,7 @@ public class UrlQueryParameter public constructor(name: List<Byte>, value: List<
     /**
      * Decodes a present value as strict UTF-8, retaining None for an absent value.
      */
-    public val value: String? get() = when (valueBytes) { case None -> None; case Some(bytes) -> Some(urlUtf8(bytes, UrlComponent.Query)) }
+    public val value: String? get() = when (valueBytes) { case None -> None; case Some(val bytes) -> Some(urlUtf8(bytes, UrlComponent.Query)) }
 }
 
 /**

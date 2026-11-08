@@ -79,7 +79,7 @@ public class HttpCookieAttribute private constructor(
         output.append(name)
         when (value) {
             case None -> {}
-            case Some(bytes) -> { output.append(61.toByte()); output.append(bytes) }
+            case Some(val bytes) -> { output.append(61.toByte()); output.append(bytes) }
         }
         return output.toByteArray()
     }

@@ -13,7 +13,7 @@ private enum FocusDestination {
 
 private fun focusRegion(destination: FocusDestination): Rect? =
     when (destination) {
-        case Region(_, rect) -> Some(rect)
+        case Region(_, val rect) -> Some(rect)
         else -> None
     }
 
@@ -28,16 +28,16 @@ private class PendingFocus(
         when (destination) {
             case Target(_) -> None
             case Region(_, _) -> None
-            case Group(_, value) -> Some(value)
-            case Search(value) -> Some(value)
+            case Group(_, val value) -> Some(value)
+            case Search(val value) -> Some(value)
         }
     fun invalidateLayout() {
         when (selected) {
-            case Some(target) -> target.node.invalidateLazyFocusLayout()
+            case Some(val target) -> target.node.invalidateLazyFocusLayout()
             case None -> when (destination) {
-                case Target(target) -> target.node.invalidateLazyFocusLayout()
-                case Region(target, _) -> target.node.invalidateLazyFocusLayout()
-                case Group(scope, _) -> scope.node.invalidateLazyFocusLayout()
+                case Target(val target) -> target.node.invalidateLazyFocusLayout()
+                case Region(val target, _) -> target.node.invalidateLazyFocusLayout()
+                case Group(val scope, _) -> scope.node.invalidateLazyFocusLayout()
                 case Search(_) -> {}
             }
         }
@@ -96,7 +96,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (!current(value))
             return false
         return when (value.selected) {
-            case Some(selected) -> selected === target
+            case Some(val selected) -> selected === target
             case None -> false
         }
     }
@@ -106,7 +106,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (!current(value))
             return false
         return when (value.selected) {
-            case Some(selected) -> selected !== target
+            case Some(val selected) -> selected !== target
             case None -> true
         }
     }
@@ -115,15 +115,15 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (!current(value))
             return false
         when (value.selected) {
-            case Some(target) -> return target.available && withinFocusScope(target.node, node)
+            case Some(val target) -> return target.available && withinFocusScope(target.node, node)
             case None -> {}
         }
         return when (value.destination) {
-            case Target(target) -> target.available && withinFocusScope(target.node, node)
-            case Region(target, _) -> target.available && withinFocusScope(target.node, node)
-            case Group(scope, search) -> scope.available &&
+            case Target(val target) -> target.available && withinFocusScope(target.node, node)
+            case Region(val target, _) -> target.available && withinFocusScope(target.node, node)
+            case Group(val scope, val search) -> scope.available &&
                 (withinFocusScope(scope.node, node) || search.hasPendingIn(node))
-            case Search(search) -> search.hasPendingIn(node)
+            case Search(val search) -> search.hasPendingIn(node)
         }
     }
     fun isPending(owner: LazyFocus): Boolean = itemKey(owner) != None
@@ -156,25 +156,25 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (!current(value))
             return false
         return when (value.destination) {
-            case Group(current, _) -> current === scope
+            case Group(val current, _) -> current === scope
             else -> false
         }
     }
     fun cancel(target: FocusTarget) {
         val value = pending ?: return
         when (value.selected) {
-            case Some(current) -> if (current === target) {
+            case Some(val current) -> if (current === target) {
                 clearPending()
                 return
             }
             case None -> {}
         }
         when (value.destination) {
-            case Target(current) -> {
+            case Target(val current) -> {
                 if (current === target)
                     clearPending()
             }
-            case Region(current, _) -> {
+            case Region(val current, _) -> {
                 if (current === target)
                     clearPending()
             }
@@ -184,7 +184,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
     fun cancel(scope: FocusScope) {
         val value = pending ?: return
         when (value.destination) {
-            case Group(current, _) -> {
+            case Group(val current, _) -> {
                 if (current === scope) {
                     clearPending()
                     return
@@ -247,8 +247,8 @@ internal class FocusController(private val root: UiRoot): Closeable {
         origin: FocusOrigin = FocusOrigin.Programmatic
     ): Boolean =
         when (search.next(false)) {
-            case Target(target) -> begin(FocusDestination.Search(search), Some(target), origin)
-            case Item(visit) -> {
+            case Target(val target) -> begin(FocusDestination.Search(search), Some(target), origin)
+            case Item(val visit) -> {
                 val reveal = RevealAttempt()
                 reveal.positionItem(visit.owner.viewport)
                 adopt(FocusDestination.Search(search), None, reveal, origin)
@@ -263,7 +263,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         val reveal = RevealAttempt()
         val region = focusRegion(destination)
         when (selected) {
-            case Some(target) -> if (
+            case Some(val target) -> if (
                 reveal.advance(scene, target.area, region) == RevealProgress.Ready
             ) {
                 if (region != None) {
@@ -300,7 +300,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
     fun restore(handles: Array<FocusHandle>, fallback: FocusScope?): Boolean {
         for (handle in handles) {
             when (handle.target) {
-                case Some(target) -> if (
+                case Some(val target) -> if (
                     target.node.root ===
                         root &&
                         target.available &&
@@ -311,13 +311,13 @@ internal class FocusController(private val root: UiRoot): Closeable {
             }
         }
         when (fallback) {
-            case Some(scope) -> if (scope.available)
+            case Some(val scope) -> if (scope.available)
                 return request(scope)
             case None -> {}
         }
         val node = root.node ?: return false
         when (node.focusScope) {
-            case Some(scope) -> if (scope.available)
+            case Some(val scope) -> if (scope.available)
                 return request(scope)
             case None -> {}
         }
@@ -333,7 +333,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
             return
         }
         when (value.destination) {
-            case Group(scope, _) -> {
+            case Group(val scope, _) -> {
                 if (!scope.available) {
                     clearPending()
                     return
@@ -344,7 +344,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         value.search?.prepared()
         while (true) {
             when (value.selected) {
-                case Some(target) -> {
+                case Some(val target) -> {
                     val progress =
                         if (target.available)
                             value.reveal.advance(scene, target.area, focusRegion(value.destination))
@@ -384,13 +384,13 @@ internal class FocusController(private val root: UiRoot): Closeable {
             }
             val search = value.search
             when (search) {
-                case Some(walk) -> when (walk.next()) {
-                    case Target(target) -> {
+                case Some(val walk) -> when (walk.next()) {
+                    case Target(val target) -> {
                         value.reveal.retainFor(target.node)
                         value.selected = Some(target)
                         value.invalidateLayout()
                     }
-                    case Item(visit) -> {
+                    case Item(val visit) -> {
                         value.reveal.retainFor(visit.owner.node)
                         value.reveal.positionItem(visit.owner.viewport)
                         value.invalidateLayout()
@@ -411,14 +411,14 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     private fun select(scope: FocusScope): FocusTarget? {
         when (explicitFocus(scope, scope.options.defaultFocus)) {
-            case Some(target) -> return Some(target)
+            case Some(val target) -> return Some(target)
             case None -> {}
         }
         for (stop in tabOrder(scope.node))
             when (stop) {
-                case Target(target) -> if (target.acceptsTab)
+                case Target(val target) -> if (target.acceptsTab)
                     return Some(target)
-                case Items(owner) -> if (owner.available && owner.count > 0L)
+                case Items(val owner) -> if (owner.available && owner.count > 0L)
                     return None
             }
         return explicitFocus(scope, scope.options.fallback)
@@ -450,7 +450,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
     fun tab(node: MountedNode, loop: Boolean, context: RoutedEventContext, event: InputEvent) {
         val key =
             when (event) {
-                case Keyboard(value) -> value
+                case Keyboard(val value) -> value
                 else -> return
             }
         if (
@@ -472,7 +472,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         val previous = pending
         pending = None
         when (previous) {
-            case Some(value) -> if (root.isOpen) {
+            case Some(val value) -> if (root.isOpen) {
                 value.invalidateLayout()
                 root.requestFrame()
             }

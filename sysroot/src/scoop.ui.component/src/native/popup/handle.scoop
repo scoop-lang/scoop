@@ -16,7 +16,7 @@ public class NativePopupHandle public constructor() {
 
     internal fun bind(value: NativePopupPresentation) {
         when (owner) {
-            case Some(current) -> requireComponent(
+            case Some(val current) -> requireComponent(
                 current === value,
                 "native popup handle is already mounted"
             )
@@ -27,7 +27,7 @@ public class NativePopupHandle public constructor() {
     }
     internal fun unbind(value: NativePopupPresentation) {
         when (owner) {
-            case Some(current) -> if (current === value) {
+            case Some(val current) -> if (current === value) {
                 owner = None
                 pending.value = false
             }

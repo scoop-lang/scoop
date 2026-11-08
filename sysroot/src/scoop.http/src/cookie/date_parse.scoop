@@ -13,14 +13,14 @@ internal fun parseCookieDate(reader: HttpFieldReader): Instant {
         while (!reader.ended && !cookieDateDelimiter(reader.peek())) reader.position += 1L
         val end = reader.position
         if (hour < 0) when (cookieDateTime(reader.bytes, start, end)) {
-            case Some(time) -> {
+            case Some(val time) -> {
                 hour = time._1; minute = time._2; second = time._3; timeOffset = start
                 continue
             }
             case None -> {}
         }
         if (day < 0) when (cookieDateNumber(reader.bytes, start, end, 1, 2)) {
-            case Some(value) -> { day = value._1; dayOffset = start; continue }
+            case Some(val value) -> { day = value._1; dayOffset = start; continue }
             case None -> {}
         }
         if (month < 0) {
@@ -28,7 +28,7 @@ internal fun parseCookieDate(reader: HttpFieldReader): Instant {
             if (parsed > 0) { month = parsed; continue }
         }
         if (year < 0) when (cookieDateNumber(reader.bytes, start, end, 2, 4)) {
-            case Some(value) -> { year = value._1; yearOffset = start }
+            case Some(val value) -> { year = value._1; yearOffset = start }
             case None -> {}
         }
     }
@@ -65,7 +65,7 @@ private fun cookieDateTime(bytes: Array<Byte>, start: Long, end: Long): (Int, In
     when (second) { case None -> return None; case Some(_) -> {} }
     if (second!!._2 == end || bytes[second!!._2] != 58.toByte()) return None
     val third = cookieDateNumber(bytes, second!!._2 + 1L, end, 1, 2)
-    return when (third) { case None -> None; case Some(value) -> Some((first!!._1, second!!._1, value._1)) }
+    return when (third) { case None -> None; case Some(val value) -> Some((first!!._1, second!!._1, value._1)) }
 }
 
 private fun cookieDateMonth(bytes: Array<Byte>, start: Long, end: Long): Int {

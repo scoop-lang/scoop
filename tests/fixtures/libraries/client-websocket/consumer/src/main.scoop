@@ -116,8 +116,8 @@ private fun runWsCase(args: Array<String>) {
                 } else
                     client.withWebSocket(request, options) suspend {
                         result -> when (result) {
-                            case Opened(session) -> wsClientSession(client, session, mode)
-                            case Rejected(response, error) -> {
+                            case Opened(val session) -> wsClientSession(client, session, mode)
+                            case Rejected(val response, val error) -> {
                                 assertTrue(
                                     mode ==
                                         "reject" ||

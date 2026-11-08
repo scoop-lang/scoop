@@ -132,7 +132,7 @@ private class ServerHttp2NetworkTests {
                     assertEquals(1, calls.value)
                     for (event in notices.snapshot())
                         when (event) {
-                            case StreamClosed(_, code) -> assertEquals(0U, code)
+                            case StreamClosed(_, val code) -> assertEquals(0U, code)
                             else -> {}
                         }
                 }

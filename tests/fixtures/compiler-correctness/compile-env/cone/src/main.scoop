@@ -8,7 +8,7 @@ const val KEY: String = "SCOOP_ENV_FIXTURE_"
 fun <T> generic(value: T): String? = compileEnv("SCOOP_ENV_FIXTURE_VALUE")
 fun defaulted(value: String? = compileEnv("SCOOP_ENV_FIXTURE_VALUE")): String? = value
 fun display(value: String?): String = when (value) {
-    case Some(text) -> "[" + text + "]"
+    case Some(val text) -> "[" + text + "]"
     case None -> "missing"
 }
 fun main() {

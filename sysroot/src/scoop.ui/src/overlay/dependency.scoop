@@ -16,7 +16,7 @@ internal fun checkOverlayDependency(
         reference.checkThread()
         val owner =
             when (change) {
-                case Some(value) -> if (value.anchor === reference)
+                case Some(val value) -> if (value.anchor === reference)
                     Some(value.node)
                 else
                     reference.owner
@@ -38,7 +38,7 @@ private fun nearestPortal(owner: MountedNode): PortalInstance? {
     while (true) {
         val node = cursor ?: return None
         when (node.body) {
-            case Portal(value) -> return Some(value)
+            case Portal(val value) -> return Some(value)
             else -> cursor = node.parent
         }
     }

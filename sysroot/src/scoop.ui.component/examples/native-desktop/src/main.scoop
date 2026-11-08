@@ -39,7 +39,7 @@ private fun runDesktopDemo(arguments: Array<String>, launch: NotificationLaunch)
         }
     }
     when (demo.failure) {
-        case Some(error) -> throw error
+        case Some(val error) -> throw error
         case None -> {}
     }
     if (smoke) {

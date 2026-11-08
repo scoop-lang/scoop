@@ -55,7 +55,7 @@ private class CommandRow(
             }
         val fonts = input.input.input.fonts
         when (input.entry) {
-            case Label(_, content) -> return panelFrame(
+            case Label(_, val content) -> return panelFrame(
                 panelCaption(
                     content,
                     text.copy {
@@ -82,7 +82,7 @@ private class CommandRow(
         val body =
             commandRow {
                 when (item.icon) {
-                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
+                    case Some(val icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 };
                     case None -> {}
                 }
                 this.item(
@@ -108,8 +108,8 @@ private class CommandRow(
                     )
                 ) { grow = 1.0 }
                 when (item.shortcut) {
-                    case Some(chord) -> when (window) {
-                        case Some(window) -> this.item(
+                    case Some(val chord) -> when (window) {
+                        case Some(val window) -> this.item(
                             panelSlot(
                                 commandDirection(
                                     commandLabel(

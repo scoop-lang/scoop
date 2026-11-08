@@ -15,7 +15,7 @@ internal fun feedSse(decoder: SseDecoder, bytes: List<Byte>, chunkSize: Long = 1
             while (input.readableBytes > 0L) {
                 val consumed = decoder.receive(input)
                 when (decoder.nextEvent()) {
-                    case Some(event) -> events.add(event)
+                    case Some(val event) -> events.add(event)
                     case None -> assertTrue(consumed > 0L)
                 }
             }

@@ -30,7 +30,7 @@ internal class PollHost: EventLoopHost, EventLoopWatch {
     }
     fun step(timeout: Int = 5000) {
         when (removed) {
-            case Some(callback) -> {
+            case Some(val callback) -> {
                 assertFalse(inside)
                 @Unsafe
                 {
@@ -86,7 +86,7 @@ internal class HostResult {
 
 internal fun assertNoHostFailure(error: Throwable?) {
     when (error) {
-        case Some(value) -> throw value
+        case Some(val value) -> throw value
         case None -> {}
     }
 }

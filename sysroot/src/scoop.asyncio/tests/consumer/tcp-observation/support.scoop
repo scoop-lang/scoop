@@ -35,7 +35,7 @@ internal fun tcpTraceCounts(state: TcpTraceState, phase: TcpConnectPhase, expect
     }
     var previous: TimeMark? = None
     for (event in state.events) {
-        when (previous) { case Some(at) -> assertTrue(event.at >= at); case None -> {} }
+        when (previous) { case Some(val at) -> assertTrue(event.at >= at); case None -> {} }
         previous = Some(event.at)
     }
 }

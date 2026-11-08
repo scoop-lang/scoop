@@ -15,13 +15,13 @@ internal class MultipartMatcher(boundary: MultipartBoundary) {
             return false
         }
         when (body) {
-            case Some(output) -> { for (index in virtual..<matched) output.append(pattern[index]) }
+            case Some(val output) -> { for (index in virtual..<matched) output.append(pattern[index]) }
             case None -> {}
         }
         matched = 0L
         virtual = 0L
         if (byte == 13.toByte()) matched = 1L
-        else when (body) { case Some(output) -> output.append(byte); case None -> {} }
+        else when (body) { case Some(val output) -> output.append(byte); case None -> {} }
         return false
     }
 }

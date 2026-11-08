@@ -181,7 +181,7 @@ internal class CounterInk(
                         }
                         case Pointer(
                             InputPointerEvent.Button(
-                                pointer,
+                                val pointer,
                                 MouseButton.Left,
                                 ElementState.Released,
                                 _
@@ -197,7 +197,7 @@ internal class CounterInk(
                                 props.value.click()
                         }
                         case Pointer(InputPointerEvent.Cancelled(_, _)) -> down = false
-                        case FocusChanged(focused) -> {
+                        case FocusChanged(val focused) -> {
                             if (!focused)
                                 down = false
                         }

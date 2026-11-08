@@ -13,7 +13,7 @@ fun main() {
     gcCollect()
 
     when (optional) {
-        case Some(selected) -> println(selected.invoke(40))
+        case Some(val selected) -> println(selected.invoke(40))
         case None -> println(0)
     }
     println(operations[0].invoke(40))

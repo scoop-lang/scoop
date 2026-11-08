@@ -250,7 +250,7 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
                 MotionPreference.Full
         val palette =
             when (systemPalette) {
-                case Some(read) -> if (usesSystemColors)
+                case Some(val read) -> if (usesSystemColors)
                     Some(read(mode.value))
                 else
                     None

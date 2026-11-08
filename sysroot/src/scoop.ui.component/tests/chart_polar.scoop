@@ -7,7 +7,7 @@ import scoop.ui.*
 
 private fun chartTestSector(sample: ChartSample): ChartSector =
     when (sample.shape) {
-        case Sector(arc) -> arc;
+        case Sector(val arc) -> arc;
         else -> throw IllegalStateException(Some("expected a sector"))
     }
 

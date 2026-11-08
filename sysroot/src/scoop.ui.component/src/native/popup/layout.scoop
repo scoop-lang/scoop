@@ -34,7 +34,7 @@ internal class NativePopupLayout(
                     when (event) {
                         case Pointer(
                             InputPointerEvent.Button(
-                                pointer,
+                                val pointer,
                                 MouseButton.Right,
                                 ElementState.Pressed,
                                 _
@@ -56,7 +56,7 @@ internal class NativePopupLayout(
                 return@addDefaultAction
             val key =
                 when (event) {
-                    case Keyboard(value) -> value;
+                    case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
             if (!menuKeyAllowed(key, true))

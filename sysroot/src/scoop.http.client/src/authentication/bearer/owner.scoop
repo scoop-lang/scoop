@@ -98,7 +98,7 @@ internal fun finishClientBearerFlight(flight: ClientBearerFlight, outcome: Clien
             flight.cleanup =
                 when (outcome) {
                     case Value(_) -> None
-                    case Failed(error) -> {
+                    case Failed(val error) -> {
                         if (error is CancellationException)
                             None
                         else
@@ -116,7 +116,7 @@ internal fun finishClientBearerFlight(flight: ClientBearerFlight, outcome: Clien
             flight.entry.flight = None
             if (!flight.stopping && !flight.entry.discard) {
                 when (outcome) {
-                    case Value(value) -> flight.entry.value = Some(value);
+                    case Value(val value) -> flight.entry.value = Some(value);
                     case Failed(_) -> {}
                 }
             }

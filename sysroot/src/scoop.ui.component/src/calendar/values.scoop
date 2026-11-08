@@ -96,7 +96,7 @@ public class CalendarHandle public constructor() {
     public fun cancelRange(): Boolean = owner?.cancelRange() ?: false
     internal fun bind(control: CalendarControl) {
         when (owner) {
-            case Some(previous) -> requireComponent(
+            case Some(val previous) -> requireComponent(
                 previous === control || !previous.active,
                 "calendar handle is already attached"
             );
@@ -106,7 +106,7 @@ public class CalendarHandle public constructor() {
     }
     internal fun release(control: CalendarControl) {
         when (owner) {
-            case Some(previous) -> if (previous === control)
+            case Some(val previous) -> if (previous === control)
                 owner = None;
             case None -> {}
         }

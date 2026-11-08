@@ -241,7 +241,7 @@ private class FlexibleEditor(private val probe: LayoutProbe, scope: ComponentSco
             field.area.scope.addEventHandler {
                 _,
                 event -> when (event) {
-                    case TextInput(TextInputEvent.Enabled(connection)) -> {
+                    case TextInput(TextInputEvent.Enabled(val connection)) -> {
                         model.imeStarts += 1
                         model.connection = connection
                     }

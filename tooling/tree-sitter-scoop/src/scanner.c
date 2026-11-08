@@ -193,7 +193,6 @@ static bool continues_expression(TSLexer *lexer, bool arm) {
   case '&':
   case '|':
   case '(':
-  case '[':
   case '{':
     return !arm;
   default:

@@ -28,7 +28,7 @@ internal class GraphicsResource(pointer: Ptr<Unit>): Closeable {
     public override fun close() {
         checkThread()
         when (pointer) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 pointer = None;
                 @Unsafe
                 {

@@ -22,7 +22,7 @@ ALPN 使用已建立 TLS 的实际结果。Scoop 的 Option 类型不隐含转�
 
 ```scoop
 val alpn: List<Byte>? = when (tls.connectionInfo.alpn) {
-    case Some(bytes) -> Some(bytes)
+    case Some(val bytes) -> Some(bytes)
     case None -> None
 }
 val protocol = selectHttpAlpn(alpn, [HttpProtocol.Http1, HttpProtocol.Http2])

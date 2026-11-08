@@ -191,7 +191,7 @@ private class InputBoundaryTest {
                             for (record in rig.log.events)
                                 assertTrue(inputKind(record.event) != "cancel")
                         }
-                        case Pointer(InputPointerEvent.Cancelled(reason, _)) -> {
+                        case Pointer(InputPointerEvent.Cancelled(val reason, _)) -> {
                             assertEquals(InputCancelReason.BoundaryChanged, reason)
                             context.consume()
                         }

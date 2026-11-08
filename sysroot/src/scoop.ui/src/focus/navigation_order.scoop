@@ -103,7 +103,7 @@ internal fun navigationDestination(
             step.forward
     val current =
         when (index) {
-            case Some(value) -> value
+            case Some(val value) -> value
             case None -> {
                 var chosen: Long? = None
                 for (candidate in 0L ..< count)

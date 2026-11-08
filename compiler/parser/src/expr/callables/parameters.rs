@@ -32,7 +32,7 @@ impl Parser {
     pub(super) fn parse_lambda_parameter(&mut self) -> Result<LambdaParam, Diagnostic> {
         let annotations = self.parse_annotations()?;
         self.skip_parameter_compatibility_modifiers();
-        let target = self.parse_pattern()?;
+        let target = self.parse_pattern(crate::pattern::PatternContext::Binding)?;
         let target_span = crate::pattern::pattern_span(&target);
         let ty = if matches!(self.peek().kind, TokenKind::Colon) {
             self.bump();

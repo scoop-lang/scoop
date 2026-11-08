@@ -57,15 +57,15 @@ private class WinMenuHandler: ApplicationHandler {
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> start(application)
-            case Menu(activation) -> {
+            case Menu(val activation) -> {
                 assertEquals(action, activation.item)
                 when (activation.source) {
-                    case Popup(identity, target) -> {
+                    case Popup(val identity, val target) -> {
                         assertEquals(popup!!.id, identity)
                         assertEquals(window!!.id, target)
                         popupActions += 1
                     }
-                    case Native(identity) -> {
+                    case Native(val identity) -> {
                         assertEquals(lease!!.id, identity)
                         actions += 1
                         menu!!.close()
@@ -73,11 +73,11 @@ private class WinMenuHandler: ApplicationHandler {
                     else -> fail(Some("wrong Win32 native menu source"))
                 }
             }
-            case PopupCompleted(identity, result) -> {
+            case PopupCompleted(val identity, val result) -> {
                 closeInput()
                 assertEquals(popup!!.id, identity)
                 when (result) {
-                    case Selected(item) -> assertEquals(action, item)
+                    case Selected(val item) -> assertEquals(action, item)
                     else -> fail(Some("Win32 popup must report the selected command"))
                 }
                 assertEquals(1, popupActions)
@@ -132,7 +132,7 @@ private class WinMenuHandler: ApplicationHandler {
             val native = target.acquireNativeWindow()
             try {
                 when (native.handle) {
-                    case Win32(hwnd, _) -> assertEquals(1, windowMenu(hwnd))
+                    case Win32(val hwnd, _) -> assertEquals(1, windowMenu(hwnd))
                 }
             } finally {
                 native.close()
@@ -145,7 +145,7 @@ private class WinMenuHandler: ApplicationHandler {
         {
             inputWindow = Some(target.acquireNativeWindow())
             when (inputWindow!!.handle) {
-                case Win32(hwnd, _) -> assertEquals(1, selectPopupInput(hwnd))
+                case Win32(val hwnd, _) -> assertEquals(1, selectPopupInput(hwnd))
             }
         }
         popup = Some(target.showPopup(created, PopupPlacement.Pointer(LogicalPosition(16.0, 16.0))))
@@ -176,7 +176,7 @@ private class WinMenuHandler: ApplicationHandler {
                     }
                 )
             when (lease!!.handle) {
-                case Win32(handle) -> {
+                case Win32(val handle) -> {
                     val command = commandNumber(handle)
                     assertTrue(command != 0)
                     assertEquals(Some(action), lease!!.itemForNativeCommand(command))

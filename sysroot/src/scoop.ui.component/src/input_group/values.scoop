@@ -88,8 +88,8 @@ public class InputGroupBuilder internal constructor() {
         for (item in addons)
             items.add(
                 when (item) {
-                    case Ready(value) -> value
-                    case Builder(value) -> value.snapshot(fonts, theme)
+                    case Ready(val value) -> value
+                    case Builder(val value) -> value.snapshot(fonts, theme)
                 }
             )
         return InputGroupProps(control, items.toArray(), enabled, invalid, fonts, theme, surface)

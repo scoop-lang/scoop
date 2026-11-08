@@ -51,7 +51,7 @@ public class EmptyState public constructor(
         val header =
             panelColumn {
                 when (input.media) {
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         val icon = input.mediaVariant == EmptyMediaVariant.Icon
                         val media =
                             panelBox(value) {
@@ -83,17 +83,17 @@ public class EmptyState public constructor(
                     case None -> {}
                 }
                 when (input.header) {
-                    case Some(value) -> this.add(panelSlot(value, 1L));
+                    case Some(val value) -> this.add(panelSlot(value, 1L));
                     case None -> {}
                 }
                 when (input.title) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, titleStyle, input.fonts, true), 2L)
                     );
                     case None -> {}
                 }
                 when (input.description) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, descriptionStyle, input.fonts, true), 3L)
                     );
                     case None -> {}

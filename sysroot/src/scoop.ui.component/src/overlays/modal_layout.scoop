@@ -56,12 +56,12 @@ internal class ModalSurface(
         val sheet = panelPresent(side)
         val widthHint =
             when (input.width) {
-                case Some(value) -> Some(value * scale);
+                case Some(val value) -> Some(value * scale);
                 case None -> None
             }
         val heightHint =
             when (input.height) {
-                case Some(value) -> Some(value * scale);
+                case Some(val value) -> Some(value * scale);
                 case None -> None
             }
         val desiredWidth =
@@ -117,7 +117,7 @@ internal class ModalSurface(
         val viewport = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.saveLayer(progress)
         when (input.options.backdrop) {
-            case Some(value) -> context.draw { paint -> paint.canvas.drawRect(viewport, value) }
+            case Some(val value) -> context.draw { paint -> paint.canvas.drawRect(viewport, value) }
             case None -> {}
         }
         context.restore()
@@ -145,8 +145,8 @@ internal class ModalSurface(
 
 internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): OverlaySide? =
     when (kind) {
-        case Drawer(props, _) -> Some(drawerPhysicalSide(props.side, direction))
-        case Sheet(side) -> Some(
+        case Drawer(val props, _) -> Some(drawerPhysicalSide(props.side, direction))
+        case Sheet(val side) -> Some(
             when (side) {
                 case Top -> OverlaySide.Top
                 case Bottom -> OverlaySide.Bottom

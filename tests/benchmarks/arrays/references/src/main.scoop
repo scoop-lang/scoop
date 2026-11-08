@@ -77,7 +77,7 @@ class PresenceState(var value: Long)
         round += 1L
     }
     benchEnd()
-    val nullable = when (optionalTarget[0L]) { case None -> 0L; case Some(value) -> value.value }
+    val nullable = when (optionalTarget[0L]) { case None -> 0L; case Some(val value) -> value.value }
     return result + nodeTarget[0L].value + interfaceTarget[count - 1L].number() + stringTarget[0L].byteLength + functionTarget[0L](3L) + nullable
 }
 

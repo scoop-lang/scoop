@@ -151,7 +151,7 @@ internal class PaintSource(private val probe: CacheProbe, private val mode: Int)
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(value) -> if (value >= 0L && value < count)
+            case Number(val value) -> if (value >= 0L && value < count)
                 Some(value)
             else
                 None

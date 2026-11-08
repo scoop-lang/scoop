@@ -35,7 +35,7 @@ internal suspend fun controlTty(owner: OwnedEndpoint, control: TtyControl): IoRe
                             event, selected ->
                             val failure = completionFailure("TTY control", event.result, selected)
                             when (failure) {
-                                case Some(error) -> {
+                                case Some(val error) -> {
                                     val reported =
                                         if (mode.restoreOnFailure && !owner.isClosing)
                                             restoreFailedMode(owner.pointer, error)

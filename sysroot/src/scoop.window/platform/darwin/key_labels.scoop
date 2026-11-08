@@ -7,7 +7,7 @@ internal fun darwinLayoutLabel(scan: UInt): String? {
         try {
             checkNativeStatus(result.error, "query shortcut key label")
             return when (result.bytes) {
-                case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                case Some(val bytes) -> Some(String.fromUtf8(bytes, result.length))
                 case None -> None
             }
         } finally {

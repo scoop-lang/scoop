@@ -105,7 +105,7 @@ private class ProbeCommands(private val p: CommandProbe): CommandSource {
         )
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(value) -> if (large) {
+            case Number(val value) -> if (large) {
                 if (value >= 0L && value < count)
                     Some(value)
                 else
@@ -129,7 +129,7 @@ private class ProbeCommands(private val p: CommandProbe): CommandSource {
         val key = keyAt(index)
         val number =
             when (key) {
-                case Number(value) -> value;
+                case Number(val value) -> value;
                 else -> 0L
             }
         val title =

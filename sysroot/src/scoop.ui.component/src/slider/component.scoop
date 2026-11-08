@@ -134,14 +134,14 @@ private class SliderLayout(
                 top = Some(index)
         }
         when (input.active.value) {
-            case Some(index) -> top = Some(index);
+            case Some(val index) -> top = Some(index);
             case None -> {}
         }
         for (index in 0L ..< input.slots.size)
             if (top != Some(index))
                 order.add(index)
         when (top) {
-            case Some(index) -> order.add(index);
+            case Some(val index) -> order.add(index);
             case None -> {}
         }
         control.place(context, shape)

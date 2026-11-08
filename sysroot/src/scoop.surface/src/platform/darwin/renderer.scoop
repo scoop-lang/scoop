@@ -37,7 +37,7 @@ private class MacRendererHost(
             try {
                 val view =
                     when (lease.handle) {
-                        case AppKit(_, view) -> view
+                        case AppKit(_, val view) -> view
                     }
                 val renderer = MacWindowRenderer(window, proxy, lease, context)
                 renderer.install(native, view)
@@ -111,7 +111,7 @@ private class MacWindowRenderer(
         @Unsafe
         {
             when (callback) {
-                case Some(value) -> throwFailure(foreignCallbackFailure(value))
+                case Some(val value) -> throwFailure(foreignCallbackFailure(value))
                 case None -> throw IllegalStateException(Some("window renderer is closed"))
             }
         }
@@ -138,7 +138,7 @@ private class MacWindowRenderer(
     public override fun setFrameDemand(required: Boolean) {
         wanted = required
         when (native) {
-            case Some(value) -> @Unsafe
+            case Some(val value) -> @Unsafe
             {
                 macResult(macSurfaceDemand(value, required), "set Metal frame demand")
             }
@@ -181,7 +181,7 @@ private class MacWindowRenderer(
         wanted = false
         var failure: Throwable? = None
         when (previous) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 failure =
                     cleanupFailure(failure) {
                         @Unsafe
@@ -195,7 +195,7 @@ private class MacWindowRenderer(
         @Unsafe
         {
             when (callback) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     callback = None
                     failure =
                         cleanupFailure(failure) {

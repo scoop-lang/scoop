@@ -22,7 +22,7 @@ private class AwsEventStreamSourceTests {
                 assertEquals(10L, first.headers.size)
                 assertEquals("{'foo':'bar'}", String.fromUtf8(first.payload))
                 when (first.header("int64")!!) {
-                    case Int64(value) -> assertEquals(42424242L, value);
+                    case Int64(val value) -> assertEquals(42424242L, value);
                     else -> fail()
                 }
                 assertTrue(input.position < bytes.size)

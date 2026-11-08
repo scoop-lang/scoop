@@ -40,7 +40,7 @@ internal fun itemOptions(
     val border =
         if (visual.enabled && visual.focusVisible)
             when (input.focusOutline) {
-                case Some(value) -> value.borderColor ?: colors.ring
+                case Some(val value) -> value.borderColor ?: colors.ring
                 case None -> colors.ring
             }
         else
@@ -89,7 +89,7 @@ internal class ItemInk(private val props: Props<ItemInkProps>, scope: ComponentS
         val value = props.value
         when (value.behavior) {
             case Passive -> input!!.enabled = value.input.enabled
-            case Press(owner, action, focus) -> {
+            case Press(val owner, val action, val focus) -> {
                 val control = owner
                 control.press.update(PressOptions(value.input.enabled), action)
                 control.area.scope.enabled = value.input.enabled
@@ -177,7 +177,7 @@ internal class ItemInk(private val props: Props<ItemInkProps>, scope: ComponentS
         }
         when (value.behavior) {
             case Passive -> {}
-            case Press(owner, _, _) -> context.place(owner.area, surface.bounds)
+            case Press(val owner, _, _) -> context.place(owner.area, surface.bounds)
         }
         content!!.scene(context, surface.bounds, surface.contentStyle) {
             children -> children.children()

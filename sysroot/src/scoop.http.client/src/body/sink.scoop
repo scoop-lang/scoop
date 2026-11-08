@@ -17,7 +17,7 @@ internal class RequestBodySink(private val destination: AsyncByteSink, private v
 
     private fun requireOpen() {
         if (ended.load()) throw IoClosedException()
-        when (failure) { case Some(error) -> throw error; case None -> {} }
+        when (failure) { case Some(val error) -> throw error; case None -> {} }
         ensureActive()
     }
 

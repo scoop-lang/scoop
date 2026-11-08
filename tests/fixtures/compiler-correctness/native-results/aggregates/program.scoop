@@ -16,7 +16,7 @@ fun main() {
         val optional: BoxedWide? = Some(produced)
         gcCollect()
         when (optional) {
-            case Some(value) -> {
+            case Some(val value) -> {
                 println(value.text)
                 println(value.left + value.right)
             }

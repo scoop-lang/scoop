@@ -12,7 +12,7 @@ public class FieldTarget public constructor() {
 
     internal fun checkBinding(link: FieldLink) {
         when (current.value) {
-            case Some(previous) -> requireComponent(
+            case Some(val previous) -> requireComponent(
                 previous === link || !previous.isAttached,
                 "field target already has a control"
             )
@@ -24,7 +24,7 @@ public class FieldTarget public constructor() {
     }
     internal fun unbind(link: FieldLink) {
         when (current.value) {
-            case Some(previous) -> if (previous === link)
+            case Some(val previous) -> if (previous === link)
                 current.value = None
             case None -> {}
         }
@@ -80,8 +80,8 @@ internal class FieldLink(
 
 private fun sameFieldTarget(left: FieldTarget?, right: FieldTarget?): Boolean =
     when (left) {
-        case Some(a) -> when (right) {
-            case Some(b) -> a === b
+        case Some(val a) -> when (right) {
+            case Some(val b) -> a === b
             case None -> false
         }
         case None -> when (right) {

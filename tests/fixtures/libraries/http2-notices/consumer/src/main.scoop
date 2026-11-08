@@ -46,11 +46,11 @@ private class Notices {
     var stream: AsyncHttp2Stream? = None
     fun record(notice: Http2Notice) {
         when (notice) {
-            case Settings(_, ack) -> {
+            case Settings(_, val ack) -> {
                 if (!ack)
                     settings.signal()
             }
-            case StreamFailure(id, error) -> {
+            case StreamFailure(val id, val error) -> {
                 check(present(stream) && stream!!.id == id && stream!!.failure!! === error)
                 errors.add((id, error));
                 failed.signal()

@@ -23,7 +23,7 @@ private fun observeScroll(
         {
             context,
             event -> when (event) {
-                case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> {
                     assertEquals(RoutedPhase.Notification, context.phase)
                     assertFalse(context.cancelable)
                     context.consume()
@@ -146,7 +146,7 @@ private class InputScrollRouteTest {
                             boundaries.add(InputBoundary(modal))
                             assertEquals("", trace.cancels)
                         }
-                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                        case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> {
                             assertEquals(InputCancelReason.BoundaryChanged, reason)
                             trace.cancels += "a"
                         }
@@ -191,7 +191,7 @@ private class InputScrollRouteTest {
                         case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> InputBoundary(
                             root
                         ).close()
-                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                        case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> {
                             assertEquals(InputCancelReason.BoundaryChanged, reason)
                             trace.cancels += "r"
                         }
@@ -223,7 +223,7 @@ private class InputScrollRouteTest {
                 {
                     context,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.Button(_, _, state, _)) -> {
+                        case Pointer(InputPointerEvent.Button(_, _, val state, _)) -> {
                             assertEquals(RoutedPhase.Target, context.phase)
                             if (state == ElementState.Pressed)
                                 trace.downs += 1
@@ -231,7 +231,7 @@ private class InputScrollRouteTest {
                                 trace.ups += 1
                         }
                         case Pointer(InputPointerEvent.Cancelled(_, _)) -> trace.pressCancels += 1
-                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                        case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> {
                             trace.cancels += "a";
                             trace.reasons.add(reason)
                         }
@@ -279,7 +279,7 @@ private class InputScrollRouteTest {
                 {
                     _,
                     event -> when (event) {
-                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                        case Pointer(InputPointerEvent.ScrollCancelled(val reason, _)) -> {
                             assertEquals(InputCancelReason.Closed, reason)
                             trace.cancels += "a"
                             throw IllegalStateException(Some("scroll cancellation failure"))

@@ -10,7 +10,7 @@ internal fun nativeRegionQuery(target: Window, field: Int, x: Double = 0.0, y: D
             lease -> @Unsafe
             {
                 when (lease.handle) {
-                    case AppKit(window, view) -> return@use regionQuery(window, view, field, x, y)
+                    case AppKit(val window, val view) -> return@use regionQuery(window, view, field, x, y)
                 }
             }
         }

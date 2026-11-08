@@ -26,15 +26,15 @@ fun classify(value: Event): Int = when (once(value)) {
     } -> 10
     case Data {
         enabled: false,
-        envelope: { marker: (_, _), payload: { flag: false, value }, .. }
+        envelope: { marker: (_, _), payload: { flag: false, val value }, .. }
     } -> value
     case Data {
-        envelope: { payload: { value, flag: false }, marker: (_, _), .. },
+        envelope: { payload: { val value, flag: false }, marker: (_, _), .. },
         enabled: true
     } -> value + 100
     case Data {
-        enabled,
-        envelope: { payload: { flag: true, value }, marker: (_, _), .. }
+        val enabled,
+        envelope: { payload: { flag: true, val value }, marker: (_, _), .. }
     } -> value + 200
     case Empty -> -1
 }

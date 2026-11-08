@@ -119,8 +119,8 @@ public fun stream(
 internal fun bodyLength(body: HttpBody): Long? =
     when (body) {
         case HttpBody.Empty -> Some(0L)
-        case HttpBody.Bytes(value) -> Some(value.size)
-        case HttpBody.Stream(value) -> value.length
+        case HttpBody.Bytes(val value) -> Some(value.size)
+        case HttpBody.Stream(val value) -> value.length
         case HttpBody.File(_) -> None
         case HttpBody.WebSocket(_) -> None
     }

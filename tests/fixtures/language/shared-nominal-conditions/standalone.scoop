@@ -16,7 +16,7 @@ public fun <T> exercise(value: T, read: (T) -> Int): Int {
     if (hidden(phantom) != 42) { return 1 }
     return when (choice) {
         case Empty -> 2
-        case Item(item) -> read(item)
+        case Item(val item) -> read(item)
     }
 }
 

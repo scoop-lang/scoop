@@ -33,7 +33,7 @@ internal class VirtualMeasurements {
                 readingDirection
         val sameSource =
             when (source) {
-                case Some(value) -> value === next
+                case Some(val value) -> value === next
                 case None -> false
             }
         if (sameSource && sameShape)
@@ -43,7 +43,7 @@ internal class VirtualMeasurements {
         if (sameShape && fresh.variable) {
             for (entry in known.entries) {
                 when (virtualIndex(next, count, entry.key)) {
-                    case Some(at) -> {
+                    case Some(val at) -> {
                         fresh.record(at, entry.value)
                         retained.put(entry.key, entry.value)
                     }

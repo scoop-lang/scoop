@@ -60,15 +60,15 @@ internal fun checkedEntries(entries: Array<CliEntry>): CliLayout {
         for (alias in entry.names) { checkOptionName(alias); addUnique(names, alias, "option name") }
         for (alias in entry.negativeNames) { checkOptionName(alias); addUnique(names, alias, "option name") }
         when (entry.valueShape) {
-            case CliValueShape.Choice(choices) -> checkChoices(choices)
-            case CliValueShape.Repeated(CliElementShape.Choice(choices)) -> checkChoices(choices)
+            case CliValueShape.Choice(val choices) -> checkChoices(choices)
+            case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> checkChoices(choices)
             else -> {}
         }
     }
     val positions = MutableArray<Long>(positionalCount) { _ -> -1L }
     for (index in 0L until entries.size) {
         when (entries[index].role) {
-            case CliRole.Argument(position) -> {
+            case CliRole.Argument(val position) -> {
                 if (position < 0L || position >= positionalCount) { configuration("positional indices must start at zero and be contiguous") }
                 if (positions[position] != -1L) { configuration("duplicate positional index " + position.toString()) }
                 positions[position] = index

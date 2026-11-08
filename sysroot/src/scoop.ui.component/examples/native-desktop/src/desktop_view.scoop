@@ -77,7 +77,7 @@ internal fun desktopSection(root: DocumentView): View {
                     add(demoOption(demo.publishTasks.binding(), "Publish taskbar launch tasks"))
             }
             when (document.desktopCapabilities) {
-                case Some(windowCaps) -> {
+                case Some(val windowCaps) -> {
                     row {
                         spacing = 10.0
                         if (windowCaps.windowIcon)
@@ -121,7 +121,7 @@ internal fun desktopSection(root: DocumentView): View {
                 spacing = 8.0
                 button("Refresh notification settings", { app.queryNotifications() })
                 when (val settings = demo.notificationSettings.value) {
-                    case Some(value) -> {
+                    case Some(val value) -> {
                         if (value.availability == NotificationAvailability.PermissionRequired)
                             button("Allow notifications", { app.queryNotifications(true) })
                         if (value.availability == NotificationAvailability.Available) {

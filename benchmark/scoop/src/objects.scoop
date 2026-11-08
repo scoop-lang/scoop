@@ -72,7 +72,7 @@ fun makeTree(depth: Int, seed: Long): Tree {
 
 fun checkTree(tree: Tree): Long {
     return when (tree.left) {
-        case Some(left) -> checkTree(left) + checkTree(tree.right!!)
+        case Some(val left) -> checkTree(left) + checkTree(tree.right!!)
         case None -> tree.value
     }
 }

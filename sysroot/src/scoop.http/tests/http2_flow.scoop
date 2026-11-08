@@ -82,7 +82,7 @@ import scoop.test.*
             assertEquals(1, ends2(events, other))
             var remote = false
             for (event in events) when (event) {
-                case GoAway(last, code, debug, local) -> { assertEquals(other, last); assertEquals(0U, code); assertFalse(local); assertEquals("done", String.fromUtf8(debug)); remote = true }
+                case GoAway(val last, val code, val debug, val local) -> { assertEquals(other, last); assertEquals(0U, code); assertFalse(local); assertEquals("done", String.fromUtf8(debug)); remote = true }
                 else -> {}
             }
             assertTrue(remote)

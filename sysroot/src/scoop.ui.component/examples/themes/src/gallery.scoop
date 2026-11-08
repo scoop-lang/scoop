@@ -140,7 +140,7 @@ internal class GalleryPainter(private val fonts: FontCollection): Closeable {
     }
     private fun prepareText(theme: Theme) {
         when (textTheme) {
-            case Some(previous) -> if (previous === theme && revision == fonts.revision)
+            case Some(val previous) -> if (previous === theme && revision == fonts.revision)
                 return
             case None -> {}
         }

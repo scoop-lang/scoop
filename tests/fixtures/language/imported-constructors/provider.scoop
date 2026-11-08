@@ -32,6 +32,6 @@ public enum TupleChoice { Empty, Full((Long, Token, Long)) }
     val choice = TupleChoice.Full(value)
     return when (choice) {
         case Empty -> 0
-        case Full(fields) -> fields._1 + fields._3
+        case Full(val fields) -> fields._1 + fields._3
     }
 }

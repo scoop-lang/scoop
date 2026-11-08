@@ -48,16 +48,16 @@ private class HoverCanvas(private val probe: InteractionProbe, scope: ComponentS
                 event -> if (probe.group.value == 1) {
                     val bounds =
                         when (probe.hoverContent) {
-                            case Some(content) -> content.visibleBounds
+                            case Some(val content) -> content.visibleBounds
                             case None -> None
                         }
                     val rect = bounds ?: Rect(-1.0, -1.0, -1.0, -1.0)
                     val position =
                         when (event) {
-                            case Pointer(scoop.window.PointerEvent.Moved(state)) -> f"move ${
+                            case Pointer(scoop.window.PointerEvent.Moved(val state)) -> f"move ${
                                 state.logicalPosition.x
                             },${state.logicalPosition.y}"
-                            case Pointer(scoop.window.PointerEvent.Entered(state)) -> f"enter ${
+                            case Pointer(scoop.window.PointerEvent.Entered(val state)) -> f"enter ${
                                 state.logicalPosition.x
                             },${state.logicalPosition.y}"
                             case Pointer(scoop.window.PointerEvent.Left(_)) -> "leave"

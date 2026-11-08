@@ -7,7 +7,7 @@ public fun <T> identity(value: T): T = value
 public fun <T> arrayOrSeed(values: Array<T>, seed: T): T = if (values.size == 0L) { seed } else { values[0L] }
 public fun <T> mutableOrSeed(values: MutableArray<T>, seed: T): T = if (values.size == 0L) { seed } else { values[0L] }
 public fun <T> prefer(value: Option<T>, seed: T): T = when (value) {
-    case Some(inner) -> inner
+    case Some(val inner) -> inner
     case None -> seed
 }
 public fun <T> applyTo(action: (T) -> Int, seed: T): Int = action(seed)
@@ -21,7 +21,7 @@ public fun <A, B> two(left: Array<A>, right: Array<B>, first: A, second: B): A =
 public struct Pair<T>(val values: Array<T>, val seed: T)
 public enum Choice<T> { Data(val values: Array<T>, val seed: T), Empty }
 public fun <T> choiceOrSeed(value: Choice<T>, seed: T): T = when (value) {
-    case Data(values, inner) -> arrayOrSeed(values, inner)
+    case Data(val values, val inner) -> arrayOrSeed(values, inner)
     case Empty -> seed
 }
 

@@ -11,7 +11,7 @@ import scoop.platform.net.*
 private fun request(body: RequestBody): HttpRequestHead {
     val fields = ArrayList<HttpField>()
     fields.add(HttpField("Host".toByteArray(), "localhost".toByteArray()))
-    when (body.contentType) { case Some(type) -> fields.add(type.toHttpField()); case None -> {} }
+    when (body.contentType) { case Some(val type) -> fields.add(type.toHttpField()); case None -> {} }
     return HttpRequestHead(HttpVersion.Http11, "POST".toByteArray(),
         HttpRequestTarget.Http1("/upload".toByteArray()), fields)
 }
@@ -39,7 +39,7 @@ suspend fun runBodyHttp1(loop: EventLoop, scope: CoroutineScope, path: Path, sna
             val bodies: Array<RequestBody> = [snapshot, RequestBody.fromFile(path)]
             for (body in bodies) {
                 val framing = when (body.contentLength) {
-                    case Some(length) -> Http1BodyFraming.Length(length)
+                    case Some(val length) -> Http1BodyFraming.Length(length)
                     case None -> Http1BodyFraming.Chunked
                 }
                 val writer = client.sendRequest(request(body), framing)

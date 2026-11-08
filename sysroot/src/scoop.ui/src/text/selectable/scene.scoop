@@ -50,7 +50,7 @@ internal fun selectableScene(
         for (decoration in host.decorations) {
             val regions = frame.layout.selection(decoration.range)
             when (decoration.background) {
-                case Some(value) -> scene.draw {
+                case Some(val value) -> scene.draw {
                     paint -> for (box in regions)
                         paint.canvas.drawRect(box.rect, Paint(value))
                 }
@@ -75,7 +75,7 @@ internal fun selectableScene(
         for (decoration in host.decorations) {
             val regions = frame.layout.selection(decoration.range)
             when (decoration.underline) {
-                case Some(value) -> scene.draw {
+                case Some(val value) -> scene.draw {
                     paint -> for (box in regions)
                         paint.canvas.drawRect(
                             Rect(
@@ -94,7 +94,7 @@ internal fun selectableScene(
     context.onFrameComplete {
         completion ->
         when (host.staged) {
-            case Some(value) -> if (value === frame)
+            case Some(val value) -> if (value === frame)
                 host.staged = None
             case None -> {}
         }

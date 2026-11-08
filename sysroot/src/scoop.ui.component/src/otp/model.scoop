@@ -46,7 +46,7 @@ public class InputOtpProps public constructor(
             var afterGroup = false
             for (part in parts) {
                 when (part) {
-                    case Group(group) -> {
+                    case Group(val group) -> {
                         for (slot in group.slots) {
                             requireComponent(
                                 slot.index == next,
@@ -92,7 +92,7 @@ public class InputOtp public constructor(
         val children = ArrayList<View>()
         for (part in input.parts)
             when (part) {
-                case Separator(content) -> children.add(content)
+                case Separator(val content) -> children.add(content)
                 case Group(_) -> {}
             }
         return element(

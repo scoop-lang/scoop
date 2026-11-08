@@ -150,7 +150,7 @@ private class GalleryChoiceSource: ChoiceSource<Long> {
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> indexOfValue(index);
+            case Number(val index) -> indexOfValue(index);
             else -> None
         }
     public override fun indexOfValue(value: Long): Long? =

@@ -9,7 +9,7 @@ internal class NdjsonReader(source: AsyncByteSource, owner: AsyncCloseable?, loo
     val io = MessageIo<AsyncByteSource>(source, owner, loop) {
         var failure = messageCleanup(None) { input.close() }
         failure = messageCleanup(failure) { decoder.close() }
-        when (failure) { case Some(error) -> throw error; case None -> {} }
+        when (failure) { case Some(val error) -> throw error; case None -> {} }
     }
 
     suspend fun next(): String? = io.run({}) suspend { source -> readNext(source) }
@@ -17,7 +17,7 @@ internal class NdjsonReader(source: AsyncByteSource, owner: AsyncCloseable?, loo
     private suspend fun readNext(source: AsyncByteSource): String? {
         while (true) {
             ensureActive()
-            when (decoder.nextRecord()) { case Some(record) -> return Some(record); case None -> {} }
+            when (decoder.nextRecord()) { case Some(val record) -> return Some(record); case None -> {} }
             if (decoder.isFinished) return None
             if (input.readableBytes > 0L) decoder.receive(input)
             else {

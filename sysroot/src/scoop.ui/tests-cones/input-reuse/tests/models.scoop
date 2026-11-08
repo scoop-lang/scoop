@@ -145,7 +145,7 @@ internal class CountingSource(public override val count: Long): ItemSource {
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(index) -> if (index >= 0L && index < count)
+            case Number(val index) -> if (index >= 0L && index < count)
                 Some(index)
             else
                 None

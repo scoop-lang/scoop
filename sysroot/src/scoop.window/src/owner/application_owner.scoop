@@ -106,7 +106,7 @@ internal class ApplicationOwner(
                 mailbox.bind(pointer)
                 try {
                     when (attach) {
-                        case Some(install) -> {
+                        case Some(val install) -> {
                             attached = true;
                             attachment = Some(install(ApplicationHost(this)))
                         }
@@ -135,7 +135,7 @@ internal class ApplicationOwner(
             } finally {
                 mailbox.unbind()
                 when (native) {
-                    case Some(pointer) -> {
+                    case Some(val pointer) -> {
                         nativeApplicationDestroy(pointer);
                         native = None
                     };
@@ -145,7 +145,7 @@ internal class ApplicationOwner(
             }
         }
         when (failure) {
-            case Some(error) -> throw error;
+            case Some(val error) -> throw error;
             case None -> {}
         }
     }
@@ -201,7 +201,7 @@ internal class ApplicationOwner(
                                 size.height,
                                 flags,
                                 when (parent) {
-                                    case Some(value) -> value.pointer;
+                                    case Some(val value) -> value.pointer;
                                     case None -> None
                                 },
                                 if (attributes.role == WindowRole.Tool)
@@ -229,7 +229,7 @@ internal class ApplicationOwner(
             createdWindow = true
             owner.requestedVisible = attributes.visible
             when (parent) {
-                case Some(value) -> {
+                case Some(val value) -> {
                     val snapshot = value.snapshot()
                     owner.visibilitySuppressed =
                         !value.requestedVisible ||
@@ -266,7 +266,7 @@ internal class ApplicationOwner(
         if (exiting)
             throw WindowException("set control flow", WindowErrorKind.InvalidState)
         when (flow) {
-            case WaitUntil(mark) -> checkDeadlineTime(mark)
+            case WaitUntil(val mark) -> checkDeadlineTime(mark)
             else -> {}
         }
         this.flow = flow
@@ -300,7 +300,7 @@ internal class ApplicationOwner(
             throw IllegalStateException(Some("unexpected application attachment completion"))
         attachmentComplete = true
         when (error) {
-            case Some(value) -> recordFailure(value);
+            case Some(val value) -> recordFailure(value);
             case None -> {}
         }
         beginExit()
@@ -311,7 +311,7 @@ internal class ApplicationOwner(
         failure =
             Some(
                 when (failure) {
-                    case Some(previous) -> ResourceUseException(previous, error);
+                    case Some(val previous) -> ResourceUseException(previous, error);
                     case None -> error
                 }
             )

@@ -16,7 +16,7 @@ private class AsyncSocks5HandshakeTest {
             val tunnel = AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget())
             assertEquals(12L, script.position)
             when (tunnel.boundAddress) {
-                case Ip(address) -> assertEquals(
+                case Ip(val address) -> assertEquals(
                     SocketAddress(IpAddress.IPV4_LOOPBACK, 8080),
                     address
                 )
@@ -85,7 +85,7 @@ private class AsyncSocks5HandshakeTest {
                 Socks5Address.Ip(SocketAddress(IpAddress.IPV6_LOOPBACK, 80))
             ).useAsync suspend {
                 tunnel -> when (tunnel.boundAddress) {
-                    case Ip(address) -> assertEquals(
+                    case Ip(val address) -> assertEquals(
                         SocketAddress(IpAddress.IPV6_LOOPBACK, 80),
                         address
                     )
@@ -101,7 +101,7 @@ private class AsyncSocks5HandshakeTest {
             val domain = Socks5Script([5, 0, 5, 0, 0, 3, 1, 120, 0, 80])
             AsyncSocks5Tunnel.takeOwnership(domain, socks5IpTarget()).useAsync suspend {
                 tunnel -> when (tunnel.boundAddress) {
-                    case Domain(name, port) -> {
+                    case Domain(val name, val port) -> {
                         assertEquals("x", name);
                         assertEquals(80, port)
                     }

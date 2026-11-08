@@ -19,7 +19,7 @@ internal class WorkerDirectory(private val owner: OwnedDirectory): AsyncDirector
         val name: OsString? =
             when (owner.reserve()) {
                 case None -> None
-                case Some(reservation) -> try {
+                case Some(val reservation) -> try {
                     nextDirectoryName(owner, job)
                 }
                 finally {
@@ -27,7 +27,7 @@ internal class WorkerDirectory(private val owner: OwnedDirectory): AsyncDirector
                 }
             }
         return when (name) {
-            case Some(value) -> Some(
+            case Some(val value) -> Some(
                 DirectoryEntry(value, owner.path.resolve(Path.fromOsString(value)))
             )
             case None -> {
@@ -76,16 +76,16 @@ internal suspend fun openDirectoryOnLoop(loop: LoopOwner, path: Path): AsyncDire
                 {
                     event,
                     selected -> when (event.result) {
-                        case Created(pointer) -> {
+                        case Created(val pointer) -> {
                             val owner = OwnedDirectory(loop, pointer, path)
                             loop.retain(owner)
                             when (selected) {
                                 case None -> continuation.resume(WorkerDirectory(owner))
-                                case Some(error) -> owner.closeOnLoop {
+                                case Some(val error) -> owner.closeOnLoop {
                                     cleanup -> continuation.resumeWithException(
                                         when (cleanup) {
                                             case None -> error
-                                            case Some(other) -> ResourceUseException(error, other)
+                                            case Some(val other) -> ResourceUseException(error, other)
                                         }
                                     )
                                 }

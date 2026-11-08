@@ -2,6 +2,6 @@ package dev.example
 import dev.example.upstream.enums.Choice
 
 public fun reject(value: Choice<Int>): Int = when (value) {
-    case Named(payload, amount) -> payload + amount
+    case Named(val payload, val amount) -> payload + amount
     else -> 0
 }

@@ -82,7 +82,7 @@ internal fun sidebarIsMobile(input: SidebarProps, available: Double?, density: D
         SidebarCollapse.None &&
         when (input.layout) {
             case Auto -> when (available) {
-                case Some(value) -> value < input.breakpoint * density;
+                case Some(val value) -> value < input.breakpoint * density;
                 case None -> false
             }
             case Desktop -> false
@@ -112,8 +112,8 @@ internal fun sidebarWidth(input: SidebarProps, shown: SidebarPresentation): Doub
 
 internal fun sidebarContent(content: SidebarContent, shown: SidebarPresentation): View =
     when (content) {
-        case Custom(view) -> view
-        case Resolved(build) -> build(shown)
+        case Custom(val view) -> view
+        case Resolved(val build) -> build(shown)
     }
 
 internal fun sidebarWrite(open: Binding<Boolean>, next: Boolean, notify: (Boolean) -> Unit) {

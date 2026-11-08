@@ -26,16 +26,16 @@ internal fun webSocketResponse(handshake: WebSocketHandshake, protocol: String?,
     fields: List<HttpField>): WebSocketServerResponse {
     checkWebSocketProtocol(handshake, protocol)
     val negotiated = when (deflate) {
-        case Some(value) -> Some(matchWebSocketDeflate(handshake, value))
+        case Some(val value) -> Some(matchWebSocketDeflate(handshake, value))
         case None -> None
     }
     val headers = webSocketExtraFields(fields)
     headers.add(webSocketField("Upgrade", "websocket"))
     headers.add(webSocketField("Connection", "Upgrade"))
     headers.add(webSocketField("Sec-WebSocket-Accept", webSocketAccept(handshake.key)))
-    when (protocol) { case Some(value) -> headers.add(webSocketField("Sec-WebSocket-Protocol", value)); case None -> {} }
+    when (protocol) { case Some(val value) -> headers.add(webSocketField("Sec-WebSocket-Protocol", value)); case None -> {} }
     when (deflate) {
-        case Some(value) -> headers.add(value.toExtension().toHttpField())
+        case Some(val value) -> headers.add(value.toExtension().toHttpField())
         case None -> {}
     }
     val head = HttpResponseHead(HttpVersion.Http11, 101U, Some<List<Byte>>("Switching Protocols".toByteArray()), headers)
@@ -44,7 +44,7 @@ internal fun webSocketResponse(handshake: WebSocketHandshake, protocol: String?,
 
 private fun checkWebSocketProtocol(handshake: WebSocketHandshake, selected: String?) {
     when (selected) {
-        case Some(value) -> {
+        case Some(val value) -> {
             val reader = HttpFieldReader("Sec-WebSocket-Protocol", value.toByteArray())
             reader.token()
             if (!reader.ended) reader.fail("response must select exactly one subprotocol")
@@ -58,7 +58,7 @@ private fun checkWebSocketProtocol(handshake: WebSocketHandshake, selected: Stri
 private fun matchWebSocketDeflate(handshake: WebSocketHandshake, response: WebSocketDeflate): WebSocketDeflateNegotiation {
     for (extension in handshake.extensions) {
         when (WebSocketDeflateOffer.parseOrNone(extension)) {
-            case Some(offer) -> if (offer.accepts(response)) return WebSocketDeflateNegotiation(offer, response)
+            case Some(val offer) -> if (offer.accepts(response)) return WebSocketDeflateNegotiation(offer, response)
             case None -> {}
         }
     }

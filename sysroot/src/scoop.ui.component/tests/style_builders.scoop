@@ -130,11 +130,11 @@ private class ControlStyleTest {
             }
         )
         when (original.selectionTransition.resolve(fallback)) {
-            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(125L), duration);
+            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(125L), duration);
             else -> fail(Some("explicit selection transition was lost"))
         }
         when (derived.transition.resolve(fallback)) {
-            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(250L), duration);
+            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(250L), duration);
             else -> fail(Some("inherited transition was lost"))
         }
         assertTrue(

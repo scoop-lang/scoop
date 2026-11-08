@@ -262,7 +262,7 @@ private class DateBoundsObservation(
                 context,
                 event -> if (!context.defaultPrevented && props.value.page != None)
                     when (event) {
-                        case Keyboard(key) -> {
+                        case Keyboard(val key) -> {
                             if (
                                 key.state ==
                                     ElementState.Pressed &&
@@ -300,7 +300,7 @@ private class DateBoundsObservation(
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 when (input.page) {
-                    case Some(page) -> p.captions.add(DateCaption(page, bounds.rect, generation))
+                    case Some(val page) -> p.captions.add(DateCaption(page, bounds.rect, generation))
                     case None -> if (input.outside)
                         p.outsideBounds = bounds.rect
                     else

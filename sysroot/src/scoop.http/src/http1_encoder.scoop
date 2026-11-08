@@ -74,7 +74,7 @@ public class Http1Encoder public constructor(
         val bytes = output.toByteArray()
         active = true
         framing = mode
-        remaining = when (mode) { case Length(count) -> count; else -> 0L }
+        remaining = when (mode) { case Length(val count) -> count; else -> 0L }
         closing = close
         switched = kind == Http1HeadKind.Switch
         return bytes
@@ -88,7 +88,7 @@ public class Http1Encoder public constructor(
         requireBegin(HttpRole.Client)
         requireHttp1Method(head.method)
         val target = when (head.target) {
-            case Http1(bytes) -> bytes
+            case Http1(val bytes) -> bytes
             else -> throw IllegalArgumentException(Some("HTTP/1 requires a raw request target"))
         }
         if (target.size == 0L) throw IllegalArgumentException(Some("HTTP request target is empty"))
@@ -115,7 +115,7 @@ public class Http1Encoder public constructor(
         val output = ByteArrayBuilder()
         output.append((http1VersionText(head.version) + " " + head.status.toString() + " ").toByteArray())
         when (head.reason) {
-            case Some(reason) -> { requireHttpValue(reason); output.append(reason) }
+            case Some(val reason) -> { requireHttpValue(reason); output.append(reason) }
             case None -> {}
         }
         output.append("\r\n".toByteArray())

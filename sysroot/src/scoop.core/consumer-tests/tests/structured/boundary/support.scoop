@@ -20,8 +20,8 @@ internal class BoundaryResult: Continuation<Unit> {
     fun finish(expected: Throwable? = None) {
         boundaryCheck(done, "scope did not finish")
         when (failure) {
-            case Some(error) -> when (expected) {
-                case Some(value) -> boundaryCheck(error === value, "failure identity changed");
+            case Some(val error) -> when (expected) {
+                case Some(val value) -> boundaryCheck(error === value, "failure identity changed");
                 case None -> throw error
             }
             case None -> when (expected) {

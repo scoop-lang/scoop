@@ -11,7 +11,7 @@ fun findName(id: Int): Lookup =
 
 fun describe(result: Lookup): String =
     when (result) {
-        case Lookup.Found(name) -> f"Found: ${name}"
+        case Lookup.Found(val name) -> f"Found: ${name}"
         case Lookup.Missing -> "No matching name"
     }
 

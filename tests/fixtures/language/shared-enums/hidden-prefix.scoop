@@ -2,6 +2,6 @@ package dev.example.consumer.enums
 import dev.example.upstream.enums.Choice as Selected
 
 public fun result(value: Selected<Int>): Int = when (value) {
-    case Choice.Item(payload) -> payload
+    case Choice.Item(val payload) -> payload
     else -> 0
 }

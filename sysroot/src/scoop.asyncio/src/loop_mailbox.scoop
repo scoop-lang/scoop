@@ -44,7 +44,7 @@ internal class LoopMailbox(private val owner: LoopOwner) {
 
     fun signal() {
         when (waiting) {
-            case Some(continuation) -> {
+            case Some(val continuation) -> {
                 waiting = None
                 owner.ready.add { continuation.resume(Unit) }
             }
@@ -90,7 +90,7 @@ internal class LoopMailbox(private val owner: LoopOwner) {
         val requested = lock.withLock { closeRequested }
         val result =
             when (error) {
-                case Some(value) -> if (requested && value is CancellationException)
+                case Some(val value) -> if (requested && value is CancellationException)
                     None
                 else
                     error

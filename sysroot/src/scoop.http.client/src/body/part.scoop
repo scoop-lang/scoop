@@ -31,7 +31,7 @@ internal fun requestBodyFields(body: RequestBody, fields: List<HttpField>): Arra
         result.add(field)
     if (result.findAll("content-type".toByteArray()).size == 0L) {
         when (body.contentType) {
-            case Some(type) -> result.add(type.toHttpField());
+            case Some(val type) -> result.add(type.toHttpField());
             case None -> {}
         }
     }

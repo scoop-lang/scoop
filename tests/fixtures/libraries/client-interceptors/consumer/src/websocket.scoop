@@ -50,11 +50,11 @@ internal fun extensionWebSocket(trust: TrustStore, url: Url) {
             val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(httpWebSocketRequest(target)) suspend {
                 result -> when (result) {
-                    case Opened(session) -> {
+                    case Opened(val session) -> {
                         assertEquals("intercepted", session.receive()!!.readText())
                         session.shutdownGracefully()
                     }
-                    case Rejected(_, error) -> throw error
+                    case Rejected(_, val error) -> throw error
                 }
             }
         }

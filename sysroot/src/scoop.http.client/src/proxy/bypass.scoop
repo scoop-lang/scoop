@@ -13,11 +13,11 @@ internal class ClientProxyBypassRule(val target: ClientProxyBypassTarget, val po
         if (clientPresent(port) && port!! != origin.port) return false
         return when (target) {
             case Any -> true
-            case Host(host, subdomainsOnly) ->
+            case Host(val host, val subdomainsOnly) ->
                 (!subdomainsOnly || origin.host != host) && HttpCookieRules.domainMatches(origin.host, host)
-            case Network(network) -> when (origin.host) {
-                case Ipv4(bytes) -> network.contains(IpAddress.fromByteArray(bytes))
-                case Ipv6(bytes) -> network.contains(IpAddress.fromByteArray(bytes))
+            case Network(val network) -> when (origin.host) {
+                case Ipv4(val bytes) -> network.contains(IpAddress.fromByteArray(bytes))
+                case Ipv6(val bytes) -> network.contains(IpAddress.fromByteArray(bytes))
                 case Dns(_) -> false
             }
         }

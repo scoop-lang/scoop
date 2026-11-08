@@ -21,8 +21,8 @@ internal fun chartDrawPolar(canvas: Canvas, plan: ChartPlan, geometry: ChartGeom
         for (series in geometry.series)
             for (sample in series.samples)
                 when (sample) {
-                    case Some(value) -> when (value.shape) {
-                        case Sector(arc) -> {
+                    case Some(val value) -> when (value.shape) {
+                        case Sector(val arc) -> {
                             if (value.visible) {
                                 arc.outline().use {
                                     outline ->
@@ -51,7 +51,7 @@ internal fun chartDrawPolar(canvas: Canvas, plan: ChartPlan, geometry: ChartGeom
         for (series in geometry.series)
             for (sample in series.samples)
                 when (sample) {
-                    case Some(value) -> if (value.visible) {
+                    case Some(val value) -> if (value.visible) {
                         val text = chartNumber(value.value)
                         val measured = a.measure(text)
                         a.draw(
@@ -130,7 +130,7 @@ internal fun chartDrawPolarActive(
     val sample = geometry.find(key) ?: return
     val a = plan.appearance
     when (sample.shape) {
-        case Sector(arc) -> {
+        case Sector(val arc) -> {
             val active =
                 if (geometry.kind == ChartKind.Pie)
                     arc.expanded()

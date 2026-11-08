@@ -7,27 +7,27 @@ enum ChatMessage {
         public override fun encode(value: ChatMessage, encoder: Encoder) {
             val fields = encoder.keyed()
             when (value) {
-                case ChatMessage.Developer(payload) -> {
+                case ChatMessage.Developer(val payload) -> {
                     String.encode("developer", fields.field("role"))
                     ChatTextMessage.Companion.encode(payload, encoder)
                 }
-                case ChatMessage.System(payload) -> {
+                case ChatMessage.System(val payload) -> {
                     String.encode("system", fields.field("role"))
                     ChatTextMessage.Companion.encode(payload, encoder)
                 }
-                case ChatMessage.User(payload) -> {
+                case ChatMessage.User(val payload) -> {
                     String.encode("user", fields.field("role"))
                     ChatTextMessage.Companion.encode(payload, encoder)
                 }
-                case ChatMessage.Assistant(payload) -> {
+                case ChatMessage.Assistant(val payload) -> {
                     String.encode("assistant", fields.field("role"))
                     ChatAssistant.Companion.encode(payload, encoder)
                 }
-                case ChatMessage.Tool(payload) -> {
+                case ChatMessage.Tool(val payload) -> {
                     String.encode("tool", fields.field("role"))
                     ChatToolMessage.Companion.encode(payload, encoder)
                 }
-                case ChatMessage.Function(payload) -> {
+                case ChatMessage.Function(val payload) -> {
                     String.encode("function", fields.field("role"))
                     ChatFunctionMessage.Companion.encode(payload, encoder)
                 }
@@ -52,7 +52,7 @@ enum ChatMessage {
 fun decodeChatText(decoder: Decoder): ChatTextMessage {
     val value = ChatTextMessage.Companion.decode(decoder)
     when (value.content) {
-        case ChatContent.Blocks(parts) -> {
+        case ChatContent.Blocks(val parts) -> {
             val sequence = decoder.keyed().required("content").unkeyed()
             for (part in parts) {
                 val child = sequence.element()

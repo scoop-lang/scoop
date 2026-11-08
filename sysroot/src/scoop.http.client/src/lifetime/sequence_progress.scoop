@@ -19,7 +19,7 @@ internal fun clientSequenceTimeout(client: ClientState, sequence: ClientRequestS
         current
     }
     val progress = when (active) {
-        case Some(call) -> call.lock.withLock { (call.requestBodyBytes, call.encodedResponseBodyBytes, call.responseBodyBytes) }
+        case Some(val call) -> call.lock.withLock { (call.requestBodyBytes, call.encodedResponseBodyBytes, call.responseBodyBytes) }
         case None -> (sequence.requestBodyBytes, sequence.encodedResponseBodyBytes, sequence.responseBodyBytes)
     }
     val (sent, encoded, decoded) = progress

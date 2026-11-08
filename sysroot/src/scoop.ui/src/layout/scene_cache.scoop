@@ -15,16 +15,16 @@ internal enum SceneCommand {
 
     fun replay(context: SceneContext) {
         when (this) {
-            case Concat(value) -> context.concat(value)
-            case Clip(value) -> context.clipRect(value)
+            case Concat(val value) -> context.concat(value)
+            case Clip(val value) -> context.clipRect(value)
             case Save -> context.save()
-            case SaveLayer(opacity, blend) -> context.saveLayer(opacity, blendMode = blend)
+            case SaveLayer(val opacity, val blend) -> context.saveLayer(opacity, blendMode = blend)
             case Restore -> context.restore()
-            case Place(area, rect) -> context.place(area, rect)
-            case Anchor(handle, rect) -> context.anchor(handle, rect)
-            case Children(order, epoch) -> context.presentChildren(order, epoch)
-            case Drawing(layer) -> context.drawRetained(layer)
-            case Scope(commands) -> context.withState<Unit> {
+            case Place(val area, val rect) -> context.place(area, rect)
+            case Anchor(val handle, val rect) -> context.anchor(handle, rect)
+            case Children(val order, val epoch) -> context.presentChildren(order, epoch)
+            case Drawing(val layer) -> context.drawRetained(layer)
+            case Scope(val commands) -> context.withState<Unit> {
                 child -> for (command in commands)
                     command.replay(child)
             }

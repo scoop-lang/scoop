@@ -1,0 +1,22 @@
+schema = 1
+name = "patterns-explicit-bindings-shadowing"
+root = "shadowing.scoop"
+inputs = ["shadowing.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["single-file", "warnings", "language"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {"file" = "shadowing.diagnostics.json"}
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "13\ntrue\n"
+stderr = ""

@@ -161,7 +161,7 @@ private fun exercise(trust: TrustStore, redirect: Boolean, fail: Boolean) {
                         completionCheck(result.value!! === first.failure && opened.load() == 1L)
                     } else {
                         when (result.value) {
-                            case Some(error) -> throw error;
+                            case Some(val error) -> throw error;
                             case None -> {}
                         }
                         completionCheck(opened.load() == 2L && first.closed && next.closed)

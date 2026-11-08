@@ -62,13 +62,13 @@ public class Alert public constructor(
         val text =
             panelColumn {
                 when (input.title) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, titleStyle, input.fonts), 0L)
                     );
                     case None -> {}
                 }
                 when (input.description) {
-                    case Some(value) -> this.add(
+                    case Some(val value) -> this.add(
                         panelSlot(panelCaption(value, descriptionStyle, input.fonts), 1L)
                     );
                     case None -> {}
@@ -87,7 +87,7 @@ public class Alert public constructor(
         val content =
             panelRow {
                 when (input.icon) {
-                    case Some(icon) -> this.item(
+                    case Some(val icon) -> this.item(
                         panelFrame(
                             icon,
                             Insets(0.0, 2.0 * density, 0.0, 0.0),

@@ -91,11 +91,11 @@ public class LazyFocus internal constructor(
     internal fun entryContaining(node: MountedNode): LazyItemEntry? = items.entryContaining(node)
     internal fun preferredKey(): ViewKey? {
         when (focusedEntry()) {
-            case Some(entry) -> return Some(entry.key)
+            case Some(val entry) -> return Some(entry.key)
             case None -> {}
         }
         when (recent) {
-            case Some(key) -> if (items.indexOf(key) != None)
+            case Some(val key) -> if (items.indexOf(key) != None)
                 return Some(key)
             case None -> {}
         }
@@ -114,7 +114,7 @@ public class LazyFocus internal constructor(
         if (!active)
             return
         when (focusedEntry()) {
-            case Some(entry) -> recent = Some(entry.key)
+            case Some(val entry) -> recent = Some(entry.key)
             case None -> {}
         }
     }
@@ -123,7 +123,7 @@ public class LazyFocus internal constructor(
             return
         val key =
             when (event) {
-                case Keyboard(value) -> value
+                case Keyboard(val value) -> value
                 else -> return
             }
         val modifiers = key.modifiers
@@ -139,7 +139,7 @@ public class LazyFocus internal constructor(
         )
             return
         when (current.navigation) {
-            case Roving(direction, loop) -> {
+            case Roving(val direction, val loop) -> {
                 val step =
                     navigationStep(
                         current.layout,
@@ -159,7 +159,7 @@ public class LazyFocus internal constructor(
     }
     internal fun sourceChanged() {
         when (recent) {
-            case Some(key) -> if (items.indexOf(key) == None)
+            case Some(val key) -> if (items.indexOf(key) == None)
                 recent = None
             case None -> {}
         }

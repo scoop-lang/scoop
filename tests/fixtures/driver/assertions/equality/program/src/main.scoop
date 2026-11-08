@@ -26,8 +26,8 @@ fun main() {
     val mismatch = capture { assertEquals(4, 5) }
     val same = capture { assertNotEquals("same", "same") }
     verify(mismatch.kind == "assertEquals" && same.kind == "assertNotEquals")
-    verify(when (mismatch.expected) { case AssertionValue.Text(text) -> text == "4"; else -> false })
-    verify(when (mismatch.actual) { case AssertionValue.Text(text) -> text == "5"; else -> false })
+    verify(when (mismatch.expected) { case AssertionValue.Text(val text) -> text == "4"; else -> false })
+    verify(when (mismatch.actual) { case AssertionValue.Text(val text) -> text == "5"; else -> false })
     val calls = Calls()
     assertEquals(Key(1, calls), Key(1, calls))
     assertNotEquals(Key(1, calls), Key(2, calls))

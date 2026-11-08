@@ -51,7 +51,7 @@ fun withPeer(version: TlsVersion, block: (Int) -> Unit) {
             val output = child.communicate()
             val succeeded =
                 when (output.status) {
-                    case Exited(code) -> code == 0;
+                    case Exited(val code) -> code == 0;
                     case Signaled(_) -> false
                 }
             if (!succeeded)
