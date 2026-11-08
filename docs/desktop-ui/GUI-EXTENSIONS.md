@@ -1,6 +1,8 @@
 # SVG 图标、字体选择与桌面集成设计
 
-日期：2026-11-08。状态：按批次实施中，实际交付和平台验证见[实施进度](GUI-EXTENSIONS-PROGRESS.md)。本文记录已确认的范围、现有实现依据、拟定接口与验收条件；不把下文全部新增 API 视为已经交付。实施每个批次时，先更新所属 spec，再修改实现、调用方和测试。
+日期：2026-11-08。状态：G1–G8 功能已实现，实际交付与发行验收见[实施进度](GUI-EXTENSIONS-PROGRESS.md)。本文保留需求边界、设计依据、接口结构与验收条件；实施过程遵循 spec 先行，公开接口的精确签名和约束以所属 spec 为准。
+
+专项规范：[SVG](../specs/SCOOP-GRAPHICS-SVG-SPEC.md)、[字体](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)、[桌面集成](../specs/SCOOP-DESKTOP-SPEC.md)、[系统通知](../specs/SCOOP-DESKTOP-NOTIFICATION-SPEC.md)、[UI 桌面适配](../specs/SCOOP-UI-DESKTOP-INTEGRATION-SPEC.md)。
 
 本文接续[原生桌面能力设计](DESIGN.md)，覆盖 Skia SVG／Lucide、系统与临时字体、Taskbar／Dock、桌面通知，以及 Windows native desktop demo 的圆形窗口问题。窗口、菜单、帧提交和 UI 挂载继续遵守既有规范；本轮不增加语言、编译器 IR 或 runtime 专用机制。
 
@@ -11,11 +13,13 @@
 3. Taskbar／Dock 的 icon、caption、menu、progress 均纳入设计。caption 包含图标角标文字／数量，以及系统显示名称、窗口标题或原生悬停说明；这些含义分别表达。
 4. 桌面集成只提供 OS／桌面环境已有的原生能力。缺失的角标、进度条和菜单不通过自绘图标、定时动画、额外窗口或桌面扩展补齐。
 5. Desktop notification 使用系统通知服务，覆盖提交、替换、撤回、动作及必要的应用注册；不使用 UI 内的 Toast 冒充系统通知。
-6. Windows 问题的报告是：native desktop demo 的圆形窗口仍有边框，外观不是真正的圆形。先区分 demo 配置与后端缺陷，再修复实际原因；本设计不宣称已经在 Windows 重现或定位根因。
+6. Windows 问题的报告是：native desktop demo 的圆形窗口仍有边框，外观不是真正的圆形。已定位到 demo 默认未启用原生形状，并保留了没有对应交互的边缘缩放；修复范围和三目标实窗结果见实施进度 G5。
 
 平台范围沿当前 GUI：Darwin aarch64／x86_64、三个 Windows x86_64 target，以及 Linux GNU x86_64 的 Wayland／X11。Linux musl 不新增 GUI 资源。公共接口根据真实能力返回结果，不以三平台功能对齐作为交付前提。
 
-## 2. 当前实现与改动位置
+## 2. 实施前的基础与改动位置
+
+本节记录设计时的代码基线，用于说明改动原因；当前实现与验证结果见[实施进度](GUI-EXTENSIONS-PROGRESS.md)，公开接口以各项 spec 为准。
 
 | 范围 | 已有事实 | 本轮工作 |
 | --- | --- | --- |
@@ -264,7 +268,7 @@ UI 包装提供 scope-owned 通知控制器和普通操作回调。发送通知�
 
 ## 7. Windows 圆形窗口问题
 
-### 7.1 当前证据
+### 7.1 问题定位时的证据
 
 1. [DocumentView](../../sysroot/src/scoop.ui.component/examples/native-desktop/src/document.scoop) 的 matchShape 默认 false；默认打开的是“Visual shape only”，不是原生 bounding region 模式。自动 smoke 会把它设为 true，因此不能用 smoke 成功推断默认人工路径正确。
 2. [ShapeView](../../sysroot/src/scoop.ui.component/examples/native-desktop/src/dialogs.scoop) 已请求 Client、透明背景和椭圆 clip，但仅在 matched 时设置 windowShape／inputShape。窗口初始尺寸是 390×390，resizable 仍沿默认值。

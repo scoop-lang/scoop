@@ -11,7 +11,7 @@
 | G5 Windows 圆形窗口 | 已修复，Windows 11 三目标实窗通过 | 默认 demo 路径、HWND style／region、resize、最小化恢复及既有窗框／输入回归 |
 | G6 Taskbar／Dock | 已实现，三平台定向测试通过 | 应用标识、原生图标与文字、菜单 tracking、窗口解绑、任务栏重放；集成呈现随 G8 验收 |
 | G7 桌面通知 | 已实现，三平台定向验证通过 | macOS 实际点击冷启动；Linux 服务提交／动作；Windows NSIS／MSI 安装、替换／撤回、COM 冷启动与卸载 |
-| G8 集成与发行 | UI 适配已实现，Windows 发行验收进行中 | 全部 GUI 目标实窗通过；macOS／Linux 完整工具链安装验收通过；Windows 完整包继续收尾 |
+| G8 集成与发行 | 已完成，三宿主安装验收通过 | 全部 GUI 目标实窗通过；macOS／Linux／Windows 完整工具链解包安装、文档与新消费者通过 |
 
 ## G1：独立 SVG 图形库
 
@@ -98,3 +98,19 @@ Windows 安装检查发现 NSIS 快捷方式没有引用已打包图标，现为
 完整工具链打包发现 Linux 的 LLDB 共享库没有记录配套非系统 Python 的运行库路径，仅选择解释器仍无法找到 libpython。打包现在从所选解释器的 sysconfig 取得 library 目录，按选定 LLVM、选定 Python、已有 LD_LIBRARY_PATH 的顺序解析依赖，再重定位到安装包。Ruff 与 macOS／Linux 的相关脚本测试通过；新增真实 ELF 用例验证无需环境覆盖也能找到共享运行库，安装目录移动后仍可执行。
 
 安装检查还发现 Homebrew Python 的 ELF interpreter 保留了构建机绝对路径。打包将附带 executable 的 interpreter 统一到 Scoop 宿主命令的系统 loader；已有正确路径和共享库不额外修改。真实 ELF 测试保留原程序、原共享库与自定义 loader，同时验证加工后的 helper 使用系统 loader 并在移动后的安装目录运行。Linux 的九项 native 打包测试通过八项，跳过仅适用 macOS 的一项。
+
+## 最终发行验收
+
+2026-11-08，三宿主均完成 `0.0.0-gui.20261108` 的完整工具链组件包。编译器和系统库的源码修订为 `f1547582fa`；三个宿主的 bin 组件包含 `7de2307fe9` 的 bundle 图标修复，Linux LLVM 组件包含 `7296a95281`／`2d55e7db14` 的 Python 运行库与 interpreter 修复。
+
+| 宿主 | 组件归档 | 随包目标资源 | 安装验收 |
+| --- | --- | --- | --- |
+| macOS Apple Silicon | 8 个 | aarch64、x86_64 各 26 个基础 Cone + 18 个 GUI Cone | 全部通过；x86_64 使用 Rosetta |
+| Linux x86_64 | 7 个 | GNU：26 个基础 Cone + 18 个 GUI Cone；musl：26 个基础 Cone | 全部通过；GNU 消费者和 musl 基础程序均实际运行 |
+| Windows x86_64 | 10 个 | MSVC UCRT、LLVM-MinGW UCRT／MSVCRT 各 26 个基础 Cone + 18 个 GUI Cone | 全部通过；三个 GUI 消费者在 Windows 11 Session 1 运行 |
+
+三个宿主均从归档解包到独立、带空格的安装路径，验证五个宿主工具、bundle／example、LLVM 22.1.8、LLDB／随包 Python、所有已安装目标的离线文档。Windows 补验了同一安装目录的 `post-install.ps1 --all-targets` 入口和完整总索引；三目标的新消费者均使用安装后的工具链和系统库编译，运行原生 C、SVG／Lucide 像素、系统字体、临时可变字体、命名实例／轴、排版和通知准备入口。
+
+Windows 初次完整文档检查超过了外部验收脚本的 1200 秒超时；各目标完成后复用原缓存，正式安装入口通过，无需修改产品脚本。SSH 非交互会话中的通知 DPI 初始化返回错误码 5，入口前移后仍复现；相同可执行文件在登录桌面通过，最终三个消费者均在 Session 1 验收，没有为非交互会话放宽窗口 DPI 合同。
+
+成品还包括 macOS `.app`、Linux Debian 包，以及 Windows 综合示例的 NSIS／MSI。保留的缺测边界为 Windows 10、macOS Dock 本身的视觉效果、Windows Jump List 的人工点击和 Explorer 的实际重启；这些不计入已验证结果。原始日志与成品留在各宿主的独立工作目录，不提交到仓库。
