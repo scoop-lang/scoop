@@ -11,7 +11,7 @@ import scoop.window.asyncio.*
 @Test
 private class FrameDemandTest {
     @Test
-    fun `asyncio resumes DXGI demand after repeated discarded frames`() {
+    fun `asyncio resumes frame demand after repeated discarded frames`() {
         val probe = FrameDemandProbe()
         val host =
             SurfaceHost { owner, application, event -> probe.event(owner, application, event) }
@@ -46,7 +46,7 @@ private class FrameDemandProbe: SurfaceContent {
                 val native =
                     application.createWindow(
                         windowAttributes {
-                            title = "Scoop DXGI frame demand"
+                            title = "Scoop frame demand"
                             size = LogicalSize(240.0, 160.0)
                             frame = WindowFrame.Client
                             requestActivation = false
@@ -68,7 +68,7 @@ private class FrameDemandProbe: SurfaceContent {
                 surface = Some(host.attach(native, this))
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"DXGI frame demand stalled after ${discarded} discarded frames")
+                Some(f"frame demand stalled after ${discarded} discarded frames")
             )
             else -> {}
         }

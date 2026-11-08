@@ -7,7 +7,7 @@
 | G1 Skia SVG 与独立图形库 | 已实现，三平台验证通过 | macOS 双架构各 14 项含真实 Metal；Linux x86_64／Windows MSVC UCRT：各 13 项；19 项脚本测试 |
 | G2 Lucide、SvgView／Icon | 已实现，图形资源三平台验证通过 | 三平台的 31 个图标；macOS 的 4 项组件与实窗测试；既有退出错误留 G4 修复 |
 | G3 字体目录、字面与变体 | 已实现，三平台验证通过 | macOS 双架构、Linux x86_64、Windows MSVC UCRT 各 10 项字体测试 |
-| G4 字体更新与选择示例 | 已实现，本机验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合 |
+| G4 字体更新与选择示例 | 已实现，macOS／Linux 验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合；Windows 实窗待完成 |
 | G5 Windows 圆形窗口 | 待实施 | 先检查默认 demo 路径及真实原生区域 |
 | G6 Taskbar／Dock | 待实施 | 各平台已有原生能力及应用标识 |
 | G7 桌面通知 | 待实施 | 提交／动作、部署注册、生命周期 |
@@ -50,3 +50,5 @@ FontWatch 对实际使用者订阅 FontCollection，通过既有失效和帧请�
 macOS aarch64 release 的 mount-fonts、font-wakeup、frame-reuse 三个独立窗口 Cone 通过。font-wakeup 通过真实 NSTextInputClient 发送 preedit，验证字体变化前后的组合范围、选区、文本与修订不变；同时验证静止唤醒、未使用集合的窗口不重排、隐藏恢复和卸载取消。该原生 preedit 场景目前限定 macOS，跨平台默认字体／挂载用例已开启 Windows 与 Linux。frame-reuse 的输入路由退出错误已通过关闭区域后停止菜单命令更新修复，稳定布局与完整退出一起通过。
 
 完整 native-desktop smoke 通过，包括双窗口、菜单、窗框、异形／工具窗口、模态、文件面板取消、无窗口运行和再次打开。Scoop 格式化／编译通过，UI 及依赖预编译库已更新；Linux／Windows 实窗随该批次提交后集中验证。
+
+Linux 的 mount-fonts 与 frame-demand 在 nuc12 解锁后的真实 GNOME Wayland 桌面通过；同一原实现也通过独立 Weston GLES 合成器和 Xvfb X11 的窗口验证。frame-demand 复用既有连续丢弃／隐藏恢复用例并开启 Linux GNU。首次运行时 GNOME 锁屏停止了 frame-clock 交付，造成测试等待帧超时；解锁后无需修改 renderer 即完成。本批未保留诊断日志代码或试探性的 GTK 调度改动。Xvfb 使用软件图形，不将其记为硬件桌面视觉验证。
