@@ -114,7 +114,7 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 
 Linux GNU 的 native 与系统库默认使用本次准备或通过 `--llvm-prefix` 选择的 LLVM Clang；GUI 的 native 警告选项要求 Clang。`--gnu-cc` 仍可显式覆盖编译器。musl 使用自己的 `--musl-cc`，不会复用 GNU Clang 配置。
 
-已显式准备的系统资源可通过 `--prepared-sysroot <目录>` 直接组装，跳过 native 后端与 runtime 的重复构建；宿主命令、示例与归档仍走同一流程。该目录应包含本宿主交付的各目标 native／runtime 资源、源码、vendor 和头文件，并包含各目标已经构建的系统 `.slib`；这些 `.slib` 按 GUI 划分打进对应 target 的 `lib-base-<target>`／`lib-gui-<target>` 组件包。缺失文件按普通 I/O 报错，不加入生产过程复核。
+已显式准备的系统资源可通过 `--prepared-sysroot <目录>` 直接组装，跳过 native 后端与 runtime 的重复构建；宿主命令、示例与归档仍走同一流程。该目录应包含本宿主交付的各目标 native／runtime 资源、源码、vendor 和头文件，并包含各目标已经构建的系统 `.slib`；这些 `.slib` 按 GUI 划分打进对应 target 的 `lib-base-<target>`／`lib-gui-<target>` 组件包。还需保留维护准备产生的目标许可材料，例如 `lib/<target>/rust-std/`。已安装发行包将这些许可收集到 `share/licenses/`，从安装目录复用资源时需补齐维护输入布局。缺失文件按普通 I/O 报错，不加入生产过程复核。
 
 Windows 在 x64 MSVC／Windows SDK 开发环境中运行，提供 `--mingw-msvcrt <prefix>` 与 `--mingw-ucrt <prefix>`，二者使用 `release.toml` 固定的 LLVM-MinGW 版本。UCRT prefix 同时用于 GNU-LLVM Rust 宿主和可选的宿主 LLVM 构建；Scoop 应用默认目标仍为 MSVC UCRT。默认完整准备还需要 `--windows-perl` 选择原生 Windows Perl，`--msys-perl`、`--msys-make`、`--msys-shell` 选择 MinGW OpenSSL 的完整 MSYS Perl、GNU Make 和 shell，以及 PATH 上的 NASM、NMake、CMake、Ninja、Cargo 和 npm。使用 `--prepared-sysroot` 时不调用这些 native 构建工具。
 

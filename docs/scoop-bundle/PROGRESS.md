@@ -46,3 +46,16 @@
 - macOS 27.2 上通过 LaunchServices 启动真实 Scoop `.app`，完成窗口创建、资源读取、两秒事件循环和正常退出，并通过 `codesign --verify --deep --strict`。
 - 当前桌面将测试窗口报告为可见但遮挡，绘制事件可能延后。示例改为窗口创建成功后打印资源，避免把正常遮挡误判为打包失败；显式请求焦点与重绘，仍保留真实窗口和事件循环。
 - 两种 Darwin 架构及 Linux GNU/musl 系统库已完成发行准备。musl 使用维护文档约定的独立 UAPI 头目录和编译器包装脚本，成功构建 liburing；没有把 glibc 头加入 musl 搜索路径。
+
+## 2026-11-08：完整工具链发行与包内验收
+
+- 发行版本为 `0.0.0-bundle.20261108`，实现基线为 `ca56c85d40f51f05fbf6377e91e95ffde45d0dae`。使用 `scripts/package_toolchain.py` 和本轮重新准备的目标系统库组装；匹配的 LLVM/LLDB SDK、Python 与既有构建缓存按维护入口复用。
+- macOS 生成 8 个组件归档，覆盖 arm64 宿主工具及 arm64/x86_64 目标库。合并安装到带空格的独立目录后，五个主命令版本、bundle/example 分发、随包 LLDB/Python 与 formatter 检查通过。
+- macOS 包内工具完成 arm64 资源/窗口应用的构建和 app 打包；资源读取、LaunchServices 启动、签名验证与不变输入复用通过。x86_64 资源应用另外完成交叉构建、签名及 Rosetta 运行。
+- Linux 生成 7 个组件归档，覆盖 x86_64 GNU 宿主/目标及 musl 基础库。独立安装后的五个主命令、bundle/example、随包 LLDB/Python 与 formatter 检查通过。
+- Linux 包内工具为资源/窗口示例各生成 deb、rpm、AppImage，并完成安装、实际运行、资源读取、卸载和复用；musl 资源应用另完成 AppImage 构建与普通 FUSE 启动。运行时清除开发工具链的动态库环境变量，GUI 与安装数据库范围沿用上述 Linux 验收条件。
+- Windows 复用安装资源时漏带了维护布局下的 `rust-std` 许可目录，首次目标库组装按普通 I/O 失败。已从匹配的 Rust 1.99.1 补齐三个目标的许可，并在维护说明中明确安装布局与准备布局的区别；后续沿用原组装函数，保留本轮已经成功的主工具、LLVM 与源码归档。
+- Windows 生成 10 个组件归档，覆盖 MSVC UCRT、MinGW MSVCRT、MinGW UCRT 三种目标。九个运行组件合并安装到带空格的独立目录后，五个主命令版本、bundle/example 分发、随包 LLDB/Python 3.14.9 与 formatter 检查通过；运行使用安装目录和系统目录组成的 PATH。
+- Windows 包内工具为 MSVC 资源示例生成 NSIS/MSI，并为两个 MinGW 目标各生成 NSIS；三种目标都完成实际安装、从其他 cwd 读取资源、卸载和不变输入复用。
+- Windows 包内工具生成的 MSVC 窗口示例在交互桌面完成 NSIS/MSI 安装、窗口创建、资源读取、正常退出、卸载和复用。临时桌面任务已删除，测试安装均已卸载。
+- 三宿主共生成 25 个完整工具链组件归档；包内工具另外生成并运行 macOS 3 个 app、Linux 7 个应用包、Windows 6 个安装器。最终产物、日志和必要构建缓存保留在各宿主仓库外的工作目录；临时恢复脚本和已结束的验证工程已清理。本轮 Windows 安装器未签名，真实证书专项限制见上述 Windows 记录。

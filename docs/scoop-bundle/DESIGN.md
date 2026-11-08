@@ -1,10 +1,10 @@
 # `scoop-bundle` 应用打包设计
 
-状态：实施中；阶段与验证记录见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-08。
+状态：首期六种格式已实现；阶段、验证范围与限制见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-08。
 
 用户决定：通过外部子命令为 Scoop 可执行程序生成应用包和安装包；各种格式都能附加文件、目录和资源，macOS 支持附加 framework 及 codesign。首期交付 `.app`、deb、rpm、AppImage、NSIS、MSI；**Flatpak 和 MSIX 放到后续阶段，不作为首期完成条件。**
 
-依据：[语言规范 §12.2](../specs/SCOOP-SPEC.md#122-cone-identity与conetoml)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范 §2.7～2.8](../specs/SCOOP-IMPL-SPEC.md#27-scoop-与-single-cone-scoopc)、[包管理规范](../specs/SCOOP-PACKAGE-SPEC.md)与[路线图](../ROADMAP.md)。本文中的新命令参数、配置和接口均为待实施设计；实施前按第 11 节同步对应权威规范，不能将本文示例当成现有 CLI 已支持的配置。
+依据：[语言规范 §12.2](../specs/SCOOP-SPEC.md#122-cone-identity与conetoml)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范 §2.7～2.8](../specs/SCOOP-IMPL-SPEC.md#27-scoop-与-single-cone-scoopc)、[包管理规范](../specs/SCOOP-PACKAGE-SPEC.md)与[路线图](../ROADMAP.md)。首期 CLI、配置和接口已实现，并按第 11 节同步对应权威规范；实际工具版本、运行环境与专项验证限制以实施记录为准。
 
 ## 1. 首期目标与职责
 
