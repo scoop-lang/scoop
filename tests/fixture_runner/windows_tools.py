@@ -56,6 +56,7 @@ def companions(target, args, sysroot, needed, scoop):
         ]
         if split:
             resources = Path("lib/clang/22")
+            result["cc_link_args"] = ["-fuse-ld=lld", "-rtlib=compiler-rt", "-unwindlib=none"]
             result["cc_args"] += ["-resource-dir=" + str(root / resources), "-nostdinc"]
             for include in (
                 root / "include",

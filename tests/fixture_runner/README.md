@@ -23,6 +23,7 @@ Windows 安装包的主驱动为 `sco.exe`，验证安装包时传 `--scoop <安
 `--linker` 选择最终 executable linker（例如 Microsoft `link.exe`），仅加入 `${link_args}`。
 Windows native companion 使用 Clang 的 GNU 风格命令行，`${cc_args}` 提供实际 machine triple 和目标资源，
 安装包验收从配套 Scoop 的宿主 `libexec/llvm` 选择 Clang／archiver；MinGW companion 使用所选 sysroot 的目标配置与 compiler-rt，以及宿主共享头。显式 MinGW 开发前缀仍使用其中的完整工具链。Microsoft 使用宿主 Clang 并由 SDK／Build Tools 或 `msvc.toml` 取得开发环境。
+MinGW companion 的 `${cc_link_args}` 在链接时选择配套 LLD 和 compiler-rt；这些参数不传给只生成对象的步骤。
 Microsoft companion 使用动态 CRT；GNU driver 的额外静态 CRT 默认参数被省略，链接沿用对象中的正常默认库指令。
 `--ar` 可覆盖 companion archiver；只为当前适用且实际使用 native 工具的用例准备这些参数。
 共有 fixture 使用 `{each = "${compile_args}"}` 给 `scoopc build` 传目标参数，
