@@ -1,0 +1,116 @@
+package scoop.graphics.text
+
+import scoop.compiler.includeBytes
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class FontVariantTest {
+    @Test
+    fun `named instances expose complete coordinates and select the rendered font`() {
+        FontCatalog.fromData(includeBytes("data/NotoSansCJK-VF-subset.otf.ttc")).use {
+            catalog -> catalog.openFace(catalog.faces(catalog.families()[0L].id)[0L].id).use {
+                face ->
+                assertEquals(1L, face.axes.size)
+                val axis = face.axes[0L]
+                assertEquals("wght", axis.tag)
+                assertEquals(100.0, axis.minimum)
+                assertEquals(100.0, axis.defaultValue)
+                assertEquals(900.0, axis.maximum)
+                assertFalse(axis.hidden)
+                assertEquals(7L, face.namedInstances.size)
+                val bold = face.namedInstances[5L]
+                assertEquals(Some("Bold"), bold.name)
+                assertEquals(FontVariation("wght", 700.0), bold.coordinates[0L])
+                face.withVariations(bold.coordinates).use {
+                    chosen ->
+                    assertEquals(FontVariation("wght", 700.0), chosen.coordinates[0L])
+                    assertEquals(face.info.id, chosen.info.id)
+                    assertEquals(100.0, face.coordinates[0L].value)
+                    assertTrue(fontFaceInk(chosen) > fontFaceInk(face))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `partial variation changes preserve existing axes and reject invalid coordinates`() {
+        FontCatalog.fromData(includeBytes("data/Variable.ttf")).use {
+            catalog -> catalog.openFace(catalog.faces(catalog.families()[0L].id)[0L].id).use {
+                face ->
+                assertEquals(2L, face.axes.size)
+                assertEquals("wght", face.axes[0L].tag)
+                assertTrue(face.axes[0L].hidden)
+                assertEquals("wdth", face.axes[1L].tag)
+                assertFalse(face.axes[1L].hidden)
+                face.withVariations(
+                    [FontVariation("wght", 500.0), FontVariation("wdth", 75.0)]
+                ).use {
+                    first -> first.withVariations([FontVariation("wdth", 150.0)]).use {
+                        next ->
+                        assertEquals(500.0, next.coordinates[0L].value)
+                        assertEquals(150.0, next.coordinates[1L].value)
+                        assertEquals(75.0, first.coordinates[1L].value)
+                        first.close()
+                        next.withVariations([]).use {
+                            copy ->
+                            assertEquals(500.0, copy.coordinates[0L].value)
+                            assertEquals(150.0, copy.coordinates[1L].value)
+                        }
+                    }
+                }
+                assertEquals(400.0, face.coordinates[0L].value)
+                assertEquals(100.0, face.coordinates[1L].value)
+                for (bad in [99.0, 901.0, Double.NaN, Double.POSITIVE_INFINITY])
+                    assertFailsWith<IllegalArgumentException> {
+                        face.withVariations([FontVariation("wght", bad)])
+                    }
+                assertFailsWith<IllegalArgumentException> {
+                    face.withVariations([FontVariation("oops", 0.0)])
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    face.withVariations(
+                        [FontVariation("wght", 500.0), FontVariation("wght", 600.0)]
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun fontFaceInk(face: FontFace): Long {
+    val info = face.info
+    val style =
+        textStyle {
+            families = ["Chosen"]
+            weight = info.weight
+            width = info.width
+            slant = info.slant
+            fontSize = 40.0
+        }
+    val pixels =
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(face, "Chosen")
+            Paragraph(fonts, "是", style).use {
+                paragraph -> paragraph.layoutUnwrapped().use {
+                    layout ->
+                    assertEquals(0, layout.unresolvedGlyphCount)
+                    RasterSurface(96, 80).use {
+                        surface ->
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.drawText(layout, Point(8.0, 8.0))
+                        }
+                        surface.readPixels()
+                    }
+                }
+            }
+        }
+    var count = 0L
+    for (index in 0L ..< pixels.size / 4L)
+        if (pixels[index * 4L + 3L].toUByte().toInt() > 127)
+            count += 1L
+    return count
+}

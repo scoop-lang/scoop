@@ -6,6 +6,7 @@ import scoop.graphics.*
 public class FontCollection public constructor(systemFallback: Boolean = true): Closeable {
     internal val resource = makeFonts(systemFallback)
     private var currentRevision = 0L
+    private val observers = ArrayList<FontObserver>()
     public val isClosed: Boolean get() = resource.isClosed
     public val revision: Long get() = currentRevision
 
@@ -35,10 +36,108 @@ public class FontCollection public constructor(systemFallback: Boolean = true): 
                 }
             }
         }
-        currentRevision += 1L
+        changed()
     }
+
+    public fun systemFonts(): FontCatalog {
+        val pointer = resource.get()
+        @Unsafe
+        {
+            return FontCatalog(ownedText(fontsCatalog(pointer), "enumerate system fonts"))
+        }
+    }
+
+    public fun register(face: FontFace, family: String) {
+        updateFaces(family, [face], false)
+    }
+
+    /** Atomically replaces all explicitly registered faces under one alias. */
+    public fun replaceFamily(family: String, faces: Array<FontFace>) {
+        updateFaces(family, faces, true)
+    }
+
+    private fun updateFaces(family: String, faces: Array<FontFace>, replace: Boolean) {
+        val pointer = resource.get()
+        requireText(
+            family.byteLength > 0L && faces.size > 0L,
+            "font family and faces must not be empty"
+        )
+        val handles = Array<Ptr<Unit>>(faces.size) { index -> faces[index].resource.get() }
+        @Unsafe
+        {
+            handles.withDataPointer {
+                values,
+                count -> @Unsafe
+                {
+                    family.withUtf8Bytes {
+                        alias,
+                        length -> @Unsafe
+                        {
+                            textResult(
+                                fontsFaces(pointer, values, count, alias, length, replace),
+                                "register font faces"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        changed()
+    }
+
+    public fun observeChanges(onChanged: (Long) -> Unit): Closeable {
+        resource.get()
+        val observer = FontObserver(this, onChanged)
+        observers.add(observer)
+        return observer
+    }
+
+    internal fun remove(observer: FontObserver) {
+        resource.checkThread()
+        if (!observer.active)
+            return
+        observer.active = false
+        for (index in 0L ..< observers.size)
+            if (observers[index] === observer) {
+                observers.removeAt(index)
+                return
+            }
+    }
+
+    private fun changed() {
+        currentRevision += 1L
+        val revision = currentRevision
+        var failure: Throwable? = None
+        for (observer in observers.toArray())
+            if (observer.active) {
+                try {
+                    observer.onChanged(revision)
+                } catch (error: Throwable) {
+                    when (failure) {
+                        case None -> failure = Some(error)
+                        case Some(_) -> {}
+                    }
+                }
+            }
+        when (failure) {
+            case Some(error) -> throw error
+            case None -> {}
+        }
+    }
+
     public override fun close() {
+        resource.checkThread()
+        for (observer in observers)
+            observer.active = false
+        observers.clear()
         resource.close()
+    }
+}
+
+internal class FontObserver(val owner: FontCollection, val onChanged: (Long) -> Unit): Closeable {
+    var active = true
+    public override fun close() {
+        owner.remove(this)
     }
 }
 
@@ -60,4 +159,17 @@ private fun fontsAdd(
     alias: Ptr<UInt8>,
     aliasLength: Long,
     index: Int
+): Int
+
+@Extern(name = "scoop_graphics_text_catalog_system")
+private fun fontsCatalog(fonts: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_text_fonts_faces")
+private fun fontsFaces(
+    fonts: Ptr<Unit>,
+    faces: Ptr<Ptr<Unit>>,
+    count: Long,
+    alias: Ptr<UInt8>,
+    length: Long,
+    replace: Boolean
 ): Int

@@ -1,0 +1,99 @@
+package scoop.graphics.text
+
+import scoop.compiler.includeBytes
+import scoop.test.*
+
+@Test
+private class FontCollectionChangeTest {
+    @Test
+    fun `family replacement retains old paragraphs and only publishes successful changes`() {
+        FontCatalog.fromData(includeBytes("data/NotoSansCJK-VF-subset.otf.ttc")).use {
+            cjk -> FontCatalog.fromData(includeBytes("data/Roboto-Regular.ttf")).use {
+                latin -> cjk.openFace(cjk.faces(cjk.families()[0L].id)[0L].id).use {
+                    first -> latin.openFace(latin.faces(latin.families()[0L].id)[0L].id).use {
+                        next -> FontCollection(false).use {
+                            fonts ->
+                            val revisions = ArrayList<Long>()
+                            val observer = fonts.observeChanges { value -> revisions.add(value) }
+                            assertEquals(0L, revisions.size)
+                            fonts.register(first, "Preview")
+                            first.close()
+                            val style = textStyle { families = ["Preview"] }
+                            Paragraph(fonts, "是", style).use {
+                                old ->
+                                fonts.replaceFamily("Preview", [next])
+                                old.layoutUnwrapped().use {
+                                    layout -> assertEquals(0, layout.unresolvedGlyphCount)
+                                }
+                                Paragraph(fonts, "是", style).use {
+                                    fresh -> fresh.layoutUnwrapped().use {
+                                        layout -> assertTrue(layout.unresolvedGlyphCount > 0)
+                                    }
+                                }
+                                assertFailsWith<IllegalArgumentException> {
+                                    fonts.replaceFamily("Preview", [])
+                                }
+                                assertFailsWith<IllegalStateException> {
+                                    fonts.replaceFamily("Preview", [next, first])
+                                }
+                                assertFailsWith<IllegalArgumentException> {
+                                    fonts.register(next, "")
+                                }
+                                assertFailsWith<IllegalArgumentException> {
+                                    fonts.register([0, 1], "Bad")
+                                }
+                                assertEquals(2L, fonts.revision)
+                                assertEquals(2L, revisions.size)
+                                assertEquals(1L, revisions[0L])
+                                assertEquals(2L, revisions[1L])
+                                observer.close()
+                                fonts.register(includeBytes("data/Roboto-Regular.ttf"), "Other")
+                                assertEquals(3L, fonts.revision)
+                                assertEquals(2L, revisions.size)
+                                fonts.close()
+                                old.layoutUnwrapped().use {
+                                    layout -> assertEquals(0, layout.unresolvedGlyphCount)
+                                }
+                            }
+                            observer.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `observer failures preserve published fonts and cancellation ends delivery`() {
+        FontCollection(false).use {
+            fonts ->
+            val failure = IllegalStateException(Some("font observer"))
+            val revisions = ArrayList<Long>()
+            val failing = fonts.observeChanges { _ -> throw failure }
+            val later = ArrayList<Closeable>()
+            val cancelling = fonts.observeChanges { _ -> later[0L].close() }
+            later.add(fonts.observeChanges { _ -> fail(Some("cancelled observer ran")) })
+            val healthy = fonts.observeChanges { revision -> revisions.add(revision) }
+            assertSame(
+                failure,
+                assertFailsWith<IllegalStateException> {
+                    fonts.register(includeBytes("data/Roboto-Regular.ttf"), "Installed")
+                }
+            )
+            assertEquals(1L, fonts.revision)
+            assertEquals(1L, revisions.size)
+            Paragraph(fonts, "Hello", textStyle { families = ["Installed"] }).use {
+                paragraph -> paragraph.layoutUnwrapped().use {
+                    layout -> assertEquals(0, layout.unresolvedGlyphCount)
+                }
+            }
+            failing.close()
+            cancelling.close()
+            fonts.register(includeBytes("data/Roboto-Regular.ttf"), "Second")
+            assertEquals(2L, revisions.size)
+            fonts.close()
+            healthy.close()
+            assertFailsWith<IllegalStateException> { fonts.observeChanges { _ -> Unit } }
+        }
+    }
+}

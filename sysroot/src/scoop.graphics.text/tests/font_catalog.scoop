@@ -1,0 +1,136 @@
+package scoop.graphics.text
+
+import scoop.compiler.includeBytes
+import scoop.graphics.GraphicsException
+import scoop.platform.concurrent.Thread
+import scoop.platform.fs.*
+import scoop.test.*
+
+@Test
+private class FontCatalogTest {
+    @Test
+    fun `system catalogs retain their styles independently and reject foreign identities`() {
+        val fonts = FontCollection(false)
+        val catalog = fonts.systemFonts()
+        fonts.close()
+        catalog.use {
+            current ->
+            val families = current.families()
+            assertTrue(families.size > 0L)
+            val available = ArrayList<FontFaceInfo>()
+            for (family in families)
+                if (available.size == 0L)
+                    for (face in current.faces(family.id))
+                        available.add(face)
+            assertTrue(available.size > 0L)
+            val chosen = available[0L]
+            assertEquals(None, chosen.collectionIndex)
+            current.openFace(chosen.id).use {
+                face ->
+                assertEquals(chosen.id, face.info.id)
+                assertEquals(chosen.family, face.info.family)
+                assertEquals(chosen.weight, face.info.weight)
+                assertEquals(chosen.slant, face.info.slant)
+                current.close()
+                assertFalse(face.isClosed)
+                FontCollection(false).use {
+                    destination -> destination.register(face, "Chosen system face")
+                }
+                assertFailsWith<IllegalStateException> { current.openFace(chosen.id) }
+            }
+        }
+        FontCatalog.fromData(includeBytes("data/Roboto-Regular.ttf")).use {
+            a -> FontCatalog.fromData(includeBytes("data/Roboto-Regular.ttf")).use {
+                b ->
+                val family = b.families()[0L]
+                assertFalse(a.families()[0L].id == family.id)
+                assertFailsWith<IllegalArgumentException> { a.faces(family.id) }
+                assertFailsWith<IllegalArgumentException> { a.openFace(b.faces(family.id)[0L].id) }
+            }
+        }
+    }
+
+    @Test
+    fun `font files expose their real collection faces and static fonts have no variants`() {
+        val path = createTempFile(prefix = "scoop-font-catalog-")
+        try {
+            path.writeAllBytes(includeBytes("data/Roboto-Regular.ttf"))
+            FontCatalog.load(path).use {
+                catalog ->
+                assertEquals(1L, catalog.families().size)
+                val faces = catalog.faces(catalog.families()[0L].id)
+                assertEquals(1L, faces.size)
+                assertEquals(Some(0), faces[0L].collectionIndex)
+                assertFalse(faces[0L].isVariable)
+                catalog.openFace(faces[0L].id).use {
+                    face ->
+                    assertEquals(0L, face.axes.size)
+                    assertEquals(0L, face.namedInstances.size)
+                    face.withVariations([]).use {
+                        clone -> assertEquals(0L, clone.coordinates.size)
+                    }
+                }
+            }
+        } finally {
+            path.delete()
+        }
+        FontCatalog.fromData(includeBytes("data/NotoSansCJK-VF-subset.otf.ttc")).use {
+            catalog ->
+            val names =
+                [
+                    "Noto Sans CJK JP",
+                    "Noto Sans CJK KR",
+                    "Noto Sans CJK SC",
+                    "Noto Sans CJK TC",
+                    "Noto Sans CJK HK"
+                ]
+            assertEquals(5L, catalog.families().size)
+            val seen = MutableArray<Boolean>(5L) { _ -> false }
+            var count = 0
+            for (family in catalog.families())
+                for (info in catalog.faces(family.id)) {
+                    val index = info.collectionIndex!!.toLong()
+                    assertTrue(index >= 0L && index < 5L)
+                    assertFalse(seen[index])
+                    assertEquals(names[index], info.family.name)
+                    seen[index] = true
+                    count += 1
+                    catalog.openFace(info.id).use {
+                        face ->
+                        assertEquals(info.family.name, face.info.family.name)
+                        assertEquals(Some(index.toInt()), face.info.collectionIndex)
+                        assertTrue(face.info.isVariable)
+                    }
+                }
+            assertEquals(5, count)
+        }
+        assertFailsWith<GraphicsException> { FontCatalog.fromData([]) }
+        assertFailsWith<GraphicsException> { FontCatalog.fromData([0, 1, 2, 3]) }
+    }
+
+    @Test
+    fun `catalogs and faces enforce ownership while copied metadata survives close`() {
+        FontCollection(false).use {
+            fonts -> FontCatalog.fromData(includeBytes("data/Variable.ttf")).use {
+                catalog -> catalog.openFace(catalog.faces(catalog.families()[0L].id)[0L].id).use {
+                    face ->
+                    Thread.start {
+                        assertFailsWith<IllegalStateException> { fonts.systemFonts() }
+                        assertFailsWith<IllegalStateException> { catalog.families() }
+                        assertFailsWith<IllegalStateException> { catalog.close() }
+                        assertFailsWith<IllegalStateException> { face.withVariations([]) }
+                        assertFailsWith<IllegalStateException> { face.close() }
+                        assertEquals(2L, face.axes.size)
+                    }.use { thread -> thread.join() }
+                    val info = face.info
+                    face.close()
+                    assertTrue(face.isClosed)
+                    assertEquals(info.id, face.info.id)
+                    assertEquals(2L, face.coordinates.size)
+                    assertFailsWith<IllegalStateException> { fonts.register(face, "Closed") }
+                    assertFailsWith<IllegalStateException> { face.withVariations([]) }
+                }
+            }
+        }
+    }
+}

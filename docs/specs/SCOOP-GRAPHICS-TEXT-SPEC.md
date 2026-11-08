@@ -132,6 +132,38 @@ width 是有限非负逻辑宽度；无界请求用 layoutUnwrapped，保留显�
 
 布局结果必须独立。后一次 layout、metrics 改变或关闭 Paragraph，都不能使旧 TextLayout 的文字、行、对象位置和绘制结果发生变化或失效。底层 SkParagraph 可变时，分别保留其实际结果及所需字体资源。
 
+### 4.1 字体目录、字面与可变字体
+
+FontCollection 提供 `systemFonts(): FontCatalog`，显式取得系统字体目录快照；关闭 systemFallback 不影响查询，也不会因查询而启用 fallback。`FontCatalog.fromData(Array<Byte>)` 复制并打开 TTF／OTF／TTC／OTC 数据，`FontCatalog.load(Path)` 复用 `Path.readAllBytes()`。这些入口不安装字体或改变进程外状态。
+
+```text
+FontCatalog.families(): Array<FontFamilyInfo>
+FontCatalog.faces(family: FontFamilyId): Array<FontFaceInfo>
+FontCatalog.openFace(id: FontFaceId): FontFace
+FontFace.info: FontFaceInfo
+FontFace.axes: Array<FontAxis>
+FontFace.namedInstances: Array<FontNamedInstance>
+FontFace.coordinates: Array<FontVariation>
+FontFace.withVariations(values: Array<FontVariation>): FontFace
+FontCollection.register(face: FontFace, family: String)
+FontCollection.replaceFamily(family: String, faces: Array<FontFace>)
+FontCollection.observeChanges(onChanged: (Long) -> Unit): Closeable
+```
+
+FontFamilyId 和 FontFaceId 是不同的不可变标识类型，绑定所属目录；不同目录的 ID 不能混用。它们不作为持久偏好保存。FontFamilyInfo 包含 id、name；FontFaceInfo 包含 id、family、styleName、可用时的 postScriptName、weight／width／slant、isVariable，以及文件来源已知时的 collectionIndex。目录保存实际 style set／字面的原生引用，打开选项不会再按名称近似匹配。系统目录只列系统管理器公开的字体，不承诺隐藏字体；新快照才重新枚举，查询不后台轮询。
+
+FontAxis 包含四字节 tag、可用时的 name、minimum／defaultValue／maximum、hidden。FontNamedInstance 包含可用时的 name／postScriptName 和完整 coordinates。元数据复制为普通不可变值；缺失的名称为 None，成功查询的静态字体具有空 axes／namedInstances。查询失败报告 GraphicsException，不能用空结果掩盖失败。后端复用 SkTypeface 字体表与可变字体接口、固定 HarfBuzz 的集合计数／轴／命名实例／名称接口，不另写 OpenType 解析器。
+
+withVariations 返回独立资源。省略的轴保留来源当前坐标；先传命名实例的完整坐标，再传局部覆盖即可微调。重复 tag、未知轴、非有限值或超出轴范围的值是 IllegalArgumentException，不静默钳制。返回坐标从实际 SkTypeface 查询；字体字面样式值和轴坐标保持不同含义，OS/2 width class 不是 wdth 轴单位。FontFaceInfo.id 标识来源目录字面，同一来源的变体通过 coordinates 区分。
+
+固定 Skia 的 CoreText 数据工厂只接受集合索引 0，而 CoreText 的数据描述符列表会同时展开命名实例，不能用该列表的位置代表 TTC／OTC 字面索引。macOS 对集合中的后续字面使用 HarfBuzz face builder 按实际索引提取字体表，交给同一个 Skia 数据工厂打开；普通文件与集合首字面直接打开。该路径也用于原有 register(data) 接口，不安装字体、不按名称重匹配，也不另写字体解析器。CoreText 对静态字体的可变参数查询可能返回 -1；后端依据实际字体表确认无可变轴，可变字体仍要求轴与当前坐标查询成功。轴的 defaultValue 来自字体元数据，coordinates 来自实际打开的字面，系统字面可能已经选择了不同于默认值的实例。
+
+FontCatalog／FontFace 与集合一样在创建线程使用、关闭，关闭幂等。关闭目录不关闭已经打开的字面；集合登记后独立保留字面，调用者可关闭 FontFace。已复制的元数据在资源关闭后仍可读取。空／坏字体数据、原生读取失败报告 GraphicsException；无效目录 ID、空别名或空替换数组报告参数异常；已关闭资源或错误线程报告状态异常。文件读取失败保留文件系统错误。
+
+register(data, family, collectionIndex) 继续可用；register(face, family) 复用实际字面。replaceFamily 要求非空字面数组，一次替换该别名下全部显式字面，失败不改变登记和 revision。旧 Paragraph／TextLayout 保持原快照；新排版使用新集合。选中的实际字面经应用别名送入 SkParagraph，并同步其 weight／width／slant，避免样式不匹配导致合成粗体或倾斜；不依赖当前 shaping 路径未消费的 TextStyle.setTypeface。
+
+成功登记或替换只增加一次 revision，并在 owner 线程同步通知当时仍有效的订阅者；普通查询、withVariations、失败变更不通知。订阅不发送初始事件，关闭订阅停止后续通知，关闭集合结束全部订阅。通知时允许关闭订阅；观察者异常不回滚已发布字体，其他有效观察者仍收到通知，随后传播首个异常。UI 依赖订阅接入见 GUI 扩展设计，不在本库引入 UI 状态或窗口对象。
+
 ## 5. TextLayout 与行内对象结果
 
 TextLayout 是拥有排版资源的 Closeable class。它保存内容快照、尺寸、首行 alphabetic／ideographic baseline、intrinsic 宽度、行信息、截断信息、grapheme 边界、未解析 glyph 数量，以及供绘制／命中／caret／selection 使用的同一份结果。几何都在段落局部逻辑坐标中。

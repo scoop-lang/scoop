@@ -8,6 +8,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tomllib
 from pathlib import Path
@@ -78,6 +79,39 @@ HEADERS = (
     "src/core/SkTLazy.h",
     "modules/skcms/skcms.h",
     "modules/skcms/src/skcms_public.h",
+    *(
+        f"third_party/externals/harfbuzz/src/{name}"
+        for name in (
+            "hb-blob.h",
+            "hb-buffer.h",
+            "hb-common.h",
+            "hb-deprecated.h",
+            "hb-draw.h",
+            "hb-face.h",
+            "hb-font.h",
+            "hb-map.h",
+            "hb-ot-color.h",
+            "hb-ot-deprecated.h",
+            "hb-ot-font.h",
+            "hb-ot-layout.h",
+            "hb-ot-math.h",
+            "hb-ot-meta.h",
+            "hb-ot-metrics.h",
+            "hb-ot-name.h",
+            "hb-ot-shape.h",
+            "hb-ot-var.h",
+            "hb-ot.h",
+            "hb-paint.h",
+            "hb-script-list.h",
+            "hb-set.h",
+            "hb-shape-plan.h",
+            "hb-shape.h",
+            "hb-style.h",
+            "hb-unicode.h",
+            "hb-version.h",
+            "hb.h",
+        )
+    ),
     *(
         f"modules/{name}/include"
         for name in ("skparagraph", "skshaper", "skunicode", "svg", "skresources")
@@ -163,6 +197,7 @@ def prepare(args):
         "configuration": target_configuration,
         "prefix": str(args.prefix),
         "gn": args.gn,
+        "python": sys.executable,
         "cc": args.cc,
         "cxx": args.cxx,
         "sdk": args.sdk,
@@ -228,7 +263,11 @@ def prepare(args):
     (objects / "args.gn").write_text(
         "".join(f"{name} = {json.dumps(value)}\n" for name, value in options.items())
     )
-    subprocess.run([gn, "gen", str(objects)], cwd=source, check=True)
+    subprocess.run(
+        [gn, "gen", str(objects), f"--script-executable={sys.executable}"],
+        cwd=source,
+        check=True,
+    )
     subprocess.run([ninja, "-C", str(objects), "-j", str(args.jobs), *GN_TARGETS], check=True)
     staged = args.build_dir / LIBRARY
     if windows:
