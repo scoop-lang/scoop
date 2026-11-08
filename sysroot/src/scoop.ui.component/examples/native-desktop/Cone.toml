@@ -48,3 +48,7 @@ when = { os = ["darwin", "windows"] }
 [[test.sources]]
 path = "tests"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }

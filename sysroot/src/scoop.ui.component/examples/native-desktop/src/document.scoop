@@ -21,7 +21,7 @@ internal class DocumentView(
     val readOnly = state(false)
     val topmost = state(false)
     val shadow = state(true)
-    val matchShape = state(false)
+    val matchShape = state(true)
     val ignoreShapeMouse = state(false)
     val nativeStyle = state(false)
     val title = TextEditorState(f"Document ${document.number}")
@@ -96,6 +96,7 @@ internal class DocumentView(
                     size = LogicalSize(390.0, 390.0)
                     frame = WindowFrame.Client;
                     transparent = true;
+                    resizable = false;
                     requestActivation = !demo.smoke
                 },
             appearance = NativeToolAppearance.Normal

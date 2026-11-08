@@ -8,7 +8,7 @@
 | G2 Lucide、SvgView／Icon | 已实现，图形资源三平台验证通过 | 三平台的 31 个图标；macOS 的 4 项组件与实窗测试；既有退出错误留 G4 修复 |
 | G3 字体目录、字面与变体 | 已实现，三平台验证通过 | macOS 双架构、Linux x86_64、Windows MSVC UCRT 各 10 项字体测试 |
 | G4 字体更新与选择示例 | 已实现，macOS／Linux 验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合；Windows 实窗待完成 |
-| G5 Windows 圆形窗口 | 待实施 | 先检查默认 demo 路径及真实原生区域 |
+| G5 Windows 圆形窗口 | 已修复，Windows 11 MSVC UCRT 实窗通过 | 默认 demo 路径、HWND style／region、resize、最小化恢复及既有窗框／输入回归 |
 | G6 Taskbar／Dock | 待实施 | 各平台已有原生能力及应用标识 |
 | G7 桌面通知 | 待实施 | 提交／动作、部署注册、生命周期 |
 | G8 集成与发行 | 待实施 | UI 适配、综合示例、各平台完整安装包 |
@@ -52,3 +52,11 @@ macOS aarch64 release 的 mount-fonts、font-wakeup、frame-reuse 三个独立�
 完整 native-desktop smoke 通过，包括双窗口、菜单、窗框、异形／工具窗口、模态、文件面板取消、无窗口运行和再次打开。Scoop 格式化／编译通过，UI 及依赖预编译库已更新；Linux／Windows 实窗随该批次提交后集中验证。
 
 Linux 的 mount-fonts 与 frame-demand 在 nuc12 解锁后的真实 GNOME Wayland 桌面通过；同一原实现也通过独立 Weston GLES 合成器和 Xvfb X11 的窗口验证。frame-demand 复用既有连续丢弃／隐藏恢复用例并开启 Linux GNU。首次运行时 GNOME 锁屏停止了 frame-clock 交付，造成测试等待帧超时；解锁后无需修改 renderer 即完成。本批未保留诊断日志代码或试探性的 GTK 调度改动。Xvfb 使用软件图形，不将其记为硬件桌面视觉验证。
+
+Windows 11 登录桌面 Session 1 的 mount-fonts 已通过。选择器组合测试发现 TTC 后续字面的命名实例坐标不正确，正在单独修复和补充图形字体组合覆盖；不将该选择器测试记为通过。
+
+## G5：Windows 圆形示例
+
+默认窗口现在启用实际 window／input shape，并将没有提供边缘缩放操作的圆形示例设为不可缩放；保留仅视觉裁剪的显式对照选项。smoke 不再提前改动形状选择，和普通打开路径使用同一默认值。本批只调整 demo，没有删除普通 Client 窗口的缩放能力或改写 DirectComposition。
+
+Windows 11 的真实登录桌面 Session 1 上，MSVC UCRT 的独立测试通过：实际调用 DocumentView.showShape，检查 HWND 不含 WS_CAPTION／WS_THICKFRAME；原生区域的中心、边中点在内，四角在外；390×390 初始窗口、480×480 调整、最小化／恢复后均正确，关闭完成 Destroyed。既有 frame 测试同时通过窗框模式切换、区域、DWM 属性和系统按钮／输入退役。macOS 完整 smoke 通过。Windows 10 桌面不可用；两套 MinGW 的整体验证在发行收尾执行，不以本次 MSVC 结果代替。

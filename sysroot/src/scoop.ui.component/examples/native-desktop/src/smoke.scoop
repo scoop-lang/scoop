@@ -58,8 +58,6 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     root.showTool()
     requireDemo(root.tool.isOpen, "owned tool did not open")
     requireDemo(root.tool.window!!.ownerWindow?.id == Some(first.window.id), "wrong tool owner")
-    root.matchShape.value =
-        demo.capabilities!!.frame.windowRegion || demo.capabilities!!.frame.inputRegion
     root.showShape()
     requireDemo(root.shape.isOpen, "shaped window did not open")
     root.showDialog()
