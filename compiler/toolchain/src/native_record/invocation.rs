@@ -33,6 +33,7 @@ enum PlatformRecord {
         libraries: Vec<HostPathCarrier>,
         search_path: HostPathCarrier,
         system_root: Option<HostPathCarrier>,
+        bundled_mingw: Option<crate::windows_c::BundledMinGw>,
         version: [u32; 3],
         configuration: [u8; 32],
     },
@@ -74,6 +75,7 @@ impl InvocationRecord {
                         .map(|p| path(Path::new(p)))
                         .transpose()?,
                     version: compiler.version(),
+                    bundled_mingw: environment.bundled_mingw.clone(),
                     configuration: *compiler.inputs().as_array(),
                 }
             }
@@ -141,12 +143,14 @@ impl InvocationRecord {
                 libraries,
                 search_path,
                 system_root,
+                bundled_mingw,
                 version,
                 configuration,
             } => {
                 let decode = |path: HostPathCarrier| path.to_path_buf().map_err(error);
                 let environment = crate::windows_c::WindowsCEnvironment {
                     machine: crate::windows_machine::WindowsToolchainMachine::select(target)?,
+                    bundled_mingw,
                     native_sysroot: native_sysroot.map(decode).transpose()?,
                     includes: includes.into_iter().map(decode).collect::<Result<_, _>>()?,
                     libraries: libraries

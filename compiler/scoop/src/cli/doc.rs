@@ -75,7 +75,12 @@ pub(super) fn execute(
     }
     let triple = target(args.target)?;
     let selection = scoop_toolchain::select_target(&triple).map_err(config)?;
+    let sysroot = absolute(
+        &cwd,
+        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
+    )?;
     let target = scoop_toolchain::CToolchainOptions {
+        sysroot: Some(sysroot.clone()),
         compiler: args.cc,
         cxx_compiler: args.cxx,
         native_sysroot: args
@@ -89,10 +94,6 @@ pub(super) fn execute(
         Some(path) => absolute(&cwd, path)?,
         None => scoop_toolchain::installed_host_tool("scoopc").map_err(config)?,
     };
-    let sysroot = absolute(
-        &cwd,
-        scoop_toolchain::configured_sysroot_root(sysroot).map_err(config)?,
-    )?;
     let search = paths(&cwd, args.cone_path)?;
     let roots = if args.roots.is_empty() {
         vec![None]

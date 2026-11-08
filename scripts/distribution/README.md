@@ -43,7 +43,7 @@ post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只�
 
 Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 bin 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI（`lib-gui-x86_64-unknown-linux-gnu` 包）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
 
-Windows x64 发行的最低版本以 `toolchain.toml` 为准：bin 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib-base／lib-gui 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标另含对应 LLVM-MinGW CRT 的 x86-64 开发资源。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标解压对应 lib 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
+Windows x64 发行的最低版本以 `toolchain.toml` 为准：bin 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib-base／lib-gui 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标分别另有 native-<target> 包，保存该 CRT 的配置头与机器库；公共 MinGW／libc++ 头随 bin 提供一次。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标同时解压对应的 lib-base 和 native 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
 
 Windows 应用可在 `Cone.toml` 中选择 GUI 子系统并嵌入资源：
 

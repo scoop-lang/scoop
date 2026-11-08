@@ -13,7 +13,15 @@ use crate::native_driver::macro_number;
 use crate::{ToolchainError, ValidatedCBridgeToolchainInvocation};
 
 mod environment;
-pub(crate) use environment::WindowsCEnvironment;
+pub(crate) use environment::{BundledMinGw, WindowsCEnvironment};
+
+pub(crate) fn bundled_llvm_root() -> Result<PathBuf, ToolchainError> {
+    crate::installed_executable()?
+        .parent()
+        .and_then(Path::parent)
+        .map(|root| root.join("libexec/llvm"))
+        .ok_or_else(|| error("cannot locate the installed LLVM tools"))
+}
 
 pub(crate) fn target_triple(target: TargetProfileId) -> Result<&'static str, ToolchainError> {
     scoop_target_data::definition(target)
@@ -42,14 +50,10 @@ pub fn resolve_windows_c_toolchain(
 pub(crate) fn probe_default(
     target: LirTargetProfile,
     native_sysroot: Option<&Path>,
+    sysroot: Option<&Path>,
 ) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
-    let executable = crate::installed_executable()?;
-    let installed = executable
-        .parent()
-        .and_then(Path::parent)
-        .ok_or_else(|| error("cannot locate the installed LLVM tools"))?
-        .join("libexec/llvm/bin")
-        .join(crate::host_executable_name("clang"));
+    let llvm = bundled_llvm_root()?;
+    let installed = llvm.join("bin").join(crate::host_executable_name("clang"));
     let search = std::env::var_os("PATH").unwrap_or_default();
     let bundled = installed.is_file();
     let compiler = if bundled {
@@ -57,19 +61,31 @@ pub(crate) fn probe_default(
     } else {
         crate::paths::find_program(&crate::host_executable_name("clang"), &search)?
     };
-    let default_root = crate::target_library_root(&crate::configured_sysroot_root(None)?, target)
-        .join("toolchain");
-    let usable_default = if native_environment(target.id())?
-        == scoop_target_data::NativeEnvironment::MicrosoftUcrt
-    {
+    let default_root = crate::target_library_root(
+        &crate::configured_sysroot_root(sysroot.map(Path::to_owned))?,
+        target,
+    )
+    .join("toolchain");
+    let microsoft =
+        native_environment(target.id())? == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
+    let usable_default = if microsoft {
         default_root.join("msvc.toml").is_file()
     } else {
         default_root.is_dir()
     };
-    let (invocation, mut inputs) = probe(
+    let split_mingw = bundled && !microsoft && native_sysroot.is_none();
+    if split_mingw && !usable_default {
+        return Err(error(format!(
+            "missing target SDK {}; install native-{}",
+            default_root.display(),
+            target.contract().canonical_triple()
+        )));
+    }
+    let (invocation, mut inputs) = probe_with_resources(
         target,
         &compiler,
         native_sysroot.or_else(|| usable_default.then_some(default_root.as_path())),
+        split_mingw.then_some(llvm.as_path()),
     )?;
     inputs.push(installed);
     if !bundled {
@@ -92,12 +108,22 @@ pub(crate) fn probe(
     compiler: &Path,
     native_sysroot: Option<&Path>,
 ) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
+    probe_with_resources(target, compiler, native_sysroot, None)
+}
+
+fn probe_with_resources(
+    target: LirTargetProfile,
+    compiler: &Path,
+    native_sysroot: Option<&Path>,
+    bundled_llvm: Option<&Path>,
+) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
     let triple = target_triple(target.id())?;
     let search_path = std::env::var_os("PATH").unwrap_or_default();
     let mut tool_inputs = BTreeSet::new();
     crate::native_record::program_candidates(compiler.as_os_str(), &search_path, &mut tool_inputs);
     let compiler = crate::paths::find_program(compiler.as_os_str(), &search_path)?;
-    let (environment, paths) = WindowsCEnvironment::resolve(target, &compiler, native_sysroot)?;
+    let (environment, paths) =
+        WindowsCEnvironment::resolve(target, &compiler, native_sysroot, bundled_llvm)?;
     let machine = environment.machine;
     let mut inputs: BTreeSet<_> = paths.into_iter().collect();
     inputs.extend(tool_inputs);

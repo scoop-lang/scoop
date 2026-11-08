@@ -63,6 +63,15 @@ def stage(root, prefix, host_system):
     return native
 
 
+def stage_unwind_headers(root, source):
+    """Share LLVM's public unwind declarations between target link probes."""
+    destination = root / "libexec/scoop/include/unwind"
+    destination.mkdir(parents=True)
+    for path in (source / "libunwind/include").iterdir():
+        if path.is_file() and path.suffix == ".h":
+            shutil.copy2(path, destination / path.name)
+
+
 def share_windows_aliases(root, public_tools):
     """Share known executable/resource aliases after staging all loader dependencies."""
     llvm = root / "libexec/llvm/bin"

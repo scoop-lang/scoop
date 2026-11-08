@@ -10,6 +10,15 @@ pub(crate) struct WindowsCEnvironment {
     pub(crate) libraries: Vec<PathBuf>,
     pub(crate) search_path: OsString,
     pub(crate) system_root: Option<OsString>,
+    pub(crate) bundled_mingw: Option<BundledMinGw>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct BundledMinGw {
+    #[serde(with = "crate::build_record::values::path")]
+    pub(crate) resource_dir: PathBuf,
+    #[serde(with = "crate::build_record::values::paths")]
+    pub(crate) cxx_includes: Vec<PathBuf>,
 }
 
 impl WindowsCEnvironment {
@@ -17,6 +26,7 @@ impl WindowsCEnvironment {
         target: LirTargetProfile,
         compiler: &Path,
         native_sysroot: Option<&Path>,
+        bundled_llvm: Option<&Path>,
     ) -> Result<(Self, Vec<PathBuf>), ToolchainError> {
         let machine = crate::windows_machine::WindowsToolchainMachine::select(target)?;
         let mut environment = Self {
@@ -29,6 +39,7 @@ impl WindowsCEnvironment {
             libraries: Vec::new(),
             search_path: std::env::var_os("PATH").unwrap_or_default(),
             system_root: std::env::var_os("SystemRoot"),
+            bundled_mingw: None,
         };
         let mut inputs = Vec::new();
         if crate::windows_c::native_environment(target.id())?
@@ -46,6 +57,21 @@ impl WindowsCEnvironment {
                 root.join(machine.llvm_mingw_target_directory()).join("lib"),
                 root.join("lib"),
             ]);
+            if let Some(llvm) = bundled_llvm {
+                let shared = llvm.with_file_name("mingw").join("include");
+                environment.includes = vec![
+                    root.join("include"),
+                    llvm.join("lib/clang/22/include"),
+                    shared.clone(),
+                ];
+                let resources = BundledMinGw {
+                    resource_dir: root.join("lib/clang/22"),
+                    cxx_includes: vec![root.join("include/c++/v1"), shared.join("c++/v1")],
+                };
+                inputs.push(resources.resource_dir.clone());
+                inputs.extend(resources.cxx_includes.iter().cloned());
+                environment.bundled_mingw = Some(resources);
+            }
         } else if let Some(root) = &environment.native_sysroot {
             let config = root.join("msvc.toml");
             let contents = std::fs::read_to_string(&config)
@@ -171,6 +197,27 @@ impl WindowsCEnvironment {
             // Clang joins sysroot children with '/', which is not a separator
             // in Windows verbatim paths returned by canonicalize.
             command.arg("--sysroot").arg(dunce::simplified(root));
+            if let Some(resources) = &self.bundled_mingw {
+                command
+                    .arg("-resource-dir")
+                    .arg(dunce::simplified(&resources.resource_dir));
+                if !preprocessed {
+                    command.arg("-nostdinc");
+                    for include in &self.includes {
+                        command.arg("-isystem").arg(dunce::simplified(include));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn configure_mingw_cxx(&self, command: &mut Command) {
+        command.arg("-stdlib=libc++");
+        if let Some(resources) = &self.bundled_mingw {
+            command.arg("-nostdinc++");
+            for include in &resources.cxx_includes {
+                command.arg("-isystem").arg(dunce::simplified(include));
+            }
         }
     }
 }

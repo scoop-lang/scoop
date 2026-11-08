@@ -68,11 +68,11 @@ python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
   --cc /path/to/llvm/bin/clang --cxx /path/to/llvm/bin/clang++
 ```
 
-`prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和七个链接输入（包括原生输入区域使用的 Cairo）放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU target 组件包含开发资源及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
+`prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和七个链接输入（包括原生输入区域使用的 Cairo）放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU GUI 组件包含链接输入及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
 
 独立的 `scoop.tray` 通过 StatusNotifierItem／DBusMenu 提供 Linux 托盘，额外使用发行版维护的 libdbusmenu-glib 0.4 开发包（Debian／Ubuntu：`libdbusmenu-glib-dev`），不依赖 GTK3。单独执行 `python3 scripts/prepare_tray.py --build-dir ../scoop-work/tray/x86_64-unknown-linux-gnu`；`--development-prefix /path/to/usr` 同样支持解压的开发包。它只准备 `include/tray`、libdbusmenu 链接输入和许可，不改变 `scoop.window` 的依赖。完整打包由 `package_toolchain.py --tray-prefix /path/to/usr` 选择来源。消费托盘的程序运行时需要系统 `libdbusmenu-glib.so.4` 和支持该协议的桌面宿主；未使用托盘的 window／UI 应用无需此额外运行库。注册成功不保证宿主显示了图标，Linux 不提供原生托盘矩形查询。
 
-随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，收集静态库和头文件；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
+随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，发行只收集静态库，头文件留在维护 sysroot；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
 
 `--sysroot` 默认为仓库的 `sysroot`，`--runtime-root` 默认为仓库的 `runtime`；可显式选择 `--cache-dir`、`--scoopc` 和现有 native 工具参数。维护脚本默认将工作目录放在仓库已忽略的 `tmp` 下，避免占用 HOME 所在磁盘；也可显式指定其他磁盘。构建缓存、中间产物和辅助程序的 Rust target 目录保存在工作目录或显式 `CARGO_TARGET_DIR`，不要选择绝对路径 `/tmp`。目标输出为 `sysroot/lib/<triple>`，公开头文件为 `sysroot/include`。
 
@@ -94,7 +94,7 @@ Windows 文本后端使用 `release.toml` 固定的 Rust 1.99.1，先用 `rustup
 
 `build_pcre2.py` 从固定 PCRE2 10.49 源码准备 `libpcre2-8.a` 和 `include/pcre2.h`，启用 Unicode 与 JIT，只构建 8-bit 静态引擎；不构建 POSIX wrapper、工具、上游测试或 benchmark。必须显式指定仓库外 `--build-dir`，目标和 C 编译器参数同上。输入未变化且输出存在时直接复用；PCRE2 和 SLJIT 许可随现有 vendor／发行流程收集。该 C 库独立于 Rust 文本后端。
 
-`build_skia.py` 为两个 Darwin 目标准备 `libscoop_skia.a` 和 `include/skia`，使用固定 Skia 及配套 HarfBuzz、ICU、PNG／JPEG 依赖。需要 GN、Ninja、Xcode 和 Apple Clang；`--gn` 选择已有 GN，`--sdk` 可指定 Xcode SDK 名称，默认 macosx。CPU 与最低部署系统来自发行配置；工作目录和目标资源按其他 native 准备脚本的方式显式选择。当前开发验证使用 Xcode macOS 27.2 SDK、最低部署 27.0.1。源码、选项及必要部署补丁见 [vendor 说明](../sysroot/vendor/skia/README.md)。普通应用只消费预编译 Cone 和资源；完整 Darwin 发行准备同样接受 `package_toolchain.py --gn ...`，并包含所需静态库、头文件及许可。
+`build_skia.py` 为两个 Darwin 目标准备 `libscoop_skia.a` 和 `include/skia`，使用固定 Skia 及配套 HarfBuzz、ICU、PNG／JPEG 依赖。需要 GN、Ninja、Xcode 和 Apple Clang；`--gn` 选择已有 GN，`--sdk` 可指定 Xcode SDK 名称，默认 macosx。CPU 与最低部署系统来自发行配置；工作目录和目标资源按其他 native 准备脚本的方式显式选择。当前开发验证使用 Xcode macOS 27.2 SDK、最低部署 27.0.1。源码、选项及必要部署补丁见 [vendor 说明](../sysroot/vendor/skia/README.md)。普通应用只消费预编译 Cone 和资源；完整 Darwin 发行准备同样接受 `package_toolchain.py --gn ...`，发行包含所需静态库及许可，头文件保留在维护 sysroot。
 
 PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microsoft 环境以 `--cc` 选择 clang-cl 或 cl，并在所选 x64 SDK／MSVC 开发环境运行，使用 `/MD`。两个 MinGW target 分别传入对应 CRT 的 LLVM-MinGW `bin/clang.exe`，不能共用另一 CRT 的 prefix。构建目录可放到其他盘，例如 `--build-dir E:/scoop-work/pcre2-msvc`。PCRE2 的生成头和静态 archive 发布到完整 target 的 sysroot 目录，普通 Cone 不执行准备脚本。Windows 构建与脚本测试使用支持 UTF-8 build file 的 Ninja；可用 `ninja -t wincodepage` 确认。
 
@@ -108,7 +108,7 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 
 ## 单一入口构建发行组件包
 
-发行组件布局和 Windows native 资源拆分见[分发设计](../docs/distribution/DESIGN.md)。宿主 bin 已合并 LLVM／LLDB 运行资源，开发 SDK 仅留在维护 prefix；目标库与 Windows SDK 拆分继续按该设计实施。
+发行组件布局和 Windows native 资源拆分见[分发设计](../docs/distribution/DESIGN.md)。宿主 bin 已合并 LLVM／LLDB 运行资源，开发 SDK 仅留在维护 prefix；目标库只分发链接产物，两个 MinGW SDK 的目标数据由 native 包提供。
 
 开发与发行 sysroot 均准备 `runtime`、`runtime-stress`、`runtime-startup-stats`、`runtime-stress-startup-stats` 四组目标 runtime，每组包含 `index.cbor`。默认构建使用 `runtime`，不编入 GC stress 或启动统计支持；`scoop --enable-gc-stress build/run/test/link` 选择 stress 配置，随后由 `SCOOP_GC_STRESS_MOVE` / `SCOOP_GC_STRESS_MINOR` 决定运行时是否开启。`--enable-startup-stats` 独立选择启动统计配置，编入后每次启动直接向 stderr 输出记录；未传时预处理完全排除计时和报告代码。两个开关可以组合，独立 `scoop-link` 同样支持。普通 fixtures 不传这些开关，相关专测显式选择。旧 schema 6 runtime 索引需要重新准备，`.slib` 和 runtime ABI 不变。
 
@@ -122,7 +122,7 @@ Windows 在 x64 MSVC／Windows SDK 开发环境中运行，提供 `--mingw-msvcr
 
 MinGW OpenSSL 构建将所选 compiler 和 MSYS shell 的目录加入子进程 PATH，compiler 目录优先，使 Make recipe 能找到同一 MSYS 安装中的 `rm`、`mkdir` 等工具；不修改用户全局 PATH。
 
-例如，已有 LLVM 与含系统 `.slib` 的三目标 sysroot 时可运行 `python scripts/package_toolchain.py --llvm-prefix E:/scoop-work/llvm/installed --prepared-sysroot ./sysroot --mingw-msvcrt E:/llvm-mingw-msvcrt --mingw-ucrt E:/llvm-mingw-ucrt --work-dir E:/scoop-work/package --output-dir E:/scoop-work/dist --jobs 3`。Windows 发行产出三个 target 的 `lib-base-<target>` 组件包（各含非 GUI 预编译 `.slib`、native 库、runtime、每目标的 unwind，两个 MinGW 目标另含 x86-64 prefix 的 `toolchain/`）和 `lib-gui-<target>` 组件包（GUI `.slib` 与 Skia），以及 `libexec/llvm/bin` 中带宿主 Clang／LLD／RC 工具和配套 resource headers 的 bin 组件包。Microsoft SDK／MSVC toolset 从使用者的开发环境发现，不复制维护机的 SDK 路径配置。
+例如，已有 LLVM 与含系统 `.slib` 的三目标 sysroot 时可运行 `python scripts/package_toolchain.py --llvm-prefix E:/scoop-work/llvm/installed --prepared-sysroot ./sysroot --mingw-msvcrt E:/llvm-mingw-msvcrt --mingw-ucrt E:/llvm-mingw-ucrt --work-dir E:/scoop-work/package --output-dir E:/scoop-work/dist --jobs 3`。Windows 发行产出三个 target 的 `lib-base-<target>` 组件包（各含非 GUI 预编译 `.slib`、native 库、runtime、每目标的 unwind archive）和 `lib-gui-<target>` 组件包（GUI `.slib` 与 Skia），两个 MinGW 目标另产出 `native-<target>`（CRT 配置头、启动对象、导入库、C++ 库和 compiler-rt），以及 `libexec/llvm/bin` 中带宿主 Clang／LLD／RC 工具和配套 resource headers 的 bin 组件包。Microsoft SDK／MSVC toolset 从使用者的开发环境发现，不复制维护机的 SDK 路径配置。
 
 构建机需要 Python 3.12+ 及其开发文件、Git、SWIG 4、Ninja、Rust/Cargo、C/C++ 开发工具链、CMake、Make、Perl、Node.js 22.18+ 和 npm。npm 依赖、首次缺失的 LLVM 归档以及 Tree-sitter WASM 工具链需要联网取得；其余 native 上游输入已在 vendor 中。已有 WASI SDK／Binaryen 可按 [tooling 说明](../tooling/README.md) 选择。
 
@@ -143,8 +143,9 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 - `scoop-<version>-bin-<host>.tar.xz`：每宿主一份，包含 `bin/`（五个命令，Windows 主驱动为 `sco.exe`）、`commands/`、`VERSION`、`post-install.sh`／`post-install.ps1`、`tooling/`（VSIX 与 scoop-programming skill）、`share/scoop/`（toolchain.toml、install/targets.list、各 `<target>.list` 与 `<target>.gui.list`、README、RELEASE-NOTES）及 Scoop 自身许可。 同一包还包含 `libexec/llvm/` 中选定的 Clang／LLD／LLVM 工具、Clang builtin headers 和实际动态依赖，`libexec/lldb/` 中的 LLDB／Python，公开的 `scoop-` 前缀调试工具及 formatter 和许可；不包含 LLVM SDK 头、静态库、CMake exports、llvm-config 或 llc。
 
 - `scoop-<version>-sources.tar.xz`：全局一份，包含 `src/`（全部内置 Cone 源码）、`vendor/`（llvm-project 只带补丁与说明）、`native/text_backend/`、`include/` 和 `share/scoop/examples/`。
-- `scoop-<version>-lib-base-<target>.tar.xz`：每 target 一份，与构建宿主无关，包含 `lib/<target>/` 中非 GUI 系统 Cone 的预编译 `*.slib`、对应 native 静态库／头文件、`openssl/`、`nghttp2/`、`unwind/`（非 Darwin）与四种 `runtime*/` 配置，两个 MinGW target 另含 `toolchain/`，以及该 target 的 native 组件与 rust-std 许可。Darwin/AArch64 宿主发行 AArch64／x86_64 两个 Darwin 目标的 lib 包，Darwin/x86_64 宿主发行 x86_64 目标，Linux/GNU amd64 宿主同时发行 GNU／musl 两套目标。
-- `scoop-<version>-lib-gui-<target>.tar.xz`：该 target 有 GUI Cone 时每 target 一份，包含 GUI Cone（`scoop.window`、`scoop.graphics` 及所有依赖它们的 Cone，由 `package_toolchain.py` 按 Cone 依赖图划分）的预编译 `*.slib`，以及 Skia、GTK／libadwaita、tray 等 GUI native 库、头文件和许可；须与同 target 的 lib-base 包一起安装。
+- `scoop-<version>-lib-base-<target>.tar.xz`：每 target 一份，与构建宿主无关，包含 `lib/<target>/` 中非 GUI 系统 Cone 的预编译 `*.slib`、对应 native 静态库、`openssl/`、`nghttp2/`、`unwind/`（非 Darwin）与四种 `runtime*/` 配置，以及该 target 的 native 组件与 rust-std 许可。Darwin/AArch64 宿主发行 AArch64／x86_64 两个 Darwin 目标的 lib 包，Darwin/x86_64 宿主发行 x86_64 目标，Linux/GNU amd64 宿主同时发行 GNU／musl 两套目标。
+- `scoop-<version>-lib-gui-<target>.tar.xz`：该 target 有 GUI Cone 时每 target 一份，包含 GUI Cone（`scoop.window`、`scoop.graphics` 及所有依赖它们的 Cone，由 `package_toolchain.py` 按 Cone 依赖图划分）的预编译 `*.slib`，以及 Skia、GTK／libadwaita、tray 等 GUI native 链接库和许可；须与同 target 的 lib-base 包一起安装。
+- `scoop-<version>-native-<target>.tar.xz`：仅两个 MinGW 目标，提供 `lib/<target>/toolchain` 内的 CRT／libc++ 配置头、启动对象、Windows／CRT 导入库、C++ 静态库及 compiler-rt builtins；不包含 executable。公共 MinGW／libc++ 头由 Windows bin 的 `libexec/mingw/include` 提供一次。MSVC 继续使用本机 SDK 或显式 msvc.toml，不发空的 native 包。
 - `scoop-<version>-llvm-sources.tar.xz`：全局一份，为 LLVM 上游归档、补丁与 LICENSE，单独保留有版本名称的顶层目录。
 
 同一 release 的包按相同版本号成组安装，不跨版本混装。
@@ -156,12 +157,14 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
   bin/                  scoop、scoopc、scoop-link、scoop-lsp、scoop-pm（bin 包）；
                         scoop-lldb 等 LLVM 启动器（bin 包）
   commands/             scoop-example 与其他外部子命令（bin 包）
-  lib/<target-triple>/  预编译 *.slib、native 库／头文件、四种 runtime 配置（lib-base-<target> 包）；
+  lib/<target-triple>/  预编译 *.slib、native 链接库、四种 runtime 配置（lib-base-<target> 包）；
                         GUI *.slib、Skia 等 GUI native 库（lib-gui-<target> 包）
   include/              公开 Scoop C 头文件（sources 包）
   src/                  全部内置 Cone 源码（sources 包）
   vendor/               native 上游输入和补丁（sources 包）
   native/               Rust 文本后端维护源码（sources 包）
+  libexec/scoop/include/unwind/  Linux／Windows 的公共链接探测头（bin 包）
+  libexec/mingw/include/         Windows 公共 MinGW／libc++ 头（bin 包）
   libexec/llvm/         选定 LLVM 工具、builtin headers 和动态依赖（bin 包）
   libexec/lldb/         LLDB、DAP、argdumper、平台进程调试 helper 及随包 Python（bin 包）
   share/scoop/          toolchain.toml、install 清单、README、RELEASE-NOTES（bin 包）；
@@ -182,7 +185,7 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 
 脚本读取宿主命令的实际动态依赖，将所需非系统库复制到 `libexec/llvm/lib`，为实际引用这些私有库的 Darwin 文件设置相对加载路径。目标资源和许可说明按实际组件收集；归档在完整写入后才替换同名文件。安装方法、系统开发环境要求及升级说明随包放在 `share/scoop`。
 
-Windows 的宿主 DLL 通过同一归档内的硬链接放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；两个 MinGW prefix 保留自身的 DLL 和目录关系。LLDB／Python 的依赖优先从所选 Python 安装查找，包含 Conda 的 `Library/bin`，再回退到环境 `PATH`；仅收集实际导入的 DLL 及其传递依赖。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
+Windows 的宿主 DLL 通过同一归档内的硬链接放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；公共 LLVM／LLDB／Python 的 DLL 只在同一个 bin 归档内共享，不与目标资源跨包链接。LLDB／Python 的依赖优先从所选 Python 安装查找，包含 Conda 的 `Library/bin`，再回退到环境 `PATH`；仅收集实际导入的 DLL 及其传递依赖。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
 
 打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（本 release 为该 host 提供的目标，默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的文档生成直接读取。Linux GNU 的 GUI Cone 进入 GNU 清单，未提供 musl 源码的 GUI Cone 不进入 musl 清单，不需要空后端。
 
@@ -190,7 +193,7 @@ post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，
 
 安装根的 `docs/index.html` 列出已经准备的目标，具体站点位于 `docs/<canonical-target-triple>/`。追加准备其他目标时保留已经生成的站点。源码原文嵌入 HTML，搜索和库内资源均在本地；指向仓库 `docs/`、`scripts/`、`tests/` 的 Markdown 链接在组装时改为本次源码 revision 的 GitHub 链接，作为设计及维护文档的外部参考。`.slib` 不保存完整源码。手工验收时检查安装后的目标及库清单、跨库链接、源码页、离线搜索与重复生成的复用情况；文档能力的详细范围见 [M60 设计](../docs/milestone60/DESIGN.md)。
 
-手工验证发布包时，将同一版本的 bin、sources 与所选 lib 组件归档依次解压到同一个新目录，可使用带空格路径；保留源码、原工具和原产物。确认 lib 归档包含该目标的系统 `.slib`、所有包没有 `docs/`，再执行 post-install。运行五个命令的版本查询，检查实际加载的私有 LLVM，再用空缓存完成含 native／泛型／GC 的应用、crypto／TLS、普通库测试和两个 link 入口，重复构建检查复用。Linux 还应覆盖 GNU 与 musl 的既有链接模式。常规 fixture 使用已准备的开发 sysroot，不执行打包或解压步骤。
+手工验证发布包时，将同一版本的 bin、sources 与所选 lib 组件归档（MinGW 还需同目标 native）依次解压到同一个新目录，可使用带空格路径；保留源码、原工具和原产物。确认 lib 归档包含该目标的系统 `.slib`、所有包没有 `docs/`，再执行 post-install。运行五个命令的版本查询，检查实际加载的私有 LLVM，再用空缓存完成含 native／泛型／GC 的应用、crypto／TLS、普通库测试和两个 link 入口，重复构建检查复用。Linux 还应覆盖 GNU 与 musl 的既有链接模式。常规 fixture 使用已准备的开发 sysroot，不执行打包或解压步骤。
 
 打包脚本的归档布局与失败保留检查使用 `python3 -m unittest discover -s scripts/tests`；运行前对改动的 Python 脚本执行与 fixture runner 相同版本的 Ruff 格式化及 lint。完整包验收还应确认 `VERSION` 与命令版本一致、VSIX 内包含扩展代码及两个 WASM，并使用解压目录中的工具完成冷构建／运行及再次复用。
 
@@ -237,3 +240,5 @@ Windows 对应的入口是 `bin/scoop-lldb.exe` 和 `bin/scoop-lldb-dap.exe`，�
 Linux 的同类检查还包括 ELF loader 记录、GNU／musl 实际 DAP 会话及静态 TLS；可重复入口见[调试器验收说明](../tooling/vscode-scoop/test/debugger/README.md)，本轮结果见[实施记录](../docs/debugging/IMPLEMENTATION.md)。
 
 发行完成后输出 `packages-<host>.list`，只列出本次成功生成的组件文件名。Release workflow 据此准备上传目录，避免重复构建时把已退役的旧组件重新发布。
+
+发行 base／GUI 包不复制第三方开发头、源码或完整工具链；runtime 的 index.cbor 和 objects/*.o 必须成组保留，Linux GUI 继续包含实际链接用共享库。最终链接默认从 bin 读取公共 unwind 头，从所选 sysroot 读取目标 libunwind.a；显式 --unwind-prefix 和 runtime 源码准备仍使用各自完整维护 prefix。

@@ -15,6 +15,7 @@ impl NativeOptions {
     ) -> BuildResult<(CToolchainOptions, FinalLinkOptions)> {
         Ok((
             CToolchainOptions {
+                sysroot: Some(sysroot.to_owned()),
                 compiler: self.cc,
                 cxx_compiler: self.cxx,
                 native_sysroot: self

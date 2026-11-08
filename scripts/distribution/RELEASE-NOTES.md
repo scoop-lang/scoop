@@ -1,6 +1,6 @@
 # 安装包布局与编辑器扩展
 
-宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。全局 sources 与各目标 lib-base／lib-gui 继续单独分发；系统库预编译，post-install 只生成已安装目标的 API 文档。
+宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。base／GUI 包只保留 .slib、对象、链接库、runtime 索引和许可，移除第三方开发头。Windows 的两个 MinGW 目标分别新增 native 包，保存 CRT 配置、启动对象、导入库、C++ 库和 compiler-rt；公共工具和头文件随 bin 共享。全局 sources 继续单独分发；系统库预编译，post-install 只生成已安装目标的 API 文档。
 
 版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
 
@@ -18,7 +18,7 @@ VS Code 扩展接入 `scoop-lsp`，提供诊断、补全、签名、导航、符
 
 ## PCRE2 正则表达式库
 
-新增普通 Cone `scoop.regex`，基于 PCRE2-8 10.49 提供编译模式、编号／命名捕获、惰性搜索、字面／模板／回调替换及分割。公开位置使用 Long Unicode 标量索引，结果为独立快照，Regex 使用 close/use 管理 native 生命周期。PCRE2 采用独立 C 静态库和可选 JIT，不增加 Rust staticlib；Darwin、GNU、musl 目标资源、头文件及 PCRE2/SLJIT 许可随包交付。用法见 `src/scoop.regex/README.md`。
+新增普通 Cone `scoop.regex`，基于 PCRE2-8 10.49 提供编译模式、编号／命名捕获、惰性搜索、字面／模板／回调替换及分割。公开位置使用 Long Unicode 标量索引，结果为独立快照，Regex 使用 close/use 管理 native 生命周期。PCRE2 采用独立 C 静态库和可选 JIT，不增加 Rust staticlib；Darwin、GNU、musl 目标链接库及 PCRE2/SLJIT 许可随包交付，开发头保留在维护 sysroot。用法见 `src/scoop.regex/README.md`。
 
 ## HTTP server 库
 

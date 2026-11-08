@@ -20,7 +20,7 @@ pub(super) fn check(
         .args(["-v", "-MD", "-MT", "link-probe", "-MF"])
         .arg(&depfile)
         .arg("-I")
-        .arg(profile.unwind_prefix().join("include"));
+        .arg(&profile.data.unwind_include);
     let compiled = run(&mut compile)?;
     observed.extend(super::super::dependencies::read(
         &depfile,

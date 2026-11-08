@@ -24,7 +24,6 @@ import package_native
 import package_tooling
 import package_windows
 from build_llvm import VERSION
-from build_rust_text import HEADER as RUST_TEXT_HEADER
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
 from build_skia import LIBRARY as SKIA_LIBRARY
 from build_skia import TARGETS as SKIA_TARGETS
@@ -302,13 +301,6 @@ def split_gui_cones(sysroot, order):
     )
 
 
-def copy_entry(source, destination):
-    if source.is_dir():
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy2(source, destination)
-
-
 def assemble_base_libraries(root, target, args, cones):
     """Stage one target's base system libraries, native inputs and runtimes."""
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
@@ -317,20 +309,6 @@ def assemble_base_libraries(root, target, args, cones):
     destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
-    (destination / "include").mkdir()
-    for header in (
-        RUST_TEXT_HEADER,
-        "uriparser",
-        "pcre2.h",
-        "zstd.h",
-        "zstd_errors.h",
-        "zdict.h",
-        "zlib-ng.h",
-        "zconf-ng.h",
-        "zlib_name_mangling-ng.h",
-        "brotli",
-    ):
-        copy_entry(source / "include" / header, destination / "include" / header)
     shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
     shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
     shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
@@ -343,7 +321,12 @@ def assemble_base_libraries(root, target, args, cones):
         "runtime-startup-stats",
         "runtime-stress-startup-stats",
     ):
-        shutil.copytree(source / variant, destination / variant)
+        objects = destination / variant / "objects"
+        objects.mkdir(parents=True)
+        shutil.copy2(source / variant / "index.cbor", destination / variant / "index.cbor")
+        for path in (source / variant / "objects").iterdir():
+            if path.suffix == ".o":
+                shutil.copy2(path, objects / path.name)
     for component, libraries in (
         ("openssl", ("libcrypto.a", "libssl.a")),
         ("nghttp2", ("libnghttp2.a",)),
@@ -351,12 +334,9 @@ def assemble_base_libraries(root, target, args, cones):
     ):
         if component == "unwind" and TARGETS[target]["os"] == "darwin":
             continue
-        shutil.copytree(source / component / "include", destination / component / "include")
-        (destination / component / "lib").mkdir()
+        (destination / component / "lib").mkdir(parents=True)
         for name in libraries:
             shutil.copy2(source / component / "lib" / name, destination / component / "lib" / name)
-    if host_definition(args.host)["system"] == "Windows":
-        package_windows.install_toolchain(root, target, args)
     package_licenses.collect_base_libraries(root, sysroot, target)
 
 
@@ -365,18 +345,15 @@ def assemble_gui_libraries(root, target, args, cones):
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
     source = sysroot / "lib" / target
     destination = root / "lib" / target
-    (destination / "include").mkdir(parents=True)
+    destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
     if target in SKIA_TARGETS:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
-        shutil.copytree(source / "include/skia", destination / "include/skia")
     if target == GTK_TARGET:
-        shutil.copytree(source / "include/gtk", destination / "include/gtk")
         for library in GTK_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
     if target == TRAY_TARGET:
-        shutil.copytree(source / "include/tray", destination / "include/tray")
         for library in TRAY_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
     package_licenses.collect_gui_libraries(root, sysroot, target)
@@ -735,6 +712,10 @@ def main():
             bin_root, args, host_system
         )
         debugger_files.update(stage_commands(bin_root, args))
+        if host_system != "Darwin":
+            package_llvm.stage_unwind_headers(bin_root, args.llvm_source)
+        if windows:
+            package_windows.stage_shared_headers(bin_root, args)
         if host_system == "Windows":
             native = package_native.windows(
                 bin_root,
@@ -774,6 +755,10 @@ def main():
                 gui_root = base / f"lib-gui-{target}"
                 assemble_gui_libraries(gui_root, target, args, gui_cones)
                 publish(f"lib-gui-{target}", gui_root)
+            if windows and package_windows.mingw_prefix(args, target) is not None:
+                native_root = base / f"native-{target}"
+                package_windows.stage_target_sdk(native_root, target, args)
+                publish(f"native-{target}", native_root)
         llvm_sources = base / f"scoop-{args.version}-llvm-sources"
         vendor = llvm_sources / "vendor/llvm-project" / VERSION
         shutil.copytree(

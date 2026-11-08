@@ -97,6 +97,7 @@ fn main() -> ExitCode {
         enable_startup_stats: cli.enable_startup_stats,
         target: cli.target,
         c_toolchain: scoop_toolchain::CToolchainOptions {
+            sysroot: cli.sysroot.clone(),
             compiler: cli.cc,
             cxx_compiler: cli.cxx,
             native_sysroot: cli.native_sysroot,

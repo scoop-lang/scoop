@@ -18,7 +18,7 @@ pub(crate) use inputs::{header_candidates, program_candidates};
 use invocation::InvocationRecord;
 
 // Changes to discovery semantics must also invalidate callers' build keys.
-const CACHE_VERSION: &str = "native-tools-v5";
+const CACHE_VERSION: &str = "native-tools-v6";
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ResolvedRecord {
@@ -87,9 +87,11 @@ fn probe_record(triple: &str, options: &CToolchainOptions) -> Result<Record, Too
             options.compiler.as_deref(),
             options.native_sysroot.as_deref(),
         )?,
-        scoop_target_data::TargetOs::Windows => {
-            crate::windows_c::probe_default(target, options.native_sysroot.as_deref())?
-        }
+        scoop_target_data::TargetOs::Windows => crate::windows_c::probe_default(
+            target,
+            options.native_sysroot.as_deref(),
+            options.sysroot.as_deref(),
+        )?,
         scoop_target_data::TargetOs::Linux => crate::linux_c::probe_linux_c_toolchain(
             target,
             options.compiler.as_deref(),
@@ -197,6 +199,9 @@ pub fn native_tool_configuration(
         ]
         .into_iter()
         .map(std::env::var_os)
+        .chain(std::iter::once(Some(
+            crate::windows_c::bundled_llvm_root()?.into_os_string(),
+        )))
         .collect(),
         scoop_target_data::TargetOs::Darwin => vec![
             Some(crate::c_bridge::deployment_version(target)?.into()),

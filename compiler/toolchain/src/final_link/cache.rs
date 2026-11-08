@@ -5,7 +5,7 @@ use scoop_protocol::HostPathCarrier;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub(super) const CACHE_DIRECTORY: &str = "final-tools-v8";
+pub(super) const CACHE_DIRECTORY: &str = "final-tools-v9";
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;
@@ -51,6 +51,9 @@ pub(super) fn resolve(
         .as_deref()
         .map(path)
         .transpose()?;
+    let installed_unwind_include = (needs_unwind_prefix && options.unwind_prefix.is_none())
+        .then(crate::unwind::installed_unwind_include)
+        .transpose()?;
     let key = build_record::fingerprint(&(
         crate::native_record::ResolvedRecord::cache_configuration(target)?,
         final_link,
@@ -61,6 +64,7 @@ pub(super) fn resolve(
         options.unwind_prefix.as_deref().map(path).transpose()?,
         options.linker.as_deref().map(path).transpose()?,
         unwind,
+        installed_unwind_include.as_deref().map(path).transpose()?,
         options.native_roots(target.lir_target())?,
         cxx,
     ))?;
@@ -77,7 +81,8 @@ pub(super) fn resolve(
                 options,
                 cxx,
             )?;
-            let paths: BTreeSet<_> = profile.input_paths()?.into_iter().collect();
+            let mut paths: BTreeSet<_> = profile.input_paths()?.into_iter().collect();
+            paths.extend(installed_unwind_include);
             let inputs = paths
                 .iter()
                 .map(|p| Input::read(p))

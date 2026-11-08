@@ -2,7 +2,7 @@
 
 日期：2026-11-09。
 
-状态：实施中。宿主 bin／LLVM 合并、运行资源筛选和归档内别名共享已接入；目标库精简、Windows native 拆分与三平台候选包验证继续按本文推进。当前验证范围在实施完成后单独记录。
+状态：实施中。宿主 bin／LLVM 合并、运行资源筛选、归档内别名共享、目标库精简和 Windows native 拆分已接入，正在完成三平台候选包验证。当前验证范围在实施完成后单独记录。
 
 依据：[实现规范](../specs/SCOOP-IMPL-SPEC.md) 1、2.7、2.8、2.22，[Windows targets 设计](../windows-targets/DESIGN.md)，以及 [AGENTS.md](../../AGENTS.md) 的范围、缓存与验证约束。语言语义、对象模型和 GC 契约继续遵守[语言规范](../specs/SCOOP-SPEC.md)与[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)。
 

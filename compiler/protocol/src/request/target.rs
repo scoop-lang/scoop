@@ -8,6 +8,7 @@ use crate::{HostPathCarrier, ProtocolValidationError};
 pub struct TargetSelectionRequestV1 {
     canonical_triple: String,
     toolchain: ToolchainSelection<HostPathCarrier>,
+    sysroot: Option<HostPathCarrier>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,6 +38,7 @@ impl TargetSelectionRequestV1 {
                 native_sysroot: None,
                 cxx_compiler: None,
             },
+            sysroot: None,
         })
     }
 
@@ -71,6 +73,15 @@ impl TargetSelectionRequestV1 {
         &self.canonical_triple
     }
 
+    pub fn with_sysroot(mut self, sysroot: Option<HostPathCarrier>) -> Self {
+        self.sysroot = sysroot;
+        self
+    }
+
+    pub fn sysroot(&self) -> Option<&HostPathCarrier> {
+        self.sysroot.as_ref()
+    }
+
     pub fn compiler(&self) -> Option<&HostPathCarrier> {
         match &self.toolchain {
             ToolchainSelection::Discover { compiler, .. } => compiler.as_ref(),
@@ -102,7 +113,12 @@ impl TargetSelectionRequestV1 {
 
 impl WireEncode for TargetSelectionRequestV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encode(encoder, &self.canonical_triple, &self.toolchain)
+        encode(
+            encoder,
+            &self.canonical_triple,
+            &self.toolchain,
+            &self.sysroot,
+        )
     }
 }
 
@@ -110,11 +126,17 @@ impl WireEncode for TargetSelectionRequestV1 {
 pub(super) struct DecodedTargetSelectionRequestV1 {
     triple: String,
     toolchain: ToolchainSelection<DecodedHostPathCarrier>,
+    sysroot: Option<DecodedHostPathCarrier>,
 }
 
 impl DecodedTargetSelectionRequestV1 {
     pub(super) fn validate(self) -> Result<TargetSelectionRequestV1, ProtocolValidationError> {
-        let request = TargetSelectionRequestV1::new(self.triple)?;
+        let request = TargetSelectionRequestV1::new(self.triple)?.with_sysroot(
+            self.sysroot
+                .map(DecodedHostPathCarrier::validate)
+                .transpose()
+                .map_err(ProtocolValidationError::HostPath)?,
+        );
         Ok(match self.toolchain {
             ToolchainSelection::Resolved(record) => request.with_resolved_toolchain(record),
             ToolchainSelection::Discover {
@@ -141,16 +163,17 @@ impl DecodedTargetSelectionRequestV1 {
 
 impl WireEncode for DecodedTargetSelectionRequestV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encode(encoder, &self.triple, &self.toolchain)
+        encode(encoder, &self.triple, &self.toolchain, &self.sysroot)
     }
 }
 
-fn encode(
+fn encode<P: WireEncode>(
     encoder: &mut Encoder,
     triple: &str,
-    toolchain: &ToolchainSelection<impl WireEncode>,
+    toolchain: &ToolchainSelection<P>,
+    sysroot: &Option<P>,
 ) -> Result<(), scoop_wire::cbor::EncodeError> {
-    encoder.map(2)?;
+    encoder.map(3)?;
     encoder.field(1)?;
     encoder.text(triple)?;
     encoder.field(2)?;
@@ -171,7 +194,9 @@ fn encode(
             encoder.unsigned(1)?;
             encoder.bytes(record)
         }
-    }
+    }?;
+    encoder.field(3)?;
+    encode_path(encoder, sysroot)
 }
 
 fn encode_path(
@@ -187,7 +212,7 @@ fn encode_path(
 
 impl WireDecode for DecodedTargetSelectionRequestV1 {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decoder.expect_map(2)?;
+        decoder.expect_map(3)?;
         Ok(Self {
             triple: decoder.field(1, Decoder::owned_text)?,
             toolchain: decoder.field(2, |d| {
@@ -210,6 +235,7 @@ impl WireDecode for DecodedTargetSelectionRequestV1 {
                     tag => Err(crate::framing::unknown_tag(d, tag)),
                 }
             })?,
+            sysroot: decoder.field(3, decode_path)?,
         })
     }
 }

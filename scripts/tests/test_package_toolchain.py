@@ -15,6 +15,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_toolchain
+from build_rust_text import HEADER as RUST_TEXT_HEADER
 from package_toolchain import (
     archive,
     assemble_base_libraries,
@@ -102,7 +103,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     *[
                         f"include/{name}"
                         for name in (
-                            package_toolchain.RUST_TEXT_HEADER,
+                            RUST_TEXT_HEADER,
                             "uriparser/Uri.h",
                             "pcre2.h",
                             "zstd.h",
@@ -120,13 +121,14 @@ class ComponentArchiveTests(unittest.TestCase):
                         for library in package["libraries"]
                     ],
                     *[
-                        f"{variant}/index.cbor"
+                        f"{variant}/{name}"
                         for variant in (
                             "runtime",
                             "runtime-stress",
                             "runtime-startup-stats",
                             "runtime-stress-startup-stats",
                         )
+                        for name in ("index.cbor", "objects/runtime.o", "objects/unneeded.h")
                     ],
                     "openssl/include/openssl/ssl.h",
                     "openssl/lib/libssl.a",
@@ -246,10 +248,12 @@ class ComponentArchiveTests(unittest.TestCase):
                         members = package.getnames()
                         self.assertFalse(any("/docs/" in name for name in members))
                         if component == "lib-base":
+                            self.assertFalse(any(name.endswith(".h") for name in members))
                             self.assertIn(f"./lib/{target}/scoop.core.slib", members)
                             self.assertIn(f"./lib/{target}/library.slib", members)
                             self.assertNotIn(f"./lib/{target}/widget.slib", members)
                         elif component == "lib-gui":
+                            self.assertFalse(any(name.endswith(".h") for name in members))
                             self.assertEqual(
                                 sorted(name for name in members if name.endswith(".slib")),
                                 [
@@ -409,10 +413,10 @@ class ComponentArchiveTests(unittest.TestCase):
                         (gui_root / package_toolchain.SKIA_LIBRARY).read_text(),
                         package_toolchain.SKIA_LIBRARY,
                     )
-                    self.assertTrue((gui_root / "include/skia/include/core/SkCanvas.h").is_file())
+                    self.assertFalse((gui_root / "include").exists())
                 self.assertFalse((lib_root / "include/gtk").exists())
                 if target == package_toolchain.GTK_TARGET:
-                    self.assertTrue((gui_root / "include/gtk/gtk/gtk.h").is_file())
+                    self.assertFalse((gui_root / "include").exists())
                     for library in package_toolchain.GTK_LINK_INPUTS:
                         self.assertEqual((gui_root / library).read_text(), library)
                         self.assertFalse((lib_root / library).exists())
@@ -420,7 +424,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     self.assertFalse((gui_root / "include/gtk").exists())
                 self.assertFalse((lib_root / "include/tray").exists())
                 if target == package_toolchain.TRAY_TARGET:
-                    self.assertTrue(
+                    self.assertFalse(
                         (gui_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
                     )
                     for library in package_toolchain.TRAY_LINK_INPUTS:
