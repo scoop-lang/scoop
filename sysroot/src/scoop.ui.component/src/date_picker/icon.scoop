@@ -1,52 +1,11 @@
 package scoop.ui.component
 
-import scoop.graphics.*
-import scoop.ui.*
-
-internal class DateCalendarIconInput(val size: Double, val color: Color)
+import scoop.graphics.Color
+import scoop.icons.lucide.calendarDays
+import scoop.ui.View
 
 internal fun dateCalendarIcon(size: Double, color: Color): View =
-    element(DateCalendarIconInput(size, color), { props, scope -> DateCalendarIcon(props, scope) })
-
-private class DateCalendarIcon(
-    private val props: Props<DateCalendarIconInput>,
-    scope: ComponentScope
-): Element<Unit>(scope) {
-    // Lucide calendar-days, ISC; see ../../LICENSE-LUCIDE.
-    private val outline =
-        scope.resource {
-            path {
-                this.moveTo(Point(8.0, 2.0));
-                this.lineTo(Point(8.0, 6.0))
-                this.moveTo(Point(16.0, 2.0));
-                this.lineTo(Point(16.0, 6.0))
-                this.moveTo(Point(3.0, 10.0));
-                this.lineTo(Point(21.0, 10.0))
-                this.addRoundRect(Rect(3.0, 4.0, 18.0, 18.0), 2.0, 2.0)
-            }
-        }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
-    > =
-        LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
-            Unit
-        )
-    public override fun scene(context: SceneContext, measured: Unit) {
-        val input = props.value
-        val size = context.size
-        context.draw {
-            target -> target.canvas.withState {
-                canvas ->
-                canvas.scale(size.width / 24.0, size.height / 24.0)
-                canvas.drawPath(
-                    outline,
-                    Paint(input.color, PaintingStyle.Stroke, 2.0, StrokeCap.Round, StrokeJoin.Round)
-                )
-                for (y in [14.0, 18.0])
-                    for (x in [8.0, 12.0, 16.0])
-                        canvas.drawCircle(Point(x, y), 1.0, Paint(input.color))
-            }
-        }
+    makeIcon(calendarDays) {
+        this.size = size
+        this.color = Some(color)
     }
-}

@@ -1,0 +1,25 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.icons.lucide"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+when = { os = ["darwin", "windows"] }
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.graphics.svg" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"
+
+[[test.sources]]
+path = "tests"

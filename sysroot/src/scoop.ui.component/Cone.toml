@@ -16,6 +16,8 @@ when = { os = ["darwin", "windows"] }
 "scoop:scoop.charset" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.graphics.svg" = "0.1.0"
+"scoop:scoop.icons.lucide" = "0.1.0"
 "scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
 "scoop:scoop.ui" = "0.1.0"

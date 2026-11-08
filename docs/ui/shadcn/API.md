@@ -158,7 +158,7 @@ ColorPair 是普通不可变的 background／foreground 值对；SidebarPalette�
 
 样式解析顺序为：当前主题 → variant／size 与选择／展开／invalid 状态 → 明确的局部基本覆盖 → 当前适用的 InteractionStyles。disabled 时不叠加 hover／pressed；焦点指示最后绘制，disabled 不自动清除业务选择。视觉优先级在每个控件的 spec 中固定，不能在 painter 和 measure 各自解析一次不同结果。
 
-图标以现有 PathView／Canvas 和静态路径数据接入，只引入本轮实际用到的图标并保存许可证。应用自定义图标继续是 View／借用 Path。没有引入 SVG 解析器或整套图标平台的必要。字体默认提供可替换的 sans／mono family fallback；视觉基准测试显式使用固定字体集合。
+图标使用 scoop.icons.lucide 的原始 SVG 与独立 Skia SVG 库，按 GUI 扩展设计收录实际使用和选定的常用图标并保存许可证。应用自定义图形可以使用 icon／svgView，或继续使用 View／借用 Path。SVG 支持边界见图形 SVG 规范，不扩展为完整浏览器 SVG。字体默认提供可替换的 sans／mono family fallback；视觉基准测试显式使用固定字体集合。
 
 动画参数沿现有 Surface AnimationSpec，提供统一的完整／减少动态模式。减少动态时省略位移、pulse、shimmer，保留必要的状态变化；它是显式主题配置，本轮不声称已接入 OS 的 reduced-motion 设置。窗口状态与真实动画参与仍由既有 owner 管理。
 

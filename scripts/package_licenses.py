@@ -191,6 +191,11 @@ def collect_gui_libraries(root, sysroot, target):
     collector = Collector(root, "lib-gui-" + target)
     if target in SKIA_TARGETS:
         collector.add("Skia", "See included documents", license_files(sysroot / "vendor/skia"))
+        collector.add(
+            "Lucide",
+            "ISC and included MIT notices",
+            license_files(sysroot / "src/scoop.icons.lucide"),
+        )
     if target == GTK_TARGET:
         for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
             collector.add(

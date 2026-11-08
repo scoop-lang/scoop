@@ -1,6 +1,9 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.icons.lucide.chevronRight
+import scoop.icons.lucide.ellipsis
 import scoop.ui.*
 import scoop.ui.component.frame as makeFrame
 
@@ -26,19 +29,18 @@ private class NavigationIcon(
     private val props: Props<NavigationIconProps>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
-    private var chevron: Path? = None
+    private var owned: IconDocument? = None
     public override fun onMount() {
-        // Lucide chevron-right and ellipsis (ISC), on their original 24-unit grid.
-        chevron =
-            Some(
-                scope.resource {
-                    path {
-                        this.moveTo(Point(9.0, 18.0));
-                        this.lineTo(Point(15.0, 12.0));
-                        this.lineTo(Point(9.0, 6.0))
-                    }
-                }
-            )
+        owned = Some(scope.resource { IconDocument() })
+    }
+    public override fun update(): UiInvalidation {
+        owned!!.update(
+            if (props.value.glyph == NavigationGlyph.More)
+                ellipsis
+            else
+                chevronRight
+        )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -57,10 +59,7 @@ private class NavigationIcon(
             paint -> paint.canvas.withState {
                 canvas ->
                 canvas.scale(size.width / 24.0, size.height / 24.0)
-                if (input.glyph == NavigationGlyph.More) {
-                    for (x in [4.0, 12.0, 20.0])
-                        canvas.drawCircle(Point(x, 12.0), 1.5, Paint(input.color))
-                } else {
+                if (input.glyph != NavigationGlyph.More) {
                     if (input.glyph == NavigationGlyph.Up || input.glyph == NavigationGlyph.Down) {
                         canvas.translate(12.0, 12.0)
                         canvas.rotate(
@@ -75,8 +74,12 @@ private class NavigationIcon(
                             canvas.translate(24.0, 0.0);
                             canvas.scale(-1.0, 1.0)
                         }
-                    canvas.drawPath(chevron!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
                 }
+                canvas.drawSvg(
+                    owned!!.document,
+                    Rect(0.0, 0.0, 24.0, 24.0),
+                    SvgDrawOptions(currentColor = Some(input.color))
+                )
             }
         }
     }

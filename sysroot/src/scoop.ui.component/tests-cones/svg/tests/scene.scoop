@@ -1,0 +1,106 @@
+package scoop.tests.ui.svg
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.icons.lucide.search
+import scoop.surface.FrameSubmission
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class SvgUiRoot(private val probe: SvgUiProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View {
+        val values = probe
+        val generation = values.generation.value
+        val owned =
+            if (values.shown)
+                icon(values.asset) {
+                    size = values.size
+                    absoluteStrokeWidth = true
+                }
+            else
+                empty()
+        val action =
+            button(
+                {
+                    appearance ->
+                    values.buttonColors.add(appearance.text.color)
+                    appearance.icon(search)
+                },
+                {}
+            ) {
+                size = ButtonSize.Icon
+                variant = ButtonVariant.Secondary
+            }
+        val content =
+            element(
+                generation,
+                { props, mount -> SvgUiPanel(props, values, mount) },
+                [
+                    owned,
+                    svgView(values.borrowed) { naturalSize = Some(Size(32.0, 32.0)) },
+                    spinner {
+                        size = Some(24.0);
+                        running = false
+                    },
+                    action
+                ]
+            )
+        return direction(
+            content,
+            if (values.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class SvgUiPanel(
+    private val props: Props<Int>,
+    private val probe: SvgUiProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints(maxWidth = Some(80.0), maxHeight = Some(80.0)))
+        context.placeChild(0L, Point(8.0, 8.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(100.0, 8.0))
+        context.measureChild(2L, Constraints())
+        context.placeChild(2L, Point(148.0, 8.0))
+        context.measureChild(3L, Constraints())
+        context.placeChild(3L, Point(188.0, 8.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 130.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val generation = props.value
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    canvas -> @Unsafe
+                    {
+                        probe.left = readNativePixel(canvas, 10.0, 10.0)
+                        probe.right = readNativePixel(canvas, 40.0, 20.0)
+                        probe.borrowedPixel = readNativePixel(canvas, 116.0, 24.0)
+                    }
+                }
+            }
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.rendered = generation
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.icons.lucide.x as closeIcon
 import scoop.math.min
 import scoop.math.max
 import scoop.ui.*
@@ -140,48 +141,8 @@ internal class AlertHeader(
     }
 }
 
-private class ModalCloseIconProps(val size: Double, val color: Color)
-
 internal fun modalCloseIcon(size: Double, color: Color): View =
-    element(
-        ModalCloseIconProps(size, color),
-        { current, mount -> ModalCloseIcon(current, scope = mount) }
-    )
-
-private class ModalCloseIcon(
-    private val props: Props<ModalCloseIconProps>,
-    scope: ComponentScope
-): Element<Unit>(scope) {
-    private var shape: Path? = None
-    public override fun onMount() {
-        // Lucide x (ISC), on its original 24-unit grid.
-        shape =
-            Some(
-                scope.resource {
-                    path {
-                        moveTo(Point(18.0, 6.0));
-                        lineTo(Point(6.0, 18.0))
-                        moveTo(Point(6.0, 6.0));
-                        lineTo(Point(18.0, 18.0))
-                    }
-                }
-            )
+    makeIcon(closeIcon) {
+        this.size = size
+        this.color = Some(color)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
-    > =
-        LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
-            Unit
-        )
-    public override fun scene(context: SceneContext, measured: Unit) {
-        val size = context.size
-        context.draw {
-            paint -> paint.canvas.withState {
-                canvas ->
-                canvas.scale(size.width / 24.0, size.height / 24.0)
-                canvas.drawPath(shape!!, Paint(props.value.color, PaintingStyle.Stroke, 2.0))
-            }
-        }
-    }
-}

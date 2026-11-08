@@ -52,3 +52,9 @@ currentColor 指定本次根 color 覆盖；rootStrokeWidth 指定根图形坐�
 ## 4. 验证职责
 
 所属 Cone 的 scoop.test 覆盖真实解析和像素、固定／相对尺寸与非零 viewBox、基本图形和样式、整体透明度、颜色／线宽连续绘制、错误参数、线程／关闭和 Drawing 保活。GPU 测试复用 graphics 的原生测试目标，不新增图形后端。平台结果记录在 [GUI 扩展进度](../desktop-ui/GUI-EXTENSIONS-PROGRESS.md)，不以离屏结果替代窗口与桌面功能验收。
+
+## 5. Lucide 资源 Cone
+
+`scoop.icons.lucide` 依赖 graphics.svg，提供固定 `lucide-static 1.70.0` 的选定资源。每个图标在同名 package 下有独立的 lowerCamelCase 只读 SvgAsset 入口，例如 check、chevronLeft、search、loaderCircle、calendarDays、trash2。入口使用 includeStr 引用原始 SVG，没有全库运行时索引或初始化解析；普通消费者只引用需要的入口。
+
+收录清单位于图标 Cone 的 icons.txt，原始 SVG、ISC 和适用 Feather MIT 许可一并保存。维护脚本从显式本地上游归档导入并生成独立入口；普通构建不联网。所有入选图标通过实际 SVG 解析／绘制测试，最终消费者检查未引用资源是否进入成品。

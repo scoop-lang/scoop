@@ -500,6 +500,15 @@ public open class ChildrenBuilder internal constructor() {
         add(makeFieldSeparator(None, configure))
     }
 
+    public fun svgView(
+        document: scoop.graphics.svg.SvgDocument,
+        configure: SvgViewBuilder.() -> Unit = {}
+    ) {
+        add(makeSvgView(document, configure))
+    }
+    public fun icon(asset: scoop.graphics.svg.SvgAsset, configure: IconBuilder.() -> Unit = {}) {
+        add(makeIcon(asset, configure))
+    }
     public fun imageView(
         image: Image,
         naturalSize: Size,
