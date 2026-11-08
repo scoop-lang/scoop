@@ -1,6 +1,6 @@
 # Scoop 实现路线图
 
-[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成核心实现与 Darwin AArch64 真实图标验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。真实 Lucide 零／单／全引用只保留 0／1／31 份 SVG，扩库不增加未用资源；跨 Cone 内联、重复泛型候选、静态对象图与定向 GC 已通过。静态存储和初始化规则保持；构建成本已记录，其他平台及发行打包验收继续进行。
+[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成实现与七目标定向验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。六个 GUI 目标的真实 Lucide 零／单／全引用只保留 0／1／31 份 SVG，扩库不增加未用资源；Darwin 双架构（x86_64 经 Rosetta）、Linux GNU／musl、Windows 三环境的跨 Cone、静态对象图与定向 GC 通过。静态存储和初始化规则保持，构建成本已记录；发行打包按用户要求取消。
 
 [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
 

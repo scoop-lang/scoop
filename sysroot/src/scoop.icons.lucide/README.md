@@ -18,6 +18,6 @@ val action = button({ style -> style.icon(search) }, { println("Search") })
 
 使用新版编译器重新构建本库及依赖后，debug／release 的最终链接均按实际引用裁剪资源。未使用图标的 SVG、独立 getter、callable 登记和 immortal 登记不会进入成品；新增未使用图标也不增加这些内容。已内联的 getter 可以消失，所用资源继续保留。应用或 UI 组件实际引用的默认图标仍会保留，主动构建全量资产数组或运行时图标索引也会保留它引用的图标。
 
-macOS aarch64 release 的真实离屏消费者已验证零／单／全部引用分别只保留 0／1／31 份 SVG；仅用 search 时为 352 字节原始 SVG，新增一个未引用图标后保持不变。完整文件还含 Skia、runtime 等共享代码，不能将其大小全部归为图标开销。实现、构建成本和各平台验收见[静态常量与图标资源裁剪](../../../docs/program-performance/IMMORTAL-PRUNING.md)。
+macOS 双架构、Linux GNU 和 Windows 三种 native 环境的 release 离屏消费者均已验证零／单／全部引用分别只保留 0／1／31 份 SVG；仅用 search 时为 352 字节原始 SVG，新增一个未引用图标后保持不变。所有 GUI 目标的 31 图标像素测试均通过，macOS x86_64 经 Rosetta 验证。完整文件还含 Skia、runtime 等共享代码，不能将其大小全部归为图标开销。实现、构建成本和各平台验收见[静态常量与图标资源裁剪](../../../docs/program-performance/IMMORTAL-PRUNING.md)。
 
 维护入口为 `python3 scripts/update_lucide.py --archive /path/to/lucide-static-1.70.0.tgz`；不指定归档时从仓库已有资产重新生成独立声明，`--check` 检查声明和资产基线。维护脚本不下载文件，应用构建也不需要 npm。所有入选资源由本 Cone 的 scoop.test 实际解析并绘制。

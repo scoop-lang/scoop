@@ -1,6 +1,6 @@
 # 静态常量与图标资源按需裁剪设计
 
-状态：核心实现与本机真实图标验收完成，多平台及发行验收中。日期：2026-11-09。源码调研基线：`f3fd7f9f8`。
+状态：实现与七目标定向验收完成；发行打包按本次用户要求取消。日期：2026-11-09。源码调研基线：`f3fd7f9f8`。
 
 本设计补齐最终链接对 immortal 静态对象的按需选择，以 `scoop.icons.lucide` 为实际消费者，接续[不可达 callable 裁剪](CALLABLE-PRUNING.md)和[类型／shape 元数据裁剪](TYPE-PRUNING.md)。第 2 节保留实施前的调研基线；目标规则已先同步到规范，完成情况以验收记录为准。
 
@@ -244,5 +244,29 @@ Darwin AArch64：格式化与 Clippy 通过；codegen 397 项及 linker 16 项�
 
 增加 30 个对象分组使库容器增加 20,149 字节（12.9%）；完整候选仍供其他消费者使用。当前 core `.slib` 为 12,260,284 字节、15,626 个物理对象；单次冷构建 5.18 s，最大 RSS 1,767,194,624 B。已安装旧 core 的源码版本不同，不将其大小差异作为纯分组成本。预编译单图标消费者单独编译为 root `.slib` 为 1.94 s／1,506,541,568 B RSS，独立最终链接为 2.44 s／900,808,704 B RSS；运行输出正确。RSS 为 `/usr/bin/time -l` 的最大 resident set 指标，不是并行进程组内存之和。
 
-多平台运行及完整安装包继续验收；原始日志、JSON 和产物在仓库外，完成批次后清理失去用途的工作目录。
+### 2026-11-09：七目标运行验收与收尾
+
+使用本次编译器重建被测系统库及依赖，完成以下实际编译、链接和运行。表中只统计最终通过的有效用例，失败尝试与定向复验不重复计数；这是本设计的定向验收。
+
+| 目标／执行环境 | 通过 fixture／变体／过程 | Lucide／SVG 普通测试 |
+| --- | ---: | ---: |
+| `aarch64-apple-darwin` | 9／16／97 | 1／14 |
+| `x86_64-apple-darwin`，Rosetta | 9／16／97 | 1／14 |
+| `x86_64-unknown-linux-gnu`，nuc12 | 9／16／97 | 1／13 |
+| `x86_64-unknown-linux-musl`，nuc12 | 8／15／92 | 不适用，未提供 GUI |
+| `x86_64-pc-windows-msvc-ucrt` | 6／10／65 | 1／13 |
+| `x86_64-w64-windows-llvm-mingw-ucrt` | 6／10／65 | 1／13 |
+| `x86_64-w64-windows-llvm-mingw-msvcrt` | 6／10／65 | 1／13 |
+
+七个目标均通过 `immortal-pruning` 的 debug／release、独立链接、对象图闭合及 MOVE／MINOR GC 检查。六个 GUI 目标均通过真实 Lucide 零／单／全引用及扩库专测：分别保留 0／1／31 份 SVG，新增未用图标后仍只有 352 字节的 search。每个 GUI 目标的 1 项 Lucide Cone 测试覆盖全部 31 个图标的解析和实际像素；Darwin 的 14 项 SVG 测试包含真实 Metal，其余 GUI 目标为 13 项。Darwin x86_64 在 Apple Silicon 上通过 Rosetta 运行，不记作 Intel 硬件验证。
+
+既有回归包括三个 include 产物用例和 native-app lifecycle；Darwin／Linux 另含 callable／type pruning 与 startup-stats。Windows 的这三项既有专测按声明不适用，musl 的 Lucide 用例不适用，均不计为通过。全平台合计 53 个有效 fixture 执行、93 个变体、578 个过程。
+
+跨平台阶段只调整验证脚本，裁剪实现无需追加平台分支。发现的问题已分别闭合：
+
+- GNU 的 fixture runner 将显式 `clang` 符号链接展开为 `clang-22`，导致误找不存在的 `clang++-22`。保留调用路径后真实 C++／SVG 链接通过；新增调用名回归，Ruff 及 83 项 runner 规则测试通过（79 通过、4 项平台跳过）。
+- Microsoft linker 的 PE 没有 COFF 符号表。检查实际登记 ID 的唯一性与缺席、资源字节、callable body ID 和 GC；有符号表的产物继续同时核对符号。三个 Windows 目标及 Darwin／GNU 定向复验通过。
+- 检查脚本的成功提示改为写出明确的 LF 字节，保持 runner 的原始字节断言，消除 Windows Python CRLF 带来的误报。
+
+每批变更提交并推送后同步 `origin/main`。安装包制作已按用户要求取消；原始日志、JSON 报告与库体积对照保存在仓库外，临时构建与验证目录按本次清理约定回收。
 
