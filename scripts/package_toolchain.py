@@ -2,6 +2,7 @@
 """Build a complete Scoop archive, including sysroot, VS Code tooling, and programming skill."""
 
 import argparse
+import concurrent.futures
 import json
 import os
 import platform
@@ -698,13 +699,16 @@ def main():
     output = args.output_dir / f"scoop-{args.version}"
     output.mkdir(parents=True, exist_ok=True)
     packages = []
+    pending = []
 
     def publish(component, directory, *, arcname="."):
         name = f"scoop-{args.version}-{component}.tar.xz"
-        archive(directory, output / name, arcname=arcname)
-        packages.append(name)
+        pending.append((name, archiver.submit(archive, directory, output / name, arcname=arcname)))
 
-    with tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary:
+    with (
+        tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary,
+        concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as archiver,
+    ):
         base = Path(temporary)
         bin_root = base / "bin"
         stage_binaries(bin_root, binaries, host_system)
@@ -774,6 +778,9 @@ def main():
         shutil.copy2(args.llvm_archive, vendor / f"llvm-project-{VERSION}.src.tar.xz")
         shutil.copy2(args.llvm_source / "llvm/LICENSE.TXT", vendor / "LICENSE.TXT")
         publish("llvm-sources", llvm_sources, arcname=llvm_sources.name)
+        for name, task in pending:
+            task.result()
+            packages.append(name)
     listing = output / f"packages-{args.host}.list"
     staged = listing.with_suffix(".list.new")
     staged.write_text("\n".join(packages) + "\n", encoding="utf-8")
