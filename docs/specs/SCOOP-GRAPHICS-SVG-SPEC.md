@@ -57,4 +57,6 @@ currentColor 指定本次根 color 覆盖；rootStrokeWidth 指定根图形坐�
 
 `scoop.icons.lucide` 依赖 graphics.svg，提供固定 `lucide-static 1.70.0` 的选定资源。每个图标在同名 package 下有独立的 lowerCamelCase 只读 SvgAsset 入口，例如 check、chevronLeft、search、loaderCircle、calendarDays、trash2。入口使用 includeStr 引用原始 SVG，没有全库运行时索引或初始化解析；普通消费者只引用需要的入口。
 
+使用按实现规范 2.19 重建的库时，最终链接在所有 profile 下按实际引用选择 SVG immortal 对象与登记；未使用的独立 getter 及 callable 登记沿同一物理选择删除。跨 Cone 内联后仍引用 provider 的资源，不因此保留 getter 本体。新增未引用图标不向成品加入其数据或包装。组件内部引用的默认图标属于实际使用；应用主动保存全量资产数组或运行时索引时，该数据结构的真实引用会保留相应资源。
+
 收录清单位于图标 Cone 的 icons.txt，原始 SVG、ISC 和适用 Feather MIT 许可一并保存。维护脚本从显式本地上游归档导入并生成独立入口；普通构建不联网。所有入选图标通过实际 SVG 解析／绘制测试，最终消费者检查未引用资源是否进入成品。

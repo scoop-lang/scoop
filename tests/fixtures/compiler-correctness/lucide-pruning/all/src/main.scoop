@@ -1,0 +1,41 @@
+package dev.lucidepruning.all
+import scoop.icons.lucide.*
+
+fun main() {
+    val assets = [
+        check,
+        x,
+        chevronLeft,
+        chevronRight,
+        chevronUp,
+        chevronDown,
+        ellipsis,
+        search,
+        loaderCircle,
+        calendarDays,
+        panelLeft,
+        info,
+        circleCheck,
+        triangleAlert,
+        octagonX,
+        plus,
+        minus,
+        arrowLeft,
+        arrowRight,
+        arrowUp,
+        arrowDown,
+        file,
+        folder,
+        save,
+        copy,
+        trash2,
+        download,
+        upload,
+        settings,
+        menu,
+        externalLink
+    ]
+    var bytes = 0L
+    for (asset in assets) bytes += asset.source.byteLength
+    println(bytes)
+}
