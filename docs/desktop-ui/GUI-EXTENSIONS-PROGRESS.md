@@ -4,10 +4,10 @@
 
 | 批次 | 状态 | 验证范围 |
 | --- | --- | --- |
-| G1 Skia SVG 与独立图形库 | 已实现，macOS／Linux 验证通过 | macOS aarch64：14 项含真实 Metal；Linux x86_64：13 项；19 项准备／打包脚本测试 |
-| G2 Lucide、SvgView／Icon | 已实现，图形资源跨平台验证通过 | macOS／Linux 的 31 个图标；macOS 的 4 项组件与实窗测试；既有退出错误留 G4 修复 |
-| G3 字体目录、字面与变体 | 已实现，本机验证通过 | 10 项系统枚举、临时字体、命名实例／轴、精确选择与生命周期测试 |
-| G4 字体更新与选择示例 | 待实施 | 实际使用者唤醒、编辑状态、多窗口隔离 |
+| G1 Skia SVG 与独立图形库 | 已实现，三平台验证通过 | macOS 双架构各 14 项含真实 Metal；Linux x86_64／Windows MSVC UCRT：各 13 项；19 项脚本测试 |
+| G2 Lucide、SvgView／Icon | 已实现，图形资源三平台验证通过 | 三平台的 31 个图标；macOS 的 4 项组件与实窗测试；既有退出错误留 G4 修复 |
+| G3 字体目录、字面与变体 | 已实现，三平台验证通过 | macOS 双架构、Linux x86_64、Windows MSVC UCRT 各 10 项字体测试 |
+| G4 字体更新与选择示例 | 已实现，本机验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合 |
 | G5 Windows 圆形窗口 | 待实施 | 先检查默认 demo 路径及真实原生区域 |
 | G6 Taskbar／Dock | 待实施 | 各平台已有原生能力及应用标识 |
 | G7 桌面通知 | 待实施 | 提交／动作、部署注册、生命周期 |
@@ -19,7 +19,7 @@
 
 2026-11-08，本机 macOS aarch64 的 14 项 release Scoop 测试全部通过，包括 2 倍 DPI 的真实 Metal 目标、非零 viewBox、百分比尺寸、渐变／clip／blur、连续颜色／线宽以及文档关闭后的 Drawing。首轮基础图形测试漏算 polyline 的 miter 尖角延伸，修正测试几何范围后全部通过，绘制实现无需补偿。
 
-Scoop 格式化／类型检查、C++ 格式化／编译检查和 Python Ruff 通过；相关准备／打包脚本 19 项测试通过。补齐 GUI 包的 Skia／Expat 静态依赖许可收集，预编译库按普通 sysroot 方式发布。Linux 的后续验证结果见 G2；Windows 与 macOS x86_64 尚待验证。
+Scoop 格式化／类型检查、C++ 格式化／编译检查和 Python Ruff 通过；相关准备／打包脚本 19 项测试通过。补齐 GUI 包的 Skia／Expat 静态依赖许可收集，预编译库按普通 sysroot 方式发布。Linux／Windows 的后续验证结果见 G2／G3；Windows MinGW 尚待验证。
 
 ## G2：Lucide 与 UI 图标
 
@@ -39,4 +39,14 @@ FontCatalog／FontFace 现可枚举和精确打开系统字面，从内存或文
 
 macOS aarch64 release 的 10 项字体测试通过，覆盖系统目录独立存活、跨目录 ID、TTC 五个真实家族、静态字体、双轴局部覆盖、隐藏轴、命名实例的实际像素变化、线程／关闭、旧段落快照和观察者异常／取消。固定 Skia 的 CoreText 工厂不接受非零 TTC 索引，CoreText 描述符列表又包含命名实例；后续字面现由 HarfBuzz face builder 提取后交给 Skia，避免将实例索引误当集合索引。未加入另一套字体解析器或系统字体安装。
 
-Scoop 格式化／编译、C++ 格式化／定向编译检查、Python Ruff 通过，相关脚本 19 项测试通过。Linux／Windows 字体测试在这一完整批次提交后执行；当前不把其结果计入通过范围。
+Scoop 格式化／编译、C++ 格式化／定向编译检查、Python Ruff 通过，相关脚本 19 项测试通过。提交后，Linux x86_64 与 Windows MSVC UCRT 分别通过相同的 10 项 release 字体测试；Windows 也完成 SVG 13 项和 Lucide 31 图标验证。macOS x86_64 在 Rosetta 下通过 SVG 14 项（含 Metal）、Lucide 31 图标与字体 10 项。Windows GUI 实窗与 MinGW 仍在后续批次验证。
+
+## G4：字体变更与选择示例
+
+FontWatch 对实际使用者订阅 FontCollection，通过既有失效和帧请求合并唤醒窗口，最后一个读者退休后立即取消订阅。帧入口不再检查字体集合 revision；绘制缓存自己的有效性判断继续保留它。默认集合替换沿原有信号，隐藏窗口保留失效，字体目录查询不会触发字体变更。
+
+原生桌面示例新增系统家族搜索、字面选择、TTF／OTF／TTC／OTC 文件打开、命名实例及自定义轴滑杆。hidden 轴显式展开；预览使用可整体替换的独立别名和同一个 TextEditorState。模型测试覆盖 TTC 后续字面、实例／局部轴、失败加载保留旧选择、旧字面释放及编辑内容／选区保持。
+
+macOS aarch64 release 的 mount-fonts、font-wakeup、frame-reuse 三个独立窗口 Cone 通过。font-wakeup 通过真实 NSTextInputClient 发送 preedit，验证字体变化前后的组合范围、选区、文本与修订不变；同时验证静止唤醒、未使用集合的窗口不重排、隐藏恢复和卸载取消。该原生 preedit 场景目前限定 macOS，跨平台默认字体／挂载用例已开启 Windows 与 Linux。frame-reuse 的输入路由退出错误已通过关闭区域后停止菜单命令更新修复，稳定布局与完整退出一起通过。
+
+完整 native-desktop smoke 通过，包括双窗口、菜单、窗框、异形／工具窗口、模态、文件面板取消、无窗口运行和再次打开。Scoop 格式化／编译通过，UI 及依赖预编译库已更新；Linux／Windows 实窗随该批次提交后集中验证。

@@ -128,7 +128,6 @@ internal class FontProbe(val external: FontCollection, val replacement: FontColl
                 assertTrue(borrowedB!!.defaultFonts === external)
                 phase = 2
                 replacement.register(testSansBytes, "Second Mount Alias")
-                scope!!.requestFrame()
             }
             case 2 -> {
                 assertTrue(borrowedA!!.isClosed)

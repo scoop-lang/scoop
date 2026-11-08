@@ -26,6 +26,7 @@ when = { os = "linux", env = "gnu" }
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
 "scoop:scoop.ui" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
@@ -36,3 +37,14 @@ when = { os = "linux", env = "gnu" }
 "scoop:scoop.tray" = "0.1.0"
 "scoop:scoop.window.asyncio" = "0.1.0"
 "scoop:scoop.asyncio" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"scoop.tests:text-fonts" = { version = "0.1.0", path = "../../../scoop.graphics.text/tests/data" }
+
+[[test.sources]]
+path = "tests"
+when = { os = ["darwin", "windows"] }
+[[test.sources]]
+path = "tests"
+when = { os = "linux", env = "gnu" }

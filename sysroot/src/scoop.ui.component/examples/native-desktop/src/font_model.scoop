@@ -1,0 +1,118 @@
+package scoop.examples.native_desktop
+
+import scoop.graphics.text.*
+import scoop.platform.fs.Path
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+/** Owns only the fonts used by this picker; changing the preview preserves its editor. */
+internal class FontPickerModel: Closeable {
+    val fonts = FontCollection(false)
+    val families = state<ChoiceContent<FontFamilyId>>(choiceSource<FontFamilyId>([]))
+    val family = state<FontFamilyId?>(None)
+    val faces = state<Array<FontFaceInfo>>([])
+    val selected = state<FontFaceId?>(None)
+    val instance = state<Long?>(None)
+    val current = state<FontFace?>(None)
+    val showHidden = state(false)
+    val source = state("Choose system fonts or open a font file.")
+    val message = state("")
+    val query = TextEditorState()
+    val preview = TextEditorState("The quick brown fox jumps over the lazy dog.\n字体预览 0123456789")
+    private var catalog: FontCatalog? = None
+
+    fun systemFonts() {
+        replaceCatalog(fonts.systemFonts(), "System fonts")
+    }
+    fun load(path: Path) {
+        replaceCatalog(FontCatalog.load(path), path.display())
+    }
+    fun loadData(bytes: Array<Byte>, name: String) {
+        replaceCatalog(FontCatalog.fromData(bytes), name)
+    }
+    private fun replaceCatalog(next: FontCatalog, name: String) {
+        try {
+            val entries = next.families()
+            if (entries.size == 0L)
+                throw IllegalStateException(Some("No font families are available."))
+            val choices =
+                choiceSource(
+                    Array<Choice<FontFamilyId>>(entries.size) {
+                        index -> Choice(
+                            ViewKey.Number(index),
+                            entries[index].id,
+                            entries[index].name
+                        )
+                    }
+                )
+            val options = next.faces(entries[0L].id)
+            if (options.size == 0L)
+                throw IllegalStateException(Some("This family has no available faces."))
+            install(next.openFace(options[0L].id))
+            val previous = catalog
+            catalog = Some(next)
+            families.value = choices
+            family.value = Some(entries[0L].id)
+            faces.value = options
+            selected.value = Some(options[0L].id)
+            instance.value = None
+            query.replaceAll("")
+            source.value = name
+            message.value = ""
+            previous?.close()
+        } catch (error: Throwable) {
+            next.close()
+            throw error
+        }
+    }
+    fun chooseFamily(id: FontFamilyId) {
+        val directory = catalog!!
+        val options = directory.faces(id)
+        if (options.size == 0L)
+            throw IllegalStateException(Some("This family has no available faces."))
+        install(directory.openFace(options[0L].id))
+        family.value = Some(id)
+        faces.value = options
+        selected.value = Some(options[0L].id)
+        instance.value = None
+    }
+    fun chooseFace(id: FontFaceId) {
+        install(catalog!!.openFace(id))
+        selected.value = Some(id)
+        instance.value = None
+    }
+    fun chooseInstance(index: Long) {
+        val face = current.value!!
+        install(face.withVariations(face.namedInstances[index].coordinates))
+        instance.value = Some(index)
+    }
+    fun changeAxis(tag: String, value: Double) {
+        install(current.value!!.withVariations([FontVariation(tag, value)]))
+        instance.value = None
+    }
+    fun coordinate(tag: String): Double? {
+        val face = current.value ?: return None
+        for (coordinate in face.coordinates)
+            if (coordinate.tag == tag)
+                return Some(coordinate.value)
+        return None
+    }
+    private fun install(next: FontFace) {
+        try {
+            fonts.replaceFamily("Font preview", [next])
+        } catch (error: Throwable) {
+            next.close()
+            throw error
+        }
+        val previous = current.value
+        current.value = Some(next)
+        message.value = ""
+        previous?.close()
+    }
+    public override fun close() {
+        current.value?.close()
+        catalog?.close()
+        fonts.close()
+    }
+}

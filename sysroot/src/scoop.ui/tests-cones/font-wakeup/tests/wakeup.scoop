@@ -1,0 +1,284 @@
+package scoop.tests.ui.fontwakeup
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.nativeEditorText
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class FontWakeTest {
+    @Test
+    fun `font changes wake only their readers and preserve editing across layout and visibility`() {
+        FontCollection(false).use {
+            first -> FontCollection(false).use {
+                second ->
+                first.register(testSansBytes, "Wake")
+                second.register(testSansBytes, "Wake")
+                val probe = FontWakeProbe([first, second])
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(probe.finished)
+                assertEquals(2, probe.mounts)
+                assertEquals(2, probe.unmounts)
+                assertFalse(first.isClosed)
+                assertFalse(second.isClosed)
+            }
+        }
+    }
+}
+
+private class FontWakeProbe(val fonts: Array<FontCollection>) {
+    val models = [TextEditorState("alpha beta"), TextEditorState("unrelated window")]
+    val editors = MutableArray<TextEditHost?>(2L) { _ -> None }
+    val measured = MutableArray<Int>(2L) { _ -> 0 }
+    val ready = MutableArray<Boolean>(2L) { _ -> false }
+    val windows = ArrayList<Window>()
+    val roots = ArrayList<UiWindow>()
+    var timer: WindowDeadline? = None
+    var active: ActiveApplication? = None
+    var phase = 0
+    var baseline: Array<Int> = []
+    var hiddenMeasurements = 0
+    var beforeText = ""
+    var beforeSelection = Utf8Selection(0L, 0L)
+    var beforeMarked: Utf8Range? = None
+    var beforeRevision = 0L
+    var retriedFocus = false
+    var nativeFocus = 0
+    var mounts = 0
+    var unmounts = 0
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+                )
+                for (index in 0L ..< 2L) {
+                    val window =
+                        application.createWindow(
+                            windowAttributes {
+                                title = f"Scoop font wake ${index}"
+                                size = LogicalSize(320.0, 90.0)
+                                requestActivation = index == 0L
+                            }
+                        )
+                    windows.add(window)
+                    roots.add(
+                        host.attach(
+                            window,
+                            { mount -> FontWakeRoot(this, index, mount) },
+                            fonts = Some(fonts[index])
+                        )!!
+                    )
+                }
+                windows[0L].setWindowLevel(WindowLevel.AlwaysOnTop)
+                windows[0L].requestFocus()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"font wake timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    private fun later() {
+        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(300L))
+    }
+    fun accepted(index: Long) {
+        ready[index] = true
+        if (phase == 0 && ready[0L] && ready[1L]) {
+            phase = 1
+            windows[0L].requestFocus()
+            nativeFocus = focusFontWindow(windows[0L])
+            assertTrue(editors[0L]!!.area.requestFocus())
+            later()
+        } else
+            if (phase == 2 && index == 0L) {
+                assertTrue(measured[0L] > baseline[0L])
+                assertEquals(baseline[1L], measured[1L])
+                assertTrue(
+                    editors[0L]!!.area.isFocusActive,
+                    Some(
+                        f"font editor focus: native=${windows[0L].isFocused}, logical=${
+                            editors[0L]!!.area.hasFocus
+                        }, mounts=${mounts}, measures=${measured[0L]}"
+                    )
+                )
+                assertEquals(beforeText, models[0L].text)
+                assertEquals(beforeSelection, models[0L].selection)
+                assertEquals(beforeMarked, models[0L].markedRange)
+                assertEquals(beforeRevision, models[0L].revision)
+                models[0L].cancelComposition()
+                phase = 3
+                windows[0L].setVisible(false)
+                later()
+            } else
+                if (phase == 5 && index == 0L) {
+                    assertTrue(measured[0L] > hiddenMeasurements)
+                    assertEquals("alpha beta", models[0L].text)
+                    phase = 6
+                    roots[0L].close()
+                    fonts[0L].register(testSansBytes, "Retired font reader")
+                    later()
+                }
+    }
+    fun elapsed() {
+        when (phase) {
+            case 1 -> {
+                if (!editors[0L]!!.area.isFocusActive && !retriedFocus) {
+                    retriedFocus = true
+                    windows[0L].requestFocus()
+                    nativeFocus = focusFontWindow(windows[0L])
+                    editors[0L]!!.area.requestFocus()
+                    later()
+                    return
+                }
+                assertTrue(
+                    editors[0L]!!.area.isFocusActive,
+                    Some(
+                        f"font editor settled focus: activation=${nativeFocus}, native=${
+                            windows[0L].isFocused
+                        }, logical=${editors[0L]!!.area.hasFocus}, mounts=${mounts}, measures=${
+                            measured[0L]
+                        }"
+                    )
+                )
+                models[0L].setSelection(Utf8Selection(0L, 5L))
+                phase = 7
+                later()
+            }
+            case 7 -> {
+                beginFontComposition(windows[0L])
+                phase = 8
+                later()
+            }
+            case 8 -> {
+                assertTrue(models[0L].isComposing)
+                beforeText = models[0L].text
+                beforeSelection = models[0L].selection
+                beforeMarked = models[0L].markedRange
+                beforeRevision = models[0L].revision
+                baseline = Array<Int>(2L) { index -> measured[index] }
+                phase = 2
+                fonts[0L].register(testSansBytes, "Wake")
+            }
+            case 3 -> {
+                hiddenMeasurements = measured[0L]
+                fonts[0L].register(testSansBytes, "Wake")
+                phase = 4
+                later()
+            }
+            case 4 -> {
+                assertEquals(hiddenMeasurements, measured[0L])
+                phase = 5
+                windows[0L].setVisible(true)
+            }
+            case 6 -> {
+                assertTrue(roots[0L].isClosed)
+                assertEquals(baseline[1L], measured[1L])
+                finished = true
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected font wake deadline"))
+        }
+    }
+}
+
+@Extern(name = "scoop_test_font_focus")
+private fun nativeFontFocus(window: Ptr<Unit>): Int
+
+private fun focusFontWindow(window: Window): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(handle, _) -> nativeFontFocus(handle)
+                }
+            }
+        }
+    }
+}
+
+private fun beginFontComposition(window: Window) {
+    @Unsafe
+    {
+        window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case AppKit(_, view) -> "preview".withUtf8Bytes {
+                        text,
+                        size -> @Unsafe
+                        {
+                            assertEquals(0, nativeEditorText(view, 1, text, size, 2L, 2L, -1L, 0L))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class FontWakeRoot(
+    private val probe: FontWakeProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element(probe.models[index].inputState, { _, mount -> FontWakeField(probe, index, mount) })
+}
+
+private class FontWakeField(
+    private val probe: FontWakeProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val text =
+        textStyle {
+            families = ["Wake"];
+            fontSize = 20.0
+        }
+    private val editor =
+        scope.resource {
+            TextEditHost(
+                scope,
+                probe.models[index],
+                TextEditAppearance(probe.fonts[index], text, text),
+                TextEditOptions(caretBlink = Duration.ZERO)
+            )
+        }
+    public override fun onMount() {
+        probe.editors[index] = Some(editor)
+        probe.mounts += 1
+        if (index == 1L)
+            probe.timer = Some(scope.createDeadline { probe.elapsed() })
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        probe.measured[index] += 1
+        val result = editor.measure(constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, measurement: TextEditMeasurement) {
+        editor.scene(context, measurement)
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                probe.accepted(index)
+        }
+    }
+}

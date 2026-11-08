@@ -367,7 +367,7 @@ MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`meas
 
 `ComponentScope.requestLayout()` 显式使本节点及其祖先布局失效并请求帧；`requestFrame()` 只请求场景。measure 中读取动画的值／目标／速度／状态，会把该动画版本登记到这份布局结果；scene／draw 的读取只登记场景依赖。直接读取布局 context.time 的结果在下一次实际帧重新测量，读取场景时间只影响场景。登记不产生额外时钟或周期帧，只有 Surface 已请求的帧才检查变化。
 
-公共段落及编辑宿主自动登记实际使用的 FontCollection；每个已请求帧入口只读取每个共享集合的一次 revision，变化时失效实际使用它的布局。Image 的像素与固有尺寸不可变，更换对象通过 Props／update 或 requestLayout 失效；自定义可变尺寸资源由其通知调用 requestLayout。依赖只保留当前结果及当前场景的实际读取，卸载解除登记。
+公共段落及编辑宿主自动登记实际使用的 FontCollection；每个根对当前有读者的集合持有一份 observeChanges 订阅。成功登记或替换字体在 owner 线程通知，按读者用途失效布局或场景，通过既有请求合并唤醒静止窗口；未使用该集合的根不被唤醒。最后一个读者退休时立即取消订阅，关闭根清理剩余订阅，不在帧入口轮询集合 revision。缓存仍用实际 revision 判断旧段落是否可复用；隐藏窗口保留失效直到能呈现，不重建 TextEditorState、焦点或 IME 状态。Image 的像素与固有尺寸不可变，更换对象通过 Props／update 或 requestLayout 失效；自定义可变尺寸资源由其通知调用 requestLayout。依赖只保留当前结果及当前场景的实际读取，卸载解除登记。
 
 最终选择 A→B→A 中的 A 时，必须使用其对应 data、子结果、段落与滚动快照。Lazy 每次试测保存独立项集合，所有已准备 key 在本轮复用，仅依据最终选择执行保留与卸载。未选中的试测不得发布输入、锚点或帧参与；呈现资格仍在 Accepted 后提交。
 
@@ -839,6 +839,8 @@ macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding
 UiWindow.close 停止根组件的新工作并请求关闭所附着的 SurfaceWindow，不关闭调用方传入的原生 Window；窗口是否继续存在由调用方决定。根组件的实际资源释放遵循下述 content 的安全关闭时机，不在活动绘制／输入回调中抢先销毁其资源。原生 Closing、Application Exiting、SurfaceHost 失败以及显式 close 都必须走同一幂等资源收尾，不能依赖应用转发某个清理通知。
 
 原生窗口进入 Closing／Destroyed，或所附着的 Surface 离开 Open 后，该根不再排队逻辑更新。输入收尾的失焦、悬停取消及终止通知仍可更新普通 State；这些写入保留，其他仍开放根的订阅照常生效，但不能使退休中的根向已关闭的应用业务队列投递更新。正常退出因此不属于消息投递失败；开放根实际发生的投递故障仍按宿主错误传播。
+
+输入区域退休后的终结失焦仍可结束组合输入并清理编辑状态，但 TextEditHost／SelectableTextHost 不再向已经关闭的区域写入菜单命令可用性。该收尾不需要重开输入路由或吞掉其他状态错误。
 
 surface 已提供真实的内容拥有关系：SurfaceContent 具有 paint(FrameContext) 和 Closeable 合同，SurfaceHost.attach 可以接收它。现有 painter 入口继续服务直接绘图，由库适配为无额外持有资源的 content。SurfaceWindow 在当前业务回调和 Canvas 借用结束后、renderer／lease 释放前，关闭其 content 一次。UI 根挂载对象作为 content 被持有，因此异常或原生关闭路径也能释放整个 UI 子树。
 
