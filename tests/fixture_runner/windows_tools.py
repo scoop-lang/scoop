@@ -21,17 +21,22 @@ def _msvc_library_slice(architecture):
         ) from error
 
 
-def companions(target, args, sysroot, needed):
+def companions(target, args, sysroot, needed, scoop):
     configuration = native_configuration(target)
     if configuration["os"] != "windows":
         raise EnvironmentError(f"target {target!r} does not use Windows fixture tools")
     microsoft = configuration["native_environment"] == "MicrosoftUcrt"
     library_slice = _msvc_library_slice(configuration["arch"])
     root = (args.native_sysroot or sysroot / "lib" / target / "toolchain").resolve()
+    installed = scoop.resolve().parent.parent
+    bundled = installed / "libexec/llvm"
+    split = not microsoft and not args.native_sysroot and bundled.is_dir()
     llvm = os.environ.get("LLVM_SYS_221_PREFIX")
     tool_root = root
     if microsoft:
-        tool_root = Path(llvm) if llvm else None
+        tool_root = bundled if bundled.is_dir() else Path(llvm) if llvm else None
+    elif split:
+        tool_root = bundled
     result = {"cc_args": []}
     for name, filename in [("cc", "clang.exe"), ("ar", "llvm-ar.exe")]:
         if name not in needed:
@@ -49,6 +54,15 @@ def companions(target, args, sysroot, needed):
             "--target=" + configuration["llvm_triple"],
             "--sysroot=" + str(root),
         ]
+        if split:
+            resources = Path("lib/clang/22")
+            result["cc_args"] += ["-resource-dir=" + str(root / resources), "-nostdinc"]
+            for include in (
+                root / "include",
+                bundled / resources / "include",
+                installed / "libexec/mingw/include",
+            ):
+                result["cc_args"] += ["-isystem", str(include)]
         return result
     # The GNU driver otherwise adds libcmt even when cc1 selected /MD.
     # Source objects already declare the matching CRT and startup libraries.

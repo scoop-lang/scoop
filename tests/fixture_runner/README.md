@@ -19,10 +19,10 @@ fixture 的 Scoop 命令通过 `${target}` 传递该选择。`${cc}` 默认分�
 Windows x64 可选择三个完整 Windows target，默认 Microsoft UCRT；命令默认使用 `.exe`。
 Windows 安装包的主驱动为 `sco.exe`，验证安装包时传 `--scoop <安装根>/bin/sco.exe`；
 `${scoop}` 与 `--scoop` 仍是 runner 的逻辑名称。未覆盖工具路径时使用 Cargo 内部构建产物 `target/debug/scoop.exe`，其他工具名不变。
-`--native-sysroot` 与 `--unwind-prefix` 可指定所选目标的开发资源；省略时使用 sysroot 中的目标目录。
+`--native-sysroot` 与 `--unwind-prefix` 可指定完整的外部开发前缀；省略时由 Scoop 从所选 sysroot 定位目标资源，并从宿主安装根定位共享工具和头文件。
 `--linker` 选择最终 executable linker（例如 Microsoft `link.exe`），仅加入 `${link_args}`。
 Windows native companion 使用 Clang 的 GNU 风格命令行，`${cc_args}` 提供实际 machine triple 和目标资源，
-MinGW 默认使用所选 prefix 的 Clang，Microsoft 使用宿主 Clang 并由 SDK／Build Tools 或 `msvc.toml` 取得开发环境。
+安装包验收从配套 Scoop 的宿主 `libexec/llvm` 选择 Clang／archiver；MinGW companion 使用所选 sysroot 的目标配置与 compiler-rt，以及宿主共享头。显式 MinGW 开发前缀仍使用其中的完整工具链。Microsoft 使用宿主 Clang 并由 SDK／Build Tools 或 `msvc.toml` 取得开发环境。
 Microsoft companion 使用动态 CRT；GNU driver 的额外静态 CRT 默认参数被省略，链接沿用对象中的正常默认库指令。
 `--ar` 可覆盖 companion archiver；只为当前适用且实际使用 native 工具的用例准备这些参数。
 共有 fixture 使用 `{each = "${compile_args}"}` 给 `scoopc build` 传目标参数，
@@ -32,7 +32,7 @@ Microsoft companion 使用动态 CRT；GNU driver 的额外静态 CRT 默认参�
 编译器正确性专测按实际 IR、优化、跨产物合同保留所需 profile；产品默认 profile
 的专测保留省略选项的调用，Scoop 产品的默认值仍为 debug。分类与例外见
 [测试模式说明](../../docs/minor-fixes/TEST-MODES.md)。
-Linux 的链接参数包含所选 `${sysroot}/lib/<target>/unwind`，供普通程序链接使用。
+Linux／Windows 仅在显式指定时传入 `--unwind-prefix`；默认链接沿用 Scoop 的目标库和宿主共享头选择。
 显式 `--cc` 也传给 Linux Scoop 工具；用例保留其实际源码、sysroot 和工具。
 需要固定自定义 `--cc` 的工具链诊断专测直接传 `--target ${target}`，不展开包含环境 `--cc` 的公共参数数组。
 使用 C 编译器包装脚本的用例可另传 `{each = "${native_sysroot_args}"}`，保留所选 SDK；

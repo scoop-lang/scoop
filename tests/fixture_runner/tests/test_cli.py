@@ -111,10 +111,7 @@ class EnvironmentTests(unittest.TestCase):
             )
             self.assertEqual(explicit["cache"], str(repo / "prepared-cache"))
             self.assertEqual(explicit["sysroot"], str(repo / "prepared-sysroot"))
-            self.assertEqual(
-                explicit["link_args"][-1],
-                str(repo / "prepared-sysroot/lib/x86_64-unknown-linux-gnu/unwind"),
-            )
+            self.assertEqual(explicit["link_args"], explicit["compile_args"])
 
     def prepare(self, directory):
         directory = Path(directory).resolve()
@@ -159,14 +156,7 @@ class EnvironmentTests(unittest.TestCase):
             self.assertEqual(common["cc_link_args"], ["-static"])
             self.assertEqual(common["native_sysroot_args"], [])
             self.assertEqual(common["compile_args"], ["--target", "x86_64-unknown-linux-musl"])
-            self.assertEqual(
-                common["link_args"],
-                common["compile_args"]
-                + [
-                    "--unwind-prefix",
-                    str(repo / "sysroot/lib/x86_64-unknown-linux-musl/unwind"),
-                ],
-            )
+            self.assertEqual(common["link_args"], common["compile_args"])
             self.assertNotIn("sdk", common)
             self.assertNotIn("ar", common)
 
@@ -412,3 +402,48 @@ class EnvironmentTests(unittest.TestCase):
                             common["cc_args"],
                             ["--target=x86_64-w64-windows-gnu", "--sysroot=" + str(root)],
                         )
+
+    @patch("fixture_runner.cli.platform.machine", return_value="AMD64")
+    @patch("fixture_runner.cli.platform.system", return_value="Windows")
+    def test_windows_companions_use_host_tools_and_selected_target_data(self, *_):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, work = self.prepare(directory)
+            installed = repo / "installed 雪"
+            llvm = installed / "libexec/llvm"
+            llvm.mkdir(parents=True)
+            sysroot = repo / "selected target resources"
+            fixtures = [SimpleNamespace(data={"tools": ["cc", "ar"]})]
+            with patch("fixture_runner.cli.shutil.which", side_effect=lambda value: value):
+                for target in WINDOWS_TARGETS:
+                    with self.subTest(target=target):
+                        common = environment(
+                            repo,
+                            work,
+                            fixtures,
+                            arguments(
+                                [
+                                    "--scoop",
+                                    str(installed / "bin/sco.exe"),
+                                    "--sysroot",
+                                    str(sysroot),
+                                    "--target",
+                                    target,
+                                ]
+                            ),
+                        )
+                        self.assertEqual(common["cc"], str(llvm / "bin/clang.exe"))
+                        self.assertEqual(common["ar"], str(llvm / "bin/llvm-ar.exe"))
+                        self.assertEqual(common["link_args"], ["--target", target])
+                        if target != WINDOWS_TARGETS[0]:
+                            native = sysroot / "lib" / target / "toolchain"
+                            self.assertIn("--sysroot=" + str(native), common["cc_args"])
+                            self.assertIn(
+                                "-resource-dir=" + str(native / "lib/clang/22"),
+                                common["cc_args"],
+                            )
+                            for include in (
+                                native / "include",
+                                llvm / "lib/clang/22/include",
+                                installed / "libexec/mingw/include",
+                            ):
+                                self.assertIn(str(include), common["cc_args"])
