@@ -177,7 +177,7 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 
 `--target <triple>` 可重复选择其他已安装的随包目标，`--all-targets` 处理清单中全部已安装的目标，跳过未安装的目标。支持 `--target`、`--all-targets`、`--jobs` 及 `--work-dir`；默认工作目录为安装根的 `build/post-install`，保留普通构建缓存和 lock，重复运行复用未变化的结果。文档生成失败返回非零状态，修正实际错误后重试同一命令。
 
-安装对应 `lib-base-<target>`（及需要 GUI 时的 `lib-gui-<target>`）组件包后，`~/.scoop/bin/scoop` 默认使用相邻的 `~/.scoop/lib/<target-triple>/*.slib`，不因 debug profile 或空缓存重编系统库。显式 `--sysroot`／`SCOOP_SYSROOT` 和 source locator 仍按原有规则生效。安装及 VSIX 使用步骤见[随包说明](distribution/README.md)。
+安装对应 `lib-base-<target>`（及需要 GUI 时的 `lib-gui-<target>`）组件包，Windows MinGW 同时安装对应 `native-<target>` 后，`~/.scoop/bin/scoop` 默认使用相邻的 `~/.scoop/lib/<target-triple>/*.slib`，不因 debug profile 或空缓存重编系统库。显式 `--sysroot`／`SCOOP_SYSROOT` 选择目标库与 Scoop 资源根，宿主 LLVM 工具及公共头由实际执行文件所属安装根提供；source locator 保持原有规则。安装及 VSIX 使用步骤见[随包说明](distribution/README.md)。
 
 `sysroot/commands` 整目录进入安装包，保留程序的可执行权限；空目录也保留，`.gitkeep` 不打包。`scoop [--sysroot path] somecommand <args>` 直接执行所选安装根的 `commands/scoop-somecommand`，后续参数全部原样交给该程序。
 

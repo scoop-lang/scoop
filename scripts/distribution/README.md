@@ -13,7 +13,6 @@ curl -fsSL https://scoop-lang.org/install.sh | sh
 ```sh
 mkdir -p "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-bin-aarch64-apple-darwin.tar.xz -C "$HOME/.scoop"
-tar -xJf scoop-0.0.0-dev-llvm-aarch64-apple-darwin.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-sources.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-lib-base-aarch64-apple-darwin.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-lib-gui-aarch64-apple-darwin.tar.xz -C "$HOME/.scoop"
@@ -23,18 +22,25 @@ cat "$HOME/.scoop/VERSION"
 scoop --version
 ```
 
-各组件归档内没有额外的版本目录、`.scoop` 或 `sysroot` 层，无需 `--strip-components`。五个命令通过实际执行文件定位相邻资源，也支持正常软链接启动。也可解压到其他安装根；移动整个目录后可以直接继续使用。追加目标只需再解压对应的 `scoop-<version>-lib-base-<target>.tar.xz`（需要 GUI 时加上 `lib-gui-<target>`）并重跑 post-install；之后追加 lib-gui 包同样重跑 post-install 即可补齐 GUI 库文档。
+各组件归档内没有额外的版本目录、`.scoop` 或 `sysroot` 层，无需 `--strip-components`。五个命令通过实际执行文件定位相邻资源，也支持正常软链接启动。也可解压到其他安装根；移动整个目录后可以直接继续使用。追加目标时解压对应的 `scoop-<version>-lib-base-<target>.tar.xz`，Windows MinGW 目标还需同目标的 `native-<target>`，需要 GUI 时加上 `lib-gui-<target>`，然后为该目标重跑 post-install。之后追加 lib-gui 包同样重跑 post-install 即可补齐 GUI 库文档。
 
 Windows 在 PowerShell 中解压各组件归档并运行 post-install（默认目标为 MSVC UCRT），然后将安装根的 `bin` 加入用户 PATH：
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-bin-x86_64-pc-windows-gnullvm.tar.xz -C "$HOME/.scoop"
-tar -xJf scoop-0.0.0-dev-llvm-x86_64-pc-windows-gnullvm.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-sources.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-lib-base-x86_64-pc-windows-msvc-ucrt.tar.xz -C "$HOME/.scoop"
 tar -xJf scoop-0.0.0-dev-lib-gui-x86_64-pc-windows-msvc-ucrt.tar.xz -C "$HOME/.scoop"
 & "$HOME/.scoop/post-install.ps1"
+```
+
+例如，向已有 Windows 安装追加 MinGW UCRT 目标：
+
+```powershell
+tar -xJf scoop-0.0.0-dev-lib-base-x86_64-w64-windows-llvm-mingw-ucrt.tar.xz -C "$HOME/.scoop"
+tar -xJf scoop-0.0.0-dev-native-x86_64-w64-windows-llvm-mingw-ucrt.tar.xz -C "$HOME/.scoop"
+& "$HOME/.scoop/post-install.ps1" --target x86_64-w64-windows-llvm-mingw-ucrt
 ```
 
 post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只为已安装的目标生成离线 API 文档，不再构建系统库。LLDB 所需的配套 Python 仍随 bin 包提供，无需另装解释器。默认只处理宿主默认目标；用 `--target <triple>` 处理另一目标，或用 `--all-targets` 处理全部已安装的目标（未安装的目标跳过并提示）。所选目标的 `lib/<target>/` 未安装（缺少系统 `.slib`）时报错，并提示安装对应的 `scoop-<version>-lib-base-<target>.tar.xz`；GUI 库文档只在已安装 lib-gui 包时生成。支持 `--target`、`--all-targets`、`--jobs` 和 `--work-dir`；普通工作目录为安装根的 `build/post-install`。修正文档错误后可以重试；已有缓存按输入变化复用。
@@ -55,7 +61,7 @@ rc = "app.rc"
 
 `subsystem` 可为 `console` 或 `gui`，缺省为 `console`；`rc` 是可选的、相对 Cone 根目录的资源脚本路径。构建使用所选 Windows toolchain 的资源编译器，随包工具可直接使用，也可采用外部工具链提供的编译器。
 
-内置库以预编译 release `.slib` 随 `lib-base-<target>`／`lib-gui-<target>` 组件包交付；debug 和 release 应用都直接使用 `~/.scoop/lib/<target-triple>/*.slib`，当前应用需要的泛型实例仍正常生成。空缓存也不触发系统库重编。普通 build、run、test 和 link 不重新编译内置 Cone 或 runtime；post-install 只生成文档，新增目标须解压对应 lib 组件包后再执行 post-install。应用构建缓存和输出写到各自正常位置，日常编译不要求安装目录可写。显式 `--sysroot` 或环境变量 `SCOOP_SYSROOT` 会覆盖默认安装根；使用安装包时不需要设置这两项。
+内置库以预编译 release `.slib` 随 `lib-base-<target>`／`lib-gui-<target>` 组件包交付；debug 和 release 应用都直接使用 `~/.scoop/lib/<target-triple>/*.slib`，当前应用需要的泛型实例仍正常生成。空缓存也不触发系统库重编。普通 build、run、test 和 link 不重新编译内置 Cone 或 runtime；post-install 只生成文档，新增目标须解压对应 lib 组件包，MinGW 同时解压对应 native 包，再执行 post-install。应用构建缓存和输出写到各自正常位置，日常编译不要求安装目录可写。显式 `--sysroot` 或环境变量 `SCOOP_SYSROOT` 选择目标库与 Scoop 资源根；宿主 LLVM 工具及其公共头仍从实际执行文件所属安装根定位。使用普通安装时不需要设置这两项。
 
 包管理器位于 `bin/scoop-pm`，可通过 `scoop pm` 调用。普通 `build/run` 在没有 `Cone.lock` 时自动解析依赖并创建 lock；`--locked` 要求已有匹配选择，`--frozen` 同时禁止联网。workspace 成员可用 `-p group:name` 或 `--workspace` 选择。
 
