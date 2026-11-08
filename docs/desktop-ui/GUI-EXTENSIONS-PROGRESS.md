@@ -90,3 +90,5 @@ macOS aarch64、x86_64 和 Linux GNU 各通过三项 UI 桌面测试，覆盖 SV
 macOS 实际运行生成的应用包，验证图标与主题切换、系统字体预览、加载 Variable.ttf、选择 Heavy 命名实例及查看隐藏轴；预览说明保持使用正常 UI 字体。Linux 生成 Debian 包并在带空格路径解包，通过系统 DesktopAppInfo 执行其 NewDocument 动作，确认空格、中文、百分号与引号参数完整。Linux 通知也补验了同 ID 替换与撤回。macOS Dock 本身的视觉效果尚未实际观察。
 
 LLVM-MinGW 的通知后端补齐缺失的标准 COM 激活声明，并局部修正 WIDL 将 WinRT Boolean 与 Byte 混成同一 C++ 类型的问题；两套 CRT 的窗口与通知库均编译通过。Windows 三目标的其余组件、实窗与图形测试，以及三个宿主的完整工具链安装包，继续集中验收；不以当前编译结果代替这些运行验证。
+
+完整工具链打包发现 Linux 的 LLDB 共享库没有记录配套非系统 Python 的运行库路径，仅选择解释器仍无法找到 libpython。打包现在从所选解释器的 sysconfig 取得 library 目录，按选定 LLVM、选定 Python、已有 LD_LIBRARY_PATH 的顺序解析依赖，再重定位到安装包。Ruff 与 macOS／Linux 的相关脚本测试通过；新增真实 ELF 用例验证无需环境覆盖也能找到共享运行库，安装目录移动后仍可执行。

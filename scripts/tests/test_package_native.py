@@ -17,6 +17,12 @@ import package_native
 @unittest.skipUnless(sys.platform == "linux", "ELF loader and patchelf")
 class LinuxDependenciesTests(unittest.TestCase):
     def test_environment_libraries_are_relocated_with_selected_llvm_dependencies(self):
+        self.check_library_search(explicit=False)
+
+    def test_selected_python_libraries_are_relocated_without_an_environment_override(self):
+        self.check_library_search(explicit=True)
+
+    def check_library_search(self, *, explicit):
         with tempfile.TemporaryDirectory() as temporary:
             work = Path(temporary).resolve()
             root, llvm, external = (work / name for name in ("installation", "llvm", "python"))
@@ -80,8 +86,14 @@ class LinuxDependenciesTests(unittest.TestCase):
                 check=True,
             )
             shutil.copy2(app, root / "bin/program")
-            with patch.dict(os.environ, LD_LIBRARY_PATH=str(external)):
-                libraries = package_native.linux(root, root, [app], llvm)
+            with patch.dict(os.environ, LD_LIBRARY_PATH="" if explicit else str(external)):
+                libraries = package_native.linux(
+                    root,
+                    root,
+                    [app],
+                    llvm,
+                    search_directories=[external] if explicit else [],
+                )
             self.assertEqual(set(libraries), {library, llvm / "librelease_support.so.1"})
             moved = work / "moved installation"
             root.rename(moved)

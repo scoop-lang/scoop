@@ -2237,7 +2237,7 @@ generated-C 桥没有用户源码映射，继续使用 `-g0`，通过实际符�
 
 VS Code 在顶层普通 `main` 及测试容器直接声明的 `@Test` 方法上提供 Run／Debug CodeLens。标记复用当前文档的 Tree-sitter 语法树，支持限定注解名和 import alias；入口签名与测试合法性仍由普通编译检查。单击时自动创建本次启动配置，无需预先编写 `launch.json`。从源文件向父目录查找最近的 `Cone.toml` 作为构建输入与默认 cwd，没有 manifest 时 `main` 使用单文件模式；测试要求 manifest Cone。保存失败、编译失败、取消或测试目录选择失败均不启动程序。Debug 默认使用 debug profile 和 full 调试信息，成功后把本次 executable 交给 lldb-dap；Run 复用同一构建与启动配置并设置 `noDebug`。测试选择消费上述完整目录，精确运行所点方法及其正常生命周期，显式点击忽略用例也选择该用例，不使用名称子串代替单用例选择。仅提供标记不触发构建，编译缓存继续遵守 2.7、2.8。
 
-Linux 打包时查找实际共享依赖，优先使用选定 LLVM 的 library 目录，并保留构建环境已有的 `LD_LIBRARY_PATH`，以找到配套 Python 等非系统安装的库。收集后的非系统库随包发布，最终加载路径仍改写为相对安装目录，不依赖构建环境路径。
+Linux 打包时查找实际共享依赖，依次使用选定 LLVM 的 library 目录、所选配套 Python 通过 sysconfig 提供的 library 目录，以及构建环境已有的 `LD_LIBRARY_PATH`。显式选择非系统 Python 时不要求额外手工设置同一库目录。收集后的非系统库随包发布，最终加载路径仍改写为相对安装目录，不依赖构建环境路径。
 
 所有宿主的 llvm 组件包在公开 `bin` 目录中为 LLVM／LLDB 命令统一增加 `scoop-` 前缀：`scoop-lldb`、`scoop-lldb-dap`、`scoop-dsymutil`、`scoop-llvm-objcopy`、`scoop-llvm-strip`、`scoop-llvm-symbolizer`、`scoop-llvm-nm` 与 `scoop-llvm-readobj`；Windows 附加 `.exe`。不在该目录保留无前缀别名，避免加入 PATH 后与其他 LLVM 安装冲突。编译器查找同目录的调试工具、编辑器的默认 adapter 与性能分析命令使用发行名称；显式选择外部 LLVM 时仍使用其上游名称。私有 `libexec` 布局保留上游工具名。
 

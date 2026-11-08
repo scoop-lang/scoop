@@ -121,7 +121,7 @@ def linux_system(name):
     )
 
 
-def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None):
+def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None, *, search_directories=()):
     if shutil.which("patchelf") is None:
         raise ValueError("Linux packaging requires patchelf")
     private = llvm_root / "libexec/llvm/lib"
@@ -132,7 +132,7 @@ def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None):
     prefix_libraries(files, llvm_lib, private)
     libraries = {}
     edits = []
-    search = [str(llvm_lib)]
+    search = [str(llvm_lib), *map(str, search_directories)]
     if inherited := os.environ.get("LD_LIBRARY_PATH"):
         search.append(inherited)
     environment = dict(os.environ, LC_ALL="C", LD_LIBRARY_PATH=os.pathsep.join(search))

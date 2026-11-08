@@ -726,9 +726,18 @@ def main():
                 debugger_files,
                 search_directories=debugger_search,
             )
-        else:
-            native = (package_native.darwin if host_system == "Darwin" else package_native.linux)(
+        elif host_system == "Darwin":
+            native = package_native.darwin(
                 bin_root, llvm_root, binaries, args.llvm_prefix / "lib", debugger_files
+            )
+        else:
+            native = package_native.linux(
+                bin_root,
+                llvm_root,
+                binaries,
+                args.llvm_prefix / "lib",
+                debugger_files,
+                search_directories=debugger_search,
             )
         package_licenses.collect_llvm(
             llvm_root, args.llvm_source, args.host, native, python_license
