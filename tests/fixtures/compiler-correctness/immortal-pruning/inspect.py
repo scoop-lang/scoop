@@ -89,19 +89,30 @@ for binary, used in (
     (expanded, single),
 ):
     data = binary.read_bytes()
+    has_symbol_table = True
+    if data.startswith(b"MZ"):
+        # Microsoft link omits the COFF symbol table; image registration IDs remain.
+        pe = int.from_bytes(data[60:64], "little")
+        has_symbol_table = int.from_bytes(data[pe + 16 : pe + 20], "little") != 0
+    registration_counts = {
+        symbol: data.count(bytes.fromhex(symbol.rsplit("$", 1)[1])) for symbol in objects
+    }
     for name, payload in payloads.items():
         assert (payload in data) == (name in used), (binary, name)
     for symbol, payload in objects.items():
-        present = symbol.encode() + b"\0" in data
-        registration = symbol.replace("$io$", "$ir$")
-        assert (registration.encode() + b"\0" in data) == present, (binary, registration)
         # Only the selected registration stores this object's semantic ID.
-        assert data.count(bytes.fromhex(symbol.rsplit("$", 1)[1])) == int(present), (binary, symbol)
+        count = registration_counts[symbol]
+        assert count in (0, 1), (binary, symbol, count)
+        present = count == 1
+        if has_symbol_table:
+            assert (symbol.encode() + b"\0" in data) == present, (binary, symbol)
+            registration = symbol.replace("$io$", "$ir$")
+            assert (registration.encode() + b"\0" in data) == present, (binary, registration)
         if binary == zero and symbol in provider_objects:
             assert not present, "unused provider must have an empty immortal table"
         if present:
             for child in object_graph.get(symbol, []):
-                assert child.encode() + b"\0" in data, (binary, symbol, child)
+                assert registration_counts[child] == 1, (binary, symbol, child)
         matching = {name for name, expected in payloads.items() if payload == expected}
         if matching:
             assert present == bool(matching & used), (binary, symbol, matching)
@@ -119,7 +130,8 @@ for binary, used in (
         getters = [entry for entry in entries.values() if entry["name"] == "text"]
         assert len(getters) == 1, getters
         getter = getters[0]
-        assert (getter["symbol"].encode() + b"\0" in data) == (profile == "debug")
+        if has_symbol_table:
+            assert (getter["symbol"].encode() + b"\0" in data) == (profile == "debug")
         assert (bytes.fromhex(getter["body"]) in data) == (profile == "debug")
 
 
@@ -171,4 +183,6 @@ for binary, stress, expected in (
     else:
         assert result.stderr == "", result
 
-print("unused resources and registrations removed; live object graphs survive GC")
+sys.stdout.buffer.write(
+    b"unused resources and registrations removed; live object graphs survive GC\n"
+)

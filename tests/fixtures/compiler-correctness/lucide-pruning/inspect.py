@@ -44,13 +44,19 @@ for binary, used in (
     (expanded, {"search"}),
 ):
     data = binary.read_bytes()
+    has_symbol_table = True
+    if data.startswith(b"MZ"):
+        # Microsoft link omits the COFF symbol table; image registration IDs remain.
+        pe = int.from_bytes(data[60:64], "little")
+        has_symbol_table = int.from_bytes(data[pe + 16 : pe + 20], "little") != 0
     for name, payload in assets.items():
         present = name in used
         assert data.count(payload) == int(present), (binary, name)
         symbol = objects[name]
-        assert (symbol.encode() + b"\0" in data) == present, (binary, symbol)
-        registration = symbol.replace("$io$", "$ir$")
-        assert (registration.encode() + b"\0" in data) == present, (binary, registration)
+        if has_symbol_table:
+            assert (symbol.encode() + b"\0" in data) == present, (binary, symbol)
+            registration = symbol.replace("$io$", "$ir$")
+            assert (registration.encode() + b"\0" in data) == present, (binary, registration)
         assert data.count(bytes.fromhex(symbol.rsplit("$", 1)[1])) == int(present), (binary, symbol)
         if not present:
             getter = getters[name]
@@ -64,4 +70,4 @@ for binary, used in (
         expected = f"{sum(len(assets[name]) for name in original)}\n"
     assert result.stdout == expected and result.stderr == "", result
 
-print("Lucide keeps only referenced SVGs, getters and registrations")
+sys.stdout.buffer.write(b"Lucide keeps only referenced SVGs, getters and registrations\n")
