@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import package_llvm
 from build_support import ROOT
 
 
@@ -75,7 +76,13 @@ def stage(root, llvm, debugger, paths, compiler, llvm_tools):
         ignore=shutil.ignore_patterns("__pycache__"),
     )
     # LLDB finds its expression-parser headers relative to its own DLL.
-    shutil.copytree(llvm / "lib/clang", private / "lib/clang")
+    shutil.copytree(
+        root / "libexec/llvm/lib/clang",
+        private / "lib/clang",
+        copy_function=lambda source, destination: package_llvm.share_file(
+            Path(source), Path(destination), windows=True
+        ),
+    )
     launcher = root / "bin/scoop-lldb.exe"
     subprocess.run(
         [

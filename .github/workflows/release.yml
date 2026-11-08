@@ -214,14 +214,14 @@ jobs:
       - name: Install the archives and run a program
         run: |
           python - <<'PY'
-          import os, subprocess, tarfile, tomllib
+          import os, shutil, subprocess, tarfile, tomllib
           from pathlib import Path
           version = os.environ['RELEASE_VERSION']
           host = os.environ['PACKAGE_HOST']
           dist = Path('tmp/dist', f'scoop-{version}')
           installed = Path('tmp/release smoke/install root').resolve()
           installed.mkdir(parents=True)
-          for component in (f'bin-{host}', f'llvm-{host}', 'sources'):
+          for component in (f'bin-{host}', 'sources'):
               with tarfile.open(dist / f'scoop-{version}-{component}.tar.xz') as package:
                   names = package.getnames()
                   if any(name.endswith('.slib') or name.startswith('./docs/') for name in names):
@@ -241,9 +241,9 @@ jobs:
                   package.extractall(installed, filter='data')
           release = tomllib.loads(Path('scripts/release.toml').read_text())
           windows = os.name == 'nt'
-          llvm_config = installed / 'libexec/llvm/bin' / ('llvm-config.exe' if windows else 'llvm-config')
-          actual = subprocess.check_output([llvm_config, '--version'], text=True).strip()
-          if actual != release['llvm']:
+          clang = installed / 'libexec/llvm/bin' / ('clang.exe' if windows else 'clang')
+          actual = subprocess.check_output([clang, '--version'], text=True).splitlines()[0]
+          if ('clang version ' + release['llvm']) not in actual:
               raise SystemExit(f'Bundled LLVM mismatch: expected {release["llvm"]}, found {actual}')
           post_install = (
               ['pwsh', '-NoProfile', '-File', str(installed / 'post-install.ps1')]
@@ -261,15 +261,22 @@ jobs:
               raise SystemExit(f'Unexpected program output: {result.stdout!r}')
           if not (installed / 'docs/index.html').is_file():
               raise SystemExit('Post-install did not generate API documentation')
+          upload = Path('tmp/release-upload')
+          if upload.exists():
+              shutil.rmtree(upload)
+          for name in (dist / f'packages-{host}.list').read_text().splitlines():
+              shared = name in (f'scoop-{version}-sources.tar.xz', f'scoop-{version}-llvm-sources.tar.xz')
+              if shared and host != 'aarch64-apple-darwin':
+                  continue
+              directory = upload / ('sources' if shared else 'host')
+              directory.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(dist / name, directory / name)
           PY
       - name: Upload the host packages
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-${{ matrix.host }}
-          path: |
-            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-bin-${{ matrix.host }}.tar.xz
-            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-llvm-${{ matrix.host }}.tar.xz
-            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-lib-*.tar.xz
+          path: tmp/release-upload/host/*.tar.xz
           compression-level: 0
           if-no-files-found: error
       - name: Upload the shared source packages
@@ -277,9 +284,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-sources
-          path: |
-            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-sources.tar.xz
-            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-llvm-sources.tar.xz
+          path: tmp/release-upload/sources/*.tar.xz
           compression-level: 0
           if-no-files-found: error
 

@@ -208,16 +208,16 @@ def relocate_markdown_links(root, revision):
 
 
 def stage_binaries(root, binaries, host_system):
-    (root / "bin").mkdir(parents=True)
+    (root / "bin").mkdir(parents=True, exist_ok=True)
     for binary in binaries:
         name = "sco.exe" if host_system == "Windows" and binary.name == "scoop.exe" else binary.name
         shutil.copy2(binary, root / "bin" / name)
 
 
 def assemble_llvm(root, args, host_system):
-    """Stage the complete patched LLVM prefix (with development files) and the debugger."""
-    shutil.copytree(args.llvm_prefix, root / "libexec/llvm", symlinks=True)
-    return package_debugger.stage(
+    """Stage selected LLVM tools and the debugger in the host command component."""
+    native = package_llvm.stage(root, args.llvm_prefix, host_system)
+    debugger, version, license_file, search = package_debugger.stage(
         root,
         args.llvm_prefix,
         args.debugger_prefix,
@@ -226,6 +226,20 @@ def assemble_llvm(root, args, host_system):
         args.python_license,
         windows_compiler=args.mingw_ucrt / "bin/clang.exe" if host_system == "Windows" else None,
     )
+    native.update(debugger)
+    return native, version, license_file, search
+
+
+def stage_commands(root, args):
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    shutil.copytree(
+        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
+    )
+    suffix = ".exe" if host_definition(args.host)["system"] == "Windows" else ""
+    return {
+        (sysroot / "commands" / (name + suffix)).resolve(): root / "commands" / (name + suffix)
+        for name in ("scoop-example", "scoop-bundle")
+    }
 
 
 def assemble_sources(root, args):
@@ -378,9 +392,6 @@ def assemble_bin(root, targets, args, release, extension, orders, python_version
     (root / "tooling").mkdir()
     shutil.copy2(extension, root / "tooling" / extension.name)
     shutil.copytree(ROOT / "tooling/scoop-programming", root / "tooling/scoop-programming")
-    shutil.copytree(
-        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
-    )
     cone_manifests = [
         tomllib.loads(path.read_text(encoding="utf-8"))
         for path in sorted((sysroot / "src").glob("*/Cone.toml"))
@@ -709,18 +720,25 @@ def main():
         orders[target] = cone_order(sysroot, selection, target)
     output = args.output_dir / f"scoop-{args.version}"
     output.mkdir(parents=True, exist_ok=True)
+    packages = []
+
+    def publish(component, directory, *, arcname="."):
+        name = f"scoop-{args.version}-{component}.tar.xz"
+        archive(directory, output / name, arcname=arcname)
+        packages.append(name)
+
     with tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary:
         base = Path(temporary)
-        llvm_root = base / "llvm"
-        debugger_files, python_version, python_license, debugger_search = assemble_llvm(
-            llvm_root, args, host_system
-        )
         bin_root = base / "bin"
         stage_binaries(bin_root, binaries, host_system)
+        debugger_files, python_version, python_license, debugger_search = assemble_llvm(
+            bin_root, args, host_system
+        )
+        debugger_files.update(stage_commands(bin_root, args))
         if host_system == "Windows":
             native = package_native.windows(
                 bin_root,
-                llvm_root,
+                bin_root,
                 binaries,
                 args.llvm_prefix / "bin",
                 debugger_files,
@@ -728,35 +746,34 @@ def main():
             )
         elif host_system == "Darwin":
             native = package_native.darwin(
-                bin_root, llvm_root, binaries, args.llvm_prefix / "lib", debugger_files
+                bin_root, bin_root, binaries, args.llvm_prefix / "lib", debugger_files
             )
         else:
             native = package_native.linux(
                 bin_root,
-                llvm_root,
+                bin_root,
                 binaries,
                 args.llvm_prefix / "lib",
                 debugger_files,
                 search_directories=debugger_search,
             )
-        package_licenses.collect_llvm(
-            llvm_root, args.llvm_source, args.host, native, python_license
-        )
+        package_licenses.collect_llvm(bin_root, args.llvm_source, args.host, native, python_license)
         assemble_bin(bin_root, targets, args, release, extension, orders, python_version, native)
+        if windows:
+            package_llvm.share_windows_aliases(bin_root, package_debugger.LLVM_TOOLS)
         sources_root = base / "sources"
         assemble_sources(sources_root, args)
-        archive(bin_root, output / f"scoop-{args.version}-bin-{args.host}.tar.xz")
-        archive(llvm_root, output / f"scoop-{args.version}-llvm-{args.host}.tar.xz")
-        archive(sources_root, output / f"scoop-{args.version}-sources.tar.xz")
+        publish(f"bin-{args.host}", bin_root)
+        publish("sources", sources_root)
         for target in targets:
             base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
             lib_root = base / f"lib-base-{target}"
             assemble_base_libraries(lib_root, target, args, base_cones)
-            archive(lib_root, output / f"scoop-{args.version}-lib-base-{target}.tar.xz")
+            publish(f"lib-base-{target}", lib_root)
             if gui_cones:
                 gui_root = base / f"lib-gui-{target}"
                 assemble_gui_libraries(gui_root, target, args, gui_cones)
-                archive(gui_root, output / f"scoop-{args.version}-lib-gui-{target}.tar.xz")
+                publish(f"lib-gui-{target}", gui_root)
         llvm_sources = base / f"scoop-{args.version}-llvm-sources"
         vendor = llvm_sources / "vendor/llvm-project" / VERSION
         shutil.copytree(
@@ -771,7 +788,11 @@ def main():
         )
         shutil.copy2(args.llvm_archive, vendor / f"llvm-project-{VERSION}.src.tar.xz")
         shutil.copy2(args.llvm_source / "llvm/LICENSE.TXT", vendor / "LICENSE.TXT")
-        archive(llvm_sources, output / f"{llvm_sources.name}.tar.xz", arcname=llvm_sources.name)
+        publish("llvm-sources", llvm_sources, arcname=llvm_sources.name)
+    listing = output / f"packages-{args.host}.list"
+    staged = listing.with_suffix(".list.new")
+    staged.write_text("\n".join(packages) + "\n", encoding="utf-8")
+    staged.replace(listing)
 
 
 if __name__ == "__main__":

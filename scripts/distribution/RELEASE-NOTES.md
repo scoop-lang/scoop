@@ -1,6 +1,6 @@
 # 安装包布局与编辑器扩展
 
-发行形态改为组件包：同一 release 提供每宿主的 `scoop-<version>-bin-<host>.tar.xz`（五个命令、commands、post-install、tooling、发行说明）与 `scoop-<version>-llvm-<host>.tar.xz`（含开发文件的完整 LLVM prefix、LLDB 与随包 Python、`scoop-` 前缀启动器），全局一份的 `scoop-<version>-sources.tar.xz`（内置库源码、vendor 输入、公开头文件、示例主题），以及每目标的 `scoop-<version>-lib-base-<target>.tar.xz`（非 GUI 预编译系统 `.slib`、native 库、四种 runtime 配置）与 `scoop-<version>-lib-gui-<target>.tar.xz`（GUI 系统 `.slib` 与 Skia 等 GUI native 库，可按需安装）。各归档以安装根内容为顶层，并集解压到 `~/.scoop` 即为完整安装；同一 release 的包按相同版本号成组安装，bin 包的运行依赖 llvm 包。系统库改为发布侧预编译 `.slib` 随 lib 包交付，post-install 仅为已安装目标生成离线 API 文档；追加目标只需再解压对应的 lib 包并重跑 post-install。普通编译继续直接复用安装好的库。LLDB 及其匹配的 Python 继续随 llvm 包提供。
+宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。全局 sources 与各目标 lib-base／lib-gui 继续单独分发；系统库预编译，post-install 只生成已安装目标的 API 文档。
 
 版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
 

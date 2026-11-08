@@ -10,7 +10,9 @@ Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN
 
 宿主 LLVM 准备同时安装 LLVM／Clang 动态库、Rust 构建所需的 llvm-config／头文件、Clang／clang-cl／Clang++、LLD 及所需 LLVM 对象／归档／资源工具。LLVM 与 inkwell 均只启用实际使用的 AArch64／X86 backend，不引用未构建 target 的初始化入口。Windows x64 宿主采用 LLVM-MinGW UCRT 开发环境构建，Rust 宿主为 `x86_64-pc-windows-gnullvm`；宿主身份不覆盖应用选择的完整 Scoop target。Windows 使用原生 Ninja 和 `.exe`／DLL 布局，必需的宿主 LLVM／Clang、C++／unwind DLL 与实际引用它们的工具相邻安装；Darwin／Linux 保持各自的 rpath 与动态库规则。开发安装与运行期工具包的组装仍由维护脚本负责，普通编译不构建宿主 LLVM。
 
-Windows 发行准备使用同一 GNU-LLVM Rust 宿主构建主命令、示例命令和内部 runtime 准备程序，交付三个完整 Windows target 的 native 库与 runtime，系统 `.slib` 由发布侧预编译并随对应 target 组件包交付。宿主 Clang／LLD／RC 工具及 Clang resource headers 安装在 `libexec/llvm`，该目录是包含 llvm-config、开发头文件、静态 SDK 库与 CMake exports 的完整 LLVM prefix；两个 LLVM-MinGW 目标在各自 `lib/<target>/toolchain` 中保留所选 prefix 的 x86-64 开发资源、驱动与目录关系，Microsoft SDK／MSVC toolset 由本机开发环境提供。目标 libunwind 随各自目录交付；宿主与目标 LLVM／MinGW、C++／unwind 的实际许可一并收集。安装后的 API 文档生成沿用相同 target 选择。
+发行组件按宿主、目标与全局输入划分。`bin-<host>` 合并 Scoop 命令、外部命令与 LLVM／LLDB／Python 运行资源，不另发 `llvm-<host>` 包。维护 LLVM prefix 保留 llvm-config、开发头文件、静态 SDK 库与 CMake exports；发行只选择实际使用的 Clang／LLD／LLVM 工具、Clang builtin resource headers 和非系统动态依赖。公开工具名与私有 `libexec/llvm` 路径沿用 2.22。`sources` 交付内置 Cone 源码、维护输入和 Scoop FFI 公开头；`llvm-sources` 仅供维护，不是普通安装的依赖。发布入口使用本次成功生成的组件清单，不通过目录通配把旧组件重新加入发行。
+
+`lib-base-<target>` 和 `lib-gui-<target>` 只交付预编译 `.slib`、所需对象与链接库、runtime 索引及许可证，不带第三方开发头或完整工具链。Linux GUI 保留实际需要的共享库。Windows 使用同一 GNU-LLVM Rust 宿主构建主命令、外部命令和内部 runtime 准备程序；两个 LLVM-MinGW 目标分别增加 `native-<target>`，在 `lib/<target>/toolchain` 保存 CRT 配置头、启动对象、导入库、C++ 目标库与必要 compiler-rt。公共 MinGW／libc++ 头由 Windows bin 的 `libexec/mingw/include` 提供一次；目标配置头优先于公共头。目标 native 包不带宿主 executable、其他架构或其他操作系统资源。Microsoft SDK／MSVC toolset 仍由本机开发环境或显式配置提供，不生成空的 native-msvc 包。默认安装选择 bin、sources 和默认目标 base；MinGW 还需同目标 native，GUI 按需追加。宿主与目标的实际许可随所属组件收集，安装后的 API 文档生成沿用同一目标选择。详细布局见[发行组件设计](../distribution/DESIGN.md)。
 
 发行脚本默认显式准备目标 native 与 runtime 资源，也可通过 `--prepared-sysroot` 消费维护者已经准备的 sysroot，跳过这些资源的重建；两种入口均使用同一编译器构建系统 `.slib` 并随对应 target 组件包交付，`--prepared-sysroot` 消费的 sysroot 应已包含这些 `.slib`；后续命令构建、示例、组装和归档流程相同。Linux GNU 的发行准备默认使用本次 LLVM prefix 中的 Clang 编译 native 与系统库，`--gnu-cc` 可显式覆盖；musl 保持独立目标工具链。该入口是普通产物消费，不增加来源审核或生产过程复核；缺失资源按实际 I/O 报错，编译消费仍执行既有格式／ABI 检查。
 
@@ -2241,9 +2243,11 @@ VS Code 在顶层普通 `main` 及测试容器直接声明的 `@Test` 方法上�
 
 Linux 打包时查找实际共享依赖，依次使用选定 LLVM 的 library 目录、所选配套 Python 通过 sysconfig 提供的 library 目录，以及构建环境已有的 `LD_LIBRARY_PATH`。显式选择非系统 Python 时不要求额外手工设置同一库目录。收集后的非系统库随包发布，最终加载路径仍改写为相对安装目录。附带的 ELF executable 使用 Scoop 宿主命令所用的系统 interpreter，避免 Python 保留 Homebrew 等构建环境的绝对 loader 路径；共享库不增加 interpreter。
 
-所有宿主的 llvm 组件包在公开 `bin` 目录中为 LLVM／LLDB 命令统一增加 `scoop-` 前缀：`scoop-lldb`、`scoop-lldb-dap`、`scoop-dsymutil`、`scoop-llvm-objcopy`、`scoop-llvm-strip`、`scoop-llvm-symbolizer`、`scoop-llvm-nm` 与 `scoop-llvm-readobj`；Windows 附加 `.exe`。不在该目录保留无前缀别名，避免加入 PATH 后与其他 LLVM 安装冲突。编译器查找同目录的调试工具、编辑器的默认 adapter 与性能分析命令使用发行名称；显式选择外部 LLVM 时仍使用其上游名称。私有 `libexec` 布局保留上游工具名。
+所有宿主的 bin 组件包在公开 `bin` 目录中为 LLVM／LLDB 命令统一增加 `scoop-` 前缀：`scoop-lldb`、`scoop-lldb-dap`、`scoop-dsymutil`、`scoop-llvm-objcopy`、`scoop-llvm-strip`、`scoop-llvm-symbolizer`、`scoop-llvm-nm` 与 `scoop-llvm-readobj`；Windows 附加 `.exe`。不在该目录保留无前缀别名，避免加入 PATH 后与其他 LLVM 安装冲突。编译器查找同目录的调试工具、编辑器的默认 adapter 与性能分析命令使用发行名称；显式选择外部 LLVM 时仍使用其上游名称。私有 `libexec` 布局保留上游工具名。
 
 Windows 的 `bin/scoop-lldb.exe` 与 `bin/scoop-lldb-dap.exe` 使用原生 launcher，定位安装根下的私有 LLDB、Python 和 formatter，并保留用户参数、工作目录、标准流及子进程退出码。LLDB 的 Clang resource headers 与其 DLL 按相对安装布局一同发布，使迁移安装目录后的表达式解析仍可使用配套头文件。
+
+所有宿主 executable、外部命令与 Python native 模块先进入同一个 bin 暂存根，再按实际依赖收集动态库。Windows 相同 DLL 在所需相邻加载目录中使用归档内硬链接；Clang 工具别名、LLDB helper／模块和 resource headers 也只在实际内容相同时共享。POSIX 使用相对符号链接。所有链接只指向同一暂存根，源 SDK 先复制再修改加载路径与签名；不会修改维护 prefix，也不使用跨组件硬链接。硬链接失败按 I/O 错误报告，安装目录按普通复制展开成独立文件后仍须可用。
 
 随包 LLDB 为 PE 优先选择已匹配的 PDB；LLVM-MinGW CRT 自带的 DWARF 不能遮蔽程序的 CodeView／PDB 源码、类型和变量。没有匹配 PDB 时仍使用可用的 DWARF 或普通符号，不删除链接输入中的其他调试节，也不改变非 PE 的符号格式选择。
 

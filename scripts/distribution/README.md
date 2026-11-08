@@ -2,7 +2,7 @@
 
 Windows 的主驱动名为 `sco.exe`，在 PowerShell 中使用 `sco --version`、`sco run main.scoop`、`sco pm` 和 `sco example`。macOS／Linux 仍使用 `scoop`；下文示例中的 `scoop` 在 Windows 上替换为 `sco`。其余程序名不变：`scoopc.exe`、`scoop-link.exe`、`scoop-lsp.exe`、`scoop-pm.exe` 以及 `commands/scoop-example.exe`。Windows 工具包不提供 `scoop.exe` 别名，避免与同名包管理器冲突。
 
-发行按组件分包：每个 release 提供每宿主的 `scoop-<version>-bin-<host>.tar.xz` 与 `scoop-<version>-llvm-<host>.tar.xz`、全局一份的 `scoop-<version>-sources.tar.xz`，以及每目标的 `scoop-<version>-lib-base-<target>.tar.xz`（非 GUI 系统库与 runtime）和 `scoop-<version>-lib-gui-<target>.tar.xz`（`scoop.window`、`scoop.graphics`、`scoop.ui` 等 GUI 系统库及 Skia 等 native 库）。不开发 GUI 程序时可以只安装 lib-base 包；lib-gui 包须与同目标的 lib-base 包一起安装。各归档直接包含安装根内容，将同一版本的组件归档解压到同一安装根（默认 `~/.scoop`）即为完整安装，再运行 post-install 生成离线 API 文档，最后把 `~/.scoop/bin` 加入 PATH。同一 release 的包按相同版本号成组安装，不跨版本混装；bin 包的运行依赖同宿主的 llvm 包。macOS／Linux 可以使用官网安装脚本自动完成：
+发行按组件分包：每个 release 提供每宿主的 `scoop-<version>-bin-<host>.tar.xz`、全局一份的 `scoop-<version>-sources.tar.xz`，以及每目标的 `scoop-<version>-lib-base-<target>.tar.xz`（非 GUI 系统库与 runtime）和 `scoop-<version>-lib-gui-<target>.tar.xz`（`scoop.window`、`scoop.graphics`、`scoop.ui` 等 GUI 系统库及 Skia 等 native 库）。不开发 GUI 程序时可以只安装 lib-base 包；lib-gui 包须与同目标的 lib-base 包一起安装。各归档直接包含安装根内容，将同一版本的组件归档解压到同一安装根（默认 `~/.scoop`）即为完整安装，再运行 post-install 生成离线 API 文档，最后把 `~/.scoop/bin` 加入 PATH。同一 release 的包按相同版本号成组安装，不跨版本混装；bin 包包含所需 LLVM／LLDB 工具、Python 和动态依赖；完整开发 SDK 不进入运行包。macOS／Linux 可以使用官网安装脚本自动完成：
 
 ```sh
 curl -fsSL https://scoop-lang.org/install.sh | sh
@@ -37,13 +37,13 @@ tar -xJf scoop-0.0.0-dev-lib-gui-x86_64-pc-windows-msvc-ucrt.tar.xz -C "$HOME/.s
 & "$HOME/.scoop/post-install.ps1"
 ```
 
-post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只为已安装的目标生成离线 API 文档，不再构建系统库。LLDB 所需的配套 Python 仍随 llvm 包提供，无需另装解释器。默认只处理宿主默认目标；用 `--target <triple>` 处理另一目标，或用 `--all-targets` 处理全部已安装的目标（未安装的目标跳过并提示）。所选目标的 `lib/<target>/` 未安装（缺少系统 `.slib`）时报错，并提示安装对应的 `scoop-<version>-lib-base-<target>.tar.xz`；GUI 库文档只在已安装 lib-gui 包时生成。支持 `--target`、`--all-targets`、`--jobs` 和 `--work-dir`；普通工作目录为安装根的 `build/post-install`。修正文档错误后可以重试；已有缓存按输入变化复用。
+post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只为已安装的目标生成离线 API 文档，不再构建系统库。LLDB 所需的配套 Python 仍随 bin 包提供，无需另装解释器。默认只处理宿主默认目标；用 `--target <triple>` 处理另一目标，或用 `--all-targets` 处理全部已安装的目标（未安装的目标跳过并提示）。所选目标的 `lib/<target>/` 未安装（缺少系统 `.slib`）时报错，并提示安装对应的 `scoop-<version>-lib-base-<target>.tar.xz`；GUI 库文档只在已安装 lib-gui 包时生成。支持 `--target`、`--all-targets`、`--jobs` 和 `--work-dir`；普通工作目录为安装根的 `build/post-install`。修正文档错误后可以重试；已有缓存按输入变化复用。
 
 安装根的 `VERSION` 随 bin 包提供，第一行为发行版本，随后记录源码 revision 与宿主平台。`scoop --version`、`scoopc --version`、`scoop-link --version`、`scoop-lsp --version`、`scoop-pm --version` 显示同一份发行版本和源码 revision。`share/scoop/toolchain.toml` 列出宿主、默认目标、各目标的有序内置 Cone 清单、native 版本、VSIX 和编程 skill 路径；`share/scoop/install/targets.list` 列出本 release 为该 host 提供的目标（默认目标在首行），`<target>.list` 与 `<target>.gui.list` 分别保存该目标非 GUI 与 GUI Cone 的顺序，供 post-install 读取。普通命令不把它作为启动验证清单。
 
-Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 llvm 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI（`lib-gui-x86_64-unknown-linux-gnu` 包）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
+Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 bin 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI（`lib-gui-x86_64-unknown-linux-gnu` 包）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
 
-Windows x64 发行的最低版本以 `toolchain.toml` 为准：llvm 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib-base／lib-gui 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标另含对应 LLVM-MinGW CRT 的 x86-64 开发资源。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标解压对应 lib 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
+Windows x64 发行的最低版本以 `toolchain.toml` 为准：bin 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib-base／lib-gui 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标另含对应 LLVM-MinGW CRT 的 x86-64 开发资源。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标解压对应 lib 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
 
 Windows 应用可在 `Cone.toml` 中选择 GUI 子系统并嵌入资源：
 

@@ -127,7 +127,7 @@ class LinuxDependenciesTests(unittest.TestCase):
             self.assertTrue(library.is_file())
             self.assertTrue(app.is_file())
 
-    def test_staged_prefix_libraries_are_reused_without_copying(self):
+    def test_staged_debugger_library_is_relocated_with_its_dependencies(self):
         with tempfile.TemporaryDirectory() as temporary:
             work = Path(temporary).resolve()
             root, llvm = work / "installation", work / "llvm"
@@ -169,11 +169,11 @@ class LinuxDependenciesTests(unittest.TestCase):
                 check=True,
             )
             staged = private / "librelease_support.so.1"
-            before = staged.stat()
             shutil.copy2(app, root / "bin/program")
-            libraries = package_native.linux(root, root, [app], llvm)
+            libraries = package_native.linux(
+                root, root, [app], llvm, {(llvm / staged.name).resolve(): staged}
+            )
             self.assertEqual(libraries, [llvm / "librelease_support.so.1"])
-            self.assertEqual(staged.stat().st_ino, before.st_ino)
             result = subprocess.check_output(
                 [root / "bin/program"], text=True, env=dict(os.environ, LD_LIBRARY_PATH="")
             )
@@ -216,7 +216,7 @@ class DarwinDependenciesTests(unittest.TestCase):
                     str(source),
                     "-L" + str(build),
                     "-lrelease_support",
-                    "-Wl,-rpath," + str(build),
+                    "-Wl,-rpath,@loader_path/../libexec/llvm/lib",
                     "-o",
                     str(app),
                 ],
@@ -225,10 +225,10 @@ class DarwinDependenciesTests(unittest.TestCase):
             staged = llvm_root / "libexec/llvm/lib" / library.name
             shutil.copy2(library, staged)
             shutil.copy2(app, bin_root / "bin" / app.name)
-            before = staged.stat()
-            libraries = package_native.darwin(bin_root, llvm_root, [app], build)
+            libraries = package_native.darwin(
+                bin_root, llvm_root, [app], build, {library.resolve(): staged}
+            )
             self.assertEqual(libraries, [library.resolve()])
-            self.assertEqual(staged.stat().st_ino, before.st_ino)
             # Overlay both component packages into one install root.
             installed = work / "installed"
             shutil.copytree(bin_root, installed, dirs_exist_ok=True)
@@ -279,6 +279,8 @@ class WindowsDependenciesTests(unittest.TestCase):
             for directory in (root / "bin", root / "commands", root / "libexec/llvm/bin"):
                 self.assertEqual((directory / "runtime.dll").read_bytes(), b"selected runtime")
                 self.assertEqual((directory / "support.dll").read_bytes(), b"selected support")
+                self.assertTrue((root / "bin/runtime.dll").samefile(directory / "runtime.dll"))
+                self.assertFalse((llvm / "runtime.dll").samefile(directory / "runtime.dll"))
                 self.assertFalse((directory / "KERNEL32.dll").exists())
                 self.assertFalse((directory / "ucrtbase.dll").exists())
 
