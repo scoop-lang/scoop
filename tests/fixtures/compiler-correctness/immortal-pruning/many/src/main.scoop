@@ -1,0 +1,34 @@
+package dev.immortalpruning.many
+import dev.immortalpruning.*
+import dev.immortalpruning.left.left
+import dev.immortalpruning.right.right
+import scoop.compiler.*
+
+val staticText: String = includeStr("static.txt")
+val initializedText: String = initialize()
+fun initialize(): String {
+    println("initialized")
+    return includeStr("initialized.txt")
+}
+object LazyHolder { val text: String = includeStr("lazy.txt") }
+class Holder(val text: String, val bytes: Array<Byte>, val directory: EmbeddedDir)
+
+fun main() {
+    val holder = Holder(text, bytes, directory)
+    val thunk = { otherText }
+    val texts = [inlined(), defaulted(), generic(3), left(), right(), thunk()]
+    val childBytes = child()
+    gcCollect()
+    print(holder.text)
+    println(holder.bytes.size)
+    println(holder.bytes[0])
+    println(holder.directory.files.size)
+    print(holder.directory.files[0].path)
+    println(holder.directory.files[0].bytes.size)
+    for (value in texts) print(value)
+    println(childBytes.size)
+    println(literal())
+    print(staticText)
+    print(initializedText)
+    print(LazyHolder.text)
+}

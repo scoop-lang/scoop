@@ -1,5 +1,7 @@
 # Scoop 实现路线图
 
+[静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成实现与七目标定向验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。六个 GUI 目标的真实 Lucide 零／单／全引用只保留 0／1／31 份 SVG，扩库不增加未用资源；Darwin 双架构（x86_64 经 Rosetta）、Linux GNU／musl、Windows 三环境的跨 Cone、静态对象图与定向 GC 通过。静态存储和初始化规则保持，构建成本已记录；发行打包按用户要求取消。
+
 [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
 
 Coroutine executor 与异步同步原语改造进行中（2026-11-04，见[设计](coroutine-executors/DESIGN.md)与[实施进度](coroutine-executors/PROGRESS.md)）。lambda 的期望挂起性、对称重载规则、编译器执行协议、receiver scope、blocking 入口，以及[并发库](specs/SCOOP-CONCURRENT-SPEC.md)的 Channel／AsyncMutex／AsyncConditionVariable、MultiThreadExecutor、通用 managed BlockingTaskPool，I/O LoopExecutor、共享池 AsyncRuntime、原生阻塞任务和 TLS 迁移已完成 Darwin 本地验收；接下来审计 HTTP 等上层消费者，并集中运行 Linux／Windows 验证。每项实际验收结果单独记录，尚未完成的 API 不视为可用。

@@ -277,6 +277,23 @@ class EnvironmentTests(unittest.TestCase):
             self.assertIn(str(sdk), common["cc_args"])
             self.assertEqual(common["cc_link_args"], [])
 
+    @unittest.skipUnless(os.name == "posix", "POSIX compiler symlinks")
+    def test_explicit_compiler_preserves_its_paired_driver_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, work = self.prepare(directory)
+            (repo / "clang-22").touch()
+            cc = repo / "clang"
+            cc.symlink_to("clang-22")
+            common = environment(
+                repo,
+                work,
+                [SimpleNamespace(data={"tools": [], "requires_target_execution": False})],
+                arguments(["--target", "x86_64-unknown-linux-gnu", "--cc", str(cc)]),
+            )
+            for key in ("compile_args", "link_args"):
+                index = common[key].index("--cc")
+                self.assertEqual(common[key][index + 1], str(cc))
+
     @patch("fixture_runner.cli.platform.machine", return_value="x86_64")
     @patch("fixture_runner.cli.platform.system", return_value="Linux")
     def test_linux_clang_companion_receives_machine_and_sysroot(self, *_):

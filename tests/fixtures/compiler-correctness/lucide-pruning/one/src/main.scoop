@@ -1,0 +1,21 @@
+package dev.lucidepruning.one
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.icons.lucide.search
+
+fun main() {
+    SvgDocument.parse(search.source).use { document ->
+        RasterSurface(48, 48).use { surface ->
+            surface.draw { canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.drawSvg(document, Rect(0.0, 0.0, 48.0, 48.0))
+            }
+            val pixels = surface.readPixels()
+            var ink = 0
+            for (index in 0L ..< 2304L) {
+                if (pixels[index * 4L + 3L].toUByte().toInt() > 0) ink += 1
+            }
+            println(ink > 20)
+        }
+    }
+}

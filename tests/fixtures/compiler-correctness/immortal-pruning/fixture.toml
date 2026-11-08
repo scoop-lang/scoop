@@ -1,0 +1,84 @@
+schema = 1
+name = "immortal-pruning"
+inputs = ["provider", "zero", "one", "many", "left", "right", "inspect.py"]
+tools = ["scoop", "scoopc", "python"]
+tags = ["link", "gc", "optimization", "compiler-correctness"]
+variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
+
+[vars]
+options = ["--keep-symbols", "--debug-info", "none", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--message-format", "json"]
+dumps = ["--emit", "all", "--dump-scope", "sources"]
+
+[[steps]]
+name = "prepare"
+files = [
+    {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+    {copy = {from = "${fixture}/zero", to = "${work}/zero"}},
+    {copy = {from = "${fixture}/one", to = "${work}/one"}},
+    {copy = {from = "${fixture}/many", to = "${work}/many"}},
+    {copy = {from = "${fixture}/left", to = "${work}/left"}},
+    {copy = {from = "${fixture}/right", to = "${work}/right"}},
+]
+
+[[steps]]
+name = "zero"
+argv = ["${scoop}", "build", "${work}/zero", {each = "${link_args}"}, {each = "${options}"}, "--profile", "${profile}", {each = "${dumps}"}, "--target-dir", "${work}/target", "--dump-dir", "${work}/dump-zero"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "one"
+argv = ["${scoop}", "build", "${work}/one", {each = "${link_args}"}, {each = "${options}"}, "--profile", "${profile}", {each = "${dumps}"}, "--target-dir", "${work}/target", "--dump-dir", "${work}/dump-one"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "many"
+argv = ["${scoop}", "build", "${work}/many", {each = "${link_args}"}, {each = "${options}"}, "--profile", "${profile}", {each = "${dumps}"}, "--target-dir", "${work}/target", "--dump-dir", "${work}/dump-many"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "instrument"
+argv = ["${scoop}", "link", "--keep-symbols", "--enable-startup-stats", "--enable-gc-stress", {each = "${link_args}"}, "--root-slib", "${many.result.root.path}", {each = "${many.result.dependencies}", field = "path", prefix = "--dependency-slib"}, "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "-o", "${work}/instrumented", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "grow"
+files = [
+    {copy = {from = "${one.result.output}", to = "${work}/one-baseline.exe"}},
+    {write = {path = "${work}/provider/src/added.txt", data = "immortal-pruning-added-unused-text\n"}},
+    {write = {path = "${work}/provider/src/added.scoop", data = """package dev.immortalpruning
+import scoop.compiler.includeStr
+public val added: String get() { return includeStr("added.txt") }
+"""}},
+]
+
+[[steps]]
+name = "expanded"
+argv = ["${scoop}", "build", "${work}/one", {each = "${link_args}"}, {each = "${options}"}, "--profile", "${profile}", {each = "${dumps}"}, "--target-dir", "${work}/target", "--dump-dir", "${work}/dump-expanded"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "inspect"
+argv = ["${python}", "${fixture}/inspect.py", "${work}", "${profile}", "${zero.result.output}", "${work}/one-baseline.exe", "${many.result.output}", "${instrument.result.output}", "${expanded.result.output}"]
+exit = 0
+stdout = "unused resources and registrations removed; live object graphs survive GC\n"
+stderr = ""
