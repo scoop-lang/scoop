@@ -1,4 +1,5 @@
 #include "font_catalog.h"
+#include "include/core/SkStream.h"
 
 STFontFace::STFontFace(STFontDescription value) : font(std::move(value)) {
   auto hb = st_hb_face(font.face);
@@ -84,9 +85,17 @@ void *scoop_graphics_text_face_variations(void *pointer,
     for (int64_t index = 0; index < count; ++index)
       coordinates.push_back(
           {values[index].tag, static_cast<float>(values[index].value)});
-    auto clone = source.font.face->makeClone(
-        SkFontArguments().setVariationDesignPosition(
-            {coordinates.data(), static_cast<int>(coordinates.size())}));
+    SkFontArguments arguments;
+#if defined(_WIN32)
+    int collectionIndex = 0;
+    auto stream = source.font.face->openStream(&collectionIndex);
+    if (!stream)
+      return nullptr;
+    arguments.setCollectionIndex(collectionIndex);
+#endif
+    arguments.setVariationDesignPosition(
+        {coordinates.data(), static_cast<int>(coordinates.size())});
+    auto clone = source.font.face->makeClone(arguments);
     if (!clone)
       return nullptr;
     auto description = source.font;

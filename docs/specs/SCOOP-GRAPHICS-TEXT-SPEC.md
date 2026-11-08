@@ -158,6 +158,8 @@ withVariations 返回独立资源。省略的轴保留来源当前坐标；先�
 
 固定 Skia 的 CoreText 数据工厂只接受集合索引 0，而 CoreText 的数据描述符列表会同时展开命名实例，不能用该列表的位置代表 TTC／OTC 字面索引。macOS 对集合中的后续字面使用 HarfBuzz face builder 按实际索引提取字体表，交给同一个 Skia 数据工厂打开；普通文件与集合首字面直接打开。该路径也用于原有 register(data) 接口，不安装字体、不按名称重匹配，也不另写字体解析器。CoreText 对静态字体的可变参数查询可能返回 -1；后端依据实际字体表确认无可变轴，可变字体仍要求轴与当前坐标查询成功。轴的 defaultValue 来自字体元数据，coordinates 来自实际打开的字面，系统字面可能已经选择了不同于默认值的实例。
 
+DirectWrite 的 SkTypeface.makeClone 要求参数中的 collection index 与实际原生字面一致，否则会直接返回来源字面而忽略变化。Windows 实例化时通过 SkTypeface 的字体流接口取得实际索引并传给 clone；不能一律使用 0，也不能以公开的来源 collectionIndex 代替系统字面的原生索引。该索引仅用于打开同一字面的变体，不改变 FontFaceInfo 的来源身份。集合中的后续字面与首字面使用相同的命名实例／轴坐标和像素验收。
+
 FontCatalog／FontFace 与集合一样在创建线程使用、关闭，关闭幂等。关闭目录不关闭已经打开的字面；集合登记后独立保留字面，调用者可关闭 FontFace。已复制的元数据在资源关闭后仍可读取。空／坏字体数据、原生读取失败报告 GraphicsException；无效目录 ID、空别名或空替换数组报告参数异常；已关闭资源或错误线程报告状态异常。文件读取失败保留文件系统错误。
 
 register(data, family, collectionIndex) 继续可用；register(face, family) 复用实际字面。replaceFamily 要求非空字面数组，一次替换该别名下全部显式字面，失败不改变登记和 revision。旧 Paragraph／TextLayout 保持原快照；新排版使用新集合。选中的实际字面经应用别名送入 SkParagraph，并同步其 weight／width／slant，避免样式不匹配导致合成粗体或倾斜；不依赖当前 shaping 路径未消费的 TextStyle.setTypeface。

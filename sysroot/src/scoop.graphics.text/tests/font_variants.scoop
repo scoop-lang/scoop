@@ -9,25 +9,27 @@ private class FontVariantTest {
     @Test
     fun `named instances expose complete coordinates and select the rendered font`() {
         FontCatalog.fromData(includeBytes("data/NotoSansCJK-VF-subset.otf.ttc")).use {
-            catalog -> catalog.openFace(catalog.faces(catalog.families()[0L].id)[0L].id).use {
-                face ->
-                assertEquals(1L, face.axes.size)
-                val axis = face.axes[0L]
-                assertEquals("wght", axis.tag)
-                assertEquals(100.0, axis.minimum)
-                assertEquals(100.0, axis.defaultValue)
-                assertEquals(900.0, axis.maximum)
-                assertFalse(axis.hidden)
-                assertEquals(7L, face.namedInstances.size)
-                val bold = face.namedInstances[5L]
-                assertEquals(Some("Bold"), bold.name)
-                assertEquals(FontVariation("wght", 700.0), bold.coordinates[0L])
-                face.withVariations(bold.coordinates).use {
-                    chosen ->
-                    assertEquals(FontVariation("wght", 700.0), chosen.coordinates[0L])
-                    assertEquals(face.info.id, chosen.info.id)
-                    assertEquals(100.0, face.coordinates[0L].value)
-                    assertTrue(fontFaceInk(chosen) > fontFaceInk(face))
+            catalog -> for (family in catalog.families()) {
+                catalog.openFace(catalog.faces(family.id)[0L].id).use {
+                    face ->
+                    assertEquals(1L, face.axes.size)
+                    val axis = face.axes[0L]
+                    assertEquals("wght", axis.tag)
+                    assertEquals(100.0, axis.minimum)
+                    assertEquals(100.0, axis.defaultValue)
+                    assertEquals(900.0, axis.maximum)
+                    assertFalse(axis.hidden)
+                    assertEquals(7L, face.namedInstances.size)
+                    val bold = face.namedInstances[5L]
+                    assertEquals(Some("Bold"), bold.name)
+                    assertEquals(FontVariation("wght", 700.0), bold.coordinates[0L])
+                    face.withVariations(bold.coordinates).use {
+                        chosen ->
+                        assertEquals(FontVariation("wght", 700.0), chosen.coordinates[0L])
+                        assertEquals(face.info.id, chosen.info.id)
+                        assertEquals(100.0, face.coordinates[0L].value)
+                        assertTrue(fontFaceInk(chosen) > fontFaceInk(face))
+                    }
                 }
             }
         }

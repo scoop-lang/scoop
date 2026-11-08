@@ -53,7 +53,7 @@ macOS aarch64 release 的 mount-fonts、font-wakeup、frame-reuse 三个独立�
 
 Linux 的 mount-fonts 与 frame-demand 在 nuc12 解锁后的真实 GNOME Wayland 桌面通过；同一原实现也通过独立 Weston GLES 合成器和 Xvfb X11 的窗口验证。frame-demand 复用既有连续丢弃／隐藏恢复用例并开启 Linux GNU。首次运行时 GNOME 锁屏停止了 frame-clock 交付，造成测试等待帧超时；解锁后无需修改 renderer 即完成。本批未保留诊断日志代码或试探性的 GTK 调度改动。Xvfb 使用软件图形，不将其记为硬件桌面视觉验证。
 
-Windows 11 登录桌面 Session 1 的 mount-fonts 已通过。选择器组合测试发现 TTC 后续字面的命名实例坐标不正确，正在单独修复和补充图形字体组合覆盖；不将该选择器测试记为通过。
+Windows 11 登录桌面 Session 1 的 mount-fonts 已通过。选择器组合测试暴露了固定 Skia DirectWrite 的 clone 合同：传入的集合索引与原生字面不一致时会忽略变体。Windows 后端现在从实际 SkTypeface 流取得索引，系统字体也不依赖公开来源索引。命名实例测试已扩展到 TTC 的全部五个家族，验证坐标、来源不变及实际粗体像素；macOS 定向测试与 Windows 全部 59 项文本测试通过。Windows 选择器和综合 demo 将在 G8 更新整条 UI 依赖后复验，避免因 applicationId 变更重复构建组件链。
 
 ## G5：Windows 圆形示例
 
