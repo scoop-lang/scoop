@@ -1,5 +1,7 @@
 #include "window.h"
 #include <X11/Xatom.h>
+#include <X11/Xutil.h>
+#include <gdk/wayland/gdkwayland.h>
 #include <gdk/x11/gdkx.h>
 
 // The window owns this container; a renderer may attach one content widget.
@@ -110,6 +112,16 @@ static gboolean close_requested(GtkWindow *native, gpointer data) {
 static void realized(GtkWidget *widget, gpointer data) {
   SWWindow *window = data;
   GdkSurface *surface = sw_surface(window);
+  const char *id = window->application->application_id;
+  if (id) {
+    if (window->application->kind == SW_WAYLAND) {
+      gdk_wayland_toplevel_set_application_id(GDK_TOPLEVEL(surface), id);
+    } else {
+      XClassHint hint = {(char *)id, (char *)id};
+      XSetClassHint(gdk_x11_display_get_xdisplay(window->application->display),
+                    gdk_x11_surface_get_xid(surface), &hint);
+    }
+  }
   g_signal_connect(surface, "notify::state", G_CALLBACK(changed), window);
   g_signal_connect(surface, "layout", G_CALLBACK(layout), window);
   if (window->tool && window->application->kind == SW_X11) {

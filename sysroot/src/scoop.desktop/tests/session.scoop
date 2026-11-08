@@ -1,0 +1,307 @@
+package scoop.desktop.tests
+
+import scoop.desktop.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.desktopnative.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class DesktopTest {
+    @Test
+    fun `native desktop bindings follow window and menu lifetimes without owning business windows`() {
+        val probe = DesktopProbe()
+        try {
+            Application(
+                applicationOptions {
+                    applicationId = Some("dev.scoop.desktop.tests")
+                    lastWindowPolicy = LastWindowPolicy.KeepRunning
+                }
+            ).run(probe)
+        } catch (error: Throwable) {
+            println(f"desktop stage ${probe.stage}")
+            reportFailure(error)
+            throw error
+        }
+        assertTrue(probe.finished)
+        assertTrue(probe.desktop!!.isClosed)
+        assertTrue(probe.firstBinding!!.isClosed)
+        assertTrue(probe.secondBinding!!.isClosed)
+    }
+
+    @Test
+    fun `launch tasks reject empty labels and embedded NUL`() {
+        assertFailsWith<IllegalArgumentException> { JumpListTask("") }
+        assertFailsWith<IllegalArgumentException> { JumpListTask("Open", ["bad\u{0000}arg"]) }
+        val task = JumpListTask("新窗口", ["", "a b", "100%", "quote\"", "back\\slash"])
+        assertEquals(5L, task.arguments.size)
+    }
+}
+
+private fun reportFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportFailure(error.primaryFailure)
+        reportFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(error.message ?: "assertion without message")
+        } else
+            if (error is Exception) {
+                println(error.message ?: "exception without message")
+            }
+}
+
+private fun accepted(supported: Boolean, status: RequestStatus) {
+    if (supported)
+        assertTrue(status == RequestStatus.Applied || status == RequestStatus.Requested)
+    else
+        assertEquals(RequestStatus.Unsupported, status)
+}
+
+private fun image(): DesktopImage =
+    DesktopImage(
+        LogicalSize(16.0, 16.0),
+        Array<DesktopImageRepresentation>(2L) {
+            index ->
+            val side =
+                if (index == 0L)
+                    16
+                else
+                    32
+            DesktopImageRepresentation(
+                PhysicalSize(side, side),
+                Array<UInt8>(side.toLong() * side.toLong() * 4L) {
+                    channel -> if (channel % 4L == 0L || channel % 4L == 3L)
+                        255.toUByte()
+                    else
+                        64.toUByte()
+                }
+            )
+        }
+    )
+
+private class DesktopProbe: ApplicationHandler {
+    var desktop: DesktopApplication? = None
+    var first: Window? = None
+    var second: Window? = None
+    var firstBinding: DesktopWindow? = None
+    var secondBinding: DesktopWindow? = None
+    var menu: Menu? = None
+    var item: MenuItemId? = None
+    var popupResource: NativeApplicationLease? = None
+    var stage = 0
+    var finished = false
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(8L))
+                )
+                assertEquals(Some("dev.scoop.desktop.tests"), active.applicationId)
+                desktop = Some(active.openDesktop())
+                assertEquals(
+                    WindowErrorKind.ResourceBusy,
+                    assertFailsWith<WindowException> { active.openDesktop() }.kind
+                )
+                first =
+                    Some(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop desktop first"
+                                size = LogicalSize(260.0, 180.0)
+                                requestActivation = false
+                            }
+                        )
+                    )
+                second =
+                    Some(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop desktop second"
+                                size = LogicalSize(260.0, 180.0)
+                                requestActivation = false
+                            }
+                        )
+                    )
+                begin(active)
+            }
+            case Window(_, WindowEvent.GeometryChanged(_)) -> begin(active)
+            case Menu(activation) -> {
+                assertEquals(1, stage)
+                assertEquals(menu!!.id, activation.menu)
+                assertEquals(item!!, activation.item)
+                assertEquals(MenuSource.Native(desktop!!.menuUseId!!), activation.source)
+                checkDockTracking(active)
+            }
+            case Window(identity, WindowEvent.Destroyed) -> {
+                if (identity == first!!.id) {
+                    assertEquals(2, stage)
+                    assertTrue(firstBinding!!.isClosed)
+                    assertFalse(secondBinding!!.isClosed)
+                    assertEquals(
+                        WindowErrorKind.InvalidState,
+                        assertFailsWith<WindowException> { firstBinding!!.capabilities() }.kind
+                    )
+                    val supported = secondBinding!!.capabilities().windowIcon
+                    desktop!!.close()
+                    desktop!!.close()
+                    assertTrue(desktop!!.isClosed)
+                    assertTrue(secondBinding!!.isClosed)
+                    assertEquals(WindowState.Open, second!!.state)
+                    if (supported)
+                        assertEquals(0, desktopNativeWindow(second!!, 0))
+                    assertEquals(
+                        WindowErrorKind.InvalidState,
+                        assertFailsWith<WindowException> {
+                            desktop!!.setBadgeText(Some("late"))
+                        }.kind
+                    )
+                    active.openDesktop().close()
+                    stage = 3
+                    second!!.requestDestroy()
+                } else
+                    if (identity == second!!.id) {
+                        assertEquals(3, stage)
+                        finished = true
+                        active.requestExit()
+                    }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"desktop lifecycle timed out at ${stage}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun begin(active: ActiveApplication) {
+        if (
+            stage !=
+                0 ||
+                first?.state !=
+                Some(WindowState.Open) ||
+                second?.state !=
+                Some(WindowState.Open)
+        )
+            return
+        if (first!!.metrics == None || second!!.metrics == None)
+            return
+        stage = 1
+        val app = desktop!!
+        val icon = image()
+        val caps = app.capabilities()
+        val identity = desktopNativeApplication(0)
+        if (identity >= 0)
+            assertEquals(1, identity)
+        accepted(caps.applicationIcon, app.setIcon(Some(icon)))
+        accepted(caps.badgeText, app.setBadgeText(Some("7")))
+        if (caps.badgeText)
+            assertEquals(1, desktopNativeApplication(1))
+        assertFailsWith<IllegalArgumentException> { app.setBadgeText(Some("bad\u{0000}text")) }
+        firstBinding = Some(app.attachWindow(first!!))
+        secondBinding = Some(app.attachWindow(second!!))
+        assertEquals(
+            WindowErrorKind.ResourceBusy,
+            assertFailsWith<WindowException> { app.attachWindow(first!!) }.kind
+        )
+        val binding = firstBinding!!
+        val windowCaps = binding.capabilities()
+        accepted(windowCaps.windowIcon, binding.setIcon(Some(icon)))
+        accepted(windowCaps.windowIcon, secondBinding!!.setIcon(Some(icon)))
+        if (windowCaps.windowIcon) {
+            assertEquals(1, desktopNativeWindow(first!!, 0))
+            binding.setIcon(None)
+            assertEquals(0, desktopNativeWindow(first!!, 0))
+            assertEquals(1, desktopNativeWindow(second!!, 0))
+            binding.setIcon(Some(icon))
+        }
+        accepted(windowCaps.overlayIcon, binding.setOverlayIcon(Some(icon), "Status"))
+        accepted(
+            windowCaps.progress,
+            binding.setProgress(DesktopProgress.Normal(9007199254740993UL, 18014398509481986UL))
+        )
+        if (windowCaps.progress) {
+            accepted(true, binding.setThumbnailTooltip(Some("Desktop caption")))
+            assertEquals(1, desktopNativeWindow(first!!, 2))
+            assertEquals(
+                RequestStatus.Applied,
+                binding.setProgress(DesktopProgress.Normal(9007199254740993UL, 18014398509481986UL))
+            )
+            assertEquals(1, desktopNativeWindow(second!!, 0))
+        }
+        accepted(windowCaps.progress, binding.setProgress(DesktopProgress.Paused(1UL, 2UL)))
+        accepted(windowCaps.progress, binding.setProgress(DesktopProgress.Error(1UL, 2UL)))
+        accepted(windowCaps.progress, binding.setProgress(DesktopProgress.Indeterminate))
+        accepted(windowCaps.progress, binding.setProgress(DesktopProgress.None))
+        assertFailsWith<IllegalArgumentException> {
+            binding.setProgress(DesktopProgress.Normal(1UL, 0UL))
+        }
+        accepted(
+            windowCaps.miniwindowCaption,
+            binding.setMiniwindowCaption(Some("Desktop caption"))
+        )
+        if (windowCaps.miniwindowCaption)
+            assertEquals(1, desktopNativeWindow(first!!, 1))
+        accepted(windowCaps.thumbnailTooltip, binding.setThumbnailTooltip(Some("Desktop caption")))
+        if (!caps.jumpListTasks)
+            assertEquals(RequestStatus.Unsupported, app.setJumpListTasks([]))
+        val dock = active.createMenu()
+        menu = Some(dock)
+        item = Some(dock.insert(MenuItemDescription("Desktop action")))
+        accepted(caps.dockMenu, app.setDockMenu(Some(dock)))
+        if (caps.dockMenu) {
+            assertEquals(RequestStatus.Applied, app.setDockMenu(Some(dock)))
+            @Unsafe
+            {
+                assertEquals(
+                    WindowErrorKind.ResourceBusy,
+                    assertFailsWith<WindowException> {
+                        @Unsafe
+                        {
+                            dock.acquireNativeMenu {}
+                        }
+                    }.kind
+                )
+            }
+            assertEquals(1, desktopNativeActivateDock())
+        } else {
+            dock.close()
+            stage = 2
+            first!!.requestDestroy()
+        }
+    }
+
+    private fun checkDockTracking(active: ActiveApplication) {
+        stage = 4
+        val target = first!!
+        val closeMenu =
+            target.createDeadline {
+                assertEquals(4, stage)
+                assertEquals(
+                    WindowErrorKind.ResourceBusy,
+                    assertFailsWith<WindowException> { desktop!!.setDockMenu(None) }.kind
+                )
+                menu!!.close()
+            }
+        closeMenu.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(80L))
+        @Unsafe
+        {
+            val resource = active.registerNativeResource { popupResource?.close() }
+            popupResource = Some(resource)
+            resource.postNative {
+                assertEquals(1, desktopNativePopupDock(target))
+                closeMenu.close()
+                resource.close()
+                popupResource = None
+                target.createDeadline {
+                    assertEquals(MenuState.Closed, menu!!.state)
+                    assertEquals(None, desktop!!.menuUseId)
+                    stage = 2
+                    target.requestDestroy()
+                }.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(80L))
+            }
+        }
+    }
+}

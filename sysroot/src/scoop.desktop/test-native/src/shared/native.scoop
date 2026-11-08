@@ -1,0 +1,27 @@
+package scoop.tests.desktopnative
+
+public fun desktopNativeApplication(field: Int): Int {
+    @Unsafe
+    {
+        return applicationQuery(field)
+    }
+}
+
+public fun desktopNativeActivateDock(): Int {
+    @Unsafe
+    {
+        return activateDock()
+    }
+}
+
+@Extern(name = "scoop_desktop_test_application")
+private fun applicationQuery(field: Int): Int
+
+@Extern(name = "scoop_desktop_test_dock")
+private fun activateDock(): Int
+
+@Extern(name = "scoop_desktop_test_window")
+internal fun windowQuery(window: Ptr<Unit>, field: Int): Int
+
+@Extern(name = "scoop_desktop_test_dock_popup")
+internal fun popupDock(window: Ptr<Unit>): Int

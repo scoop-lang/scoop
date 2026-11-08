@@ -277,6 +277,11 @@ formats = ["deb", "rpm", "appimage"]
 categories = ["Utility", "TextEditor"]
 terminal = false
 
+[[bundle.linux.actions]]
+id = "new-window"
+title = "New Window"
+arguments = ["--new-window"]
+
 [bundle.linux.deb]
 maintainer = "Example Team <dev@example.com>"
 section = "utils"
@@ -291,6 +296,8 @@ requires = ["gtk4 >= 4.18", "libadwaita >= 1.4"]
 示例依赖名只说明字段结构，实施验收按所选发行版的实际包数据库确认，不将其固化为所有 Linux 目标的通用规则。
 
 三种格式共用主程序、资源、私有库、图标和 desktop metadata。desktop 的文件名以 identifier 为基准；deb/rpm 的 Exec 指向安装后的程序入口，AppImage 使用 AppDir 中的对应入口。生成器负责空格、Unicode 和 desktop Exec 的转义，不能把未经转义的配置拼入 shell。
+
+`bundle.linux.actions` 是可选的有序启动任务列表，生成原生 `Actions` 和 `[Desktop Action <id>]` 分组。每项必须有唯一非空 `id`（ASCII 字母、数字及 `-`）、非空显示 `title`，以及默认空的 `arguments` 字符串数组；文字和参数不含 NUL。每项 Exec 固定使用同一应用入口，逐项按 desktop Exec 规则转义，保留空参数、Unicode、引号、反斜线和字面百分号，不接受 shell 命令或运行期闭包。`StartupWMClass` 使用 identifier，与 Window 的 applicationId 对应。没有 actions 时不写空任务分组。
 
 deb 生成 control、payload、权限和普通包升级信息；rpm 生成对应 header、文件清单和依赖。架构名称从程序目标转换，例如 x86_64 对应 Debian amd64、RPM x86_64。license、description 等按格式要求提供。首期采用成熟后端和标准安装行为，不开放任意 post-install shell 脚本。
 

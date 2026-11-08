@@ -1,0 +1,201 @@
+package scoop.desktop
+
+import scoop.window.*
+import scoop.window.native.*
+
+public class DesktopWindow internal constructor(private val owner: DesktopWindowOwner): Closeable {
+    public val isClosed: Boolean get() {
+        owner.application.checkThread();
+        return owner.closed
+    }
+    public fun capabilities(): DesktopWindowCapabilities {
+        owner.requireOpen()
+        @Unsafe
+        {
+            val flags = nativeWindowCapabilities(owner.pointer!!)
+            return DesktopWindowCapabilities(
+                flags.and(1) != 0,
+                flags.and(2) != 0,
+                flags.and(4) != 0,
+                flags.and(8) != 0,
+                flags.and(16) != 0
+            )
+        }
+    }
+    public fun setIcon(image: DesktopImage?): RequestStatus {
+        owner.requireOpen()
+        if (!capabilities().windowIcon)
+            return RequestStatus.Unsupported
+        if (sameDesktopImage(owner.icon, image) && owner.iconStatus != None)
+            return owner.iconStatus!!
+        val result =
+            withDesktopImage(image) {
+                native -> @Unsafe
+                {
+                    return@withDesktopImage desktopStatus(
+                        nativeWindowIcon(owner.pointer!!, native),
+                        "window icon"
+                    )
+                }
+            }
+        owner.icon = image
+        owner.iconStatus = Some(result)
+        return result
+    }
+    public fun setOverlayIcon(image: DesktopImage?, description: String = ""): RequestStatus {
+        owner.requireOpen()
+        checkDesktopText(description)
+        if (!capabilities().overlayIcon)
+            return RequestStatus.Unsupported
+        if (
+            sameDesktopImage(owner.overlay, image) &&
+                owner.overlayDescription ==
+                description &&
+                owner.overlayStatus !=
+                None
+        )
+            return owner.overlayStatus!!
+        val result =
+            withDesktopImage(image) {
+                native -> @Unsafe
+                {
+                    return@withDesktopImage description.withUtf8Bytes {
+                        text,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes desktopStatus(
+                                nativeWindowOverlay(owner.pointer!!, native, text, length),
+                                "taskbar overlay"
+                            )
+                        }
+                    }
+                }
+            }
+        owner.overlay = image
+        owner.overlayDescription = description
+        owner.overlayStatus = Some(result)
+        return result
+    }
+    public fun setProgress(progress: DesktopProgress): RequestStatus {
+        owner.requireOpen()
+        var state = 0
+        var completed = 0UL
+        var total = 0UL
+        when (progress) {
+            case None -> {}
+            case Indeterminate -> state = 1
+            case Normal(value, limit) -> {
+                state = 2;
+                completed = value;
+                total = limit
+            }
+            case Paused(value, limit) -> {
+                state = 3;
+                completed = value;
+                total = limit
+            }
+            case Error(value, limit) -> {
+                state = 4;
+                completed = value;
+                total = limit
+            }
+        }
+        if (state >= 2 && (total == 0UL || completed > total))
+            throw IllegalArgumentException(Some("invalid taskbar progress range"))
+        if (!capabilities().progress)
+            return RequestStatus.Unsupported
+        @Unsafe
+        {
+            return desktopStatus(
+                nativeWindowProgress(owner.pointer!!, state, completed, total),
+                "taskbar progress"
+            )
+        }
+    }
+    public fun setMiniwindowCaption(value: String?): RequestStatus = owner.caption(value, false)
+    public fun setThumbnailTooltip(value: String?): RequestStatus = owner.caption(value, true)
+    public override fun close() {
+        owner.close()
+    }
+}
+
+internal class DesktopWindowOwner(val application: DesktopOwner, val window: Window) {
+    var pointer: Ptr<Unit>? = None
+    var lease: NativeWindowLease? = None
+    var closed = false
+    var icon: DesktopImage? = None
+    var iconStatus: RequestStatus? = None
+    var overlay: DesktopImage? = None
+    var overlayDescription = ""
+    var overlayStatus: RequestStatus? = None
+    fun requireOpen() {
+        application.requireOpen()
+        if (closed)
+            throw WindowException("desktop window", WindowErrorKind.InvalidState)
+    }
+    fun initialize() {
+        @Unsafe
+        {
+            lease = Some(application.resource!!.acquireWindow(window, Some({ close() })))
+            try {
+                pointer =
+                    Some(
+                        desktopCreated(
+                            nativeWindowCreate(application.pointer!!, platformWindow(lease!!)),
+                            "attach desktop window"
+                        )
+                    )
+            } catch (error: Throwable) {
+                lease!!.close()
+                lease = None
+                throw error
+            }
+        }
+    }
+    fun caption(value: String?, thumbnail: Boolean): RequestStatus {
+        requireOpen()
+        checkDesktopText(value ?: "")
+        @Unsafe
+        {
+            return (value ?: "").withUtf8Bytes {
+                text,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes desktopStatus(
+                        nativeWindowCaption(
+                            pointer!!,
+                            if (thumbnail)
+                                1
+                            else
+                                0,
+                            text,
+                            length
+                        ),
+                        "desktop caption"
+                    )
+                }
+            }
+        }
+    }
+    fun close() {
+        application.checkThread()
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            if (pointer != None)
+                nativeWindowDestroy(pointer!!)
+        }
+        pointer = None
+        icon = None
+        overlay = None
+        lease?.close()
+        lease = None
+        for (index in 0L ..< application.windows.size)
+            if (application.windows[index] === this) {
+                application.windows.removeAt(index)
+                break
+            }
+    }
+}

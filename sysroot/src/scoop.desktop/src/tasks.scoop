@@ -1,0 +1,64 @@
+package scoop.desktop
+
+import scoop.window.RequestStatus
+
+internal fun publishJumpList(owner: DesktopOwner, tasks: Array<JumpListTask>): RequestStatus {
+    @Unsafe
+    {
+        val native = desktopCreated(nativeTasksCreate(owner.pointer!!), "Jump List")
+        try {
+            for (task in tasks) {
+                val icon =
+                    when (task.icon) {
+                        case Some(value) -> value.path.toOsString().toUtf16()
+                        case None -> []
+                    }
+                task.title.withUtf8Bytes {
+                    title,
+                    titleLength -> @Unsafe
+                    {
+                        (task.description ?: "").withUtf8Bytes {
+                            description,
+                            descriptionLength -> @Unsafe
+                            {
+                                icon.withDataPointer {
+                                    path,
+                                    count -> @Unsafe
+                                    {
+                                        desktopStatus(
+                                            nativeTasksAdd(
+                                                native,
+                                                title,
+                                                titleLength,
+                                                description,
+                                                descriptionLength,
+                                                path,
+                                                count,
+                                                task.icon?.index ?: 0
+                                            ),
+                                            "Jump List task"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                for (argument in task.arguments)
+                    argument.withUtf8Bytes {
+                        text,
+                        length -> @Unsafe
+                        {
+                            desktopStatus(
+                                nativeTasksArgument(native, text, length),
+                                "Jump List argument"
+                            )
+                        }
+                    }
+            }
+            return desktopStatus(nativeTasksCommit(native), "publish Jump List")
+        } finally {
+            nativeTasksDestroy(native)
+        }
+    }
+}

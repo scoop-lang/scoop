@@ -1,8 +1,10 @@
 #include "window.h"
+#include <shobjidl.h>
 
 const WCHAR sw_window_class[] = L"Scoop.Window";
 static const WCHAR host_class[] = L"Scoop.Window.Host";
 static DWORD main_thread;
+UINT sw_taskbar_created_message;
 
 // The normal CRT initializer runs on the startup thread before Scoop main.
 __attribute__((constructor)) static void remember_main_thread(void) {
@@ -103,7 +105,21 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 SWResult scoop_window_application_create(SWCallback callback, void *context,
-                                         int32_t policy) {
+                                         int32_t policy,
+                                         const uint8_t *identifier,
+                                         int64_t length) {
+  if (length > 0) {
+    WCHAR *id = sw_wide(identifier, length);
+    if (!id)
+      return (SWResult){NULL, GetLastError()};
+    HRESULT result = SetCurrentProcessExplicitAppUserModelID(id);
+    free(id);
+    if (FAILED(result))
+      return (SWResult){NULL, (uint32_t)result};
+  }
+  sw_taskbar_created_message = RegisterWindowMessageW(L"TaskbarButtonCreated");
+  if (!sw_taskbar_created_message)
+    return (SWResult){NULL, GetLastError()};
   DPI_AWARENESS_CONTEXT required = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
   if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required)) {
     if (!SetProcessDpiAwarenessContext(required))

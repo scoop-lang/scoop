@@ -9,7 +9,7 @@
 | G3 字体目录、字面与变体 | 已实现，三平台验证通过 | macOS 双架构、Linux x86_64、Windows MSVC UCRT 各 10 项字体测试 |
 | G4 字体更新与选择示例 | 已实现，macOS／Linux 验证通过 | 静止／隐藏窗口、独立读者、原生 preedit、选择器与完整 demo；退出错误闭合；Windows 实窗待完成 |
 | G5 Windows 圆形窗口 | 已修复，Windows 11 MSVC UCRT 实窗通过 | 默认 demo 路径、HWND style／region、resize、最小化恢复及既有窗框／输入回归 |
-| G6 Taskbar／Dock | 待实施 | 各平台已有原生能力及应用标识 |
+| G6 Taskbar／Dock | 已实现，三平台定向测试通过 | 应用标识、原生图标与文字、菜单 tracking、窗口解绑、任务栏重放；集成呈现随 G8 验收 |
 | G7 桌面通知 | 待实施 | 提交／动作、部署注册、生命周期 |
 | G8 集成与发行 | 待实施 | UI 适配、综合示例、各平台完整安装包 |
 
@@ -60,3 +60,13 @@ Windows 11 登录桌面 Session 1 的 mount-fonts 已通过。选择器组合测
 默认窗口现在启用实际 window／input shape，并将没有提供边缘缩放操作的圆形示例设为不可缩放；保留仅视觉裁剪的显式对照选项。smoke 不再提前改动形状选择，和普通打开路径使用同一默认值。本批只调整 demo，没有删除普通 Client 窗口的缩放能力或改写 DirectComposition。
 
 Windows 11 的真实登录桌面 Session 1 上，MSVC UCRT 的独立测试通过：实际调用 DocumentView.showShape，检查 HWND 不含 WS_CAPTION／WS_THICKFRAME；原生区域的中心、边中点在内，四角在外；390×390 初始窗口、480×480 调整、最小化／恢复后均正确，关闭完成 Destroyed。既有 frame 测试同时通过窗框模式切换、区域、DWM 属性和系统按钮／输入退役。macOS 完整 smoke 通过。Windows 10 桌面不可用；两套 MinGW 的整体验证在发行收尾执行，不以本次 MSVC 结果代替。
+
+## G6：Taskbar／Dock 与应用标识
+
+新增 `scoop.desktop` 和 [桌面规范](../specs/SCOOP-DESKTOP-SPEC.md)。ApplicationOptions.applicationId 在首个窗口前设置 Windows AppUserModelID、Wayland application id／X11 WM_CLASS，并与 macOS bundle identifier 校验。应用和窗口分别持有桌面资源；带关闭通知的 native window lease 使窗口关闭能够先解绑状态，不会被额外借用阻止销毁。
+
+macOS 使用 NSApplication 图标、NSDockTile 文字角标、miniwindow 图标／标题与既有 delegate 的 Dock Menu；Windows 使用 WM_SETICON、ITaskbarList3 和 Jump List tasks；Linux X11 使用原生 icon list，Wayland 使用应用标识。缺失能力返回 Unsupported。Windows 保留尚未创建任务栏按钮的请求，按钮重建后重放，并在 DPI 改变时生成合适的自有 HICON；有数值进度始终保留 ULong。
+
+macOS、Linux 真实 Wayland 与 Xvfb X11、Windows 11 Session 1 MSVC UCRT 均通过两个 release Cone 测试。它们检查重复绑定、实际 OS 图标／应用标识、窗口隔离、业务窗口保持打开及关闭幂等。macOS 另覆盖原生菜单动作、tracking 时禁止替换，以及取消后释放；Windows 通过发送 TaskbarButtonCreated 验证重放路径，没有实际重启用户的 Explorer。Linux desktop actions 的三个打包单元测试验证顺序、参数引用、Unicode、百分号、空参数与配置错误；Rust fmt／clippy 通过。
+
+综合示例中的可见 Shell 呈现、Jump List／desktop actions 的实际启动参数，以及安装后的默认图标和显示名称在 G8 与通知部署合并验收，不能用本批编译或属性检查代替。原始日志和临时测试报告保留在仓库外。

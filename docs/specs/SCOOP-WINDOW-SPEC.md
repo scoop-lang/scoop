@@ -18,7 +18,7 @@ window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin 
 
 ## 2. 应用与线程
 
-Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。
+Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 ApplicationHandler。handler 只有 `onEvent(application: ActiveApplication, event: ApplicationEvent)` 一个分发入口。每进程一个 Application、一次 run；入口要求进程主线程和当前 Job 外。构造只建立 managed 状态，接受 run 后才建立原生应用；启动失败消费已取得资源且不能重用该 Application。基础库不认识 I/O Context，集成入口另由 PlatformEventLoop.attach 拒绝活动 I/O EventLoop binding。ActiveApplication 负责 createWindow、monitors、primaryMonitor、setControlFlow、requestExit。可选 applicationId 在首窗前设置原生应用关联，ActiveApplication.applicationId 暴露原快照；具体平台含义与部署一致性见[桌面集成规范](SCOOP-DESKTOP-SPEC.md)。
 
 同一 Application 的 handler、proxy 与集成回调共享一个稳定的 ActiveApplication 引用；它表达相同运行 owner，不在每次派发时重新创建包装对象。引用稳定不延长运行期，关闭后各操作仍遵守原有状态检查。
 
@@ -179,6 +179,8 @@ lease.close 可跨线程且幂等，原子结束借用并把实际释放排入 o
 
 已有 lease 阻止库主动销毁原生窗口，但不保证显示服务器永远可用，也不扩展平台图形对象的线程权限。renderer 先结束 surface 及有关原生使用，再释放 lease；GC release 不调用窗口 API。lease 不授权在隐藏、零尺寸、待配置或 Closing 时提交帧。
 
+NativeApplicationLease.acquireWindow 可接收可选 requestClose 回调，服务独立桌面资源的窗口绑定。窗口进入 Closing 时将回调排入 owner 收尾队列，最多交付一次；借用者必须停止原生使用并 close lease。显式先关闭 lease 会取消未交付回调，回调只负责现有资源收尾，不取得新的窗口借用。原有不带回调的调用行为保持不变。
+
 ## 7. 窗口及应用关闭
 
 `Window.requestClose(): Boolean` 从业务代码排队一次普通 CloseRequested，供自绘窗口关闭按钮沿同一退出确认入口工作；它不直接 requestDestroy。返回 true 表示已接受排队。窗口受模态限制、关闭按钮禁用或应用不再接受业务工作时返回 false；交付时再次检查窗口仍可处理关闭请求，失效后不交付旧请求。实际销毁继续由应用明确决定。
@@ -284,7 +286,7 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 | 结果 | 构造入口与全部配置字段 |
 | --- | --- |
 | WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；frame: WindowFrame = WindowFrame.System(WindowContentMode.Standard)；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false；shadow: WindowShadow = WindowShadow.System |
-| ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning |
+| ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning；applicationId: String? = None |
 
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
 

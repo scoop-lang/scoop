@@ -87,6 +87,8 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   }
   if (!window)
     return DefWindowProcW(hwnd, msg, wp, lp);
+  if (msg == sw_taskbar_created_message)
+    window->taskbar_ready = true;
   if (window->input_blocked && sw_modal_input_message(msg))
     return 0;
   LRESULT result;
@@ -289,4 +291,9 @@ int64_t scoop_window_focus(SWWindow *window) {
   // Requested.
   SetForegroundWindow(window->hwnd);
   return 0;
+}
+
+int32_t scoop_window_windows_taskbar_ready(HWND hwnd) {
+  SWWindow *window = (SWWindow *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+  return window && window->taskbar_ready;
 }

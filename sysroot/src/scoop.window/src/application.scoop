@@ -45,8 +45,8 @@ public interface ApplicationHandler {
 
 /** Mutable construction options; Application copies their values. */
 public class ApplicationOptions internal constructor(
-    public val lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning
-    ,
+    public val lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning,
+    public val applicationId: String? = None,
     internal val activationPolicy: Int = 0
 )
 
@@ -63,6 +63,7 @@ public class Application public constructor(options: ApplicationOptions = applic
 
 /** Owner-thread operations available while the native application is active. */
 public class ActiveApplication internal constructor(internal val owner: ApplicationOwner) {
+    public val applicationId: String? get() = owner.applicationId
     /** Creates a native top-level window from a snapshot of these attributes. */
     public fun createWindow(attributes: WindowAttributes = windowAttributes()): Window =
         owner.createWindow(attributes)
@@ -95,5 +96,9 @@ private object ApplicationSlot {
 private fun createApplicationOwner(options: ApplicationOptions): ApplicationOwner {
     if (!ApplicationSlot.claimed.compareAndSet(false, true))
         throw IllegalStateException(Some("one Application per process"))
-    return ApplicationOwner(options.lastWindowPolicy, options.activationPolicy)
+    return ApplicationOwner(
+        options.lastWindowPolicy,
+        options.activationPolicy,
+        options.applicationId
+    )
 }

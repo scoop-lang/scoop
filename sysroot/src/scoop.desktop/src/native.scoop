@@ -1,0 +1,129 @@
+package scoop.desktop
+
+import scoop.window.*
+
+@CLayout
+internal struct DesktopNativeResult(val pointer: Ptr<Unit>?, val error: Long)
+
+internal fun desktopStatus(code: Long, operation: String): RequestStatus {
+    if (code == 0L)
+        return RequestStatus.Applied
+    if (code == -6L)
+        return RequestStatus.Requested
+    if (code == -1L)
+        return RequestStatus.Unsupported
+    val kind =
+        when (code) {
+            -2L -> WindowErrorKind.Unavailable
+            -3L -> WindowErrorKind.Disconnected
+            -4L -> WindowErrorKind.InvalidState
+            -5L -> WindowErrorKind.ResourceBusy
+            else -> WindowErrorKind.NativeFailure
+        }
+    throw WindowException(operation, kind, Some(code))
+}
+
+internal fun desktopCreated(value: DesktopNativeResult, operation: String): Ptr<Unit> {
+    if (value.error == -1L)
+        throw WindowException(operation, WindowErrorKind.Unsupported)
+    desktopStatus(value.error, operation)
+    return value.pointer ?: throw WindowException(operation, WindowErrorKind.NativeFailure)
+}
+
+@Extern(name = "scoop_desktop_application_create")
+internal fun nativeApplicationCreate(
+    callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
+    context: Ptr<Unit>,
+    id: Ptr<UInt8>,
+    length: Long
+): DesktopNativeResult
+
+@Extern(name = "scoop_desktop_application_capabilities")
+internal fun nativeApplicationCapabilities(pointer: Ptr<Unit>): Int
+
+@Extern(name = "scoop_desktop_application_busy")
+internal fun nativeApplicationBusy(pointer: Ptr<Unit>): Int
+
+@Extern(name = "scoop_desktop_application_cancel")
+internal fun nativeApplicationCancel(pointer: Ptr<Unit>)
+
+@Extern(name = "scoop_desktop_application_destroy")
+internal fun nativeApplicationDestroy(pointer: Ptr<Unit>)
+
+@Extern(name = "scoop_desktop_application_icon")
+internal fun nativeApplicationIcon(pointer: Ptr<Unit>, image: Ptr<Unit>?): Long
+
+@Extern(name = "scoop_desktop_application_badge")
+internal fun nativeApplicationBadge(pointer: Ptr<Unit>, text: Ptr<UInt8>, length: Long): Long
+
+@Extern(name = "scoop_desktop_application_menu")
+internal fun nativeApplicationMenu(pointer: Ptr<Unit>, menu: Ptr<Unit>?): Long
+
+@Extern(name = "scoop_desktop_window_create")
+internal fun nativeWindowCreate(application: Ptr<Unit>, window: Ptr<Unit>): DesktopNativeResult
+
+@Extern(name = "scoop_desktop_window_capabilities")
+internal fun nativeWindowCapabilities(pointer: Ptr<Unit>): Int
+
+@Extern(name = "scoop_desktop_window_destroy")
+internal fun nativeWindowDestroy(pointer: Ptr<Unit>)
+
+@Extern(name = "scoop_desktop_window_icon")
+internal fun nativeWindowIcon(pointer: Ptr<Unit>, image: Ptr<Unit>?): Long
+
+@Extern(name = "scoop_desktop_window_overlay")
+internal fun nativeWindowOverlay(
+    pointer: Ptr<Unit>,
+    image: Ptr<Unit>?,
+    text: Ptr<UInt8>,
+    length: Long
+): Long
+
+@Extern(name = "scoop_desktop_window_progress")
+internal fun nativeWindowProgress(
+    pointer: Ptr<Unit>,
+    state: Int,
+    completed: ULong,
+    total: ULong
+): Long
+
+@Extern(name = "scoop_desktop_window_caption")
+internal fun nativeWindowCaption(
+    pointer: Ptr<Unit>,
+    thumbnail: Int,
+    text: Ptr<UInt8>,
+    length: Long
+): Long
+
+@Extern(name = "scoop_desktop_image_create")
+internal fun nativeImageCreate(width: Double, height: Double, template: Int): DesktopNativeResult
+
+@Extern(name = "scoop_desktop_image_add")
+internal fun nativeImageAdd(image: Ptr<Unit>, width: Int, height: Int, pixels: Ptr<UInt8>): Long
+
+@Extern(name = "scoop_desktop_image_destroy")
+internal fun nativeImageDestroy(image: Ptr<Unit>)
+
+@Extern(name = "scoop_desktop_tasks_create")
+internal fun nativeTasksCreate(application: Ptr<Unit>): DesktopNativeResult
+
+@Extern(name = "scoop_desktop_tasks_add")
+internal fun nativeTasksAdd(
+    tasks: Ptr<Unit>,
+    title: Ptr<UInt8>,
+    titleLength: Long,
+    description: Ptr<UInt8>,
+    descriptionLength: Long,
+    icon: Ptr<UInt16>,
+    iconLength: Long,
+    index: Int
+): Long
+
+@Extern(name = "scoop_desktop_tasks_argument")
+internal fun nativeTasksArgument(tasks: Ptr<Unit>, text: Ptr<UInt8>, length: Long): Long
+
+@Extern(name = "scoop_desktop_tasks_commit")
+internal fun nativeTasksCommit(tasks: Ptr<Unit>): Long
+
+@Extern(name = "scoop_desktop_tasks_destroy")
+internal fun nativeTasksDestroy(tasks: Ptr<Unit>)
