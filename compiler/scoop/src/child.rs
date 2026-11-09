@@ -98,15 +98,13 @@ impl ProductionSingleConeCompilerRunner {
                 path: tool.executable_path().to_path_buf(),
             }
         })?;
-        let temporary = tempfile::Builder::new()
-            .prefix(".scoop-child-")
-            .tempdir_in(&io.temporary_root)
+        std::fs::create_dir_all(&io.temporary_root)
             .map_err(ChildTransportError::TemporaryDirectory)?;
         let mut command = crate::compiler::compiler_command(tool.executable_path());
         #[cfg(windows)]
         command
-            .env("TEMP", temporary.path())
-            .env("TMP", temporary.path());
+            .env("TEMP", &io.temporary_root)
+            .env("TMP", &io.temporary_root);
         let mut child = command
             .arg("__child-protocol")
             .arg(tool.protocol().protocol_version().to_string())
@@ -116,7 +114,7 @@ impl ProductionSingleConeCompilerRunner {
                 std::env::vars_os()
                     .filter(|(name, _)| name.as_encoded_bytes().starts_with(b"SCOOP_")),
             )
-            .env("TMPDIR", temporary.path())
+            .env("TMPDIR", &io.temporary_root)
             .envs(
                 io.compiler_environment
                     .iter()

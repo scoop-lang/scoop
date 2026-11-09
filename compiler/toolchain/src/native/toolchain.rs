@@ -18,6 +18,7 @@ impl NativeToolchain {
         manifest: &LoadedConeManifest,
         optimization: OptimizationMode,
         sysroot: &Path,
+        scratch: &Path,
     ) -> Result<PreparedNativeInputs, ToolchainError> {
         prepare::prepare(
             manifest,
@@ -25,6 +26,7 @@ impl NativeToolchain {
             self,
             optimization,
             sysroot,
+            scratch,
         )
     }
 

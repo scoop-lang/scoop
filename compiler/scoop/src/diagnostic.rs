@@ -302,8 +302,7 @@ impl ClassifyBuildFailure for ResolveBuildGraphError {
 impl ClassifyBuildFailure for PrepareBuildGraphError {
     fn classification(&self) -> BuildFailureClassification {
         match self {
-            Self::Staging(_)
-            | Self::SourceDiscovery(_)
+            Self::SourceDiscovery(_)
             | Self::Native(_)
             | Self::SingleFile(_)
             | Self::Manifest(_) => phase_only(BuildFailurePhase::SourceSnapshot),

@@ -104,10 +104,6 @@ fn core_child_plan_uses_the_actual_manifest_root() {
         .unwrap();
 
     assert_eq!(plan.identity(), ConeIdentity::CORE);
-    assert_eq!(
-        plan.output_path(),
-        prepared.planned_output_path(ConeIdentity::CORE).unwrap()
-    );
     assert_eq!(plan.request().request_id(), request_id);
     assert!(matches!(
         plan.request().build().current(),

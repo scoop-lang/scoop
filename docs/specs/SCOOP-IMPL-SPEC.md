@@ -1161,6 +1161,10 @@ LIR foundation 以必需的 Boolean `native_cxx` 保存当前 Cone 在所选 tar
 
 native 与 runtime 的真实编译保存源码、depfile 中实际使用的头文件（含 scoop_rt.h）、include 配置及影响 include 选择的目录状态。后续先检查这些输入的 metadata；全部未变化时不调用预处理器、不读取全部头文件。增加、删除或改变 include 搜索输入后重新发现并编译必要部分；所选 target、宏、SDK、C/C++ 配置与诊断位置沿正常工具调用传递。不为构建中外部替换输入建立稳定性检测、重试或不可变预处理镜像。
 
+Cone native 构建共用本次对象输出目录存放必要的 depfile 和中转输入，不为每个源码建立临时目录。GCC、Clang 与 clang-cl 通过 stdin 接收内存中的预处理文本，输入语言明确选择 C／C++／ObjC 的预处理形式；cl 保留一个可复用的必要输入文件。宏处理、已展开的 include 名称及诊断行映射仍由一次正常预处理取得：单独的编译 depfile 不包含实际 include 搜索候选，不能据此省略这一步。源码之间的宏作用域、静态定义和初始化顺序保持原翻译单元语义。
+
+父调度只在实际需要写入产物或显式阶段输出时创建 staging 目录，各 Cone 使用同一 staging 下的独立输出名；child 复用传入的临时根，driver 不为空的 LLVM／前端内存处理额外建立工作目录。实际 generated-C、native 或其他需要文件的工作自行管理其必要临时文件及失败清理。stdin 写入与 stdout／stderr 读取并行，子进程提前失败仍返回实际诊断和退出状态。
+
 native 对象和最终链接结果的更新键显式包含已选目标的 canonical triple。同一 driver、SDK、部署版本和头文件输入不能使不同目标的记录共用；即使未预处理源码或两目标选中相同源码，也必须先按目标区分记录。parent/child 传输继续由外层 target request 携带目标，不为缓存增加产物字段或重复工具探测。
 
 实际预处理时，已存在的目标 include 根和选中的头文件使用一致的路径解析后映射为逻辑位置，避免系统目录别名使行标记残留安装路径。未使用目标资源的普通 native 源码不要求目标资源目录存在；其他实际 I/O 错误照常报告。

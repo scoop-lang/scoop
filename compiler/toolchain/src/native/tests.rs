@@ -49,12 +49,14 @@ path = "answer.c"
 }
 
 fn prepare(manifest: &LoadedConeManifest) -> PreparedNativeInputs {
+    let directory = tempfile::tempdir().unwrap();
     prepare_native_inputs(
         manifest,
         target().id(),
         target().c_bridge_toolchain(),
         OptimizationMode::Debug,
         &crate::development_runtime_root(),
+        directory.path(),
     )
     .unwrap()
 }
@@ -217,6 +219,7 @@ fn public_runtime_header_changes_invalidate_native_inputs() {
             target().c_bridge_toolchain(),
             OptimizationMode::Debug,
             directory.path(),
+            directory.path(),
         )
         .unwrap()
     };
@@ -255,6 +258,7 @@ fn distinct_native_source_paths_remain_distinct_translation_units() {
         target().c_bridge_toolchain(),
         OptimizationMode::Debug,
         &crate::development_runtime_root(),
+        directory.path(),
     )
     .unwrap();
     assert_eq!(prepared.units().len(), 2);

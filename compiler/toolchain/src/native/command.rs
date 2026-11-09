@@ -128,7 +128,13 @@ pub(super) fn run(
     command: &mut Command,
     source: &str,
 ) -> Result<std::process::Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+    checked_output(command.scoop_output().map_err(error)?, source)
+}
+
+fn checked_output(
+    output: std::process::Output,
+    source: &str,
+) -> Result<std::process::Output, ToolchainError> {
     if !output.status.success() {
         return Err(error(format!(
             "{source}: {}",
@@ -195,19 +201,13 @@ pub(super) fn compile(
     optimization: OptimizationMode,
     output: &Path,
 ) -> Result<(), ToolchainError> {
-    let directory = tempfile::Builder::new()
-        .prefix("scoop-native-")
-        .tempdir()
+    let directory_path = output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+        .canonicalize()
         .map_err(error)?;
-    // Debug compilation directories use the physical path, including on macOS.
-    let directory_path = directory.path().canonicalize().map_err(error)?;
     let language = input.language();
-    let source = directory_path.join(match language {
-        NativeSourceLanguage::C => "unit.i",
-        NativeSourceLanguage::Cxx => "unit.ii",
-        NativeSourceLanguage::ObjectiveC => "unit.mi",
-    });
-    std::fs::write(&source, input.preprocessed()).map_err(error)?;
     let mut command = base(compiler, language, optimization, true)?;
     let kind = compiler.kind(language);
     for flag in config.flags(language) {
@@ -222,29 +222,50 @@ pub(super) fn compile(
     }
     command.current_dir(dunce::simplified(&directory_path));
     remap(&mut command, kind, &directory_path, "/scoop-native");
-    if kind.microsoft() {
-        if kind == NativeDriverKind::Msvc {
-            command.arg(match language {
-                NativeSourceLanguage::C => "/TC",
-                NativeSourceLanguage::Cxx => "/TP",
+    match kind {
+        NativeDriverKind::Msvc => {
+            let source = directory_path.join(match language {
+                NativeSourceLanguage::C => "unit.i",
+                NativeSourceLanguage::Cxx => "unit.ii",
                 NativeSourceLanguage::ObjectiveC => {
                     return Err(error("Objective-C sources require a Darwin target"));
                 }
             });
+            std::fs::write(&source, input.preprocessed()).map_err(error)?;
+            command
+                .arg(if language == NativeSourceLanguage::C {
+                    "/TC"
+                } else {
+                    "/TP"
+                })
+                .arg("/c")
+                .arg(crate::windows_native::joined("/Fo", output));
+            crate::windows_native::input(&mut command, kind, &source);
+            run(&mut command, input.path().as_str())?;
         }
-        // clang-cl recognizes .i/.ii as preprocessed input. /clang:-x would
-        // be forwarded after all inputs and trigger an unused-option warning.
-        command
-            .arg("/c")
-            .arg(crate::windows_native::joined("/Fo", output));
-    } else {
-        command
-            .args(["-x", language.preprocessed_name(), "-c"])
-            .arg("-o")
-            .arg(output);
+        NativeDriverKind::ClangCl | NativeDriverKind::Gnu => {
+            if kind == NativeDriverKind::ClangCl {
+                // Forward the language and stdin together; clang-cl places these
+                // arguments after its own driver options.
+                command
+                    .arg("/c")
+                    .arg(crate::windows_native::joined("/Fo", output))
+                    .arg("/clang:-x")
+                    .arg(format!("/clang:{}", language.preprocessed_name()))
+                    .arg("/clang:-");
+            } else {
+                command
+                    .args(["-x", language.preprocessed_name(), "-c", "-"])
+                    .arg("-o")
+                    .arg(output);
+            }
+            let output = command
+                .scoop_output_with_input(input.preprocessed())
+                .map_err(error)?;
+            checked_output(output, input.path().as_str())?;
+        }
     }
-    crate::windows_native::input(&mut command, kind, &source);
-    run(&mut command, input.path().as_str())?;
+
     Ok(())
 }
 

@@ -94,6 +94,7 @@ fn target_sysroot_headers_precede_local_headers_and_track_only_selected_inputs()
             target().c_bridge_toolchain(),
             OptimizationMode::Release,
             sysroot,
+            directory.path(),
         )
         .unwrap()
     };

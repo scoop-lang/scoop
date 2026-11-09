@@ -82,7 +82,12 @@ path = "wrapper.cpp"
         let native = NativeToolchain::resolve_with(&c, &manifest, selected, None).unwrap();
         let public = crate::development_runtime_root();
         let prepared = native
-            .prepare(&manifest, OptimizationMode::Debug, &public)
+            .prepare(
+                &manifest,
+                OptimizationMode::Debug,
+                &public,
+                directory.path(),
+            )
             .unwrap();
         assert_eq!(prepared.units().len(), 2);
         assert!(
@@ -179,10 +184,21 @@ path = "wrapper.cpp"
         run(&mut std::process::Command::new(&executable));
         std::fs::write(&header, "#define VALUE 39\n").unwrap();
         let updated = native
-            .prepare(&manifest, OptimizationMode::Debug, &public)
+            .prepare(
+                &manifest,
+                OptimizationMode::Debug,
+                &public,
+                directory.path(),
+            )
             .unwrap();
-        assert_ne!(prepared.units()[0].digest(), updated.units()[0].digest());
-        assert_eq!(prepared.units()[1].digest(), updated.units()[1].digest());
+        assert_ne!(
+            prepared.units()[0].preprocessed(),
+            updated.units()[0].preprocessed()
+        );
+        assert_eq!(
+            prepared.units()[1].preprocessed(),
+            updated.units()[1].preprocessed()
+        );
     }
 }
 

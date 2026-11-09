@@ -27,6 +27,11 @@ fn object_records_reuse_outputs_and_follow_actual_header_changes() {
         .unwrap()
     };
     let cold = prepare();
+    let files = std::fs::read_dir(cold.objects()[0].parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
+    assert_eq!(files, cold.objects());
     let before = cold.objects()[0].metadata().unwrap().modified().unwrap();
     assert_eq!(prepare(), cold);
     assert_eq!(resolutions.get(), 1);

@@ -1,5 +1,5 @@
 //! Scoped child-process I/O and interruption handling for compiler tools.
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 
@@ -87,6 +87,8 @@ pub trait CommandExt {
     fn scoop_spawn(&mut self) -> io::Result<ToolChild>;
     /// Capture stdout/stderr for a noninteractive compiler tool.
     fn scoop_output(&mut self) -> io::Result<Output>;
+    /// Send input while concurrently draining both output pipes.
+    fn scoop_output_with_input(&mut self, input: &[u8]) -> io::Result<Output>;
 }
 
 impl CommandExt for Command {
@@ -109,6 +111,29 @@ impl CommandExt for Command {
             .stderr(Stdio::piped())
             .scoop_spawn()?
             .wait_with_output()
+    }
+
+    fn scoop_output_with_input(&mut self, input: &[u8]) -> io::Result<Output> {
+        let mut child = self
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .scoop_spawn()?;
+        let mut stdin = child.stdin.take().expect("stdin was configured as a pipe");
+        std::thread::scope(|scope| {
+            let writer = scope.spawn(move || stdin.write_all(input));
+            let output = child.wait_with_output();
+            let written = writer
+                .join()
+                .map_err(|_| io::Error::other("stdin writer panicked"))?;
+            let output = output?;
+            // A compiler may stop reading after diagnosing invalid input. Preserve
+            // its diagnostic and exit status instead of replacing them with EPIPE.
+            if output.status.success() {
+                written?;
+            }
+            Ok(output)
+        })
     }
 }
 

@@ -2,12 +2,9 @@ use std::fmt;
 
 use scoop_manifest::{SingleFileInputError, SourceDiscoveryError};
 
-use super::super::staging::StagingError;
-
 #[derive(Debug)]
 pub enum PrepareBuildGraphError {
     Manifest(scoop_manifest::ManifestRootError),
-    Staging(StagingError),
     SourceDiscovery(SourceDiscoveryError),
     Native(scoop_toolchain::ToolchainError),
     SingleFile(SingleFileInputError),
@@ -18,7 +15,6 @@ impl fmt::Display for PrepareBuildGraphError {
         match self {
             Self::Manifest(error) => error.fmt(formatter),
             Self::Native(error) => error.fmt(formatter),
-            Self::Staging(error) => error.fmt(formatter),
             Self::SourceDiscovery(error) => {
                 write!(formatter, "cannot snapshot manifest sources: {error}")
             }
@@ -34,7 +30,6 @@ impl std::error::Error for PrepareBuildGraphError {
         match self {
             Self::Manifest(error) => Some(error),
             Self::Native(error) => Some(error),
-            Self::Staging(error) => Some(error),
             Self::SourceDiscovery(error) => Some(error),
             Self::SingleFile(error) => Some(error),
         }

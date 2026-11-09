@@ -145,16 +145,11 @@ impl SingleConeBuildRequest {
         if stop_after == Some(StageDumpKind::Ast) {
             return self.observe_ast();
         }
-        let temporary = self
+        let temporary_parent = self
             .output
             .primary_path()
-            .map(|path| {
-                tempfile::Builder::new()
-                    .prefix(".scoopc-")
-                    .tempdir_in(path.parent().expect("absolute output has a parent"))
-            })
-            .transpose()
-            .map_err(SingleConeProductionError::TemporaryWorkspace)?;
+            .and_then(Path::parent)
+            .map(Path::to_path_buf);
         let loaded = self
             .load_preflight()
             .map_err(SingleConeProductionError::Preflight)?;
@@ -169,10 +164,7 @@ impl SingleConeBuildRequest {
             sources,
         };
         parsed
-            .compile(
-                temporary.as_ref().map(|directory| directory.path()),
-                stop_after,
-            )
+            .compile(temporary_parent.as_deref(), stop_after)
             .map_err(|source| SingleConeProductionError::Production(Box::new(source)))
     }
 
@@ -201,7 +193,6 @@ pub enum SingleConeProductionError {
     ArtifactOutputRequired,
     DocumentationObservation,
     ObservationRequiresStages,
-    TemporaryWorkspace(std::io::Error),
     Preflight(SingleConePreflightError),
     Validation(SingleConeDependencyValidationError),
     Sources(CurrentConeSourceStageError),
@@ -220,12 +211,6 @@ impl fmt::Display for SingleConeProductionError {
             Self::ObservationRequiresStages => {
                 formatter.write_str("stage observation requires at least one dump")
             }
-            Self::TemporaryWorkspace(source) => {
-                write!(
-                    formatter,
-                    "cannot create temporary build workspace: {source}"
-                )
-            }
             Self::Preflight(source) => source.fmt(formatter),
             Self::Validation(source) => source.fmt(formatter),
             Self::Sources(source) => source.fmt(formatter),
@@ -240,7 +225,6 @@ impl std::error::Error for SingleConeProductionError {
             Self::ArtifactOutputRequired
             | Self::DocumentationObservation
             | Self::ObservationRequiresStages => return None,
-            Self::TemporaryWorkspace(source) => source,
             Self::Preflight(source) => source,
             Self::Validation(source) => source,
             Self::Sources(source) => source,
@@ -296,7 +280,6 @@ impl SingleConeProductionError {
             Self::ArtifactOutputRequired
             | Self::DocumentationObservation
             | Self::ObservationRequiresStages
-            | Self::TemporaryWorkspace(_)
             | Self::Preflight(_)
             | Self::Validation(_)
             | Self::Sources(_) => None,

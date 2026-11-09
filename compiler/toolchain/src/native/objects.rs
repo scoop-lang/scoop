@@ -112,11 +112,11 @@ fn prepare_c_objects<'a>(
         },
         || {
             let compiler = NativeToolchain::resolve_target(resolve()?, manifest)?;
-            let prepared = compiler.prepare(manifest, optimization, sysroot)?;
             let temporary = tempfile::Builder::new()
                 .prefix("objects-")
                 .tempdir_in(&directory)
                 .map_err(error)?;
+            let prepared = compiler.prepare(manifest, optimization, sysroot, temporary.path())?;
             let mut objects = Vec::new();
             for (index, unit) in prepared.units().iter().enumerate() {
                 let object = temporary.path().join(format!("{index:08}.o"));
@@ -134,6 +134,13 @@ fn prepare_c_objects<'a>(
                 .iter()
                 .map(|p| Input::read(p))
                 .collect::<Result<_, _>>()?;
+            for name in ["unit.d", "unit.i", "unit.ii"] {
+                match std::fs::remove_file(temporary.path().join(name)) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(err) => return Err(error(err)),
+                }
+            }
             let _ = temporary.keep();
             Ok(Record {
                 inputs,

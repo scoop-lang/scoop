@@ -32,11 +32,11 @@ use model::{
 impl ResolvedBuildGraph {
     /// Prepares the graph and actual input paths for compiler child execution.
     pub fn prepare(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        Preparer::new(self.into_parts(), false)?.run()
+        Preparer::new(self.into_parts(), false).run()
     }
 
     pub(crate) fn prepare_frontend(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        Preparer::new(self.into_parts(), true)?.run()
+        Preparer::new(self.into_parts(), true).run()
     }
 }
 
@@ -78,27 +78,18 @@ struct Preparer {
 }
 
 impl Preparer {
-    fn new(parts: ResolvedGraphParts, frontend: bool) -> Result<Self, PrepareBuildGraphError> {
+    fn new(parts: ResolvedGraphParts, frontend: bool) -> Self {
         let compiler = ResolvedPairedScoopc::resolve(&parts.context.compiler);
-        let staging = PreparedStaging::create(&parts.context.cache_root)
-            .map_err(PrepareBuildGraphError::Staging)?;
-        Ok(Self {
+        let staging = PreparedStaging::new(&parts.context.cache_root);
+        Self {
             parts,
             staging,
             compiler,
             frontend,
-        })
+        }
     }
 
     fn run(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        let topological_indices = self
-            .parts
-            .dependency_first
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(index, identity)| (identity, index))
-            .collect::<BTreeMap<_, _>>();
         let mut nodes = BTreeMap::new();
 
         for (identity, node) in self.parts.nodes {
@@ -115,14 +106,9 @@ impl Preparer {
                         purpose,
                         self.frontend,
                     )?;
-                    let output_path = self
-                        .staging
-                        .plan_output(topological_indices[&identity], &identity.to_string())
-                        .map_err(PrepareBuildGraphError::Staging)?;
                     PreparedGraphNode::ManifestSource(Box::new(PreparedManifestSourceNode {
                         snapshot,
                         manifest,
-                        output_path,
                     }))
                 }
                 GraphNode::Prebuilt(prebuilt) => {
@@ -137,14 +123,9 @@ impl Preparer {
                         .map_err(PrepareBuildGraphError::SingleFile)?;
                     let snapshot = SingleFileSourceInput { source: discovered };
                     let input_path = locator.resolved_path().to_path_buf();
-                    let output_path = self
-                        .staging
-                        .plan_output(topological_indices[&identity], &identity.to_string())
-                        .map_err(PrepareBuildGraphError::Staging)?;
                     PreparedGraphNode::SingleFile(Box::new(PreparedSingleFileNode {
                         snapshot,
                         input_path,
-                        output_path,
                     }))
                 }
             };
