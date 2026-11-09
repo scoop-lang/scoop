@@ -1,4 +1,4 @@
-//! Shared identity and native ABI checks for complete Compile artifacts.
+//! Shared declaration and reference reading for Compile and Link metadata.
 
 use scoop_hir::DecodedHirFoundation;
 use scoop_identity::{IdentityValidationError, PendingIdentityValidation, ValidatedIdentityGraph};
@@ -11,16 +11,16 @@ mod commit;
 pub use commit::{
     CompileCapabilityProfile, CompileCommitError, CrossConeGenericProfile, ValidatedCompileArtifact,
 };
-pub(crate) fn validate_foundation_identity_graph_with_authorities<'authority>(
+pub(crate) fn read_foundation_identity_graph<'authority>(
     graph: &mut ValidatedGraphArtifact<'_>,
     hir: &DecodedHirFoundation,
     mir: &DecodedMirFoundation,
     lir: &DecodedLirFoundation,
     external_authorities: impl IntoIterator<Item = &'authority ValidatedIdentityGraph>,
+    mut validation: PendingIdentityValidation,
 ) -> Result<ValidatedIdentityGraph, IdentityValidationError> {
     let producer = graph.identity();
     let manifest = graph.envelope.manifest();
-    let mut validation = PendingIdentityValidation::new();
     validation.register_authority(producer)?;
     for dependency in manifest.direct_dependencies() {
         validation.register_authority(dependency.identity())?;

@@ -360,6 +360,7 @@ pub enum LirFoundationValidationError {
     NativeContractRelation(NativeContractRelationError),
     BridgeRelation(BridgeRelationError),
     Ownership(LirFoundationOwnershipError),
+    ConeOwnership(crate::ConeLirFoundationError),
     Build(LirFoundationBuildError),
 }
 
@@ -432,6 +433,7 @@ impl fmt::Display for LirFoundationValidationError {
             Self::NativeContractRelation(error) => error.fmt(formatter),
             Self::BridgeRelation(error) => error.fmt(formatter),
             Self::Ownership(error) => error.fmt(formatter),
+            Self::ConeOwnership(error) => error.fmt(formatter),
             Self::Build(error) => error.fmt(formatter),
         }
     }

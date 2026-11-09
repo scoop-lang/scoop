@@ -39,7 +39,7 @@ impl DecodedConeProductionSectionV2 {
         let trap_symbols = foundation.link_trap_symbols(trap_atoms)?;
         Ok(ProgramLinkProduction {
             definitions: foundation.link_definitions()?,
-            safepoints: foundation.link_safepoints(),
+            safepoints: foundation.link_safepoints()?,
             image_symbol,
             trap_symbols,
             entry_symbol: self.entry_plan.link_symbol(identities)?,

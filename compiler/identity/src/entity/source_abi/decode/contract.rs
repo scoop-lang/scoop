@@ -309,6 +309,17 @@ pub struct DecodedSourceNativeExternalContractRecord {
 }
 
 impl DecodedSourceNativeExternalContractRecord {
+    pub(crate) fn resolve_identity_key<R, E>(
+        self,
+        resolver: &mut R,
+    ) -> Result<SourceNativeExternalContractKey, SourceNativeExternalResolutionError<E>>
+    where
+        R: PersistentKeyResolver<PersistentFunctionId, SourceDeclarationKey, Error = E>
+            + PersistentKeyResolver<PersistentPropertyId, SourceDeclarationKey, Error = E>,
+    {
+        self.key.resolve(resolver)
+    }
+
     pub(crate) const fn decoded_id(
         &self,
     ) -> DecodedPersistentId<PersistentSourceNativeExternalContractId> {

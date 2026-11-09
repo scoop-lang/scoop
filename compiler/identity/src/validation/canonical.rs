@@ -10,6 +10,16 @@ impl PendingIdentityValidation {
             declared: graph.declared.to_vec(),
             checking: Vec::new(),
             phase: ValidationPhase::Registering,
+            link: false,
+            local_nodes: graph.local_nodes.to_vec(),
+            imported_sources: graph
+                .external_sources
+                .iter()
+                .map(IdentitySource::pointer)
+                .collect(),
+            external_sources: graph.external_sources.to_vec(),
+            #[cfg(test)]
+            external_candidate_visits: 0,
             resource_error: None,
             resource_path: WirePath::default(),
         }

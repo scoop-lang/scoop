@@ -1249,6 +1249,10 @@ macOS 上使用 `scoop_eh_personality` 的 Scoop 函数保留 LLVM 22.1 对非 c
 
 root 是唯一 executable，依赖为 library。正常构建使用已确定的依赖结果、目标及链接配置，显式 link 读取所需 Link 输入。不以重算三层语义指纹、整包内容或重复生产校验来授予链接资格。
 
+Link 通过现有 section reader 读取本次符号、ODR、native ABI 与机器记录所需的 typed 声明和引用；身份摘要由产物中的声明给出，不重新哈希 HIR／MIR／LIR 的每份语义 key 来证明编译器已经完成的身份生产。保留实际格式、重复声明、身份种类、引用闭合、依赖可见范围与循环引用检查；所选定义的归属、ODR key、目标／ABI、实际 relocation 和最终 GC site 组合仍按链接契约检查。读取 LIR foundation 时不重放整份桥接、native contract 与 safepoint 生产关系验证，不生成跨进程验证凭证或额外持久记录。
+
+同次消费按实际需要解码 section 一次。依赖图只沿直接依赖引入已读取的数据，每份图保存自身声明与共享上游来源；合并菱形依赖时同一共享来源只访问一次，不能将每个上游的完整传递闭包再次逐份扫描。本层记录查询使用已排序的声明索引，不为每个身份类型重扫全部外部节点。
+
 最终 executable 是缓存结果。先根据 Cone 代码结果、runtime/native 输入、库选择、工具与链接配置判断更新；输入未变化且输出存在时直接返回，不能调用 read_program_link_closure、生成 startup/image tables/response file、调用 C compiler/linker 或复制／读取 executable 内容。只改变 native、runtime 或链接配置时不重编译无关 Scoop Cone。库搜索记录影响实际选择的目录状态，新增优先候选或配置改变后重新选择。
 
 program-link 从完整产物闭包合并 C++ 链接和运行库需求；任一 Cone 要求 C++，就采用所选 target 的 C++ final-link 配置。Linux GNU 由配套 `g++` 驱动并使用 `libstdc++`，Darwin 直接调用配套 LLD 并显式提供已选 `libc++` stub；同时纳入各自的 C++ ABI 运行库与系统依赖。Windows 使用前述完整 target 的 final-link profile，由 Microsoft CRT defaults 或 MinGW Clang++ 配套参数加入所需 STL／ABI 运行库，不生成 Unix 的 `c++`／`stdc++` 动态库 requirement；各 Cone 显式声明的 native libraries 仍照常汇总。既有对象格式、GC、EH 与 image 契约继续适用。由 C++ driver 管理运行库的目标不能仅替换编译器后继续原样使用抑制其默认运行库的 C 链接参数，也不能靠 root 重复声明 `cxx` 才满足依赖。

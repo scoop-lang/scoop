@@ -131,10 +131,12 @@ W0 为各项保留改动前对照，不是重新讨论是否更换分配器的�
 
 ### W6：减少依赖重复解码与身份图扫描
 
-- [ ] 核查 `read_program_link_closure` 的传递依赖展开：已有依赖图本身包含上游信息时，不再把每份传递图反复导入并遍历相同节点。
-- [ ] 同一消费进程按实际需要解码 section 一次，复用已有身份图、布局与摘要；缩减 `validate_foundation_identity_graph_with_authorities` 重复工作的实际部分。
-- [ ] 梳理 `scoopc` 与 Link 的责任：Link 只检查本次选择、实际引用和最终组合所必需的事实，不为前端已经完成的事实重建完整语义验证。进程间不为复用验证结果新增凭证/收据机制。
-- [ ] 保留独立消费 `.slib` 的正常格式、引用、目标/ABI 与所选定义冲突检查，用多个共享上游的实际依赖图验证结果与扫描次数。
+- [x] 核查 `read_program_link_closure` 的传递依赖展开：已有依赖图本身包含上游信息时，不再把每份传递图反复导入并遍历相同节点。
+- [x] 同一消费进程按实际需要解码 section 一次，复用已有身份图、布局与摘要；缩减原 `validate_foundation_identity_graph_with_authorities` 重复工作的实际部分。
+- [x] 梳理 `scoopc` 与 Link 的责任：Link 只检查本次选择、实际引用和最终组合所必需的事实，不为前端已经完成的事实重建完整语义验证。进程间不为复用验证结果新增凭证/收据机制。
+- [x] 保留独立消费 `.slib` 的正常格式、引用、目标/ABI 与所选定义冲突检查，用多个共享上游的实际依赖图验证结果与扫描次数。
+
+本地实现及定向验证完成。Link 保留实际 ABI 指纹、身份种类／引用、定义归属和最终组合检查；不重哈希普通身份 key 或重放整份 LIR 生产关系。现有按需文件入口已经共享解压后的 section，本次沿用，不另设 reader 缓存。跨平台复验待集中进行。
 
 入口：[program link reader](../../compiler/slib/src/program_link/read.rs)、[Compile 解码](../../compiler/slib/src/compile_decode.rs)、[Link 机器记录解码](../../compiler/slib/src/link_decode/layout/machine.rs)、[外部身份图导入](../../compiler/identity/src/validation/external.rs)。
 

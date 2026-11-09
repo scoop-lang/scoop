@@ -72,15 +72,48 @@ impl DecodedLirFoundation {
         producer: ConeIdentity,
         identities: &mut ValidatedIdentityGraph,
     ) -> Result<ValidatedLirFoundation, LirFoundationValidationError> {
-        validate_foundation(self, producer, identities)
+        let canonical = resolve_foundation(self, identities)?;
+        validate_safepoints(
+            &canonical.callable_bodies,
+            &canonical.safepoint_sites,
+            &canonical.safepoints,
+        )?;
+        validate_native_contracts(identities, &canonical.native_contracts)?;
+        validate_bridges(
+            identities,
+            producer,
+            BridgeTables {
+                contracts: &canonical.native_contracts,
+                signatures: &canonical.c_abi_signatures,
+                layouts: &canonical.c_abi_layouts,
+                units: &canonical.bridge_units,
+                atoms: &canonical.bridge_atoms,
+                callbacks: &canonical.callback_bridges,
+                plans: &canonical.definition_plans,
+            },
+        )?;
+        Ok(ValidatedLirFoundation {
+            producer,
+            canonical,
+        })
+    }
+
+    /// Read saved machine inputs without replaying whole-production relations.
+    pub fn read_link(
+        self,
+        producer: ConeIdentity,
+        identities: &mut ValidatedIdentityGraph,
+    ) -> Result<ConeLirFoundation, LirFoundationValidationError> {
+        let canonical = resolve_foundation(self, identities)?;
+        ConeLirFoundation::try_new(producer, canonical)
+            .map_err(LirFoundationValidationError::ConeOwnership)
     }
 }
 
-fn validate_foundation(
+fn resolve_foundation(
     foundation: DecodedLirFoundation,
-    producer: ConeIdentity,
     identities: &mut ValidatedIdentityGraph,
-) -> Result<ValidatedLirFoundation, LirFoundationValidationError> {
+) -> Result<CanonicalLirFoundation, LirFoundationValidationError> {
     let DecodedLirFoundationWire {
         materialized_exact_types,
         layouts: _,
@@ -252,22 +285,6 @@ fn validate_foundation(
         );
     }
 
-    validate_safepoints(&callable_bodies, &safepoint_sites, &resolved_safepoints)?;
-    validate_native_contracts(identities, &resolved_contracts)?;
-    validate_bridges(
-        identities,
-        producer,
-        BridgeTables {
-            contracts: &resolved_contracts,
-            signatures: &resolved_signatures,
-            layouts: &resolved_layouts,
-            units: &bridge_units,
-            atoms: &bridge_atoms,
-            callbacks: &resolved_callbacks,
-            plans: &definition_plans,
-        },
-    )?;
-
     let mut canonical = CanonicalLirFoundation::empty();
     macro_rules! set {
         ($method:ident, $records:expr) => {
@@ -303,10 +320,7 @@ fn validate_foundation(
     set!(set_definition_atoms, definition_atoms);
     canonical.native_cxx = native_cxx;
 
-    Ok(ValidatedLirFoundation {
-        producer,
-        canonical,
-    })
+    Ok(canonical)
 }
 
 #[cfg(test)]

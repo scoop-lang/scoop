@@ -5,7 +5,7 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use rustc_hash::FxHashMap as HashMap;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use scoop_wire::{Digest256, HashError, WireError, WireErrorKind, WirePath};
 
@@ -26,6 +26,7 @@ use crate::{
 mod canonical;
 mod decoded;
 mod external;
+use external::IdentitySource;
 mod records;
 pub use decoded::DecodedIdentityKey;
 
@@ -161,6 +162,12 @@ pub struct PendingIdentityValidation {
     declared: Vec<IdentityNode>,
     checking: Vec<IdentityNode>,
     phase: ValidationPhase,
+    link: bool,
+    local_nodes: Vec<IdentityNode>,
+    external_sources: Vec<IdentitySource>,
+    imported_sources: HashSet<*const HashMap<IdentityNode, Candidate>>,
+    #[cfg(test)]
+    external_candidate_visits: usize,
 
     resource_error: Option<WireError>,
     resource_path: WirePath,
@@ -179,6 +186,12 @@ impl PendingIdentityValidation {
             declared: Vec::new(),
             checking: Vec::new(),
             phase: ValidationPhase::Registering,
+            link: false,
+            local_nodes: Vec::new(),
+            external_sources: Vec::new(),
+            imported_sources: HashSet::default(),
+            #[cfg(test)]
+            external_candidate_visits: 0,
 
             resource_error: None,
             resource_path: WirePath::default(),
@@ -187,6 +200,14 @@ impl PendingIdentityValidation {
 }
 
 impl PendingIdentityValidation {
+    /// Read Link declarations and references without replaying semantic-key hashing.
+    pub fn for_link() -> Self {
+        Self {
+            link: true,
+            ..Self::new()
+        }
+    }
+
     /// Adds an identity that was established by a trusted authority rather
     /// than declared by one of the artifact's delta tables.
     pub fn register_authority<I: PersistentId + 'static>(
@@ -223,6 +244,7 @@ impl PendingIdentityValidation {
         }
 
         self.reserve_candidate_slot()?;
+        self.local_nodes.push(node);
         self.candidates.insert(
             node,
             Candidate {
@@ -309,6 +331,7 @@ impl PendingIdentityValidation {
             });
         }
         self.reserve_candidate_slot()?;
+        self.local_nodes.push(node);
         self.candidates.insert(
             node,
             Candidate {
@@ -347,6 +370,9 @@ impl PendingIdentityValidation {
     {
         self.require_registration_phase()?;
 
+        if self.link {
+            return self.insert_candidate(layer, record.decoded_id().declared_identity());
+        }
         let expected = match record.key().candidate_identity() {
             Ok(expected) => expected,
             Err(error) => {
@@ -374,6 +400,9 @@ impl PendingIdentityValidation {
     ) -> Result<(), IdentityValidationError> {
         self.require_registration_phase()?;
 
+        if self.link {
+            return self.insert_candidate(layer, record.decoded_id().declared_identity());
+        }
         let expected = record.candidate_identity().map_err(|error| {
             self.phase = ValidationPhase::Poisoned;
             IdentityValidationError::Hash {
@@ -400,6 +429,9 @@ impl PendingIdentityValidation {
         self.require_registration_phase()?;
 
         let decoded = record.decoded_id();
+        if self.link {
+            return self.insert_candidate(layer, decoded.declared_identity());
+        }
         let validated = match record.validate_key::<DecodedCallableBodyKey>() {
             Ok(validated) => validated,
             Err(error) => {
@@ -435,7 +467,7 @@ impl PendingIdentityValidation {
         let node = IdentityNode::decoded(record.decoded_id());
         self.start_resolution(node)?;
 
-        let record = record.clone();
+        let link = self.link;
 
         let resolved = {
             let mut resolver = PendingIdentityResolver {
@@ -445,10 +477,18 @@ impl PendingIdentityValidation {
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
             };
-            record.resolve(|key| {
-                key.resolve_identity_key(&mut resolver)
-                    .map_err(IdentityKeyResolutionError)
-            })
+            if link {
+                record.key().clone().resolve_identity_key(&mut resolver)
+            } else {
+                record
+                    .clone()
+                    .resolve(|key| {
+                        key.resolve_identity_key(&mut resolver)
+                            .map_err(IdentityKeyResolutionError)
+                    })
+                    .map(|record| record.into_key())
+                    .map_err(|error| error.to_string())
+            }
         };
         self.require_no_resource_error()?;
 
@@ -462,7 +502,7 @@ impl PendingIdentityValidation {
                 });
             }
         };
-        self.store_resolved_key::<I, D::Canonical>(node, resolved.into_key())
+        self.store_resolved_key::<I, D::Canonical>(node, resolved)
     }
 
     pub fn resolve_source_native_contract(
@@ -473,6 +513,7 @@ impl PendingIdentityValidation {
         self.start_resolution(node)?;
 
         let record = record.clone();
+        let link = self.link;
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
@@ -481,7 +522,11 @@ impl PendingIdentityValidation {
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
             };
-            record.resolve(&mut resolver)
+            if link {
+                record.resolve_identity_key(&mut resolver)
+            } else {
+                record.resolve(&mut resolver).map(|record| record.key())
+            }
         };
         self.require_no_resource_error()?;
         let resolved = match resolved {
@@ -497,7 +542,7 @@ impl PendingIdentityValidation {
         self.store_resolved_key::<
             PersistentSourceNativeExternalContractId,
             SourceNativeExternalContractKey,
-        >(node, resolved.key())
+        >(node, resolved)
     }
 
     pub fn resolve_callable_body(
@@ -538,6 +583,10 @@ impl PendingIdentityValidation {
                 });
             }
         };
+        if self.link {
+            return self
+                .store_resolved_key::<PersistentCallableBodyId, CallableBodyKey>(node, resolved);
+        }
         let rebuilt = match RuntimeIdentityRecord::from_key(&resolved) {
             Ok(rebuilt) => rebuilt,
             Err(error) => {
@@ -684,9 +733,15 @@ impl PendingIdentityValidation {
             });
         }
         self.declared.sort_unstable();
+        self.local_nodes.sort_unstable();
+        self.local_nodes.dedup();
+        self.local_nodes
+            .retain(|node| self.declared.binary_search(node).is_err());
         Ok(ValidatedIdentityGraph {
             candidates: Rc::new(self.candidates),
             declared: self.declared.into(),
+            local_nodes: self.local_nodes.into(),
+            external_sources: self.external_sources.into(),
         })
     }
 
@@ -1068,13 +1123,15 @@ where
 
 /// Fully validated persistent identity graph.
 ///
-/// Constructing this type proves that every declared record was rehashed,
-/// every reference resolved to the same or an earlier layer, and the complete
-/// dependency graph is acyclic.
+/// Declarations and kind-sensitive references are resolved, and the dependency
+/// graph is acyclic. Compile readers also check semantic-key hashes; Link reads
+/// the saved declarations without replaying that production work.
 #[derive(Clone)]
 pub struct ValidatedIdentityGraph {
     candidates: Rc<HashMap<IdentityNode, Candidate>>,
     declared: Rc<[IdentityNode]>,
+    local_nodes: Rc<[IdentityNode]>,
+    external_sources: Rc<[IdentitySource]>,
 }
 
 impl ValidatedIdentityGraph {
@@ -1160,14 +1217,10 @@ impl ValidatedIdentityGraph {
         I: PersistentId + 'static,
         K: RuntimeIdentityKey<I> + Clone + Send + Sync + 'static,
     {
-        let record_count = self
-            .candidates
-            .iter()
-            .filter(|(node, candidate)| {
-                node.kind == I::KIND
-                    && candidate.layer == Some(layer)
-                    && candidate.key_ref::<I, K>().is_some()
-            })
+        let candidates = self.record_candidates(I::KIND, records::RecordScope::Layer(layer));
+        let record_count = candidates
+            .clone()
+            .filter(|(_, candidate)| candidate.key_ref::<I, K>().is_some())
             .count();
         let record_count = u64::try_from(record_count).map_err(|_| {
             IdentityValidationError::Resource(WireError::new(
@@ -1179,10 +1232,7 @@ impl ValidatedIdentityGraph {
         let mut records = Vec::new();
         scoop_wire::allocation::try_reserve_count(&mut records, record_count, path)
             .map_err(IdentityValidationError::Resource)?;
-        for (node, candidate) in self.candidates.iter() {
-            if node.kind != I::KIND || candidate.layer != Some(layer) {
-                continue;
-            }
+        for (node, candidate) in candidates {
             let Some(key) = candidate.key::<I, K>() else {
                 continue;
             };

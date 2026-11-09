@@ -89,6 +89,17 @@ fn rejects_a_safepoint_site_without_its_runtime_mapping() {
 }
 
 #[test]
+fn link_projection_reports_a_missing_runtime_mapping_without_panicking() {
+    let (mut decoded, mut identities, _) = callback_fixture(&[0], 0);
+    decoded.decoded.safepoints.clear();
+    let foundation = decoded
+        .read_link(ConeIdentity::CORE, &mut identities)
+        .unwrap();
+    let error = foundation.link_safepoints().unwrap_err();
+    assert!(error.to_string().contains("has no runtime mapping"));
+}
+
+#[test]
 fn rejects_a_callback_unit_with_the_wrong_context_parameter() {
     let (decoded, mut identities, _) = callback_fixture(&[0], 1);
 
