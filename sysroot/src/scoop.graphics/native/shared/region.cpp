@@ -68,9 +68,9 @@ SGRegion *scoop_graphics_geometry_region(SGGeometry *value, double scale) {
     const SkRegion viewport(*bounds);
     if (!raster(region, *path, scale, viewport))
       return nullptr;
-    for (const SkPath &clip : value->clips) {
+    for (auto clip = value->clips.get(); clip; clip = clip->previous.get()) {
       SkRegion part;
-      if (!raster(part, clip, scale, viewport))
+      if (!raster(part, clip->path, scale, viewport))
         return nullptr;
       region.op(part, SkRegion::kIntersect_Op);
     }

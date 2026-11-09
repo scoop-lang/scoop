@@ -83,6 +83,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                         ),
                         { mount -> CompositionMirror(this, scope = mount) }
                     )
+                verifyFrameDependencies(host, application)
                 postStep(application)
             }
             case NewEvents(StartCause.Deadline) -> fail(

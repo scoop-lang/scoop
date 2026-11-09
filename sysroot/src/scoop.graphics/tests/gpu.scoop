@@ -1,0 +1,229 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.platform.concurrent.Thread
+import scoop.tests.graphics.TestGpuFrame
+import scoop.test.*
+
+@Test
+private class NativeGpuBufferTest {
+    @Test
+    fun `native single and dual channel planes preserve their channels without an alpha conversion`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device -> for (channels in 1 .. 2) {
+                    val format =
+                        when (device.backend) {
+                            case Metal -> NativeGpuFormat.Metal(
+                                if (channels == 1)
+                                    10ul
+                                else
+                                    30ul
+                            )
+                            case D3D12 -> NativeGpuFormat.D3D12(
+                                if (channels == 1)
+                                    61u
+                                else
+                                    49u
+                            )
+                            case GLES -> NativeGpuFormat.GLES(
+                                if (channels == 1)
+                                    33321u
+                                else
+                                    33323u
+                            )
+                        }
+                    device.createBuffer(
+                        4,
+                        4,
+                        format,
+                        if (channels == 1)
+                            GpuPixelLayout.R8
+                        else
+                            GpuPixelLayout.Rg8
+                    ).use {
+                        buffer ->
+                        assertEquals(255, channel(buffer.readPixels(), 4, 1, 1, 3))
+                        buffer.draw { canvas -> canvas.clear(Color(1.0, 1.0, 0.0)) }
+                        buffer.snapshot().use {
+                            image -> target.draw {
+                                canvas -> canvas.drawImage(image, Rect(0.0, 0.0, 4.0, 4.0))
+                            }
+                        }
+                        val actual = target.readPixels()
+                        assertEquals(255, channel(actual, 64, 1, 1, 0))
+                        assertEquals(
+                            if (channels == 1)
+                                0
+                            else
+                                255,
+                            channel(actual, 64, 1, 1, 1)
+                        )
+                        assertEquals(0, channel(actual, 64, 1, 1, 2))
+                        assertEquals(255, channel(actual, 64, 1, 1, 3))
+                    }
+                }
+            }
+        }
+    }
+    @Test
+    fun `raster canvases have no GPU device and expired canvases reject discovery`() {
+        val expired =
+            RasterSurface(8, 8).use {
+                surface -> surface.draw {
+                    canvas ->
+                    when (canvas.gpuDevice()) {
+                        case None -> {}
+                        case Some(_) -> fail(Some("raster returned a GPU device"))
+                    }
+                    canvas
+                }
+            }
+        assertFailsWith<IllegalStateException> { expired.gpuDevice() }
+    }
+
+    @Test
+    fun `native writes preserve earlier GPU snapshots and restore Canvas state on exceptions`() {
+        withGpuTestTarget {
+            target -> target.draw {
+                canvas -> canvas.withState { child -> child.gpuDevice()!! }
+            }.use {
+                device -> nativeFrame(device).use {
+                    producer ->
+                    val buffer =
+                        device.createBuffer(
+                            16,
+                            16,
+                            testFormat(device),
+                            testLayout(device),
+                            scale = 2.0
+                        )
+                    buffer.use {
+                        pixels ->
+                        assertEquals(0, channel(pixels.readPixels(), 16, 3, 3, 3))
+                        pixels.draw {
+                            canvas ->
+                            assertEquals(Transform.scale(2.0, 2.0), canvas.pixelTransform)
+                            canvas.clear(Color(1.0, 0.0, 0.0))
+                        }
+                        pixels.snapshot().use {
+                            red ->
+                            assertFailsWith<IllegalArgumentException> {
+                                @Unsafe
+                                {
+                                    pixels.withNativeWrite {
+                                        _, texture ->
+                                        assertFailsWith<IllegalStateException> {
+                                            pixels.draw { _ -> }
+                                        }
+                                        assertFailsWith<IllegalStateException> { pixels.snapshot() }
+                                        assertFailsWith<IllegalStateException> {
+                                            pixels.readPixels()
+                                        }
+                                        assertFailsWith<IllegalStateException> { pixels.close() }
+                                        @Unsafe
+                                        {
+                                            assertFailsWith<IllegalStateException> {
+                                                @Unsafe
+                                                {
+                                                    pixels.withNativeWrite { _, _ -> fail() }
+                                                }
+                                            }
+                                            fillNative(producer, texture, Color(0.0, 0.0, 1.0))
+                                        }
+                                        throw IllegalArgumentException(
+                                            Some("producer callback failed")
+                                        )
+                                    }
+                                }
+                            }
+                            pixels.snapshot().use {
+                                blue ->
+                                device.close()
+                                pixels.draw { canvas -> canvas.clear(Color(0.0, 1.0, 0.0)) }
+                                assertEquals(255, channel(pixels.readPixels(), 16, 3, 3, 1))
+                                pixels.close()
+                                target.draw {
+                                    canvas ->
+                                    canvas.clear(Color.Transparent)
+                                    canvas.drawImage(red, Rect(0.0, 0.0, 16.0, 16.0))
+                                    canvas.drawImage(blue, Rect(16.0, 0.0, 16.0, 16.0))
+                                }
+                                val actual = target.readPixels()
+                                assertEquals(255, channel(actual, 64, 4, 4, 0))
+                                assertEquals(0, channel(actual, 64, 4, 4, 2))
+                                assertEquals(255, channel(actual, 64, 20, 4, 2))
+                                assertEquals(0, channel(actual, 64, 20, 4, 1))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `GPU buffers keep native float formats and enforce borrow thread and close boundaries`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device ->
+                assertFailsWith<IllegalArgumentException> {
+                    device.createBuffer(0, 8, testFormat(device), testLayout(device))
+                }
+                assertFailsWith<GraphicsException> {
+                    device.createBuffer(8, 8, zeroFormat(device), testLayout(device))
+                }
+                val wrong =
+                    if (device.backend == GpuBackend.Metal)
+                        NativeGpuFormat.GLES(32856u)
+                    else
+                        NativeGpuFormat.Metal(80ul)
+                assertFailsWith<IllegalArgumentException> {
+                    device.createBuffer(8, 8, wrong, testLayout(device))
+                }
+                device.createBuffer(
+                    8,
+                    8,
+                    floatFormat(device),
+                    GpuPixelLayout.Rgba16F,
+                    GpuColorSpace.LinearSrgb
+                ).use {
+                    buffer ->
+                    assertEquals(floatFormat(device), buffer.format)
+                    buffer.draw { canvas -> canvas.clear(Color(0.0, 0.0, 1.0)) }
+                    assertEquals(255, channel(buffer.readPixels(), 8, 2, 2, 2))
+                    Thread.start {
+                        assertFailsWith<IllegalStateException> { buffer.snapshot() }
+                        assertFailsWith<IllegalStateException> { buffer.close() }
+                        assertFailsWith<IllegalStateException> { device.drain() }
+                    }.use { thread -> thread.join() }
+                    assertFailsWith<IllegalArgumentException> {
+                        @Unsafe
+                        {
+                            device.withNative {
+                                _ ->
+                                assertFailsWith<IllegalStateException> { device.drain() }
+                                assertFailsWith<IllegalStateException> { device.close() }
+                                assertFailsWith<IllegalStateException> {
+                                    device.createBuffer(
+                                        8,
+                                        8,
+                                        testFormat(device),
+                                        testLayout(device)
+                                    )
+                                }
+                                throw IllegalArgumentException(Some("device callback failed"))
+                            }
+                        }
+                    }
+                    buffer.close()
+                    assertFailsWith<IllegalStateException> { buffer.readPixels() }
+                }
+                device.close()
+                assertFailsWith<IllegalStateException> {
+                    device.createBuffer(8, 8, testFormat(device), testLayout(device))
+                }
+            }
+        }
+    }
+}

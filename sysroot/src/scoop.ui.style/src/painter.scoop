@@ -123,7 +123,7 @@ public class StylePainter public constructor(): Closeable {
         for (shadow in drawing.shadows)
             canvas.withState {
                 mask ->
-                mask.saveLayer(filter = Some(shadow))
+                mask.saveLayer(filter = Some(shadow), bounds = Some(bounds))
                 mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
                 mask.restore()
             }
@@ -140,18 +140,18 @@ public class StylePainter public constructor(): Closeable {
             case None -> canvas.withState {
                 local ->
                 local.clipRect(bounds)
-                local.saveLayer()
+                local.saveLayer(bounds = Some(bounds))
                 val colors = drawing.edges.values()
                 for (index in 0L ..< paths.regions.size) {
                     if (colors[index].width == 0.0)
                         continue
                     // Sum disjoint antialias coverage without darkening their shared joins.
-                    local.saveLayer(blendMode = BlendMode.Plus)
+                    local.saveLayer(blendMode = BlendMode.Plus, bounds = Some(bounds))
                     local.drawPath(paths.regions[index], Paint(colors[index].color))
                     local.restore()
                 }
                 // Apply one common rounded ring to the assembled colors.
-                local.saveLayer(blendMode = BlendMode.DstIn)
+                local.saveLayer(blendMode = BlendMode.DstIn, bounds = Some(bounds))
                 local.drawPath(ring, Paint(Color.White))
                 local.restore()
                 local.restore()

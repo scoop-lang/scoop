@@ -6,8 +6,19 @@ static int32_t clip(SGCanvas *value, const SkPath &path) {
     auto transformed = path.tryMakeTransform(value->logical());
     if (!transformed)
       return -1;
-    value->clips.back().push_back(std::move(*transformed));
+    auto previous = value->clips.back();
+    SkRect currentRect, previousRect;
+    if (previous && transformed->isRect(&currentRect) &&
+        previous->path.isRect(&previousRect)) {
+      if (!currentRect.intersect(previousRect))
+        currentRect.setEmpty();
+      transformed = SkPathBuilder().addRect(currentRect).detach();
+      previous = previous->previous;
+    }
+    auto next =
+        std::make_shared<SGClip>(std::move(*transformed), std::move(previous));
     value->canvas->clipPath(path, true);
+    value->clips.back() = std::move(next);
     return 1;
   } catch (...) {
     return 0;
@@ -65,6 +76,7 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
   default:
     return -1;
   }
+  const size_t previousDepth = value->clips.size();
   try {
     value->clips.push_back(value->clips.back());
     if (layer) {
@@ -76,21 +88,24 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
         if (value->recording)
           value->recording->independentTiles = false;
       }
-      const SkRect sourceBounds = sg_rect(bounds);
-      value->canvas->saveLayer(hasBounds ? &sourceBounds : nullptr, &paint);
+      if (!(opacity > 0 && opacity < 1 && !filter && !hasBounds &&
+            mode == SkBlendMode::kSrcOver && value->saveOpacityLayer(paint))) {
+        const SkRect sourceBounds = sg_rect(bounds);
+        value->canvas->saveLayer(hasBounds ? &sourceBounds : nullptr, &paint);
+      }
     } else {
       value->canvas->save();
     }
     return 1;
   } catch (...) {
+    value->clips.resize(previousDepth);
     return 0;
   }
 }
 int32_t scoop_graphics_canvas_restore(SGCanvas *value) {
   if (value->clips.size() <= 1)
     return -1;
-  value->canvas->restore();
-  value->clips.pop_back();
+  value->restore();
   return 1;
 }
 int32_t scoop_graphics_canvas_concat(SGCanvas *value, SGTransform transform) {
@@ -126,8 +141,15 @@ int32_t scoop_graphics_geometry_hit(SGGeometry *value, SGPoint point) {
   if (!value->invertible)
     return 0;
   SkPoint window = sg_point(point);
-  for (const SkPath &clip : value->clips)
-    if (!clip.contains(window))
+  if (value->clips) {
+    const auto bounds = value->clips->bounds;
+    if (bounds.isEmpty() || window.x() < bounds.left() ||
+        window.x() > bounds.right() || window.y() < bounds.top() ||
+        window.y() > bounds.bottom())
+      return 0;
+  }
+  for (auto clip = value->clips.get(); clip; clip = clip->previous.get())
+    if (!clip->path.contains(window))
       return 0;
   return value->shape.contains(value->inverse.mapPoint(window));
 }
@@ -158,8 +180,20 @@ SGBounds scoop_graphics_geometry_visible(SGGeometry *value) {
     auto path = value->shape.tryMakeTransform(value->matrix);
     if (!path)
       return {-1, {}};
-    for (const SkPath &clip : value->clips) {
-      path = Op(*path, clip, kIntersect_SkPathOp);
+    SkRect bounds;
+    if (path->isRect(&bounds) &&
+        (!value->clips ||
+         (!value->clips->previous && value->clips->path.isRect(nullptr)))) {
+      if (!bounds.intersect(value->viewport) ||
+          (value->clips && !bounds.intersect(value->clips->bounds)))
+        bounds.setEmpty();
+      value->visible =
+          bounds.isEmpty() ? SGBounds{} : SGBounds{1, sg_rect(bounds)};
+      value->visibilityKnown = true;
+      return value->visible;
+    }
+    for (auto clip = value->clips.get(); clip; clip = clip->previous.get()) {
+      path = Op(*path, clip->path, kIntersect_SkPathOp);
       if (!path)
         return {-1, {}};
     }
@@ -167,7 +201,7 @@ SGBounds scoop_graphics_geometry_visible(SGGeometry *value) {
               kIntersect_SkPathOp);
     if (!path)
       return {-1, {}};
-    const SkRect bounds = path->computeTightBounds();
+    bounds = path->computeTightBounds();
     if (!bounds.isFinite())
       return {-1, {}};
     value->visible =

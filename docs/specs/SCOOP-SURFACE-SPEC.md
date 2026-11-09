@@ -32,11 +32,15 @@ PathBuilder 的 `moveTo(point)`、`lineTo(point)`、`quadraticTo(control, end)`�
 
 Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独立 PathMeasure，原 Path 关闭后仍可查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
 
+两个嵌套圆角矩形构成的 EvenOdd GPU 填充可以使用 Skia 的圆角环专用绘图，避免把普通边框送入通用路径图集。构建时保留轮廓并确认完整包含关系，不能只比较包围盒；已确认且未改变的构建结果复用判定。非嵌套、相接边、其他路径操作、NonZero 和描边保留一般路径语义。抗锯齿环在当前设备变换下不足一个物理像素时使用一般路径，避免独立边缘覆盖放大细边；显式 Drawing 的最终缩放未知，也保留原路径。原 Path 仍负责 clip、contains、bounds 和测量，绘图优化不改变这些查询或快照所有权。
+
 `Path.rasterizeRegion(clip: Rect, scale: Double = 1.0): Array<Rect>` 使用 Skia Region 将填充轮廓转换为二进制矩形集合；clip 必须显式给出，scale 为正有限值。返回矩形仍以原逻辑单位表示，边界落在 1/scale 网格上，覆盖规则是 Skia 的非抗锯齿区域栅格化，不是半透明像素命中。clip 量化为覆盖它的整数网格边界；结果为空是正常结果。负坐标、EvenOdd 孔洞和矩形合并沿 Skia，禁止自行采样路径。native 整数坐标或转换后的浮点路径不可表示时失败。
 
 `graphics.native.CanvasGeometry.rasterizeRegion(scale = 1.0)` 对捕获的最终 transform、全部 path clip 和 viewport 使用同一栅格化；不可逆变换返回空。结果为自有普通值，快照关闭后仍有效。该转换供原生窗框／输入区域的 Accepted 提交使用，graphics 不依赖 window。
 
 Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其他线程调用；作用域结束后使用报状态异常。变换和 clip 的当前几何状态由 graphics 维护，并经低层接入接口提供给 Surface。绘制与区域放置不得分别维护两套可能不一致的变换。
+
+保存画布、嵌套借用与捕获几何共享不可变的裁剪前缀，不随嵌套深度复制全部路径。新增 clip 只追加自身；restore 或子作用域结束不改变已捕获的几何。矩形裁剪可合并为精确交集，普通路径仍保留 Skia 的填充、孔洞与变换语义；保守包围盒只用于提前排除，不代替路径命中或区域栅格化。纯矩形的可见范围直接求交，复杂路径继续按需交由 Skia 计算。
 
 `Canvas.withState<T>(block: (Canvas) -> T): T` 创建同步嵌套借用，继承当前坐标、clip 和组状态，不重复施加 DPI。block 获得独立有效期的子 Canvas；期间只能使用子 Canvas，父 Canvas 的操作及几何捕获报告状态错误。正常返回或抛错均恢复入口状态和保存层级，包括未配对的子级 save／saveLayer；子 Canvas 不能 restore 到入口以下，退出后拒绝操作。已绘制像素不回滚，异常帧是否提交由外层目标决定。
 
@@ -284,7 +288,7 @@ GPU context、窗口 surface、字体／图像／Path／文本的原生持有对
 
 graphics 与 graphics.text 的原生持有对象在创建线程串行使用和关闭；Surface 资源在窗口 owner，离屏资源不要求主线程。纯值可复制传递；结果逻辑上不可变不构成 Skia 内部缓存并发访问的承诺。
 
-native 薄层复制跨调用存活的数据，或取得明确的原生引用；不能保存移动 GC 对象的裸地址。回调使用已有 ForeignCallback 生命周期。C++／Objective-C 异常与用户异常均不得跨 C ABI 展开。
+native 薄层复制跨调用存活的数据，或取得明确的原生引用；不能保存移动 GC 对象的裸地址。进入 Scoop 的回调使用已有 ForeignCallback 生命周期；不进入 Scoop 的原生纹理 owner 回调和同队列 GPU buffer 借用沿 [原生 GPU buffer 规范](SCOOP-GRAPHICS-GPU-SPEC.md)。C++／Objective-C 异常与用户异常均不得跨 C ABI 展开。
 
 关闭顺序为停止帧通知并退休回调、结束输入／动画、等待当前同步回调和帧借用退出、关闭 SurfaceContent、结束实际 GPU 使用、释放 surface／context 及平台引用、关闭 NativeWindowLease。已停止的 ApplicationProxy 不能成为资源释放的唯一途径。content.close 失败仍释放本窗口的 renderer／lease；关闭整个宿主时继续处理其他窗口内容。清理失败遵循 ResourceUseException，不依赖后续一次事件或应用再调用 close 才完成收尾。
 

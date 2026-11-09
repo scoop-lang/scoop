@@ -1,5 +1,8 @@
 package scoop.graphics
 
+import scoop.graphics.native.GpuDevice
+import scoop.graphics.native.canvasGpuDevice
+
 /** A canvas borrowed by a render callback. Every operation checks the active scope and owner. */
 public class Canvas internal constructor(private val handle: GraphicsResource) {
     private var borrowed = false
@@ -66,6 +69,8 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
         pixelHeight: Int,
         scale: Double = 1.0
     ): OffscreenSurface = createOffscreen(resource.get(), pixelWidth, pixelHeight, scale)
+    /** Retains this GPU context and its native queue. Raster canvases return None. */
+    public fun gpuDevice(): GpuDevice? = canvasGpuDevice(resource.get())
     /** Borrows a child canvas and restores all state, including on exceptional exit. */
     public fun <T> withState(block: (Canvas) -> T): T {
         val pointer = resource.get()

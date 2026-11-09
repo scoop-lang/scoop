@@ -1,0 +1,56 @@
+package scoop.graphics.native
+
+import scoop.graphics.*
+
+/** A renderable native texture on the device's context; snapshots remain on the GPU. */
+public class GpuBuffer internal constructor(
+    private val target: RenderTarget,
+    public val format: NativeGpuFormat,
+    public val layout: GpuPixelLayout,
+    public val colorSpace: GpuColorSpace
+): Closeable {
+    public val pixelWidth: Int get() = target.pixelWidth
+    public val pixelHeight: Int get() = target.pixelHeight
+    public val scale: Double get() = target.scale
+    public val isClosed: Boolean get() = target.isClosed
+    public fun <T> draw(block: (Canvas) -> T): T = target.draw(block)
+    public fun snapshot(): Image = target.compositeSnapshot()
+    /** Explicit synchronization and straight RGBA8 export. */
+    public fun readPixels(): Array<Byte> = target.readPixels()
+
+    /**
+     * Preserves previous snapshots before borrowing the current texture. Submit native work
+     * on the supplied queue and restore the supplied D3D12 state before returning or throwing.
+     * Do not reenter the context, suspend, cross threads, or save these handles for later use.
+     */
+    @Unsafe
+    public fun <T> withNativeWrite(block: (NativeGpuDevice, NativeGpuTexture) -> T): T =
+        target.withExclusive {
+            pointer -> @Unsafe
+            {
+                return@withExclusive GpuBorrow(
+                    ownedGraphics(gpuWrite(pointer), "borrow native GPU buffer")
+                ).use {
+                    access -> @Unsafe
+                    {
+                        val handle = access.get()
+                        val device = gpuAccessDevice(handle)
+                        return@use block(
+                            device.native(),
+                            gpuAccessTexture(handle).native(device.backend())
+                        )
+                    }
+                }
+            }
+        }
+
+    public override fun close() {
+        target.close()
+    }
+}
+
+@Extern(name = "scoop_graphics_gpu_write")
+private fun gpuWrite(target: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gpu_access_texture")
+private fun gpuAccessTexture(access: Ptr<Unit>): GpuTextureInfo

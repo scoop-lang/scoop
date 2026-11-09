@@ -13,6 +13,7 @@ SGContext *scoop_graphics_metal_context(const void *device, const void *queue) {
     backend.fQueue = sk_ret_cfp(queue);
     auto result = std::make_unique<SGContext>();
     result->context = GrDirectContexts::MakeMetal(backend);
+    result->device = {1, device, queue, nullptr};
     return result->context ? result.release() : nullptr;
   } catch (...) {
     return nullptr;
@@ -26,6 +27,7 @@ SGTarget *scoop_graphics_metal_target(SGContext *context, const void *texture,
     auto backend = GrBackendRenderTargets::MakeMtl(width, height, info);
     auto result = std::make_unique<SGTarget>();
     result->context = context->context;
+    result->device = context->device;
     result->surface = SkSurfaces::WrapBackendRenderTarget(
         context->context.get(), backend, kTopLeft_GrSurfaceOrigin,
         kBGRA_8888_SkColorType, SkColorSpace::MakeSRGB(), nullptr);

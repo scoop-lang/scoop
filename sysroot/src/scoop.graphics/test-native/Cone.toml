@@ -8,6 +8,8 @@ kind = "library"
 [[sources]]
 path = "src/canvas.scoop"
 [[sources]]
+path = "src/gpu.scoop"
+[[sources]]
 path = "src/metal.scoop"
 when = { os = "darwin" }
 [[sources]]
@@ -21,6 +23,15 @@ cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELE
 objc_flags = ["-Wall", "-Wextra", "-Werror"]
 [[native.sources]]
 path = "native/canvas.cpp"
+[[native.sources]]
+path = "native/gpu_metal.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/gpu_d3d.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/gpu_gles.cpp"
+when = { os = "linux", env = "gnu" }
 [[native.sources]]
 path = "native/metal.m"
 when = { os = "darwin" }
@@ -44,3 +55,11 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "dxgi"
 when = { os = "windows" }
+[[native.libraries]]
+name = "EGL"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+[[native.libraries]]
+name = "GLESv2"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

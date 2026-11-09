@@ -1,0 +1,123 @@
+package scoop.graphics
+
+import scoop.graphics.native.RenderTarget
+import scoop.graphics.native.macos.MetalContext
+import scoop.tests.graphics.TestMetalSurface
+import scoop.tests.graphics.TestMetalWrite
+import scoop.tests.graphics.testMetalPixelFormat
+import scoop.graphics.native.*
+import scoop.test.*
+
+@Test
+private class MetalGpuFormatTest {
+    @Test
+    fun `device close waits for a native producer even when no subsequent Skia work is submitted`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device -> device.createBuffer(
+                    8,
+                    8,
+                    NativeGpuFormat.Metal(80ul),
+                    GpuPixelLayout.Bgra8
+                ).use {
+                    buffer -> @Unsafe
+                    {
+                        buffer.withNativeWrite {
+                            native,
+                            texture -> @Unsafe
+                            {
+                                return@withNativeWrite when ((native, texture)) {
+                                    case(
+                                        Metal(_, val queue),
+                                        Metal(val pointer)
+                                    ) -> TestMetalWrite.start(queue, pointer)
+                                    else -> throw IllegalStateException(Some("expected Metal"))
+                                }
+                            }
+                        }.use {
+                            write ->
+                            buffer.close()
+                            device.close()
+                            assertTrue(write.isComplete)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    @Test
+    fun `native sRGB storage survives snapshot copies and unsupported Metal formats fail normally`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device ->
+                assertFailsWith<GraphicsException> {
+                    device.createBuffer(8, 8, NativeGpuFormat.Metal(112ul), GpuPixelLayout.Rgba16F)
+                }
+                device.createBuffer(8, 8, NativeGpuFormat.Metal(71ul), GpuPixelLayout.Rgba8).use {
+                    buffer ->
+                    buffer.draw { canvas -> canvas.clear(Color(1.0, 0.0, 0.0)) }
+                    buffer.snapshot().use {
+                        red ->
+                        @Unsafe
+                        {
+                            buffer.withNativeWrite {
+                                _,
+                                texture -> @Unsafe
+                                {
+                                    when (texture) {
+                                        case Metal(val pointer) -> assertEquals(
+                                            71ul,
+                                            testMetalPixelFormat(pointer)
+                                        )
+                                        else -> fail()
+                                    }
+                                }
+                            }
+                        }
+                        buffer.snapshot().use {
+                            retained ->
+                            buffer.draw { canvas -> canvas.clear(Color(0.0, 0.0, 1.0)) }
+                            @Unsafe
+                            {
+                                buffer.withNativeWrite {
+                                    _,
+                                    texture -> @Unsafe
+                                    {
+                                        when (texture) {
+                                            case Metal(val pointer) -> assertEquals(
+                                                71ul,
+                                                testMetalPixelFormat(pointer)
+                                            )
+                                            else -> fail()
+                                        }
+                                    }
+                                }
+                            }
+                            target.draw {
+                                canvas ->
+                                canvas.drawImage(red, Rect(0.0, 0.0, 8.0, 8.0))
+                                canvas.drawImage(retained, Rect(8.0, 0.0, 8.0, 8.0))
+                            }
+                            assertEquals(255, channel(target.readPixels(), 64, 3, 3, 0))
+                            assertEquals(255, channel(buffer.readPixels(), 8, 3, 3, 2))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun withGpuTestTarget(width: Int = 64, height: Int = 32, block: (RenderTarget) -> Unit) {
+    TestMetalSurface.create(width, height).use {
+        objects -> @Unsafe
+        {
+            MetalContext.create(objects.device(), objects.queue()).use {
+                context -> @Unsafe
+                {
+                    context.target(objects.texture(), width, height, 1.0).use(block)
+                }
+            }
+        }
+    }
+}

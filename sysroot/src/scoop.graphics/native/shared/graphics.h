@@ -12,6 +12,7 @@
 #include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -44,12 +45,34 @@ struct SGObject {
   void *glSurface = nullptr;
   virtual ~SGObject() = default;
 };
+struct SGRRectRing {
+  SkRRect outer, inner;
+};
 struct SGPath : SGObject {
   SkPath path;
-  explicit SGPath(SkPath p) : path(std::move(p)) {}
+  std::shared_ptr<const SGRRectRing> ring;
+  explicit SGPath(SkPath p, std::shared_ptr<const SGRRectRing> r = {})
+      : path(std::move(p)), ring(std::move(r)) {}
 };
 struct SGBuilder : SGObject {
   SkPathBuilder path;
+  std::array<SkRRect, 2> roundRects;
+  int roundRectCount = 0;
+  bool ringChecked = false;
+  std::shared_ptr<const SGRRectRing> ring;
+  void invalidateRoundRects(bool reset = false) {
+    roundRectCount = reset ? 0 : -1;
+    ringChecked = false;
+    ring.reset();
+  }
+  void addRoundRect(const SkRRect &rect) {
+    ringChecked = false;
+    ring.reset();
+    if (roundRectCount >= 0 && roundRectCount < 2)
+      roundRects[roundRectCount++] = rect;
+    else
+      roundRectCount = -1;
+  }
 };
 struct SGMeasure : SGObject {
   std::vector<sk_sp<SkContourMeasure>> contours;
@@ -83,27 +106,56 @@ struct SGFilter : SGObject {
   sk_sp<SkImageFilter> filter;
   explicit SGFilter(sk_sp<SkImageFilter> f) : filter(std::move(f)) {}
 };
+// Raw handles are kept alive by the GrDirectContext (and SGGLState for GLES).
+struct SGDeviceInfo {
+  int32_t backend;
+  const void *first, *second, *third;
+};
 struct SGContext : SGObject {
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
 };
 struct SGTarget : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
   bool external = true;
+  virtual bool prepareWrite() { return true; }
+  virtual sk_sp<SkImage> snapshot() { return surface->makeImageSnapshot(); }
 };
 struct SGRecording {
   SkPictureRecorder recorder;
   bool independentTiles = true;
 };
+struct SGOpacityLayer {
+  SkPictureRecorder recorder;
+  SkCanvas *target;
+  size_t depth;
+  SkPaint paint;
+};
+// Immutable clip prefixes are shared by saved states, borrows and geometry.
+struct SGClip {
+  SkPath path;
+  std::shared_ptr<const SGClip> previous;
+  SkRect bounds;
+  SGClip(SkPath value, std::shared_ptr<const SGClip> parent)
+      : path(std::move(value)), previous(std::move(parent)),
+        bounds(path.getBounds()) {
+    if (previous && !bounds.intersect(previous->bounds))
+      bounds.setEmpty();
+  }
+};
 struct SGCanvas : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
   std::shared_ptr<SGRecording> recording;
   SkCanvas *canvas;
   float scale;
   SkRect viewport;
   int base;
-  std::vector<std::vector<SkPath>> clips;
+  std::vector<std::shared_ptr<const SGClip>> clips;
+  std::vector<std::unique_ptr<SGOpacityLayer>> opacityLayers;
   SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c, float dpi,
            std::shared_ptr<SGGLState> state = {}, void *nativeSurface = nullptr)
       : surface(std::move(s)), context(std::move(c)),
@@ -117,7 +169,7 @@ struct SGCanvas : SGObject {
     canvas->scale(dpi, dpi);
   }
   explicit SGCanvas(const SGCanvas &parent)
-      : surface(parent.surface), context(parent.context),
+      : surface(parent.surface), context(parent.context), device(parent.device),
         recording(parent.recording), canvas(parent.canvas), scale(parent.scale),
         viewport(parent.viewport), base(canvas->getSaveCount()),
         clips(1, parent.clips.back()) {
@@ -135,7 +187,9 @@ struct SGCanvas : SGObject {
     canvas->save();
     canvas->clipRect(bounds);
   }
-  ~SGCanvas() override { canvas->restoreToCount(base); }
+  ~SGCanvas() override;
+  bool saveOpacityLayer(const SkPaint &paint);
+  void restore();
   SkMatrix logical() const {
     return SkMatrix::Concat(SkMatrix::Scale(1 / scale, 1 / scale),
                             canvas->getLocalToDeviceAs3x3());
@@ -149,7 +203,7 @@ inline bool sg_compatible(const SGCanvas *canvas,
 struct SGGeometry : SGObject {
   SkMatrix matrix, inverse;
   bool invertible;
-  std::vector<SkPath> clips;
+  std::shared_ptr<const SGClip> clips;
   SkPath shape;
   SkRect viewport;
   bool visibilityKnown = false;

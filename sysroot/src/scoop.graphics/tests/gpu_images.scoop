@@ -1,0 +1,155 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.tests.graphics.TestGpuFrame
+import scoop.test.*
+
+@Test
+private class NativeGpuImageTest {
+    @Test
+    fun `external images pair failed imports and retain producers through recordings and GPU use`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device -> nativeFrame(device).use {
+                    producer -> @Unsafe
+                    {
+                        val texture = producerTexture(device, producer)
+                        val owner = nativeOwner(producer)
+                        assertFailsWith<GraphicsException> {
+                            @Unsafe
+                            {
+                                device.importImage(
+                                    texture,
+                                    16,
+                                    16,
+                                    zeroFormat(device),
+                                    testLayout(device),
+                                    owner
+                                )
+                            }
+                        }
+                        assertEquals(1, producer.retains)
+                        assertEquals(1, producer.releases)
+                        device.withNative {
+                            _ -> @Unsafe
+                            {
+                                fillNative(producer, texture, Color(1.0, 0.0, 0.0))
+                            }
+                        }
+                        val image =
+                            device.importImage(
+                                texture,
+                                16,
+                                16,
+                                testFormat(device),
+                                testLayout(device),
+                                owner
+                            )
+                        assertEquals(2, producer.references)
+                        val drawing =
+                            target.draw {
+                                canvas -> canvas.recordDrawing(Rect(0.0, 0.0, 16.0, 16.0)) {
+                                    recorded ->
+                                    recorded.gpuDevice()!!.use {
+                                        retained -> assertEquals(device.backend, retained.backend)
+                                    }
+                                    recorded.drawImage(image, Rect(0.0, 0.0, 16.0, 16.0))
+                                }
+                            }
+                        image.close()
+                        assertEquals(1, producer.releases)
+                        target.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent);
+                            canvas.drawDrawing(drawing)
+                        }
+                        drawing.close()
+                        assertEquals(255, channel(target.readPixels(), 64, 3, 3, 0))
+                        device.drain()
+                        assertEquals(2, producer.releases)
+                        assertEquals(1, producer.references)
+                        // A pool reuses the texture only after release, using the returned D3D12 state.
+                        val reused = producerTexture(device, producer)
+                        device.withNative {
+                            _ -> @Unsafe
+                            {
+                                fillNative(producer, reused, Color(0.0, 0.0, 1.0))
+                            }
+                        }
+                        device.importImage(
+                            reused,
+                            16,
+                            16,
+                            testFormat(device),
+                            testLayout(device),
+                            owner
+                        ).use {
+                            blue -> target.draw {
+                                canvas -> canvas.drawImage(blue, Rect(0.0, 0.0, 16.0, 16.0))
+                            }
+                        }
+                        assertEquals(255, channel(target.readPixels(), 64, 3, 3, 2))
+                        device.drain()
+                        assertEquals(3, producer.retains)
+                        assertEquals(3, producer.releases)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `an imported image outlives its producer wrapper and rejects another context`() {
+        withGpuTestTarget {
+            target -> target.draw { canvas -> canvas.gpuDevice()!! }.use {
+                device -> nativeFrame(device).use {
+                    producer -> @Unsafe
+                    {
+                        val texture = producerTexture(device, producer)
+                        device.withNative {
+                            _ -> @Unsafe
+                            {
+                                fillNative(producer, texture, Color(1.0, 0.0, 0.0, 0.5))
+                            }
+                        }
+                        device.importImage(
+                            texture,
+                            16,
+                            16,
+                            testFormat(device),
+                            testLayout(device),
+                            nativeOwner(producer),
+                            alpha = GpuImageAlpha.Unpremultiplied
+                        ).use {
+                            image ->
+                            producer.close()
+                            withGpuTestTarget {
+                                other -> other.draw {
+                                    canvas ->
+                                    assertFalse(canvas.isCompatible(image))
+                                    assertFailsWith<IllegalArgumentException> {
+                                        canvas.drawImage(image, Rect(0.0, 0.0, 16.0, 16.0))
+                                    }
+                                }
+                            }
+                            RasterSurface(16, 16).use {
+                                raster -> raster.draw {
+                                    canvas -> assertFalse(canvas.isCompatible(image))
+                                }
+                            }
+                            target.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent);
+                                canvas.drawImage(image, Rect(0.0, 0.0, 16.0, 16.0))
+                            }
+                            val actual = target.readPixels()
+                            assertEquals(255, channel(actual, 64, 3, 3, 0))
+                            assertTrue(channel(actual, 64, 3, 3, 3) in 127 .. 128)
+                        }
+                        device.drain()
+                    }
+                }
+            }
+        }
+    }
+}

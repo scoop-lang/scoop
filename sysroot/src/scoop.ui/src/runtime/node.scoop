@@ -9,6 +9,9 @@ internal enum NodeBody {
 
 internal class UpdateTurn
 
+/** Shared only by the dependency scan preceding layout and scene callbacks. */
+internal class FrameInvalidationBatch
+
 internal class MountedNode(
     val root: UiRoot,
     val parent: MountedNode?,
@@ -34,6 +37,8 @@ internal class MountedNode(
     var stateDirty = false
     var layoutVersion = 0L
     var sceneVersion = 0L
+    private var layoutBatch: FrameInvalidationBatch? = None
+    private var sceneBatch: FrameInvalidationBatch? = None
     val frameInputs = NodeFrameInputs(this)
     var layoutRound: LayoutRound? = None
     var currentLayout: NodeLayout? = None
@@ -87,17 +92,26 @@ internal class MountedNode(
         throwUi(failure)
     }
 
-    fun invalidateLayout() {
+    fun invalidateLayout(batch: FrameInvalidationBatch? = None) {
+        if (sameFrameBatch(layoutBatch, batch))
+            return
+        layoutBatch = batch
         layoutVersion += 1L
-        sceneVersion += 1L
+        if (!sameFrameBatch(sceneBatch, batch)) {
+            sceneBatch = batch
+            sceneVersion += 1L
+        }
         if (mounted)
-            parent?.invalidateLayout()
+            parent?.invalidateLayout(batch)
     }
 
-    fun invalidateScene() {
+    fun invalidateScene(batch: FrameInvalidationBatch? = None) {
+        if (sameFrameBatch(sceneBatch, batch))
+            return
+        sceneBatch = batch
         sceneVersion += 1L
         if (mounted)
-            parent?.invalidateScene()
+            parent?.invalidateScene(batch)
     }
 
     fun request(value: UiInvalidation) {
@@ -299,4 +313,13 @@ internal fun sameTurn(previous: UpdateTurn?, current: UpdateTurn): Boolean =
     when (previous) {
         case Some(val value) -> value === current
         case None -> false
+    }
+
+private fun sameFrameBatch(
+    previous: FrameInvalidationBatch?,
+    current: FrameInvalidationBatch?
+): Boolean =
+    when ((previous, current)) {
+        case(Some(val a), Some(val b)) -> a === b
+        else -> false
     }

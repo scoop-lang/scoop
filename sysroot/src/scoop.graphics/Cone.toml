@@ -33,11 +33,29 @@ when = { os = "windows" }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "test-native" }
 
 [[test.sources]]
+path = "tests/gpu.scoop"
+[[test.sources]]
+path = "tests/gpu_images.scoop"
+[[test.sources]]
+path = "tests/gpu_support.scoop"
+[[test.sources]]
+path = "tests/gpu_metal.scoop"
+when = { os = "darwin" }
+[[test.sources]]
+path = "tests/gpu_d3d.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/gpu_gles.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/drawing.scoop"
 [[test.sources]]
 path = "tests/path.scoop"
 [[test.sources]]
 path = "tests/rounded.scoop"
+[[test.sources]]
+path = "tests/path_rings.scoop"
 [[test.sources]]
 path = "tests/native_canvas.scoop"
 [[test.sources]]
@@ -56,6 +74,8 @@ path = "tests/effects.scoop"
 [[test.sources]]
 path = "tests/layer_bounds.scoop"
 [[test.sources]]
+path = "tests/opacity_layers.scoop"
+[[test.sources]]
 path = "tests/effects_metal.scoop"
 when = { os = "darwin" }
 [[test.sources]]
@@ -69,6 +89,25 @@ when = { os = "windows" }
 cxx = true
 include = [{ sysroot = "include/skia" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
+objc_flags = ["-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "native/shared/gpu.cpp"
+[[native.sources]]
+path = "native/darwin/gpu.cpp"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/darwin/gpu.m"
+when = { os = "darwin" }
+[[native.sources]]
+path = "native/windows/gpu.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/windows/gpu_completion.cpp"
+when = { os = "windows" }
+[[native.sources]]
+path = "native/linux/gpu.cpp"
+when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/shared/path.cpp"
@@ -80,6 +119,8 @@ path = "native/shared/geometry.cpp"
 path = "native/shared/filter.cpp"
 [[native.sources]]
 path = "native/shared/canvas.cpp"
+[[native.sources]]
+path = "native/shared/layers.cpp"
 [[native.sources]]
 path = "native/shared/recording.cpp"
 [[native.sources]]

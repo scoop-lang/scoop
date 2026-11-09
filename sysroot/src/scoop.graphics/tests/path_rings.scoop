@@ -1,0 +1,167 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.test.*
+
+@Test
+private class PathRingTest {
+    @Test
+    fun `subpixel GPU rings preserve coverage under scaling`() {
+        withGpuTestTarget(128, 96) {
+            target -> for (width in [0.25, 0.5, 1.0]) {
+                val outer = RoundedOutline(Rect(8.25, 8.25, 44.0, 24.0), CornerRadii.all(8.0))
+                val inner = outer.inset(width, width, width, width)
+                PathBuilder(FillRule.EvenOdd).use {
+                    builder ->
+                    builder.addRoundRect(outer.bounds, outer.radii)
+                    builder.addRoundRect(inner.bounds, inner.radii)
+                    builder.build().use {
+                        outline ->
+                        // Closing an already closed contour preserves geometry while
+                        // exercising the ordinary path construction and GPU rasterizer.
+                        builder.closeContour()
+                        builder.build().use {
+                            general ->
+                            val drawing =
+                                target.draw {
+                                    canvas -> canvas.recordDrawing(Rect(0.0, 0.0, 128.0, 96.0)) {
+                                        recorded -> recorded.drawPath(outline, Paint(Color.White))
+                                    }
+                                }
+                            drawing.use {
+                                recorded -> for (scale in [0.25, 0.5, 1.0, 2.0]) {
+                                    if (width * scale < 1.0)
+                                        verifyThinRing(target, outline, general, recorded, scale)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `GPU rounded rings preserve holes winding strokes and builder snapshots`() {
+        withGpuTestTarget {
+            target -> PathBuilder(FillRule.EvenOdd).use {
+                builder ->
+                val outer = Rect(4.0, 4.0, 40.0, 24.0)
+                val inner = Rect(8.0, 8.0, 32.0, 16.0)
+                builder.addRoundRect(inner, 4.0, 4.0)
+                builder.addRoundRect(outer, 8.0, 8.0)
+                builder.build().use {
+                    ring ->
+                    builder.build().use {
+                        same ->
+                        val pixels = renderRing(target, same)
+                        assertEquals(255, channel(pixels, 64, 6, 16, 3))
+                        assertEquals(0, channel(pixels, 64, 20, 16, 3))
+                        assertEquals(0, channel(pixels, 64, 4, 4, 3))
+                    }
+                    builder.addRect(Rect(52.0, 4.0, 8.0, 8.0))
+                    builder.build().use {
+                        appended ->
+                        val pixels = renderRing(target, appended)
+                        assertEquals(255, channel(pixels, 64, 56, 8, 3))
+                        assertEquals(0, channel(pixels, 64, 20, 16, 3))
+                    }
+                    builder.reset()
+                    val pixels = renderRing(target, ring)
+                    assertEquals(0, channel(pixels, 64, 56, 8, 3))
+                    assertEquals(255, channel(pixels, 64, 6, 16, 3))
+                    val stroke =
+                        renderRing(
+                            target,
+                            ring,
+                            Paint(Color.White, PaintingStyle.Stroke, 2.0, antiAlias = false)
+                        )
+                    assertEquals(255, channel(stroke, 64, 4, 16, 3))
+                    assertEquals(255, channel(stroke, 64, 8, 16, 3))
+                    assertEquals(0, channel(stroke, 64, 6, 16, 3))
+                    assertEquals(0, channel(stroke, 64, 20, 16, 3))
+                }
+                path {
+                    addRoundRect(outer, 8.0, 8.0)
+                    addRoundRect(inner, 4.0, 4.0)
+                }.use {
+                    solid -> assertEquals(255, channel(renderRing(target, solid), 64, 20, 16, 3))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `GPU corner crossings and coincident contours retain even odd coverage`() {
+        withGpuTestTarget {
+            target ->
+            path(FillRule.EvenOdd) {
+                addRoundRect(Rect(4.0, 4.0, 40.0, 24.0), 12.0, 12.0)
+                addRect(Rect(5.0, 5.0, 38.0, 22.0))
+            }.use {
+                crossing ->
+                // The inner rectangle's bounds fit, but its corners leave the capsule.
+                assertTrue(crossing.contains(Point(6.5, 6.5)))
+                val pixels = renderRing(target, crossing)
+                assertEquals(255, channel(pixels, 64, 6, 6, 3))
+                assertEquals(0, channel(pixels, 64, 20, 16, 3))
+            }
+            path(FillRule.EvenOdd) {
+                addRoundRect(Rect(4.25, 4.25, 40.0, 24.0), 8.0, 8.0)
+                addRoundRect(Rect(4.25, 4.25, 40.0, 24.0), 8.0, 8.0)
+            }.use {
+                empty ->
+                val pixels = renderRing(target, empty, Paint(Color.White))
+                for (index in 0L ..< pixels.size / 4L)
+                    assertEquals(0, pixels[index * 4L + 3L].toUByte().toInt())
+            }
+        }
+    }
+}
+
+private fun verifyThinRing(
+    target: RenderTarget,
+    outline: Path,
+    general: Path,
+    recorded: Drawing,
+    scale: Double
+) {
+    target.draw {
+        canvas ->
+        canvas.clear(Color.Transparent)
+        canvas.scale(scale, scale)
+        canvas.drawPath(general, Paint(Color.White))
+    }
+    val expected = target.readPixels()
+    for (replay in [false, true]) {
+        target.draw {
+            canvas ->
+            canvas.clear(Color.Transparent)
+            canvas.scale(scale, scale)
+            if (replay)
+                canvas.drawDrawing(recorded)
+            else
+                canvas.drawPath(outline, Paint(Color.White))
+        }
+        val actual = target.readPixels()
+        for (index in 0L ..< actual.size)
+            assertEquals(
+                expected[index],
+                actual[index],
+                Some(f"ring scale=${scale}, replay=${replay}, channel=${index}")
+            )
+    }
+}
+
+private fun renderRing(
+    target: RenderTarget,
+    outline: Path,
+    paint: Paint = Paint(Color.White, antiAlias = false)
+): Array<Byte> {
+    target.draw {
+        canvas ->
+        canvas.clear(Color.Transparent)
+        canvas.drawPath(outline, paint)
+    }
+    return target.readPixels()
+}

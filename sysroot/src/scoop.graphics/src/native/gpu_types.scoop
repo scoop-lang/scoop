@@ -1,0 +1,127 @@
+package scoop.graphics.native
+
+public enum GpuBackend {
+    Metal, D3D12, GLES
+}
+
+/** The platform's unmodified pixel format; no format conversion or fallback is performed. */
+public enum NativeGpuFormat {
+    Metal(ULong), D3D12(UInt), GLES(UInt)
+}
+
+/** How Skia interprets the texture's channels, independently of its native storage format. */
+public enum GpuPixelLayout {
+    Rgba8, Bgra8, Rgba16F, Rgb10A2, R8, Rg8
+}
+
+public enum GpuColorSpace {
+    Srgb, LinearSrgb
+}
+
+public enum GpuImageAlpha {
+    Premultiplied, Unpremultiplied, Opaque
+}
+
+public enum GpuImageOrigin {
+    TopLeft, BottomLeft
+}
+
+/** Borrowed device and queue, or EGL display and current context. Native owners use platform retain rules. */
+public enum NativeGpuDevice {
+    Metal(Ptr<Unit>, Ptr<Unit>), D3D12(Ptr<Unit>, Ptr<Unit>, Ptr<Unit>),
+    GLES(Ptr<Unit>, Ptr<Unit>)
+}
+
+/** D3D12 includes the state which a native writer must restore before returning. */
+public enum NativeGpuTexture {
+    Metal(Ptr<Unit>), D3D12(Ptr<Unit>, UInt), GLES(UInt)
+}
+
+/**
+ * Pure native callbacks only; neither callback may enter Scoop or its GC.
+ * release runs when Skia no longer uses the texture, possibly on a cleanup thread.
+ * Its second argument is the final D3D12 resource state, or zero on other backends.
+ */
+@CLayout
+public struct NativeGpuImageOwner(
+    val payload: Ptr<Unit>,
+    val retain: GCLeafFunPtr<(Ptr<Unit>) -> Unit>,
+    val release: GCLeafFunPtr<(Ptr<Unit>, UInt) -> Unit>
+)
+
+internal fun NativeGpuFormat.backend(): GpuBackend =
+    when (this) {
+        case Metal(_) -> GpuBackend.Metal
+        case D3D12(_) -> GpuBackend.D3D12
+        case GLES(_) -> GpuBackend.GLES
+    }
+
+internal fun NativeGpuFormat.code(): ULong =
+    when (this) {
+        case Metal(val value) -> value
+        case D3D12(val value) -> value.toULong()
+        case GLES(val value) -> value.toULong()
+    }
+
+internal fun GpuPixelLayout.code(): Int =
+    when (this) {
+        case Rgba8 -> 0
+        case Bgra8 -> 1
+        case Rgba16F -> 2
+        case Rgb10A2 -> 3
+        case R8 -> 4
+        case Rg8 -> 5
+    }
+
+internal fun GpuImageAlpha.code(): Int =
+    when (this) {
+        case Premultiplied -> 0
+        case Unpremultiplied -> 1
+        case Opaque -> 2
+    }
+
+internal fun NativeGpuTexture.backend(): GpuBackend =
+    when (this) {
+        case Metal(_) -> GpuBackend.Metal
+        case D3D12(_, _) -> GpuBackend.D3D12
+        case GLES(_) -> GpuBackend.GLES
+    }
+
+internal fun NativeGpuTexture.info(): GpuTextureInfo =
+    when (this) {
+        case Metal(val texture) -> GpuTextureInfo(Some(texture), 0u, 0u)
+        case D3D12(val texture, val state) -> GpuTextureInfo(Some(texture), 0u, state)
+        case GLES(val name) -> GpuTextureInfo(None, name, 0u)
+    }
+
+@CLayout
+internal struct GpuDeviceInfo(
+    val kind: Int,
+    val first: Ptr<Unit>?,
+    val second: Ptr<Unit>?,
+    val third: Ptr<Unit>?
+) {
+    fun backend(): GpuBackend =
+        when (kind) {
+            case 1 -> GpuBackend.Metal
+            case 2 -> GpuBackend.D3D12
+            case 3 -> GpuBackend.GLES
+            else -> throw IllegalStateException(Some("invalid GPU backend"))
+        }
+    fun native(): NativeGpuDevice =
+        when (backend()) {
+            case Metal -> NativeGpuDevice.Metal(first!!, second!!)
+            case D3D12 -> NativeGpuDevice.D3D12(first!!, second!!, third!!)
+            case GLES -> NativeGpuDevice.GLES(first!!, second!!)
+        }
+}
+
+@CLayout
+internal struct GpuTextureInfo(val pointer: Ptr<Unit>?, val name: UInt, val state: UInt) {
+    fun native(backend: GpuBackend): NativeGpuTexture =
+        when (backend) {
+            case Metal -> NativeGpuTexture.Metal(pointer!!)
+            case D3D12 -> NativeGpuTexture.D3D12(pointer!!, state)
+            case GLES -> NativeGpuTexture.GLES(name)
+        }
+}

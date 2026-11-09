@@ -35,6 +35,22 @@ when = { os = "darwin" }
 path = "tests/input_comparison.scoop"
 when = { os = "windows" }
 
+[[test.sources]]
+path = "tests/frame_dependencies.scoop"
+when = { os = ["linux", "windows"] }
+
+[[test.sources]]
+path = "tests/composition.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/composition_models.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/subscriptions.scoop"
+when = { os = "windows" }
+
 [[sources]]
 path = "src"
 when = { os = "linux", env = "gnu" }

@@ -1,0 +1,19 @@
+package scoop.graphics
+
+import scoop.graphics.native.RenderTarget
+import scoop.graphics.native.windows.D3DContext
+import scoop.tests.graphics.TestD3DSurface
+
+internal fun withGpuTestTarget(width: Int = 64, height: Int = 32, block: (RenderTarget) -> Unit) {
+    TestD3DSurface.create(width, height).use {
+        objects -> @Unsafe
+        {
+            D3DContext.create(objects.adapter(), objects.device(), objects.queue()).use {
+                context -> @Unsafe
+                {
+                    context.target(objects.texture(), width, height, 1.0).use(block)
+                }
+            }
+        }
+    }
+}

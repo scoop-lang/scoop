@@ -1,0 +1,26 @@
+package scoop.ui.style
+
+import scoop.graphics.native.windows.D3DContext
+import scoop.tests.graphics.TestD3DSurface
+import scoop.test.*
+
+@Test
+private class D3DGpuTest {
+    @Test
+    fun `D3D12 preserves GPU pixels and resources at two times DPI`() {
+        TestD3DSurface.create(128, 96).use {
+            objects -> @Unsafe
+            {
+                D3DContext.create(objects.adapter(), objects.device(), objects.queue()).use {
+                    context -> @Unsafe
+                    {
+                        context.target(objects.texture(), 128, 96, 2.0).use {
+                            target -> verifyStyleGpu(target)
+                        }
+                        context.drain()
+                    }
+                }
+            }
+        }
+    }
+}
