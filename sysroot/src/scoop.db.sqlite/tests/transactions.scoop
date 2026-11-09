@@ -1,0 +1,182 @@
+package scoop.db.sqlite.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+import scoop.test.*
+
+@Test
+private class SQLiteTransactionTests {
+    @Test
+    fun `transaction scope commits a value and rolls back body failures`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                val value =
+                    connection.transaction {
+                        session ->
+                        executeSql(session, "INSERT INTO items VALUES(1)")
+                        42L
+                    }
+                assertEquals(42L, value)
+                val failure = IllegalArgumentException(Some("body failed"))
+                try {
+                    connection.transaction {
+                        session ->
+                        executeSql(session, "INSERT INTO items VALUES(2)")
+                        throw failure
+                    }
+                    fail(Some("transaction failure was swallowed"))
+                } catch (error: IllegalArgumentException) {
+                    assertSame(failure, error)
+                }
+                assertEquals(
+                    1L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `active transactions and result streams exclusively own the SQL session`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                val outside = connection.prepare("SELECT 9")
+                val transaction = connection.beginTransaction()
+                try {
+                    try {
+                        connection.prepare("SELECT 1");
+                        fail(Some("outer connection entered a transaction"))
+                    }
+                    catch (_: IllegalStateException) {}
+                    try {
+                        outside.execute(SqlArguments.empty());
+                        fail(Some("old statement entered a transaction"))
+                    }
+                    catch (_: IllegalStateException) {}
+                    val statement = transaction.prepare("SELECT 1 AS id UNION ALL SELECT 2")
+                    val rows = resultRows(statement)
+                    try {
+                        transaction.commit();
+                        fail(Some("commit accepted an active result"))
+                    }
+                    catch (_: DbBusyException) {}
+                    assertEquals(SqlTransactionState.Active, transaction.state)
+                    rows.close()
+                    transaction.commit()
+                    assertEquals(SqlTransactionState.Committed, transaction.state)
+                    assertTrue(statement.isClosed)
+                    try {
+                        transaction.commit();
+                        fail(Some("duplicate commit was accepted"))
+                    }
+                    catch (_: IllegalStateException) {}
+                    transaction.rollback()
+                    assertEquals(SqlTransactionState.Committed, transaction.state)
+                    assertEquals(
+                        9L,
+                        rowLong(querySql(connection, "SELECT 9 AS value")[0L], "value")
+                    )
+                } finally {
+                    transaction.close();
+                    outside.close()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `SQLite automatic rollback updates transaction state and permits connection reuse`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER UNIQUE)")
+                val transaction = connection.beginTransaction()
+                val owned = transaction.prepare("SELECT 1")
+                try {
+                    executeSql(transaction, "INSERT INTO items VALUES(1)")
+                    try {
+                        executeSql(transaction, "INSERT OR ROLLBACK INTO items VALUES(1)");
+                        fail(Some("constraint violation was accepted"))
+                    }
+                    catch (error: SqliteException) {
+                        assertEquals(19, error.primaryCode)
+                    }
+                    assertEquals(SqlTransactionState.RolledBack, transaction.state)
+                    assertTrue(owned.isClosed)
+                    assertEquals(
+                        0L,
+                        rowLong(
+                            querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                            "count"
+                        )
+                    )
+                } finally {
+                    transaction.close()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `cancellation before commit rolls back in a cancelled job`() {
+        val rolledBack = AtomicBoolean(false)
+        eventLoop().run {
+            val scope = this
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                val child =
+                    scope.launch {
+                        try {
+                            connection.transaction {
+                                session ->
+                                executeSql(session, "INSERT INTO items VALUES(1)")
+                                currentJobOrNone()!!.cancel()
+                            }
+                        } catch (_: CancellationException) {
+                            rolledBack.store(true)
+                        }
+                    }
+                child.join()
+                assertTrue(rolledBack.load())
+                assertEquals(
+                    0L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `manual transaction SQL invalidates the connection instead of inventing ownership`() {
+        eventLoop().run {
+            val connection = SqliteDataSource(SqliteLocation.Memory).connect()
+            try {
+                try {
+                    executeSql(connection, "BEGIN");
+                    fail(Some("unmanaged transaction was accepted"))
+                }
+                catch (_: IllegalStateException) {}
+                assertTrue(connection.isClosed)
+                try {
+                    connection.prepare("SELECT 1");
+                    fail(Some("invalid connection was reused"))
+                }
+                catch (_: DbClosedException) {}
+            } finally {
+                connection.close()
+            }
+        }
+    }
+}

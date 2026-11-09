@@ -1,0 +1,30 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.db.sqlite"
+version = "0.1.0"
+kind = "library"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.asyncio" = "0.1.0"
+"scoop:scoop.db" = "0.1.0"
+"scoop:scoop.db.sql" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+
+[native]
+c_flags = ["-std=c11", "-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "native/control.c"
+
+[[native.sources]]
+path = "native/statements.c"
+
+[[native.libraries]]
+name = "sqlite3"

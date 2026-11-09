@@ -28,6 +28,8 @@ DbException 保留 operation、message、cause；Closed/Busy/Timeout 是库能�
 
 默认按需求拉取，不自动读完整个查询。允许原生页/批次缓存；空页带续页信息时继续，直到取得一项或明确结束。EOF 退休读取资源，此后 next 继续返回 None；关闭后报 DbClosedException。读取/映射失败使流终止，不暗中重开请求。
 
+在接纳前因参数错误、已取消 Job、零时限或 Busy 拒绝的 next 不改变源流状态；已接纳读取的失败/取消才进入流的失败终态。
+
 交付值在下次 next、挂起和流/连接关闭后仍有效。native 临时指针不能逃逸；不可变存储可以共享。失败 next 在恢复前退休本地读取/游标借用，并使连接恢复明确可用状态或失效。
 
 mapRecords 与 decodeRecords 每次同步映射一项，接管源流的消费和关闭责任。映射失败关闭源流，双失败用 ResourceUseException；调用者不得并行消费已交给 wrapper 的源流。
@@ -74,6 +76,8 @@ prepare 由 SQLite 解析并拒绝第二条可执行语句。execute 完成绑�
 
 NULL/INTEGER/REAL/TEXT/BLOB 分别映射 Null/Signed/Float64/Text/Bytes；TEXT 严格 UTF-8，Boolean 参数为 0/1，Unsigned 超过 Long.MAX_VALUE 时拒绝，Float32 提升为 REAL。SqlParameter.nativeTypeName 必须为 None。
 
+NaN 参数在提交前拒绝，避免 SQLite 将其静默变成 NULL。原生 SQL 改变事务状态而没有匹配的 SqlTransaction 所有者时使连接失效；会话事务通过 beginTransaction 管理。
+
 SQLite 原生 slot 减一作为公开索引，稀疏 ?NNN 按最大 slot 数绑定，具名重复占一个 slot；named 不猜匿名 slot。实际结果类型/列名来自 SQLite，不根据 SQL 前缀猜测。
 
 运行中取消连接 sqlite3_interrupt、progress handler 和可取消 busy 等待。interrupt/close 正确同步，旧 work 与取消通知退休后才允许新操作，空闲 interrupt 不能代替排队/执行前取消检查。busy callback 只读取 native 状态，不执行用户 Scoop 代码。
@@ -81,3 +85,5 @@ SQLite 原生 slot 减一作为公开索引，稀疏 ?NNN 按最大 slot 数绑�
 step 失败后根据原生事务状态同步对象，必要时使连接失效。RETURNING 首次 step 产生修改但不表示提交完成；结束语句可能完成隐式事务，close 不承诺回滚，最终 step/reset/finalize 错误必须交付。
 
 本轮只验证本机 SQLite 和 Cone 测试，不据此声明跨平台验证或其他数据库支持。
+
+驱动链接目标环境的 sqlite3 开发库（要求线程安全构建及 SQLite 3.37+），不下载或内嵌另一份数据库引擎。File 拒绝空路径和裸 `:memory:` 特殊名，内存库使用 Memory。SQLite UpdateResult.affectedRows 为同一串行执行前后的 sqlite3_total_changes64 差值，包含 SQLite 计入的触发器/外键修改，DDL 等无修改语句为零；不把上一次 DML 的 changes 误报为本次结果。

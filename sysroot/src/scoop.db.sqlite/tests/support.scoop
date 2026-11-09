@@ -1,0 +1,69 @@
+package scoop.db.sqlite.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.row.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+import scoop.test.*
+
+internal suspend fun executeSql(
+    session: SqlSession,
+    sql: String,
+    arguments: SqlArguments = SqlArguments.empty()
+): Long =
+    session.prepare(sql).useAsync {
+        statement -> when (statement.execute(arguments)) {
+            case SqlResult.Update(val result) -> result.affectedRows!!
+            case SqlResult.Rows(val rows) -> {
+                rows.close();
+                fail(Some("expected an update result"))
+            }
+        }
+    }
+
+internal suspend fun querySql(
+    session: SqlSession,
+    sql: String,
+    arguments: SqlArguments = SqlArguments.empty()
+): Array<Row> =
+    session.prepare(sql).useAsync {
+        statement -> when (statement.execute(arguments)) {
+            case SqlResult.Rows(val rows) -> rows.useAsync {
+                val output = ArrayList<Row>()
+                while (true) {
+                    when (rows.next()) {
+                        case Some(val row) -> output.add(row)
+                        case None -> break
+                    }
+                }
+                output.toArray()
+            }
+            case SqlResult.Update(_) -> fail(Some("expected rows"))
+        }
+    }
+
+internal suspend fun resultRows(
+    statement: Statement,
+    arguments: SqlArguments = SqlArguments.empty()
+): ResultSet =
+    when (statement.execute(arguments)) {
+        case SqlResult.Rows(val rows) -> rows
+        case SqlResult.Update(_) -> fail(Some("expected rows"))
+    }
+
+internal fun rowLong(row: Row, name: String): Long =
+    Rows.valueDecoder(row.get(name)).singleValue().readLong()
+
+internal fun rowText(row: Row, name: String): String =
+    Rows.valueDecoder(row.get(name)).singleValue().readString()
+
+internal fun numbers(values: List<Long>): SqlArguments {
+    val parameters = ArrayList<SqlParameter>()
+    for (value in values)
+        parameters.add(SqlParameter(RowValue.Signed(value)))
+    return SqlArguments.positional(parameters)
+}
+
+internal val longQuery: String =
+    "WITH RECURSIVE counter(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM counter WHERE x<100000000) SELECT sum(x) AS total FROM counter"

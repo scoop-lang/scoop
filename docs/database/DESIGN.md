@@ -1,6 +1,6 @@
 # Scoop 数据库访问与 record 映射设计
 
-日期：2026-11-10。状态：进入实施；公开合同见[库规范](../specs/SCOOP-DB-SPEC.md)，实际完成项见[实施记录](PROGRESS.md)。
+日期：2026-11-10。状态：公共层、SQL 能力与 SQLite 首版已完成本机实现和验证；公开合同见[库规范](../specs/SCOOP-DB-SPEC.md)，实际完成项见[实施记录](PROGRESS.md)。
 
 本文确定库的接口和语义。SQLite 是首个实现；HBase 与 Cosmos DB for NoSQL 用于检验抽象，不表示承诺在同一轮实现这两个驱动。本文中的 Scoop 代码块是公开声明或使用示意，实际实现和验证范围由实施记录说明。
 
@@ -28,7 +28,7 @@ Swift 侧可借鉴的是职责划分：[SQLKit 的 SQLRowDecoder](https://github
 | --- | --- | --- |
 | `scoop.db` | Connection、DataSource、ResultStream、调用与关闭合同；可选使用的 Row 数据模型和 row codec 适配 | core、std、asyncio |
 | `scoop.db.sql` | SQL 会话、Statement、表格 ResultSet、参数绑定、SQL 事务能力 | db |
-| `scoop.db.sqlite` | SQLite 配置、SQL 能力实现、native 调用与调度 | db.sql、platform、concurrent |
+| `scoop.db.sqlite` | SQLite 配置、SQL 能力实现、native 调用与调度 | db、db.sql、platform、asyncio |
 | `scoop.db.hbase` | 本文检验用的 Get/Scan/Put、cell 与 record 映射 | db；实际传输依赖在接入时确定 |
 | `scoop.db.cosmos` | 本文检验用的文档、点操作、分页与分区批次 | db、json；实际 HTTP 客户端接入在实现时确定 |
 
@@ -95,10 +95,12 @@ DataSource 是显式的配置和连接工厂，不自动成为连接的 owner。
 | 可读且没有在途 next | 异步取得下一项或确认结束 | 开始关闭 |
 | 已有在途 next | 抛 DbBusyException | 停止该次读取并等本地收尾 |
 | 已正常耗尽 | 返回 None；仍检查调用取消 | 幂等收尾 |
-| 读取失败或 next 被取消 | 后续 next 报状态错误；不得暗中重新开始查询 | 收尾 |
+| 已接纳的读取失败或 next 被取消 | 后续 next 报状态错误；不得暗中重新开始查询 | 收尾 |
 | 正在关闭或已关闭 | 抛 DbClosedException | 参与同一次关闭或立即返回 |
 
 一次读取失败会使这个流进入终态，但不自动推导所属连接失效。失败/取消的 next 在恢复调用者前退休本次读取和流持有的本地游标借用，停止继续取项；驱动把连接恢复到明确可用状态，或关闭/标记失效。不能交付仍在读取旧响应的连接，也不等待无法确认的远端停止；后续 close 只完成剩余收尾。
+
+接纳前的参数错误、已取消 Job、零时限或 Busy 拒绝不消费、不终止源流；该规则与已接纳请求的失败收尾分开。
 
 `next(): T?` 的外层 None 只表示结束。T 自身为 Option 时，Some(None) 仍是一项有效结果。空分页不是结束；实现继续取得后续页，直到有项目或后端明确结束，期间遵守同一次 next 的取消和截止时间。
 
@@ -475,19 +477,22 @@ public class SqliteDataSource public constructor(
 public class SqliteConnection internal constructor() : TransactionalSqlConnection
 ```
 
-Memory 的每次 connect 创建独立数据库，不伪装成跨连接共享内存库。File 使用实际平台路径；readOnly 与 Memory 冲突时在打开前报参数错误。默认不改变 journal mode、持久化级别或执行应用 PRAGMA。busyTimeout 必须非负，零表示遇到锁竞争直接按原生错误返回。
+Memory 的每次 connect 创建独立数据库，不伪装成跨连接共享内存库。File 使用实际平台路径，拒绝空路径和裸 `:memory:` 特殊名；readOnly 与 Memory 冲突时在打开前报参数错误。默认不改变 journal mode、持久化级别或执行应用 PRAGMA。busyTimeout 必须非负，零表示遇到锁竞争直接按原生错误返回。
 
-本节是拟议实现策略，不表示调用已经实现：
+实现采用以下策略；实际验证范围见[实施记录](PROGRESS.md)：
 
-- 使用 SQLite C API 和现有 native 构建/链接流程，连接操作在 managed blocking workers 执行；事件循环只协调任务、定时器和完成。
+- 使用目标环境的 SQLite 3.37+ 开发库和现有 native 构建/链接流程，不下载或内嵌另一份引擎。连接操作在 managed blocking workers 执行；事件循环只协调任务、定时器和完成。
 - 一条连接的普通 native 调用串行，worker 可以迁移；不要求每个连接常驻一个专用线程。使用支持线程安全的 SQLite 构建；跨线程 interrupt 是专门协调的控制操作。
 - 准备、step、reset/finalize、rollback/close 都在工作路径完成，不把收尾留在 EventLoop 同步执行。
 - execute 完成绑定并进行首次 step；有结果列时把首行或 EOF 状态保留给 ResultSet，没有结果列时等待语句结束。首行最多暂存一项；返回零行的查询仍交付 schema。
 - Row 交付前取得独立字符串/字节数据；SQLite 临时 column 指针不跨 step 或挂起逃逸。参数使用稳定副本或明确的同步借用。
-- SQLite 的 NULL/INTEGER/REAL/TEXT/BLOB 分别交付 Null/Signed/Float64/Text/Bytes；严格处理文本，不能把非法 UTF-8 替换后冒充原值。Boolean 参数写为 0/1，Unsigned 只有能精确表示为有符号 64 位时接受；Float32 可精确提升为 SQLite REAL。其他形状由显式 codec 转换或在执行前拒绝。
+- SQLite 的 NULL/INTEGER/REAL/TEXT/BLOB 分别交付 Null/Signed/Float64/Text/Bytes；严格处理文本，不能把非法 UTF-8 替换后冒充原值。Boolean 参数写为 0/1，Unsigned 只有能精确表示为有符号 64 位时接受；Float32 可精确提升为 SQLite REAL。NaN 参数在提交前拒绝，避免被 SQLite 静默写成 NULL。其他形状由显式 codec 转换或在执行前拒绝。
 - SQLite 参数使用其动态绑定规则，nativeTypeName 必须为 None；非空提示在执行前拒绝，不模拟强制参数类型。这不影响 Column 中实际可得的声明类型元数据。
 - 参数 slot 按 SQLite 的原生序号减一公开。`?NNN` 的稀疏 slot 按最大 slot 数形成 positional 输入，未引用 slot 的值不产生效果；重复具名参数共享一个 slot。named 模式要求所有 slot 都有名字，不推测匿名或空隙 slot 名称。
 - prepare 通过 SQLite 的实际解析结果检查尾部，接受尾随空白/注释，拒绝第二条可执行语句；不自写 SQL 分词框架。
+- UpdateResult.affectedRows 使用本次串行执行前后的 sqlite3_total_changes64 差值，包含 SQLite 计入的触发器和外键修改。DDL 等无修改语句为零，不沿用上一条 DML 的计数；口径见 [SQLite total_changes](https://www.sqlite.org/c3ref/total_changes.html)。
+
+SqliteException 继承 DbException，保留 `extendedCode: Int` 和低八位 `primaryCode: Int`。原生 SQL 使会话进入没有对应 SqlTransaction 的事务，或改变受管理事务的归属时，连接失效并要求 close；不猜测事务对象。自动回滚更新 transaction.state，原事务 Statement 同时停止接纳操作。
 
 运行中取消结合 sqlite3_interrupt、progress handler 和可取消的 busy 等待。interrupt 必须绑定当前操作；它返回前禁止连接 close，旧操作和它的取消通知退休前禁止下一操作开始，避免误伤下一条语句。取消发生在 native step 尚未开始时，也必须由排队检查/progress 状态观察，不能依赖一次空闲 interrupt。
 
@@ -749,7 +754,7 @@ HBase/Cosmos 在本轮只进行接口和数据案例审查：多版本 cell 不�
 1. 将已经评审的公共/SQL 合同落入数据库库规范，明确稳定值、取消和参数规则；不改现有语言 codec 行为。
 2. 实现 Row 数据、Rows 编码/解码和明确的绑定规则，完成普通 Cone 测试。
 3. 接入公共资源/结果流、SQLite 的完整异步调用、取消、关闭与事务；形成 record → 参数 → 执行 → Row → record 的真实闭环。
-4. 补齐跨平台 native 链接与关键竞态验收，再按既有 sysroot 流程提供预编译库。
+4. 完成本机关键竞态验收和使用示例，按既有 sysroot 流程提供本机预编译库。本轮按任务范围仅用本机 scoop.test 验证，不运行跨平台验收。
 5. 独立接入 HBase/Cosmos 时，以实际需求细化其专属协议；公共层只有出现真实共同语义时才扩展。
 
 不要求新增语言语法、编译器角色、IR/meta、runtime ABI 或跨数据库 query AST。若实现发现现有基础能力不足，应先明确具体问题并修订对应规范；不能把实现便利升级为数据库通用机制。

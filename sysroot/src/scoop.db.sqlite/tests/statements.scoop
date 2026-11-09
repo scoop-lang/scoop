@@ -1,0 +1,227 @@
+package scoop.db.sqlite.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.row.*
+import scoop.db.sql.*
+import scoop.db.sqlite.*
+import scoop.test.*
+
+private struct UserRecord(
+    val id: Long,
+    val name: String,
+    @Serialize(emitNull = true) val note: String?
+) {
+    public companion object: ValueEncoder<UserRecord>, ValueDecoder<UserRecord>
+}
+
+@Test
+private class SQLiteStatementTests {
+    @Test
+    fun `record parameters execute and decode with stable snapshots`() {
+        val retained = ArrayList<Row>()
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE users(id INTEGER, name TEXT, note TEXT)")
+                connection.prepare("INSERT INTO users(id,name,note) VALUES(?,?,?)").useAsync {
+                    statement ->
+                    val input = Rows.encodeToRow(UserRecord(7L, "Ada", None), UserRecord.Companion)
+                    val arguments = SqlArguments.fromRow(input, ["id", "name", "note"])
+                    when (statement.execute(arguments)) {
+                        case SqlResult.Update(val result) -> assertEquals(
+                            Some(1L),
+                            result.affectedRows
+                        )
+                        case SqlResult.Rows(_) -> fail(Some("insert unexpectedly returned rows"))
+                    }
+                }
+                connection.prepare("SELECT name,id,note FROM users").useAsync {
+                    statement ->
+                    val rows = resultRows(statement)
+                    val first = rows.next()!!
+                    retained.add(first)
+                    val user = Rows.decodeFromRow(first, UserRecord.Companion)
+                    assertEquals(7L, user.id)
+                    assertEquals("Ada", user.name)
+                    assertEquals(None, user.note)
+                    assertEquals(0L, querySqlAfterClosing(rows, connection).size)
+                }
+            }
+        }
+        assertEquals("Ada", rowText(retained[0L], "name"))
+    }
+
+    @Test
+    fun `metadata is available for empty results and duplicate names use ordinals`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                connection.prepare("SELECT 1 AS id, 2 AS id WHERE 0").useAsync {
+                    statement -> resultRows(statement).useAsync {
+                        rows ->
+                        assertEquals(2L, rows.schema.columns.size)
+                        assertEquals("id", rows.schema.columns[1L].name)
+                        when (rows.next()) {
+                            case None -> {};
+                            case Some(_) -> fail(Some("expected EOF"))
+                        }
+                    }
+                }
+                val row = querySql(connection, "SELECT 1 AS id, 2 AS id")[0L]
+                assertFailsWith<AmbiguousColumnException> { row.get("id") }
+                val selected = row.select([ColumnSelection("right", 1L)])
+                assertEquals(2L, rowLong(selected, "right"))
+            }
+        }
+    }
+
+    @Test
+    fun `named sparse and repeated bindings follow native slots and do not retain old values`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                connection.prepare("SELECT :x + :x AS value").useAsync {
+                    statement ->
+                    assertEquals(1L, statement.parameters.size)
+                    assertEquals(Some(":x"), statement.parameters[0L].name)
+                    for (value in [3L, 5L]) {
+                        val arguments =
+                            SqlArguments.named(
+                                [NamedSqlParameter(":x", SqlParameter(RowValue.Signed(value)))]
+                            )
+                        resultRows(statement, arguments).useAsync {
+                            rows -> assertEquals(value * 2L, rowLong(rows.next()!!, "value"))
+                        }
+                    }
+                    try {
+                        statement.execute(SqlArguments.empty());
+                        fail(Some("missing binding was accepted"))
+                    }
+                    catch (_: IllegalArgumentException) {}
+                }
+                assertEquals(
+                    9L,
+                    rowLong(
+                        querySql(connection, "SELECT ?3 AS value", numbers([0L, 0L, 9L]))[0L],
+                        "value"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `native scalar values preserve null empty blobs bytes and embedded text zero`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                val args =
+                    SqlArguments.positional(
+                        [
+                            SqlParameter(RowValue.Null),
+                            SqlParameter(RowValue.Bytes([])),
+                            SqlParameter(RowValue.Bytes([0.toByte(), (-1).toByte()])),
+                            SqlParameter(RowValue.Text("a\u0000b")),
+                            SqlParameter(RowValue.Boolean(true)),
+                            SqlParameter(RowValue.Float32(1.5f))
+                        ]
+                    )
+                val row =
+                    querySql(
+                        connection,
+                        "SELECT ? AS nil, ? AS empty, ? AS bytes, ? AS text, ? AS flag, ? AS real",
+                        args
+                    )[0L]
+                assertTrue(Rows.valueDecoder(row.get("nil")).singleValue().isNull())
+                assertFalse(Rows.valueDecoder(row.get("empty")).singleValue().isNull())
+                assertEquals(0L, RowBytesCodec.decode(Rows.valueDecoder(row.get("empty"))).size)
+                assertEquals(
+                    (-1).toByte(),
+                    RowBytesCodec.decode(Rows.valueDecoder(row.get("bytes")))[1L]
+                )
+                assertEquals("a\u0000b", rowText(row, "text"))
+                assertEquals(1L, rowLong(row, "flag"))
+                assertEquals(1.5, Rows.valueDecoder(row.get("real")).singleValue().readDouble())
+            }
+        }
+    }
+
+    @Test
+    fun `SQL scripts and unrepresentable parameters fail without executing writes`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                for (
+                    text in [
+                        "",
+                        "-- comment",
+                        "INSERT INTO items VALUES(1); INSERT INTO items VALUES(2)"
+                    ]
+                ) {
+                    try {
+                        connection.prepare(text);
+                        fail(Some("invalid statement accepted"))
+                    }
+                    catch (_: IllegalArgumentException) {}
+                }
+                connection.prepare("INSERT INTO items VALUES(?) ; -- tail").useAsync {
+                    statement -> for (
+                        parameter in [
+                            SqlParameter(RowValue.Unsigned(ULong.MAX_VALUE)),
+                            SqlParameter(RowValue.Signed(1L), Some("INTEGER")),
+                            SqlParameter(RowValue.Float64(Double.NaN))
+                        ]
+                    ) {
+                        try {
+                            statement.execute(SqlArguments.positional([parameter]));
+                            fail(Some("invalid parameter accepted"))
+                        }
+                        catch (_: IllegalArgumentException) {}
+                    }
+                }
+                assertEquals(
+                    0L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `returning is a row result and early close allows another execution`() {
+        eventLoop().run {
+            SqliteDataSource(SqliteLocation.Memory).connect().useAsync {
+                connection ->
+                executeSql(connection, "CREATE TABLE items(id INTEGER)")
+                connection.prepare("INSERT INTO items VALUES(?),(?) RETURNING id").useAsync {
+                    statement ->
+                    resultRows(statement, numbers([1L, 2L])).useAsync {
+                        rows -> assertEquals(1L, rowLong(rows.next()!!, "id"))
+                    }
+                    resultRows(statement, numbers([3L, 4L])).useAsync {
+                        rows -> assertEquals(3L, rowLong(rows.next()!!, "id"))
+                    }
+                }
+                assertEquals(
+                    4L,
+                    rowLong(
+                        querySql(connection, "SELECT count(*) AS count FROM items")[0L],
+                        "count"
+                    )
+                )
+            }
+        }
+    }
+}
+
+private suspend fun querySqlAfterClosing(rows: ResultSet, connection: SqliteConnection): Array<
+    Row
+> {
+    rows.close()
+    return querySql(connection, "SELECT 1 WHERE 0")
+}

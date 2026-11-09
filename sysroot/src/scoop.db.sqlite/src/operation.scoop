@@ -1,0 +1,226 @@
+package scoop.db.sqlite
+
+import scoop.asyncio.EventLoop
+import scoop.db.*
+import scoop.platform.concurrent.Mutex
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.*
+
+internal enum OperationOutcome<T> {
+    Value(T), Failure(Throwable)
+}
+
+/** Owns one cancellation registration until both the blocking invocation and timer retire. */
+internal class SqliteOperation(
+    private val native: Ptr<Unit>,
+    private val executor: CoroutineExecutor,
+    private val loop: EventLoop,
+    internal val name: String,
+    private val options: DbCallOptions,
+    private val writes: Boolean
+) {
+    private val lock = Mutex()
+    private val started = MonotonicTimeSource.markNow()
+    private var selected: Throwable? = None
+    private var retired = false
+    private var began = false
+
+    init {
+        @Unsafe
+        {
+            when (options.timeout) {
+                case Some(val value) -> nativeBegin(
+                    native,
+                    value.floorSeconds,
+                    value.nanosecondsOfSecond
+                )
+                case None -> nativeBegin(native, -1L, 0)
+            }
+        }
+    }
+
+    internal fun cancel(error: Throwable, reason: Int) {
+        lock.withLock<Unit> {
+            if (!retired) {
+                @Unsafe
+                {
+                    val winner = nativeStop(native, reason)
+                    when (selected) {
+                        case Some(_) -> {}
+                        case None -> {
+                            selected =
+                                Some(
+                                    if (winner == 2)
+                                        DbTimeoutException(name)
+                                    else
+                                        error
+                                )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun selectedFailure(): Throwable? {
+        when (selected) {
+            case Some(_) -> return selected
+            case None -> {}
+        }
+        @Unsafe
+        {
+            if (nativeStopped(native) == 2)
+                selected = Some(DbTimeoutException(name))
+        }
+        return selected
+    }
+
+    private fun start() {
+        lock.withLock {
+            when (selectedFailure()) {
+                case Some(val error) -> throw error
+                case None -> {
+                    began = true
+                }
+            }
+        }
+    }
+
+    private fun finishSuccess(): Throwable? =
+        lock.withLock {
+            val failure = selectedFailure()
+            retired = true
+            if (writes && began)
+                None
+            else
+                failure
+        }
+
+    private fun finishFailure(error: Throwable): Throwable =
+        lock.withLock {
+            val failure = selectedFailure()
+            retired = true
+            if (writes && began)
+                error
+            else
+                failure ?: error
+        }
+
+    private fun retire() {
+        lock.withLock { retired = true }
+    }
+
+    private fun remaining(): Duration? =
+        when (options.timeout) {
+            case Some(val value) -> Some(value - (MonotonicTimeSource.markNow() - started))
+            case None -> None
+        }
+
+    private fun <T> invoke(block: () -> T, discard: (T) -> Unit, failed: () -> Unit): T {
+        val outcome: OperationOutcome<T> =
+            try {
+                start()
+                OperationOutcome.Value(block())
+            } catch (error: Throwable) {
+                OperationOutcome.Failure(error)
+            }
+        return when (outcome) {
+            case OperationOutcome.Value(val value) -> {
+                when (finishSuccess()) {
+                    case Some(val error) -> {
+                        @Unsafe
+                        {
+                            nativeBegin(native, -1L, 0)
+                        }
+                        try {
+                            discard(value)
+                        }
+                        catch (cleanup: Throwable) {
+                            throw ResourceUseException(error, cleanup)
+                        }
+                        throw error
+                    }
+                    case None -> value
+                }
+            }
+            case OperationOutcome.Failure(val original) -> {
+                val error = finishFailure(original)
+                @Unsafe
+                {
+                    nativeBegin(native, -1L, 0)
+                }
+                try {
+                    failed()
+                }
+                catch (cleanup: Throwable) {
+                    throw ResourceUseException(error, cleanup)
+                }
+                throw error
+            }
+        }
+    }
+
+    internal suspend fun <T> run(
+        caller: Job,
+        block: () -> T,
+        discard: (T) -> Unit,
+        failed: () -> Unit
+    ): T {
+        val operation = this
+        val worker = executor
+        val ownerLoop = loop
+        return nonCancellableScope {
+            val listener = caller.invokeOnCancellation { error -> operation.cancel(error, 1) }
+            var timer: Job? = None
+            try {
+                when (operation.remaining()) {
+                    case Some(val delay) -> {
+                        if (delay <= Duration.ZERO)
+                            operation.cancel(DbTimeoutException(operation.name), 2)
+                        else
+                            timer =
+                                Some(
+                                    launch(ownerLoop.executor) {
+                                        try {
+                                            ownerLoop.sleep(delay)
+                                            operation.cancel(DbTimeoutException(operation.name), 2)
+                                        } catch (_: CancellationException) {} catch (
+                                            error: Throwable
+                                        ) {
+                                            operation.cancel(error, 4)
+                                        }
+                                    }
+                                )
+                    }
+                    case None -> {}
+                }
+                worker.blocking { operation.invoke(block, discard, failed) }
+            } finally {
+                operation.retire()
+                listener.dispose()
+                timer?.cancel()
+                timer?.join()
+            }
+        }
+    }
+}
+
+internal fun requireDatabaseCall(options: DbCallOptions, operation: String): Job {
+    val job =
+        currentJobOrNone() ?: throw IllegalStateException(Some("database calls require a Job"))
+    when (currentCoroutineExecutorOrNone()) {
+        case None -> throw IllegalStateException(Some("database calls require an executor"))
+        case Some(_) -> {}
+    }
+    job.ensureActive()
+    when (options.timeout) {
+        case Some(val value) -> {
+            if (value < Duration.ZERO)
+                throw IllegalArgumentException(Some("negative timeout"))
+            if (value == Duration.ZERO)
+                throw DbTimeoutException(operation)
+        }
+        case None -> {}
+    }
+    return job
+}
