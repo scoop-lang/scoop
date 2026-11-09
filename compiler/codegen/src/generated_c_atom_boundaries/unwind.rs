@@ -184,10 +184,11 @@ pub(super) fn windows<'data, O: Object<'data>>(
     file: &O,
 ) -> Result<BTreeMap<usize, WindowsUnwind>, CodegenError> {
     let mut output = BTreeMap::new();
-    for table in file
-        .sections()
-        .filter(|section| section.name().is_ok_and(|name| name == ".pdata"))
-    {
+    for table in file.sections().filter(|section| {
+        section
+            .name()
+            .is_ok_and(|name| name == ".pdata" || name.starts_with(".pdata$"))
+    }) {
         if table.size() != 12 {
             return Err(error(
                 "generated bridge needs one runtime-function record per section",

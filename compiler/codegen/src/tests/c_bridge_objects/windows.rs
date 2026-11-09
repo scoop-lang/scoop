@@ -52,7 +52,7 @@ fn windows_generated_c_bridges_have_real_boundaries_and_execute() {
                     .map_err(|error| CodegenError(error.to_string()))
             },
         )
-        .unwrap();
+        .unwrap_or_else(|error| panic!("{:?} {optimization:?}: {error}", target.id()));
         let mut symbols = Vec::new();
         assert_eq!(emitted.members().len(), 1);
         for unit in &emitted.members()[0].units {

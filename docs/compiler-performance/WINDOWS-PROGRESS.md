@@ -165,3 +165,11 @@ macOS AArch64 验证：workspace 格式化和 all-targets Clippy、配套 releas
 Linux release 构建、路径／管道／身份测试及 GNU、musl runtime 的四种配置准备完成。实际 CLI 验证中的裸 C 对象长度快照依赖 C 编译器的非 ABI 元数据：同一源码由本机 Clang 21 与发行 LLVM 的 Clang 22 分别生成 2480、2456 字节，而旧快照锁定 2536。编译、链接和程序运行已成功，这个总文件长度不是固定的 ABI 边界。
 
 现有 `native-link-plan` 归一化将从零开始的非空裸对象总长度表示为 `$NATIVE_INPUT_SIZE`，同步 11 个既有用例的 72 份目标／C 编译器快照；零长度、非零起点、归档成员和选中 section 范围、绑定、顺序及未知字段仍参与精确比较。没有改动链接产物或增加新的测试框架。Ruff 通过，公共 runner 84 项测试通过（4 项平台跳过）；macOS 上 5 个相关 CLI 用例通过，覆盖 30 次进程操作和 6 份计划快照。Linux 将继续使用同一套规则复验。
+
+Linux 已完成这项复验，packed C ABI 与指针格式两个用例通过（12 次进程操作、2 份快照）；此前的失败闭合。其余已通过的编译、链接、运行和缓存用例未重复执行。
+
+## 2026-11-10：MinGW 批量 C 桥的展开节
+
+Windows 的现有实机 C 桥测试发现 MinGW 按函数分节后使用 `.pdata$函数名`，而批量对象的展开边界处理只识别 `.pdata`。实现规范已经要求两种 COFF 节名，因此补齐识别并继续按实际 relocation 关联代码节与 `.xdata`，不改变布局或展开规则。MSVC／MinGW 的真实 Clang COFF 对象在 Debug／Release 两种模式下均确认了该差异；测试失败信息同时补上目标与优化模式，便于定位。
+
+本地格式化、codegen all-targets Clippy、4 项 C 桥测试、17 项 C 布局测试及 release scoopc 构建通过。Windows 三目标、两种优化模式的生成桥、实际链接与执行测试继续复验。
