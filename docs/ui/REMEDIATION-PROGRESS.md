@@ -127,3 +127,26 @@
 97 个变更 Scoop 文件格式检查通过，Surface、UI、component 及两个新增实窗 Cone 静态检查通过，另外 35 个受影响调用方 Cone 检查全部通过；对应预编译库和四套主题已对齐。11 项普通身份／Portal 配置测试、9 项输入边界测试及 18 项实窗回归全部通过。实窗包含上述两个新增组合，以及既有错误清理、隐藏根更新、模态、Overlay、原生编辑、挂载／字体、场景缓存、Lazy、Select、Carousel、Hover、组件帧复用、themes 和 shadcn Gallery／加载示例；原有 24 类默认错误出口仍保留原始错误及清理信息。
 
 验收闭合了可变 focusable 未清除旧焦点的问题，并将两处仍以 Portal 模式区分身份的旧测试改为现行合同。未重建编译器、下载依赖或重复无关全量验收；P0～P6 整改范围已闭合，继续 shadcn 剩余组件。原始日志保存在仓库外，Windows／Linux 未运行。
+
+## 悬停 GPU 开销修正
+
+状态：已完成，2026-11-09；macOS aarch64、Apple M4 Pro、release。
+
+shadcn Gallery 的缓存边界让每段文字保留 Drawing，但旧重放路径仍逐段调用无 bounds 的 saveLayer。鼠标扫过左侧列表触发正常的 150ms 悬停动画时，每帧都为这些小段文字建立视口大小的离屏目标。P5 的离屏 CPU 样本没有衡量真实窗口中的这项 GPU 成本；本次以实际 Gallery 和 Metal 命令执行时间补充验证。
+
+- 框架已知的 SrcOver 文字在无像素块时直接重放保留记录，继续复用排版与 Drawing；Tiles 路径保持原有像素缓存。
+- 公开 drawLayer 保留隔离合成，使用其完整绘制 bounds 提示 graphics 分配有限离屏目标。Canvas.saveLayer 的可选 bounds 表示完整源范围，不引入布局裁剪或滤镜输出 crop。任意用户绘图中的 Clear／Src、祖先组透明度、滤镜及字形外扩继续按原合同工作。
+
+在同一 1120×780 的真实 Gallery 中，每轮每 16ms 移动一次指针，共 240 次，随后等候动画结束；修复前后各运行三轮。测试探针统计 Metal render encoder 和已完成 command buffer 的 GPUStartTime／GPUEndTime，无逐帧像素读回。下表的每帧时间先按各轮实际呈现帧数归一化，再取三轮中位数；原始日志和探针留在仓库外的 `/tmp/scoop-ui-hover-gpu-20261109`。
+
+| 指标 | 修复前 | 修复后 |
+| --- | ---: | ---: |
+| 每帧 Metal render pass | 70 | 3 |
+| 每帧 GPU 执行时间中位数 | 3.56ms | 0.71ms |
+| 动画结束后额外 700ms 的新增帧／GPU 命令 | 0／0 | 0／0 |
+
+每帧 GPU 执行时间减少约 80%，render pass 减少约 95.7%。两侧均保留原动画与帧调度；这是该场景的 GPU 命令计时，不是活动监视器的全系统 GPU 百分比。
+
+验证通过：graphics 49 项、UI 102 项、component 208 项库测试；scene-cache、input-reuse、frame-reuse 和 scroll 四项实窗回归。新增断言覆盖 2×DPI 下 12×10 源范围只分配 24×20 Raster 图层、Raster／Metal 下变换与阴影外扩像素、文字直接绘制与缓存重放一致、有限 Clear／Src 隔离，以及缓存按钮悬停结束后完整静止区间。修改的 Scoop 文件格式与静态检查、C++ 格式与严格编译检查均通过，相关预编译库已重新准备，原始 shadcn demo 已构建。
+
+额外执行的 editing 实窗测试在 phase 91 关窗清理时报告 `text edit host is no longer mounted`；使用未修改的已安装 sysroot 对照运行同样失败，记录为既有失败，不计入本次通过项。Windows／Linux 未运行。

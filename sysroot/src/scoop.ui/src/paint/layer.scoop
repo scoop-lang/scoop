@@ -50,12 +50,20 @@ internal class CachedPaintLayer(
                         paintTiles(canvas, value, visible)
                     } else {
                         clearTiles()
-                        replayPaintLayer(canvas, drawing)
+                        replay(canvas)
                     }
                     case None -> clearTiles()
                 }
             }
-            case None -> replayPaintLayer(canvas, drawing)
+            case None -> replay(canvas)
+        }
+    }
+    private fun replay(canvas: Canvas) {
+        canvas.withState {
+            target ->
+            if (input.composition == PaintComposition.Isolated)
+                target.saveLayer(bounds = Some(input.bounds))
+            target.drawDrawing(drawing)
         }
     }
     private fun paintTiles(canvas: Canvas, grid: PaintTileGrid, range: PaintTileRange) {
@@ -120,13 +128,5 @@ internal class CachedPaintLayer(
         grid = None
         failure = cleanupUi(failure) { drawing.close() }
         throwUi(failure)
-    }
-}
-
-private fun replayPaintLayer(canvas: Canvas, drawing: Drawing) {
-    canvas.withState {
-        target ->
-        target.saveLayer()
-        target.drawDrawing(drawing)
     }
 }

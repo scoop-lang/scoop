@@ -21,11 +21,11 @@ sigma 是标准差，sigmaX／sigmaY 为有限非负的局部逻辑单位；offs
 
 ## 2. 图层与混合
 
-`Canvas.saveLayer(opacity = 1.0, filter = None, blendMode = BlendMode.SrcOver)` 在当前保存栈上建立透明图层；restore 时先处理完整图层内容，再应用整体 opacity 和指定混合模式合成回父目标。BlendMode 提供 SrcOver、Src、DstIn、Plus、Darken 和 Lighten：分别为通常覆盖、替换目标、以源 alpha 遮罩目标、预乘通道饱和相加，以及按通道取较暗／较亮色的标准 alpha 混合。Plus 不代表 HDR。Darken／Lighten 用于头像明暗边框，复用同一 Skia 图层合成，不在控件中读取目标像素。
+`Canvas.saveLayer(opacity = 1.0, filter = None, blendMode = BlendMode.SrcOver, bounds: Rect? = None)` 在当前保存栈上建立透明图层；restore 时先处理完整图层内容，再应用整体 opacity 和指定混合模式合成回父目标。BlendMode 提供 SrcOver、Src、DstIn、Plus、Darken 和 Lighten：分别为通常覆盖、替换目标、以源 alpha 遮罩目标、预乘通道饱和相加，以及按通道取较暗／较亮色的标准 alpha 混合。Plus 不代表 HDR。Darken／Lighten 用于头像明暗边框，复用同一 Skia 图层合成，不在控件中读取目标像素。
 
 filter 在调用时借用，图层保留实际需要的原生引用直到恢复／使用结束，因此调用者随后可以关闭该包装。组透明度不能替换成各条绘图分别乘 alpha。默认行为仍是普通 SrcOver 组透明度，既有 save／restore 和 Canvas.withState 的异常恢复合同不变。
 
-图层不以调用方布局矩形作隐式 clip 或滤镜 crop。首批不提供容易被误认为精确输出范围的 bounds 参数；Skia 根据实际目标、当前 clip、滤镜及其采样范围安排图层。离开源内容范围的阴影、光晕和模糊只受真实目标与显式祖先裁剪限制。布局尺寸不是绘制像素的边界，不能据此截断 glyph overhang 或子项效果。
+图层不以调用方布局矩形作隐式 clip 或滤镜 crop。可选 bounds 是局部坐标中的完整源绘制范围提示，供 Skia 减少离屏分配；它不修改 Canvas 的显式裁剪，也不是滤镜输出 crop。调用方只有知道实际源绘制范围时才提供，未知时保持 None；Skia 继续结合目标、当前 clip、滤镜及采样范围安排图层。已声明有限范围的绘图记录在隔离重放时传递原范围，不为每段小内容分配整个视口大小的中间目标。离开源内容范围的阴影、光晕和模糊只受真实目标与显式祖先裁剪限制。布局尺寸不是绘制像素的边界，不能据此截断 glyph overhang 或子项效果。
 
 clip 建立在 saveLayer 之前时约束恢复后的输出；滤镜可能为该输出读取 clip 外所需的源样本。若要先裁源内容再产生向外效果，须在滤镜图层内部另建显式 clip。两种顺序不同。几何捕获继续使用绘制时的 transform／clip；滤镜的像素扩展本身不扩大区域几何。
 

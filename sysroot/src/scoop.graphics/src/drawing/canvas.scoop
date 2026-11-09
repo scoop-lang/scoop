@@ -94,16 +94,24 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
     public fun save() {
         @Unsafe
         {
-            graphicsResult(canvasSave(resource.get(), 1.0, false, None, 0), "save canvas")
+            graphicsResult(
+                canvasSave(resource.get(), 1.0, false, None, 0, false, Rect(0.0, 0.0, 0.0, 0.0)),
+                "save canvas"
+            )
         }
     }
-    /** Filters the entire group, then applies opacity and blend when restored; no implicit bounds. */
+    /** Filters the group on restore; optional source bounds guide allocation without adding a clip. */
     public fun saveLayer(
         opacity: Double = 1.0,
         filter: ImageFilter? = None,
-        blendMode: BlendMode = BlendMode.SrcOver
+        blendMode: BlendMode = BlendMode.SrcOver,
+        bounds: Rect? = None
     ) {
         checkOpacity(opacity)
+        when (bounds) {
+            case Some(val value) -> checkRect(value)
+            case None -> {}
+        }
         @Unsafe
         {
             val pointer =
@@ -112,7 +120,15 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
                     case None -> None
                 }
             graphicsResult(
-                canvasSave(resource.get(), opacity, true, pointer, blendMode.nativeCode()),
+                canvasSave(
+                    resource.get(),
+                    opacity,
+                    true,
+                    pointer,
+                    blendMode.nativeCode(),
+                    bounds != None,
+                    bounds ?: Rect(0.0, 0.0, 0.0, 0.0)
+                ),
                 "save layer"
             )
         }
@@ -336,7 +352,9 @@ private fun canvasSave(
     opacity: Double,
     layer: Boolean,
     filter: Ptr<Unit>?,
-    blend: Int
+    blend: Int,
+    hasBounds: Boolean,
+    bounds: Rect
 ): Int
 
 @Extern(name = "scoop_graphics_canvas_restore")

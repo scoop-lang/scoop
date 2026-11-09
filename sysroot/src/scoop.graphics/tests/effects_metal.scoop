@@ -8,6 +8,29 @@ import scoop.test.*
 @Test
 private class MetalImageFilterTest {
     @Test
+    fun `Metal source bounds retain expanded shadows under group opacity and transforms`() {
+        TestMetalSurface.create(192, 128).use {
+            objects -> @Unsafe
+            {
+                MetalContext.create(objects.device(), objects.queue()).use {
+                    context -> @Unsafe
+                    {
+                        context.target(objects.texture(), 192, 128, 1.0).use {
+                            target -> verifyLayerBoundsPixels {
+                                scene ->
+                                target.draw(scene)
+                                target.submit()
+                                target.readPixels()
+                            }
+                        }
+                        context.drain()
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `Metal applies logical filter units once with transformed source and expanded alpha`() {
         ImageFilter.dropShadow(Point(10.0, 0.0), 2.0, 2.0, Color(0.0, 0.0, 1.0)).use {
             filter ->

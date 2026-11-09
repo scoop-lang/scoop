@@ -3,7 +3,7 @@ package scoop.ui.text
 import scoop.graphics.Rect
 import scoop.ui.*
 
-/** Text uses source-over pixels; only explicit scene or pixel reuse needs a finite recording. */
+/** Retain source-over text commands without introducing an offscreen compositing layer. */
 internal fun SceneContext.drawTextLayer(
     key: PaintKey,
     bounds: Rect,
@@ -11,7 +11,7 @@ internal fun SceneContext.drawTextLayer(
     block: (PaintContext) -> Unit
 ) {
     if (retainsTextDrawing)
-        drawLayer(key, bounds, revision, block = block)
+        drawRecording(key, bounds, revision, 1.0, PaintComposition.SourceOver, block)
     else
         draw(block)
 }

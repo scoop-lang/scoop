@@ -54,6 +54,8 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests/effects.scoop"
 [[test.sources]]
+path = "tests/layer_bounds.scoop"
+[[test.sources]]
 path = "tests/effects_metal.scoop"
 when = { os = "darwin" }
 [[test.sources]]

@@ -83,8 +83,17 @@ internal class SceneCacheProbe {
                     )
                 window = Some(native)
                 host.attach(native, { scope -> CachedTestScene(this, active, scope) })
+                native.requestFocus()
             }
-            case NewEvents(StartCause.Deadline) -> fail(Some(f"scene cache timed out at ${phase}"))
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"scene cache timed out at ${phase}: frames=${frames}, completed=${
+                        completed
+                    }, mounts=${mounts}, visible=${window!!.isVisible}, occluded=${
+                        window!!.isOccluded
+                    }"
+                )
+            )
             else -> {}
         }
     }

@@ -33,3 +33,15 @@ extern "C" int64_t scoop_graphics_test_canvas_pixel(SkCanvas *canvas, double x,
     return -1;
   return (int64_t)rgba[0] | ((int64_t)rgba[1] << 8) | ((int64_t)rgba[2] << 16);
 }
+
+struct NativeRasterLayerSize {
+  int32_t width, height;
+};
+
+extern "C" NativeRasterLayerSize
+scoop_graphics_test_raster_layer_size(SkCanvas *canvas) {
+  SkImageInfo info;
+  if (!canvas->accessTopLayerPixels(&info, nullptr, nullptr))
+    return {};
+  return {info.width(), info.height()};
+}

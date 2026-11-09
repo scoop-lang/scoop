@@ -14,3 +14,13 @@ public fun readNativePixel(canvas: Ptr<Unit>, x: Double, y: Double): Long =
 
 @Extern(name = "scoop_graphics_test_canvas_pixel")
 private fun canvasPixel(canvas: Ptr<Unit>, x: Double, y: Double): Long
+
+@CLayout
+public struct NativeRasterLayerSize(val width: Int, val height: Int)
+
+/** Observes the actual current raster allocation, including a saved offscreen layer. */
+@Unsafe
+public fun nativeRasterLayerSize(canvas: Ptr<Unit>): NativeRasterLayerSize = rasterLayerSize(canvas)
+
+@Extern(name = "scoop_graphics_test_raster_layer_size")
+private fun rasterLayerSize(canvas: Ptr<Unit>): NativeRasterLayerSize

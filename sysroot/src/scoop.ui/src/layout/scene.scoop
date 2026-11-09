@@ -103,6 +103,16 @@ public class SceneContext internal constructor(
         samplingOutset: Double = 1.0,
         block: (PaintContext) -> Unit
     ) {
+        drawRecording(key, bounds, revision, samplingOutset, PaintComposition.Isolated, block)
+    }
+    internal fun drawRecording(
+        key: PaintKey,
+        bounds: Rect,
+        revision: Long,
+        samplingOutset: Double,
+        composition: PaintComposition,
+        block: (PaintContext) -> Unit
+    ) {
         checkActive()
         usePaintKey(key)
         borrowed = true
@@ -112,7 +122,7 @@ public class SceneContext internal constructor(
                 node.paintLayers.draw(
                     frame.canvas,
                     key,
-                    PaintLayerInput(extent, bounds, revision, samplingOutset),
+                    PaintLayerInput(extent, bounds, revision, samplingOutset, composition),
                     paintCache,
                     Some(frame.time),
                     Some(reads)
