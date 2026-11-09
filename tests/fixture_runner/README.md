@@ -226,6 +226,8 @@ canonical source、span、code、message 或 notes；stdout/stderr 仍严格比�
 区段内未知新字段也进入比较；缺失或重复边界直接失败。它不保存无关 core 对象数量、
 startup 符号列表、生成 C 或全镜像 `ELF system imports` 总数；系统导入总数包含 runtime
 和后端辅助引用，不是该 fixture 的 native 输入选择合同。真实符号解析由 linker 与程序运行验证。
+裸原生对象从零开始的总文件长度用 `$NATIVE_INPUT_SIZE` 表示，因为 C 编译器的版本标记等
+非 ABI 元数据会改变该长度；零长度、非零起点、archive 成员和选中 section 的范围仍精确比较。
 `native-digests` 仅用于链接计划：
 将 `native library` 的 `input`、`native object/archive` 的内容 ID、归档 member 的
 `digest`、`dynamic provider` 及其 load/re-export 引用替换为按首次出现编号的标记。

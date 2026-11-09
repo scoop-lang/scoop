@@ -15,6 +15,7 @@ from fixture_runner.schema_values import check_values
 PLAN = (
     b"program-link v3\ncone scoop:scoop.core:0.1.0 kind=Library objects=100\n"
     b"link inputs: startup, cone/member order, runtime/object order, libSystem\n"
+    b"native object standalone slice=0..4096\n"
     b"native archive abc members=2\n"
     b'  member 0 header=8 payload=68..168 name="a.o" digest=one selected=true\n'
     b'  member 1 header=168 payload=228..328 name="b.o" digest=two selected=false\n'
@@ -32,13 +33,14 @@ class NativePlanTests(unittest.TestCase):
             PLAN.replace(b"objects=100", b"objects=200")
             .replace(b"unrelated_core_symbol", b"new_core_symbol")
             .replace(b"ELF system imports=70", b"ELF system imports=71")
+            .replace(b"slice=0..4096", b"slice=0..8192")
         )
         self.assertEqual(native_link_plan(PLAN), native_link_plan(changed))
         self.assertEqual(
             native_link_plan(PLAN),
-            PLAN[PLAN.index(b"link inputs:") : PLAN.index(b"startup object references:")].replace(
-                b"ELF system imports=70\n", b""
-            ),
+            PLAN[PLAN.index(b"link inputs:") : PLAN.index(b"startup object references:")]
+            .replace(b"ELF system imports=70\n", b"")
+            .replace(b"slice=0..4096", b"slice=0..$NATIVE_INPUT_SIZE"),
         )
 
     def test_semantic_changes_fail_read_only_snapshot_comparison(self):
@@ -49,6 +51,8 @@ class NativePlanTests(unittest.TestCase):
             mutations = [
                 (b"selected=false", b"selected=true"),
                 (b"payload=228..328", b"payload=228..329"),
+                (b"slice=0..4096", b"slice=1..4096"),
+                (b"slice=0..4096", b"slice=0..0"),
                 (b'name="b.o"', b'name="c.o"'),
                 (b"digest=two", b"digest=one"),
                 (b"-> ghi", b"-> def"),

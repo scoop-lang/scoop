@@ -18,6 +18,14 @@ def native_link_plan(data):
     # Preserve native inputs, bindings, ordering and unfamiliar fields. The
     # whole-program import total also includes unrelated runtime/backend calls.
     section = data[data.index(start) + 1 : data.index(end)] + b"\n"
+    # A standalone C object includes compiler-specific metadata. Its total
+    # file length is not an ABI boundary; archive and section ranges remain exact.
+    section = re.sub(
+        rb"^(native object [^\s]+ slice=0\.\.)[1-9][0-9]*(?=\n|$)",
+        rb"\1$NATIVE_INPUT_SIZE",
+        section,
+        flags=re.MULTILINE,
+    )
     return b"".join(
         line
         for line in section.splitlines(keepends=True)

@@ -159,3 +159,9 @@ macOS AArch64 验证：workspace 格式化和 all-targets Clippy、Python Ruff �
 冷构建验证发现构建入口提前 canonicalize 尚不存在的缓存目录，过去依赖 PM 写临时文件的副作用才能通过。缓存路径本来已在输入处保证绝对，因此删除这次不必要的访问，让实际写入步骤负责创建目录；没有恢复额外的预创建阶段。
 
 macOS AArch64 验证：workspace 格式化和 all-targets Clippy、配套 release 构建通过；调整后的 PM／scoop 定向 Clippy 通过。PM 19 项真实进程测试及进程管道 3 项测试通过，覆盖真实请求、错误位置、锁定与配置更新、大输入和双向输出、提前失败。7 个正式 CLI 用例通过，覆盖 workspace build／check／doc、源码 registry、local tools、错误请求、逐 Cone 进度和最终链接复用；冷／热 workspace 构建均断言没有 `pm-requests` 目录，失败请求 stdout 为空。首次冷构建失败已按上述原因闭合，定向复验通过。报告保存在仓库外，fixture 工作与缓存目录已清理。
+
+## 2026-11-10：集中跨平台验证中的原生快照修正
+
+Linux release 构建、路径／管道／身份测试及 GNU、musl runtime 的四种配置准备完成。实际 CLI 验证中的裸 C 对象长度快照依赖 C 编译器的非 ABI 元数据：同一源码由本机 Clang 21 与发行 LLVM 的 Clang 22 分别生成 2480、2456 字节，而旧快照锁定 2536。编译、链接和程序运行已成功，这个总文件长度不是固定的 ABI 边界。
+
+现有 `native-link-plan` 归一化将从零开始的非空裸对象总长度表示为 `$NATIVE_INPUT_SIZE`，同步 11 个既有用例的 72 份目标／C 编译器快照；零长度、非零起点、归档成员和选中 section 范围、绑定、顺序及未知字段仍参与精确比较。没有改动链接产物或增加新的测试框架。Ruff 通过，公共 runner 84 项测试通过（4 项平台跳过）；macOS 上 5 个相关 CLI 用例通过，覆盖 30 次进程操作和 6 份计划快照。Linux 将继续使用同一套规则复验。
