@@ -1,6 +1,7 @@
 use super::ObjectOrigin;
 use crate::{LinkError, error};
 use scoop_wire::Digest256;
+use std::borrow::Cow;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -29,21 +30,32 @@ impl InputObject<'_> {
         self.digest
     }
 
-    pub fn path(&self, cache: &Path) -> Result<PathBuf, LinkError> {
-        if let ObjectBytes::File { path } = &self.bytes {
+    pub fn path(&self, cache: &Path, darwin: bool) -> Result<PathBuf, LinkError> {
+        if !darwin && let ObjectBytes::File { path } = &self.bytes {
             return Ok(path.clone());
         }
-        let path = scoop_toolchain::object_path(cache, self.digest).map_err(error)?;
+        let digest = if darwin {
+            scoop_wire::domain_separated_cbor_hash("scoop-darwin-link-object-v1", &self.digest)
+                .map_err(error)?
+        } else {
+            self.digest
+        };
+        let path = scoop_toolchain::object_path(cache, digest).map_err(error)?;
         if path.try_exists().map_err(error)? {
             return Ok(path);
         }
-        let bytes = match &self.bytes {
+        let bytes: Cow<'_, [u8]> = match &self.bytes {
             ObjectBytes::Artifact { artifact, member } => {
-                artifact.object_bytes(*member).map_err(error)?
+                Cow::Borrowed(artifact.object_bytes(*member).map_err(error)?)
             }
-            ObjectBytes::Native { file, range } => &file[range.clone()],
-            ObjectBytes::File { path, .. } => return Ok(path.clone()),
+            ObjectBytes::Native { file, range } => Cow::Borrowed(&file[range.clone()]),
+            ObjectBytes::File { path } => Cow::Owned(std::fs::read(path).map_err(error)?),
         };
-        scoop_toolchain::store_object(cache, self.digest, bytes).map_err(error)
+        let bytes = if darwin {
+            Cow::Owned(scoop_slib::remove_empty_macho_code_labels(&bytes).map_err(error)?)
+        } else {
+            bytes
+        };
+        scoop_toolchain::store_object(cache, digest, &bytes).map_err(error)
     }
 }

@@ -96,7 +96,10 @@ fn link_inputs(
     write_new(&first, &startup.bytes)?;
     paths.push(first);
     for input in &inputs.objects {
-        paths.push(input.path(cache)?);
+        paths.push(input.path(
+            cache,
+            matches!(profile, ValidatedFinalLinkProfile::Darwin(_)),
+        )?);
     }
     let basename = output
         .file_name()

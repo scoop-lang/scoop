@@ -24,10 +24,10 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
     };
     let tool =
         NativeInputMetadata::read(&std::env::current_exe().map_err(failure)?).map_err(failure)?;
-    let bytes = serde_json::to_vec(&(
+    let configuration = (
         artifacts,
         encode(request.graph.root().artifact().summary().cone()).map_err(failure)?,
-        request.runtime.fingerprint().digest().as_array(),
+        *request.runtime.fingerprint().digest().as_array(),
         encode(&request.target.child_request().map_err(failure)?).map_err(failure)?,
         encode(&request.target.lir_target().wire_id()).map_err(failure)?,
         request.profile.as_str(),
@@ -62,7 +62,20 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
             .map(|p| path(p))
             .collect::<BuildResult<Vec<_>>>()?,
         tool,
-    ))
+    );
+    let bytes = match options
+        .darwin_linker_candidates(request.target.lir_target())
+        .map_err(failure)?
+    {
+        Some(candidates) => {
+            let candidates = candidates
+                .iter()
+                .map(|candidate| path(candidate))
+                .collect::<BuildResult<Vec<_>>>()?;
+            serde_json::to_vec(&(configuration, candidates))
+        }
+        None => serde_json::to_vec(&configuration),
+    }
     .map_err(failure)?;
     Ok(sha256(&bytes))
 }
