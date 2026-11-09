@@ -38,6 +38,8 @@ Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独
 
 Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其他线程调用；作用域结束后使用报状态异常。变换和 clip 的当前几何状态由 graphics 维护，并经低层接入接口提供给 Surface。绘制与区域放置不得分别维护两套可能不一致的变换。
 
+保存画布、嵌套借用与捕获几何共享不可变的裁剪前缀，不随嵌套深度复制全部路径。新增 clip 只追加自身；restore 或子作用域结束不改变已捕获的几何。矩形裁剪可合并为精确交集，普通路径仍保留 Skia 的填充、孔洞与变换语义；保守包围盒只用于提前排除，不代替路径命中或区域栅格化。纯矩形的可见范围直接求交，复杂路径继续按需交由 Skia 计算。
+
 `Canvas.withState<T>(block: (Canvas) -> T): T` 创建同步嵌套借用，继承当前坐标、clip 和组状态，不重复施加 DPI。block 获得独立有效期的子 Canvas；期间只能使用子 Canvas，父 Canvas 的操作及几何捕获报告状态错误。正常返回或抛错均恢复入口状态和保存层级，包括未配对的子级 save／saveLayer；子 Canvas 不能 restore 到入口以下，退出后拒绝操作。已绘制像素不回滚，异常帧是否提交由外层目标决定。
 
 `scoop.graphics.native` 提供当前 Surface renderer 实际需要的公开 Unsafe 接入：原生渲染目标、受控的 Canvas 借用、提交／中止，以及几何状态快照。Skia C++ 类型不进入普通公共 API；Metal 等句柄只出现在按目标选择的 native 子包。跨 Cone 调用不能依赖另一 Cone 的 internal 构造器。

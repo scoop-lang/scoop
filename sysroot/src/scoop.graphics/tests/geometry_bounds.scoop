@@ -6,6 +6,95 @@ import scoop.test.*
 @Test
 private class GeometryBoundsTest {
     @Test
+    fun `deep saved clip prefixes remain independent after restore and target close`() {
+        val snapshots = ArrayList<CanvasGeometry>()
+        try {
+            RasterSurface(256, 256).use {
+                surface -> surface.draw {
+                    canvas ->
+                    for (index in 0L ..< 128L) {
+                        canvas.save()
+                        val inset = index.toDouble() / 2.0
+                        canvas.clipRect(
+                            Rect(inset, inset, 256.0 - 2.0 * inset, 256.0 - 2.0 * inset)
+                        )
+                        @Unsafe
+                        {
+                            snapshots.add(captureGeometry(canvas, Rect(0.0, 0.0, 256.0, 256.0)))
+                        }
+                    }
+                    for (_ in 0L ..< 128L)
+                        canvas.restore()
+                    @Unsafe
+                    {
+                        captureGeometry(canvas, Rect(0.0, 0.0, 256.0, 256.0)).use {
+                            current -> assertTrue(current.hitTest(Point(1.0, 1.0)))
+                        }
+                    }
+                }
+            }
+            for (index in 0L ..< snapshots.size) {
+                val inset = index.toDouble() / 2.0
+                val expected = Rect(inset, inset, 256.0 - 2.0 * inset, 256.0 - 2.0 * inset)
+                val current = snapshots[index]
+                assertEquals(Some(expected), current.visibleBounds)
+                assertTrue(current.hitTest(Point(128.0, 128.0)))
+                assertFalse(current.hitTest(Point(inset - 1.0, 128.0)))
+                val region = current.rasterizeRegion(2.0)
+                assertEquals(1L, region.size)
+                assertEquals(expected, region[0L])
+            }
+        } finally {
+            for (current in snapshots)
+                current.close()
+        }
+    }
+
+    @Test
+    fun `mixed path prefixes retain holes across sibling canvas scopes`() {
+        RasterSurface(80, 80).use {
+            surface -> path(FillRule.EvenOdd) {
+                addRect(Rect(0.0, 0.0, 80.0, 80.0))
+                addRect(Rect(20.0, 20.0, 40.0, 40.0))
+            }.use {
+                hole -> surface.draw {
+                    canvas ->
+                    canvas.clipPath(hole)
+                    val left =
+                        canvas.withState {
+                            child ->
+                            child.clipRect(Rect(0.0, 0.0, 30.0, 80.0))
+                            child.clipRect(Rect(5.0, 5.0, 70.0, 70.0))
+                            @Unsafe
+                            {
+                                return@withState captureGeometry(child, Rect(0.0, 0.0, 80.0, 80.0))
+                            }
+                        }
+                    left.use {
+                        current ->
+                        canvas.withState {
+                            child ->
+                            child.clipRect(Rect(50.0, 0.0, 30.0, 80.0))
+                            @Unsafe
+                            {
+                                captureGeometry(child, Rect(0.0, 0.0, 80.0, 80.0)).use {
+                                    right ->
+                                    assertFalse(right.hitTest(Point(10.0, 10.0)))
+                                    assertTrue(right.hitTest(Point(70.0, 10.0)))
+                                }
+                            }
+                        }
+                        assertTrue(current.hitTest(Point(10.0, 10.0)))
+                        assertFalse(current.hitTest(Point(25.0, 25.0)))
+                        assertFalse(current.hitTest(Point(70.0, 10.0)))
+                        assertEquals(Some(Rect(5.0, 5.0, 25.0, 70.0)), current.visibleBounds)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `visible bounds use the same transform clip and target viewport as the scene`() {
         val geometry =
             RasterSurface(64, 48).use {
