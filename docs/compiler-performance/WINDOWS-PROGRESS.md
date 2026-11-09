@@ -17,7 +17,8 @@
 | W5 原生输入与临时目录 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W6 依赖读取与 Link | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W7 剩余记录 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
-| W8～W9 | 待实施 |
+| W8 PM 管道通信 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
+| W9 剩余热点与发行文件量 | 待累计优化复测 |
 | W11 三平台安装包 | 待全部实现和验证完成后执行 |
 
 Linux 工作目录为 `~/repos/scoop-windows-performance-20261110`，Windows 为 `E:/scoop-windows-performance-20261110`；均从同一基线建立，未改动已有 checkout。原始报告和日志保存在各自主机的仓库外工作目录。
@@ -150,3 +151,11 @@ JSON HostPath 保留平台编码标签，将数字数组改成标准 Base64 字�
 macOS AArch64 验证：workspace 格式化和 all-targets Clippy、Python Ruff 通过；scoop 71 项、协议 47 项、PM 38 项、toolchain 64 项 Rust 测试通过。8 个正式 CLI 用例全部通过（88 次进程操作），覆盖单文件依赖、源码包、workspace build／check／doc、README 更新、native C、最终链接复用和逐 Cone 进度。准备脚本 6 项测试通过，并实际运行 runtime 辅助程序，将其 JSON 返回的两个产物路径交给 Python 解码并确认对应文件存在。
 
 独立 runtime-builder 工程漏用了已删除的工具巡检入口，已改为直接准备工具；补齐其 Base64 锁文件，单独完成格式化、Clippy 和 locked release 构建。原始报告保存在仓库外，fixture 与一次性 runtime 验证目录已清理；Windows 写入计数与跨平台验证随完整实现批次执行。
+
+## 2026-11-10：PM prepare 管道通信
+
+`scoop-pm prepare` 从 stdin 读一个请求至 EOF，完成全部所选根后将完整 JSON 响应写入 stdout 并检查 flush；失败诊断继续走 stderr。driver 使用现有 `scoop_output_with_input` 并发发送请求、读取两条输出管道，先检查退出状态再消费响应。删除 `--request`／`--response` 文件接口及 `pm-requests` 临时目录，不改变正常包源码缓存、解析复用与锁定行为。
+
+冷构建验证发现构建入口提前 canonicalize 尚不存在的缓存目录，过去依赖 PM 写临时文件的副作用才能通过。缓存路径本来已在输入处保证绝对，因此删除这次不必要的访问，让实际写入步骤负责创建目录；没有恢复额外的预创建阶段。
+
+macOS AArch64 验证：workspace 格式化和 all-targets Clippy、配套 release 构建通过；调整后的 PM／scoop 定向 Clippy 通过。PM 19 项真实进程测试及进程管道 3 项测试通过，覆盖真实请求、错误位置、锁定与配置更新、大输入和双向输出、提前失败。7 个正式 CLI 用例通过，覆盖 workspace build／check／doc、源码 registry、local tools、错误请求、逐 Cone 进度和最终链接复用；冷／热 workspace 构建均断言没有 `pm-requests` 目录，失败请求 stdout 为空。首次冷构建失败已按上述原因闭合，定向复验通过。报告保存在仓库外，fixture 工作与缓存目录已清理。

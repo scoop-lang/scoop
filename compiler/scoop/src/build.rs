@@ -74,7 +74,6 @@ fn prepare(
         ));
     }
     let mut prepared = graph.prepare().map_err(BuildFailure::preparation)?;
-    let cache = std::fs::canonicalize(cache).map_err(output_error)?;
     let sources = source_context(&prepared);
     let output = output_path(
         &prepared,

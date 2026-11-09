@@ -103,15 +103,6 @@ fn resolve_request(
     })
 }
 
-pub fn prepare_files(request: &Path, response: &Path) -> PmResult<()> {
-    let bytes = std::fs::read(request).map_err(|error| PmError::io(request, error))?;
-    let request =
-        serde_json::from_slice(&bytes).map_err(|error| PmError::new(error.to_string()))?;
-    let prepared = prepare(request)?;
-    let bytes = serde_json::to_vec(&prepared).map_err(|error| PmError::new(error.to_string()))?;
-    crate::cache::atomic_write(response, &bytes)
-}
-
 fn project(resolved: ResolvedWorkspace) -> PmResult<PreparedWorkspaceV1> {
     Ok(PreparedWorkspaceV1 {
         version: PACKAGE_PROTOCOL_VERSION,

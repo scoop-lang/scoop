@@ -112,7 +112,6 @@ pub(super) fn execute(
                 target: selection.target().contract().canonical_triple(),
                 sysroot: &sysroot,
                 search: &search,
-                cache: args.cache_dir.clone(),
             },
         )?);
     }

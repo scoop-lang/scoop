@@ -1,5 +1,7 @@
 use std::{fs, path::Path};
 
+use scoop_process::CommandExt;
+
 use super::prepare::failure;
 use super::{prepare::*, support::*};
 
@@ -64,11 +66,11 @@ fn newly_created_user_configuration_invalidates_preparation() {
     };
     let request = request(root, &root.join("app"));
     let invoke = || {
-        command(root, &request)
+        command(root)
             .env("HOME", &home)
             .env("APPDATA", home.join("AppData"))
             .env("XDG_CONFIG_HOME", home.join(".config"))
-            .output()
+            .scoop_output_with_input(&serde_json::to_vec(&request).unwrap())
             .unwrap()
     };
     success(invoke());

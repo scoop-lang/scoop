@@ -1,6 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
 use scoop_identity::ConeCoordinate;
+use scoop_process::CommandExt;
 use scoop_protocol::{
     CompilationPurpose, HostPathCarrier,
     package::{PackageMemberSelectionV1, PrepareRequestV1, PreparedConeV1, PreparedWorkspaceV1},
@@ -17,6 +18,10 @@ pub(super) fn failure(
     expected: &str,
 ) -> scoop_protocol::StructuredDiagnosticV1 {
     assert!(!output.status.success(), "unexpected success");
+    assert!(
+        output.stdout.is_empty(),
+        "failure returned partial response"
+    );
     let record: scoop_protocol::package::PackageDiagnosticV1 =
         serde_json::from_slice(&output.stderr).unwrap();
     record.validate().unwrap();
@@ -46,27 +51,20 @@ pub(super) fn request(root: &Path, input: &Path) -> PrepareRequestV1 {
 }
 
 pub(super) fn invoke(root: &Path, request: &PrepareRequestV1) -> std::process::Output {
-    command(root, request).output().unwrap()
+    command(root)
+        .scoop_output_with_input(&serde_json::to_vec(request).unwrap())
+        .unwrap()
 }
 
-pub(super) fn command(root: &Path, request: &PrepareRequestV1) -> Command {
-    let request_file = root.join("prepare-request.json");
-    fs::write(&request_file, serde_json::to_vec(request).unwrap()).unwrap();
+pub(super) fn command(root: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_scoop-pm"));
-    command
-        .current_dir(root)
-        .arg("prepare")
-        .arg("--request")
-        .arg(request_file)
-        .arg("--response")
-        .arg(root.join("prepared.json"));
+    command.current_dir(root).arg("prepare");
     command
 }
 
 pub(super) fn prepared(root: &Path, request: &PrepareRequestV1) -> PreparedWorkspaceV1 {
-    assert!(success(invoke(root, request)).is_empty());
     let response: PreparedWorkspaceV1 =
-        serde_json::from_slice(&fs::read(root.join("prepared.json")).unwrap()).unwrap();
+        serde_json::from_str(&success(invoke(root, request))).unwrap();
     response.validate().unwrap();
     response
 }
@@ -100,7 +98,6 @@ fn prepare_failure_preserves_a_manifest_span_through_the_process_boundary() {
         &text[span.start() as usize..span.end() as usize],
         "{path=''}"
     );
-    assert!(!root.join("prepared.json").exists());
 }
 
 #[test]
@@ -193,21 +190,12 @@ fn prepare_binds_each_root_and_keeps_inherited_diagnostic_locations() {
             .unwrap(),
         lock_stamp
     );
-    let original_response = fs::read(root.join("prepared.json")).unwrap();
     write(&root.join("json1/Cone.toml"), &cone("json", "3.0.0"));
     failure(invoke(&root, &request), "requires 1.0.0");
-    assert_eq!(
-        fs::read(root.join("prepared.json")).unwrap(),
-        original_response
-    );
     request.version = 999;
     failure(
         invoke(&root, &request),
         "unsupported package protocol version",
-    );
-    assert_eq!(
-        fs::read(root.join("prepared.json")).unwrap(),
-        original_response
     );
 }
 

@@ -981,7 +981,7 @@ scoop link --root-slib root.slib --runtime-objects index [--dependency-slib dep.
 scoopc build <file.scoop> [--direct-slib direct.slib]... [--support-slib support.slib]... --out-slib current.slib
 ```
 
-无 lock 的首次 build/run 与已有 lock 的构建使用同一个 prepare 入口，具体顺序见[包管理规范 7.2](SCOOP-PACKAGE-SPEC.md#72-自动准备与低层调用)。PM 完成解析、来源准备和 lock 发布后，driver 才调度编译；PM 失败则停止本次命令。后续编译或链接失败保留正确生成的 lock，run 不执行旧程序。
+无 lock 的首次 build/run 与已有 lock 的构建使用同一个 prepare 入口，具体顺序见[包管理规范 7.2](SCOOP-PACKAGE-SPEC.md#72-自动准备与低层调用)。请求经 stdin 传入，成功响应经 stdout 返回，stderr 保留诊断；复用现有子进程并发管道管理，不创建 prepare IPC 文件。PM 完成解析、来源准备和 lock 发布后，driver 才调度编译；PM 失败则停止本次命令。后续编译或链接失败保留正确生成的 lock，run 不执行旧程序。
 
 低层 `scoop-link` 使用相同的普通产物链接合同。manifest build/run省略root时按包管理规范3.1从cwd定位最近清单及所属workspace，成员内默认该成员，workspace根采用default-members；`run -- args`也采用该选择，必须得到唯一executable。低层scoopc输入必需。single-file与artifact-only link不启动PM或读取相邻workspace。
 

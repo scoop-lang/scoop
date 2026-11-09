@@ -6,6 +6,14 @@ tools = ["scoop", "scoop-pm"]
 tags = ["cli", "driver", "pm", "workspace"]
 
 [[steps]]
+name = "invalid_prepare_request"
+argv = ["${scoop-pm}", "--diagnostic-format", "human", "prepare"]
+stdin = "{"
+exit = 1
+stdout = ""
+stderr = {regex = "error: invalid package preparation request: [^\\r\\n]+\\n"}
+
+[[steps]]
 name = "create"
 argv = ["${scoop}", "--package-manager", "${scoop-pm}", "pm", "new", "--workspace", "${work}/new workspace"]
 exit = 0
