@@ -23,7 +23,7 @@ pub(super) fn verify(
     expected_bodies: usize,
     core_bodies: &std::collections::BTreeSet<PersistentCallableBodyId>,
 ) -> BTreeMap<PersistentCallableBodyId, CallableFingerprints> {
-    let prepared = crate::object_production::layout::prepare(emitted, generated).unwrap();
+    let prepared = crate::object_production::layout::prepare(emitted, generated.clone()).unwrap();
     let (callables, safepoints) = prepared.callable_metadata();
     assert_eq!(
         callables.plan().registrations().len(),

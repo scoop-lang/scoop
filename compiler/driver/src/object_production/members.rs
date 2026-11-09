@@ -21,7 +21,7 @@ pub(super) struct UnboundScoopLirObject {
 
 #[derive(Clone, Debug)]
 pub(super) struct UnboundGeneratedCBridgeObject {
-    pub(in crate::object_production) unit: GeneratedBridgeUnitId,
+    pub(in crate::object_production) units: Vec<GeneratedBridgeUnitId>,
     pub(in crate::object_production) bytes: Vec<u8>,
 }
 
@@ -49,7 +49,7 @@ pub(super) fn plan_objects(
         })?;
     let generated_bridge_unit_sets = generated_c_bridge_sources
         .iter()
-        .map(|source| CanonicalGeneratedBridgeObjectUnitSetV1::new(vec![source.unit]))
+        .map(|source| CanonicalGeneratedBridgeObjectUnitSetV1::new(source.units.clone()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|source| BuiltinObjectProductionError::Units {
             producer: BuiltinObjectProducerV1::GeneratedCBridge,
@@ -76,7 +76,7 @@ pub(super) fn plan_objects(
 
     let mut generated_c_bridge_members = Vec::with_capacity(generated_c_bridge_sources.len());
     for source in generated_c_bridge_sources {
-        let member = generated_bridge_member_for_unit(&member_plan, source.unit)?;
+        let member = generated_bridge_member_for_unit(&member_plan, source.units[0])?;
         generated_c_bridge_members.push(PlannedGeneratedCBridgeObjectInputV1 {
             plan: member.clone(),
             bytes: source.bytes,

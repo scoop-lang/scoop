@@ -66,7 +66,7 @@ pub(super) fn check(
         mir_section,
         layout,
     )
-    .assemble(objects, &generated, &[])
+    .assemble(objects, generated, &[])
     .unwrap_or_else(|error| panic!("{name} layout artifact assembly: {error:?}"));
     if name == "base" {
         bytes::check(name, &artifact, input.source, mir_section, layout);

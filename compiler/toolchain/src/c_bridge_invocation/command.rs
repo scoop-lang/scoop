@@ -36,6 +36,8 @@ impl ValidatedCBridgeToolchainInvocation {
                         "-funwind-tables",
                         "-fasynchronous-unwind-tables",
                         "-fno-builtin",
+                        "-ffunction-sections",
+                        "-fdata-sections",
                         "-fPIC",
                     ]);
                 command
@@ -54,6 +56,8 @@ impl ValidatedCBridgeToolchainInvocation {
                         "-fno-ident",
                         "-fno-stack-protector",
                         "-fno-builtin",
+                        "-ffunction-sections",
+                        "-fdata-sections",
                     ])
                     .arg("-c")
                     .arg(source)
@@ -131,6 +135,9 @@ fn canonical_object_compilation_command(
             }
             CanonicalCBridgeFlagV1::AsynchronousUnwindTables => {
                 command.arg("-fasynchronous-unwind-tables");
+            }
+            CanonicalCBridgeFlagV1::SeparateFunctionAndDataSections => {
+                command.args(["-ffunction-sections", "-fdata-sections"]);
             }
             CanonicalCBridgeFlagV1::NoBuiltinSubstitution => {
                 command.arg("-fno-builtin");

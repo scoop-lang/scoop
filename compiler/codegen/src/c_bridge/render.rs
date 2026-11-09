@@ -7,31 +7,27 @@ pub(super) struct CBridgeTypeSurface {
 }
 
 impl CBridgeTypeSurface {
-    pub(super) fn for_function(
-        module: &Module,
-        signature: &scoop_lir::CFunctionType,
-    ) -> Result<Self, CodegenError> {
+    pub(super) fn for_bridges(module: &Module) -> Result<Self, CodegenError> {
         let mut surface = Self::empty();
-        for parameter in &signature.params {
-            surface.visit_type(module, parameter, true)?;
+        for (_, function) in module.extern_functions.iter() {
+            if let ExternFunctionKind::C {
+                signature,
+                call_plan: scoop_lir::CAbiCallPlan::StorageBridge { .. },
+                ..
+            } = &function.kind
+            {
+                surface.visit_types(module, &signature.params, &signature.return_type, true)?;
+            }
         }
-        surface.visit_return(module, &signature.return_type, true)?;
-        Ok(surface)
-    }
-
-    pub(super) fn for_signature_parts(
-        module: &Module,
-        parameters: &[scoop_lir::CType],
-        result: &scoop_lir::CReturnType,
-    ) -> Result<Self, CodegenError> {
-        let mut surface = Self::empty();
-        surface.visit_types(module, parameters, result, true)?;
-        Ok(surface)
-    }
-
-    pub(super) fn for_value(module: &Module, ty: &scoop_lir::CType) -> Result<Self, CodegenError> {
-        let mut surface = Self::empty();
-        surface.visit_type(module, ty, true)?;
+        for (_, global) in module.native_globals.iter() {
+            surface.visit_type(module, &global.c_type, true)?;
+        }
+        for (_, callback) in module.callback_bridges.iter() {
+            surface.visit_types(module, &callback.params, &callback.return_type, true)?;
+        }
+        for (_, callback) in module.foreign_callback_bridges.iter() {
+            surface.visit_types(module, &callback.params, &callback.return_type, true)?;
+        }
         Ok(surface)
     }
 

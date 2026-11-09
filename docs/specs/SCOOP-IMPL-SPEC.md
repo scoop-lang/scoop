@@ -765,6 +765,10 @@ CapabilityId 为 map `{1=namespace, 2=name, 3=nonzero u32 major}`；purpose bits
 
 Scoop LinkObject logical key 为 `{1=nonzero unit_count, 2=unit_set_digest}`；digest 为 `H("scoop-lir-object-unit-set-v1", sorted unique nonempty ObjectDefinitionPlanId array)`。generated-C 使用同一 map，domain 为 `scoop-generated-bridge-object-unit-set-v1`，元素为 GeneratedBridgeUnitId。物理分组只改变 Code/Artifact 层。
 
+同一 Cone、同一 target 和 C 编译参数下的生成桥接实现共享一个 C 翻译单元。类型声明和布局断言只生成一次，回调的 C 辅助名称按桥身份区分；桥的逻辑身份、签名和关联 atom 不随物理分组改变。空桥集合不创建 generated-C 工作目录。外部编译器完成后，对象只读入一次，在内存中补全边界并交给产物组装，不写回临时对象再重新读取。
+
+批量对象中的每个主定义保持独立、精确的边界；共享 unwind section 按实际函数记录划分不重叠的范围，CIE 等公共前缀归入紧随其后的 FDE 所属范围，原生展开数据与引用保持原样。ELF／COFF 生成桥启用独立函数和数据 section（canonical flag tag 24），使原生链接器仍可按需裁剪；Mach-O 使用既有符号子区间与 compact-unwind 记录。generated-C 继续使用 `-g0`，编译诊断按生成桥身份定位，不伪造用户源码行。
+
 GeneratedBridgeUnitId 的 domain 为 `scoop-generated-bridge-unit-v1`。key 为 OutboundFunction=1（native contract fingerprint 与普通/errno 捕获的结果适配）、GlobalRead=2、GlobalWrite=3、GlobalAddress=4（各含 native contract fingerprint）、CallbackTrampoline=5（C signature fingerprint 与 context parameter index）、StaticCallbackTrampoline=6（storage-bridge generated callable ID 与 C signature fingerprint）。OutboundFunction 的结果适配确定 bridge 的私有返回方式；同一 native symbol 的捕获与不捕获 recipe 不能共用 unit identity。NativeSafe/GcLeaf 不改变 bridge 本身的结果适配，仍可复用相同 recipe。
 
 bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 producer ConeIdentity 与 PrimaryEntry、SignatureDescriptor、ContextDescriptor 或 StaticAssertSupport role，domain 为 `scoop-generated-bridge-atom-v1`。前三者可具有实际 bytes/range；StaticAssertSupport 不产生物理定义。unit、实际 atom 和 member 的关系必须完整，不能把 producer-specific symbol 写入 unit identity。

@@ -74,7 +74,7 @@ impl<'ir> CrossConeLayoutArtifactMetadataInputV1<'ir> {
     pub fn assemble(
         self,
         emitted: scoop_codegen::EmittedConeObjectSetV2,
-        generated: &scoop_codegen::EmittedGeneratedCBridgeObjectSetV1,
+        generated: scoop_codegen::EmittedGeneratedCBridgeObjectSetV1,
         dependency_owners: &[slib::CanonicalDefinedLinkSymbolOwnerSetV1],
     ) -> Result<slib::AssembledCrossConeLayoutArtifactV1, Error> {
         let optimization = emitted.optimization;

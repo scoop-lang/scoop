@@ -93,7 +93,7 @@ fn binds_generated_c_bytes_from_the_actual_singleton_unit_set() {
             bytes: b"image".to_vec(),
         }],
         vec![UnboundGeneratedCBridgeObject {
-            unit: unit.id(),
+            units: vec![unit.id()],
             bytes: b"bridge".to_vec(),
         }],
     )

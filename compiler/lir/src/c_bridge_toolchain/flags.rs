@@ -62,6 +62,7 @@ pub enum CanonicalCBridgeFlagV1 {
     WindowsCrt,
     Windows10Baseline,
     ReproducibleCoff,
+    SeparateFunctionAndDataSections,
 }
 
 impl CanonicalCBridgeFlagV1 {
@@ -82,7 +83,8 @@ impl CanonicalCBridgeFlagV1 {
         Self::NoBuiltinSubstitution,
         Self::X86_64Baseline,
     ];
-    pub const WINDOWS_CLANG_AMD64: [Self; 18] = [
+    pub const WINDOWS_CLANG_AMD64: [Self; 19] = [
+        Self::SeparateFunctionAndDataSections,
         Self::ExplicitCanonicalTarget,
         Self::ExplicitResolvedSdkRoot,
         Self::X86_64Baseline,
@@ -102,7 +104,8 @@ impl CanonicalCBridgeFlagV1 {
         Self::Windows10Baseline,
         Self::ReproducibleCoff,
     ];
-    pub const LINUX_CLANG_X86_64: [Self; 13] = [
+    pub const LINUX_CLANG_X86_64: [Self; 14] = [
+        Self::SeparateFunctionAndDataSections,
         Self::ExplicitCanonicalTarget,
         Self::X86_64Baseline,
         Self::C11,
@@ -117,7 +120,8 @@ impl CanonicalCBridgeFlagV1 {
         Self::NoBuiltinSubstitution,
         Self::PositionIndependent,
     ];
-    pub const LINUX_GCC_X86_64: [Self; 12] = [
+    pub const LINUX_GCC_X86_64: [Self; 13] = [
+        Self::SeparateFunctionAndDataSections,
         Self::X86_64Baseline,
         Self::C11,
         Self::RelocatableObject,
@@ -170,6 +174,7 @@ impl CanonicalCBridgeFlagV1 {
             Self::WindowsCrt => 21,
             Self::Windows10Baseline => 22,
             Self::ReproducibleCoff => 23,
+            Self::SeparateFunctionAndDataSections => 24,
         }
     }
 }

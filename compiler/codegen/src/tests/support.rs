@@ -1239,13 +1239,7 @@ pub(super) fn ir_of(module: &Module) -> String {
 }
 
 pub(super) fn joined_c_bridge_sources(module: &Module) -> Result<String, CodegenError> {
-    crate::c_bridge::render_c_bridge_source_set_for_module(module).map(|set| {
-        set.units()
-            .iter()
-            .map(|unit| unit.source())
-            .collect::<Vec<_>>()
-            .join("\n")
-    })
+    crate::c_bridge::render_c_bridge_source_set_for_module(module).map(|set| set.source())
 }
 
 pub(super) fn rewritten_ir_of(module: &Module) -> String {

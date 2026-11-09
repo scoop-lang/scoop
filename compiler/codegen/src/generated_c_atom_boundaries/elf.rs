@@ -10,6 +10,11 @@ pub(super) fn materialize(
     atoms: &[&DefinitionSymbolPlanV1],
 ) -> Result<Vec<u8>, CodegenError> {
     let mut output = ElfObject::read(bytes, object_target)?;
+    let unwind = output.file.section_by_name(".eh_frame");
+    let unwind_ranges = unwind
+        .as_ref()
+        .map(|section| super::unwind::eh_frame(&output.file, section))
+        .transpose()?;
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
         let primary = output
@@ -30,7 +35,12 @@ pub(super) fn materialize(
                     let section = output.file.section_by_name(".eh_frame").ok_or_else(|| {
                         CodegenError("ELF generated-C bridge has no unwind table".into())
                     })?;
-                    (section.index(), 0, section.size())
+                    let (start, end) = super::unwind::require(
+                        unwind_ranges.as_ref().expect("EH section was parsed"),
+                        section_index,
+                        start,
+                    )?;
+                    (section.index(), start, end)
                 }
                 role => {
                     return Err(CodegenError(format!(

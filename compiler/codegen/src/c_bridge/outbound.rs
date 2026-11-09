@@ -1,15 +1,13 @@
 use super::*;
 
 pub(super) fn render_outbound_function(
-    module: &Module,
+    renderer: &CTypeRenderer<'_>,
     function: &scoop_lir::ExternFunction,
     bridge: &scoop_lir::GeneratedBridgeEntryIdentity,
     signature: &scoop_lir::CFunctionType,
     result: scoop_lir::CResultAdaptation,
 ) -> Result<String, CodegenError> {
-    let surface = CBridgeTypeSurface::for_function(module, signature)?;
-    let renderer = CTypeRenderer::new(surface.function_types());
-    let mut out = render_c_layout_assertions(module, &surface)?;
+    let mut out = String::new();
     let capture_errno = result == scoop_lir::CResultAdaptation::CaptureErrno;
     if capture_errno {
         out.push_str("#include <errno.h>\n");

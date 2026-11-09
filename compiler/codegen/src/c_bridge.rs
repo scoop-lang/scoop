@@ -10,10 +10,7 @@ pub use layout::c_layout_assertions;
 use layout::render_c_layout_assertions;
 use render::{CBridgeTypeSurface, CTypeRenderer};
 
-pub(crate) const ELF_BRIDGE_SIGNATURE_SECTION: &str = ".rodata.scoop_sig";
-
-/// One canonical generated-C translation unit and the bridge unit whose
-/// physical object it must produce.
+/// One logical bridge implementation within a generated C translation unit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeneratedCBridgeSourceUnitV1 {
     unit: scoop_lir::GeneratedBridgeUnitId,
@@ -30,13 +27,13 @@ impl GeneratedCBridgeSourceUnitV1 {
     }
 }
 
-/// Complete canonical generated-C source set for one sealed strong LIR
-/// product. The retained plan is the sole authority for source sharding and
-/// for the atoms each translation unit is allowed to materialize.
+/// The shared declarations and canonically ordered bridge implementations
+/// compiled together for one LIR product.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GeneratedCBridgeSourceSetV1 {
     plan: scoop_lir::GeneratedBridgePlanSetV1,
     units: Vec<GeneratedCBridgeSourceUnitV1>,
+    preamble: String,
 }
 
 impl GeneratedCBridgeSourceSetV1 {
@@ -47,10 +44,19 @@ impl GeneratedCBridgeSourceSetV1 {
     pub fn units(&self) -> &[GeneratedCBridgeSourceUnitV1] {
         &self.units
     }
+
+    pub fn source(&self) -> String {
+        let mut source = self.preamble.clone();
+        for unit in &self.units {
+            source.push_str(&format!("\n#line 1 \"{}.generated.c\"\n", unit.unit));
+            source.push_str(&unit.source);
+        }
+        source
+    }
 }
 
-/// Render exactly one C translation unit for every canonical generated
-/// bridge unit. Empty bridge plans produce an empty source set.
+/// Render shared C declarations and each logical bridge implementation.
+/// Empty bridge plans produce no source.
 pub fn render_c_bridge_source_set(
     input: &scoop_lir::ConeLirOutput,
 ) -> Result<GeneratedCBridgeSourceSetV1, CodegenError> {
@@ -74,19 +80,34 @@ fn render_source_set(
         scoop_lir::GeneratedBridgePlanSetV1::from_foundation(foundation).map_err(|error| {
             CodegenError(format!("cannot plan generated C bridge sources: {error}"))
         })?;
+    if plan.units().is_empty() {
+        return Ok(GeneratedCBridgeSourceSetV1 {
+            plan,
+            units: Vec::new(),
+            preamble: String::new(),
+        });
+    }
+    let surface = CBridgeTypeSurface::for_bridges(module)?;
+    let renderer = CTypeRenderer::new(surface.function_types());
+    let preamble = render_c_layout_assertions(module, &surface)?;
     let mut units = Vec::with_capacity(plan.units().len());
     for unit_plan in plan.units() {
         units.push(GeneratedCBridgeSourceUnitV1 {
             unit: unit_plan.unit(),
-            source: render_unit(module, unit_plan)?,
+            source: render_unit(module, unit_plan, &renderer)?,
         });
     }
-    Ok(GeneratedCBridgeSourceSetV1 { plan, units })
+    Ok(GeneratedCBridgeSourceSetV1 {
+        plan,
+        units,
+        preamble,
+    })
 }
 
 fn render_unit(
     module: &Module,
     plan: &scoop_lir::GeneratedBridgeUnitPlanV1,
+    renderer: &CTypeRenderer<'_>,
 ) -> Result<String, CodegenError> {
     match *plan.unit_authority().key() {
         scoop_lir::GeneratedBridgeUnitKey::OutboundFunction(_, result) => {
@@ -104,7 +125,7 @@ fn render_unit(
                     ExternFunctionKind::C { .. } | ExternFunctionKind::Scoop { .. } => None,
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_outbound_function(module, function.0, function.1, function.2, result)
+            render_outbound_function(renderer, function.0, function.1, function.2, result)
         }
         scoop_lir::GeneratedBridgeUnitKey::GlobalRead(_) => {
             let global = module
@@ -115,7 +136,13 @@ fn render_unit(
                     (bridge.unit() == plan.unit()).then_some((global, bridge))
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_native_global(module, global.0, global.1, NativeGlobalBridgeKind::Read)
+            render_native_global(
+                module,
+                renderer,
+                global.0,
+                global.1,
+                NativeGlobalBridgeKind::Read,
+            )
         }
         scoop_lir::GeneratedBridgeUnitKey::GlobalWrite(_) => {
             let global = module
@@ -129,7 +156,13 @@ fn render_unit(
                     (bridge.unit() == plan.unit()).then_some((global, bridge))
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_native_global(module, global.0, global.1, NativeGlobalBridgeKind::Write)
+            render_native_global(
+                module,
+                renderer,
+                global.0,
+                global.1,
+                NativeGlobalBridgeKind::Write,
+            )
         }
         scoop_lir::GeneratedBridgeUnitKey::GlobalAddress(_) => {
             let global = module
@@ -141,7 +174,13 @@ fn render_unit(
                     (bridge.unit() == plan.unit()).then_some((global, bridge))
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_native_global(module, global.0, global.1, NativeGlobalBridgeKind::Address)
+            render_native_global(
+                module,
+                renderer,
+                global.0,
+                global.1,
+                NativeGlobalBridgeKind::Address,
+            )
         }
         scoop_lir::GeneratedBridgeUnitKey::StaticCallbackTrampoline { .. } => {
             let callback = module
@@ -151,7 +190,7 @@ fn render_unit(
                     (callback.trampoline.entry().unit() == plan.unit()).then_some(callback)
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_static_callback(module, callback)
+            render_static_callback(module, renderer, callback)
         }
         scoop_lir::GeneratedBridgeUnitKey::CallbackTrampoline { .. } => {
             let callback = module
@@ -161,7 +200,7 @@ fn render_unit(
                     (callback.trampoline.entry().unit() == plan.unit()).then_some(callback)
                 })
                 .ok_or_else(|| missing_unit_source(plan.unit()))?;
-            render_foreign_callback(module, callback)
+            render_foreign_callback(module, renderer, callback)
         }
     }
 }
@@ -181,13 +220,12 @@ enum NativeGlobalBridgeKind {
 
 fn render_native_global(
     module: &Module,
+    renderer: &CTypeRenderer<'_>,
     global: &scoop_lir::NativeGlobal,
     bridge: &scoop_lir::GeneratedBridgeEntryIdentity,
     kind: NativeGlobalBridgeKind,
 ) -> Result<String, CodegenError> {
-    let surface = CBridgeTypeSurface::for_value(module, &global.c_type)?;
-    let renderer = CTypeRenderer::new(surface.function_types());
-    let mut out = render_c_layout_assertions(module, &surface)?;
+    let mut out = String::new();
     let storage_class = if global.thread_local {
         "_Thread_local "
     } else if module.meta.target_profile.native_object_format()
@@ -218,12 +256,10 @@ fn render_native_global(
 
 fn render_static_callback(
     module: &Module,
+    renderer: &CTypeRenderer<'_>,
     callback: &scoop_lir::CallbackBridge,
 ) -> Result<String, CodegenError> {
-    let surface =
-        CBridgeTypeSurface::for_signature_parts(module, &callback.params, &callback.return_type)?;
-    let renderer = CTypeRenderer::new(surface.function_types());
-    let mut out = render_c_layout_assertions(module, &surface)?;
+    let mut out = String::new();
     let float_enter = scoop_lir::RuntimeAbiSymbolV1::FloatEnter.logical_symbol();
     let float_leave = scoop_lir::RuntimeAbiSymbolV1::FloatLeave.logical_symbol();
     out.push_str(&format!(
@@ -245,6 +281,10 @@ fn render_static_callback(
         .contract()
         .native_symbol_normalization()
         .compiler_generated_object_symbol(&bridge_symbol);
+    let storage_bridge = format!(
+        "scoop_callback_storage_bridge_{}",
+        callback.trampoline.entry().unit()
+    );
     let has_result = !callback.return_type.is_void();
     let mut storage_parameters = Vec::new();
     if has_result {
@@ -261,12 +301,12 @@ fn render_static_callback(
         storage_parameters.push("void".to_string());
     }
     out.push_str(&format!(
-        "extern void scoop_callback_storage_bridge({}) __asm__(\"{}\");\n",
+        "extern void {storage_bridge}({}) __asm__(\"{}\");\n",
         storage_parameters.join(", "),
         bridge_object_symbol
     ));
 
-    let callback_parameters = render_named_parameters(&renderer, &callback.params)?;
+    let callback_parameters = render_named_parameters(renderer, &callback.params)?;
     let declarator = format!(
         "{}({callback_parameters})",
         callback.trampoline.entry().symbol()
@@ -286,7 +326,7 @@ fn render_static_callback(
     }
     storage_arguments.extend((0..callback.params.len()).map(|index| format!("&arg{index}")));
     out.push_str(&format!(
-        "  scoop_callback_storage_bridge({});\n",
+        "  {storage_bridge}({});\n",
         storage_arguments.join(", ")
     ));
     out.push_str(&format!(
@@ -301,26 +341,29 @@ fn render_static_callback(
 
 fn render_foreign_callback(
     module: &Module,
+    renderer: &CTypeRenderer<'_>,
     callback: &scoop_lir::ForeignCallbackBridge,
 ) -> Result<String, CodegenError> {
-    let surface =
-        CBridgeTypeSurface::for_signature_parts(module, &callback.params, &callback.return_type)?;
-    let renderer = CTypeRenderer::new(surface.function_types());
-    let mut out = render_c_layout_assertions(module, &surface)?;
+    let mut out = String::new();
     out.push_str(&format!(
         "extern uint32_t {}(void *context, const void *signature, void *result, const void *const *arguments);\n\n",
         scoop_lir::RuntimeAbiSymbolV1::CallbackInvoke.logical_symbol()
     ));
     let section = match module.meta.target_profile.native_object_format() {
-        scoop_lir::NativeObjectFormat::MachO64 => "__TEXT,__scoop_sig",
-        scoop_lir::NativeObjectFormat::Elf64 => ELF_BRIDGE_SIGNATURE_SECTION,
-        scoop_lir::NativeObjectFormat::Coff64 => ".rdata$scoop.signature",
+        scoop_lir::NativeObjectFormat::MachO64 => "__TEXT,__scoop_sig".to_owned(),
+        scoop_lir::NativeObjectFormat::Elf64 => {
+            format!(".rodata.scoop_sig.{}", callback.trampoline.entry().unit())
+        }
+        scoop_lir::NativeObjectFormat::Coff64 => format!(
+            ".rdata$scoop.signature.{}",
+            callback.trampoline.entry().unit()
+        ),
     };
     out.push_str(&format!(
         "const unsigned char {} __attribute__((section(\"{section}\"))) = 0;\n",
         callback.trampoline.signature_descriptor_symbol()
     ));
-    let parameters = render_named_parameters(&renderer, &callback.params)?;
+    let parameters = render_named_parameters(renderer, &callback.params)?;
     let declarator = format!("{}({parameters})", callback.trampoline.entry().symbol());
     out.push_str(&renderer.return_declaration(&callback.return_type, &declarator)?);
     out.push_str(" {\n");
