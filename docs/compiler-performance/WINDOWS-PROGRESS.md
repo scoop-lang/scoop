@@ -175,3 +175,5 @@ Windows 的现有实机 C 桥测试发现 MinGW 按函数分节后使用 `.pdata
 本地格式化、codegen all-targets Clippy、4 项 C 桥测试、17 项 C 布局测试及 release scoopc 构建通过。Windows 4 项 C 桥测试和 16 项 C 布局测试通过，其中实际生成桥用例覆盖 MSVC、MinGW UCRT、MinGW MSVCRT 的 Debug／Release 六种组合，均完成链接与执行。
 
 逐 Cone 进度 fixture 的最终产物提示使用了 Python 原始路径，而 Windows CLI 正常显示 canonicalize 后的扩展路径。改用 runner 既有的 `canonical_host_path` 构造期望，不改变产品提示或进度行为；Ruff 和本地定向 fixture 通过，Windows 继续定向复验。
+
+Windows 复验中的全部进度、缓存、检查、文档和失败断言均通过，fixture 脚本自己的成功提示仍因 Python 文本 stdout 转换为 CRLF 而与精确字节期望不符。该提示改为直接写入固定 LF 字节，与已有工具版本 fixture 保持相同方式。
