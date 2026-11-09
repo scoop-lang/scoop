@@ -2,7 +2,7 @@ use super::*;
 use std::process::Command;
 
 #[test]
-fn many_object_inputs_reach_the_linker_without_driver_expansion() {
+fn whole_archive_preserves_initializers_and_quoted_paths() {
     let directory = tempfile::tempdir().unwrap();
     let quoted = directory
         .path()
@@ -10,8 +10,12 @@ fn many_object_inputs_reach_the_linker_without_driver_expansion() {
     std::fs::create_dir(&quoted).unwrap();
     let source = quoted.join("main.c");
     let main = quoted.join("main.o");
-    let empty = quoted.join("empty.o");
-    std::fs::write(&source, "int main(void) { return 0; }\n").unwrap();
+    let initializer = quoted.join("initializer.o");
+    std::fs::write(
+        &source,
+        "int initialized; int main(void) { return initialized != 42; }\n",
+    )
+    .unwrap();
     checked(
         Command::new("gcc")
             .arg("-c")
@@ -19,38 +23,37 @@ fn many_object_inputs_reach_the_linker_without_driver_expansion() {
             .arg("-o")
             .arg(&main),
     );
-    std::fs::write(&source, "\n").unwrap();
+    std::fs::write(&source, "extern int initialized; __attribute__((constructor)) static void initialize(void) { initialized = 42; }\n").unwrap();
     checked(
         Command::new("gcc")
             .arg("-c")
             .arg(&source)
             .arg("-o")
-            .arg(&empty),
+            .arg(&initializer),
     );
-    let limit = checked(Command::new("getconf").arg("ARG_MAX"));
-    let limit: usize = std::str::from_utf8(&limit.stdout)
-        .unwrap()
-        .trim()
-        .parse()
-        .unwrap();
-    let count = limit / empty.as_os_str().as_encoded_bytes().len() + 100;
-    let mut paths = vec![main];
-    paths.extend(std::iter::repeat_n(empty.clone(), count));
+    let archive = quoted.join("selected objects.a");
+    checked(
+        Command::new("ar")
+            .arg("rcs")
+            .arg(&archive)
+            .arg(main)
+            .arg(initializer),
+    );
     for driver in ["gcc", "g++", "musl-gcc"] {
         let scratch = quoted.join(driver);
         std::fs::create_dir(&scratch).unwrap();
         let binary = scratch.join("program");
         let mut command = Command::new(driver);
         command.arg("-Wl,-t").arg("-o").arg(&binary);
-        append_objects(&mut command, &scratch, &paths).unwrap();
+        append_archives(&mut command, &scratch, std::slice::from_ref(&archive)).unwrap();
         let output = checked(&mut command);
         let trace = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(
             trace
                 .lines()
-                .filter(|line| *line == empty.to_str().unwrap())
+                .filter(|line| *line == archive.to_str().unwrap())
                 .count(),
-            count
+            1
         );
         checked(&mut Command::new(binary));
     }

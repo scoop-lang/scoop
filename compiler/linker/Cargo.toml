@@ -8,13 +8,15 @@ scoop-target-data.workspace = true
 scoop-process.workspace = true
 scoop-protocol.workspace = true
 object.workspace = true
+ar_archive_writer.workspace = true
+fs4.workspace = true
+serde_json.workspace = true
 scoop-identity.workspace = true
 scoop-lir.workspace = true
 scoop-slib.workspace = true
 scoop-toolchain.workspace = true
 scoop-wire.workspace = true
 tempfile.workspace = true
-pathdiff.workspace = true
 clap.workspace = true
 
 [dev-dependencies]

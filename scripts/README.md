@@ -78,7 +78,7 @@ python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
 
 `--sysroot` 默认为仓库的 `sysroot`，`--runtime-root` 默认为仓库的 `runtime`；可显式选择 `--cache-dir`、`--scoopc` 和现有 native 工具参数。维护脚本默认将工作目录放在仓库已忽略的 `tmp` 下，避免占用 HOME 所在磁盘；也可显式指定其他磁盘。构建缓存、中间产物和辅助程序的 Rust target 目录保存在工作目录或显式 `CARGO_TARGET_DIR`，不要选择绝对路径 `/tmp`。目标输出为 `sysroot/lib/<triple>`，公开头文件为 `sysroot/include`。
 
-脚本读取 `src/*/Cone.toml` 的生产依赖确定顺序，逐个执行普通 release library 构建；测试源码不进入发布库，各库的 lock 保存到工作目录的 `locks/`，不写入随包源码。`runtime_builder` 是独立于 Cargo 主 workspace 的脚本内部辅助程序，复用已有的 O2 runtime 编译与索引实现，不安装到发行包的 `bin`。准备过程不重新读取对象以核对摘要或复验产物；重复运行使用已有构建记录，输入发生变化时更新对应结果。runtime 与公开头文件先复制完整输出，再替换准备目录；复制失败保留原目录。
+脚本读取 `src/*/Cone.toml` 的生产依赖确定顺序，逐个执行普通 release library 构建；测试源码不进入发布库，各库的 lock 保存到工作目录的 `locks/`，不写入随包源码。`runtime_builder` 是独立于 Cargo 主 workspace 的脚本内部辅助程序，复用已有的 O2 runtime 编译与索引实现，不安装到发行包的 `bin`。每个目标的四种 runtime 配置各输出 `index.cbor` 和一份 `runtime.a`（Mach-O／ELF）或 `runtime.lib`（COFF）；C 编译的独立对象只留在临时目录，缓存与安装包不保留 `objects/*.o`。准备过程不重新读取归档以核对摘要或复验产物；重复运行使用已有构建记录，输入发生变化时更新对应结果。runtime 与公开头文件先复制完整输出，再替换准备目录；复制失败保留原目录。
 
 `--runtime-only` 只准备公开头文件和四种 runtime 配置，不选择或构建系统 Cone，也不要求 `--scoop`。发行打包现在构建并打包系统 `.slib`，不再使用这个选项；它仅用于只需要 runtime 与头文件的开发场景。
 

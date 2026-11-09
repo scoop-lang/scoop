@@ -32,7 +32,7 @@ checks = [{actual = "${warm.result.observations.child_invocations.length}", equa
 
 [[steps]]
 name = "compile-host"
-argv = ["${python}", "${fixture}/compile_host.py", "${cc}", {each = "${cc_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${fixture}/host.c", "-o", "${work}/host.exe"]
+argv = ["${python}", "${fixture}/compile_host.py", "${cc}", {each = "${cc_args}"}, {each = "${cc_link_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${fixture}/host.c", "-o", "${work}/host.exe"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -84,7 +84,7 @@ stderr = ""
 
 [[steps]]
 name = "published-companions"
-argv = ["${python}", "${fixture}/check_outputs.py", "${build.result.output}", "${artifact-link.result.output}", "${target}", "${profile}", "${fixture}/header_host.cpp", "${work}", "${sysroot}/include", "${cc}", {each = "${cc_args}"}]
+argv = ["${python}", "${fixture}/check_outputs.py", "${build.result.output}", "${artifact-link.result.output}", "${target}", "${profile}", "${fixture}/header_host.cpp", "${work}", "${sysroot}/include", "${cc}", {each = "${cc_args}"}, {each = "${cc_link_args}"}]
 exit = 0
 stdout = ""
 stderr = ""

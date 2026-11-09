@@ -2,11 +2,10 @@ schema = 1
 name = "stage-observations"
 inputs = ["main.scoop", "state.py", "report.py", "symbols.py"]
 tools = ["scoop", "scoopc", "python"]
-when = { os = ["darwin", "linux"] }
 tags = ["cache", "dump", "driver"]
 
 [vars]
-options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--runtime-root", "${runtime}", "--message-format", "json", "-o", "${work}/program"]
+options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--message-format", "json", "-o", "${work}/program"]
 
 [[steps]]
 name = "prepare"

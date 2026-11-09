@@ -64,6 +64,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ar_archive_writer"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73cd58deff2140a0a8eae87e417bd01db68a33e148aa93d1e8cd837e55e312b6"
+dependencies = [
+ "object 0.39.1",
+]
+
+[[package]]
 name = "archery"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,6 +545,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,9 +799,10 @@ dependencies = [
 name = "scoop-linker"
 version = "0.0.0"
 dependencies = [
+ "ar_archive_writer",
  "clap",
- "object",
- "pathdiff",
+ "fs4",
+ "object 0.37.3",
  "scoop-identity",
  "scoop-lir",
  "scoop-process",
@@ -792,6 +811,7 @@ dependencies = [
  "scoop-target-data",
  "scoop-toolchain",
  "scoop-wire",
+ "serde_json",
  "tempfile",
 ]
 
@@ -877,7 +897,7 @@ dependencies = [
 name = "scoop-slib"
 version = "0.0.0"
 dependencies = [
- "object",
+ "object 0.37.3",
  "scoop-hir",
  "scoop-identity",
  "scoop-lir",
@@ -923,7 +943,7 @@ dependencies = [
  "find-msvc-tools",
  "fs4",
  "glob",
- "object",
+ "object 0.37.3",
  "scoop-hir",
  "scoop-identity",
  "scoop-lir",

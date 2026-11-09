@@ -94,9 +94,11 @@ fn windows_runtime_sources_define_and_link_the_complete_runtime_abi() {
                     .map(str::to_owned)
                     .collect(),
             },
-            objects,
+            objects.clone(),
+            &directory.path().join("index"),
         )
         .unwrap();
+        common_tests::check_archive_and_inputs(&runtime, &objects, invocation.profile());
         assert!(
             runtime
                 .symbols()
@@ -112,27 +114,22 @@ fn windows_runtime_sources_define_and_link_the_complete_runtime_abi() {
         )
         .unwrap();
         checked(&mut invocation.object_compilation_command(&duplicate_source, &duplicate_object));
-        let mut duplicate_paths: Vec<_> = runtime
-            .objects()
-            .iter()
-            .map(|object| object.path().to_owned())
-            .collect();
+        let mut duplicate_paths = objects;
         duplicate_paths.push(duplicate_object);
         assert!(
             RuntimeObjectSet::from_paths(
                 target,
                 invocation.profile(),
                 runtime.configuration().clone(),
-                duplicate_paths
+                duplicate_paths,
+                &directory.path().join("duplicate-index"),
             )
             .unwrap_err()
             .0
             .contains("multiple definitions of scoop_rt_program_argc")
         );
-        let index = runtime
-            .write_index(&directory.path().join("index"))
-            .unwrap();
-        let restored = RuntimeObjectSet::read_index(&index, target, invocation.profile()).unwrap();
+        let index = runtime.index_path();
+        let restored = RuntimeObjectSet::read_index(index, target, invocation.profile()).unwrap();
         assert_eq!(restored.fingerprint(), runtime.fingerprint());
         assert_eq!(restored.symbols(), runtime.symbols());
         let other = if target == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT {
@@ -140,7 +137,7 @@ fn windows_runtime_sources_define_and_link_the_complete_runtime_abi() {
         } else {
             scoop_target_data::WINDOWS_X86_64_MSVC_UCRT
         };
-        assert!(RuntimeObjectSet::read_index(&index, other, invocation.profile()).is_err());
+        assert!(RuntimeObjectSet::read_index(index, other, invocation.profile()).is_err());
 
         // Link every real runtime object to close native dependencies. This C
         // consumer does not substitute for the managed startup/GC tests.
@@ -165,9 +162,10 @@ fn windows_runtime_sources_define_and_link_the_complete_runtime_abi() {
         .unwrap();
         let binary = directory.path().join("runtime.exe");
         let mut command = link.command(directory.path(), &binary).unwrap();
-        command
-            .arg(entry)
-            .args(restored.objects().iter().map(|object| object.path()));
+        command.arg(entry);
+        for argument in link.whole_archive_arguments(restored.archive_path()) {
+            link.linker_arg(&mut command, argument);
+        }
         link.append_system_libraries(&mut command);
         checked(&mut command);
         let output = Command::new(binary).scoop_output().unwrap();

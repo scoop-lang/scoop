@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn diagnostic_options_select_distinct_reusable_runtime_objects() {
+fn diagnostic_options_select_distinct_reusable_runtime_archives() {
     let target = ResolvedTargetProfile::resolve_host().unwrap();
     let cache = tempfile::tempdir().unwrap();
     let build = |enable_gc_stress, enable_startup_stats| {
@@ -38,12 +38,7 @@ fn diagnostic_options_select_distinct_reusable_runtime_objects() {
         assert!(cached.objects().require_gc_stress(!stress).is_err());
         cached.objects().require_startup_stats(startup).unwrap();
         assert!(cached.objects().require_startup_stats(!startup).is_err());
-        let objects: Vec<_> = cached
-            .objects()
-            .objects()
-            .iter()
-            .map(|object| std::fs::read(object.path()).unwrap())
-            .collect();
+        let bytes = std::fs::read(cached.objects().archive_path()).unwrap();
         for (marker, expected) in [
             (b"SCOOP_GC_STRESS_".as_slice(), stress),
             (b"{\"scoop_startup\":1".as_slice(), startup),
@@ -51,9 +46,7 @@ fn diagnostic_options_select_distinct_reusable_runtime_objects() {
             (b"scoop_image_scan_program_count".as_slice(), startup),
         ] {
             assert_eq!(
-                objects
-                    .iter()
-                    .any(|bytes| bytes.windows(marker.len()).any(|window| window == marker)),
+                bytes.windows(marker.len()).any(|window| window == marker),
                 expected,
                 "marker {marker:?}"
             );

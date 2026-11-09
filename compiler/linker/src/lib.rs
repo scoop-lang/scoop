@@ -5,6 +5,7 @@ mod link;
 mod macho_cursor;
 mod macho_exports;
 mod namespace;
+mod native_archive;
 mod native_input;
 mod native_object;
 mod program;

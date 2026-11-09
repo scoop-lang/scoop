@@ -20,7 +20,7 @@ diagnostics = []
 
 [[steps]]
 name = "compile-host"
-argv = ["${python}", "${support_dir}/compile_host.py", "${cc}", {each = "${cc_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${support_dir}/host.c", "-o", "${work}/host.exe"]
+argv = ["${python}", "${support_dir}/compile_host.py", "${cc}", {each = "${cc_args}"}, {each = "${cc_link_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${support_dir}/host.c", "-o", "${work}/host.exe"]
 exit = 0
 stdout = ""
 stderr = ""

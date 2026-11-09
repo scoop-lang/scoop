@@ -987,7 +987,7 @@ JSON／CLI 的现有解析适配通过 platform 数值入口复用精确解析�
 
 ## 7. 程序启动与退出
 
-工具链按目标交付预编译 runtime，普通程序链接默认消费所选 sysroot 的 runtime 索引与对象；显式源码构建和对象覆盖遵守实现规范 2.7、2.8。索引消费只检查实际目标、runtime ABI 与部署兼容性，不要求生产与消费工具路径相同，也不改变本节的启动顺序。
+工具链按目标及运行配置交付一份预编译 runtime native 归档（`.a`／`.lib`）及索引，普通程序链接默认直接消费所选 sysroot 的归档，不提取独立 `.o`；显式源码构建和对象覆盖遵守实现规范 2.7、2.8。索引消费只检查实际目标、runtime ABI 与部署兼容性，不要求生产与消费工具路径相同，也不改变本节的启动顺序。
 
 启动先保存 2.8 的原始 argc/argv，建立运行时基础状态并验证全部 image/registration，再建立 GC、主线程与可执行 managed boundary。任何 managed initializer、Context 分配、argv 的 managed 构造或 main 之前必须完成相应登记；C coordinator 不提前构造未登记的 String 或 Array。
 

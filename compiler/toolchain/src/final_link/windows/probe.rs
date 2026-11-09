@@ -55,11 +55,11 @@ pub(super) fn check(
         },
     );
     let mut command = profile.command(directory.path(), &output)?;
-    for object in objects {
+    for object in &objects {
         crate::windows_native::input(
             &mut command,
             crate::windows_native::kind(profile.linker_driver()),
-            &object,
+            object,
         );
     }
     if profile.cxx() {
@@ -76,7 +76,7 @@ pub(super) fn check(
     profile.trace(&mut command);
     let result = run(&mut command)?;
     let mut inputs: BTreeSet<_> = profile
-        .traced_inputs(&result, directory.path())
+        .traced_inputs(&result, directory.path(), &objects)
         .into_iter()
         .collect();
     inputs.insert(profile.data.unwind_prefix.join("lib/libunwind.a"));

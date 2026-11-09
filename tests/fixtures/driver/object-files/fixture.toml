@@ -2,10 +2,9 @@ schema = 1
 name = "object-files"
 inputs = ["../executable-record/program", "../executable-record/provider", "state.py"]
 tools = ["scoop", "scoopc", "scoop-link", "python"]
-when = { os = ["darwin", "linux"] }
 tags = ["cache", "objects", "multi-cone", "artifact-link", "driver"]
 [vars]
-options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--runtime-root", "${runtime}", "--target-dir", "${work}/target", "--message-format", "json"]
+options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--target-dir", "${work}/target", "--message-format", "json"]
 
 [[steps]]
 name = "prepare"
@@ -19,7 +18,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{glob = "${work}/cache/objects-v1/*", equals = []}]
+checks = [{glob = "${work}/cache/link-archives-v2/*", equals = []}]
 
 [[steps]]
 name = "program"

@@ -128,7 +128,11 @@ class ComponentArchiveTests(unittest.TestCase):
                             "runtime-startup-stats",
                             "runtime-stress-startup-stats",
                         )
-                        for name in ("index.cbor", "objects/runtime.o", "objects/unneeded.h")
+                        for name in (
+                            "index.cbor",
+                            "runtime.lib" if target in WINDOWS_TARGETS else "runtime.a",
+                            "objects/unneeded.o",
+                        )
                     ],
                     "openssl/include/openssl/ssl.h",
                     "openssl/lib/libssl.a",
@@ -438,6 +442,9 @@ class ComponentArchiveTests(unittest.TestCase):
                     "runtime-stress-startup-stats",
                 ):
                     self.assertTrue((lib_root / variant / "index.cbor").is_file())
+                    runtime_archive = "runtime.lib" if target in WINDOWS_TARGETS else "runtime.a"
+                    self.assertTrue((lib_root / variant / runtime_archive).is_file())
+                    self.assertFalse((lib_root / variant / "objects").exists())
 
     def test_packaging_builds_system_libraries_and_runtime(self):
         for target in (

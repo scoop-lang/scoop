@@ -28,14 +28,12 @@ pub(crate) enum ObjectOrigin {
         cone: ConeIdentity,
         member: SlibMemberId,
     },
-    Runtime(RuntimeObjectId),
     Native(NativeObjectId),
 }
 impl std::fmt::Display for ObjectOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Cone { cone, member } => write!(f, "cone-{cone}-{member}"),
-            Self::Runtime(id) => write!(f, "runtime-{id}"),
             Self::Native(id) => write!(f, "native-{id}"),
         }
     }
@@ -43,6 +41,7 @@ impl std::fmt::Display for ObjectOrigin {
 
 pub(crate) struct ProgramInputs<'a> {
     pub objects: Vec<InputObject<'a>>,
+    pub runtime_position: usize,
     pub definitions: BTreeMap<String, DefinitionOwner>,
     pub requirements: BTreeSet<String>,
     pub requirement_origins: BTreeMap<String, Vec<String>>,
@@ -220,13 +219,6 @@ impl<'a> ProgramInputs<'a> {
                     .or_default()
                     .push(format!("runtime object {}", object.id()));
             }
-            objects.push(InputObject {
-                origin: ObjectOrigin::Runtime(object.id()),
-                bytes: ObjectBytes::File {
-                    path: object.path().to_owned(),
-                },
-                digest: object.digest(),
-            });
         }
         let root = root.ok_or_else(|| error("executable closure has no root entry"))?;
         let string_target = string_target
@@ -254,6 +246,7 @@ impl<'a> ProgramInputs<'a> {
                 .map(|symbol| (*symbol).to_owned()),
         );
         let mut result = Self {
+            runtime_position: objects.len(),
             objects,
             definitions,
             requirements,
