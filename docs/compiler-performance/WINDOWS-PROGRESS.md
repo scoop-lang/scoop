@@ -19,7 +19,7 @@
 | W7 剩余记录 | 实现及三平台相关功能验证完成 |
 | W8 PM 管道通信 | 实现及三平台相关功能验证完成 |
 | W9 剩余热点与发行文件量 | 累计优化计时、零丢失事件跟踪、热点和准备文件量统计完成 |
-| W11 三平台安装包 | macOS／Linux 最终包与安装验收完成，Windows 打包中 |
+| W11 三平台安装包 | 三平台打包、七目标安装运行、六目标图形验证及临时目录清理完成 |
 
 Linux 工作目录为 `~/repos/scoop-windows-performance-20261110`，Windows 为 `E:/scoop-windows-performance-20261110`；均从同一基线建立，未改动已有 checkout。原始报告和日志保存在各自主机的仓库外工作目录。
 
@@ -234,8 +234,34 @@ UI 的一次成功 CPU 跟踪共取得 232,162 个 `scoopc` 样本，其中 LLVM
 | 每种 runtime 配置的发布结果 | 各平台均为 2 文件：归档与 index；归档内部成员分别为 Darwin 99、Linux 101、Windows 104。本轮准备 8／8／12 种目标与 runtime 配置组合，内部成员不能算作发布的小文件 |
 | MinGW 公共头 | 3,748 份，两种 CRT 目标共用一份已存在的发行布局 |
 | 每个 MinGW 目标 | 2 份配置头、951 份目标库／对象以及 1 份 compiler-rt builtins；未按 Cone 再复制 |
-| 安装后 API 文档 | Darwin 每目标 5,178 个 HTML 页面，GNU Linux 5,165、musl 2,837；页面、资源与源码页面属于显式 post-install/doc 输出 |
+| 安装后 API 文档 | Darwin 每目标 5,178 个 HTML 页面，GNU Linux 5,165、musl 2,837、Windows 每目标 5,171；页面、资源与源码页面属于显式 post-install/doc 输出 |
 
 发行组装按公共源码、公共头和目标库的既有组件边界执行，不逐 Cone 拷贝整个 SDK；sysroot 准备只发布已知的 runtime 结果。普通应用消费预编译库和 runtime，不进入第三方源码解包、维护者库构建或 API 文档生成。显式 IR dump 与 fixture 日志继续按各自请求产生，不并入普通 build 的小文件收益。
 
 集中跨平台复验已覆盖 Linux 的路径／协议／管道、身份与 C 布局测试及 18 个不同的正式 CLI 用例；Windows 覆盖对应协议／管道／身份测试、MSVC／MinGW 三目标六种优化组合的真实 C 桥，以及原生 C++、DLL、资源、启动参数、检查、PM 和进度。最终预演清理另在 Linux 通过 8 项链接测试和 3 个 CLI 用例（50 次进程操作）；Windows 的真实 CRT、C++、SEH、PDB、DLL 测试通过，4 个最终 CLI 用例通过（31 次 runner 进程操作），包括 `per-cone-compiler-progress` 和 `check-basic-and-update`。进度脚本内部的实际子命令另有自己的断言，不将 runner 统计视作完整 ETW 进程数。实现、输出和失败语义保持；原始测量、跟踪及测试报告均在仓库外。
+
+## 2026-11-10：三平台发行与安装验收
+
+最终发行版本为 `0.0.0-dev.20261110`，三平台打包使用同一源码 revision `d5e40a4e1aef0ec178d0c55ea8328540e95fc0ef`。后续提交只补充任务及验收记录，不改变包中生产代码。每个平台的组件归档、安装清单和许可证均由正式打包入口生成。
+
+| 平台 | 组件归档数 | 归档总字节数 | 目标 |
+| --- | ---: | ---: | --- |
+| macOS | 7 | 1,375,998,308 | AArch64、x86-64 Darwin |
+| Linux | 6 | 1,145,885,476 | x86-64 GNU、musl |
+| Windows | 11 | 1,944,266,892 | x86-64 MSVC UCRT、MinGW UCRT、MinGW MSVCRT |
+
+以上数量包含独立 LLVM 源码归档；安装编译验收按宿主组件清单解包运行资源，不为此重新展开 LLVM 上游源码。三个平台分别保存在以下仓库外工作目录，归档位于其 `dist/<平台>/scoop-0.0.0-dev.20261110/`，实际解包安装位于 `install <平台>/`：
+
+- macOS：`/Volumes/Data/home/chenxu/repos/scoop-windows-performance-20261110-work`，平台目录名为 `macos`。
+- Linux（`nuc12`）：`/home/chenxu/repos/scoop-windows-performance-20261110-work`，平台目录名为 `linux`。
+- Windows（`192.168.2.67`）：`E:/scoop-windows-performance-20261110-work`，平台目录名为 `windows`。
+
+安装验收清除开发用的 `SCOOP*`、LLVM 定位及动态库路径覆盖，保留宿主实际 SDK 与工具环境；使用安装目录中的五个 CLI 和 LLDB 检查版本，普通应用不传开发 sysroot 或配套编译器路径。所有平台的版本检查通过；Windows 另将 `PATH` 限制到系统目录，五个 CLI 和 LLDB 仍全部成功启动，确认包内工具可以定位所需运行库。macOS 两目标、Linux 两目标和 Windows 三目标均完成泛型／GC 程序的冷构建、运行和无变化复用，实际 native C 库链接及返回码 42，以及预编译 crypto／TLS 的链接运行。
+
+额外的 Skia 离屏绘图检查已在六个提供 GUI 组件的目标全部通过：创建 4×4 RasterSurface、清为红色、读取并断言像素，再完成资源释放和 GC。macOS 的 x86-64 程序通过 Rosetta 实际执行，Linux musl 发行不提供 GUI 组件，未将其计入该组。
+
+安装后的 `post-install --all-targets --jobs 6` 在 macOS、Linux、Windows 分别以 398.16 秒、559.08 秒和 2,150.62 秒完成，全部目标的离线 API 文档及索引检查通过。Windows 在 MSVC 目标完成后，将剩余两个目标以相同安装工具和缓存、各自的文档输出目录并行生成；额外的 UCRT 调用耗时 992.92 秒，原始 `--all-targets` 调用复用其结果并正常完成。这些耗时属于安装验收记录，不是跨平台或顺序生成的性能基准。Windows MSVC 的 `scoop.ui.component` 文档编译调用为 631.57 秒；所有文档编译结束后才发布 HTML 页面，前端处理耗时与页面文件量分别记录。
+
+显式文档输出单独计量：最终进度 fixture 的文档步骤产生 6 个 HTML、2 个 JavaScript、1 个 SVG 和 1 个 CSS 文件；native／DLL 专测没有这些文档页。fixture runner 将各步骤的输出收入一份结果 JSON，不按每个 stdout／stderr 再产生独立日志文件；本轮仓库外安装测量脚本保存分开的流日志，属于测量器自身输出。
+
+三平台正式打包与安装验收全部通过，没有留下未闭合的打包脚本问题。最终清理了各平台的 fixture 工作目录、专用测试缓存、已完成的 GUI 准备工作目录和安装运行测试副本；Windows 另删除测量工作副本、三套对比工具及 scratch。保留最终归档与安装目录、准备好的系统库、Cargo／Cone／runtime 构建缓存，以及仓库外的原始 ETL、解析报告、日志和必要符号表。工作分支与原始源码 checkout 保留，方便继续审阅和开发。
