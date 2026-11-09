@@ -99,8 +99,8 @@ W0 为各项保留改动前对照，不是重新讨论是否更换分配器的�
 
 ### W3：Windows 宿主编译器更换 malloc
 
-- [ ] 在 Windows `scoopc` 的 Rust 分配路径接入成熟替代分配器，优先评估并采用 `mimalloc`；必要时将同样存在分配热点的宿主 CLI 一并接入，不自行实现分配器。
-- [ ] 实施前核对维护状态、许可证、Windows MSVC/GNU 构建支持和当前依赖版本。2026-11-10 查询 [mimalloc crate](https://crates.io/crates/mimalloc) 得到版本 `0.1.52`、更新日期 2026-05-22，可作为当前候选起点。
+- [x] 在 Windows `scoopc` 的 Rust 分配路径接入成熟替代分配器 `mimalloc`；必要时将同样存在分配热点的宿主 CLI 一并接入，不自行实现分配器。
+- [x] 实施前核对维护状态、许可证、Windows MSVC/GNU 构建支持和当前依赖版本。2026-11-10 查询 [mimalloc crate](https://crates.io/crates/mimalloc) 得到版本 `0.1.52`、更新日期 2026-05-22；依赖与本地验证情况见实施记录，Windows 实际编译和测量待完成。
 - [ ] 以相同源码、优化配置和 jobs 对比默认堆与替代分配器，记录前端各阶段耗时、总耗时及 RSS；检查大量小对象分配/释放的热点变化。
 - [ ] 区分 Rust 全局分配器和动态 LLVM/C++ 库的分配。`#[global_allocator]` 不会自动替换后者；采样确认还有 LLVM 堆热点时再确定对应构建改动，保持跨库分配与释放匹配。
 

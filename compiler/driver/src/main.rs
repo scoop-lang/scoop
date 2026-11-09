@@ -9,6 +9,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 mod check;
 mod child_protocol;
 
+// Only Rust allocations use this allocator; LLVM owns its native allocations.
+#[cfg(windows)]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[derive(Parser)]
 #[command(name = "scoopc", version = scoop_toolchain::VERSION, about = "The Scoop compiler")]
 struct Cli {

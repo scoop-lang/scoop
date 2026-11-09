@@ -11,7 +11,8 @@
 | W0 Windows 基线 | 两台远程主机已连通并建立独立工作目录，测量待进行 |
 | W2 检查成功缓存 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W10 编译进度 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
-| W1/W3～W9 | 待实施 |
+| W3 Windows 分配器 | 接入 mimalloc，本地验证完成；Windows 对比进行中 |
+| W1/W4～W9 | 待实施 |
 | W11 三平台安装包 | 待全部实现和验证完成后执行 |
 
 Linux 工作目录为 `~/repos/scoop-windows-performance-20261110`，Windows 为 `E:/scoop-windows-performance-20261110`；均从同一基线建立，未改动已有 checkout。原始报告和日志保存在各自主机的仓库外工作目录。
@@ -37,8 +38,16 @@ macOS AArch64 本地结果：
 
 ## 2026-11-10：逐 Cone 编译进度
 
+提交 `0879480068` 已推送，并合并当时最新 `origin/main`（已是最新）。
+
 human 模式在真实 `scoopc` 调用前输出 `Compiling`、`Checking` 或 `Documenting` 及 Cone 坐标；调用结束输出 `Finished` 或 `Failed` 和两位小数的秒数。使用单调时钟计时，每行一次加锁写入 stderr。缓存命中没有编译起止信息，JSON 模式保持原格式，原始诊断与最终命令摘要保留。
 
 macOS AArch64 上 workspace Clippy、Rust 格式化、Ruff 0.16.10 和 release CLI 构建通过。12 个相关正式用例完成验证：新增用例使用两个可并发依赖和一个根，覆盖起止配对、耗时格式、缓存复用、JSON/human 切换、检查、文档生成以及真实编译失败；已有用例覆盖生成器日志、warning、错误诊断和命中后的输出。新增用例的两处既有摘要格式期望修正后，仅重跑该用例通过，没有扩大测试范围。
 
 日志和报告保留在仓库外；本轮 fixture 工作目录及专用缓存清理，跨平台复验留待集中进行。
+
+## 2026-11-10：Windows scoopc 分配器
+
+仅在 Windows `scoopc` 可执行程序启用 `#[global_allocator]`，使用 `mimalloc 0.1.52`，锁定的底层库为 `libmimalloc-sys 0.1.49`（默认 mimalloc v3.3.2）。依赖采用 MIT 许可；已检查上游 C 构建脚本的 MSVC C++17 路径、GNU C 路径及 Windows 系统库链接。不开启 malloc 符号覆盖，不接管动态 LLVM 的 C++ 分配，不影响 Scoop runtime 的 GC。
+
+macOS 上格式化、workspace all-targets Clippy 和 release `scoopc` 构建通过；该平台不编译或启用 mimalloc。Windows 实际构建及同输入、同 LLVM/Rust、同 jobs 的默认堆对比正在进行，尚未得到速度和内存收益数据。基线保留进度输出提交 `0879480068`，临时测量脚本和结果留在仓库外。
