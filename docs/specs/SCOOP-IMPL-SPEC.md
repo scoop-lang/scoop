@@ -953,7 +953,7 @@ MIR `identity-foundation/6` 与 LIR foundation 保存实际实现的实体目录
 
 归档输出至 `tmp/dist/scoop-<version>/` 或显式输出目录，全部成功后写入 `packages-<host>.list`；发布侧只从该清单选取本次附件。安装根继续包含 `bin`、`commands`、`lib/<target>`、`include`、`src`、`vendor`、`native`、`libexec`、`share`、`tooling` 和 post-install 入口。commands 按原内容和 executable 权限复制，空目录仍进入包，`.gitkeep` 不进入包。VSIX 按 npm lockfile 构建，源码 revision、版本与宿主写入纯文本 VERSION 和说明性 toolchain.toml；docs 由安装后生成。默认 LLVM 输入缺失时由维护脚本取得固定上游归档，显式输入失败照常报错。宿主／目标集合不变，Darwin AArch64 同时发行两个 Darwin 目标，Linux GNU 同时发行 GNU／musl。
 
-Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 29，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
+Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 30，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
 
 post-install 使用 POSIX shell／PowerShell 和配套 `scoop`／`scoopc`，只负责为已安装的所选目标生成离线 API 文档，不再构建系统 `.slib`。发行清单保存默认目标及各目标的有序 Cone 目录清单，并在 `share/scoop/install` 以逐行文本提供相同选择供脚本读取；`targets.list` 列出本 release 为该 host 提供的目标，首行为默认目标，`<target>.list` 为该目标非 GUI Cone 的目录顺序，`<target>.gui.list` 为 GUI Cone 的目录顺序（该目标无 GUI Cone 时不生成）。清单由既有生产 sources 条件与依赖选择得到，仅用于文档编排。默认处理宿主的默认目标；`--target` 可选择其他随包目标，`--all-targets` 处理全部已安装的目标并跳过未安装的目标。post-install 对每个选中目标先检查 `lib/<canonical-target-triple>` 已安装（含系统 `.slib`），缺失时报错并指出应安装的 `scoop-<version>-lib-base-<target>.tar.xz`；`<target>.gui.list` 首个 Cone 的 `.slib` 存在时视为已安装 lib-gui 包，GUI Cone 与非 GUI Cone 一起生成文档，否则只为非 GUI Cone 生成文档。文档生成不执行 Cargo 或重建 vendor 库、LLVM、runtime，也不使用 Python；LLDB 继续携带与自身构建版本匹配的 Python。工作目录保存普通构建缓存、lock 和中间结果，重复运行复用未变化的输入与结果；失败报告实际错误，修正后可重试。日常命令继续只消费 `.slib`，不会隐式运行安装脚本。
 
@@ -1145,7 +1145,7 @@ Windows native C/C++ driver 单独选择：Microsoft 默认使用宿主 LLVM 的
 
 Windows 最终链接的 `--linker` 选择实际 linker：Microsoft 环境默认宿主配套 lld-link，也可显式选择 link.exe；MinGW 使用配套 GNU 接口的 LLD。Microsoft 经 clang-cl driver 传递已选 SDK／toolset 的库目录与正常 CRT defaults，native 对象可来自 cl 或 clang-cl，C++ producer 的选择不改变此链接调用。MinGW 经目标 prefix 的 Clang driver 选择 startup、compiler-rt 与 libc++。三个环境均使用 Unicode wmain startup，动态依赖其已选 CRT；辅助 C++／Scoop unwind archive 可静态加入，不能借此切换 CRT。`--link-mode static` 不适用于首期 Windows `/MD` 资源；默认或 dynamic 使用同一配套。Scoop 的 LLVM unwind archive 始终取已选 `<unwind-prefix>/lib/libunwind.a`，C++ 模式也不替换为另一套 `_Unwind_*` 实现。
 
-Windows final-link 首次使用实际 header/object/link probe 验证 PE32+ AMD64、selected CRT imports、SEH 与所需 C++ 运行库；交叉宿主无需执行目标程序。工具、库搜索目录、实际 trace 输入与 unwind archive 进入普通更新记录，命中时不重新探测。最终 PE 使用 ASLR、NX、REF 裁剪和禁止 ICF；COMDAT 关联保留被选代码的 GC／EH metadata。请求调试信息／调试文件时输出相邻 `<output>.pdb`，沿用已替换文本 map 的统一伴随文件接口；PDB 使用相邻文件名定位，随 executable 一起纳入结果存在性与发布，不把临时目录写入其部署合同。
+Windows final-link 直接准备所选目标、CRT、SEH 与 C++ 运行库的实际链接调用，不先编译或链接探测程序。工具与 SDK 状态不进入更新记录；实际 native 依赖、runtime 和链接参数沿普通更新规则处理。PE、CRT、展开与 C++ 行为由真实产物的编译、链接和运行测试覆盖。最终 PE 使用 ASLR、NX、REF 裁剪和禁止 ICF；COMDAT 关联保留被选代码的 GC／EH metadata。请求调试信息／调试文件时输出相邻 `<output>.pdb`，沿用已替换文本 map 的统一伴随文件接口；PDB 使用相邻文件名定位，随 executable 一起纳入结果存在性与发布，不把临时目录写入其部署合同。
 
 Windows generated-C bridge 的主定义拥有 `WindowsUnwindTable`／`WindowsUnwindInfo` 关联 atom，对应 `.pdata`／`.xdata`，不投影 Unix `EhFrame`。桥编译保留包含叶函数的 frame pointer，使独立桥单元始终有完整的 SEH 表与稳定边界；这些表与桥正文按 COMDAT 关联一起选择和裁剪。该要求独立于优化及调试级别。
 
@@ -1225,7 +1225,7 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 native-app 的共享库只动态导出 `scoop_app_init`。Darwin 使用 `-dylib` 与显式导出表，install name 默认 `@rpath/<最终输出 basename>`；ELF 使用 `-shared` 与将其余定义局部化的 version script，SONAME 默认最终输出 basename；PE 使用普通 DLL CRT 初始化、显式 `.def` 导出，并产生 Microsoft `.lib` 或 LLVM-MinGW `.dll.a` import library。实际函数表中的内部函数地址不要求导出。Darwin install name 与 ELF SONAME 可由各自的最终链接选项覆盖，不能用于 executable 或其他对象格式；名称不能来自临时 candidate 目录。
 
-输出类别、显式 loader name 与固定导出配置进入 final-link 配置及发现缓存；工具 probe 按实际输出类别链接。最终结果复用仍在源码读取、工具发现与链接准备之前判断输入更新；仅新增这些真实链接输入及所需 import library，不读取命中产物复核内容。格式、语言实体与 runtime ABI 不因这组 native 链接选项改变。
+输出类别、显式 loader name 与固定导出配置进入实际 final-link 调用及最终产物的更新判断，不保存工具发现缓存或执行工具预演。最终结果复用仍在源码读取、工具发现与链接准备之前判断输入更新；仅新增这些真实链接输入及所需 import library，不读取命中产物复核内容。格式、语言实体与 runtime ABI 不因这组 native 链接选项改变。
 
 PE 的 native 输入可能通过 `dllexport`／`.drectve` 追加导出；最终共享库的新链接结果在发布前检查固定导出集合，额外导出为普通链接错误，不发布 candidate。该检查不进入缓存命中路径。
 
@@ -1291,7 +1291,7 @@ post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-b
 
 普通 build／run／test 的 executable 和两个 link 命令默认消费 `lib/<canonical-target-triple>/runtime/index.cbor`，不触发 runtime 源码构建。显式 `--runtime-objects` 选择另一份索引；build／run／test 的 `--runtime-root` 明确请求从源码构建，与对象选项互斥。缺失实际需要的索引时报告目标和所选路径，不补建或改选其他目标；library 构建不读取未使用的 runtime。
 
-Linux 和 Windows 的最终链接探测继续编译实际使用 `unwind.h` 的 C 程序。默认头文件从宿主安装根的 `libexec/scoop/include/unwind` 取得，目标 archive 从所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a` 取得。维护构建没有安装公共头时，继续使用准备好的目标 unwind prefix；显式 `--unwind-prefix` 始终同时选择其自身头与 archive。runtime 源码构建仍使用维护 prefix，不要求先组装发行目录。这些路径只在真正需要最终链接时准备，不持久化工具或 SDK 头文件巡检记录。最终程序命中时跳过此探测；显式 runtime 源码构建仍跟踪自身实际源码与头文件输入。
+Linux 和 Windows 的最终链接直接使用所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a`，显式 `--unwind-prefix` 选择该 prefix 的 `lib/libunwind.a`；不为最终链接读取 `unwind.h` 或编译探测程序。实际链接需要时才选择 archive，最终程序命中时跳过链接准备。runtime 源码构建仍使用维护 prefix 的头文件与 archive，不要求先组装发行目录，并按普通更新规则跟踪自身实际源码与头文件输入。随包公共 unwind 头继续供实际源码编译使用，不构成工具资格检查。
 
 runtime 构建使用 `runtime-v11` 普通记录，按实际源码根、选中源码、include／unwind 配置、flags 与目标定位，不将工具或 SDK 状态作为更新输入。命中前只查询上次实际源码、depfile 头文件及 include 候选的路径／mtime／大小；不读取源码、扫描并复制整棵头文件树或重读 compiler 内容。更新时直接从原始源码预处理并编译，观察实际 include 名称；C 编译产生的独立对象只保存在本次临时目录，Darwin 先完成下述空代码标签清理，再读取成员摘要并执行普通对象／ABI 检查，按原排序打成一份 runtime 归档。全部成功后只保留归档、index 与记录，临时对象随构建结束回收。准备脚本复制这两个已知输出，不改写索引或重新提取对象信息。各次结果采用稳定且互不覆盖的位置；所需 index／归档缺失时补产，真实输入缺失照常报错，失败不发布新记录或替换已有结果。本机 metadata 不改变 runtime ABI。
 
