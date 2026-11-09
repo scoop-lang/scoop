@@ -83,7 +83,7 @@ pub fn build_runtime(
     request: RuntimeBuildRequest<'_>,
 ) -> Result<RuntimeBuildOutput, RuntimeBuildError> {
     let inputs = inputs::Inputs::read(&request)?;
-    let namespace = request.cache_root.join("runtime-v8");
+    let namespace = request.cache_root.join("runtime-v10");
     let entry = namespace.join(format!("{}.json", inputs.base_key));
     if let Some(output) = record::load(&entry, request.target)? {
         return Ok(output);
@@ -96,12 +96,14 @@ pub fn build_runtime(
         return Ok(output);
     }
     let staging = tempfile::Builder::new()
-        .prefix("objects-")
+        .prefix("runtime-")
         .tempdir_in(&namespace)
         .map_err(error)?;
-    let object_directory = staging.path().join("objects");
-    std::fs::create_dir(&object_directory).map_err(error)?;
-    let (paths, dependencies) = compile::compile(&request, &inputs, &object_directory)?;
+    let object_directory = tempfile::Builder::new()
+        .prefix(".objects-")
+        .tempdir_in(&namespace)
+        .map_err(error)?;
+    let (paths, dependencies) = compile::compile(&request, &inputs, object_directory.path())?;
     let configuration = RuntimeBuildConfiguration {
         input_key: dependencies.input_key(inputs.base_key)?,
         compiler_inputs: inputs.compiler_inputs,
@@ -114,9 +116,10 @@ pub fn build_runtime(
         request.target.c_bridge_toolchain().profile(),
         configuration,
         paths,
+        staging.path(),
     )
     .map_err(error)?;
-    let index = objects.write_index(staging.path()).map_err(error)?;
+    let index = objects.index_path().to_owned();
     let input_paths = dependencies.input_paths()?;
     let record = record::Record {
         dependencies,

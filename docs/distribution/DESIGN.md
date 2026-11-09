@@ -51,7 +51,7 @@ Windows LLVM 包内，`libLLVM-22.dll` 的 5 份内容相同，每份约 85.1 Mi
 | component | 维度 | 内容与依赖 |
 | --- | --- | --- |
 | `bin-<host>` | 每宿主 | Scoop 命令、外部命令、所需 LLVM 工具及动态库、LLDB／Python、编译器资源、tooling、安装入口、发行说明和对应许可 |
-| `lib-base-<target>` | 每目标 | 非 GUI 系统 `.slib`、native 链接库、四种 runtime 配置的对象与 `index.cbor`、对应许可 |
+| `lib-base-<target>` | 每目标 | 非 GUI 系统 `.slib`、native 链接库、四种 runtime 配置各一份 `.a`／`.lib` 与 `index.cbor`、对应许可 |
 | `lib-gui-<target>` | 有 GUI 的目标 | GUI `.slib`、Skia 及其他 GUI 链接输入、对应许可；依赖同目标 base |
 | `native-<target>` | 两个 MinGW 目标 | CRT 配置头、启动对象、Windows／CRT 导入库、C++ 目标库及必要 compiler-rt；通过同版本 Windows bin 取得公共工具和头文件 |
 | `sources` | 全局 | 内置 Cone 源码、vendor 输入、Rust native 维护源码、公开 Scoop FFI 头和示例 |
@@ -101,7 +101,7 @@ base／GUI 包按现有 Cone 划分和具体 native 库清单复制链接产物�
 “只保留链接产物”有以下必要组成，不使用仅允许三种扩展名的统一过滤器：
 
 - `.slib`、普通对象、静态库及目标平台实际使用的导入库。
-- 四种已支持 runtime 配置的 `index.cbor` 和它们引用的对象，保持索引内相对布局。
+- 四种已支持 runtime 配置各一份 `index.cbor` 和它引用的 `runtime.a`／`runtime.lib`，保持索引内相对布局；不交付独立 runtime `.o`。
 - Linux GUI 当前使用的 GTK／libadwaita／Cairo／tray 等 `.so` 链接输入。程序仍使用系统桌面运行库，本轮不改变其动态链接合同。
 - 各已交付组件的许可证与版权通知，继续放在 `share/licenses`。
 
@@ -242,7 +242,7 @@ post-install 继续按已安装 base／GUI 选择文档来源。缺少 MinGW nat
 在打包专测中检查新组件集合、文件归属和必要别名。使用小型输入覆盖组装选择，候选发行再检查真实归档；这些检查不成为运行时或缓存命中的工作。
 
 - 不生成独立的 `llvm-<host>` 包；合并 bin 不含 LLVM SDK include、CMake exports、SDK 静态库和仅用于维护的工具。
-- base／GUI 不含第三方开发头或 target 工具链；runtime index、对象、必要 `.so` 和许可均保留。
+- base／GUI 不含第三方开发头或 target 工具链；runtime index、归档、必要 `.so` 和许可均保留。
 - MinGW native 包没有 executable、Python、BusyBox、其他架构／OS 的运行库；公共头只由 bin 提供一次，目标配置与库各自对应 CRT。
 - 相同宿主 DLL 和实际别名在 bin tar 中只保存一份数据；所有硬链接目标均位于同一归档，解包后链接关系与文件内容可用。
 - 保留真实输入变化、普通缺失输入、失败不发布及已有并发协调覆盖；不删除、移走或隐藏源码、工具或原产物来证明后续阶段独立。

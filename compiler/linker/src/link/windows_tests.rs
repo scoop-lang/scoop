@@ -219,11 +219,24 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
             .arg("--output-lib")
             .arg("libbundled.a"),
     );
+    let initializer_source = scratch.join("selected initializer.c");
+    let initializer_object = scratch.join("selected initializer.obj");
+    std::fs::write(
+        &initializer_source,
+        "extern int selected_archive_initializer;\n__attribute__((constructor)) static void initialize(void) { selected_archive_initializer = 29; }\n",
+    )
+    .unwrap();
+    checked(
+        &mut profile
+            .startup_toolchain()
+            .object_compilation_command(&initializer_source, &initializer_object),
+    );
     checked(
         Command::new(tool("SCOOP_TEST_CLANG").with_file_name("llvm-ar.exe"))
             .arg("rcs")
             .arg(&bundled)
-            .arg(&static_object),
+            .arg(&static_object)
+            .arg(&initializer_object),
     );
     let bundled_key = NativeLinkRequirementKey::for_target(
         profile.target().wire_id(),
@@ -256,10 +269,22 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
     let bundled_input = native.libraries[&bundled_id].inputs[0];
     let bundled_file = &native.files[&bundled_input];
     assert!(bundled_file.candidate("imported_function").is_none());
-    let member = bundled_file.candidate("static_function").unwrap().0;
-    let (_, range) = native.object(member).unwrap();
-    let extracted = scratch.join("extracted static.obj");
-    std::fs::write(&extracted, &bundled_file.bytes[range]).unwrap();
+    let selected =
+        [&static_object, &initializer_object].map(|path| sha256(&std::fs::read(path).unwrap()));
+    let objects: Vec<_> = bundled_file
+        .objects()
+        .into_iter()
+        .filter(|(_, _, _, digest)| selected.contains(digest))
+        .map(|(id, _, range, digest)| crate::program::InputObject {
+            origin: crate::program::ObjectOrigin::Native(id),
+            bytes: crate::program::ObjectBytes::Native {
+                file: std::sync::Arc::clone(&bundled_file.bytes),
+                range,
+            },
+            digest,
+        })
+        .collect();
+    assert_eq!(objects.len(), 2);
     let mut namespace = NativeNamespace::read(&mut native, &[], profile).unwrap();
     for (symbol, kind) in [
         ("imported_function", NativeSymbolKind::Function),
@@ -298,8 +323,9 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
             ],
         })
         .collect();
-    let inputs = ProgramInputs {
-        objects: Vec::new(),
+    let mut inputs = ProgramInputs {
+        runtime_position: objects.len(),
+        objects,
         definitions: BTreeMap::new(),
         requirements: BTreeSet::new(),
         requirement_origins: BTreeMap::new(),
@@ -321,8 +347,6 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         );
         panic!("{}: {error}; {info:?}", profile.canonical_triple());
     });
-    let startup_path = scratch.join("generated startup.obj");
-    std::fs::write(&startup_path, &startup.bytes).unwrap();
     let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime");
     let arguments = scratch.join("UTF-16 arguments.obj");
     compile_runtime(
@@ -355,17 +379,72 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
     compile_runtime(profile, &boundary_source, &boundary_object, &runtime);
     let executable = scratch.join("程序.exe");
     let pdb = scratch.join("公布 程序.exe.pdb");
-    runtime_objects.extend([startup_path, boundary_object, extracted]);
+    runtime_objects.push(boundary_object);
+    let mut objects: Vec<_> = runtime_objects
+        .iter()
+        .map(|path| {
+            let bytes = std::fs::read(path).unwrap();
+            let digest = sha256(&bytes);
+            let id = crate::native_input::NativeInputId::from_digest(
+                digest,
+                bytes.len() as u64,
+                crate::native_input::NativeFileKind::Object,
+                profile,
+            )
+            .unwrap();
+            crate::program::InputObject {
+                origin: crate::program::ObjectOrigin::Native(
+                    crate::native_input::NativeObjectId::Direct(id),
+                ),
+                bytes: crate::program::ObjectBytes::File { path: path.clone() },
+                digest,
+            }
+        })
+        .collect();
+    objects.append(&mut inputs.objects);
+    inputs.objects = objects;
+    let cache = scratch.join("object cache");
+    let build_archives = || -> Result<Vec<PathBuf>, LinkError> {
+        let (runtime, native) = inputs.objects.split_at(runtime_objects.len());
+        let mut archives = archive::build(profile.target(), Some(&startup.bytes), runtime, &cache)?;
+        archives.extend(archive::build(profile.target(), None, native, &cache)?);
+        Ok(archives)
+    };
+    let archives = build_archives().unwrap();
     let traced = pe::link(
         windows,
         &inputs,
         scratch,
-        &runtime_objects,
+        &archives,
         &executable,
         Some(&pdb),
         false,
     )
     .unwrap();
+    assert_eq!(archives.len(), 2);
+    assert_ne!(archives[0].file_name(), archives[1].file_name());
+    let members: usize = archives
+        .iter()
+        .map(|path| {
+            let bytes = std::fs::read(path).unwrap();
+            object::read::archive::ArchiveFile::parse(bytes.as_slice())
+                .unwrap()
+                .members()
+                .count()
+        })
+        .sum();
+    assert_eq!(members, inputs.objects.len() + 1);
+    let modified = || {
+        archives
+            .iter()
+            .map(|path| path.metadata().unwrap().modified().unwrap())
+            .collect::<Vec<_>>()
+    };
+    let before = modified();
+    assert_eq!(build_archives().unwrap(), archives);
+    assert_eq!(modified(), before);
+    assert!(traced.iter().all(|path| !path.starts_with(&cache)));
+    assert!(!cache.join("objects-v1").exists());
     assert!(traced.iter().any(|path| {
         path.file_name()
             .is_some_and(|name| name == "ucrt.lib" || name == "libmsvcrt.a")

@@ -48,11 +48,11 @@ fn missing_runtime_vendor_reports_the_selected_path() {
             .to_string()
             .contains(&format!("vendor source root {}:", missing.display()))
     );
-    assert!(!directory.path().join("runtime-v8").exists());
+    assert!(!directory.path().join("runtime-v10").exists());
 }
 
 #[test]
-fn actual_runtime_objects_roundtrip_and_reuse_paths() {
+fn actual_runtime_archive_roundtrips_and_reuses_paths() {
     let target = ResolvedTargetProfile::resolve_host().unwrap();
     let cache = tempfile::tempdir().unwrap();
     let build = || {
@@ -75,6 +75,13 @@ fn actual_runtime_objects_roundtrip_and_reuse_paths() {
         .compiler_generated_object_symbol("scoop_rt_run_program");
     let first = build();
     assert!(!first.cache_hit());
+    let modified = first
+        .objects()
+        .archive_path()
+        .metadata()
+        .unwrap()
+        .modified()
+        .unwrap();
     index::check_relocation_and_compatible_toolchains(&first, &target);
     assert_eq!(
         first.objects().objects().len(),
@@ -88,85 +95,35 @@ fn actual_runtime_objects_roundtrip_and_reuse_paths() {
         second.objects().fingerprint()
     );
 
-    let moved = tempfile::tempdir().unwrap();
-    let index = first.objects().write_index(moved.path()).unwrap();
-    let read = RuntimeObjectSet::read_index(
-        &index,
-        target.lir_target(),
-        target.c_bridge_toolchain().profile(),
-    )
-    .unwrap();
-    assert_eq!(read.fingerprint(), first.objects().fingerprint());
-    let mut reversed: Vec<_> = read
-        .objects()
-        .iter()
-        .map(|object| object.path().to_owned())
-        .collect();
-    reversed.reverse();
-    let reordered = RuntimeObjectSet::from_paths(
-        target.lir_target(),
-        target.c_bridge_toolchain().profile(),
-        read.configuration().clone(),
-        reversed,
-    )
-    .unwrap();
-    assert_eq!(read.fingerprint(), reordered.fingerprint());
-
-    let missing_entry = read
-        .objects()
-        .iter()
-        .filter(|object| !object.info().definitions.contains_key(&startup))
-        .map(|object| object.path().to_owned())
-        .collect();
-    assert!(
-        RuntimeObjectSet::from_paths(
-            target.lir_target(),
-            target.c_bridge_toolchain().profile(),
-            read.configuration().clone(),
-            missing_entry
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("startup entry")
-    );
-    let mut duplicate: Vec<_> = read
-        .objects()
-        .iter()
-        .map(|object| object.path().to_owned())
-        .collect();
-    duplicate.push(duplicate[0].clone());
-    assert!(
-        RuntimeObjectSet::from_paths(
-            target.lir_target(),
-            target.c_bridge_toolchain().profile(),
-            read.configuration().clone(),
-            duplicate
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("duplicate object IDs")
-    );
-
     assert_eq!(
-        first
-            .objects()
-            .objects()
-            .iter()
-            .map(|o| o.path())
-            .collect::<Vec<_>>(),
+        first.objects().input_paths(),
+        second.objects().input_paths()
+    );
+    assert_eq!(
         second
             .objects()
-            .objects()
-            .iter()
-            .map(|o| o.path())
-            .collect::<Vec<_>>()
+            .archive_path()
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap(),
+        modified
     );
-    std::fs::remove_file(first.objects().objects()[0].path()).unwrap();
-    let rebuilt = build();
-    assert!(!rebuilt.cache_hit());
+    assert_eq!(first.objects().input_paths().len(), 2);
     assert_eq!(
-        first.objects().fingerprint(),
-        rebuilt.objects().fingerprint()
+        std::fs::read_dir(first.index().parent().unwrap())
+            .unwrap()
+            .count(),
+        2
+    );
+    assert!(
+        std::fs::read_dir(cache.path().join("runtime-v10"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".objects-"))
     );
 }
 
@@ -237,7 +194,7 @@ fn runtime_cache_tracks_sources_headers_candidates_and_flags() {
     assert!(!build(RuntimeOptimization::None).cache_hit());
     assert!(!build(RuntimeOptimization::Optimized).cache_hit());
     let records = || {
-        std::fs::read_dir(cache.join("runtime-v8"))
+        std::fs::read_dir(cache.join("runtime-v10"))
             .unwrap()
             .map(|e| e.unwrap().path())
             .filter(|p| p.extension().is_some_and(|e| e == "json"))

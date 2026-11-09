@@ -69,6 +69,17 @@ impl WireEncode for RuntimeObject {
     }
 }
 
+impl WireDecode for RuntimeObject {
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, WireError> {
+        d.expect_map(4)?;
+        Ok(Self {
+            id: RuntimeObjectId(d.field(1, Digest256::decode)?),
+            digest: d.field(2, Digest256::decode)?,
+            info: NativeObjectInfo::decode_fields(d, 3)?,
+        })
+    }
+}
+
 pub(super) struct ArtifactKey<'a> {
     pub target: LirTargetProfile,
     pub toolchain: &'a [u8],

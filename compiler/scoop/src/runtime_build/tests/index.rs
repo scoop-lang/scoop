@@ -16,13 +16,11 @@ pub(super) fn check_relocation_and_compatible_toolchains(
     assert_ne!(consumer, *target.c_bridge_toolchain().profile());
     let read = RuntimeObjectSet::read_index(&index, target.lir_target(), &consumer).unwrap();
     assert_eq!(read.fingerprint(), build.objects().fingerprint());
-    for (original, moved) in build.objects().objects().iter().zip(read.objects()) {
-        assert!(moved.path().starts_with(&directory));
-        assert_eq!(
-            std::fs::read(original.path()).unwrap(),
-            std::fs::read(moved.path()).unwrap()
-        );
-    }
+    assert!(read.archive_path().starts_with(&directory));
+    assert_eq!(
+        std::fs::read(build.objects().archive_path()).unwrap(),
+        std::fs::read(read.archive_path()).unwrap()
+    );
     let wrong_target = if target.lir_target() == scoop_target_data::LINUX_X86_64_GNU {
         scoop_target_data::LINUX_X86_64_MUSL
     } else {

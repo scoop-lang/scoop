@@ -2,11 +2,18 @@ use super::*;
 
 pub(super) const FILE_NAME: &str = "objects.rsp";
 
-pub(super) fn write_objects(directory: &Path, paths: &[PathBuf]) -> Result<(), LinkError> {
+pub(super) fn write_paths(directory: &Path, paths: &[PathBuf]) -> Result<(), LinkError> {
+    write_arguments(directory, paths.iter().map(|path| path.as_os_str()))
+}
+
+fn write_arguments<'argument>(
+    directory: &Path,
+    arguments: impl IntoIterator<Item = &'argument std::ffi::OsStr>,
+) -> Result<(), LinkError> {
     let mut contents = Vec::new();
-    for path in paths {
+    for argument in arguments {
         contents.push(b'"');
-        for byte in path.as_os_str().as_encoded_bytes() {
+        for byte in argument.as_encoded_bytes() {
             if matches!(byte, b'\\' | b'"') {
                 contents.push(b'\\');
             }
@@ -17,20 +24,23 @@ pub(super) fn write_objects(directory: &Path, paths: &[PathBuf]) -> Result<(), L
     write_new(&directory.join(FILE_NAME), &contents)
 }
 
-pub(super) fn write_pe_objects(
+pub(super) fn write_pe_arguments(
     directory: &Path,
-    paths: &[PathBuf],
+    arguments: &[std::ffi::OsString],
     microsoft: bool,
 ) -> Result<(), LinkError> {
     if !cfg!(windows) && !microsoft {
-        return write_objects(directory, paths);
+        return write_arguments(
+            directory,
+            arguments.iter().map(|argument| argument.as_os_str()),
+        );
     }
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
         let mut contents = vec![0xff, 0xfe];
-        for path in paths {
-            let argument: Vec<_> = path.as_os_str().encode_wide().collect();
+        for argument in arguments {
+            let argument: Vec<_> = argument.encode_wide().collect();
             for unit in windows_quote(&argument) {
                 contents.extend_from_slice(&unit.to_le_bytes());
             }
@@ -39,9 +49,9 @@ pub(super) fn write_pe_objects(
     }
     #[cfg(not(windows))]
     {
-        let contents: Vec<u8> = paths
+        let contents: Vec<u8> = arguments
             .iter()
-            .flat_map(|path| windows_quote(path.as_os_str().as_encoded_bytes()))
+            .flat_map(|argument| windows_quote(argument.as_encoded_bytes()))
             .collect();
         write_new(&directory.join(FILE_NAME), &contents)
     }

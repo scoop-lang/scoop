@@ -35,17 +35,15 @@ mod build_record;
 mod native;
 mod native_driver;
 mod native_record;
-mod object_file;
 mod paths;
-mod windows_native;
-mod windows_resource;
-pub use object_file::{object_path, store_object};
 mod registry;
 mod request;
 mod runtime;
 mod system_provider;
 mod trusted_core;
 mod unwind;
+mod windows_native;
+mod windows_resource;
 
 pub use cxx::ValidatedCxxToolchain;
 pub use final_link::{

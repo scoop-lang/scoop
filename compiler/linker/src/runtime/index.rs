@@ -1,5 +1,4 @@
 use super::*;
-use std::path::{Path, PathBuf};
 
 use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError, decode_canonical};
 
@@ -10,20 +9,14 @@ struct Index {
     configuration: RuntimeBuildConfiguration,
     abi: Digest256,
     fingerprint: Digest256,
-    objects: Vec<IndexObject>,
+    objects: Vec<RuntimeObject>,
     merged: NativeObjectInfo,
     deployment: super::deployment::RuntimeDeployment,
-}
-
-struct IndexObject {
-    id: RuntimeObjectId,
-    digest: Digest256,
-    info: NativeObjectInfo,
-    locator: String,
+    archive: String,
 }
 
 impl RuntimeObjectSet {
-    /// Read the saved link data; native tools consume the original object files.
+    /// Read the saved link data without opening the native runtime archive.
     pub fn read_index(
         path: &Path,
         target: LirTargetProfile,
@@ -38,7 +31,7 @@ impl RuntimeObjectSet {
             ))
         })?;
         let index: Index = decode_canonical(&bytes).map_err(error)?;
-        if index.schema != 7
+        if index.schema != 8
             || index.target != encode(&target.wire_id()).map_err(error)?
             || index.abi.as_array() != RuntimeAbiContract.fingerprint().map_err(error)?.as_array()
             || toolchain.contract().target() != &target.wire_id()
@@ -51,65 +44,22 @@ impl RuntimeObjectSet {
         let directory = path
             .parent()
             .ok_or_else(|| error("runtime index has no parent"))?;
-        let objects: Vec<_> = index
-            .objects
-            .into_iter()
-            .map(|record| {
-                let relative = object_path(&record.locator)?;
-                Ok(RuntimeObject {
-                    id: record.id,
-                    digest: record.digest,
-                    info: record.info,
-                    path: directory.join(relative),
-                })
-            })
-            .collect::<Result<_, LinkError>>()?;
-        let input_paths = std::iter::once(path.to_owned())
-            .chain(objects.iter().map(|object| object.path.clone()))
-            .collect();
+        let archive = directory.join(archive_path(&index.archive)?);
         Ok(Self {
             target,
             toolchain: index.toolchain,
             deployment: index.deployment,
             configuration: index.configuration,
-            objects,
+            objects: index.objects,
             merged: index.merged,
             fingerprint: RuntimeArtifactFingerprint(index.fingerprint),
-            input_paths,
+            input_paths: [path, archive],
         })
     }
 
-    pub fn write_index(&self, directory: &Path) -> Result<PathBuf, LinkError> {
-        std::fs::create_dir_all(directory).map_err(error)?;
-        let absolute_directory = std::path::absolute(directory).map_err(error)?;
-        let objects = self
-            .objects
-            .iter()
-            .map(|object| {
-                let path = std::path::absolute(&object.path).map_err(error)?;
-                let relative =
-                    pathdiff::diff_paths(path, &absolute_directory).ok_or_else(|| {
-                        error("runtime object and index must use the same filesystem root")
-                    })?;
-                let locator = relative
-                    .to_str()
-                    .ok_or_else(|| error("runtime index object path must be UTF-8"))?;
-                let locator = if cfg!(windows) {
-                    locator.replace('\\', "/")
-                } else {
-                    locator.to_owned()
-                };
-                object_path(&locator)?;
-                Ok(IndexObject {
-                    id: object.id,
-                    digest: object.digest,
-                    info: object.info.clone(),
-                    locator,
-                })
-            })
-            .collect::<Result<_, LinkError>>()?;
+    pub(super) fn write_index(&self) -> Result<(), LinkError> {
         let index = Index {
-            schema: 7,
+            schema: 8,
             target: encode(&self.target.wire_id()).map_err(error)?,
             toolchain: self.toolchain.clone(),
             configuration: self.configuration.clone(),
@@ -117,20 +67,25 @@ impl RuntimeObjectSet {
                 *RuntimeAbiContract.fingerprint().map_err(error)?.as_array(),
             ),
             fingerprint: self.fingerprint.0,
-            objects,
+            objects: self.objects.clone(),
             merged: self.merged.clone(),
             deployment: self.deployment,
+            archive: self
+                .archive_path()
+                .file_name()
+                .expect("runtime archive filename")
+                .to_str()
+                .expect("generated archive name")
+                .to_owned(),
         };
-        let path = directory.join("index.cbor");
-        std::fs::write(&path, encode(&index).map_err(error)?).map_err(error)?;
-        Ok(path)
+        std::fs::write(self.index_path(), encode(&index).map_err(error)?).map_err(error)
     }
 }
 
-fn object_path(locator: &str) -> Result<&Path, LinkError> {
+fn archive_path(locator: &str) -> Result<&Path, LinkError> {
     if locator.is_empty() || locator.starts_with('/') || locator.contains(['\\', ':', '\0']) {
         return Err(error(
-            "runtime index object path must be a relative UTF-8 path with / separators",
+            "runtime index archive path must be a relative UTF-8 path with / separators",
         ));
     }
     Ok(Path::new(locator))
@@ -138,7 +93,7 @@ fn object_path(locator: &str) -> Result<&Path, LinkError> {
 
 impl WireEncode for Index {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(10)?;
+        e.map(11)?;
         e.field(1)?;
         e.unsigned(self.schema)?;
         e.field(2)?;
@@ -158,12 +113,14 @@ impl WireEncode for Index {
         }
         self.merged.encode_fields(e, 8)?;
         e.field(10)?;
-        self.deployment.encode(e)
+        self.deployment.encode(e)?;
+        e.field(11)?;
+        e.text(&self.archive)
     }
 }
 impl WireDecode for Index {
     fn decode(d: &mut Decoder<'_>) -> Result<Self, WireError> {
-        d.expect_map(10)?;
+        d.expect_map(11)?;
         Ok(Self {
             schema: d.field(1, Decoder::unsigned)?,
             target: d.field(2, |d| Ok(d.bytes()?.to_vec()))?,
@@ -171,43 +128,10 @@ impl WireDecode for Index {
             configuration: d.field(4, RuntimeBuildConfiguration::decode)?,
             abi: d.field(5, Digest256::decode)?,
             fingerprint: d.field(6, Digest256::decode)?,
-            objects: d.field(7, |d| d.decode_array(|d, _| IndexObject::decode(d)))?,
+            objects: d.field(7, |d| d.decode_array(|d, _| RuntimeObject::decode(d)))?,
             merged: NativeObjectInfo::decode_fields(d, 8)?,
             deployment: d.field(10, super::deployment::RuntimeDeployment::decode)?,
-        })
-    }
-}
-impl WireEncode for IndexObject {
-    fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(2)?;
-        e.field(1)?;
-        e.map(4)?;
-        e.field(1)?;
-        self.id.0.encode(e)?;
-        e.field(2)?;
-        self.digest.encode(e)?;
-        self.info.encode_fields(e, 3)?;
-        e.field(2)?;
-        e.text(&self.locator)
-    }
-}
-impl WireDecode for IndexObject {
-    fn decode(d: &mut Decoder<'_>) -> Result<Self, WireError> {
-        d.expect_map(2)?;
-        let (id, digest, info) = d.field(1, |d| {
-            d.expect_map(4)?;
-            Ok((
-                RuntimeObjectId(d.field(1, Digest256::decode)?),
-                d.field(2, Digest256::decode)?,
-                NativeObjectInfo::decode_fields(d, 3)?,
-            ))
-        })?;
-        let locator = d.field(2, |d| Ok(d.text()?.to_owned()))?;
-        Ok(Self {
-            id,
-            digest,
-            info,
-            locator,
+            archive: d.field(11, |d| Ok(d.text()?.to_owned()))?,
         })
     }
 }
@@ -217,36 +141,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn object_locator_wire_format_is_host_independent_utf8() {
-        let record = IndexObject {
-            id: RuntimeObjectId(Digest256::from_array([0; 32])),
-            digest: Digest256::from_array([1; 32]),
-            info: NativeObjectInfo {
-                definitions: BTreeMap::new(),
-                requirements: BTreeSet::new(),
-            },
-            locator: "../objects/根 file.o".into(),
-        };
-        let bytes = encode(&record).unwrap();
-        // Field 2 is a 21-byte CBOR text string, with no host encoding tag.
-        assert!(bytes.ends_with(b"\x02\x75../objects/\xe6\xa0\xb9 file.o"));
-        let decoded: IndexObject = decode_canonical(&bytes).unwrap();
+    fn archive_locator_is_host_independent_utf8() {
         assert_eq!(
-            object_path(&decoded.locator).unwrap(),
-            Path::new("..").join("objects").join("根 file.o")
+            archive_path("../runtime/根 file.lib").unwrap(),
+            Path::new("..").join("runtime").join("根 file.lib")
         );
     }
 
     #[test]
-    fn object_locators_reject_host_specific_or_absolute_spellings() {
+    fn archive_locators_reject_host_specific_or_absolute_spellings() {
         for locator in [
             "",
-            "/objects/a.o",
-            "C:/a.o",
-            "objects\\a.o",
-            "objects/a\0.o",
+            "/runtime.a",
+            "C:/runtime.lib",
+            "runtime\\runtime.lib",
+            "runtime\0.lib",
         ] {
-            assert!(object_path(locator).is_err(), "{locator:?}");
+            assert!(archive_path(locator).is_err(), "{locator:?}");
         }
     }
 }

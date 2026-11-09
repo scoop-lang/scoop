@@ -10,10 +10,9 @@ paths = [Path(output)]
 for pattern in (
     "compile-v3/**/artifact.slib",
     "compile-v3/**/record.cbor",
-    "objects-v1/*.o",
-    "executables-v3/*.json",
-    "executables-v3/program-*/program",
-    "executables-v3/program-*/program.map",
+    "link-archives-v2/members-*/part-*",
+    "final-products-v1/*.json",
+    "final-products-v1/program-*/program*",
 ):
     paths.extend(root.glob(pattern))
 assert any(p.name == "artifact.slib" for p in paths), "compiled output was not observed"

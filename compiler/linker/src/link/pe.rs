@@ -6,7 +6,7 @@ pub(super) fn link(
     profile: &WindowsFinalLinkProfile,
     inputs: &ProgramInputs<'_>,
     directory: &Path,
-    paths: &[PathBuf],
+    archives: &[PathBuf],
     candidate: &Path,
     pdb: Option<&Path>,
     keep_symbols: bool,
@@ -14,7 +14,11 @@ pub(super) fn link(
     let crate::namespace::NativeNamespace::Coff(namespace) = &inputs.namespace else {
         return Err(error("PE link requires a COFF namespace"));
     };
-    let mut paths = paths.to_vec();
+    let mut paths = archives.to_vec();
+    let mut arguments: Vec<_> = archives
+        .iter()
+        .flat_map(|archive| profile.whole_archive_arguments(archive))
+        .collect();
     let selected = namespace.selected();
     for file in inputs
         .native
@@ -25,9 +29,10 @@ pub(super) fn link(
         let id = file.id;
         let path = directory.join(format!("{id}.lib"));
         write_new(&path, &file.bytes[file.slice.clone()])?;
+        arguments.push(path.as_os_str().to_owned());
         paths.push(path);
     }
-    response::write_pe_objects(directory, &paths, profile.microsoft())?;
+    response::write_pe_arguments(directory, &arguments, profile.microsoft())?;
     let mut command = if profile.import_library_path(candidate).is_some() {
         profile.command(directory, candidate)
     } else {
@@ -80,5 +85,5 @@ pub(super) fn link(
             ));
         }
     }
-    Ok(profile.traced_inputs(&output, directory))
+    Ok(profile.traced_inputs(&output, directory, &paths))
 }

@@ -6,17 +6,17 @@ mod shared;
 #[cfg(all(test, target_os = "linux"))]
 mod tests;
 
-fn append_objects(
+fn append_archives(
     command: &mut std::process::Command,
     directory: &Path,
-    paths: &[PathBuf],
+    archives: &[PathBuf],
 ) -> Result<(), LinkError> {
-    response::write_objects(directory, paths)?;
-    // Keep @ away from the driver response-file parser. The relative name
-    // also avoids -Wl comma splitting when the scratch path contains commas.
+    response::write_paths(directory, archives)?;
     command
         .current_dir(directory)
-        .arg(format!("-Wl,@{}", response::FILE_NAME));
+        .args(["-Xlinker", "--whole-archive"])
+        .arg(format!("-Wl,@{}", response::FILE_NAME))
+        .args(["-Xlinker", "--no-whole-archive"]);
     Ok(())
 }
 
@@ -24,7 +24,7 @@ pub(super) fn link(
     profile: &LinuxFinalLinkProfile,
     inputs: &ProgramInputs<'_>,
     directory: &Path,
-    paths: &[PathBuf],
+    archives: &[PathBuf],
     candidate: &Path,
     keep_symbols: bool,
 ) -> Result<(), LinkError> {
@@ -33,7 +33,7 @@ pub(super) fn link(
         command.arg("-Xlinker").arg("--strip-all");
     }
 
-    append_objects(&mut command, directory, paths)?;
+    append_archives(&mut command, directory, archives)?;
     command.arg("-Xlinker").arg(format!(
         "--defsym={}={}",
         inputs.symbol("scoop_td_String"),
