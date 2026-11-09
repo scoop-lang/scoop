@@ -1,4 +1,34 @@
 #include "graphics.h"
+#include "include/pathops/SkPathOps.h"
+
+namespace {
+void checkRing(SGBuilder *value) {
+  if (value->ringChecked || value->roundRectCount != 2 ||
+      value->path.fillType() != SkPathFillType::kEvenOdd)
+    return;
+  value->ringChecked = true;
+  auto outer = value->roundRects[0], inner = value->roundRects[1];
+  if (!outer.getBounds().contains(inner.getBounds()))
+    std::swap(outer, inner);
+  if (outer.isEmpty() || inner.isEmpty() ||
+      !outer.getBounds().contains(inner.getBounds()))
+    return;
+  // Coincident edges need joint path coverage, not two independently
+  // antialiased rounded rectangles.
+  const auto &a = outer.getBounds();
+  const auto &b = inner.getBounds();
+  if (a.left() == b.left() || a.top() == b.top() || a.right() == b.right() ||
+      a.bottom() == b.bottom())
+    return;
+  // Bounds containment alone is insufficient at rounded corners. PathOps is
+  // performed once per unchanged builder, never during draw or hit testing.
+  auto difference =
+      Op(SkPathBuilder().addRRect(inner).detach(),
+         SkPathBuilder().addRRect(outer).detach(), kDifference_SkPathOp);
+  if (difference && difference->isEmpty())
+    value->ring = std::make_shared<SGRRectRing>(SGRRectRing{outer, inner});
+}
+} // namespace
 
 extern "C" {
 void scoop_graphics_drop(SGObject *object) { delete object; }
@@ -40,6 +70,7 @@ int32_t scoop_graphics_path_command(SGBuilder *value, int32_t kind, SGPoint a,
     default:
       return -1;
     }
+    value->invalidateRoundRects(kind == 5);
     return 1;
   } catch (...) {
     return 0;
@@ -47,10 +78,13 @@ int32_t scoop_graphics_path_command(SGBuilder *value, int32_t kind, SGPoint a,
 }
 int32_t scoop_graphics_path_rect(SGBuilder *value, SGRect rect, int32_t oval) {
   try {
-    if (oval)
+    if (oval) {
       value->path.addOval(sg_rect(rect));
-    else
+      value->addRoundRect(SkRRect::MakeOval(sg_rect(rect)));
+    } else {
       value->path.addRect(sg_rect(rect));
+      value->addRoundRect(SkRRect::MakeRect(sg_rect(rect)));
+    }
     return 1;
   } catch (...) {
     return 0;
@@ -64,6 +98,7 @@ int32_t scoop_graphics_path_arc(SGBuilder *value, SGRect rect, double start,
     if (!std::isfinite(a) || !std::isfinite(b))
       return -1;
     value->path.arcTo(sg_rect(rect), a, b, move);
+    value->invalidateRoundRects();
     return 1;
   } catch (...) {
     return 0;
@@ -74,8 +109,10 @@ int32_t scoop_graphics_path_round_rect(SGBuilder *value, SGRect rect,
                                        SGPoint bottomRight,
                                        SGPoint bottomLeft) {
   try {
-    value->path.addRRect(
-        sg_round_rect(rect, topLeft, topRight, bottomRight, bottomLeft));
+    auto outline =
+        sg_round_rect(rect, topLeft, topRight, bottomRight, bottomLeft);
+    value->path.addRRect(outline);
+    value->addRoundRect(outline);
     return 1;
   } catch (...) {
     return 0;
@@ -83,7 +120,8 @@ int32_t scoop_graphics_path_round_rect(SGBuilder *value, SGRect rect,
 }
 SGPath *scoop_graphics_path_build(SGBuilder *value) {
   try {
-    return new SGPath(value->path.snapshot());
+    checkRing(value);
+    return new SGPath(value->path.snapshot(), value->ring);
   } catch (...) {
     return nullptr;
   }

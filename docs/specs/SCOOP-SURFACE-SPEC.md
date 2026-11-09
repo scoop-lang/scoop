@@ -32,6 +32,8 @@ PathBuilder 的 `moveTo(point)`、`lineTo(point)`、`quadraticTo(control, end)`�
 
 Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独立 PathMeasure，原 Path 关闭后仍可查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
 
+两个嵌套圆角矩形构成的 EvenOdd GPU 填充可以使用 Skia 的圆角环专用绘图，避免把普通边框送入通用路径图集。构建时保留轮廓并确认完整包含关系，不能只比较包围盒；已确认且未改变的构建结果复用判定。非嵌套、相接边、其他路径操作、NonZero 和描边保留一般路径语义。抗锯齿环在当前设备变换下不足一个物理像素时使用一般路径，避免独立边缘覆盖放大细边；显式 Drawing 的最终缩放未知，也保留原路径。原 Path 仍负责 clip、contains、bounds 和测量，绘图优化不改变这些查询或快照所有权。
+
 `Path.rasterizeRegion(clip: Rect, scale: Double = 1.0): Array<Rect>` 使用 Skia Region 将填充轮廓转换为二进制矩形集合；clip 必须显式给出，scale 为正有限值。返回矩形仍以原逻辑单位表示，边界落在 1/scale 网格上，覆盖规则是 Skia 的非抗锯齿区域栅格化，不是半透明像素命中。clip 量化为覆盖它的整数网格边界；结果为空是正常结果。负坐标、EvenOdd 孔洞和矩形合并沿 Skia，禁止自行采样路径。native 整数坐标或转换后的浮点路径不可表示时失败。
 
 `graphics.native.CanvasGeometry.rasterizeRegion(scale = 1.0)` 对捕获的最终 transform、全部 path clip 和 viewport 使用同一栅格化；不可逆变换返回空。结果为自有普通值，快照关闭后仍有效。该转换供原生窗框／输入区域的 Accepted 提交使用，graphics 不依赖 window。

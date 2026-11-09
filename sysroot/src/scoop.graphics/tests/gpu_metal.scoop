@@ -108,14 +108,14 @@ private class MetalGpuFormatTest {
     }
 }
 
-internal fun withGpuTestTarget(block: (RenderTarget) -> Unit) {
-    TestMetalSurface.create(64, 32).use {
+internal fun withGpuTestTarget(width: Int = 64, height: Int = 32, block: (RenderTarget) -> Unit) {
+    TestMetalSurface.create(width, height).use {
         objects -> @Unsafe
         {
             MetalContext.create(objects.device(), objects.queue()).use {
                 context -> @Unsafe
                 {
-                    context.target(objects.texture(), 64, 32, 1.0).use(block)
+                    context.target(objects.texture(), width, height, 1.0).use(block)
                 }
             }
         }

@@ -55,6 +55,8 @@ path = "tests/path.scoop"
 [[test.sources]]
 path = "tests/rounded.scoop"
 [[test.sources]]
+path = "tests/path_rings.scoop"
+[[test.sources]]
 path = "tests/native_canvas.scoop"
 [[test.sources]]
 path = "tests/geometry_bounds.scoop"
@@ -71,6 +73,8 @@ when = { os = "darwin" }
 path = "tests/effects.scoop"
 [[test.sources]]
 path = "tests/layer_bounds.scoop"
+[[test.sources]]
+path = "tests/opacity_layers.scoop"
 [[test.sources]]
 path = "tests/effects_metal.scoop"
 when = { os = "darwin" }
@@ -115,6 +119,8 @@ path = "native/shared/geometry.cpp"
 path = "native/shared/filter.cpp"
 [[native.sources]]
 path = "native/shared/canvas.cpp"
+[[native.sources]]
+path = "native/shared/layers.cpp"
 [[native.sources]]
 path = "native/shared/recording.cpp"
 [[native.sources]]

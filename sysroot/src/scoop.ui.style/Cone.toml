@@ -55,3 +55,22 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/borders.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/builders.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/cache.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/painting.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/borders.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests/gpu.scoop"
+when = { os = "windows" }
+[[test.sources]]
+path = "tests-windows"
+when = { os = "windows" }

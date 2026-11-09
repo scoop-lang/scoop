@@ -2,6 +2,7 @@
 #include "include/core/SkPixmap.h"
 #include "include/effects/SkGradient.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
+#include <algorithm>
 
 extern "C" {
 SGPaint *scoop_graphics_paint_create(SGColor color, int32_t style, double width,
@@ -199,7 +200,24 @@ int32_t scoop_graphics_canvas_line(SGCanvas *value, SGPoint start, SGPoint end,
 int32_t scoop_graphics_canvas_path(SGCanvas *value, SGPath *path,
                                    SGPaint *paint) {
   try {
-    value->canvas->drawPath(path->path, paint->paint);
+    bool roundedRing = path->ring && value->context && !value->recording &&
+                       paint->paint.getStyle() == SkPaint::kFill_Style;
+    if (roundedRing && paint->paint.isAntiAlias()) {
+      const auto &outer = path->ring->outer.getBounds();
+      const auto &inner = path->ring->inner.getBounds();
+      float inset = std::min(
+          {inner.left() - outer.left(), inner.top() - outer.top(),
+           outer.right() - inner.right(), outer.bottom() - inner.bottom()});
+      // Independent edge masks exaggerate subpixel rings. Explicit pictures
+      // also keep paths because their eventual device scale is not yet known.
+      roundedRing =
+          inset * value->canvas->getLocalToDeviceAs3x3().getMinScale() >= 1;
+    }
+    if (roundedRing)
+      value->canvas->drawDRRect(path->ring->outer, path->ring->inner,
+                                paint->paint);
+    else
+      value->canvas->drawPath(path->path, paint->paint);
     return 1;
   } catch (...) {
     return 0;

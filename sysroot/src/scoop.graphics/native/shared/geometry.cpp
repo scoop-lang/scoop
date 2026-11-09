@@ -76,6 +76,7 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
   default:
     return -1;
   }
+  const size_t previousDepth = value->clips.size();
   try {
     value->clips.push_back(value->clips.back());
     if (layer) {
@@ -87,21 +88,24 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
         if (value->recording)
           value->recording->independentTiles = false;
       }
-      const SkRect sourceBounds = sg_rect(bounds);
-      value->canvas->saveLayer(hasBounds ? &sourceBounds : nullptr, &paint);
+      if (!(opacity > 0 && opacity < 1 && !filter && !hasBounds &&
+            mode == SkBlendMode::kSrcOver && value->saveOpacityLayer(paint))) {
+        const SkRect sourceBounds = sg_rect(bounds);
+        value->canvas->saveLayer(hasBounds ? &sourceBounds : nullptr, &paint);
+      }
     } else {
       value->canvas->save();
     }
     return 1;
   } catch (...) {
+    value->clips.resize(previousDepth);
     return 0;
   }
 }
 int32_t scoop_graphics_canvas_restore(SGCanvas *value) {
   if (value->clips.size() <= 1)
     return -1;
-  value->canvas->restore();
-  value->clips.pop_back();
+  value->restore();
   return 1;
 }
 int32_t scoop_graphics_canvas_concat(SGCanvas *value, SGTransform transform) {

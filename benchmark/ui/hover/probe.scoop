@@ -1,0 +1,134 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.macos.macosSystemPalette
+import scoop.window.*
+import scoop.window.asyncio.runWithAsyncio
+
+private class HoverProfile {
+    val fonts = FontCollection()
+    val model = GalleryModel(Some({ mode -> macosSystemPalette(mode) }))
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var phase = 0
+    var step = 0
+    var firstFrame = 0L
+    var settledFrame = 0L
+    var start = MonotonicTimeSource.markNow()
+    fun wait(active: ActiveApplication, ms: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(ms))
+        )
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop shadcn GPU profile"
+                            size = LogicalSize(1120.0, 780.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                host.attach(native, { mount -> Gallery(model, scope = mount) }, fonts = Some(fonts))
+                native.requestFocus()
+                wait(active, 1200L)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                if (phase == 0) {
+                    firstFrame = frames!!.snapshot().presentations
+                    if (firstFrame == 0L)
+                        throw IllegalStateException(Some("gallery did not present"))
+                    @Unsafe
+                    {
+                        beginGpu()
+                    }
+                    start = MonotonicTimeSource.markNow()
+                    phase = 1
+                }
+                if (phase == 1) {
+                    if (step < 240) {
+                        val part = step % 48
+                        val row =
+                            if (part < 24)
+                                part
+                            else
+                                47 - part
+                        if (!moveSurfacePointer(window!!, 100.0, 145.0 + row.toDouble() * 20.0))
+                            throw IllegalStateException(Some("pointer move failed"))
+                        step += 1
+                        wait(active, 16L)
+                    } else {
+                        moveSurfacePointer(window!!, 1080.0, 745.0)
+                        phase = 2
+                        wait(active, 700L)
+                    }
+                } else
+                    if (phase == 2) {
+                        val snapshot = frames!!.snapshot()
+                        settledFrame = snapshot.presentations
+                        println(
+                            f"motion_frames=${settledFrame - firstFrame} elapsed=${
+                                MonotonicTimeSource.markNow() - start
+                            } required=${snapshot.required} paused=${snapshot.paused}"
+                        )
+                        @Unsafe
+                        {
+                            reportGpu();
+                            beginGpu()
+                        }
+                        phase = 3
+                        wait(active, 700L)
+                    } else
+                        if (phase == 3) {
+                            val snapshot = frames!!.snapshot()
+                            println(
+                                f"idle_frames=${snapshot.presentations - settledFrame} required=${
+                                    snapshot.required
+                                } paused=${snapshot.paused}"
+                            )
+                            @Unsafe
+                            {
+                                reportGpu()
+                            }
+                            active.requestExit()
+                        }
+            }
+            else -> {}
+        }
+    }
+}
+
+fun main() {
+    @Unsafe
+    {
+        if (installGpu() != 1)
+            throw IllegalStateException(Some("GPU probe unavailable"))
+    }
+    val profile = HoverProfile()
+    try {
+        context(profile.model.source) {
+            UiHost { host, active, event -> profile.event(host, active, event) }.use {
+                host -> Application().runWithAsyncio(host)
+            }
+        }
+    } finally {
+        profile.frames?.close()
+        profile.fonts.close()
+    }
+}
+
+@Extern(name = "hover_gpu_install")
+private fun installGpu(): Int
+
+@Extern(name = "hover_gpu_begin")
+private fun beginGpu()
+
+@Extern(name = "hover_gpu_report")
+private fun reportGpu()

@@ -1,0 +1,117 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.math.abs
+import scoop.test.*
+
+@Test
+private class OpacityLayerTest {
+    @Test
+    fun `GPU opacity groups retain clips transforms images and nested filter outsets`() {
+        withGpuTestTarget(96, 96) {
+            target -> for (outerFilter in [false, true]) {
+                val expected = opacityScene(target, true, outerFilter)
+                val actual = opacityScene(target, false, outerFilter)
+                for (index in 0L ..< actual.size)
+                    assertTrue(
+                        abs((expected[index].toInt() and 255) - (actual[index].toInt() and 255)) <=
+                            2,
+                        Some(f"opacity group changed channel ${index}, outer filter=${outerFilter}")
+                    )
+            }
+        }
+    }
+
+    @Test
+    fun `GPU opacity scope unwinding composites once and restores parent state`() {
+        withGpuTestTarget {
+            target ->
+            target.draw {
+                canvas ->
+                canvas.clear(Color.Transparent)
+                assertFailsWith<IllegalStateException> {
+                    canvas.withState {
+                        group ->
+                        group.translate(8.0, 8.0)
+                        group.saveLayer(0.5)
+                        group.drawRect(Rect(0.0, 0.0, 16.0, 16.0), Paint(Color.White))
+                        group.withState {
+                            inner ->
+                            inner.saveLayer(0.5)
+                            inner.drawRect(Rect(8.0, 8.0, 16.0, 16.0), Paint(Color.White))
+                            throw IllegalStateException()
+                        }
+                    }
+                }
+                canvas.drawRect(Rect(0.0, 0.0, 4.0, 4.0), Paint(Color(1.0, 0.0, 0.0)))
+                canvas.saveLayer(0.3)
+                canvas.restore()
+            }
+            val pixels = target.readPixels()
+            assertEquals(255, channel(pixels, 64, 1, 1, 0))
+            assertEquals(255, channel(pixels, 64, 1, 1, 3))
+            assertTrue(abs(channel(pixels, 64, 10, 10, 3) - 128) <= 1)
+            assertTrue(abs(channel(pixels, 64, 20, 20, 3) - 128) <= 1)
+            assertTrue(abs(channel(pixels, 64, 29, 29, 3) - 64) <= 1)
+            assertEquals(0, channel(pixels, 64, 40, 10, 3))
+        }
+    }
+}
+
+private fun opacityScene(target: RenderTarget, bounded: Boolean, outerFilter: Boolean): Array<
+    Byte
+> {
+    val hint =
+        if (bounded)
+            Some(Rect(-64.0, -64.0, 128.0, 128.0))
+        else
+            None
+    path { addRoundRect(Rect(1.0, 1.0, 39.0, 37.0), 8.0, 8.0) }.use {
+        clip -> target.draw {
+            canvas ->
+            canvas.clear(Color(0.1, 0.2, 0.3))
+            canvas.scale(1.5, 1.5)
+            canvas.translate(1.25, 0.5)
+            canvas.clipPath(clip)
+            if (outerFilter)
+                ImageFilter.blur(0.6, 1.2).use { filter -> canvas.saveLayer(filter = Some(filter)) }
+            canvas.saveLayer(0.65, bounds = hint)
+            canvas.rotate(0.04)
+            canvas.drawRect(Rect(0.0, 0.0, 24.0, 17.0), Paint(Color(1.0, 0.0, 0.0)))
+            canvas.withState {
+                child ->
+                child.translate(8.0, 4.0)
+                child.saveLayer(0.5, bounds = hint)
+                child.drawRect(Rect(2.0, 1.0, 20.0, 16.0), Paint(Color(0.0, 1.0, 0.0)))
+                ImageFilter.dropShadow(Point(8.0, 1.0), 1.5, 1.5, Color(0.0, 0.0, 1.0)).use {
+                    filter ->
+                    child.saveLayer(filter = Some(filter))
+                    child.drawRect(Rect(14.0, 19.0, 6.0, 6.0), Paint(Color.White))
+                    child.restore()
+                }
+                @Unsafe
+                {
+                    captureGeometry(child, Rect(2.0, 1.0, 10.0, 10.0)).use {
+                        shape ->
+                        val center = shape.toWindow(Point(7.0, 6.0))
+                        assertTrue(shape.hitTest(center))
+                        assertFalse(shape.hitTest(Point(0.0, 0.0)))
+                    }
+                }
+                // An unpaired layer is finished by the synchronous child borrow.
+            }
+            RasterSurface(4, 4).use {
+                source ->
+                source.draw { color -> color.clear(Color(1.0, 1.0, 0.0)) }
+                source.snapshot().use {
+                    image -> canvas.drawImage(image, Rect(3.0, 26.0, 9.0, 8.0))
+                }
+            }
+            canvas.restore()
+            if (outerFilter)
+                canvas.restore()
+            Unit
+        }
+    }
+    return target.readPixels()
+}

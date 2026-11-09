@@ -3,6 +3,6 @@ package scoop.graphics
 import scoop.graphics.native.RenderTarget
 import scoop.graphics.native.linux.GLESContext
 
-internal fun withGpuTestTarget(block: (RenderTarget) -> Unit) {
-    GLESContext.createOffscreen().use { context -> context.offscreen(64, 32).use(block) }
+internal fun withGpuTestTarget(width: Int = 64, height: Int = 32, block: (RenderTarget) -> Unit) {
+    GLESContext.createOffscreen().use { context -> context.offscreen(width, height).use(block) }
 }

@@ -12,6 +12,7 @@
 #include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -44,12 +45,34 @@ struct SGObject {
   void *glSurface = nullptr;
   virtual ~SGObject() = default;
 };
+struct SGRRectRing {
+  SkRRect outer, inner;
+};
 struct SGPath : SGObject {
   SkPath path;
-  explicit SGPath(SkPath p) : path(std::move(p)) {}
+  std::shared_ptr<const SGRRectRing> ring;
+  explicit SGPath(SkPath p, std::shared_ptr<const SGRRectRing> r = {})
+      : path(std::move(p)), ring(std::move(r)) {}
 };
 struct SGBuilder : SGObject {
   SkPathBuilder path;
+  std::array<SkRRect, 2> roundRects;
+  int roundRectCount = 0;
+  bool ringChecked = false;
+  std::shared_ptr<const SGRRectRing> ring;
+  void invalidateRoundRects(bool reset = false) {
+    roundRectCount = reset ? 0 : -1;
+    ringChecked = false;
+    ring.reset();
+  }
+  void addRoundRect(const SkRRect &rect) {
+    ringChecked = false;
+    ring.reset();
+    if (roundRectCount >= 0 && roundRectCount < 2)
+      roundRects[roundRectCount++] = rect;
+    else
+      roundRectCount = -1;
+  }
 };
 struct SGMeasure : SGObject {
   std::vector<sk_sp<SkContourMeasure>> contours;
@@ -104,6 +127,12 @@ struct SGRecording {
   SkPictureRecorder recorder;
   bool independentTiles = true;
 };
+struct SGOpacityLayer {
+  SkPictureRecorder recorder;
+  SkCanvas *target;
+  size_t depth;
+  SkPaint paint;
+};
 // Immutable clip prefixes are shared by saved states, borrows and geometry.
 struct SGClip {
   SkPath path;
@@ -126,6 +155,7 @@ struct SGCanvas : SGObject {
   SkRect viewport;
   int base;
   std::vector<std::shared_ptr<const SGClip>> clips;
+  std::vector<std::unique_ptr<SGOpacityLayer>> opacityLayers;
   SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c, float dpi,
            std::shared_ptr<SGGLState> state = {}, void *nativeSurface = nullptr)
       : surface(std::move(s)), context(std::move(c)),
@@ -157,7 +187,9 @@ struct SGCanvas : SGObject {
     canvas->save();
     canvas->clipRect(bounds);
   }
-  ~SGCanvas() override { canvas->restoreToCount(base); }
+  ~SGCanvas() override;
+  bool saveOpacityLayer(const SkPaint &paint);
+  void restore();
   SkMatrix logical() const {
     return SkMatrix::Concat(SkMatrix::Scale(1 / scale, 1 / scale),
                             canvas->getLocalToDeviceAs3x3());

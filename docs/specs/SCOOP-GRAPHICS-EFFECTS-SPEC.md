@@ -1,6 +1,6 @@
 # Scoop 图像滤镜与图层规范
 
-日期：2026-11-02。状态：macOS aarch64 已实现并通过真实 Raster／Metal 定向验证，x86_64 补验也已通过，见 [UI 实施记录](../ui/PROGRESS.md)；x86_64 使用 Apple Silicon 上的 Rosetta。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同；UI 应用方式见 [公共样式规范](SCOOP-UI-STYLE-SPEC.md)。Windows 留待后续验证。
+日期：2026-11-09。状态：macOS aarch64 与 Rosetta x86_64 的最初 Raster／Metal 定向验证见 [UI 实施记录](../ui/PROGRESS.md)；本轮 Metal、D3D12、GLES 及图层优化验证见 [基础设施实施记录](../ui/infrastructure/PROGRESS.md)。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同；UI 应用方式见 [公共样式规范](SCOOP-UI-STYLE-SPEC.md)。
 
 ## 1. 职责与公开对象
 
@@ -26,6 +26,8 @@ sigma 是标准差，sigmaX／sigmaY 为有限非负的局部逻辑单位；offs
 filter 在调用时借用，图层保留实际需要的原生引用直到恢复／使用结束，因此调用者随后可以关闭该包装。组透明度不能替换成各条绘图分别乘 alpha。默认行为仍是普通 SrcOver 组透明度，既有 save／restore 和 Canvas.withState 的异常恢复合同不变。
 
 图层不以调用方布局矩形作隐式 clip 或滤镜 crop。可选 bounds 是局部坐标中的完整源绘制范围提示，供 Skia 减少离屏分配；它不修改 Canvas 的显式裁剪，也不是滤镜输出 crop。调用方只有知道实际源绘制范围时才提供，未知时保持 None；Skia 继续结合目标、当前 clip、滤镜及采样范围安排图层。已声明有限范围的绘图记录在隔离重放时传递原范围，不为每段小内容分配整个视口大小的中间目标。离开源内容范围的阴影、光晕和模糊只受真实目标与显式祖先裁剪限制。布局尺寸不是绘制像素的边界，不能据此截断 glyph overhang 或子项效果。
+
+GPU 目标中未提供 bounds 的普通 SrcOver 透明度组，可将本次组内绘制暂存为 Skia 命令，恢复时以命令的保守设备空间范围和抗锯齿余量分配图层。范围由 Skia 对实际路径、图片、文字及嵌套滤镜计算，不能由 UI 布局推测；未知范围保守覆盖原裁剪。每次调用仍执行绘图回调，不隐式复用上帧内容。暂存保持原变换、裁剪、混合顺序和原生依赖，显式 restore 与作用域异常收尾均完成该组；不增加 CPU 像素读回或 GPU 等待。Raster 和显式 Drawing 记录继续使用各自原有流程。
 
 clip 建立在 saveLayer 之前时约束恢复后的输出；滤镜可能为该输出读取 clip 外所需的源样本。若要先裁源内容再产生向外效果，须在滤镜图层内部另建显式 clip。两种顺序不同。几何捕获继续使用绘制时的 transform／clip；滤镜的像素扩展本身不扩大区域几何。
 
