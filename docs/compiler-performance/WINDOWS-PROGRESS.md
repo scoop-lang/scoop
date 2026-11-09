@@ -172,4 +172,6 @@ Linux 已完成这项复验，packed C ABI 与指针格式两个用例通过（1
 
 Windows 的现有实机 C 桥测试发现 MinGW 按函数分节后使用 `.pdata$函数名`，而批量对象的展开边界处理只识别 `.pdata`。实现规范已经要求两种 COFF 节名，因此补齐识别并继续按实际 relocation 关联代码节与 `.xdata`，不改变布局或展开规则。MSVC／MinGW 的真实 Clang COFF 对象在 Debug／Release 两种模式下均确认了该差异；测试失败信息同时补上目标与优化模式，便于定位。
 
-本地格式化、codegen all-targets Clippy、4 项 C 桥测试、17 项 C 布局测试及 release scoopc 构建通过。Windows 三目标、两种优化模式的生成桥、实际链接与执行测试继续复验。
+本地格式化、codegen all-targets Clippy、4 项 C 桥测试、17 项 C 布局测试及 release scoopc 构建通过。Windows 4 项 C 桥测试和 16 项 C 布局测试通过，其中实际生成桥用例覆盖 MSVC、MinGW UCRT、MinGW MSVCRT 的 Debug／Release 六种组合，均完成链接与执行。
+
+逐 Cone 进度 fixture 的最终产物提示使用了 Python 原始路径，而 Windows CLI 正常显示 canonicalize 后的扩展路径。改用 runner 既有的 `canonical_host_path` 构造期望，不改变产品提示或进度行为；Ruff 和本地定向 fixture 通过，Windows 继续定向复验。

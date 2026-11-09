@@ -6,6 +6,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from fixture_runner.values import canonical_host_path
+
 scoop, scoopc, work, sysroot, *compile_args = sys.argv[1:]
 work = Path(work)
 root = work / "cones" / "root"
@@ -64,14 +68,12 @@ def progress(stderr, expected, status="Finished"):
 
 coordinates = {name: f"test.progress:{name}:1.0.0" for name in ("root", "left", "right")}
 build_options = ["--release", "--emit-slib", "-o", output]
+build_summary = f"built {canonical_host_path(output)} (release)\n"
 cold = run("build", root, *build_options)
-assert (
-    progress(cold, dict.fromkeys(coordinates.values(), "Compiling"))
-    == f"built {output} (release)\n"
-)
+assert progress(cold, dict.fromkeys(coordinates.values(), "Compiling")) == build_summary, cold
 assert output.is_file()
 warm = run("build", root, *build_options)
-assert progress(warm, {}) == f"built {output} (release)\n"
+assert progress(warm, {}) == build_summary, warm
 
 structured = run("build", root, *build_options, "--message-format", "json")
 events = [json.loads(line) for line in structured.splitlines()]
