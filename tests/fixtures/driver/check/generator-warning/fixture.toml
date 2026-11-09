@@ -1,5 +1,5 @@
 schema = 1
-name = "check-generator-machine-warning-retains-fragment-on-cache-hit"
+name = "check-generator-machine-warning-retains-current-fragment"
 root = "../../generators/errors/program.scoop"
 inputs = ["../../generators/errors/program.scoop", "../../generators/peer.py"]
 tools = ["scoop", "scoopc"]
@@ -32,4 +32,4 @@ argv = ["${scoop}", "check", "${root}", {each = "${compile_args}"}, {each = "${o
 exit = 0
 stdout = ""
 stderr = "${expected}"
-checks = [{file = "${work}/generator.calls", equals = "called\n"}]
+checks = [{file = "${work}/generator.calls", equals = "called\ncalled\n"}]

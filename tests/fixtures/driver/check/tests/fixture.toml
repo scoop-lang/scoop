@@ -2,7 +2,6 @@ schema = 1
 name = "check-test-purpose"
 inputs = ["cone"]
 tools = ["scoop", "scoopc"]
-when = { os = ["darwin", "linux"] }
 tags = ["driver", "check", "cache"]
 
 [vars]
@@ -20,7 +19,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${production.result.kind}", equals = "check"}, {actual = "${production.result.cache_hit}", equals = false}]
+checks = [{actual = "${production.result.kind}", equals = "check"}, {actual = "${production.result.observations.child_invocations.length}", equals = 1}, {actual = "${production.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "tests"
@@ -30,7 +29,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${tests.result.kind}", equals = "check"}, {actual = "${tests.result.cache_hit}", equals = false}, {actual = "${tests.result.purpose}", equals = "test"}]
+checks = [{actual = "${tests.result.kind}", equals = "check"}, {actual = "${tests.result.purpose}", equals = "test"}, {actual = "${tests.result.observations.child_invocations.length}", equals = 1}, {actual = "${tests.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "tests_warm"
@@ -40,7 +39,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${tests_warm.result.kind}", equals = "check"}, {actual = "${tests_warm.result.cache_hit}", equals = true}]
+checks = [{actual = "${tests_warm.result.kind}", equals = "check"}, {actual = "${tests_warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${tests_warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "production_warm"
@@ -50,7 +49,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${production_warm.result.kind}", equals = "check"}, {actual = "${production_warm.result.cache_hit}", equals = true}]
+checks = [{actual = "${production_warm.result.kind}", equals = "check"}, {actual = "${production_warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${production_warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "test_change"
@@ -64,7 +63,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${production_after_tests.result.kind}", equals = "check"}, {actual = "${production_after_tests.result.cache_hit}", equals = true}]
+checks = [{actual = "${production_after_tests.result.kind}", equals = "check"}, {actual = "${production_after_tests.result.observations.child_invocations.length}", equals = 1}, {actual = "${production_after_tests.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "changed_tests"
@@ -74,7 +73,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${changed_tests.result.kind}", equals = "check"}, {actual = "${changed_tests.result.cache_hit}", equals = false}]
+checks = [{actual = "${changed_tests.result.kind}", equals = "check"}, {actual = "${changed_tests.result.observations.child_invocations.length}", equals = 1}, {actual = "${changed_tests.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "executable_without_production_entry"

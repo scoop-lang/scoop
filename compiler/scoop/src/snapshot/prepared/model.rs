@@ -41,12 +41,6 @@ pub(super) enum SourceNativeInput {
 }
 
 impl ManifestSourceInput {
-    pub(crate) fn native_input_metadata(&self) -> &[scoop_toolchain::NativeInputMetadata] {
-        match &self.native {
-            SourceNativeInput::Artifact(native) => native.input_metadata(),
-            SourceNativeInput::Frontend => &[],
-        }
-    }
     pub const fn identity(&self) -> ConeIdentity {
         self.identity
     }

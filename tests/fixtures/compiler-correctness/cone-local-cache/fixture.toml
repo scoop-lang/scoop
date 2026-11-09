@@ -61,7 +61,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{file = "${work}/cone/target/${target}/build/release/checks-v4", type = "directory"}]
+checks = [{actual = "${check.result.observations.child_invocations.0.operation}", equals = "check"}, {file = "${work}/cone/target/${target}/build/release/checks-v4", exists = false}]
 
 [[steps]]
 name = "doc"

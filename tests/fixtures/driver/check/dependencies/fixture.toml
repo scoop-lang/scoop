@@ -2,7 +2,6 @@ schema = 1
 name = "check-source-dependencies"
 inputs = ["cone", "provider"]
 tools = ["scoop", "scoopc"]
-when = { os = ["darwin", "linux"] }
 tags = ["driver", "check", "cache"]
 
 [vars]
@@ -20,7 +19,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${cold.result.kind}", equals = "check"}, {actual = "${cold.result.cache_hit}", equals = false}, {actual = "${cold.result.observations.child_invocations.length}", equals = 2}, {actual = "${cold.result.observations.child_invocations.0.operation}", equals = "artifact"}, {actual = "${cold.result.observations.child_invocations.1.operation}", equals = "check"}]
+checks = [{actual = "${cold.result.kind}", equals = "check"}, {actual = "${cold.result.observations.child_invocations.length}", equals = 2}, {actual = "${cold.result.observations.child_invocations.0.operation}", equals = "artifact"}, {actual = "${cold.result.observations.child_invocations.1.operation}", equals = "check"}]
 
 [[steps]]
 name = "warm"
@@ -30,7 +29,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${warm.result.kind}", equals = "check"}, {actual = "${warm.result.cache_hit}", equals = true}]
+checks = [{actual = "${warm.result.kind}", equals = "check"}, {actual = "${warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "native_header"
@@ -44,7 +43,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${changed_native.result.kind}", equals = "check"}, {actual = "${changed_native.result.cache_hit}", equals = false}, {actual = "${changed_native.result.observations.child_invocations.length}", equals = 2}]
+checks = [{actual = "${changed_native.result.kind}", equals = "check"}, {actual = "${changed_native.result.observations.child_invocations.length}", equals = 2}, {actual = "${changed_native.result.observations.child_invocations.1.operation}", equals = "check"}]
 
 [[steps]]
 name = "root_change"
@@ -58,4 +57,4 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${root_only.result.kind}", equals = "check"}, {actual = "${root_only.result.cache_hit}", equals = false}, {actual = "${root_only.result.observations.child_invocations.length}", equals = 1}, {actual = "${root_only.result.observations.child_invocations.0.operation}", equals = "check"}]
+checks = [{actual = "${root_only.result.kind}", equals = "check"}, {actual = "${root_only.result.observations.child_invocations.length}", equals = 1}, {actual = "${root_only.result.observations.child_invocations.0.operation}", equals = "check"}]

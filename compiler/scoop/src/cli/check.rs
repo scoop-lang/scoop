@@ -122,13 +122,13 @@ pub(super) fn execute(
             .map(ArtifactSearchRoot::new)
             .collect::<Result<_, _>>()
             .map_err(config)?,
-        cache_root: cache.clone(),
+        cache_root: cache,
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
         target: GraphTarget::Frontend {
             selection,
             request: target.clone(),
         },
-        compiler: compiler.clone(),
+        compiler,
         diagnostics: DiagnosticsPolicy::Structured,
         optimization: profile.optimization(),
         debug_info: scoop_lir::DebugInfoLevel::None,
@@ -136,18 +136,14 @@ pub(super) fn execute(
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
         }),
-        generators: generators.clone(),
+        generators,
     })?;
     for graph in graphs {
         let outcome = scoop::check(
             graph,
             CheckRequest {
                 target: target.clone(),
-                cache: cache.clone(),
-                compiler: compiler.clone(),
                 purpose,
-                profile,
-                generators: generators.clone(),
             },
         )?;
         reporter.checked(&outcome).map_err(config)?;

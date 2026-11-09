@@ -2,7 +2,6 @@ schema = 1
 name = "check-basic-and-update"
 inputs = ["cone", "program.scoop", "../../packages/explicit.scoop"]
 tools = ["scoop", "scoopc"]
-when = { os = ["darwin", "linux"] }
 tags = ["driver", "check", "cache"]
 
 [vars]
@@ -20,7 +19,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${cold.result.kind}", equals = "check"}, {actual = "${cold.result.cache_hit}", equals = false}, {actual = "${cold.result.observations.child_invocations.0.operation}", equals = "check"}, {file = "${work}/cone/target", exists = false}, {glob = "${work}/cache/native-tools-v1/*", equals = []}, {glob = "${work}/cache/native-objects-v1/*", equals = []}]
+checks = [{file = "${work}/cache/checks-v4", exists = false}, {actual = "${cold.result.kind}", equals = "check"}, {actual = "${cold.result.observations.child_invocations.0.operation}", equals = "check"}, {file = "${work}/cone/target", exists = false}, {glob = "${work}/cache/native-tools-v1/*", equals = []}, {glob = "${work}/cache/native-objects-v1/*", equals = []}, {actual = "${cold.result.observations.child_invocations.length}", equals = 1}]
 
 [[steps]]
 name = "warm"
@@ -30,7 +29,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${warm.result.kind}", equals = "check"}, {actual = "${warm.result.cache_hit}", equals = true}, {actual = "${warm.result.observations.child_invocations}", equals = []}]
+checks = [{actual = "${warm.result.kind}", equals = "check"}, {actual = "${warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "test_config"
@@ -44,7 +43,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${production_unchanged.result.kind}", equals = "check"}, {actual = "${production_unchanged.result.cache_hit}", equals = true}]
+checks = [{actual = "${production_unchanged.result.kind}", equals = "check"}, {actual = "${production_unchanged.result.observations.child_invocations.length}", equals = 1}, {actual = "${production_unchanged.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "native_content"
@@ -58,7 +57,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${native_ignored.result.kind}", equals = "check"}, {actual = "${native_ignored.result.cache_hit}", equals = true}]
+checks = [{actual = "${native_ignored.result.kind}", equals = "check"}, {actual = "${native_ignored.result.observations.child_invocations.length}", equals = 1}, {actual = "${native_ignored.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "source_change"
@@ -72,7 +71,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${changed.result.kind}", equals = "check"}, {actual = "${changed.result.cache_hit}", equals = false}]
+checks = [{actual = "${changed.result.kind}", equals = "check"}, {actual = "${changed.result.observations.child_invocations.length}", equals = 1}, {actual = "${changed.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "new_source"
@@ -86,7 +85,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${selection_changed.result.kind}", equals = "check"}, {actual = "${selection_changed.result.cache_hit}", equals = false}]
+checks = [{actual = "${selection_changed.result.kind}", equals = "check"}, {actual = "${selection_changed.result.observations.child_invocations.length}", equals = 1}, {actual = "${selection_changed.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "single"
@@ -96,7 +95,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${single.result.kind}", equals = "check"}, {actual = "${single.result.cache_hit}", equals = false}]
+checks = [{actual = "${single.result.kind}", equals = "check"}, {actual = "${single.result.observations.child_invocations.length}", equals = 1}, {actual = "${single.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "single_warm"
@@ -106,7 +105,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${single_warm.result.kind}", equals = "check"}, {actual = "${single_warm.result.cache_hit}", equals = true}]
+checks = [{actual = "${single_warm.result.kind}", equals = "check"}, {actual = "${single_warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${single_warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "default"
@@ -117,7 +116,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${default.result.cache_hit}", equals = true}]
+checks = [{actual = "${default.result.observations.child_invocations.length}", equals = 1}, {actual = "${default.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "warning"
@@ -127,14 +126,14 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = {file = "../../packages/warning.json"}
-checks = [{actual = "${warning.result.cache_hit}", equals = false}]
+checks = [{actual = "${warning.result.observations.child_invocations.length}", equals = 1}, {actual = "${warning.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
-name = "warning_cached"
+name = "warning_rechecked"
 argv = ["${scoop}", "check", "${fixture}/../../packages/explicit.scoop", {each = "${compile_args}"}, {each = "${options}"}]
 exit = 0
 stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = {file = "../../packages/warning.json"}
-checks = [{actual = "${warning_cached.result.cache_hit}", equals = true}]
+checks = [{actual = "${warning_rechecked.result.observations.child_invocations.length}", equals = 1}, {actual = "${warning_rechecked.result.observations.child_invocations.0.operation}", equals = "check"}]
