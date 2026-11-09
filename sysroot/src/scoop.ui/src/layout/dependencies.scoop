@@ -224,14 +224,14 @@ internal class NodeFrameInputs(val node: MountedNode) {
                 return
         fonts.add(watch.bind(this, affectsLayout))
     }
-    fun check(time: TimeMark) {
+    fun check(time: TimeMark, batch: FrameInvalidationBatch) {
         if (!node.active)
             return
         if (layout.frameChanged(time))
-            node.invalidateLayout()
+            node.invalidateLayout(Some(batch))
         else
             if (scene.frameChanged(time))
-                node.invalidateScene()
+                node.invalidateScene(Some(batch))
     }
     fun close() {
         node.root.frameDependencies.dynamic(this, false)
@@ -279,8 +279,11 @@ internal class FrameDependencies {
             }
         }
         collections = retained
-        for (value in animated)
-            value.check(time)
+        if (animated.size > 0L) {
+            val batch = FrameInvalidationBatch()
+            for (value in animated)
+                value.check(time, batch)
+        }
     }
     fun close() {
         animated.clear()

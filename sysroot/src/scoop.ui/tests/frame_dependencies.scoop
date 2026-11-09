@@ -1,0 +1,106 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.graphics.Size
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+/** Runs inside the composition suite's single native application. */
+internal fun verifyFrameDependencies(owner: UiHost, active: ActiveApplication) {
+    val window = active.createWindow(windowAttributes { visible = false })
+    val ui = owner.attach(window, { scope -> DependencyTree(scope) })!!
+    val root = ui.root.node!!
+    val common = ArrayList<MountedNode>()
+    common.add(root)
+    val fork = root.children[0L]
+    common.add(fork)
+    val untouched = fork.children[1L]
+    val untouchedScene = untouched.sceneVersion
+    val untouchedLayout = untouched.layoutVersion
+    var branch = fork.children[0L]
+    while (branch.children.size == 1L) {
+        common.add(branch)
+        branch = branch.children[0L]
+    }
+    common.add(branch)
+    val leaves = branch.children
+    assertEquals(64L, leaves.size)
+    val mark = MonotonicTimeSource.markNow()
+    val scene = Array<Long>(common.size) { index -> common[index].sceneVersion }
+    val layout = Array<Long>(common.size) { index -> common[index].layoutVersion }
+    val leafScene = Array<Long>(leaves.size) { index -> leaves[index].sceneVersion }
+    val leafLayout = Array<Long>(leaves.size) { index -> leaves[index].layoutVersion }
+    // A scene change reaches ancestors before the first layout change.
+    leaves[0L].frameInputs.setScene(FrameInputs(time = Some(mark)))
+    for (index in 1L ..< leaves.size)
+        leaves[index].frameInputs.setLayout(FrameInputs(time = Some(mark)))
+    ui.root.frameDependencies.check(mark + Duration.milliseconds(1L))
+    for (index in 0L ..< common.size) {
+        assertEquals(scene[index] + 1L, common[index].sceneVersion)
+        assertEquals(layout[index] + 1L, common[index].layoutVersion)
+    }
+    for (index in 0L ..< leaves.size) {
+        assertEquals(leafScene[index] + 1L, leaves[index].sceneVersion)
+        assertEquals(
+            leafLayout[index] +
+                if (index == 0L)
+                    0L
+                else
+                    1L,
+            leaves[index].layoutVersion
+        )
+    }
+    assertEquals(untouchedScene, untouched.sceneVersion)
+    assertEquals(untouchedLayout, untouched.layoutVersion)
+    // A new scan still reaches skipped nodes whose inputs were not consumed.
+    ui.root.frameDependencies.check(mark + Duration.milliseconds(2L))
+    assertEquals(scene[0L] + 2L, root.sceneVersion)
+    assertEquals(layout[0L] + 2L, root.layoutVersion)
+    leaves[0L].request(UiInvalidation.Scene)
+    leaves[0L].request(UiInvalidation.Scene)
+    assertEquals(scene[0L] + 4L, root.sceneVersion)
+    assertEquals(layout[0L] + 2L, root.layoutVersion)
+    // Consumed inputs stop changing; the remaining scene-only reader preserves layout.
+    for (index in 1L ..< leaves.size)
+        leaves[index].frameInputs.setLayout(FrameInputs())
+    ui.root.frameDependencies.check(mark + Duration.milliseconds(3L))
+    assertEquals(scene[0L] + 5L, root.sceneVersion)
+    assertEquals(layout[0L] + 2L, root.layoutVersion)
+    leaves[0L].frameInputs.setScene(FrameInputs())
+    ui.root.frameDependencies.check(mark + Duration.milliseconds(4L))
+    assertEquals(scene[0L] + 5L, root.sceneVersion)
+    leaves[0L].request(UiInvalidation.Layout)
+    assertEquals(layout[0L] + 3L, root.layoutVersion)
+    assertEquals(scene[0L] + 6L, root.sceneVersion)
+    ui.close()
+    window.requestClose()
+}
+
+private class DependencyTree(scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        var branch = dependencyGroup(Array<View>(64L) { _ -> empty() })
+        for (_ in 0L ..< 24L)
+            branch = dependencyGroup([branch])
+        return dependencyGroup([branch, empty()])
+    }
+}
+
+private fun dependencyGroup(children: Array<View>): View =
+    element({ scope -> DependencyGroup(scope) }, children)
+
+private class DependencyGroup(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, constraints)
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, data: Unit) {
+        context.children()
+    }
+}
