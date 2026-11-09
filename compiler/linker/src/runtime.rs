@@ -101,7 +101,10 @@ impl RuntimeObjectSet {
         }
         let mut inputs = Vec::with_capacity(objects.len());
         for path in objects {
-            let bytes = std::fs::read(&path).map_err(error)?;
+            let bytes = crate::native_archive::prepare_object(
+                target,
+                std::borrow::Cow::Owned(std::fs::read(&path).map_err(error)?),
+            )?;
             let info = NativeObjectInfo::read_with_toolchain(&bytes, toolchain)?;
             let digest = sha256(&bytes);
             let id = RuntimeObjectId(
@@ -129,11 +132,7 @@ impl RuntimeObjectSet {
             .iter()
             .enumerate()
             .map(|(index, bytes)| {
-                NewArchiveMember::new(
-                    bytes.as_slice(),
-                    &DEFAULT_OBJECT_READER,
-                    format!("{index}.o"),
-                )
+                NewArchiveMember::new(bytes.as_ref(), &DEFAULT_OBJECT_READER, format!("{index}.o"))
             })
             .collect();
         std::fs::create_dir_all(directory).map_err(error)?;

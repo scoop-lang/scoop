@@ -41,14 +41,14 @@ pub(super) fn check_archive_and_inputs(
         .contract()
         .native_symbol_normalization()
         .compiler_generated_object_symbol("scoop_rt_run_program");
-    let startup_object = runtime
-        .objects()
-        .iter()
-        .find(|object| object.info().definitions.contains_key(&startup))
-        .unwrap();
     let missing_entry = paths
         .iter()
-        .filter(|path| sha256(&std::fs::read(path).unwrap()) != startup_object.digest())
+        .filter(|path| {
+            !NativeObjectInfo::read_with_toolchain(&std::fs::read(path).unwrap(), toolchain)
+                .unwrap()
+                .definitions
+                .contains_key(&startup)
+        })
         .cloned()
         .collect();
     assert!(

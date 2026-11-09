@@ -271,7 +271,7 @@ fn darwin_final_link_keeps_scoop_definitions_local() {
         .collect::<Vec<_>>();
     assert!(!definitions.is_empty());
     assert!(definitions.iter().all(|symbol| symbol.is_local()));
-    for kind in ["cb", "td", "bs"] {
+    for kind in ["cb", "td"] {
         let prefix = format!("_scoop$1${kind}$");
         assert!(
             definitions
@@ -280,11 +280,15 @@ fn darwin_final_link_keeps_scoop_definitions_local() {
             "missing representative {kind} definition"
         );
     }
-    assert!(
-        definitions
-            .iter()
-            .all(|symbol| !symbol.name().unwrap().starts_with("_scoop$1$be$"))
-    );
+    for kind in ["bs", "be"] {
+        let prefix = format!("_scoop$1${kind}$");
+        assert!(
+            definitions
+                .iter()
+                .all(|symbol| !symbol.name().unwrap().starts_with(&prefix)),
+            "production {kind} aliases must not enter the final symbol table"
+        );
+    }
     let exports = file.exports().unwrap();
     assert!(
         exports
@@ -294,4 +298,103 @@ fn darwin_final_link_keeps_scoop_definitions_local() {
     assert!(exports.iter().any(|symbol| symbol.name() == b"_main"));
     assert!(exports.iter().any(|symbol| symbol.name() == b"_m23_final"));
     assert_eq!(run(&fixture.output.path), b"42\n");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn darwin_empty_code_labels_preserve_referenced_symbols_and_sections() {
+    use object::{Object, ObjectSection, ObjectSymbol, RelocationTarget};
+    let fixture = test_support::native_fixture();
+    let directory = fixture.directory.path();
+    let source = directory.join("empty-code.s");
+    let object = directory.join("empty-code.o");
+    std::fs::write(
+        &source,
+        ".section __TEXT,__text,regular,pure_instructions\n\
+         unused_local:\n\
+         used_local:\n\
+         .globl _empty_public\n\
+         _empty_public:\n\
+         .section __TEXT,__code,regular,pure_instructions\n\
+         live_local:\n\
+         nop\n\
+         .section __DATA,__data\n\
+         .globl _references\n\
+         _references:\n\
+         .quad _references - used_local\n\
+         .quad live_local\n",
+    )
+    .unwrap();
+    let result = fixture
+        .profile
+        .startup_toolchain()
+        .driver_command()
+        .arg("-c")
+        .arg(&source)
+        .arg("-o")
+        .arg(&object)
+        .scoop_output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let bytes = std::fs::read(object).unwrap();
+    for trailer in [b"".as_slice(), b"native producer trailer"] {
+        let mut input = bytes.clone();
+        input.extend(trailer);
+        let before = object::File::parse(input.as_slice()).unwrap();
+        let output = scoop_slib::remove_empty_macho_code_labels(&input).unwrap();
+        let after = object::File::parse(output.as_slice()).unwrap();
+        assert!(
+            after
+                .symbols()
+                .all(|symbol| symbol.name().unwrap() != "unused_local")
+        );
+        for name in ["used_local", "_empty_public", "live_local", "_references"] {
+            assert!(
+                after.symbols().any(|symbol| symbol.name().unwrap() == name),
+                "{name}"
+            );
+        }
+        for (before_section, after_section) in before.sections().zip(after.sections()) {
+            assert_eq!(
+                before_section.name().unwrap(),
+                after_section.name().unwrap()
+            );
+            assert_eq!(
+                before_section.data().unwrap(),
+                after_section.data().unwrap()
+            );
+            let targets = |file: &object::File<'_>, section: &object::Section<'_, '_>| {
+                section
+                    .relocations()
+                    .map(|(offset, relocation)| {
+                        let target = match relocation.target() {
+                            RelocationTarget::Symbol(index) => file
+                                .symbol_by_index(index)
+                                .unwrap()
+                                .name()
+                                .unwrap()
+                                .to_owned(),
+                            RelocationTarget::Section(index) => file
+                                .section_by_index(index)
+                                .unwrap()
+                                .name()
+                                .unwrap()
+                                .to_owned(),
+                            RelocationTarget::Absolute => "absolute".to_owned(),
+                            target => panic!("unexpected relocation target {target:?}"),
+                        };
+                        (offset, target)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                targets(&before, &before_section),
+                targets(&after, &after_section)
+            );
+        }
+    }
 }

@@ -54,7 +54,7 @@ pub(super) fn resolve(
     let installed_unwind_include = (needs_unwind_prefix && options.unwind_prefix.is_none())
         .then(crate::unwind::installed_unwind_include)
         .transpose()?;
-    let key = build_record::fingerprint(&(
+    let configuration = (
         crate::native_record::ResolvedRecord::cache_configuration(target)?,
         final_link,
         options.mode,
@@ -67,7 +67,17 @@ pub(super) fn resolve(
         installed_unwind_include.as_deref().map(path).transpose()?,
         options.native_roots(target.lir_target())?,
         cxx,
-    ))?;
+    );
+    let key = match options.darwin_linker_candidates(target.lir_target())? {
+        Some(candidates) => {
+            let candidates = candidates
+                .iter()
+                .map(|candidate| path(candidate))
+                .collect::<Result<Vec<_>, _>>()?;
+            build_record::fingerprint(&(configuration, candidates))?
+        }
+        None => build_record::fingerprint(&configuration)?,
+    };
     let record = build_record::cached(
         &cache.join(CACHE_DIRECTORY),
         key,

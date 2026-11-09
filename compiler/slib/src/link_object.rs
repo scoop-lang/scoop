@@ -108,7 +108,9 @@ mod defined_owners;
 pub use defined_owners::*;
 
 mod producer_symbols;
-pub use producer_symbols::{ProducerSymbolError, remove_production_end_symbols};
+pub use producer_symbols::{
+    ProducerSymbolError, remove_empty_macho_code_labels, remove_production_end_symbols,
+};
 
 mod code_fingerprint;
 pub use code_fingerprint::*;

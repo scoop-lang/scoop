@@ -1,4 +1,5 @@
 //! Native archive format and buffered writing shared by runtime and final linking.
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -7,6 +8,22 @@ use ar_archive_writer::{ArchiveKind, NewArchiveMember};
 use scoop_lir::{LirTargetProfile, NativeObjectFormat};
 
 use crate::{LinkError, error};
+
+#[cfg(test)]
+mod tests;
+
+pub(crate) fn prepare_object(
+    target: LirTargetProfile,
+    bytes: Cow<'_, [u8]>,
+) -> Result<Cow<'_, [u8]>, LinkError> {
+    if target.native_object_format() == NativeObjectFormat::MachO64 {
+        Ok(Cow::Owned(
+            scoop_slib::remove_empty_macho_code_labels(&bytes).map_err(error)?,
+        ))
+    } else {
+        Ok(bytes)
+    }
+}
 
 pub(crate) fn format(target: LirTargetProfile) -> (ArchiveKind, &'static str) {
     match target.native_object_format() {

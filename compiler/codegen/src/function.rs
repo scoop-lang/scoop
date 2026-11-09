@@ -238,6 +238,8 @@ pub(super) fn emit_function<'ctx>(
     // A function containing a landing pad needs Scoop's closed-profile
     // personality (M25, runtime spec 5). Setting it also makes LLVM emit the
     // unwind table entry; the runtime-private record remains opaque here.
+    // On macOS, LLVM 22.1 keeps this non-canonical personality in DWARF EH,
+    // leaving all three compact personality slots available to native code.
     let has_landing_pad = function.blocks.iter().any(|(_, block)| {
         block.instructions.iter().any(|instruction| {
             matches!(

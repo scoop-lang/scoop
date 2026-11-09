@@ -49,7 +49,7 @@ pub struct FinalLinkOptions {
     pub install_name: Option<String>,
     /// Override the SONAME of an ELF shared library.
     pub soname: Option<String>,
-    /// Actual Windows linker executable, independently of the native C/C++ producer.
+    /// Darwin LLD or Windows linker executable, independently of the native producer.
     pub linker: Option<PathBuf>,
     pub sysroot: Option<PathBuf>,
     pub unwind_prefix: Option<PathBuf>,
@@ -66,6 +66,21 @@ impl FinalLinkOptions {
     pub fn stack_trace_enabled(&self, optimization: scoop_lir::OptimizationMode) -> bool {
         self.enable_stack_trace
             .unwrap_or(optimization == scoop_lir::OptimizationMode::Debug)
+    }
+
+    /// Capture Darwin linker lookup inputs without locating or starting tools.
+    /// Other final-link profiles have no Darwin search configuration.
+    pub fn darwin_linker_candidates(
+        &self,
+        target: LirTargetProfile,
+    ) -> Result<Option<Vec<PathBuf>>, ToolchainError> {
+        match selected_final_link(target)? {
+            scoop_target_data::FinalLinkProfile::Darwin => {
+                darwin::tools::candidates(self.linker.as_deref()).map(Some)
+            }
+            scoop_target_data::FinalLinkProfile::Linux
+            | scoop_target_data::FinalLinkProfile::Windows => Ok(None),
+        }
     }
 
     fn native_roots(&self, target: LirTargetProfile) -> Result<Vec<PathBuf>, ToolchainError> {
@@ -120,8 +135,8 @@ impl ValidatedFinalLinkProfile {
         cxx: Option<crate::ValidatedCxxToolchain>,
     ) -> Result<Self, ToolchainError> {
         let final_link = selected_final_link(startup.target())?;
-        if options.linker.is_some() && !final_link.is_windows() {
-            return Err(error("--linker currently selects a Windows final linker"));
+        if options.linker.is_some() && final_link == scoop_target_data::FinalLinkProfile::Linux {
+            return Err(error("--linker selects a Darwin or Windows final linker"));
         }
         let native_roots = options.native_roots(startup.target())?;
         match final_link {

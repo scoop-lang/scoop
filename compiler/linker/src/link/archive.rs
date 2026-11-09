@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use ar_archive_writer::{ArchiveKind, DEFAULT_OBJECT_READER, NewArchiveMember};
 use fs4::FileExt;
-use scoop_lir::LirTargetProfile;
+use scoop_lir::{LirTargetProfile, NativeObjectFormat};
 use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash, sha256};
 
 use crate::program::InputObject;
@@ -20,8 +20,13 @@ pub(super) fn build(
     objects: &[InputObject<'_>],
     cache: &Path,
 ) -> Result<Vec<PathBuf>, LinkError> {
+    let domain = if target.native_object_format() == NativeObjectFormat::MachO64 {
+        "scoop-darwin-link-archives-v1"
+    } else {
+        "scoop-link-archives-v2"
+    };
     let key = domain_separated_cbor_hash(
-        "scoop-link-archives-v2",
+        domain,
         &Members {
             target,
             startup: startup.map(sha256),
@@ -60,7 +65,7 @@ pub(super) fn build(
         .collect();
     let mut bytes = startup.map_or(0, <[u8]>::len);
     for (index, object) in objects.iter().enumerate() {
-        let data = object.read_bytes()?;
+        let data = object.read_bytes(target)?;
         if !members.is_empty()
             && (members.len() >= MAX_BATCH_MEMBERS
                 || bytes.saturating_add(data.len()) > MAX_BATCH_BYTES)

@@ -1,4 +1,4 @@
-//! Remove production-only end markers after object verification has completed.
+//! Remove unused object labels after their range consumers have completed.
 //!
 //! Section identities and contents stay intact; only symbol references and file
 //! offsets change. In particular, start markers may still own relocations.
@@ -23,12 +23,17 @@ impl std::error::Error for ProducerSymbolError {}
 /// Called only for verified compiler/bridge objects, after range consumers.
 pub fn remove_production_end_symbols(bytes: &[u8]) -> Result<Vec<u8>> {
     match object::FileKind::parse(bytes).map_err(error)? {
-        object::FileKind::MachO64 => macho::strip(bytes),
+        object::FileKind::MachO64 => macho::strip(bytes, macho::Selection::ProductionEnds),
         object::FileKind::Elf64 => elf::strip(bytes),
         object::FileKind::Coff => coff::strip(bytes, false),
         object::FileKind::CoffBig => coff::strip(bytes, true),
         _ => Err(error("unsupported production object format")),
     }
+}
+
+/// Remove unreferenced local labels in empty Mach-O code sections before linking.
+pub fn remove_empty_macho_code_labels(bytes: &[u8]) -> Result<Vec<u8>> {
+    macho::strip(bytes, macho::Selection::EmptyCodeLabels)
 }
 
 type Result<T> = std::result::Result<T, ProducerSymbolError>;

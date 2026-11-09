@@ -22,6 +22,8 @@ Windows RC 构建使用 LLVM 22.1 的 `llvm-windres` 和 `llvm-cvtres`；前者�
 
 在 Darwin／Linux 开发树中使用此 SDK 时，将 `LLVM_SYS_221_PREFIX` 指向安装根，并为 Cargo 设置同一目录的动态库搜索路径，例如 `RUSTFLAGS="-C link-arg=-Wl,-rpath,${LLVM_SYS_221_PREFIX}/lib"`。发行脚本已使用相同配置；仅设置编译期 prefix 不能保证运行时加载该 LLVM。更新 LLVM 后重新构建 Scoop 命令并准备系统库，fixture 的 `--llc` 也选择此 SDK 的工具。
 
+Darwin 的 `scoop` 与 `scoop-link` 最终链接使用已打包的 `libexec/llvm/bin/lld -flavor darwin`，包含 C++ 依赖时同样直接调用 LLD；无需新增 `ld64.lld` 别名。开发树没有随包 LLD 时，依次使用 `LLVM_SYS_221_PREFIX/bin/lld` 或 PATH 中的 `lld`，也可通过 `--linker /path/to/lld` 显式选择。Apple Clang 继续承担 native 编译及 SDK 选择；最终链接不回退到系统 ld。更换链接器不消除 compact unwind 的 personality 数量限制。
+
 Linux／macOS 交叉编译 Microsoft target 使用配套宿主 Clang 和显式 `msvc.toml` 开发资源，布局见 [Windows 设计](../docs/windows-targets/DESIGN.md#22-安装布局与选择)。大小写敏感文件系统需要 SDK 文件可按源码的实际 include 拼写和链接库名定位；可在维护准备时为 `Windows.h`／`windows.h` 等差异补齐符号链接。Windows 上准备的 runtime schema 7 索引及相邻对象可直接传到其他宿主，配套 `.slib` 无需重编。
 
 Windows x64 宿主使用 LLVM-MinGW `20260616` 的 UCRT 环境与支持 UTF-8 build file 的 Ninja（1.11+，`ninja -t wincodepage` 输出 UTF-8），以 `--cc`、`--cxx` 分别选择该 prefix 中的 `clang.exe`、`clang++.exe`。脚本安装 `.exe`、LLVM／Clang DLL 与 import library，并将其 C++／unwind DLL 放在同一 `bin`；Rust 编译使用 `x86_64-pc-windows-gnullvm` 与安装根的 `LLVM_SYS_221_PREFIX`。这些是宿主开发工具，与应用 target 的 Microsoft／MinGW、MSVCRT／UCRT 选择独立。首次完整构建包括 Clang／LLD；重复执行只在输入更新或所需输出缺失时构建。

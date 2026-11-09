@@ -1,0 +1,73 @@
+schema = 1
+name = "native-link-darwin-personalities"
+inputs = ["consumer", "native.cpp", "handlers.ll"]
+support = ["check_unwind.py"]
+tools = ["scoop", "scoopc", "cc", "ar", "llc", "python"]
+when = {os = "darwin"}
+tags = ["native-link", "unwind", "compiler-correctness"]
+
+# Build the native archive once, then consume it unchanged in both profiles.
+[[steps]]
+name = "native"
+argv = ["${cc}", {each = "${cc_args}"}, "-x", "c++", "-std=c++17", "-O1", "-fno-omit-frame-pointer", "-funwind-tables", "-Wall", "-Wextra", "-Werror", "-c", "${fixture}/native.cpp", "-o", "${work}/native.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "handlers"
+argv = ["${llc}", "-mtriple=${llvm_target}", "-filetype=obj", "-relocation-model=pic", "-emit-compact-unwind-non-canonical=true", "${fixture}/handlers.ll", "-o", "${work}/handlers.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "archive"
+argv = ["${ar}", "rcs", "${work}/libnative_three.a", "${work}/native.o", "${work}/handlers.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "save_archive"
+files = [{copy = {from = "${work}/libnative_three.a", to = "${work}/archive-before.a"}}]
+
+[[steps]]
+name = "debug"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${fixture}/consumer", "--profile", "debug", "--scoopc", "${scoopc}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--lockfile", "${work}/source.lock", "--library-path", "${work}", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run_debug"
+argv = ["${debug.result.output}"]
+exit = 0
+stdout = "42\n42\n42\n3\n1\nscoop-caught\nscoop-finally\n"
+stderr = ""
+
+[[steps]]
+name = "release"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${fixture}/consumer", "--release", "--scoopc", "${scoopc}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--lockfile", "${work}/source.lock", "--library-path", "${work}", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run_release"
+argv = ["${release.result.output}"]
+exit = 0
+stdout = "42\n42\n42\n3\n1\nscoop-caught\nscoop-finally\n"
+stderr = ""
+
+[[steps]]
+name = "unwind"
+argv = ["${python}", "${fixture}/check_unwind.py", "${debug.result.output}", "${release.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""
+checks = [{file = "${work}/libnative_three.a", same_as = "${work}/archive-before.a"}]
