@@ -3,7 +3,6 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use object::{Object, ObjectKind};
 use scoop_lir::{ClangCompilerIdentityV1, LirTargetProfile, TargetProfileId};
 use scoop_process::CommandExt;
 use scoop_wire::sha256;
@@ -43,10 +42,10 @@ pub fn resolve_windows_c_toolchain(
     compiler: &Path,
     native_sysroot: Option<&Path>,
 ) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
-    probe_with_resources(target, compiler, native_sysroot, None)
+    resolve_with_resources(target, compiler, native_sysroot, None)
 }
 
-pub(crate) fn probe_default(
+pub(crate) fn resolve_default(
     target: LirTargetProfile,
     native_sysroot: Option<&Path>,
     sysroot: Option<&Path>,
@@ -80,7 +79,7 @@ pub(crate) fn probe_default(
             target.contract().canonical_triple()
         )));
     }
-    probe_with_resources(
+    resolve_with_resources(
         target,
         &compiler,
         native_sysroot.or_else(|| usable_default.then_some(default_root.as_path())),
@@ -88,7 +87,7 @@ pub(crate) fn probe_default(
     )
 }
 
-fn probe_with_resources(
+fn resolve_with_resources(
     target: LirTargetProfile,
     compiler: &Path,
     native_sysroot: Option<&Path>,
@@ -100,28 +99,22 @@ fn probe_with_resources(
     let environment =
         WindowsCEnvironment::resolve(target, &compiler, native_sysroot, bundled_llvm)?;
     let machine = environment.machine;
-    let directory = tempfile::Builder::new()
-        .prefix("scoop-windows-c-")
-        .tempdir()
-        .map_err(error)?;
-    let source = directory.path().join("probe.c");
-    let object = directory.path().join("probe.obj");
     let native_environment = native_environment(target.id())?;
     let microsoft = native_environment == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
     let ucrt = native_environment != scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt;
-    std::fs::write(
-        &source,
-        format!(
-            "{PROBE}\n#if !defined(__clang__) || !defined(_WIN64) || !({machine_condition})\n#error the Windows generated-C producer requires {machine_name} Clang\n#endif\n#if defined(__MINGW32__) == {microsoft}\n#error wrong Windows native environment\n#endif\n#if defined(_UCRT) != {ucrt}\n#error wrong Windows CRT headers\n#endif\nvoid *scoop_windows_c_probe(void) {{ return (void *)&_errno; }}\n",
-            machine_condition = machine.predefined_macro_condition(),
-            machine_name = machine.name(),
-            microsoft = u8::from(microsoft),
-            ucrt = u8::from(ucrt),
-        ),
-    )
-    .map_err(error)?;
-    let make_command = || environment.command(&compiler, triple, microsoft);
-    let macros = run(make_command().args(["-dM", "-E"]).arg(&source))?;
+    let source = format!(
+        "{HEADERS}\n#if !defined(__clang__) || !defined(_WIN64) || !({machine_condition})\n#error the Windows generated-C producer requires {machine_name} Clang\n#endif\n#if defined(__MINGW32__) == {microsoft}\n#error wrong Windows native environment\n#endif\n#if defined(_UCRT) != {ucrt}\n#error wrong Windows CRT headers\n#endif\n",
+        machine_condition = machine.predefined_macro_condition(),
+        machine_name = machine.name(),
+        microsoft = u8::from(microsoft),
+        ucrt = u8::from(ucrt),
+    );
+    let macros = run(
+        environment
+            .command(&compiler, triple, microsoft)
+            .args(["-dM", "-E", "-x", "c", "-"]),
+        source.as_bytes(),
+    )?;
     let macros_text = std::str::from_utf8(&macros.stdout).map_err(error)?;
     let version = [
         macro_number(macros_text, "__clang_major__")?,
@@ -130,39 +123,21 @@ fn probe_with_resources(
     ];
     let identity = ClangCompilerIdentityV1::new(version, sha256(&macros.stdout));
     let profile = scoop_target_data::windows_c_bridge_profile(target, identity).map_err(error)?;
-    let invocation =
-        ValidatedCBridgeToolchainInvocation::new_windows(target, profile, compiler, environment)
-            .map_err(error)?;
-    run(&mut invocation.object_compilation_command(&source, &object))?;
-    let bytes = std::fs::read(object).map_err(error)?;
-    let file = object::File::parse(bytes.as_slice()).map_err(error)?;
-    if file.architecture() != machine.object_architecture()
-        || file.format() != object::BinaryFormat::Coff
-        || file.kind() != ObjectKind::Relocatable
-        || file.symbol_by_name("scoop_windows_c_probe").is_none()
-    {
-        return Err(error(format!(
-            "Clang did not emit the selected {} COFF C object",
-            machine.name()
-        )));
-    }
-    Ok(invocation)
+    ValidatedCBridgeToolchainInvocation::new_windows(target, profile, compiler, environment)
+        .map_err(error)
 }
 
-const PROBE: &str = r#"
+const HEADERS: &str = r#"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <stdatomic.h>
 #include <windows.h>
-_Static_assert(sizeof(void *) == 8 && sizeof(long) == 4 && sizeof(wchar_t) == 2,
-    "Windows LLP64 required");
-_Static_assert(ATOMIC_POINTER_LOCK_FREE == 2, "Windows runtime requires lock-free pointer atomics");
 "#;
 
-fn run(command: &mut Command) -> Result<Output, ToolchainError> {
-    let output = command.scoop_output().map_err(error)?;
+fn run(command: &mut Command, source: &[u8]) -> Result<Output, ToolchainError> {
+    let output = command.scoop_output_with_input(source).map_err(error)?;
     if !output.status.success() {
         return Err(error(format!(
             "{}: {}",

@@ -177,3 +177,11 @@ Windows 的现有实机 C 桥测试发现 MinGW 按函数分节后使用 `.pdata
 逐 Cone 进度 fixture 的最终产物提示使用了 Python 原始路径，而 Windows CLI 正常显示 canonicalize 后的扩展路径。改用 runner 既有的 `canonical_host_path` 构造期望，不改变产品提示或进度行为；Ruff 和本地定向 fixture 通过，Windows 继续定向复验。
 
 Windows 复验中的全部进度、缓存、检查、文档和失败断言均通过，fixture 脚本自己的成功提示仍因 Python 文本 stdout 转换为 CRLF 而与精确字节期望不符。该提示改为直接写入固定 LF 字节，与已有工具版本 fixture 保持相同方式。
+
+## 2026-11-10：删除生产期残留的工具预演
+
+累计优化后的 Windows 文件跟踪发现，虽然工具巡检记录已删除，实际生产时仍会为 generated-C 写探测源码和对象，为最终链接编译、链接空程序，并查询 linker 版本、散列工具与探测所选系统库。改源码再构建的进程数因此从基线 5 增至 11；这部分不能因记录已经删除而继续保留。
+
+Windows generated-C 改为通过 stdin 预处理既有固定头文件并取得 ABI 宏数据，不生成探测源码或对象；目标数据与真正 C 桥的布局断言保持。Darwin、Linux、Windows 最终链接删除空程序预演、linker 版本和工具状态指纹。Linux 的实际系统库路径仍供 ELF 符号解析使用，改用没有源码、启动对象或程序对象的 driver 库路径跟踪，输出到空设备；不创建、读取或验证探测 executable，也不为工具状态重读和散列库文件。实际外部库读取、Darwin stub 数据及生产调用错误仍按正常编译链接处理。
+
+本地格式化、toolchain／linker／scoop all-targets Clippy 和五个 release CLI 构建通过。64 项工具链测试通过，包含真实共享库加载和线程 TLS；4 个正式 CLI 用例通过（5 个变体、55 次进程操作），覆盖最终程序复用、C++、回调异常及 GC。Linux 实际库路径查询已在 glibc、musl 静态／动态和 C++ 四种配置下成功，完整链接与运行复验随后执行。Windows 的 CRT、展开、PDB 与 DLL 真实测试继续保留；最终文件事件将使用完成这项修正的工具重新测量。

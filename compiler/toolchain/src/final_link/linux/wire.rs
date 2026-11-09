@@ -2,16 +2,12 @@ use super::*;
 
 impl WireEncode for LinuxFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(10)?;
+        e.map(7)?;
         e.field(1)?;
         self.startup.profile().contract().target().encode(e)?;
         e.field(2)?;
         self.startup.profile().contract().encode(e)?;
         e.field(3)?;
-        self.data.compiler_digest.encode(e)?;
-        e.field(4)?;
-        e.text(&self.data.linker_version)?;
-        e.field(5)?;
         let linker_args = self.linker_args();
         e.array((linker_args.len() + usize::from(!self.cxx())) as u64)?;
         if !self.cxx() {
@@ -20,32 +16,11 @@ impl WireEncode for LinuxFinalLinkProfile {
         for option in linker_args {
             e.text(option)?;
         }
-        e.field(6)?;
+        e.field(4)?;
         sha256(self.elf_plan().metadata_script().as_bytes()).encode(e)?;
-        e.field(7)?;
-        // Locators serve local reads. Content and input role determine the
-        // final-link identity, so moving a sysroot does not change its bytes.
-        let mut inputs: Vec<_> = self
-            .data
-            .inputs
-            .iter()
-            .map(|input| {
-                (
-                    input.path.file_name().unwrap_or_default().to_string_lossy(),
-                    input.digest,
-                )
-            })
-            .collect();
-        inputs.sort();
-        e.array(inputs.len() as u64)?;
-        for (name, digest) in inputs {
-            e.array(2)?;
-            e.text(&name)?;
-            digest.encode(e)?;
-        }
-        e.field(8)?;
+        e.field(5)?;
         e.unsigned(1)?;
-        e.field(9)?;
+        e.field(6)?;
         match &self.data.runtime {
             RuntimeLibraries::C { .. } => e.array(0),
             RuntimeLibraries::Cxx(cxx) => {
@@ -53,7 +28,7 @@ impl WireEncode for LinuxFinalLinkProfile {
                 cxx.fingerprint().encode(e)
             }
         }?;
-        e.field(10)?;
+        e.field(7)?;
         self.data.output.encode(e)
     }
 }

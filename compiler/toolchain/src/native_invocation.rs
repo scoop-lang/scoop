@@ -57,7 +57,7 @@ pub(crate) fn resolve(
             options.compiler.as_deref(),
             options.native_sysroot.as_deref(),
         )?,
-        scoop_target_data::TargetOs::Windows => crate::windows_c::probe_default(
+        scoop_target_data::TargetOs::Windows => crate::windows_c::resolve_default(
             target,
             options.native_sysroot.as_deref(),
             options.sysroot.as_deref(),

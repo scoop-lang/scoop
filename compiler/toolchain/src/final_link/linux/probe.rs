@@ -15,42 +15,40 @@ pub(super) fn driver_program(mut command: Command, name: &str) -> Result<PathBuf
     crate::paths::find_program(OsStr::new(program.trim()), &path)
 }
 
-pub(super) fn check(profile: &LinuxFinalLinkProfile) -> Result<Vec<SystemInput>, ToolchainError> {
-    let directory = tempfile::Builder::new()
-        .prefix("scoop-elf-link-")
-        .tempdir()
-        .map_err(error)?;
-    let source = directory.path().join("probe.c");
-    let object = directory.path().join("probe.o");
-    std::fs::write(&source, SOURCE).map_err(error)?;
-    let mut compile = profile.startup.object_compilation_command(&source, &object);
-    compile.args(["-funwind-tables", "-fno-omit-frame-pointer"]);
-    if let Some(include) = profile.data.runtime.unwind_include() {
-        compile.arg("-I").arg(include);
+pub(super) fn system_inputs(
+    profile: &LinuxFinalLinkProfile,
+) -> Result<Vec<PathBuf>, ToolchainError> {
+    // Ask the selected driver to resolve its libraries, including linker scripts.
+    // No source, startup object, program object or published output is needed.
+    let mut command = profile.data.runtime.command(&profile.startup);
+    command.args(profile.linker_args()).args([
+        "-nostartfiles",
+        "-Wl,-t",
+        "-Wl,-e,0",
+        "-o",
+        "/dev/null",
+    ]);
+    if profile.cxx() {
+        // A library operand makes the driver run its normal C++ library plan.
+        command.arg("-lc");
+    } else {
+        command.arg("-nodefaultlibs");
     }
-    run(&mut compile)?;
-    let binary = directory.path().join("probe");
-    let mut command = profile.command(directory.path(), &binary)?;
-    command.arg("-Wl,-t").arg(object);
     profile.append_system_libraries(&mut command);
-    let result = run(&mut command)?;
-    let trace = String::from_utf8(result.stdout).map_err(error)?;
-    let mut paths = BTreeSet::new();
-    if let Some(prefix) = profile.unwind_prefix() {
-        paths.insert(prefix.join("lib/libunwind.a"));
-    }
-    for line in trace.lines() {
-        let path = Path::new(line.trim());
-        if path.is_absolute() && !path.starts_with(directory.path()) {
-            if !path.is_file() {
-                return Err(error(format!(
-                    "linker trace names a missing input {}",
-                    path.display()
-                )));
-            }
-            paths.insert(path.to_owned());
-        }
-    }
+    let output = run(&mut command)?;
+    let trace = String::from_utf8(output.stdout).map_err(error)?;
+    let paths = trace
+        .lines()
+        .map(|line| Path::new(line.trim()))
+        .filter(|path| {
+            path.is_absolute()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".a") || name.contains(".so"))
+        })
+        .map(Path::to_owned)
+        .collect::<BTreeSet<_>>();
     if !paths.iter().any(|path| {
         path.file_name()
             .is_some_and(|name| name == "libc.so" || name == "libc.a")
@@ -59,13 +57,7 @@ pub(super) fn check(profile: &LinuxFinalLinkProfile) -> Result<Vec<SystemInput>,
             "linker trace does not identify the selected libc development input",
         ));
     }
-    paths
-        .into_iter()
-        .map(|path| {
-            let digest = sha256(&std::fs::read(&path).map_err(error)?);
-            Ok(SystemInput { path, digest })
-        })
-        .collect()
+    Ok(paths.into_iter().collect())
 }
 
 pub(super) fn run(command: &mut Command) -> Result<Output, ToolchainError> {
@@ -81,6 +73,7 @@ pub(super) fn run(command: &mut Command) -> Result<Output, ToolchainError> {
     Ok(output)
 }
 
+#[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 pub(super) const SOURCE: &str = "#include <stdio.h>\n#include <unwind.h>\n\
 static _Unwind_Reason_Code trace(struct _Unwind_Context *context, void *data) {\n\
     (void)context; (*(int *)data)++; return _URC_NO_REASON;\n}\n\

@@ -4,33 +4,6 @@ use scoop_lir::LirTargetProfile;
 
 use crate::ToolchainError;
 
-pub(crate) fn installed_unwind_include() -> Result<PathBuf, ToolchainError> {
-    crate::installed_executable()?
-        .parent()
-        .and_then(Path::parent)
-        .map(|root| root.join("libexec/scoop/include/unwind"))
-        .ok_or_else(|| ToolchainError("cannot locate the installed unwind headers".into()))
-}
-
-pub(crate) fn link_unwind_include(
-    prefix: &Path,
-    explicit: bool,
-) -> Result<PathBuf, ToolchainError> {
-    let installed = installed_unwind_include()?;
-    let include = if !explicit && installed.is_dir() {
-        installed
-    } else {
-        prefix.join("include")
-    };
-    if !include.join("unwind.h").is_file() {
-        return Err(ToolchainError(format!(
-            "missing LLVM unwind headers at {}; provide --unwind-prefix or prepare the target unwind resources",
-            include.display()
-        )));
-    }
-    std::path::absolute(include).map_err(|error| ToolchainError(error.to_string()))
-}
-
 pub fn selected_unwind_prefix(
     target: LirTargetProfile,
     sysroot: Option<&Path>,

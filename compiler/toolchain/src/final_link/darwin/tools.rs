@@ -1,7 +1,5 @@
 use std::ffi::OsStr;
 
-use scoop_process::CommandExt;
-
 use super::*;
 
 pub(in crate::final_link) fn candidates(
@@ -47,24 +45,4 @@ pub(super) fn resolve(candidates: Vec<PathBuf>) -> Result<PathBuf, ToolchainErro
         )));
     };
     Ok(candidates[index].clone())
-}
-
-pub(super) fn version(linker: &Path) -> Result<String, ToolchainError> {
-    let output = Command::new(linker)
-        .env_clear()
-        .env("LC_ALL", "C")
-        .args(["-flavor", "darwin", "--version"])
-        .scoop_output()
-        .map_err(error)?;
-    if !output.status.success() {
-        return Err(error(format!(
-            "Mach-O LLD version query failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-    let version = std::str::from_utf8(&output.stdout).map_err(error)?.trim();
-    if !version.starts_with("LLD ") {
-        return Err(error(format!("expected Mach-O LLD, found {version}")));
-    }
-    Ok(version.to_owned())
 }

@@ -176,14 +176,6 @@ impl ValidatedFinalLinkProfile {
         }
     }
 
-    pub fn compiler_digest(&self) -> Digest256 {
-        match self {
-            Self::Darwin(profile) => profile.compiler_digest(),
-            Self::Linux(profile) => profile.compiler_digest(),
-            Self::Windows(profile) => profile.compiler_digest(),
-        }
-    }
-
     pub fn linker_driver(&self) -> &Path {
         match self {
             Self::Darwin(profile) => profile.linker_driver(),
@@ -229,7 +221,7 @@ impl ValidatedFinalLinkProfile {
     }
 
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-final-link-profile-v2", self).map_err(error)
+        domain_separated_cbor_hash("scoop-final-link-profile-v3", self).map_err(error)
     }
 }
 

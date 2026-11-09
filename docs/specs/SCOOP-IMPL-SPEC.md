@@ -72,7 +72,7 @@ runtime index 的补充 deployment 值 0 表示使用完整 target 已规定的 
 
 Windows runtime 的普通 COFF 对象可包含 CRT headers 生成的重复可合并 helper（如 inline stdio 配置函数和 MinGW refptr）。runtime index 合并符号目录时允许类型／只读属性一致的 weak 定义重复，实际 COMDAT 选择仍由 PE linker 执行，所有原始对象保留；runtime ABI 入口仍要求 strong 定义，重复 strong 定义仍报错。程序输入汇总复用已合并的 runtime 目录，不再次将合法重复判为冲突；用户 native 对象与 runtime 之间的同类 COFF weak helper 也按相同规则合并。
 
-MinGW 的 native sysroot 是对应 CRT 的完整 LLVM-MinGW prefix。Microsoft 环境可由已安装 Build Tools／SDK 发现，也可在显式 native sysroot 的 `msvc.toml` 中提供 `[msvc]` 表的 `vc_tools`、`windows_sdk`、`sdk_version`；前两项分别指向所选 `VC/Tools/MSVC/<version>` 与 Windows SDK 根，支持相对于该配置文件的路径。跨宿主使用同一显式布局。发现阶段以实际 headers 编译 AMD64 COFF probe，检查 Win64／LLP64、Microsoft 或 mingw-w64 环境及 `_UCRT` 对应关系；不执行目标程序，也不预先要求最终链接库齐全。配置、选中工具与实际头文件路径按既有输入更新规则记录和复用。
+MinGW 的 native sysroot 是对应 CRT 的完整 LLVM-MinGW prefix。Microsoft 环境可由已安装 Build Tools／SDK 发现，也可在显式 native sysroot 的 `msvc.toml` 中提供 `[msvc]` 表的 `vc_tools`、`windows_sdk`、`sdk_version`；前两项分别指向所选 `VC/Tools/MSVC/<version>` 与 Windows SDK 根，支持相对于该配置文件的路径。跨宿主使用同一显式布局。generated-C 调用配置通过 stdin 预处理固定的实际 headers，取得既有 Clang／目标／CRT 宏身份；不创建探测源码或对象，不以空 C 函数的编译结果重复确认选中的 COFF 目标。LLP64 和对象布局来自所选目标，真实生成桥继续包含所需布局断言。工具／SDK 状态不进入更新判断；调用配置只在本次需要生产时准备并在进程内复用。
 
 Microsoft 发现同时支持普通 shell 与已初始化的 Visual Studio 开发环境。工具发现结果的环境覆盖当前进程的同名 INCLUDE／LIB／PATH；发现库复用开发环境而未返回覆盖项时，保留继承的有效搜索路径。解析后的目录进入正常调用记录，不能因随后清理编译器子进程环境而丢失已选 SDK／CRT。
 
@@ -90,7 +90,7 @@ Windows 发行包按宿主 PE 的实际 imports 收集非系统 DLL，递归包�
 
 Linux generated-C 支持 GCC 与 GNU 风格 Clang。GNU 环境省略 `--cc` 时优先使用当前 Scoop 命令安装目录下的 `libexec/llvm/bin/clang`，未配套 LLVM 的开发布局回退到 PATH 中的 `gcc`；musl 环境默认仍为 `musl-gcc`。显式 `--cc` 优先，native C++ 默认沿已有配对规则选择同一套 `clang++` 或 `g++`。随包 Clang 与显式编译器均在实际需要编译时定位，不为缓存更新监视安装位置与候选状态。先通过无系统头文件的预定义宏探测实际 compiler family；Clang 显式使用所选 LLVM machine triple，两者使用所选 native sysroot。`REALGCC` 只传给实际 `musl-gcc` wrapper；直接 GCC、Clang 不依赖第二个 GCC 可执行文件。真实 header/object probe 检查 libc、LP64 与机器，误选另一 libc 的 driver 必须得到不匹配诊断。Linux producer 合同保存 GCC 或 Clang 的版本和预处理配置；Clang identity 与 Windows 共用纯数据编码，native 环境仍由完整 target 区分。
 
-GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 升至 27，已解析工具调用记录显式保存 Linux compiler 选择；native 工具记录同步演进，不保留旧记录的兼容转换。
+GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 的调用配置显式保存 Linux compiler 选择；不保存工具状态巡检记录。
 
 两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
@@ -1089,15 +1089,15 @@ C++ 配套 driver 仅在实际 C++ 编译或链接需要时定位，不维护独
 
 最终程序先按依赖 `.slib`、runtime、实际外部库与链接选项判断更新。已存在且输入未变化的结果直接复用；只有需要链接时才解析 linker、运行库和 SDK 导出，读取 Link 语义并准备对象与启动代码。不保存最终链接工具的发现记录，不通过工具文件、版本、PATH、SDK 探测结果或搜索候选使程序缓存失效。SDK stub 的摘要和长度在实际读取时保存，按本次目标和符号生成必要的单目标 stub；实际链接使用的外部库仍是正常依赖输入。
 
-实际 final-link 工具选择沿现有目标／libc 与运行库规则执行；不为更新判断预先运行探测编译或链接，不读取探测 executable 重验目标、装载命令、段权限、EH 符号或 fixup。输出行为由专门的编译、链接和运行测试覆盖。
+实际 final-link 工具选择沿现有目标／libc 与运行库规则执行；普通生产不编译或链接空程序来预验工具能力，不查询 linker 版本、不计算工具文件或 SDK 状态指纹，不读取探测 executable 重验目标、装载命令、段权限、EH 符号或 fixup。链接计划记录实际目标、输出种类、参数与所需 native 输入。Linux 为解析实际系统库的符号，使用已选 driver／libc／链接模式跟踪默认库路径；这次路径查询没有源码、启动对象或程序对象，输出到空设备，不创建或读取探测产物，也不散列系统库以记录工具状态。Darwin 实际用于符号解析和 stub 生成的数据沿用现有规则。工具失败由实际调用报告，输出的格式、CRT、展开及共享库行为由专门的编译、链接和运行测试覆盖。
 
-`scoop link` 与独立 `scoop-link` 同样复用 C／C++／最终链接工具发现记录；两者没有源码 Cone root，缓存位置依次使用 `--cache-dir`、`SCOOP_CACHE_DIR`、平台默认缓存目录。Windows 默认使用 `%LOCALAPPDATA%/Scoop/Cache`，Linux 使用 `$XDG_CACHE_HOME/scoop` 或 `$HOME/.cache/scoop`，Darwin 使用 `$HOME/Library/Caches/Scoop`；平台环境值只采用绝对路径，无可用默认值时要求显式缓存目录。显式 artifact 输入的读取和必要链接工作继续按实际请求执行。
+`scoop link` 与独立 `scoop-link` 同样只在实际生产时准备 C／C++／最终链接调用，不保存工具发现记录。两者没有源码 Cone root，普通产物缓存位置依次使用 `--cache-dir`、`SCOOP_CACHE_DIR`、平台默认缓存目录。Windows 默认使用 `%LOCALAPPDATA%/Scoop/Cache`，Linux 使用 `$XDG_CACHE_HOME/scoop` 或 `$HOME/.cache/scoop`，Darwin 使用 `$HOME/Library/Caches/Scoop`；平台环境值只采用绝对路径，无可用默认值时要求显式缓存目录。显式 artifact 输入的读取和必要链接工作继续按实际请求执行。
 
 native 预处理同时取得实际 include 名称及其所在文件，按该次 include 的名称、引号查找目录和配置搜索根记录候选；不把所有头文件的父目录互相交叉展开。预处理器输出的 include 观察指令不进入后续预处理单元编译，原有行号与诊断映射保持。
 
 搜索目录不要求预先存在，不在预处理前 canonicalize 或核验每个 include 参数。缺失候选仍可作为普通更新观察，新增实际头文件后按原搜索顺序重新选择；实际文件读取失败由执行读取的工具报告。
 
-用户 native 源码的普通对象结果保存在 `native-objects-v1`，记录实际选中的源码、上次预处理得到的头文件、include 搜索配置与相关候选路径、编译参数和 C／C++ 工具输入。记录命中且对象存在时直接返回对象路径，不预处理、不读头文件、不复制预处理结果或对象。更新时由构建编排调用 native 工具预处理并编译一次，全部成功后发布对象和记录；不同输入的对象使用不同位置。仅 Scoop 源码变化时复用 native 对象。更新判断观察实际头文件及可改变其选择的候选路径；不因同目录新增无关文件而重新预处理。parent 将这些对象交给 scoopc 打包，child 不再次发现 C++ 工具或编译同一 native 源码；独立 scoopc 仍从实际源码完成正常 native 编译。native 路径只用于输入选择与诊断，不比较 inode、审计符号链接来源或限制头文件的物理归属。头文件搜索和 forced include 接受含 `..` 的相对路径及绝对路径，使用普通 PathBuf 按 Cone 根解析，不套用 Scoop source identity 的 ConeRelativePath。
+用户 native 源码的普通对象结果保存在 `native-objects-v3`，记录实际选中的源码、上次预处理得到的头文件、include 搜索配置与相关候选路径、编译参数和运行库需求。记录命中且对象存在时直接返回对象路径，不预处理、不读头文件、不复制预处理结果或对象。更新时由构建编排调用 native 工具预处理并编译一次，全部成功后发布对象和记录；不同输入的对象使用不同位置。仅 Scoop 源码变化时复用 native 对象。更新判断观察实际头文件及可改变其选择的候选路径；不因同目录新增无关文件而重新预处理。parent 将这些对象交给 scoopc 打包，child 不再次发现 C++ 工具或编译同一 native 源码；独立 scoopc 仍从实际源码完成正常 native 编译。native 路径只用于输入选择与诊断，不比较 inode、审计符号链接来源或限制头文件的物理归属。头文件搜索和 forced include 接受含 `..` 的相对路径及绝对路径，使用普通 PathBuf 按 Cone 根解析，不套用 Scoop source identity 的 ConeRelativePath。
 
 完成节点保存实际生成物位置和后续需要的摘要，不强制持有整份归档或多份验证结构。后续需要编译或链接时按需读取 section，命中库输出或最终 executable 时不读取产物。不同子进程各自首次读取所需依赖数据是正常工作，不增加驻留服务或共享内存协议来消除进程边界。
 
@@ -1141,7 +1141,7 @@ run 直接执行本次成功构建确定的文件；同一请求构建失败时�
 
 当前 Cone 的 `native.cxx` 在所选 target 下生效时要求解析同一 target 的配套 C++ driver：GNU 使用对应工具链的 `g++`，Darwin 使用同一 Xcode 工具链的 `clang++`。选中的 C++ 源码交给该 driver，`.c`、generated-C bridge、runtime 和生成的启动 C 代码仍按各自 C 编译配置生成对象。未启用 `cxx` 却选中 C++ 源码、启用后缺少配套 driver／运行库、启用后 target 为 musl，均在调用 native 编译器前诊断；不回退到宿主 C++ 工具链。
 
-Windows native C/C++ driver 单独选择：Microsoft 默认使用宿主 LLVM 的 clang-cl，也接受显式 cl；MinGW 使用 Clang／Clang++ 与所选 prefix 的 libc++。`--cc` 选择用户 native C driver，`--cxx` 可选择相容 C++ driver；Microsoft 未显式选择 C++ 时沿用选中 C driver，MinGW 沿配套位置选 Clang++。generated-C 优先使用安装根 libexec/llvm/bin 的 Clang；直接运行开发输出时允许从 PATH 定位宿主 Clang，不将其 builtin 交给 cl。实际 header/object probe 检查 Win64、LLP64、CRT、MSVC STL 或 libc++，无须执行程序；C++ probe 包含 RTTI、标准库和内部异常。路径只进入宿主调用及普通更新记录，未使用的 C++ 配置不探测。交叉宿主的源码、对象与库路径必须作为文件参数传递，不能让 clang-cl 将 `/Users/...` 等 POSIX 路径解释为 Microsoft 编译选项。
+Windows native C/C++ driver 单独选择：Microsoft 默认使用宿主 LLVM 的 clang-cl，也接受显式 cl；MinGW 使用 Clang／Clang++ 与所选 prefix 的 libc++。`--cc` 选择用户 native C driver，`--cxx` 可选择相容 C++ driver；Microsoft 未显式选择 C++ 时沿用选中 C driver，MinGW 沿配套位置选 Clang++。generated-C 优先使用安装根 libexec/llvm/bin 的 Clang；直接运行开发输出时允许从 PATH 定位宿主 Clang，不将其 builtin 交给 cl。用户 native C/C++ 的 header/object 配置查询检查 Win64、LLP64、CRT、MSVC STL 或 libc++，无须执行程序；C++ 查询包含 RTTI、标准库和内部异常。generated-C 的宏身份查询沿前述 stdin 预处理规则，不生成探测对象。路径只进入宿主调用及普通更新记录，未使用的 C++ 配置不探测。交叉宿主的源码、对象与库路径必须作为文件参数传递，不能让 clang-cl 将 `/Users/...` 等 POSIX 路径解释为 Microsoft 编译选项。
 
 Windows 最终链接的 `--linker` 选择实际 linker：Microsoft 环境默认宿主配套 lld-link，也可显式选择 link.exe；MinGW 使用配套 GNU 接口的 LLD。Microsoft 经 clang-cl driver 传递已选 SDK／toolset 的库目录与正常 CRT defaults，native 对象可来自 cl 或 clang-cl，C++ producer 的选择不改变此链接调用。MinGW 经目标 prefix 的 Clang driver 选择 startup、compiler-rt 与 libc++。三个环境均使用 Unicode wmain startup，动态依赖其已选 CRT；辅助 C++／Scoop unwind archive 可静态加入，不能借此切换 CRT。`--link-mode static` 不适用于首期 Windows `/MD` 资源；默认或 dynamic 使用同一配套。Scoop 的 LLVM unwind archive 始终取已选 `<unwind-prefix>/lib/libunwind.a`，C++ 模式也不替换为另一套 `_Unwind_*` 实现。
 

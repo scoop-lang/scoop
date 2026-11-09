@@ -44,7 +44,7 @@ impl ElfNamespace {
                 (NativeFileKind::SharedObject, name)
             } else {
                 // Development .so scripts name concrete ELF files in the same
-                // driver trace; their bytes are already part of the profile.
+                // driver trace; read those files for their exported symbols.
                 continue;
             };
             let id = NativeInputId::from_bytes(&bytes, kind, profile)?;
