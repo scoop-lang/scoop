@@ -1,0 +1,35 @@
+package dev.unwind
+
+@Extern(lib = "native_three", name = "native_probe1")
+fun first(): Int
+
+@Extern(lib = "native_three", name = "native_probe2")
+fun second(): Int
+
+@Extern(lib = "native_three", name = "native_probe3")
+fun third(): Int
+
+@Extern(lib = "native_three", name = "native_cleanups")
+fun cleanups(): Int
+
+@Extern(lib = "native_three", name = "native_personalities_called")
+fun personalitiesCalled(): Int
+
+class Failure : Exception(Some("failure"))
+
+fun main() {
+    @Unsafe {
+        println(first())
+        println(second())
+        println(third())
+        println(cleanups())
+        println(personalitiesCalled())
+    }
+    try {
+        throw Failure()
+    } catch (error: Failure) {
+        println("scoop-caught")
+    } finally {
+        println("scoop-finally")
+    }
+}

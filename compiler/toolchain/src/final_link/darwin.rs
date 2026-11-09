@@ -1,6 +1,5 @@
 //! Explicit Darwin final-link toolchain; independent of the Scoop backend.
 use super::{FinalLinkOptions, FinalOutputKind, OutputConfiguration, output::NATIVE_APP_ENTRY};
-use scoop_process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -8,10 +7,13 @@ use crate::ValidatedCBridgeToolchainInvocation;
 use scoop_lir::{LirTargetProfile, TargetProfileId};
 use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash};
 
-use crate::{SystemProvider, ToolchainError, c_bridge};
+use crate::{SystemProvider, ToolchainError};
 
 #[path = "probe.rs"]
 mod probe;
+#[cfg(all(test, target_os = "macos"))]
+mod tests;
+pub(super) mod tools;
 
 const OPTIONS: &[&str] = &[
     "-no_deduplicate",
@@ -19,6 +21,8 @@ const OPTIONS: &[&str] = &[
     "-no_implicit_dylibs",
     "-adhoc_codesign",
 ];
+
+const PRODUCTION_SYMBOLS: &str = "_scoop$1$bs$*\n";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DarwinFinalLinkProfile {
@@ -33,8 +37,8 @@ pub(super) struct Discovery {
     pub(super) native_roots: Vec<PathBuf>,
     #[serde(with = "crate::build_record::values::path")]
     linker: PathBuf,
-    #[serde(with = "crate::build_record::values::path")]
-    linker_locator: PathBuf,
+    #[serde(with = "crate::build_record::values::paths")]
+    linker_inputs: Vec<PathBuf>,
     linker_version: String,
     #[serde(with = "crate::build_record::values::digest")]
     linker_digest: Digest256,
@@ -65,16 +69,13 @@ impl DarwinFinalLinkProfile {
         native_roots: Vec<PathBuf>,
     ) -> Result<Self, ToolchainError> {
         let output = OutputConfiguration::resolve(startup.target(), options)?;
-        let path =
-            c_bridge::command_text_from_path(Path::new("/usr/bin/xcrun"), &["--find", "ld"])?;
-        let linker = std::fs::canonicalize(path.trim()).map_err(error)?;
-        let linker_locator = PathBuf::from(path.trim());
-        let linker_version = linker_version(&linker)?;
+        let (linker, linker_inputs) =
+            tools::resolve(tools::candidates(options.linker.as_deref())?)?;
+        let linker_version = tools::version(&linker)?;
         let linker_digest =
             crate::build_record::fingerprint(&crate::build_record::Input::read(&linker)?)?;
         let compiler_digest = crate::build_record::fingerprint(&crate::build_record::Input::read(
-            cxx.as_ref()
-                .map_or(startup.compiler_driver(), |cxx| cxx.driver()),
+            startup.compiler_driver(),
         )?)?;
         let system = SystemProvider::read(
             scoop_slib::MachOArchitecture::for_target(startup.profile().contract().target().id())
@@ -93,7 +94,7 @@ impl DarwinFinalLinkProfile {
                 output,
                 native_roots,
                 linker,
-                linker_locator,
+                linker_inputs,
                 linker_version,
                 linker_digest,
                 compiler_digest,
@@ -134,7 +135,7 @@ impl DarwinFinalLinkProfile {
             ],
             FinalOutputKind::SharedLibrary => &["-dylib"],
         };
-        ["-arch", architecture]
+        ["-flavor", "darwin", "-arch", architecture]
             .into_iter()
             .chain(output_options.iter().copied())
             .chain(OPTIONS.iter().copied())
@@ -152,10 +153,8 @@ impl DarwinFinalLinkProfile {
 
     pub(super) fn input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
         let sdk = self.startup.sdk_root().map_err(error)?;
-        let mut paths = vec![
-            self.data.linker_locator.clone(),
-            self.startup.compiler_driver().to_owned(),
-        ];
+        let mut paths = self.data.linker_inputs.clone();
+        paths.push(self.startup.compiler_driver().to_owned());
         paths.extend(
             self.data
                 .system
@@ -175,9 +174,6 @@ impl DarwinFinalLinkProfile {
     }
 
     pub fn linker_argument(&self, command: &mut Command, argument: impl AsRef<std::ffi::OsStr>) {
-        if self.cxx() {
-            command.arg("-Xlinker");
-        }
         command.arg(argument);
     }
 
@@ -202,28 +198,26 @@ impl DarwinFinalLinkProfile {
             .contract()
             .deployment()
             .map_err(error)?;
-        let mut command = match &self.data.cxx {
-            Some(cxx) => {
-                let mut command = cxx.command(&self.startup);
-                // The link plan supplies the selected SDK and C++ stubs explicitly.
-                command.arg("-nostdlib");
-                command
-            }
-            None => {
-                let mut command = Command::new(&self.data.linker);
-                command
-                    .env_clear()
-                    .env("LC_ALL", "C")
-                    .env("LANG", "C")
-                    .env("TZ", "UTC");
-                command
-            }
-        };
+        // The link plan supplies the selected SDK and C++ stubs explicitly.
+        let mut command = Command::new(&self.data.linker);
+        command
+            .env_clear()
+            .env("LC_ALL", "C")
+            .env("LANG", "C")
+            .env("TZ", "UTC");
         for argument in self.linker_args() {
             self.linker_argument(&mut command, argument);
         }
+        // Unwind boundary aliases refer to input records consumed by LLD. Resolve
+        // their relocations, but do not emit these production-only aliases into
+        // the final symbol table. Real callable and data symbols remain available.
+        std::fs::create_dir_all(scratch).map_err(error)?;
+        let production_symbols = scratch.join("production-symbols.txt");
+        std::fs::write(&production_symbols, PRODUCTION_SYMBOLS).map_err(error)?;
+        command
+            .arg("-non_global_symbols_strip_list")
+            .arg(production_symbols);
         if self.data.output.kind() == FinalOutputKind::SharedLibrary {
-            std::fs::create_dir_all(scratch).map_err(error)?;
             let exports = scratch.join("native-app.exports");
             std::fs::write(&exports, format!("_{NATIVE_APP_ENTRY}\n")).map_err(error)?;
             self.linker_argument(&mut command, "-exported_symbols_list");
@@ -252,7 +246,7 @@ impl DarwinFinalLinkProfile {
 
 impl WireEncode for DarwinFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(11)?;
+        e.map(12)?;
         e.field(1)?;
         self.target().wire_id().encode(e)?;
         e.field(2)?;
@@ -291,36 +285,12 @@ impl WireEncode for DarwinFinalLinkProfile {
             cxx.fingerprint().encode(e)?;
         }
         e.field(11)?;
-        self.data.output.encode(e)
+        self.data.output.encode(e)?;
+        e.field(12)?;
+        e.text(PRODUCTION_SYMBOLS)
     }
 }
 
 fn error(value: impl std::fmt::Display) -> ToolchainError {
     ToolchainError(format!("final-link toolchain: {value}"))
-}
-
-fn linker_version(linker: &Path) -> Result<String, ToolchainError> {
-    let output = Command::new(linker)
-        .env_clear()
-        .env("LC_ALL", "C")
-        .arg("-v")
-        .scoop_output()
-        .map_err(error)?;
-    if !output.status.success() {
-        return Err(error(format!(
-            "ld version query failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-    let bytes = if output.stdout.is_empty() {
-        &output.stderr
-    } else {
-        &output.stdout
-    };
-    std::str::from_utf8(bytes)
-        .map_err(error)?
-        .lines()
-        .find(|line| line.starts_with("@(#)PROGRAM:ld "))
-        .map(str::to_owned)
-        .ok_or_else(|| error("ld did not report its version"))
 }

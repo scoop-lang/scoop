@@ -36,7 +36,19 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
     }
     let headers = super::super::dependencies::read(&dependencies, &source, &output.stderr)?;
     let sdk = profile.startup.sdk_root().map_err(error)?;
-    let stub = sdk.join(profile.data.system.root_stub());
+    let stub = directory.path().join("libSystem.tbd");
+    let system = &profile.data.system;
+    std::fs::write(
+        &stub,
+        crate::write_link_stub(
+            scoop_slib::MachOArchitecture::for_target(profile.id()).map_err(error)?,
+            system.install_name(),
+            system.current_version(),
+            system.compatibility_version(),
+            system.exports(),
+        )?,
+    )
+    .map_err(error)?;
     let executable = directory.path().join("program");
     let output = profile
         .command(sdk, directory.path(), &executable)?
@@ -46,7 +58,7 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
         .map_err(error)?;
     if !output.status.success() {
         return Err(error(format!(
-            "ld probe failed: {}",
+            "Mach-O LLD probe failed: {}",
             String::from_utf8_lossy(&output.stderr)
         )));
     }

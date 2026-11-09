@@ -3,6 +3,9 @@ use object::read::elf::ProgramHeader;
 use object::{Object, ObjectSection};
 use scoop_process::CommandExt;
 
+#[path = "shared/darwin.rs"]
+mod darwin_support;
+
 fn run(command: &mut Command) -> std::process::Output {
     let output = command.scoop_output().unwrap();
     assert!(
@@ -15,16 +18,10 @@ fn run(command: &mut Command) -> std::process::Output {
     output
 }
 
-fn system_libraries(profile: &ValidatedFinalLinkProfile, command: &mut Command) {
+fn system_libraries(profile: &ValidatedFinalLinkProfile, command: &mut Command, directory: &Path) {
     match profile {
         ValidatedFinalLinkProfile::Darwin(profile) => {
-            command.arg(
-                profile
-                    .startup_toolchain()
-                    .sdk_root()
-                    .unwrap()
-                    .join(profile.system_provider().root_stub()),
-            );
+            darwin_support::append_libraries(profile, command, directory);
         }
         ValidatedFinalLinkProfile::Linux(profile) => profile.append_system_libraries(command),
         ValidatedFinalLinkProfile::Windows(_) => panic!("Unix test profile"),
@@ -128,9 +125,12 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
             }
             ValidatedFinalLinkProfile::Windows(_) => panic!("Unix test profile"),
         }
-        system_libraries(&executable, &mut command);
+        system_libraries(&executable, &mut command, directory.path());
         run(&mut command);
         let darwin = matches!(executable, ValidatedFinalLinkProfile::Darwin(_));
+        if darwin {
+            darwin_support::assert_lld(&host);
+        }
         let library = directory.path().join(if darwin {
             "application , space.dylib"
         } else {
@@ -183,16 +183,7 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
             let mut command = profile.command(directory.path(), &library).unwrap();
             command.arg(&object);
             command.args(&cpp_object);
-            system_libraries(&profile, &mut command);
-            if cxx && darwin {
-                command.arg(
-                    target
-                        .c_bridge_toolchain()
-                        .sdk_root()
-                        .unwrap()
-                        .join("usr/lib/libc++.tbd"),
-                );
-            }
+            system_libraries(&profile, &mut command, directory.path());
             run(&mut command);
             let bytes = std::fs::read(&library).unwrap();
             let file = object::File::parse(bytes.as_slice()).unwrap();
@@ -217,6 +208,7 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
                 )
             };
             if darwin {
+                darwin_support::assert_lld(&library);
                 let output = run(Command::new("/usr/bin/otool").arg("-D").arg(&library));
                 assert_eq!(
                     String::from_utf8(output.stdout).unwrap().lines().nth(1),

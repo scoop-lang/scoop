@@ -40,10 +40,10 @@ pub(super) fn link(
     command.args(stubs.keys());
     let result = command
         .scoop_output()
-        .map_err(|err| error(format!("cannot start system linker: {err}")))?;
+        .map_err(|err| error(format!("cannot start Mach-O LLD: {err}")))?;
     if !result.status.success() {
         return Err(error(format!(
-            "system linker failed: {}",
+            "Mach-O LLD failed: {}",
             String::from_utf8_lossy(&result.stderr)
         )));
     }

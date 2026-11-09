@@ -32,7 +32,7 @@ struct Cli {
     cc: Option<PathBuf>,
     #[arg(long)]
     cxx: Option<PathBuf>,
-    /// Final Windows linker executable.
+    /// Darwin LLD or Windows linker executable.
     #[arg(long)]
     linker: Option<PathBuf>,
     #[arg(long)]
