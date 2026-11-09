@@ -1,0 +1,106 @@
+package scoop.db.tests
+
+import scoop.db.row.*
+import scoop.test.*
+
+private class CustomWriter(private val write: (Encoder) -> Unit): ValueEncoder<Unit> {
+    public override fun encode(value: Unit, encoder: Encoder): Unit = write(encoder)
+}
+
+@Test
+private class RowEncodingTests {
+    @Test
+    fun `root and child completion rules reject incomplete values`() {
+        assertFailsWith<EncodingException> { Rows.encodeToRow(1L, Long.Companion) }
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(Unit, CustomWriter { writer -> writer.keyed() })
+        }
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    val keyed = writer.keyed()
+                    keyed.field("pending").singleValue()
+                    keyed.end()
+                }
+            )
+        }
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    val keyed = writer.keyed()
+                    keyed.end()
+                    keyed.field("late").singleValue().writeLong(1L)
+                }
+            )
+        }
+    }
+
+    @Test
+    fun `shared encoder views cannot duplicate keys or scalar writes`() {
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    writer.keyed().field("same").singleValue().writeLong(1L)
+                    writer.keyed().field("same")
+                }
+            )
+        }
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    val child = writer.keyed().field("one")
+                    child.singleValue().writeLong(1L)
+                    child.singleValue().writeLong(2L)
+                }
+            )
+        }
+        assertFailsWith<EncodingException> {
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    writer.keyed();
+                    writer.unkeyed()
+                }
+            )
+        }
+    }
+
+    @Test
+    fun `end permits append before commit and retained writers cannot alter a published row`() {
+        val retained = ArrayList<Encoder>()
+        val row =
+            Rows.encodeToRow(
+                Unit,
+                CustomWriter {
+                    writer ->
+                    retained.add(writer)
+                    val keyed = writer.keyed()
+                    keyed.end()
+                    keyed.field("value").singleValue().writeLong(4L)
+                    writer.keyed().end()
+                }
+            )
+        assertEquals(4L, Rows.valueDecoder(row.get("value")).singleValue().readLong())
+        assertFailsWith<EncodingException> { retained[0L].keyed().field("after") }
+        assertEquals(1L, row.schema.columns.size)
+    }
+
+    @Test
+    fun `user codec failures retain their original identity`() {
+        val failure = IllegalStateException(Some("user failure"))
+        val caught =
+            assertFailsWith<IllegalStateException> {
+                Rows.encodeToRow(Unit, CustomWriter { throw failure })
+            }
+        assertTrue(caught === failure)
+    }
+}

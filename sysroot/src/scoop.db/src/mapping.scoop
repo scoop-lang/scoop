@@ -1,0 +1,191 @@
+package scoop.db
+
+import scoop.time.Duration
+
+/** Lazily maps values and takes responsibility for consuming and closing the source stream. */
+public fun <S, T> ResultStream<S>.mapRecords(decode: (S) -> T): ResultStream<T> =
+    MappedResultStream(this, decode)
+
+private class MappingLock {
+    private val held = AtomicBoolean(false)
+    fun <T> withLock(block: () -> T): T {
+        while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
+        try {
+            return block()
+        }
+        finally {
+            held.store(false, MemoryOrder.Release)
+        }
+    }
+}
+
+private class MappedResultStream<S, T>(
+    private val source: ResultStream<S>,
+    private val decode: (S) -> T
+): ResultStream<T> {
+    private val lock = MappingLock()
+    private var reading = false
+    private var ended = false
+    private var failed = false
+    private var closing = false
+    private var closed = false
+    private var closeFailure: Throwable? = None
+    private val idleWaiters = ArrayList<Continuation<Unit>>()
+    private val closeWaiters = ArrayList<Continuation<Unit>>()
+    public override val isClosed: Boolean get() = lock.withLock { closing }
+
+    public override suspend fun next(options: DbCallOptions): T? {
+        when (currentJobOrNone()) {
+            case None -> throw IllegalStateException(Some("database reads require a Job"))
+            case Some(_) -> {}
+        }
+        when (currentCoroutineExecutorOrNone()) {
+            case None -> throw IllegalStateException(Some("database reads require an executor"))
+            case Some(_) -> {}
+        }
+        ensureActive()
+        when (options.timeout) {
+            case Some(val timeout) -> {
+                if (timeout < Duration.ZERO)
+                    throw IllegalArgumentException(Some("negative timeout"))
+                if (timeout == Duration.ZERO)
+                    throw DbTimeoutException("next")
+            }
+            case None -> {}
+        }
+        val exhausted =
+            lock.withLock {
+                if (closing)
+                    throw DbClosedException("next")
+                if (failed)
+                    throw IllegalStateException(Some("result stream has failed"))
+                if (reading)
+                    throw DbBusyException("next")
+                if (!ended)
+                    reading = true
+                ended
+            }
+        if (exhausted)
+            return None
+        var result: T? = None
+        var failure: Throwable? = None
+        try {
+            when (source.next(options)) {
+                case Some(val value) -> {
+                    result = Some(decode(value))
+                }
+                case None -> {
+                    lock.withLock { ended = true }
+                }
+            }
+        } catch (error: Throwable) {
+            lock.withLock { failed = true }
+            failure = Some(error)
+        } finally {
+            val waiters =
+                lock.withLock {
+                    reading = false
+                    val waiters = idleWaiters.toArray()
+                    idleWaiters.clear()
+                    waiters
+                }
+            for (waiter in waiters)
+                waiter.resume(Unit)
+        }
+        when (failure) {
+            case Some(val error) -> {
+                try {
+                    close()
+                }
+                catch (cleanup: Throwable) {
+                    throw ResourceUseException(error, cleanup)
+                }
+                throw error
+            }
+            case None -> return result
+        }
+    }
+
+    public override suspend fun close() {
+        val stream = this
+        nonCancellableScope { stream.closeUncancelled() }
+    }
+
+    private suspend fun closeUncancelled() {
+        val owner =
+            lock.withLock {
+                if (closed)
+                    0
+                else
+                    if (closing)
+                        1
+                    else {
+                        closing = true;
+                        2
+                    }
+            }
+        if (owner == 0)
+            return
+        if (owner == 1) {
+            suspendCoroutine<Unit> {
+                continuation ->
+                val(ready, failure) =
+                    lock.withLock<(Boolean, Throwable?)> {
+                        if (closed)
+                            (true, closeFailure)
+                        else {
+                            closeWaiters.add(continuation);
+                            (false, None)
+                        }
+                    }
+                if (ready) {
+                    when (failure) {
+                        case Some(val error) -> continuation.resumeWithException(error)
+                        case None -> continuation.resume(Unit)
+                    }
+                }
+            }
+            return
+        }
+        var failure: Throwable? = None
+        try {
+            source.close()
+        }
+        catch (error: Throwable) {
+            failure = Some(error)
+        }
+        suspendCoroutine<Unit> {
+            continuation ->
+            val ready =
+                lock.withLock {
+                    if (!reading)
+                        true
+                    else {
+                        idleWaiters.add(continuation);
+                        false
+                    }
+                }
+            if (ready)
+                continuation.resume(Unit)
+        }
+        val outcome = failure
+        val waiters =
+            lock.withLock {
+                closeFailure = outcome
+                closed = true
+                val waiters = closeWaiters.toArray()
+                closeWaiters.clear()
+                waiters
+            }
+        for (waiter in waiters) {
+            when (failure) {
+                case Some(val error) -> waiter.resumeWithException(error)
+                case None -> waiter.resume(Unit)
+            }
+        }
+        when (failure) {
+            case Some(val error) -> throw error
+            case None -> {}
+        }
+    }
+}

@@ -5,7 +5,7 @@
 ## 批次与状态
 
 1. 设计与规范：已建立设计、库规范和本记录。
-2. 公共层与 Row/codec：待实施。
+2. 公共层与 Row/codec：已实现 `scoop.db` 的公共声明、稳定 Row/RowSchema、精确标量与 binary codec、Encoder/Decoder、惰性 record 映射和关闭协调。
 3. SQL 接口与参数/事务组合：待实施。
 4. SQLite 原生驱动、完整异步、取消和资源生命周期：待实施。
 5. SQLite record 闭环、关键竞态、示例和收尾：待实施。
@@ -15,3 +15,4 @@
 ## 验证记录
 
 - 文档批次：本地链接、章节编号、代码围栏和 whitespace 检查通过；没有实现或运行验证。
+- 公共层批次：本机 aarch64-apple-darwin release 的 `scoop.db` 16 项 Cone 测试通过，覆盖嵌套/缺失/NULL/二进制/数值、encoder 提交与 decoder 复读、映射异常和并发 next/close。使用现有工具和 sysroot，仅显式指定本机已安装的 LLD；未重建工具链或运行跨平台测试。

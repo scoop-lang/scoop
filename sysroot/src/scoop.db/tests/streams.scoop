@@ -1,0 +1,185 @@
+package scoop.db.tests
+
+import scoop.asyncio.*
+import scoop.db.*
+import scoop.db.row.*
+import scoop.test.*
+
+private class TestSequence<T>(
+    private val values: Array<T>,
+    private val cleanup: Throwable? = None
+): ResultStream<T> {
+    public var reads: Long = 0L
+    public var closes: Long = 0L
+    public override val isClosed: Boolean get() = closes != 0L
+    public override suspend fun next(options: DbCallOptions): T? {
+        if (isClosed)
+            throw DbClosedException("next")
+        ensureActive()
+        val index = reads
+        reads = reads + 1L
+        return if (index < values.size)
+            Some(values[index])
+        else
+            None
+    }
+    public override suspend fun close() {
+        if (isClosed)
+            return
+        closes = closes + 1L
+        when (cleanup) {
+            case Some(val failure) -> throw failure
+            case None -> {}
+        }
+    }
+}
+
+private class PendingSource: ResultStream<Long> {
+    var pending: Continuation<Long?>? = None
+    var closed: Boolean = false
+    public override val isClosed: Boolean get() = closed
+    public override suspend fun next(options: DbCallOptions): Long? =
+        suspendCoroutine<Long?> { continuation -> pending = Some(continuation) }
+    public override suspend fun close() {
+        closed = true
+        val waiter = pending
+        pending = None
+        waiter?.resumeWithException(DbClosedException("next"))
+    }
+}
+
+private class PendingClose(private val failure: Throwable): ResultStream<Long> {
+    var pending: Continuation<Unit>? = None
+    public override val isClosed: Boolean get() =
+        when (pending) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    public override suspend fun next(options: DbCallOptions): Long? = None
+    public override suspend fun close() {
+        suspendCoroutine<Unit> { continuation -> pending = Some(continuation) }
+        throw failure
+    }
+    fun complete() {
+        pending!!.resume(Unit)
+    }
+}
+
+@Test
+private class RecordStreamTests {
+    @Test
+    fun `record mapping is lazy and owns the source until close`() {
+        val loop = eventLoop()
+        val row = Rows.encodeToRow(ExplicitNull(None), ExplicitNull.Companion)
+        val source = TestSequence<Row>([row])
+        val stream = source.decodeRecords(ExplicitNull.Companion)
+        assertEquals(0L, source.reads)
+        loop.run {
+            assertEquals(None, stream.next()!!.note)
+            when (stream.next()) {
+                case None -> {};
+                case Some(_) -> fail(Some("expected EOF"))
+            }
+            when (stream.next()) {
+                case None -> {};
+                case Some(_) -> fail(Some("expected EOF"))
+            }
+            assertEquals(2L, source.reads)
+            stream.close()
+            stream.close()
+            assertTrue(stream.isClosed)
+            assertEquals(1L, source.closes)
+        }
+        assertTrue(Rows.valueDecoder(row.get("note")).singleValue().isNull())
+    }
+
+    @Test
+    fun `mapping and cleanup failures are both retained`() {
+        val primary = IllegalArgumentException(Some("mapping failed"))
+        val cleanup = IllegalStateException(Some("close failed"))
+        val source = TestSequence<Long>([1L], Some(cleanup))
+        val stream = source.mapRecords<Long, Long> { throw primary }
+        eventLoop().run {
+            try {
+                stream.next();
+                fail(Some("expected mapping failure"))
+            }
+            catch (error: ResourceUseException) {
+                assertSame(primary, error.primaryFailure)
+                assertSame(cleanup, error.cleanupFailure)
+            }
+            stream.close()
+            assertEquals(1L, source.closes)
+        }
+    }
+
+    @Test
+    fun `concurrent next is rejected and close waits for the pending reader`() {
+        val source = PendingSource()
+        val stream = source.mapRecords { value -> value + 1L }
+        eventLoop().run {
+            val reader =
+                async {
+                    try {
+                        stream.next();
+                        false
+                    }
+                    catch (_: DbClosedException) {
+                        true
+                    }
+                }
+            while (
+                when (source.pending) {
+                    case None -> true;
+                    case Some(_) -> false
+                }
+            )
+                yieldCoroutine()
+            try {
+                stream.next();
+                fail(Some("second next was accepted"))
+            }
+            catch (_: DbBusyException) {}
+            stream.close()
+            assertTrue(reader.await())
+            assertTrue(source.closed)
+        }
+    }
+
+    @Test
+    fun `concurrent closers observe one failure and later close is a no-op`() {
+        val failure = IllegalStateException(Some("one close"))
+        val source = PendingClose(failure)
+        val stream = source.mapRecords { value -> value }
+        eventLoop().run {
+            val first =
+                async {
+                    try {
+                        stream.close();
+                        false
+                    }
+                    catch (error: Throwable) {
+                        error === failure
+                    }
+                }
+            while (!source.isClosed)
+                yieldCoroutine()
+            val second =
+                async {
+                    try {
+                        stream.close();
+                        false
+                    }
+                    catch (error: Throwable) {
+                        error === failure
+                    }
+                }
+            yieldCoroutine()
+            assertFalse(second.isCompleted)
+            source.complete()
+            assertTrue(first.await())
+            assertTrue(second.await())
+            stream.close()
+        }
+    }
+}

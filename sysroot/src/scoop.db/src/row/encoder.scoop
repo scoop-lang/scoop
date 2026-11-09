@@ -1,0 +1,148 @@
+package scoop.db.row
+
+internal enum RowEncodingView {
+    Unselected
+    Single
+    Keyed(RowKeyedEncoder)
+    Unkeyed(RowUnkeyedEncoder)
+}
+
+internal class RowEncoder(public override val path: String): Encoder, BinaryEncodingContainer {
+    private var view: RowEncodingView = RowEncodingView.Unselected
+    private var output: RowValue? = None
+    private var committed: Boolean = false
+
+    internal fun checkWritable() {
+        if (committed)
+            throw EncodingException(path, "value is already committed")
+    }
+    internal fun begin() {
+        checkWritable()
+        output = None
+    }
+    internal fun finish(value: RowValue) {
+        checkWritable()
+        output = Some(value)
+    }
+    internal fun result(): RowValue =
+        when (output) {
+            case Some(val value) -> {
+                committed = true
+                value
+            }
+            case None -> throw EncodingException(path, "value is incomplete")
+        }
+
+    public override fun keyed(): KeyedEncodingContainer =
+        when (view) {
+            case RowEncodingView.Keyed(val container) -> container
+            case RowEncodingView.Unselected -> {
+                val container = RowKeyedEncoder(this)
+                view = RowEncodingView.Keyed(container)
+                container
+            }
+            else -> throw EncodingException(path, "a different container is already selected")
+        }
+    public override fun unkeyed(): UnkeyedEncodingContainer =
+        when (view) {
+            case RowEncodingView.Unkeyed(val container) -> container
+            case RowEncodingView.Unselected -> {
+                val container = RowUnkeyedEncoder(this)
+                view = RowEncodingView.Unkeyed(container)
+                container
+            }
+            else -> throw EncodingException(path, "a different container is already selected")
+        }
+    public override fun singleValue(): SingleValueEncodingContainer {
+        when (view) {
+            case RowEncodingView.Single -> {}
+            case RowEncodingView.Unselected -> {
+                view = RowEncodingView.Single
+            }
+            else -> throw EncodingException(path, "a different container is already selected")
+        }
+        return this
+    }
+    private fun write(value: RowValue) {
+        checkWritable()
+        when (view) {
+            case RowEncodingView.Single -> {
+                when (output) {
+                    case Some(_) -> throw EncodingException(path, "value was written twice")
+                    case None -> {}
+                }
+                output = Some(value)
+            }
+            else -> throw EncodingException(path, "single-value container was not selected")
+        }
+    }
+    public override fun writeBoolean(value: Boolean): Unit = write(RowValue.Boolean(value))
+    public override fun writeLong(value: Long): Unit = write(RowValue.Signed(value))
+    public override fun writeULong(value: ULong): Unit = write(RowValue.Unsigned(value))
+    public override fun writeFloat(value: Float): Unit = write(RowValue.Float32(value))
+    public override fun writeDouble(value: Double): Unit = write(RowValue.Float64(value))
+    public override fun writeString(value: String): Unit = write(RowValue.Text(value))
+    public override fun writeNull(): Unit = write(RowValue.Null)
+    public override fun writeBytes(value: List<Byte>): Unit = write(RowValue.Bytes(value.toArray()))
+}
+
+internal class RowKeyedEncoder(private val owner: RowEncoder): KeyedEncodingContainer {
+    private val columns = ArrayList<Column>()
+    private val values = ArrayList<RowValue>()
+    private var pending: (String, RowEncoder)? = None
+
+    private fun flush() {
+        when (pending) {
+            case Some((val name, val child)) -> {
+                val value = child.result()
+                columns.add(Column(name))
+                values.add(value)
+                pending = None
+            }
+            case None -> {}
+        }
+    }
+    public override fun field(name: String): Encoder {
+        owner.begin()
+        flush()
+        for (column in columns) {
+            if (column.name == name)
+                throw EncodingException(rowPath(owner.path, name), "duplicate field")
+        }
+        val child = RowEncoder(rowPath(owner.path, name))
+        pending = Some((name, child))
+        return child
+    }
+    public override fun end() {
+        owner.checkWritable()
+        flush()
+        owner.finish(RowValue.Record(Row.fromValues(RowSchema.fromColumns(columns), values)))
+    }
+}
+
+internal class RowUnkeyedEncoder(private val owner: RowEncoder): UnkeyedEncodingContainer {
+    private val values = ArrayList<RowValue>()
+    private var pending: RowEncoder? = None
+
+    private fun flush() {
+        when (pending) {
+            case Some(val child) -> {
+                values.add(child.result());
+                pending = None
+            }
+            case None -> {}
+        }
+    }
+    public override fun element(): Encoder {
+        owner.begin()
+        flush()
+        val child = RowEncoder(rowPath(owner.path, values.size.toString()))
+        pending = Some(child)
+        return child
+    }
+    public override fun end() {
+        owner.checkWritable()
+        flush()
+        owner.finish(RowValue.Sequence(values.toArray()))
+    }
+}
