@@ -59,6 +59,7 @@ pub(super) fn execute(
                 false,
                 enable_gc_stress,
                 enable_startup_stats,
+                reporter.diagnostics_policy(),
             )?;
             for request in &mut requests {
                 request.emit_slib = args.emit_slib;
@@ -88,6 +89,7 @@ pub(super) fn execute(
                 true,
                 enable_gc_stress,
                 enable_startup_stats,
+                reporter.diagnostics_policy(),
             )?;
             if requests.len() > 1 {
                 requests.retain(|request| {
@@ -121,6 +123,7 @@ pub(super) fn execute(
                 !args.no_run && !args.list,
                 enable_gc_stress,
                 enable_startup_stats,
+                reporter.diagnostics_policy(),
             )?;
             let cwd = std::env::current_dir().map_err(config)?;
             for result in scoop::build_all(requests)? {

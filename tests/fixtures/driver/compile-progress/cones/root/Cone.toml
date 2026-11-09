@@ -1,0 +1,9 @@
+schema = 1
+[cone]
+group = "test.progress"
+name = "root"
+version = "1.0.0"
+kind = "library"
+[dependencies]
+"test.progress:left" = {version = "1.0.0", path = "../left"}
+"test.progress:right" = {version = "1.0.0", path = "../right"}

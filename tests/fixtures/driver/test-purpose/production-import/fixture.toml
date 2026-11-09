@@ -10,11 +10,5 @@ name = "reject"
 argv = ["${scoop}", "build", "--release", {each = "${compile_args}"}, "${fixture}/program", "--lockfile", "${work}/source-lock-0.lock", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--emit-slib", "--tests", "-o", "${work}/tests.slib"]
 exit = 1
 stdout = ""
-stderr = """
-error[SCOOPC_HIR_ERROR]: import target is not available in the current compilation unit
- --> ${fixture}/program/src/api.scoop:2:8
-  |
-2 | import scoop.test.Test
-  |        ^^^^^^^^^^^^^^^
-"""
+stderr = {regex = "   Compiling dev\\.m43:production-import:0\\.1\\.0\n      Failed dev\\.m43:production-import:0\\.1\\.0 in [0-9]+[.][0-9]{2}s\nerror\\[SCOOPC_HIR_ERROR\\]: import target is not available in the current compilation unit\n --> ${fixture}/program/src/api\\.scoop:2:8\n  \\|\n2 \\| import scoop\\.test\\.Test\n  \\|        \\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\n"}
 checks = [{file = "${work}/tests.slib", exists = false}]

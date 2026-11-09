@@ -1,0 +1,17 @@
+schema = 1
+name = "per-cone-compiler-progress"
+inputs = ["cones"]
+support = ["verify.py"]
+tools = ["scoop", "scoopc", "python"]
+tags = ["driver", "progress", "cache", "diagnostics"]
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/cones", to = "${work}/cones"}}]
+
+[[steps]]
+name = "progress"
+argv = ["${python}", "${fixture}/verify.py", "${scoop}", "${scoopc}", "${work}", "${sysroot}", {each = "${compile_args}"}]
+exit = 0
+stdout = "per-cone progress passed\n"
+stderr = ""

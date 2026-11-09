@@ -13,6 +13,8 @@ use scoop_protocol::{
 
 use crate::ResolvedPairedScoopc;
 
+mod progress;
+
 const COMPILER_FAILURE_EXIT_CODE: i32 = 1;
 
 #[derive(Debug, Default)]
@@ -22,6 +24,7 @@ pub(crate) struct ProductionSingleConeCompilerRunner;
 pub(crate) struct ChildIoPlan {
     temporary_root: PathBuf,
     pub(crate) jobs: std::num::NonZeroUsize,
+    pub(crate) report_progress: bool,
     compiler_environment: Vec<(&'static str, std::ffi::OsString)>,
 }
 
@@ -30,6 +33,7 @@ impl ChildIoPlan {
         Self {
             temporary_root,
             jobs: std::num::NonZeroUsize::MIN,
+            report_progress: false,
             compiler_environment: Vec::new(),
         }
     }
@@ -57,6 +61,32 @@ pub(crate) trait SingleConeCompilerRunner: Sync {
 
 impl SingleConeCompilerRunner for ProductionSingleConeCompilerRunner {
     fn invoke(
+        &self,
+        tool: &ResolvedPairedScoopc,
+        request: &ScoopcRequestEnvelopeV1,
+        io: &ChildIoPlan,
+    ) -> Result<ScoopcResponseEnvelopeV1, ChildTransportError> {
+        let progress = io
+            .report_progress
+            .then(|| progress::CompilationProgress::start(request))
+            .transpose()
+            .map_err(ChildTransportError::WriteLog)?;
+        let result = self.invoke_child(tool, request, io);
+        if let Some(progress) = progress {
+            progress
+                .finish(matches!(
+                    &result,
+                    Ok(ScoopcResponseEnvelopeV1::Success { .. }
+                        | ScoopcResponseEnvelopeV1::Observed { .. })
+                ))
+                .map_err(ChildTransportError::WriteLog)?;
+        }
+        result
+    }
+}
+
+impl ProductionSingleConeCompilerRunner {
+    fn invoke_child(
         &self,
         tool: &ResolvedPairedScoopc,
         request: &ScoopcRequestEnvelopeV1,

@@ -20,6 +20,7 @@ pub(super) fn requests(
     require_executable: bool,
     enable_gc_stress: bool,
     enable_startup_stats: bool,
+    diagnostics: DiagnosticsPolicy,
 ) -> BuildResult<Vec<BuildRequest>> {
     let cwd = std::env::current_dir().map_err(config)?;
     let generators =
@@ -90,7 +91,7 @@ pub(super) fn requests(
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
         target: GraphTarget::Artifact(Box::new(target)),
         compiler: PairedScoopcLocator::new(compiler).map_err(config)?,
-        diagnostics: DiagnosticsPolicy::Structured,
+        diagnostics,
         optimization: profile.optimization(),
         debug_info,
         purpose,

@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 use scoop::{
-    ArtifactSearchRoot, BuildContext, BuildProfile, DiagnosticsPolicy, DocumentRequest,
-    GraphTarget, PairedScoopcLocator, TrustedSysrootRoot,
+    ArtifactSearchRoot, BuildContext, BuildProfile, DocumentRequest, GraphTarget,
+    PairedScoopcLocator, TrustedSysrootRoot,
 };
 
 use super::args::MessageFormat;
@@ -138,7 +138,7 @@ pub(super) fn execute(
             request: target.clone(),
         },
         compiler: compiler.clone(),
-        diagnostics: DiagnosticsPolicy::Structured,
+        diagnostics: reporter.diagnostics_policy(),
         optimization: Default::default(),
         debug_info: scoop_lir::DebugInfoLevel::None,
         purpose: scoop_protocol::CompilationPurpose::Production,

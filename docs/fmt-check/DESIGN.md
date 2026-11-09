@@ -266,7 +266,7 @@ CLI 需要表达“已有完整格式结果，但退出非零”，不能把它�
 
 ### 7.2 检查结果
 
-human 模式在 warning 后输出根 Cone 与用途的检查成功摘要。JSON 输出 `kind: "check"`、`schema: 1`，包含实际根身份、canonical target、用途，以及本次实际 child 调用观察，不含 `cache_hit`。源码依赖的 artifact 编译与根的 check 调用明确区分；每次成功检查都有根的 check 调用。
+human 模式在实际调用前显示 `Checking`、调用结束后显示 `Finished` 或 `Failed` 及耗时；随后按本次诊断显示 warning 和根 Cone 与用途的检查成功摘要。需要构建的源码依赖沿普通 `Compiling` 进度显示。JSON 输出 `kind: "check"`、`schema: 1`，包含实际根身份、canonical target、用途，以及本次实际 child 调用观察，不含 `cache_hit`。源码依赖的 artifact 编译与根的 check 调用明确区分；每次成功检查都有根的 check 调用。
 
 检查结果不含 executable／`.slib` 输出路径，不使用 `library` 或 `executable` 成功记录。失败沿用现有结构化诊断，不输出成功检查记录。JSON 结果继续使用 stderr，fixture runner 只扩展必要的结果识别。
 

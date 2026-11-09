@@ -190,6 +190,7 @@ impl PreparedBuildGraph {
             _ => Vec::new(),
         };
         let mut io = ChildIoPlan::new(self.context.cache_root.as_path().to_path_buf());
+        io.report_progress = self.context.diagnostics == crate::DiagnosticsPolicy::Human;
         if let Some(target) = production {
             io = io.with_toolchain(target.c_bridge_toolchain());
         }

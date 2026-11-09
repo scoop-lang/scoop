@@ -1,0 +1,2 @@
+package test.progress.right
+public fun right(): Int = 22
