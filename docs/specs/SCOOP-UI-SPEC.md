@@ -397,7 +397,7 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 drawLayer 的回调始终在独立局部记录 Canvas 中执行，不继承目标变换、clip 或 DPI；同一内容在缓存开关两种状态下使用同一坐标语义。调用方为影响输出的输入提供 revision；相同 key、revision、size、bounds 和 samplingOutset 表示可复用相同内容。State、时间、动画采样和绘图资源改变须反映在 revision 中，框架不猜测任意可变闭包的依赖。不能提供可靠版本或有限范围，以及需要直接作用于背景的绘图，继续使用 draw。
 
-`PaintCachePolicy.None` 不保留像素图像，未变化的有限 Drawing 仍可复用，每帧独立合成重放。`Tiles(tileSize = 256, overscan = 1)` 在同一绘制记录上把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
+`PaintCachePolicy.None` 不保留像素图像，未变化的有限 Drawing 仍可复用，每帧独立合成重放。隔离层使用记录的完整 bounds 作为 graphics 的源范围提示，避免小内容按整窗或整个滚动视口分配离屏目标；记录原有裁剪与 Clear／Src 合成隔离保持。`Tiles(tileSize = 256, overscan = 1)` 在同一绘制记录上把可见区域附近的有限像素块光栅化为兼容 Image；命中时复用实际图像，不仅重放 Drawing。tileSize 是正整数设备像素，overscan 是非负块数，与 VirtualList 的逻辑长度 overscan 无关。像素块使用对齐到局部原点设备像素的网格，不从任意字形边界起算；边缘块中 bounds 外的部分保持透明。只有当前 clip 与图层 bounds 相交的范围及相邻块参与，不为整个内容分配 bitmap。
 
 samplingOutset 是有限非负逻辑长度，描述插值及已声明命令需要的采样边缘；每轴至少保留一个设备像素。bounds 必须包含完整输出，不能直接用布局盒子截断字形、阴影或光晕。缓存块先绘制扩展范围，再用 drawImageRegion 合成核心区。无法给出可靠范围时使用 draw；扩大边缘不能把底层不可独立裁剪的效果变成可分块记录。正的轴对齐缩放按实际像素变换选择分辨率；旋转、错切、反射、不可表示的块坐标或尺寸使用不保留像素的图层重放。
 
@@ -405,7 +405,7 @@ samplingOutset 是有限非负逻辑长度，描述插值及已声明命令需�
 
 revision、size、bounds 或 samplingOutset 改变时重建对应记录和图像；像素缩放或缓存参数改变只重建像素块，后端 context 不兼容时重建该层记录和图像。单纯滚动平移、最终 clip、父级合成效果改变不作废仍在缓存范围内的内容块。离开范围、完全裁剪或改为 None 时及时释放像素块；未在本次 scene 使用的 key、不参与帧的子树和卸载释放完整缓存。图像和记录不保存用户绘图回调。
 
-记录回调中的时间、动画及已登记字体读取随记录保存，命中时继续归入本节点的场景依赖；相应依赖变化使记录重新生成，不能因回调跳过而丢失失效来源。任意普通可变对象仍由调用方的 revision 表达。公共段落及编辑宿主集中维护内容／字体／排版版本；普通文字在没有场景或像素缓存需求时直接 draw，在显式缓存内使用带该版本的有限图层。
+记录回调中的时间、动画及已登记字体读取随记录保存，命中时继续归入本节点的场景依赖；相应依赖变化使记录重新生成，不能因回调跳过而丢失失效来源。任意普通可变对象仍由调用方的 revision 表达。公共段落及编辑宿主集中维护内容／字体／排版版本；普通文字在没有场景或像素缓存需求时直接 draw，在显式缓存内保留带该版本和完整字形范围的 Drawing。框架已知这些文字命令仅作 SrcOver 绘制，无像素块时直接重放记录，不额外创建隔离图层；有像素块时仍复用原有光栅缓存。该内部路径与公开 drawLayer 的隔离语义分开，不能把任意用户绘图或 Clear／Src 操作按文字处理；祖先的组透明度、滤镜、clip 与当前变换继续生效。
 
 ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后请求必要帧。其 present 内容回调把策略传给所呈现的子场景；嵌套视口采用自身策略，Portal 在独立呈现场景中处理。像素缓存本身不跳过 scene；场景缓存边界按下节处理。输入／anchor 登记、子项呈现与当前帧完成通知保持正确，不影响逻辑更新、焦点、IME 或实例生命周期，也不产生持续帧需求。Discarded 的图像只作为对应内容版本的内部缓存，不能发布该帧输入几何或布局状态。
 
@@ -545,6 +545,8 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 `TextEditHost(scope, state, appearance, options = TextEditOptions(), onInteractionChanged = { _ -> Unit })` 是普通 Closeable，由呈现它的 Element 在构造中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
 `onInteractionChanged: (TextEditInteraction) -> Unit` 仅在真实交互值变化并更新 interaction 后同步通知，不为初始默认值补发一次。组合组件可据此保存用于外观的交互 State，使宿主及滚动视口仍归实际呈现的 Element 所有；该 State 保存 focused／hovered／focusVisible，不发布 scope、宿主或其他资源引用。回调沿当前 UI 错误通路处理，宿主初始化不触发编辑、提交或交互通知。
+
+`interaction` 只读取 owner 线程上最后发布的交互值，不借用输入区域或排版资源。关窗／卸载的失焦与离开通知继续更新该值，回调可同步读取；宿主关闭后仍可读取最后发布的值。该只读查询不以 ComponentScope.isMounted 拒绝，不恢复交互资格；更新、编辑命令及借用布局等操作仍要求有效宿主。
 
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 

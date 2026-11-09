@@ -1,0 +1,85 @@
+package scoop.graphics
+
+import scoop.graphics.native.withSkiaCanvas
+import scoop.math.abs
+import scoop.test.*
+import scoop.tests.graphics.nativeRasterLayerSize
+
+@Test
+private class LayerBoundsTest {
+    @Test
+    fun `finite source hints allocate small raster layers at the current DPI`() {
+        RasterSurface(512, 384).use {
+            surface -> surface.draw {
+                canvas ->
+                canvas.scale(2.0, 2.0)
+                canvas.translate(20.0, 12.0)
+                val bounds = Rect(2.0, 3.0, 12.0, 10.0)
+                canvas.saveLayer(bounds = Some(bounds))
+                canvas.drawRect(bounds, Paint(Color.White))
+                @Unsafe
+                {
+                    canvas.withSkiaCanvas {
+                        native -> @Unsafe
+                        {
+                            val size = nativeRasterLayerSize(native)
+                            assertEquals(24, size.width)
+                            assertEquals(20, size.height)
+                        }
+                    }
+                }
+                canvas.restore()
+                assertFailsWith<IllegalArgumentException> {
+                    canvas.saveLayer(bounds = Some(Rect(0.0, 0.0, -1.0, 8.0)))
+                }
+                canvas.drawRect(bounds)
+            }
+        }
+    }
+
+    @Test
+    fun `source hints preserve transformed group opacity and expanded filter output`() {
+        RasterSurface(192, 128).use {
+            surface -> verifyLayerBoundsPixels {
+                scene ->
+                surface.draw(scene)
+                surface.readPixels()
+            }
+        }
+    }
+}
+
+internal fun verifyLayerBoundsPixels(render: ((Canvas) -> Unit) -> Array<Byte>) {
+    ImageFilter.dropShadow(Point(12.0, 2.0), 2.0, 2.0, Color(0.0, 0.0, 1.0)).use {
+        filter -> for (effect in [None, Some(filter)]) {
+            fun scene(canvas: Canvas, bounded: Boolean) {
+                canvas.clear(Color(0.1, 0.2, 0.3))
+                canvas.scale(2.0, 2.0)
+                canvas.translate(8.25, 6.5)
+                canvas.clipRect(Rect(0.0, 0.0, 70.0, 50.0))
+                canvas.rotate(0.1)
+                val bounds = Rect(9.0, 9.0, 30.0, 20.0)
+                canvas.saveLayer(
+                    0.65,
+                    effect,
+                    bounds =
+                        if (bounded)
+                            Some(bounds)
+                        else
+                            None
+                )
+                canvas.drawRect(Rect(10.0, 10.0, 20.0, 16.0), Paint(Color(1.0, 0.0, 0.0)))
+                canvas.drawRect(Rect(20.0, 12.0, 18.0, 16.0), Paint(Color(0.0, 1.0, 0.0, 0.5)))
+                canvas.restore()
+            }
+            val expected = render { canvas -> scene(canvas, false) }
+            val actual = render { canvas -> scene(canvas, true) }
+            assertEquals(expected.size, actual.size)
+            for (index in 0L ..< actual.size)
+                assertTrue(
+                    abs((expected[index].toInt() and 255) - (actual[index].toInt() and 255)) <= 2,
+                    Some(f"bounded layer changed channel ${index}")
+                )
+        }
+    }
+}

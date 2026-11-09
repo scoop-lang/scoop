@@ -136,7 +136,22 @@ private class PaintPixelsTest {
                             val ink = layout.paintBounds
                             val bounds =
                                 Rect(ink.x - 1.0, ink.y - 1.0, ink.width + 2.0, ink.height + 2.0)
-                            val input = PaintLayerInput(layout.size, bounds, 0L, 1.0)
+                            val input =
+                                PaintLayerInput(
+                                    layout.size,
+                                    bounds,
+                                    0L,
+                                    1.0,
+                                    PaintComposition.SourceOver
+                                )
+                            surface.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.scale(2.0, 2.0)
+                                canvas.translate(8.0, 6.0)
+                                canvas.drawText(layout)
+                            }
+                            val reference = surface.readPixels()
                             surface.draw {
                                 canvas ->
                                 canvas.clear(Color.Transparent)
@@ -146,7 +161,7 @@ private class PaintPixelsTest {
                                     record -> record.drawText(layout)
                                 }
                             }
-                            val reference = surface.readPixels()
+                            assertPaintPixels(reference, surface.readPixels(), 384, 160, 0)
                             surface.draw {
                                 canvas ->
                                 canvas.clear(Color.Transparent)

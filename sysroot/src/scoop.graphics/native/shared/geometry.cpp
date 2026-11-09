@@ -40,7 +40,8 @@ SGBounds scoop_graphics_canvas_clip_bounds(SGCanvas *value) {
   return {1, sg_rect(result)};
 }
 int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
-                                   SGFilter *filter, int32_t blend) {
+                                   SGFilter *filter, int32_t blend,
+                                   bool hasBounds, SGRect bounds) {
   SkBlendMode mode;
   switch (blend) {
   case 0:
@@ -75,7 +76,8 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
         if (value->recording)
           value->recording->independentTiles = false;
       }
-      value->canvas->saveLayer(nullptr, &paint);
+      const SkRect sourceBounds = sg_rect(bounds);
+      value->canvas->saveLayer(hasBounds ? &sourceBounds : nullptr, &paint);
     } else {
       value->canvas->save();
     }

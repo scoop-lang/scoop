@@ -12,15 +12,19 @@ import scoop.window.*
 @Test
 private class ComponentInputReuseTest {
     @Test
-    fun `callback only button updates skip work while link hover still changes pixels`() {
+    fun `cached button text retains hover pixels and stops work after the final transition`() {
         val probe = ButtonInputProbe()
         val source = ThemeSource(probe.theme)
-        context(source) {
-            UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application().run(host)
+        try {
+            context(source) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
             }
+        } finally {
+            probe.rendering?.close()
+            probe.view?.close()
         }
-        probe.view?.close()
         assertTrue(probe.finished)
         assertEquals(2, probe.clicked)
     }
@@ -32,6 +36,8 @@ internal class ButtonInputProbe {
     var clicked = -1
     var scope: ComponentScope? = None
     var view: ViewProbe? = None
+    var rendering: FrameProbe? = None
+    private var quiet: FrameSnapshot? = None
     var window: Window? = None
     var baseline: Array<Long> = []
     var baselineMetrics = 0
@@ -55,15 +61,34 @@ internal class ButtonInputProbe {
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
+                rendering = Some(observeFrames(native))
                 host.attach(native, { mount -> InputScene(this, active, scope = mount) })
                 native.setVisible(true)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 assertTrue(moveSurfacePointer(native, 230.0, 140.0))
             }
-            case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"button input reuse deadline at ${phase}")
-            )
+            case NewEvents(StartCause.Deadline) -> when (phase) {
+                case 6 -> {
+                    val snapshot = rendering!!.snapshot()
+                    assertFalse(snapshot.required)
+                    assertTrue(snapshot.paused)
+                    quiet = Some(snapshot)
+                    assertTrue(moveSurfacePointer(window!!, 235.0, 145.0))
+                    phase = 7
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                        )
+                    )
+                }
+                case 7 -> {
+                    assertEquals(quiet!!, rendering!!.snapshot())
+                    finished = true
+                    active.requestExit()
+                }
+                else -> fail(Some(f"button input reuse deadline at ${phase}"))
+            }
             else -> {}
         }
     }
@@ -115,8 +140,12 @@ internal class ButtonInputProbe {
             }
             case 5 -> {
                 if (!theme.hovered && samePixels(baseline, pixels)) {
-                    finished = true
-                    active.requestExit()
+                    phase = 6
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            MonotonicTimeSource.markNow() + Duration.milliseconds(400L)
+                        )
+                    )
                 }
             }
             else -> {}

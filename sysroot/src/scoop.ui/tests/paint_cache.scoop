@@ -248,7 +248,7 @@ private class PaintCacheTest {
             layers -> RasterSurface(64, 32).use {
                 surface ->
                 val key = PaintKey()
-                val input = PaintLayerInput(Size(64.0, 32.0), Rect(0.0, 0.0, 64.0, 32.0), 0L, 1.0)
+                val input = PaintLayerInput(Size(64.0, 32.0), Rect(8.0, 4.0, 48.0, 24.0), 0L, 1.0)
                 val records = ArrayList<Int>()
                 val frames = ArrayList<Array<Byte>>()
                 for (
@@ -281,7 +281,8 @@ private class PaintCacheTest {
                 assertEquals(1L, records.size)
                 assertPaintPixels(frames[0L], frames[1L], 64, 32, 0)
                 assertPaintPixels(frames[0L], frames[2L], 64, 32, 0)
-                assertEquals(0, paintChannel(frames[0L], 64, 4, 4, 0))
+                assertEquals(255, paintChannel(frames[0L], 64, 4, 4, 0))
+                assertEquals(0, paintChannel(frames[0L], 64, 10, 6, 0))
                 assertEquals(255, paintChannel(frames[0L], 64, 18, 12, 0))
                 assertEquals(255, paintChannel(frames[0L], 64, 18, 12, 3))
                 assertEquals(255, paintChannel(frames[0L], 64, 30, 12, 0))

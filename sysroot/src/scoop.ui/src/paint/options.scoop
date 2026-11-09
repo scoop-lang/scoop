@@ -21,11 +21,17 @@ internal fun checkPaintCachePolicy(value: PaintCachePolicy) {
     }
 }
 
+/** Known source-over text can replay without the isolation required by arbitrary drawing. */
+internal enum PaintComposition {
+    Isolated, SourceOver
+}
+
 internal struct PaintLayerInput(
     val size: Size,
     val bounds: Rect,
     val revision: Long,
-    val samplingOutset: Double
+    val samplingOutset: Double,
+    val composition: PaintComposition = PaintComposition.Isolated
 ) {
     fun check() {
         checkLayoutSize(size)

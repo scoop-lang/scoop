@@ -15,13 +15,17 @@ internal class InputScene(
 ): Component(scope) {
     public override fun render(): View {
         val version = probe.version.value
-        return element(
-            version,
-            { props, mount -> InputPanel(props, probe, active, scope = mount) },
-            [
-                button("Link action", { probe.clicked = version }) { variant = ButtonVariant.Link },
-                label("Stable label")
-            ]
+        return cachedScene(
+            element(
+                version,
+                { props, mount -> InputPanel(props, probe, active, scope = mount) },
+                [
+                    button("Link action", { probe.clicked = version }) {
+                        variant = ButtonVariant.Link
+                    },
+                    label("Stable label")
+                ]
+            )
         )
     }
 }
