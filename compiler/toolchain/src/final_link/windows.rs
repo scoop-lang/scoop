@@ -3,7 +3,6 @@ use super::*;
 use crate::ValidatedCxxToolchain;
 use crate::build_record::Input;
 use scoop_process::CommandExt;
-use std::collections::BTreeSet;
 
 mod command;
 mod probe;
@@ -69,8 +68,6 @@ pub(super) struct Discovery {
     #[serde(with = "crate::build_record::values::path")]
     unwind_include: PathBuf,
     cxx: Option<ValidatedCxxToolchain>,
-    #[serde(with = "crate::build_record::values::paths")]
-    observed_paths: Vec<PathBuf>,
     inputs: Vec<SystemInput>,
 }
 
@@ -83,17 +80,6 @@ struct SystemInput {
 }
 
 impl WindowsFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Self {
-        Self { startup, data }
-    }
-
     pub fn resolve(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -108,7 +94,6 @@ impl WindowsFinalLinkProfile {
         }
         let microsoft =
             startup.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
-        let mut observed = BTreeSet::new();
         let driver = if microsoft || environment.bundled_mingw.is_some() {
             startup
                 .compiler_driver()
@@ -138,11 +123,6 @@ impl WindowsFinalLinkProfile {
             driver.with_file_name(crate::host_executable_name("ld.lld"))
         };
         let selected = options.linker.as_deref().unwrap_or(&default_linker);
-        crate::native_record::program_candidates(
-            selected.as_os_str(),
-            &environment.search_path,
-            &mut observed,
-        );
         let linker = crate::paths::find_program(selected.as_os_str(), &environment.search_path)?;
         let linker_kind = if !microsoft {
             LinkerKind::LldMinGw
@@ -195,11 +175,6 @@ impl WindowsFinalLinkProfile {
                 archive.display()
             )));
         }
-        observed.extend(environment.libraries.iter().cloned());
-        observed.extend([driver.clone(), linker.clone()]);
-        if let Some(cxx) = &cxx {
-            observed.extend(cxx.input_paths()?);
-        }
         let compiler_digest = crate::build_record::fingerprint(&Input::read(&driver)?)?;
         let linker_digest = crate::build_record::fingerprint(&Input::read(&linker)?)?;
         let mut profile = Self {
@@ -215,13 +190,11 @@ impl WindowsFinalLinkProfile {
                 unwind_prefix,
                 unwind_include,
                 cxx,
-                observed_paths: Vec::new(),
                 inputs: Vec::new(),
             },
             startup,
         };
-        profile.data.inputs = probe::check(&profile, &mut observed)?;
-        profile.data.observed_paths = observed.into_iter().collect();
+        profile.data.inputs = probe::check(&profile)?;
         Ok(profile)
     }
 
@@ -262,14 +235,6 @@ impl WindowsFinalLinkProfile {
         } else {
             MINGW_OPTIONS.to_vec()
         }
-    }
-    pub fn input_paths(&self) -> Vec<PathBuf> {
-        self.data
-            .observed_paths
-            .iter()
-            .cloned()
-            .chain(self.data.inputs.iter().map(|input| input.path.clone()))
-            .collect()
     }
     pub fn system_input_paths(&self) -> impl Iterator<Item = &Path> {
         self.data.inputs.iter().map(|input| input.path.as_path())

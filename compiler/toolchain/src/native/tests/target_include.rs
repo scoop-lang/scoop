@@ -22,7 +22,8 @@ fn target_sysroot_headers_precede_local_headers_and_track_only_selected_inputs()
     let build = || {
         prepare_native_objects(
             &manifest,
-            target(),
+            target().lir_target(),
+            || Ok(target()),
             OptimizationMode::Release,
             &sysroot,
             &cache,

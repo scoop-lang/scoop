@@ -72,7 +72,7 @@ fn artifact_cxx_requirement_rejects_both_musl_final_link_modes() {
             mode: Some(mode),
             ..Default::default()
         };
-        let message = resolve_program_link_profile(&closure, &musl, &options, None)
+        let message = resolve_program_link_profile(&closure, &musl, &options)
             .unwrap_err()
             .to_string();
         assert!(message.contains("C++ native runtime is not supported for Linux musl"));

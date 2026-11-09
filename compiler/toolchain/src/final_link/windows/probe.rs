@@ -2,31 +2,19 @@ use super::*;
 use object::{Object, ObjectSection};
 use scoop_process::CommandExt;
 use scoop_wire::sha256;
+use std::collections::BTreeSet;
 
-pub(super) fn check(
-    profile: &WindowsFinalLinkProfile,
-    observed: &mut BTreeSet<PathBuf>,
-) -> Result<Vec<SystemInput>, ToolchainError> {
+pub(super) fn check(profile: &WindowsFinalLinkProfile) -> Result<Vec<SystemInput>, ToolchainError> {
     let directory = tempfile::Builder::new()
         .prefix("scoop-pe-link-")
         .tempdir()
         .map_err(error)?;
     let source = directory.path().join("probe.c");
     let object = directory.path().join("probe.obj");
-    let depfile = directory.path().join("probe.d");
     std::fs::write(&source, SOURCE).map_err(error)?;
     let mut compile = profile.startup.object_compilation_command(&source, &object);
-    compile
-        .args(["-v", "-MD", "-MT", "link-probe", "-MF"])
-        .arg(&depfile)
-        .arg("-I")
-        .arg(&profile.data.unwind_include);
-    let compiled = run(&mut compile)?;
-    observed.extend(super::super::dependencies::read(
-        &depfile,
-        &source,
-        &compiled.stderr,
-    )?);
+    compile.arg("-I").arg(&profile.data.unwind_include);
+    run(&mut compile)?;
     let mut objects = vec![object];
     if let Some(cxx) = &profile.data.cxx {
         let source = directory.path().join("cpp.cpp");

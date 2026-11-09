@@ -37,8 +37,6 @@ pub(super) struct Discovery {
     pub(super) native_roots: Vec<PathBuf>,
     #[serde(with = "crate::build_record::values::path")]
     linker: PathBuf,
-    #[serde(with = "crate::build_record::values::paths")]
-    linker_inputs: Vec<PathBuf>,
     linker_version: String,
     #[serde(with = "crate::build_record::values::digest")]
     linker_digest: Digest256,
@@ -46,22 +44,9 @@ pub(super) struct Discovery {
     compiler_digest: Digest256,
     system: SystemProvider,
     cxx: Option<crate::ValidatedCxxToolchain>,
-    #[serde(with = "crate::build_record::values::paths")]
-    headers: Vec<PathBuf>,
 }
 
 impl DarwinFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Self {
-        Self { startup, data }
-    }
-
     pub(crate) fn from_startup(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -69,8 +54,7 @@ impl DarwinFinalLinkProfile {
         native_roots: Vec<PathBuf>,
     ) -> Result<Self, ToolchainError> {
         let output = OutputConfiguration::resolve(startup.target(), options)?;
-        let (linker, linker_inputs) =
-            tools::resolve(tools::candidates(options.linker.as_deref())?)?;
+        let linker = tools::resolve(tools::candidates(options.linker.as_deref())?)?;
         let linker_version = tools::version(&linker)?;
         let linker_digest =
             crate::build_record::fingerprint(&crate::build_record::Input::read(&linker)?)?;
@@ -88,22 +72,20 @@ impl DarwinFinalLinkProfile {
                 .map_err(error)?
                 .minimum_os(),
         )?;
-        let mut profile = Self {
+        let profile = Self {
             startup,
             data: Discovery {
                 output,
                 native_roots,
                 linker,
-                linker_inputs,
                 linker_version,
                 linker_digest,
                 compiler_digest,
                 system,
                 cxx,
-                headers: Vec::new(),
             },
         };
-        profile.data.headers = probe::check(&profile)?;
+        probe::check(&profile)?;
         Ok(profile)
     }
 
@@ -149,24 +131,6 @@ impl DarwinFinalLinkProfile {
     }
     pub fn system_provider(&self) -> &SystemProvider {
         &self.data.system
-    }
-
-    pub(super) fn input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
-        let sdk = self.startup.sdk_root().map_err(error)?;
-        let mut paths = self.data.linker_inputs.clone();
-        paths.push(self.startup.compiler_driver().to_owned());
-        paths.extend(
-            self.data
-                .system
-                .files()
-                .iter()
-                .map(|file| sdk.join(file.relative_path())),
-        );
-        paths.extend(self.data.headers.iter().cloned());
-        if let Some(cxx) = &self.data.cxx {
-            paths.extend(cxx.input_paths()?);
-        }
-        Ok(paths)
     }
 
     pub fn cxx(&self) -> bool {

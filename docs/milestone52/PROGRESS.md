@@ -1,5 +1,7 @@
 # M52 实施记录
 
+工具巡检与持久工具记录的历史实现已由 [Windows 编译性能任务](../compiler-performance/WINDOWS-TASKS.md)退役；当前行为以实现规范 §2.7 为准，升级发行版后由用户清理项目缓存。
+
 基线：`43ff43117`。先完整完成 M52，再继续 M53。
 
 已确认范围：M47 尚未定稿，延后决定；本期分发现有 `scoop`、`scoopc`、`scoop-link` 三个宿主命令，不以 generator 为前置。sysroot 准备和发行打包放在仓库脚本，不向命令或 driver 添加一次性维护功能。M53 采用 llhttp 9.4.3，并明确已知方法集合限制。

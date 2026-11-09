@@ -54,16 +54,6 @@ impl RuntimeLibraries {
         }
     }
 
-    pub(super) fn family(
-        &self,
-        startup: &ValidatedCBridgeToolchainInvocation,
-    ) -> crate::native_driver::NativeCompilerFamily {
-        match self {
-            Self::C { .. } => startup.compiler_family(),
-            Self::Cxx(cxx) => cxx.family(),
-        }
-    }
-
     pub(super) fn driver<'a>(
         &'a self,
         startup: &'a ValidatedCBridgeToolchainInvocation,

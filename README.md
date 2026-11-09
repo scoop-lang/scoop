@@ -49,6 +49,8 @@ scoop test --release .
 
 Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `sco`；其他工具仍保留 `scoopc`、`scoop-link` 等名称。
 
+更新 Scoop 发行版后，在已有项目中执行一次 `scoop clean`，再重新构建。构建缓存根据源码、清单配置和依赖产物判断更新，不持续检查编译器文件、版本或 SDK 状态；使用 `--cache-dir` 放在项目 `target` 之外的缓存，需要同时清理该目录。
+
 更多完整程序见[示例目录](sysroot/share/scoop/examples)。安装包还提供 `scoop example --list` 和 `scoop example start/hello`，可离线查看示例、运行条件和预期结果。
 
 ## 从源码构建

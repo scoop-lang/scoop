@@ -22,13 +22,18 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         Some(scoop_toolchain::LinkMode::Static) => "static",
         Some(scoop_toolchain::LinkMode::Dynamic) => "dynamic",
     };
-    let tool =
-        NativeInputMetadata::read(&std::env::current_exe().map_err(failure)?).map_err(failure)?;
+    let runtime = match request.runtime {
+        RuntimeInput::ObjectIndex(index) => ("index", path(index)?),
+        RuntimeInput::SourceRoot(root) => ("source", path(root)?),
+    };
     let configuration = (
         artifacts,
         encode(request.graph.root().artifact().summary().cone()).map_err(failure)?,
-        *request.runtime.fingerprint().digest().as_array(),
-        encode(&request.target.child_request().map_err(failure)?).map_err(failure)?,
+        (
+            runtime,
+            request.enable_gc_stress,
+            request.enable_startup_stats,
+        ),
         encode(&request.target.lir_target().wire_id()).map_err(failure)?,
         request.profile.as_str(),
         request.keep_symbols(),
@@ -43,9 +48,6 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
                         .file_name()
                         .map(std::ffi::OsStr::as_encoded_bytes)
                 }),
-            request
-                .emit_debug_file()
-                .then(scoop_toolchain::debug_tool_configuration),
         ),
         (
             mode,
@@ -55,27 +57,12 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         ),
         options.sysroot.as_deref().map(path).transpose()?,
         options.unwind_prefix.as_deref().map(path).transpose()?,
-        options.linker.as_deref().map(path).transpose()?,
         request
             .libraries
             .iter()
             .map(|p| path(p))
             .collect::<BuildResult<Vec<_>>>()?,
-        tool,
     );
-    let bytes = match options
-        .darwin_linker_candidates(request.target.lir_target())
-        .map_err(failure)?
-    {
-        Some(candidates) => {
-            let candidates = candidates
-                .iter()
-                .map(|candidate| path(candidate))
-                .collect::<BuildResult<Vec<_>>>()?;
-            serde_json::to_vec(&(configuration, candidates))
-        }
-        None => serde_json::to_vec(&configuration),
-    }
-    .map_err(failure)?;
+    let bytes = serde_json::to_vec(&configuration).map_err(failure)?;
     Ok(sha256(&bytes))
 }

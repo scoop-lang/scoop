@@ -43,7 +43,7 @@ impl BuildGraphRequest {
                 artifact_search_roots,
                 cache_root,
                 sysroot,
-                target: GraphTarget::Artifact(Box::new(target)),
+                target,
                 compiler,
                 diagnostics,
                 optimization,

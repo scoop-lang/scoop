@@ -3,11 +3,7 @@ use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::process::Output;
 
-pub(super) fn driver_program(
-    mut command: Command,
-    name: &str,
-    observed: &mut Vec<PathBuf>,
-) -> Result<PathBuf, ToolchainError> {
+pub(super) fn driver_program(mut command: Command, name: &str) -> Result<PathBuf, ToolchainError> {
     let path = command
         .get_envs()
         .find(|(key, _)| *key == OsStr::new("PATH"))
@@ -16,59 +12,10 @@ pub(super) fn driver_program(
         .to_owned();
     let output = run(command.arg(format!("-print-prog-name={name}")))?;
     let program = String::from_utf8(output.stdout).map_err(error)?;
-    let mut candidates = BTreeSet::new();
-    crate::native_record::program_candidates(OsStr::new(program.trim()), &path, &mut candidates);
-    observed.extend(candidates);
     crate::paths::find_program(OsStr::new(program.trim()), &path)
 }
 
-pub(super) fn search_paths(
-    profile: &LinuxFinalLinkProfile,
-) -> Result<Vec<PathBuf>, ToolchainError> {
-    let command = || profile.data.runtime.command(&profile.startup);
-    let output = run(command().arg("-print-search-dirs"))?;
-    let text = String::from_utf8(output.stdout).map_err(error)?;
-    let paths = text
-        .lines()
-        .find_map(|line| line.strip_prefix("libraries: ="))
-        .ok_or_else(|| error("C driver did not report library search directories"))?;
-    let mut paths: Vec<_> = std::env::split_paths(paths).collect();
-    let sysroot = if profile.data.runtime.family(&profile.startup)
-        == crate::native_driver::NativeCompilerFamily::Gcc
-    {
-        let sysroot =
-            String::from_utf8(run(command().arg("-print-sysroot"))?.stdout).map_err(error)?;
-        PathBuf::from(if sysroot.trim().is_empty() {
-            "/"
-        } else {
-            sysroot.trim()
-        })
-    } else {
-        profile
-            .startup
-            .native_sysroot()
-            .unwrap_or(Path::new("/"))
-            .to_owned()
-    };
-    // Driver library directories precede the selected linker's SEARCH_DIRs.
-    let script = run(Command::new(&profile.data.linker).arg("--verbose"))?;
-    let script = String::from_utf8(script.stdout).map_err(error)?;
-    for item in script.split("SEARCH_DIR(\"").skip(1) {
-        let (directory, _) = item
-            .split_once("\")")
-            .ok_or_else(|| error("GNU ld reported an invalid SEARCH_DIR"))?;
-        paths.push(match directory.strip_prefix('=') {
-            Some(relative) => sysroot.join(relative.trim_start_matches('/')),
-            None => PathBuf::from(directory),
-        });
-    }
-    Ok(paths)
-}
-
-pub(super) fn check(
-    profile: &LinuxFinalLinkProfile,
-    observed: &mut Vec<PathBuf>,
-) -> Result<Vec<SystemInput>, ToolchainError> {
+pub(super) fn check(profile: &LinuxFinalLinkProfile) -> Result<Vec<SystemInput>, ToolchainError> {
     let directory = tempfile::Builder::new()
         .prefix("scoop-elf-link-")
         .tempdir()
@@ -76,37 +23,19 @@ pub(super) fn check(
     let source = directory.path().join("probe.c");
     let object = directory.path().join("probe.o");
     std::fs::write(&source, SOURCE).map_err(error)?;
-    let dependencies = directory.path().join("probe.d");
     let mut compile = profile.startup.object_compilation_command(&source, &object);
-    compile
-        .args(["-v", "-MD", "-MT", "link-probe", "-MF"])
-        .arg(&dependencies);
     compile.args(["-funwind-tables", "-fno-omit-frame-pointer"]);
     if let Some(include) = profile.data.runtime.unwind_include() {
         compile.arg("-I").arg(include);
     }
-    let compiled = run(&mut compile)?;
-    observed.extend(super::super::dependencies::read(
-        &dependencies,
-        &source,
-        &compiled.stderr,
-    )?);
+    run(&mut compile)?;
     let binary = directory.path().join("probe");
     let mut command = profile.command(directory.path(), &binary)?;
     command.arg("-Wl,-t").arg(object);
     profile.append_system_libraries(&mut command);
     let result = run(&mut command)?;
     let trace = String::from_utf8(result.stdout).map_err(error)?;
-    let mut paths = BTreeSet::from([profile.data.linker.clone()]);
-    if profile.data.runtime.family(&profile.startup)
-        == crate::native_driver::NativeCompilerFamily::Gcc
-    {
-        paths.insert(driver_program(
-            profile.data.runtime.command(&profile.startup),
-            "collect2",
-            observed,
-        )?);
-    }
+    let mut paths = BTreeSet::new();
     if let Some(prefix) = profile.unwind_prefix() {
         paths.insert(prefix.join("lib/libunwind.a"));
     }
@@ -133,13 +62,7 @@ pub(super) fn check(
     paths
         .into_iter()
         .map(|path| {
-            let digest = if path == profile.data.linker
-                || path.file_name() == Some(OsStr::new("collect2"))
-            {
-                crate::build_record::fingerprint(&crate::build_record::Input::read(&path)?)?
-            } else {
-                sha256(&std::fs::read(&path).map_err(error)?)
-            };
+            let digest = sha256(&std::fs::read(&path).map_err(error)?);
             Ok(SystemInput { path, digest })
         })
         .collect()

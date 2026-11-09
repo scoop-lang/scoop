@@ -2,7 +2,7 @@
 
 日期：2026-11-10。调研基线：`f27eda5ee1`。状态：**实施中，各项完成情况按实际验证更新**。详见[实施记录](WINDOWS-PROGRESS.md)。
 
-目标是减少日常构建和改代码后检查的实际开销，优先处理工具与缓存记录、小文件创建和宿主编译器的堆分配。Windows 的 `RtlFreeHeap` 热点及小文件创建显著慢于 macOS/Linux 来自用户的实际采样与观察；本轮完成了代码路径核查，没有重新进行 Windows 本机性能测量。下面的文件数量关系来自当前实现，不是某次 `scoop.ui` 构建的实测总数。
+目标是减少日常构建和改代码后检查的实际开销，优先处理工具与缓存记录、小文件创建和宿主编译器的堆分配。Windows 的 `RtlFreeHeap` 热点及小文件创建显著慢于 macOS/Linux 来自用户的实际采样与观察；最初完成代码路径核查，实施阶段已开始 Windows 本机对比，实测结果见实施记录。下面的文件数量关系来自当前实现，不是某次 `scoop.ui` 构建的实测总数。
 
 ## 已确定的行为
 
@@ -74,13 +74,13 @@ W0 为各项保留改动前对照，不是重新讨论是否更换分配器的�
 
 ### W1：删除工具与 SDK 巡检及其持久记录
 
-- [ ] 删除 `native_record` 中为监控工具文件、版本、SDK/环境状态服务的记录与失效计算，包括命中前读整份 JSON、逐输入 `metadata/canonicalize` 和重复读取记录。
-- [ ] 删除配套 `scoopc` 的工具文件状态/能力持久缓存及其额外输入指纹。正常执行时仍定位并调用配套工具，沿现有协议处理实际执行错误。
-- [ ] 从 Cone、native 对象及最终链接的更新判断中删除这些冗余工具输入。核查 `resolve_request_cached` 在构建图/缓存判断之前的调用，真正需要生产时再准备调用配置。
-- [ ] 保留 `Cone.toml` 的有效 native 配置、实际源码/头文件与 `.slib` 依赖更新；区分正常编译期输入记录与被退役的工具状态记录。
-- [ ] 同步发行版升级后清理项目缓存的说明，删除旧的工具变化自动失效承诺、专用记录和对应测试；不为旧记录保留迁移层。
+- [x] 删除 `native_record` 中为监控工具文件、版本、SDK/环境状态服务的记录与失效计算，包括命中前读整份 JSON、逐输入 `metadata/canonicalize` 和重复读取记录。
+- [x] 删除配套 `scoopc` 的工具文件状态/能力持久缓存及其额外输入指纹。正常执行时仍定位并调用配套工具，沿现有协议处理实际执行错误。
+- [x] 从 Cone、native 对象及最终链接的更新判断中删除这些冗余工具输入。核查 `resolve_request_cached` 在构建图/缓存判断之前的调用，真正需要生产时再准备调用配置。
+- [x] 保留 `Cone.toml` 的有效 native 配置、实际源码/头文件与 `.slib` 依赖更新；区分正常编译期输入记录与被退役的工具状态记录。
+- [x] 同步发行版升级后清理项目缓存的说明，删除旧的工具变化自动失效承诺、专用记录和对应测试；不为旧记录保留迁移层。
 
-入口：[native_record](../../compiler/toolchain/src/native_record.rs)、[工具输入](../../compiler/toolchain/src/native_record/inputs.rs)、[编译器记录](../../compiler/scoop/src/compiler/record.rs)、[编译器解析](../../compiler/scoop/src/compiler.rs)、[build 入口](../../compiler/scoop/src/cli/build.rs)、[Cone key](../../compiler/scoop/src/snapshot/prepared/model/cache_key.rs)、[native key](../../compiler/toolchain/src/native/objects/inputs.rs)。
+原 `native_record` 与配套编译器持久记录已退役；实际调用配置见 [native_invocation](../../compiler/toolchain/src/native_invocation.rs)，真实输入更新数据见 [build_record/inputs](../../compiler/toolchain/src/build_record/inputs.rs)。其余入口：[编译器解析](../../compiler/scoop/src/compiler.rs)、[build 入口](../../compiler/scoop/src/cli/build.rs)、[Cone key](../../compiler/scoop/src/snapshot/prepared/model/cache_key.rs)、[native key](../../compiler/toolchain/src/native/objects/inputs.rs)。
 
 验收：真实输入存在、结果可用的热构建不打开工具巡检 JSON、不扫描工具/SDK、不启动编译或链接；源码、相关清单配置、实际头文件或依赖更新仍使受影响结果重建。失败不发布成功结果。
 
@@ -142,8 +142,8 @@ W0 为各项保留改动前对照，不是重新讨论是否更换分配器的�
 
 | 记录 | 处理 |
 | --- | --- |
-| `toolchain/src/native_record.rs` | 随 W1 删除工具/SDK 巡检记录 |
-| `scoop/src/compiler/record.rs` | 随 W1 删除配套工具状态记录 |
+| 原 `toolchain/src/native_record.rs` | W1 已删除工具/SDK 巡检记录 |
+| 原 `scoop/src/compiler/record.rs` | W1 已删除配套工具状态记录 |
 | `scoop/src/check/cache.rs` | 随 W2 删除整个检查成功结果缓存 |
 | `linker/src/link/archive.rs` | 已生成 archive 的小型路径索引有复用用途；精简必要字段并缓冲写入 |
 | `scoop/src/cache/single_file.rs` | 重新比较头部解析成本与专用记录 I/O 成本；优先并入已有输入/构建记录或删除独立记录，不默认维持一份旁路 JSON |

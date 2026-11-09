@@ -69,25 +69,20 @@ pub(crate) struct NativeDriver {
     path: PathBuf,
     #[serde(with = "crate::build_record::values::digest")]
     fingerprint: scoop_wire::Digest256,
-    inputs: Vec<crate::NativeInputMetadata>,
     kind: NativeDriverKind,
     family: NativeCompilerFamily,
 }
 
 impl NativeDriver {
-    pub(crate) fn from_record(
-        record: crate::build_record::Record<NativeDriverDiscovery>,
-    ) -> Result<Self, ToolchainError> {
+    pub(crate) fn from_discovery(discovery: NativeDriverDiscovery) -> Result<Self, ToolchainError> {
         Ok(Self {
-            path: record
-                .result
+            path: discovery
                 .driver
                 .to_path_buf()
                 .map_err(|e| ToolchainError(e.to_string()))?,
-            fingerprint: crate::build_record::fingerprint(&(&record.result, &record.inputs))?,
-            inputs: record.inputs,
-            kind: record.result.kind,
-            family: record.result.family,
+            fingerprint: crate::build_record::fingerprint(&discovery)?,
+            kind: discovery.kind,
+            family: discovery.family,
         })
     }
     pub(crate) fn path(&self) -> &Path {
@@ -96,14 +91,8 @@ impl NativeDriver {
     pub(crate) fn fingerprint(&self) -> scoop_wire::Digest256 {
         self.fingerprint
     }
-    pub(crate) fn inputs(&self) -> &[crate::NativeInputMetadata] {
-        &self.inputs
-    }
     pub(crate) fn kind(&self) -> NativeDriverKind {
         self.kind
-    }
-    pub(crate) fn family(&self) -> NativeCompilerFamily {
-        self.family
     }
     pub(crate) fn command(
         &self,

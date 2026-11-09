@@ -30,17 +30,18 @@ struct Outputs {
 }
 
 /// Check native inputs before invoking any preprocessor or compiler.
-pub fn prepare_native_objects(
+pub fn prepare_native_objects<'a>(
     manifest: &LoadedConeManifest,
-    target: &crate::ResolvedTargetProfile,
+    target: scoop_lir::LirTargetProfile,
+    resolve: impl Fn() -> Result<&'a crate::ResolvedTargetProfile, ToolchainError>,
     optimization: OptimizationMode,
     sysroot: &Path,
     cache: &Path,
     purpose: scoop_protocol::CompilationPurpose,
 ) -> Result<PreparedNativeObjects, ToolchainError> {
-    let mut prepared = prepare_c_objects(manifest, target, optimization, sysroot, cache)?;
+    let mut prepared = prepare_c_objects(manifest, target, &resolve, optimization, sysroot, cache)?;
     if let Some(resource) =
-        crate::windows_resource::prepare(manifest, target, purpose, sysroot, cache)?
+        crate::windows_resource::prepare(manifest, target, &resolve, purpose, sysroot, cache)?
     {
         prepared.key = fingerprint(&(prepared.key.as_array(), resource.key.as_array()))?;
         prepared.objects.push(resource.object);
@@ -64,20 +65,20 @@ pub fn selected_native_object_sources(
         .map(|source| source.path().clone())
         .collect();
     sources.sort();
-    sources.extend(crate::windows_resource::source(manifest, target, purpose).cloned());
+    sources
+        .extend(crate::windows_resource::source(manifest, target.lir_target(), purpose).cloned());
     sources
 }
 
-fn prepare_c_objects(
+fn prepare_c_objects<'a>(
     manifest: &LoadedConeManifest,
-    target: &crate::ResolvedTargetProfile,
+    target: scoop_lir::LirTargetProfile,
+    resolve: &impl Fn() -> Result<&'a crate::ResolvedTargetProfile, ToolchainError>,
     optimization: OptimizationMode,
     sysroot: &Path,
     cache: &Path,
 ) -> Result<PreparedNativeObjects, ToolchainError> {
-    let compiler = NativeToolchain::resolve_cached(target, manifest, cache)?;
-    let key = inputs::configuration(manifest, target, &compiler, optimization, sysroot)?;
-    let mut inputs = compiler.input_metadata();
+    let key = inputs::configuration(manifest, target, optimization, sysroot)?;
     if !manifest
         .parsed()
         .semantic()
@@ -89,10 +90,10 @@ fn prepare_c_objects(
         return Ok(PreparedNativeObjects {
             key,
             objects: Vec::new(),
-            inputs,
+            inputs: Vec::new(),
         });
     }
-    let directory = cache.join("native-objects-v2");
+    let directory = cache.join("native-objects-v3");
     let record = cached(
         &directory,
         key,
@@ -110,6 +111,7 @@ fn prepare_c_objects(
             Ok(true)
         },
         || {
+            let compiler = NativeToolchain::resolve_target(resolve()?, manifest)?;
             let prepared = compiler.prepare(manifest, optimization, sysroot)?;
             let temporary = tempfile::Builder::new()
                 .prefix("objects-")
@@ -139,7 +141,6 @@ fn prepare_c_objects(
             })
         },
     )?;
-    inputs.extend(record.inputs.iter().cloned());
     Ok(PreparedNativeObjects {
         key: fingerprint(&(key.as_array(), &record.inputs))?,
         objects: record
@@ -148,6 +149,6 @@ fn prepare_c_objects(
             .into_iter()
             .map(|p| p.to_path_buf().map_err(error))
             .collect::<Result<_, _>>()?,
-        inputs,
+        inputs: record.inputs,
     })
 }

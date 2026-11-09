@@ -114,7 +114,7 @@ impl PreparedBuildGraph {
             Some(
                 self.context
                     .target
-                    .production(self.context.cache_root.as_path())
+                    .production()
                     .map_err(ChildRequestPlanError::Toolchain)?,
             )
         };

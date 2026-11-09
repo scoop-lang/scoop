@@ -35,9 +35,7 @@ pub(in crate::final_link) fn candidates(
         .collect()
 }
 
-pub(super) fn resolve(
-    mut candidates: Vec<PathBuf>,
-) -> Result<(PathBuf, Vec<PathBuf>), ToolchainError> {
+pub(super) fn resolve(candidates: Vec<PathBuf>) -> Result<PathBuf, ToolchainError> {
     let Some(index) = candidates.iter().position(|path| path.is_file()) else {
         return Err(error(format!(
             "Mach-O LLD not found; provide --linker, install the bundled LLVM tools, or set LLVM_SYS_221_PREFIX/PATH (searched: {})",
@@ -48,8 +46,7 @@ pub(super) fn resolve(
                 .join(", ")
         )));
     };
-    candidates.truncate(index + 1);
-    Ok((candidates[index].clone(), candidates))
+    Ok(candidates[index].clone())
 }
 
 pub(super) fn version(linker: &Path) -> Result<String, ToolchainError> {

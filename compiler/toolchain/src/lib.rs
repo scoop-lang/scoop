@@ -19,7 +19,7 @@ pub use c_bridge_invocation::{
 };
 mod compiler;
 mod debug;
-pub use debug::{DebugFileKind, NativeDebugTools, debug_tool_configuration};
+pub use debug::{DebugFileKind, NativeDebugTools};
 mod cxx;
 mod final_link;
 mod generators;
@@ -34,7 +34,7 @@ pub use manifest::{SOURCE_CATALOG_KEY, SOURCE_TARGETS, load_cone_manifest, parse
 mod build_record;
 mod native;
 mod native_driver;
-mod native_record;
+mod native_invocation;
 mod paths;
 mod registry;
 mod request;
@@ -71,7 +71,7 @@ pub use system_provider::{
 pub use trusted_core::TrustedCoreSlotLayoutV1;
 pub use unwind::{runtime_unwind_include, selected_unwind_prefix};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ToolchainError(pub String);
 
 impl fmt::Display for ToolchainError {
@@ -81,7 +81,5 @@ impl fmt::Display for ToolchainError {
 }
 
 impl std::error::Error for ToolchainError {}
+pub use build_record::inputs::{Input as NativeInputMetadata, native_include_search_paths};
 pub use compiler::paired_compiler_machine_capability;
-pub use native_record::inputs::{Input as NativeInputMetadata, native_include_search_paths};
-
-pub use native_record::{cached_native_tool_inputs, native_tool_configuration};

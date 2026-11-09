@@ -25,23 +25,14 @@ pub struct ArtifactLinkRequest {
 
 impl ArtifactLinkRequest {
     pub fn link(&self) -> Result<ProgramLinkOutput, LinkError> {
-        let target = ResolvedTargetProfile::resolve_with_cached(
-            &self.target,
-            &self.c_toolchain,
-            &self.cache_dir,
-        )
-        .map_err(error)?;
+        let target =
+            ResolvedTargetProfile::resolve_with(&self.target, &self.c_toolchain).map_err(error)?;
         let closure = read_program_artifacts(
             &self.root_slib,
             &self.dependency_slibs,
             target.lir_target_selection(),
         )?;
-        let profile = resolve_program_link_profile(
-            &closure,
-            &target,
-            &self.final_link,
-            Some(&self.cache_dir),
-        )?;
+        let profile = resolve_program_link_profile(&closure, &target, &self.final_link)?;
         let runtime_index = match &self.runtime_index {
             Some(index) => index.clone(),
             None => {
@@ -102,7 +93,6 @@ pub fn resolve_program_link_profile(
     closure: &ProgramLinkClosure,
     target: &ResolvedTargetProfile,
     options: &FinalLinkOptions,
-    cache: Option<&Path>,
 ) -> Result<ValidatedFinalLinkProfile, LinkError> {
     let mut options = options.clone();
     options.output_kind = match closure.root_kind() {
@@ -126,10 +116,7 @@ pub fn resolve_program_link_profile(
             origins.join(", ")
         )));
     }
-    let profile = match cache {
-        Some(cache) => target.final_link_with_cxx_cached(&options, !origins.is_empty(), cache),
-        None => target.final_link_with_cxx(&options, !origins.is_empty()),
-    };
+    let profile = target.final_link_with_cxx(&options, !origins.is_empty());
     profile.map_err(|err| {
         if origins.is_empty() {
             error(err)

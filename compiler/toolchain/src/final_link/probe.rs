@@ -1,7 +1,7 @@
 use super::*;
 use scoop_process::CommandExt;
 
-pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, ToolchainError> {
+pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<(), ToolchainError> {
     for symbol in profile.linker_system_requirements() {
         if !profile.data.system.exports().contains_key(*symbol) {
             return Err(error(format!(
@@ -20,12 +20,9 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
         b"#include <stdio.h>\nint main(void) { return puts(\"scoop\") < 0; }\nint scoop_app_init(const void *host, void *app, void *error) { (void)host; (void)app; (void)error; return main(); }\n",
     )
     .map_err(error)?;
-    let dependencies = directory.path().join("probe.d");
     let output = profile
         .startup
         .object_compilation_command(&source, &object)
-        .args(["-v", "-MD", "-MT", "link-probe", "-MF"])
-        .arg(&dependencies)
         .scoop_output()
         .map_err(error)?;
     if !output.status.success() {
@@ -34,7 +31,6 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    let headers = super::super::dependencies::read(&dependencies, &source, &output.stderr)?;
     let sdk = profile.startup.sdk_root().map_err(error)?;
     let stub = directory.path().join("libSystem.tbd");
     let system = &profile.data.system;
@@ -62,5 +58,5 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    Ok(headers)
+    Ok(())
 }

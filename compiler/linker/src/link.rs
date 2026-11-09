@@ -214,11 +214,6 @@ fn link_inputs(
             .into_iter()
             .chain(inputs.namespace.input_paths())
             .chain(link_input_paths)
-            .chain(
-                debug_tools
-                    .iter()
-                    .flat_map(|tools| tools.input_paths().iter().cloned()),
-            )
             .collect(),
     })
 }

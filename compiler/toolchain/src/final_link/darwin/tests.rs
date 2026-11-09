@@ -2,7 +2,7 @@ use super::*;
 use crate::ResolvedTargetProfile;
 
 #[test]
-fn explicit_lld_path_is_probed_and_reused_without_republishing() {
+fn explicit_lld_path_is_selected_and_missing_tools_are_reported() {
     let target = ResolvedTargetProfile::resolve(crate::host_target_triple().unwrap()).unwrap();
     let default = target
         .final_link_with(&FinalLinkOptions::default())
@@ -18,51 +18,18 @@ fn explicit_lld_path_is_probed_and_reused_without_republishing() {
         linker: Some(linker.clone()),
         ..Default::default()
     };
-    let cache = directory.path().join("cache");
-    let cold = target
-        .final_link_with_cxx_cached(&options, false, &cache)
-        .unwrap();
+    let cold = target.final_link_with_cxx(&options, false).unwrap();
     assert_eq!(cold.linker_driver(), linker);
-    assert!(cold.input_paths().unwrap().contains(&linker));
-    let records = || {
-        let mut records: Vec<_> =
-            std::fs::read_dir(cache.join(super::super::cache::CACHE_DIRECTORY))
-                .unwrap()
-                .map(|entry| entry.unwrap().path())
-                .filter(|path| {
-                    path.extension()
-                        .is_some_and(|extension| extension == "json")
-                })
-                .map(|path| {
-                    let modified = path.metadata().unwrap().modified().unwrap();
-                    (path, modified)
-                })
-                .collect();
-        records.sort();
-        records
-    };
-    let before = records();
-    assert_eq!(before.len(), 1);
-    assert_eq!(
-        cold,
-        target
-            .final_link_with_cxx_cached(&options, false, &cache)
-            .unwrap()
-    );
-    assert_eq!(before, records());
-
     let missing = directory.path().join("missing linker");
     let failure = target
-        .final_link_with_cxx_cached(
+        .final_link_with_cxx(
             &FinalLinkOptions {
                 linker: Some(missing.clone()),
                 ..Default::default()
             },
             false,
-            &cache,
         )
         .unwrap_err();
     assert!(failure.to_string().contains("Mach-O LLD not found"));
     assert!(failure.to_string().contains(missing.to_str().unwrap()));
-    assert_eq!(before, records());
 }

@@ -1,5 +1,5 @@
 schema = 1
-name = "final-tools"
+name = "no-tool-records"
 inputs = ["main.scoop", "state.py"]
 tools = ["scoop", "scoopc", "scoop-link", "python"]
 when = { os = ["darwin", "linux"] }
@@ -28,8 +28,8 @@ stdout = ""
 stderr = ""
 
 [[steps]]
-name = "save_tools"
-argv = ["${python}", "${fixture}/state.py", "save", "${work}/cache", "${work}/tools.json"]
+name = "no_tools_after_cold"
+argv = ["${python}", "${fixture}/state.py", "${work}/cache"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -55,8 +55,8 @@ stdout = ""
 stderr = ""
 
 [[steps]]
-name = "same_after_recompile"
-argv = ["${python}", "${fixture}/state.py", "same", "${work}/cache", "${work}/tools.json"]
+name = "no_tools_after_recompile"
+argv = ["${python}", "${fixture}/state.py", "${work}/cache"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -78,8 +78,8 @@ stdout = ""
 stderr = ""
 
 [[steps]]
-name = "same_after_release"
-argv = ["${python}", "${fixture}/state.py", "same", "${work}/cache", "${work}/tools.json"]
+name = "no_tools_after_release"
+argv = ["${python}", "${fixture}/state.py", "${work}/cache"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -101,8 +101,8 @@ stdout = ""
 stderr = ""
 
 [[steps]]
-name = "same_after_artifact_link"
-argv = ["${python}", "${fixture}/state.py", "same", "${work}/cache", "${work}/tools.json"]
+name = "no_tools_after_artifact_link"
+argv = ["${python}", "${fixture}/state.py", "${work}/cache"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -122,8 +122,8 @@ stdout = ""
 stderr = ""
 
 [[steps]]
-name = "same_after_standalone_link"
-argv = ["${python}", "${fixture}/state.py", "same", "${work}/cache", "${work}/tools.json"]
+name = "no_tools_after_standalone_link"
+argv = ["${python}", "${fixture}/state.py", "${work}/cache"]
 exit = 0
 stdout = ""
 stderr = ""

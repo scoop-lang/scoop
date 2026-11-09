@@ -59,18 +59,11 @@ impl CToolchainOptions {
 }
 
 impl ResolvedTargetProfile {
-    pub fn resolve_with_cached(
-        triple: &str,
-        options: &CToolchainOptions,
-        cache: &std::path::Path,
-    ) -> Result<Self, ToolchainError> {
-        Self::resolve_request_cached(&options.request(triple.to_owned())?, cache)
-    }
-
     pub fn resolve_request(request: &TargetSelectionRequestV1) -> Result<Self, ToolchainError> {
         if let Some(bytes) = request.resolved_toolchain() {
-            let record: crate::native_record::ResolvedRecord = serde_json::from_slice(bytes)
-                .map_err(|e| ToolchainError(format!("C toolchain request: {e}")))?;
+            let record: crate::native_invocation::ResolvedInvocation =
+                serde_json::from_slice(bytes)
+                    .map_err(|e| ToolchainError(format!("C toolchain request: {e}")))?;
             return record.into_target(request.canonical_triple());
         }
         Self::resolve_with(
@@ -79,20 +72,10 @@ impl ResolvedTargetProfile {
         )
     }
 
-    pub fn resolve_request_cached(
-        request: &TargetSelectionRequestV1,
-        cache: &std::path::Path,
-    ) -> Result<Self, ToolchainError> {
-        if request.resolved_toolchain().is_some() {
-            return Self::resolve_request(request);
-        }
-        crate::native_record::resolve_cached(request, cache)
-    }
-
     pub fn child_request(&self) -> Result<TargetSelectionRequestV1, ToolchainError> {
         let request = TargetSelectionRequestV1::new(self.canonical_triple().to_owned())
             .map_err(|error| ToolchainError(error.to_string()))?;
-        let record = crate::native_record::ResolvedRecord::from_target(self)?;
+        let record = crate::native_invocation::ResolvedInvocation::from_target(self)?;
         Ok(request.with_resolved_toolchain(
             serde_json::to_vec(&record)
                 .map_err(|e| ToolchainError(format!("C toolchain request: {e}")))?,

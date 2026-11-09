@@ -4,8 +4,7 @@ use scoop_protocol::{
     CurrentConeRequestV1, DiagnosticOriginV1, DiagnosticOutputPolicyV1, DiagnosticSeverityV1,
     HostPathCarrier, RequestCorrelationId, ScoopcBuildRequestV1, ScoopcRequestEnvelopeV1,
     ScoopcResponseEnvelopeV1, ScoopcSuccessV1, StageDumpPolicyV1, StructuredDiagnosticV1,
-    TargetSelectionRequestV1, TrustedCoreRequestV1, encode_machine_capability_frame,
-    encode_response_frame,
+    TargetSelectionRequestV1, TrustedCoreRequestV1, encode_response_frame,
 };
 
 use super::*;
@@ -92,20 +91,12 @@ fn fake_compiler(path: &Path, response: &[u8], exit: i32, stderr: &str) {
 }
 
 fn fake_compiler_body(path: &Path, body: &str) {
-    let capability = scoop_toolchain::paired_compiler_machine_capability().unwrap();
-    let capability = shell_bytes(&encode_machine_capability_frame(&capability).unwrap());
-    let script = format!(
-        "#!/bin/sh\nif [ \"$1\" = \"__machine-capability\" ]; then\n  printf '{capability}'\n  exit 0\nfi\n{body}\n"
-    );
+    let script = format!("#!/bin/sh\n{body}\n");
     crate::test_compiler::write(path, script.as_bytes());
 }
 
 fn resolve_fake(path: &Path) -> ResolvedPairedScoopc {
-    ResolvedPairedScoopc::resolve(
-        &PairedScoopcLocator::new(path).unwrap(),
-        &crate::ArtifactCacheRoot::new(path.parent().unwrap().join("cache")).unwrap(),
-    )
-    .unwrap()
+    ResolvedPairedScoopc::resolve(&PairedScoopcLocator::new(path).unwrap())
 }
 
 #[test]

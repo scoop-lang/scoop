@@ -45,6 +45,8 @@ tar -xJf scoop-0.0.0-dev-native-x86_64-w64-windows-llvm-mingw-ucrt.tar.xz -C "$H
 
 post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只为已安装的目标生成离线 API 文档，不再构建系统库。LLDB 所需的配套 Python 仍随 bin 包提供，无需另装解释器。默认只处理宿主默认目标；用 `--target <triple>` 处理另一目标，或用 `--all-targets` 处理全部已安装的目标（未安装的目标跳过并提示）。所选目标的 `lib/<target>/` 未安装（缺少系统 `.slib`）时报错，并提示安装对应的 `scoop-<version>-lib-base-<target>.tar.xz`；GUI 库文档只在已安装 lib-gui 包时生成。支持 `--target`、`--all-targets`、`--jobs` 和 `--work-dir`；普通工作目录为安装根的 `build/post-install`。修正文档错误后可以重试；已有缓存按输入变化复用。
 
+升级发行版后，在已有项目执行 `scoop clean` 再重新构建；显式配置在 `target` 外的 `--cache-dir` 也需要清理。项目缓存跟踪实际源码、有效清单配置和依赖产物，不监控工具文件、版本与 SDK 状态。
+
 安装根的 `VERSION` 随 bin 包提供，第一行为发行版本，随后记录源码 revision 与宿主平台。`scoop --version`、`scoopc --version`、`scoop-link --version`、`scoop-lsp --version`、`scoop-pm --version` 显示同一份发行版本和源码 revision。`share/scoop/toolchain.toml` 列出宿主、默认目标、各目标的有序内置 Cone 清单、native 版本、VSIX 和编程 skill 路径；`share/scoop/install/targets.list` 列出本 release 为该 host 提供的目标（默认目标在首行），`<target>.list` 与 `<target>.gui.list` 分别保存该目标非 GUI 与 GUI Cone 的顺序，供 post-install 读取。普通命令不把它作为启动验证清单。
 
 Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 bin 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI（`lib-gui-x86_64-unknown-linux-gnu` 包）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。

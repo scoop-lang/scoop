@@ -1,6 +1,5 @@
 //! Generated-C discovery for the three Windows native environments.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -44,14 +43,14 @@ pub fn resolve_windows_c_toolchain(
     compiler: &Path,
     native_sysroot: Option<&Path>,
 ) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
-    probe(target, compiler, native_sysroot).map(|(invocation, _)| invocation)
+    probe_with_resources(target, compiler, native_sysroot, None)
 }
 
 pub(crate) fn probe_default(
     target: LirTargetProfile,
     native_sysroot: Option<&Path>,
     sysroot: Option<&Path>,
-) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
+) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
     let llvm = bundled_llvm_root()?;
     let installed = llvm.join("bin").join(crate::host_executable_name("clang"));
     let search = std::env::var_os("PATH").unwrap_or_default();
@@ -81,34 +80,12 @@ pub(crate) fn probe_default(
             target.contract().canonical_triple()
         )));
     }
-    let (invocation, mut inputs) = probe_with_resources(
+    probe_with_resources(
         target,
         &compiler,
         native_sysroot.or_else(|| usable_default.then_some(default_root.as_path())),
         split_mingw.then_some(llvm.as_path()),
-    )?;
-    inputs.push(installed);
-    if !bundled {
-        let mut candidates = BTreeSet::new();
-        crate::native_record::program_candidates(
-            &crate::host_executable_name("clang"),
-            &search,
-            &mut candidates,
-        );
-        inputs.extend(candidates);
-    }
-    if native_sysroot.is_none() {
-        inputs.push(default_root);
-    }
-    Ok((invocation, inputs))
-}
-
-pub(crate) fn probe(
-    target: LirTargetProfile,
-    compiler: &Path,
-    native_sysroot: Option<&Path>,
-) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
-    probe_with_resources(target, compiler, native_sysroot, None)
+    )
 }
 
 fn probe_with_resources(
@@ -116,18 +93,13 @@ fn probe_with_resources(
     compiler: &Path,
     native_sysroot: Option<&Path>,
     bundled_llvm: Option<&Path>,
-) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
+) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
     let triple = target_triple(target.id())?;
     let search_path = std::env::var_os("PATH").unwrap_or_default();
-    let mut tool_inputs = BTreeSet::new();
-    crate::native_record::program_candidates(compiler.as_os_str(), &search_path, &mut tool_inputs);
     let compiler = crate::paths::find_program(compiler.as_os_str(), &search_path)?;
-    let (environment, paths) =
+    let environment =
         WindowsCEnvironment::resolve(target, &compiler, native_sysroot, bundled_llvm)?;
     let machine = environment.machine;
-    let mut inputs: BTreeSet<_> = paths.into_iter().collect();
-    inputs.extend(tool_inputs);
-    inputs.insert(compiler.clone());
     let directory = tempfile::Builder::new()
         .prefix("scoop-windows-c-")
         .tempdir()
@@ -149,17 +121,6 @@ fn probe_with_resources(
     )
     .map_err(error)?;
     let make_command = || environment.command(&compiler, triple, microsoft);
-    let dependencies = run(make_command()
-        .args(["-v", "-M", "-MT", "c-probe"])
-        .arg(&source))?;
-    let text = std::str::from_utf8(&dependencies.stdout).map_err(error)?;
-    inputs.extend(
-        scoop_process::parse_make_dependencies(text, "c-probe")
-            .ok_or_else(|| error("Clang returned an invalid header dependency list"))?
-            .into_iter()
-            .filter(|path| path != &source),
-    );
-    crate::native_record::header_candidates(&dependencies.stderr, &mut inputs);
     let macros = run(make_command().args(["-dM", "-E"]).arg(&source))?;
     let macros_text = std::str::from_utf8(&macros.stdout).map_err(error)?;
     let version = [
@@ -185,7 +146,7 @@ fn probe_with_resources(
             machine.name()
         )));
     }
-    Ok((invocation, inputs.into_iter().collect()))
+    Ok(invocation)
 }
 
 const PROBE: &str = r#"

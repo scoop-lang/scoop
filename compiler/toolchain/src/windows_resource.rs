@@ -30,22 +30,26 @@ struct ResourceOutput {
     object: HostPathCarrier,
 }
 
-pub(crate) fn source<'a>(
-    manifest: &'a LoadedConeManifest,
-    target: &ResolvedTargetProfile,
+pub(crate) fn source(
+    manifest: &LoadedConeManifest,
+    target: scoop_lir::LirTargetProfile,
     purpose: CompilationPurpose,
-) -> Option<&'a ConeRelativePath> {
+) -> Option<&ConeRelativePath> {
     if purpose != CompilationPurpose::Production
-        || target.c_bridge_toolchain().target_os() != scoop_target_data::TargetOs::Windows
+        || scoop_target_data::definition(target.id())
+            .expect("selected target")
+            .os
+            != scoop_target_data::TargetOs::Windows
     {
         return None;
     }
     manifest.parsed().semantic().windows().rc()
 }
 
-pub(crate) fn prepare(
+pub(crate) fn prepare<'a>(
     manifest: &LoadedConeManifest,
-    target: &ResolvedTargetProfile,
+    target: scoop_lir::LirTargetProfile,
+    resolve: &impl Fn() -> Result<&'a ResolvedTargetProfile, ToolchainError>,
     purpose: CompilationPurpose,
     sysroot: &Path,
     cache: &Path,
@@ -53,7 +57,7 @@ pub(crate) fn prepare(
     let Some(source) = source(manifest, target, purpose) else {
         return Ok(None);
     };
-    let target_root = crate::target_library_root(sysroot, target.lir_target());
+    let target_root = crate::target_library_root(sysroot, target);
     let includes: Vec<_> = manifest
         .parsed()
         .semantic()
@@ -61,15 +65,13 @@ pub(crate) fn prepare(
         .include_paths(target.id(), manifest.real_root(), &target_root)
         .map(|path| path_carrier(&path))
         .collect::<Result<_, _>>()?;
-    let search = std::env::var_os("PATH").unwrap_or_default();
     let key = fingerprint(&(
         path_carrier(manifest.real_root())?,
         source,
         includes,
-        crate::native_record::ResolvedRecord::cache_configuration(target)?,
-        search.as_encoded_bytes(),
+        target.contract().canonical_triple(),
     ))?;
-    let directory = cache.join("native-resources-v2");
+    let directory = cache.join("native-resources-v3");
     let record = cached(
         &directory,
         key,
@@ -87,7 +89,7 @@ pub(crate) fn prepare(
                 .tempdir_in(&directory)
                 .map_err(error)?;
             let (object, paths) =
-                compile(manifest, target, source, &target_root, temporary.path())?;
+                compile(manifest, resolve()?, source, &target_root, temporary.path())?;
             let inputs = paths
                 .iter()
                 .map(|path| Input::read(path))
@@ -192,7 +194,7 @@ fn compile(
     .ok_or_else(|| error("Clang returned invalid RC header dependencies"))?
     .into_iter()
     .collect();
-    crate::native_record::header_candidates(&output.stderr, &mut paths);
+    crate::build_record::inputs::header_candidates(&output.stderr, &mut paths);
     paths.insert(input.clone());
     assets::observe(
         std::str::from_utf8(&output.stdout).map_err(error)?,

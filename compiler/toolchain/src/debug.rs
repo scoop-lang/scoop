@@ -29,17 +29,14 @@ pub enum NativeDebugTools {
         dsymutil: PathBuf,
         strip: PathBuf,
         codesign: PathBuf,
-        inputs: Vec<PathBuf>,
     },
     Elf {
         objcopy: PathBuf,
-        inputs: Vec<PathBuf>,
     },
 }
 
 impl NativeDebugTools {
     pub fn resolve(target: scoop_lir::LirTargetProfile) -> Result<Self, ToolchainError> {
-        let mut inputs = Vec::new();
         let definition = scoop_target_data::definition(target.id())
             .filter(|definition| definition.selection.target() == target)
             .ok_or_else(|| ToolchainError("a registered debug target is required".into()))?;
@@ -47,20 +44,17 @@ impl NativeDebugTools {
             scoop_lir::NativeObjectFormat::MachO64
                 if definition.os == scoop_target_data::TargetOs::Darwin =>
             {
-                let dsymutil = llvm_tool("dsymutil", &mut inputs)?;
+                let dsymutil = llvm_tool("dsymutil")?;
                 let strip = PathBuf::from("/usr/bin/strip");
                 let codesign = PathBuf::from("/usr/bin/codesign");
-                inputs.extend([strip.clone(), codesign.clone()]);
                 Ok(Self::Darwin {
                     dsymutil,
                     strip,
                     codesign,
-                    inputs,
                 })
             }
             scoop_lir::NativeObjectFormat::Elf64 => Ok(Self::Elf {
-                objcopy: llvm_tool("llvm-objcopy", &mut inputs)?,
-                inputs,
+                objcopy: llvm_tool("llvm-objcopy")?,
             }),
             scoop_lir::NativeObjectFormat::Coff64
                 if definition.os == scoop_target_data::TargetOs::Windows =>
@@ -81,24 +75,9 @@ impl NativeDebugTools {
             Self::Elf { .. } => DebugFileKind::Elf,
         }
     }
-
-    pub fn input_paths(&self) -> &[PathBuf] {
-        match self {
-            Self::Windows => &[],
-            Self::Darwin { inputs, .. } | Self::Elf { inputs, .. } => inputs,
-        }
-    }
 }
 
-/// Capture lookup configuration without locating or starting any tools.
-pub fn debug_tool_configuration() -> Vec<Option<Vec<u8>>> {
-    ["LLVM_SYS_221_PREFIX", "PATH"]
-        .iter()
-        .map(|name| std::env::var_os(name).map(|value| value.as_encoded_bytes().to_vec()))
-        .collect()
-}
-
-fn llvm_tool(name: &str, inputs: &mut Vec<PathBuf>) -> Result<PathBuf, ToolchainError> {
+fn llvm_tool(name: &str) -> Result<PathBuf, ToolchainError> {
     let mut candidates = Vec::new();
     if let Some(prefix) = std::env::var_os("LLVM_SYS_221_PREFIX") {
         candidates.push(PathBuf::from(prefix).join("bin").join(name));
@@ -111,7 +90,6 @@ fn llvm_tool(name: &str, inputs: &mut Vec<PathBuf>) -> Result<PathBuf, Toolchain
         let candidate = std::path::absolute(candidate)
             .map_err(|error| ToolchainError(format!("debug tool path: {error}")))?;
         let exists = candidate.is_file();
-        inputs.push(candidate.clone());
         if exists {
             return Ok(candidate);
         }

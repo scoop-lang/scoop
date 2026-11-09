@@ -1,20 +1,15 @@
 use scoop_identity::{ConeIdentity, NormalizedSourcePath};
-use scoop_lir::{
-    AppleClangCompilerIdentityV1, CBridgeToolchainFingerprint, DarwinCBridgeDeploymentContractV1,
-    DarwinPackedVersionV1,
-};
-use scoop_protocol::ScoopcProtocolCapabilityV1;
 use scoop_slib::{
     ArtifactManifestSummaryV1, ConeKind, ConeRecord, ConeSourceForm, DependencyRecord,
-    IdentityAbiDescriptor, read_artifact_manifest_summary,
+    read_artifact_manifest_summary,
 };
-use scoop_wire::{encode, sha256};
+use scoop_wire::sha256;
 
 use super::*;
 
 #[test]
 fn optimization_changes_only_the_current_compile_key() {
-    let debug = input(1, "compiler");
+    let debug = input(1);
     let release = debug
         .clone()
         .with_optimization(scoop_lir::OptimizationMode::Release);
@@ -26,7 +21,7 @@ fn optimization_changes_only_the_current_compile_key() {
 
 #[test]
 fn debug_info_changes_code_reuse_without_changing_semantic_dependencies() {
-    let none = input(1, "compiler");
+    let none = input(1);
     let lines = none
         .clone()
         .with_debug_info(scoop_lir::DebugInfoLevel::LineTables);
@@ -44,7 +39,7 @@ fn debug_info_changes_code_reuse_without_changing_semantic_dependencies() {
 
 #[test]
 fn test_purpose_and_source_roles_are_independent_key_inputs() {
-    let production = input(1, "same compiler");
+    let production = input(1);
     let test = production.clone().with_purpose(CompilationPurpose::Test);
     assert_ne!(production.key().unwrap(), test.key().unwrap());
     let mut changed_role = test.clone();
@@ -52,19 +47,8 @@ fn test_purpose_and_source_roles_are_independent_key_inputs() {
     assert_ne!(test.key().unwrap(), changed_role.key().unwrap());
 }
 
-fn input(source_modified: u64, compiler_input: &str) -> ConeCompileCacheInputV1 {
+fn input(source_modified: u64) -> ConeCompileCacheInputV1 {
     let selection = scoop_target_data::DARWIN_AARCH64_LLVM_22_1;
-    let c_bridge = scoop_target_data::darwin_c_bridge_profile(
-        scoop_target_data::DARWIN_AARCH64,
-        DarwinCBridgeDeploymentContractV1::new(
-            DarwinPackedVersionV1::new(0x000d_0100).unwrap(),
-            DarwinPackedVersionV1::new(0x000e_0200).unwrap(),
-            Vec::new(),
-        )
-        .unwrap(),
-        AppleClangCompilerIdentityV1::new(21, 0, 0, "clang-2100.1.1.101").unwrap(),
-    )
-    .unwrap();
     let source = SourceIdentity::new(
         ConeIdentity::CORE,
         NormalizedSourcePath::new("src/core.scoop").unwrap(),
@@ -93,34 +77,9 @@ fn input(source_modified: u64, compiler_input: &str) -> ConeCompileCacheInputV1 
             role: SourceRole::Production,
         }],
         Vec::new(),
-        PairedCompilerFingerprintV1::from_parts(
-            sha256(compiler_input.as_bytes()),
-            sha256(b"distribution"),
-            sha256(b"build"),
-        ),
-        IdentityAbiDescriptor::current().unwrap(),
-        strong_profile_id(),
-        ScoopcProtocolCapabilityV1::current(),
         selection.target().fingerprint().unwrap(),
         selection.backend().fingerprint().unwrap(),
-        c_bridge.fingerprint(),
-        sha256(b"native-tool-inputs"),
     )
-}
-
-fn c_bridge_fingerprint(minimum: u32, sdk: u32, compiler: &str) -> CBridgeToolchainFingerprint {
-    scoop_target_data::darwin_c_bridge_profile(
-        scoop_target_data::DARWIN_AARCH64,
-        DarwinCBridgeDeploymentContractV1::new(
-            DarwinPackedVersionV1::new(minimum).unwrap(),
-            DarwinPackedVersionV1::new(sdk).unwrap(),
-            Vec::new(),
-        )
-        .unwrap(),
-        AppleClangCompilerIdentityV1::new(21, 0, 0, compiler).unwrap(),
-    )
-    .unwrap()
-    .fingerprint()
 }
 
 fn dependency_summaries() -> (ArtifactManifestSummaryV1, ArtifactManifestSummaryV1) {
@@ -203,18 +162,8 @@ fn rich_input() -> ConeCompileCacheInputV1 {
             semantic.lir(),
             CodeFingerprint::from_array([10; 32]),
         )],
-        PairedCompilerFingerprintV1::from_parts(
-            sha256(b"paired-scoopc-v1"),
-            sha256(b"distribution-v1"),
-            sha256(b"build-v1"),
-        ),
-        IdentityAbiDescriptor::current().unwrap(),
-        strong_profile_id(),
-        ScoopcProtocolCapabilityV1::current(),
         selection.target().fingerprint().unwrap(),
         selection.backend().fingerprint().unwrap(),
-        c_bridge_fingerprint(0x000d_0100, 0x000e_0200, "clang-2100.1.1.101"),
-        sha256(b"native-tool-inputs"),
     )
 }
 
@@ -230,29 +179,8 @@ fn assert_mutation_misses(
 }
 
 #[test]
-fn compile_cache_key_has_a_fixed_canonical_vector() {
-    let input = input(1, "paired-scoopc-v1");
-
-    // The vector includes the directory-input cache domain, runtime ABI, artifact profile and machine protocol.
-    assert_eq!(
-        input.key().unwrap().to_string(),
-        "32eca97b532cc5df1488eca83ce6f504d9d551ab9cf74f7358b3fc3d9aa62525"
-    );
-    assert_eq!(encode(&input).unwrap().first(), Some(&0xb0));
-}
-
-#[test]
-fn source_metadata_and_compiler_inputs_are_independent_key_dimensions() {
-    let baseline = input(1, "paired-scoopc-v1").key().unwrap();
-    let source_changed = input(2, "paired-scoopc-v1").key().unwrap();
-    let compiler_changed = input(1, "paired-scoopc-v2").key().unwrap();
-
-    assert_ne!(baseline, source_changed);
-    assert_ne!(baseline, compiler_changed);
-    assert_ne!(source_changed, compiler_changed);
-    assert_mutation_misses(&input(1, "paired-scoopc-v1"), |input| {
-        input.native_tool_inputs = sha256(b"changed-native-tool")
-    });
+fn source_metadata_changes_the_compile_key() {
+    assert_ne!(input(1).key().unwrap(), input(2).key().unwrap());
 }
 
 #[test]
@@ -359,16 +287,5 @@ fn every_currently_variable_cache_key_dimension_misses_independently() {
     });
     assert_mutation_misses(&baseline, |input| {
         input.dependencies[0].lir = LirFingerprint::from_array([9; 32]);
-    });
-    assert_mutation_misses(&baseline, |input| {
-        input.compiler = PairedCompilerFingerprintV1::from_parts(
-            sha256(b"paired-scoopc-v2"),
-            sha256(b"distribution-v1"),
-            sha256(b"build-v1"),
-        );
-    });
-    assert_mutation_misses(&baseline, |input| {
-        input.c_bridge_toolchain =
-            c_bridge_fingerprint(0x000d_0200, 0x000e_0200, "clang-2100.1.1.101");
     });
 }

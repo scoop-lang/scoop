@@ -9,7 +9,7 @@ options = ["--target", "${target}", "--cc", "${work}/tools/gcc", "--unwind-prefi
 
 [[steps]]
 name = "prepare"
-argv = ["${python}", "${fixture}/tools.py", "setup", "${work}/tools", "${cc}"]
+argv = ["${python}", "${fixture}/tools.py", "${work}/tools", "${cc}"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -41,7 +41,7 @@ stderr = ""
 [[steps]]
 name = "save_cold_calls"
 files = [{copy = {from = "${work}/tools/calls", to = "${work}/saved-calls"}}]
-checks = [{file = "${work}/tools/calls", contains = "first"}]
+checks = [{file = "${work}/tools/calls", contains = "link"}]
 
 [[steps]]
 name = "save_cold"
@@ -76,81 +76,6 @@ stderr = ""
 
 [[steps]]
 name = "unchanged_warm"
-argv = ["${python}", "${fixture}/../executable-record/state.py", "same", "${work}/cache", "${work}/program", "${work}/state.json"]
-exit = 0
-stdout = ""
-stderr = ""
-checks = [{file = "${work}/tools/calls", same_as = "${work}/saved-calls"}]
-
-[[steps]]
-name = "retarget"
-argv = ["${python}", "${fixture}/tools.py", "retarget", "${work}/tools", "${cc}"]
-exit = 0
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "retargeted"
-argv = ["${scoop}", "build", "--release", "${fixture}/main.scoop", {"each" = "${options}"}]
-exit = 0
-stdout = ""
-stderr = ""
-json = "stderr"
-diagnostics = []
-checks = [{actual = "${retargeted.result.observations.child_invocations.length}", equals = 0}]
-
-[[steps]]
-name = "run_retargeted"
-argv = ["${work}/program"]
-exit = 42
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "count_retargeted"
-argv = ["${python}", "${fixture}/../executable-record/state.py", "count", "${work}/cache", "${work}/program", "2"]
-exit = 0
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "save_retargeted_calls"
-files = [{copy = {from = "${work}/tools/calls", to = "${work}/saved-calls"}}]
-checks = [{file = "${work}/tools/calls", contains = "second"}]
-
-[[steps]]
-name = "save_retargeted"
-argv = ["${python}", "${fixture}/../executable-record/state.py", "save", "${work}/cache", "${work}/program", "${work}/state.json"]
-exit = 0
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "final_warm"
-argv = ["${scoop}", "build", "--release", "${fixture}/main.scoop", {"each" = "${options}"}]
-exit = 0
-stdout = ""
-stderr = ""
-json = "stderr"
-diagnostics = []
-checks = [{actual = "${final_warm.result.observations.child_invocations.length}", equals = 0}]
-
-[[steps]]
-name = "run_final_warm"
-argv = ["${work}/program"]
-exit = 42
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "count_final_warm"
-argv = ["${python}", "${fixture}/../executable-record/state.py", "count", "${work}/cache", "${work}/program", "2"]
-exit = 0
-stdout = ""
-stderr = ""
-
-[[steps]]
-name = "unchanged_final_warm"
 argv = ["${python}", "${fixture}/../executable-record/state.py", "same", "${work}/cache", "${work}/program", "${work}/state.json"]
 exit = 0
 stdout = ""

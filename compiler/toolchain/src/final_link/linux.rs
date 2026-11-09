@@ -39,27 +39,9 @@ pub(super) struct Discovery {
     compiler_digest: Digest256,
     runtime: RuntimeLibraries,
     inputs: Vec<SystemInput>,
-    #[serde(with = "crate::build_record::values::paths")]
-    observed_paths: Vec<PathBuf>,
 }
 
 impl LinuxFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Result<Self, ToolchainError> {
-        let target = LinuxTarget::select(startup.target().id())?;
-        Ok(Self {
-            startup,
-            target,
-            data,
-        })
-    }
-
     pub(super) fn resolve(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -87,8 +69,7 @@ impl LinuxFinalLinkProfile {
             ));
         }
         let runtime = RuntimeLibraries::resolve(startup.target(), options, cxx)?;
-        let mut observed_paths = Vec::new();
-        let linker = probe::driver_program(runtime.command(&startup), "ld", &mut observed_paths)?;
+        let linker = probe::driver_program(runtime.command(&startup), "ld")?;
         let version = probe::run(Command::new(&linker).arg("--version"))?;
         let linker_version = String::from_utf8(version.stdout).map_err(error)?;
         if !linker_version.starts_with("GNU ld ") {
@@ -109,12 +90,9 @@ impl LinuxFinalLinkProfile {
                 compiler_digest,
                 runtime,
                 inputs: Vec::new(),
-                observed_paths: Vec::new(),
             },
         };
-        observed_paths.extend(probe::search_paths(&profile)?);
-        profile.data.inputs = probe::check(&profile, &mut observed_paths)?;
-        profile.data.observed_paths = observed_paths;
+        profile.data.inputs = probe::check(&profile)?;
         Ok(profile)
     }
 
@@ -145,16 +123,6 @@ impl LinuxFinalLinkProfile {
     }
     pub fn input_paths(&self) -> impl Iterator<Item = &Path> {
         self.data.inputs.iter().map(|input| input.path.as_path())
-    }
-
-    pub(super) fn update_input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
-        let mut paths = self.input_paths().map(PathBuf::from).collect::<Vec<_>>();
-        paths.extend(self.data.observed_paths.iter().cloned());
-        paths.push(self.data.runtime.driver(&self.startup).to_owned());
-        if let RuntimeLibraries::Cxx(cxx) = &self.data.runtime {
-            paths.extend(cxx.input_paths()?);
-        }
-        Ok(paths)
     }
 
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {

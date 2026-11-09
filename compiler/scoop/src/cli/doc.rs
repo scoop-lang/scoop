@@ -133,10 +133,7 @@ pub(super) fn execute(
             .map_err(config)?,
         cache_root: cache.clone(),
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
-        target: GraphTarget::Frontend {
-            selection,
-            request: target.clone(),
-        },
+        target: GraphTarget::requested(target.clone()).map_err(config)?,
         compiler: compiler.clone(),
         diagnostics: reporter.diagnostics_policy(),
         optimization: Default::default(),

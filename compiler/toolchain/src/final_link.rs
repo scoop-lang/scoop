@@ -17,9 +17,7 @@ fn selected_final_link(
         .ok_or_else(|| error("the selected target has no final-link profile"))
 }
 
-mod cache;
 mod darwin;
-mod dependencies;
 mod elf;
 mod linux;
 mod output;
@@ -68,21 +66,6 @@ impl FinalLinkOptions {
             .unwrap_or(optimization == scoop_lir::OptimizationMode::Debug)
     }
 
-    /// Capture Darwin linker lookup inputs without locating or starting tools.
-    /// Other final-link profiles have no Darwin search configuration.
-    pub fn darwin_linker_candidates(
-        &self,
-        target: LirTargetProfile,
-    ) -> Result<Option<Vec<PathBuf>>, ToolchainError> {
-        match selected_final_link(target)? {
-            scoop_target_data::FinalLinkProfile::Darwin => {
-                darwin::tools::candidates(self.linker.as_deref()).map(Some)
-            }
-            scoop_target_data::FinalLinkProfile::Linux
-            | scoop_target_data::FinalLinkProfile::Windows => Ok(None),
-        }
-    }
-
     fn native_roots(&self, target: LirTargetProfile) -> Result<Vec<PathBuf>, ToolchainError> {
         let sysroot = crate::configured_sysroot_root(self.sysroot.clone())?;
         let root =
@@ -103,15 +86,6 @@ pub enum ValidatedFinalLinkProfile {
 }
 
 impl ValidatedFinalLinkProfile {
-    pub(crate) fn resolve_cached(
-        target: &ResolvedTargetProfile,
-        options: &FinalLinkOptions,
-        cxx: bool,
-        directory: &Path,
-    ) -> Result<Self, ToolchainError> {
-        cache::resolve(target, options, cxx, directory)
-    }
-
     pub fn resolve(triple: &str) -> Result<Self, ToolchainError> {
         Self::resolve_with(
             triple,
@@ -251,15 +225,6 @@ impl ValidatedFinalLinkProfile {
             ),
             Self::Linux(profile) => profile.command(scratch, output),
             Self::Windows(profile) => profile.command(scratch, output),
-        }
-    }
-
-    /// Inputs observed by final-link update records, including system search directories.
-    pub fn input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
-        match self {
-            Self::Darwin(profile) => profile.input_paths(),
-            Self::Linux(profile) => profile.update_input_paths(),
-            Self::Windows(profile) => Ok(profile.input_paths()),
         }
     }
 

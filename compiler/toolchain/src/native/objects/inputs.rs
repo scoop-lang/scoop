@@ -3,8 +3,7 @@ use scoop_manifest::{NativeCompileFlag, NativeSourceLanguage};
 
 pub(super) fn configuration(
     manifest: &LoadedConeManifest,
-    target: &crate::ResolvedTargetProfile,
-    compiler: &NativeToolchain,
+    target: scoop_lir::LirTargetProfile,
     optimization: OptimizationMode,
     sysroot: &Path,
 ) -> Result<Digest256, ToolchainError> {
@@ -40,46 +39,20 @@ pub(super) fn configuration(
         .includes(target.id())
         .filter(|_| !sources.is_empty())
         .collect();
-    let target_root = crate::target_library_root(sysroot, target.lir_target());
-    let directories: Vec<_> = include
-        .iter()
-        .map(|entry| entry.resolve(manifest.real_root(), &target_root))
-        .chain(
-            flags(NativeSourceLanguage::C)
-                .iter()
-                .chain(flags(NativeSourceLanguage::Cxx))
-                .chain(flags(NativeSourceLanguage::ObjectiveC))
-                .filter_map(|flag| match flag {
-                    NativeCompileFlag::Include { kind, path }
-                        if !matches!(
-                            kind,
-                            scoop_manifest::NativeIncludeFlag::ForcedHeader
-                                | scoop_manifest::NativeIncludeFlag::Macros
-                        ) =>
-                    {
-                        Some(manifest.real_root().join(path))
-                    }
-                    _ => None,
-                }),
-        )
-        .map(|path| path.is_dir())
-        .collect();
     fingerprint(&(
         HostPathCarrier::from_path(manifest.real_root()).map_err(error)?,
         &sources,
-        directories,
         include,
         flags(NativeSourceLanguage::C),
         flags(NativeSourceLanguage::Cxx),
         flags(NativeSourceLanguage::ObjectiveC),
-        compiler.cxx_fingerprint().map(|fp| *fp.as_array()),
-        compiler.c_fingerprint().map(|fp| *fp.as_array()),
+        config.cxx(target.id()),
         libraries,
         scoop_wire::encode(&optimization).map_err(error)?,
         (!sources.is_empty())
             .then(|| HostPathCarrier::from_path(sysroot))
             .transpose()
             .map_err(error)?,
-        crate::native_record::ResolvedRecord::cache_configuration(target)?,
+        target.contract().canonical_triple(),
     ))
 }

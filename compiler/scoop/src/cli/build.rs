@@ -66,11 +66,8 @@ pub(super) fn requests(
     };
     let (c_toolchain, mut final_link) = args.native.resolve(&cwd, &sysroot)?;
     final_link.emit_debug_file |= debug_info != scoop_lir::DebugInfoLevel::None;
-    let target = scoop_toolchain::ResolvedTargetProfile::resolve_request_cached(
-        &super::native::target_request(triple, &c_toolchain)?,
-        cache.as_path(),
-    )
-    .map_err(config)?;
+    let target = GraphTarget::requested(super::native::target_request(triple, &c_toolchain)?)
+        .map_err(config)?;
     let runtime = match (args.runtime_objects, args.runtime_root) {
         (Some(index), _) => RuntimeInput::ObjectIndex(absolute(&cwd, index)?),
         (_, Some(root)) => RuntimeInput::SourceRoot(absolute(&cwd, root)?),
@@ -89,7 +86,7 @@ pub(super) fn requests(
             .map_err(config)?,
         cache_root: cache,
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
-        target: GraphTarget::Artifact(Box::new(target)),
+        target,
         compiler: PairedScoopcLocator::new(compiler).map_err(config)?,
         diagnostics,
         optimization: profile.optimization(),

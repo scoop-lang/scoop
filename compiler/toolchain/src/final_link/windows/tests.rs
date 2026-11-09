@@ -104,21 +104,6 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
             "actual {crt_name} is missing from {:?}",
             profile.system_input_paths().collect::<Vec<_>>()
         );
-        assert!(
-            profile
-                .input_paths()
-                .iter()
-                .any(|path| path.file_name().is_some_and(|name| name == "unwind.h")),
-            "case {index}: unwind header absent from {:?}",
-            profile
-                .input_paths()
-                .iter()
-                .filter(|path| path
-                    .to_string_lossy()
-                    .to_ascii_lowercase()
-                    .contains("unwind"))
-                .collect::<Vec<_>>()
-        );
         let scratch = directory.path().join(index.to_string());
         std::fs::create_dir_all(&scratch).unwrap();
         let source = scratch.join("入口.c");

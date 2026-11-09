@@ -1,2 +1,0 @@
-package test.m48
-fun cachedValue(): Int = 48

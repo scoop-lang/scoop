@@ -1,4 +1,4 @@
-//! Ordinary metadata update records for native tools and objects.
+//! Ordinary metadata update records for native sources and objects.
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
@@ -7,7 +7,8 @@ use scoop_wire::{Digest256, sha256};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::ToolchainError;
-pub(crate) use crate::native_record::inputs::Input;
+pub(crate) mod inputs;
+pub(crate) use inputs::Input;
 pub(crate) mod values;
 
 #[derive(Serialize, Deserialize)]

@@ -10,13 +10,15 @@ mod record;
 
 pub(super) struct Request<'a> {
     pub graph: &'a crate::BuildGraphOutcome,
-    pub runtime: &'a RuntimeObjectSet,
-    pub target: &'a ResolvedTargetProfile,
+    pub runtime: &'a RuntimeInput,
+    pub target: &'a GraphTarget,
     pub cache: &'a Path,
     pub profile: crate::BuildProfile,
     pub options: &'a scoop_toolchain::FinalLinkOptions,
     pub libraries: &'a [PathBuf],
-    pub explicit_runtime: bool,
+    pub vendor_root: &'a Path,
+    pub enable_gc_stress: bool,
+    pub enable_startup_stats: bool,
     pub output: &'a Path,
 }
 
@@ -37,6 +39,7 @@ impl Request<'_> {
 
 pub(super) struct Executable {
     pub path: PathBuf,
+    pub runtime_index: PathBuf,
     pub debug_file: Option<scoop_linker::DebugFile>,
     pub import_library: Option<PathBuf>,
     pub fingerprint: ResolvedLinkPlanFingerprint,
@@ -45,7 +48,7 @@ pub(super) struct Executable {
 
 pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let key = key::of(&request)?;
-    let namespace = request.cache.join("final-products-v1");
+    let namespace = request.cache.join("final-products-v2");
     let entry = namespace.join(format!("{key}.json"));
     if let Some(executable) = record::load(&entry)? {
         return Ok(executable);
@@ -57,23 +60,30 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     if let Some(executable) = record::load(&entry)? {
         return Ok(executable);
     }
+    let target = request.target.production().map_err(|error| {
+        BuildFailure::tool("SCOOP_LINK_TOOLCHAIN", BuildFailurePhase::FinalLink, error)
+    })?;
+    let (runtime, runtime_index, runtime_paths) = runtime_input(
+        request.runtime,
+        target,
+        request.cache,
+        request.options,
+        request.vendor_root,
+        request.enable_gc_stress,
+        request.enable_startup_stats,
+    )?;
     let directory = tempfile::Builder::new()
         .prefix("program-")
         .tempdir_in(&namespace)
         .map_err(failure)?;
-    let closure = read_built_program(request.graph.closure(), request.target).map_err(failure)?;
-    let profile = scoop_linker::resolve_program_link_profile(
-        &closure,
-        request.target,
-        request.options,
-        Some(request.cache),
-    )
-    .map_err(|error| {
-        BuildFailure::tool("SCOOP_LINK_TOOLCHAIN", BuildFailurePhase::FinalLink, error)
-    })?;
+    let closure = read_built_program(request.graph.closure(), target).map_err(failure)?;
+    let profile = scoop_linker::resolve_program_link_profile(&closure, target, request.options)
+        .map_err(|error| {
+            BuildFailure::tool("SCOOP_LINK_TOOLCHAIN", BuildFailurePhase::FinalLink, error)
+        })?;
     let linked = scoop_linker::link_program(
         &closure,
-        request.runtime,
+        &runtime,
         &profile,
         scoop_linker::ProgramLinkOptions {
             keep_symbols: request.keep_symbols(),
@@ -103,10 +113,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     )
     .map_err(failure)?;
     let mut paths: BTreeSet<_> = linked.input_paths.into_iter().collect();
-    paths.extend(profile.input_paths().map_err(failure)?);
-    if request.explicit_runtime {
-        paths.extend(request.runtime.input_paths().iter().cloned());
-    }
+    paths.extend(runtime_paths);
     let inputs = paths
         .iter()
         .map(|path| NativeInputMetadata::read(path).map_err(failure))
@@ -116,6 +123,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
             .as_array();
     let executable = Executable {
         path: linked.path,
+        runtime_index,
         debug_file: linked.debug_file,
         import_library: linked.import_library,
         fingerprint: linked.fingerprint,
