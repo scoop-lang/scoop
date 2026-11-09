@@ -1,0 +1,208 @@
+package scoop.graphics.native
+
+import scoop.graphics.*
+
+/** An owner-thread handle to the canvas's existing GPU context and native queue. */
+public class GpuDevice internal constructor(
+    private val resource: GraphicsResource,
+    public val backend: GpuBackend
+): Closeable {
+    private var borrowed = false
+    public val isClosed: Boolean get() = resource.isClosed
+
+    public fun createBuffer(
+        width: Int,
+        height: Int,
+        format: NativeGpuFormat,
+        layout: GpuPixelLayout,
+        colorSpace: GpuColorSpace = GpuColorSpace.Srgb,
+        scale: Double = 1.0
+    ): GpuBuffer {
+        val pointer = available()
+        requireGraphics(width > 0 && height > 0, "invalid GPU buffer dimensions")
+        requireGraphics(format.backend() == backend, "GPU format belongs to another backend")
+        checkScalar(scale)
+        requireGraphics(scale > 0.0 && scale.toFloat() > 0.0, "invalid GPU buffer scale")
+        @Unsafe
+        {
+            return GpuBuffer(
+                RenderTarget(
+                    ownedGraphics(
+                        gpuBuffer(
+                            pointer,
+                            width,
+                            height,
+                            format.code(),
+                            layout.code(),
+                            colorSpace == GpuColorSpace.LinearSrgb
+                        ),
+                        "create GPU buffer with native format"
+                    ),
+                    width,
+                    height,
+                    scale
+                ),
+                format,
+                layout,
+                colorSpace
+            )
+        }
+    }
+
+    /**
+     * Imports immutable native pixels without copying. The owner must keep storage alive and
+     * unchanged until release. Submit producers on this device's queue before importing.
+     */
+    @Unsafe
+    public fun importImage(
+        texture: NativeGpuTexture,
+        width: Int,
+        height: Int,
+        format: NativeGpuFormat,
+        layout: GpuPixelLayout,
+        owner: NativeGpuImageOwner,
+        origin: GpuImageOrigin = GpuImageOrigin.TopLeft,
+        colorSpace: GpuColorSpace = GpuColorSpace.Srgb,
+        alpha: GpuImageAlpha = GpuImageAlpha.Premultiplied
+    ): Image {
+        val pointer = available()
+        requireGraphics(width > 0 && height > 0, "invalid GPU image dimensions")
+        requireGraphics(
+            texture.backend() == backend && format.backend() == backend,
+            "GPU image belongs to another backend"
+        )
+        return Image(
+            ownedGraphics(
+                gpuImport(
+                    pointer,
+                    texture.info(),
+                    width,
+                    height,
+                    format.code(),
+                    layout.code(),
+                    owner,
+                    origin == GpuImageOrigin.BottomLeft,
+                    colorSpace == GpuColorSpace.LinearSrgb,
+                    alpha.code()
+                ),
+                "import native GPU image"
+            )
+        )
+    }
+
+    /**
+     * Flushes pending work before a synchronous native borrow. Submit on the supplied queue;
+     * do not reenter this context, suspend, save unretained handles, or mutate a published Image.
+     */
+    @Unsafe
+    public fun <T> withNative(block: (NativeGpuDevice) -> T): T {
+        val pointer = available()
+        borrowed = true
+        try {
+            return GpuBorrow(ownedGraphics(gpuAccess(pointer), "borrow native GPU device")).use {
+                access -> @Unsafe
+                {
+                    return@use block(gpuAccessDevice(access.get()).native())
+                }
+            }
+        } finally {
+            borrowed = false
+        }
+    }
+
+    public fun drain() {
+        @Unsafe
+        {
+            graphicsResult(gpuDrain(available()), "drain GPU device")
+        }
+    }
+    private fun available(): Ptr<Unit> {
+        val pointer = resource.get()
+        if (borrowed)
+            throw IllegalStateException(Some("GPU device is borrowed"))
+        return pointer
+    }
+    public override fun close() {
+        resource.checkThread()
+        if (borrowed)
+            throw IllegalStateException(Some("cannot close a borrowed GPU device"))
+        if (isClosed)
+            return
+        try {
+            drain()
+        } finally {
+            resource.close()
+        }
+    }
+}
+
+internal class GpuBorrow(private val resource: GraphicsResource): Closeable {
+    fun get(): Ptr<Unit> = resource.get()
+    public override fun close() {
+        if (resource.isClosed)
+            return
+        try {
+            @Unsafe
+            {
+                graphicsResult(gpuAccessEnd(resource.get()), "finish native GPU access")
+            }
+        } finally {
+            resource.close()
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_gpu_access_end")
+private fun gpuAccessEnd(access: Ptr<Unit>): Int
+
+internal fun canvasGpuDevice(canvas: Ptr<Unit>): GpuDevice? {
+    @Unsafe
+    {
+        if (!canvasHasGpu(canvas))
+            return None
+        val resource = ownedGraphics(canvasGpu(canvas), "retain canvas GPU device")
+        return Some(GpuDevice(resource, gpuInfo(resource.get()).backend()))
+    }
+}
+
+@Extern(name = "scoop_graphics_canvas_has_gpu")
+private fun canvasHasGpu(canvas: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_graphics_canvas_gpu")
+private fun canvasGpu(canvas: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gpu_info")
+private fun gpuInfo(device: Ptr<Unit>): GpuDeviceInfo
+
+@Extern(name = "scoop_graphics_gpu_drain")
+private fun gpuDrain(device: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_gpu_buffer")
+private fun gpuBuffer(
+    device: Ptr<Unit>,
+    width: Int,
+    height: Int,
+    format: ULong,
+    layout: Int,
+    linear: Boolean
+): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gpu_access")
+private fun gpuAccess(device: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gpu_access_device")
+internal fun gpuAccessDevice(access: Ptr<Unit>): GpuDeviceInfo
+
+@Extern(name = "scoop_graphics_gpu_import")
+private fun gpuImport(
+    device: Ptr<Unit>,
+    texture: GpuTextureInfo,
+    width: Int,
+    height: Int,
+    format: ULong,
+    layout: Int,
+    owner: NativeGpuImageOwner,
+    bottomLeft: Boolean,
+    linear: Boolean,
+    alpha: Int
+): Ptr<Unit>?

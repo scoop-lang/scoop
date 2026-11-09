@@ -177,6 +177,7 @@ SGContext *scoop_graphics_gles_context(int32_t platform, void *connection,
       return nullptr;
     auto result = std::make_unique<SGContext>();
     result->context = gl->context;
+    result->device = {3, gl->display, gl->native, nullptr};
     result->gl = std::move(gl);
     return result.release();
   } catch (...) {
@@ -216,6 +217,7 @@ SGContext *scoop_graphics_gles_gtk_context(void *display) {
       return nullptr;
     auto result = std::make_unique<SGContext>();
     result->context = gl->context;
+    result->device = {3, gl->display, gl->native, nullptr};
     result->gl = std::move(gl);
     return result.release();
   } catch (...) {
@@ -246,6 +248,7 @@ SGTarget *scoop_graphics_gles_gtk_target(SGContext *context, void *view,
         GrBackendRenderTargets::MakeGL(width, height, samples, stencil, info);
     auto result = std::make_unique<SGTarget>();
     result->context = context->context;
+    result->device = context->device;
     result->gl = context->gl;
     result->surface = SkSurfaces::WrapBackendRenderTarget(
         context->context.get(), backend, kBottomLeft_GrSurfaceOrigin,
@@ -271,6 +274,7 @@ SGTarget *scoop_graphics_gles_target(SGContext *context, void *surface,
   try {
     auto result = std::make_unique<SGTarget>();
     result->context = context->context;
+    result->device = context->device;
     result->gl = context->gl;
     result->glSurface = surface;
     if (!result->gl->activate(surface))
@@ -297,6 +301,7 @@ SGTarget *scoop_graphics_gles_offscreen(SGContext *context, int32_t width,
   try {
     auto result = std::make_unique<SGTarget>();
     result->context = context->context;
+    result->device = context->device;
     result->gl = context->gl;
     result->external = false;
     if (!result->gl->activate())

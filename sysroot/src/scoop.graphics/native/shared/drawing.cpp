@@ -70,8 +70,13 @@ SGTarget *scoop_graphics_raster_create(int32_t width, int32_t height) {
 }
 SGCanvas *scoop_graphics_target_canvas(SGTarget *target, double scale) {
   try {
-    return new SGCanvas(target->surface, target->context, (float)scale,
-                        target->gl, target->glSurface);
+    if (!target->prepareWrite())
+      return nullptr;
+    auto result =
+        std::make_unique<SGCanvas>(target->surface, target->context,
+                                   (float)scale, target->gl, target->glSurface);
+    result->device = target->device;
+    return result.release();
   } catch (...) {
     return nullptr;
   }

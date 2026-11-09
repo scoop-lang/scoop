@@ -6,6 +6,7 @@ SGTarget *scoop_graphics_offscreen_create(SGCanvas *source, int32_t width,
   try {
     auto result = std::make_unique<SGTarget>();
     result->context = source->context;
+    result->device = source->device;
     result->gl = source->gl;
     result->external = false;
     result->surface = source->surface->makeSurface(width, height);
@@ -16,7 +17,7 @@ SGTarget *scoop_graphics_offscreen_create(SGCanvas *source, int32_t width,
 }
 SGImage *scoop_graphics_target_composite_snapshot(SGTarget *target) {
   try {
-    auto image = target->surface->makeImageSnapshot();
+    auto image = target->snapshot();
     return image ? new SGImage(std::move(image), target->context, target->gl)
                  : nullptr;
   } catch (...) {

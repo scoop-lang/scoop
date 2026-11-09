@@ -1,0 +1,114 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.tests.graphics.TestGpuFrame
+import scoop.test.*
+
+internal fun testFormat(device: GpuDevice): NativeGpuFormat =
+    when (device.backend) {
+        case Metal -> NativeGpuFormat.Metal(80ul)
+        case D3D12 -> NativeGpuFormat.D3D12(87u)
+        case GLES -> NativeGpuFormat.GLES(32856u)
+    }
+
+internal fun zeroFormat(device: GpuDevice): NativeGpuFormat =
+    when (device.backend) {
+        case Metal -> NativeGpuFormat.Metal(0ul)
+        case D3D12 -> NativeGpuFormat.D3D12(0u)
+        case GLES -> NativeGpuFormat.GLES(0u)
+    }
+
+internal fun floatFormat(device: GpuDevice): NativeGpuFormat =
+    when (device.backend) {
+        case Metal -> NativeGpuFormat.Metal(115ul)
+        case D3D12 -> NativeGpuFormat.D3D12(10u)
+        case GLES -> NativeGpuFormat.GLES(34842u)
+    }
+
+internal fun testLayout(device: GpuDevice): GpuPixelLayout =
+    if (device.backend == GpuBackend.GLES)
+        GpuPixelLayout.Rgba8
+    else
+        GpuPixelLayout.Bgra8
+
+internal fun nativeFrame(device: GpuDevice): TestGpuFrame {
+    @Unsafe
+    {
+        return device.withNative {
+            native -> @Unsafe
+            {
+                return@withNative when (native) {
+                    case Metal(val first, val second) -> TestGpuFrame.create(
+                        first,
+                        second,
+                        None,
+                        16,
+                        16,
+                        80ul
+                    )
+                    case D3D12(val first, val second, val third) -> TestGpuFrame.create(
+                        first,
+                        second,
+                        Some(third),
+                        16,
+                        16,
+                        87ul
+                    )
+                    case GLES(val first, val second) -> TestGpuFrame.create(
+                        first,
+                        second,
+                        None,
+                        16,
+                        16,
+                        32856ul
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Unsafe
+internal fun nativeOwner(frame: TestGpuFrame): NativeGpuImageOwner =
+    NativeGpuImageOwner(frame.payload(), frame.retainCallback(), frame.releaseCallback())
+
+@Unsafe
+internal fun producerTexture(device: GpuDevice, frame: TestGpuFrame): NativeGpuTexture =
+    when (device.backend) {
+        case Metal -> NativeGpuTexture.Metal(frame.texture()!!)
+        case D3D12 -> NativeGpuTexture.D3D12(frame.texture()!!, frame.releasedState)
+        case GLES -> NativeGpuTexture.GLES(frame.textureName)
+    }
+
+@Unsafe
+internal fun fillNative(frame: TestGpuFrame, texture: NativeGpuTexture, color: Color) {
+    when (texture) {
+        case Metal(val pointer) -> frame.fill(
+            Some(pointer),
+            0u,
+            0u,
+            color.red,
+            color.green,
+            color.blue,
+            color.alpha
+        )
+        case D3D12(val pointer, val state) -> frame.fill(
+            Some(pointer),
+            0u,
+            state,
+            color.red,
+            color.green,
+            color.blue,
+            color.alpha
+        )
+        case GLES(val name) -> frame.fill(
+            None,
+            name,
+            0u,
+            color.red,
+            color.green,
+            color.blue,
+            color.alpha
+        )
+    }
+}

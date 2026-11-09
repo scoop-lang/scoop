@@ -18,6 +18,7 @@ SGContext *scoop_graphics_d3d_context(IDXGIAdapter1 *adapter,
     backend.fQueue.retain(queue);
     auto result = std::make_unique<SGContext>();
     result->context = GrDirectContexts::MakeD3D(backend);
+    result->device = {2, adapter, device, queue};
     return result->context ? result.release() : nullptr;
   } catch (...) {
     return nullptr;
@@ -43,6 +44,7 @@ SGTarget *scoop_graphics_d3d_target(SGContext *context, ID3D12Resource *texture,
     auto backend = GrBackendRenderTargets::MakeD3D(width, height, info);
     auto result = std::make_unique<SGTarget>();
     result->context = context->context;
+    result->device = context->device;
     result->surface = SkSurfaces::WrapBackendRenderTarget(
         context->context.get(), backend, kTopLeft_GrSurfaceOrigin,
         kBGRA_8888_SkColorType, SkColorSpace::MakeSRGB(), nullptr);

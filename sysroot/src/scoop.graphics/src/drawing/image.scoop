@@ -4,7 +4,7 @@ public enum ImageSampling {
     Nearest, Linear
 }
 
-/** Immutable sRGB pixels; compatible offscreen snapshots may retain their GPU context. */
+/** Immutable pixels with a color space; GPU images retain their compatible context. */
 public class Image internal constructor(internal val resource: GraphicsResource): Closeable {
     public val width: Int get() {
         @Unsafe

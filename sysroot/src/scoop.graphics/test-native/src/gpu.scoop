@@ -1,0 +1,127 @@
+package scoop.tests.graphics
+
+/** A native texture producer whose retain/release callbacks never enter Scoop. */
+public class TestGpuFrame private constructor(private var handle: Ptr<Unit>?): Closeable {
+    @Unsafe
+    public fun payload(): Ptr<Unit> = handle!!
+    @Unsafe
+    public fun texture(): Ptr<Unit>? = gpuFrameTexture(handle!!)
+    public val textureName: UInt get() {
+        @Unsafe
+        {
+            return gpuFrameName(handle!!)
+        }
+    }
+    public val retains: Int get() {
+        @Unsafe
+        {
+            return gpuFrameMetric(handle!!, 0)
+        }
+    }
+    public val releases: Int get() {
+        @Unsafe
+        {
+            return gpuFrameMetric(handle!!, 1)
+        }
+    }
+    public val references: Int get() {
+        @Unsafe
+        {
+            return gpuFrameMetric(handle!!, 2)
+        }
+    }
+    public val releasedState: UInt get() {
+        @Unsafe
+        {
+            return gpuFrameMetric(handle!!, 3).toUInt()
+        }
+    }
+    @Unsafe
+    public fun retainCallback(): GCLeafFunPtr<(Ptr<Unit>) -> Unit> = gpuFrameRetain()
+    @Unsafe
+    public fun releaseCallback(): GCLeafFunPtr<(Ptr<Unit>, UInt) -> Unit> = gpuFrameRelease()
+    /** Submits a clear on the producer queue, restoring the supplied resource state. */
+    @Unsafe
+    public fun fill(
+        texture: Ptr<Unit>?,
+        name: UInt,
+        state: UInt,
+        red: Double,
+        green: Double,
+        blue: Double,
+        alpha: Double
+    ) {
+        if (!gpuFrameFill(handle!!, texture, name, state, red, green, blue, alpha))
+            throw IllegalStateException(Some("native GPU producer failed"))
+    }
+    public override fun close() {
+        when (handle) {
+            case Some(val value) -> {
+                handle = None
+                @Unsafe
+                {
+                    if (!gpuFrameClose(value))
+                        throw IllegalStateException(Some("native GPU producer drain failed"))
+                }
+            }
+            case None -> {}
+        }
+    }
+    public companion object {
+        @Unsafe
+        public fun create(
+            first: Ptr<Unit>,
+            second: Ptr<Unit>,
+            third: Ptr<Unit>?,
+            width: Int,
+            height: Int,
+            format: ULong
+        ): TestGpuFrame =
+            TestGpuFrame(
+                Some(
+                    gpuFrameCreate(first, second, third, width, height, format) ?:
+                        throw IllegalStateException(Some("native GPU producer creation failed"))
+                )
+            )
+    }
+}
+
+@Extern(name = "scoop_graphics_test_gpu_create")
+private fun gpuFrameCreate(
+    first: Ptr<Unit>,
+    second: Ptr<Unit>,
+    third: Ptr<Unit>?,
+    width: Int,
+    height: Int,
+    format: ULong
+): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_test_gpu_texture")
+private fun gpuFrameTexture(frame: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_test_gpu_name")
+private fun gpuFrameName(frame: Ptr<Unit>): UInt
+
+@Extern(name = "scoop_graphics_test_gpu_metric")
+private fun gpuFrameMetric(frame: Ptr<Unit>, kind: Int): Int
+
+@Extern(name = "scoop_graphics_test_gpu_retain")
+private fun gpuFrameRetain(): GCLeafFunPtr<(Ptr<Unit>) -> Unit>
+
+@Extern(name = "scoop_graphics_test_gpu_release")
+private fun gpuFrameRelease(): GCLeafFunPtr<(Ptr<Unit>, UInt) -> Unit>
+
+@Extern(name = "scoop_graphics_test_gpu_fill")
+private fun gpuFrameFill(
+    frame: Ptr<Unit>,
+    texture: Ptr<Unit>?,
+    name: UInt,
+    state: UInt,
+    red: Double,
+    green: Double,
+    blue: Double,
+    alpha: Double
+): Boolean
+
+@Extern(name = "scoop_graphics_test_gpu_close")
+private fun gpuFrameClose(frame: Ptr<Unit>): Boolean

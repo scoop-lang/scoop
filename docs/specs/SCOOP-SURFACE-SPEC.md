@@ -286,7 +286,7 @@ GPU context、窗口 surface、字体／图像／Path／文本的原生持有对
 
 graphics 与 graphics.text 的原生持有对象在创建线程串行使用和关闭；Surface 资源在窗口 owner，离屏资源不要求主线程。纯值可复制传递；结果逻辑上不可变不构成 Skia 内部缓存并发访问的承诺。
 
-native 薄层复制跨调用存活的数据，或取得明确的原生引用；不能保存移动 GC 对象的裸地址。回调使用已有 ForeignCallback 生命周期。C++／Objective-C 异常与用户异常均不得跨 C ABI 展开。
+native 薄层复制跨调用存活的数据，或取得明确的原生引用；不能保存移动 GC 对象的裸地址。进入 Scoop 的回调使用已有 ForeignCallback 生命周期；不进入 Scoop 的原生纹理 owner 回调和同队列 GPU buffer 借用沿 [原生 GPU buffer 规范](SCOOP-GRAPHICS-GPU-SPEC.md)。C++／Objective-C 异常与用户异常均不得跨 C ABI 展开。
 
 关闭顺序为停止帧通知并退休回调、结束输入／动画、等待当前同步回调和帧借用退出、关闭 SurfaceContent、结束实际 GPU 使用、释放 surface／context 及平台引用、关闭 NativeWindowLease。已停止的 ApplicationProxy 不能成为资源释放的唯一途径。content.close 失败仍释放本窗口的 renderer／lease；关闭整个宿主时继续处理其他窗口内容。清理失败遵循 ResourceUseException，不依赖后续一次事件或应用再调用 close 才完成收尾。
 

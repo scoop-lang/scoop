@@ -5,6 +5,7 @@ namespace {
 struct Recording final : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device;
   std::shared_ptr<SGRecording> recording = std::make_shared<SGRecording>();
   SkRect bounds;
 };
@@ -16,6 +17,7 @@ SGObject *scoop_graphics_recording_create(SGCanvas *source, SGRect bounds) {
     auto result = std::make_unique<Recording>();
     result->surface = source->surface;
     result->context = source->context;
+    result->device = source->device;
     result->gl = source->gl;
     result->bounds = sg_rect(bounds);
     SkRTreeFactory factory;
@@ -27,8 +29,11 @@ SGObject *scoop_graphics_recording_create(SGCanvas *source, SGRect bounds) {
 }
 SGCanvas *scoop_graphics_recording_canvas(Recording *value) {
   try {
-    return new SGCanvas(value->surface, value->context, value->recording,
-                        value->bounds, value->gl);
+    auto result =
+        std::make_unique<SGCanvas>(value->surface, value->context,
+                                   value->recording, value->bounds, value->gl);
+    result->device = value->device;
+    return result.release();
   } catch (...) {
     return nullptr;
   }

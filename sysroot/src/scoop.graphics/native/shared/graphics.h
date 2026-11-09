@@ -83,13 +83,22 @@ struct SGFilter : SGObject {
   sk_sp<SkImageFilter> filter;
   explicit SGFilter(sk_sp<SkImageFilter> f) : filter(std::move(f)) {}
 };
+// Raw handles are kept alive by the GrDirectContext (and SGGLState for GLES).
+struct SGDeviceInfo {
+  int32_t backend;
+  const void *first, *second, *third;
+};
 struct SGContext : SGObject {
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
 };
 struct SGTarget : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
   bool external = true;
+  virtual bool prepareWrite() { return true; }
+  virtual sk_sp<SkImage> snapshot() { return surface->makeImageSnapshot(); }
 };
 struct SGRecording {
   SkPictureRecorder recorder;
@@ -110,6 +119,7 @@ struct SGClip {
 struct SGCanvas : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  SGDeviceInfo device = {};
   std::shared_ptr<SGRecording> recording;
   SkCanvas *canvas;
   float scale;
@@ -129,7 +139,7 @@ struct SGCanvas : SGObject {
     canvas->scale(dpi, dpi);
   }
   explicit SGCanvas(const SGCanvas &parent)
-      : surface(parent.surface), context(parent.context),
+      : surface(parent.surface), context(parent.context), device(parent.device),
         recording(parent.recording), canvas(parent.canvas), scale(parent.scale),
         viewport(parent.viewport), base(canvas->getSaveCount()),
         clips(1, parent.clips.back()) {

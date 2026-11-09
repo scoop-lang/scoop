@@ -68,6 +68,15 @@ public class RenderTarget internal constructor(
             )
         }
     }
+    internal fun <T> withExclusive(block: (Ptr<Unit>) -> T): T {
+        val pointer = available()
+        borrowed = true
+        try {
+            return block(pointer)
+        } finally {
+            borrowed = false
+        }
+    }
     private fun available(): Ptr<Unit> {
         val pointer = resource.get()
         if (borrowed)

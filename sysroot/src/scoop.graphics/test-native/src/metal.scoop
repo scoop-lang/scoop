@@ -1,5 +1,51 @@
 package scoop.tests.graphics
 
+@Unsafe
+public fun testMetalPixelFormat(texture: Ptr<Unit>): ULong = metalPixelFormat(texture)
+
+@Extern(name = "scoop_graphics_test_gpu_metal_format")
+private fun metalPixelFormat(texture: Ptr<Unit>): ULong
+
+public class TestMetalWrite private constructor(private var handle: Ptr<Unit>?): Closeable {
+    public val isComplete: Boolean get() {
+        @Unsafe
+        {
+            return writeComplete(handle!!)
+        }
+    }
+    public override fun close() {
+        when (handle) {
+            case Some(val value) -> {
+                handle = None;
+                @Unsafe
+                {
+                    writeClose(value)
+                }
+            }
+            case None -> {}
+        }
+    }
+    public companion object {
+        @Unsafe
+        public fun start(queue: Ptr<Unit>, texture: Ptr<Unit>): TestMetalWrite =
+            TestMetalWrite(
+                Some(
+                    delayedWrite(queue, texture) ?:
+                        throw IllegalStateException(Some("delayed Metal write failed"))
+                )
+            )
+    }
+}
+
+@Extern(name = "scoop_graphics_test_gpu_delayed_write")
+private fun delayedWrite(queue: Ptr<Unit>, texture: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_test_gpu_write_complete")
+private fun writeComplete(command: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_graphics_test_gpu_write_close")
+private fun writeClose(command: Ptr<Unit>)
+
 /** Real Metal objects for tests that exercise the public cross-Cone target bridge. */
 public class TestMetalSurface private constructor(private var handle: Ptr<Unit>?): Closeable {
     @Unsafe
