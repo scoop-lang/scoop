@@ -1,6 +1,6 @@
 //! Batched native archives of selected objects, with no intermediate member files.
 use std::fs::{File, OpenOptions};
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use ar_archive_writer::{ArchiveKind, DEFAULT_OBJECT_READER, NewArchiveMember};
@@ -109,7 +109,11 @@ pub(super) fn build(
         })
         .collect();
     let mut file = tempfile::NamedTempFile::new_in(&namespace).map_err(error)?;
-    serde_json::to_writer(&mut file, &names).map_err(error)?;
+    {
+        let mut writer = BufWriter::new(file.as_file_mut());
+        serde_json::to_writer(&mut writer, &names).map_err(error)?;
+        writer.flush().map_err(error)?;
+    }
     let _ = directory.keep();
     file.persist(record).map_err(|source| error(source.error))?;
     Ok(paths)

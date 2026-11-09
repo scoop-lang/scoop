@@ -73,7 +73,7 @@ pub fn document(
             let record = cache::Entry::new(&request.cache, &source.key).read()?;
             warnings.extend(record.ordinary);
             doc_warnings.extend(record.documentation);
-            let overview = overview::select(source, &request.cache)?;
+            let overview = overview::select(source)?;
             doc_warnings.extend(overview.warnings.iter().cloned());
             selected.insert(*identity, overview);
         }

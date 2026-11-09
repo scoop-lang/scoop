@@ -11,7 +11,7 @@ fn warm_headers_and_body_updates_preserve_defaults_and_changed_deps() {
     assert_eq!(defaults.len(), 2);
     assert_eq!(cache.load_single_file_header(&locator).unwrap(), defaults);
     let records = || {
-        std::fs::read_dir(cache.as_path().join("single-file-headers-v1"))
+        std::fs::read_dir(cache.as_path().join("single-file-headers-v2"))
             .unwrap()
             .filter(|entry| entry.as_ref().unwrap().path().extension().unwrap() == "json")
             .count()
@@ -19,7 +19,7 @@ fn warm_headers_and_body_updates_preserve_defaults_and_changed_deps() {
     assert_eq!(records(), 1);
     std::fs::write(&path, "fun main() { println(42) }\n").unwrap();
     assert_eq!(cache.load_single_file_header(&locator).unwrap(), defaults);
-    assert_eq!(records(), 2);
+    assert_eq!(records(), 1);
     std::fs::write(&path, "//! dep: dev:library:1.0.0\nfun main() {}\n").unwrap();
     let explicit = cache.load_single_file_header(&locator).unwrap();
     assert_eq!(explicit.len(), 3);
@@ -41,7 +41,7 @@ fn malformed_changed_header_is_located_and_never_cached_as_default() {
         assert_eq!(error.span(), Some(0..8));
     }
     assert!(
-        std::fs::read_dir(cache.as_path().join("single-file-headers-v1"))
+        std::fs::read_dir(cache.as_path().join("single-file-headers-v2"))
             .unwrap()
             .all(|entry| entry.unwrap().path().extension().unwrap() == "lock")
     );

@@ -8,7 +8,7 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| W0 Windows 基线 | UI 与普通应用的进程计时对照已取得，文件事件归因进行中 |
+| W0 Windows 基线 | UI／普通应用计时、普通构建文件事件归因与编译器热点符号化完成 |
 | W2 检查成功缓存 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W10 编译进度 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W3 Windows 分配器 | Windows UI 对比及普通应用编译／链接／运行验证完成 |
@@ -16,7 +16,8 @@
 | W4 生成 C 桥 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W5 原生输入与临时目录 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
 | W6 依赖读取与 Link | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
-| W7～W9 | 待实施 |
+| W7 剩余记录 | 实现及 macOS 定向验证完成，Linux/Windows 待集中复验 |
+| W8～W9 | 待实施 |
 | W11 三平台安装包 | 待全部实现和验证完成后执行 |
 
 Linux 工作目录为 `~/repos/scoop-windows-performance-20261110`，Windows 为 `E:/scoop-windows-performance-20261110`；均从同一基线建立，未改动已有 checkout。原始报告和日志保存在各自主机的仓库外工作目录。
@@ -139,3 +140,13 @@ Compile 与 Link 继续使用同一个 section 解码和引用解析实现。Com
 macOS AArch64 验证：格式化、workspace all-targets Clippy 和 release 配套 CLI 构建通过；身份 363 项、LIR 380 项、`.slib` 267 项、链接 safepoint 2 项 Rust 测试通过。新增菱形图测试统计共享来源的实际访问次数，覆盖重复引入、局部声明与闭包查询；Link 测试保留未知身份种类／引用报错，并检查缺失 GC 映射返回诊断而非 panic。9 个正式 CLI 用例通过（12 个变体、67 次进程操作、1 个链接快照），覆盖菱形依赖、ODR 选择和冲突、条件接口显式重链接、C ABI、回调异常、聚合返回、ObjC 与 GC。共享索引调整后重跑身份测试和实际菱形构建通过。
 
 首次 `.slib` Rust 验证发现基线的两处固定向量仍期望 HIR interface v92，而现有可选 Context 查询已经将规范和实现升至 v93。同步了版本用例、描述符字节和相应指纹，没有改动产物格式或添加兼容路径。报告保存在仓库外，本轮 fixture 工作目录与专用缓存清理；Linux／Windows 随实现批次集中复验。
+
+## 2026-11-10：剩余记录与无损路径编码
+
+删除 README 解析的独立 JSON 记录与目录，最终文档缓存继续按真实输入更新。单文件依赖头部需要在构建 key 之前取得，保留记录以避免热命中打开源码；改为每个真实源路径复用一份记录和锁，mtime／长度放在记录内，源码更新不再累积新记录。key 直接散列路径字节，去掉中间 JSON 编码。单文件记录和链接 archive 路径索引使用缓冲写入，显式检查 flush 后再原子发布；原本已缓冲的 native／runtime／最终结果记录沿用。
+
+JSON HostPath 保留平台编码标签，将数字数组改成标准 Base64 字符串；Unix 非 UTF-8 字节和 Windows WTF-16LE 未配对代理项均可无损表达。已有 Wire CBOR 仍使用字节串。同步协议版本、PM／driver 数据和 sysroot 准备脚本，不增加旧数组兼容层。工具调用配置继续使用现有跨 crate 协议，未为统一格式新增一套持久记录。
+
+macOS AArch64 验证：workspace 格式化和 all-targets Clippy、Python Ruff 通过；scoop 71 项、协议 47 项、PM 38 项、toolchain 64 项 Rust 测试通过。8 个正式 CLI 用例全部通过（88 次进程操作），覆盖单文件依赖、源码包、workspace build／check／doc、README 更新、native C、最终链接复用和逐 Cone 进度。准备脚本 6 项测试通过，并实际运行 runtime 辅助程序，将其 JSON 返回的两个产物路径交给 Python 解码并确认对应文件存在。
+
+独立 runtime-builder 工程漏用了已删除的工具巡检入口，已改为直接准备工具；补齐其 Base64 锁文件，单独完成格式化、Clippy 和 locked release 构建。原始报告保存在仓库外，fixture 与一次性 runtime 验证目录已清理；Windows 写入计数与跨平台验证随完整实现批次执行。

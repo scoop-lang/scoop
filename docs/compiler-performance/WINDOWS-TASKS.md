@@ -152,13 +152,13 @@ W0 为各项保留改动前对照，不是重新讨论是否更换分配器的�
 | 原 `scoop/src/compiler/record.rs` | W1 已删除配套工具状态记录 |
 | `scoop/src/check/cache.rs` | 随 W2 删除整个检查成功结果缓存 |
 | `linker/src/link/archive.rs` | 已生成 archive 的小型路径索引有复用用途；精简必要字段并缓冲写入 |
-| `scoop/src/cache/single_file.rs` | 重新比较头部解析成本与专用记录 I/O 成本；优先并入已有输入/构建记录或删除独立记录，不默认维持一份旁路 JSON |
-| `scoop/src/document/overview.rs` | 同样评估 README 解析记录是否值得单独持久化；文档命令独立计量 |
+| `scoop/src/cache/single_file.rs` | 依赖头部在构建 key 之前使用，保留以避免热命中打开源码；改为每个真实源路径一份记录和锁，更新时替换，不随每次源码变化增加文件 |
+| `scoop/src/document/overview.rs` | 删除 README 解析旁路记录，保留最终文档结果的正常缓存；文档命令独立计量 |
 
-- [ ] 对确有必要保留的记录使用 `BufWriter` 或一次 `to_vec` 后 `write_all`，发布前检查 flush/写入错误；沿用现有原子发布机制。
-- [ ] 清理 Windows 路径的 JSON 数字数组膨胀。持久内部数据优先复用已有 CBOR 字节表示；仍使用 JSON 的接口选择紧凑、无损表示，同步发送方和接收方，不用 `to_string_lossy`。
-- [ ] 复查工具调用参数和 PM 消息等剩余路径载体，删除不必要的 JSON 套编码；不把“清理记录”扩大成所有 JSON 接口必须改格式。
-- [ ] 不改造已经使用 `BufWriter` 的 native/runtime/最终结果记录，也不把现有 CBOR 编译记录重复列为 JSON 热点。
+- [x] 对确有必要保留的记录使用 `BufWriter` 或一次 `to_vec` 后 `write_all`，发布前检查 flush/写入错误；沿用现有原子发布机制。
+- [x] 清理 Windows 路径的 JSON 数字数组膨胀。现有 CBOR 路径继续使用字节串；JSON 路径保留编码标签并改用标准 Base64，同步发送方、接收方和准备脚本，不用 `to_string_lossy`。
+- [x] 复查工具调用参数和 PM 消息等剩余路径载体，删除单文件头部 key 中不必要的 JSON 套编码；跨 crate 的 native 配置和 PM 数据继续使用现有协议，不把“清理记录”扩大成所有 JSON 接口必须改格式。
+- [x] 不改造已经使用 `BufWriter` 的 native/runtime/最终结果记录，也不把现有 CBOR 编译记录重复列为 JSON 热点。
 
 证据：[路径载体](../../compiler/protocol/src/path.rs) 在 Windows 保存 WTF-16LE 字节，JSON 派生为整数数组，而现有 wire 编码已经支持 bytes。本轮独立 `Write` 计数实验中，262,144 字节的此类数组生成 786,433 字节 JSON；直接写入调用 `Write` 524,289 次，8 KiB 缓冲后为 97 次。这说明小写入放大成立，不代表这些调用的 Windows 实测时长。原调研的 794 KB 记录和具体微秒数据未在本轮重采样。
 

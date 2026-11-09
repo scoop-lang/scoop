@@ -39,6 +39,7 @@ edition = "2024"
 rust-version = "1.88"
 
 [workspace.dependencies]
+base64 = "0.23.1"
 rustc_apfloat = "=0.2.3"
 # External LLVM 22.1; independent of the Rust toolchain LLVM version.
 inkwell = { version = "0.10", default-features = false, features = ["llvm22-1-prefer-dynamic", "target-aarch64", "target-x86"] }

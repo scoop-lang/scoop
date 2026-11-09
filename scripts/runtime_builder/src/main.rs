@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         native_sysroot: args.native_sysroot,
         ..Default::default()
     };
-    let target = ResolvedTargetProfile::resolve_with_cached(&args.target, &tools, &args.cache_dir)?;
+    let target = ResolvedTargetProfile::resolve_with(&args.target, &tools)?;
     let output = build_runtime(RuntimeBuildRequest {
         target: &target,
         runtime_root: &args.runtime_root,

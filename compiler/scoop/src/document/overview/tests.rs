@@ -16,11 +16,10 @@ fn readme_resources_follow_actual_file_states_and_encoded_urls() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
     let source = source(root);
-    let cache = ArtifactCacheRoot::new(root.join("cache")).unwrap();
     let readme = "![Diagram](picture%20one.svg#shape)\n[Later](later.txt)\n[Web](https://example.test/image.png)\n";
     std::fs::write(root.join("README.md"), readme).unwrap();
     std::fs::write(root.join("picture one.svg"), "<svg/>").unwrap();
-    let first = select(&source, &cache).unwrap();
+    let first = select(&source).unwrap();
     assert_eq!(first.warnings.len(), 1);
     assert_eq!(first.copies.len(), 1);
     let resources = &first.view.readme.as_ref().unwrap().resources;
@@ -32,10 +31,10 @@ fn readme_resources_follow_actual_file_states_and_encoded_urls() {
     );
     assert_eq!(resources["later.txt"], None);
     assert!(!resources.contains_key("https://example.test/image.png"));
-    assert_eq!(first.key, select(&source, &cache).unwrap().key);
+    assert_eq!(first.key, select(&source).unwrap().key);
 
     std::fs::write(root.join("later.txt"), "available now").unwrap();
-    let available = select(&source, &cache).unwrap();
+    let available = select(&source).unwrap();
     assert!(available.warnings.is_empty());
     assert_eq!(available.copies.len(), 2);
     assert_ne!(first.key, available.key);
@@ -45,7 +44,7 @@ fn readme_resources_follow_actual_file_states_and_encoded_urls() {
         "<svg><text>changed</text></svg>",
     )
     .unwrap();
-    let changed = select(&source, &cache).unwrap();
+    let changed = select(&source).unwrap();
     assert_ne!(available.key, changed.key);
     assert_eq!(changed.view.readme.as_ref().unwrap().text, readme);
 }
@@ -55,13 +54,12 @@ fn optional_readme_and_missing_resource_keep_precise_locations() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
     let source = source(root);
-    let cache = ArtifactCacheRoot::new(root.join("cache")).unwrap();
-    let absent = select(&source, &cache).unwrap();
+    let absent = select(&source).unwrap();
     assert!(absent.view.readme.is_none());
     assert!(absent.warnings.is_empty());
     let readme = "# 概述\n\n[Missing](absent.png)\n";
     std::fs::write(root.join("README.md"), readme).unwrap();
-    let present = select(&source, &cache).unwrap();
+    let present = select(&source).unwrap();
     assert_ne!(absent.key, present.key);
     let scoop_protocol::DiagnosticOriginV1::HostPathSpan { path, span } =
         present.warnings[0].origin()
@@ -81,12 +79,11 @@ fn explicit_readme_resolves_resources_from_its_own_directory() {
     let root = temp.path();
     let mut source = source(root);
     source.readme = Some(root.join("guide/intro.md"));
-    let cache = ArtifactCacheRoot::new(root.join("cache")).unwrap();
-    assert!(select(&source, &cache).is_err());
+    assert!(select(&source).is_err());
     std::fs::create_dir(root.join("guide")).unwrap();
     std::fs::write(root.join("guide/intro.md"), "![Picture](picture.svg)").unwrap();
     std::fs::write(root.join("guide/picture.svg"), "<svg/>").unwrap();
-    let overview = select(&source, &cache).unwrap();
+    let overview = select(&source).unwrap();
     assert!(overview.warnings.is_empty());
     assert_eq!(overview.copies[0].0, root.join("guide/picture.svg"));
 }

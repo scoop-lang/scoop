@@ -1,6 +1,8 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
+
 use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError};
 
 #[derive(
@@ -31,6 +33,7 @@ impl HostPathEncoding {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Serialize)]
 pub struct HostPathCarrier {
     encoding: HostPathEncoding,
+    #[serde(serialize_with = "serialize_bytes")]
     bytes: Vec<u8>,
 }
 
@@ -40,12 +43,19 @@ impl<'de> serde::Deserialize<'de> for HostPathCarrier {
         #[serde(deny_unknown_fields)]
         struct Fields {
             encoding: HostPathEncoding,
-            bytes: Vec<u8>,
+            bytes: String,
         }
         let fields = Fields::deserialize(deserializer)?;
         validate_host_encoding(fields.encoding).map_err(serde::de::Error::custom)?;
-        Self::new(fields.encoding, fields.bytes).map_err(serde::de::Error::custom)
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(fields.bytes)
+            .map_err(serde::de::Error::custom)?;
+        Self::new(fields.encoding, bytes).map_err(serde::de::Error::custom)
     }
+}
+
+fn serialize_bytes<S: serde::Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(&base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
 impl HostPathCarrier {

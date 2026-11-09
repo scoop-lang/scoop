@@ -2,6 +2,7 @@
 """Prepare one development or release sysroot using ordinary Scoop builds."""
 
 import argparse
+import base64
 import graphlib
 import json
 import os
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def host_path(carrier):
-    data = bytes(carrier["bytes"])
+    data = base64.b64decode(carrier["bytes"], validate=True)
     if carrier["encoding"] == "UnixBytes":
         return Path(os.fsdecode(data))
     if carrier["encoding"] == "WindowsWtf16Le":

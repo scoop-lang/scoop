@@ -1341,6 +1341,7 @@ dependencies = [
 name = "scoop-protocol"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "scoop-identity",
  "scoop-lir",
  "scoop-manifest",

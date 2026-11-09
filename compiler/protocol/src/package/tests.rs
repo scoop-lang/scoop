@@ -8,15 +8,28 @@ fn json_paths_validate_encoding_and_preserve_non_utf8() {
         std::path::PathBuf::from(std::ffi::OsString::from_vec(vec![b'/', b'a', 0xff]))
     };
     #[cfg(windows)]
-    let path = std::path::PathBuf::from(r"C:\a");
+    let path = {
+        use std::os::windows::ffi::OsStringExt;
+        std::path::PathBuf::from(std::ffi::OsString::from_wide(&[
+            b'C' as u16,
+            b':' as u16,
+            b'\\' as u16,
+            0xd800,
+            b'a' as u16,
+        ]))
+    };
     let carrier = HostPathCarrier::from_path(&path).unwrap();
     let encoded = serde_json::to_vec(&carrier).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    assert!(value["bytes"].is_string());
     let decoded: HostPathCarrier = serde_json::from_slice(&encoded).unwrap();
     assert_eq!(decoded.to_path_buf().unwrap(), path);
     for value in [
-        r#"{"encoding":"UnixBytes","bytes":[]}"#,
-        r#"{"encoding":"UnixBytes","bytes":[97,0]}"#,
-        r#"{"encoding":"WindowsWtf16Le","bytes":[97]}"#,
+        r#"{"encoding":"UnixBytes","bytes":""}"#,
+        r#"{"encoding":"UnixBytes","bytes":"YQA="}"#,
+        r#"{"encoding":"WindowsWtf16Le","bytes":"YQ=="}"#,
+        r#"{"encoding":"UnixBytes","bytes":"%%%"}"#,
+        r#"{"encoding":"UnixBytes","bytes":[97]}"#,
     ] {
         assert!(serde_json::from_str::<HostPathCarrier>(value).is_err());
     }
