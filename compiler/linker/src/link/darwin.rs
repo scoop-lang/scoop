@@ -4,7 +4,7 @@ pub(super) fn link(
     profile: &ValidatedFinalLinkProfile,
     inputs: &ProgramInputs<'_>,
     directory: &Path,
-    paths: &[PathBuf],
+    archives: &[PathBuf],
     candidate: &Path,
     keep_symbols: bool,
 ) -> Result<(), LinkError> {
@@ -26,10 +26,10 @@ pub(super) fn link(
         darwin.linker_argument(&mut command, "-S");
     }
 
-    response::write_objects(directory, paths)?;
-    let mut argument = std::ffi::OsString::from("@");
-    argument.push(directory.join(response::FILE_NAME));
-    command.arg(argument);
+    for archive in archives {
+        darwin.linker_argument(&mut command, "-force_load");
+        darwin.linker_argument(&mut command, archive);
+    }
     for argument in ["-alias", &inputs.string_target, "_scoop_td_String"] {
         darwin.linker_argument(&mut command, argument);
     }

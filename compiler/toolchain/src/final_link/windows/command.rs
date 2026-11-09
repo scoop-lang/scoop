@@ -176,6 +176,27 @@ impl WindowsFinalLinkProfile {
         }
     }
 
+    /// Load all members of one selected archive without changing other libraries.
+    /// Microsoft LINK parses commas inside /WHOLEARCHIVE operands even when quoted;
+    /// match the separately supplied input by its unique basename instead.
+    pub fn whole_archive_arguments(&self, archive: &Path) -> Vec<OsString> {
+        match self.data.linker_kind {
+            LinkerKind::Microsoft => vec![
+                archive.as_os_str().to_owned(),
+                joined(
+                    "/wholearchive:",
+                    archive.file_name().expect("archive filename"),
+                ),
+            ],
+            LinkerKind::LldCoff => vec![joined("/wholearchive:", archive.as_os_str())],
+            LinkerKind::LldMinGw => vec![
+                OsString::from("--whole-archive"),
+                archive.as_os_str().to_owned(),
+                OsString::from("--no-whole-archive"),
+            ],
+        }
+    }
+
     pub fn append_system_libraries(&self, command: &mut Command) {
         crate::windows_native::input(
             command,
@@ -226,32 +247,13 @@ impl WindowsFinalLinkProfile {
     }
 
     /// Actual libraries observed by this link, for the executable update record.
-    pub fn traced_inputs(&self, output: &std::process::Output, scratch: &Path) -> Vec<PathBuf> {
-        let mut paths = BTreeSet::new();
-        for bytes in [&output.stdout, &output.stderr] {
-            for line in String::from_utf8_lossy(bytes).lines() {
-                let text = line
-                    .trim()
-                    .split_once(": Reading ")
-                    .map(|(_, path)| path)
-                    .or_else(|| line.trim().strip_prefix("Searching "))
-                    .unwrap_or(line.trim())
-                    .trim_end_matches(':');
-                let text = text
-                    .split_once(".a(")
-                    .map(|(path, _)| format!("{path}.a"))
-                    .or_else(|| {
-                        text.split_once(".lib(")
-                            .map(|(path, _)| format!("{path}.lib"))
-                    })
-                    .unwrap_or_else(|| text.to_owned());
-                let path = Path::new(&text);
-                if path.is_absolute() && !path.starts_with(scratch) && path.is_file() {
-                    paths.insert(path.to_owned());
-                }
-            }
-        }
-        paths.into_iter().collect()
+    pub fn traced_inputs(
+        &self,
+        output: &std::process::Output,
+        scratch: &Path,
+        explicit_inputs: &[PathBuf],
+    ) -> Vec<PathBuf> {
+        trace::inputs(output, scratch, explicit_inputs)
     }
 }
 

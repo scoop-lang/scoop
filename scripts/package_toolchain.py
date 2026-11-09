@@ -324,12 +324,10 @@ def assemble_base_libraries(root, target, args, cones):
         "runtime-startup-stats",
         "runtime-stress-startup-stats",
     ):
-        objects = destination / variant / "objects"
-        objects.mkdir(parents=True)
-        shutil.copy2(source / variant / "index.cbor", destination / variant / "index.cbor")
-        for path in (source / variant / "objects").iterdir():
-            if path.suffix == ".o":
-                shutil.copy2(path, objects / path.name)
+        (destination / variant).mkdir(parents=True)
+        archive = "runtime.lib" if TARGETS[target]["os"] == "windows" else "runtime.a"
+        for name in ("index.cbor", archive):
+            shutil.copy2(source / variant / name, destination / variant / name)
     for component, libraries in (
         ("openssl", ("libcrypto.a", "libssl.a")),
         ("nghttp2", ("libnghttp2.a",)),

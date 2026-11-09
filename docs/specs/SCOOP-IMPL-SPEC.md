@@ -1239,7 +1239,13 @@ program-link 从完整产物闭包合并 C++ 链接和运行库需求；任一 C
 
 musl 闭包出现 C++ requirement 时，在解析 C++ 工具链或调用最终 linker 前报错，指出要求 C++ 的 Cone；不因其源码已预编译而绕过限制。实际使用的 C++ driver、标准库／ABI 运行库、unwind provider 及链接参数进入 final-link 配置和 ResolvedLinkPlan。
 
-program-link 将实际选中的归档成员按需保存在 `objects-v1/<member-content-digest>.o` 稳定缓存位置，后续链接直接传递已有对象路径；不每次从 slib 解包、改写、哈希或重新物化。文件名使用生成成员时已有的内容摘要，不能为查缓存重新哈希或读取已有对象。归档生产只发布完整 `.slib`，不预填充对象缓存，也不为此保留第二份原生对象集合；构建内链接与独立链接各自使用本次选中的缓存。所需对象文件不存在时，从同一个按需产物入口读取选中成员，临时文件写入成功后原子发布；并发已有结果直接采用，不比较内容或同步落盘。已有的普通 native 独立对象直接使用原文件路径，归档内选中成员才需要独立缓存文件。供 native 工具使用的对象路径按当前工作目录解析为绝对路径，避免工具切换目录改变相对缓存路径的含义。同一进程按需入口共享已读 section，diagnostic、opaque、unknown optional 成员不是链接对象；无法处理的实际 Link-required 格式仍报告错误。
+program-link 将本次已选中的 Scoop、native 对象与生成的 startup 按原顺序直接写入一组原生 `.a`／`.lib`，交给目标 linker；不将 `.slib` 内的小成员逐个落盘。按实际对象字节数与成员数量分批，完成一批即释放该批的临时归档缓冲；超过常规批次尺寸的单个对象独占一批，不拆开对象或拒绝程序。批次阈值只调节本机 I/O 与临时内存，不进入语言、ABI 或产物相容性。Darwin 使用 Darwin 归档，ELF 使用 GNU 归档，Windows 使用 COFF 归档。输入中的动态库与 COFF import library 保持其原有装载／分组方式。归档生产仍只发布完整 `.slib`，不预填充本机链接缓存，也不保留第二份逐成员对象文件。
+
+这组链接归档保存在 `link-archives-v2`，缓存键包含目标、可选的 startup 内容摘要及按原顺序排列的已有成员内容摘要，普通更新记录保存全部批次位置。命中先于成员读取、分批与归档生成，只检查所需结果存在，不读回、重新哈希或复核归档；未命中时从同一个按需产物入口取得选中成员，普通独立 native 对象读取原文件，使用成熟归档 writer 按批连续写入，全部完成后原子发布记录。runtime 已经是完整的目标归档，直接在原 runtime/object 顺序位置交给 native linker，不拆开或重新打包；其前后的选中对象分别分批。取得构建锁后重查结果，并发已有结果直接采用，不比较内容或同步落盘。供 native 工具使用的归档路径按当前工作目录解析为绝对路径。同一进程按需入口共享已读 section，diagnostic、opaque、unknown optional 成员不是链接对象；无法处理的实际 Link-required 格式仍报告错误。
+
+Darwin 对每批使用 `-force_load`，ELF 与 MinGW 使用限定在这组归档上的 `--whole-archive`／`--no-whole-archive`，COFF LLD 对每批使用 `/wholearchive:<path>`。Microsoft LINK 的该选项会把路径中的逗号解析为参数分隔符，因此同时传完整输入路径和 `/wholearchive:<basename>`；批次文件名包含完整缓存键和序号，在 runtime 前后两组归档中仍唯一。所有已选定义按原顺序参与原来的链接与 section 裁剪；不能重新执行按需库成员选择、引入未选成员，或把整体加载扩大到其他系统库。此归档仅为本机链接输入，不改变 `.slib`、实体身份、ODR、ABI、GC 或静态初始化合同。
+
+Windows linker trace 只补充其实际隐式使用的外部库与工具链对象。显式传入且已经由原始 `.slib`／native／runtime 输入覆盖的链接归档及本次临时文件不再写入最终结果的更新输入；在文件 metadata 查询前排除这些已知路径，并去重重复 trace 行。缓存产物不是新的源码输入，不因其数量增加最终结果的更新检查。
 
 Strong 由原 provider 提供。ODR 在普通依赖语义一致后按完整 group/member key 与 shared ABI 合并，物理选择见 2.13、2.19。全部 typed imports 和实际 relocation 必须闭合；metadata-only 查询可以没有机器引用。
 
@@ -1249,9 +1255,9 @@ SourceExtern 按实际 target/native symbol 合并完整 library、kind、TLS、
 
 参数自由 source extern 的普通 managed 调用经原 provider 的 Scoop 薄入口，包含 native transition 与 caller-root publication，入口的 Scoop GC effect 为 Managed；native callee 自身的 effect 仍是其声明合同。泛型正文在定义方与消费方使用同一入口；NoGc 和 release 的直接 native 调用遵守各自规则。
 
-runtime 构建配置的 field 4、5 分别保存 Boolean `enable_gc_stress`、`enable_startup_stats`（沿用 wire 的无符号整数编码，0/1），参与 runtime fingerprint。资源位于 `lib/<triple>/runtime/index.cbor`、`runtime-stress/index.cbor`、`runtime-startup-stats/index.cbor` 和 `runtime-stress-startup-stats/index.cbor`；准备脚本显式生成四种配置。旧 schema 5 索引需重建，runtime ABI 不变。消费方检查请求配置一致，不重读对象证明该配置。
+runtime 构建配置的 field 4、5 分别保存 Boolean `enable_gc_stress`、`enable_startup_stats`（沿用 wire 的无符号整数编码，0/1），参与 runtime fingerprint。资源位于 `lib/<triple>/runtime/`、`runtime-stress/`、`runtime-startup-stats/` 和 `runtime-stress-startup-stats/`；每个目录只交付一份目标 native 归档与 `index.cbor`，准备脚本显式生成四种配置。消费方检查请求配置一致，不重读对象证明该配置。
 
-runtime object index schema 7 保存相对索引目录的普通对象路径、生产时已有的对象摘要、合并后的定义／引用及 target/runtime ABI。对象 locator field 2 使用 UTF-8 文本和 `/` 分隔符，不保存生产宿主的路径编码；同一份目标 runtime 资源可由 Windows、Linux 和 Darwin 宿主消费。发布路径为 `objects/<file>.o`，开发缓存使用同一读写入口；相对路径可以包含正常的 `..`，不检查文件系统来源。路径必须非空、无 NUL、反斜线或盘符冒号，且不能以 `/` 开头。消费时检查格式、target（含 libc）、runtime ABI 和最低部署要求；Darwin runtime 的最低系统版本不能高于本次链接选择的部署版本。生产时完整 C toolchain 合同保留为生产记录和更新输入，不要求消费方编译器版本、SDK 或工具路径与生产方相同。读取 index 直接采用这些结果，不重读对象、核对 digest、重建符号摘要或重放 runtime ABI 导出检查；首次生成对象时读取所需符号并检查 runtime ABI 导出。定义的绑定区分 Strong、Common 与 Weak；wire tag 分别为 0、2、1。链接器把 index 中的对象路径直接交给 native linker，不重新物化对象。旧索引需重新准备；此格式变更不改变 runtime ABI 或 `.slib`。
+runtime object index schema 8 保存一份 native 归档的相对路径（field 11），以及按 RuntimeObjectId 排序的成员身份、生产时已有的对象摘要、定义／引用和 target/runtime ABI。成员记录直接使用 fingerprint 中的四字段对象记录，不再保存独立文件 locator。归档采用目标原生格式，Mach-O／ELF 发布为 `runtime.a`，COFF 发布为 `runtime.lib`，内部成员按索引顺序排列；开发缓存使用同一布局。归档路径使用 UTF-8 文本和 `/` 分隔符，不保存生产宿主的路径编码；同一份目标 runtime 资源可由 Windows、Linux 和 Darwin 宿主消费。相对路径可以包含正常的 `..`，不检查文件系统来源；路径必须非空、无 NUL、反斜线或盘符冒号，且不能以 `/` 开头。消费时检查格式、target（含 libc）、runtime ABI 和最低部署要求；Darwin runtime 的最低系统版本不能高于本次链接选择的部署版本。生产时完整 C toolchain 合同保留为生产记录和更新输入，不要求消费方编译器版本、SDK 或工具路径与生产方相同。读取 index 直接采用这些结果，不打开归档、核对 digest、重建符号摘要或重放 runtime ABI 导出检查；首次生成对象时读取所需符号并检查 runtime ABI 导出。定义的绑定区分 Strong、Common 与 Weak；wire tag 分别为 0、2、1。native linker 按本节整体加载规则直接消费 runtime 归档，普通程序构建不提取成员文件；更新输入只记录 index 与归档。旧索引需重新准备；此格式变更不改变 runtime ABI 或 `.slib`。
 
 sysroot 采用同一源码与产物布局：`src/<cone-name>` 保存普通 Cone，`vendor/<project>` 保存共享上游输入，`lib/<canonical-target-triple>` 保存 `.slib`、runtime、OpenSSL、nghttp2 与 Linux unwind；发行安装中这些系统 `.slib` 为发布侧预编译、随对应 target 组件包交付的产物。维护脚本按目标的生产 sources 条件选择内置库；显式非空 sources 在该目标全部未选中时，不构建或生成该库文档。缺省 sources 与显式空表仍交给普通编译器处理，选中库依赖该目标不可用的库时报缺失依赖，不创建替代实现。liburing、OpenSSL、Ryu、llhttp、nghttp2 及 LLVM／libunwind 的上游源码、版本说明、许可证和补丁集中在 vendor，目标生成头与 archive 不写入 vendor。runtime 编排显式接收 runtime source root 和所选 sysroot 的 vendor root；Ryu 源码与 include 从后者取得，按实际 depfile 输入更新，命中不读取源码或复制输入。公开头的发行位置为 `include`。
 
@@ -1263,7 +1269,7 @@ post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-b
 
 Linux 和 Windows 的最终链接探测继续编译实际使用 `unwind.h` 的 C 程序。默认头文件从宿主安装根的 `libexec/scoop/include/unwind` 取得，目标 archive 从所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a` 取得。维护构建没有安装公共头时，继续使用准备好的目标 unwind prefix；显式 `--unwind-prefix` 始终同时选择其自身头与 archive。runtime 源码构建仍使用维护 prefix，不要求先组装发行目录。上述路径及实际 depfile 输入参与普通更新记录，final-tools-v9 保存已选头文件位置；命中后不重跑探测或读取内容。
 
-runtime 构建使用 `runtime-v8` 普通记录，按实际源码根、选中源码、include／unwind 配置、flags、C 工具输入和规则版本定位。命中前只查询上次实际源码、depfile 头文件及 include 候选的路径／mtime／大小；不读取源码、扫描并复制整棵头文件树或重读 compiler 内容。更新时直接从原始源码预处理并编译，观察实际 include 名称；全部成功后保存对象、index 与记录。每批对象位于 index 同级的 `objects` 子目录，使准备脚本可按同一相对布局复制本次已知输出，不改写索引或重新提取对象信息。对象采用稳定且不同批次不覆盖的位置；所需 index／对象缺失时补产，真实输入缺失照常报错，失败不发布新记录或替换已有结果。本机 metadata 不改变 runtime ABI。
+runtime 构建使用 `runtime-v9` 普通记录，按实际源码根、选中源码、include／unwind 配置、flags、C 工具输入和规则版本定位。命中前只查询上次实际源码、depfile 头文件及 include 候选的路径／mtime／大小；不读取源码、扫描并复制整棵头文件树或重读 compiler 内容。更新时直接从原始源码预处理并编译，观察实际 include 名称；C 编译产生的独立对象只保存在本次临时目录，完成普通对象／ABI 检查后按原排序打成一份 runtime 归档。全部成功后只保留归档、index 与记录，临时对象随构建结束回收。准备脚本复制这两个已知输出，不改写索引或重新提取对象信息。各次结果采用稳定且互不覆盖的位置；所需 index／归档缺失时补产，真实输入缺失照常报错，失败不发布新记录或替换已有结果。本机 metadata 不改变 runtime ABI。
 
 Darwin 最终 executable 将 Scoop 保留的持久符号命名空间（`_scoop$1$*`，包含 callable、类型／派发表、注册记录、bridge 和发布后保留的 body 起始别名）设为 private external，移出动态导出。跨 Cone 的 Strong／ODR 选择与全部引用在静态链接闭包中完成；选中的 weak 定义不再供 dyld 再绑定，直接调用可由 native linker 绑定到同一镜像中的实际入口。对象和 `.slib` 仍保留原定义与 ODR 合并规则，exact 类型／接口身份、别名地址及 GC／EH 元数据引用不变。源码 public 可见性不等于 native 动态导出；普通 native／runtime C 符号、系统库导入和通过地址传递的 callback 保持原合同。该配置对全部 profile 生效，进入既有 final-link 指纹；消费旧的相容预编译对象时同样适用，不按其他宽泛前缀隐藏 native 符号，也不增加产物格式或 runtime ABI 版本。
 

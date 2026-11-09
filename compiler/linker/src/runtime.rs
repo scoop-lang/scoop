@@ -1,5 +1,8 @@
-//! An ordinary object collection, with a local index for cache/process handoff.
+//! A native runtime archive, with an index of its already inspected members.
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+
+use ar_archive_writer::{DEFAULT_OBJECT_READER, NewArchiveMember};
 
 use scoop_lir::{
     CBridgeToolchainProfileV1, CompilerNativeContractV1, LirTargetProfile, RuntimeAbiContract,
@@ -9,6 +12,8 @@ use scoop_wire::{Digest256, domain_separated_cbor_hash, encode, sha256};
 
 use crate::{LinkError, NativeObjectInfo, NativeSymbolKind, error};
 
+#[cfg(test)]
+mod common_tests;
 mod deployment;
 mod fingerprint;
 mod index;
@@ -48,11 +53,10 @@ pub struct RuntimeBuildConfiguration {
     pub enable_startup_stats: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RuntimeObject {
     id: RuntimeObjectId,
     digest: Digest256,
-    path: std::path::PathBuf,
     info: NativeObjectInfo,
 }
 impl RuntimeObject {
@@ -61,9 +65,6 @@ impl RuntimeObject {
     }
     pub fn digest(&self) -> Digest256 {
         self.digest
-    }
-    pub fn path(&self) -> &std::path::Path {
-        &self.path
     }
     pub fn info(&self) -> &NativeObjectInfo {
         &self.info
@@ -79,7 +80,7 @@ pub struct RuntimeObjectSet {
     objects: Vec<RuntimeObject>,
     merged: NativeObjectInfo,
     fingerprint: RuntimeArtifactFingerprint,
-    input_paths: Vec<std::path::PathBuf>,
+    input_paths: [PathBuf; 2],
 }
 
 impl RuntimeObjectSet {
@@ -87,7 +88,8 @@ impl RuntimeObjectSet {
         target: LirTargetProfile,
         toolchain: &CBridgeToolchainProfileV1,
         configuration: RuntimeBuildConfiguration,
-        objects: Vec<std::path::PathBuf>,
+        objects: Vec<PathBuf>,
+        directory: &Path,
     ) -> Result<Self, LinkError> {
         if objects.is_empty() {
             return Err(error("runtime requires a nonempty object collection"));
@@ -112,25 +114,43 @@ impl RuntimeObjectSet {
                 )
                 .map_err(error)?,
             );
-            inputs.push(RuntimeObject {
-                id,
-                digest,
-                path,
-                info,
-            });
+            inputs.push((RuntimeObject { id, digest, info }, bytes));
         }
-        Self::assemble(target, toolchain, configuration, inputs)
+        inputs.sort_by_key(|(object, _)| object.id);
+        let (objects, bytes): (Vec<_>, Vec<_>) = inputs.into_iter().unzip();
+        let directory = std::path::absolute(directory).map_err(error)?;
+        let (kind, extension) = crate::native_archive::format(target);
+        let paths = [
+            directory.join("index.cbor"),
+            directory.join(format!("runtime.{extension}")),
+        ];
+        let runtime = Self::assemble(target, toolchain, configuration, objects, paths)?;
+        let members: Vec<_> = bytes
+            .iter()
+            .enumerate()
+            .map(|(index, bytes)| {
+                NewArchiveMember::new(
+                    bytes.as_slice(),
+                    &DEFAULT_OBJECT_READER,
+                    format!("{index}.o"),
+                )
+            })
+            .collect();
+        std::fs::create_dir_all(directory).map_err(error)?;
+        crate::native_archive::write(runtime.archive_path(), kind, &members)?;
+        runtime.write_index()?;
+        Ok(runtime)
     }
 
     fn assemble(
         target: LirTargetProfile,
         toolchain: &CBridgeToolchainProfileV1,
         configuration: RuntimeBuildConfiguration,
-        mut objects: Vec<RuntimeObject>,
+        objects: Vec<RuntimeObject>,
+        input_paths: [PathBuf; 2],
     ) -> Result<Self, LinkError> {
         let deployment = deployment::RuntimeDeployment::for_toolchain(toolchain);
         let toolchain = encode(toolchain.contract()).map_err(error)?;
-        objects.sort_by_key(|object| object.id);
         if objects.is_empty() || objects.windows(2).any(|pair| pair[0].id == pair[1].id) {
             return Err(error(
                 "runtime object collection is empty or has duplicate object IDs",
@@ -202,7 +222,6 @@ impl RuntimeObjectSet {
             )
             .map_err(error)?,
         );
-        let input_paths = objects.iter().map(|object| object.path.clone()).collect();
         Ok(Self {
             target,
             toolchain,
@@ -221,6 +240,12 @@ impl RuntimeObjectSet {
 
     pub fn input_paths(&self) -> &[std::path::PathBuf] {
         &self.input_paths
+    }
+    pub fn index_path(&self) -> &Path {
+        &self.input_paths[0]
+    }
+    pub fn archive_path(&self) -> &Path {
+        &self.input_paths[1]
     }
     pub fn configuration(&self) -> &RuntimeBuildConfiguration {
         &self.configuration

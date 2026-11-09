@@ -109,13 +109,13 @@ fn linux_runtime_sources_compile_and_define_the_complete_runtime_abi() {
                     .map(|value| (*value).to_owned())
                     .collect(),
             },
-            objects,
+            objects.clone(),
+            &directory.path().join("index"),
         )
         .unwrap();
-        let index = runtime
-            .write_index(&directory.path().join("index"))
-            .unwrap();
-        let decoded = RuntimeObjectSet::read_index(&index, target, invocation.profile()).unwrap();
+        common_tests::check_archive_and_inputs(&runtime, &objects, invocation.profile());
+        let index = runtime.index_path();
+        let decoded = RuntimeObjectSet::read_index(index, target, invocation.profile()).unwrap();
         assert_eq!(decoded.fingerprint(), runtime.fingerprint());
         assert_eq!(decoded.symbols(), runtime.symbols());
         assert_eq!(decoded.target(), target);
@@ -124,18 +124,10 @@ fn linux_runtime_sources_compile_and_define_the_complete_runtime_abi() {
         } else {
             scoop_target_data::LINUX_X86_64_GNU
         };
-        assert!(RuntimeObjectSet::read_index(&index, other, invocation.profile()).is_err());
+        assert!(RuntimeObjectSet::read_index(index, other, invocation.profile()).is_err());
         assert_eq!(
-            decoded
-                .objects()
-                .iter()
-                .map(|o| o.path().canonicalize().unwrap())
-                .collect::<Vec<_>>(),
-            runtime
-                .objects()
-                .iter()
-                .map(|o| o.path().canonicalize().unwrap())
-                .collect::<Vec<_>>()
+            decoded.archive_path().canonicalize().unwrap(),
+            runtime.archive_path().canonicalize().unwrap(),
         );
     }
 }

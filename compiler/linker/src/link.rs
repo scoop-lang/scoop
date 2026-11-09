@@ -8,6 +8,7 @@ use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash, sha
 
 use crate::{LinkError, RuntimeObjectSet, error, program::ProgramInputs, startup::StartupObject};
 
+mod archive;
 mod darwin;
 mod debug;
 pub use debug::{DebugFile, replace_debug_bundle};
@@ -91,12 +92,16 @@ fn link_inputs(
         options.enable_stack_trace,
         directory.path(),
     )?;
-    let mut paths = Vec::new();
-    let first = directory.path().join("startup.o");
-    write_new(&first, &startup.bytes)?;
-    paths.push(first);
-    for input in &inputs.objects {
-        paths.push(input.path(cache)?);
+    let (cone_objects, native_objects) = inputs.objects.split_at(inputs.runtime_position);
+    let mut archives = archive::build(profile.target(), Some(&startup.bytes), cone_objects, cache)?;
+    archives.push(runtime.archive_path().to_owned());
+    if !native_objects.is_empty() {
+        archives.extend(archive::build(
+            profile.target(),
+            None,
+            native_objects,
+            cache,
+        )?);
     }
     let basename = output
         .file_name()
@@ -115,7 +120,7 @@ fn link_inputs(
             profile,
             inputs,
             directory.path(),
-            &paths,
+            &archives,
             &candidate,
             options.keep_symbols || options.emit_debug_file,
         )?,
@@ -123,7 +128,7 @@ fn link_inputs(
             linux,
             inputs,
             directory.path(),
-            &paths,
+            &archives,
             &candidate,
             options.keep_symbols || options.emit_debug_file,
         )?,
@@ -132,7 +137,7 @@ fn link_inputs(
                 windows,
                 inputs,
                 directory.path(),
-                &paths,
+                &archives,
                 &candidate,
                 candidate_pdb.as_deref(),
                 options.keep_symbols,

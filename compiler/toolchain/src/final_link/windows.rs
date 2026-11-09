@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 mod command;
 mod probe;
+mod trace;
 mod wire;
 
 #[cfg(all(test, windows, target_arch = "x86_64"))]

@@ -19,6 +19,7 @@ extern const ScoopMetadataImageOps scoop_pe_metadata_image_ops;
 __declspec(dllimport) int imported_data;
 __declspec(dllimport) int imported_function(int);
 extern int static_function(int);
+int selected_archive_initializer;
 static const char *const *saved_arguments;
 static const char *saved_raw_arguments[3];
 static int calls;
@@ -96,7 +97,8 @@ int scoop_rt_run_program(const ScoopImageDescriptorV1 *const *images, uint64_t c
         return 93;
     if (scoop_td_String != 31 || strcmp(stackmaps, "SCOOPMAP") != 0)
         return 94;
-    if (imported_data != 17 || imported_function(25) != 42 || static_function(39) != 42)
+    if (imported_data != 17 || imported_function(25) != 42 || static_function(39) != 42 ||
+        selected_archive_initializer != 29)
         return 95;
     if (scoop_rt_run_program_utf16(images, count, entry, 2, raw, 0) != 73)
         return 96;

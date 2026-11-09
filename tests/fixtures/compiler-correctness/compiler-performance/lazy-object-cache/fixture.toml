@@ -22,7 +22,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${library.result.observations.child_invocations.length}", equals = 1}, {glob = "${work}/cache/objects-v1/*", equals = []}]
+checks = [{actual = "${library.result.observations.child_invocations.length}", equals = 1}, {glob = "${work}/cache/link-archives-v2/*", equals = []}]
 
 [[steps]]
 name = "library_warm"
@@ -32,7 +32,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${library_warm.result.observations.child_invocations}", equals = []}, {glob = "${work}/cache/objects-v1/*", equals = []}]
+checks = [{actual = "${library_warm.result.observations.child_invocations}", equals = []}, {glob = "${work}/cache/link-archives-v2/*", equals = []}]
 
 [[steps]]
 name = "consumer"
@@ -42,7 +42,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${consumer.result.observations.child_invocations.length}", equals = 1}, {glob = "${work}/cache/objects-v1/*.o", not_equals = []}]
+checks = [{actual = "${consumer.result.observations.child_invocations.length}", equals = 1}, {glob = "${work}/cache/link-archives-v2/members-*/part-*", not_equals = []}, {glob = "${work}/cache/objects-v1/*", equals = []}]
 
 [[steps]]
 name = "run"

@@ -50,14 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .index()
         .parent()
         .ok_or("runtime index has no parent")?;
-    let files = std::iter::once(output.index())
-        .chain(
-            output
-                .objects()
-                .objects()
-                .iter()
-                .map(|object| object.path()),
-        )
+    let files = output
+        .objects()
+        .input_paths()
+        .iter()
         .map(|path| -> Result<_, Box<dyn std::error::Error>> {
             Ok(HostPathCarrier::from_path(path.strip_prefix(root)?)?)
         })
