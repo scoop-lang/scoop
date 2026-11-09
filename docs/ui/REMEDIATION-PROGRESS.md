@@ -149,4 +149,12 @@ shadcn Gallery 的缓存边界让每段文字保留 Drawing，但旧重放路径
 
 验证通过：graphics 49 项、UI 102 项、component 208 项库测试；scene-cache、input-reuse、frame-reuse 和 scroll 四项实窗回归。新增断言覆盖 2×DPI 下 12×10 源范围只分配 24×20 Raster 图层、Raster／Metal 下变换与阴影外扩像素、文字直接绘制与缓存重放一致、有限 Clear／Src 隔离，以及缓存按钮悬停结束后完整静止区间。修改的 Scoop 文件格式与静态检查、C++ 格式与严格编译检查均通过，相关预编译库已重新准备，原始 shadcn demo 已构建。
 
-额外执行的 editing 实窗测试在 phase 91 关窗清理时报告 `text edit host is no longer mounted`；使用未修改的已安装 sysroot 对照运行同样失败，记录为既有失败，不计入本次通过项。Windows／Linux 未运行。
+额外执行的 editing 实窗测试在 phase 91 关窗清理时报告 `text edit host is no longer mounted`；使用未修改的已安装 sysroot 对照运行同样失败，当时未计入通过项。该失败已由下节的后续修复闭合。Windows／Linux 未运行。
+
+## 关窗期间的编辑交互查询
+
+状态：已完成，2026-11-09；macOS aarch64 release。
+
+窗口进入 Closing 后，ComponentScope.isMounted 立即为 false，输入系统仍按合同交付失焦／离开通知。TextEditHost 先更新交互值再同步调用 onInteractionChanged；回调读取 interaction 时，原 getter 却使用要求挂载有效的 checkOpen，导致正常关窗抛错。该值不借用输入或排版资源，现改为仅检查 owner 线程，允许收尾回调与关闭后的最后值读取；其他宿主操作仍保留原有有效性检查，关闭通知继续交付。
+
+原 editing 实窗用例及新增断言通过：终止交互通知确实发生、通知值与同步读取一致、三个宿主关闭后交互值归于非活动状态，且编辑命令仍被拒绝。UI 102 项库测试和 UiShutdownTest 通用关窗回归全部通过，Scoop 格式与相关静态检查通过。首次复验曾在 phase 0 等待条件未满足时超时，单独复验完整通过；没有修改测试的启动／等待逻辑。原始异常栈、对照和复验日志保存在仓库外的 `/tmp/scoop-ui-hover-gpu-20261109`。

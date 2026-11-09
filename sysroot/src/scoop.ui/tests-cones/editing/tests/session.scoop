@@ -40,8 +40,14 @@ private class PublicTextEditHostTest {
                         assertEquals(1, probe.displayTest.inlineMounts)
                         assertEquals(1, probe.displayTest.inlineUnmounts)
                         assertTrue(probe.displayTest.host!!.isClosed)
-                        for (host in probe.fields)
+                        for (host in probe.fields) {
                             assertTrue(host!!.isClosed)
+                            assertEquals(TextEditInteraction(), host!!.interaction)
+                            assertFailsWith<IllegalStateException> {
+                                host!!.execute(TextEditCommand.Copy)
+                            }
+                        }
+                        assertTrue(probe.terminalInteractions > 0)
                         assertTrue(probe.interactionCounts[0L] > 0)
                         assertTrue(probe.interactionCounts[1L] > 0)
                         assertEquals(0, probe.interactionCounts[2L])
@@ -77,6 +83,7 @@ internal class EditProbe(val fonts: FontCollection) {
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
     val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
     val interactionCounts = MutableArray<Int>(3L) { _ -> 0 }
+    var terminalInteractions = 0
     private val interactions = MutableArray<TextEditInteraction>(3L) { _ -> TextEditInteraction() }
     val revision = state(0)
     val appearance =
@@ -163,6 +170,8 @@ internal class EditProbe(val fonts: FontCollection) {
         assertFalse(interactions[index] == value)
         interactions[index] = value
         interactionCounts[index] += 1
+        if (!scope!!.isMounted)
+            terminalInteractions += 1
     }
     fun change() {
         revision.value += 1

@@ -79,8 +79,9 @@ public class TextEditHost public constructor(
         checkOpen();
         return current
     }
+    /** Last published interaction remains readable while input and resources retire. */
     public val interaction: TextEditInteraction get() {
-        checkOpen();
+        checkUiThread(thread);
         return visual.value
     }
     internal fun publishInteraction(value: TextEditInteraction) {
