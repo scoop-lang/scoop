@@ -1,0 +1,43 @@
+package scoop.db.sql
+
+import scoop.asyncio.AsyncCloseable
+import scoop.db.*
+import scoop.db.row.*
+
+/** Optional SQL capability; it does not prescribe an interface for non-SQL databases. */
+public interface SqlSession {
+    public suspend fun prepare(sql: String, options: DbCallOptions = DbCallOptions()): Statement
+}
+
+public interface SqlConnection: Connection, SqlSession {}
+
+public interface TransactionalSqlConnection: SqlConnection {
+    public suspend fun beginTransaction(options: DbCallOptions = DbCallOptions()): SqlTransaction
+}
+
+/** A zero-based bind slot with the exact backend name, including any parameter prefix. */
+public struct SqlParameterInfo(val index: Long, val name: String?)
+
+/** A reusable single-statement execution resource, owned by its connection or transaction. */
+public interface Statement: AsyncCloseable {
+    public val isClosed: Boolean
+    public val parameters: Array<SqlParameterInfo>
+    public suspend fun execute(
+        arguments: SqlArguments,
+        options: DbCallOptions = DbCallOptions()
+    ): SqlResult
+}
+
+/** A row stream whose ordered column metadata is available even for an empty result. */
+public interface ResultSet: ResultStream<Row> {
+    public val schema: RowSchema
+}
+
+/** Result shape does not indicate whether the execution modified data. */
+public enum SqlResult {
+    Rows(ResultSet)
+    Update(UpdateResult)
+}
+
+/** None means the backend has no reliable count for this operation; zero is a known count. */
+public struct UpdateResult(val affectedRows: Long?)

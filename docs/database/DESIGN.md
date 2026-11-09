@@ -383,6 +383,7 @@ public struct SqlParameter(val value: RowValue, val nativeTypeName: String? = No
 public struct NamedSqlParameter(val name: String, val parameter: SqlParameter)
 
 public class SqlArguments internal constructor() {
+    public fun resolve(parameters: List<SqlParameterInfo>): Array<SqlParameter>
     public companion object {
         public fun empty(): SqlArguments
         public fun positional(values: List<SqlParameter>): SqlArguments
@@ -393,6 +394,8 @@ public class SqlArguments internal constructor() {
 ```
 
 工厂发布不可变快照。positional 使用公开的零基 slot 顺序；named 使用驱动报告的精确参数名，包含方言要求的前缀，不统一删除 `:/$/@`。缺少参数、重复名称、多余参数或无法消歧的名字，在执行数据库语句前报参数错误。
+
+resolve 供独立驱动 Cone 按参数元数据取得完整绑定快照，不需要跨 Cone 访问私有字段。元数据须按连续零基 slot 排列；named 要求每个 slot 有唯一精确名称，包括 SQLite 稀疏编号留下的 slot，含未命名空隙时使用 positional。
 
 fromRow 按 fieldOrder 显式选择列并形成 positional 参数；每个指定字段必须存在且唯一。Row 多余字段不参与绑定。生成参数的 nativeTypeName 为 None，不把读取时的 Column 元数据变成写入提示。它不使用 struct 声明序猜 SQL 占位符，也不生成 SQL。显式 SqlParameter.nativeTypeName 是后端类型提示，主要用于类型推断不足的参数；驱动按支持的绑定类型解释，不拼接到 SQL 中。不接受的提示在执行前失败。
 
@@ -483,7 +486,7 @@ Memory 的每次 connect 创建独立数据库，不伪装成跨连接共享内�
 - Row 交付前取得独立字符串/字节数据；SQLite 临时 column 指针不跨 step 或挂起逃逸。参数使用稳定副本或明确的同步借用。
 - SQLite 的 NULL/INTEGER/REAL/TEXT/BLOB 分别交付 Null/Signed/Float64/Text/Bytes；严格处理文本，不能把非法 UTF-8 替换后冒充原值。Boolean 参数写为 0/1，Unsigned 只有能精确表示为有符号 64 位时接受；Float32 可精确提升为 SQLite REAL。其他形状由显式 codec 转换或在执行前拒绝。
 - SQLite 参数使用其动态绑定规则，nativeTypeName 必须为 None；非空提示在执行前拒绝，不模拟强制参数类型。这不影响 Column 中实际可得的声明类型元数据。
-- 参数 slot 按 SQLite 的原生序号减一公开。`?NNN` 的稀疏 slot 按最大 slot 数形成 positional 输入，未引用 slot 的值不产生效果；重复具名参数共享一个 slot。named 模式只接受所有必填 slot 都有名字的语句，不推测匿名 slot 名称。
+- 参数 slot 按 SQLite 的原生序号减一公开。`?NNN` 的稀疏 slot 按最大 slot 数形成 positional 输入，未引用 slot 的值不产生效果；重复具名参数共享一个 slot。named 模式要求所有 slot 都有名字，不推测匿名或空隙 slot 名称。
 - prepare 通过 SQLite 的实际解析结果检查尾部，接受尾随空白/注释，拒绝第二条可执行语句；不自写 SQL 分词框架。
 
 运行中取消结合 sqlite3_interrupt、progress handler 和可取消的 busy 等待。interrupt 必须绑定当前操作；它返回前禁止连接 close，旧操作和它的取消通知退休前禁止下一操作开始，避免误伤下一条语句。取消发生在 native step 尚未开始时，也必须由排队检查/progress 状态观察，不能依赖一次空闲 interrupt。

@@ -1,0 +1,114 @@
+package scoop.db.sql.tests
+
+import scoop.db.row.*
+import scoop.db.sql.*
+import scoop.test.*
+
+private fun longParameter(value: Long): SqlParameter = SqlParameter(RowValue.Signed(value))
+
+private fun longValue(value: SqlParameter): Long =
+    Rows.valueDecoder(value.value).singleValue().readLong()
+
+private struct Input(val name: String, val id: Long, val note: String?) {
+    public companion object: ValueEncoder<Input>
+}
+
+@Test
+private class SqlArgumentsTests {
+    @Test
+    fun `positional values are snapshots and must bind every slot`() {
+        val input = ArrayList<SqlParameter>()
+        input.add(longParameter(7L))
+        val args = SqlArguments.positional(input)
+        input.clear()
+        assertEquals(7L, longValue(args.resolve([SqlParameterInfo(0L, None)])[0L]))
+        assertFailsWith<IllegalArgumentException> { args.resolve([]) }
+        assertFailsWith<IllegalArgumentException> {
+            SqlArguments.empty().resolve([SqlParameterInfo(0L, None)])
+        }
+        assertEquals(0L, SqlArguments.empty().resolve([]).size)
+    }
+
+    @Test
+    fun `named binding uses exact names and metadata order`() {
+        val args =
+            SqlArguments.named(
+                [
+                    NamedSqlParameter(":second", longParameter(2L)),
+                    NamedSqlParameter(":first", longParameter(1L))
+                ]
+            )
+        val values =
+            args.resolve(
+                [SqlParameterInfo(0L, Some(":first")), SqlParameterInfo(1L, Some(":second"))]
+            )
+        assertEquals(1L, longValue(values[0L]))
+        assertEquals(2L, longValue(values[1L]))
+        assertFailsWith<IllegalArgumentException> {
+            args.resolve(
+                [SqlParameterInfo(0L, Some("first")), SqlParameterInfo(1L, Some(":second"))]
+            )
+        }
+    }
+
+    @Test
+    fun `invalid named and slot metadata fail before execution`() {
+        assertFailsWith<IllegalArgumentException> {
+            SqlArguments.named(
+                [
+                    NamedSqlParameter(":x", longParameter(1L)),
+                    NamedSqlParameter(":x", longParameter(2L))
+                ]
+            )
+        }
+        val args = SqlArguments.named([NamedSqlParameter(":x", longParameter(1L))])
+        assertFailsWith<IllegalArgumentException> { args.resolve([SqlParameterInfo(0L, None)]) }
+        assertFailsWith<IllegalArgumentException> {
+            args.resolve([SqlParameterInfo(1L, Some(":x"))])
+        }
+        val two =
+            SqlArguments.named(
+                [
+                    NamedSqlParameter(":x", longParameter(1L)),
+                    NamedSqlParameter(":y", longParameter(2L))
+                ]
+            )
+        assertFailsWith<IllegalArgumentException> {
+            two.resolve([SqlParameterInfo(0L, Some(":x")), SqlParameterInfo(1L, Some(":x"))])
+        }
+    }
+
+    @Test
+    fun `record parameter order is explicit and missing fields are not null`() {
+        val row = Rows.encodeToRow(Input("Ada", 7L, None), Input.Companion)
+        val args = SqlArguments.fromRow(row, ["id", "name"])
+        val values = args.resolve([SqlParameterInfo(0L, None), SqlParameterInfo(1L, None)])
+        assertEquals(7L, longValue(values[0L]))
+        assertEquals("Ada", Rows.valueDecoder(values[1L].value).singleValue().readString())
+        assertFailsWith<MissingColumnException> { SqlArguments.fromRow(row, ["note"]) }
+        assertFailsWith<IllegalArgumentException> { SqlArguments.fromRow(row, ["id", "id"]) }
+        val nullArgs = SqlArguments.positional([SqlParameter(RowValue.Null)])
+        assertTrue(
+            Rows.valueDecoder(
+                nullArgs.resolve([SqlParameterInfo(0L, None)])[0L].value
+            ).singleValue().isNull()
+        )
+    }
+
+    @Test
+    fun `column metadata is not reused as a parameter type hint`() {
+        val row =
+            Row.fromValues(
+                RowSchema.fromColumns([Column("id", Some("INTEGER"))]),
+                [RowValue.Signed(7L)]
+            )
+        val value = SqlArguments.fromRow(row, ["id"]).resolve([SqlParameterInfo(0L, None)])[0L]
+        assertEquals(None, value.nativeTypeName)
+        assertFailsWith<IllegalArgumentException> {
+            SqlArguments.positional([SqlParameter(RowValue.Record(row))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SqlArguments.positional([SqlParameter(RowValue.Sequence([]))])
+        }
+    }
+}

@@ -54,6 +54,8 @@ execute 启动本次执行；Update 表示执行完成，Rows 后续仍可发生
 
 SqlArguments 是快照：positional 按公开的零基 slot 顺序，named 按驱动的精确名称。缺少、重复、多余或歧义参数在执行前失败。fromRow 按明确 fieldOrder 选择列，参数类型提示为 None，不把 Column 元数据当写入提示。类型提示由驱动决定，不能拼接 SQL。SQL DEFAULT 由 SQL 文本表达。
 
+`SqlArguments.resolve(parameters: List<SqlParameterInfo>): Array<SqlParameter>` 是驱动的普通公开绑定入口：元数据按连续零基 slot 排列，返回同序快照并检查完整性。named 要求每个 slot 有唯一精确名称；因此首版不接受包含匿名或未命名空隙 slot 的 named 绑定，稀疏 SQLite 参数使用 positional。
+
 首版 SQL 会话单路执行，活动结果占用会话；冲突报 Busy，不隐式等待自己释放结果。事务取得会话执行权，事务外连接和旧 Statement 不得混入；事务中只执行该事务的 Statement。
 
 SqlTransaction.state 为 Active/Committed/RolledBack/Invalid。begin 的迟到成功在未交付时先回滚。commit 只接受 Active 且没有活动结果；可能已经提交后交付实际结果，未知结果使连接失效。确认提交先更新状态，再清理 Statement，清理错误不改写已提交事实。
