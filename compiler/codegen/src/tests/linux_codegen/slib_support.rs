@@ -59,7 +59,14 @@ impl SlibObjects {
                 .members()
                 .iter()
                 .map(|member| {
-                    CanonicalGeneratedBridgeObjectUnitSetV1::new(vec![member.unit()]).unwrap()
+                    CanonicalGeneratedBridgeObjectUnitSetV1::new(
+                        member
+                            .units
+                            .iter()
+                            .map(scoop_lir::GeneratedBridgeUnitPlanV1::unit)
+                            .collect(),
+                    )
+                    .unwrap()
                 })
                 .collect(),
         )
@@ -76,9 +83,9 @@ impl SlibObjects {
             .map(|member| {
                 (
                     plans
-                        .member_for_generated_bridge_unit(member.unit())
+                        .member_for_generated_bridge_unit(member.units[0].unit())
                         .unwrap(),
-                    std::fs::read(member.object_path()).unwrap(),
+                    member.bytes.clone(),
                 )
             })
             .collect::<Vec<_>>();

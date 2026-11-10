@@ -37,6 +37,9 @@ scoop-toolchain.workspace = true
 scoop-wire.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+mimalloc.workspace = true
+
 [dev-dependencies]
 insta.workspace = true
 la-arena.workspace = true

@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use clap::Args;
 use scoop::{BuildContext, BuildResult, BuildRootInput, ResolvedBuildGraph};
@@ -44,7 +44,6 @@ pub(in crate::cli) struct PrepareInput<'a> {
     pub target: &'a str,
     pub sysroot: &'a Path,
     pub search: &'a [PathBuf],
-    pub cache: Option<PathBuf>,
 }
 
 pub(in crate::cli) enum Inputs {
@@ -127,29 +126,10 @@ pub(in crate::cli) fn prepare(input: PrepareInput<'_>) -> BuildResult<Inputs> {
         offline: input.options.offline || input.options.frozen,
     };
     let executable = super::executable(input.cwd, input.executable)?;
-    let staging = absolute(
-        input.cwd,
-        scoop_toolchain::configured_cache_root(input.cache).map_err(config)?,
-    )?
-    .join("pm-requests");
-    std::fs::create_dir_all(&staging).map_err(config)?;
-    let directory = tempfile::Builder::new()
-        .prefix("prepare-")
-        .tempdir_in(staging)
-        .map_err(config)?;
-    let request_path = directory.path().join("request.json");
-    let response_path = directory.path().join("response.json");
-    std::fs::write(&request_path, serde_json::to_vec(&request).map_err(config)?).map_err(config)?;
+    let request = serde_json::to_vec(&request).map_err(config)?;
     let output = Command::new(&executable)
-        .args(["prepare", "--request"])
-        .arg(&request_path)
-        .arg("--response")
-        .arg(&response_path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .scoop_spawn()
-        .and_then(|child| child.wait_with_output())
+        .arg("prepare")
+        .scoop_output_with_input(&request)
         .map_err(|error| {
             config(format!(
                 "cannot run package manager {}: {error}",
@@ -157,8 +137,7 @@ pub(in crate::cli) fn prepare(input: PrepareInput<'_>) -> BuildResult<Inputs> {
             ))
         })?;
     super::check_output(&output, "preparation")?;
-    let response: PreparedWorkspaceV1 =
-        serde_json::from_slice(&std::fs::read(response_path).map_err(config)?).map_err(config)?;
+    let response: PreparedWorkspaceV1 = serde_json::from_slice(&output.stdout).map_err(config)?;
     response.validate().map_err(config)?;
     Ok(Inputs::Workspace(Box::new(response)))
 }

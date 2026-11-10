@@ -6,8 +6,6 @@ pub(super) enum RuntimeLibraries {
     C {
         #[serde(with = "crate::build_record::values::path")]
         unwind_prefix: PathBuf,
-        #[serde(with = "crate::build_record::values::path")]
-        unwind_include: PathBuf,
     },
     Cxx(ValidatedCxxToolchain),
 }
@@ -26,8 +24,6 @@ impl RuntimeLibraries {
             options.sysroot.as_deref(),
             options.unwind_prefix.as_deref(),
         )?;
-        let unwind_include =
-            crate::unwind::link_unwind_include(&prefix, options.unwind_prefix.is_some())?;
         let unwind_prefix = std::path::absolute(prefix).map_err(error)?;
         let archive = unwind_prefix.join("lib/libunwind.a");
         if !archive.is_file() {
@@ -37,10 +33,7 @@ impl RuntimeLibraries {
                 target.contract().canonical_triple()
             )));
         }
-        Ok(Self::C {
-            unwind_prefix,
-            unwind_include,
-        })
+        Ok(Self::C { unwind_prefix })
     }
 
     pub(super) fn cxx(&self) -> bool {
@@ -54,36 +47,9 @@ impl RuntimeLibraries {
         }
     }
 
-    pub(super) fn family(
-        &self,
-        startup: &ValidatedCBridgeToolchainInvocation,
-    ) -> crate::native_driver::NativeCompilerFamily {
-        match self {
-            Self::C { .. } => startup.compiler_family(),
-            Self::Cxx(cxx) => cxx.family(),
-        }
-    }
-
-    pub(super) fn driver<'a>(
-        &'a self,
-        startup: &'a ValidatedCBridgeToolchainInvocation,
-    ) -> &'a Path {
-        match self {
-            Self::C { .. } => startup.compiler_driver(),
-            Self::Cxx(cxx) => cxx.driver(),
-        }
-    }
-
     pub(super) fn unwind_prefix(&self) -> Option<&Path> {
         match self {
             Self::C { unwind_prefix, .. } => Some(unwind_prefix),
-            Self::Cxx(_) => None,
-        }
-    }
-
-    pub(super) fn unwind_include(&self) -> Option<&Path> {
-        match self {
-            Self::C { unwind_include, .. } => Some(unwind_include),
             Self::Cxx(_) => None,
         }
     }

@@ -4,6 +4,8 @@ use scoop_lir::{
     DarwinBuildToolVersionContractV1, DarwinCBridgeDeploymentContractV1, DarwinPackedVersionV1,
     GccCompilerIdentityV1, LinuxCCompilerIdentityV1,
 };
+use scoop_wire::Digest256;
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct InvocationRecord {

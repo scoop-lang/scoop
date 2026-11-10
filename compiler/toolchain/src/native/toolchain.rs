@@ -18,6 +18,7 @@ impl NativeToolchain {
         manifest: &LoadedConeManifest,
         optimization: OptimizationMode,
         sysroot: &Path,
+        scratch: &Path,
     ) -> Result<PreparedNativeInputs, ToolchainError> {
         prepare::prepare(
             manifest,
@@ -25,6 +26,7 @@ impl NativeToolchain {
             self,
             optimization,
             sysroot,
+            scratch,
         )
     }
 
@@ -62,7 +64,7 @@ impl NativeToolchain {
             .then(|| {
                 let default =
                     crate::windows_native::paired_driver(c, NativeSourceLanguage::C, selected_c);
-                NativeDriver::from_record(crate::windows_native::discover(
+                NativeDriver::from_discovery(crate::windows_native::discover(
                     c,
                     NativeSourceLanguage::C,
                     &default,
@@ -84,68 +86,6 @@ impl NativeToolchain {
                     ToolchainError(format!("{err}; C++ required by {}", manifest.coordinate()))
                 })?,
         })
-    }
-
-    pub(super) fn resolve_cached(
-        target: &crate::ResolvedTargetProfile,
-        manifest: &LoadedConeManifest,
-        cache: &Path,
-    ) -> Result<Self, ToolchainError> {
-        Ok(Self {
-            c: target.c_bridge_toolchain().clone(),
-            windows_c: Self::needs_windows_c(target.c_bridge_toolchain(), manifest)?
-                .then(|| {
-                    let key = crate::build_record::fingerprint(
-                        &crate::native_record::ResolvedRecord::cache_configuration(target)?,
-                    )?;
-                    let record = crate::build_record::cached(
-                        &cache.join("native-c-tools-v3"),
-                        key,
-                        |_| Ok(true),
-                        || {
-                            let driver = crate::windows_native::paired_driver(
-                                target.c_bridge_toolchain(),
-                                NativeSourceLanguage::C,
-                                target.native_c_driver(),
-                            );
-                            crate::windows_native::discover(
-                                target.c_bridge_toolchain(),
-                                NativeSourceLanguage::C,
-                                &driver,
-                            )
-                        },
-                    )?;
-                    NativeDriver::from_record(record)
-                })
-                .transpose()?,
-            cxx: manifest
-                .parsed()
-                .semantic()
-                .native()
-                .cxx(target.id())
-                .then(|| ValidatedCxxToolchain::resolve_cached(target, cache))
-                .transpose()
-                .map_err(|err| {
-                    ToolchainError(format!("{err}; C++ required by {}", manifest.coordinate()))
-                })?,
-        })
-    }
-
-    pub(super) fn cxx_fingerprint(&self) -> Option<Digest256> {
-        self.cxx.as_ref().map(ValidatedCxxToolchain::fingerprint)
-    }
-
-    pub(super) fn input_metadata(&self) -> Vec<crate::NativeInputMetadata> {
-        self.windows_c
-            .iter()
-            .flat_map(|c| c.inputs())
-            .chain(self.cxx.iter().flat_map(|c| c.input_metadata()))
-            .cloned()
-            .collect()
-    }
-
-    pub(super) fn c_fingerprint(&self) -> Option<Digest256> {
-        self.windows_c.as_ref().map(NativeDriver::fingerprint)
     }
 
     pub(super) fn kind(&self, language: NativeSourceLanguage) -> NativeDriverKind {

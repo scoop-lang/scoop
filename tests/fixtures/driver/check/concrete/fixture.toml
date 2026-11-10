@@ -19,7 +19,6 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = {file = "diagnostics.json"}
-checks = [{glob = "${work}/cache/checks-v4/*/record.json", equals = []}]
 
 [[steps]]
 name = "build"
@@ -42,7 +41,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${fixed.result.cache_hit}", equals = false}]
+checks = [{actual = "${fixed.result.observations.child_invocations.length}", equals = 1}, {actual = "${fixed.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "warm"
@@ -52,4 +51,4 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${warm.result.cache_hit}", equals = true}]
+checks = [{actual = "${warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${warm.result.observations.child_invocations.0.operation}", equals = "check"}]

@@ -1,4 +1,12 @@
-use super::*;
+use super::error;
+use crate::ToolchainError;
+use scoop_protocol::HostPathCarrier;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+fn path(path: &Path) -> Result<HostPathCarrier, ToolchainError> {
+    HostPathCarrier::from_path(path).map_err(error)
+}
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -58,31 +66,10 @@ fn state(path: &Path) -> Result<Option<State>, ToolchainError> {
         Err(error) => (true, error.duration()),
     };
     Ok(Some(State {
-        resolved: super::path(&path.canonicalize().map_err(error)?)?,
+        resolved: self::path(&path.canonicalize().map_err(error)?)?,
         length: metadata.len(),
         modified: (before, elapsed.as_secs(), elapsed.subsec_nanos()),
     }))
-}
-
-/// Keep the candidates that can change a PATH lookup, including absent earlier entries.
-pub(crate) fn program_candidates(
-    program: &std::ffi::OsStr,
-    search_path: &std::ffi::OsStr,
-    inputs: &mut BTreeSet<PathBuf>,
-) {
-    let program = crate::paths::executable_path(program);
-    if program.components().count() > 1 {
-        inputs.insert(program.to_path_buf());
-        return;
-    }
-    for directory in std::env::split_paths(search_path) {
-        let candidate = directory.join(&program);
-        let selected = candidate.is_file();
-        inputs.insert(candidate);
-        if selected {
-            break;
-        }
-    }
 }
 
 /// Observe include search choices and the parents of headers used by the probe.
@@ -126,4 +113,24 @@ pub(crate) fn header_candidates(stderr: &[u8], inputs: &mut BTreeSet<PathBuf>) {
         }
     }
     inputs.extend(roots);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn observations_detect_real_input_changes_and_new_lookup_candidates() {
+        let directory = tempfile::tempdir().unwrap();
+        let selected = directory.path().join("selected");
+        let earlier = directory.path().join("earlier");
+        std::fs::write(&selected, "first").unwrap();
+        let input = Input::read(&selected).unwrap();
+        let absent = Input::read(&earlier).unwrap();
+        assert!(input.is_current().unwrap());
+        assert!(absent.is_current().unwrap());
+        std::fs::write(&selected, "changed input").unwrap();
+        std::fs::write(&earlier, "new candidate").unwrap();
+        assert!(!input.is_current().unwrap());
+        assert!(!absent.is_current().unwrap());
+    }
 }

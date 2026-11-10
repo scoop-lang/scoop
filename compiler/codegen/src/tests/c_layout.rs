@@ -752,12 +752,7 @@ fn c_layout_matches_llvm_and_generated_c_assertions() {
             .all(|units| units[0].unit() < units[1].unit()),
         "generated C sources must follow canonical unit order"
     );
-    let bridge = bridge_sources
-        .units()
-        .iter()
-        .map(|unit| unit.source())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let bridge = bridge_sources.source();
     let static_callback = module
         .callback_bridges
         .iter()
@@ -811,13 +806,17 @@ fn c_layout_matches_llvm_and_generated_c_assertions() {
     )));
     assert!(bridge.contains("__builtin_memcpy(result, &native_result, sizeof(native_result));"));
     assert!(!bridge.contains("#include <string.h>"));
+    let storage_bridge = format!(
+        "scoop_callback_storage_bridge_{}",
+        static_callback.trampoline.entry().unit()
+    );
     assert!(bridge.contains(&format!(
-        "extern void scoop_callback_storage_bridge(void *result, const void *arg0) __asm__(\"{callback_bridge_object_symbol}\");"
+        "extern void {storage_bridge}(void *result, const void *arg0) __asm__(\"{callback_bridge_object_symbol}\");"
     )));
     assert!(bridge.contains(&format!(
         "scoop_c_layout_1 {static_trampoline_symbol}(scoop_c_layout_1 arg0)"
     )));
-    assert!(bridge.contains("scoop_callback_storage_bridge(&result, &arg0);"));
+    assert!(bridge.contains(&format!("{storage_bridge}(&result, &arg0);")));
     assert_eq!(
         bridge
             .matches(&format!(
@@ -844,13 +843,11 @@ fn c_layout_matches_llvm_and_generated_c_assertions() {
         "scoop_runtime_callback_invoke(arg1, &{}, &result, arguments)",
         foreign_trampoline.signature_descriptor_symbol()
     )));
-    for unit in bridge_sources.units() {
-        let bridge_source = std::env::temp_dir().join(format!(
-            "scoop_c_bridge_{}_{}.c",
-            std::process::id(),
-            unit.unit()
-        ));
-        std::fs::write(&bridge_source, unit.source()).expect("write generated callback C");
+    {
+        let bridge_source =
+            std::env::temp_dir().join(format!("scoop_c_bridge_{}.c", std::process::id(),));
+        std::fs::write(&bridge_source, bridge_sources.source())
+            .expect("write generated callback C");
         let status = std::process::Command::new("cc")
             .args(["-std=c11", "-fsyntax-only"])
             .arg(&bridge_source)
@@ -1446,12 +1443,7 @@ fn exact_c_pointer_tree_survives_fields_functions_and_globals() {
     );
     let bridge_sources = crate::c_bridge::render_c_bridge_source_set_for_module(&module)
         .expect("pointer externs and globals emit bridge sources");
-    let source = bridge_sources
-        .units()
-        .iter()
-        .map(|unit| unit.source())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let source = bridge_sources.source();
     for name in ["direct_data", "nullable_data"] {
         assert!(
             source.contains(&format!("extern void *roundtrip_{name}(void *);")),
@@ -1475,13 +1467,13 @@ fn exact_c_pointer_tree_survives_fields_functions_and_globals() {
         );
     }
 
-    for unit in bridge_sources.units() {
+    {
         let bridge_source = std::env::temp_dir().join(format!(
-            "scoop_exact_c_pointer_tree_{}_{}.c",
+            "scoop_exact_c_pointer_tree_{}.c",
             std::process::id(),
-            unit.unit()
         ));
-        std::fs::write(&bridge_source, unit.source()).expect("write exact C pointer bridge");
+        std::fs::write(&bridge_source, bridge_sources.source())
+            .expect("write exact C pointer bridge");
         let status = std::process::Command::new("cc")
             .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only"])
             .arg(&bridge_source)

@@ -1,4 +1,4 @@
-use object::{Object, ObjectSection, ObjectSymbol};
+use object::{Object, ObjectSection};
 
 use super::*;
 use crate::coff_object::{CoffObject, error};
@@ -9,37 +9,30 @@ pub(super) fn materialize(
     atoms: &[&DefinitionSymbolPlanV1],
 ) -> Result<Vec<u8>, CodegenError> {
     let mut output = CoffObject::read(bytes, object_target)?;
+    let primary_ends = super::unwind::primary_ends(&output.file)?;
+    let unwind = super::unwind::windows(&output.file)?;
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
         let (section, start) = output.extent(name.as_str())?;
-        let end = output
-            .file
-            .symbols()
-            .filter(|symbol| {
-                symbol.section_index() == Some(section)
-                    && symbol.address() > start
-                    && symbol.is_global()
-            })
-            .map(|symbol| symbol.address())
-            .min()
-            .unwrap_or(output.file.section_by_index(section).map_err(error)?.size());
+        let end = primary_ends[&(section.0, start)];
         let mut associated = Vec::new();
         for boundary in definition.atom_boundaries() {
             let (section, start, end) = match boundary.atom_role() {
                 scoop_lir::DefinitionAtomRole::Primary => (section, start, end),
                 scoop_lir::DefinitionAtomRole::WindowsUnwindTable
                 | scoop_lir::DefinitionAtomRole::WindowsUnwindInfo => {
-                    let name = if boundary.atom_role()
+                    let records = unwind
+                        .get(&section.0)
+                        .ok_or_else(|| error("missing bridge unwind records"))?;
+                    let index = if boundary.atom_role()
                         == scoop_lir::DefinitionAtomRole::WindowsUnwindTable
                     {
-                        ".pdata"
+                        records.table
                     } else {
-                        ".xdata"
+                        records.info
                     };
-                    let unwind = output.file.section_by_name(name).ok_or_else(|| {
-                        error(format!("generated-C bridge has no {name} section"))
-                    })?;
-                    (unwind.index(), 0, unwind.size())
+                    let unwind = output.file.section_by_index(index).map_err(error)?;
+                    (index, 0, unwind.size())
                 }
                 role => return Err(error(format!("unexpected generated-C COFF atom {role:?}"))),
             };

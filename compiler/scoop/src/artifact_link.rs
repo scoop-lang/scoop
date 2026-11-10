@@ -44,12 +44,8 @@ pub struct LinkOutcome {
 }
 
 pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
-    let target = ResolvedTargetProfile::resolve_with_cached(
-        &request.target,
-        &request.c_toolchain,
-        &request.cache_dir,
-    )
-    .map_err(failure)?;
+    let target = ResolvedTargetProfile::resolve_with(&request.target, &request.c_toolchain)
+        .map_err(failure)?;
     let selection = target.lir_target_selection();
     let (root, dependencies) = resolve::artifacts(&request, selection)?;
     let inputs = dependencies
@@ -58,13 +54,9 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
         .collect::<Vec<_>>();
     let closure = scoop_slib::read_program_link_closure(&root.file, &inputs, selection)
         .map_err(|error| read_failure(error, &root, &dependencies))?;
-    let profile = scoop_linker::resolve_program_link_profile(
-        &closure,
-        &target,
-        &request.final_link,
-        Some(&request.cache_dir),
-    )
-    .map_err(failure)?;
+    let profile =
+        scoop_linker::resolve_program_link_profile(&closure, &target, &request.final_link)
+            .map_err(failure)?;
     let runtime_index = request.runtime_index.clone().unwrap_or_else(|| {
         scoop_toolchain::default_runtime_index(
             &request.sysroot,

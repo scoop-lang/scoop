@@ -13,6 +13,8 @@ use scoop_protocol::{
 
 use crate::ResolvedPairedScoopc;
 
+mod progress;
+
 const COMPILER_FAILURE_EXIT_CODE: i32 = 1;
 
 #[derive(Debug, Default)]
@@ -22,6 +24,7 @@ pub(crate) struct ProductionSingleConeCompilerRunner;
 pub(crate) struct ChildIoPlan {
     temporary_root: PathBuf,
     pub(crate) jobs: std::num::NonZeroUsize,
+    pub(crate) report_progress: bool,
     compiler_environment: Vec<(&'static str, std::ffi::OsString)>,
 }
 
@@ -30,6 +33,7 @@ impl ChildIoPlan {
         Self {
             temporary_root,
             jobs: std::num::NonZeroUsize::MIN,
+            report_progress: false,
             compiler_environment: Vec::new(),
         }
     }
@@ -62,21 +66,45 @@ impl SingleConeCompilerRunner for ProductionSingleConeCompilerRunner {
         request: &ScoopcRequestEnvelopeV1,
         io: &ChildIoPlan,
     ) -> Result<ScoopcResponseEnvelopeV1, ChildTransportError> {
+        let progress = io
+            .report_progress
+            .then(|| progress::CompilationProgress::start(request))
+            .transpose()
+            .map_err(ChildTransportError::WriteLog)?;
+        let result = self.invoke_child(tool, request, io);
+        if let Some(progress) = progress {
+            progress
+                .finish(matches!(
+                    &result,
+                    Ok(ScoopcResponseEnvelopeV1::Success { .. }
+                        | ScoopcResponseEnvelopeV1::Observed { .. })
+                ))
+                .map_err(ChildTransportError::WriteLog)?;
+        }
+        result
+    }
+}
+
+impl ProductionSingleConeCompilerRunner {
+    fn invoke_child(
+        &self,
+        tool: &ResolvedPairedScoopc,
+        request: &ScoopcRequestEnvelopeV1,
+        io: &ChildIoPlan,
+    ) -> Result<ScoopcResponseEnvelopeV1, ChildTransportError> {
         let request_frame = encode_request_frame(request).map_err(ChildTransportError::Request)?;
         let working_directory = tool.executable_path().parent().ok_or_else(|| {
             ChildTransportError::MissingExecutableParent {
                 path: tool.executable_path().to_path_buf(),
             }
         })?;
-        let temporary = tempfile::Builder::new()
-            .prefix(".scoop-child-")
-            .tempdir_in(&io.temporary_root)
+        std::fs::create_dir_all(&io.temporary_root)
             .map_err(ChildTransportError::TemporaryDirectory)?;
         let mut command = crate::compiler::compiler_command(tool.executable_path());
         #[cfg(windows)]
         command
-            .env("TEMP", temporary.path())
-            .env("TMP", temporary.path());
+            .env("TEMP", &io.temporary_root)
+            .env("TMP", &io.temporary_root);
         let mut child = command
             .arg("__child-protocol")
             .arg(tool.protocol().protocol_version().to_string())
@@ -86,7 +114,7 @@ impl SingleConeCompilerRunner for ProductionSingleConeCompilerRunner {
                 std::env::vars_os()
                     .filter(|(name, _)| name.as_encoded_bytes().starts_with(b"SCOOP_")),
             )
-            .env("TMPDIR", temporary.path())
+            .env("TMPDIR", &io.temporary_root)
             .envs(
                 io.compiler_environment
                     .iter()

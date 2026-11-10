@@ -8,14 +8,14 @@ fn system_resolver_qualifies_the_actual_probe_object() {
         scoop_target_data::DARWIN_AARCH64,
         scoop_target_data::DARWIN_X86_64,
     ] {
-        let (resolved, _) = probe_system_c_bridge_toolchain(target, None, None).unwrap();
+        let resolved = probe_system_c_bridge_toolchain(target, None, None).unwrap();
         assert!(resolved.compiler_driver().is_file());
         assert!(resolved.sdk_root().expect("Darwin test toolchain").is_dir());
         assert_eq!(
             resolved.profile().contract().canonical_triple(),
             target.contract().canonical_triple()
         );
-        let (explicit, _) = probe_system_c_bridge_toolchain(
+        let explicit = probe_system_c_bridge_toolchain(
             target,
             Some(resolved.compiler_driver()),
             Some(resolved.sdk_root().unwrap()),

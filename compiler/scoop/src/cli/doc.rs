@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 use scoop::{
-    ArtifactSearchRoot, BuildContext, BuildProfile, DiagnosticsPolicy, DocumentRequest,
-    GraphTarget, PairedScoopcLocator, TrustedSysrootRoot,
+    ArtifactSearchRoot, BuildContext, BuildProfile, DocumentRequest, GraphTarget,
+    PairedScoopcLocator, TrustedSysrootRoot,
 };
 
 use super::args::MessageFormat;
@@ -112,7 +112,6 @@ pub(super) fn execute(
                 target: selection.target().contract().canonical_triple(),
                 sysroot: &sysroot,
                 search: &search,
-                cache: args.cache_dir.clone(),
             },
         )?);
     }
@@ -133,12 +132,9 @@ pub(super) fn execute(
             .map_err(config)?,
         cache_root: cache.clone(),
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
-        target: GraphTarget::Frontend {
-            selection,
-            request: target.clone(),
-        },
+        target: GraphTarget::requested(target.clone()).map_err(config)?,
         compiler: compiler.clone(),
-        diagnostics: DiagnosticsPolicy::Structured,
+        diagnostics: reporter.diagnostics_policy(),
         optimization: Default::default(),
         debug_info: scoop_lir::DebugInfoLevel::None,
         purpose: scoop_protocol::CompilationPurpose::Production,

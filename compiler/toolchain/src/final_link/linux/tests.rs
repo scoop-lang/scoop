@@ -36,17 +36,6 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
             panic!("expected Linux profile")
         };
         assert_eq!(linux.mode(), expected_mode);
-        assert!(
-            linux
-                .input_paths()
-                .any(|path| path.file_name().unwrap() == "libunwind.a")
-        );
-        assert!(
-            !linux
-                .input_paths()
-                .any(|path| path.to_string_lossy().contains("libgcc_s")
-                    || path.to_string_lossy().contains("libgcc_eh"))
-        );
         assert!(profile.system_provider().is_err());
         let directory = tempfile::tempdir().unwrap();
         let source = directory.path().join("main.c");
@@ -68,9 +57,25 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
         .unwrap();
         let binary = directory.path().join("program");
         let mut command = linux.command(directory.path(), &binary).unwrap();
-        command.arg(object);
+        command.arg("-Wl,-t").arg(object);
         linux.append_system_libraries(&mut command);
-        probe::run(&mut command).unwrap();
+        let linked = probe::run(&mut command).unwrap();
+        let inputs = String::from_utf8(linked.stdout).unwrap();
+        for input in linux.input_paths() {
+            assert!(
+                inputs.lines().any(|line| Path::new(line.trim()) == input),
+                "system library {} was not used by the real link: {inputs}",
+                input.display()
+            );
+        }
+        assert!(
+            inputs.lines().any(|line| line.ends_with("libunwind.a")),
+            "{inputs}"
+        );
+        assert!(
+            !inputs.contains("libgcc_s") && !inputs.contains("libgcc_eh"),
+            "{inputs}"
+        );
         let output = probe::run(&mut Command::new(binary)).unwrap();
         assert_eq!(
             output.stdout,
@@ -101,7 +106,7 @@ fn linux_final_profiles_reject_missing_unwind_and_unsupported_link_modes() {
         })
         .unwrap_err();
     assert!(
-        error.to_string().contains("missing LLVM unwind headers"),
+        error.to_string().contains("missing LLVM unwind archive"),
         "{error}"
     );
     let error = target

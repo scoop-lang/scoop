@@ -1,4 +1,4 @@
-//! Consume Scoop object bytes and read the external C compiler's objects.
+//! Consume the in-memory Scoop and generated-C objects.
 
 use super::*;
 
@@ -6,7 +6,7 @@ pub(in crate::object_production) fn plan_codegen_objects(
     target: LirTargetProfile,
     producer_units: &ProducerUnitPartitionV1,
     members: Vec<scoop_codegen::EmittedConeObjectMemberV1>,
-    generated_c_bridge: &EmittedGeneratedCBridgeObjectSetV1,
+    generated_c_bridge: Vec<scoop_codegen::EmittedGeneratedCBridgeObjectMemberV1>,
 ) -> Result<PlannedObjectBindings, BuiltinObjectProductionError> {
     let mut scoop_lir_sources = Vec::with_capacity(members.len());
     for member in members {
@@ -17,20 +17,17 @@ pub(in crate::object_production) fn plan_codegen_objects(
         });
     }
 
-    let mut generated_c_bridge_sources = Vec::with_capacity(generated_c_bridge.members().len());
-    for member in generated_c_bridge.members() {
-        let bytes = std::fs::read(member.object_path()).map_err(|source| {
-            BuiltinObjectProductionError::ReadObject {
-                producer: BuiltinObjectProducerV1::GeneratedCBridge,
-                path: member.object_path().to_path_buf(),
-                source,
-            }
-        })?;
-        generated_c_bridge_sources.push(UnboundGeneratedCBridgeObject {
-            unit: member.unit(),
-            bytes,
-        });
-    }
+    let generated_c_bridge_sources = generated_c_bridge
+        .into_iter()
+        .map(|member| UnboundGeneratedCBridgeObject {
+            units: member
+                .units
+                .iter()
+                .map(scoop_lir::GeneratedBridgeUnitPlanV1::unit)
+                .collect(),
+            bytes: member.bytes,
+        })
+        .collect();
 
     plan_objects(
         target,

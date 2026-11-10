@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 mode, root, output, argument = sys.argv[1:]
-cache = Path(root) / "final-products-v1"
+cache = Path(root) / "final-products-v2"
 programs = sorted(cache.glob("program-*/program"))
 output = Path(output)
 debug_file = Path(str(output) + (".dSYM" if sys.platform == "darwin" else ".debug"))

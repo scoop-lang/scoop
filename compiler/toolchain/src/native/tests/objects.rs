@@ -10,10 +10,15 @@ fn object_records_reuse_outputs_and_follow_actual_header_changes() {
     );
     std::fs::write(root.join("include/value.h"), "#define VALUE 41\n").unwrap();
     let cache = directory.path().join("cache");
+    let resolutions = std::cell::Cell::new(0);
     let prepare = || {
         prepare_native_objects(
             &manifest,
-            target(),
+            target().lir_target(),
+            || {
+                resolutions.set(resolutions.get() + 1);
+                Ok(target())
+            },
             OptimizationMode::Debug,
             &crate::development_runtime_root(),
             &cache,
@@ -22,8 +27,14 @@ fn object_records_reuse_outputs_and_follow_actual_header_changes() {
         .unwrap()
     };
     let cold = prepare();
+    let files = std::fs::read_dir(cold.objects()[0].parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
+    assert_eq!(files, cold.objects());
     let before = cold.objects()[0].metadata().unwrap().modified().unwrap();
     assert_eq!(prepare(), cold);
+    assert_eq!(resolutions.get(), 1);
     std::fs::write(root.join("program.scoop"), "fun value(): Int = 1\n").unwrap();
     assert_eq!(prepare(), cold);
     std::fs::write(root.join("program.scoop"), "fun value(): Int = 2\n").unwrap();
@@ -34,6 +45,7 @@ fn object_records_reuse_outputs_and_follow_actual_header_changes() {
     );
     std::fs::write(root.join("include/value.h"), "#define VALUE 42\n").unwrap();
     let changed = prepare();
+    assert_eq!(resolutions.get(), 2);
     assert_ne!(cold.key(), changed.key());
     assert_ne!(cold.objects(), changed.objects());
     assert_ne!(
@@ -62,7 +74,8 @@ fn quoted_macro_include_observes_its_own_directory() {
     let prepare = || {
         prepare_native_objects(
             &manifest,
-            target(),
+            target().lir_target(),
+            || Ok(target()),
             OptimizationMode::Debug,
             &crate::development_runtime_root(),
             &cache,
@@ -91,7 +104,8 @@ fn native_compilation_failure_does_not_publish_a_record() {
     assert!(
         prepare_native_objects(
             &manifest,
-            target(),
+            target().lir_target(),
+            || Ok(target()),
             OptimizationMode::Debug,
             &crate::development_runtime_root(),
             &cache,
@@ -100,7 +114,7 @@ fn native_compilation_failure_does_not_publish_a_record() {
         .is_err()
     );
     assert!(
-        std::fs::read_dir(cache.join("native-objects-v2"))
+        std::fs::read_dir(cache.join("native-objects-v3"))
             .unwrap()
             .all(|entry| entry
                 .unwrap()

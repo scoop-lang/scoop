@@ -6,48 +6,41 @@ use crate::cache::COMPILE_CACHE_NAMESPACE;
 
 #[derive(Debug)]
 pub(super) struct PreparedStaging {
-    root: tempfile::TempDir,
-    output_root: PathBuf,
+    parent: PathBuf,
+    root: std::sync::OnceLock<tempfile::TempDir>,
 }
 
 impl PreparedStaging {
-    pub(super) fn create(cache_root: &ArtifactCacheRoot) -> Result<Self, StagingError> {
-        let staging_parent = cache_root
-            .as_path()
-            .join(COMPILE_CACHE_NAMESPACE)
-            .join(".staging");
-        create_directory(&staging_parent)?;
-        let root = tempfile::Builder::new()
-            .prefix("build-")
-            .tempdir_in(&staging_parent)
-            .map_err(|source| StagingError {
-                operation: StagingIoOperation::CreateDirectory,
-                path: staging_parent,
-                source,
-            })?;
-        let output_root = root.path().join("output");
-        create_directory(&output_root)?;
-        Ok(Self { root, output_root })
+    pub(super) fn new(cache_root: &ArtifactCacheRoot) -> Self {
+        Self {
+            parent: cache_root
+                .as_path()
+                .join(COMPILE_CACHE_NAMESPACE)
+                .join(".staging"),
+            root: std::sync::OnceLock::new(),
+        }
     }
 
-    pub(super) fn root(&self) -> &Path {
-        self.root.path()
+    pub(super) fn root(&self) -> Result<&Path, StagingError> {
+        if self.root.get().is_none() {
+            create_directory(&self.parent)?;
+            let root = tempfile::Builder::new()
+                .prefix("build-")
+                .tempdir_in(&self.parent)
+                .map_err(|source| StagingError {
+                    operation: StagingIoOperation::CreateDirectory,
+                    path: self.parent.clone(),
+                    source,
+                })?;
+            // If another caller initialized first, dropping this unused directory
+            // leaves the shared staging lifetime with the existing owner.
+            let _ = self.root.set(root);
+        }
+        Ok(self.root.get().expect("staging was initialized").path())
     }
 
-    pub(super) fn output_root(&self) -> &Path {
-        &self.output_root
-    }
-
-    pub(super) fn plan_output(
-        &self,
-        topological_index: usize,
-        cone_directory: &str,
-    ) -> Result<PathBuf, StagingError> {
-        let root = self
-            .output_root
-            .join(format!("{topological_index:08}-{cone_directory}"));
-        create_directory(&root)?;
-        Ok(root.join("candidate.slib"))
+    pub(super) fn plan_output(&self, cone: &str) -> Result<PathBuf, StagingError> {
+        Ok(self.root()?.join(format!("{cone}.slib")))
     }
 }
 

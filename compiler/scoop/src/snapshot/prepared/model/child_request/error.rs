@@ -23,11 +23,13 @@ pub enum ChildRequestPlanError {
     },
     Protocol(ProtocolValidationError),
     Toolchain(scoop_toolchain::ToolchainError),
+    Staging(crate::snapshot::StagingError),
 }
 
 impl fmt::Display for ChildRequestPlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Staging(source) => source.fmt(formatter),
             Self::NativeNotPrepared => {
                 formatter.write_str("frontend-only source has no native production inputs")
             }
@@ -82,6 +84,7 @@ impl std::error::Error for ChildRequestPlanError {
             Self::HostPath { source, .. } => Some(source),
             Self::Protocol(source) => Some(source),
             Self::Toolchain(source) => Some(source),
+            Self::Staging(source) => Some(source),
             _ => None,
         }
     }

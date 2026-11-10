@@ -16,6 +16,7 @@ pub(super) fn prepare(
     compiler: &NativeToolchain,
     optimization: OptimizationMode,
     sysroot: &Path,
+    scratch: &Path,
 ) -> Result<PreparedNativeInputs, ToolchainError> {
     let config = manifest.parsed().semantic().native();
     let mut sources: Vec<_> = config
@@ -71,10 +72,6 @@ pub(super) fn prepare(
     for (source, _) in &sources {
         roots.check_source(source.path().as_path())?;
     }
-    let directory = tempfile::Builder::new()
-        .prefix("scoop-preprocess-")
-        .tempdir()
-        .map_err(error)?;
     let mut result = PreparedNativeInputs::default();
     let mut search = vec![roots.cone.clone(), roots.public.clone()];
     search.extend(roots.system.clone());
@@ -97,7 +94,7 @@ pub(super) fn prepare(
     }
     for (source, language) in &sources {
         let input = roots.cone.join(source.path().as_path());
-        let depfile = directory.path().join("unit.d");
+        let depfile = scratch.join("unit.d");
         let mut command = command::base(compiler, *language, optimization, false)?;
         command.args([
             format!(

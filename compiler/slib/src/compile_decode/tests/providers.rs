@@ -65,12 +65,13 @@ fn foreign_declarations_require_their_actual_cone_dependency() {
                 Vec::new(),
                 Vec::new(),
             );
-            let result = crate::compile_decode::validate_foundation_identity_graph_with_authorities(
+            let result = crate::compile_decode::read_foundation_identity_graph(
                 &mut open_graph(&bytes),
                 &decode_canonical::<DecodedHirFoundation>(&encode(&hir).unwrap()).unwrap(),
                 &decode_canonical::<DecodedMirFoundation>(&encode(&mir).unwrap()).unwrap(),
                 &decode_canonical::<DecodedLirFoundation>(&encode(&lir).unwrap()).unwrap(),
                 std::iter::empty(),
+                scoop_identity::PendingIdentityValidation::new(),
             );
             if include_dependency {
                 result.expect("the declared provider resolves the foreign declaration");

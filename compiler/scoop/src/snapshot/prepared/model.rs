@@ -41,12 +41,6 @@ pub(super) enum SourceNativeInput {
 }
 
 impl ManifestSourceInput {
-    pub(crate) fn native_input_metadata(&self) -> &[scoop_toolchain::NativeInputMetadata] {
-        match &self.native {
-            SourceNativeInput::Artifact(native) => native.input_metadata(),
-            SourceNativeInput::Frontend => &[],
-        }
-    }
     pub const fn identity(&self) -> ConeIdentity {
         self.identity
     }
@@ -132,7 +126,6 @@ pub(super) enum PreparedGraphNode {
 pub(super) struct PreparedManifestSourceNode {
     pub(super) snapshot: ManifestSourceInput,
     pub(super) manifest: Box<scoop_manifest::LoadedConeManifest>,
-    pub(super) output_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -146,7 +139,6 @@ pub(super) struct PreparedPrebuiltArtifactNode {
 pub(super) struct PreparedSingleFileNode {
     pub(super) snapshot: SingleFileSourceInput,
     pub(super) input_path: PathBuf,
-    pub(super) output_path: PathBuf,
 }
 
 impl PreparedGraphNode {
@@ -252,14 +244,6 @@ impl PreparedBuildGraph {
         }
     }
 
-    pub fn planned_output_path(&self, identity: ConeIdentity) -> Option<&Path> {
-        match self.nodes.get(&identity) {
-            Some(PreparedGraphNode::ManifestSource(node)) => Some(&node.output_path),
-            Some(PreparedGraphNode::SingleFile(node)) => Some(&node.output_path),
-            Some(PreparedGraphNode::PrebuiltArtifact(_)) | None => None,
-        }
-    }
-
     pub fn single_file_input(&self, identity: ConeIdentity) -> Option<&SingleFileSourceInput> {
         match self.nodes.get(&identity) {
             Some(PreparedGraphNode::SingleFile(node)) => Some(&node.snapshot),
@@ -296,14 +280,6 @@ impl PreparedBuildGraph {
 
     pub const fn compiler(&self) -> &ResolvedPairedScoopc {
         &self.compiler
-    }
-
-    pub fn staging_root(&self) -> &Path {
-        self.staging.root()
-    }
-
-    pub fn output_root(&self) -> &Path {
-        self.staging.output_root()
     }
 
     pub const fn diagnostics(&self) -> crate::DiagnosticsPolicy {

@@ -44,7 +44,8 @@ pub(super) fn compile(
                 .map_err(error)?;
             prepared = scoop_toolchain::prepare_native_objects(
                 manifest,
-                target,
+                target.lir_target(),
+                || Ok(target),
                 request.optimization(),
                 &sysroot,
                 directory.path(),

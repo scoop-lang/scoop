@@ -21,7 +21,6 @@ pub struct ResolvedTargetProfile {
     backend: BackendProfile,
     c_bridge_toolchain: ValidatedCBridgeToolchainInvocation,
     runtime_build: ValidatedRuntimeBuildProfile,
-    native_tool_inputs: scoop_wire::Digest256,
     native_c: Option<PathBuf>,
     native_cxx: Option<PathBuf>,
 }
@@ -33,20 +32,18 @@ impl ResolvedTargetProfile {
     }
 
     pub fn resolve_with(triple: &str, options: &CToolchainOptions) -> Result<Self, ToolchainError> {
-        crate::native_record::probe(triple, options)
+        crate::native_invocation::resolve(triple, options)
     }
 
     pub(crate) fn from_c_toolchain(
         lir_target: ValidatedLirTargetSelection,
         c_bridge_toolchain: ValidatedCBridgeToolchainInvocation,
-        native_tool_inputs: scoop_wire::Digest256,
     ) -> Result<Self, ToolchainError> {
         Ok(Self {
             lir_target,
             backend: lir_target.backend(),
             c_bridge_toolchain,
             runtime_build: ValidatedRuntimeBuildProfile::for_target(lir_target.target())?,
-            native_tool_inputs,
             native_c: None,
             native_cxx: None,
         })
@@ -63,10 +60,6 @@ impl ResolvedTargetProfile {
     }
     pub(crate) fn native_cxx_driver(&self) -> Option<&std::path::Path> {
         self.native_cxx.as_deref()
-    }
-
-    pub const fn native_tool_inputs(&self) -> scoop_wire::Digest256 {
-        self.native_tool_inputs
     }
 
     /// Resolves the current host through the same closed registry.
@@ -112,15 +105,6 @@ impl ResolvedTargetProfile {
         options: &FinalLinkOptions,
     ) -> Result<ValidatedFinalLinkProfile, ToolchainError> {
         self.final_link_with_cxx(options, false)
-    }
-
-    pub fn final_link_with_cxx_cached(
-        &self,
-        options: &FinalLinkOptions,
-        cxx: bool,
-        cache: &std::path::Path,
-    ) -> Result<ValidatedFinalLinkProfile, ToolchainError> {
-        ValidatedFinalLinkProfile::resolve_cached(self, options, cxx, cache)
     }
 
     pub fn final_link_with_cxx(

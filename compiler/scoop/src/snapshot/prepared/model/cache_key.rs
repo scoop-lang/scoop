@@ -2,17 +2,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use scoop_identity::{ConeCoordinate, ConeIdentity, RequestedConeKind};
-use scoop_slib::{
-    ConeKind, ConeRecord, ConeRecordError, ConeSourceForm, FingerprintAvailability,
-    IdentityAbiDescriptor,
-};
+use scoop_slib::{ConeKind, ConeRecord, ConeRecordError, ConeSourceForm, FingerprintAvailability};
 use scoop_wire::HashError;
 
 use super::{PreparedBuildGraph, PreparedGraphNode};
 use crate::artifact::{ArtifactClosureValidationError, CompletedNode};
 use crate::cache::{
     CompileDependencyInputV1, ConeCompileCacheInputV1, ConeCompileCacheKeyV1,
-    CurrentConeSemanticProjectionV1, SourceCacheInputV1, strong_profile_id,
+    CurrentConeSemanticProjectionV1, SourceCacheInputV1,
 };
 use crate::discovery::compare_coordinates;
 
@@ -85,7 +82,6 @@ impl PreparedBuildGraph {
             compare_coordinates(left.cone().coordinate(), right.cone().coordinate())
         });
 
-        let compatibility = IdentityAbiDescriptor::current().map_err(CompileCacheKeyError::Hash)?;
         let lir_target = self
             .target_selection
             .target()
@@ -96,25 +92,13 @@ impl PreparedBuildGraph {
             .backend()
             .fingerprint()
             .map_err(CompileCacheKeyError::Hash)?;
-        let target = self
-            .context
-            .target
-            .production(self.context.cache_root.as_path())
-            .map_err(CompileCacheKeyError::Toolchain)?;
-        let c_bridge_toolchain = target.c_bridge_toolchain().profile().fingerprint();
         Ok(ConeCompileCacheInputV1::new(
             cone,
             current_semantic,
             sources,
             dependencies,
-            self.compiler.fingerprint(),
-            compatibility,
-            strong_profile_id(),
-            self.compiler.protocol(),
             lir_target,
             backend,
-            c_bridge_toolchain,
-            target.native_tool_inputs(),
         )
         .with_optimization(self.context.optimization)
         .with_debug_info(self.context.debug_info)
@@ -270,7 +254,6 @@ fn completed_map<'a>(
 #[derive(Debug)]
 pub enum CompileCacheKeyError {
     NativeNotPrepared,
-    Toolchain(scoop_toolchain::ToolchainError),
     UnknownNode(ConeIdentity),
     PrebuiltNode(ConeIdentity),
     MissingSourceProjection(ConeIdentity),
@@ -297,7 +280,6 @@ impl fmt::Display for CompileCacheKeyError {
             Self::NativeNotPrepared => {
                 formatter.write_str("frontend-only source has no native production inputs")
             }
-            Self::Toolchain(error) => error.fmt(formatter),
             Self::UnknownNode(identity) => write!(formatter, "unknown build node {identity}"),
             Self::PrebuiltNode(identity) => write!(
                 formatter,
@@ -353,7 +335,6 @@ impl std::error::Error for CompileCacheKeyError {
             Self::DependencyPlan { source, .. } => Some(source),
             Self::ConeRecord(error) => Some(error),
             Self::Hash(error) => Some(error),
-            Self::Toolchain(error) => Some(error),
             _ => None,
         }
     }

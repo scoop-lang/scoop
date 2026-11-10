@@ -38,7 +38,12 @@ impl PreparedBuildGraph {
             {
                 continue;
             }
-            let private_directory = self.staging.root().join("dumps").join(identity.to_string());
+            let private_directory = self
+                .staging
+                .root()
+                .map_err(io::Error::other)?
+                .join("dumps")
+                .join(identity.to_string());
             std::fs::create_dir_all(&private_directory)?;
             self.dumps.insert(
                 *identity,

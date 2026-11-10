@@ -9,8 +9,6 @@ use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash};
 
 use crate::{SystemProvider, ToolchainError};
 
-#[path = "probe.rs"]
-mod probe;
 #[cfg(all(test, target_os = "macos"))]
 mod tests;
 pub(super) mod tools;
@@ -37,31 +35,11 @@ pub(super) struct Discovery {
     pub(super) native_roots: Vec<PathBuf>,
     #[serde(with = "crate::build_record::values::path")]
     linker: PathBuf,
-    #[serde(with = "crate::build_record::values::paths")]
-    linker_inputs: Vec<PathBuf>,
-    linker_version: String,
-    #[serde(with = "crate::build_record::values::digest")]
-    linker_digest: Digest256,
-    #[serde(with = "crate::build_record::values::digest")]
-    compiler_digest: Digest256,
     system: SystemProvider,
     cxx: Option<crate::ValidatedCxxToolchain>,
-    #[serde(with = "crate::build_record::values::paths")]
-    headers: Vec<PathBuf>,
 }
 
 impl DarwinFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Self {
-        Self { startup, data }
-    }
-
     pub(crate) fn from_startup(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -69,14 +47,7 @@ impl DarwinFinalLinkProfile {
         native_roots: Vec<PathBuf>,
     ) -> Result<Self, ToolchainError> {
         let output = OutputConfiguration::resolve(startup.target(), options)?;
-        let (linker, linker_inputs) =
-            tools::resolve(tools::candidates(options.linker.as_deref())?)?;
-        let linker_version = tools::version(&linker)?;
-        let linker_digest =
-            crate::build_record::fingerprint(&crate::build_record::Input::read(&linker)?)?;
-        let compiler_digest = crate::build_record::fingerprint(&crate::build_record::Input::read(
-            startup.compiler_driver(),
-        )?)?;
+        let linker = tools::resolve(tools::candidates(options.linker.as_deref())?)?;
         let system = SystemProvider::read(
             scoop_slib::MachOArchitecture::for_target(startup.profile().contract().target().id())
                 .map_err(error)?,
@@ -88,23 +59,16 @@ impl DarwinFinalLinkProfile {
                 .map_err(error)?
                 .minimum_os(),
         )?;
-        let mut profile = Self {
+        Ok(Self {
             startup,
             data: Discovery {
                 output,
                 native_roots,
                 linker,
-                linker_inputs,
-                linker_version,
-                linker_digest,
-                compiler_digest,
                 system,
                 cxx,
-                headers: Vec::new(),
             },
-        };
-        profile.data.headers = probe::check(&profile)?;
-        Ok(profile)
+        })
     }
 
     pub const fn id(&self) -> TargetProfileId {
@@ -144,29 +108,8 @@ impl DarwinFinalLinkProfile {
     pub fn startup_toolchain(&self) -> &ValidatedCBridgeToolchainInvocation {
         &self.startup
     }
-    pub fn compiler_digest(&self) -> Digest256 {
-        self.data.compiler_digest
-    }
     pub fn system_provider(&self) -> &SystemProvider {
         &self.data.system
-    }
-
-    pub(super) fn input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
-        let sdk = self.startup.sdk_root().map_err(error)?;
-        let mut paths = self.data.linker_inputs.clone();
-        paths.push(self.startup.compiler_driver().to_owned());
-        paths.extend(
-            self.data
-                .system
-                .files()
-                .iter()
-                .map(|file| sdk.join(file.relative_path())),
-        );
-        paths.extend(self.data.headers.iter().cloned());
-        if let Some(cxx) = &self.data.cxx {
-            paths.extend(cxx.input_paths()?);
-        }
-        Ok(paths)
     }
 
     pub fn cxx(&self) -> bool {
@@ -182,7 +125,7 @@ impl DarwinFinalLinkProfile {
     }
 
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-final-link-profile-v2", self).map_err(error)
+        domain_separated_cbor_hash("scoop-final-link-profile-v3", self).map_err(error)
     }
 
     /// Callers append the ordered objects, aliases and selected system stubs.
@@ -246,24 +189,18 @@ impl DarwinFinalLinkProfile {
 
 impl WireEncode for DarwinFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(12)?;
+        e.map(9)?;
         e.field(1)?;
         self.target().wire_id().encode(e)?;
         e.field(2)?;
         self.startup.profile().contract().encode(e)?;
         e.field(3)?;
-        self.data.compiler_digest.encode(e)?;
-        e.field(4)?;
-        self.data.linker_digest.encode(e)?;
-        e.field(5)?;
-        e.text(&self.data.linker_version)?;
-        e.field(6)?;
         let arguments = self.linker_args();
         e.array(arguments.len() as u64)?;
         for option in arguments {
             e.text(option)?;
         }
-        e.field(7)?;
+        e.field(4)?;
         e.array(self.data.system.files().len() as u64)?;
         for file in self.data.system.files() {
             e.map(2)?;
@@ -272,21 +209,21 @@ impl WireEncode for DarwinFinalLinkProfile {
             e.field(2)?;
             file.digest().encode(e)?;
         }
-        e.field(8)?;
+        e.field(5)?;
         e.array(self.linker_system_requirements().len() as u64)?;
         for symbol in self.linker_system_requirements() {
             e.text(symbol)?;
         }
-        e.field(9)?;
+        e.field(6)?;
         e.unsigned(1)?;
-        e.field(10)?;
+        e.field(7)?;
         e.array(u64::from(self.data.cxx.is_some()))?;
         if let Some(cxx) = &self.data.cxx {
             cxx.fingerprint().encode(e)?;
         }
-        e.field(11)?;
+        e.field(8)?;
         self.data.output.encode(e)?;
-        e.field(12)?;
+        e.field(9)?;
         e.text(PRODUCTION_SYMBOLS)
     }
 }

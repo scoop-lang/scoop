@@ -32,11 +32,11 @@ use model::{
 impl ResolvedBuildGraph {
     /// Prepares the graph and actual input paths for compiler child execution.
     pub fn prepare(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        Preparer::new(self.into_parts(), false)?.run()
+        Preparer::new(self.into_parts(), false).run()
     }
 
     pub(crate) fn prepare_frontend(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        Preparer::new(self.into_parts(), true)?.run()
+        Preparer::new(self.into_parts(), true).run()
     }
 }
 
@@ -51,15 +51,10 @@ impl PreparedBuildGraph {
         if matches!(node.snapshot.native, SourceNativeInput::Artifact(_)) {
             return Ok(());
         }
-        let target = self
-            .context
-            .target
-            .production(self.context.cache_root.as_path())
-            .map_err(PrepareBuildGraphError::Native)?
-            .into_owned();
         let native = scoop_toolchain::prepare_native_objects(
             &node.manifest,
-            &target,
+            self.context.target.lir_target(),
+            || self.context.target.production(),
             self.context.optimization,
             self.context.sysroot.as_path(),
             self.context.cache_root.as_path(),
@@ -71,7 +66,6 @@ impl PreparedBuildGraph {
         )
         .map_err(PrepareBuildGraphError::Native)?;
         node.snapshot.native = SourceNativeInput::Artifact(native);
-        self.context.target = crate::GraphTarget::Artifact(Box::new(target));
         Ok(())
     }
 }
@@ -84,29 +78,18 @@ struct Preparer {
 }
 
 impl Preparer {
-    fn new(parts: ResolvedGraphParts, frontend: bool) -> Result<Self, PrepareBuildGraphError> {
-        let compiler =
-            ResolvedPairedScoopc::resolve(&parts.context.compiler, &parts.context.cache_root)
-                .map_err(PrepareBuildGraphError::PairedCompiler)?;
-        let staging = PreparedStaging::create(&parts.context.cache_root)
-            .map_err(PrepareBuildGraphError::Staging)?;
-        Ok(Self {
+    fn new(parts: ResolvedGraphParts, frontend: bool) -> Self {
+        let compiler = ResolvedPairedScoopc::resolve(&parts.context.compiler);
+        let staging = PreparedStaging::new(&parts.context.cache_root);
+        Self {
             parts,
             staging,
             compiler,
             frontend,
-        })
+        }
     }
 
     fn run(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
-        let topological_indices = self
-            .parts
-            .dependency_first
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(index, identity)| (identity, index))
-            .collect::<BTreeMap<_, _>>();
         let mut nodes = BTreeMap::new();
 
         for (identity, node) in self.parts.nodes {
@@ -123,14 +106,9 @@ impl Preparer {
                         purpose,
                         self.frontend,
                     )?;
-                    let output_path = self
-                        .staging
-                        .plan_output(topological_indices[&identity], &identity.to_string())
-                        .map_err(PrepareBuildGraphError::Staging)?;
                     PreparedGraphNode::ManifestSource(Box::new(PreparedManifestSourceNode {
                         snapshot,
                         manifest,
-                        output_path,
                     }))
                 }
                 GraphNode::Prebuilt(prebuilt) => {
@@ -145,14 +123,9 @@ impl Preparer {
                         .map_err(PrepareBuildGraphError::SingleFile)?;
                     let snapshot = SingleFileSourceInput { source: discovered };
                     let input_path = locator.resolved_path().to_path_buf();
-                    let output_path = self
-                        .staging
-                        .plan_output(topological_indices[&identity], &identity.to_string())
-                        .map_err(PrepareBuildGraphError::Staging)?;
                     PreparedGraphNode::SingleFile(Box::new(PreparedSingleFileNode {
                         snapshot,
                         input_path,
-                        output_path,
                     }))
                 }
             };
@@ -205,14 +178,11 @@ fn select_manifest_input(
     let native = if frontend {
         SourceNativeInput::Frontend
     } else {
-        let target = context
-            .target
-            .production(context.cache_root.as_path())
-            .map_err(PrepareBuildGraphError::Native)?;
         SourceNativeInput::Artifact(
             scoop_toolchain::prepare_native_objects(
                 manifest,
-                &target,
+                context.target.lir_target(),
+                || context.target.production(),
                 context.optimization,
                 context.sysroot.as_path(),
                 context.cache_root.as_path(),

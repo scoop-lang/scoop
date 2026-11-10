@@ -71,6 +71,7 @@ extern "C" int answer(void) {
             &manifest,
             OptimizationMode::Debug,
             &crate::development_runtime_root(),
+            root,
         )
         .unwrap();
     assert_eq!(prepared.units().len(), 2);
@@ -132,6 +133,7 @@ extern "C" int answer(void) {
             &manifest,
             OptimizationMode::Debug,
             &crate::development_runtime_root(),
+            root,
         )
         .unwrap();
     assert_ne!(prepared.units().to_vec(), changed.units().to_vec());

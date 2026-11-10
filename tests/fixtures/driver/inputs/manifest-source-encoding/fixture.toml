@@ -56,7 +56,7 @@ name = "human"
 argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${work}/cone", "-o", "${work}/previous.slib", {"each" = "${human_options}"}]
 exit = 1
 stdout = ""
-stderr = "${work}/cone/src/main.scoop: error[SCOOPC_BUILD_FAILED]: source discovery failed at ${work}/cone/src/main.scoop: source file is not valid UTF-8\n"
+stderr = {regex = "   Compiling dev\\.cli:path-library:0\\.1\\.0\n      Failed dev\\.cli:path-library:0\\.1\\.0 in [0-9]+[.][0-9]{2}s\n${work}/cone/src/main\\.scoop: error\\[SCOOPC_BUILD_FAILED\\]: source discovery failed at ${work}/cone/src/main\\.scoop: source file is not valid UTF-8\n"}
 checks = [
   {"file" = "${work}/previous.slib", "equals" = "previous output\n"},
 ]

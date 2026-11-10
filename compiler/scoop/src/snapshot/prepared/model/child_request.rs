@@ -114,7 +114,7 @@ impl PreparedBuildGraph {
             Some(
                 self.context
                     .target
-                    .production(self.context.cache_root.as_path())
+                    .production()
                     .map_err(ChildRequestPlanError::Toolchain)?,
             )
         };
@@ -127,8 +127,7 @@ impl PreparedBuildGraph {
             )
             .map_err(ChildRequestPlanError::Protocol)?,
         };
-        let (current, direct, support, trusted_core, output_path) = match self.nodes.get(&identity)
-        {
+        let (current, direct, support, trusted_core) = match self.nodes.get(&identity) {
             Some(PreparedGraphNode::ManifestSource(node)) => {
                 let projection = self.source_projection(identity)?;
                 let (direct, support) = dependency_paths(identity, projection, &completed)?;
@@ -154,7 +153,6 @@ impl PreparedBuildGraph {
                     direct,
                     support,
                     core,
-                    node.output_path.clone(),
                 )
             }
             Some(PreparedGraphNode::SingleFile(node)) => {
@@ -168,13 +166,24 @@ impl PreparedBuildGraph {
                     direct,
                     support,
                     core,
-                    node.output_path.clone(),
                 )
             }
             Some(PreparedGraphNode::PrebuiltArtifact(_)) => {
                 return Err(ChildRequestPlanError::PrebuiltNode(identity));
             }
             None => return Err(ChildRequestPlanError::UnknownNode(identity)),
+        };
+        let output_path = if matches!(
+            output_kind,
+            NodeOutput::Artifact | NodeOutput::Documentation(_, true)
+        ) {
+            Some(
+                self.staging
+                    .plan_output(&identity.to_string())
+                    .map_err(ChildRequestPlanError::Staging)?,
+            )
+        } else {
+            None
         };
         let native_inputs = match (production.as_ref(), self.nodes.get(&identity)) {
             (Some(_), Some(PreparedGraphNode::ManifestSource(node))) => {
@@ -190,6 +199,7 @@ impl PreparedBuildGraph {
             _ => Vec::new(),
         };
         let mut io = ChildIoPlan::new(self.context.cache_root.as_path().to_path_buf());
+        io.report_progress = self.context.diagnostics == crate::DiagnosticsPolicy::Human;
         if let Some(target) = production {
             io = io.with_toolchain(target.c_bridge_toolchain());
         }
@@ -197,18 +207,23 @@ impl PreparedBuildGraph {
             NodeOutput::Check => scoop_protocol::ScoopcOutputRequestV1::Check,
             NodeOutput::Documentation(path, true) => {
                 scoop_protocol::ScoopcOutputRequestV1::ArtifactWithDocumentation {
-                    artifact: path_carrier(&output_path)?,
+                    artifact: path_carrier(
+                        output_path
+                            .as_deref()
+                            .expect("artifact output has a staging path"),
+                    )?,
                     documentation: path_carrier(path)?,
                 }
             }
             NodeOutput::Documentation(path, false) => {
                 scoop_protocol::ScoopcOutputRequestV1::Documentation(path_carrier(path)?)
             }
-            NodeOutput::Artifact => {
-                scoop_protocol::ScoopcOutputRequestV1::Artifact(path_carrier(&output_path)?)
-            }
+            NodeOutput::Artifact => scoop_protocol::ScoopcOutputRequestV1::Artifact(path_carrier(
+                output_path
+                    .as_deref()
+                    .expect("artifact output has a staging path"),
+            )?),
         };
-        let output_path = output.artifact().map(|_| output_path);
         let build = ScoopcBuildRequestV1::new(
             current,
             direct,

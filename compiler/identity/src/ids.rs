@@ -9,14 +9,16 @@ use scoop_wire::{
 };
 
 mod private {
-    pub trait Sealed {}
+    pub trait Sealed {
+        fn from_declaration(bytes: [u8; 32]) -> Self;
+    }
 }
 
 /// Shared read-only behavior for a concrete persistent identity kind.
 ///
 /// This trait is sealed and exposes no raw-byte constructor. Each public id
-/// remains a separate Rust type and can only be constructed from its specified
-/// canonical semantic key.
+/// remains a separate Rust type. Producers derive it from its semantic key;
+/// artifact readers resolve typed declarations and references.
 pub trait PersistentId: private::Sealed + Copy + fmt::Debug + Eq + Ord + std::hash::Hash {
     const KIND: &'static str;
 
@@ -63,7 +65,11 @@ macro_rules! persistent_id {
             }
         }
 
-        impl private::Sealed for $name {}
+        impl private::Sealed for $name {
+            fn from_declaration(bytes: [u8; 32]) -> Self {
+                Self(bytes)
+            }
+        }
 
         impl PersistentId for $name {
             const KIND: &'static str = $kind;
@@ -185,6 +191,10 @@ impl<I: PersistentId> DecodedPersistentId<I> {
 
     pub fn as_array(&self) -> &[u8; 32] {
         &self.bytes
+    }
+
+    pub(crate) fn declared_identity(self) -> I {
+        I::from_declaration(self.bytes)
     }
 
     pub fn verify(self, expected: I) -> Result<I, PersistentIdMismatch<I>> {

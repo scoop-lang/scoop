@@ -1,5 +1,4 @@
 //! Native C/C++ compilers in the selected Windows SDK/CRT environment.
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -7,7 +6,6 @@ use object::{Object, ObjectSection, ObjectSymbol};
 use scoop_manifest::NativeSourceLanguage;
 use scoop_process::CommandExt;
 
-use crate::build_record::{Input, Record};
 use crate::native_driver::{NativeDriverDiscovery, NativeDriverKind};
 use crate::{ToolchainError, ValidatedCBridgeToolchainInvocation};
 
@@ -131,14 +129,8 @@ pub(crate) fn discover(
     c: &ValidatedCBridgeToolchainInvocation,
     language: NativeSourceLanguage,
     driver: &Path,
-) -> Result<Record<NativeDriverDiscovery>, ToolchainError> {
+) -> Result<NativeDriverDiscovery, ToolchainError> {
     let environment = c.windows_environment().map_err(error)?;
-    let mut tool_inputs = BTreeSet::new();
-    crate::native_record::program_candidates(
-        driver.as_os_str(),
-        &environment.search_path,
-        &mut tool_inputs,
-    );
     let driver = crate::paths::find_program(driver.as_os_str(), &environment.search_path)?;
     let kind = kind(&driver);
     if kind.microsoft()
@@ -158,7 +150,6 @@ pub(crate) fn discover(
             "probe.c"
         });
     let object = directory.path().join("probe.obj");
-    let depfile = directory.path().join("dependencies");
     std::fs::write(
         &source,
         probe::source(c.native_environment(), environment.machine, language),
@@ -176,7 +167,6 @@ pub(crate) fn discover(
     } else {
         "-std=c11"
     });
-    dependencies(&mut compiler, kind, &depfile, "native-probe");
     if kind.microsoft() {
         compiler.arg("/c").arg(joined("/Fo", &object));
     } else {
@@ -190,27 +180,6 @@ pub(crate) fn discover(
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         )));
-    }
-    let real_source = source.canonicalize().map_err(error)?;
-    let mut inputs: BTreeSet<_> = read_dependencies(kind, &depfile, "native-probe")?
-        .into_iter()
-        .filter(|p| p != &source && p.canonicalize().ok().as_ref() != Some(&real_source))
-        .collect();
-    inputs.insert(driver.clone());
-    inputs.extend(tool_inputs);
-    if kind == NativeDriverKind::Msvc {
-        let frontend = if language == NativeSourceLanguage::Cxx {
-            "c1xx.dll"
-        } else {
-            "c1.dll"
-        };
-        inputs.extend([frontend, "c2.dll", "msobj140.dll"].map(|name| driver.with_file_name(name)));
-    }
-    inputs.extend(environment.includes.iter().cloned());
-    for path in inputs.clone() {
-        if let Some(parent) = path.parent() {
-            inputs.insert(parent.to_owned());
-        }
     }
     let bytes = std::fs::read(object).map_err(error)?;
     let file = object::File::parse(bytes.as_slice()).map_err(error)?;
@@ -237,20 +206,14 @@ pub(crate) fn discover(
         .data_range(symbol.address(), 16)
         .map_err(error)?
         .ok_or_else(|| error("truncated native probe configuration"))?;
-    Ok(Record {
-        inputs: inputs
-            .iter()
-            .map(|p| Input::read(p))
-            .collect::<Result<_, _>>()?,
-        result: NativeDriverDiscovery {
-            driver: scoop_protocol::HostPathCarrier::from_path(&driver).map_err(error)?,
-            configuration: *scoop_wire::sha256(data).as_array(),
-            kind,
-            family: if kind == NativeDriverKind::Msvc {
-                crate::native_driver::NativeCompilerFamily::Msvc
-            } else {
-                crate::native_driver::NativeCompilerFamily::Clang
-            },
+    Ok(NativeDriverDiscovery {
+        driver: scoop_protocol::HostPathCarrier::from_path(&driver).map_err(error)?,
+        configuration: *scoop_wire::sha256(data).as_array(),
+        kind,
+        family: if kind == NativeDriverKind::Msvc {
+            crate::native_driver::NativeCompilerFamily::Msvc
+        } else {
+            crate::native_driver::NativeCompilerFamily::Clang
         },
     })
 }

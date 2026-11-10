@@ -16,6 +16,7 @@ use crate::{
 };
 
 mod incremental;
+mod link;
 mod records;
 mod source_import;
 

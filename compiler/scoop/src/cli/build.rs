@@ -20,6 +20,7 @@ pub(super) fn requests(
     require_executable: bool,
     enable_gc_stress: bool,
     enable_startup_stats: bool,
+    diagnostics: DiagnosticsPolicy,
 ) -> BuildResult<Vec<BuildRequest>> {
     let cwd = std::env::current_dir().map_err(config)?;
     let generators =
@@ -49,7 +50,6 @@ pub(super) fn requests(
         target: selection.target().contract().canonical_triple(),
         sysroot: &sysroot,
         search: &search,
-        cache: args.cache_dir.clone(),
     })?;
     let target_dir = inputs.target_root(&cwd, args.target_dir)?;
     let cache = super::paths::build_cache(
@@ -65,11 +65,8 @@ pub(super) fn requests(
     };
     let (c_toolchain, mut final_link) = args.native.resolve(&cwd, &sysroot)?;
     final_link.emit_debug_file |= debug_info != scoop_lir::DebugInfoLevel::None;
-    let target = scoop_toolchain::ResolvedTargetProfile::resolve_request_cached(
-        &super::native::target_request(triple, &c_toolchain)?,
-        cache.as_path(),
-    )
-    .map_err(config)?;
+    let target = GraphTarget::requested(super::native::target_request(triple, &c_toolchain)?)
+        .map_err(config)?;
     let runtime = match (args.runtime_objects, args.runtime_root) {
         (Some(index), _) => RuntimeInput::ObjectIndex(absolute(&cwd, index)?),
         (_, Some(root)) => RuntimeInput::SourceRoot(absolute(&cwd, root)?),
@@ -88,9 +85,9 @@ pub(super) fn requests(
             .map_err(config)?,
         cache_root: cache,
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
-        target: GraphTarget::Artifact(Box::new(target)),
+        target,
         compiler: PairedScoopcLocator::new(compiler).map_err(config)?,
-        diagnostics: DiagnosticsPolicy::Structured,
+        diagnostics,
         optimization: profile.optimization(),
         debug_info,
         purpose,

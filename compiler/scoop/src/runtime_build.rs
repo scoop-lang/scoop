@@ -83,7 +83,7 @@ pub fn build_runtime(
     request: RuntimeBuildRequest<'_>,
 ) -> Result<RuntimeBuildOutput, RuntimeBuildError> {
     let inputs = inputs::Inputs::read(&request)?;
-    let namespace = request.cache_root.join("runtime-v10");
+    let namespace = request.cache_root.join("runtime-v11");
     let entry = namespace.join(format!("{}.json", inputs.base_key));
     if let Some(output) = record::load(&entry, request.target)? {
         return Ok(output);
@@ -106,7 +106,14 @@ pub fn build_runtime(
     let (paths, dependencies) = compile::compile(&request, &inputs, object_directory.path())?;
     let configuration = RuntimeBuildConfiguration {
         input_key: dependencies.input_key(inputs.base_key)?,
-        compiler_inputs: inputs.compiler_inputs,
+        compiler_inputs: Digest256::from_array(
+            *request
+                .target
+                .c_bridge_toolchain()
+                .profile()
+                .fingerprint()
+                .as_array(),
+        ),
         flags: inputs.flags,
         enable_gc_stress: request.enable_gc_stress,
         enable_startup_stats: request.enable_startup_stats,

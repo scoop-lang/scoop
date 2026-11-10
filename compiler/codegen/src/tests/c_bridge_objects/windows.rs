@@ -52,20 +52,21 @@ fn windows_generated_c_bridges_have_real_boundaries_and_execute() {
                     .map_err(|error| CodegenError(error.to_string()))
             },
         )
-        .unwrap();
+        .unwrap_or_else(|error| panic!("{:?} {optimization:?}: {error}", target.id()));
         let mut symbols = Vec::new();
-        for member in emitted.members() {
+        assert_eq!(emitted.members().len(), 1);
+        for unit in &emitted.members()[0].units {
             let plan = surface
                 .plans()
                 .iter()
                 .find(|plan| {
                     plan.owner().kind()
                         == scoop_lir::StrongDefinitionEntityKind::GeneratedBridgeAtom(
-                            member.plan().primary_atom_authority().id(),
+                            unit.primary_atom_authority().id(),
                         )
                 })
                 .unwrap();
-            let bytes = std::fs::read(member.object_path()).unwrap();
+            let bytes = &emitted.members()[0].bytes;
             scoop_slib::read_generated_c_object_sections_v1(&bytes, target.id()).unwrap();
             let file = object::File::parse(bytes.as_slice()).unwrap();
             for role in [
@@ -113,10 +114,12 @@ int main(void) {{ int value = 7; first(&value); second(&value); return result !=
             invocation.profile().contract(),
         )
         .unwrap();
+        let object = directory.path().join("bridges.o");
+        std::fs::write(&object, &emitted.members()[0].bytes).unwrap();
         let output =
             crate::tests::windows_codegen::native_command(target.id(), profile.llvm_triple())
                 .arg(&source)
-                .args(emitted.members().iter().map(|member| member.object_path()))
+                .arg(&object)
                 .arg("-o")
                 .arg(&executable)
                 .output()

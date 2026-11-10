@@ -97,28 +97,6 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
             // Both prefixes use this filename; check_image verifies the DLLs.
             "libmsvcrt.a"
         };
-        assert!(
-            profile
-                .system_input_paths()
-                .any(|path| path.file_name().is_some_and(|name| name == crt_name)),
-            "actual {crt_name} is missing from {:?}",
-            profile.system_input_paths().collect::<Vec<_>>()
-        );
-        assert!(
-            profile
-                .input_paths()
-                .iter()
-                .any(|path| path.file_name().is_some_and(|name| name == "unwind.h")),
-            "case {index}: unwind header absent from {:?}",
-            profile
-                .input_paths()
-                .iter()
-                .filter(|path| path
-                    .to_string_lossy()
-                    .to_ascii_lowercase()
-                    .contains("unwind"))
-                .collect::<Vec<_>>()
-        );
         let scratch = directory.path().join(index.to_string());
         std::fs::create_dir_all(&scratch).unwrap();
         let source = scratch.join("入口.c");
@@ -170,7 +148,15 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
         }
         profile.append_system_libraries(&mut command);
         profile.configure_outputs(&mut command, Some(&pdb), false);
-        probe::run(&mut command).unwrap();
+        profile.trace(&mut command);
+        let linked = probe::run(&mut command).unwrap();
+        let inputs = profile.traced_inputs(&linked, &scratch, &[]);
+        assert!(
+            inputs
+                .iter()
+                .any(|path| path.file_name().is_some_and(|name| name == crt_name)),
+            "actual {crt_name} is missing from {inputs:?}",
+        );
         let output = match probe::run(Command::new(&binary).arg("值")) {
             Ok(output) => output,
             Err(error) => {

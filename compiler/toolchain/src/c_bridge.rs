@@ -40,7 +40,7 @@ pub(super) fn probe_system_c_bridge_toolchain(
     target: LirTargetProfile,
     compiler: Option<&Path>,
     sdk: Option<&Path>,
-) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
+) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
     let deployment_version = deployment_version(target)?;
     let minimum_os = parse_darwin_version(&deployment_version, "MACOSX_DEPLOYMENT_TARGET")?;
     let compiler_path = match compiler {
@@ -81,29 +81,6 @@ pub(super) fn probe_system_c_bridge_toolchain(
         sdk_version_value,
         parse_apple_clang_identity(&compiler_version)?,
     )?;
-    let mut inputs = vec![
-        compiler_path,
-        sdk_path,
-        compiler_driver.clone(),
-        settings_path,
-    ];
-    if let Some(compiler) = compiler {
-        let mut candidates = std::collections::BTreeSet::new();
-        crate::native_record::program_candidates(
-            compiler.as_os_str(),
-            &std::env::var_os("PATH").unwrap_or_default(),
-            &mut candidates,
-        );
-        inputs.extend(candidates);
-    }
-    if compiler.is_none() || sdk.is_none() {
-        inputs.extend([
-            PathBuf::from(XCRUN),
-            PathBuf::from("/var/db/xcode_select_link"),
-            PathBuf::from("/Applications/Xcode.app"),
-            PathBuf::from("/Library/Developer/CommandLineTools"),
-        ]);
-    }
     let facts = CBridgeToolchainFacts {
         target,
         compiler_driver,
@@ -113,7 +90,7 @@ pub(super) fn probe_system_c_bridge_toolchain(
         compiler_version,
         tools,
     };
-    Ok((resolve_c_bridge_toolchain(facts)?, inputs))
+    resolve_c_bridge_toolchain(facts)
 }
 
 struct CBridgeToolchainFacts {

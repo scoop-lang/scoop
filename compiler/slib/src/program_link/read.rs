@@ -17,16 +17,11 @@ pub fn read_program_link_closure(
     for (position, input) in graph.dependency_first.into_iter().enumerate() {
         let identity = input.identity();
         let coordinate = input.coordinate().clone();
-        let reachable = crate::dependency_reachability::transitive_positions(
-            position,
-            &graph.dependency_positions,
-        )
-        .map_err(error)?;
         let (artifact, symbol) = read_artifact(
             input,
             (*files[&identity]).clone(),
             &artifacts,
-            &reachable,
+            &graph.dependency_positions[position],
             selection,
         )
         .map_err(|err| err.context(identity, &coordinate))?;
@@ -56,7 +51,7 @@ fn read_artifact(
     graph: ValidatedGraphArtifact<'_>,
     source: crate::ArtifactFile,
     previous: &[ProgramLinkArtifact],
-    reachable: &[usize],
+    direct: &[usize],
     selection: lir::ValidatedLirTargetSelection,
 ) -> Result<(ProgramLinkArtifact, ProgramLinkData), ProgramLinkReadError> {
     let DecodedMachineLinkSections {
@@ -70,24 +65,22 @@ fn read_artifact(
     } = graph
         .decode_machine_link_sections()
         .map_err(super::error::section)?;
-    let dependencies = reachable
+    let dependencies = direct
         .iter()
         .map(|&index| &previous[index])
         .collect::<Vec<_>>();
-    let mut identities =
-        crate::compile_decode::validate_foundation_identity_graph_with_authorities(
-            &mut graph,
-            &hir_keys,
-            &mir_keys,
-            &foundation,
-            dependencies.iter().map(|dependency| &dependency.identities),
-        )
+    let mut identities = crate::compile_decode::read_foundation_identity_graph(
+        &mut graph,
+        &hir_keys,
+        &mir_keys,
+        &foundation,
+        dependencies.iter().map(|dependency| &dependency.identities),
+        scoop_identity::PendingIdentityValidation::for_link(),
+    )
+    .map_err(error)?;
+    let foundation = foundation
+        .read_link(graph.identity(), &mut identities)
         .map_err(error)?;
-    let foundation = lir::ConeLirFoundation::from_validated(
-        foundation
-            .validate(graph.identity(), &mut identities)
-            .map_err(error)?,
-    );
     let production = production
         .read_link(&foundation, &mut identities)
         .map_err(error)?;

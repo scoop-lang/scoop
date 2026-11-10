@@ -2,24 +2,17 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use scoop_identity::{
-    ArtifactCapabilityProfileId, ConeCoordinate, RequestedConeKind, SourceIdentity, SourceRole,
-};
-use scoop_lir::{BackendProfileFingerprint, CBridgeToolchainFingerprint, TargetProfileFingerprint};
+use scoop_identity::{ConeCoordinate, RequestedConeKind, SourceIdentity, SourceRole};
+use scoop_lir::{BackendProfileFingerprint, TargetProfileFingerprint};
 use scoop_manifest::SourceSelection;
-use scoop_protocol::{CompilationPurpose, ScoopcProtocolCapabilityV1};
-use scoop_slib::{
-    ArtifactCapabilityProfile, CodeFingerprint, ConeRecord, HirFingerprint, IdentityAbiDescriptor,
-    LirFingerprint, MirFingerprint,
-};
+use scoop_protocol::CompilationPurpose;
+use scoop_slib::{CodeFingerprint, ConeRecord, HirFingerprint, LirFingerprint, MirFingerprint};
 use scoop_wire::{Encoder, HashError, WireEncode, domain_separated_cbor_hash};
-
-use crate::PairedCompilerFingerprintV1;
 
 mod testing;
 pub use testing::TestCompileConfiguration;
 
-const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v11";
+const CACHE_KEY_DOMAIN: &str = "scoop-cone-compile-cache-v12";
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConeCompileCacheKeyV1([u8; 32]);
@@ -229,48 +222,29 @@ pub struct ConeCompileCacheInputV1 {
     current_semantic: CurrentConeSemanticProjectionV1,
     sources: Vec<SourceCacheInputV1>,
     dependencies: Vec<CompileDependencyInputV1>,
-    compiler: PairedCompilerFingerprintV1,
-    compatibility: IdentityAbiDescriptor,
-    artifact_profile: ArtifactCapabilityProfileId,
-    protocol: ScoopcProtocolCapabilityV1,
     lir_target: TargetProfileFingerprint,
     backend: BackendProfileFingerprint,
-    c_bridge_toolchain: CBridgeToolchainFingerprint,
-    native_tool_inputs: scoop_wire::Digest256,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
     purpose: CompilationPurpose,
 }
 
 impl ConeCompileCacheInputV1 {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) const fn new(
         cone: ConeRecord,
         current_semantic: CurrentConeSemanticProjectionV1,
         sources: Vec<SourceCacheInputV1>,
         dependencies: Vec<CompileDependencyInputV1>,
-        compiler: PairedCompilerFingerprintV1,
-        compatibility: IdentityAbiDescriptor,
-        artifact_profile: ArtifactCapabilityProfileId,
-        protocol: ScoopcProtocolCapabilityV1,
         lir_target: TargetProfileFingerprint,
         backend: BackendProfileFingerprint,
-        c_bridge_toolchain: CBridgeToolchainFingerprint,
-        native_tool_inputs: scoop_wire::Digest256,
     ) -> Self {
         Self {
             cone,
             current_semantic,
             sources,
             dependencies,
-            compiler,
-            compatibility,
-            artifact_profile,
-            protocol,
             lir_target,
             backend,
-            c_bridge_toolchain,
-            native_tool_inputs,
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
             purpose: CompilationPurpose::Production,
@@ -311,19 +285,11 @@ impl ConeCompileCacheInputV1 {
     pub fn dependencies(&self) -> &[CompileDependencyInputV1] {
         &self.dependencies
     }
-
-    pub const fn compiler(&self) -> PairedCompilerFingerprintV1 {
-        self.compiler
-    }
-
-    pub const fn protocol(&self) -> ScoopcProtocolCapabilityV1 {
-        self.protocol
-    }
 }
 
 impl WireEncode for ConeCompileCacheInputV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(16)?;
+        encoder.map(10)?;
         encoder.field(1)?;
         encoder.unsigned(1)?;
         encoder.field(2)?;
@@ -335,32 +301,16 @@ impl WireEncode for ConeCompileCacheInputV1 {
         encoder.field(5)?;
         encode_array(&self.dependencies, encoder)?;
         encoder.field(6)?;
-        self.compiler.encode(encoder)?;
-        encoder.field(7)?;
-        self.compatibility.encode(encoder)?;
-        encoder.field(8)?;
-        self.artifact_profile.encode(encoder)?;
-        encoder.field(9)?;
-        self.protocol.encode(encoder)?;
-        encoder.field(10)?;
         self.lir_target.encode(encoder)?;
-        encoder.field(11)?;
+        encoder.field(7)?;
         self.backend.encode(encoder)?;
-        encoder.field(12)?;
-        self.c_bridge_toolchain.encode(encoder)?;
-        encoder.field(13)?;
+        encoder.field(8)?;
         self.optimization.encode(encoder)?;
-        encoder.field(14)?;
+        encoder.field(9)?;
         self.purpose.encode(encoder)?;
-        encoder.field(15)?;
-        self.native_tool_inputs.encode(encoder)?;
-        encoder.field(16)?;
+        encoder.field(10)?;
         self.debug_info.encode(encoder)
     }
-}
-
-pub(crate) fn strong_profile_id() -> ArtifactCapabilityProfileId {
-    ArtifactCapabilityProfile::CROSS_CONE_GENERIC.id()
 }
 
 fn encode_requested_kind(

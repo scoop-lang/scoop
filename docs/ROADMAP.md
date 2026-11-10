@@ -1,5 +1,7 @@
 # Scoop 实现路线图
 
+[Windows 编译性能任务单](compiler-performance/WINDOWS-TASKS.md)实施中（2026-11-10，见[实施记录](compiler-performance/WINDOWS-PROGRESS.md)）：检查成功缓存已删除并完成本地定向验证；接续逐 Cone 编译进度、工具/SDK 巡检清理、Windows 分配器与小文件优化，完成后集中进行跨平台复验和三平台发行打包。
+
 [静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成实现与七目标定向验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。六个 GUI 目标的真实 Lucide 零／单／全引用只保留 0／1／31 份 SVG，扩库不增加未用资源；Darwin 双架构（x86_64 经 Rosetta）、Linux GNU／musl、Windows 三环境的跨 Cone、静态对象图与定向 GC 通过。静态存储和初始化规则保持，构建成本已记录；发行打包按用户要求取消。
 
 [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
@@ -907,7 +909,7 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 ### `scoop fmt` 与 `scoop check`（已实现，三目标定向验证通过）
 
 - [设计](fmt-check/DESIGN.md)明确固定格式规则、manifest 生产／测试及全平台源码并集、显式文件、写回和 `fmt --check`；复用保留原文的 CST，保留有语义作用的换行、相邻关系与注释附着。
-- `check` 完成根 Cone 的全部前端检查及 LocalConcrete HIR，复用必要 generator，支持 Production／Test、single-file 与独立成功缓存；源码依赖沿已有完整 `.slib` 构建和复用，根跳过机器生产与链接。
+- `check` 完成根 Cone 的全部前端检查及 LocalConcrete HIR，复用必要 generator，支持 Production／Test 与 single-file，每次重新检查根且不保存检查成功缓存；源码依赖沿已有完整 `.slib` 构建和复用，根跳过机器生产与链接。
 - 按单 Cone 检查、项目检查、格式库、格式 CLI 分批实施；共享 human／JSON 诊断及正式 fixture 验收。LSP formatting 接入与全图纯语义依赖传输不属于首版。
 - 已合并 main 的 ELF 修复和 runtime ABI 20；扩展验证中保留的三项既有失败在本批改动合并后单独处理，详见[验证记录](fmt-check/VALIDATION.md)。
 

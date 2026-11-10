@@ -18,7 +18,8 @@ fn shared_native_cache_keeps_darwin_architectures_separate() {
         let prepare = || {
             prepare_native_objects(
                 &manifest,
-                &target,
+                target.lir_target(),
+                || Ok(&target),
                 OptimizationMode::Release,
                 &crate::development_runtime_root(),
                 &cache,
@@ -35,22 +36,4 @@ fn shared_native_cache_keeps_darwin_architectures_separate() {
     }
     assert_ne!(outputs[0].key(), outputs[1].key());
     assert_ne!(outputs[0].objects(), outputs[1].objects());
-}
-
-#[test]
-fn cached_cxx_discovery_uses_the_selected_darwin_target() {
-    let cache = tempfile::tempdir().unwrap();
-    let mut fingerprints = Vec::new();
-    for triple in ["aarch64-apple-darwin", "x86_64-apple-darwin"] {
-        let target = ResolvedTargetProfile::resolve(triple).unwrap();
-        let cached = crate::ValidatedCxxToolchain::resolve_cached(&target, cache.path()).unwrap();
-        let direct = crate::ValidatedCxxToolchain::resolve(target.c_bridge_toolchain()).unwrap();
-        assert_eq!(cached, direct, "{triple}");
-        assert_eq!(
-            crate::ValidatedCxxToolchain::resolve_cached(&target, cache.path()).unwrap(),
-            cached
-        );
-        fingerprints.push(cached.fingerprint());
-    }
-    assert_ne!(fingerprints[0], fingerprints[1]);
 }

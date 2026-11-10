@@ -46,12 +46,13 @@ mod tests {
     #[test]
     fn trace_keeps_implicit_libraries_but_excludes_explicit_objects_and_scratch() {
         let directory = tempfile::tempdir().unwrap();
-        let scratch = directory.path().join("scratch");
+        let root = directory.path().canonicalize().unwrap();
+        let scratch = root.join("scratch");
         std::fs::create_dir(&scratch).unwrap();
-        let object = directory.path().join("cached object.o");
-        let batch = directory.path().join("selected members.lib");
-        let library = directory.path().join("CRT library.lib");
-        let implicit_object = directory.path().join("CRT startup.obj");
+        let object = root.join("cached object.o");
+        let batch = root.join("selected members.lib");
+        let library = root.join("CRT library.lib");
+        let implicit_object = root.join("CRT startup.obj");
         let temporary = scratch.join("startup.obj");
         for path in [&object, &batch, &library, &implicit_object, &temporary] {
             std::fs::write(path, b"input").unwrap();

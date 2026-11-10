@@ -5,185 +5,104 @@ mod windows;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn generated_c_unwind_bytes_have_boundaries_owned_by_the_bridge() {
+fn generated_c_batch_preserves_units_and_exact_unwind_boundaries() {
     use object::{Object, ObjectSection, ObjectSymbol};
     let target = scoop_toolchain::ResolvedTargetProfile::resolve("aarch64-apple-darwin").unwrap();
-    let input = scoop_lir::ConeLirOutput::try_new(bridge_module(1), Vec::new()).unwrap();
+    let input = scoop_lir::ConeLirOutput::try_new(bridge_module(2), Vec::new()).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let invocation = target.c_bridge_toolchain();
+    let mut compilations = 0;
     let emitted = emit_c_bridge_object_set(
         &input,
         directory.path(),
         invocation.profile(),
         |source, object| {
+            compilations += 1;
             invocation
                 .compile_object(source, object)
-                .map_err(|error| CodegenError(error.to_string()))
+                .map_err(|error| CodegenError(error.to_string()))?;
+            assert_eq!(
+                std::fs::read_dir(source.parent().unwrap()).unwrap().count(),
+                2
+            );
+            Ok(())
         },
     )
     .unwrap();
+    assert_eq!(compilations, 1);
+    assert_eq!(emitted.members.len(), 1);
+    assert_eq!(emitted.members[0].units.len(), 2);
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
     let surface = scoop_lir::ObjectSymbolSurfaceV1::from_foundation(input.foundation()).unwrap();
-    for member in emitted.members() {
-        let bytes = std::fs::read(member.object_path()).unwrap();
-        let file = object::File::parse(bytes.as_slice()).unwrap();
+    let file = object::File::parse(emitted.members[0].bytes.as_slice()).unwrap();
+    let mut ranges = Vec::new();
+    for unit in &emitted.members[0].units {
         let plan = surface
             .plans()
             .iter()
             .find(|plan| {
                 plan.owner().kind()
                     == scoop_lir::StrongDefinitionEntityKind::GeneratedBridgeAtom(
-                        member.plan().primary_atom(),
+                        unit.primary_atom(),
                     )
             })
             .unwrap();
-        for (section, role) in [
-            (
-                "__compact_unwind",
-                scoop_lir::DefinitionAtomRole::CompactUnwind,
-            ),
-            ("__eh_frame", scoop_lir::DefinitionAtomRole::EhFrame),
-        ] {
-            let unwind = file.section_by_name(section).unwrap();
-            assert!(unwind.relocations().next().is_some());
-            let boundary = plan
-                .atom_boundaries()
-                .iter()
-                .find(|boundary| boundary.atom_role() == role)
-                .unwrap();
+        for boundary in plan.atom_boundaries() {
             let symbol = |request: scoop_lir::PersistentSymbolRequest| {
                 file.symbol_by_name(&format!("_{}", request.symbol()))
                     .unwrap()
             };
             let start = symbol(boundary.start());
             let end = symbol(boundary.end());
-            assert_eq!(start.section_index(), Some(unwind.index()));
-            assert_eq!(end.section_index(), Some(unwind.index()));
-            assert_eq!(start.address(), unwind.address());
-            assert_eq!(end.address(), unwind.address() + unwind.size());
+            assert_eq!(start.section_index(), end.section_index());
+            assert!(end.address() > start.address());
+            let section = file
+                .section_by_index(start.section_index().unwrap())
+                .unwrap();
+            assert!(end.address() <= section.address() + section.size());
+            ranges.push((section.index().0, start.address(), end.address()));
         }
     }
-}
-
-#[test]
-fn empty_bridge_plan_produces_an_empty_owned_object_set_without_compiling() {
-    let module = values_module();
-    let sources = crate::c_bridge::render_c_bridge_source_set_for_module(&module).unwrap();
-    let parent = tempfile::tempdir().unwrap();
-
-    let emitted = crate::c_bridge_emission::emit_c_bridge_object_set_with_compiler_for_test(
-        sources,
-        parent.path(),
-        generated_c_profile(),
-        |_plan, _source, _object| -> Result<(), CodegenError> {
-            panic!("an empty bridge plan must not invoke the compiler")
-        },
-    )
-    .unwrap();
-
-    assert!(emitted.sources().plan().units().is_empty());
-    assert!(emitted.members().is_empty());
-    assert_eq!(
-        emitted.production(),
-        &scoop_lir::CBridgeProductionSetV1::NotUsed
-    );
-    assert!(emitted.temporary_directory().starts_with(parent.path()));
-}
-
-#[test]
-fn generated_c_object_set_preserves_units_and_owns_temporary_files() {
-    let module = bridge_module(2);
-    let sources = crate::c_bridge::render_c_bridge_source_set_for_module(&module).unwrap();
-    let expected_units = sources
-        .plan()
-        .units()
-        .iter()
-        .map(scoop_lir::GeneratedBridgeUnitPlanV1::unit)
-        .collect::<Vec<_>>();
-    let profile = generated_c_profile();
-    let parent = tempfile::tempdir().unwrap();
-    let mut compiled_units = Vec::new();
-
-    let emitted = crate::c_bridge_emission::emit_c_bridge_object_set_with_compiler_for_test(
-        sources,
-        parent.path(),
-        profile.clone(),
-        |_plan, source, object| {
-            let unit = source
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap()
-                .to_owned();
-            compiled_units.push(unit.clone());
-            std::fs::write(object, format!("object:{unit}"))
-                .map_err(|error| CodegenError(error.to_string()))?;
-            Ok(())
-        },
-    )
-    .unwrap();
-
-    assert_eq!(emitted.profile(), &profile);
-    let scoop_lir::CBridgeProductionSetV1::Used(production) = emitted.production() else {
-        panic!("non-empty bridge plan must retain used production authority")
-    };
-    assert_eq!(production.units(), expected_units);
-    assert_eq!(emitted.sources().plan().units().len(), 2);
-    assert_eq!(
-        emitted
-            .members()
-            .iter()
-            .map(EmittedGeneratedCBridgeObjectMemberV1::unit)
-            .collect::<Vec<_>>(),
-        expected_units
-    );
-    assert_eq!(
-        compiled_units,
-        expected_units
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-    );
-    for member in emitted.members() {
-        assert_eq!(member.unit(), member.plan().unit());
-        assert_eq!(
-            member.source_path().parent(),
-            Some(emitted.temporary_directory())
-        );
-        assert_eq!(
-            member.object_path().parent(),
-            Some(emitted.temporary_directory())
-        );
-        assert!(member.source_path().is_file());
-        assert!(!std::fs::read(member.object_path()).unwrap().is_empty());
+    ranges.sort_unstable();
+    for pair in ranges.windows(2) {
+        assert!(pair[0].0 != pair[1].0 || pair[0].2 <= pair[1].1);
     }
-    let backing = emitted.temporary_directory().to_path_buf();
-    drop(emitted);
-    assert!(!backing.exists());
 }
 
 #[test]
-fn generated_c_object_set_discards_all_partial_outputs_on_compiler_failure() {
-    let module = bridge_module(2);
-    let sources = crate::c_bridge::render_c_bridge_source_set_for_module(&module).unwrap();
+fn empty_bridge_plan_neither_compiles_nor_creates_a_directory() {
+    let input = scoop_lir::ConeLirOutput::try_new(values_module(), Vec::new()).unwrap();
     let parent = tempfile::tempdir().unwrap();
-    let mut compilation = 0;
+    let scratch = parent.path().join("unused");
+    let emitted = emit_c_bridge_object_set(
+        &input,
+        &scratch,
+        &generated_c_profile(),
+        |_source, _object| panic!("empty bridge plan must not compile"),
+    )
+    .unwrap();
+    assert!(emitted.members.is_empty());
+    assert_eq!(
+        emitted.production,
+        scoop_lir::CBridgeProductionSetV1::NotUsed
+    );
+    assert!(!scratch.exists());
+}
 
-    let error = crate::c_bridge_emission::emit_c_bridge_object_set_with_compiler_for_test(
-        sources,
+#[test]
+fn failed_bridge_batch_discards_partial_compiler_output() {
+    let input = scoop_lir::ConeLirOutput::try_new(bridge_module(2), Vec::new()).unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let error = emit_c_bridge_object_set(
+        &input,
         parent.path(),
-        generated_c_profile(),
-        |_plan, _source, object| {
-            compilation += 1;
-            if compilation == 1 {
-                std::fs::write(object, b"first object")
-                    .map_err(|error| CodegenError(error.to_string()))?;
-                Ok(())
-            } else {
-                Err(CodegenError("test compiler failure".to_owned()))
-            }
+        &generated_c_profile(),
+        |_source, object| {
+            std::fs::write(object, b"partial compiler output").unwrap();
+            Err(CodegenError("test compiler failure".into()))
         },
     )
     .unwrap_err();
-
     assert!(error.0.contains("test compiler failure"), "{error}");
     assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 0);
 }
