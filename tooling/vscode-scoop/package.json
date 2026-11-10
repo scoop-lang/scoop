@@ -162,24 +162,24 @@
           "type": "boolean",
           "default": true,
           "description": "Enable scoop-lsp in trusted workspaces.",
-          "scope": "window"
+          "scope": "resource"
         },
         "scoop.server.path": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "resource",
           "markdownDescription": "Path to scoop-lsp, or a command on PATH. Supports `~/`. When empty, try `~/.scoop/bin/scoop-lsp` and then PATH. The executable runs on the workspace host."
         },
         "scoop.target": {
           "type": "string",
           "default": "",
           "description": "Target triple for analysis. Empty uses the server host target.",
-          "scope": "window"
+          "scope": "resource"
         },
         "scoop.sysroot": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "resource",
           "markdownDescription": "Sysroot for analysis. Empty uses `SCOOP_SYSROOT` or the server installation. Relative paths are resolved by scoop-lsp against the Cone root."
         },
         "scoop.purpose": {
@@ -298,13 +298,13 @@
         "scoop.debug.adapterPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "resource",
           "markdownDescription": "Path to the Python-enabled Scoop `scoop-lldb-dap`. Empty tries `~/.scoop/bin/scoop-lldb-dap`, then PATH (Windows uses `scoop-lldb-dap.exe`). Runs on the workspace host."
         },
         "scoop.debug.compilerPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
+          "scope": "resource",
           "markdownDescription": "Path to the Scoop driver for debug builds. Empty tries `~/.scoop/bin/scoop`, then PATH; Windows uses `sco.exe`. Supports `~/`."
         }
       }

@@ -21,9 +21,16 @@ pub(super) fn execute(args: &[OsString], sysroot: Option<PathBuf>) -> BuildResul
     )?;
     let mut filename = OsString::from("scoop-");
     filename.push(name);
-    let executable = sysroot
-        .join("commands")
-        .join(scoop_toolchain::host_executable_name(filename));
+    let filename = scoop_toolchain::host_executable_name(filename);
+    let mut executable = sysroot.join("commands").join(&filename);
+    if !executable.try_exists().map_err(config)?
+        && let Some(shared) = scoop_toolchain::shared_commands_root()
+    {
+        let shared = absolute(&cwd, shared)?.join(filename);
+        if shared.try_exists().map_err(config)? {
+            executable = shared;
+        }
+    }
     Command::new(&executable)
         .args(args)
         .scoop_spawn()
