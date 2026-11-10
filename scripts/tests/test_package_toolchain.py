@@ -53,8 +53,12 @@ class ComponentArchiveTests(unittest.TestCase):
                         "[Contract](../../../docs/specs/LIBRARY.md#api)\n"
                         "[Build](../../../scripts/README.md)\n[Source](main.scoop)\n"
                         "[Peer](../../../tests/fixtures/libraries/client-network/peer.py)\n"
+                        "[Vendor](../../vendor/ryu/README.scoop.md#license)\n"
                     ),
-                    "sysroot/src/library/examples/README.md": "[Build](../../../../scripts/README.md)\n",
+                    "sysroot/src/library/examples/README.md": (
+                        "[Build](../../../../scripts/README.md)\n"
+                        "[Vendor](../../../vendor/ryu/README.scoop.md)\n"
+                    ),
                     "docs/specs/LIBRARY.md": "# API\n",
                     "scripts/README.md": "Build instructions\n",
                     "sysroot/src/library/Cone.toml": (
@@ -384,11 +388,13 @@ class ComponentArchiveTests(unittest.TestCase):
                     (sources_root / "src/library/README.md").read_text(),
                     f"[Contract]({repository_url}docs/specs/LIBRARY.md#api)\n"
                     f"[Build]({repository_url}scripts/README.md)\n[Source](main.scoop)\n"
-                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n",
+                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n"
+                    f"[Vendor]({repository_url}sysroot/vendor/ryu/README.scoop.md#license)\n",
                 )
                 self.assertEqual(
                     (sources_root / "src/library/examples/README.md").read_text(),
-                    f"[Build]({repository_url}scripts/README.md)\n",
+                    f"[Build]({repository_url}scripts/README.md)\n"
+                    f"[Vendor]({repository_url}sysroot/vendor/ryu/README.scoop.md)\n",
                 )
                 for relative in (
                     "catalog.toml",

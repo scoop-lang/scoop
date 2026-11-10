@@ -205,6 +205,12 @@ def relocate_markdown_links(root, revision):
         updated = re.sub(
             r"(?<=\]\()" + re.escape(prefix) + r"(?=(?:docs|scripts|tests)/)", repository, text
         )
+        vendor_prefix = "../" * (len(path.relative_to(root).parts) - 1)
+        updated = re.sub(
+            r"(?<=\]\()" + re.escape(vendor_prefix) + r"(?=vendor/)",
+            repository + "sysroot/",
+            updated,
+        )
         if updated != text:
             path.write_text(updated, encoding="utf-8")
 

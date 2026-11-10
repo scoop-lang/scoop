@@ -1,6 +1,6 @@
 # Scoop 工具链安装与版本管理调研
 
-首次调研：2026-11-10。更新：2026-11-11。状态：初始调查记录。后续实施以独立仓库的 [scoop-install 设计](../../../scoop-install-src/docs/DESIGN.md)和本仓库的[发行包与下载目录设计](PACKAGING-DESIGN.md)为准，尚未修改发行合同或实现安装器。
+首次调研：2026-11-10。更新：2026-11-11。本文件保留首次调查时的包结构、体积和设计建议；当前已实现功能与验收结果见[实施记录](IMPLEMENTATION.md)。发行合同以独立仓库的 [scoop-install 设计](https://github.com/scoop-lang/scoop-install/blob/codex/scoop-install/docs/DESIGN.md)和本仓库的[发行包与下载目录设计](PACKAGING-DESIGN.md)为准。
 
 安装程序定名为 `scoop-install`，在独立 Git 仓库维护，管理 Scoop 发行版本、所选 target 与可选组件。现有二进制组件及安装根布局可以复用；源码发行拆为 `sources` 与 `vendor`，默认保留前者供 LSP 和源码阅读使用，后者按需安装。主要新增工作是发布索引、版本目录、命令代理与安装状态；生产侧增加独立的外部依赖下载目录。真正支持项目间切换版本时，还需要接入构建缓存隔离和编辑器的工具选择。
 
@@ -113,7 +113,7 @@ HTTP、TOML、tar、临时目录、文件锁等优先沿用仓库已有成熟依
 
 代理应将一次选择传给子进程，保持配套工具一致，并保留参数、标准输入输出、退出码和信号行为。现有显式 `--sysroot`／`SCOOP_SYSROOT` 覆盖规则继续有效；不在用户 shell 中写入某一具体版本的全局 `SCOOP_SYSROOT`。Windows 使用原生 `.exe` 代理，保持主命令 `sco.exe`。
 
-下面是拟议命令接口，尚未实现：
+下面是调研时拟议的命令接口；已实现接口见 [scoop-install 使用说明](https://github.com/scoop-lang/scoop-install/blob/codex/scoop-install/README.md)：
 
 ```sh
 scoop-install toolchain install 0.0.0-dev.20261110

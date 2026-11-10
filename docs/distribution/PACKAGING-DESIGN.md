@@ -1,8 +1,8 @@
 # 发行源码拆分与外部依赖下载目录设计
 
-日期：2026-11-11。状态：源码拆包与共享下载目录已实现；结构化发行索引和安装器接入正在实现。
+日期：2026-11-11。状态：源码拆包、共享下载目录、结构化发行索引和独立安装器接入已实现；验收结果见[实施记录](IMPLEMENTATION.md)。
 
-本设计落实两项生产侧改动：将源码发行拆为 `sources`／`vendor`，以及允许打包脚本指定并复用外部依赖的下载目录。安装管理程序名称固定为 `scoop-install`，位于独立仓库；其设计见[安装程序文档](../../../scoop-install-src/docs/DESIGN.md)。
+本设计落实两项生产侧改动：将源码发行拆为 `sources`／`vendor`，以及允许打包脚本指定并复用外部依赖的下载目录。安装管理程序名称固定为 `scoop-install`，位于独立仓库；其设计见[安装程序文档](https://github.com/scoop-lang/scoop-install/blob/codex/scoop-install/docs/DESIGN.md)。
 
 ## 1. 仓库分工与当前问题
 
@@ -36,6 +36,8 @@ Scoop 仓库继续负责依赖维护、编译、目标资源、发行组件和 m
 - 二进制库所需随附许可归对应 bin／base／GUI／native 组件；vendor 另带其上游源码许可，普通安装不靠下载 vendor 获得二进制发行的必要通知。
 
 LSP 继续从 `.slib` 获取依赖语义，从 `src/<name>/Cone.toml` 及生产源码建立导航映射。sources 保持与二进制组件一致的发行版本和逻辑路径；该操作不编译 native 或上游库，不要求 vendor。文档生成同样只消费所选库的自有源码和预编译依赖。
+
+组装 sources 时，Markdown 中指向仓库维护文档或可选 `vendor/` 的链接改为该发行 revision 的仓库 URL；指向 sources 内源码和示例的链接继续使用本地路径。默认安装生成 API 文档不要求 vendor 中的维护说明存在。
 
 普通 build／run／test 消费预编译系统库。安装 sources 不隐式请求重建这些库；维护者需要重建上游时，再准备 vendor 及相应工具。
 
@@ -153,4 +155,4 @@ Python 实现变更后先执行仓库要求的格式化与 lint，再运行维�
 - [发行组装](../../scripts/package_toolchain.py)、[LLVM 输入准备](../../scripts/package_llvm.py)、[构建更新与锁](../../scripts/build_support.py)。
 - [Release workflow](../../.github/workflows/release.yml)、[维护脚本说明](../../scripts/README.md)、[发行许可收集](../../scripts/package_licenses.py)。
 - [现有 LSP 源码关联](../../compiler/analysis/src/workspace/attached_sources.rs)、[初始发行调查](INSTALLER-RESEARCH.md)。
-- [独立安装器设计](../../../scoop-install-src/docs/DESIGN.md)。跨仓库链接以本机相邻检出布局为基准。
+- [独立安装器设计](https://github.com/scoop-lang/scoop-install/blob/codex/scoop-install/docs/DESIGN.md)。
