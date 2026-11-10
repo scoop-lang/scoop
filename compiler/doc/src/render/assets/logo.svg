@@ -1,13 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Scoop">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="scoop-title scoop-description">
+  <title id="scoop-title">Scoop</title>
+  <desc id="scoop-description">A strawberry ice cream with mint sprinkles, a golden waffle cone, and a little mint sparkle on a transparent background.</desc>
   <defs>
-    <linearGradient id="scoop-g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ff9a62"/>
-      <stop offset="1" stop-color="#ff5d73"/>
-    </linearGradient>
+    <clipPath id="scoop-cone-clip">
+      <path d="M76 145H181L136 231Q128 246 120 231Z"/>
+    </clipPath>
   </defs>
-  <path d="M14 30a18 18 0 0 1 36 0z" fill="url(#scoop-g)"/>
-  <path d="M12 30h40c0 3-2.5 5-5.5 5-2 0-3.2-1.2-4.5-1.2s-2.6 2.2-5.5 2.2-4.1-2.2-5.5-2.2-2.5 1.2-4.5 1.2-3.3-1-4.5-1-2.5 1-4.5 1C14.5 35 12 33 12 30z" fill="#ff5d73"/>
-  <path d="M22 37h20L33.6 58.4a1.7 1.7 0 0 1-3.2 0z" fill="#6c5ce7"/>
-  <path d="M26 41h12M27.5 46h9M29 51h6" stroke="#a29bfe" stroke-width="1.6" stroke-linecap="round"/>
-  <circle cx="25" cy="22" r="3" fill="#fff" opacity=".55"/>
+  <g transform="translate(-10.709 -5.812)" stroke="#352849" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M219 30Q221 44 234 47Q221 50 219 64Q216 50 203 47Q216 44 219 30Z" fill="#70E1C2" stroke-width="5"/>
+    <g transform="rotate(-7 128 128)">
+      <path d="M76 145H181L136 231Q128 246 120 231Z" fill="#FFD064" stroke="none"/>
+      <g clip-path="url(#scoop-cone-clip)">
+        <path d="M159 146H184L136 236L125 239Z" fill="#FFAE52" stroke="none"/>
+        <path d="M76 169L138 231M98 152L158 212M128 152L177 201M179 169L116 232M158 152L98 212M128 152L79 201" stroke="#DE9344" stroke-width="4.5"/>
+      </g>
+      <path d="M76 145H181L136 231Q128 246 120 231Z" stroke-width="7.5"/>
+      <path d="M60 105C54 80 69 57 93 53C102 30 133 22 154 38C181 33 204 51 203 78C222 94 220 121 203 133C207 151 190 163 175 156C165 171 144 170 134 157C121 173 98 170 90 155C71 163 50 152 54 133C40 124 43 110 60 105Z" fill="#FF91B5" stroke-width="7.5"/>
+      <path d="M199 90C209 111 195 130 180 132C179 148 154 153 140 142C125 155 107 153 97 143C81 151 65 142 65 130" stroke="#F770A0" stroke-width="9"/>
+      <path d="M78 88C79 78 86 71 97 69M111 53C121 45 132 44 141 49" stroke="#FFE3DC" stroke-width="8"/>
+      <path d="M119 76L133 70M169 62L176 74" stroke="#70E1C2" stroke-width="8"/>
+      <path d="M153 52L158 48" stroke="#FFD064" stroke-width="6"/>
+    </g>
+  </g>
 </svg>
