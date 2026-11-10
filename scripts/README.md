@@ -244,3 +244,5 @@ Linux 的同类检查还包括 ELF loader 记录、GNU／musl 实际 DAP 会话�
 发行完成后输出 `packages-<host>.list`，只列出本次成功生成的组件文件名。Release workflow 据此准备上传目录，避免重复构建时把已退役的旧组件重新发布。
 
 发行 base／GUI 包不复制第三方开发头、源码或完整工具链；runtime 的 index.cbor 和 objects/*.o 必须成组保留，Linux GUI 继续包含实际链接用共享库。最终链接默认从 bin 读取公共 unwind 头，从所选 sysroot 读取目标 libunwind.a；显式 --unwind-prefix 和 runtime 源码准备仍使用各自完整维护 prefix。
+
+发行目录同时包含 `manifest.toml`、本宿主 `manifest-<host>.toml` 与 `manifest-shared.toml`。本地可直接使用完整 manifest；CI 合并各宿主片段及一份全局片段后发布完整索引。格式与发布规则见 [发行索引 schema 1](../docs/distribution/MANIFEST.md)。

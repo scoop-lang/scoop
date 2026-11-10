@@ -277,12 +277,15 @@ jobs:
               directory = upload / ('sources' if shared else 'host')
               directory.mkdir(parents=True, exist_ok=True)
               shutil.copy2(dist / name, directory / name)
+          shutil.copy2(dist / f'manifest-{host}.toml', upload / 'host')
+          if host == 'aarch64-apple-darwin':
+              shutil.copy2(dist / 'manifest-shared.toml', upload / 'sources')
           PY
       - name: Upload the host packages
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-${{ matrix.host }}
-          path: tmp/release-upload/host/*.tar.xz
+          path: tmp/release-upload/host/*
           compression-level: 0
           if-no-files-found: error
       - name: Upload the shared source packages
@@ -290,7 +293,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-sources
-          path: tmp/release-upload/sources/*.tar.xz
+          path: tmp/release-upload/sources/*
           compression-level: 0
           if-no-files-found: error
 
@@ -300,11 +303,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           pattern: scoop-release-*
           path: packages
           merge-multiple: true
+      - name: Merge the release manifest
+        run: python3 scripts/package_manifest.py --output packages/manifest.toml packages/manifest-*.toml
       - name: Publish all packages to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -316,7 +325,7 @@ jobs:
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "Scoop $RELEASE_VERSION"
           fi
-          gh release upload "$RELEASE_TAG" packages/*.tar.xz --clobber
+          gh release upload "$RELEASE_TAG" packages/*.tar.xz packages/manifest.toml --clobber
           if [ "$PRERELEASE" = true ]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
           else

@@ -1,6 +1,6 @@
 # 安装包布局与编辑器扩展
 
-宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。base／GUI 包只保留 .slib、对象、链接库、runtime 索引和许可，移除第三方开发头。Windows 的两个 MinGW 目标分别新增 native 包，保存 CRT 配置、启动对象、导入库、C++ 库和 compiler-rt；公共工具和头文件随 bin 共享。全局 sources 继续单独分发；系统库预编译，post-install 只生成已安装目标的 API 文档。
+宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。base／GUI 包只保留 .slib、对象、链接库、runtime 索引和许可，移除第三方开发头。Windows 的两个 MinGW 目标分别新增 native 包，保存 CRT 配置、启动对象、导入库、C++ 库和 compiler-rt；公共工具和头文件随 bin 共享。全局 sources 只保留自有 Cone、胶水、头、资源与示例，上游源码及补丁改由按需的 vendor 组件交付；系统库预编译，post-install 只生成已安装目标的 API 文档。
 
 版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
 
@@ -36,7 +36,7 @@ VS Code 扩展接入 `scoop-lsp`，提供诊断、补全、签名、导航、符
 
 本期提供 Darwin/AArch64、Linux/GNU amd64 两类宿主工具包，覆盖 Darwin、GNU、musl 三个既有目标。宿主包包含 `scoop`、`scoopc`、`scoop-link`、`scoop-lsp`，以及 LLVM 22.1.8 的所需动态依赖。M47 延后，不附带 generator。
 
-统一布局包含十七个内置 Cone 的源码、预编译产物、公开 C 头与 runtime 对象。本期新增 `scoop.http.client`、`scoop.idna`、`scoop.url`、`scoop.charset` 和单个 `scoop.compression` Cone。OpenSSL、nghttp2、文本、URL、压缩后端的静态库和 Linux libunwind 随目标资源交付；Linux 的 liburing、llhttp 与 Ryu 编入实际使用它们的 Cone／runtime；Darwin 的 asyncio 使用系统 libdispatch。LLVM 原始源码归档、补丁和许可证另存于同版本的 `llvm-sources` 包。
+统一布局包含十七个内置 Cone 的源码、预编译产物、公开 C 头与 runtime 对象。本期新增 `scoop.http.client`、`scoop.idna`、`scoop.url`、`scoop.charset` 和单个 `scoop.compression` Cone。OpenSSL、nghttp2、文本、URL、压缩后端的静态库和 Linux libunwind 随目标资源交付；Linux 的 liburing、llhttp 与 Ryu 编入实际使用它们的 Cone／runtime；Darwin 的 asyncio 使用系统 libdispatch。LLVM 原始源码归档、补丁和许可证另存于同版本的 `vendor` 包。
 
 异步 I/O 使用 `eventLoop { ... }` 配置并构造单次运行的 `PlatformEventLoop`，通过 `run { ... }` 的 CoroutineScope receiver 执行根任务并返回类型化结果，不保留旧构造入口或 `runWithResult` 别名。Linux asyncio 需要内核 6.1 及可用的 io_uring，初始化探测失败会明确报错；该要求不提高其他库的最低系统版本。Darwin 提供 `MainDispatchHost`，两平台均支持通过 `EventLoopHost` 接入宿主主循环。
 

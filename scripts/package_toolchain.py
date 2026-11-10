@@ -21,6 +21,7 @@ import build_scoop_example
 import package_debugger
 import package_licenses
 import package_llvm
+import package_manifest
 import package_native
 import package_tooling
 import package_windows
@@ -793,6 +794,9 @@ def main():
     staged = listing.with_suffix(".list.new")
     staged.write_text("\n".join(packages) + "\n", encoding="utf-8")
     staged.replace(listing)
+    package_manifest.produce(
+        output, args.version, args.revision, args.host, targets, packages, release
+    )
 
 
 if __name__ == "__main__":
