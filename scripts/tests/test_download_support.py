@@ -8,7 +8,9 @@ import sys
 import tarfile
 import tempfile
 import threading
+import tomllib
 import unittest
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +18,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import download_support
+import package_inputs
 import package_llvm
 
 
@@ -133,6 +136,33 @@ class DownloadTests(unittest.TestCase):
             (first / "llvm/source.cpp").read_bytes(), (second / "llvm/source.cpp").read_bytes()
         )
         self.assertTrue(archive.is_file())
+
+    def test_mingw_work_directories_reuse_the_download_and_completed_extraction(self):
+        version = tomllib.loads(package_inputs.RELEASE_CONFIG.read_text())["llvm_mingw"]
+        name = f"llvm-mingw-{version}-ucrt-x86_64"
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w") as archive:
+            archive.writestr(f"{name}/bin/clang.exe", b"compiler input")
+        self.body = data.getvalue()
+
+        def from_server(directory, dependency, version, filename, url):
+            return download_support.obtain(directory, dependency, version, filename, self.url)
+
+        with patch.object(package_inputs, "obtain", side_effect=from_server):
+            first = package_inputs.prepare_mingw(self.root / "downloads", self.root / "one", "ucrt")
+            second = package_inputs.prepare_mingw(
+                self.root / "downloads", self.root / "two", "ucrt"
+            )
+            with patch.object(zipfile, "ZipFile", side_effect=AssertionError("archive reopened")):
+                again = package_inputs.prepare_mingw(
+                    self.root / "downloads", self.root / "one", "ucrt"
+                )
+        self.assertEqual(first, again)
+        self.assertNotEqual(first, second)
+        self.assertEqual((first / "bin/clang.exe").read_bytes(), b"compiler input")
+        self.assertEqual((second / "bin/clang.exe").read_bytes(), b"compiler input")
+        self.assertEqual(len(self.requests), 1)
+        self.assertTrue((self.root / "downloads/llvm-mingw" / version / (name + ".zip")).is_file())
 
 
 if __name__ == "__main__":
