@@ -1039,7 +1039,7 @@ JSON 接口中的 host path 保留平台编码标签，字节字段采用标准 
 
 文档是独立的输出意图，源码用途固定为 Production，且只接受 manifest Cone。机器／文档请求的 single-Cone 输出为 `.slib`、文档渲染输入、或两者同时生产的闭合选择；仅文档请求不携带虚假的 `.slib` 输出路径。检查意图按上文设计另加无产物的闭合分支。driver 在 parser 后整理文档，再完成正常 HIR 及 §2.2 的文档投影；仅文档随后发布本地 JSON 渲染输入并返回，不进入 MIR／LIR、native 编译或机器对象生产。该路径只用共享 target registry 选择目标，不探测无关的 C／C++ 工具或准备 runtime。生产附带文档从同一次 HIR 提取，在实际机器生产成功后发布文档输入；输出与普通 `.slib` 分别保存。
 
-文档成功响应携带渲染输入位置及独立的文档 warning，普通编译 warning 仍保留原分类；渲染输入包含页面目录组装所需的声明、typed 路由和诊断。仅文档成功没有 artifact summary。文档请求不与 observation-only 混用；仅文档可输出 AST／HIR dump，不能请求尚未执行的 MIR／optimizations／LIR 观察。普通编译不整理或报告文档问题；语言正文、默认值或可见性错误仍阻止文档输出，失败不覆盖之前的结果。工具本地 JSON 随编译器版本更新，不是 `.slib` section 或独立分发合同。
+文档成功响应携带渲染输入位置及独立的文档 warning，普通编译 warning 仍保留原分类；渲染输入包含页面目录组装所需的声明、typed 路由和诊断。仅文档成功没有 artifact summary。文档请求不与 observation-only 混用；仅文档可输出 AST／HIR dump，不能请求尚未执行的 MIR／optimizations／LIR 观察。普通编译不整理或报告文档问题；语言正文、默认值或可见性错误仍阻止文档输出，失败不覆盖之前的结果。文档输入通过同目录临时文件原子发布；Windows 对临时文件及目标文件均使用父目录解析后的长路径形式，支持版本化安装目录内的深层缓存。工具本地 JSON 随编译器版本更新，不是 `.slib` section 或独立分发合同。
 
 `scoop doc`接受零个或多个manifest root，M63中沿用PM的workspace/default-members及显式根选择。各root使用独立的已锁定图；只合并实际依赖绑定与配置相容的源码文档任务，不建立synthetic Cone。默认包含显式root及图中选中的源码依赖，`--no-deps`保留全部显式root；prebuilt节点保持原消费来源。目标选择只需要纯target registry数据，native工具与输入仅在确实需要生产依赖`.slib`时准备。仅文档root没有机器生产、runtime或最终链接。
 
