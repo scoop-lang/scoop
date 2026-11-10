@@ -131,18 +131,15 @@ jobs:
         with:
           msystem: MSYS
           install: make perl
-      - name: Download the fixed LLVM-MinGW toolchains
+      - name: Reuse upstream downloads
+        uses: actions/cache@v6
+        with:
+          path: tmp/downloads
+          key: downloads-${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('scripts/release.toml') }}
+          restore-keys: downloads-${{ runner.os }}-
+      - name: Prepare the fixed LLVM-MinGW toolchains
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('scripts/release.toml').read_text())['llvm_mingw'])"
-          New-Item -ItemType Directory -Force tmp/llvm-mingw | Out-Null
-          foreach ($crt in @('msvcrt', 'ucrt')) {
-            $name = "llvm-mingw-$version-$crt-x86_64"
-            Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/$name.zip" -OutFile "tmp/llvm-mingw/$name.zip"
-            Expand-Archive "tmp/llvm-mingw/$name.zip" -DestinationPath tmp/llvm-mingw
-            Remove-Item "tmp/llvm-mingw/$name.zip"
-          }
+        run: python scripts/package_inputs.py --download-dir tmp/downloads --work-dir tmp/llvm-mingw --mingw msvcrt ucrt
       - name: Reuse the matching LLVM and LLDB SDKs
         uses: actions/cache@v6
         with:
@@ -161,22 +158,23 @@ jobs:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           python - <<'PY'
-          import os, platform, shlex, subprocess, sys, tomllib, urllib.request
+          import os, platform, shlex, subprocess, sys, tomllib
           from pathlib import Path
           host = os.environ['PACKAGE_HOST']
           work = Path('tmp/package', host).resolve()
           work.mkdir(parents=True, exist_ok=True)
           release = tomllib.loads(Path('scripts/release.toml').read_text())
-          license_file = work / 'python-LICENSE.txt'
-          urllib.request.urlretrieve(
-              f'https://raw.githubusercontent.com/python/cpython/v{platform.python_version()}/LICENSE',
-              license_file,
-          )
+          sys.path.insert(0, str(Path('scripts').resolve()))
+          from download_support import download_directory
+          from package_inputs import python_license
+          downloads = download_directory(Path('tmp/downloads'))
+          license_file = python_license(downloads, platform.python_version())
           arguments = [
               sys.executable, 'scripts/package_toolchain.py',
               '--version', os.environ['RELEASE_VERSION'],
               '--revision', os.environ['SOURCE_REVISION'],
               '--work-dir', str(work), '--output-dir', 'tmp/dist',
+              '--download-dir', str(downloads),
               '--jobs', os.environ['BUILD_JOBS'], '--python-license', str(license_file),
           ]
           suffix = '.exe' if sys.platform == 'win32' else ''
@@ -273,7 +271,7 @@ jobs:
           if upload.exists():
               shutil.rmtree(upload)
           for name in (dist / f'packages-{host}.list').read_text().splitlines():
-              shared = name in (f'scoop-{version}-sources.tar.xz', f'scoop-{version}-llvm-sources.tar.xz')
+              shared = name in (f'scoop-{version}-sources.tar.xz', f'scoop-{version}-vendor.tar.xz')
               if shared and host != 'aarch64-apple-darwin':
                   continue
               directory = upload / ('sources' if shared else 'host')

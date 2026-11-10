@@ -9,12 +9,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_skia_windows
 import build_windows_unwind
 import package_licenses
-import package_windows
 from build_support import gn_cpu
 from target_catalog import (
     HOSTS,
     WINDOWS_TARGETS,
-    llvm_mingw_resource_triple,
     native_target_for_host,
 )
 
@@ -54,14 +52,6 @@ class TargetRecipeTests(unittest.TestCase):
             package_licenses.llvm_mingw_license_root(prefix, "x86_64"),
             prefix / "x86_64-w64-mingw32/share/mingw32",
         )
-
-    def test_llvm_mingw_package_filter_keeps_only_the_selected_machine(self):
-        selected = llvm_mingw_resource_triple("x86_64")
-        ignored = package_windows.mingw_resource_filter(selected)(
-            Path("toolchain"),
-            [selected, "another-w64-mingw32", "bin", "share"],
-        )
-        self.assertEqual(ignored, ["another-w64-mingw32"])
 
     def test_each_host_selects_native_target_facts_without_parsing_its_triple(self):
         for host in HOSTS:

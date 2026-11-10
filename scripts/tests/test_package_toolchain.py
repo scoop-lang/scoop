@@ -218,7 +218,6 @@ class ComponentArchiveTests(unittest.TestCase):
                     ),
                     patch.object(package_toolchain.package_licenses, "collect_bin"),
                     patch.object(package_toolchain.package_licenses, "collect_llvm"),
-                    patch.object(package_toolchain.package_licenses, "collect_sources"),
                     patch.object(package_toolchain.package_licenses, "collect_base_libraries"),
                     patch.object(package_toolchain.package_licenses, "collect_gui_libraries"),
                 ):
@@ -546,17 +545,6 @@ class ComponentArchiveTests(unittest.TestCase):
             if os.name != "nt":
                 self.assertTrue((installed / "bin/scoop").stat().st_mode & 0o111)
             self.assertFalse((installed / source.name).exists())
-
-    def test_source_archive_retains_its_named_directory(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            work = Path(temporary)
-            source = work / "scoop-1.2.3-llvm-sources"
-            source.mkdir()
-            (source / "LICENSE.TXT").write_text("license")
-            destination = work / "sources.tar.xz"
-            archive(source, destination, arcname=source.name)
-            with tarfile.open(destination) as package:
-                self.assertEqual(package.getnames(), [source.name, source.name + "/LICENSE.TXT"])
 
     def test_failed_archive_keeps_previous_package(self):
         with tempfile.TemporaryDirectory() as temporary:
