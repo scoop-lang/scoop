@@ -380,7 +380,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 )
                 self.assertFalse((sources_root / "src/library/Cone.lock").exists())
                 self.assertFalse((sources_root / "src/library/target").exists())
-                repository_url = "https://github.com/windoze/scoop/blob/abc123/"
+                repository_url = "https://github.com/scoop-lang/scoop/blob/abc123/"
                 self.assertEqual(
                     (sources_root / "src/library/README.md").read_text(),
                     f"[Contract]({repository_url}docs/specs/LIBRARY.md#api)\n"

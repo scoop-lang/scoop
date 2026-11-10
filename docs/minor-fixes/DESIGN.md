@@ -2,7 +2,7 @@
 
 状态：已实现并完成三个目标的验收；用户已确认核心规则，其余边界采用下文记录的实施选择。更新日期：2026-10-22。验收结果见 [PROGRESS.md](PROGRESS.md)。
 
-代码基线：`windoze/scoop` 的 `main`，提交 `4de3ae9e8ac3f18bc63eba4947afd8bb87ea34db`。
+代码基线：`scoop-lang/scoop` 的 `main`，提交 `4de3ae9e8ac3f18bc63eba4947afd8bb87ea34db`。
 
 配套文件：[分步实施计划](PLAN.md)。
 

@@ -8,7 +8,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/windoze/scoop.git",
+    "url": "https://github.com/scoop-lang/scoop.git",
     "directory": "tooling/vscode-scoop"
   },
   "license": "UNLICENSED",

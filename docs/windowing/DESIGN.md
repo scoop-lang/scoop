@@ -14,7 +14,7 @@ Scoop 尚未发布任何版本。语言、库 API、runtime ABI、native 产物�
 
 ## 1. 已落地 async backend 的接入结论
 
-本设计核对主线源码，实施期间已合入 Windows 基础能力的 [b0de037002](https://github.com/windoze/scoop/tree/b0de037002)。下表区分已有机制与窗口层的责任：
+本设计核对主线源码，实施期间已合入 Windows 基础能力的 [b0de037002](https://github.com/scoop-lang/scoop/tree/b0de037002)。下表区分已有机制与窗口层的责任：
 
 | 已有实现 | 可复用的事实 | 窗口层的责任 |
 | --- | --- | --- |
@@ -268,7 +268,7 @@ WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明�
 
 renderer 示例使用独立普通 Cone 的 Win32／DXGI surface，持有窗口 lease，实际提交后先释放 GPU／swapchain 再结束 lease。普通行为使用 scoop.test，三个 Windows target 共用源码；桌面交互、混合 DPI 和输入法验证分别记录实际证据与环境限制。
 
-Windows 平台移植的参考状态见[分支进度](https://github.com/windoze/scoop/blob/0fa053fd11c11e641e2f17212ce4948d5d52447a/docs/windows-targets/PROGRESS.md)：目标、runtime、platform、IOCP 及 executable subsystem／RC 已有实现，整体移植仍在推进。窗口任务消费这些平台能力，补 Win32 消息、窗口、输入和显示系统后端；不重复开发另一套 target 或 I/O backend。
+Windows 平台移植的参考状态见[分支进度](https://github.com/scoop-lang/scoop/blob/0fa053fd11c11e641e2f17212ce4948d5d52447a/docs/windows-targets/PROGRESS.md)：目标、runtime、platform、IOCP 及 executable subsystem／RC 已有实现，整体移植仍在推进。窗口任务消费这些平台能力，补 Win32 消息、窗口、输入和显示系统后端；不重复开发另一套 target 或 I/O backend。
 
 | Windows 窗口工作 | 设计要求 |
 | --- | --- |

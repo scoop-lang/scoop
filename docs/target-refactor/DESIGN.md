@@ -6,7 +6,7 @@
 
 初稿：2026-10-29。复审：2026-10-30。
 
-复审基线：主线 [`09be3315a85cfa9e50f79e49785bd23e0880f1f0`](https://github.com/windoze/scoop/tree/09be3315a85cfa9e50f79e49785bd23e0880f1f0)。Windows targets 经 `b0de037002`（#70）合入，随后 `2ae2534a1c`（#71）和 `09be3315a8`（#72）加入 macOS／Windows 窗口库及其实际需要的 native 支持。以下代码链接已随重构更新，指向本分支的实现文件。
+复审基线：主线 [`09be3315a85cfa9e50f79e49785bd23e0880f1f0`](https://github.com/scoop-lang/scoop/tree/09be3315a85cfa9e50f79e49785bd23e0880f1f0)。Windows targets 经 `b0de037002`（#70）合入，随后 `2ae2534a1c`（#71）和 `09be3315a8`（#72）加入 macOS／Windows 窗口库及其实际需要的 native 支持。以下代码链接已随重构更新，指向本分支的实现文件。
 
 Windows 的[实施记录][windows-progress]确认 W0～W4 完成，包括高层 HTTP 失败闭合、新版候选归档安装，以及 Linux／macOS 各交叉生成 18 个 Windows 程序、共 36 个程序在真实 Windows 上执行通过。这些结果是重构前的已有证据；[窗口库记录](../windowing/PROGRESS.md)分别说明后续 AppKit／Win32 骨架的验证范围，不扩大为当前主线全量测试已经重新通过。
 
