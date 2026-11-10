@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 use scoop::{
-    ArtifactSearchRoot, BuildContext, BuildProfile, CheckRequest, DiagnosticsPolicy, GraphTarget,
-    PairedScoopcLocator, TrustedSysrootRoot,
+    ArtifactSearchRoot, BuildContext, BuildProfile, CheckRequest, GraphTarget, PairedScoopcLocator,
+    TrustedSysrootRoot,
 };
 
 use super::args::MessageFormat;
@@ -80,7 +80,6 @@ pub(super) fn execute(
         target: selection.target().contract().canonical_triple(),
         sysroot: &sysroot,
         search: &search,
-        cache: args.cache_dir.clone(),
     })?;
     let cache = super::paths::build_cache(
         &cwd,
@@ -122,32 +121,25 @@ pub(super) fn execute(
             .map(ArtifactSearchRoot::new)
             .collect::<Result<_, _>>()
             .map_err(config)?,
-        cache_root: cache.clone(),
+        cache_root: cache,
         sysroot: TrustedSysrootRoot::new(sysroot).map_err(config)?,
-        target: GraphTarget::Frontend {
-            selection,
-            request: target.clone(),
-        },
-        compiler: compiler.clone(),
-        diagnostics: DiagnosticsPolicy::Structured,
+        target: GraphTarget::requested(target.clone()).map_err(config)?,
+        compiler,
+        diagnostics: reporter.diagnostics_policy(),
         optimization: profile.optimization(),
         debug_info: scoop_lir::DebugInfoLevel::None,
         purpose,
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
         }),
-        generators: generators.clone(),
+        generators,
     })?;
     for graph in graphs {
         let outcome = scoop::check(
             graph,
             CheckRequest {
                 target: target.clone(),
-                cache: cache.clone(),
-                compiler: compiler.clone(),
                 purpose,
-                profile,
-                generators: generators.clone(),
             },
         )?;
         reporter.checked(&outcome).map_err(config)?;

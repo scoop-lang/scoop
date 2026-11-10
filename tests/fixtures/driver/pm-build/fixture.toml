@@ -32,6 +32,7 @@ diagnostics = []
 checks = [
   {actual = "${build.records.length}", equals = 3},
   {file = "${work}/pm-calls", equals = "prepare\n"},
+  {glob = "${cache}/pm-requests", equals = []},
   {file = "${work}/project/target/${target}/release/dev.pm/app/app.slib", exists = true},
   {file = "${work}/project/target/${target}/release/dev.other/app/app.slib", exists = true},
   {file = "${work}/project/target/${target}/release/dev.pm/shared/shared.slib", exists = true},
@@ -52,6 +53,7 @@ checks = [
   {actual = "${frozen.records.1.observations.child_invocations}", equals = []},
   {actual = "${frozen.records.2.observations.child_invocations}", equals = []},
   {file = "${work}/pm-calls", equals = "prepare\nprepare\n"},
+  {glob = "${cache}/pm-requests", equals = []},
 ]
 
 [[steps]]

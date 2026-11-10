@@ -56,7 +56,8 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
             },
         )
         .unwrap();
-        assert_eq!(emitted.members().len(), 5);
+        assert_eq!(emitted.members().len(), 1);
+        assert_eq!(emitted.members()[0].units.len(), 5);
         let surface =
             scoop_lir::ObjectSymbolSurfaceV1::from_foundation(input.foundation()).unwrap();
         let partition =
@@ -74,8 +75,13 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
                 .members()
                 .iter()
                 .map(|m| {
-                    scoop_slib::CanonicalGeneratedBridgeObjectUnitSetV1::new(vec![m.unit()])
-                        .unwrap()
+                    scoop_slib::CanonicalGeneratedBridgeObjectUnitSetV1::new(
+                        m.units
+                            .iter()
+                            .map(scoop_lir::GeneratedBridgeUnitPlanV1::unit)
+                            .collect(),
+                    )
+                    .unwrap()
                 })
                 .collect(),
         )
@@ -87,14 +93,14 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
         )
         .unwrap();
         for member in emitted.members() {
-            let bytes = std::fs::read(member.object_path()).unwrap();
+            let bytes = &member.bytes;
             let envelope = scoop_slib::read_generated_c_object_sections_v1(
                 &bytes,
                 invocation.profile().contract().target().id(),
             )
             .unwrap();
             let member_id = members
-                .member_for_generated_bridge_unit(member.unit())
+                .member_for_generated_bridge_unit(member.units[0].unit())
                 .unwrap();
             let definitions = scoop_slib::read_member_object_definitions_v1(
                 &bytes,
@@ -105,9 +111,10 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
             scoop_slib::verify_member_object_relocations_v1(definitions).unwrap();
             let file = object::File::parse(bytes.as_slice()).unwrap();
             assert!(file.section_by_name(".eh_frame").is_some());
-            for atom in std::iter::once(member.plan().primary_atom_authority())
-                .chain(member.plan().materialized_associated_atom_authorities())
-            {
+            for atom in member.units.iter().flat_map(|unit| {
+                std::iter::once(unit.primary_atom_authority())
+                    .chain(unit.materialized_associated_atom_authorities())
+            }) {
                 let plan = surface
                     .plans()
                     .iter()
@@ -152,9 +159,11 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
         } else {
             "-pie"
         });
+        let object = directory.path().join("bridges.o");
+        std::fs::write(&object, &emitted.members()[0].bytes).unwrap();
         let result = link
             .arg(source)
-            .args(emitted.members().iter().map(|m| m.object_path()))
+            .arg(&object)
             .arg("-o")
             .arg(&program)
             .output()

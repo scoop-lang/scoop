@@ -353,25 +353,41 @@ impl ConeLirFoundation {
 
     pub(crate) fn link_safepoints(
         &self,
-    ) -> BTreeMap<PersistentCallableBodyId, Vec<crate::ProgramLinkSafepoint>> {
-        let owners = self
+    ) -> Result<
+        BTreeMap<PersistentCallableBodyId, Vec<crate::ProgramLinkSafepoint>>,
+        crate::LinkDataError,
+    > {
+        let mut sites = self
             .canonical
             .safepoint_sites
             .iter()
-            .map(|site| (site.id(), site.key().owner()))
+            .map(|site| (site.id(), (site.key().owner(), None)))
             .collect::<BTreeMap<_, _>>();
-        let mut result = BTreeMap::<_, Vec<_>>::new();
         for mapping in &self.canonical.safepoints {
-            let owner = owners[&mapping.site()];
+            let Some((_, id)) = sites.get_mut(&mapping.site()) else {
+                return Err(crate::link_data::link_error(format!(
+                    "runtime mapping references absent safepoint {}",
+                    mapping.site()
+                )));
+            };
+            if id.replace(mapping.safepoint()).is_some() {
+                return Err(crate::link_data::link_error(format!(
+                    "safepoint {} has duplicate runtime mappings",
+                    mapping.site()
+                )));
+            }
+        }
+        let mut result = BTreeMap::<_, Vec<_>>::new();
+        for (site, (owner, id)) in sites {
+            let id = id.ok_or_else(|| {
+                crate::link_data::link_error(format!("safepoint {site} has no runtime mapping"))
+            })?;
             result
                 .entry(owner)
                 .or_default()
-                .push(crate::ProgramLinkSafepoint {
-                    site: mapping.site(),
-                    id: mapping.safepoint(),
-                });
+                .push(crate::ProgramLinkSafepoint { site, id });
         }
-        result
+        Ok(result)
     }
 
     pub(crate) fn contains_symbol_request(&self, request: PersistentSymbolRequest) -> bool {

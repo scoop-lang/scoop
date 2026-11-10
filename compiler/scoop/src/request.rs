@@ -5,7 +5,8 @@ use scoop_manifest::SingleFileLocator;
 use scoop_protocol::package::PreparedResolutionV1;
 use scoop_protocol::{CompilationPurpose, TargetSelectionRequestV1};
 
-use scoop_toolchain::{ResolvedTargetProfile, ToolchainError};
+use crate::GraphTarget;
+use scoop_toolchain::ToolchainError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtifactSearchRoot(PathBuf);
@@ -172,7 +173,7 @@ pub struct BuildGraphRequest {
     artifact_search_roots: Vec<ArtifactSearchRoot>,
     cache_root: ArtifactCacheRoot,
     sysroot: TrustedSysrootRoot,
-    target: ResolvedTargetProfile,
+    target: GraphTarget,
     compiler: PairedScoopcLocator,
     diagnostics: DiagnosticsPolicy,
     optimization: scoop_lir::OptimizationMode,
@@ -187,7 +188,7 @@ pub(crate) struct BuildGraphRequestParts {
     pub(crate) artifact_search_roots: Vec<ArtifactSearchRoot>,
     pub(crate) cache_root: ArtifactCacheRoot,
     pub(crate) sysroot: TrustedSysrootRoot,
-    pub(crate) target: ResolvedTargetProfile,
+    pub(crate) target: GraphTarget,
     pub(crate) compiler: PairedScoopcLocator,
     pub(crate) diagnostics: DiagnosticsPolicy,
     pub(crate) optimization: scoop_lir::OptimizationMode,
@@ -210,8 +211,7 @@ impl BuildGraphRequest {
     ) -> Result<Self, BuildGraphRequestError> {
         artifact_search_roots.sort_by(|left, right| left.as_path().cmp(right.as_path()));
         artifact_search_roots.dedup();
-        let target = ResolvedTargetProfile::resolve_request_cached(&target, cache_root.as_path())
-            .map_err(BuildGraphRequestError::Toolchain)?;
+        let target = GraphTarget::requested(target).map_err(BuildGraphRequestError::Toolchain)?;
 
         Ok(Self {
             root,
@@ -276,7 +276,7 @@ impl BuildGraphRequest {
         &self.sysroot
     }
 
-    pub const fn target(&self) -> &ResolvedTargetProfile {
+    pub const fn target(&self) -> &GraphTarget {
         &self.target
     }
 
@@ -393,7 +393,10 @@ mod tests {
         let first = make(canonical, ["z", "a", "a"]);
         let second = make(alias, ["a", "z", "a"]);
 
-        assert_eq!(first.target(), second.target());
+        assert_eq!(
+            first.target().lir_target_selection(),
+            second.target().lir_target_selection()
+        );
         assert_eq!(
             first.artifact_search_roots(),
             second.artifact_search_roots()

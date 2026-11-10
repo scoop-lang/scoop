@@ -8,7 +8,6 @@ pub(super) struct Inputs {
     pub sources: Vec<PathBuf>,
     pub flags: Vec<String>,
     pub includes: Vec<PathBuf>,
-    pub compiler_inputs: Digest256,
     pub base_key: Digest256,
 }
 
@@ -78,7 +77,6 @@ impl Inputs {
             ])
             .map(str::to_owned)
             .collect();
-        let compiler_inputs = request.target.native_tool_inputs();
         let path = |p: &Path| HostPathCarrier::from_path(p).map_err(error);
         let key = serde_json::to_vec(&(
             path(&root)?,
@@ -92,8 +90,7 @@ impl Inputs {
                 .iter()
                 .map(|p| path(p))
                 .collect::<Result<Vec<_>, _>>()?,
-            compiler_inputs.as_array(),
-            encode(request.target.c_bridge_toolchain().profile().contract()).map_err(error)?,
+            encode(&request.target.lir_target().wire_id()).map_err(error)?,
             encode(&scoop_lir::RuntimeAbiContract).map_err(error)?,
         ))
         .map_err(error)?;
@@ -103,7 +100,6 @@ impl Inputs {
             sources,
             flags,
             includes,
-            compiler_inputs,
             base_key: sha256(&key),
         })
     }

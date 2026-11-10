@@ -33,12 +33,7 @@ fn windows_resources_compile_real_coff_and_follow_headers_and_assets() {
         let invocation =
             crate::resolve_windows_c_toolchain(selection.target(), &clang, prefix.as_deref())
                 .unwrap();
-        let target = ResolvedTargetProfile::from_c_toolchain(
-            selection,
-            invocation,
-            Digest256::from_array([index as u8; 32]),
-        )
-        .unwrap();
+        let target = ResolvedTargetProfile::from_c_toolchain(selection, invocation).unwrap();
         let root = directory.path().join(format!("cone-{index}"));
         let cache = directory.path().join(format!("cache-{index}"));
         std::fs::create_dir_all(root.join("resources")).unwrap();
@@ -62,7 +57,8 @@ fn windows_resources_compile_real_coff_and_follow_headers_and_assets() {
         let build = || {
             prepare(
                 &manifest,
-                &target,
+                target.lir_target(),
+                &|| Ok(&target),
                 CompilationPurpose::Production,
                 directory.path(),
                 &cache,
@@ -98,7 +94,8 @@ fn windows_resources_compile_real_coff_and_follow_headers_and_assets() {
         assert!(
             prepare(
                 &manifest,
-                &target,
+                target.lir_target(),
+                &|| Ok(&target),
                 CompilationPurpose::Production,
                 directory.path(),
                 &failure_cache
@@ -106,7 +103,7 @@ fn windows_resources_compile_real_coff_and_follow_headers_and_assets() {
             .is_err()
         );
         assert!(
-            std::fs::read_dir(failure_cache.join("native-resources-v2"))
+            std::fs::read_dir(failure_cache.join("native-resources-v3"))
                 .unwrap()
                 .all(|entry| entry
                     .unwrap()
@@ -117,7 +114,8 @@ fn windows_resources_compile_real_coff_and_follow_headers_and_assets() {
         assert!(
             prepare(
                 &manifest,
-                &target,
+                target.lir_target(),
+                &|| Ok(&target),
                 CompilationPurpose::Test,
                 directory.path(),
                 &failure_cache

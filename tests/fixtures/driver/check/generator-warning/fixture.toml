@@ -1,5 +1,5 @@
 schema = 1
-name = "check-generator-machine-warning-retains-fragment-on-cache-hit"
+name = "check-generator-machine-warning-retains-current-fragment"
 root = "../../generators/errors/program.scoop"
 inputs = ["../../generators/errors/program.scoop", "../../generators/peer.py"]
 tools = ["scoop", "scoopc"]
@@ -8,7 +8,7 @@ tags = ["driver", "check", "generator", "diagnostics", "cache"]
 
 [vars]
 options = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--generator", "test.peer=generator"]
-expected = "warning[SCOOPC_COMPILER_WARNING]: fragment warning\n --> generated/function/6c06a95bf001818dfa22cbd05cc3fdc59e433b60d92dbd9303ce5ff1f5865595.scoop:3:5\n  |\n3 |     return 42\n  |     ^^^^^^\nnote: implementation requested here\n --> ${root}:3:29\n  |\n3 | @GenerateWith(\"test.peer\", [\"Value\"])\n  |                             ^^^^^^^\nchecked scoop:single-file:0.0.0 (production)\n"
+expected = "warning\\[SCOOPC_COMPILER_WARNING\\]: fragment warning\n --> generated/function/6c06a95bf001818dfa22cbd05cc3fdc59e433b60d92dbd9303ce5ff1f5865595\\.scoop:3:5\n  \\|\n3 \\|     return 42\n  \\|     \\^\\^\\^\\^\\^\\^\nnote: implementation requested here\n --> ${root}:3:29\n  \\|\n3 \\| @GenerateWith\\(\"test\\.peer\", \\[\"Value\"\\]\\)\n  \\|                             \\^\\^\\^\\^\\^\\^\\^\nchecked scoop:single-file:0\\.0\\.0 \\(production\\)\n"
 
 [[steps]]
 name = "peer"
@@ -23,7 +23,7 @@ name = "cold"
 argv = ["${scoop}", "check", "${root}", {each = "${compile_args}"}, {each = "${options}"}]
 exit = 0
 stdout = ""
-stderr = "${expected}"
+stderr = {regex = "    Checking scoop:single-file:0\\.0\\.0\n    Finished scoop:single-file:0\\.0\\.0 in [0-9]+[.][0-9]{2}s\n${expected}"}
 checks = [{file = "${work}/generator.calls", equals = "called\n"}]
 
 [[steps]]
@@ -31,5 +31,5 @@ name = "warm"
 argv = ["${scoop}", "check", "${root}", {each = "${compile_args}"}, {each = "${options}"}]
 exit = 0
 stdout = ""
-stderr = "${expected}"
-checks = [{file = "${work}/generator.calls", equals = "called\n"}]
+stderr = {regex = "    Checking scoop:single-file:0\\.0\\.0\n    Finished scoop:single-file:0\\.0\\.0 in [0-9]+[.][0-9]{2}s\n${expected}"}
+checks = [{file = "${work}/generator.calls", equals = "called\ncalled\n"}]

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ValidatedCBridgeToolchainInvocation;
 use scoop_lir::{OptimizationMode, TargetProfileId};
 use scoop_manifest::{ConeRelativePath, LoadedConeManifest, NativeConfig, NativeSourceLanguage};
-use scoop_wire::{Digest256, sha256};
+use scoop_wire::Digest256;
 
 use crate::ToolchainError;
 
@@ -29,7 +29,6 @@ pub struct NativeSourceInput {
     path: ConeRelativePath,
     language: NativeSourceLanguage,
     preprocessed: Arc<[u8]>,
-    digest: Digest256,
 }
 
 impl NativeSourceInput {
@@ -38,12 +37,10 @@ impl NativeSourceInput {
         language: NativeSourceLanguage,
         preprocessed: Arc<[u8]>,
     ) -> Self {
-        let digest = sha256(&preprocessed);
         Self {
             path,
             language,
             preprocessed,
-            digest,
         }
     }
 
@@ -57,9 +54,6 @@ impl NativeSourceInput {
 
     pub fn preprocessed(&self) -> &[u8] {
         &self.preprocessed
-    }
-    pub fn digest(&self) -> Digest256 {
-        self.digest
     }
 }
 
@@ -81,9 +75,10 @@ pub fn prepare_native_inputs(
     compiler: &ValidatedCBridgeToolchainInvocation,
     optimization: OptimizationMode,
     sysroot: &Path,
+    scratch: &Path,
 ) -> Result<PreparedNativeInputs, ToolchainError> {
     let compiler = NativeToolchain::resolve(compiler, manifest)?;
-    prepare::prepare(manifest, target, &compiler, optimization, sysroot)
+    prepare::prepare(manifest, target, &compiler, optimization, sysroot, scratch)
 }
 
 pub fn compile_native_source(

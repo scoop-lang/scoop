@@ -1,7 +1,5 @@
 use std::ffi::OsStr;
 
-use scoop_process::CommandExt;
-
 use super::*;
 
 pub(in crate::final_link) fn candidates(
@@ -35,9 +33,7 @@ pub(in crate::final_link) fn candidates(
         .collect()
 }
 
-pub(super) fn resolve(
-    mut candidates: Vec<PathBuf>,
-) -> Result<(PathBuf, Vec<PathBuf>), ToolchainError> {
+pub(super) fn resolve(candidates: Vec<PathBuf>) -> Result<PathBuf, ToolchainError> {
     let Some(index) = candidates.iter().position(|path| path.is_file()) else {
         return Err(error(format!(
             "Mach-O LLD not found; provide --linker, install the bundled LLVM tools, or set LLVM_SYS_221_PREFIX/PATH (searched: {})",
@@ -48,26 +44,5 @@ pub(super) fn resolve(
                 .join(", ")
         )));
     };
-    candidates.truncate(index + 1);
-    Ok((candidates[index].clone(), candidates))
-}
-
-pub(super) fn version(linker: &Path) -> Result<String, ToolchainError> {
-    let output = Command::new(linker)
-        .env_clear()
-        .env("LC_ALL", "C")
-        .args(["-flavor", "darwin", "--version"])
-        .scoop_output()
-        .map_err(error)?;
-    if !output.status.success() {
-        return Err(error(format!(
-            "Mach-O LLD version query failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-    let version = std::str::from_utf8(&output.stdout).map_err(error)?.trim();
-    if !version.starts_with("LLD ") {
-        return Err(error(format!("expected Mach-O LLD, found {version}")));
-    }
-    Ok(version.to_owned())
+    Ok(candidates[index].clone())
 }

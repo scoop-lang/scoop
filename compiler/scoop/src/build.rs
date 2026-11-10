@@ -7,8 +7,8 @@ use scoop_toolchain::ResolvedTargetProfile;
 
 use crate::materialize::OutputLocation;
 use crate::{
-    BuildFailurePhase, PreparedBuildGraph, RuntimeBuildRequest, SelectedSource, build_runtime,
-    read_built_program,
+    BuildFailurePhase, GraphTarget, PreparedBuildGraph, RuntimeBuildRequest, SelectedSource,
+    build_runtime, read_built_program,
 };
 
 mod error;
@@ -46,14 +46,7 @@ fn prepare(
     PreparedBuildGraph,
     impl FnOnce(crate::BuildGraphOutcome) -> BuildResult<BuildOutcome>,
 )> {
-    let target = request
-        .graph
-        .target()
-        .production(request.graph.cache_root().as_path())
-        .map_err(|error| {
-            BuildFailure::tool("SCOOP_BUILD_TARGET", BuildFailurePhase::Toolchain, error)
-        })?
-        .into_owned();
+    let target = request.graph.target().clone();
     let vendor_root = request.graph.sysroot().as_path().join("vendor");
     let cache = request.graph.cache_root().as_path().to_owned();
     let stem = request
@@ -81,7 +74,6 @@ fn prepare(
         ));
     }
     let mut prepared = graph.prepare().map_err(BuildFailure::preparation)?;
-    let cache = std::fs::canonicalize(cache).map_err(output_error)?;
     let sources = source_context(&prepared);
     let output = output_path(
         &prepared,
@@ -115,24 +107,17 @@ fn prepare(
                     .map_err(output_error)?;
                 return Ok(None);
             }
-            let (runtime, index) = runtime_input(
-                &request.runtime,
-                &target,
-                &cache,
-                &request.final_link,
-                &vendor_root,
-                request.enable_gc_stress,
-                request.enable_startup_stats,
-            )?;
             let linked = executable::get(executable::Request {
                 graph: &graph,
-                runtime: &runtime,
+                runtime: &request.runtime,
                 target: &target,
                 cache: &cache,
                 profile: request.profile,
                 options: &request.final_link,
                 libraries: &request.library_paths,
-                explicit_runtime: matches!(&request.runtime, RuntimeInput::ObjectIndex(_)),
+                vendor_root: &vendor_root,
+                enable_gc_stress: request.enable_gc_stress,
+                enable_startup_stats: request.enable_startup_stats,
                 output: output.path(),
             })?;
             if let Some(file) = &linked.debug_file {
@@ -155,7 +140,11 @@ fn prepare(
             output
                 .publish(&linked.path, Some(&linked.result_key))
                 .map_err(output_error)?;
-            Ok(Some((index, linked.fingerprint, linked.path)))
+            Ok(Some((
+                linked.runtime_index,
+                linked.fingerprint,
+                linked.path,
+            )))
         };
         let executable =
             finish().map_err(|error| error.with_context(graph.warnings(), &sources))?;
@@ -197,7 +186,7 @@ fn runtime_input(
     vendor_root: &Path,
     enable_gc_stress: bool,
     enable_startup_stats: bool,
-) -> BuildResult<(RuntimeObjectSet, PathBuf)> {
+) -> BuildResult<(RuntimeObjectSet, PathBuf, Vec<PathBuf>)> {
     let failure = |error| {
         BuildFailure::tool(
             "SCOOP_RUNTIME_BUILD",
@@ -219,7 +208,9 @@ fn runtime_input(
             objects
                 .require_startup_stats(enable_startup_stats)
                 .map_err(|error| failure(error.to_string()))?;
-            Ok((objects, index.clone()))
+            let mut paths = objects.input_paths().to_vec();
+            paths.push(index.clone());
+            Ok((objects, index.clone(), paths))
         }
         RuntimeInput::SourceRoot(root) => {
             let unwind =
@@ -247,7 +238,8 @@ fn runtime_input(
             })
             .map_err(|error| failure(error.to_string()))?;
             let index = runtime.index().to_owned();
-            Ok((runtime.into_objects(), index))
+            let paths = runtime.input_paths().to_vec();
+            Ok((runtime.into_objects(), index, paths))
         }
     }
 }
@@ -272,7 +264,7 @@ fn output_path(
     output: Option<PathBuf>,
     target_dir: Option<PathBuf>,
     stem: Option<&str>,
-    target: &ResolvedTargetProfile,
+    target: &GraphTarget,
     profile: BuildProfile,
     emit_slib: bool,
 ) -> BuildResult<PathBuf> {

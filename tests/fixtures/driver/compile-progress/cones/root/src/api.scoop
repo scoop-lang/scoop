@@ -1,0 +1,4 @@
+package test.progress.root
+import test.progress.left.left
+import test.progress.right.right
+public fun answer(): Int = left() + right()

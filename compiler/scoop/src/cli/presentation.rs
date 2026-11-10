@@ -16,6 +16,13 @@ mod test_report;
 pub(super) struct Reporter(pub MessageFormat);
 
 impl Reporter {
+    pub fn diagnostics_policy(&self) -> scoop::DiagnosticsPolicy {
+        match self.0 {
+            MessageFormat::Human => scoop::DiagnosticsPolicy::Human,
+            MessageFormat::Json => scoop::DiagnosticsPolicy::Structured,
+        }
+    }
+
     pub fn cleaned(&self, directory: &Path, removed: bool) -> io::Result<()> {
         match self.0 {
             MessageFormat::Human => {

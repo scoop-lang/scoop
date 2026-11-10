@@ -27,7 +27,7 @@ impl WindowsCEnvironment {
         compiler: &Path,
         native_sysroot: Option<&Path>,
         bundled_llvm: Option<&Path>,
-    ) -> Result<(Self, Vec<PathBuf>), ToolchainError> {
+    ) -> Result<Self, ToolchainError> {
         let machine = crate::windows_machine::WindowsToolchainMachine::select(target)?;
         let mut environment = Self {
             machine,
@@ -41,7 +41,6 @@ impl WindowsCEnvironment {
             system_root: std::env::var_os("SystemRoot"),
             bundled_mingw: None,
         };
-        let mut inputs = Vec::new();
         if crate::windows_c::native_environment(target.id())?
             != scoop_target_data::NativeEnvironment::MicrosoftUcrt
         {
@@ -68,8 +67,6 @@ impl WindowsCEnvironment {
                     resource_dir: root.join("lib/clang/22"),
                     cxx_includes: vec![root.join("include/c++/v1"), shared.join("c++/v1")],
                 };
-                inputs.push(resources.resource_dir.clone());
-                inputs.extend(resources.cxx_includes.iter().cloned());
                 environment.bundled_mingw = Some(resources);
             }
         } else if let Some(root) = &environment.native_sysroot {
@@ -93,22 +90,16 @@ impl WindowsCEnvironment {
                 lib.join("ucrt").join(machine.msvc_library_directory()),
                 lib.join("um").join(machine.msvc_library_directory()),
             ];
-            inputs.push(config);
         } else {
-            environment.discover_microsoft(&mut inputs)?;
+            environment.discover_microsoft()?;
         }
-        inputs.extend(environment.includes.iter().cloned());
-        Ok((environment, inputs))
+        Ok(environment)
     }
 
     #[cfg(windows)]
-    fn discover_microsoft(&mut self, inputs: &mut Vec<PathBuf>) -> Result<(), ToolchainError> {
+    fn discover_microsoft(&mut self) -> Result<(), ToolchainError> {
         let tool = find_msvc_tools::find_tool(self.machine.msvc_discovery_target(), "cl.exe")
             .ok_or_else(|| error("no Microsoft C++ Build Tools and Windows SDK found; provide an explicit native sysroot"))?;
-        inputs.push(tool.path().to_owned());
-        if let Some(versions) = tool.path().ancestors().nth(5) {
-            inputs.push(versions.to_owned());
-        }
         // find-msvc-tools reuses an initialized developer shell without
         // returning overrides. Capture its effective environment before the
         // compiler command clears inherited variables.
@@ -124,20 +115,11 @@ impl WindowsCEnvironment {
                 self.search_path = value;
             }
         }
-        for include in &self.includes {
-            if let Some(versions) = include.ancestors().nth(2)
-                && versions
-                    .file_name()
-                    .is_some_and(|name| name.eq_ignore_ascii_case("Include"))
-            {
-                inputs.push(versions.to_owned());
-            }
-        }
         Ok(())
     }
 
     #[cfg(not(windows))]
-    fn discover_microsoft(&mut self, _: &mut Vec<PathBuf>) -> Result<(), ToolchainError> {
+    fn discover_microsoft(&mut self) -> Result<(), ToolchainError> {
         Err(error(
             "Microsoft cross-compilation requires a native sysroot containing msvc.toml",
         ))

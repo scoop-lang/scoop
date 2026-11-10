@@ -2,7 +2,7 @@ use super::*;
 
 pub(crate) fn prepare(
     emitted: EmittedConeObjectSetV2,
-    generated: &EmittedGeneratedCBridgeObjectSetV1,
+    generated: EmittedGeneratedCBridgeObjectSetV1,
 ) -> Result<PreparedLayoutObjects, BuiltinObjectProductionError> {
     let EmittedConeObjectSetV2 {
         target_selection,
@@ -16,7 +16,7 @@ pub(crate) fn prepare(
         target_selection.target(),
         partition.producer_units(),
         members,
-        generated,
+        generated.members,
     )?;
     let candidates = bindings
         .scoop_lir_members
@@ -30,12 +30,9 @@ pub(crate) fn prepare(
             GeneratedCBridgeObjectCandidateV1::new(member.plan.member_id(), &member.bytes)
         })
         .collect::<Vec<_>>();
-    let bridge_objects = read_generated_c_objects_v1(
-        generated.production().clone(),
-        generated.profile(),
-        &bridges,
-    )
-    .map_err(BuiltinObjectProductionError::CBridgeEnvelopes)?;
+    let bridge_objects =
+        read_generated_c_objects_v1(generated.production, &generated.profile, &bridges)
+            .map_err(BuiltinObjectProductionError::CBridgeEnvelopes)?;
     let symbols = PlannedStrongObjectSymbolSetV1::new(
         target_selection.target(),
         production.canonical_definitions(),

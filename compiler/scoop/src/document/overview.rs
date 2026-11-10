@@ -1,6 +1,5 @@
 use super::*;
 use pulldown_cmark::{Event, Parser, Tag};
-use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -12,20 +11,18 @@ pub(super) struct Overview {
     pub warnings: Vec<StructuredDiagnosticV1>,
 }
 
-#[derive(Deserialize, Serialize)]
 struct ParsedReadme {
     text: String,
     references: Vec<Reference>,
 }
 
-#[derive(Deserialize, Serialize)]
 struct Reference {
     url: String,
     start: usize,
     end: usize,
 }
 
-pub(super) fn select(source: &plan::Source, cache: &ArtifactCacheRoot) -> BuildResult<Overview> {
+pub(super) fn select(source: &plan::Source) -> BuildResult<Overview> {
     let path = source
         .readme
         .clone()
@@ -47,7 +44,7 @@ pub(super) fn select(source: &plan::Source, cache: &ArtifactCacheRoot) -> BuildR
         }
         return Ok(overview);
     }
-    let parsed = parsed(&path, cache, &overview.key)?;
+    let parsed = parsed(&path)?;
     let mut states = Vec::new();
     let mut resources = BTreeMap::new();
     let cone = scoop_doc::ConeKey::new(source.identity).map_err(error)?;
@@ -114,14 +111,7 @@ pub(super) fn select(source: &plan::Source, cache: &ArtifactCacheRoot) -> BuildR
     Ok(overview)
 }
 
-fn parsed(path: &Path, cache: &ArtifactCacheRoot, key: &str) -> BuildResult<ParsedReadme> {
-    let directory = cache.as_path().join("documentation-readme-v1");
-    let record = directory.join(format!("{key}.json"));
-    match std::fs::read(&record) {
-        Ok(bytes) => return serde_json::from_slice(&bytes).map_err(|e| io_error(&record, e)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(io_error(&record, e)),
-    }
+fn parsed(path: &Path) -> BuildResult<ParsedReadme> {
     let text = std::fs::read_to_string(path).map_err(|e| io_error(path, e))?;
     let mut references = BTreeMap::new();
     for (event, range) in Parser::new(&text).into_offset_iter() {
@@ -134,16 +124,10 @@ fn parsed(path: &Path, cache: &ArtifactCacheRoot, key: &str) -> BuildResult<Pars
             });
         }
     }
-    let parsed = ParsedReadme {
+    Ok(ParsedReadme {
         text,
         references: references.into_values().collect(),
-    };
-    std::fs::create_dir_all(&directory).map_err(|e| io_error(&directory, e))?;
-    let mut output =
-        tempfile::NamedTempFile::new_in(&directory).map_err(|e| io_error(&record, e))?;
-    serde_json::to_writer(&mut output, &parsed).map_err(|e| io_error(&record, e))?;
-    output.persist(&record).map_err(|e| io_error(&record, e))?;
-    Ok(parsed)
+    })
 }
 
 fn decode_path(path: &str) -> Result<String, &'static str> {

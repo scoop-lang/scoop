@@ -1,11 +1,9 @@
 //! PE linking through the selected SDK/CRT's compiler driver.
 use super::*;
 use crate::ValidatedCxxToolchain;
-use crate::build_record::Input;
-use scoop_process::CommandExt;
-use std::collections::BTreeSet;
 
 mod command;
+#[cfg(all(test, windows, target_arch = "x86_64"))]
 mod probe;
 mod trace;
 mod wire;
@@ -59,41 +57,12 @@ pub(super) struct Discovery {
     #[serde(with = "crate::build_record::values::path")]
     linker: PathBuf,
     linker_kind: LinkerKind,
-    linker_version: String,
-    #[serde(with = "crate::build_record::values::digest")]
-    compiler_digest: Digest256,
-    #[serde(with = "crate::build_record::values::digest")]
-    linker_digest: Digest256,
     #[serde(with = "crate::build_record::values::path")]
     unwind_prefix: PathBuf,
-    #[serde(with = "crate::build_record::values::path")]
-    unwind_include: PathBuf,
     cxx: Option<ValidatedCxxToolchain>,
-    #[serde(with = "crate::build_record::values::paths")]
-    observed_paths: Vec<PathBuf>,
-    inputs: Vec<SystemInput>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-struct SystemInput {
-    #[serde(with = "crate::build_record::values::path")]
-    path: PathBuf,
-    #[serde(with = "crate::build_record::values::digest")]
-    digest: Digest256,
 }
 
 impl WindowsFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Self {
-        Self { startup, data }
-    }
-
     pub fn resolve(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -108,7 +77,6 @@ impl WindowsFinalLinkProfile {
         }
         let microsoft =
             startup.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
-        let mut observed = BTreeSet::new();
         let driver = if microsoft || environment.bundled_mingw.is_some() {
             startup
                 .compiler_driver()
@@ -138,11 +106,6 @@ impl WindowsFinalLinkProfile {
             driver.with_file_name(crate::host_executable_name("ld.lld"))
         };
         let selected = options.linker.as_deref().unwrap_or(&default_linker);
-        crate::native_record::program_candidates(
-            selected.as_os_str(),
-            &environment.search_path,
-            &mut observed,
-        );
         let linker = crate::paths::find_program(selected.as_os_str(), &environment.search_path)?;
         let linker_kind = if !microsoft {
             LinkerKind::LldMinGw
@@ -154,40 +117,12 @@ impl WindowsFinalLinkProfile {
         } else {
             LinkerKind::LldCoff
         };
-        let mut version_command = environment.bare_command(&linker);
-        version_command
-            .env("VSLANG", "1033")
-            .arg(if linker_kind == LinkerKind::Microsoft {
-                "/?"
-            } else {
-                "--version"
-            });
-        // LINK returns 1100 for its normal help output. The banner selects the
-        // command dialect; the real link below verifies executable capability.
-        let version = version_command.scoop_output().map_err(error)?;
-        let linker_version = String::from_utf8_lossy(&version.stdout)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .to_owned();
-        if !match linker_kind {
-            LinkerKind::Microsoft => {
-                linker_version.contains("Microsoft") && linker_version.contains("Linker")
-            }
-            _ => linker_version.contains("LLD"),
-        } {
-            return Err(error(format!(
-                "incompatible Windows linker: {linker_version}"
-            )));
-        }
         let unwind_prefix = std::path::absolute(crate::selected_unwind_prefix(
             startup.target(),
             options.sysroot.as_deref(),
             options.unwind_prefix.as_deref(),
         )?)
         .map_err(error)?;
-        let unwind_include =
-            crate::unwind::link_unwind_include(&unwind_prefix, options.unwind_prefix.is_some())?;
         let archive = unwind_prefix.join("lib/libunwind.a");
         if !archive.is_file() {
             return Err(error(format!(
@@ -195,41 +130,22 @@ impl WindowsFinalLinkProfile {
                 archive.display()
             )));
         }
-        observed.extend(environment.libraries.iter().cloned());
-        observed.extend([driver.clone(), linker.clone()]);
-        if let Some(cxx) = &cxx {
-            observed.extend(cxx.input_paths()?);
-        }
-        let compiler_digest = crate::build_record::fingerprint(&Input::read(&driver)?)?;
-        let linker_digest = crate::build_record::fingerprint(&Input::read(&linker)?)?;
-        let mut profile = Self {
+        Ok(Self {
             data: Discovery {
                 output,
                 native_roots: options.native_roots(startup.target())?,
                 driver,
                 linker,
                 linker_kind,
-                linker_version,
-                compiler_digest,
-                linker_digest,
                 unwind_prefix,
-                unwind_include,
                 cxx,
-                observed_paths: Vec::new(),
-                inputs: Vec::new(),
             },
             startup,
-        };
-        profile.data.inputs = probe::check(&profile, &mut observed)?;
-        profile.data.observed_paths = observed.into_iter().collect();
-        Ok(profile)
+        })
     }
 
     pub fn startup_toolchain(&self) -> &ValidatedCBridgeToolchainInvocation {
         &self.startup
-    }
-    pub fn compiler_digest(&self) -> Digest256 {
-        self.data.compiler_digest
     }
     pub fn linker_driver(&self) -> &Path {
         &self.data.linker
@@ -263,18 +179,7 @@ impl WindowsFinalLinkProfile {
             MINGW_OPTIONS.to_vec()
         }
     }
-    pub fn input_paths(&self) -> Vec<PathBuf> {
-        self.data
-            .observed_paths
-            .iter()
-            .cloned()
-            .chain(self.data.inputs.iter().map(|input| input.path.clone()))
-            .collect()
-    }
-    pub fn system_input_paths(&self) -> impl Iterator<Item = &Path> {
-        self.data.inputs.iter().map(|input| input.path.as_path())
-    }
     pub fn fingerprint(&self) -> Result<Digest256, ToolchainError> {
-        domain_separated_cbor_hash("scoop-windows-final-link-profile-v1", self).map_err(error)
+        domain_separated_cbor_hash("scoop-windows-final-link-profile-v2", self).map_err(error)
     }
 }

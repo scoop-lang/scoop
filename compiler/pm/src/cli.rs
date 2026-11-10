@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use scoop_manifest::DependencyCoordinateKey;
@@ -50,13 +50,8 @@ enum Command {
     Fetch(resolve::ResolveArgs),
     /// Update compatible registry versions or Git references.
     Update(resolve::UpdateArgs),
-    /// Prepare exact local inputs for the build driver using the versioned JSON protocol.
-    Prepare {
-        #[arg(long)]
-        request: PathBuf,
-        #[arg(long)]
-        response: PathBuf,
-    },
+    /// Prepare local inputs using one JSON request on stdin and response on stdout.
+    Prepare,
 }
 
 #[derive(Args)]
@@ -86,7 +81,7 @@ pub fn run() -> Result<(), (PmError, bool)> {
         Some(DiagnosticFormat::Human) => false,
         Some(DiagnosticFormat::Json) => true,
         None => {
-            matches!(&cli.command, Command::Prepare { .. })
+            matches!(&cli.command, Command::Prepare)
                 || matches!(&cli.command, Command::Members(args) if args.members.json)
                 || matches!(&cli.command, Command::Metadata(args) if args.json())
         }
@@ -105,10 +100,25 @@ fn execute(cli: Cli) -> PmResult<()> {
         Command::Resolve(args) => resolve::execute(args, false, None, None),
         Command::Fetch(args) => resolve::execute(args, true, None, None),
         Command::Update(args) => resolve::update(args),
-        Command::Prepare { request, response } => {
-            scoop_pm::prepare::prepare_files(&request, &response)
-        }
+        Command::Prepare => prepare(),
     }
+}
+
+fn prepare() -> PmResult<()> {
+    let request = serde_json::from_reader(std::io::stdin().lock())
+        .map_err(|error| PmError::new(format!("invalid package preparation request: {error}")))?;
+    let prepared = scoop_pm::prepare::prepare(request)?;
+    let response =
+        serde_json::to_vec(&prepared).map_err(|error| PmError::new(error.to_string()))?;
+    let mut stdout = std::io::stdout().lock();
+    stdout
+        .write_all(&response)
+        .and_then(|()| stdout.flush())
+        .map_err(|error| {
+            PmError::new(format!(
+                "cannot write package preparation response: {error}"
+            ))
+        })
 }
 
 fn create_workspace(directory: &std::path::Path) -> PmResult<()> {

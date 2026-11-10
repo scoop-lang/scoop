@@ -329,7 +329,7 @@ pub(super) fn assemble(
             super::native::libraries(request).map_err(CurrentConeProductionFailure::Native)?,
         )
         .with_native_cxx(super::native::cxx(request))
-        .assemble(objects, &generated, &owners)
+        .assemble(objects, generated, &owners)
         .map(ControlFlow::Continue)
         .map_err(Error::Artifact)
         .map_err(Into::into)

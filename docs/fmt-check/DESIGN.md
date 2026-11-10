@@ -18,7 +18,7 @@
 | 检查停止点 | 根 Cone 完成 ExportHir 和 LocalConcreteHir 后返回，不进入 MIR |
 | 源码依赖 | 复用现有 `.slib` 缓存，需要更新时正常构建完整 library |
 | 结果 | 复用 human／JSON 诊断；格式差异和检查成功有独立结果，不伪造编译产物 |
-| 缓存 | 格式化不新增持久缓存；检查使用普通本机成功记录，并复用依赖构建缓存 |
+| 缓存 | 格式化和根检查不保存成功缓存；检查复用依赖的普通构建缓存 |
 
 首版不包含任意目录递归／workspace／glob 选择、stdin 格式化、格式配置文件、import 排序或删除、代码修复、语法错误文件的部分格式化，以及 LSP formatting／range／on-type 接入。整个依赖图都只生产语义结果属于后续独立设计，不能为了首版检查增加残缺 `.slib`、第二套类型检查器或通用任务框架。
 
@@ -240,28 +240,15 @@ M63中root选择、locator与版本要求统一由PM处理并写入lock；`scoop
 
 machine protocol 已由 16 递增为 17，Check 请求与结果各追加 tag 4，不复用已分配 tag；capability、codec、请求形状检查和版本用例同步更新。此处不修改 `.slib` profile、HIR wire 或 runtime ABI。
 
-## 6. 检查缓存与更新
+## 6. 每次检查与依赖复用
 
-检查使用独立的本机 `checks-v1` 成功记录。它是普通更新数据，不是可分发语义产物或供下游编译消费的接口。
+`scoop check` 用于修改代码后快速检查当前根 Cone。每次调用执行根的完整 Parser/HIR 和必要 generator，返回本次诊断；不保存整次检查成功记录、warning 快照或专用输入键，不创建检查结果锁。
 
-| 输入 | 更新依据 |
-| --- | --- |
-| 根与用途 | 实际 root／single-file 路径、coordinate、kind、Production／Test |
-| 源码 | 已选集合、完整逻辑路径、角色、实际文件路径、mtime 与大小 |
-| 配置 | 前端实际消费的 manifest 语义、当前 target、依赖选择；Production 不纳入仅测试配置 |
-| 配套编译器 | 普通工具路径、mtime、大小及协议／能力配置，复用已有工具记录 |
-| 依赖 | 实际 direct／support 选择、普通依赖输入键与需要的结果位置；机器依赖按现有 profile 构建记录更新 |
-| generator | 注册映射与实际使用程序的已有输入记录 |
+依赖沿普通构建流程判断更新。已有预编译 `.slib` 和成功的源码依赖缓存直接复用，确需更新的源码依赖先构建，再执行根检查。依赖更新判断先于依赖源码内容读取、预处理、工具探测和输入复制；命中不读回产物复核生产过程。
 
-记录保存本次成功状态、warning、诊断显示所需来源，以及实际依赖和 generator 输入。根的 native 源码内容、runtime、最终链接配置不属于根前端输入；源码依赖自身的 native 变化仍按其正常构建键处理。依赖变动可保守使根检查失效，不为避免这一次检查而重读产物推导接口是否等价。
+根按 Production/Test 选择当前源码，保留本次诊断所需的实际来源。根的 native 源码、runtime 和最终链接不属于检查阶段；源码依赖自身的 native 变化仍由普通构建缓存处理。generator 在本次根检查实际需要时执行，不复用以前检查的生成结果。
 
-更新顺序固定为：已有 manifest／single-file 头部记录与输入 metadata → 根检查记录匹配 → 确需更新的依赖生产 → 根检查 → 成功记录发布。使用已有图和产物摘要记录判断依赖状态；不能在命中判断前先准备全部机器工具、读取源码、解码整份依赖产物或构造临时输入镜像。
-
-命中时直接返回已有成功和 warning，不启动 scoopc／generator，不读取命中产物内容。显示带位置的 warning 时可按已有诊断规则按需读取相关源码；这不参与更新判断。只有依赖首次消费或输入变化确需读取时，才执行其必要格式与引用检查。
-
-首次 check 即使已有成功 build，也可建立自己的检查记录；首版共享依赖机器缓存和检查自身结果，不读取 build 产物补造缺少的检查结果。反向也不把 check 记录当作可链接的 build 产物。
-
-同键请求使用现有普通锁，锁内重查；成功后通过临时文件和 rename 发布。检查失败或取消不保存成功，也不返回先前成功来掩盖本次输入错误。已经成功的依赖遵循普通缓存生命周期。输入缺失和实际 I/O 错误正常报告，不增加缓存损坏恢复、生产证明或多份结果交叉验收。
+检查失败或取消按本次结果报告，不返回旧成功或旧 warning。已成功的依赖继续遵循普通缓存的失败不发布和并发协调规则；根检查自身不发布机器产物，也不从已有 build 产物推导检查成功。
 
 ## 7. 输出与 CLI 接入
 
@@ -279,7 +266,7 @@ CLI 需要表达“已有完整格式结果，但退出非零”，不能把它�
 
 ### 7.2 检查结果
 
-human 模式在 warning 后输出根 Cone 与用途的检查成功摘要。JSON 输出 `kind: "check"`、`schema: 1`，包含实际根身份、canonical target、用途、缓存是否命中，以及本次实际 child 调用观察。源码依赖的 artifact 编译与根的 check 调用明确区分；命中不能伪造调用。
+human 模式在实际调用前显示 `Checking`、调用结束后显示 `Finished` 或 `Failed` 及耗时；随后按本次诊断显示 warning 和根 Cone 与用途的检查成功摘要。需要构建的源码依赖沿普通 `Compiling` 进度显示。JSON 输出 `kind: "check"`、`schema: 1`，包含实际根身份、canonical target、用途，以及本次实际 child 调用观察，不含 `cache_hit`。源码依赖的 artifact 编译与根的 check 调用明确区分；每次成功检查都有根的 check 调用。
 
 检查结果不含 executable／`.slib` 输出路径，不使用 `library` 或 `executable` 成功记录。失败沿用现有结构化诊断，不输出成功检查记录。JSON 结果继续使用 stderr，fixture runner 只扩展必要的结果识别。
 
@@ -289,7 +276,7 @@ human 模式在 warning 后输出根 Cone 与用途的检查成功摘要。JSON 
 | --- | --- |
 | A：合同 | 本设计、实现规范 2.7／2.20 和路线图一致，明确首版依赖构建、Test 及文件并集行为 |
 | B：单 Cone 检查 | 正式 Check 请求／结果、协议版本、低层 CLI 和完整 HIR 停止；诊断与普通编译一致 |
-| C：项目检查 | `scoop check`、前端目标复用、依赖调度、检查缓存、human／JSON 和正式 CLI fixtures |
+| C：项目检查 | `scoop check`、前端目标复用、依赖调度、每次根检查、human／JSON 和正式 CLI fixtures |
 | D：格式库 | 必要 CST 角色、固定布局与全部现有语法覆盖；token、解析结构、附着及幂等性测试 |
 | E：格式 CLI | manifest 全平台文件并集、显式文件、写回／只检查、错误聚合、退出码和正式 fixtures |
 
@@ -324,7 +311,7 @@ human 模式在 warning 后输出根 Cone 与用途的检查成功摘要。JSON 
 | check 完整性 | 代表性的语法／名称／类型／effect 错误、具体化类型条件与递归、generator 成功及错误、生成片段位置；与 build 的前端诊断相符 |
 | check 测试 | Production 不加载 tests，Test 加载正确集合与依赖，生产源码不可使用仅测试依赖，Ignore 用例仍检查，不执行测试程序 |
 | check 阶段 | 根不产生机器产物、不调用 native／runtime／linker；预编译依赖直接消费；冷源码依赖构建完整 `.slib` 后根检查 |
-| check 复用 | 重复命中、源码／源码集合／依赖／实际 generator 变化、Production/Test 分离、失败不发布成功、修复后成功、同键并发协调 |
+| check 更新 | 每次根检查、依赖构建缓存复用、源码／源码集合／依赖／generator 变化、Production/Test 分离、本次 warning、失败与修复后成功 |
 | 路由／协议 | 内置命令优先、低层 direct 输入与公共 CLI 一致、Check codec 及版本协商、非对应成功结果拒绝 |
 
 从现有 expected-error 用例中选取少量代表规则交叉检查，不复制全部语言 negative fixture，也不按使用哪个库重复检查同一个前端规则。无关库 API 行为继续放在所属 Cone tests。

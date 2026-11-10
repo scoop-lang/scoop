@@ -3,7 +3,7 @@
 use super::*;
 
 #[derive(Clone, Copy)]
-enum RecordScope {
+pub(super) enum RecordScope {
     Layer(IdentityLayer),
     Closure,
 }
@@ -18,6 +18,36 @@ impl RecordScope {
 }
 
 impl ValidatedIdentityGraph {
+    pub(super) fn record_candidates(
+        &self,
+        kind: &'static str,
+        scope: RecordScope,
+    ) -> impl Iterator<Item = (&IdentityNode, &Candidate)> + Clone {
+        let local = match scope {
+            RecordScope::Layer(_) => {
+                let start = self.declared.partition_point(|node| node.kind < kind);
+                let end = self.declared.partition_point(|node| node.kind <= kind);
+                Some(self.declared[start..end].iter())
+            }
+            RecordScope::Closure => None,
+        };
+        let closure = match scope {
+            RecordScope::Closure => Some(self.candidates.iter()),
+            RecordScope::Layer(_) => None,
+        };
+        local
+            .into_iter()
+            .flatten()
+            .map(|node| (node, &self.candidates[node]))
+            .chain(
+                closure
+                    .into_iter()
+                    .flatten()
+                    .filter(move |(node, _)| node.kind == kind),
+            )
+            .filter(move |(_, candidate)| scope.includes(candidate.layer))
+    }
+
     /// Reconstructs this artifact's records from one layer, sorted by typed id.
     pub fn records<I, K>(
         &self,
@@ -56,14 +86,10 @@ impl ValidatedIdentityGraph {
         I: PersistentId + 'static,
         K: CborIdentityKey<I> + Send + Sync + 'static,
     {
-        let record_count = self
-            .candidates
-            .iter()
-            .filter(|(node, candidate)| {
-                node.kind == I::KIND
-                    && scope.includes(candidate.layer)
-                    && candidate.key_ref::<I, K>().is_some()
-            })
+        let candidates = self.record_candidates(I::KIND, scope);
+        let record_count = candidates
+            .clone()
+            .filter(|(_, candidate)| candidate.key_ref::<I, K>().is_some())
             .count();
         let record_count = u64::try_from(record_count).map_err(|_| {
             IdentityValidationError::Resource(WireError::new(
@@ -75,10 +101,7 @@ impl ValidatedIdentityGraph {
         let mut records = Vec::new();
         scoop_wire::allocation::try_reserve_count(&mut records, record_count, path)
             .map_err(IdentityValidationError::Resource)?;
-        for (node, candidate) in self.candidates.iter() {
-            if node.kind != I::KIND || !scope.includes(candidate.layer) {
-                continue;
-            }
+        for (node, candidate) in candidates {
             let Some(key) = candidate.key::<I, K>() else {
                 continue;
             };

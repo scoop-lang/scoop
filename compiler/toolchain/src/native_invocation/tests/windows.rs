@@ -1,5 +1,6 @@
 use object::{Object, ObjectSection, ObjectSymbol};
 use scoop_process::CommandExt;
+use std::path::PathBuf;
 
 use super::*;
 
@@ -39,16 +40,7 @@ fn windows_c_discovery_uses_selected_headers_and_transports_real_commands() {
             Some(ucrt.as_path()),
         ),
     ] {
-        let (invocation, inputs) = crate::windows_c::probe(target, &clang, root).unwrap();
-        assert!(inputs.iter().any(|path| {
-            path.file_name()
-                .is_some_and(|name| name.eq_ignore_ascii_case("windows.h"))
-        }));
-        assert!(
-            inputs
-                .iter()
-                .any(|path| path.file_name().is_some_and(|name| name == "stdlib.h"))
-        );
+        let invocation = crate::resolve_windows_c_toolchain(target, &clang, root).unwrap();
         let record = InvocationRecord::from_invocation(&invocation).unwrap();
         let record: InvocationRecord =
             serde_json::from_slice(&serde_json::to_vec(&record).unwrap()).unwrap();
@@ -175,7 +167,7 @@ fn windows_c_discovery_accepts_an_initialized_developer_environment() {
     child
         .args([
             "--exact",
-            "native_record::tests::windows::windows_c_discovery_accepts_an_initialized_developer_environment",
+            "native_invocation::tests::windows::windows_c_discovery_accepts_an_initialized_developer_environment",
             "--nocapture",
         ])
         .envs(cl.env().into_iter().cloned())

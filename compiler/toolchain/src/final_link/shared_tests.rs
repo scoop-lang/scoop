@@ -66,15 +66,13 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
             .prefix("scoop shared , ")
             .tempdir()
             .unwrap();
-        let cache = directory.path().join("cache");
         let executable = target
-            .final_link_with_cxx_cached(
+            .final_link_with_cxx(
                 &FinalLinkOptions {
                     mode: triple.ends_with("musl").then_some(LinkMode::Dynamic),
                     ..Default::default()
                 },
                 false,
-                &cache,
             )
             .unwrap();
         let source = directory.path().join("library.c");
@@ -145,34 +143,7 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
                 soname: (explicit && !darwin).then(|| loader_name.to_owned()),
                 ..Default::default()
             };
-            let profile = target
-                .final_link_with_cxx_cached(&options, cxx, &cache)
-                .unwrap();
-            let records = || {
-                let mut records: Vec<_> = std::fs::read_dir(cache.join(cache::CACHE_DIRECTORY))
-                    .unwrap()
-                    .map(|entry| entry.unwrap().path())
-                    .filter(|path| {
-                        path.extension()
-                            .is_some_and(|extension| extension == "json")
-                    })
-                    .map(|path| {
-                        let modified = path.metadata().unwrap().modified().unwrap();
-                        (path, modified)
-                    })
-                    .collect();
-                records.sort();
-                records
-            };
-            let before = records();
-            assert_eq!(before.len(), if explicit { 3 } else { 2 });
-            assert_eq!(
-                profile,
-                target
-                    .final_link_with_cxx_cached(&options, cxx, &cache)
-                    .unwrap()
-            );
-            assert_eq!(before, records());
+            let profile = target.final_link_with_cxx(&options, cxx).unwrap();
             assert_eq!(profile.output_kind(), FinalOutputKind::SharedLibrary);
             if let ValidatedFinalLinkProfile::Linux(profile) = &profile {
                 assert_eq!(profile.mode(), LinkMode::Dynamic);

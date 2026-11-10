@@ -20,7 +20,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${cold.result.kind}", equals = "check"}, {actual = "${cold.result.cache_hit}", equals = false}, {file = "${work}/generator.calls", equals = "called\n"}]
+checks = [{actual = "${cold.result.kind}", equals = "check"}, {file = "${work}/generator.calls", equals = "called\n"}, {actual = "${cold.result.observations.child_invocations.length}", equals = 1}, {actual = "${cold.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "warm"
@@ -30,7 +30,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${warm.result.kind}", equals = "check"}, {actual = "${warm.result.cache_hit}", equals = true}, {file = "${work}/generator.calls", equals = "called\n"}]
+checks = [{actual = "${warm.result.kind}", equals = "check"}, {file = "${work}/generator.calls", equals = "called\ncalled\n"}, {actual = "${warm.result.observations.child_invocations.length}", equals = 1}, {actual = "${warm.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "generator_change"
@@ -44,7 +44,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${changed.result.kind}", equals = "check"}, {actual = "${changed.result.cache_hit}", equals = false}, {file = "${work}/generator.calls", equals = "called\ncalled\n"}]
+checks = [{actual = "${changed.result.kind}", equals = "check"}, {file = "${work}/generator.calls", equals = "called\ncalled\ncalled\n"}, {actual = "${changed.result.observations.child_invocations.length}", equals = 1}, {actual = "${changed.result.observations.child_invocations.0.operation}", equals = "check"}]
 
 [[steps]]
 name = "concurrent_input"
@@ -79,5 +79,5 @@ name = "wait_second"
 wait = "second"
 
 [[steps]]
-name = "one_generation"
-checks = [{file = "${work}/generator.calls", equals = "called\ncalled\ncalled\n"}]
+name = "both_checks_generate"
+checks = [{file = "${work}/generator.calls", equals = "called\ncalled\ncalled\ncalled\ncalled\n"}]

@@ -4,8 +4,7 @@ use scoop_protocol::{
     CurrentConeRequestV1, DiagnosticOriginV1, DiagnosticOutputPolicyV1, DiagnosticSeverityV1,
     HostPathCarrier, RequestCorrelationId, ScoopcBuildRequestV1, ScoopcRequestEnvelopeV1,
     ScoopcResponseEnvelopeV1, ScoopcSuccessV1, StageDumpPolicyV1, StructuredDiagnosticV1,
-    TargetSelectionRequestV1, TrustedCoreRequestV1, encode_machine_capability_frame,
-    encode_response_frame,
+    TargetSelectionRequestV1, TrustedCoreRequestV1, encode_response_frame,
 };
 
 use super::*;
@@ -92,20 +91,12 @@ fn fake_compiler(path: &Path, response: &[u8], exit: i32, stderr: &str) {
 }
 
 fn fake_compiler_body(path: &Path, body: &str) {
-    let capability = scoop_toolchain::paired_compiler_machine_capability().unwrap();
-    let capability = shell_bytes(&encode_machine_capability_frame(&capability).unwrap());
-    let script = format!(
-        "#!/bin/sh\nif [ \"$1\" = \"__machine-capability\" ]; then\n  printf '{capability}'\n  exit 0\nfi\n{body}\n"
-    );
+    let script = format!("#!/bin/sh\n{body}\n");
     crate::test_compiler::write(path, script.as_bytes());
 }
 
 fn resolve_fake(path: &Path) -> ResolvedPairedScoopc {
-    ResolvedPairedScoopc::resolve(
-        &PairedScoopcLocator::new(path).unwrap(),
-        &crate::ArtifactCacheRoot::new(path.parent().unwrap().join("cache")).unwrap(),
-    )
-    .unwrap()
+    ResolvedPairedScoopc::resolve(&PairedScoopcLocator::new(path).unwrap())
 }
 
 #[test]
@@ -142,7 +133,7 @@ fn production_runner_accepts_only_matching_response_and_exit_pairs() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn production_runner_preserves_linux_tools_and_uses_private_scratch() {
+fn production_runner_preserves_linux_tools_and_reuses_scratch_root() {
     for triple in ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"] {
         let target = scoop_toolchain::ResolvedTargetProfile::resolve(triple).unwrap();
         let selection = target.child_request().unwrap();
@@ -164,7 +155,7 @@ fn production_runner_preserves_linux_tools_and_uses_private_scratch() {
         fake_compiler_body(
             &compiler,
             &format!(
-                "/bin/cat >/dev/null\ntest -n \"$PATH\" || exit 9\n{gcc_check}\ncase \"$TMPDIR\" in \"$PWD\"/scratch/.scoop-child-*) ;; *) exit 9 ;; esac\ntest -d \"$TMPDIR\" || exit 9\nprintf '{response}'"
+                "/bin/cat >/dev/null\ntest -n \"$PATH\" || exit 9\n{gcc_check}\ncase \"$TMPDIR\" in \"$PWD\"/scratch) ;; *) exit 9 ;; esac\ntest -d \"$TMPDIR\" || exit 9\nprintf '{response}'"
             ),
         );
         let io = ChildIoPlan::new(scratch.clone()).with_toolchain(target.c_bridge_toolchain());

@@ -11,14 +11,6 @@ mod wire;
 
 const LINUX_DRIVER_OPTIONS: &[&str] = &["-pthread"];
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-struct SystemInput {
-    #[serde(with = "crate::build_record::values::path")]
-    path: PathBuf,
-    #[serde(with = "crate::build_record::values::digest")]
-    digest: Digest256,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinuxFinalLinkProfile {
     startup: ValidatedCBridgeToolchainInvocation,
@@ -34,32 +26,12 @@ pub(super) struct Discovery {
     mode: LinkMode,
     #[serde(with = "crate::build_record::values::path")]
     linker: PathBuf,
-    linker_version: String,
-    #[serde(with = "crate::build_record::values::digest")]
-    compiler_digest: Digest256,
     runtime: RuntimeLibraries,
-    inputs: Vec<SystemInput>,
     #[serde(with = "crate::build_record::values::paths")]
-    observed_paths: Vec<PathBuf>,
+    inputs: Vec<PathBuf>,
 }
 
 impl LinuxFinalLinkProfile {
-    pub(super) fn into_discovery(self) -> Discovery {
-        self.data
-    }
-
-    pub(super) fn from_discovery(
-        startup: ValidatedCBridgeToolchainInvocation,
-        data: Discovery,
-    ) -> Result<Self, ToolchainError> {
-        let target = LinuxTarget::select(startup.target().id())?;
-        Ok(Self {
-            startup,
-            target,
-            data,
-        })
-    }
-
     pub(super) fn resolve(
         startup: ValidatedCBridgeToolchainInvocation,
         options: &FinalLinkOptions,
@@ -87,16 +59,7 @@ impl LinuxFinalLinkProfile {
             ));
         }
         let runtime = RuntimeLibraries::resolve(startup.target(), options, cxx)?;
-        let mut observed_paths = Vec::new();
-        let linker = probe::driver_program(runtime.command(&startup), "ld", &mut observed_paths)?;
-        let version = probe::run(Command::new(&linker).arg("--version"))?;
-        let linker_version = String::from_utf8(version.stdout).map_err(error)?;
-        if !linker_version.starts_with("GNU ld ") {
-            return Err(error("this Linux driver profile requires GNU ld"));
-        }
-        let compiler_digest = crate::build_record::fingerprint(&crate::build_record::Input::read(
-            runtime.driver(&startup),
-        )?)?;
+        let linker = probe::driver_program(runtime.command(&startup), "ld")?;
         let mut profile = Self {
             startup,
             target: selected,
@@ -105,16 +68,11 @@ impl LinuxFinalLinkProfile {
                 native_roots,
                 mode,
                 linker,
-                linker_version,
-                compiler_digest,
                 runtime,
                 inputs: Vec::new(),
-                observed_paths: Vec::new(),
             },
         };
-        observed_paths.extend(probe::search_paths(&profile)?);
-        profile.data.inputs = probe::check(&profile, &mut observed_paths)?;
-        profile.data.observed_paths = observed_paths;
+        profile.data.inputs = probe::system_inputs(&profile)?;
         Ok(profile)
     }
 
@@ -124,11 +82,11 @@ impl LinuxFinalLinkProfile {
     pub fn startup_toolchain(&self) -> &ValidatedCBridgeToolchainInvocation {
         &self.startup
     }
-    pub fn compiler_digest(&self) -> Digest256 {
-        self.data.compiler_digest
-    }
     pub fn linker_driver(&self) -> &Path {
         &self.data.linker
+    }
+    pub fn input_paths(&self) -> impl Iterator<Item = &Path> {
+        self.data.inputs.iter().map(PathBuf::as_path)
     }
     pub fn linker_args(&self) -> Vec<&'static str> {
         LINUX_DRIVER_OPTIONS
@@ -142,19 +100,6 @@ impl LinuxFinalLinkProfile {
     }
     pub fn cxx(&self) -> bool {
         self.data.runtime.cxx()
-    }
-    pub fn input_paths(&self) -> impl Iterator<Item = &Path> {
-        self.data.inputs.iter().map(|input| input.path.as_path())
-    }
-
-    pub(super) fn update_input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
-        let mut paths = self.input_paths().map(PathBuf::from).collect::<Vec<_>>();
-        paths.extend(self.data.observed_paths.iter().cloned());
-        paths.push(self.data.runtime.driver(&self.startup).to_owned());
-        if let RuntimeLibraries::Cxx(cxx) = &self.data.runtime {
-            paths.extend(cxx.input_paths()?);
-        }
-        Ok(paths)
     }
 
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {

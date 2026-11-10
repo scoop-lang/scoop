@@ -34,11 +34,11 @@ PM 生成和维护 `Cone.lock`；`scoop` 消费锁定图及其本地投影，向
 - 独立 CLI 支持 resolve、locked fetch、选择性 update/precise 与 offline/frozen；输出版本/来源变化及相关要求。失败保留原 lock，多个根的结果在全部准备成功后一起发布。
 - Git lock 增加声明 selector 记录，防止改 branch/tag 后误用旧 commit。有效 lock 直接匹配已有选择；首次 registry 解析获取最新索引，旧选择无法满足新要求时只刷新冲突涉及的来源再回溯。
 - path、Git、registry、sysroot 和显式 artifact 均经同一来源目录进入求解；同包不同版本的独立根不合并。registry 在求解成功后才下载归档；同进程多个根共享已取得的 metadata。
-- manifest、用户配置和产物摘要按路径、mtime、大小与工具版本缓存。预编译依赖保持精确坐标和 semantic fingerprint，目标不匹配或同坐标产物歧义明确失败；不把源码目录变成构建输出目录。
+- manifest、用户配置和产物摘要按路径、mtime、大小缓存。预编译依赖保持精确坐标和 semantic fingerprint，目标不匹配或同坐标产物歧义明确失败；不把源码目录变成构建输出目录。
 
 ### prepare 与展开配置
 
-- `scoop-pm prepare --request --response` 实现版本 1 的 JSON 接口，一次准备全部所选根；成功后原子交付响应，失败保留既有成功文件。共享类型放在 `scoop-protocol`，不引入 PM 实现依赖。
+- `scoop-pm prepare` 实现版本 7 的 JSON 接口，从 stdin 接收请求，一次准备全部所选根，成功后经 stdout 交付完整响应；stderr 保留诊断，失败不消费部分结果。driver 复用现有并发管道管理，不生成 request／response IPC 文件和临时目录。共享类型放在 `scoop-protocol`，不引入 PM 实现依赖。
 - 每个源码 Cone 交付已绑定精确依赖的生产配置，只有测试根携带测试配置；保留原清单文本与 span，继承字段/依赖定位到成员的继承声明。预编译节点复用现有 `.slib` 摘要；host path 使用无损载体，JSON 解码检查路径编码和格式。
 - prepare 记录先检查配置、manifest、lock、artifact 及发现候选位置的更新状态，命中后直接交付已有展开结果。新增 workspace、用户配置、search-root 产物会失效；普通源码正文改变不重新选择版本。锁文件的观察记录在 lock 文件锁释放前取得，避免把旧图与并发更新后的 lock 状态配对。
 - 两个项目取得同一 registry 版本时，交付相同共享源码目录；prepare 不复制源码到项目中。普通构建与 LSP 消费相同的本地投影。
