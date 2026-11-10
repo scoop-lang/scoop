@@ -8,7 +8,7 @@ Windows 的主驱动名为 `sco.exe`，在 PowerShell 中使用 `sco --version`�
 curl -fsSL https://scoop-lang.org/install.sh | sh
 ```
 
-脚本默认读取[最新组件索引](https://release.scoop-lang.org/latest.txt)；指定 release 目录可用 `curl -fsSL https://scoop-lang.org/install.sh | sh -s -- --release 2026-11-09`。手动安装时，按索引下载所选平台的组件，或从 [GitHub Releases](https://github.com/windoze/scoop/releases) 的同一 release 下载对应归档，再执行以下命令；将归档文件名替换为实际版本、宿主平台与所选目标：
+脚本默认读取[最新组件索引](https://release.scoop-lang.org/latest.txt)；指定 release 目录可用 `curl -fsSL https://scoop-lang.org/install.sh | sh -s -- --release 2026-11-09`。手动安装时，按索引下载所选平台的组件，或从 [GitHub Releases](https://github.com/scoop-lang/scoop/releases) 的同一 release 下载对应归档，再执行以下命令；将归档文件名替换为实际版本、宿主平台与所选目标：
 
 ```sh
 mkdir -p "$HOME/.scoop"

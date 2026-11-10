@@ -193,7 +193,7 @@ def prepare_targets(args, targets, binaries, environment):
 def relocate_markdown_links(root, revision):
     """Keep repository documentation references usable outside the checkout."""
     repository = (
-        "https://github.com/windoze/scoop/blob/"
+        "https://github.com/scoop-lang/scoop/blob/"
         + quote(revision.removesuffix("+modified"), safe="")
         + "/"
     )
