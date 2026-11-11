@@ -252,6 +252,12 @@ MultiThreadExecutor 已采用每 worker 独立的 CAS 无锁 FIFO 与 work steal
 
 concurrent 64 项、asyncio 175 项和两个定向移动 GC 用例通过。生产变更仍只在 concurrent；详细测量、剩余多核瓶颈与限制见[协程调度进度](../coroutine-executors/PROGRESS.md)。报告与原始数据位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round14`。
 
+## 第十五轮：本地环形队列与批量窃取
+
+协程 worker 改用可复用的本地环形 FIFO、外部无锁 inbox 与批量 work stealing；内部投递不再逐项分配链表节点。长运行对照中四 worker 纯 dispatch 提升 44.5%，完整协程 yield 则回退 10.6%，仍需继续定位驱动／恢复同步。64 连接四 worker echo 变化 +1.6%，与 event loop 对照的 +1.4% 接近，未证明实际网络收益；单连接 P99 和异常样本完整保留。
+
+concurrent 69 项、asyncio 175 项及三个定向移动 GC 用例通过。实现、主路径采样与全部测量限制见[协程调度进度](../coroutine-executors/PROGRESS.md)；固定产物、报告和原始数据在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round15`。没有修改 asyncio、HTTP 或 JSON 实现。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

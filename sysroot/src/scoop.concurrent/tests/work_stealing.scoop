@@ -7,6 +7,34 @@ import scoop.test.*
 @Test
 private class WorkStealingTest {
     @Test
+    fun `shutdown drains local work after its registration is retired externally`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val ticket = executor.registerTask(None)
+        val queued = WorkerGate()
+        val release = WorkerGate()
+        val count = AtomicInt(0)
+        ticket.dispatch(
+            FunctionCoroutineWork {
+                ticket.dispatch(FunctionCoroutineWork { count.fetchAdd(1) })
+                queued.open()
+                release.await()
+            }
+        )
+        queued.await()
+        ticket.complete()
+        executor.requestShutdown()
+        release.open()
+        executor.join()
+        assertEquals(1, count.load())
+        assertTrue(executor.isTerminated)
+        executor.close()
+    }
+
+    @Test
     fun `idle workers steal children from the worker blocked inside their parent`() {
         multiThreadExecutor {
             workers = 2;
@@ -17,16 +45,16 @@ private class WorkStealingTest {
                     val parentThread = currentThreadId()
                     val gate = WorkerGate()
                     val count = AtomicInt(0)
-                    for (_ in 0 ..< 64) {
+                    for (_ in 0 ..< 1024) {
                         launch {
                             assertNotEquals(parentThread, currentThreadId())
-                            if (count.fetchAdd(1) == 63)
+                            if (count.fetchAdd(1) == 1023)
                                 gate.open()
                         }
                     }
                     // Children inherit this worker's queue. Only a thief can open the gate.
                     gate.await()
-                    assertEquals(64, count.load())
+                    assertEquals(1024, count.load())
                 }
             }.await()
         }

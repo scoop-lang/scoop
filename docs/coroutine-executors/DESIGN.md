@@ -530,11 +530,11 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
 
 ### 9.2 无锁任务队列与登记发布
 
-协程 worker 各有自己的无锁 FIFO。队列采用 [Michael–Scott 算法](https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html)的 managed 实现：head、tail 和 next 使用 AtomicRef，发布者帮助推进落后的 tail，消费者以 head CAS 唯一领取节点。未链接的 next 指向节点自身，等价于算法的空链；节点不复用。在途引用由 GC 保活并随搬迁更新，因此无需裸地址计数标签或 native epoch 回收。领取成功者取出并清空 payload，避免 dummy head 保留已经完成的任务；其他消费者不读取该 payload。
+协程 worker 各有一个本地环形 FIFO 和一个外部 inbox。本地队列由所属物理 worker 单独发布，复用 256 个 managed 槽位；外部及溢出投递使用 [Michael–Scott 算法](https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html)的 managed inbox。inbox 的 head、tail 和 next 使用 AtomicRef，发布者帮助推进落后的 tail，消费者以 head CAS 唯一领取节点。未链接的 next 指向节点自身，等价于算法的空链；节点不复用。在途引用由 GC 保活并随搬迁更新，因此无需裸地址计数标签或 native epoch 回收。领取成功者取出并清空 payload，避免 dummy head 保留已经完成的任务；其他消费者不读取该 payload。
 
-已评估 [Crossbeam deque](https://docs.rs/crossbeam-deque/latest/crossbeam_deque/)的 worker／stealer 模型。直接使用其 native 存储需要另加移动 GC 根管理，而现有 AtomicRef 已提供所需 CAS 与写屏障；这里使用已知队列算法，不新增 runtime ABI。每个 worker 的队列允许外部生产者和其他 worker 消费，外部恢复直接投递任务最近执行的 worker，不再先经过一个全局 injection 锁或队列。
+已评估 [Crossbeam deque](https://docs.rs/crossbeam-deque/latest/crossbeam_deque/)的 worker／stealer 模型。直接使用其 native 存储需要另加移动 GC 根管理，而现有 AtomicRef 已提供所需 CAS 与写屏障；这里使用已知队列算法，不新增 runtime ABI。每个 worker 的 inbox 允许外部生产者和其他 worker 消费，外部恢复直接投递任务最近执行的 worker，不再先经过一个全局 injection 锁或队列。
 
-executor 的任务登记、complete 与关闭计数由生命周期 mutex 保护。普通 dispatch 读取 ticket 的原子活动标记，再以队列链接 CAS 发布工作，不维护另一套逐投递计数。登记排空后，每条队列以相同的末端链接 CAS 写入独立终止标记；入队先赢则工作位于标记之前，关闭先赢则投递报告登记已完成。全部队列封闭后才设置 workers 的停止状态并唤醒，直到已接纳工作排空才退出。只有与 complete 重叠的投递可能这样拒绝；仍有效的登记在 Draining 中继续正常投递。blocking 的活动检查、计数与入队仍由生命周期锁协调。
+executor 的任务登记、complete 与关闭计数由生命周期 mutex 保护。普通 dispatch 读取 ticket 的原子活动标记，物理 worker 内的同池投递直接发布到本地槽位，其他投递以 inbox 链接 CAS 发布，不维护另一套逐投递计数。登记排空后，每条 inbox 以相同的末端链接 CAS 写入独立终止标记；入队先赢则工作位于标记之前，关闭先赢则投递报告登记已完成。全部 inbox 封闭后才设置 workers 的停止状态并唤醒。worker 只能在本地及外部来源都无工作时退出；本地 producer 就是尚未退出的 owner，因此停止期间的成功本地发布仍由活着的 worker 排空。只有与 complete 重叠的投递可能拒绝；仍有效的登记在 Draining 中继续正常投递。blocking 的活动检查、计数与入队仍由生命周期锁协调。
 
 消费者推进 head 后，将旧 head 的 next 写为独立终止标记，断开退休节点指向后续活动链的引用。保留旧链接会让在途引用或分代 GC 中尚未回收的旧节点延长后继对象的存活。类似的 GC 队列节点脱链动机见 [OpenJDK ConcurrentLinkedQueue](https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentLinkedQueue.java)。这里不能将旧 next 恢复为自身，因为自身表示仍可入队的空末端，迟到生产者的 CAS 会误成功。终止标记不进入 head／tail；读取者先复核 head／tail 身份，持有退休节点的竞争者只重试，不能把标记当成普通工作。
 
@@ -544,9 +544,15 @@ worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进
 
 ### 9.3 Work stealing 与停车
 
-新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时以 Relaxed 原子序更新该归属。归属只选择有效的目标队列，旧值仍合法；payload 的发布同步来自队列 CAS，不从归属读取推导 happens-before。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他队列的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有快捷槽反复越过已经排队的工作。窃取直接执行领取的工作，不反复搬移节点或另建转运队列。
+本地 FIFO 采用单 producer、owner／stealer 竞争 head 的环形结构，参考 [Tokio 的本地 FIFO 与批量窃取](https://github.com/tokio-rs/tokio/blob/master/tokio/src/runtime/scheduler/multi_thread/queue.rs)。槽位为普通 managed 数组，不保存未扫描 native 指针。producer 写入槽位后以 Release 发布 tail，owner 以 head CAS 领取；本地发布不分配任务节点。空闲时窃取至多一半工作，先执行最早一项，余项批量发布到自己的 FIFO；周期公平检查只取一项，避免繁忙 worker 持续搬走对方的大批任务。
 
-每个 worker 有独立的 parking mutex／condition 和原子 Awake／Observing／Notified 状态。准备停车时先注册观察者并发布 Observing，然后扫描全部队列；仍无工作才在自己的 mutex 下检查状态并 await。发布者先完成队列 CAS，再把一个 Observing 改为 Notified，最后在该 worker 的 mutex 下 signal；通知与等待之间因此没有遗漏窗口。已经找到工作却收到通知的 worker 会将通知转交其他观察者，避免将未消费工作的通知吞掉。关闭通知全部观察者，worker 在无可领工作且已关闭时退出。同步只用于休眠与生命周期，入队、出队和窃取不获取 mutex。
+为保留宽索引，本实现分别保存 head、tail 和窃取范围起点三个 AtomicLong，不把两个索引压缩成 32-bit 字段。非负索引按 63 bit 环绕，-1 表示没有在途窃取。stealer 先以 CAS 预留当前 head，再以 AcqRel head CAS 领取一段；失败后释放预留并重试，已有预留时其他 stealer 直接检查别的来源。producer 先 Acquire 读取 head、再 Acquire 读取预留起点，用两个环形距离的较大值判断空间：若看到窃取后的 head，同步关系保证也能看到此前建立的预留，或已经完成的释放；若看到旧 head，本身已经保留被窃取的槽位。预留直到所有读取／清空完成才 Release 释放。owner 的后续 head RMW 保持 release sequence，不能让 producer 提前复用仍在读取的槽位。
+
+仅 producer 写 tail，因此已观察到的可用槽位不会被另一个 producer 占用。inbox 移入和窃取移入可以按该快照批量填充，再一次发布 tail；移交使工作重新可见后通知观察者，避免转换队列期间丢失唤醒。本地入队前先移入已有 inbox 工作；空间不足时新投递继续排到 inbox，保留 yield 对已排队工作的让出行为。每个实际 worker 在进入／退出驱动时设置／清除标量 TLS 的池身份与 worker 序号，识别同池物理调用；跨池投递始终使用对方 inbox。TLS 不持有 managed 引用，不改变 TaskContext 或公开 API。
+
+新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时以 Relaxed 原子序更新该归属。归属只选择有效的目标 inbox，旧值仍合法；payload 的同步来自各队列的发布操作，不从归属读取推导 happens-before。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他来源的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有优先槽反复越过已经排队的工作。窃取批次直接进入已有本地槽位，不另建转运队列。
+
+每个 worker 有独立的 parking mutex／condition 和原子 Awake／Observing／Notified 状态。准备停车时先注册观察者并发布 Observing，然后扫描全部队列；仍无工作才在自己的 mutex 下检查状态并 await。发布者先使队列工作可见，再把一个 Observing 改为 Notified，最后在该 worker 的 mutex 下 signal；通知与等待之间因此没有遗漏窗口。已经找到工作却收到通知的 worker 会将通知转交其他观察者，避免将未消费工作的通知吞掉。关闭通知全部观察者，worker 在无可领工作且已关闭时退出。同步只用于休眠与生命周期，入队、出队和窃取不获取 mutex。
 
 work stealing 不改变单任务串行、排队启动、Context、取消或关闭语义。业务队列始终保留 managed 根，不借用 GC 的标记队列，也不向未扫描 native 容器写入可移动引用。
 

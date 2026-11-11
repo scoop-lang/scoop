@@ -6,7 +6,8 @@ import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.ThreadId
 
 internal class CoroutineWorker(val index: Int) {
-    val queue = CoroutineQueue.create()
+    val inbox = CoroutineQueue.create()
+    val local = CoroutineLocalQueue()
     // Lifecycle fields are protected by the pool's lifecycle mutex.
     var thread: Thread? = None
     var id: ThreadId? = None

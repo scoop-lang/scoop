@@ -1,0 +1,40 @@
+package scoop.concurrent
+
+@ThreadLocal
+private var physicalCoroutinePool: Long = 0L
+
+@ThreadLocal
+private var physicalCoroutineWorker: Int = -1
+
+// Scalar TLS identifies the actual producer of a local queue without placing
+// moving managed references in native thread-local storage.
+internal object CoroutineWorkerContext {
+    private val identities = AtomicLong(1L)
+
+    internal fun nextIdentity(): Long = identities.fetchAdd(1L)
+
+    internal fun enter(pool: Long, worker: Int) {
+        @Unsafe
+        {
+            physicalCoroutinePool = pool
+            physicalCoroutineWorker = worker
+        }
+    }
+
+    internal fun leave() {
+        @Unsafe
+        {
+            physicalCoroutineWorker = -1
+            physicalCoroutinePool = 0L
+        }
+    }
+
+    internal fun current(pool: Long): Int {
+        @Unsafe
+        {
+            if (physicalCoroutinePool == pool)
+                return physicalCoroutineWorker
+            return -1
+        }
+    }
+}

@@ -6,6 +6,7 @@ import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.currentThreadId
 
 internal class CoroutineWorkers private constructor(count: Int) {
+    private val identity = CoroutineWorkerContext.nextIdentity()
     private val records = Array<CoroutineWorker>(count.toLong()) { i -> CoroutineWorker(i.toInt()) }
     private val stopping = AtomicBoolean(false)
     private val observers = AtomicInt(0)
@@ -43,8 +44,22 @@ internal class CoroutineWorkers private constructor(count: Int) {
     }
 
     internal fun submit(affinity: AtomicInt, work: CoroutineWork): Boolean {
-        val target = affinity.load(MemoryOrder.Relaxed)
-        if (!records[target.toLong()].queue.tryPut(CoroutineSubmission(affinity, work)))
+        val current = CoroutineWorkerContext.current(identity)
+        val target =
+            if (current >= 0)
+                current
+            else
+                affinity.load(MemoryOrder.Relaxed)
+        val record = records[target.toLong()]
+        val submission = CoroutineSubmission(affinity, work)
+        if (current >= 0) {
+            refill(record)
+            if (record.local.tryPut(submission)) {
+                notifyOne(target)
+                return true
+            }
+        }
+        if (!record.inbox.tryPut(submission))
             return false
         notifyOne(target)
         return true
@@ -67,14 +82,40 @@ internal class CoroutineWorkers private constructor(count: Int) {
 
     private fun findWork(record: CoroutineWorker): CoroutineSubmission? {
         record.localTurns += 1
-        if (record.localTurns < 32) {
-            when (record.queue.take()) {
+        if (record.localTurns == 32) {
+            record.localTurns = 0
+            when (record.inbox.take()) {
                 case Some(val work) -> return Some(work)
                 case None -> {}
             }
-        } else {
-            record.localTurns = 0
+            when (steal(record, 1)) {
+                case Some(val work) -> return Some(work)
+                case None -> {}
+            }
         }
+        when (record.local.take()) {
+            case Some(val work) -> return Some(work)
+            case None -> {}
+        }
+        refill(record)
+        when (record.local.take()) {
+            case Some(val work) -> return Some(work)
+            case None -> {}
+        }
+        // A paused thief can retain local slots; the inbox must remain runnable.
+        when (record.inbox.take()) {
+            case Some(val work) -> return Some(work)
+            case None -> {}
+        }
+        return steal(record, 128)
+    }
+
+    private fun refill(record: CoroutineWorker) {
+        if (record.local.refill(record.inbox) > 1)
+            notifyOne(record.index + 1)
+    }
+
+    private fun steal(record: CoroutineWorker, limit: Int): CoroutineSubmission? {
         var checked = 0L
         while (checked < records.size - 1L) {
             if (record.victim == records.size.toInt())
@@ -84,12 +125,20 @@ internal class CoroutineWorkers private constructor(count: Int) {
             if (victim == record.index)
                 continue
             checked += 1L
-            when (records[victim.toLong()].queue.take()) {
+            val source = records[victim.toLong()]
+            when (source.inbox.take()) {
                 case Some(val work) -> return Some(work)
                 case None -> {}
             }
+            when (source.local.stealInto(record.local, limit)) {
+                case Some(val work) -> {
+                    notifyOne(record.index + 1)
+                    return Some(work)
+                }
+                case None -> {}
+            }
         }
-        return record.queue.take()
+        return None
     }
 
     private fun execute(record: CoroutineWorker, work: CoroutineSubmission) {
@@ -152,9 +201,11 @@ internal class CoroutineWorkers private constructor(count: Int) {
     private fun run(record: CoroutineWorker) {
         try {
             lock.withLock { record.id = Some(currentThreadId()) }
+            CoroutineWorkerContext.enter(identity, record.index)
             try {
                 drive(record)
             } finally {
+                CoroutineWorkerContext.leave()
                 val notifications =
                     lock.withLock {
                         live -= 1;
@@ -174,7 +225,7 @@ internal class CoroutineWorkers private constructor(count: Int) {
 
     internal fun requestShutdown() {
         for (record in records)
-            record.queue.close()
+            record.inbox.close()
         stopping.store(true)
         for (record in records)
             record.notify()
