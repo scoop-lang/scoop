@@ -46,7 +46,7 @@ struct User(val name: String, val note: String? = None) {
 
 ## 异步与网络
 
-`async/tasks` 展示普通 main 创建 `PlatformEventLoop()` 并调用 `loop.run suspend { scope -> ... }`。复用此入口及结构化任务作用域；需要返回值用 `async`／`await`，无业务结果用 `launch`／`join`。不要发明 `runBlocking` 或全局后台任务入口。
+`async/tasks` 展示普通 main 调用 `eventLoop()` 并通过 `loop.run { ... }` 进入挂起上下文；回调中的 `this` 是 CoroutineScope，不是额外的 lambda 参数。`async` 的回调类型是 `suspend CoroutineScope.() -> T`，有 receiver 的函数类型与 `suspend () -> T` 不同。需要返回值用 `async`／`await`，无业务结果用 `launch`／`join`。不要发明 `runBlocking` 或全局后台任务入口。
 
 `http/get` 同时提供本机服务端与客户端。保持 `withHttpClient`、`withResponse` 等生命周期作用域，等服务开始监听后再运行客户端。读取正文遵守一次消费和读取上限的实际 API；例如示例的 `body.text(1_048_576L)`。这种 I/O 上限不代表所有业务请求都应使用同一数值。
 

@@ -16,7 +16,7 @@ scoop test --release --filter "zero count" .
 
 生产库是普通 library Cone，scoop.test 仅放在 test-dependencies 中。测试源码位于 tests/，package 与所属 Cone group 对齐；@Test 标注容器和用例。
 
-第一个用例断言返回值与布尔条件，第二个用 assertFailsWith 捕获预期的 IllegalArgumentException，再检查可选 message。assertEquals 使用相应类型的相等能力，不能假设任何用户 struct 都自动满足泛型断言入口的要求。
+第一个用例断言返回值与布尔条件，第二个用 assertFailsWith 捕获预期的 IllegalArgumentException，再用 assertEquals 检查 Option<String> 形式的 message。assertEquals 同时提供名义 Equals<T> 和公开 equals(T): Boolean 成员要求的重载，具有派生相等能力的 Option、struct、enum 和 tuple 可以直接比较；这不会让它们自动获得 Equals<T> conformance。
 
 --filter 与 --list 是 scoop test 选项，不是传给测试 main 的参数。修改 divide 业务规则时同步更新相关断言。
 

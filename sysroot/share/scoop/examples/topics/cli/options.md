@@ -17,13 +17,13 @@ Hello, Ada!
 Hello, Ada!
 ```
 
-第一条命令打印以上两行并返回 0；第二条输出包含 Name to greet、--count、--excited 的帮助并返回 0；第三条打印 `count must be positive` 并返回 2。此例把参数错误说明写到 stdout。
+第一条命令打印以上两行并返回 0；第二条向 stdout 输出包含 Name to greet、--count、--excited 的帮助并返回 0；第三条向 stderr 打印 `count must be positive` 并返回 2，stdout 为空。参数解码失败也使用 stderr 和退出码 2。
 
 ## 关键说明
 
 main 的 args 包含 argv[0]。parseCommandLine 接收整个命令行并处理程序名，不要手动裁掉第一项后仍调用同一入口。注解定义位置参数、重复名字的选项、默认文本和 Boolean flag；Options.Companion 是显式传入的 decoder。
 
-run 的 `--` 将后续参数传给程序，特别是以 --help 开头时，避免由 scoop 自身解释。count 的语法由 decoder 解析，正数业务限制由程序另行检查。
+run 的 `--` 将后续参数传给程序，特别是以 --help 开头时，避免由 scoop 自身解释。count 的语法由 decoder 解析，正数业务限制由程序另行检查。标准错误流来自显式依赖的 scoop.platform；借用 standardError 写入诊断，不关闭进程的标准流。
 
 ## 常见误用
 

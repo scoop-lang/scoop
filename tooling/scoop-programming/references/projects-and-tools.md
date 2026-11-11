@@ -95,7 +95,7 @@ single-file run 允许第一个普通程序位置参数开始转发；为避免�
 
 ## 测试和诊断
 
-从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 的类型能力要求仍是普通泛型规则，自定义 struct 不能仅凭支持 `==` 就假设满足断言入口。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
+从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
 
 编译器 human／`--message-format json` 诊断写 stderr，stdout 留给程序；同时检查退出状态。检查成功不等于测试执行成功，也不等于所有目标都已验证。已有源码依赖、generator 或 native 工具产生的日志可能同时出现在 stderr，不把整个流假定为单个 JSON 对象。
 

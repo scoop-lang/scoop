@@ -52,7 +52,7 @@ def run(command, cwd, environment, log, expected_code=0):
     log.write_text(json.dumps(command, ensure_ascii=False) + "\n" + result.stdout + result.stderr)
     if result.returncode != expected_code:
         raise AssertionError(f"exit {result.returncode}, expected {expected_code}; see {log}")
-    return result.stdout
+    return result
 
 
 def http_client(command, cwd, environment, logs):
@@ -99,6 +99,42 @@ def http_client(command, cwd, environment, logs):
                 server.wait(timeout=5)
 
 
+def cli_example(command, directory, environment, logs):
+    executable = directory / ("greet-example.exe" if os.name == "nt" else "greet-example")
+    run(
+        command + ["build", "--release", "greet.scoop", "-o", str(executable)],
+        directory,
+        environment,
+        logs / "build.log",
+    )
+    # Observe the application's streams separately from compiler progress and diagnostics.
+    result = run(
+        [str(executable), "Ada", "--count", "2", "--excited"],
+        directory,
+        environment,
+        logs / "run.log",
+    )
+    assert not result.stderr, f"cli/options: unexpected stderr {result.stderr!r}"
+    help_text = run([str(executable), "--help"], directory, environment, logs / "help.log")
+    assert all(name in help_text.stdout for name in ("Name to greet", "--count", "--excited"))
+    assert not help_text.stderr, f"cli/options: help wrote stderr {help_text.stderr!r}"
+    invalid = run(
+        [str(executable), "Ada", "--count", "0"], directory, environment, logs / "invalid.log", 2
+    )
+    assert not invalid.stdout, f"cli/options: invalid input wrote stdout {invalid.stdout!r}"
+    assert invalid.stderr == "count must be positive\n"
+    decoding = run(
+        [str(executable), "Ada", "--count", "invalid"],
+        directory,
+        environment,
+        logs / "decoding.log",
+        2,
+    )
+    assert not decoding.stdout, f"cli/options: decoding failure wrote stdout {decoding.stdout!r}"
+    assert decoding.stderr, "cli/options: decoding failure did not explain the error"
+    return result
+
+
 def validate(topic, command, work, environment):
     id = topic["id"]
     directory = work / "programs" / id
@@ -113,7 +149,9 @@ def validate(topic, command, work, environment):
     temporary.mkdir(exist_ok=True)
     environment = {**environment, "TMPDIR": str(temporary) + "/"}
     if id == "http/get":
-        stdout = http_client(command, directory, environment, logs)
+        stdout = http_client(command, directory, environment, logs).stdout
+    elif id == "cli/options":
+        stdout = cli_example(command, directory, environment, logs).stdout
     elif id == "language/compiler-inputs":
         executable = directory / "embedded-example"
         for label, value in (("present", "1.2.3"), ("missing", None), ("empty", "")):
@@ -133,28 +171,26 @@ def validate(topic, command, work, environment):
                 directory,
                 {**environment, "SCOOP_EXAMPLE_VERSION": "runtime"},
                 logs / f"{label}-run.log",
-            )
+            ).stdout
             version = "dev" if value is None else value
             expected = EXPECTED[id].replace("version=1.2.3\n", f"version={version}\n", 1)
             assert stdout == expected, f"{id} ({label}): unexpected stdout {stdout!r}"
         return
     elif id == "test/assertions":
-        stdout = run(
-            command + ["test", "--release", "."], directory, environment, logs / "test.log"
-        )
+        run(command + ["test", "--release", "."], directory, environment, logs / "test.log")
         listing = run(
             command + ["test", "--release", "--list", "."],
             directory,
             environment,
             logs / "list.log",
-        )
+        ).stdout
         assert "division returns a value" in listing and "zero count reports the reason" in listing
         filtered = run(
             command + ["test", "--release", "--filter", "zero count", "."],
             directory,
             environment,
             logs / "filter.log",
-        )
+        ).stdout
         assert "zero count reports the reason" in filtered
         assert "division returns a value" not in filtered
         return
@@ -166,29 +202,12 @@ def validate(topic, command, work, environment):
             source = "."
         else:
             source = topic["files"][0]["path"]
-        args = ["run", "--release", source]
-        if id == "cli/options":
-            args += ["--", "Ada", "--count", "2", "--excited"]
-        stdout = run(command + args, directory, environment, logs / "run.log")
+        stdout = run(
+            command + ["run", "--release", source], directory, environment, logs / "run.log"
+        ).stdout
     assert stdout == EXPECTED[id], f"{id}: unexpected stdout {stdout!r}"
     if id == "start/hello":
         run(command + ["check", "main.scoop"], directory, environment, logs / "check.log")
-    if id == "cli/options":
-        help_text = run(
-            command + ["run", "--release", "greet.scoop", "--", "--help"],
-            directory,
-            environment,
-            logs / "help.log",
-        )
-        assert all(name in help_text for name in ("Name to greet", "--count", "--excited"))
-        invalid = run(
-            command + ["run", "--release", "greet.scoop", "--", "Ada", "--count", "0"],
-            directory,
-            environment,
-            logs / "invalid.log",
-            2,
-        )
-        assert invalid == "count must be positive\n"
     if id.startswith("io/"):
         assert not list(temporary.glob("scoop-*")), "Example leaked its temporary directory"
 
@@ -202,7 +221,8 @@ def main():
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    command = [str(args.scoop.resolve()), "--sysroot", str(args.sysroot.resolve())]
+    # Multicall launchers select Scoop by argv[0], so preserve the executable alias.
+    command = [str(args.scoop.absolute()), "--sysroot", str(args.sysroot.resolve())]
     environment = os.environ.copy()
     # All examples consume one installation and share its ordinary Cone cache.
     environment["SCOOP_CACHE_DIR"] = str(work / "cache")
@@ -212,7 +232,7 @@ def main():
             work,
             environment,
             work / "index.log",
-        )
+        ).stdout
     )
     ids = [topic["id"] for topic in index["topics"]]
     assert set(ids) == set(EXPECTED), "Update the explicit example checks when publishing topics"
@@ -228,7 +248,7 @@ def main():
                     work,
                     environment,
                     work / "topic.log",
-                )
+                ).stdout
             )
             validate(topic, command, work, environment)
             print(f"PASS {id}", flush=True)

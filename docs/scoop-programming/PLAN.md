@@ -1,6 +1,6 @@
 # Scoop AI 编程支持改进计划
 
-日期：2026-11-12。状态：改进项待实施；本次交付为计划及配套的[标准更新工作流](UPDATE-WORKFLOW.md)。下文的 `scoop api`、`scoop query` 和新增示例主题均为拟议能力，不能作为当前工具链的使用说明。
+日期：2026-11-12。状态：实施中，分批进展与验证见 [PROGRESS.md](PROGRESS.md)；维护采用配套的[标准更新工作流](UPDATE-WORKFLOW.md)。下文的 `scoop api`、`scoop query` 和新增示例主题在对应批次完成前均为拟议能力，不能作为当前工具链的使用说明。
 
 ## 1. 目标与范围
 
