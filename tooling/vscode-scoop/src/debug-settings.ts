@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { RunnableTarget } from "./runnables.ts";
+import { scoopHome } from "./server-settings.ts";
 
 export interface TestCaseSelection {
   path: string;
@@ -44,7 +45,7 @@ export async function toolCommand(
   if (process.platform === "win32") {
     name = name === "scoop" ? "sco.exe" : `${name}.exe`;
   }
-  const installed = path.join(os.homedir(), ".scoop/bin", name);
+  const installed = path.join(scoopHome(), "bin", name);
   try {
     await access(installed, constants.X_OK);
     return installed;

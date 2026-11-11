@@ -5,11 +5,30 @@ pub fn configured_cache_root(explicit: Option<PathBuf>) -> Result<PathBuf, crate
     explicit
         .or_else(|| std::env::var_os("SCOOP_CACHE_DIR").map(PathBuf::from))
         .or_else(default_cache)
+        .map(versioned_cache_root)
         .ok_or_else(|| {
             crate::ToolchainError(
                 "no usable platform cache directory; provide --cache-dir or SCOOP_CACHE_DIR".into(),
             )
         })
+}
+
+/// Select the cache namespace from release configuration, without inspecting tools.
+pub fn versioned_cache_root(root: PathBuf) -> PathBuf {
+    let identity =
+        std::env::var("SCOOP_TOOLCHAIN_ID").unwrap_or_else(|_| crate::VERSION.to_owned());
+    root.join("toolchains")
+        .join(scoop_wire::sha256(identity.as_bytes()).to_string())
+}
+
+pub fn shared_commands_root() -> Option<PathBuf> {
+    std::env::var_os("SCOOP_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+                .map(|home| PathBuf::from(home).join(".scoop"))
+        })
+        .map(|root| root.join("commands"))
 }
 
 fn default_cache() -> Option<PathBuf> {

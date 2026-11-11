@@ -10,7 +10,7 @@ Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN
 
 宿主 LLVM 准备同时安装 LLVM／Clang 动态库、Rust 构建所需的 llvm-config／头文件、Clang／clang-cl／Clang++、LLD 及所需 LLVM 对象／归档／资源工具。LLVM 与 inkwell 均只启用实际使用的 AArch64／X86 backend，不引用未构建 target 的初始化入口。Windows x64 宿主采用 LLVM-MinGW UCRT 开发环境构建，Rust 宿主为 `x86_64-pc-windows-gnullvm`；宿主身份不覆盖应用选择的完整 Scoop target。Windows 使用原生 Ninja 和 `.exe`／DLL 布局，必需的宿主 LLVM／Clang、C++／unwind DLL 与实际引用它们的工具相邻安装；Darwin／Linux 保持各自的 rpath 与动态库规则。开发安装与运行期工具包的组装仍由维护脚本负责，普通编译不构建宿主 LLVM。
 
-发行组件按宿主、目标与全局输入划分。`bin-<host>` 合并 Scoop 命令、外部命令与 LLVM／LLDB／Python 运行资源，不另发 `llvm-<host>` 包。维护 LLVM prefix 保留 llvm-config、开发头文件、静态 SDK 库与 CMake exports；发行只选择实际使用的 Clang／LLD／LLVM 工具、Clang builtin resource headers 和非系统动态依赖。公开工具名与私有 `libexec/llvm` 路径沿用 2.22。`sources` 交付内置 Cone 源码、维护输入和 Scoop FFI 公开头；`llvm-sources` 仅供维护，不是普通安装的依赖。发布入口使用本次成功生成的组件清单，不通过目录通配把旧组件重新加入发行。
+发行组件按宿主、目标与全局输入划分。`bin-<host>` 合并 Scoop 命令、外部命令与 LLVM／LLDB／Python 运行资源，不另发 `llvm-<host>` 包。维护 LLVM prefix 保留 llvm-config、开发头文件、静态 SDK 库与 CMake exports；发行只选择实际使用的 Clang／LLD／LLVM 工具、Clang builtin resource headers 和非系统动态依赖。公开工具名与私有 `libexec/llvm` 路径沿用 2.22。`sources` 交付 Scoop 自己的内置 Cone、清单、C／C++／Rust 胶水、资源、示例和 Scoop FFI 公开头，默认安装以支持源码导航与应用 native 编译；`vendor` 单独交付上游源码、版本说明、许可和编译补丁（含 LLVM／LLDB），按需安装。各二进制组件携带自身需要的第三方许可，不依赖 sources 或 vendor 补足许可。发布入口使用本次成功生成的组件清单，不通过目录通配把旧组件重新加入发行。
 
 `lib-base-<target>` 和 `lib-gui-<target>` 只交付预编译 `.slib`、所需对象与链接库、runtime 索引及许可证，不带第三方开发头或完整工具链。Linux GUI 保留实际需要的共享库。Windows 使用同一 GNU-LLVM Rust 宿主构建主命令、外部命令和内部 runtime 准备程序；两个 LLVM-MinGW 目标分别增加 `native-<target>`，在 `lib/<target>/toolchain` 保存 CRT 配置头、启动对象、导入库、C++ 目标库与必要 compiler-rt。公共 MinGW／libc++ 头由 Windows bin 的 `libexec/mingw/include` 提供一次；目标配置头优先于公共头。目标 native 包不带宿主 executable、其他架构或其他操作系统资源。Microsoft SDK／MSVC toolset 仍由本机开发环境或显式配置提供，不生成空的 native-msvc 包。默认安装选择 bin、sources 和默认目标 base；MinGW 还需同目标 native，GUI 按需追加。宿主与目标的实际许可随所属组件收集，安装后的 API 文档生成沿用同一目标选择。详细布局见[发行组件设计](../distribution/DESIGN.md)。
 
@@ -949,15 +949,19 @@ MIR `identity-foundation/6` 与 LIR foundation 保存实际实现的实体目录
 
 开发 sysroot 准备、发行组装、安装及打包属于仓库维护脚本，不进入 `scoop` 命令或 driver。脚本调用普通 Cone 构建与已有 runtime 编译库；日常命令只消费选定的 sysroot 和显式指定的构建输入。
 
-`scripts/package_toolchain.py` 是安装包的单一构建入口，负责 LLVM 输入准备、宿主命令、该宿主支持的目标 native／runtime、系统 `.slib` 和 VS Code 扩展。组件组成遵守第 1 节与[发行组件设计](../distribution/DESIGN.md)：每宿主一个 bin、每目标 base／可选 GUI、两个 MinGW 目标各一个 native，以及全局 sources／llvm-sources。普通组件以安装根内容为归档顶层，合并解压即可使用；维护用途的 llvm-sources 保留自己的版本目录。系统 `.slib` 由本次编译器预编译，按既有格式／目标／ABI 合同消费。同一 release 按相同版本成组选取，不另做跨版本混装校验。
+`scripts/package_toolchain.py` 是安装包的单一构建入口，负责 LLVM 输入准备、宿主命令、该宿主支持的目标 native／runtime、系统 `.slib` 和 VS Code 扩展。组件组成遵守第 1 节与[发行组件设计](../distribution/DESIGN.md)：每宿主一个 bin、每目标 base／可选 GUI、两个 MinGW 目标各一个 native，以及全局 sources／vendor。所有组件以安装根内容为归档顶层，合并解压即可使用。系统 `.slib` 由本次编译器预编译，按既有格式／目标／ABI 合同消费。同一 release 按相同版本成组选取，不另做跨版本混装校验。
 
 归档输出至 `tmp/dist/scoop-<version>/` 或显式输出目录，全部成功后写入 `packages-<host>.list`；发布侧只从该清单选取本次附件。安装根继续包含 `bin`、`commands`、`lib/<target>`、`include`、`src`、`vendor`、`native`、`libexec`、`share`、`tooling` 和 post-install 入口。commands 按原内容和 executable 权限复制，空目录仍进入包，`.gitkeep` 不进入包。VSIX 按 npm lockfile 构建，源码 revision、版本与宿主写入纯文本 VERSION 和说明性 toolchain.toml；docs 由安装后生成。默认 LLVM 输入缺失时由维护脚本取得固定上游归档，显式输入失败照常报错。宿主／目标集合不变，Darwin AArch64 同时发行两个 Darwin 目标，Linux GNU 同时发行 GNU／musl。
 
 Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 30，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
 
+发行组件索引使用 schema 1 TOML。每个固定 release 的 `manifest.toml` 记录 release／version／revision、sources／vendor 引用、宿主默认 target 与可用 target、各 target 的 base／可选 GUI／native 引用和平台要求；每个归档记录相对 path、压缩 size 和 SHA-256。索引仅来自本次成功组装的归档。各宿主生成独立片段，全局 sources／vendor 仅选一个生产宿主的片段；发布作业合并为完整索引，再更新 `latest.toml` 指向它。普通命令与已安装组件复用不读取归档做摘要检查。具体字段见[发行索引格式](../distribution/MANIFEST.md)。
+
+维护下载目录由 `--download-dir`、`SCOOP_DOWNLOAD_DIR`、仓库 `tmp/downloads` 依次选择，相对路径按调用 cwd 解析。原文件按依赖、固定版本／revision 和文件名保存，与工作目录及 Scoop 版本无关。显式本地输入优先；自动获取先复用下载目录，再用已有 vendor 输入，均缺失才请求声明的固定 URL。命中只判断输入配置／元信息和文件存在，不读内容、重算摘要或发送网络请求；普通构建复用先于下载和输入准备。首次下载使用单文件锁、同目录临时文件和原子替换；失败不发布。已有固定摘要只在首次下载流检查，解包和补丁工作在独立 work-dir。LLVM 源码归档、LLVM-MinGW ZIP 和所选 CPython LICENSE 使用此入口；其余本地 vendor 输入和 Cargo／npm 缓存沿用原有机制。详见[源码与下载设计](../distribution/PACKAGING-DESIGN.md)。
+
 post-install 使用 POSIX shell／PowerShell 和配套 `scoop`／`scoopc`，只负责为已安装的所选目标生成离线 API 文档，不再构建系统 `.slib`。发行清单保存默认目标及各目标的有序 Cone 目录清单，并在 `share/scoop/install` 以逐行文本提供相同选择供脚本读取；`targets.list` 列出本 release 为该 host 提供的目标，首行为默认目标，`<target>.list` 为该目标非 GUI Cone 的目录顺序，`<target>.gui.list` 为 GUI Cone 的目录顺序（该目标无 GUI Cone 时不生成）。清单由既有生产 sources 条件与依赖选择得到，仅用于文档编排。默认处理宿主的默认目标；`--target` 可选择其他随包目标，`--all-targets` 处理全部已安装的目标并跳过未安装的目标。post-install 对每个选中目标先检查 `lib/<canonical-target-triple>` 已安装（含系统 `.slib`），缺失时报错并指出应安装的 `scoop-<version>-lib-base-<target>.tar.xz`；`<target>.gui.list` 首个 Cone 的 `.slib` 存在时视为已安装 lib-gui 包，GUI Cone 与非 GUI Cone 一起生成文档，否则只为非 GUI Cone 生成文档。文档生成不执行 Cargo 或重建 vendor 库、LLVM、runtime，也不使用 Python；LLDB 继续携带与自身构建版本匹配的 Python。工作目录保存普通构建缓存、lock 和中间结果，重复运行复用未变化的输入与结果；失败报告实际错误，修正后可重试。日常命令继续只消费 `.slib`，不会隐式运行安装脚本。
 
-GitHub Release workflow 对版本 tag 构建 macOS AArch64、Windows x64 与 Linux GNU x64 三个宿主 job，各产出本宿主的 `scoop-<version>-bin-<host>.tar.xz` 和该 host 发行目标的 `scoop-<version>-lib-base-<target>.tar.xz`／`scoop-<version>-lib-gui-<target>.tar.xz`，另发布全局一份的 `scoop-<version>-sources.tar.xz` 与 `scoop-<version>-llvm-sources.tar.xz`；同一 release 的附件列表即以版本命名的完整组件集合。安装验收在另外解压的目录合并解压组件包、执行 post-install 并实际编译运行程序，验收产物不进入归档。官网 shell 安装脚本按宿主与所选目标下载对应组件包、解压到 `~/.scoop` 并执行 post-install（生成文档）；成功后幂等地将 `~/.scoop/bin` 加入相应 shell rc。安装与发布不进入编译器或 PM 的命令实现。
+GitHub Release workflow 对版本 tag 构建 macOS AArch64、Windows x64 与 Linux GNU x64 三个宿主 job，各产出本宿主的 `scoop-<version>-bin-<host>.tar.xz` 和该 host 发行目标的 `scoop-<version>-lib-base-<target>.tar.xz`／`scoop-<version>-lib-gui-<target>.tar.xz`，另发布全局一份的 `scoop-<version>-sources.tar.xz` 与 `scoop-<version>-vendor.tar.xz`；同一 release 的附件列表即以版本命名的完整组件集合。安装验收在另外解压的目录合并解压组件包、执行 post-install 并实际编译运行程序，验收产物不进入归档。官网 shell／PowerShell bootstrap 下载独立的 `scoop-install`，并转交版本、target 与组件选择参数。安装器按固定 manifest 将所选组件安装到 `~/.scoop/toolchains/<version>-<host>`，生成命令代理并调用 post-install；bootstrap 成功后幂等地将 `~/.scoop/bin` 加入相应 shell rc 或用户 PATH。安装与发布不进入编译器或 PM 的命令实现。
 
 仓库的 `tooling/scoop-programming/` 保存面向 AI 的 Scoop 编程 skill，包含 `SKILL.md`、界面元数据与按需阅读的参考资料。完整打包入口将该目录原样复制到 bin 组件包的 `tooling/scoop-programming/`，在 `share/scoop/toolchain.toml` 的 `programming_skill` 字段记录安装根相对路径。skill 使用配套的 `scoop example`、CLI、离线 API 文档及库源码指导程序开发，不另行复制示例库或实现编译入口；打包及普通命令不自动安装、注册 skill，也不修改 AI 工具的用户配置。
 
@@ -985,7 +989,7 @@ scoopc build <file.scoop> [--direct-slib direct.slib]... [--support-slib support
 
 低层 `scoop-link` 使用相同的普通产物链接合同。manifest build/run省略root时按包管理规范3.1从cwd定位最近清单及所属workspace，成员内默认该成员，workspace根采用default-members；`run -- args`也采用该选择，必须得到唯一executable。低层scoopc输入必需。single-file与artifact-only link不启动PM或读取相邻workspace。
 
-`scoop` 优先解析内置子命令；其余子命令名称必须是单个文件名，并直接执行所选 `<SYSROOT>/commands/scoop-<名称>`，Windows 使用 `scoop-<名称>.exe`。目标为宿主可直接执行的程序（Unix 包括带解释器声明的脚本），不经过 shell 解释或 PATH 搜索。子命令名称之后的全部参数原样传递，包含选项、`--`、空字符串及宿主原始参数字节；Windows 保留原 UTF-16 参数。`scoop` 自身的选项必须放在外部子命令之前。`--sysroot` 采用本节既有的显式参数、`SCOOP_SYSROOT`、安装根优先顺序，对内置子命令仍可放在子命令前后。外部程序继承 cwd、环境和标准输入输出，正常退出码与信号终止状态由 `scoop` 传回；程序缺失、不可执行或启动失败按实际路径报告，不触发编译、链接或工具探测。
+`scoop` 优先解析内置子命令；其余子命令名称必须是单个文件名，优先执行所选 `<SYSROOT>/commands/scoop-<名称>`，不存在时查找 `SCOOP_HOME/commands` 下的同名共享自定义命令（未设置 SCOOP_HOME 时为用户 `~/.scoop/commands`），Windows 使用 `scoop-<名称>.exe`。目标为宿主可直接执行的程序（Unix 包括带解释器声明的脚本），不经过 shell 解释或 PATH 搜索。子命令名称之后的全部参数原样传递，包含选项、`--`、空字符串及宿主原始参数字节；Windows 保留原 UTF-16 参数。`scoop` 自身的选项必须放在外部子命令之前。`--sysroot` 采用本节既有的显式参数、`SCOOP_SYSROOT`、安装根优先顺序，对内置子命令仍可放在子命令前后。外部程序继承 cwd、环境和标准输入输出，正常退出码与信号终止状态由 `scoop` 传回；程序缺失、不可执行或启动失败按实际路径报告，不触发编译、链接或工具探测。
 
 `scoop bundle` 是上述外部命令，实际安装于 `commands/scoop-bundle`，负责已链接应用的资源、动态运行依赖、平台包与签名；其[设计](../scoop-bundle/DESIGN.md)首期覆盖 app、deb、rpm、AppImage、NSIS、MSI，Flatpak/MSIX 后置。Windows 安装器的快捷方式使用显式配置的 bundle 图标，缺省时沿主程序的默认图标，不因此重写 PE 资源。它可以调用正常 build，但不参与编译 stage 或工具链/sysroot 发行准备。build 的 JSON 成功记录增加实际 canonical `target`，与 `output`、root coordinate、profile 一起供外部工具消费，不要求打开 `.slib` 推导安装信息。package machine protocol 当前为 6，成员 JSON 增加工具 metadata；编译请求和产物格式不因 bundle 改变。
 
@@ -1035,7 +1039,7 @@ JSON 接口中的 host path 保留平台编码标签，字节字段采用标准 
 
 文档是独立的输出意图，源码用途固定为 Production，且只接受 manifest Cone。机器／文档请求的 single-Cone 输出为 `.slib`、文档渲染输入、或两者同时生产的闭合选择；仅文档请求不携带虚假的 `.slib` 输出路径。检查意图按上文设计另加无产物的闭合分支。driver 在 parser 后整理文档，再完成正常 HIR 及 §2.2 的文档投影；仅文档随后发布本地 JSON 渲染输入并返回，不进入 MIR／LIR、native 编译或机器对象生产。该路径只用共享 target registry 选择目标，不探测无关的 C／C++ 工具或准备 runtime。生产附带文档从同一次 HIR 提取，在实际机器生产成功后发布文档输入；输出与普通 `.slib` 分别保存。
 
-文档成功响应携带渲染输入位置及独立的文档 warning，普通编译 warning 仍保留原分类；渲染输入包含页面目录组装所需的声明、typed 路由和诊断。仅文档成功没有 artifact summary。文档请求不与 observation-only 混用；仅文档可输出 AST／HIR dump，不能请求尚未执行的 MIR／optimizations／LIR 观察。普通编译不整理或报告文档问题；语言正文、默认值或可见性错误仍阻止文档输出，失败不覆盖之前的结果。工具本地 JSON 随编译器版本更新，不是 `.slib` section 或独立分发合同。
+文档成功响应携带渲染输入位置及独立的文档 warning，普通编译 warning 仍保留原分类；渲染输入包含页面目录组装所需的声明、typed 路由和诊断。仅文档成功没有 artifact summary。文档请求不与 observation-only 混用；仅文档可输出 AST／HIR dump，不能请求尚未执行的 MIR／optimizations／LIR 观察。普通编译不整理或报告文档问题；语言正文、默认值或可见性错误仍阻止文档输出，失败不覆盖之前的结果。文档输入通过同目录临时文件原子发布；Windows 对临时文件及目标文件均使用父目录解析后的长路径形式，支持版本化安装目录内的深层缓存。工具本地 JSON 随编译器版本更新，不是 `.slib` section 或独立分发合同。
 
 `scoop doc`接受零个或多个manifest root，M63中沿用PM的workspace/default-members及显式根选择。各root使用独立的已锁定图；只合并实际依赖绑定与配置相容的源码文档任务，不建立synthetic Cone。默认包含显式root及图中选中的源码依赖，`--no-deps`保留全部显式root；prebuilt节点保持原消费来源。目标选择只需要纯target registry数据，native工具与输入仅在确实需要生产依赖`.slib`时准备。仅文档root没有机器生产、runtime或最终链接。
 
@@ -1081,7 +1085,7 @@ M63统一采用包管理规范3.1的`target/<target>/<profile>/<group>/<name>/`�
 
 M63中上述manifest来源选择由PM执行：普通非`scoop`裸依赖改用明确registry，系统库候选需满足版本要求后锁成精确coordinate；core仍固定0.1.0。单文件与artifact-only链接保留原精确artifact查找方式，不沿PM自动下载缺失来源。
 
-配套 scoopc 默认来自 scoop executable 同目录，允许显式指定。调用方使用当前本机编译协议；每个 source cache miss 才启动一次 single-Cone 编译，传入实际 direct/support artifact 路径，两组互斥。工具启动、协议读写和实际编译失败正常报告。普通构建不查询能力握手，不保存工具文件状态、能力响应或配套身份记录；编译器文件、版本、路径、协议版本和工具链发行身份不作为缓存更新输入。compile key domain 为 `scoop-cone-compile-cache-v12`，保留当前 Cone 的有效配置、源码状态、依赖结果、目标、优化与调试选项及编译用途，不重放 child 成功产物及依赖闭包的完整验证。
+配套 scoopc 默认来自 scoop executable 同目录，允许显式指定。调用方使用当前本机编译协议；每个 source cache miss 才启动一次 single-Cone 编译，传入实际 direct/support artifact 路径，两组互斥。工具启动、协议读写和实际编译失败正常报告。普通构建不查询能力握手，不保存工具文件状态、能力响应或配套身份记录；编译器文件、路径和探测结果不作为缓存更新输入。所选工具链的明确发行身份用于选择缓存命名空间，不扫描工具文件；同一命名空间内部仍只按正常输入更新判断。compile key domain 为 `scoop-cone-compile-cache-v12`，保留当前 Cone 的有效配置、源码状态、依赖结果、目标、优化与调试选项及编译用途，不重放 child 成功产物及依赖闭包的完整验证。
 
 构建图只选择静态 target，实际 C 调用配置在确需生产 native 对象、generated-C 或最终链接时解析。同一构建图在进程内复用解析结果，parent 将实际调用数据直接传给 child；不保存工具／SDK 巡检 JSON 或发现结果缓存，不枚举工具文件、版本、SDK 状态、PATH 候选及探测头文件来计算失效。实际目标、对象 ABI、libc、编译参数与运行库需求仍按正常编译调用处理。没有选中 native 源码的 Cone 不因 include 或 C/C++ 工具配置建立额外更新输入；有 native 源码时，清单中的有效 include／flags 配置与实际源码、包含的头文件及影响包含选择的目录状态参与普通更新判断。
 
@@ -1115,7 +1119,7 @@ Windows 通过 `--debug-info line-tables|full` 或产物链接的 `--emit-debug-
 
 Windows 的 `--debug-info line-tables|full` 使用 CodeView，与优化 profile 独立；debug 默认 full，release 默认 none。函数的显示名称、实际声明文件和位置由 HIR 经 MIR／LIR 传递，LLVM subprogram 继续以实际机器符号关联函数；位置复用当前已读取源码或依赖的 source record，不在 codegen 重新读取源码。当前源码使用本次输入的文件定位路径，独立于 `SourceLocation.file` 的包坐标显示名称；该宿主路径不进入持久化 SourceRecord 或实体身份。只保留 source record 的依赖泛型使用原始逻辑文件路径和位置，不猜测提供方的宿主目录。没有源码声明的辅助函数不伪造文件或位置。函数入口的声明位置与正文各语句的位置是不同信息，只有已传递的实际位置才能生成行记录；不得把整段正文标成声明所在行。调试 metadata 不参与实体身份、ABI 或 GC／EH 根信息，release 的必要展开表与 stackmap 保持原合同。
 
-用户 Cone 的默认构建缓存位于 `<target-root>/<canonical-target-triple>/build/<profile>`，包含本次图的源码依赖、工具发现、中间产物和最终链接缓存，不使用用户级平台缓存目录。build/run/test 与 check 使用本次选择的 profile；doc 使用 debug，并以首个显式 root（省略时为当前 Cone）选择默认缓存 target root。支持 `--target-dir` 的命令同时将默认缓存放到指定 target root 下，`-o`／`--output-dir` 不改变缓存位置。显式 `--cache-dir` 优先，其次为 `SCOOP_CACHE_DIR`，两者均直接指定完整缓存根，不再追加 triple/profile；未指定时才使用上述 Cone 本地布局。默认缓存选择只定位输入和目标，不读取源码内容或探测工具。
+用户 Cone 的默认构建缓存位于 `<target-root>/<canonical-target-triple>/build/<profile>`，包含本次图的源码依赖、工具发现、中间产物和最终链接缓存，不使用用户级平台缓存目录。build/run/test 与 check 使用本次选择的 profile；doc 使用 debug，并以首个显式 root（省略时为当前 Cone）选择默认缓存 target root。支持 `--target-dir` 的命令同时将默认缓存放到指定 target root 下，`-o`／`--output-dir` 不改变缓存位置。显式 `--cache-dir` 优先，其次为 `SCOOP_CACHE_DIR`，两者指定缓存根，不追加 triple/profile；未指定时才使用上述 Cone 本地布局。随后统一在缓存根下选择 `toolchains/<identity-key>`，artifact-only link 也使用相同规则。identity-key 仅由调用配置 `SCOOP_TOOLCHAIN_ID` 或当前程序内嵌发行版本／revision 的文本计算，用于稳定目录名，不读取或散列工具文件、产物及 SDK；parent 向 single-Cone child 直接传入已选缓存目录，child 不重复追加。默认缓存选择只定位输入和目标，不读取源码内容或探测工具。
 
 `scoop clean`接受与build相同的manifest目录、Cone.toml或单文件输入；M63中manifest/workspace模式通过PM的本地成员发现定位workspace target根，不求解版本或获取依赖，单文件保持独立target根。它递归删除整个target目录（包括所有target、profile、缓存和目录内其他生成物），目录不存在时成功返回；`--target-dir`相对cwd解析并直接指定被清理的根，此时不依赖项目清单或PM，因此损坏的项目配置仍可显式清理。不读取源码/sysroot、启动编译器或探测native工具；target根外的显式输出和缓存不属于清理范围，Cone.lock与全局PM源码缓存不因项目clean被删除。实际删除失败按路径报告并退出1；参数错误退出2。human成功摘要或schema 1、kind为`clean`、含`target_dir`与`removed`的JSON结果写stderr，stdout保持为空。
 
@@ -1173,7 +1177,7 @@ native 对象和最终链接结果的更新键显式包含已选目标的 canoni
 
 实际预处理时，已存在的目标 include 根和选中的头文件使用一致的路径解析后映射为逻辑位置，避免系统目录别名使行标记残留安装路径。未使用目标资源的普通 native 源码不要求目标资源目录存在；其他实际 I/O 错误照常报告。
 
-编译缓存由 scoop 管理，默认位于项目 target 中；发行版自带系统 `.slib`，额外依赖不建立全局 `.slib` 编译缓存。同一工作区、Cone、Production/Test、target、profile 可直接定位普通构建记录；本机路径可参与记录定位，不进入语言身份。记录保存有效配置、选中输入的逻辑名／修改时间／大小、实际依赖输入键／必要语义摘要、生成物及用户输出位置。更新判定先于源码读取、输入复制、预处理、工具定位／探测和链接准备。输入内容在确需编译时读取，供 parser 与必要语义计算共用。升级发行版后，用户对自己的项目执行 `scoop clean`；显式指定在 target 之外的缓存也应清理。不支持通过监视工具链、SDK 或环境变化自动重建，不考虑只替换工具链而保留旧系统 `.slib` 的场景。
+编译缓存由 scoop 管理，默认位于项目 target 中；发行版自带系统 `.slib`，额外依赖不建立全局 `.slib` 编译缓存。同一工作区、Cone、Production/Test、target、profile 可直接定位普通构建记录；本机路径可参与记录定位，不进入语言身份。记录保存有效配置、选中输入的逻辑名／修改时间／大小、实际依赖输入键／必要语义摘要、生成物及用户输出位置。更新判定先于源码读取、输入复制、预处理、工具定位／探测和链接准备。输入内容在确需编译时读取，供 parser 与必要语义计算共用。通过 `scoop-install` 或使用另一发行版的实际命令切换时，默认及显式缓存根均按明确发行身份选择命名空间，不需要先清理其他版本的缓存。该机制不监视工具文件或 SDK 变化，不考虑只替换工具链而保留旧系统 `.slib` 的场景。
 
 PM的全局源码/解析缓存与编译缓存职责分离，默认布局和覆盖参数见[包管理规范11.1](SCOOP-PACKAGE-SPEC.md#111-跨项目共享目录)。多个项目可直接引用同一registry版本的解包目录或同一Git commit的checkout，不为每个项目复制依赖源码。同Cone在不同精确依赖绑定、target或profile下的编译结果仍分别判断更新；共享下载不能被当作共享编译结果的充分条件。
 
@@ -1287,7 +1291,7 @@ sysroot 采用同一源码与产物布局：`src/<cone-name>` 保存普通 Cone�
 
 Rust 文本后端的维护源码位于 `native/text_backend`，独立 Cargo package 与 lock 不进入编译器 stage workspace；固定依赖源码及许可位于 vendor。维护脚本离线生成目标 `libscoop_text_backend.a` 与头文件，Rust LTO 在准备阶段完成；同时保留实际构建工具链的标准库版权通知和许可，发行时与该目标归档一并收集到 `share/licenses`。普通 Cone 通过既有 C ABI 和 native.libraries 消费普通机器对象；两个链接入口去重同一个目标归档，不执行 Cargo 或探测 Rust。更新命中先于解包、源码复制与工具探测；具体文本行为及故障边界见字符集与 IDNA 规范。
 
-post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-base-<target>` 包，以及可选的 `lib-gui-<target>` 包）安装完成后，使用配套工具为这些目标已安装的内置库源码生成文档。文档入口位于 SYSROOT 的 `docs/index.html`，按目标生成的共同站点位于 `docs/<canonical-target-triple>/`；页面、搜索、资源及内嵌源码保存在安装根，跨库导航遵守该目标的真实声明身份。内置库 Markdown 中指向仓库 `docs/`、`scripts/`、`tests/` 的相对链接，在组装时改为本次源码 revision 的 GitHub 链接；这些设计及维护文档作为外部参考，库内资源仍使用相对链接并随离线站点提供。文档警告或生成失败使本次安装准备失败，可以修正后重试。此步骤属于显式安装编排，普通 `scoop doc` 不隐式准备 sysroot；`.slib` 不增加完整源码、注释正文或文档缓存。
+post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-base-<target>` 包，以及可选的 `lib-gui-<target>` 包）安装完成后，使用配套工具为这些目标已安装的内置库源码生成文档。文档入口位于 SYSROOT 的 `docs/index.html`，按目标生成的共同站点位于 `docs/<canonical-target-triple>/`；页面、搜索、资源及内嵌源码保存在安装根，跨库导航遵守该目标的真实声明身份。内置库 Markdown 中指向仓库 `docs/`、`scripts/`、`tests/` 或可选 `vendor/` 的相对链接，在组装时改为本次源码 revision 的 GitHub 链接；这些设计及维护文档作为外部参考，库内资源仍使用相对链接并随离线站点提供。文档警告或生成失败使 post-install 返回非零状态；安装器保留已装工具链并提示用 `scoop-install docs` 重试。此步骤属于显式安装编排，普通 `scoop doc` 不隐式准备 sysroot；`.slib` 不增加完整源码、注释正文或文档缓存。
 
 普通 build／run／test 的 executable 和两个 link 命令默认消费 `lib/<canonical-target-triple>/runtime/index.cbor`，不触发 runtime 源码构建。显式 `--runtime-objects` 选择另一份索引；build／run／test 的 `--runtime-root` 明确请求从源码构建，与对象选项互斥。缺失实际需要的索引时报告目标和所选路径，不补建或改选其他目标；library 构建不读取未使用的 runtime。
 
@@ -2283,7 +2287,7 @@ generated-C 桥没有用户源码映射，继续使用 `-g0`，通过实际符�
 
 最终结果缓存同时记录程序及请求的调试结果。请求外置文件时，最终 executable basename 进入结果键并用于内部生成文件名，保证换输出目录可复用、换 basename 时重新生成匹配的 debuglink／dSYM；上游 Cone 不因此重编译。命中只检查输入更新与所需结果存在，不读取／哈希调试文件内容，不启动调试工具或重新准备链接输入。dSYM 目录按普通暂存、复制及 rename 发布；工具失败不发布部分新结果。UUID／debuglink 仅承担平台文件关联。
 
-编辑器复用官方 lldb-dap，scoop-lsp 保持语言服务职责。VS Code 提供源码 breakpoints、构建到 executable 的启动配置、attach、参数／cwd／环境／终端及 sourceMap，按需导入只读 Python formatter。llvm 组件包包含匹配平台的 lldb、lldb-dap、LLDB library、Python 支持及实际所需附加文件。Darwin framework Python 复制 `Resources/Python.app/Contents/MacOS/Python` 中的解释器，沿普通动态依赖收集和相对路径加工交付，避免复制依赖原 framework 目录的 `bin/python` 启动包装程序。Darwin 的开发安装与发行加工完成后重新签名 debugserver，保留其原生调试 entitlements，避免安装时调整加载路径使签名失效。不得把 C 兼容 evaluator、通用异常筛选或硬件 watchpoint 宣称为完整 Scoop 求值、Scoop 异常过滤或 GC 感知数据断点。
+编辑器复用官方 lldb-dap，scoop-lsp 保持语言服务职责。VS Code 对每个工作区文件夹启动独立语言服务，cwd 为该文件夹，使 `scoop-install` 代理按同一目录解析项目固定版本；版本配置、默认版本或服务路径变化后重启相应服务。编译与 debugger adapter 同样使用工作区／launch cwd，显式工具路径和 sysroot 配置继续覆盖默认值。VS Code 提供源码 breakpoints、构建到 executable 的启动配置、attach、参数／cwd／环境／终端及 sourceMap，按需导入只读 Python formatter。llvm 组件包包含匹配平台的 lldb、lldb-dap、LLDB library、Python 支持及实际所需附加文件。Darwin framework Python 复制 `Resources/Python.app/Contents/MacOS/Python` 中的解释器，沿普通动态依赖收集和相对路径加工交付，避免复制依赖原 framework 目录的 `bin/python` 启动包装程序。Darwin 的开发安装与发行加工完成后重新签名 debugserver，保留其原生调试 entitlements，避免安装时调整加载路径使签名失效。不得把 C 兼容 evaluator、通用异常筛选或硬件 watchpoint 宣称为完整 Scoop 求值、Scoop 异常过滤或 GC 感知数据断点。
 
 VS Code 在顶层普通 `main` 及测试容器直接声明的 `@Test` 方法上提供 Run／Debug CodeLens。标记复用当前文档的 Tree-sitter 语法树，支持限定注解名和 import alias；入口签名与测试合法性仍由普通编译检查。单击时自动创建本次启动配置，无需预先编写 `launch.json`。从源文件向父目录查找最近的 `Cone.toml` 作为构建输入与默认 cwd，没有 manifest 时 `main` 使用单文件模式；测试要求 manifest Cone。保存失败、编译失败、取消或测试目录选择失败均不启动程序。Debug 默认使用 debug profile 和 full 调试信息，成功后把本次 executable 交给 lldb-dap；Run 复用同一构建与启动配置并设置 `noDebug`。测试选择消费上述完整目录，精确运行所点方法及其正常生命周期，显式点击忽略用例也选择该用例，不使用名称子串代替单用例选择。仅提供标记不触发构建，编译缓存继续遵守 2.7、2.8。
 

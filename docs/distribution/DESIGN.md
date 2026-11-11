@@ -54,10 +54,10 @@ Windows LLVM 包内，`libLLVM-22.dll` 的 5 份内容相同，每份约 85.1 Mi
 | `lib-base-<target>` | 每目标 | 非 GUI 系统 `.slib`、native 链接库、四种 runtime 配置各一份 `.a`／`.lib` 与 `index.cbor`、对应许可 |
 | `lib-gui-<target>` | 有 GUI 的目标 | GUI `.slib`、Skia 及其他 GUI 链接输入、对应许可；依赖同目标 base |
 | `native-<target>` | 两个 MinGW 目标 | CRT 配置头、启动对象、Windows／CRT 导入库、C++ 目标库及必要 compiler-rt；通过同版本 Windows bin 取得公共工具和头文件 |
-| `sources` | 全局 | 内置 Cone 源码、vendor 输入、Rust native 维护源码、公开 Scoop FFI 头和示例 |
-| `llvm-sources` | 全局 | LLVM 上游源码归档、说明、补丁及许可；供维护使用，不进入普通安装组合 |
+| `sources` | 全局 | 内置 Cone 源码、清单、自有 C／C++／Rust 胶水、资源、公开 Scoop FFI 头和示例 |
+| `vendor` | 全局 | 全部上游源码、说明、构建补丁与许可，含 LLVM／LLDB；按需安装 |
 
-`bin`、`lib-base`、`lib-gui`、`native` 和 `sources` 归档顶层都是安装根内容，合并解压后可直接使用。`llvm-sources` 保持维护归档用途，不通过安装它补足运行工具的资源。
+`bin`、`lib-base`、`lib-gui`、`native`、`sources` 和 `vendor` 归档顶层都是安装根内容，合并解压后可直接使用。`vendor` 保持维护归档用途，不通过安装它补足运行工具的资源。
 
 默认安装组合为宿主 `bin`、全局 `sources` 和默认目标 `lib-base`；需要 GUI 时追加同目标 `lib-gui`。Windows 默认 MSVC UCRT 仍由本机 Build Tools／Windows SDK 提供 native SDK，不新增空的 `native-msvc` 包。选择任一 MinGW 目标时，同时安装该目标的 base 与 native；追加 GUI 不重新安装 native 资源。
 
@@ -195,17 +195,17 @@ Windows 原生 `tar` 解压与 Python 使用的解包方式均纳入验收。硬
 
 ## 8. 发行组装、许可与安装
 
-`package_toolchain.py` 继续是唯一入口。流程为准备维护输入与目标产物，组装完整 bin、sources 和各目标 lib／native，收集许可，再生成本次组件归档。`--prepared-sysroot` 继续消费维护者已准备的完整 sysroot；精简后的发行目录不自动成为 native 后端的维护输入。
+`package_toolchain.py` 继续是唯一入口。流程为准备维护输入与目标产物，组装完整 bin、sources、vendor 和各目标 lib／native，收集许可，再生成本次组件归档。源码拆分及共享下载目录见 [PACKAGING-DESIGN.md](PACKAGING-DESIGN.md)。`--prepared-sysroot` 继续消费维护者已准备的完整 sysroot；精简后的发行目录不自动成为 native 后端的维护输入。
 
 每个文件由所属组件提供。不同组件可以创建相同父目录，但不覆盖同一个实际文件；尤其 LLVM DLL 不再同时出现在两个归档中，目标 `toolchain` 不再由 base 与 native 重复提供。许可随实际组件收集：宿主 LLVM／LLDB／Python 和公共 SDK 许可随 bin，CRT／C++／compiler-rt 许可随 native，系统库及第三方后端许可随相应 lib。不能在移除源码或开发文件时遗漏其已发行机器库的版权通知。
 
 归档继续采用暂存写入和成功后替换。一次发布只上传本次明确生成的组件列表；重复组装同一版本时，停止发行的旧 `llvm-<host>` 文件不得因目录 glob 被再次上传或纳入下载索引。退役附件与远端索引的清理属于显式发布步骤，不在普通构建中执行。
 
-同版本组件仍成组安装。项目未发布，不保留旧包名别名、旧完整 prefix 布局或新旧两套发行模式。升级使用新的组件集合和已有替换流程，保留用户包缓存、构建结果及自定义命令的现有行为。
+同一次安装的组件取自同一发行，按所选 target 与可选 GUI／vendor 组合安装。独立的 `scoop-install` 将各版本放入 `toolchains/<version>-<host>`，升级时保留所选组件与旧版本，保留共享的用户包缓存及自定义命令；构建缓存按工具链发行身份区分。不保留旧包名别名或两套发行模式。
 
 post-install 继续按已安装 base／GUI 选择文档来源。缺少 MinGW native 资源时，由实际使用该资源的工具发现报告目标及所需组件；不通过新建逐文件安装验收清单让普通命令先完整扫描目录。
 
-官网仓库的安装脚本已经按 release index 读取组件列表，无须新增 LLVM 专用兼容分支。同步更新索引发布、安装页、手动安装示例和安装测试，确保 native 包进入相应 Windows 组合，退役 LLVM 包不再被列出。安装完成仍只需将公开 `bin` 加入 PATH。
+官网仓库维护 bootstrap，下载对应宿主的 `scoop-install` 并转交安装参数；安装器按 [manifest](MANIFEST.md) 读取组件关系，确保 native 包进入相应 Windows 组合，退役 LLVM 包不再被列出。安装页、手动安装示例和安装测试采用相同入口。安装完成只需将管理目录的公开 `bin` 加入 PATH。
 
 ## 9. 代码改动位置
 

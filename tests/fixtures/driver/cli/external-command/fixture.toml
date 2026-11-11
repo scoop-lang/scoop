@@ -9,6 +9,8 @@ tags = ["cli", "native", "signal", "driver"]
 [[steps]]
 name = "prepare"
 files = [
+  {copy = {from = "${fixture}/scoop-script", to = "${work}/shared home/commands/scoop-shared"}},
+  {chmod = {path = "${work}/shared home/commands/scoop-shared", mode = "755"}},
   {mkdir = {path = "${work}/selected root/commands"}},
   {copy = {from = "${fixture}/scoop-script", to = "${work}/environment/commands/scoop-probe"}},
   {chmod = {path = "${work}/environment/commands/scoop-probe", mode = "755"}},
@@ -101,3 +103,11 @@ argv = ["${scoop}", "--sysroot", "${work}/selected root", "path/command"]
 exit = 1
 stdout = ""
 stderr = "error[SCOOP_CLI_CONFIG]: external command name must be a single file name\n"
+
+[[steps]]
+name = "shared_command"
+argv = ["${scoop}", "--sysroot", "${work}/selected root", "shared", "user command", "--argument"]
+env = {SCOOP_HOME = "${work}/shared home"}
+exit = 0
+stdout = "<user command>\n<--argument>\n"
+stderr = ""

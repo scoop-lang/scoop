@@ -160,3 +160,5 @@ GC 后无法保证的旧变量位置显示 unavailable，程序再次读取后�
 不保证堆可读。闭包捕获值在实际读取区间可见。协程当前使用物理栈，逻辑 completion 链
 及完整 Scoop 表达式求值留待后续。Debug Console 的变量路径及 Clang 标量算式能力不代表
 完整 Scoop 语义；以反引号开头可执行 LLDB 命令。
+
+工具链由独立的 `scoop-install` 管理时，扩展优先使用 `SCOOP_HOME/bin`（缺省 `~/.scoop/bin`）中的代理。每个工作区文件夹启动独立 LSP，cwd 为该文件夹；按 `SCOOP_TOOLCHAIN`、最近的 `scoop-toolchain.toml`、全局 default 选择版本。修改这些磁盘配置或服务路径后重启语言服务。多根工作区可以分别固定版本和分析配置；未保存文件使用第一个工作区的语言服务。编译与 LLDB adapter 使用 launch 的 cwd，显式工具路径和 sysroot 仍优先。

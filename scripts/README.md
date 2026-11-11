@@ -138,17 +138,17 @@ python3 scripts/package_toolchain.py --jobs 6
 
 musl 的 C 开发环境也需要 Linux UAPI 头。Debian／Ubuntu 的 `musl-gcc` 默认搜索目录可能缺少 `linux/mman.h`；此时可在工作目录准备仅包含 `linux`、`asm`、`asm-generic` 的头文件搜索根，以编译器包装脚本添加该根，并通过 `--musl-cc` 选择包装脚本。这些目录可指向系统已安装的对应 Linux 头；保留 musl 自己的 libc 头文件搜索顺序。
 
-LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工作目录的 `inputs` 下下载官方固定版本归档并解包。也可传入已有的 `--llvm-source` 和 `--llvm-archive`，显式路径不存在时直接报错。已经准备的匹配版本宿主 LLVM 可通过 `--llvm-prefix` 复用；省略时脚本在自己的工作目录构建。`--version` 和 `--revision` 可显式设置发行标识，默认采用配置版本与当前 Git revision，存在未提交修改时标注 `+modified`。这些参数也写入安装根的 `VERSION`。
+`--download-dir` 指定可跨工作目录复用的外部依赖原文件目录，优先于 `SCOOP_DOWNLOAD_DIR`，默认仓库 `tmp/downloads`；相对路径按调用 cwd 解析。自动选择先复用该目录固定条目，再用 vendor 的已有输入，均缺失才下载；命中不发送网络请求或重新计算摘要。LLVM 按 `llvm-project/<version>/<filename>` 保存原归档，工作目录的 `inputs` 只存解包副本及更新记录。LLVM-MinGW ZIP 和所选 CPython LICENSE 也复用此目录；补丁只应用于工作副本。也可传入已有的 `--llvm-source` 和 `--llvm-archive`，显式路径不存在时直接报错。已经准备的匹配版本宿主 LLVM 可通过 `--llvm-prefix` 复用；省略时脚本在自己的工作目录构建。`--version` 和 `--revision` 可显式设置发行标识，默认采用配置版本与当前 Git revision，存在未提交修改时标注 `+modified`。这些参数也写入安装根的 `VERSION`。
 
 同一 release 的全部归档输出到以版本命名的目录（`tmp/dist/scoop-<version>/`），按维度分为组件包；每个归档内直接是安装根内容，并集解压到同一安装根（如 `~/.scoop`）即为完整安装，不需要 `--strip-components`：
 
 - `scoop-<version>-bin-<host>.tar.xz`：每宿主一份，包含 `bin/`（五个命令，Windows 主驱动为 `sco.exe`）、`commands/`、`VERSION`、`post-install.sh`／`post-install.ps1`、`tooling/`（VSIX 与 scoop-programming skill）、`share/scoop/`（toolchain.toml、install/targets.list、各 `<target>.list` 与 `<target>.gui.list`、README、RELEASE-NOTES）及 Scoop 自身许可。 同一包还包含 `libexec/llvm/` 中选定的 Clang／LLD／LLVM 工具、Clang builtin headers 和实际动态依赖，`libexec/lldb/` 中的 LLDB／Python，公开的 `scoop-` 前缀调试工具及 formatter 和许可；不包含 LLVM SDK 头、静态库、CMake exports、llvm-config 或 llc。
 
-- `scoop-<version>-sources.tar.xz`：全局一份，包含 `src/`（全部内置 Cone 源码）、`vendor/`（llvm-project 只带补丁与说明）、`native/text_backend/`、`include/` 和 `share/scoop/examples/`。
+- `scoop-<version>-sources.tar.xz`：全局一份，包含 `src/`（全部内置 Cone 源码、清单、胶水和资源）、`native/text_backend/`、`include/` 和 `share/scoop/examples/`。
 - `scoop-<version>-lib-base-<target>.tar.xz`：每 target 一份，与构建宿主无关，包含 `lib/<target>/` 中非 GUI 系统 Cone 的预编译 `*.slib`、对应 native 静态库、`openssl/`、`nghttp2/`、`unwind/`（非 Darwin）与四种 `runtime*/` 配置，以及该 target 的 native 组件与 rust-std 许可。Darwin/AArch64 宿主发行 AArch64／x86_64 两个 Darwin 目标的 lib 包，Darwin/x86_64 宿主发行 x86_64 目标，Linux/GNU amd64 宿主同时发行 GNU／musl 两套目标。
 - `scoop-<version>-lib-gui-<target>.tar.xz`：该 target 有 GUI Cone 时每 target 一份，包含 GUI Cone（`scoop.window`、`scoop.graphics` 及所有依赖它们的 Cone，由 `package_toolchain.py` 按 Cone 依赖图划分）的预编译 `*.slib`，以及 Skia、GTK／libadwaita、tray 等 GUI native 链接库和许可；须与同 target 的 lib-base 包一起安装。
 - `scoop-<version>-native-<target>.tar.xz`：仅两个 MinGW 目标，提供 `lib/<target>/toolchain` 内的 CRT／libc++ 配置头、启动对象、Windows／CRT 导入库、C++ 静态库及 compiler-rt builtins；不包含 executable。公共 MinGW／libc++ 头由 Windows bin 的 `libexec/mingw/include` 提供一次。MSVC 继续使用本机 SDK 或显式 msvc.toml，不发空的 native 包。
-- `scoop-<version>-llvm-sources.tar.xz`：全局一份，为 LLVM 上游归档、补丁与 LICENSE，单独保留有版本名称的顶层目录。
+- `scoop-<version>-vendor.tar.xz`：全局一份，包含 `vendor/` 中全部上游源码、固定版本说明、许可及编译补丁；LLVM 原始归档和 LLVM／LLDB 补丁也归此包。按需安装，默认开发组合不下载。所有组件的归档顶层均为安装根内容。
 
 同一 release 的包按相同版本号成组安装，不跨版本混装。
 
@@ -244,3 +244,5 @@ Linux 的同类检查还包括 ELF loader 记录、GNU／musl 实际 DAP 会话�
 发行完成后输出 `packages-<host>.list`，只列出本次成功生成的组件文件名。Release workflow 据此准备上传目录，避免重复构建时把已退役的旧组件重新发布。
 
 发行 base／GUI 包不复制第三方开发头、源码或完整工具链；runtime 的 index.cbor 和 objects/*.o 必须成组保留，Linux GUI 继续包含实际链接用共享库。最终链接默认从 bin 读取公共 unwind 头，从所选 sysroot 读取目标 libunwind.a；显式 --unwind-prefix 和 runtime 源码准备仍使用各自完整维护 prefix。
+
+发行目录同时包含 `manifest.toml`、本宿主 `manifest-<host>.toml` 与 `manifest-shared.toml`。本地可直接使用完整 manifest；CI 合并各宿主片段及一份全局片段后发布完整索引。格式与发布规则见 [发行索引 schema 1](../docs/distribution/MANIFEST.md)。
