@@ -220,6 +220,26 @@ HTTP 程序仍使用安装 Scoop／LLVM 工具链和第七轮固定库，安装�
 
 综合动态吞吐与 CPU 收益、单 worker 基本持平和固定 worker 补充结果，保留本轮批处理，并保留静态回退及动态长尾限制。原始数据、固定二进制、符号、图表、复现脚本及本轮／累计补丁位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round11`。安装目录和前轮固定产物未修改；清理无用源码备份与 Python／ruff 缓存，保留共享构建缓存。仅实测 Linux GNU／io_uring。
 
+## 第十二轮：裸 TCP echo 架构诊断
+
+按分层定位要求，先跳过 HTTP、路由、JSON 和请求级计时器，新增 `tests/benchmarks/tcp-echo`。Scoop 与 Go 均为每连接一个协程、复用 64 KiB 缓冲区、读取后原样写满；Scoop 另测不带业务 worker 的单独 event loop。共用 Go 客户端，逐次验证完整正文及变化的序号。安装编译器未修改，使用第十轮固定库与已提交的第十一轮 runtime；本轮没有修改生产代码。
+
+Linux GNU／io_uring，1 KiB 消息，1／64 连接；所有服务器线程绑定单／四个物理 P 核，客户端使用不重叠的 CPU。每项预热 1 秒、测量 6 秒、随机次序各三次，共 30 个正式样本。64 连接中位数如下，CPU 100% 代表一个核：
+
+| 配置 | echo／秒 | CPU μs／echo | 服务端 CPU | P99 μs |
+| --- | ---: | ---: | ---: | ---: |
+| Scoop 单独 event loop | 110898 | 9.03 | 100.2% | 761.9 |
+| Scoop 1 worker | 77627 | 12.90 | 100.2% | 1278.0 |
+| Scoop 4 workers | 82576 | 21.13 | 173.4% | 1327.1 |
+| Go 1 worker | 278005 | 3.59 | 99.0% | 446.5 |
+| Go 4 workers | 791029 | 4.01 | 317.8% | 233.5 |
+
+底层存在显著成本与扩展问题：加入一个 worker 比单独 event loop 慢约 30%，一到四 worker 吞吐仅增约 6%，Go 则约为 2.85 倍。单独 event loop 相对 Go 单核的用户态 CPU 为 5.65 对 0.59 μs／echo，内核态为 3.36 对 3.01 μs／echo；单核差距主要在用户态。Scoop 四 worker 每 echo 用户态／内核态分别为 12.65／8.41 μs，额外交接后两者均增加。裸 I/O 已产生约 6 KiB／echo 的托管分配，具体对象来源尚未拆分。
+
+独立采样中，四 worker 配置的 owner 约占 76% CPU，四个活跃 worker 各约 22%，不能直接归结为 owner 单核饱和。源码仍为共享带锁 FIFO，未实施业务 worker 本地队列、work stealing 或 lock-free task queue；每次 I/O 的操作建立、投递 owner、完成与协程恢复链路是下一层定位重点。现有数据不能把损失全部归给某把锁，也不能指认 io_uring 内核为根因。优先调查这些架构成本，再回到 HTTP 与 JSON。
+
+30 个样本累计含预热校验 36277676 次 echo，全部成功；另以 64 KiB 消息／257 字节缓冲区验证短传输，三个配置均通过。格式、静态检查和 release 构建通过。闭环延迟未校正 coordinated omission；Go 四 worker 的客户端约使用 6.45 个 CPU，表中吞吐不代表其绝对能力上限。分配与 GC 快照含启动、预热和收尾，Scoop 收集时间与 Go STW 时间不直接比较；用户态 profile 的异常符号偏移未用于函数归因。完整结果、范围、RSS、GC、独立线程采样、固定产物与复现脚本位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round12`。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
