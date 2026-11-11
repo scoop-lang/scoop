@@ -264,6 +264,27 @@ concurrent 69 项、asyncio 175 项及三个定向移动 GC 用例通过。实�
 
 64 连接四 worker 裸 TCP echo 吞吐提高 1.8%、CPU／echo 下降 2.6%、分配下降 13.2%；单连接四 worker P99 回退 5.8%。网络收益仍有限，下一轮继续跟踪必经的 I/O 提交／完成／恢复往返。core executors 27 项、concurrent 71 项、asyncio 175 项和四个定向移动 GC 用例通过。实现与测量限制见[协程调度进度](../coroutine-executors/PROGRESS.md)，完整报告和固定产物位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round16`；未修改 asyncio、HTTP 或 JSON 实现。
 
+## 第十七轮：reactor 分布与本地执行的架构对照
+
+B16 显著改善纯协程 yield，真实 echo 收益却很小。本轮保持生产实现、固定 B16 库与 B11 runtime，新增同进程多 reactor 诊断程序：每个线程运行一个独立 event loop，连接在所属 loop 上处理，仍共享进程 GC。客户端在连续端口之间均匀建立连接；全部 listener 就绪后才开始，计时正文与普通 echo 相同。该实验没有跨 loop work stealing，也没有共享任务树，不能宣称正式 AsyncRuntime 已完成改造。
+
+使用安装的 `~/.scoop` 编译器；64 个长连接、1 KiB 消息、64 KiB 复用缓冲、默认 GC，预热 1 秒／测量 6 秒，最终源码各三次随机交错。所有服务端线程共享一个或四个物理 P 核，客户端绑定独立 CPU。以下为中位数。
+
+| 配置 | echo／秒 | CPU μs／echo | 用户态／内核态 μs／echo | P99 μs | RSS MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Scoop 单 loop，1 核 | 116,984 | 8.54 | 5.24／3.31 | 737.28 | 30.93 |
+| Scoop 单 owner＋4 workers，4 核 | 113,402 | 15.77 | 10.42／5.35 | 827.39 | 31.59 |
+| Scoop 4 个本地 reactor，4 核，实验 | 280,546 | 11.09 | 7.26／3.83 | 442.37 | 31.75 |
+| Go GOMAXPROCS=4，4 核 | 797,990 | 3.99 | 0.74／3.23 | 229.38 | 6.75 |
+
+同四核配额的 reactor 实验达到当前 AsyncRuntime 吞吐的 2.47 倍，CPU／echo 下降 29.7%。这支持把 worker 与 reactor 结合、减少必经 I/O 往返作为下一项架构工作。实验同时改变 reactor 数量、任务执行位置和连接分配，不能把收益全部归给某一把锁，也未验证不均匀连接负载。正式改造必须维持单 listener、共享逻辑 EventLoop、结构化任务树和现有 work stealing；待实施设计见[设计 4.1](DESIGN.md#41-worker-与-reactor-整合方向b17-验证尚未实现)。
+
+分片后仍有明显成本：每 echo 托管分配约 5.23 KiB，用户态 CPU 仍为 Go 的约 9.8 倍；内核态差距较小。当前 AsyncRuntime 与 reactor 实验的生命周期 GC 收集时间分别为 841.31／1,586.72 ms，后者完成了更多请求，不能仅比较累计毫秒判断 GC 回退。它们共享进程 GC，不能把实验等同于四个互相隔离的进程，也不能把 Scoop 收集时间直接与 Go STW 暂停比较。
+
+Scoop 格式／静态检查／release 构建、Go gofmt／vet 与 C 严格编译检查通过。最终四配置均通过 64 KiB 消息／257 字节缓冲的短传输验证；12 个正式样本含预热核对 26,973,956 次响应，全部无错误。初始实验的另外 12 个样本及一个短传输样本独立保留，没有混入最终统计。生产实现未变，未重复全库回归；没有继续改条件快路径。
+
+基准源码和运行参数已纳入 `tests/benchmarks/tcp-echo`；固定产物、全部样本范围、图表、源码快照及复现脚本位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round17`。只实测本机 Linux 和均匀 64 连接，闭环延迟未校正 coordinated omission，每配置三次；没有重新测 HTTP、JSON 或其他平台。底层性能仍未达成目标，下一轮实施 worker／reactor 整合并用普通单端口 API 验证。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

@@ -1,13 +1,21 @@
 #include <arpa/inet.h>
 #include <inttypes.h>
 #include <netinet/tcp.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <sys/socket.h>
 
 #include "scoop_rt.h"
 
-/* Linux inherits TCP_NODELAY from the listener; the public async API has no socket option. */
+/* Configured before reactor threads start; publish readiness after all listeners. */
+static int expected_shards = 1;
+static atomic_int ready_shards;
+void echo_configure_shards(int count) { expected_shards = count; }
+
+/* Linux inherits TCP_NODELAY from the listener; the public async API has no
+ * socket option. */
 void echo_configure_tcp(int port) {
     int found = 0;
     for (int fd = 0; fd < 1024; fd++) {
@@ -23,8 +31,10 @@ void echo_configure_tcp(int port) {
     }
     if (!found)
         abort();
-    fputs("READY\n", stdout);
-    fflush(stdout);
+    if (atomic_fetch_add(&ready_shards, 1) + 1 == expected_shards) {
+        fputs("READY\n", stdout);
+        fflush(stdout);
+    }
 }
 
 void echo_metrics(void) {

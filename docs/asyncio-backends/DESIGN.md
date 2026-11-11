@@ -120,6 +120,20 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 协程恢复遵守语言规范 11.9.3 的 execution 归属：LoopExecutor 上的 I/O、Channel 和第三方挂起点均排队回 owner，AsyncRuntime worker 上的操作回原 worker executor。`withExecutor(loop.executor)` 显式切回 owner；普通外部应用消息可通过 `session.post` 进入根作用域。frame、Job、取消和 executor 登记仍由 core／concurrent 的同一实现负责；帧请求与 vsync 由 GUI 层安排。
 
+### 4.1 worker 与 reactor 整合方向（B17 验证，尚未实现）
+
+裸 TCP 架构对照保留同一组固定库、runtime、进程级 GC 和 echo 正文，把“单 owner＋四 worker”改为同进程四个独立 owner，各自直接执行所属连接的业务。四核配额、64 连接下的三次测量显示明显收益，完整记录见[实施进度 B17](PROGRESS.md#第十七轮reactor-分布与本地执行的架构对照)。这个实验同时改变 reactor 数量、执行位置和连接分配，证明组合方向值得实施，不能把全部收益分摊给某一次队列或锁；多端口均匀分片也不能代替正式 API 的验收。
+
+下一轮以 `AsyncRuntime` 为实际消费者整合现有调度器，实施范围如下。以下是待实现设计，当前公共合同仍以 asyncio 规范为准；实施前同步该规范，不把实验程序声明为已交付运行时。
+
+- 保留一个逻辑 `EventLoop` binding 和一棵结构化任务树；每个 coroutine worker 驱动自己的 native reactor。caller 等待最终结果，不再额外承担唯一 I/O owner。独立 `PlatformEventLoop.run`／GUI attach 继续保持原有线程归属。
+- 复用 MultiThreadExecutor 的本地队列、外部 inbox、批量 work stealing 和任务登记。worker 在有限批可运行任务之间推进自己的 I/O；空闲时重新检查队列，再等待 reactor 通知。任务投递和 I/O 完成共同唤醒该 worker，不能引入丢失唤醒或纯忙轮询。驱动接入只服务这个实际 asyncio 调用方，不建立通用插件体系。
+- 普通 I/O API 与单 listener 保持。新连接在交付用户前分配到目标 reactor；既有活动资源保持明确、稳定的 native owner。接收端创建、目标 reactor 登记及失败关闭构成一次完整交接，不能把已绑定 IOCP／已有在途请求的 handle 任意搬到另一个 loop。客户端不需要多端口或手工分片。
+- 每个资源仍由所属 reactor 串行提交／消费 native I/O，跨 worker 的操作发给该 owner。完成在相应物理 worker 上恢复排队，利用现有同池本地投递规则让后续业务与 I/O 保持局部性；stealing、跨 executor 恢复和调用方 Context 合同保持，不能靠禁止任务迁移获得实验收益。
+- 共享根结束后先排空已接纳任务，再由各 reactor 清理遗留资源、取消与实际 native 请求。共享 blocking pool 在所有 reactor 收尾完成前继续接纳必要工作，最后才停止并 join。初始化部分失败、backend 失败、取消与关闭复用同一生命周期，不创建 detached 根任务或提前释放借用。
+
+验收必须使用普通 `AsyncRuntime` 和一个监听端口，重新测量单／四 worker、单／多连接的吞吐、延迟、CPU、分配与 GC；同时覆盖任务窃取后 I/O、双向操作、外线程取消、部分传输、单次完成和关闭排空。实验的多端口结果仅作为架构参照，不能用它替代正式运行时结果。多 reactor 下仍存在显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
+
 ## 5. 一份操作与资源生命周期逻辑
 
 `sleep` 与一次性 `schedule` 共用 owner 的逻辑期限队列，原生层只维护最早期限所需的共享唤醒。逻辑登记携带可直接移除的队列位置；普通撤销立即清空通知捕获，owner 再移除登记，不创建逐通知的 native cancel 或资源表记录。sleep 的取消结果同样等 owner 移除后才恢复；它不借用 native 存储，无需等待其他使用者共享的唤醒退休。

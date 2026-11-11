@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -59,6 +60,7 @@ func writeAll(peer net.Conn, data []byte) error {
 
 func main() {
 	address := flag.String("address", "127.0.0.1:18082", "echo server")
+	shards := flag.Int("shards", 1, "consecutive listening ports")
 	connections := flag.Int("connections", 64, "persistent connections")
 	payload := flag.Int("payload", 1024, "bytes per round trip, at least eight")
 	seconds := flag.Float64("seconds", 6, "measured seconds")
@@ -69,9 +71,17 @@ func main() {
 		panic("invalid client configuration")
 	}
 	runtime.GOMAXPROCS(*workers)
+	host, portText, err := net.SplitHostPort(*address)
+	if err != nil {
+		panic(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || *shards < 1 {
+		panic("invalid shard address")
+	}
 	peers := make([]net.Conn, *connections)
 	for i := range peers {
-		peer, err := net.DialTimeout("tcp4", *address, 10*time.Second)
+		peer, err := net.DialTimeout("tcp4", net.JoinHostPort(host, strconv.Itoa(port+i%*shards)), 10*time.Second)
 		if err != nil {
 			panic(err)
 		}

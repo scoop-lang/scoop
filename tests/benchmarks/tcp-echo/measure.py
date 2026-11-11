@@ -59,7 +59,7 @@ def stop(child):
             child.wait()
 
 
-def run_sample(args, configuration, connections, repeat):
+def run_sample(args, configuration, connections, repeat, *, shards=1):
     label, workers, cpu_count, binary = configuration
     directory = args.work / f"{label}-c{connections}-r{repeat}"
     saved = directory / "result.json"
@@ -97,6 +97,8 @@ def run_sample(args, configuration, connections, repeat):
         "-workers",
         str(len(args.client_cpus)),
     ]
+    if shards != 1:
+        client_command.extend(["-shards", str(shards)])
     environment = {
         key: value
         for key, value in os.environ.items()
@@ -106,6 +108,7 @@ def run_sample(args, configuration, connections, repeat):
     result = {
         "configuration": label,
         "workers": workers,
+        "reactor_shards": shards,
         "connections": connections,
         "repeat": repeat,
         "server_command": command,
@@ -256,6 +259,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("scoop-server", "go-server", "client", "work"):
         parser.add_argument("--" + name, required=True, type=Path)
+    parser.add_argument(
+        "--scoop-reactors", type=Path, help="Optional server with independent owner-local loops"
+    )
+    parser.add_argument("--shuffle-seed", type=int, default=20261112)
     parser.add_argument("--server-cpus", type=integers, default=[0, 2, 4, 6])
     parser.add_argument("--client-cpus", type=integers, default=[8, 10, 12, 13, 14, 15, 16, 17])
     parser.add_argument("--workers", type=integers, default=[1, 4])
@@ -280,14 +287,30 @@ def main():
                 (f"go-{workers}", workers, workers, args.go_server),
             ]
         )
+    if args.scoop_reactors:
+        assert all(c % w == 0 for c in args.connections for w in args.workers), (
+            "connections must divide evenly among reactors"
+        )
+        configurations.extend(
+            (f"scoop-reactors-{w}", w, w, args.scoop_reactors) for w in args.workers
+        )
     matrix = [
         (configuration, connections, repeat)
         for repeat in range(args.repeats)
         for connections in args.connections
         for configuration in configurations
     ]
-    random.Random(20261112).shuffle(matrix)
-    rows = [run_sample(args, *item) for item in matrix]
+    random.Random(args.shuffle_seed).shuffle(matrix)
+    rows = [
+        run_sample(
+            args,
+            configuration,
+            connections,
+            repeat,
+            shards=configuration[1] if configuration[0].startswith("scoop-reactors-") else 1,
+        )
+        for configuration, connections, repeat in matrix
+    ]
     (args.work / "samples.json").write_text(json.dumps(rows, indent=2) + "\n")
 
 
