@@ -1,7 +1,7 @@
 ---
 
 name: scoop-programming
-description: 编写、修改、调试和测试 Scoop 编程语言的 .scoop 程序与 Cone.toml 项目，使用 scoop example、配套库文档和 CLI 验证语法、依赖与运行行为。适用于 Scoop 语言及其库的应用开发，不用于 Windows Scoop 包管理器。
+description: 设计、编写、修改和调试 Scoop 编程语言的 .scoop 程序与 Cone.toml 项目，通过配套示例、API 声明及 CLI 完成实现和验证。适用于库、数据处理、命令行、异步网络与 UI 开发，不用于 Windows Scoop 包管理器。
 ---
 
 # Scoop 程序开发
@@ -10,7 +10,7 @@ Scoop 是静态类型、编译到原生代码的语言，语法借鉴 Kotlin，�
 
 ## 确认工具链和项目
 
-先查看项目已有的 `Cone.toml`、源码、测试及项目约定，保留既有组织方式。优先使用用户指定的主驱动路径；未指定时在 Windows 上从 PATH 查找 `sco.exe`，macOS／Linux 查找 `scoop`，常见安装目录是 `~/.scoop/bin/`。Windows 的 `scoop` 命令可能属于同名包管理器，不将其当作本语言驱动。
+先查看项目已有的 `Cone.toml`、源码、测试及项目约定，保留既有组织方式。优先使用用户指定的主驱动路径；未指定时在 Windows 上从 PATH 查找 `sco.exe`，macOS／Linux 查找 `scoop`，常见安装目录是 `~/.scoop/bin/`。Windows 的 `scoop` 命令可能属于同名包管理器，不将其当作本语言驱动。调用时保留所选入口名：multicall 安装器通过 `scoop`/`sco` 分发，不能解析符号链接后改为调用 `scoop-install`。
 
 ```sh
 scoop --version
@@ -26,7 +26,13 @@ scoop --sysroot /path/to/scoop check main.scoop
 
 `scoop example` 是独立阅读器；它从自身所在的安装根读取材料。若命令缺失，检查选中的工具链，并从该安装根的 `src/`、`share/scoop/examples/` 和离线文档查找现有材料。不要把查询失败误报为语言不支持，也不要为应用开发自动重建编译器或系统库。
 
-## 先找完整示例
+## 确定边界，再验证最不确定的组合
+
+先明确程序的输入、输出、失败行为和需要保存的状态。设计数据模型、跨文件或跨 Cone 接口时阅读[设计与复审](references/design.md)；按该文档中的领域入口选择相关材料，不为简单脚本建立完整分层。
+
+从一个能编译运行的实际功能开始。对尚未确认的 Option/泛型、receiver、挂起回调或库调用，先用最小源码核实声明与行为，再扩展到其他文件。已经确认的写法直接复用；一次完成一批有内聚关系的修改再验证，不逐行检查，也不把未确认的写法复制到整个项目后才编译。
+
+## 按问题查询示例与 API
 
 按实际问题选择主题，不必读取全部材料：
 
@@ -59,7 +65,7 @@ scoop example start/cone --format json
 
 首次编写或移植 Scoop 代码前，阅读[语言差异](references/language.md)，尤其是 `Option`、f-string、值类型更新、显式可见性和闭包捕获。不要直接套用 Kotlin 的 `null`、`data class`、`copy`、协程库或 Java API。
 
-需要库能力时，按[库与 API 查找](references/libraries.md)确定所属 Cone、import、实际签名及资源生命周期。示例是入口；未展示的 API 应继续查配套文档或源码，不能凭名称猜参数、返回类型或同步／挂起行为。
+需要库能力时，按[库与 API 查找](references/libraries.md)确定所属 Cone、import、实际签名及资源生命周期。只读取相关声明和调用示例；示例未命中时直接定位库，不反复扩大教程关键词或通读全部源码。改写 Option/Result 分支前先查已有组合操作，注意返回形状和 fallback 的求值时机。
 
 新建多文件项目优先使用 `scoop new my-app --group example.app`，目标目录必须尚不存在；默认带测试。小型独立程序可以使用单文件模式。具体依赖、package、源码选择、测试和工具选项见[项目与命令](references/projects-and-tools.md)。特别注意：
 - 传项目目录或 `Cone.toml` 才会编译整个 Cone；传 `src/main.scoop` 会选择单文件模式。
@@ -80,8 +86,10 @@ scoop run . --release -- Ada
 
 上例最后的 `Ada` 是程序参数，按实际程序修改。单文件用 `scoop fmt main.scoop`、`scoop check main.scoop --release`、`scoop run main.scoop --release`；library 用 `scoop build . --release` 和所属 Cone 测试验证。`scoop check` 完成前端检查，不证明后端、native 链接或运行成功；`--tests` 也不验证生产 main。
 
-普通行为测试使用 `scoop.test`，从 `test/assertions` 取得准确的容器、注解和断言写法。检查实际输出、返回值及相关错误路径；网络、文件和异步程序还要核对它们的运行前提与收尾。性能测量使用 release 构建，普通功能验证保持 GC stress 关闭。
+普通行为测试使用 `scoop.test`，从 `test/assertions` 取得准确的容器、注解和断言写法。根据需求准备输入和期望，覆盖本次实际涉及的零值/空值/缺失/失败差别，以及资源收尾或副作用；不要只把实现当前的输出抄成期望。精确比较使用 assertEquals 等能保留期望与实际值的断言。性能测量使用 release 构建，普通功能验证保持 GC stress 关闭。
 
-需要机器诊断时使用 `scoop check . --message-format json` 等命令并读取 stderr；运行程序的 stdout 单独处理。根据主诊断与关联位置修复源码或依赖后重跑相关验证。不要用清空缓存、切换工具链或猜测 API 替代定位错误。
+需要机器诊断时使用 `scoop check . --message-format json` 等命令并读取 stderr。诊断与预期不符时按[定位错误](references/diagnostics.md)检查内层表达式、实际参数和完整重载，再判断是否存在编译器问题；不要仅凭候选失败消息弃用有效 API。验证 CLI 标准流时先 build，再直接运行程序，避免把编译进度当成程序 stderr。
+
+修复编译错误后按[设计与复审](references/design.md#完成一批修改后复审)检查数据和错误是否被丢失、是否重复 I/O、是否用多余包装或弱化断言换取通过。验证通过后继续交付；仅在新修改、失败或未解决的问题需要时扩大测试范围。
 
 交付时说明修改的文件、运行方法、已执行检查与结果。工具链、目标资源或运行环境缺失时明确区分“未验证”和“验证通过”，保留可复现命令及实际阻碍。

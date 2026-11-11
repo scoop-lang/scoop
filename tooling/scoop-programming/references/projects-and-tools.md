@@ -72,7 +72,7 @@ workspace 根用 `[workspace] members = ["app", "library"]` 列出成员目录�
 
 Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.lock`；同仓库中的包可用 `subdir` 选择。不要把示例 URL、仓库或 commit 当作已存在的包。registry 只需托管静态索引和源码归档，PM 按索引下载所选版本；源码默认共享在 `~/.scoop/packages/`，构建输出仍归项目和构建缓存管理。
 
-缺少 lock 时，普通 build/run 自动调用配套 PM 解析并生成；`--locked` 要求已有匹配 lock，`--frozen` 还禁止联网。提交项目的 `Cone.lock`；修改声明后运行 `scoop pm resolve`，显式升级用 `scoop pm update`，获取已有锁定来源用 `scoop pm fetch`。`deps --why group:name` 解释选择原因，`add/remove` 编辑声明后不自动更新 lock。编辑器只消费本地已有的锁定依赖；提示缺少输入时先 resolve/fetch。源码打包和 publish 流程尚未提供。
+缺少 lock 时，普通 build/run 自动调用配套 PM 解析并生成；`--locked` 要求已有匹配 lock，`--frozen` 还禁止联网。提交项目的 `Cone.lock`；修改声明后运行 `scoop pm resolve`，显式升级用 `scoop pm update`，获取已有锁定来源用 `scoop pm fetch`。`deps --why group:name` 解释选择原因，`add/remove` 编辑声明后不自动更新 lock。语言服务缺少 lock 时可调用 PM 初始化，之后离线读取依赖 metadata；提示缺少输入时按实际诊断 resolve/fetch，不将整个语言服务流程描述为始终离线。源码打包和 publish 流程尚未提供。
 
 ## 按目的选择命令
 

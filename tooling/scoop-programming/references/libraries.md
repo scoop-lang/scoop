@@ -17,10 +17,11 @@
 
 | 需求                                              | Cone 与材料                                                                                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Option、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                                 |
+| Option 类型、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                              |
+| Result 类型、Option/Result 的映射、展平和惰性替代 | `scoop.std` 的 `src/results/`；操作选择见 [design.md](design.md#组合-optionresult保留失败信息) |
 | 编译期嵌入文件／目录、读取构建环境                | `scoop.core` 的 `scoop.compiler` package；`language/compiler-inputs`                           |
 | 集合算法、字典、字节／文本、日期与 Duration       | `scoop.std`；`collections/map` 和库 `examples/`                                                |
-| 文件、目录、系统资源、线程                        | `scoop.platform`；`io/files`、`io/resources`                                                   |
+| 文件、目录、进程、环境变量、线程                  | `scoop.platform`；`io/files`、`io/resources`，`src/process/` 与 `src/env/`                     |
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get` 及各库 README                             |
@@ -31,6 +32,7 @@
 | 数学、大整数和十进制数                            | `scoop.math` 的 README／示例                                                                   |
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
 | 终端、异步终端与交互行编辑                        | `scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例                            |
+| UI、组件及桌面应用                               | `scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；使用当前目标可用的库              |
 
 ## JSON 与 DTO
 
