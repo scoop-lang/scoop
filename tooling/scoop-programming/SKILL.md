@@ -57,7 +57,8 @@ scoop example start/cone --format json
 | 单文件、依赖、多文件项目             | `start/hello`、`start/single-file`、`start/cone`                                                   |
 | 值、Option、模式匹配、闭包、公开 API | `language/overview`、`language/option`、`language/enum`、`language/lambdas`、`language/visibility` |
 | Unicode 文本与集合                   | `text/strings`、`collections/list`、`collections/map`                                              |
-| 文件、资源释放与 JSON                | `io/files`、`io/resources`、`json/typed`                                                           |
+| 文件、进程、环境与 JSON              | `io/files`、`io/resources`、`io/processes`、`io/environment`、`json/typed`                         |
+| 计算与展示、终端与界面状态          | `apps/file-report`、`terminal/output`、`ui/state`                                                 |
 | 异步任务、HTTP 与命令行参数          | `async/tasks`、`http/get`、`cli/options`                                                           |
 | Cone 测试与异常断言                  | `test/assertions`                                                                                  |
 

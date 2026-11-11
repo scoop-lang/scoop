@@ -1,3 +1,4 @@
+import scoop.*
 import scoop.text.*
 
 fun parseCount(text: String): Int {
@@ -20,4 +21,22 @@ fun showCount(text: String) {
 fun main() {
     showCount("3")
     showCount("0")
+    println(describeCount(positiveCount("4").map { it * 2 }))
+    println(describeCount(positiveCount("bad")))
 }
+
+fun positiveCount(text: String): Result<Int, String> {
+    val parsed = text.toIntOrNone().toResult { "not an integer" }
+    return parsed.flatMap {
+        value -> if (value > 0)
+            Result.Success<Int, String>(value)
+        else
+            Result.Failure<Int, String>("count must be positive")
+    }
+}
+
+fun describeCount(result: Result<Int, String>): String =
+    when (result) {
+        case Result.Success(val count) -> f"result=${count}"
+        case Result.Failure(val reason) -> f"invalid: ${reason}"
+    }

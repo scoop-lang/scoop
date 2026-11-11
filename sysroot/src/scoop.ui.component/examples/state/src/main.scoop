@@ -1,0 +1,12 @@
+package scoop.examples.state
+
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.material.materialTheme
+
+fun main() {
+    val model = CounterModel()
+    context(ThemeSource(materialTheme())) {
+        runUiApplication("Scoop — counter state", { scope -> CounterPanel(model, scope) })
+    }
+}

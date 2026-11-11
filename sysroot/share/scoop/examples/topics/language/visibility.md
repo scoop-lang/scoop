@@ -4,6 +4,7 @@
 
 ```sh
 cd app
+scoop test --release .
 scoop run --release .
 ```
 
@@ -22,6 +23,8 @@ app 的依赖以精确坐标和相对 path 引用 library。path 相对 app/Cone
 声明默认 internal，边界是 Cone。Greeter 的类型、构造器和 message 方法分别显式 public；公开接口中的方法也显式 public，实现写 public override。私有 name 仍只供 Greeter 使用。
 
 package 决定名字组织，不授予另一个 Cone 对 internal 成员的访问权。可以扩展公开 API，但不能因两边 package 相同就省略 public。
+
+消费者的 Cone 测试通过公开接口调用库，并确认空名字仍是有效输入。测试只能使用真实公开 API，不因 package 名称相同获得额外访问权。
 
 ## 常见误用
 

@@ -1,3 +1,6 @@
+import scoop.*
+import scoop.text.toLongOrNone
+
 fun greeting(name: String?): String =
     when (name) {
         case Some(val value) -> f"Hello, ${value}!"
@@ -10,4 +13,12 @@ fun main() {
     println(greeting(name))
     println(greeting(missing))
     println(name?.charLength ?: 0L)
+
+    val raw: String? = Some("42")
+    val parsed: Long? = raw.flatMap { it.toLongOrNone() }
+    println(parsed.map { it * 2L }.getOrElse { 0L })
+
+    val empty: String? = Some("")
+    println(empty.fold({ f"present, scalars=${it.charLength}" }, { "missing" }))
+    println(missing.orElse { Some("fallback") }.getOrElse { "guest" })
 }

@@ -1,21 +1,26 @@
 """Run published examples, using files returned by scoop example."""
 
 import argparse
-import contextlib
 import json
 import os
-import signal
-import socket
 import subprocess
-import time
 from pathlib import Path
+
+from process_examples import (
+    environment_variables,
+    file_report,
+    http_client,
+    processes,
+    run,
+    terminal_output,
+)
 
 EXPECTED = {
     "start/hello": "Hello, Scoop!\n",
     "start/single-file": '{"name":"Ada","scores":[7,9]}\nAda: 9\nno note\n',
     "start/cone": "Hello, Ada!\nHello, Lin!\n",
     "language/overview": "point=(3, 4)\npoint missing\nAda\nguest\n3\n",
-    "language/option": "Hello, Ada!\nHello, guest!\n3\n",
+    "language/option": "Hello, Ada!\nHello, guest!\n3\n84\npresent, scalars=0\nfallback\n",
     "language/struct": "original=(3, 4)\nmoved=(8, 4)\ntrue\n",
     "language/enum": "Found: Ada\nNo matching name\n",
     "language/functions": "Hello, Scoop!\nHi, Ada.\nHello, Lin!\nHello, Lin!\n",
@@ -24,7 +29,7 @@ EXPECTED = {
     "language/generics": "42\nScoop\nHello, Ada!\nHello, Scoop!\n",
     "language/visibility": "Hello, Ada!\n",
     "language/companion": "origin=(0, 0)\ndiagonal=(3, 3)\n",
-    "language/errors": "count=3\nfinished\ncount must be positive\nfinished\n",
+    "language/errors": "count=3\nfinished\ncount must be positive\nfinished\nresult=8\ninvalid: not an integer\n",
     "language/compiler-inputs": (
         "version=1.2.3\nHello, Scoop!\nbytes=14, first=72\n"
         "file=banner.txt\nfile=docs/help.txt\nhelp bytes=12\nprivate bytes=0\n"
@@ -42,61 +47,12 @@ EXPECTED = {
     "http/get": "200\nHello, Scoop!\n",
     "cli/options": "Hello, Ada!\nHello, Ada!\n",
     "test/assertions": None,
+    "io/processes": "stdout: Hello, 子进程!\nstderr: child diagnostic\nexit 0\nempty: 0 bytes, exit 0\nfailed: exit 7, child failed\nspawn failed before a child was created\n",
+    "io/environment": None,
+    "terminal/output": "Scoop text report\nbytes=18, scalars=7, graphemes=4\n",
+    "apps/file-report": "lines=2, scalars=4, utf8Bytes=6\n",
+    "ui/state": None,
 }
-
-
-def run(command, cwd, environment, log, expected_code=0):
-    result = subprocess.run(
-        command, cwd=cwd, env=environment, capture_output=True, text=True, timeout=180
-    )
-    log.write_text(json.dumps(command, ensure_ascii=False) + "\n" + result.stdout + result.stderr)
-    if result.returncode != expected_code:
-        raise AssertionError(f"exit {result.returncode}, expected {expected_code}; see {log}")
-    return result
-
-
-def http_client(command, cwd, environment, logs):
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 8080))
-    server_log = logs / "server.log"
-    with server_log.open("w") as output:
-        server = subprocess.Popen(
-            command + ["run", "--release", "server.scoop"],
-            cwd=cwd,
-            env=environment,
-            stdout=output,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-        try:
-            deadline = time.monotonic() + 180
-            while True:
-                if server.poll() is not None:
-                    raise AssertionError(f"server exited; see {server_log}")
-                # Redirected stdout may be buffered; observe the actual listening socket.
-                try:
-                    with socket.create_connection(("127.0.0.1", 8080), timeout=0.2):
-                        break
-                except OSError:
-                    pass
-                if time.monotonic() > deadline:
-                    raise AssertionError(f"server did not start; see {server_log}")
-                time.sleep(0.05)
-            return run(
-                command + ["run", "--release", "client.scoop", "--", "http://127.0.0.1:8080/"],
-                cwd,
-                environment,
-                logs / "client.log",
-            )
-        finally:
-            # This process group contains only the server launched for this example.
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(server.pid, signal.SIGTERM)
-            try:
-                server.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(server.pid, signal.SIGKILL)
-                server.wait(timeout=5)
 
 
 def cli_example(command, directory, environment, logs):
@@ -152,6 +108,19 @@ def validate(topic, command, work, environment):
         stdout = http_client(command, directory, environment, logs).stdout
     elif id == "cli/options":
         stdout = cli_example(command, directory, environment, logs).stdout
+    elif id == "io/processes":
+        stdout = processes(command, directory, environment, logs)
+    elif id == "io/environment":
+        environment_variables(command, directory, environment, logs)
+        return
+    elif id == "terminal/output":
+        stdout = terminal_output(command, directory, environment, logs)
+    elif id == "apps/file-report":
+        stdout = file_report(command, directory, environment, logs)
+    elif id == "ui/state":
+        run(command + ["test", "--release", "."], directory, environment, logs / "test.log")
+        run(command + ["build", "--release", "."], directory, environment, logs / "build.log")
+        return
     elif id == "language/compiler-inputs":
         executable = directory / "embedded-example"
         for label, value in (("present", "1.2.3"), ("missing", None), ("empty", "")):
@@ -197,6 +166,7 @@ def validate(topic, command, work, environment):
     else:
         if id == "language/visibility":
             directory = directory / "app"
+            run(command + ["test", "--release", "."], directory, environment, logs / "test.log")
             source = "."
         elif id in ("start/cone", "language/imports"):
             source = "."

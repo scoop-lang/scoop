@@ -1,0 +1,20 @@
+package examples.report
+
+import scoop.text.*
+
+internal struct TextReport(val lines: Long, val scalars: Long, val utf8Bytes: Long)
+
+internal fun inspectText(text: String): TextReport {
+    var lines = 0L
+    for (line in text.lineSequence())
+        lines += 1L
+    if (text.byteLength == 0L)
+        lines = 0L
+    else
+        if (text.endsWith("\n") || text.endsWith("\r"))
+            lines -= 1L
+    return TextReport(lines, text.charLength, text.byteLength)
+}
+
+internal fun renderReport(report: TextReport): String =
+    f"lines=${report.lines}, scalars=${report.scalars}, utf8Bytes=${report.utf8Bytes}"

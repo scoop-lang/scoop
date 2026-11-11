@@ -1,6 +1,7 @@
 package examples.testing
 
 public fun divide(total: Int, count: Int): Int {
-    if (count == 0) throw IllegalArgumentException(Some("count must not be zero"))
+    if (count == 0)
+        throw IllegalArgumentException(Some("count must not be zero"))
     return total / count
 }

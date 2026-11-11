@@ -32,7 +32,7 @@ recommended = ["collections/list", "collections/map"]
 [[groups]]
 id = "io"
 title = "文件与资源"
-summary = "通过明确的作用域关闭句柄、清理临时文件。"
+summary = "读写文件、管理进程与环境变量，明确资源作用域。"
 aliases = ["scoop.platform"]
 recommended = ["io/files", "io/resources"]
 
@@ -70,6 +70,27 @@ title = "测试"
 summary = "为 Cone 编写断言与预期异常测试。"
 aliases = ["scoop.test"]
 recommended = ["test/assertions"]
+
+[[groups]]
+id = "terminal"
+title = "终端输出"
+summary = "区分重定向、颜色、文本计数与终端尺寸。"
+aliases = ["终端"]
+recommended = ["terminal/output"]
+
+[[groups]]
+id = "apps"
+title = "完整应用"
+summary = "把输入、计算和展示组织成可测试的应用。"
+aliases = ["应用"]
+recommended = ["apps/file-report"]
+
+[[groups]]
+id = "ui"
+title = "图形界面"
+summary = "维护界面状态、组件身份与资源生命周期。"
+aliases = ["界面"]
+recommended = ["ui/state"]
 
 [[topics]]
 id = "start/hello"
@@ -128,9 +149,9 @@ files = [
 [[topics]]
 id = "language/option"
 title = "表示和处理缺失值"
-summary = "匹配 Some/None，使用安全读取与缺失值默认值。"
+summary = "匹配 Some/None，组合解析并惰性地选择缺失值来源。"
 aliases = ["option", "nullable", "可选值"]
-keywords = ["scoop.core", "Option", "Some", "None", "null", "Elvis", "when", "安全调用"]
+keywords = ["scoop.core", "Option", "Some", "None", "null", "Elvis", "when", "安全调用", "map", "flatMap", "fold", "getOrElse", "orElse", "惰性"]
 document = "topics/language/option.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["language/enum", "json/typed"]
@@ -230,6 +251,7 @@ files = [
   { path = "library/src/greeter.scoop", source = "share/scoop/examples/programs/language/visibility/library/src/greeter.scoop", language = "scoop" },
   { path = "app/Cone.toml", source = "share/scoop/examples/programs/language/visibility/app/Cone.toml", language = "toml" },
   { path = "app/src/main.scoop", source = "share/scoop/examples/programs/language/visibility/app/src/main.scoop", language = "scoop" },
+  { path = "app/tests/greeter.scoop", source = "share/scoop/examples/programs/language/visibility/app/tests/greeter.scoop", language = "scoop" },
 ]
 
 [[topics]]
@@ -248,9 +270,9 @@ files = [
 [[topics]]
 id = "language/errors"
 title = "处理错误并保证收尾"
-summary = "解析计数，捕获非法值并在两条路径执行 finally。"
+summary = "用异常保证收尾，用 Result 保留解析和业务失败。"
 aliases = ["errors", "异常"]
-keywords = ["throw", "try", "catch", "finally", "IllegalArgumentException", "Exception.message", "解析"]
+keywords = ["throw", "try", "catch", "finally", "IllegalArgumentException", "Exception.message", "解析", "Result", "Success", "Failure", "toResult", "flatMap"]
 document = "topics/language/errors.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["language/option", "io/resources"]
@@ -375,7 +397,7 @@ id = "async/tasks"
 title = "启动、等待和取消异步任务"
 summary = "显式运行事件循环，等待两个结果并取消一个任务。"
 aliases = ["tasks", "协程"]
-keywords = ["scoop.asyncio", "EventLoop", "PlatformEventLoop", "async", "await", "launch", "join", "cancel", "suspend"]
+keywords = ["scoop.asyncio", "EventLoop", "PlatformEventLoop", "async", "await", "launch", "join", "cancel", "suspend", "Channel", "取消", "清理"]
 document = "topics/async/tasks.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["language/lambdas", "http/get"]
@@ -413,9 +435,9 @@ files = [
 [[topics]]
 id = "test/assertions"
 title = "给 Cone 编写测试"
-summary = "一个除法 API，两个包含普通与异常断言的测试。"
+summary = "测试普通值、异常、结构相等、嵌套 Option 与惰性回调。"
 aliases = ["assertions", "单元测试"]
-keywords = ["scoop.test", "Test", "assertEquals", "assertFailsWith", "test-dependencies", "filter"]
+keywords = ["scoop.test", "Test", "assertEquals", "assertFailsWith", "test-dependencies", "filter", "Option", "Result", "struct", "tuple", "assertNotEquals", "fallback", "调用次数"]
 document = "topics/test/assertions.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["start/cone", "language/errors"]
@@ -423,4 +445,80 @@ files = [
   { path = "Cone.toml", source = "src/scoop.test/examples/assertions/Cone.toml", language = "toml" },
   { path = "src/calculator.scoop", source = "src/scoop.test/examples/assertions/src/calculator.scoop", language = "scoop" },
   { path = "tests/calculator.scoop", source = "src/scoop.test/examples/assertions/tests/calculator.scoop", language = "scoop" },
+  { path = "tests/values.scoop", source = "src/scoop.test/examples/assertions/tests/values.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "io/processes"
+title = "与子进程交换标准流"
+summary = "保留输入、输出、错误流、退出状态和启动失败。"
+aliases = ["process", "进程"]
+keywords = ["Process", "ProcessCommand", "communicate", "stdin", "stdout", "stderr", "ExitStatus", "system", "系统", "scoop.platform.process"]
+document = "topics/io/processes.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
+related = ["io/resources", "io/environment"]
+files = [
+  { path = "main.scoop", source = "share/scoop/examples/programs/io/processes/main.scoop", language = "scoop" },
+  { path = "child.scoop", source = "share/scoop/examples/programs/io/processes/child.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "io/environment"
+title = "读取运行期环境变量"
+summary = "区分缺失和空文本，只在缺失时求默认值。"
+aliases = ["environment", "环境变量"]
+keywords = ["environmentVariable", "OsString", "decodeUtf8", "getOrElse", "system", "系统", "scoop.platform.env"]
+document = "topics/io/environment.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
+related = ["language/option", "language/compiler-inputs"]
+files = [
+  { path = "main.scoop", source = "share/scoop/examples/programs/io/environment/main.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "terminal/output"
+title = "输出适合终端或文件的文本"
+summary = "检测重定向、颜色偏好和窄终端，区分三种文本计数。"
+aliases = ["terminal-output"]
+keywords = ["terminal", "终端", "NO_COLOR", "isTerminal", "TerminalSession", "charLength", "graphemes", "Unicode", "scoop.terminal", "scoop.charset"]
+document = "topics/terminal/output.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
+related = ["text/strings", "cli/options"]
+files = [
+  { path = "main.scoop", source = "share/scoop/examples/programs/terminal/output/main.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "apps/file-report"
+title = "分离文件输入、计算和报告"
+summary = "用数值模型统计文本，测试空值与换行边界。"
+aliases = ["file-report", "报告"]
+keywords = ["Path", "readText", "文件", "CLI", "model", "测试", "lines", "UTF-8"]
+document = "topics/apps/file-report.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
+related = ["io/files", "test/assertions"]
+files = [
+  { path = "Cone.toml", source = "share/scoop/examples/programs/apps/file-report/Cone.toml", language = "toml" },
+  { path = "src/main.scoop", source = "share/scoop/examples/programs/apps/file-report/src/main.scoop", language = "scoop" },
+  { path = "src/report.scoop", source = "share/scoop/examples/programs/apps/file-report/src/report.scoop", language = "scoop" },
+  { path = "tests/report.scoop", source = "share/scoop/examples/programs/apps/file-report/tests/report.scoop", language = "scoop" },
+  { path = "sample.txt", source = "share/scoop/examples/programs/apps/file-report/sample.txt", language = "text" },
+]
+
+[[topics]]
+id = "ui/state"
+title = "维护可增删重排的界面状态"
+summary = "独立计数器、当前状态回调、稳定身份和组件资源。"
+aliases = ["ui-state", "计数器"]
+keywords = ["UI", "Component", "State", "Props", "ViewKey", "ShortcutScope", "状态", "回调", "重排", "scoop.ui.component"]
+document = "topics/ui/state.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。", "需要 macOS、Linux GNU 或 Windows 图形会话及已准备的 UI 系统库。"]
+related = ["language/lambdas", "test/assertions"]
+files = [
+  { path = "Cone.toml", source = "src/scoop.ui.component/examples/state/Cone.toml", language = "toml" },
+  { path = "src/main.scoop", source = "src/scoop.ui.component/examples/state/src/main.scoop", language = "scoop" },
+  { path = "src/model.scoop", source = "src/scoop.ui.component/examples/state/src/model.scoop", language = "scoop" },
+  { path = "src/panel.scoop", source = "src/scoop.ui.component/examples/state/src/panel.scoop", language = "scoop" },
+  { path = "tests/model.scoop", source = "src/scoop.ui.component/examples/state/tests/model.scoop", language = "scoop" },
+  { path = "tests/window.scoop", source = "src/scoop.ui.component/examples/state/tests/window.scoop", language = "scoop" },
 ]

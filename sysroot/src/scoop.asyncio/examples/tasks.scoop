@@ -1,6 +1,8 @@
 //! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.concurrent:0.1.0
 
 import scoop.asyncio.*
+import scoop.concurrent.Channel
 import scoop.time.Duration
 
 fun main() {
@@ -20,15 +22,18 @@ fun main() {
             }
         println(first.await() + second.await())
 
+        val started = Channel<Unit>(1L)
         val pending =
             scope.launch suspend {
                 try {
+                    started.send(Unit)
                     loop.sleep(Duration.seconds(60L))
                 } finally {
                     println("Cancelled task cleaned up")
                 }
             }
-        loop.sleep(Duration.milliseconds(1L))
+        started.receive()
+        started.close()
         pending.cancel()
         pending.join()
     }

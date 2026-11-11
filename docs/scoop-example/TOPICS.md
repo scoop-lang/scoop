@@ -1,6 +1,6 @@
 # 主题与示例内容清单
 
-状态：已发布 26 个主题，其中首批 24 个，新增编译期输入与 import 两个主题；第二、三节保留为后续内容规划。日期：2026-10-29。命令和编辑约定见 [DESIGN.md](DESIGN.md)，实际输出形态见 [SAMPLES.md](SAMPLES.md)。
+状态：已发布 31 个主题；第二、三节保留尚未交付的后续内容规划。日期：2026-11-12。命令和编辑约定见 [DESIGN.md](DESIGN.md)，实际输出形态见 [SAMPLES.md](SAMPLES.md)。
 
 首批表中的“复用”“新增”“拆出”记录内容来源与编辑方式，均已落实到[发布索引](../../sysroot/share/scoop/examples/catalog.toml)。后续规划未注册到索引。
 
@@ -59,6 +59,18 @@
 | language/imports | 怎样在局部块中导入名称？同一 Cone 的两个 package 提供 greeting | 声明前后与离块后的不同问候，lambda 内的 star import | exact／alias／star；声明之后生效、嵌套继承、离块恢复；不能局部 public import；仍需声明依赖 | [完整项目](../../sysroot/share/scoop/examples/programs/language/imports/)、[使用说明](../../sysroot/share/scoop/examples/topics/language/imports.md) |
 
 新增主题已注册到发布索引，可以作为 related 目标。它们与首批内容共享同一阅读器和实际运行验证脚本。
+
+## 1.4 跨领域完整示例
+
+| ID | 交付内容 | 验证重点 |
+| --- | --- | --- |
+| io/processes | 两个程序交换三条标准流，区分空成功、退出失败和创建失败 | 直接运行子进程、真实退出状态及标准流 |
+| io/environment | 运行期 OsString 配置与惰性默认值 | 缺失、空文本、有值 |
+| terminal/output | TTY/重定向、颜色、窄标题、Unicode 单位 | 普通管道与真实 PTY |
+| apps/file-report | 输入、数值模型、渲染、Cone 测试 | 空值、换行、UTF-8 与 CLI 错误流 |
+| ui/state | 独立状态、稳定 key、当前 props、组件资源 | 模型测试、原生宿主和真实输入 |
+
+同时扩展 language/option、language/errors、language/visibility、async/tasks、http/get 与 test/assertions。
 
 ## 2. 现有库示例的后续主题映射
 

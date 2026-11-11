@@ -184,7 +184,7 @@ pub fn render(
         let hits = search::search(catalog, query);
         if hits.is_empty() {
             return Err(Error::content(format!(
-                "没有匹配 {query:?} 的主题；使用 --list 查看目录。"
+                "没有匹配 {query:?} 的示例主题；可缩短关键词或使用 --list 查看目录。\n没有示例不表示没有 API：继续查看系统库文档与 sysroot/src 声明；项目中的类型和签名可用 scoop-lsp query 查询。"
             )));
         }
         let mut markdown = format!("# 搜索：{query}\n\n");
