@@ -12,7 +12,7 @@
 - `AsyncMutex` 与 `AsyncConditionVariable` 能跨挂起点、跨 executor 同步；等待不占住 OS thread，解锁不要求回到加锁时的 OS thread。
 - `MultiThreadExecutor` 使用多个已登记到 Scoop runtime 的 managed worker，并行驱动不同任务；一个任务在不同轮次可以迁移 worker，同一时刻只能有一个驱动者。
 - executor 管理独立的 `BlockingTaskPool`；`blocking { ... }` 可以执行普通 Scoop 闭包、分配托管对象、调用同步库和 FFI，返回类型化结果或异常。现有 GC-free native work 迁入同一套阻塞任务设施。
-- `PlatformEventLoop` 提供固定 owner 线程的 executor；`AsyncRuntime` 组合 I/O owner 和 managed worker pool，使 I/O 归属与协程执行位置分开。
+- `PlatformEventLoop` 提供固定 owner 线程的 executor；`AsyncRuntime` 让 managed worker 各自驱动 reactor，资源 owner 稳定，任务执行位置仍可随 stealing 改变。
 - 编译器统一处理启动、挂起、结果发布、恢复入队、TaskContext 和完成边界，覆盖普通函数、接口调用、闭包调用与跨 Cone 产物。
 - 普通应用通过 runtime/executor 配置 builder、带 receiver 的 coroutine scope、`blocking` 与 `withExecutor` 工作，不需要手工处理 continuation、work 或任务登记。
 
@@ -655,7 +655,7 @@ I/O 适配的取消仍由该操作自己的选择状态决定：取消可以先�
 
 `PlatformEventLoop.run/attach` 为用户根任务选择 LoopExecutor。之后不只内置 I/O，Channel、Mutex、第三方 callback、普通 `suspendCoroutine` 的真实挂起恢复也都回 owner 线程。
 
-`EventLoop` 增加只读 `executor: CoroutineExecutor`，在运行或附着已建立、尚未终止时返回该 owner executor；运行前和终止后访问报状态错误。LoopExecutor 的具体类保持内部实现。worker 需要显式执行 owner 代码时可使用 `withExecutor(currentEventLoop().executor)`；普通 I/O 调用自身已经负责把 backend 操作提交到 owner，不要求用户先切换。
+`EventLoop` 增加只读 `executor: CoroutineExecutor`，在运行或附着已建立、尚未终止时返回相应 executor；运行前和终止后访问报状态错误。独立 `PlatformEventLoop` 返回 owner executor，LoopExecutor 的具体类保持内部实现；worker 需要显式执行该 owner 代码时可使用 `withExecutor(loop.executor)`。AsyncRuntime 返回共享 worker executor，不承诺固定线程；普通 I/O 调用自身负责向资源 owner 提交，不要求用户先切换。
 
 LoopExecutor 使用独立的内部 work 队列或现有内部命令通道，并复用 backend wake。它必须遵守任务登记与 draining 合同；不能调用关闭时允许丢弃应用消息的 `EventLoopSession.post` 来调度 continuation。
 
@@ -685,20 +685,20 @@ public class AsyncRuntime {
 }
 ```
 
-`AsyncRuntime` 位于 asyncio，由 §3.4 的 builder 创建，组合一个 PlatformEventLoop、一个 MultiThreadExecutor 和双方共享的 BlockingTaskPool。调用 run 的线程驱动 I/O owner，用户根及默认子任务在 coroutine worker pool 上执行，blocking 闭包进入独立的 blocking workers。实例单次使用，根入口拒绝已有活动 Job/EventLoop；类型化 run 在子树和全部清理完成后直接返回 T，不增加 runWithResult 同义入口。
+`AsyncRuntime` 位于 asyncio，由 §3.4 的 builder 创建，组合每 worker 一个 reactor、一个 MultiThreadExecutor 和共享 BlockingTaskPool。调用 run 的线程等待结果，用户根及默认子任务在 coroutine workers 上执行；同一 worker 同时推进所属 reactor，blocking 闭包进入独立的 blocking workers。实例单次使用，根入口拒绝已有活动 Job/EventLoop；类型化 run 在子树和全部清理完成后直接返回 T，不增加 runWithResult 同义入口。
 
-这里暂不使多个 worker 并发 poll 同一个 backend：现有资源容器、io_uring/IOCP/宿主 watch 的 owner 合同要求串行驱动。将来即使改变 backend driver 分配，也不改变 Channel、Mutex 和协程调度 ABI。
+每个 backend 仍由所属 worker 串行驱动，跨 worker 操作发布到资源 owner；单 listener 的 accepted stream 在交付前分配到目标 reactor。一个逻辑 EventLoop binding 保持不变，现有本地队列与 work stealing 继续工作；不迁移已绑定 handle 或在途操作。具体交接与 worker 等待合同见[asyncio 规范 2.2](../specs/SCOOP-ASYNCIO-SPEC.md)和[并发规范第 6 节](../specs/SCOOP-CONCURRENT-SPEC.md#6-executor-配置)。Channel、Mutex 和 core 协程 ABI 不变。
 
 关闭按依赖顺序推进：
 
 1. 关闭 runtime/session 的应用入口；失败或外部关闭请求取消根 Job，正常根结束则保留正常结果。独立持有 executor 的低层调用仍按该 executor 实际进入 draining 的时机判断登记，不承诺一条关闭请求同时关闭所有相互依赖的 executor。
 2. 请求 worker executor draining，继续驱动 I/O 并保持共享 blocking pool 接纳工作。已接纳任务仍可恢复、运行 finally、建立同 executor 的清理子任务或 blocking operation；根及其子树必须真实结束。
 3. 等待 worker executor 的全部执行登记、coroutine work、正在执行的驱动以及它提交的 blocking operation 排空。不能只等结构化根，因为低层入口可能还有未结束登记。
-4. worker executor 已完全结束后，不再有其任务需要新建 owner 清理切换，此时使 LoopExecutor draining，排空它已接纳的任务与工作。随后以 owner 内部命令／ready 关闭遗留 I/O 资源，排空 native 操作、取消和资源清理；这些库内收尾不新建用户 coroutine 登记，文件关闭等仍可使用共享 blocking pool。
-5. 两个 executor、资源和 owner 清理均不再产生 blocking work 后，才使共享 blocking pool 停止接纳；排空所有已接纳 work，等待运行中的普通函数真实返回及线程退出。
-6. 所有结果通知都已消费、owner 内部队列和 backend 排空后，移除宿主 watch/关闭 native loop；join coroutine/blocking worker 并回收线程句柄，状态同步对象按 §9.1 保留到 GC，最后返回结果或异常。
+4. 全部登记归零且任务队列排空后，各 worker 以 owner 内部命令／ready 关闭遗留 I/O 资源，排空 native 操作、取消和资源清理，销毁所属 backend 后才退出并发布终止；这些库内收尾不新建用户 coroutine 登记，文件关闭等仍可使用共享 blocking pool。
+5. worker executor 和全部 reactor 收尾完成并 join 后，才使共享 blocking pool 停止接纳；排空所有已接纳 work，等待运行中的普通函数真实返回及线程退出。
+6. join blocking workers 并回收线程句柄，状态同步对象按 §9.1 保留到 GC，最后返回结果或异常。独立 PlatformEventLoop／GUI 的单 owner、宿主 watch 注销和 LoopExecutor 收尾继续按 asyncio 规范执行。
 
-I/O owner 在阻塞工作实际退休和结果交付前必须继续推进，LoopExecutor 也要允许已接纳 worker 的必要清理切换；过早停止调度、blocking pool 或 I/O 任一侧都会造成永久等待。手工组合多个 executor 时，调用者同样要保持清理依赖的目标 executor 存活；向已经 draining 的另一 executor 新建根登记会正常失败，不自动“复活”它。
+I/O owner 在阻塞工作实际退休和结果交付前必须继续推进；过早停止调度、blocking pool 或 I/O 任一侧都会造成永久等待。手工组合多个 executor 时，调用者同样要保持清理依赖的目标 executor 存活；向已经 draining 的另一 executor 新建根登记会正常失败，不自动“复活”它。
 
 `attach` 的关闭完成通知必须发生在全部清理之后，host 此前仍须提供驱动机会。关闭请求本身不在 GUI owner 上等待仍在运行的 blocking 任务；完成通知驱动后续收尾，只对已退出线程执行最终句柄回收。未完成 coroutine 和 blocking completion 都不是可丢弃的应用 post。
 

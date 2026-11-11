@@ -31,7 +31,7 @@ private class HttpRuntimeConsumerTest {
                     _ ->
                     assertSame(executor, currentCoroutineExecutorOrNone()!!)
                     withExecutor(loop.executor) {
-                        assertEquals(owner, currentThreadId())
+                        assertNotEquals(owner, currentThreadId())
                         loop.sleep(Duration.nanoseconds(1L))
                     }
                     assertSame(executor, currentCoroutineExecutorOrNone()!!)

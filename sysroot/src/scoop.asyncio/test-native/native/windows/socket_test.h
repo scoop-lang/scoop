@@ -34,12 +34,12 @@ static inline int test_pair(ScoopIoLoop *loop, bool ipv6, ScoopIoSocket **listen
     CHECK(!test_created(loop, listener));
     ScoopIoSocketName address = scoop_io_tcp_address(*listener, false);
     CHECK(!address.status.code && address.address.port > 0);
-    CHECK(!scoop_io_tcp_accept(*listener, 2));
+    CHECK(!scoop_io_tcp_accept(*listener, (*listener)->loop, 2));
     scoop_io_accept_cancel(*listener, 2);
     ScoopIoEvent event;
     CHECK(!test_result(loop, &event) && event.id == 2 && event.kind == SCOOP_IO_WINSOCK_ERROR &&
           event.code == WSA_OPERATION_ABORTED);
-    CHECK(!scoop_io_tcp_accept(*listener, 3));
+    CHECK(!scoop_io_tcp_accept(*listener, (*listener)->loop, 3));
     CHECK(!scoop_io_tcp_connect(loop, 4, address.address));
     for (unsigned i = 0; i < 2; i++) {
         CHECK(!test_result(loop, &event) && event.kind == SCOOP_IO_RESOURCE);

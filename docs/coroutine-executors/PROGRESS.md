@@ -257,3 +257,9 @@ B15 的完整 yield 采样中，`CoroutineLock.withLock` 合计占用户态 self
 格式、静态检查和 release 验证通过：core consumer 的 executors 组 27 项、concurrent 全套 71 项、asyncio 全套 175 项；四个专用用例在 moving＋minor GC stress 下通过。新增外线程反复恢复，覆盖无 executor／单 worker／四 worker 各 512 次的成功和异常、结果顺序、Context、恰好一次及 yield，另有定向移动 GC。三个短传输配置通过，正式 echo 含预热核对 19,297,016 次响应，长调度核对 1,811,939,328 次操作，全部无错误。
 
 完整报告、固定产物、源代码、原始采样与复现命令在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round16`。重建 core 后遇到的旧依赖／隐式 core 选择错误已通过匹配的独立 sysroot 与依赖重建闭合，日志保留。CPU／RSS 取预热后窗口，GC／分配含预热和收尾；闭环延迟未校正 coordinated omission，各配置仅三次。仅实测 Linux x86-64 GNU，本轮未重测 Go、HTTP、JSON 性能或其他平台。
+
+## 2026-11-11：worker 内整合 reactor（B18）
+
+AsyncRuntime 通过 `CoroutineWorkerDriver` 将每个 reactor 接入现有 coroutine worker 的 poll／park／wake／close，不新增任务队列或调度器。保留本地 FIFO、无锁 inbox 和批量 work stealing；有限批任务之间推进 I/O，共用 native 等待入口。driver 收尾在 worker 终止前完成，自有 blocking pool 延后到全部 coroutine workers 退出后才停止。
+
+普通单端口、64 连接、四 worker 的裸 TCP echo 吞吐达到固定 B16 对照的 2.23 倍，CPU／echo 下降 20.1%；单 worker 吞吐提高 54.5%。concurrent 71 项及 asyncio、跨库、TLS／HTTP Runtime 组合和定向移动 GC 验证通过。完整结果、单连接／GC 回退、验证轮次与平台限制见[asyncio B18 进度](../asyncio-backends/PROGRESS.md#第十八轮正式-workerreactor-整合)，报告在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round18`。四 worker 仍比 Go 慢约 3.16 倍，后续继续拆解必经的 I/O 与协程链路。

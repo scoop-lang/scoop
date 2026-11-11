@@ -21,7 +21,7 @@ private class RuntimeResources(val file: AsyncFile, val socket: AsyncUdpSocket)
 @Test
 private class AsyncRuntimeTest {
     @Test
-    fun `workers owner and shared blocking pool preserve bindings and typed results`() {
+    fun `reactor workers and shared blocking pool preserve bindings and typed results`() {
         val owner = currentThreadId()
         val runtime =
             asyncRuntime {
@@ -34,6 +34,7 @@ private class AsyncRuntimeTest {
                     val workers = currentCoroutineExecutorOrNone()!!
                     val loop = currentEventLoop()
                     assertTrue(workers is MultiThreadExecutor)
+                    assertSame(workers, loop.executor)
                     assertNotEquals(owner, currentThreadId())
                     assertEquals(42, runtimeLabel())
                     val child =
@@ -45,9 +46,9 @@ private class AsyncRuntimeTest {
                             runtimeLabel()
                         }
                     val workerPoolThread = blocking { currentThreadId() }
-                    val ownerPoolThread =
+                    val loopPoolThread =
                         withExecutor(loop.executor) {
-                            assertEquals(owner, currentThreadId())
+                            assertNotEquals(owner, currentThreadId())
                             blocking {
                                 assertNoLoopValue(currentCoroutineExecutorOrNone())
                                 assertSame(loop, currentEventLoop())
@@ -56,7 +57,7 @@ private class AsyncRuntimeTest {
                                 currentThreadId()
                             }
                         }
-                    assertEquals(workerPoolThread, ownerPoolThread)
+                    assertEquals(workerPoolThread, loopPoolThread)
                     assertNotEquals(owner, workerPoolThread)
                     assertSame(workers, currentCoroutineExecutorOrNone()!!)
                     RuntimeValue(RuntimeLabel(child.await()), ("managed runtime", 7L))
@@ -144,7 +145,7 @@ private class AsyncRuntimeTest {
                         } finally {
                             nonCancellableScope {
                                 withExecutor(loop.executor) {
-                                    assertEquals(owner, currentThreadId())
+                                    assertNotEquals(owner, currentThreadId())
                                     assertEquals(
                                         42,
                                         blocking {

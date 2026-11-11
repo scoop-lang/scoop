@@ -5,7 +5,7 @@ import scoop.platform.concurrent.Mutex
 import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.ThreadId
 
-internal class CoroutineWorker(val index: Int) {
+internal class CoroutineWorker(val index: Int, val driver: CoroutineWorkerDriver?) {
     val inbox = CoroutineQueue.create()
     val local = CoroutineLocalQueue()
     // Lifecycle fields are protected by the pool's lifecycle mutex.
@@ -28,11 +28,22 @@ internal class CoroutineWorker(val index: Int) {
     fun notify(): Boolean {
         if (!state.compareAndSet(1, 2))
             return false
-        lock.withLock { changed.signal() }
+        when (driver) {
+            case Some(val driver) -> driver.wake()
+            case None -> lock.withLock { changed.signal() }
+        }
         return true
     }
 
     fun park(stopping: AtomicBoolean) {
+        when (driver) {
+            case Some(val driver) -> {
+                if (state.load() == 1 && !stopping.load())
+                    driver.park()
+                return
+            }
+            case None -> {}
+        }
         lock.withLock {
             while (state.load() == 1 && !stopping.load())
                 changed.await()

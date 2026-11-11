@@ -55,7 +55,7 @@ private class SharedTimerTests {
     fun `many logical cancellations retire only the shared native wakeup`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val timers = LoopTimers(owner)
         val registrations = ArrayList<LoopTimer>()
         try {

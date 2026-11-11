@@ -28,7 +28,7 @@ internal fun nativeTcpListen(
 internal fun nativeTcpConnectCancel(loop: Ptr<Unit>, id: Long)
 
 @Extern(name = "scoop_io_tcp_accept")
-internal fun nativeTcpAccept(tcp: Ptr<Unit>, id: Long): Int
+internal fun nativeTcpAccept(tcp: Ptr<Unit>, target: Ptr<Unit>, id: Long): Int
 
 @Extern(name = "scoop_io_accept_cancel")
 internal fun nativeTcpAcceptCancel(tcp: Ptr<Unit>, id: Long)

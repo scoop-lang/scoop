@@ -118,13 +118,13 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 `run` 反复调用同一个 `pump`，无可执行工作时在统一通知 fd 上阻塞等待；等待使用 `NativeSafe`，不能标为 `GCLeaf`。`attach` 由 host 可读回调调用 `pump`，内部不等待 I/O、worker 或监听注销。正时长 timer 的到期由后端通知，宿主不需要周期轮询；空闲时没有常驻 idle 回调。
 
-协程恢复遵守语言规范 11.9.3 的 execution 归属：LoopExecutor 上的 I/O、Channel 和第三方挂起点均排队回 owner，AsyncRuntime worker 上的操作回原 worker executor。`withExecutor(loop.executor)` 显式切回 owner；普通外部应用消息可通过 `session.post` 进入根作用域。frame、Job、取消和 executor 登记仍由 core／concurrent 的同一实现负责；帧请求与 vsync 由 GUI 层安排。
+协程恢复遵守语言规范 11.9.3 的 execution 归属：LoopExecutor 上的 I/O、Channel 和第三方挂起点均排队回 owner，AsyncRuntime worker 上的操作回共享 worker executor。独立 PlatformEventLoop 的 `withExecutor(loop.executor)` 显式切回 owner；AsyncRuntime 的 `loop.executor` 则是共享 worker executor，不承诺固定物理线程。普通外部应用消息可通过 `session.post` 进入 GUI 根作用域。frame、Job、取消和 executor 登记仍由 core／concurrent 的同一实现负责；帧请求与 vsync 由 GUI 层安排。
 
-### 4.1 worker 与 reactor 整合方向（B17 验证，尚未实现）
+### 4.1 worker 与 reactor 整合（B18 已实现）
 
 裸 TCP 架构对照保留同一组固定库、runtime、进程级 GC 和 echo 正文，把“单 owner＋四 worker”改为同进程四个独立 owner，各自直接执行所属连接的业务。四核配额、64 连接下的三次测量显示明显收益，完整记录见[实施进度 B17](PROGRESS.md#第十七轮reactor-分布与本地执行的架构对照)。这个实验同时改变 reactor 数量、执行位置和连接分配，证明组合方向值得实施，不能把全部收益分摊给某一次队列或锁；多端口均匀分片也不能代替正式 API 的验收。
 
-下一轮以 `AsyncRuntime` 为实际消费者整合现有调度器，实施范围如下。以下是待实现设计，当前公共合同仍以 asyncio 规范为准；实施前同步该规范，不把实验程序声明为已交付运行时。
+B18 已以 `AsyncRuntime` 为实际消费者整合现有调度器，并同步 asyncio／concurrent 规范。实现如下；B17 仍只作为架构诊断实验，正式结果见[实施进度 B18](PROGRESS.md#第十八轮正式-workerreactor-整合)。
 
 - 保留一个逻辑 `EventLoop` binding 和一棵结构化任务树；每个 coroutine worker 驱动自己的 native reactor。caller 等待最终结果，不再额外承担唯一 I/O owner。独立 `PlatformEventLoop.run`／GUI attach 继续保持原有线程归属。
 - 复用 MultiThreadExecutor 的本地队列、外部 inbox、批量 work stealing 和任务登记。worker 在有限批可运行任务之间推进自己的 I/O；空闲时重新检查队列，再等待 reactor 通知。任务投递和 I/O 完成共同唤醒该 worker，不能引入丢失唤醒或纯忙轮询。驱动接入只服务这个实际 asyncio 调用方，不建立通用插件体系。
@@ -132,7 +132,9 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 - 每个资源仍由所属 reactor 串行提交／消费 native I/O，跨 worker 的操作发给该 owner。完成在相应物理 worker 上恢复排队，利用现有同池本地投递规则让后续业务与 I/O 保持局部性；stealing、跨 executor 恢复和调用方 Context 合同保持，不能靠禁止任务迁移获得实验收益。
 - 共享根结束后先排空已接纳任务，再由各 reactor 清理遗留资源、取消与实际 native 请求。共享 blocking pool 在所有 reactor 收尾完成前继续接纳必要工作，最后才停止并 join。初始化部分失败、backend 失败、取消与关闭复用同一生命周期，不创建 detached 根任务或提前释放借用。
 
-验收必须使用普通 `AsyncRuntime` 和一个监听端口，重新测量单／四 worker、单／多连接的吞吐、延迟、CPU、分配与 GC；同时覆盖任务窃取后 I/O、双向操作、外线程取消、部分传输、单次完成和关闭排空。实验的多端口结果仅作为架构参照，不能用它替代正式运行时结果。多 reactor 下仍存在显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
+`CoroutineWorkerDriver` 把每个已创建的 reactor 接入现有 worker；每处理至多 32 个队列任务推进一次非阻塞 pump，空闲发布观察状态后再 pump 并重查任务。任务投递通过同一 native 通知打断等待。`RuntimeWorkerContext` 的 TLS 只保存标量身份；同物理 owner 的命令进入复用的本地数组，跨 owner 仍使用现有 inbox。两类命令都异步消费，不在提交栈内执行 I/O 状态机。
+
+B18 使用普通 `AsyncRuntime` 和一个监听端口，测量单／四 worker、单／64 连接的吞吐、延迟、CPU、分配与 GC，保留独立 event loop 对照。新增持续 runnable 负载下的四 reactor timer 进度、跨 executor I/O、单 listener 分配、部分传输与移动 GC 交接测试，并通过既有取消、单次完成和关闭排空回归。仅 Linux/io_uring 已实测；Darwin／Windows 的目标 owner 参数已同步但尚未实机验证，不均匀连接与混合 CPU 负载的性能仍待验证。多 reactor 下仍有显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
 
 ### 4.2 Mio、Tokio 与 tokio-uring 的架构参照
 
@@ -146,7 +148,7 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 来源：[Mio Poll](https://docs.rs/mio/latest/mio/struct.Poll.html)、[Waker](https://docs.rs/mio/latest/mio/struct.Waker.html)及 [Linux Waker 实现](https://github.com/tokio-rs/mio/blob/master/src/sys/unix/waker/eventfd.rs)；[Tokio runtime](https://docs.rs/tokio/latest/tokio/runtime/index.html)与 [park.rs](https://github.com/tokio-rs/tokio/blob/master/tokio/src/runtime/scheduler/multi_thread/park.rs)；[tokio-uring 文档](https://docs.rs/tokio-uring/latest/tokio_uring/)与 [runtime 实现](https://docs.rs/tokio-uring/latest/src/tokio_uring/runtime/mod.rs.html)。这些是本轮查阅的实现，不能依赖其队列容量或检查间隔作为上游永久合同。
 
-据此，下一轮的直接目标是改掉 `worker → 单 owner → worker` 的必经往返。选择每 worker reactor 的依据是 B17 的本机组合实验与当前 owner 集中负载，不是“Tokio 也这样做”。正常局部路径由当前 worker 提交、消费完成并把 continuation 放回本地队列；被窃取任务访问其他 owner 的资源时才跨 worker 交付。保持资源 owner 稳定、让可运行任务迁移，是 Scoop 为同时保留局部性与 stealing 做出的设计选择，仍需单 listener 和不均匀负载验证。
+B18 已移除 `worker → 单 owner → worker` 的必经往返。选择每 worker reactor 的依据是 B17 的本机组合实验与 owner 集中负载，不是“Tokio 也这样做”。正常局部路径由当前 worker 提交、消费完成并把 continuation 放回本地队列；被窃取任务访问其他 owner 的资源时才跨 worker 交付。保持资源 owner 稳定、让可运行任务迁移，是 Scoop 为同时保留局部性与 stealing 做出的设计选择。普通单 listener 已完成实测，不均匀负载的性能仍待验证。
 
 整合时遵守以下直接约束：
 

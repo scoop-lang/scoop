@@ -2,52 +2,25 @@ package scoop.asyncio
 
 import scoop.concurrent.BlockingTaskPool
 
-internal enum LoopExecutionPlan {
-    Owner(LoopBlockingConfig), Runtime(RuntimeWorkers)
-}
-
 internal class LoopExecution(
     private val owner: LoopOwner,
     val executor: LoopExecutor,
     val pool: BlockingTaskPool,
-    val owned: Boolean,
-    private val runtime: RuntimeWorkers?
+    val owned: Boolean
 ) {
     private var poolStopping = false
-    private val stopsPool =
-        owned ||
-            when (runtime) {
-                case Some(_) -> true
-                case None -> false
-            }
-
-    val rootExecutor: CoroutineExecutor get() =
-        when (runtime) {
-            case Some(val workers) -> workers.executor
-            case None -> executor
-        }
 
     fun observeTermination() {
-        if (stopsPool)
+        if (owned)
             pool.invokeOnTermination { owner.wakeExecution() }
-        when (runtime) {
-            case Some(val workers) -> workers.executor.invokeOnTermination {
-                owner.post { executor.requestShutdown() }
-            }
-            case None -> {}
-        }
     }
 
     fun finishRoot() {
-        when (runtime) {
-            case Some(val workers) -> workers.executor.requestShutdown()
-            case None -> executor.requestShutdown()
-        }
+        executor.requestShutdown()
     }
 
-    // Called only after coroutine registrations, resources and native operations have drained.
     fun stopPoolIfNeeded(): Boolean {
-        if (!stopsPool)
+        if (!owned)
             return true
         if (!poolStopping) {
             poolStopping = true
@@ -62,20 +35,17 @@ internal class LoopExecution(
     }
 }
 
-internal fun prepareLoopExecution(owner: LoopOwner, plan: LoopExecutionPlan): LoopExecution {
-    val selected: (BlockingTaskPool, Boolean, RuntimeWorkers?) =
-        when (plan) {
-            case Owner(val config) -> when (config) {
-                case Owned(val threads) -> (BlockingTaskPool(threads), true, None)
-                case Shared(val pool) -> (pool, false, None)
-            }
-            case Runtime(val workers) -> (workers.pool, false, Some(workers))
+internal fun prepareLoopExecution(owner: LoopOwner, config: LoopBlockingConfig): LoopExecution {
+    val selected: (BlockingTaskPool, Boolean) =
+        when (config) {
+            case Owned(val threads) -> (BlockingTaskPool(threads), true)
+            case Shared(val pool) -> (pool, false)
         }
-    val(pool, owned, runtime) = selected
+    val(pool, owned) = selected
     try {
         if (pool.isShutdown)
             throw ExecutorClosedException()
-        return LoopExecution(owner, LoopExecutor(owner, pool), pool, owned, runtime)
+        return LoopExecution(owner, LoopExecutor(owner, pool), pool, owned)
     } catch (error: Throwable) {
         if (owned)
             pool.use { _ -> throw error }

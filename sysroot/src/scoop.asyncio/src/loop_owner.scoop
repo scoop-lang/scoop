@@ -2,10 +2,14 @@ package scoop.asyncio
 
 import scoop.collections.HashMap
 
-internal class LoopOwner {
+internal class LoopOwner(
+    private val runtime: RuntimeEventLoop? = None,
+    private val worker: Int = -1
+) {
     // Root results use this lock; I/O publication has its own parking mutex.
     private val lock: IoLock = IoLock()
     private val inbox = LoopInbox()
+    private val localCommands = ArrayList<() -> Unit>()
     private val published = AtomicBoolean(false)
     private val running = AtomicBoolean(false)
     // Initialized before publication and retained unchanged through shutdown.
@@ -24,7 +28,7 @@ internal class LoopOwner {
     private var cleaning: Boolean = false
     var ready: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
 
-    fun open(loop: EventLoop, config: LoopExecutionPlan): Ptr<Unit> {
+    fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
         val state = prepareLoopExecution(this, config)
         try {
             @Unsafe
@@ -55,7 +59,17 @@ internal class LoopOwner {
     }
 
     val executor: LoopExecutor get() = currentExecution().executor
-    val rootExecutor: CoroutineExecutor get() = currentExecution().rootExecutor
+    fun connectionOwner(): LoopOwner =
+        when (runtime) {
+            case Some(val runtime) -> runtime.nextOwner()
+            case None -> this
+        }
+
+    fun nativePointer(): Ptr<Unit> {
+        if (!running.load(MemoryOrder.Acquire))
+            throw IllegalStateException(Some("event loop is not running"))
+        return pointer!!
+    }
 
     fun dispatchBlocking(native: Ptr<Unit>) {
         dispatchNativeWork(native, currentExecution().pool)
@@ -93,6 +107,15 @@ internal class LoopOwner {
     }
 
     fun post(command: () -> Unit) {
+        when (runtime) {
+            case Some(val runtime) -> if (
+                runtime.isCurrentWorker(worker) && running.load(MemoryOrder.Acquire)
+            ) {
+                localCommands.add(command)
+                return
+            }
+            case None -> {}
+        }
         inbox.post(command)
     }
 
@@ -181,7 +204,13 @@ internal class LoopOwner {
     }
 
     fun bindRoot(job: Job) {
-        lock.withLock { root = Some(job) }
+        val failed =
+            lock.withLock {
+                root = Some(job)
+                backendFailed
+            }
+        if (failed)
+            job.cancel()
     }
 
     fun poll(native: Ptr<Unit>, wait: Boolean) {
@@ -224,18 +253,27 @@ internal class LoopOwner {
         inbox.wake()
     }
 
-    fun takeCommands(): ArrayList<() -> Unit> = inbox.take()
+    fun takeCommands(): ArrayList<() -> Unit> {
+        val batch = inbox.take()
+        for (command in localCommands)
+            batch.add(command)
+        localCommands.clear()
+        return batch
+    }
 
     fun cancelRoot() {
         val job = lock.withLock { root }
         job?.cancel()
     }
 
-    fun hasQueuedWork(): Boolean = inbox.hasCommands() || ready.size != 0L
+    fun hasQueuedWork(): Boolean =
+        localCommands.size != 0L || inbox.hasCommands() || ready.size != 0L
 
     private fun managedIdle(): Boolean =
         rootEnded.load(MemoryOrder.Acquire) &&
             executor.isTerminated &&
+            localCommands.size ==
+            0L &&
             !inbox.hasCommands() &&
             ready.size ==
             0L &&

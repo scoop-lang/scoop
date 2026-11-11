@@ -64,11 +64,13 @@ public class AsyncRuntime {
 }
 ```
 
-AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、借用该池的 MultiThreadExecutor 和 PlatformEventLoop。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。初始化失败按创建顺序的逆序回收已建立资源。
+AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、每 worker 一个 native reactor，以及借用该池的 MultiThreadExecutor。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。全部 reactor 建立后才启动 coroutine workers；初始化失败回收已建立资源，部分线程启动失败先停止并 join 已启动线程，再收尾未启动的 reactor。
 
-调用 run 的线程只驱动 I/O owner；用户根及默认子任务在 MultiThreadExecutor 上执行，保留同一个 EventLoop binding。currentEventLoop().executor 仍是 owner executor，可显式 withExecutor 切换。worker 不并发 poll 同一个 backend，I/O 的提交、完成选择和资源退休仍遵守本节的 owner 边界。两种 executor 的 managed blocking 调用共用本次 runtime 的池。
+调用 run 的线程等待结果；用户根及默认子任务在 MultiThreadExecutor 上执行，各 worker 同时驱动自己的 reactor。运行只有一个逻辑 EventLoop binding 和一棵结构化任务树；currentEventLoop().executor 返回共享 worker executor，不提供固定 owner 线程承诺。独立 PlatformEventLoop 与 GUI attach 保持 2.1 的 owner executor 合同。普通资源创建优先选择当前 runtime worker；不在本池 worker 上的调用按轮转分配。单个 listener 接收的新连接在交付前轮转分配到各 reactor，应用无需多个端口或手工分片。
 
-根及结构化子树结束后先请求 worker executor draining，继续驱动 owner 并保持共享阻塞池接纳。等待全部 worker 执行登记、驱动及其阻塞工作退出后，才使 LoopExecutor draining；此先后关系保证已接纳 worker 的 finally 仍可切换到 owner。LoopExecutor 排空后再关闭遗留资源和排空 native I/O，最后停止共享阻塞池，等待其退出执行循环，销毁后端并 join 两组线程。正常结果 T 或最终异常在这些步骤之后返回，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
+资源的 native owner 在创建时确定，已有 handle、在途请求与借用不随任务窃取迁移。accept 请求仍由 listener owner 提交并退休，新 stream 从首次登记／IOCP 关联起属于目标 owner；目标 owner 接纳资源或关闭迟到成功后才恢复调用方。每个 reactor 由自己的 worker 串行推进；同 owner 的命令本地排队，跨 worker 提交与取消通过 inbox 发布。完成在所属 worker 上进入现有 executor 的本地队列，任务仍可被窃取。worker 在有限批任务之间处理 I/O／timer，持续可运行任务不能饿死 I/O；空闲时发布观察状态并重查任务与 I/O，再通过可被任务投递打断的 native 等待休眠。所有 reactor 和通用 blocking 共用本次 runtime 的阻塞池。
+
+根及结构化子树结束后先请求 worker executor draining，各 worker 继续推进 I/O，并保持共享阻塞池接纳。全部执行登记归零且已接纳的队列工作排空后，各 worker 才关闭所属遗留资源、排空实际 native I/O 和 ready、销毁 reactor 并退出。全部 reactor 收尾和 coroutine workers join 后，最后停止并 join 共享阻塞池。正常结果 T 或最终异常在这些步骤之后返回，非取消异常优先于取消，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。任一 backend 失败取消同一个根 Job，但仍执行全部 reactor 的收尾。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
 
 ## 3. 取消、完成与关闭
 

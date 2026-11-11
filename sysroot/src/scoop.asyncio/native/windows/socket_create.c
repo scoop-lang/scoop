@@ -107,11 +107,11 @@ static ScoopIoStatus accept_start(SocketCreate *request) {
 
 static int submit(ScoopIoLoop *loop, int64_t id, SocketAction action,
                   struct ScoopSocketAddress address, int backlog, bool reuse,
-                  ScoopIoSocket *listener) {
+                  ScoopIoSocket *listener, ScoopIoLoop *target) {
     SocketCreate *request = calloc(1, sizeof(*request));
     if (!request)
         return -ENOMEM;
-    request->socket = scoop_io_socket_new(loop, listener ? listener->family : address.family);
+    request->socket = scoop_io_socket_new(target, listener ? listener->family : address.family);
     if (!request->socket) {
         free(request);
         return -ENOMEM;
@@ -141,18 +141,19 @@ static int submit(ScoopIoLoop *loop, int64_t id, SocketAction action,
 }
 
 int scoop_io_tcp_connect(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address) {
-    return submit(loop, id, TCP_CONNECT, address, 0, false, NULL);
+    return submit(loop, id, TCP_CONNECT, address, 0, false, NULL, loop);
 }
 int scoop_io_tcp_listen(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
                         int backlog, bool reuse) {
-    return submit(loop, id, TCP_LISTEN, address, backlog, reuse, NULL);
+    return submit(loop, id, TCP_LISTEN, address, backlog, reuse, NULL, loop);
 }
 int scoop_io_udp_bind(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
                       bool reuse) {
-    return submit(loop, id, UDP_BIND, address, 0, reuse, NULL);
+    return submit(loop, id, UDP_BIND, address, 0, reuse, NULL, loop);
 }
-int scoop_io_tcp_accept(ScoopIoSocket *socket, int64_t id) {
-    return submit(socket->loop, id, TCP_ACCEPT, (struct ScoopSocketAddress){0}, 0, false, socket);
+int scoop_io_tcp_accept(ScoopIoSocket *socket, ScoopIoLoop *target, int64_t id) {
+    return submit(socket->loop, id, TCP_ACCEPT, (struct ScoopSocketAddress){0}, 0, false, socket,
+                  target);
 }
 void scoop_io_tcp_connect_cancel(ScoopIoLoop *loop, int64_t id) {
     scoop_io_request_cancel(loop, id);

@@ -5,9 +5,21 @@ import scoop.platform.concurrent.Mutex
 import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.currentThreadId
 
-internal class CoroutineWorkers private constructor(count: Int) {
+internal class CoroutineWorkers private constructor(
+    count: Int,
+    drivers: Array<CoroutineWorkerDriver>?
+) {
     private val identity = CoroutineWorkerContext.nextIdentity()
-    private val records = Array<CoroutineWorker>(count.toLong()) { i -> CoroutineWorker(i.toInt()) }
+    private val records =
+        Array<CoroutineWorker>(count.toLong()) {
+            i -> CoroutineWorker(
+                i.toInt(),
+                when (drivers) {
+                    case Some(val values) -> Some(values[i])
+                    case None -> None
+                }
+            )
+        }
     private val stopping = AtomicBoolean(false)
     private val observers = AtomicInt(0)
     private val assignment = AtomicInt(0)
@@ -20,10 +32,10 @@ internal class CoroutineWorkers private constructor(count: Int) {
     private var joined = false
 
     internal companion object {
-        internal fun create(count: Int): CoroutineWorkers {
+        internal fun create(count: Int, drivers: Array<CoroutineWorkerDriver>?): CoroutineWorkers {
             if (count <= 0)
                 throw IllegalArgumentException(Some("worker count must be positive"))
-            val workers = CoroutineWorkers(count)
+            val workers = CoroutineWorkers(count, drivers)
             workers.start()
             return workers
         }
@@ -147,10 +159,16 @@ internal class CoroutineWorkers private constructor(count: Int) {
     }
 
     private fun drive(record: CoroutineWorker) {
+        var turns = 0
         while (true) {
+            if (turns == 0) {
+                record.driver?.poll()
+                turns = 32
+            }
             when (findWork(record)) {
                 case Some(val work) -> {
-                    execute(record, work);
+                    execute(record, work)
+                    turns -= 1
                     continue
                 }
                 case None -> {}
@@ -161,6 +179,7 @@ internal class CoroutineWorkers private constructor(count: Int) {
             // scan or changes the parking predicate before the worker can sleep.
             observers.fetchAdd(1)
             record.observe()
+            record.driver?.poll()
             val work = findWork(record)
             when (work) {
                 case Some(val work) -> {
@@ -176,6 +195,7 @@ internal class CoroutineWorkers private constructor(count: Int) {
                     observers.fetchSub(1)
                 }
             }
+            turns = 0
         }
     }
 
@@ -203,7 +223,9 @@ internal class CoroutineWorkers private constructor(count: Int) {
             lock.withLock { record.id = Some(currentThreadId()) }
             CoroutineWorkerContext.enter(identity, record.index)
             try {
+                record.driver?.enter()
                 drive(record)
+                record.driver?.close()
             } finally {
                 CoroutineWorkerContext.leave()
                 val notifications =

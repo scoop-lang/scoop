@@ -9,7 +9,8 @@ import scoop.platform.concurrent.currentThreadId
 public class MultiThreadExecutor internal constructor(
     workerCount: Int,
     private val blockingPool: BlockingTaskPool,
-    private val ownsBlockingPool: Boolean
+    private val ownsBlockingPool: Boolean,
+    drivers: Array<CoroutineWorkerDriver>?
 ): CoroutineExecutor, Closeable {
     private val lock = Mutex()
     private val changed = ConditionVariable(lock)
@@ -20,7 +21,7 @@ public class MultiThreadExecutor internal constructor(
     private var tasks = 0L
     private var blockingWork = 0L
     private var workersStopping = false
-    private val workers = CoroutineWorkers.create(workerCount)
+    private val workers = CoroutineWorkers.create(workerCount, drivers)
 
     init {
         workers.onTermination { checkTermination() }
@@ -174,14 +175,17 @@ public class MultiThreadExecutor internal constructor(
 
     private fun stopWorkers() {
         workers.requestShutdown()
-        if (ownsBlockingPool)
-            blockingPool.requestShutdown()
         checkTermination()
     }
 
     private fun checkTermination() {
-        if (!workers.isTerminated || (ownsBlockingPool && !blockingPool.isTerminated))
+        if (!workers.isTerminated)
             return
+        if (ownsBlockingPool) {
+            blockingPool.requestShutdown()
+            if (!blockingPool.isTerminated)
+                return
+        }
         val notifications = WaitNotifications()
         val publish =
             lock.withLock {

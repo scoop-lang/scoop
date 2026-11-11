@@ -1,0 +1,15 @@
+package scoop.concurrent
+
+/** Connects an owned I/O reactor to one coroutine worker without a second scheduler. */
+public interface CoroutineWorkerDriver {
+    /** Enters the worker's physical thread before it starts executing tasks. */
+    public fun enter()
+    /** Advances ready events without blocking; called between finite batches of tasks. */
+    public fun poll()
+    /** Waits for events or a persistent wake notification after the scheduler rechecks work. */
+    public fun park()
+    /** Interrupts a concurrent or subsequent park; may race with close. */
+    public fun wake()
+    /** Drains owned events on the worker after all accepted coroutine work has finished. */
+    public fun close()
+}

@@ -277,7 +277,7 @@ B16 显著改善纯协程 yield，真实 echo 收益却很小。本轮保持生�
 | Scoop 4 个本地 reactor，4 核，实验 | 280,546 | 11.09 | 7.26／3.83 | 442.37 | 31.75 |
 | Go GOMAXPROCS=4，4 核 | 797,990 | 3.99 | 0.74／3.23 | 229.38 | 6.75 |
 
-同四核配额的 reactor 实验达到当前 AsyncRuntime 吞吐的 2.47 倍，CPU／echo 下降 29.7%。这支持把 worker 与 reactor 结合、减少必经 I/O 往返作为下一项架构工作。实验同时改变 reactor 数量、任务执行位置和连接分配，不能把收益全部归给某一把锁，也未验证不均匀连接负载。正式改造必须维持单 listener、共享逻辑 EventLoop、结构化任务树和现有 work stealing；待实施设计见[设计 4.1](DESIGN.md#41-worker-与-reactor-整合方向b17-验证尚未实现)。
+同四核配额的 reactor 实验达到当前 AsyncRuntime 吞吐的 2.47 倍，CPU／echo 下降 29.7%。这支持把 worker 与 reactor 结合、减少必经 I/O 往返作为下一项架构工作。实验同时改变 reactor 数量、任务执行位置和连接分配，不能把收益全部归给某一把锁，也未验证不均匀连接负载。正式改造必须维持单 listener、共享逻辑 EventLoop、结构化任务树和现有 work stealing；设计与后续实施状态见[设计 4.1](DESIGN.md#41-worker-与-reactor-整合b18-已实现)。
 
 分片后仍有明显成本：每 echo 托管分配约 5.23 KiB，用户态 CPU 仍为 Go 的约 9.8 倍；内核态差距较小。当前 AsyncRuntime 与 reactor 实验的生命周期 GC 收集时间分别为 841.31／1,586.72 ms，后者完成了更多请求，不能仅比较累计毫秒判断 GC 回退。它们共享进程 GC，不能把实验等同于四个互相隔离的进程，也不能把 Scoop 收集时间直接与 Go STW 暂停比较。
 
@@ -286,6 +286,31 @@ Scoop 格式／静态检查／release 构建、Go gofmt／vet 与 C 严格编译
 基准源码和运行参数已纳入 `tests/benchmarks/tcp-echo`；固定产物、全部样本范围、图表、源码快照及复现脚本位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round17`。只实测本机 Linux 和均匀 64 连接，闭环延迟未校正 coordinated omission，每配置三次；没有重新测 HTTP、JSON 或其他平台。底层性能仍未达成目标，下一轮实施 worker／reactor 整合并用普通单端口 API 验证。
 
 按架构参照建议进一步核对了 Mio、Tokio 和 tokio-uring 的官方文档与源码，结论纳入[设计 4.2](DESIGN.md#42-miotokio-与-tokio-uring-的架构参照)：Tokio 多线程实现由 worker 共享 driver，tokio-uring 则使用线程局部 runtime，不能把后者说成支持跨线程 stealing。Scoop 候选方案结合 reactor 局部性与现有 stealing，明确资源 owner、等待唤醒与真实完成边界；该补充只修改设计，未改变已测产物或宣称正式整合已经完成。
+
+## 第十八轮：正式 worker／reactor 整合
+
+AsyncRuntime 改为每个 coroutine worker 驱动一个 reactor，caller 只等待结果；保留同一个逻辑 EventLoop、结构化任务树、共享 blocking pool、本地无锁队列和批量 work stealing。同 owner 的命令本地排队，跨 owner 使用原 inbox；每批至多 32 个任务后推进 I/O，空闲时重查后等待 native 通知。普通单 listener 将新 stream 在交付前分配到目标 reactor，资源和在途请求不随 stealing 迁移。`loop.executor` 返回共享 worker executor；独立 event loop／GUI 的 owner 合同保持。根异常、backend 失败、任务登记和 reactor 清理共用既有生命周期，全部 reactor 退出后才关闭共享阻塞池。
+
+使用安装的 `~/.scoop` 编译器与独立 sysroot，基础库固定 B16、runtime 固定 B11，重建 concurrent／asyncio。Linux GNU／io_uring，普通单端口 TCP echo，1 KiB 消息与 64 KiB 复用缓冲，默认 GC；服务端单／四个物理 P 核，客户端独立 CPU。单／64 连接、单 loop 对照／单 worker／四 worker、Go 新旧随机交错各三次，预热 1 秒、测量 6 秒，共 48 个正式样本。以下为 64 连接中位数：
+
+| 配置 | echo／秒 | CPU μs／echo | 用户态／内核态 μs／echo | P99 μs | RSS MiB | 分配 KiB／echo |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| B16，1 worker | 81,644 | 12.25 | 6.15／6.02 | 1,228.80 | 31.06 | 5.042 |
+| B18，1 worker | 126,099 | 7.93 | 4.76／3.17 | 671.74 | 30.23 | 4.261 |
+| B16，4 workers | 112,436 | 15.77 | 10.33／5.44 | 868.35 | 31.47 | 4.958 |
+| B18，4 workers | 250,511 | 12.59 | 8.33／4.18 | 507.90 | 31.49 | 4.503 |
+| Go，1 worker | 281,955 | 3.55 | 0.58／2.96 | 442.37 | 6.39 | 0.002 |
+| Go，4 workers | 792,444 | 3.97 | 0.74／3.24 | 231.42 | 6.84 | 0.001 |
+
+单／四 worker 吞吐分别提高 54.5%／122.8%，CPU／echo 下降 35.3%／20.1%，P99 下降 45.3%／41.5%。四 worker 吞吐三次范围为 249,708–257,460，对照为 111,930–114,248。独立 CPU 采样中 caller 为 0%，四个忙 worker 各 73.4%–77.9%，必经单 owner 往返已消除。独立单 loop、64 连接控制组吞吐基本持平（116,975 → 116,745），不将控制组波动计作架构收益。
+
+单连接下单／四 worker 吞吐提高 72.9%／32.1%，P99 由 26.88／28.93 降至 18.18／20.99 μs；RSS 从 11.94／12.21 增至 12.81／13.47 MiB。独立单 loop 单连接吞吐回退 3.1%、P99 回退 11.1%，仍保留全部样本。四 worker 的单连接依然比单 worker 慢，任务迁移和跨 owner 成本并未消失。64 连接每 echo 的生命周期收集时间单 worker 为 419.7 → 598.8 ns，四 worker 为 1,093.2 → 802.6 ns；此口径含预热及收尾，不是暂停分位数，也不能与 Go STW 直接比较。
+
+主要剩余差距仍在底层主路径：四 worker 吞吐只有 Go 的约 31.6%，用户态 CPU 为 8.33 对 0.74 μs／echo，内核态为 4.18 对 3.24 μs。裸 I/O 仍产生约 4.5 KiB 托管分配；下一步应继续拆解操作建立、协程挂起／恢复、GC roots 和 managed/native 边界的每次成本，不回到 JSON 或条件分支。独立用户态 self 采样的浮点环境恢复约 6.3%、编译器 roots 入／出约 5.5%、managed thread 检查约 3.2%，仅作为定位线索；约 29.6% 的 self 项仍带异常符号偏移，未用于函数归因，不能据此给出完整耗时分摊。
+
+格式、静态检查、release 构建及 Linux C11 严格检查通过。concurrent 71 项、asyncio 初轮完整 178 项、跨库 2 项、TLS／HTTP Runtime 组合各 1 项通过；最后修正根与 reactor 异常合并顺序并新增用例后，Runtime 10 项再次通过，没有声称最终完整 179 项全部重跑。四 reactor timer 公平推进、单 listener 跨 executor I/O、短传输及定向移动／分代 GC 交接通过。48 样本含预热校验 51,894,505 次响应，全部无错误；另有三个 64 KiB 消息／257 字节缓冲验证。
+
+固定产物、原始数据、CPU 采样、报告、源码补丁和复现脚本在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round18`，未修改安装目录。只实测 Linux/io_uring；Darwin／Windows 同步 native accept 的目标 owner 参数但尚未实机验证。未验证不均匀连接与混合 CPU 负载的性能；闭环延迟未校正 coordinated omission，每配置只有三次；未重测 HTTP、JSON 或 GC 配置矩阵。底层优化仍未完成。
 
 ## 平台迁移验证约定
 

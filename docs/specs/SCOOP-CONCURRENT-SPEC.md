@@ -131,6 +131,22 @@ invokeOnTermination 是组合组件使用的普通一次性通知，不创建 co
 
 ## 6. Executor 配置
 
+AsyncRuntime 通过以下窄接口将 reactor 接到 coroutine worker，不再另建调度队列。每个 driver 只交给一个 worker；资源由调用方在工厂调用前准备，调用方保留初始化失败后的清理责任。
+
+```scoop
+public interface CoroutineWorkerDriver {
+    public fun enter()
+    public fun poll()
+    public fun park()
+    public fun wake()
+    public fun close()
+}
+```
+
+enter 在 worker 执行任务前调用一次；poll 在有限批任务之间及空闲重查时非阻塞推进事件；park 仅在发布观察状态并重查后等待。wake 可跨线程并发调用，须让已开始或即将开始的 park 返回，不能丢失先于等待到达的通知。除 wake 外的方法均由所属 worker 串行调用。已启动 worker 在队列排空后调用一次 close，再发布 worker 终止；close 排空 driver 自有工作，不能等待其他尚未退出的 coroutine worker。wake 与 close 的竞争由 driver 的资源生命周期边界协调。driver 内部异常应交给所属 I/O 运行的结果；未捕获异常沿第 5 节 worker 协议处理。未启动 worker 的 driver 由调用方清理。
+
+无 driver 时继续使用原有条件变量等待。自有 blocking pool 的停止推迟到全部 coroutine workers（含 driver 收尾）退出后；借用池仍由其 owner 管理。该接口只连接实际事件驱动与现有调度器，不提供后端注册表、第二套任务树或任务执行替代入口。
+
 ```scoop
 public class BlockingPoolBuilder public constructor() {
     public var threads: Int
@@ -139,11 +155,14 @@ public class ExecutorBuilder public constructor() {
     public var workers: Int
     public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
     public fun blocking(pool: BlockingTaskPool)
+    public fun drivers(drivers: Array<CoroutineWorkerDriver>)
 }
 public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): MultiThreadExecutor
 ```
 
 workers 默认取平台逻辑 CPU 数的合法正 Int 表示，blocking 默认 4 threads。配置函数执行一次，结束后复制为不可变配置；再次修改捕获的 builder 不影响已建立对象。blocking 的两种配置分别选择自有池／借用池，最后一次配置生效，不能同时存在两组池。全部数量在创建任何线程前校验，非正值抛 IllegalArgumentException。工厂立即创建可用 executor；失败清理自身创建的池与 worker，不关闭借用池。BlockingPoolBuilder 是可跨 Cone 复用的普通配置类，后续 event loop／runtime 使用同一配置语义。
+
+drivers 可选，数组长度必须等于 workers，否则在线程创建前抛 IllegalArgumentException。配置快照复制数组元素，不受之后修改原数组影响；driver 本身由各 worker 独占使用，不复制其资源。
 
 ## 7. 验证边界
 

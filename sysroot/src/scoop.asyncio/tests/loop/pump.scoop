@@ -9,7 +9,7 @@ private class LoopPumpTest {
     fun `concurrent publishers wake an idle owner and retain every command`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val seen = Array<Long>(4L) { 0L }.toMutableArray()
         val completed = AtomicLong(0L)
         val publishers = ArrayList<Thread>()
@@ -47,7 +47,7 @@ private class LoopPumpTest {
     fun `one turn leaves commands and ready work produced during resume for the next turn`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val seen = ArrayList<Int>()
         owner.post {
             seen.add(1)
@@ -76,7 +76,7 @@ private class LoopPumpTest {
     fun `nested pump does not enter queued commands recursively`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val entered = AtomicBoolean(false)
         owner.post {
             owner.post { entered.store(true) }

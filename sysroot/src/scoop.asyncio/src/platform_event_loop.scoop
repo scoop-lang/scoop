@@ -11,7 +11,7 @@ import scoop.platform.fs.*
  * requires an active job in this loop's context.
  */
 public class PlatformEventLoop internal constructor(
-    private val config: LoopExecutionPlan
+    private val config: LoopBlockingConfig
 ): EventLoop {
     private val accepted: AtomicBoolean = AtomicBoolean(false)
     internal val state: LoopOwner = LoopOwner()
@@ -28,15 +28,14 @@ public class PlatformEventLoop internal constructor(
         return runPrepared(block)
     }
 
-    // AsyncRuntime has already checked the caller before allocating its worker groups.
-    internal fun <T> runPrepared(block: suspend CoroutineScope.() -> T): T {
+    private fun <T> runPrepared(block: suspend CoroutineScope.() -> T): T {
         acceptInstance()
         val native = state.open(this, config)
         val result = LoopResult<T>()
         val loop: EventLoop = this
         context(loop) {
             startDispatchedCoroutine<T>(
-                state.rootExecutor,
+                state.executor,
                 {
                     coroutineScope<T> {
                         this @PlatformEventLoop.state.bindRoot(job)

@@ -1,0 +1,38 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+
+// The caller waits here while all I/O and coroutine work stays on the runtime workers.
+internal class RuntimeResult<T>: Continuation<T> {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private var completed = false
+    private var outcome: MaybeUninit<T> = MaybeUninit<T>.uninit()
+    val value: MaybeUninit<T> get() = outcome
+    private var recordedFailure: Throwable? = None
+    val failure: Throwable? get() = recordedFailure
+
+    public override fun resume(value: T) {
+        lock.withLock {
+            outcome = MaybeUninit<T>.initialized(value)
+            completed = true
+            changed.signal()
+        }
+    }
+
+    public override fun resumeWithException(exception: Throwable) {
+        lock.withLock {
+            recordedFailure = Some(exception)
+            completed = true
+            changed.signal()
+        }
+    }
+
+    fun await() {
+        lock.withLock {
+            while (!completed)
+                changed.await()
+        }
+    }
+}
