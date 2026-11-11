@@ -76,6 +76,31 @@ taskset -c 18 python3 tests/benchmarks/tcp-echo/measure.py \
 
 多端口、均匀分配和独立任务树限制了这个实验的结论：它能检验 reactor 分布与本地执行的潜在收益，不能证明单 listener、负载不均或 work stealing 下的正式运行时已获得同样收益。完整实现仍须保持普通 I/O API、跨 worker 取消、关闭与资源归属。
 
+## 分配归因探针
+
+`prepare_allocation_probe.py` 把当前 asyncio 复制到仓库外，并在操作建立、借用、取消登记、提交、完成和 pump 等实际阶段插入计数调用；同时生成带 echo／read／write 边界标记的服务器。生产库源码不被修改。`allocation_probe.c` 只通过公开 `scoop_rt_gc_debug_metrics` 读取累计分配字节，按嵌套阶段计入互斥区间；接口本身还读取 RSS，因此插桩程序只用于分配归因，不能用于 CPU、吞吐或延迟比较。
+
+```sh
+python3 tests/benchmarks/tcp-echo/prepare_allocation_probe.py \
+  --repo "$PWD" --output "$bench_work/allocation-probe"
+~/.scoop/bin/scoop fmt "$bench_work/allocation-probe/server.scoop" \
+  "$bench_work/allocation-probe/sysroot/src/scoop.asyncio/src/allocation_probe.scoop"
+cc -O2 -std=c11 -Wall -Wextra -Werror -Iruntime/include \
+  -c tests/benchmarks/tcp-echo/allocation_probe.c -o "$bench_work/allocation_probe.o"
+ar rcs "$bench_work/bin/libecho_alloc.a" "$bench_work/allocation_probe.o"
+```
+
+使用同一安装编译器、release、core/runtime 和底层依赖，分别构建两个版本：边界对照消费原 asyncio 产物，完整探针消费复制并插桩后的 asyncio 产物；二者都使用生成的 `server.scoop`，并链接原有 `echo_metrics` 和新的 `echo_alloc` archive。选择固定依赖与独立 sysroot 的方式同上；不要覆盖已有二进制或库。每轮具体构建命令随报告保存在仓库外。
+
+```sh
+taskset -c 8 python3 tests/benchmarks/tcp-echo/run_allocation_probe.py \
+  --binary "$bench_work/bin/scoop-echo-probe" --work "$bench_work/allocation-results"
+```
+
+探针限定 Linux、一个 runtime worker、一个连接；服务器固定 CPU 0，上例客户端 CPU 8。每次核对 16,000 个 1 KiB echo，排除前 1,000 次后输出分阶段字节与调用次数，并检查各阶段之和等于总量。EOF 对应的未完成迭代不计入。`run_allocation_probe.py` 也可运行未插桩的原服务器，保存其原有启动／收尾分配指标，但该口径不能与探针的稳态区间直接混用。
+
+必须对照边界版本与完整探针的总分配，检查插桩影响；插桩会改变运行速度、唤醒和 pump 次数，即使固定阶段字节接近，也不能推断调度成本完全不变。这里的全局计数只能用于上述单 mutator 负载，不能把分配比例直接套到多 worker／多连接。读写调用外围仍包含普通 API／缓冲检查和编译生成的协程对象，不能把它全部标为 coroutine frame。可复用源码、逐次结果和限制见 B22 报告及 [asyncio 进度](../../../docs/asyncio-backends/PROGRESS.md)。
+
 ## 统计口径
 
 吞吐单位是完整 echo 往返／秒，一个往返同时发送并接收 `payload` 字节。延迟从客户端开始发送到收齐回声，不含内容校验；这是闭环延迟，没有做 coordinated-omission 修正。直方图分位数使用桶上界，最大相对桶宽为 1/64；最大值与平均值直接统计。
