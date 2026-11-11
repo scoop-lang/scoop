@@ -1,7 +1,7 @@
 package scoop.asyncio
 
 internal enum OperationChoice {
-    Pending, Stopped(Throwable), Completed
+    Pending, Stopped(Throwable?), Completed
 }
 
 internal class LoopOperation internal constructor(
@@ -21,7 +21,9 @@ internal class LoopOperation internal constructor(
         subscription = Some(registration)
     }
 
-    fun selectFailure(error: Throwable): Boolean =
+    fun selectFailure(error: Throwable): Boolean = selectStop(Some(error))
+
+    private fun selectStop(error: Throwable?): Boolean =
         lock.withLock {
             when (choice) {
                 case Pending -> {
@@ -34,6 +36,12 @@ internal class LoopOperation internal constructor(
 
     fun requestFailure(error: Throwable) {
         if (selectFailure(error))
+            loop.post { loop.cancel(id) }
+    }
+
+    // Ordinary timer disposal needs native retirement, not an exceptional coroutine result.
+    fun requestStop() {
+        if (selectStop(None))
             loop.post { loop.cancel(id) }
     }
 
@@ -73,7 +81,7 @@ internal class LoopOperation internal constructor(
                 val previous = choice
                 choice = OperationChoice.Completed
                 when (previous) {
-                    case Stopped(val error) -> Some(error)
+                    case Stopped(val error) -> error
                     case Pending -> None
                     case Completed -> throw IllegalStateException(Some("operation completed twice"))
                 }

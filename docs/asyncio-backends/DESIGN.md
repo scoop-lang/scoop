@@ -108,7 +108,9 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 ## 4. 共享驱动与线程模型
 
-`LoopOwner` 是命令和完成的单一消费者。I/O 提交、外线程取消和 GUI `post` 只发布命令；取消结果的竞争选择及投递入口关闭在短锁内完成。任何锁都不包围用户代码、continuation 恢复、阻塞等待或宿主注销。
+`LoopOwner` 是命令和完成的单一消费者。I/O 提交、外线程取消和 GUI `post` 只发布命令；取消结果的竞争选择及投递入口关闭在短锁内完成。任何共享锁都不包围用户代码、continuation 恢复、等待 I/O 完成、等待 worker 退出或宿主注销；竞争同一 mutex 的线程可按平台协议等待取得该锁。
+
+启动配置与命令通道分开：binding／execution 一次 release 发布后不再改写，worker 查询使用 acquire，不获取全局 owner 锁。操作编号使用独立原子计数。`LoopInbox` 以平台 mutex 保护命令批次、native 通知指针和停止接纳；只有批次从空变为非空才调用 native wake，竞争者通过 NativeSafe mutex 等待，不围绕包含 native 调用的临界区自旋。取批次后释放队列锁再执行命令；driver 退出前对新批次补通知。根结果单独同步，owner 的 ready、操作及资源容器不由 worker 直接访问。停止接纳在 inbox 锁下清除通知指针，所有已经开始的通知返回后才允许销毁后端。
 
 一次内部 `pump` 非阻塞处理以下内容：消费唤醒提示；取得这一轮命令及已有 native 完成的有限快照；提交操作、解码完成；把可恢复项放入 ready 队列；执行本轮 ready；推进收尾。有新工作在处理期间到达，留到下一轮并保留／重新发送唤醒，不通过“持续直到所有队列为空”霸占 GUI 线程。每轮至少推进已排队的取消和关闭；不建立逻辑成本计费或跨阶段资源预算。
 
@@ -116,9 +118,15 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 `run` 反复调用同一个 `pump`，无可执行工作时在统一通知 fd 上阻塞等待；等待使用 `NativeSafe`，不能标为 `GCLeaf`。`attach` 由 host 可读回调调用 `pump`，内部不等待 I/O、worker 或监听注销。正时长 timer 的到期由后端通知，宿主不需要周期轮询；空闲时没有常驻 idle 回调。
 
-本库 I/O、mailbox 与本库排队恢复从 owner 线程进入 managed 代码。`scope.launch` 仍遵守现有“先内联执行到首次挂起”的合同；任意第三方挂起点仍可能从别的线程恢复。此设计不加入 continuation interceptor，因此**接入 GUI 主循环不等于所有挂起函数自动具备 UI 线程亲和性**。GUI 调用方从外部回调或其他恢复线程回到界面时，显式经 `session.post`；帧请求与 vsync 由 GUI 层安排。
+协程恢复遵守语言规范 11.9.3 的 execution 归属：LoopExecutor 上的 I/O、Channel 和第三方挂起点均排队回 owner，AsyncRuntime worker 上的操作回原 worker executor。`withExecutor(loop.executor)` 显式切回 owner；普通外部应用消息可通过 `session.post` 进入根作用域。frame、Job、取消和 executor 登记仍由 core／concurrent 的同一实现负责；帧请求与 vsync 由 GUI 层安排。
 
 ## 5. 一份操作与资源生命周期逻辑
+
+`sleep` 与一次性 `schedule` 共用 owner 的逻辑期限队列，原生层只维护最早期限所需的共享唤醒。逻辑登记携带可直接移除的队列位置；普通撤销立即清空通知捕获，owner 再移除登记，不创建逐通知的 native cancel 或资源表记录。sleep 的取消结果同样等 owner 移除后才恢复；它不借用 native 存储，无需等待其他使用者共享的唤醒退休。
+
+每轮已有 ready 执行后以一次单调时钟快照选定到期项，通知进入下一轮 ready，锁外调用。更早的新期限才替换当前 native 唤醒；原最早项被取消后保留已经安排的较早唤醒，到时重新检查队列。当前唤醒的失败交付给仍等待的逻辑登记；旧唤醒的迟到结果不能影响替换后的登记。共享唤醒继续用 `LoopOperation` 跟踪真实 native 退休，不保留调用方捕获；清理关闭逻辑队列、取消当前唤醒并排空全部操作。期限比较保留 Duration 的完整范围，不强制转换为总纳秒数或可能溢出的绝对 TimeMark。具体结果选择与生命周期见 asyncio 规范第 5 节。
+
+已选定回调与撤销竞争时仍由消费者自己的状态决定是否有效；HTTP 的连接锁与请求期限状态承担这一职责。计时不由辅助 coroutine 持有 native 资源，也不为每个通知重复向平台提交 timer。
 
 ### 5.1 操作有两个独立事实
 
@@ -211,7 +219,7 @@ DNS、目录遍历、路径操作、open、seek／truncate 和 `NativeWork` 使�
 | 能力 | 共享语义 | Darwin | Linux |
 | --- | --- | --- | --- |
 | `run`／`attach`、任务投递 | 同一 root／owner／pump | pipe 通知 | eventfd 通知 |
-| `sleep`、连接总期限 | 单调截止时间、取消后等退休 | dispatch timer | TIMEOUT |
+| `sleep`、连接总期限 | 逻辑取消等 owner 移除，共享唤醒等 native 退休 | dispatch timer | TIMEOUT |
 | TCP connect／accept／read／write | 地址、方向独占、短读写、部分进度 | socket syscall + source | CONNECT／ACCEPT／RECV／SEND |
 | listen、bind、地址查询、shutdown | 既有 platform 规则；shutdown 提交后取消终止流 | owner 的原生控制队列 | owner 的短 POSIX 控制操作 |
 | UDP send／receive | 完整数据报，含零长度、截断和地址 | sendmsg／recvmsg + source | SENDMSG／RECVMSG |

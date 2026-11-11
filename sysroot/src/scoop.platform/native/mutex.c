@@ -53,6 +53,10 @@ struct ScoopPlatformSyncResult scoop_platform_mutex_lock(struct ScoopPlatformMut
     return sync_status(0);
 }
 
+struct ScoopPlatformSyncResult scoop_platform_mutex_try_lock(struct ScoopPlatformMutex *mutex) {
+    return scoop_platform_mutex_lock(mutex, true);
+}
+
 struct ScoopPlatformSyncResult scoop_platform_mutex_unlock(struct ScoopPlatformMutex *mutex) {
     if (atomic_load_explicit(&mutex->owner, memory_order_relaxed) != current_owner())
 #ifdef _WIN32

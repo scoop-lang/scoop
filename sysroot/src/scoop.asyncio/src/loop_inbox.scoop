@@ -1,0 +1,70 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.Mutex
+
+// The notification stays alive until all publishers have left this boundary.
+internal class LoopInbox {
+    private val lock = Mutex()
+    private var native: Ptr<Unit>? = None
+    private var commands = ArrayList<() -> Unit>()
+
+    fun open(pointer: Ptr<Unit>) {
+        lock.withLock { native = Some(pointer) }
+    }
+
+    fun post(command: () -> Unit, required: Boolean = false) {
+        lock.withLock {
+            when (native) {
+                case Some(val pointer) -> {
+                    val notify = commands.size == 0L
+                    commands.add(command)
+                    if (notify) {
+                        @Unsafe
+                        {
+                            nativeLoopWake(pointer)
+                        }
+                    }
+                    Unit
+                }
+                case None -> {
+                    if (required)
+                        throw IllegalStateException(Some("event loop executor is closed"))
+                    Unit
+                }
+            }
+        }
+    }
+
+    fun wake() {
+        lock.withLock {
+            when (native) {
+                case Some(val pointer) -> @Unsafe
+                {
+                    nativeLoopWake(pointer)
+                }
+                case None -> {}
+            }
+        }
+    }
+
+    fun take(): ArrayList<() -> Unit> {
+        val empty = ArrayList<() -> Unit>()
+        return lock.withLock {
+            val batch = commands
+            commands = empty
+            batch
+        }
+    }
+
+    fun hasCommands(): Boolean = lock.withLock { commands.size != 0L }
+
+    fun closeIfEmpty(): Boolean =
+        lock.withLock {
+            if (commands.size != 0L)
+                false
+            else {
+                native = None
+                true
+            }
+        }
+}

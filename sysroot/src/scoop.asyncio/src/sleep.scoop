@@ -4,47 +4,24 @@ import scoop.time.Duration
 
 internal suspend fun sleepOnLoop(loop: LoopOwner, duration: Duration) {
     val job = loop.requireJob()
-    if (duration.floorSeconds < 0L)
+    if (duration < Duration.ZERO)
         throw IllegalArgumentException(Some("negative sleep duration"))
     if (duration == Duration.ZERO)
         return
     suspendCoroutine<Unit> {
         continuation ->
-        val operation =
-            LoopOperation(
+        val timer =
+            LoopTimer(
                 loop,
-                loop.nextOperation(),
+                duration,
+                true,
                 {
-                    native,
-                    id -> @Unsafe
-                    {
-                        return@LoopOperation nativeStatus(
-                            id,
-                            nativeTimerStart(
-                                native,
-                                id,
-                                duration.floorSeconds,
-                                duration.nanosecondsOfSecond
-                            )
-                        )
-                    }
-                },
-                {
-                    native,
-                    id -> @Unsafe
-                    {
-                        nativeTimerCancel(native, id)
-                    }
-                },
-                {
-                    event,
-                    cancelled -> when (completionFailure("sleep", event.result, cancelled)) {
-                        case Some(val error) -> continuation.resumeWithException(error)
+                    error -> when (error) {
+                        case Some(val failure) -> continuation.resumeWithException(failure)
                         case None -> continuation.resume(Unit)
                     }
                 }
             )
-        operation.subscribe(job)
-        loop.submit(operation)
+        timer.start(job)
     }
 }

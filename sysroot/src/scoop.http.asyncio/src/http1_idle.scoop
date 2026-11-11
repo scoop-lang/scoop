@@ -1,20 +1,17 @@
 package scoop.http.asyncio
 
-import scoop.Result
-import scoop.getOrThrow
 import scoop.http.HttpProtocol
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
+import scoop.time.TimeMark
 
-internal class H1Idle(
-    val state: H1State,
-    val reading: Boolean,
-    val limit: Duration,
-    val scope: CoroutineScope
-) {
+internal class H1Idle(val limit: Duration) {
     var clock: HttpIoClock? = None
-    var timer: Job? = None
-    var active: Boolean = true
+}
+
+// A wakeup belongs to the connection, never to an operation that may already have returned.
+internal class H1IdleAlarm(val started: TimeMark, val delay: Duration) {
+    var notification: Disposable? = None
 }
 
 internal suspend fun <T> withH1Idle(
@@ -25,48 +22,28 @@ internal suspend fun <T> withH1Idle(
 ): T {
     if (limit == None)
         return block()
-    val caller = httpJob(state.loop, true)
-    val result =
-        coroutineScope<Result<T, Throwable>> {
-            val scope = this
-
-            val idle = H1Idle(state, reading, limit!!, scope)
-            state.lock.withLock {
-                if (reading)
-                    state.readIdle = Some(idle)
-                else
-                    state.writeIdle = Some(idle)
-            }
-            try {
-                context(caller) {
-                    return@coroutineScope Result.Success<T, Throwable>(block())
-                }
-            }
-            catch (error: Throwable) {
-                Result.Failure<T, Throwable>(error)
-            }
-            finally {
-                val timer =
-                    state.lock.withLock {
-                        idle.active = false
-                        if (reading)
-                            state.readIdle = None
-                        else
-                            state.writeIdle = None
-                        val saved = idle.timer;
-                        idle.timer = None;
-                        saved
-                    }
-                if (present(timer))
-                    timer!!.cancel()
-                Unit
-            }
+    val idle = H1Idle(limit!!)
+    state.lock.withLock {
+        if (reading)
+            state.readIdle = Some(idle)
+        else
+            state.writeIdle = Some(idle)
+    }
+    try {
+        return block()
+    }
+    finally {
+        state.lock.withLock {
+            if (reading)
+                state.readIdle = None
+            else
+                state.writeIdle = None
         }
-    return result.getOrThrow()
+    }
 }
 
 internal fun beginH1Io(state: H1State, reading: Boolean) {
-    val result: (H1Idle?, Boolean, HttpIoTimeoutException?) =
+    val error: HttpIoTimeoutException? =
         state.lock.withLock {
             h1Open(state)
             val idle =
@@ -75,7 +52,7 @@ internal fun beginH1Io(state: H1State, reading: Boolean) {
                 else
                     state.writeIdle
             if (!present(idle))
-                return@withLock (None, false, None)
+                return@withLock None
             val value = idle!!
             val now = MonotonicTimeSource.markNow()
             val start = !present(value.clock)
@@ -93,18 +70,19 @@ internal fun beginH1Io(state: H1State, reading: Boolean) {
                             now
                         )
                     )
-            val error = value.clock!!.expired(now)
-            if (present(error))
-                terminateH1(state, error!!)
-            (idle, start, error)
+            val clock = value.clock!!
+            val expired = clock.expired(now)
+            if (present(expired))
+                terminateH1(state, expired!!)
+            else
+                if (start)
+                    armH1IdleLocked(state, reading, clock, now)
+            expired
         }
-    val(idle, start, error) = result
     if (present(error)) {
-        driveH1Close(state);
+        driveH1Close(state)
         throw error!!
     }
-    if (start)
-        startH1Idle(idle!!)
 }
 
 internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean) {
@@ -120,67 +98,122 @@ internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean)
                 return@withLock None
             val clock = idle!!.clock!!
             val now = MonotonicTimeSource.markNow()
-            val error = clock.expired(now)
-            if (present(error))
-                terminateH1(state, error!!)
+            val expired = clock.expired(now)
+            if (present(expired))
+                terminateH1(state, expired!!)
             else
                 if (progressed)
                     clock.progress = now
-            error
+            expired
         }
     if (present(error)) {
-        driveH1Close(state);
+        driveH1Close(state)
         throw error!!
     }
 }
 
-private fun startH1Idle(idle: H1Idle) {
-    val state = idle.state
-    val timer =
-        idle.scope.launch suspend {
-            try {
-                while (true) {
-                    val remaining =
-                        state.lock.withLock {
-                            if (idle.active && !state.closing)
-                                Some(idle.clock!!.remaining(MonotonicTimeSource.markNow()))
-                            else
-                                None
-                        }
-                    if (remaining == None)
-                        break
-                    if (remaining!! > Duration.ZERO)
-                        state.loop.sleep(remaining!!)
-                    val expired =
-                        state.lock.withLock {
-                            if (!idle.active || state.closing)
-                                false
-                            else {
-                                val error = idle.clock!!.expired(MonotonicTimeSource.markNow())
-                                if (present(error))
-                                    terminateH1(state, error!!)
-                                present(error)
-                            }
-                        }
-                    if (expired) {
-                        driveH1Close(state);
-                        break
+// The state lock serializes replacement, callback selection, and connection cleanup.
+private fun armH1IdleLocked(state: H1State, reading: Boolean, clock: HttpIoClock, now: TimeMark) {
+    val remaining = clock.remaining(now)
+    val previous =
+        if (reading)
+            state.readAlarm
+        else
+            state.writeAlarm
+    when (previous) {
+        case Some(val alarm) -> if (alarm.delay - (now - alarm.started) <= remaining)
+            return
+        case None -> {}
+    }
+    val alarm = H1IdleAlarm(now, remaining)
+    if (reading)
+        state.readAlarm = Some(alarm)
+    else
+        state.writeAlarm = Some(alarm)
+    if (present(previous))
+        previous!!.notification?.dispose()
+    val job = state.ownerJob!!
+    val loop = state.loop
+    context(job) {
+        context(loop) {
+            alarm.notification =
+                Some(
+                    loop.schedule(
+                        remaining,
+                        { failure -> finishH1IdleTick(state, reading, alarm, failure) }
+                    )
+                )
+        }
+    }
+}
+
+private fun finishH1IdleTick(
+    state: H1State,
+    reading: Boolean,
+    alarm: H1IdleAlarm,
+    failure: Throwable?
+) {
+    try {
+        state.lock.withLock {
+            val current =
+                if (reading)
+                    state.readAlarm
+                else
+                    state.writeAlarm
+            when (current) {
+                case Some(val active) -> if (active !== alarm)
+                    return@withLock
+                case None -> return@withLock
+            }
+            if (reading)
+                state.readAlarm = None
+            else
+                state.writeAlarm = None
+            alarm.notification = None
+            if (state.closing)
+                return@withLock
+            val idle =
+                if (reading)
+                    state.readIdle
+                else
+                    state.writeIdle
+            if (!present(idle) || !present(idle!!.clock))
+                return@withLock
+            val clock = idle!!.clock!!
+            val now = MonotonicTimeSource.markNow()
+            val error: Throwable? =
+                when (failure) {
+                    case Some(val value) -> Some(value)
+                    case None -> when (clock.expired(now)) {
+                        case Some(val timeout) -> Some(timeout)
+                        case None -> None
                     }
                 }
-            } catch (_: CancellationException) {}
-            catch (error: Throwable) {
-                state.lock.withLock { terminateH1(state, error) };
-                driveH1Close(state)
-            }
+            if (present(error))
+                terminateH1(state, error!!)
+            else
+                armH1IdleLocked(state, reading, clock, now)
         }
-    val stopped =
-        state.lock.withLock {
-            if (idle.active) {
-                idle.timer = Some(timer);
-                false
-            } else
-                true
-        }
-    if (stopped)
-        timer.cancel()
+    } catch (error: Throwable) {
+        state.lock.withLock { terminateH1(state, error) }
+    }
+    driveH1Close(state)
+}
+
+// Called under the state lock; disposal runs after the lock is released.
+internal fun retireH1IdleAlarms(state: H1State, actions: ArrayList<() -> Unit>) {
+    val read = state.readAlarm
+    val write = state.writeAlarm
+    state.readAlarm = None
+    state.writeAlarm = None
+    if (present(read)) {
+        val timer = read!!.notification
+        if (present(timer))
+            actions.add { timer!!.dispose() }
+    }
+    if (present(write)) {
+        val timer = write!!.notification
+        if (present(timer))
+            actions.add { timer!!.dispose() }
+    }
 }

@@ -9,6 +9,38 @@ import scoop.test.*
 @Test
 private class AsyncHttp1CancellationTests {
     @Test
+    fun `borrowed body input is rejected before framing and leaves the connection usable`() {
+        withHttp1 suspend {
+            _, _, _, client, server ->
+            val writer = client.sendRequest(request("POST"), Http1BodyFraming.Length(3L))
+            NativeByteBuffer.allocate(3L).use suspend {
+                buffer ->
+                buffer.writeBytes("abc".toByteArray())
+                @Unsafe
+                {
+                    val borrowed = buffer.borrowReadable(3L)
+                    try {
+                        try {
+                            writer.writeFrom(buffer, 3L)
+                            fail(Some("borrowed body input accepted"))
+                        } catch (_: IllegalStateException) {}
+                        assertEquals(0L, buffer.readPosition)
+                        assertFalse(client.isClosed)
+                    } finally {
+                        borrowed.complete(0L)
+                    }
+                }
+                assertEquals(3L, writer.writeFrom(buffer, 3L))
+            }
+            writer.finish()
+            assertEquals("abc", String.fromUtf8(receiveBytes(server.receiveRequest()!!.body)))
+            server.sendResponse(response()).finish()
+            assertEquals(0L, receiveBytes(client.receiveResponse().body).size)
+            assertTrue(client.isReusable && server.isReusable)
+        }
+    }
+
+    @Test
     fun `cancellation remains primary when transport closure overtakes a pending read`() {
         withHttp1 suspend {
             scope, transport, _, client, server ->
@@ -124,7 +156,7 @@ private class AsyncHttp1CancellationTests {
     }
 
     @Test
-    fun `accepted body prefix and write and cleanup failures are preserved`() {
+    fun `unaccepted body and write and cleanup failures are preserved`() {
         withHttp1 suspend {
             _, a, _, client, _ ->
             val writer = client.sendRequest(request("POST"), Http1BodyFraming.Length(3L))
@@ -141,10 +173,40 @@ private class AsyncHttp1CancellationTests {
                     assertTrue(error.primaryFailure is TransportFailure)
                     assertTrue(error.cleanupFailure is CleanupFailure)
                 }
-                assertEquals(3L, buffer.readPosition)
+                assertEquals(0L, buffer.readPosition)
                 buffer.clear()
                 assertTrue(client.isClosed)
                 assertEquals(1, a.closes)
+            }
+        }
+    }
+
+    @Test
+    fun `body progress survives partial payload and framing failures`() {
+        for (
+            scenario in [
+                (Http1BodyFraming.Length(3L), 2L, 2L),
+                (Http1BodyFraming.Chunked, 2L, 0L),
+                (Http1BodyFraming.Chunked, 6L, 3L)
+            ]
+        ) {
+            val(framing, failAfter, consumed) = scenario
+            withHttp1 suspend {
+                _, transport, _, client, _ ->
+                val writer = client.sendRequest(request("POST"), framing)
+                transport.failWriteAfter = Some(failAfter)
+                NativeByteBuffer.allocate(3L).use suspend {
+                    buffer ->
+                    buffer.writeBytes("abc".toByteArray())
+                    try {
+                        writer.writeFrom(buffer, 3L)
+                        fail(Some("partial write failure ignored"))
+                    } catch (_: TransportFailure) {}
+                    assertEquals(consumed, buffer.readPosition)
+                    buffer.clear()
+                    assertTrue(client.isClosed)
+                    assertEquals(1, transport.closes)
+                }
             }
         }
     }

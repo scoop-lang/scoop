@@ -1,0 +1,105 @@
+package scoop.asyncio
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class SharedTimerTests {
+    @Test
+    fun `earlier deadlines replace a long wakeup without overflowing the duration range`() {
+        val loop = eventLoop()
+        loop.run {
+            val huge =
+                loop.schedule(Duration.seconds(Long.MAX_VALUE, 999999999L)) {
+                    _ -> fail(Some("long timer fired"))
+                }
+            loop.sleep(Duration.nanoseconds(1L))
+            val start = MonotonicTimeSource.markNow()
+            suspendCoroutine<Unit> {
+                continuation ->
+                loop.schedule(Duration.milliseconds(2L)) {
+                    error -> finishUnit(continuation, error)
+                }
+                Unit
+            }
+            assertTrue(MonotonicTimeSource.markNow() - start >= Duration.milliseconds(2L))
+            huge.dispose()
+        }
+    }
+
+    @Test
+    fun `a retained earlier wakeup does not notify a later deadline early`() {
+        val loop = eventLoop()
+        loop.run {
+            val early =
+                loop.schedule(Duration.milliseconds(50L)) {
+                    _ -> fail(Some("cancelled timer fired"))
+                }
+            // The owner installs the earlier wakeup before this logical wait resumes.
+            loop.sleep(Duration.nanoseconds(1L))
+            early.dispose()
+            val start = MonotonicTimeSource.markNow()
+            suspendCoroutine<Unit> {
+                continuation ->
+                loop.schedule(Duration.milliseconds(100L)) {
+                    error -> finishUnit(continuation, error)
+                }
+                Unit
+            }
+            assertTrue(MonotonicTimeSource.markNow() - start >= Duration.milliseconds(100L))
+        }
+    }
+
+    @Test
+    fun `many logical cancellations retire only the shared native wakeup`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val timers = LoopTimers(owner)
+        val registrations = ArrayList<LoopTimer>()
+        try {
+            for (index in 0L ..< 128L) {
+                val timer =
+                    LoopTimer(
+                        owner,
+                        Duration.seconds(100000L + (index * 37L) % 128L),
+                        false,
+                        { _ -> fail(Some("long timer notified")) }
+                    )
+                registrations.add(timer)
+                timers.add(timer)
+            }
+            timers.advance()
+            owner.pump(native)
+            @Unsafe
+            {
+                assertFalse(nativeLoopIdle(native))
+            }
+            for (index in 0L ..< 128L) {
+                val timer = registrations[(index * 17L) % 128L]
+                timer.closeFromLoop()
+                timers.cancel(timer)
+            }
+            assertTrue(timers.isEmpty)
+            owner.poll(native, false)
+            @Unsafe
+            {
+                assertEquals(0L, nativeLoopBatchSize(native))
+                assertFalse(nativeLoopIdle(native))
+            }
+            timers.close()
+            owner.pump(native)
+            @Unsafe
+            {
+                while (nativeLoopBatchSize(native) == 0L)
+                    owner.poll(native, true)
+                assertEquals(1L, nativeLoopBatchSize(native))
+            }
+        } finally {
+            timers.close()
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+}

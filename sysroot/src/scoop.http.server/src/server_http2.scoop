@@ -54,7 +54,7 @@ internal suspend fun <T> serveHttp2(
                         ready ->
                         launched.store(true)
                         try {
-                            ready.trySend(Unit)
+                            ready.ready()
                             executeHttp2Request(state, entry, activity, request, requestId!!)
                         }
                         finally {

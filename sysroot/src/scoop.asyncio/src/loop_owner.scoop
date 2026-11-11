@@ -3,19 +3,24 @@ package scoop.asyncio
 import scoop.collections.HashMap
 
 internal class LoopOwner {
+    // Root results use this lock; I/O publication has its own parking mutex.
     private val lock: IoLock = IoLock()
+    private val inbox = LoopInbox()
+    private val published = AtomicBoolean(false)
+    private val running = AtomicBoolean(false)
+    // Initialized before publication and retained unchanged through shutdown.
     private var binding: EventLoop? = None
     private val driver: LoopDriver = LoopDriver()
     private var pointer: Ptr<Unit>? = None
     private var execution: LoopExecution? = None
-    private var commands: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
-    private var nextId: Long = 1L
+    private val nextId = AtomicLong(1L)
     private var root: Job? = None
     private var backendFailed: Boolean = false
-    private var rootEnded: Boolean = false
+    private val rootEnded = AtomicBoolean(false)
     private var failure: Throwable? = None
     private val operations: HashMap<Long, LoopOperation> = HashMap<Long, LoopOperation>()
     private val resources: ArrayList<LoopResource> = ArrayList<LoopResource>()
+    private val timers = LoopTimers(this)
     private var cleaning: Boolean = false
     var ready: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
 
@@ -27,11 +32,12 @@ internal class LoopOwner {
                 val created = nativeLoopCreate()
                 if (created.status.code != 0)
                     throw backendFailure("create event loop", created.status)
-                lock.withLock {
-                    binding = Some(loop)
-                    pointer = created.pointer
-                    execution = Some(state)
-                }
+                binding = Some(loop)
+                pointer = created.pointer
+                execution = Some(state)
+                inbox.open(created.pointer!!)
+                published.store(true, MemoryOrder.Release)
+                running.store(true, MemoryOrder.Release)
                 state.observeTermination()
                 return created.pointer!!
             }
@@ -42,9 +48,11 @@ internal class LoopOwner {
         }
     }
 
-    private fun currentExecution(): LoopExecution =
-        lock.withLock { execution } ?:
+    private fun currentExecution(): LoopExecution {
+        if (!published.load(MemoryOrder.Acquire))
             throw IllegalStateException(Some("event loop is not running"))
+        return execution!!
+    }
 
     val executor: LoopExecutor get() = currentExecution().executor
     val rootExecutor: CoroutineExecutor get() = currentExecution().rootExecutor
@@ -54,50 +62,26 @@ internal class LoopOwner {
     }
 
     fun activeExecutor(): CoroutineExecutor {
-        val state =
-            lock.withLock {
-                if (pointer == None)
-                    throw IllegalStateException(Some("event loop is not running"))
-                execution!!
-            }
+        if (!running.load(MemoryOrder.Acquire))
+            throw IllegalStateException(Some("event loop is not running"))
+        val state = currentExecution()
         if (state.executor.isTerminated)
             throw IllegalStateException(Some("event loop executor has terminated"))
         return state.executor
     }
 
     fun wakeExecution() {
-        lock.withLock {
-            when (pointer) {
-                case Some(val native) -> @Unsafe
-                {
-                    nativeLoopWake(native)
-                }
-                case None -> {}
-            }
-        }
+        inbox.wake()
     }
 
     fun enqueueExecution(command: () -> Unit) {
-        lock.withLock {
-            val native =
-                pointer ?: throw IllegalStateException(Some("event loop executor is closed"))
-            commands.add(command)
-            @Unsafe
-            {
-                nativeLoopWake(native)
-            }
-        }
+        inbox.post(command, true)
     }
 
     fun requireJob(cancellable: Boolean = true): Job {
-        val expected =
-            lock.withLock {
-                if (pointer == None)
-                    None
-                else
-                    binding
-            } ?:
-                throw IllegalStateException(Some("event loop is not running"))
+        if (!running.load(MemoryOrder.Acquire))
+            throw IllegalStateException(Some("event loop is not running"))
+        val expected = binding!!
         if (!hasEventLoop() || currentEventLoop() !== expected)
             throw IllegalStateException(Some("wrong event loop"))
         val job = currentJobOrNone() ?: throw IllegalStateException(Some("I/O requires a Job"))
@@ -109,30 +93,21 @@ internal class LoopOwner {
     }
 
     fun post(command: () -> Unit) {
-        lock.withLock {
-            when (pointer) {
-                case Some(val native) -> {
-                    commands.add(command)
-                    @Unsafe
-                    {
-                        nativeLoopWake(native)
-                    }
-                }
-                case None -> {}
-            }
-        }
+        inbox.post(command)
     }
 
-    fun nextOperation(): Long =
-        lock.withLock {
-            if (pointer == None)
-                throw IllegalStateException(Some("event loop is not running"))
-            if (nextId == Long.MAX_VALUE)
+    fun nextOperation(): Long {
+        if (!running.load(MemoryOrder.Acquire))
+            throw IllegalStateException(Some("event loop is not running"))
+        var id = nextId.load(MemoryOrder.Relaxed)
+        while (true) {
+            if (id == Long.MAX_VALUE)
                 throw ArithmeticException()
-            val id = nextId
-            nextId += 1L
-            id
+            if (nextId.compareAndSet(id, id + 1L, MemoryOrder.Relaxed, MemoryOrder.Relaxed))
+                return id
+            id = nextId.load(MemoryOrder.Relaxed)
         }
+    }
 
     fun submit(operation: LoopOperation) {
         post {
@@ -140,6 +115,18 @@ internal class LoopOwner {
             operation.begin(pointer!!)
             dispatchBlocking(pointer!!)
         }
+    }
+
+    fun scheduleTimer(timer: LoopTimer) {
+        post { timers.add(timer) }
+    }
+
+    fun cancelTimer(timer: LoopTimer) {
+        post { timers.cancel(timer) }
+    }
+
+    fun advanceTimers() {
+        timers.advance()
     }
 
     fun cancel(id: Long) {
@@ -184,9 +171,10 @@ internal class LoopOwner {
     }
 
     fun startCleanup() {
-        if (cleaning || !lock.withLock { rootEnded } || !executor.isTerminated)
+        if (cleaning || !rootEnded.load(MemoryOrder.Acquire) || !executor.isTerminated)
             return
         cleaning = true
+        timers.close()
         val owned = Array<LoopResource>(resources.size) { index -> resources[index] }
         for (resource in owned)
             resource.closeFromLoop()
@@ -230,46 +218,35 @@ internal class LoopOwner {
                 }
             }
             root = None
-            rootEnded = true
-            when (pointer) {
-                case Some(val native) -> @Unsafe
-                {
-                    nativeLoopWake(native)
-                };
-                case None -> {}
-            }
+            rootEnded.store(true, MemoryOrder.Release)
         }
         currentExecution().finishRoot()
+        inbox.wake()
     }
 
-    fun takeCommands(): ArrayList<() -> Unit> =
-        lock.withLock {
-            val batch = commands
-            commands = ArrayList<() -> Unit>()
-            batch
-        }
+    fun takeCommands(): ArrayList<() -> Unit> = inbox.take()
 
     fun cancelRoot() {
         val job = lock.withLock { root }
         job?.cancel()
     }
 
-    fun hasQueuedWork(): Boolean = lock.withLock { commands.size != 0L || ready.size != 0L }
+    fun hasQueuedWork(): Boolean = inbox.hasCommands() || ready.size != 0L
 
     private fun managedIdle(): Boolean =
-        rootEnded &&
-            execution!!.executor.isTerminated &&
-            commands.size ==
-            0L &&
+        rootEnded.load(MemoryOrder.Acquire) &&
+            executor.isTerminated &&
+            !inbox.hasCommands() &&
             ready.size ==
             0L &&
             operations.size ==
             0L &&
+            timers.isEmpty &&
             resources.size ==
             0L
 
     fun stopIfDrained(native: Ptr<Unit>): Boolean {
-        if (!lock.withLock { managedIdle() })
+        if (!managedIdle())
             return false
         @Unsafe
         {
@@ -279,15 +256,11 @@ internal class LoopOwner {
         val state = currentExecution()
         if (!state.stopPoolIfNeeded())
             return false
-        return lock.withLock {
-            if (!managedIdle())
-                false
-            else {
-                pointer = None;
-                binding = None
-                true
-            }
-        }
+        if (!managedIdle() || !inbox.closeIfEmpty())
+            return false
+        running.store(false, MemoryOrder.Release)
+        pointer = None
+        return true
     }
 
     fun destroy(native: Ptr<Unit>): Throwable? {

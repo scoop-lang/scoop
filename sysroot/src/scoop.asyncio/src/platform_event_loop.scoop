@@ -105,6 +105,10 @@ public class PlatformEventLoop internal constructor(
         sleepOnLoop(state, duration)
     }
 
+    /** Registers a cancellable ordinary timer notification on this loop's owner. */
+    public override fun schedule(duration: Duration, completion: (Throwable?) -> Unit): Disposable =
+        scheduleOnLoop(state, duration, completion)
+
     /**
      * Resolves the host and port, optionally restricted to one address family.
      */

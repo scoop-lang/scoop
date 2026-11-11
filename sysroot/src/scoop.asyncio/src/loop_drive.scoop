@@ -35,6 +35,7 @@ internal class LoopDriver {
             for (resume in batch)
                 resume()
             owner.startCleanup()
+            owner.advanceTimers()
             owner.dispatchBlocking(native)
         } finally {
             pumping = false

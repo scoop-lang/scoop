@@ -1,9 +1,48 @@
 package scoop.asyncio
 
 import scoop.test.*
+import scoop.platform.concurrent.Thread
 
 @Test
 private class LoopPumpTest {
+    @Test
+    fun `concurrent publishers wake an idle owner and retain every command`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val seen = Array<Long>(4L) { 0L }.toMutableArray()
+        val completed = AtomicLong(0L)
+        val publishers = ArrayList<Thread>()
+        try {
+            for (index in 0L ..< 4L) {
+                publishers.add(
+                    Thread.start {
+                        for (sequence in 0L ..< 256L) {
+                            owner.post {
+                                assertEquals(sequence, seen[index])
+                                seen[index] = sequence + 1L
+                                completed.fetchAdd(1L)
+                                Unit
+                            }
+                        }
+                    }
+                )
+            }
+            while (completed.load() < 1024L) {
+                owner.pump(native)
+                if (completed.load() < 1024L && !owner.hasQueuedWork())
+                    owner.poll(native, true)
+            }
+            for (count in seen)
+                assertEquals(256L, count)
+        } finally {
+            for (publisher in publishers)
+                publisher.join()
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
     @Test
     fun `one turn leaves commands and ready work produced during resume for the next turn`() {
         val loop = eventLoop()
