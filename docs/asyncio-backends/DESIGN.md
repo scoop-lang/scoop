@@ -134,6 +134,28 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 验收必须使用普通 `AsyncRuntime` 和一个监听端口，重新测量单／四 worker、单／多连接的吞吐、延迟、CPU、分配与 GC；同时覆盖任务窃取后 I/O、双向操作、外线程取消、部分传输、单次完成和关闭排空。实验的多端口结果仅作为架构参照，不能用它替代正式运行时结果。多 reactor 下仍存在显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
 
+### 4.2 Mio、Tokio 与 tokio-uring 的架构参照
+
+为 4.1 的正式改造核对了官方文档与源码。三者承担的职责和线程模型不同，不能把它们合并称为“每 worker 一个 reactor 的 Tokio 架构”。以下区分已实现机制、RFC 和 Scoop 的设计判断；不引入这些 Rust 库作为 Scoop native 后端依赖。
+
+| 参照 | 已核对的机制 | 对 Scoop 主路径的启示 |
+| --- | --- | --- |
+| Mio `Poll`／`Waker` | `Poll` 返回 readiness，`Token` 关联事件源；通知可能多余，实际 I/O 结果才决定进度。`Waker` 负责跨线程唤醒 selector，不是任务队列或调度器。 | 把“有工作可能需要处理”的通知与真实命令／完成记录分开；任务与 I/O 共用 worker 的等待入口。Scoop 已有 io_uring／IOCP completion 合同，保持该模型，不额外模拟一层 readiness。 |
+| Tokio 多线程调度器 | 每 worker 有本地任务队列并支持 stealing；已检查的 `multi_thread/park.rs` 用 `Arc<Shared>` 共享一个 `TryLock<Driver>`，取得它的 worker 推进 driver，其他 worker 可等待条件变量。 | I/O 推进纳入 worker 调度循环，不必专设一个只驱动 I/O 的 caller；已交付的本地队列和 stealing 继续复用。共享 driver 与每 worker 独立 reactor 是两种不同选择，Tokio 的实现本身不能证明哪种更适合 Scoop。 |
+| tokio-uring | 已发布的 runtime 使用 Tokio current-thread runtime 与 `LocalSet`；多线程靠创建多个 runtime。线程进入等待前 flush SQ，通过观察 ring 的可读事件消费 CQ；任务通过 `spawn_local` 执行。 | 借鉴任务、提交和完成在同一线程推进的局部性，以及批量提交／完成的处理位置。它没有多线程 work stealing，不能直接用它替换 Scoop 的多线程 executor。 |
+
+来源：[Mio Poll](https://docs.rs/mio/latest/mio/struct.Poll.html)、[Waker](https://docs.rs/mio/latest/mio/struct.Waker.html)及 [Linux Waker 实现](https://github.com/tokio-rs/mio/blob/master/src/sys/unix/waker/eventfd.rs)；[Tokio runtime](https://docs.rs/tokio/latest/tokio/runtime/index.html)与 [park.rs](https://github.com/tokio-rs/tokio/blob/master/tokio/src/runtime/scheduler/multi_thread/park.rs)；[tokio-uring 文档](https://docs.rs/tokio-uring/latest/tokio_uring/)与 [runtime 实现](https://docs.rs/tokio-uring/latest/src/tokio_uring/runtime/mod.rs.html)。这些是本轮查阅的实现，不能依赖其队列容量或检查间隔作为上游永久合同。
+
+据此，下一轮的直接目标是改掉 `worker → 单 owner → worker` 的必经往返。选择每 worker reactor 的依据是 B17 的本机组合实验与当前 owner 集中负载，不是“Tokio 也这样做”。正常局部路径由当前 worker 提交、消费完成并把 continuation 放回本地队列；被窃取任务访问其他 owner 的资源时才跨 worker 交付。保持资源 owner 稳定、让可运行任务迁移，是 Scoop 为同时保留局部性与 stealing 做出的设计选择，仍需单 listener 和不均匀负载验证。
+
+整合时遵守以下直接约束：
+
+- worker 在有限批任务之间推进 I/O 与 timer；队列持续非空也不能饿死 reactor。等待前先提交待发操作、发布等待状态并重查队列，外部发布必须能打断等待。Mio 的 `wake` 是通知机制；减少系统调用的合并决策应由 Scoop 的队列／等待状态承担，不能假定每次 `wake` 免费。
+- I/O owner 与当前执行任务的 worker 分开记录。新 accepted 连接在交付前分配 owner，现有请求、buffer 借用和 native handle 不随 stealing 搬迁；完成在 owner worker 上进入既有调度器。不能依赖任务永不被窃取，也不让用户手工管理端口或线程。
+- 操作取消和 native 退休仍是两件事。tokio-uring 的 [driver 实现](https://github.com/tokio-rs/tokio-uring/blob/master/src/runtime/driver/mod.rs)在 future 被放弃后保留在途数据，取消操作自身的 CQE 不代替原操作完成。Scoop 继续以真实完成解除 `NativeByteBorrow`，统一排空后再销毁 reactor；线程局部执行不能取消这个生命周期约束。
+
+tokio-uring 的 [DESIGN.md](https://github.com/tokio-rs/tokio-uring/blob/master/DESIGN.md)是 RFC，可用于理解 thread-per-core 和在途操作所有权的动机；其中示例 API 与拟议机制不能直接当成已发布功能。这里仅采用与当前源码一致、直接服务 worker／reactor 整合的部分，不扩展到固定 buffer、零拷贝、其他后端重写或 HTTP／JSON 优化。
+
 ## 5. 一份操作与资源生命周期逻辑
 
 `sleep` 与一次性 `schedule` 共用 owner 的逻辑期限队列，原生层只维护最早期限所需的共享唤醒。逻辑登记携带可直接移除的队列位置；普通撤销立即清空通知捕获，owner 再移除登记，不创建逐通知的 native cancel 或资源表记录。sleep 的取消结果同样等 owner 移除后才恢复；它不借用 native 存储，无需等待其他使用者共享的唤醒退休。

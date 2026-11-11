@@ -285,6 +285,8 @@ Scoop 格式／静态检查／release 构建、Go gofmt／vet 与 C 严格编译
 
 基准源码和运行参数已纳入 `tests/benchmarks/tcp-echo`；固定产物、全部样本范围、图表、源码快照及复现脚本位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round17`。只实测本机 Linux 和均匀 64 连接，闭环延迟未校正 coordinated omission，每配置三次；没有重新测 HTTP、JSON 或其他平台。底层性能仍未达成目标，下一轮实施 worker／reactor 整合并用普通单端口 API 验证。
 
+按架构参照建议进一步核对了 Mio、Tokio 和 tokio-uring 的官方文档与源码，结论纳入[设计 4.2](DESIGN.md#42-miotokio-与-tokio-uring-的架构参照)：Tokio 多线程实现由 worker 共享 driver，tokio-uring 则使用线程局部 runtime，不能把后者说成支持跨线程 stealing。Scoop 候选方案结合 reactor 局部性与现有 stealing，明确资源 owner、等待唤醒与真实完成边界；该补充只修改设计，未改变已测产物或宣称正式整合已经完成。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
