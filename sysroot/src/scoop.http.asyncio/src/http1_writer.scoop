@@ -36,19 +36,14 @@ public class AsyncHttp1Writer internal constructor(
             {
                 requireActive()
                 httpCount(count, buffer.readableBytes)
-                val prefix =
-                    if (count < 16384L)
-                        count
-                    else
-                        16384L
                 @Unsafe
                 {
                     val chunk =
-                        if (prefix == 0L)
-                            state.encoder.prepareBody(prefix)
+                        if (count == 0L)
+                            state.encoder.prepareBody(count)
                         else
-                            buffer.withReadableBytes { _, _ -> state.encoder.prepareBody(prefix) }
-                    return@h1PreparedOperation (prefix, chunk)
+                            buffer.withReadableBytes { _, _ -> state.encoder.prepareBody(count) }
+                    return@h1PreparedOperation (count, chunk)
                 }
             },
             suspend {

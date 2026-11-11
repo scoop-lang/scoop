@@ -1,0 +1,62 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+@Test
+private class Http1LargeBodyTests {
+    @Test
+    fun `large fixed and chunked prefixes survive short transport writes`() {
+        val payload = Array<Byte>(98341L) { index -> (index % 251L).toByte() }
+        for (framing in [Http1BodyFraming.Length(payload.size), Http1BodyFraming.Chunked]) {
+            withHttp1 suspend {
+                scope, _, _, client, server ->
+                val receiving =
+                    scope.async<Array<Byte>> suspend {
+                        val data = receiveBytes(server.receiveRequest()!!.body)
+                        server.sendResponse(response()).finish()
+                        data
+                    }
+                val writer = client.sendRequest(request("POST"), framing)
+                NativeByteBuffer.allocate(payload.size).use suspend {
+                    buffer ->
+                    buffer.writeBytes(payload)
+                    assertEquals(payload.size, writer.writeFrom(buffer, payload.size))
+                    assertEquals(payload.size, buffer.readPosition)
+                }
+                writer.finish()
+                receiveBytes(client.receiveResponse().body)
+                val received = receiving.await()
+                assertEquals(payload.size, received.size)
+                for (index in 0L ..< payload.size)
+                    assertEquals(payload[index], received[index])
+                assertTrue(client.isReusable && server.isReusable)
+            }
+        }
+    }
+
+    @Test
+    fun `failure beyond the former slice boundary retains actual payload progress`() {
+        withHttp1 suspend {
+            scope, transport, _, client, server ->
+            val payload = Array<Byte>(65537L) { 120.toByte() }
+            val writer = client.sendRequest(request("POST"), Http1BodyFraming.Length(payload.size))
+            server.receiveRequest()
+            transport.failWriteAfter = Some(20000L)
+            NativeByteBuffer.allocate(payload.size).use suspend {
+                buffer ->
+                buffer.writeBytes(payload)
+                try {
+                    writer.writeFrom(buffer, payload.size)
+                    fail(Some("partial body failure was not reported"))
+                } catch (_: TransportFailure) {}
+                assertEquals(20000L, buffer.readPosition)
+                assertTrue(client.isClosed)
+                assertEquals(1, transport.closes)
+                assertFalse(scope.job.isCancelled)
+            }
+        }
+    }
+}
