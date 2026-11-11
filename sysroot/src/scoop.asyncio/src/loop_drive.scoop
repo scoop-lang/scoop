@@ -14,20 +14,16 @@ internal class LoopDriver {
         try {
             val pending = owner.takeCommands()
             owner.poll(native, false)
-            var completions = 0L
             @Unsafe
             {
-                completions = nativeLoopBatchSize(native)
-            }
-            for (command in pending)
-                command()
-            var index = 0L
-            while (index < completions) {
-                @Unsafe
-                {
-                    owner.complete(decodeEvent(nativeLoopNext(native)))
+                val completions = nativeLoopTakeBatch(native)
+                for (command in pending)
+                    command()
+                var index = 0L
+                while (index < completions.count) {
+                    owner.complete(decodeEvent(completions.records.load(index)))
+                    index += 1L
                 }
-                index += 1L
             }
             owner.startCleanup()
             val batch = owner.ready
@@ -41,8 +37,7 @@ internal class LoopDriver {
             pumping = false
             @Unsafe
             {
-                if (pumpAgain || owner.hasQueuedWork() || nativeLoopBatchSize(native) != 0L)
-                    nativeLoopWake(native)
+                nativeLoopRearm(native, pumpAgain || owner.hasQueuedWork())
             }
             pumpAgain = false
         }

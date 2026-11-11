@@ -55,9 +55,9 @@ int scoop_test_iocp_requests(bool prefill) {
     unsigned char buffer[16] = {0};
     bool immediate;
     CHECK(!read_start(loop, pipe.input, 1, buffer, &immediate) && !immediate);
-    CHECK(loop->requests && !scoop_io_loop_batch_size(loop));
+    CHECK(loop->requests && !test_completion_count(loop));
     scoop_io_request_cancel(loop, 1);
-    CHECK(loop->requests && !scoop_io_loop_batch_size(loop));
+    CHECK(loop->requests && !test_completion_count(loop));
     ScoopIoEvent event;
     CHECK(!test_result(loop, &event));
     CHECK(event.id == 1 && event.kind == SCOOP_IO_WIN32_ERROR &&
@@ -71,7 +71,7 @@ int scoop_test_iocp_requests(bool prefill) {
               written == sizeof(data));
     CHECK(!read_start(loop, pipe.input, 2, buffer, &immediate));
     CHECK(immediate == prefill);
-    CHECK(loop->requests && !scoop_io_loop_batch_size(loop));
+    CHECK(loop->requests && !test_completion_count(loop));
     if (!prefill)
         CHECK(WriteFile(pipe.output, data, sizeof(data), &written, NULL) &&
               written == sizeof(data));
@@ -85,13 +85,13 @@ int scoop_test_iocp_requests(bool prefill) {
     AcquireSRWLockExclusive(&loop->mutex);
     queued = loop->packets_head != NULL;
     ReleaseSRWLockExclusive(&loop->mutex);
-    CHECK(queued && loop->requests && !scoop_io_loop_batch_size(loop));
+    CHECK(queued && loop->requests && !test_completion_count(loop));
     scoop_io_request_cancel(loop, 2);
     CHECK(loop->requests);
     CHECK(!test_result(loop, &event));
     CHECK(event.id == 2 && event.kind == SCOOP_IO_BYTES && event.count == sizeof(data));
     CHECK(!memcmp(buffer, data, sizeof(data)) && !loop->requests);
-    CHECK(!scoop_io_loop_poll(loop, false).code && !scoop_io_loop_batch_size(loop));
+    CHECK(!scoop_io_loop_poll(loop, false).code && !test_completion_count(loop));
     CHECK(CloseHandle(pipe.output) && CloseHandle(pipe.input));
     CHECK(!test_drain(loop));
     return 0;

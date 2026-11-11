@@ -36,6 +36,8 @@ struct ScoopIoLoop {
     unsigned work_runners;
     bool failure_reported, submission_blocked;
     int64_t completions;
+    ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];
+    ScoopIoCompletion *retired_batch;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests;
     RingPending control, pending;

@@ -85,16 +85,20 @@ private class SharedTimerTests {
             owner.poll(native, false)
             @Unsafe
             {
-                assertEquals(0L, nativeLoopBatchSize(native))
+                assertEquals(0L, nativeLoopTakeBatch(native).count)
                 assertFalse(nativeLoopIdle(native))
             }
             timers.close()
             owner.pump(native)
             @Unsafe
             {
-                while (nativeLoopBatchSize(native) == 0L)
+                var batch = nativeLoopTakeBatch(native)
+                while (batch.count == 0L) {
                     owner.poll(native, true)
-                assertEquals(1L, nativeLoopBatchSize(native))
+                    batch = nativeLoopTakeBatch(native)
+                }
+                assertEquals(1L, batch.count)
+                owner.complete(decodeEvent(batch.records.load(0L)))
             }
         } finally {
             timers.close()

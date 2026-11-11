@@ -21,6 +21,8 @@ struct ScoopIoLoop {
     int wake_read, wake_write, failure;
     unsigned actions, work_runners;
     int64_t completions;
+    ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];
+    ScoopIoCompletion *retired_batch;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests;
     ScoopIoWork *work, *pending_head, *pending_tail, *finished_head, *finished_tail;

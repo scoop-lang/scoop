@@ -2,6 +2,7 @@
 #define SCOOP_ASYNCIO_WINDOWS_LOOP_TEST_H
 
 #include "../../../native/windows/backend.h"
+#include "../completion_queue.h"
 #include <errno.h>
 
 #define CHECK(condition)                                                                           \
@@ -27,8 +28,9 @@ static inline int test_drain(ScoopIoLoop *loop) {
         test_work(loop);
         if (scoop_io_loop_poll(loop, false).code)
             return -1;
-        while (scoop_io_loop_batch_size(loop))
-            scoop_io_loop_next(loop);
+        while (test_completion_count(loop))
+            scoop_io_loop_take_batch(loop);
+        scoop_io_loop_rearm(loop, false);
         if (scoop_io_loop_idle(loop))
             return scoop_io_loop_destroy(loop).code;
         if (GetTickCount64() >= deadline || test_wait(loop))
@@ -42,8 +44,8 @@ static inline int test_result(ScoopIoLoop *loop, ScoopIoEvent *event) {
         test_work(loop);
         if (scoop_io_loop_poll(loop, false).code)
             return -1;
-        if (scoop_io_loop_batch_size(loop)) {
-            *event = scoop_io_loop_next(loop);
+        if (test_completion_count(loop)) {
+            *event = test_completion_take(loop);
             return 0;
         }
         if (GetTickCount64() >= deadline || test_wait(loop))

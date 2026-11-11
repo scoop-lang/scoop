@@ -108,31 +108,9 @@ void scoop_io_complete(ScoopIoLoop *loop, ScoopIoCompletion *completion, int sta
     ReleaseSRWLockExclusive(&loop->mutex);
 }
 
-int64_t scoop_io_loop_batch_size(ScoopIoLoop *loop) {
-    AcquireSRWLockExclusive(&loop->mutex);
-    int64_t count = loop->completions;
-    ReleaseSRWLockExclusive(&loop->mutex);
-    return count;
-}
-
-ScoopIoEvent scoop_io_loop_next(ScoopIoLoop *loop) {
-    AcquireSRWLockExclusive(&loop->mutex);
-    ScoopIoCompletion *entry = loop->head;
-    if (entry) {
-        loop->head = entry->next;
-        if (!loop->head)
-            loop->tail = NULL;
-        loop->completions--;
-    }
-    ReleaseSRWLockExclusive(&loop->mutex);
-    if (!entry)
-        return (ScoopIoEvent){0};
-    ScoopIoEvent event = entry->event;
-    free(entry);
-    return event;
-}
-
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
+    if (loop->retired_batch)
+        return false;
     if (loop->requests)
         return false;
     AcquireSRWLockExclusive(&loop->mutex);

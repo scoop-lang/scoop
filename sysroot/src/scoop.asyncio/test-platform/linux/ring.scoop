@@ -5,6 +5,13 @@ import scoop.test.*
 @Test
 private class LinuxRingRetirementTest {
     @Test
+    fun `completion batches remain stable and rearm all records beyond one batch`() {
+        @Unsafe
+        {
+            assertEquals(0, testRingBatches())
+        }
+    }
+    @Test
     fun `target and cancellation CQEs retire in either observed order`() {
         @Unsafe
         {
@@ -56,3 +63,6 @@ private fun testRingSubmitDenied(): Int
 
 @Extern(name = "scoop_test_ring_capabilities")
 private fun testRingCapabilities(): Int
+
+@Extern(name = "scoop_test_ring_batches")
+private fun testRingBatches(): Int

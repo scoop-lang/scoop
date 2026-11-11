@@ -40,7 +40,6 @@ void scoop_io_request_queue(ScoopIoRequest *request, unsigned index) {
     entry->state = RING_QUEUED;
     request->live++;
     append(index < 3 ? &request->loop->pending : &request->loop->control, entry);
-    scoop_io_loop_wake(request->loop);
 }
 
 static void retire(ScoopIoRequest *request) {
