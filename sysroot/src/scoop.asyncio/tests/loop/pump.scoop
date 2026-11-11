@@ -131,6 +131,34 @@ private class LoopPumpTest {
     }
 
     @Test
+    fun `commands published during repeated delivery remain queued for the next turn`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val seen = ArrayList<Long>()
+        try {
+            for (round in 0L ..< 16L) {
+                val base = round * 3L
+                owner.post {
+                    seen.add(base)
+                    Thread.start { owner.post { seen.add(base + 2L) } }.join()
+                    owner.enqueueReady { seen.add(base + 1L) }
+                    owner.pump(native)
+                }
+                owner.pump(native)
+                assertEquals(base + 2L, seen.size)
+                owner.pump(native)
+                assertEquals(base + 3L, seen.size)
+            }
+            for (index in 0L ..< seen.size)
+                assertEquals(index, seen[index])
+        } finally {
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
+    @Test
     fun `nested pump does not enter queued commands recursively`() {
         val loop = eventLoop()
         val owner = loop.state

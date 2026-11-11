@@ -104,7 +104,7 @@ internal abstract class LoopOperation internal constructor(val loop: LoopOwner, 
             }
         unsubscribe()
         delivery = OperationDelivery.Finish(event, failure)
-        loop.ready.add(LoopWork.Operation(this))
+        loop.enqueueReady(this)
     }
 }
 

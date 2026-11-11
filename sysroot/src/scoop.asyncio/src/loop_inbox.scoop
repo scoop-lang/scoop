@@ -47,8 +47,7 @@ internal class LoopInbox {
         }
     }
 
-    fun take(): ArrayList<LoopWork> {
-        val empty = ArrayList<LoopWork>()
+    fun take(empty: ArrayList<LoopWork>): ArrayList<LoopWork> {
         return lock.withLock {
             val batch = commands
             commands = empty

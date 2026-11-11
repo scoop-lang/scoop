@@ -118,6 +118,8 @@ B19 将 native 完成改为每批一次 FFI 交付：后端复用一个 64 条�
 
 B20 收拢 managed 操作生命周期：`LoopOperation` 承担结果仲裁与 owner 上的提交／交付，命令和 ready 以普通闭包或操作引用排队。字节传输操作同时实现已有 `SuspendRegistration<Long>`，保留实际 borrow、方向登记和 continuation，完成时在恢复调用方前结束借用和方向占用；TCP、文件和 TTY 写共用这一真实生命周期。读写入口只做普通准备和一次原语挂起，移除跨挂起 finally、单独 progress 对象与 start／cancel／finish 捕获链。其余操作通过同一基类的回调实现继续表达不同资源交付规则。提交、取消、ready 次序和 GUI 分轮合同保持，未增加 public API 或 compiler/runtime 协议。
 
+B21 让每个 owner 复用外部命令、本地命令和 ready 各自的接收／消费容器。inbox 在已有锁内交换，owner 本地容器直接交换；不再把本地命令逐项复制进外部批次，也不在每轮重新分配容器及遍历器。消费次序仍为外部命令、本地命令、native 完成、ready。本轮退出时清空消费容器，下一轮才交回接收端；新发布工作保持在独立的接收容器中。这里只复用 loop 自己的队列容量，不缓存操作对象、借用或 continuation。
+
 处理过程中 GUI 可能进入嵌套主循环；`pumping` 标志阻止递归进入状态机，嵌套通知只记录需再次处理，外层退出时重新唤醒。普通用户回调仍可能运行很久，本库不抢占它，也不把 CPU 计算自动搬到后台。
 
 `run` 反复调用同一个 `pump`，无可执行工作时在统一通知 fd 上阻塞等待；等待使用 `NativeSafe`，不能标为 `GCLeaf`。`attach` 由 host 可读回调调用 `pump`，内部不等待 I/O、worker 或监听注销。正时长 timer 的到期由后端通知，宿主不需要周期轮询；空闲时没有常驻 idle 回调。
