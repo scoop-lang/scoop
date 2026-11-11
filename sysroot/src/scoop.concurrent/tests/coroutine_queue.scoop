@@ -12,7 +12,11 @@ private class CoroutineQueueTest {
         val affinity = AtomicInt(0)
         val observed = ArrayList<Int>()
         for (index in 0 ..< 1024) {
-            queue.put(CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(index) }))
+            assertTrue(
+                queue.tryPut(
+                    CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(index) })
+                )
+            )
         }
         gcCollect()
         for (index in 0 ..< 1024) {
@@ -21,7 +25,11 @@ private class CoroutineQueueTest {
         }
         assertTrue(absent(queue.take()))
         gcCollect()
-        queue.put(CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(1024) }))
+        assertTrue(
+            queue.tryPut(
+                CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(1024) })
+            )
+        )
         queue.take()!!.work.run()
         assertEquals(1025L, observed.size)
         assertTrue(absent(queue.take()))
@@ -35,6 +43,97 @@ private class CoroutineQueueTest {
     @Test
     fun `concurrent queue references survive moving collection`() {
         exerciseConcurrentQueue(64)
+    }
+
+    @Test
+    fun `closing the queue preserves accepted FIFO work and rejects later publications`() {
+        val queue = CoroutineQueue.create()
+        val affinity = AtomicInt(0)
+        val observed = ArrayList<Int>()
+        for (index in 0 ..< 128)
+            assertTrue(
+                queue.tryPut(
+                    CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(index) })
+                )
+            )
+        queue.close()
+        queue.close()
+        assertFalse(
+            queue.tryPut(
+                CoroutineSubmission(
+                    affinity,
+                    FunctionCoroutineWork { fail(Some("closed queue accepted work")) }
+                )
+            )
+        )
+        gcCollect()
+        for (index in 0 ..< 128) {
+            queue.take()!!.work.run()
+            assertEquals(index, observed[index.toLong()])
+        }
+        assertTrue(absent(queue.take()))
+        assertFalse(queue.tryPut(CoroutineSubmission(affinity, FunctionCoroutineWork {})))
+        val empty = CoroutineQueue.create()
+        empty.close()
+        assertTrue(absent(empty.take()))
+        assertFalse(empty.tryPut(CoroutineSubmission(affinity, FunctionCoroutineWork {})))
+    }
+
+    @Test
+    fun `closure racing producers and consumers loses no accepted work`() {
+        val queue = CoroutineQueue.create()
+        val affinity = AtomicInt(0)
+        val accepted = AtomicInt(0)
+        val received = AtomicInt(0)
+        val done = AtomicBoolean(false)
+        val seen = Array<AtomicInt>(8192L) { _ -> AtomicInt(0) }
+        val gate = WorkerGate()
+        val consumers =
+            Array<Thread>(4L) {
+                _ -> Thread.start {
+                    while (!done.load() || received.load() < accepted.load()) {
+                        when (queue.take()) {
+                            case Some(val work) -> {
+                                work.work.run()
+                                received.fetchAdd(1)
+                            }
+                            case None -> yield()
+                        }
+                    }
+                }
+            }
+        val producers =
+            Array<Thread>(4L) {
+                producer -> Thread.start {
+                    gate.await()
+                    for (offset in 0 ..< 2048) {
+                        val index = producer * 2048L + offset.toLong()
+                        if (
+                            queue.tryPut(
+                                CoroutineSubmission(
+                                    affinity,
+                                    FunctionCoroutineWork {
+                                        assertEquals(0, seen[index].fetchAdd(1))
+                                    }
+                                )
+                            )
+                        )
+                            accepted.fetchAdd(1)
+                    }
+                }
+            }
+        gate.awaitEntered(4)
+        gate.open()
+        while (accepted.load() < 256)
+            yield()
+        queue.close()
+        for (producer in producers)
+            producer.join()
+        done.store(true)
+        for (consumer in consumers)
+            consumer.join()
+        assertEquals(accepted.load(), received.load())
+        assertTrue(absent(queue.take()))
     }
 }
 
@@ -63,10 +162,12 @@ private fun exerciseConcurrentQueue(perProducer: Int) {
             producer -> Thread.start {
                 for (offset in 0 ..< perProducer) {
                     val index = producer * perProducer.toLong() + offset.toLong()
-                    queue.put(
-                        CoroutineSubmission(
-                            affinity,
-                            FunctionCoroutineWork { assertEquals(0, seen[index].fetchAdd(1)) }
+                    assertTrue(
+                        queue.tryPut(
+                            CoroutineSubmission(
+                                affinity,
+                                FunctionCoroutineWork { assertEquals(0, seen[index].fetchAdd(1)) }
+                            )
                         )
                     )
                 }

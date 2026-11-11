@@ -534,7 +534,9 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
 
 已评估 [Crossbeam deque](https://docs.rs/crossbeam-deque/latest/crossbeam_deque/)的 worker／stealer 模型。直接使用其 native 存储需要另加移动 GC 根管理，而现有 AtomicRef 已提供所需 CAS 与写屏障；这里使用已知队列算法，不新增 runtime ABI。每个 worker 的队列允许外部生产者和其他 worker 消费，外部恢复直接投递任务最近执行的 worker，不再先经过一个全局 injection 锁或队列。
 
-executor 的任务登记与关闭计数仍由生命周期 mutex 保护。每个 ticket 的原子字记录活动标记与正在发布的工作数：dispatch 先取得发布义务，工作可见后释放；complete 关闭接纳，直到已有发布义务全部释放才扣减 executor 登记。正常 coroutine dispatch 不进入生命周期 mutex。这个计数表示实际尚未完成的发布义务，不限制任务数，也不参与调度计费。
+executor 的任务登记、complete 与关闭计数由生命周期 mutex 保护。普通 dispatch 读取 ticket 的原子活动标记，再以队列链接 CAS 发布工作，不维护另一套逐投递计数。登记排空后，每条队列以相同的末端链接 CAS 写入独立终止标记；入队先赢则工作位于标记之前，关闭先赢则投递报告登记已完成。全部队列封闭后才设置 workers 的停止状态并唤醒，直到已接纳工作排空才退出。只有与 complete 重叠的投递可能这样拒绝；仍有效的登记在 Draining 中继续正常投递。blocking 的活动检查、计数与入队仍由生命周期锁协调。
+
+消费者推进 head 后，将旧 head 的 next 写为独立终止标记，断开退休节点指向后续活动链的引用。保留旧链接会让在途引用或分代 GC 中尚未回收的旧节点延长后继对象的存活。类似的 GC 队列节点脱链动机见 [OpenJDK ConcurrentLinkedQueue](https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentLinkedQueue.java)。这里不能将旧 next 恢复为自身，因为自身表示仍可入队的空末端，迟到生产者的 CAS 会误成功。终止标记不进入 head／tail；读取者先复核 head／tail 身份，持有退休节点的竞争者只重试，不能把标记当成普通工作。
 
 worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进入目标 frame TaskContext 并在退出时恢复；worker 外层环境不能残留上一任务的 Job、binding 或 execution。等待路径 NativeSafe，运行路径保留普通 GC safepoint。
 
@@ -542,7 +544,7 @@ worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进
 
 ### 9.3 Work stealing 与停车
 
-新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时更新该归属。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他队列的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有快捷槽反复越过已经排队的工作。窃取直接执行领取的工作，不反复搬移节点或另建转运队列。
+新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时以 Relaxed 原子序更新该归属。归属只选择有效的目标队列，旧值仍合法；payload 的发布同步来自队列 CAS，不从归属读取推导 happens-before。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他队列的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有快捷槽反复越过已经排队的工作。窃取直接执行领取的工作，不反复搬移节点或另建转运队列。
 
 每个 worker 有独立的 parking mutex／condition 和原子 Awake／Observing／Notified 状态。准备停车时先注册观察者并发布 Observing，然后扫描全部队列；仍无工作才在自己的 mutex 下检查状态并 await。发布者先完成队列 CAS，再把一个 Observing 改为 Notified，最后在该 worker 的 mutex 下 signal；通知与等待之间因此没有遗漏窗口。已经找到工作却收到通知的 worker 会将通知转交其他观察者，避免将未消费工作的通知吞掉。关闭通知全部观察者，worker 在无可领工作且已关闭时退出。同步只用于休眠与生命周期，入队、出队和窃取不获取 mutex。
 

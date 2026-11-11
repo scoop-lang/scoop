@@ -2409,6 +2409,8 @@ execution 是低层任务的内部 managed 执行对象，与 Job 树、普通 C
 
 对合法活动登记，dispatch/dispatchBlocking 必须保活、接受并恰好执行 work 一次，不因 Draining 拒绝，不在调用 dispatch 的栈内运行。其他 worker 可以在 dispatch 返回前执行，发布前必须准备好全部状态及根。dispatchBlocking 使用独立阻塞队列，不能直接驱动等待者的 coroutine frame。这些合法投递及 complete 不抛普通异常；不变量破坏与不可恢复分配失败遵守既有 runtime 规则。完成后投递或重复 complete 是协议错误。登记在最终 completion 通知结束且驱动退出后释放一次；取消不能提前释放仍有执行义务的登记。
 
+同一登记的 dispatch 与 complete 重叠时，投递可以先被接纳，或因登记已完成而报协议状态错误；成功返回的投递必须恰好执行一次，不能丢在关闭后的队列中。complete 已返回之后才开始的投递必须拒绝。普通协程驱动按上述登记生命周期避免这种竞争。
+
 startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保留明确的立即启动语义，并继承当前 executor。真实挂起之后，有 executor 的外部恢复总是排队回目标 execution；无 executor 时可在恢复线程继续，但也必须经过任务级驱动互斥。结果提交与恢复调度分离，已经提交的成功不能被排队期间的取消覆盖。
 
 所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。

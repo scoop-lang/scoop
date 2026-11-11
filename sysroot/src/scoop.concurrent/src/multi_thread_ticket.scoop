@@ -5,24 +5,12 @@ internal class MultiThreadTicket(
     worker: Int
 ): ExecutorTask {
     internal val affinity = AtomicInt(worker)
-    // Low bit is admission; the remaining bits count publishers that have entered.
-    private val publication = AtomicLong(1L)
-    internal val active: Boolean get() = publication.load() % 2L == 1L
+    private val admitted = AtomicBoolean(true)
+    internal val active: Boolean get() = admitted.load()
 
-    internal fun beginPublication() {
-        var current = publication.load()
-        while (true) {
-            if (current % 2L == 0L)
-                throw IllegalStateException(Some("executor task is already complete"))
-            if (publication.compareAndSet(current, current + 2L))
-                return
-            current = publication.load()
-        }
-    }
-
-    internal fun endPublication() {
-        if (publication.fetchSub(2L) == 2L)
-            owner.retireTask()
+    // The owner serializes registration and retirement with its lifecycle mutex.
+    internal fun retire() {
+        admitted.store(false)
     }
 
     public override val executor: CoroutineExecutor get() = owner
@@ -36,16 +24,6 @@ internal class MultiThreadTicket(
     }
 
     public override fun complete() {
-        var current = publication.load()
-        while (true) {
-            if (current % 2L == 0L)
-                throw IllegalStateException(Some("executor task is already complete"))
-            if (publication.compareAndSet(current, current - 1L)) {
-                if (current == 1L)
-                    owner.retireTask()
-                return
-            }
-            current = publication.load()
-        }
+        owner.complete(this)
     }
 }

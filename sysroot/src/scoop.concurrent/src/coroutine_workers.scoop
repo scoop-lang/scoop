@@ -42,12 +42,12 @@ internal class CoroutineWorkers private constructor(count: Int) {
         }
     }
 
-    internal fun submit(affinity: AtomicInt, work: CoroutineWork) {
-        if (stopping.load())
-            throw ExecutorClosedException()
-        val target = affinity.load()
-        records[target.toLong()].queue.put(CoroutineSubmission(affinity, work))
+    internal fun submit(affinity: AtomicInt, work: CoroutineWork): Boolean {
+        val target = affinity.load(MemoryOrder.Relaxed)
+        if (!records[target.toLong()].queue.tryPut(CoroutineSubmission(affinity, work)))
+            return false
         notifyOne(target)
+        return true
     }
 
     private fun notifyOne(preferred: Int) {
@@ -93,7 +93,7 @@ internal class CoroutineWorkers private constructor(count: Int) {
     }
 
     private fun execute(record: CoroutineWorker, work: CoroutineSubmission) {
-        work.affinity.store(record.index)
+        work.affinity.store(record.index, MemoryOrder.Relaxed)
         work.work.run()
     }
 
@@ -173,6 +173,8 @@ internal class CoroutineWorkers private constructor(count: Int) {
     internal fun onTermination(handler: () -> Unit): Disposable = listeners.subscribe(handler)
 
     internal fun requestShutdown() {
+        for (record in records)
+            record.queue.close()
         stopping.store(true)
         for (record in records)
             record.notify()

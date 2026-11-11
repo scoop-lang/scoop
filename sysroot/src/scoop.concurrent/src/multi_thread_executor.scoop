@@ -60,7 +60,7 @@ public class MultiThreadExecutor internal constructor(
                     case Some(val parent) -> if (
                         parent is MultiThreadTicket && parent.owner === this
                     )
-                        parent.affinity.load()
+                        parent.affinity.load(MemoryOrder.Relaxed)
                     else
                         workers.chooseWorker()
                     case None -> workers.chooseWorker()
@@ -109,40 +109,40 @@ public class MultiThreadExecutor internal constructor(
     }
 
     internal fun dispatch(ticket: MultiThreadTicket, work: CoroutineWork) {
-        ticket.beginPublication()
-        try {
-            workers.submit(ticket.affinity, work)
-        } finally {
-            ticket.endPublication()
-        }
+        requireActive(ticket)
+        if (!workers.submit(ticket.affinity, work))
+            throw IllegalStateException(Some("executor task is already complete"))
     }
 
     internal fun dispatchBlocking(ticket: MultiThreadTicket, work: BlockingWork) {
-        ticket.beginPublication()
-        try {
-            lock.withLock {
-                blockingWork += 1L
-                try {
-                    blockingPool.submit(ExecutorBlockingWork(this, work))
-                }
-                catch (error: Throwable) {
-                    blockingWork -= 1L
-                    throw error
-                }
+        lock.withLock {
+            requireActive(ticket)
+            blockingWork += 1L
+            try {
+                blockingPool.submit(ExecutorBlockingWork(this, work))
             }
-        } finally {
-            ticket.endPublication()
+            catch (error: Throwable) {
+                blockingWork -= 1L
+                throw error
+            }
         }
     }
 
-    internal fun retireTask() {
+    internal fun complete(ticket: MultiThreadTicket) {
         val stop =
             lock.withLock {
+                requireActive(ticket)
+                ticket.retire()
                 tasks -= 1L
                 shouldStopWorkers()
             }
         if (stop)
             stopWorkers()
+    }
+
+    private fun requireActive(ticket: MultiThreadTicket) {
+        if (!ticket.active)
+            throw IllegalStateException(Some("executor task is already complete"))
     }
 
     internal fun runBlocking(work: BlockingWork) {
