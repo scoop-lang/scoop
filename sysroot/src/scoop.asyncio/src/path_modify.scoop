@@ -44,7 +44,7 @@ internal suspend fun deleteFileOnLoop(loop: LoopOwner, path: Path) {
 
 internal fun deleteFileForCleanup(loop: LoopOwner, path: Path, complete: (Throwable?) -> Unit) {
     val operation =
-        LoopOperation(
+        CallbackOperation(
             loop,
             loop.nextOperation(),
             { native, id -> nativeStatus(id, deletePathNative(path, native, id)) },
@@ -101,7 +101,7 @@ private suspend fun pathModification(
     suspendCoroutine<Unit> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 { native, id -> nativeStatus(id, start(native, id)) },

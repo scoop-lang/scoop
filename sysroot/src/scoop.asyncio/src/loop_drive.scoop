@@ -4,6 +4,10 @@ package scoop.asyncio
 internal class LoopDriver {
     private var pumping: Boolean = false
     private var pumpAgain: Boolean = false
+    // The owner lends empty storage to each producer and keeps its snapshot for this turn.
+    private var commands = ArrayList<LoopWork>()
+    private var localCommands = ArrayList<LoopWork>()
+    private var ready = ArrayList<LoopWork>()
 
     fun pump(owner: LoopOwner, native: Ptr<Unit>): Boolean {
         if (pumping) {
@@ -12,40 +16,47 @@ internal class LoopDriver {
         }
         pumping = true
         try {
-            val pending = owner.takeCommands()
+            commands = owner.takeCommands(commands)
+            localCommands = owner.takeLocalCommands(localCommands)
             owner.poll(native, false)
-            var completions = 0L
             @Unsafe
             {
-                completions = nativeLoopBatchSize(native)
-            }
-            for (command in pending)
-                command()
-            var index = 0L
-            while (index < completions) {
-                @Unsafe
-                {
-                    owner.complete(decodeEvent(nativeLoopNext(native)))
+                val completions = nativeLoopTakeBatch(native)
+                runBatch(commands)
+                runBatch(localCommands)
+                var index = 0L
+                while (index < completions.count) {
+                    owner.complete(decodeEvent(completions.records.load(index)))
+                    index += 1L
                 }
-                index += 1L
             }
             owner.startCleanup()
-            val batch = owner.ready
-            owner.ready = ArrayList<() -> Unit>()
-            for (resume in batch)
-                resume()
+            ready = owner.takeReady(ready)
+            runBatch(ready)
             owner.startCleanup()
+            owner.advanceTimers()
             owner.dispatchBlocking(native)
         } finally {
+            owner.flushTransfers()
+            commands.clear()
+            localCommands.clear()
+            ready.clear()
             pumping = false
             @Unsafe
             {
-                if (pumpAgain || owner.hasQueuedWork() || nativeLoopBatchSize(native) != 0L)
-                    nativeLoopWake(native)
+                nativeLoopRearm(native, pumpAgain || owner.hasQueuedWork())
             }
             pumpAgain = false
         }
         return true
+    }
+
+    private fun runBatch(batch: ArrayList<LoopWork>) {
+        var index = 0L
+        while (index < batch.size) {
+            batch[index].run()
+            index += 1L
+        }
     }
 
     fun drive(owner: LoopOwner, native: Ptr<Unit>) {

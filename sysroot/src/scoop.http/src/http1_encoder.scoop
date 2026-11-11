@@ -24,17 +24,27 @@ public enum Http1BodyFraming {
      * Response body ends when the transport closes; the caller must close the connection after
      * output.
      */
-    Eof }
+    Eof
+}
+
+/** The bytes surrounding one accepted body prefix; the payload itself stays with the caller. */
+public struct Http1BodyChunk(
+    /** Bytes emitted before the accepted body prefix. */
+    val prefix: Array<Byte>,
+    /** Bytes emitted after the entire accepted body prefix. */
+    val suffix: Array<Byte>
+)
 
 /**
- * An in-memory HTTP/1 encoder with explicit message begin, body, and finish. It produces bytes
+ * An HTTP/1 encoder with explicit message begin, body, and finish. It produces framing bytes
  * without performing transport I/O; close does not finish a message.
  */
 public class Http1Encoder public constructor(
     /**
      * The fixed client/server role of this codec.
      */
-    public val role: HttpRole) : Closeable {
+    public val role: HttpRole
+): Closeable {
     private var closed: Boolean = false
     private var active: Boolean = false
     private var closing: Boolean = false
@@ -60,21 +70,32 @@ public class Http1Encoder public constructor(
     public val isSwitched: Boolean get() = switched
 
     private fun requireOpen() {
-        if (closed) throw IllegalStateException(Some("HTTP/1 encoder is closed"))
+        if (closed)
+            throw IllegalStateException(Some("HTTP/1 encoder is closed"))
     }
 
     private fun requireBegin(expected: HttpRole) {
         requireOpen()
-        if (role != expected || active || closing) throw IllegalStateException(Some("cannot begin another HTTP/1 message here"))
+        if (role != expected || active || closing)
+            throw IllegalStateException(Some("cannot begin another HTTP/1 message here"))
     }
 
-    private fun begin(output: ByteArrayBuilder, fields: Array<HttpField>, version: HttpVersion,
-        mode: Http1BodyFraming, kind: Http1HeadKind): Array<Byte> {
+    private fun begin(
+        output: ByteArrayBuilder,
+        fields: Array<HttpField>,
+        version: HttpVersion,
+        mode: Http1BodyFraming,
+        kind: Http1HeadKind
+    ): Array<Byte> {
         val close = appendHttp1Headers(output, fields, version, mode, kind)
         val bytes = output.toByteArray()
         active = true
         framing = mode
-        remaining = when (mode) { case Length(val count) -> count; else -> 0L }
+        remaining =
+            when (mode) {
+                case Length(val count) -> count;
+                else -> 0L
+            }
         closing = close
         switched = kind == Http1HeadKind.Switch
         return bytes
@@ -84,21 +105,27 @@ public class Http1Encoder public constructor(
      * Validates and encodes a client request head, selecting explicit body framing. Every
      * successful begin requires finish.
      */
-    public fun beginRequest(head: HttpRequestHead, body: Http1BodyFraming = Http1BodyFraming.Empty): Array<Byte> {
+    public fun beginRequest(
+        head: HttpRequestHead,
+        body: Http1BodyFraming = Http1BodyFraming.Empty
+    ): Array<Byte> {
         requireBegin(HttpRole.Client)
         requireHttp1Method(head.method)
-        val target = when (head.target) {
-            case Http1(val bytes) -> bytes
-            else -> throw IllegalArgumentException(Some("HTTP/1 requires a raw request target"))
-        }
-        if (target.size == 0L) throw IllegalArgumentException(Some("HTTP request target is empty"))
+        val target =
+            when (head.target) {
+                case Http1(val bytes) -> bytes
+                else -> throw IllegalArgumentException(Some("HTTP/1 requires a raw request target"))
+            }
+        if (target.size == 0L)
+            throw IllegalArgumentException(Some("HTTP request target is empty"))
         for (byte in target) {
             val value = byte.toUByte().toInt()
-            if (value <= 32 || value == 127) throw IllegalArgumentException(Some("invalid HTTP request target byte"))
+            if (value <= 32 || value == 127)
+                throw IllegalArgumentException(Some("invalid HTTP request target byte"))
         }
         val output = ByteArrayBuilder()
         output.append(head.method).append(32.toByte()).append(target).append(32.toByte())
-            .append((http1VersionText(head.version) + "\r\n").toByteArray())
+        .append((http1VersionText(head.version) + "\r\n").toByteArray())
         return begin(output, head.fields, head.version, body, Http1HeadKind.Request)
     }
 
@@ -106,50 +133,98 @@ public class Http1Encoder public constructor(
      * Encodes a server response using the exact originating method to determine body and switching
      * rules.
      */
-    public fun beginResponse(head: HttpResponseHead, requestMethod: List<Byte>,
-        body: Http1BodyFraming = Http1BodyFraming.Empty): Array<Byte> {
+    public fun beginResponse(
+        head: HttpResponseHead,
+        requestMethod: List<Byte>,
+        body: Http1BodyFraming = Http1BodyFraming.Empty
+    ): Array<Byte> {
         requireBegin(HttpRole.Server)
         val method = requestMethod.toArray()
         requireHttp1Method(method)
         val kind = http1ResponseKind(head, method)
         val output = ByteArrayBuilder()
-        output.append((http1VersionText(head.version) + " " + head.status.toString() + " ").toByteArray())
+        output.append(
+            (http1VersionText(head.version) + " " + head.status.toString() + " ").toByteArray()
+        )
         when (head.reason) {
-            case Some(val reason) -> { requireHttpValue(reason); output.append(reason) }
+            case Some(val reason) -> {
+                requireHttpValue(reason);
+                output.append(reason)
+            }
             case None -> {}
         }
         output.append("\r\n".toByteArray())
         return begin(output, head.fields, head.version, body, kind)
     }
 
-    /**
-     * Consumes body bytes and returns their framed representation, rejecting writes beyond the
-     * declared length.
-     */
-    public fun writeBody(buffer: NativeByteBuffer, count: Long = buffer.readableBytes): Array<Byte> {
+    private fun frameBody(count: Long): Http1BodyChunk {
         requireOpen()
-        if (!active) throw IllegalStateException(Some("HTTP/1 message has not begun"))
-        if (count < 0L || count > buffer.readableBytes) throw IllegalArgumentException(Some("invalid HTTP body count"))
-        if (count == 0L) return "".toByteArray()
+        if (!active)
+            throw IllegalStateException(Some("HTTP/1 message has not begun"))
+        if (count < 0L)
+            throw IllegalArgumentException(Some("invalid HTTP body count"))
+        if (count == 0L)
+            return Http1BodyChunk("".toByteArray(), "".toByteArray())
         when (framing) {
             case Empty -> throw IllegalStateException(Some("this HTTP message has no body"))
             case Length(_) -> {
-                if (count > remaining) throw IllegalArgumentException(Some("HTTP body exceeds Content-Length"))
+                if (count > remaining)
+                    throw IllegalArgumentException(Some("HTTP body exceeds Content-Length"))
             }
             else -> {}
         }
+        if (framing == Http1BodyFraming.Chunked)
+            return Http1BodyChunk((count.toString(16) + "\r\n").toByteArray(), "\r\n".toByteArray())
+        return Http1BodyChunk("".toByteArray(), "".toByteArray())
+    }
+
+    private fun acceptBody(count: Long) {
+        when (framing) {
+            case Length(_) -> remaining -= count;
+            else -> {}
+        }
+    }
+
+    /**
+     * Accepts a body length and returns only its surrounding framing. The caller emits prefix,
+     * its original payload, then suffix; a failed transmission must not retry this accepted chunk.
+     */
+    public fun prepareBody(count: Long): Http1BodyChunk {
+        val chunk = frameBody(count)
+        acceptBody(count)
+        return chunk
+    }
+
+    /**
+     * Consumes body bytes and returns their complete framed representation for in-memory use.
+     * Rejected or failed encoding leaves the input position and declared length unchanged.
+     */
+    public fun writeBody(buffer: NativeByteBuffer, count: Long = buffer.readableBytes): Array<
+        Byte
+    > {
+        if (count < 0L || count > buffer.readableBytes)
+            throw IllegalArgumentException(Some("invalid HTTP body count"))
+        val chunk = frameBody(count)
+        if (count == 0L)
+            return chunk.prefix
         val output = ByteArrayBuilder()
-        if (framing == Http1BodyFraming.Chunked) output.append((count.toString(16) + "\r\n").toByteArray())
-        @Unsafe {
-            val bytes = buffer.withReadableBytes { pointer, _ ->
-                @Unsafe { return@withReadableBytes httpBytes(NativeHttpBytes(pointer, count)) }
-            }
+        output.append(chunk.prefix)
+        @Unsafe
+        {
+            val bytes =
+                buffer.withReadableBytes {
+                    pointer,
+                    _ -> @Unsafe
+                    {
+                        return@withReadableBytes httpBytes(NativeHttpBytes(pointer, count))
+                    }
+                }
             output.append(bytes)
         }
-        if (framing == Http1BodyFraming.Chunked) output.append("\r\n".toByteArray())
+        output.append(chunk.suffix)
         val result = output.toByteArray()
         buffer.skip(count)
-        when (framing) { case Length(_) -> remaining -= count; else -> {} }
+        acceptBody(count)
         return result
     }
 
@@ -159,8 +234,10 @@ public class Http1Encoder public constructor(
      */
     public fun finish(trailers: List<HttpField> = ArrayList<HttpField>()): Array<Byte> {
         requireOpen()
-        if (!active) throw IllegalStateException(Some("HTTP/1 message has not begun"))
-        if (remaining != 0L) throw IllegalStateException(Some("HTTP body ended before Content-Length"))
+        if (!active)
+            throw IllegalStateException(Some("HTTP/1 message has not begun"))
+        if (remaining != 0L)
+            throw IllegalStateException(Some("HTTP body ended before Content-Length"))
         val output = ByteArrayBuilder()
         if (framing == Http1BodyFraming.Chunked) {
             output.append("0\r\n".toByteArray())
@@ -169,7 +246,9 @@ public class Http1Encoder public constructor(
                 appendHttp1Field(output, field)
             }
             output.append("\r\n".toByteArray())
-        } else if (trailers.size != 0L) throw IllegalArgumentException(Some("HTTP/1 trailers require chunked framing"))
+        } else
+            if (trailers.size != 0L)
+                throw IllegalArgumentException(Some("HTTP/1 trailers require chunked framing"))
         val result = output.toByteArray()
         active = false
         return result
@@ -178,5 +257,8 @@ public class Http1Encoder public constructor(
     /**
      * Releases codec state without sending, finishing, or closing a transport.
      */
-    public override fun close() { closed = true; active = false }
+    public override fun close() {
+        closed = true;
+        active = false
+    }
 }

@@ -24,7 +24,7 @@ private class AsyncTlsRuntimeTest {
                 val bytes = Array<Byte>(size) { index -> (index % 127L).toByte() }
                 val echo =
                     launch(loop.executor) {
-                        assertEquals(owner, currentThreadId())
+                        assertNotEquals(owner, currentThreadId())
                         NativeByteBuffer.allocate(size).use {
                             buffer ->
                             server.readFully(buffer, size)

@@ -1,0 +1,149 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingTaskPool
+import scoop.concurrent.CoroutineWorkerDriver
+import scoop.concurrent.MultiThreadExecutor
+import scoop.time.Duration
+import scoop.platform.net.*
+import scoop.platform.system.OsString
+import scoop.platform.fs.*
+
+// One public service binding; resources retain one of its physical reactor owners.
+internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Closeable {
+    val identity = RuntimeWorkerContext.nextIdentity()
+    private val reactors =
+        Array<RuntimeReactor>(count.toLong()) { index -> RuntimeReactor(this, index.toInt()) }
+    private val assignment = AtomicInt(0)
+    private var execution: MultiThreadExecutor? = None
+    var rootFailure: Throwable? = None
+
+    companion object {
+        fun create(count: Int, pool: BlockingTaskPool): RuntimeEventLoop {
+            val runtime = RuntimeEventLoop(count)
+            try {
+                for (reactor in runtime.reactors)
+                    reactor.open(pool)
+                return runtime
+            } catch (error: Throwable) {
+                runtime.use { _ -> throw error }
+            }
+        }
+    }
+
+    val drivers: Array<CoroutineWorkerDriver> get() =
+        Array<CoroutineWorkerDriver>(reactors.size) { index -> reactors[index] }
+
+    fun bindExecutor(executor: MultiThreadExecutor) {
+        execution = Some(executor)
+    }
+
+    fun bindRoot(job: Job) {
+        for (reactor in reactors)
+            reactor.owner.bindRoot(job)
+    }
+
+    fun isCurrentWorker(index: Int): Boolean = RuntimeWorkerContext.current(identity) == index
+
+    fun nextOwner(): LoopOwner {
+        var current = assignment.load(MemoryOrder.Relaxed)
+        while (true) {
+            val next =
+                if (current + 1 == reactors.size.toInt())
+                    0
+                else
+                    current + 1
+            if (assignment.compareAndSet(current, next, MemoryOrder.Relaxed, MemoryOrder.Relaxed))
+                return reactors[current.toLong()].owner
+            current = assignment.load(MemoryOrder.Relaxed)
+        }
+    }
+
+    private fun owner(): LoopOwner {
+        val index = RuntimeWorkerContext.current(identity)
+        return if (index >= 0)
+            reactors[index.toLong()].owner
+        else
+            nextOwner()
+    }
+
+    public override val executor: CoroutineExecutor get() {
+        val executor = execution ?: throw IllegalStateException(Some("event loop is not running"))
+        if (executor.isTerminated)
+            throw IllegalStateException(Some("event loop executor has terminated"))
+        return executor
+    }
+
+    public override fun close() {
+        var failure = rootFailure
+        for (reactor in reactors) {
+            reactor.close()
+            failure = runtimeFailure(failure, reactor.failure)
+        }
+        when (failure) {
+            case Some(val error) -> throw error
+            case None -> {}
+        }
+    }
+
+    public override suspend fun sleep(duration: Duration) {
+        sleepOnLoop(owner(), duration)
+    }
+    public override fun schedule(duration: Duration, completion: (Throwable?) -> Unit): Disposable =
+        scheduleOnLoop(owner(), duration, completion)
+    public override suspend fun resolve(host: OsString, port: Int, family: AddressFamily?): Array<
+        SocketAddress
+    > = resolveOnLoop(owner(), host, port, family)
+    public override suspend fun openFile(path: Path, options: OpenOptions): AsyncFile =
+        openFileOnLoop(owner(), path, options)
+    public override suspend fun openTty(): AsyncTty = openTtyOnLoop(owner())
+    public override suspend fun metadata(path: Path, followLinks: Boolean): FileMetadata =
+        metadataOnLoop(owner(), path, followLinks)
+    public override suspend fun moveFile(
+        source: Path,
+        destination: Path,
+        replaceExisting: Boolean
+    ) {
+        moveFileOnLoop(owner(), source, destination, replaceExisting)
+    }
+    public override suspend fun deleteFile(path: Path) {
+        deleteFileOnLoop(owner(), path)
+    }
+    public override suspend fun createDirectories(path: Path, mode: Int) {
+        createDirectoriesOnLoop(owner(), path, mode)
+    }
+    public override suspend fun createTempFile(parent: Path?, prefix: String): TemporaryFile =
+        createTemporaryFileOnLoop(owner(), parent, prefix)
+    public override suspend fun openDirectory(path: Path): AsyncDirectoryEntries =
+        openDirectoryOnLoop(owner(), path)
+    public override suspend fun connectTcp(address: SocketAddress): AsyncTcpStream =
+        connectTcpOnLoop(owner(), address)
+    public override suspend fun connectTcp(
+        host: OsString,
+        port: Int,
+        options: TcpConnectOptions
+    ): AsyncTcpStream = connectTcpHostOnLoop(owner(), host, port, options)
+    public override suspend fun listenTcp(
+        address: SocketAddress,
+        backlog: Int,
+        reuseAddress: Boolean
+    ): AsyncTcpListener = listenTcpOnLoop(owner(), address, backlog, reuseAddress)
+    public override suspend fun bindUdp(
+        address: SocketAddress,
+        reuseAddress: Boolean
+    ): AsyncUdpSocket = bindUdpOnLoop(owner(), address, reuseAddress)
+}
+
+private fun runtimeFailure(primary: Throwable?, next: Throwable?): Throwable? =
+    when (next) {
+        case None -> primary
+        case Some(val next) -> when (primary) {
+            case None -> Some(next)
+            case Some(val primary) -> if (next is CancellationException)
+                Some(primary)
+            else
+                if (primary is CancellationException)
+                    Some(next)
+                else
+                    Some(ResourceUseException(primary, next))
+        }
+    }

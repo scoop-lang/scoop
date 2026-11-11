@@ -43,7 +43,8 @@ public class Mutex: Disposable {
         withNative {
             pointer -> @Unsafe
             {
-                nativeMutexLock(pointer, false).check("mutex lock")
+                if (nativeMutexTryLock(pointer).check("mutex lock") != 0)
+                    nativeMutexLock(pointer, false).check("mutex lock")
             }
         }
     }
@@ -55,7 +56,7 @@ public class Mutex: Disposable {
         withNative {
             pointer -> @Unsafe
             {
-                return@withNative nativeMutexLock(pointer, true).check("mutex try lock") == 0
+                return@withNative nativeMutexTryLock(pointer).check("mutex try lock") == 0
             }
         }
 
@@ -116,6 +117,11 @@ private fun nativeMutexCreate(): (Ptr<Unit>?, Int)
 @Extern(name = "scoop_platform_mutex_lock")
 private fun nativeMutexLock(mutex: Ptr<Unit>, attempt: Boolean): NativeSyncResult
 
+@GCLeaf
+@Extern(name = "scoop_platform_mutex_try_lock")
+private fun nativeMutexTryLock(mutex: Ptr<Unit>): NativeSyncResult
+
+@GCLeaf
 @Extern(name = "scoop_platform_mutex_unlock")
 private fun nativeMutexUnlock(mutex: Ptr<Unit>): NativeSyncResult
 

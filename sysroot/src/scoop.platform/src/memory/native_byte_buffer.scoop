@@ -7,7 +7,7 @@ import scoop.platform.system.*
  * Owned growable native byte storage with separate read and write positions. Outstanding native
  * borrows restrict mutation and closure; explicitly close the buffer after use.
  */
-public class NativeByteBuffer private constructor() : Closeable {
+public class NativeByteBuffer private constructor(): Closeable {
     private var memory: Ptr<Byte>? = None
     private var storageCapacity: Long = 0L
     private var reader: Long = 0L
@@ -19,23 +19,43 @@ public class NativeByteBuffer private constructor() : Closeable {
     /**
      * The allocated byte capacity.
      */
-    public val capacity: Long get() = withState { requireOpen(); storageCapacity }
+    public val capacity: Long get() =
+        withState {
+            requireOpen();
+            storageCapacity
+        }
     /**
      * The absolute offset of the next readable byte.
      */
-    public val readPosition: Long get() = withState { requireOpen(); reader }
+    public val readPosition: Long get() =
+        withState {
+            requireOpen();
+            reader
+        }
     /**
      * The absolute offset immediately after initialized written bytes.
      */
-    public val writePosition: Long get() = withState { requireOpen(); writer }
+    public val writePosition: Long get() =
+        withState {
+            requireOpen();
+            writer
+        }
     /**
      * The byte count between read and write positions.
      */
-    public val readableBytes: Long get() = withState { requireOpen(); writer - reader }
+    public val readableBytes: Long get() =
+        withState {
+            requireOpen();
+            writer - reader
+        }
     /**
      * The remaining capacity after the write position.
      */
-    public val writableBytes: Long get() = withState { requireOpen(); storageCapacity - writer }
+    public val writableBytes: Long get() =
+        withState {
+            requireOpen();
+            storageCapacity - writer
+        }
     /**
      * Whether this owned resource has been closed.
      */
@@ -51,49 +71,63 @@ public class NativeByteBuffer private constructor() : Closeable {
         public fun allocate(capacity: Long = 0L): NativeByteBuffer {
             requireCount(capacity)
             val result = NativeByteBuffer()
-            if (capacity > 0L) result.ensureWritable(capacity)
+            if (capacity > 0L)
+                result.ensureWritable(capacity)
             return result
         }
     }
 
     private fun <T> withState(block: () -> T): T {
         while (!stateLock.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
-        try { return block() }
-        finally { stateLock.store(false, MemoryOrder.Release) }
+        try {
+            return block()
+        }
+        finally {
+            stateLock.store(false, MemoryOrder.Release)
+        }
     }
 
     private fun requireOpen() {
-        if (closed) throw IllegalStateException(Some("buffer is closed"))
+        if (closed)
+            throw IllegalStateException(Some("buffer is closed"))
     }
 
     private fun requireMutable() {
         requireOpen()
-        if (borrowed) throw IllegalStateException(Some("buffer is borrowed"))
+        if (borrowed)
+            throw IllegalStateException(Some("buffer is borrowed"))
     }
 
     private fun requireReadable(count: Long) {
         requireMutable()
         requireCount(count)
-        if (count > writer - reader) throw IndexOutOfBoundsException()
+        if (count > writer - reader)
+            throw IndexOutOfBoundsException()
     }
 
     private fun requireWritable(count: Long) {
         requireMutable()
         requireCount(count)
-        if (count > storageCapacity - writer) throw IndexOutOfBoundsException()
+        if (count > storageCapacity - writer)
+            throw IndexOutOfBoundsException()
     }
 
     private fun requireIndex(index: Long) {
         requireOpen()
-        if (index < 0L || index >= writer) throw IndexOutOfBoundsException()
+        if (index < 0L || index >= writer)
+            throw IndexOutOfBoundsException()
     }
 
     private fun resize(capacity: Long) {
-        @Unsafe {
-            val (next, error) = nativeMemoryResize(memory, capacity)
+        @Unsafe
+        {
+            val(next, error) = nativeMemoryResize(memory, capacity)
             if (next == None) {
-                throw PlatformException("allocate native buffer", PlatformErrorKind.NoMemory,
-                    Some(NativeError(NativeErrorDomain.PosixErrno, error)))
+                throw PlatformException(
+                    "allocate native buffer",
+                    PlatformErrorKind.NoMemory,
+                    Some(NativeError(NativeErrorDomain.PosixErrno, error))
+                )
             }
             val delta = capacity - storageCapacity
             memory = next
@@ -110,11 +144,22 @@ public class NativeByteBuffer private constructor() : Closeable {
         withState {
             requireMutable()
             requireCount(count)
-            if (count <= storageCapacity - writer) return@withState
-            if (count > Long.MAX_VALUE - writer) throw ArithmeticException()
+            if (count <= storageCapacity - writer)
+                return@withState
+            if (count > Long.MAX_VALUE - writer)
+                throw ArithmeticException()
             val needed = writer + count
-            val grown = if (storageCapacity <= Long.MAX_VALUE / 2L) storageCapacity * 2L else Long.MAX_VALUE
-            resize(if (grown > needed) grown else needed)
+            val grown =
+                if (storageCapacity <= Long.MAX_VALUE / 2L)
+                    storageCapacity * 2L
+                else
+                    Long.MAX_VALUE
+            resize(
+                if (grown > needed)
+                    grown
+                else
+                    needed
+            )
         }
     }
 
@@ -137,7 +182,10 @@ public class NativeByteBuffer private constructor() : Closeable {
             requireMutable()
             val count = writer - reader
             if (count > 0L && reader > 0L) {
-                @Unsafe { nativeMemoryMove(memory!!, memory!! + reader, count) }
+                @Unsafe
+                {
+                    nativeMemoryMove(memory!!, memory!! + reader, count)
+                }
             }
             reader = 0L
             writer = count
@@ -160,7 +208,10 @@ public class NativeByteBuffer private constructor() : Closeable {
     public fun getByte(index: Long): Byte {
         return withState {
             requireIndex(index)
-            @Unsafe { return@withState memory!!.load(index) }
+            @Unsafe
+            {
+                return@withState memory!!.load(index)
+            }
         }
     }
 
@@ -171,8 +222,14 @@ public class NativeByteBuffer private constructor() : Closeable {
         return withState {
             requireOpen()
             requireCount(count)
-            if (index < 0L || index > writer || count > writer - index) throw IndexOutOfBoundsException()
-            return@withState Array<Byte>(count) { offset -> @Unsafe { return@Array memory!!.load(index + offset) } }
+            if (index < 0L || index > writer || count > writer - index)
+                throw IndexOutOfBoundsException()
+            return@withState Array<Byte>(count) {
+                offset -> @Unsafe
+                {
+                    return@Array memory!!.load(index + offset)
+                }
+            }
         }
     }
 
@@ -183,7 +240,10 @@ public class NativeByteBuffer private constructor() : Closeable {
         withState {
             requireMutable()
             requireIndex(index)
-            @Unsafe { memory!!.store(index, value) }
+            @Unsafe
+            {
+                memory!!.store(index, value)
+            }
         }
     }
 
@@ -194,7 +254,9 @@ public class NativeByteBuffer private constructor() : Closeable {
     /**
      * Appends one byte and advances the write position.
      */
-    public fun writeByte(value: Byte) { writeInt8(value) }
+    public fun writeByte(value: Byte) {
+        writeInt8(value)
+    }
 
     /**
      * Copies count readable bytes into an independent array and advances the read position.
@@ -203,7 +265,13 @@ public class NativeByteBuffer private constructor() : Closeable {
         return withState {
             requireReadable(count)
             val start = reader
-            val result = Array<Byte>(count) { index -> @Unsafe { return@Array memory!!.load(start + index) } }
+            val result =
+                Array<Byte>(count) {
+                    index -> @Unsafe
+                    {
+                        return@Array memory!!.load(start + index)
+                    }
+                }
             reader += count
             return@withState result
         }
@@ -213,13 +281,24 @@ public class NativeByteBuffer private constructor() : Closeable {
      * Copies exactly count readable bytes into the selected array region and advances the read
      * position.
      */
-    public fun readInto(array: MutableArray<Byte>, offset: Long = 0L, count: Long = array.size - offset) {
+    public fun readInto(
+        array: MutableArray<Byte>,
+        offset: Long = 0L,
+        count: Long = array.size - offset
+    ) {
         withState {
             requireReadable(count)
             requireArrayRange(array.size, offset, count)
             if (count > 0L) {
-                @Unsafe {
-                    array.withDataPointer { pointer, _ -> @Unsafe { nativeMemoryMove(pointer + offset, memory!! + reader, count) } }
+                @Unsafe
+                {
+                    array.withDataPointer {
+                        pointer,
+                        _ -> @Unsafe
+                        {
+                            nativeMemoryMove(pointer + offset, memory!! + reader, count)
+                        }
+                    }
                 }
             }
             reader += count
@@ -231,13 +310,37 @@ public class NativeByteBuffer private constructor() : Closeable {
      */
     public fun writeBytes(array: List<Byte>, offset: Long = 0L, count: Long = array.size - offset) {
         requireArrayRange(array.size, offset, count)
-        @Unsafe {
-            withWritableBytes { destination, available ->
-                if (count > available) throw IndexOutOfBoundsException()
+        @Unsafe
+        {
+            withWritableBytes {
+                destination, available ->
+                if (count > available)
+                    throw IndexOutOfBoundsException()
                 if (count > 0L) {
-                    val snapshot = Array<Byte>(count) { index -> array[offset + index] }
-                    @Unsafe {
-                        snapshot.withDataPointer { pointer, _ -> @Unsafe { nativeMemoryMove(destination!!, pointer, count) } }
+                    if (array is Array<Byte>) {
+                        val source = array as Array<Byte>
+                        @Unsafe
+                        {
+                            source.withDataPointer {
+                                pointer,
+                                _ -> @Unsafe
+                                {
+                                    nativeMemoryMove(destination!!, pointer + offset, count)
+                                }
+                            }
+                        }
+                    } else {
+                        val snapshot = Array<Byte>(count) { index -> array[offset + index] }
+                        @Unsafe
+                        {
+                            snapshot.withDataPointer {
+                                pointer,
+                                _ -> @Unsafe
+                                {
+                                    nativeMemoryMove(destination!!, pointer, count)
+                                }
+                            }
+                        }
                     }
                 }
                 count
@@ -250,9 +353,14 @@ public class NativeByteBuffer private constructor() : Closeable {
             requireReadable(width)
             var value = 0uL
             var index = 0L
-            @Unsafe {
+            @Unsafe
+            {
                 while (index < width) {
-                    val offset = if (order == ByteOrder.BigEndian) index else width - index - 1L
+                    val offset =
+                        if (order == ByteOrder.BigEndian)
+                            index
+                        else
+                            width - index - 1L
                     value = (value shl 8L) or memory!!.load(reader + offset).toUByte().toULong()
                     index += 1L
                 }
@@ -266,9 +374,17 @@ public class NativeByteBuffer private constructor() : Closeable {
         withState {
             requireWritable(width)
             var index = 0L
-            @Unsafe {
+            @Unsafe
+            {
                 while (index < width) {
-                    val shift = (if (order == ByteOrder.BigEndian) width - index - 1L else index) * 8L
+                    val shift =
+                        (
+                            if (order == ByteOrder.BigEndian)
+                                width - index - 1L
+                            else
+                                index
+                        ) *
+                            8L
                     memory!!.store(writer + index, (value shr shift).toByte())
                     index += 1L
                 }
@@ -321,51 +437,71 @@ public class NativeByteBuffer private constructor() : Closeable {
     /**
      * Appends 1 bytes representing Int8 and advances the write position.
      */
-    public fun writeInt8(value: Int8) { write(value.toULong(), 1L, ByteOrder.BigEndian) }
+    public fun writeInt8(value: Int8) {
+        write(value.toULong(), 1L, ByteOrder.BigEndian)
+    }
     /**
      * Appends 1 bytes representing UInt8 and advances the write position.
      */
-    public fun writeUInt8(value: UInt8) { write(value.toULong(), 1L, ByteOrder.BigEndian) }
+    public fun writeUInt8(value: UInt8) {
+        write(value.toULong(), 1L, ByteOrder.BigEndian)
+    }
     /**
      * Appends 2 bytes representing Int16 in the selected byte order and advances the write
      * position.
      */
-    public fun writeInt16(value: Int16, order: ByteOrder) { write(value.toULong(), 2L, order) }
+    public fun writeInt16(value: Int16, order: ByteOrder) {
+        write(value.toULong(), 2L, order)
+    }
     /**
      * Appends 2 bytes representing UInt16 in the selected byte order and advances the write
      * position.
      */
-    public fun writeUInt16(value: UInt16, order: ByteOrder) { write(value.toULong(), 2L, order) }
+    public fun writeUInt16(value: UInt16, order: ByteOrder) {
+        write(value.toULong(), 2L, order)
+    }
     /**
      * Appends 4 bytes representing Int32 in the selected byte order and advances the write
      * position.
      */
-    public fun writeInt32(value: Int32, order: ByteOrder) { write(value.toULong(), 4L, order) }
+    public fun writeInt32(value: Int32, order: ByteOrder) {
+        write(value.toULong(), 4L, order)
+    }
     /**
      * Appends 4 bytes representing UInt32 in the selected byte order and advances the write
      * position.
      */
-    public fun writeUInt32(value: UInt32, order: ByteOrder) { write(value.toULong(), 4L, order) }
+    public fun writeUInt32(value: UInt32, order: ByteOrder) {
+        write(value.toULong(), 4L, order)
+    }
     /**
      * Appends 8 bytes representing Int64 in the selected byte order and advances the write
      * position.
      */
-    public fun writeInt64(value: Int64, order: ByteOrder) { write(value.toULong(), 8L, order) }
+    public fun writeInt64(value: Int64, order: ByteOrder) {
+        write(value.toULong(), 8L, order)
+    }
     /**
      * Appends 8 bytes representing UInt64 in the selected byte order and advances the write
      * position.
      */
-    public fun writeUInt64(value: UInt64, order: ByteOrder) { write(value, 8L, order) }
+    public fun writeUInt64(value: UInt64, order: ByteOrder) {
+        write(value, 8L, order)
+    }
     /**
      * Appends 4 bytes representing Float in the selected byte order and advances the write
      * position.
      */
-    public fun writeFloat(value: Float, order: ByteOrder) { writeInt32(value.toBits(), order) }
+    public fun writeFloat(value: Float, order: ByteOrder) {
+        writeInt32(value.toBits(), order)
+    }
     /**
      * Appends 8 bytes representing Double in the selected byte order and advances the write
      * position.
      */
-    public fun writeDouble(value: Double, order: ByteOrder) { writeInt64(value.toBits(), order) }
+    public fun writeDouble(value: Double, order: ByteOrder) {
+        writeInt64(value.toBits(), order)
+    }
 
     /**
      * Borrows the readable pointer and length only for the callback; the pointer must not escape.
@@ -374,8 +510,12 @@ public class NativeByteBuffer private constructor() : Closeable {
     @Unsafe
     public fun <R> withReadableBytes(block: (Ptr<Byte>?, Long) -> R): R {
         val borrow = beginBorrow(None, false)
-        try { return block(borrow.pointer(), borrow.length) }
-        finally { borrow.complete(0L) }
+        try {
+            return block(borrow.pointer(), borrow.length)
+        }
+        finally {
+            borrow.complete(0L)
+        }
     }
 
     /**
@@ -385,8 +525,14 @@ public class NativeByteBuffer private constructor() : Closeable {
     @Unsafe
     public fun withWritableBytes(block: (Ptr<Byte>?, Long) -> Long): Long {
         val borrow = beginBorrow(None, true)
-        val count = try { block(borrow.pointer(), borrow.length) }
-        catch (error: Throwable) { borrow.complete(0L); throw error }
+        val count =
+            try {
+                block(borrow.pointer(), borrow.length)
+            }
+            catch (error: Throwable) {
+                borrow.complete(0L);
+                throw error
+            }
         borrow.complete(count)
         return count
     }
@@ -405,26 +551,45 @@ public class NativeByteBuffer private constructor() : Closeable {
     @Unsafe
     public fun borrowWritable(count: Long): NativeByteBorrow = beginBorrow(Some(count), true)
 
-    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow = withState {
-        requireMutable()
-        val available = if (writable) storageCapacity - writer else writer - reader
-        val length = count ?: available
-        requireCount(length)
-        if (length > available) throw IndexOutOfBoundsException()
-        val offset = if (writable) writer else reader
-        @Unsafe {
-            val pointer: Ptr<Byte>? = if (length == 0L) None else Some(memory!! + offset)
-            val borrow = NativeByteBorrow(this, pointer, length, writable)
-            borrowed = true
-            return@withState borrow
+    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow =
+        withState {
+            requireMutable()
+            val available =
+                if (writable)
+                    storageCapacity - writer
+                else
+                    writer - reader
+            val length = count ?: available
+            requireCount(length)
+            if (length > available)
+                throw IndexOutOfBoundsException()
+            val offset =
+                if (writable)
+                    writer
+                else
+                    reader
+            @Unsafe
+            {
+                val pointer: Ptr<Byte>? =
+                    if (length == 0L)
+                        None
+                    else
+                        Some(memory!! + offset)
+                val borrow = NativeByteBorrow(this, pointer, length, writable)
+                borrowed = true
+                return@withState borrow
+            }
         }
-    }
 
     internal fun finishBorrow(count: Long, length: Long, writable: Boolean) {
         withState {
             borrowed = false
-            if (count < 0L || count > length) throw IllegalArgumentException(Some("invalid borrowed byte count"))
-            if (writable) writer += count else reader += count
+            if (count < 0L || count > length)
+                throw IllegalArgumentException(Some("invalid borrowed byte count"))
+            if (writable)
+                writer += count
+            else
+                reader += count
         }
     }
 
@@ -433,7 +598,8 @@ public class NativeByteBuffer private constructor() : Closeable {
      */
     public override fun close() {
         withState {
-            if (closed) return@withState
+            if (closed)
+                return@withState
             requireMutable()
             val owned = memory
             val capacity = storageCapacity
@@ -443,25 +609,34 @@ public class NativeByteBuffer private constructor() : Closeable {
             writer = 0L
             closed = true
             when (owned) {
-                case Some(val pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-capacity) }
+                case Some(val pointer) -> @Unsafe
+                {
+                    nativeMemoryFree(pointer);
+                    gcAdjustPressure(-capacity)
+                }
                 case None -> {}
             }
         }
     }
 
-
     release {
         when (memory) {
-            case Some(val pointer) -> @Unsafe { nativeMemoryFree(pointer); gcAdjustPressure(-storageCapacity) }
+            case Some(val pointer) -> @Unsafe
+            {
+                nativeMemoryFree(pointer);
+                gcAdjustPressure(-storageCapacity)
+            }
             case None -> {}
         }
     }
 }
 
 private fun requireCount(count: Long) {
-    if (count < 0L) throw IllegalArgumentException(Some("negative byte count"))
+    if (count < 0L)
+        throw IllegalArgumentException(Some("negative byte count"))
 }
 
 private fun requireArrayRange(size: Long, offset: Long, count: Long) {
-    if (offset < 0L || offset > size || count > size - offset) throw IndexOutOfBoundsException()
+    if (offset < 0L || offset > size || count > size - offset)
+        throw IndexOutOfBoundsException()
 }

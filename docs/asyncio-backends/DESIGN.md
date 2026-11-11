@@ -108,17 +108,75 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 ## 4. 共享驱动与线程模型
 
-`LoopOwner` 是命令和完成的单一消费者。I/O 提交、外线程取消和 GUI `post` 只发布命令；取消结果的竞争选择及投递入口关闭在短锁内完成。任何锁都不包围用户代码、continuation 恢复、阻塞等待或宿主注销。
+`LoopOwner` 是命令和完成的单一消费者。I/O 提交、外线程取消和 GUI `post` 只发布命令；取消结果的竞争选择及投递入口关闭在短锁内完成。任何共享锁都不包围用户代码、continuation 恢复、等待 I/O 完成、等待 worker 退出或宿主注销；竞争同一 mutex 的线程可按平台协议等待取得该锁。
+
+启动配置与命令通道分开：binding／execution 一次 release 发布后不再改写，worker 查询使用 acquire，不获取全局 owner 锁。操作编号使用独立原子计数。`LoopInbox` 以平台 mutex 保护命令批次、native 通知指针和停止接纳；只有批次从空变为非空才调用 native wake，竞争者通过 NativeSafe mutex 等待，不围绕包含 native 调用的临界区自旋。取批次后释放队列锁再执行命令；driver 退出前对新批次补通知。根结果单独同步，owner 的 ready、操作及资源容器不由 worker 直接访问。停止接纳在 inbox 锁下清除通知指针，所有已经开始的通知返回后才允许销毁后端。
 
 一次内部 `pump` 非阻塞处理以下内容：消费唤醒提示；取得这一轮命令及已有 native 完成的有限快照；提交操作、解码完成；把可恢复项放入 ready 队列；执行本轮 ready；推进收尾。有新工作在处理期间到达，留到下一轮并保留／重新发送唤醒，不通过“持续直到所有队列为空”霸占 GUI 线程。每轮至少推进已排队的取消和关闭；不建立逻辑成本计费或跨阶段资源预算。
+
+B19 将 native 完成改为每批一次 FFI 交付：后端复用一个 64 条记录的连续数组，取出时复制已退休请求的结果，本轮命令和完成消费结束后才统一释放请求记录；数组只在下一次取批次时改写，managed pump 直接读取 GC-free 记录。超过容量的完成保留在队列。每轮末尾统一 rearm 尚未处理的命令、ready 和 native 工作。阻塞请求仍在提交时交给共享池，避免后续 owner 回调等待尚未启动的工作。Linux 的提交和逻辑完成只有 owner 生产，移除它们逐请求的自唤醒；内核 eventfd、外线程命令和阻塞完成继续负责异步通知。Darwin／Windows 保留外线程生产者的同步边界。批次容量是调度实现选择，不限制程序可建立的请求数量。
+
+B20 收拢 managed 操作生命周期：`LoopOperation` 承担结果仲裁与 owner 上的提交／交付，命令和 ready 以普通闭包或操作引用排队。字节传输操作同时实现已有 `SuspendRegistration<Long>`，保留实际 borrow、方向登记和 continuation，完成时在恢复调用方前结束借用和方向占用；TCP、文件和 TTY 写共用这一真实生命周期。读写入口只做普通准备和一次原语挂起，移除跨挂起 finally、单独 progress 对象与 start／cancel／finish 捕获链。其余操作通过同一基类的回调实现继续表达不同资源交付规则。提交、取消、ready 次序和 GUI 分轮合同保持，未增加 public API 或 compiler/runtime 协议。
+
+B21 让每个 owner 复用外部命令、本地命令和 ready 各自的接收／消费容器。inbox 在已有锁内交换，owner 本地容器直接交换；不再把本地命令逐项复制进外部批次，也不在每轮重新分配容器及遍历器。消费次序仍为外部命令、本地命令、native 完成、ready。本轮退出时清空消费容器，下一轮才交回接收端；新发布工作保持在独立的接收容器中。这里只复用 loop 自己的队列容量，不缓存操作对象、借用或 continuation。
+
+B29 将 TCP 字节请求的 native 提交也归并到 owner 的轮次边界。每个后端 loop 持有固定容量的提交数组，逐请求的 GCLeaf 入口只写入 GC-free 的 endpoint、操作编号、借用地址、长度和方向；它不分配、不加锁、不调用操作系统、不回调、不改变浮点环境。资源、borrow、Job 和 continuation 仍由原 ByteTransfer 保活，只有真正完成才解除。数组满时先以一次 NativeSafe 调用提交旧批次，再登记当前请求；容量不是并发请求上限。所有实际平台调用、请求分配及同步失败处理均在 NativeSafe 批量入口内进行，不能把原有读写后端直接标为 GCLeaf。
+
+owner 在 poll／等待前、pump 退出前、取消及普通控制操作开始前提交已有批次，保持读写与 shutdown／close 的次序。暂存请求也计入 native loop 的非空闲状态，不能在尚有提交时销毁后端。批量入口把同步提交失败保存到独立的连续错误数组，managed 侧按原操作编号送入完成仲裁；数组在下一次提交时才改写，错误交付只进入 ready，不在读取数组期间恢复用户代码。native 开始后产生的结果继续走原完成队列。TCP 提交不逐次提取阻塞工作；可能产生阻塞工作的文件、TTY 与普通操作在提交后立即派发，轮次边界仍统一派发剩余工作，保留已有回调等待及排空合同。Linux、Darwin、Windows 共用批次协议，各自实际后端和退休规则保持。
 
 处理过程中 GUI 可能进入嵌套主循环；`pumping` 标志阻止递归进入状态机，嵌套通知只记录需再次处理，外层退出时重新唤醒。普通用户回调仍可能运行很久，本库不抢占它，也不把 CPU 计算自动搬到后台。
 
 `run` 反复调用同一个 `pump`，无可执行工作时在统一通知 fd 上阻塞等待；等待使用 `NativeSafe`，不能标为 `GCLeaf`。`attach` 由 host 可读回调调用 `pump`，内部不等待 I/O、worker 或监听注销。正时长 timer 的到期由后端通知，宿主不需要周期轮询；空闲时没有常驻 idle 回调。
 
-本库 I/O、mailbox 与本库排队恢复从 owner 线程进入 managed 代码。`scope.launch` 仍遵守现有“先内联执行到首次挂起”的合同；任意第三方挂起点仍可能从别的线程恢复。此设计不加入 continuation interceptor，因此**接入 GUI 主循环不等于所有挂起函数自动具备 UI 线程亲和性**。GUI 调用方从外部回调或其他恢复线程回到界面时，显式经 `session.post`；帧请求与 vsync 由 GUI 层安排。
+协程恢复遵守语言规范 11.9.3 的 execution 归属：LoopExecutor 上的 I/O、Channel 和第三方挂起点均排队回 owner，AsyncRuntime worker 上的操作回共享 worker executor。独立 PlatformEventLoop 的 `withExecutor(loop.executor)` 显式切回 owner；AsyncRuntime 的 `loop.executor` 则是共享 worker executor，不承诺固定物理线程。普通外部应用消息可通过 `session.post` 进入 GUI 根作用域。frame、Job、取消和 executor 登记仍由 core／concurrent 的同一实现负责；帧请求与 vsync 由 GUI 层安排。
+
+### 4.1 worker 与 reactor 整合（B18 已实现）
+
+裸 TCP 架构对照保留同一组固定库、runtime、进程级 GC 和 echo 正文，把“单 owner＋四 worker”改为同进程四个独立 owner，各自直接执行所属连接的业务。四核配额、64 连接下的三次测量显示明显收益，完整记录见[实施进度 B17](PROGRESS.md#第十七轮reactor-分布与本地执行的架构对照)。这个实验同时改变 reactor 数量、执行位置和连接分配，证明组合方向值得实施，不能把全部收益分摊给某一次队列或锁；多端口均匀分片也不能代替正式 API 的验收。
+
+B18 已以 `AsyncRuntime` 为实际消费者整合现有调度器，并同步 asyncio／concurrent 规范。实现如下；B17 仍只作为架构诊断实验，正式结果见[实施进度 B18](PROGRESS.md#第十八轮正式-workerreactor-整合)。
+
+- 保留一个逻辑 `EventLoop` binding 和一棵结构化任务树；每个 coroutine worker 驱动自己的 native reactor。caller 等待最终结果，不再额外承担唯一 I/O owner。独立 `PlatformEventLoop.run`／GUI attach 继续保持原有线程归属。
+- 复用 MultiThreadExecutor 的本地队列、外部 inbox、批量 work stealing 和任务登记。worker 在有限批可运行任务之间推进自己的 I/O；空闲时重新检查队列，再等待 reactor 通知。任务投递和 I/O 完成共同唤醒该 worker，不能引入丢失唤醒或纯忙轮询。驱动接入只服务这个实际 asyncio 调用方，不建立通用插件体系。
+- 普通 I/O API 与单 listener 保持。新连接在交付用户前分配到目标 reactor；既有活动资源保持明确、稳定的 native owner。接收端创建、目标 reactor 登记及失败关闭构成一次完整交接，不能把已绑定 IOCP／已有在途请求的 handle 任意搬到另一个 loop。客户端不需要多端口或手工分片。
+- 每个资源仍由所属 reactor 串行提交／消费 native I/O，跨 worker 的操作发给该 owner。完成在相应物理 worker 上恢复排队，利用现有同池本地投递规则让后续业务与 I/O 保持局部性；stealing、跨 executor 恢复和调用方 Context 合同保持，不能靠禁止任务迁移获得实验收益。
+- 共享根结束后先排空已接纳任务，再由各 reactor 清理遗留资源、取消与实际 native 请求。共享 blocking pool 在所有 reactor 收尾完成前继续接纳必要工作，最后才停止并 join。初始化部分失败、backend 失败、取消与关闭复用同一生命周期，不创建 detached 根任务或提前释放借用。
+
+`CoroutineWorkerDriver` 把每个已创建的 reactor 接入现有 worker；每处理至多 32 个队列任务推进一次非阻塞 pump，空闲发布观察状态后再 pump 并重查任务。任务投递通过同一 native 通知打断等待。`RuntimeWorkerContext` 的 TLS 只保存标量身份。B24 将资源所属 worker 上的操作登记与 native 开始放到本地调用栈，去掉操作发给自身命令队列的往返；普通本地命令仍进入复用数组，跨 owner 操作与命令仍使用现有 inbox。同步结果也只排入 ready，交付不进入提交栈、不递归 pump；内核请求继续批量推进。独立 PlatformEventLoop／宿主接入保持原有命令提交合同。
+
+Linux 的 B24 native 推进分为已有 CQ 消费、待提交 SQ 批量发布、提交后 CQ 消费。后一次消费让提交时已完成的请求进入同轮 managed 完成批次；两次读取各自以可见 CQ 数量为界，不循环等待新事件。后一次完成产生的重试／取消提交留到下一轮，并由已有 rearm 保证进度。请求和控制 CQE 的退休条件保持，C 层只发布完成记录，continuation 仍由 managed ready 阶段恢复。独立 event loop 共用此 native 推进，但保持原有 managed 提交队列。
+
+B18 使用普通 `AsyncRuntime` 和一个监听端口，测量单／四 worker、单／64 连接的吞吐、延迟、CPU、分配与 GC，保留独立 event loop 对照。新增持续 runnable 负载下的四 reactor timer 进度、跨 executor I/O、单 listener 分配、部分传输与移动 GC 交接测试，并通过既有取消、单次完成和关闭排空回归。仅 Linux/io_uring 已实测；Darwin／Windows 的目标 owner 参数已同步但尚未实机验证，不均匀连接与混合 CPU 负载的性能仍待验证。多 reactor 下仍有显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
+
+### 4.2 Mio、Tokio 与 tokio-uring 的架构参照
+
+为 4.1 的正式改造核对了官方文档与源码。三者承担的职责和线程模型不同，不能把它们合并称为“每 worker 一个 reactor 的 Tokio 架构”。以下区分已实现机制、RFC 和 Scoop 的设计判断；不引入这些 Rust 库作为 Scoop native 后端依赖。
+
+| 参照 | 已核对的机制 | 对 Scoop 主路径的启示 |
+| --- | --- | --- |
+| Mio `Poll`／`Waker` | `Poll` 返回 readiness，`Token` 关联事件源；通知可能多余，实际 I/O 结果才决定进度。`Waker` 负责跨线程唤醒 selector，不是任务队列或调度器。 | 把“有工作可能需要处理”的通知与真实命令／完成记录分开；任务与 I/O 共用 worker 的等待入口。Scoop 已有 io_uring／IOCP completion 合同，保持该模型，不额外模拟一层 readiness。 |
+| Tokio 多线程调度器 | 每 worker 有本地任务队列并支持 stealing；已检查的 `multi_thread/park.rs` 用 `Arc<Shared>` 共享一个 `TryLock<Driver>`，取得它的 worker 推进 driver，其他 worker 可等待条件变量。 | I/O 推进纳入 worker 调度循环，不必专设一个只驱动 I/O 的 caller；已交付的本地队列和 stealing 继续复用。共享 driver 与每 worker 独立 reactor 是两种不同选择，Tokio 的实现本身不能证明哪种更适合 Scoop。 |
+| tokio-uring | 已发布的 runtime 使用 Tokio current-thread runtime 与 `LocalSet`；多线程靠创建多个 runtime。线程进入等待前 flush SQ，通过观察 ring 的可读事件消费 CQ；任务通过 `spawn_local` 执行。 | 借鉴任务、提交和完成在同一线程推进的局部性，以及批量提交／完成的处理位置。它没有多线程 work stealing，不能直接用它替换 Scoop 的多线程 executor。 |
+
+来源：[Mio Poll](https://docs.rs/mio/latest/mio/struct.Poll.html)、[Waker](https://docs.rs/mio/latest/mio/struct.Waker.html)及 [Linux Waker 实现](https://github.com/tokio-rs/mio/blob/master/src/sys/unix/waker/eventfd.rs)；[Tokio runtime](https://docs.rs/tokio/latest/tokio/runtime/index.html)与 [park.rs](https://github.com/tokio-rs/tokio/blob/master/tokio/src/runtime/scheduler/multi_thread/park.rs)；[tokio-uring 文档](https://docs.rs/tokio-uring/latest/tokio_uring/)与 [runtime 实现](https://docs.rs/tokio-uring/latest/src/tokio_uring/runtime/mod.rs.html)。这些是本轮查阅的实现，不能依赖其队列容量或检查间隔作为上游永久合同。
+
+B18 已移除 `worker → 单 owner → worker` 的必经往返。选择每 worker reactor 的依据是 B17 的本机组合实验与 owner 集中负载，不是“Tokio 也这样做”。正常局部路径由当前 worker 提交、消费完成并把 continuation 放回本地队列；被窃取任务访问其他 owner 的资源时才跨 worker 交付。保持资源 owner 稳定、让可运行任务迁移，是 Scoop 为同时保留局部性与 stealing 做出的设计选择。普通单 listener 已完成实测，不均匀负载的性能仍待验证。
+
+整合时遵守以下直接约束：
+
+- worker 在有限批任务之间推进 I/O 与 timer；队列持续非空也不能饿死 reactor。等待前先提交待发操作、发布等待状态并重查队列，外部发布必须能打断等待。Mio 的 `wake` 是通知机制；减少系统调用的合并决策应由 Scoop 的队列／等待状态承担，不能假定每次 `wake` 免费。
+- I/O owner 与当前执行任务的 worker 分开记录。新 accepted 连接在交付前分配 owner，现有请求、buffer 借用和 native handle 不随 stealing 搬迁；完成在 owner worker 上进入既有调度器。不能依赖任务永不被窃取，也不让用户手工管理端口或线程。
+- 操作取消和 native 退休仍是两件事。tokio-uring 的 [driver 实现](https://github.com/tokio-rs/tokio-uring/blob/master/src/runtime/driver/mod.rs)在 future 被放弃后保留在途数据，取消操作自身的 CQE 不代替原操作完成。Scoop 继续以真实完成解除 `NativeByteBorrow`，统一排空后再销毁 reactor；线程局部执行不能取消这个生命周期约束。
+
+tokio-uring 的 [DESIGN.md](https://github.com/tokio-rs/tokio-uring/blob/master/DESIGN.md)是 RFC，可用于理解 thread-per-core 和在途操作所有权的动机；其中示例 API 与拟议机制不能直接当成已发布功能。这里仅采用与当前源码一致、直接服务 worker／reactor 整合的部分，不扩展到固定 buffer、零拷贝、其他后端重写或 HTTP／JSON 优化。
 
 ## 5. 一份操作与资源生命周期逻辑
+
+`sleep` 与一次性 `schedule` 共用 owner 的逻辑期限队列，原生层只维护最早期限所需的共享唤醒。逻辑登记携带可直接移除的队列位置；普通撤销立即清空通知捕获，owner 再移除登记，不创建逐通知的 native cancel 或资源表记录。sleep 的取消结果同样等 owner 移除后才恢复；它不借用 native 存储，无需等待其他使用者共享的唤醒退休。
+
+每轮已有 ready 执行后以一次单调时钟快照选定到期项，通知进入下一轮 ready，锁外调用。更早的新期限才替换当前 native 唤醒；原最早项被取消后保留已经安排的较早唤醒，到时重新检查队列。当前唤醒的失败交付给仍等待的逻辑登记；旧唤醒的迟到结果不能影响替换后的登记。共享唤醒继续用 `LoopOperation` 跟踪真实 native 退休，不保留调用方捕获；清理关闭逻辑队列、取消当前唤醒并排空全部操作。期限比较保留 Duration 的完整范围，不强制转换为总纳秒数或可能溢出的绝对 TimeMark。具体结果选择与生命周期见 asyncio 规范第 5 节。
+
+已选定回调与撤销竞争时仍由消费者自己的状态决定是否有效；HTTP 的连接锁与请求期限状态承担这一职责。计时不由辅助 coroutine 持有 native 资源，也不为每个通知重复向平台提交 timer。
 
 ### 5.1 操作有两个独立事实
 
@@ -211,7 +269,7 @@ DNS、目录遍历、路径操作、open、seek／truncate 和 `NativeWork` 使�
 | 能力 | 共享语义 | Darwin | Linux |
 | --- | --- | --- | --- |
 | `run`／`attach`、任务投递 | 同一 root／owner／pump | pipe 通知 | eventfd 通知 |
-| `sleep`、连接总期限 | 单调截止时间、取消后等退休 | dispatch timer | TIMEOUT |
+| `sleep`、连接总期限 | 逻辑取消等 owner 移除，共享唤醒等 native 退休 | dispatch timer | TIMEOUT |
 | TCP connect／accept／read／write | 地址、方向独占、短读写、部分进度 | socket syscall + source | CONNECT／ACCEPT／RECV／SEND |
 | listen、bind、地址查询、shutdown | 既有 platform 规则；shutdown 提交后取消终止流 | owner 的原生控制队列 | owner 的短 POSIX 控制操作 |
 | UDP send／receive | 完整数据报，含零长度、截断和地址 | sendmsg／recvmsg + source | SENDMSG／RECVMSG |
@@ -284,3 +342,21 @@ DNS、路径修改和目录枚举继续使用共享 worker 生命周期。平台
 Windows 临时创建在 worker 内取得规范父目录，拼接完整前缀与随机后缀，再以 CREATE_NEW 创建 overlapped 文件；创建后复用同一 HANDLE，不重新打开路径。内部临时结果包含 owner、UTF-16 路径及关联状态，创建已成功但 IOCP 关联失败时交由原有 close／delete 清理流程报告错误；成功交付的 close 仍不删除路径。熵源沿 platform 的 BCrypt helper，完成记录增加 NtStatus 分支，保持原码。
 
 TTY 复用 platform 的独占 console owner；输入 worker 用 WaitForMultipleObjects 同时等待 console input 与单次取消 event，再用非等待输入转换取得字节、resize 或 EOF。截止时间与 timer 共用 QPC 算法，在提交时计算，超时唤醒后重新核对。输出复用已有 worker 的同步 WriteFile，取消排队工作可跳过写入，已运行工作实际返回后才释放借用。close 取消输入等待和排队输出，等待两个方向完成后恢复模式并关闭句柄；worker 不调用 managed 代码。控制操作直接返回 Win32／PosixErrno 记录，不用 captureErrno 捕获 Win32 错误。参见 [console 输入等待](https://learn.microsoft.com/en-us/windows/console/low-level-console-input-functions)与 [console handles](https://learn.microsoft.com/en-us/windows/console/console-handles)。
+
+### 4.3 B26：资源持有字节传输等待状态
+
+B25 的分层实验把主要用户态差距定位到通用 managed I/O 和协程恢复。字节传输首先改为资源持有的等待槽：复用操作身份与完成登记，按 Job 复用取消监听，每次只填入实际 buffer 借用和 continuation。资源的方向接纳／释放直接改变同步状态，去掉每次 reservation 的对象与正常完成后的关闭检查投递；真正关闭仍等所有借用与 native 请求退休。
+
+槽的本次传输代次与 Job 绑定代次分别承担实际的竞争边界：旧取消回调检查绑定，排队撤销检查传输代次。取消错误通过选定／发布状态交付；正常完成选定后不再被迟到取消覆盖。槽在解除借用及资源忙状态前清空本次捕获，允许恢复回调马上启动下一次使用，不把旧操作的尾部清理留到复用之后。native 编号在实际退休后复用，资源关闭时清除持久登记。公开 suspend API、每次 buffer 借用、原生真实退休以及结构化任务合同保持。
+
+此次只重构字节传输的 managed 生命周期，后端共享原来的真实 I/O 实现。以完整 TCP 程序与 B24 固定产物、Go 的吞吐和 CPU／echo 比较，不以减少某个字段或分配小项作为完成依据。
+
+### 4.4 B27：并行 reactor 上受控恢复
+
+B26 完整协程的用户态 CPU 仍明显高于直接使用同一字节等待槽的回调程序。隔离实验分别展开多层 suspend 调用、在 reactor 完成栈内恢复、增加 owner 本地恢复槽：本地槽只改善单连接，高并发没有收益；就地恢复改善并行场景，但单 worker 回退。因此先改变并行恢复交接，不继续微调队列槽，也不把展开后的诊断程序作为公开 API 的替代品。
+
+core 的 ExecutorTask 增加普通 dispatchResume 方法，默认仍排队；只有旧 drive 已完成 frame／Context／catch 收尾并交出执行权的发布者使用它。startDispatchedCoroutine、withExecutor、yield 及旧 drive 退出时已经锁存并由其领取的外部恢复仍用强制排队的 dispatch。编译器生成的 adapter、execution 原子发布协议和 runtime ABI 不变。
+
+MultiThreadExecutor 只在本池多个 worker 的 driver.poll 窗口内直接执行恢复，每轮最多 32 次，执行中的嵌套恢复继续进入原有无锁 FIFO／inbox。单 worker、外线程、其他 executor、普通用户任务和非 poll 的 driver 阶段都继续排队。直接恢复复用相同执行入口、ticket、TaskContext 和 managed 根；不增加生命周期或私有优先队列。I/O 在交付前已经结束本次借用及资源占用，产生的新 ready 留到下一轮，因此直接恢复不递归 pump，也不从提交栈交付完成。
+
+此变化减少完成事件到可运行任务的入队、唤醒和迁移，但保留协程 frame／adapter 的成本。验收同时比较单／多 worker、单／多连接的完整公开 API 程序、固定回调程序和 Go，后续依据剩余 CPU 差距选择下一大项。

@@ -24,19 +24,20 @@ internal class TcpListener(
         val job = owner.loop.requireJob()
         val reservation = owner.reserve(false)
         try {
+            val target = owner.loop.connectionOwner()
             return suspendCoroutine<AsyncTcpStream> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {
                             _,
                             id -> @Unsafe
                             {
-                                return@LoopOperation nativeStatus(
+                                return@CallbackOperation nativeStatus(
                                     id,
-                                    nativeTcpAccept(owner.pointer, id)
+                                    nativeTcpAccept(owner.pointer, target.nativePointer(), id)
                                 )
                             }
                         },
@@ -49,20 +50,22 @@ internal class TcpListener(
                         },
                         {
                             event,
-                            selected -> finishEndpointCreation<AsyncTcpStream>(
-                                owner.loop,
-                                EndpointKind.Tcp,
-                                event.result,
-                                selected,
-                                continuation,
-                                {
-                                    accepted -> TcpStream(
-                                        accepted,
-                                        tcpAddress(accepted.pointer, false),
-                                        tcpAddress(accepted.pointer, true)
-                                    )
-                                }
-                            )
+                            selected -> target.post {
+                                finishEndpointCreation<AsyncTcpStream>(
+                                    target,
+                                    EndpointKind.Tcp,
+                                    event.result,
+                                    selected,
+                                    continuation,
+                                    {
+                                        accepted -> TcpStream(
+                                            accepted,
+                                            tcpAddress(accepted.pointer, false),
+                                            tcpAddress(accepted.pointer, true)
+                                        )
+                                    }
+                                )
+                            }
                         }
                     )
                 operation.subscribe(job)

@@ -39,7 +39,7 @@ private class AsyncRuntimeLifecycleTest {
     }
 
     @Test
-    fun `independent worker and owner registrations drain before the shared pool closes`() {
+    fun `independent runtime registrations drain before reactors and the shared pool close`() {
         val owner = currentThreadId()
         val resumed = RuntimeThread()
         val workerResult = LoopThreadResult<Unit>()
@@ -63,7 +63,7 @@ private class AsyncRuntimeLifecycleTest {
                         }
                         nonCancellableScope {
                             withExecutor(loop.executor) {
-                                assertEquals(owner, currentThreadId())
+                                assertNotEquals(owner, currentThreadId())
                                 loop.sleep(Duration.nanoseconds(1L))
                                 assertEquals(42, blocking { 42 })
                                 seen.fetchAdd(1)
@@ -79,7 +79,7 @@ private class AsyncRuntimeLifecycleTest {
                             assertEquals(TrySendResult.Sent, ownerReady.trySend(it))
                         }
                         nonCancellableScope {
-                            assertEquals(owner, currentThreadId())
+                            assertNotEquals(owner, currentThreadId())
                             assertEquals(
                                 7,
                                 blocking {
@@ -101,8 +101,8 @@ private class AsyncRuntimeLifecycleTest {
                             while (!executor.isShutdown)
                                 yield()
                             workerContinuation.resume(Unit)
-                            finished.await()
                             ownerContinuation.resume(Unit)
+                            finished.await()
                         }
                     )
                 executor

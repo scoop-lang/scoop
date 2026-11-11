@@ -1,0 +1,93 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingTaskPool
+import scoop.concurrent.CoroutineWorkerDriver
+
+internal class RuntimeReactor(
+    private val runtime: RuntimeEventLoop,
+    private val index: Int
+): CoroutineWorkerDriver {
+    val owner = LoopOwner(Some(runtime), index)
+    private var native: Ptr<Unit>? = None
+    private var recordedFailure: Throwable? = None
+    val failure: Throwable? get() = recordedFailure
+
+    fun open(pool: BlockingTaskPool) {
+        native = Some(owner.open(runtime, LoopBlockingConfig.Shared(pool)))
+    }
+
+    public override fun enter() {
+        RuntimeWorkerContext.enter(runtime.identity, index)
+    }
+
+    public override fun poll() {
+        owner.pump(native!!)
+    }
+
+    public override fun park() {
+        if (!owner.hasQueuedWork())
+            owner.poll(native!!, true)
+    }
+
+    public override fun wake() {
+        owner.wakeExecution()
+    }
+
+    public override fun close() {
+        when (native) {
+            case Some(val pointer) -> {
+                try {
+                    owner.finishRoot(None)
+                    owner.drive(pointer)
+                } catch (error: Throwable) {
+                    recordedFailure = Some(error)
+                } finally {
+                    native = None
+                    RuntimeWorkerContext.leave(runtime.identity)
+                }
+            }
+            case None -> {}
+        }
+    }
+}
+
+@ThreadLocal
+private var physicalRuntime: Long = 0L
+
+@ThreadLocal
+private var physicalReactor: Int = -1
+
+// Only scalar identities live in TLS; moving managed references remain in the runtime graph.
+internal object RuntimeWorkerContext {
+    private val identities = AtomicLong(1L)
+
+    fun nextIdentity(): Long = identities.fetchAdd(1L)
+
+    fun enter(runtime: Long, reactor: Int) {
+        @Unsafe
+        {
+            physicalRuntime = runtime
+            physicalReactor = reactor
+        }
+    }
+
+    fun leave(runtime: Long) {
+        @Unsafe
+        {
+            if (physicalRuntime == runtime) {
+                physicalRuntime = 0L
+                physicalReactor = -1
+            }
+        }
+    }
+
+    fun current(runtime: Long): Int {
+        @Unsafe
+        {
+            return if (physicalRuntime == runtime)
+                physicalReactor
+            else
+                -1
+        }
+    }
+}

@@ -135,11 +135,11 @@ private fun <T> startStructuredTask(
             throw error
         }
     context(job) {
-        startCoroutineExecution(
+        startCoroutineTask(
             execution,
             dispatched,
             FunctionSuspendTask<T>({ runScopeBody(scope, block) }),
-            ExecutionCompletion(execution, StructuredCompletion<T>(task))
+            StructuredCompletion<T>(task)
         )
     }
     return task

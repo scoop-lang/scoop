@@ -1,0 +1,99 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.concurrent.multiThreadExecutor
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.net.*
+import scoop.test.*
+import scoop.time.Duration
+
+private class ServerWorkerGate {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private var released = false
+    val entered = AtomicBoolean(false)
+
+    fun block() {
+        lock.withLock {
+            entered.store(true)
+            while (!released)
+                changed.await()
+        }
+    }
+
+    fun release() {
+        lock.withLock {
+            released = true
+            changed.broadcast()
+        }
+    }
+}
+
+@Test
+private class ServerDispatchTests {
+    @Test
+    fun `owner accepts while workers are occupied and closes a cancelled queued connection`() {
+        multiThreadExecutor {
+            workers = 1
+            blocking { threads = 1 }
+        }.use {
+            workers ->
+            val loop = eventLoop()
+            loop.run {
+                serverDeadline<Unit>(
+                    Some(Duration.seconds(5L)),
+                    "queued connection test",
+                    suspend {
+                        coroutineScope<Unit> {
+                            val scope = this
+                            val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
+                            val state = ServerState(listener, routing {}, httpServerOptions(), loop)
+                            val serving = scope.launch(workers) { runServer(state) }
+                            val gate = ServerWorkerGate()
+                            val blocked = scope.launch(workers) { gate.block() }
+                            try {
+                                while (!gate.entered.load())
+                                    loop.sleep(Duration.milliseconds(1L))
+                                loop.connectTcp(listener.localAddress).useAsync {
+                                    peer ->
+                                    val entry =
+                                        try {
+                                            while (
+                                                !state.lock.withLock {
+                                                    state.connections.size ==
+                                                        1L &&
+                                                        present(state.connections[0L].job)
+                                                }
+                                            )
+                                                loop.sleep(Duration.milliseconds(1L))
+                                            state.lock.withLock { state.connections[0L] }
+                                        } finally {
+                                            serving.cancel()
+                                            gate.release()
+                                        }
+                                    blocked.join()
+                                    serving.join()
+                                    assertEquals(0L, state.lock.withLock { state.connections.size })
+                                    assertEquals("", networkText(peer))
+                                    var closed = false
+                                    try {
+                                        entry.transport.flush()
+                                    }
+                                    catch (_: IoClosedException) {
+                                        closed = true
+                                    }
+                                    assertTrue(closed)
+                                }
+                            } finally {
+                                serving.cancel()
+                                gate.release()
+                                listener.close()
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}

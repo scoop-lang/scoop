@@ -1,13 +1,52 @@
 package scoop.http.server
 
-import scoop.concurrent.*
+// One initialization handoff, independent of cancellation until ownership is settled.
+internal class ServerTaskStart {
+    private val lock = ServerLock()
+    private var result: Boolean? = None
+    private var waiting: Continuation<Boolean>? = None
+
+    fun ready() {
+        complete(true)
+    }
+    fun finish() {
+        complete(false)
+    }
+
+    private fun complete(initialized: Boolean) {
+        val waiter =
+            lock.withLock<Continuation<Boolean>?> {
+                if (present(result))
+                    return@withLock None
+                result = Some(initialized)
+                val selected = waiting
+                waiting = None
+                selected
+            }
+        if (present(waiter))
+            waiter!!.resume(initialized)
+    }
+
+    suspend fun await(): Boolean =
+        suspendCoroutine<Boolean> {
+            waiter ->
+            val selected =
+                lock.withLock {
+                    if (!present(result))
+                        waiting = Some(waiter)
+                    result
+                }
+            if (present(selected))
+                waiter.resume(selected!!)
+        }
+}
 
 internal suspend fun startServerTask(
     caller: Job,
     parent: CoroutineScope,
-    block: suspend CoroutineScope.(Channel<Unit>) -> Unit
+    block: suspend CoroutineScope.(ServerTaskStart) -> Unit
 ): Job {
-    val ready = Channel<Unit>(1L)
+    val ready = ServerTaskStart()
     val claimed = AtomicBoolean(false)
     val task =
         parent.launch {
@@ -15,26 +54,25 @@ internal suspend fun startServerTask(
                 try {
                     block(this, ready)
                 } finally {
-                    ready.close()
+                    ready.finish()
                 }
             }
         }
     val stopped =
         task.invokeOnCancellation {
             _ -> if (claimed.compareAndSet(false, true))
-                ready.close()
+                ready.finish()
         }
     val cancelled = caller.invokeOnCancellation { _ -> task.cancel() }
     try {
-        nonCancellableScope { ready.receive() }
+        if (!ready.await()) {
+            caller.ensureActive()
+            task.ensureActive()
+            throw IllegalStateException(Some("HTTP server task ended before initialization"))
+        }
         return task
-    } catch (error: ChannelClosedException) {
-        caller.ensureActive()
-        task.ensureActive()
-        throw IllegalStateException(Some("HTTP server task ended before initialization"))
     } finally {
         cancelled.dispose()
         stopped.dispose()
-        ready.close()
     }
 }

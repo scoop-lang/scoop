@@ -1,0 +1,147 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class CoroutineLocalQueueTest {
+    @Test
+    fun `local FIFO reuses slots over wraps and reports a full ring`() {
+        val queue = CoroutineLocalQueue()
+        val affinity = AtomicInt(0)
+        val seen = ArrayList<Int>()
+        for (round in 0 ..< 16) {
+            for (offset in 0 ..< 256) {
+                val index = round * 256 + offset
+                assertTrue(
+                    queue.tryPut(
+                        CoroutineSubmission(affinity, FunctionCoroutineWork { seen.add(index) })
+                    )
+                )
+            }
+            assertFalse(queue.tryPut(CoroutineSubmission(affinity, FunctionCoroutineWork {})))
+            for (offset in 0 ..< 256) {
+                queue.take()!!.work.run()
+                val index = round * 256 + offset
+                assertEquals(index, seen[index.toLong()])
+            }
+            assertTrue(absent(queue.take()))
+        }
+    }
+
+    @Test
+    fun `batch stealing preserves source order and fits the destination`() {
+        val source = CoroutineLocalQueue()
+        val target = CoroutineLocalQueue()
+        val affinity = AtomicInt(0)
+        val seen = ArrayList<Int>()
+        for (index in 0 ..< 64)
+            assertTrue(
+                source.tryPut(
+                    CoroutineSubmission(affinity, FunctionCoroutineWork { seen.add(index) })
+                )
+            )
+        for (_ in 0 ..< 240)
+            assertTrue(target.tryPut(CoroutineSubmission(affinity, FunctionCoroutineWork {})))
+        source.stealInto(target, 128)!!.work.run()
+        assertEquals(0, seen[0L])
+        for (_ in 0 ..< 256)
+            target.take()!!.work.run()
+        assertEquals(17L, seen.size)
+        for (_ in 17 ..< 64)
+            source.take()!!.work.run()
+        for (index in 0 ..< 64)
+            assertEquals(index, seen[index.toLong()])
+        assertTrue(absent(source.take()))
+        assertTrue(absent(target.take()))
+    }
+
+    @Test
+    fun `owner and thieves consume each reusable slot exactly once`() {
+        val queue = CoroutineLocalQueue()
+        val affinity = AtomicInt(0)
+        val expected = 8192
+        val seen = Array<AtomicInt>(expected.toLong()) { _ -> AtomicInt(0) }
+        val received = AtomicInt(0)
+        val thieves =
+            Array<Thread>(3L) {
+                _ -> Thread.start {
+                    val local = CoroutineLocalQueue()
+                    while (received.load() < expected) {
+                        val work =
+                            when (local.take()) {
+                                case Some(val work) -> Some(work)
+                                case None -> queue.stealInto(local, 128)
+                            }
+                        when (work) {
+                            case Some(val work) -> work.work.run()
+                            case None -> yield()
+                        }
+                    }
+                }
+            }
+        var sent = 0
+        while (sent < expected) {
+            var pushed = 0
+            while (pushed < 64 && sent < expected) {
+                val index = sent
+                if (
+                    !queue.tryPut(
+                        CoroutineSubmission(
+                            affinity,
+                            FunctionCoroutineWork {
+                                assertEquals(0, seen[index.toLong()].fetchAdd(1))
+                                received.fetchAdd(1)
+                            }
+                        )
+                    )
+                )
+                    break
+                sent += 1
+                pushed += 1
+            }
+            when (queue.take()) {
+                case Some(val work) -> work.work.run()
+                case None -> yield()
+            }
+        }
+        while (received.load() < expected) {
+            when (queue.take()) {
+                case Some(val work) -> work.work.run()
+                case None -> yield()
+            }
+        }
+        for (thief in thieves)
+            thief.join()
+        for (value in seen)
+            assertEquals(1, value.load())
+        assertTrue(absent(queue.take()))
+    }
+
+    @Test
+    fun `local slots and stolen payloads survive moving collection`() {
+        val source = CoroutineLocalQueue()
+        val target = CoroutineLocalQueue()
+        val affinity = AtomicInt(0)
+        val seen = ArrayList<Int>()
+        for (index in 0 ..< 64)
+            assertTrue(
+                source.tryPut(
+                    CoroutineSubmission(affinity, FunctionCoroutineWork { seen.add(index) })
+                )
+            )
+        gcCollect()
+        val first = source.stealInto(target, 128)!!
+        gcCollect()
+        first.work.run()
+        for (_ in 1 ..< 32)
+            target.take()!!.work.run()
+        for (_ in 32 ..< 64)
+            source.take()!!.work.run()
+        for (index in 0 ..< 64)
+            assertEquals(index, seen[index.toLong()])
+        assertTrue(absent(source.take()))
+        assertTrue(absent(target.take()))
+    }
+}

@@ -1,4 +1,5 @@
 #include "../../native/linux/backend.h"
+#include "completion_queue.h"
 #include <errno.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
@@ -55,10 +56,11 @@ int scoop_test_ring_submit_denied(void) {
         if (scoop_io_loop_poll(loop, false).code != EPERM)
             _exit(4);
         if (!loop->requests || loop->requests->entries[0].state != RING_PUBLISHED ||
-            scoop_io_loop_idle(loop) || scoop_io_loop_batch_size(loop))
+            scoop_io_loop_idle(loop) || test_completion_count(loop))
             _exit(5);
         if (scoop_io_loop_poll(loop, false).code)
             _exit(6);
+        scoop_io_loop_rearm(loop, false);
         struct pollfd notification = {.fd = loop->notification, .events = POLLIN};
         if (poll(&notification, 1, 0))
             _exit(7);

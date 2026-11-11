@@ -13,6 +13,12 @@ public class ExecutorBuilder public constructor() {
     /** Coroutine worker count, initially the platform's logical processor count. */
     public var workers: Int = defaultWorkerCount()
     private var pool: BlockingPoolConfig = BlockingPoolConfig.Owned(4)
+    private var eventDrivers: Array<CoroutineWorkerDriver>? = None
+
+    /** Attaches one prepared event driver per worker; the configuration copies the array. */
+    public fun drivers(drivers: Array<CoroutineWorkerDriver>) {
+        eventDrivers = Some(drivers)
+    }
 
     /** Selects an owned pool, replacing any previous blocking configuration. */
     public fun blocking(configure: BlockingPoolBuilder.() -> Unit) {
@@ -34,7 +40,18 @@ public class ExecutorBuilder public constructor() {
                 throw IllegalArgumentException(Some("blocking thread count must be positive"))
             case Borrowed(_) -> {}
         }
-        return ExecutorConfig(workers, pool)
+        val drivers =
+            when (eventDrivers) {
+                case Some(val values) -> {
+                    if (values.size != workers.toLong())
+                        throw IllegalArgumentException(
+                            Some("event driver count must match workers")
+                        )
+                    Some(Array<CoroutineWorkerDriver>(values.size) { index -> values[index] })
+                }
+                case None -> None
+            }
+        return ExecutorConfig(workers, pool, drivers)
     }
 }
 
@@ -42,7 +59,11 @@ internal enum BlockingPoolConfig {
     Owned(Int), Borrowed(BlockingTaskPool)
 }
 
-internal struct ExecutorConfig(val workers: Int, val pool: BlockingPoolConfig)
+internal struct ExecutorConfig(
+    val workers: Int,
+    val pool: BlockingPoolConfig,
+    val drivers: Array<CoroutineWorkerDriver>?
+)
 
 private fun defaultWorkerCount(): Int {
     val count = logicalProcessorCount
@@ -61,12 +82,12 @@ public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): Mult
     when (configuration.pool) {
         case Borrowed(val pool) -> {
             pool.ensureOpen()
-            return MultiThreadExecutor(configuration.workers, pool, false)
+            return MultiThreadExecutor(configuration.workers, pool, false, configuration.drivers)
         }
         case Owned(val threads) -> {
             val pool = BlockingTaskPool(threads)
             try {
-                return MultiThreadExecutor(configuration.workers, pool, true)
+                return MultiThreadExecutor(configuration.workers, pool, true, configuration.drivers)
             }
             catch (error: Throwable) {
                 pool.close();

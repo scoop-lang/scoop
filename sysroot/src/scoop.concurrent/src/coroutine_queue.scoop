@@ -1,0 +1,81 @@
+package scoop.concurrent
+
+internal struct CoroutineSubmission(val affinity: AtomicInt, val work: CoroutineWork)
+
+// Michael-Scott FIFO. A self-link represents the unpublished end of the chain.
+// GC keeps all observed nodes alive; nodes are never reused or manually reclaimed.
+internal class CoroutineQueue private constructor(initial: CoroutineQueueNode) {
+    private val head = AtomicRef<CoroutineQueueNode>(initial)
+    private val tail = AtomicRef<CoroutineQueueNode>(initial)
+    private val terminal = CoroutineQueueNode(None)
+
+    internal companion object {
+        internal fun create(): CoroutineQueue = CoroutineQueue(CoroutineQueueNode(None))
+    }
+
+    internal fun tryPut(work: CoroutineSubmission): Boolean {
+        val node = CoroutineQueueNode(Some(work))
+        while (true) {
+            val last = tail.load()
+            val next = last.next.load()
+            if (last !== tail.load())
+                continue
+            if (next === terminal)
+                return false
+            if (next === last) {
+                if (last.next.compareAndSet(last, node)) {
+                    tail.compareAndSet(last, node)
+                    return true
+                }
+            } else {
+                tail.compareAndSet(last, next)
+            }
+        }
+    }
+
+    internal fun close() {
+        while (true) {
+            val last = tail.load()
+            val next = last.next.load()
+            if (last !== tail.load())
+                continue
+            if (next === terminal)
+                return
+            if (next === last) {
+                if (last.next.compareAndSet(last, terminal))
+                    return
+            } else {
+                tail.compareAndSet(last, next)
+            }
+        }
+    }
+
+    internal fun take(): CoroutineSubmission? {
+        while (true) {
+            val first = head.load()
+            val last = tail.load()
+            val next = first.next.load()
+            if (first !== head.load())
+                continue
+            if (first === last) {
+                if (next === first || next === terminal)
+                    return None
+                tail.compareAndSet(last, next)
+            } else
+                if (head.compareAndSet(first, next)) {
+                    // Break retired links without recreating the open self-link that
+                    // a producer with an old tail snapshot could still compare against.
+                    first.next.store(terminal)
+                    // Only the successful consumer reads this payload. Its local root keeps
+                    // next alive even if another consumer advances head again during a GC.
+                    val work = next.work!!
+                    next.work = None
+                    return Some(work)
+                }
+        }
+    }
+}
+
+private class CoroutineQueueNode(var work: CoroutineSubmission?) {
+    val next = AtomicRef<CoroutineQueueNode>(this)
+}

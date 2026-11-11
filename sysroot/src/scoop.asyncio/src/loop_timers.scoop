@@ -1,0 +1,133 @@
+package scoop.asyncio
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+// The owner keeps logical timers separate from the one native wakeup shared by them.
+internal class LoopTimers(private val owner: LoopOwner) {
+    private val pending = LoopTimerHeap()
+    private var wakeup: LoopTimerWakeup? = None
+    private var closed = false
+
+    val isEmpty: Boolean get() = pending.size == 0L
+
+    fun add(timer: LoopTimer) {
+        if (closed) {
+            timer.closeFromLoop()
+            notify(timer, None)
+        } else
+            if (timer.isPending) {
+                pending.add(timer)
+            }
+    }
+
+    fun cancel(timer: LoopTimer) {
+        pending.remove(timer)
+        notify(timer, None)
+    }
+
+    private fun notify(timer: LoopTimer, error: Throwable?) {
+        when (timer.notification(error)) {
+            case Some(val notification) -> owner.enqueueReady(notification)
+            case None -> {}
+        }
+    }
+
+    fun advance() {
+        if (closed || pending.size == 0L)
+            return
+        val now = MonotonicTimeSource.markNow()
+        while (pending.size != 0L) {
+            val first = pending.first()
+            if (first.deadline.remaining(now) > Duration.ZERO)
+                break
+            pending.remove(first)
+            notify(first, None)
+        }
+        if (pending.size == 0L)
+            return
+        val next = pending.first().deadline
+        when (wakeup) {
+            case Some(val active) -> if (!next.before(active.deadline))
+                return
+            case None -> {}
+        }
+        val previous = wakeup
+        val replacement = LoopTimerWakeup(owner, this, next)
+        wakeup = Some(replacement)
+        previous?.operation?.requestStop()
+        owner.submit(replacement.operation)
+    }
+
+    fun completed(wake: LoopTimerWakeup, error: Throwable?) {
+        when (wakeup) {
+            case Some(val active) -> if (active !== wake)
+                return
+            case None -> return
+        }
+        wakeup = None
+        when (error) {
+            case Some(_) -> {
+                while (pending.size != 0L) {
+                    val first = pending.first()
+                    pending.remove(first)
+                    notify(first, error)
+                }
+            }
+            case None -> {}
+        }
+    }
+
+    fun close() {
+        if (closed)
+            return
+        closed = true
+        while (pending.size != 0L) {
+            val first = pending.first()
+            pending.remove(first)
+            first.closeFromLoop()
+            notify(first, None)
+        }
+        val active = wakeup
+        wakeup = None
+        active?.operation?.requestStop()
+    }
+}
+
+// Superseded wakeups retain only the queue and their deadline until native retirement.
+internal class LoopTimerWakeup(owner: LoopOwner, timers: LoopTimers, val deadline: LoopDeadline) {
+    val operation =
+        CallbackOperation(
+            owner,
+            owner.nextOperation(),
+            {
+                native, id ->
+                val remaining = deadline.remaining(MonotonicTimeSource.markNow())
+                if (remaining <= Duration.ZERO)
+                    return@CallbackOperation IoStart.Finished(NativeEvent(id, IoResult.Done))
+                @Unsafe
+                {
+                    return@CallbackOperation nativeStatus(
+                        id,
+                        nativeTimerStart(
+                            native,
+                            id,
+                            remaining.floorSeconds,
+                            remaining.nanosecondsOfSecond
+                        )
+                    )
+                }
+            },
+            {
+                native,
+                id -> @Unsafe
+                {
+                    nativeTimerCancel(native, id)
+                }
+            },
+            {
+                event,
+                failure -> timers.completed(this, completionFailure("timer", event.result, failure))
+            }
+        )
+}

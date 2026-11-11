@@ -1,0 +1,77 @@
+package scoop.asyncio
+
+import scoop.time.Duration
+import scoop.time.TimeMark
+
+internal struct LoopDeadline(val started: TimeMark, val duration: Duration) {
+    // Both durations are nonnegative. Their difference fits even for Long.MAX_VALUE seconds.
+    fun before(other: LoopDeadline): Boolean = started - other.started < other.duration - duration
+
+    fun remaining(now: TimeMark): Duration = duration - (now - started)
+}
+
+// A timer stores its owner-only position so cancellation removes it without retaining tombstones.
+internal class LoopTimerHeap {
+    private val entries = ArrayList<LoopTimer>()
+
+    val size: Long get() = entries.size
+    fun first(): LoopTimer = entries[0L]
+
+    fun add(timer: LoopTimer) {
+        timer.heapIndex = entries.size
+        entries.add(timer)
+        up(timer.heapIndex)
+    }
+
+    fun remove(timer: LoopTimer) {
+        val index = timer.heapIndex
+        if (index < 0L)
+            return
+        val last = entries.removeAt(entries.size - 1L)
+        timer.heapIndex = -1L
+        if (index == entries.size)
+            return
+        entries[index] = last
+        last.heapIndex = index
+        if (up(index) == index)
+            down(index)
+    }
+
+    private fun swap(left: Long, right: Long) {
+        val saved = entries[left]
+        entries[left] = entries[right]
+        entries[right] = saved
+        entries[left].heapIndex = left
+        saved.heapIndex = right
+    }
+
+    private fun up(start: Long): Long {
+        var index = start
+        while (index > 0L) {
+            val parent = (index - 1L) / 2L
+            if (!entries[index].deadline.before(entries[parent].deadline))
+                break
+            swap(index, parent)
+            index = parent
+        }
+        return index
+    }
+
+    private fun down(start: Long) {
+        var index = start
+        while (index < entries.size / 2L) {
+            var child = index * 2L + 1L
+            if (
+                child +
+                    1L <
+                    entries.size &&
+                    entries[child + 1L].deadline.before(entries[child].deadline)
+            )
+                child += 1L
+            if (!entries[child].deadline.before(entries[index].deadline))
+                break
+            swap(index, child)
+            index = child
+        }
+    }
+}

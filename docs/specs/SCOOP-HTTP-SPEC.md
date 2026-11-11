@@ -77,6 +77,8 @@ Http1Encoder 生成起始行、字段、body 定界与结束字节，保持调�
 
 编码器固定 HttpRole。beginRequest／beginResponse 返回头部字节，后者显式接收对应请求方法；writeBody 消费 NativeByteBuffer 的指定前缀并返回编码字节，finish 返回结束／trailer 字节。每次 begin 都需要 finish，包括空 body。Http1BodyFraming 为 Empty、Length(count)、Chunked、Eof；isMessageOpen、mustClose、isSwitched 分别表示当前消息、连接复用与协议切换状态。编码器实现 Closeable，不执行传输。
 
+传输适配层使用 `prepareBody(count: Long): Http1BodyChunk` 接受非负正文长度并取得独立的 `prefix: Array<Byte>`／`suffix: Array<Byte>`，按 prefix、原正文、suffix 的顺序发送；固定长度与 EOF 定界的前后缀为空，正长度 chunked 为十六进制长度加 CRLF 和末尾 CRLF，零长度不产生终结 chunk。成功准备即从 Content-Length 余量扣除 count，不消费或保留调用者的 buffer；发送失败后不能重试同一已接受片段。`finish` 仍负责最终零 chunk 与 trailer。内存编码用的 `writeBody` 复用相同的长度检查和分帧构造，只在实际需要完整编码数组时复制正文；失败不得提交输入游标或已声明长度。
+
 body 定界显式选择无 body、已知长度、chunked 或响应 EOF。Content-Length 与 Transfer-Encoding 必须与所选定界一致；缺少所需字段时由编码器添加，不允许冲突的重复定界。chunked 仅用于 HTTP/1.1；EOF 定界不用于请求。发送的字节数不得超过已知长度，完成时检查剩余长度；trailer 只随 chunked 结束交付。
 
 HTTP/1 与 HTTP/2 的发送 trailer 使用同一组已知字段限制，见[消息工具 §1.11](SCOOP-HTTP-MESSAGE-SPEC.md#111-trailer-声明与发送限制)。普通名称／值的校验和协议定界仍由各自编码器执行，不将 trailer 合并到初始字段；字段错误不能提前提交消息结束。
@@ -189,6 +191,10 @@ HTTP/2 已正常关闭的流保留尚未被应用取走的完整响应头与 bod
 
 body readInto／writeFrom 采用既有 NativeByteBuffer 前缀合同，允许短传输。等待到达的数据时无需借用调用者 buffer；实际复制时才同步借用。跨挂起只保留稳定 native allocation，底层借用结束后才复用或释放缓冲。零长度经状态、范围和取消检查后返回零，不推进网络。
 
+H1 输出将分帧前后缀与正文分开传递：正文直接使用调用者 NativeByteBuffer，由底层 transport 按实际接受的前缀推进游标，不再转成托管数组并复制回连接输出缓冲。单次接受的正文仍有界，完整发送所选前缀及其分帧后返回；短写逐次推进，失败保留已有进度并关闭连接，不能在后缀失败后重发正文。前后缀与正文共用一次写操作及 I/O idle 观测，最后统一 flush；所有 native 借用完成后才允许关闭和返回。
+
+非空正文在准备阶段同步借用输入以确认其可用，并在该借用范围内选择分帧；不读取或复制正文内容。已被借用的输入在改变编码状态和写出任何字节之前拒绝，连接仍可继续使用。实际 I/O 仍由 transport 持有自己的 native 借用；调用方在整个挂起写操作结束前不得并发变更或关闭输入 buffer。
+
 ### 7.1 读写停滞时限
 
 HttpIoTimeoutOptions 的 readIdle／writeIdle 均为可选非负 Duration，默认 None；None 关闭对应计时。所有权工厂的 ioTimeouts 提供缺省配置，在接管前验证；连接的只读 ioTimeouts 属性可查询该配置。H1 的 sendRequest／sendResponse 可覆盖本条消息的 writeIdle，receiveRequest／receiveResponse 可覆盖本条消息的 readIdle；返回的 writer／body 保留该时限。H2 的 openRequest 可传入本流 ioTimeouts，服务端接受的流和 h2c 的 stream 1 使用所有权工厂的配置。覆盖在消息或流入口验证，只影响对应消息或流，不修改复用连接上其他调用的配置。
@@ -199,7 +205,9 @@ H2 的读计时仅在该流等待响应头或 body 时有效，按 receiveWithPr
 
 HttpIoTimeoutException 保存 direction（HttpIoDirection.Read／Write）、protocol、streamId（H1 为零）、limit 和自上次进度以来的 elapsed。同步完成的传输也在完成边界检查已到期时限，迟到字节不把超时改成成功。H1 超时关闭该连接，H2 超时以 CANCEL 结束对应流并保留共享连接；由同次关闭产生的 IoClosedException 不覆盖已选择的超时，独立 I/O 错误和 ResourceUseException 的清理原因仍保留。
 
-计时采用普通 CoroutineScope 子任务、EventLoop.sleep 与单调时钟；有进度时调整下一次剩余等待，不为每个 native 步骤创建任务。操作／流结束后取消计时，close 等待所属定时 I/O 的真实收尾；已取消 Job 的清理仍可完成。这里不增加另一套调度器，client 只传入配置并映射错误。
+H1 idle 每个读写方向复用一个连接级唤醒，使用 asyncio 的一次性定时通知并归属连接 owner Job。操作结束只清除当前计时状态；尚未到期的较早唤醒可由后续操作复用，新的较早期限则替换原通知。回调在连接状态锁下核对通知身份并检查当前实际 I/O 的时钟：没有活动计时则直接退休，有进度或新操作使期限延后则按需重新登记，已替换的迟到通知不能影响新操作。不会为空闲连接反复重新登记，也不保留已结束操作及其 Job。只有活动 I/O 的实际超时或当前通知失败才启动连接关闭。回调不改变 transport 调用的原始 Job，取消与真实 I/O 退休语义保持不变。
+
+H2 计时仍采用普通 CoroutineScope 子任务、EventLoop.sleep 与单调时钟；有进度时调整下一次剩余等待，不为每个 native 步骤创建任务。流结束后取消计时，close 等待这些子任务及其定时 I/O 的真实收尾；已取消 Job 的清理仍可完成。H1 在连接关闭或协议移交时清除并撤销两个方向的通知，不再等待无 buffer 借用的定时器；native timer 由 EventLoop 继续保活并退休，迟到回调不能再影响连接或移交后的 transport。两者均复用 EventLoop 的调度与退休机制，client 只传入配置并映射错误。
 
 ### 7.2 关闭与所有权
 

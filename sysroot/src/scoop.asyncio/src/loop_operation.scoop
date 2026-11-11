@@ -1,27 +1,58 @@
 package scoop.asyncio
 
 internal enum OperationChoice {
-    Pending, Stopped(Throwable), Completed
+    Pending, Stopped(Throwable?), Completed
 }
 
-internal class LoopOperation internal constructor(
+private enum OperationDelivery {
+    Submit, Finish
+}
+
+internal abstract class LoopOperation internal constructor(
     val loop: LoopOwner,
     val id: Long,
-    private val start: (Ptr<Unit>, Long) -> IoStart,
-    private val cancel: (Ptr<Unit>, Long) -> Unit,
-    private val finish: (NativeEvent, Throwable?) -> Unit
+    val retained: Boolean = false
 ) {
+    // The native owner alone changes completion registration.
+    var registered: Boolean = false
+    abstract fun run()
+    abstract fun begin(pointer: Ptr<Unit>)
+    abstract fun complete(event: NativeEvent)
+    abstract fun cancelNative(pointer: Ptr<Unit>)
+    abstract fun selectFailure(error: Throwable): Boolean
+    abstract fun requestFailure(error: Throwable)
+}
+
+internal abstract class PendingOperation internal constructor(
+    loop: LoopOwner,
+    id: Long
+): LoopOperation(loop, id) {
     private val lock: IoLock = IoLock()
     private var choice: OperationChoice = OperationChoice.Pending
     private var subscription: Disposable? = None
+    // Only the loop owner changes the delivery phase.
+    private var delivery = OperationDelivery.Submit
+
+    protected abstract fun start(pointer: Ptr<Unit>): IoStart
+    protected abstract fun recordCompletion(event: NativeEvent, failure: Throwable?)
+    protected abstract fun finish()
+
+    public final override fun run() {
+        when (delivery) {
+            case Submit -> loop.beginOperation(this)
+            case Finish -> finish()
+        }
+    }
 
     fun subscribe(job: Job) {
         val registration = job.invokeOnCancellation { requestFailure(CancellationException()) }
-        // Completion cannot run until this operation has been enqueued.
+        // Completion cannot run until this operation has been submitted.
         subscription = Some(registration)
     }
 
-    fun selectFailure(error: Throwable): Boolean =
+    public final override fun selectFailure(error: Throwable): Boolean = selectStop(Some(error))
+
+    private fun selectStop(error: Throwable?): Boolean =
         lock.withLock {
             when (choice) {
                 case Pending -> {
@@ -32,12 +63,20 @@ internal class LoopOperation internal constructor(
             }
         }
 
-    fun requestFailure(error: Throwable) {
+    public final override fun requestFailure(error: Throwable) {
         if (selectFailure(error))
             loop.post { loop.cancel(id) }
     }
 
-    fun begin(pointer: Ptr<Unit>) {
+    // Ordinary timer disposal needs native retirement, not an exceptional coroutine result.
+    fun requestStop() {
+        if (selectStop(None))
+            loop.post { loop.cancel(id) }
+    }
+
+    public final override fun begin(pointer: Ptr<Unit>) {
+        // Control operations must observe earlier byte submissions, including close/shutdown.
+        loop.flushTransfers()
         val cancelled =
             lock.withLock {
                 when (choice) {
@@ -51,7 +90,7 @@ internal class LoopOperation internal constructor(
         }
         val result =
             try {
-                start(pointer, id)
+                start(pointer)
             }
             catch (error: Throwable) {
                 selectFailure(error);
@@ -61,28 +100,56 @@ internal class LoopOperation internal constructor(
             case Pending -> {}
             case Finished(val event) -> loop.complete(event)
         }
+        loop.dispatchBlocking(pointer)
     }
 
-    fun cancelNative(pointer: Ptr<Unit>) {
-        cancel(pointer, id)
+    protected fun unsubscribe() {
+        when (subscription) {
+            case Some(val value) -> value.dispose()
+            case None -> {}
+        }
+        subscription = None
     }
 
-    fun complete(event: NativeEvent) {
+    public final override fun complete(event: NativeEvent) {
         val failure: Throwable? =
             lock.withLock {
                 val previous = choice
                 choice = OperationChoice.Completed
                 when (previous) {
-                    case Stopped(val error) -> Some(error)
+                    case Stopped(val error) -> error
                     case Pending -> None
                     case Completed -> throw IllegalStateException(Some("operation completed twice"))
                 }
             }
-        when (subscription) {
-            case Some(val value) -> value.dispose();
-            case None -> {}
-        }
-        subscription = None
-        loop.ready.add { finish(event, failure) }
+        unsubscribe()
+        recordCompletion(event, failure)
+        delivery = OperationDelivery.Finish
+        loop.enqueueReady(this)
+    }
+}
+
+private struct CallbackCompletion(val event: NativeEvent, val failure: Throwable?)
+
+internal class CallbackOperation(
+    loop: LoopOwner,
+    id: Long,
+    private val onStart: (Ptr<Unit>, Long) -> IoStart,
+    private val onCancel: (Ptr<Unit>, Long) -> Unit,
+    private val onFinish: (NativeEvent, Throwable?) -> Unit
+): PendingOperation(loop, id) {
+    private var completion: CallbackCompletion? = None
+
+    protected override fun start(pointer: Ptr<Unit>): IoStart = onStart(pointer, id)
+    public override fun cancelNative(pointer: Ptr<Unit>) {
+        onCancel(pointer, id)
+    }
+    protected override fun recordCompletion(event: NativeEvent, failure: Throwable?) {
+        completion = Some(CallbackCompletion(event, failure))
+    }
+    protected override fun finish() {
+        val result = completion!!
+        completion = None
+        onFinish(result.event, result.failure)
     }
 }

@@ -2,10 +2,12 @@ use super::*;
 
 pub(super) fn unchanged(
     body: &mir::Body,
-    site: &ResumeSite,
+    suspension: &SuspendSite,
+    sites: &[SuspendSite],
     completed: mir::MirVariantRef,
     addressed: &HashSet<mir::LocalId>,
 ) -> bool {
+    let site = &suspension.resume;
     if site
         .destination
         .is_some_and(|local| addressed.contains(&local))
@@ -15,9 +17,18 @@ pub(super) fn unchanged(
     let mut aliases = site.destination.into_iter().collect::<HashSet<_>>();
     let mut seen = HashSet::new();
     let mut block_id = site.block;
-    let mut start = site.statement + 1;
+    let mut start = site.statement + usize::from(matches!(suspension.kind, SuspendKind::Call(_)));
     loop {
         if !seen.insert(block_id) {
+            return false;
+        }
+        // Registrations have no MIR statement yet. In particular, consecutive
+        // Unit registrations can occupy the very same insertion position.
+        if sites.iter().any(|other| {
+            other.resume.state != site.state
+                && other.resume.block == block_id
+                && other.resume.statement >= start
+        }) {
             return false;
         }
         let block = &body.blocks[block_id];

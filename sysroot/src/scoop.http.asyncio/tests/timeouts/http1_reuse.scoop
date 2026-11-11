@@ -1,0 +1,114 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class Http1IdleReuseTests {
+    @Test
+    fun `a later operation may outlive the previous idle deadline and caller Job`() {
+        withHttp1 suspend {
+            scope, a, _, client, server ->
+            val first =
+                scope.launch suspend {
+                    idleExchange(client, server, Some(Duration.milliseconds(150L)))
+                }
+            first.join()
+            a.writeDelay = Duration.milliseconds(350L)
+            val caller = currentJobOrNone()!!
+            idleExchange(client, server, Some(Duration.seconds(2L)))
+            assertSame(caller, a.writeJob!!)
+            assertFalse(client.isClosed || scope.job.isCancelled)
+        }
+    }
+
+    @Test
+    fun `a shorter message deadline interrupts an existing long wakeup`() {
+        withHttp1 suspend {
+            scope, a, _, client, server ->
+            idleExchange(client, server, Some(Duration.seconds(60L)))
+            val release = AsyncGate()
+            a.writeGate = Some(release)
+            val writing =
+                scope.async<Boolean> suspend {
+                    try {
+                        client.sendRequest(request(), writeIdle = Some(Duration.milliseconds(100L)))
+                        false
+                    } catch (error: HttpIoTimeoutException) {
+                        assertTrue(
+                            error.direction == HttpIoDirection.Write && error.elapsed >= error.limit
+                        )
+                        true
+                    }
+                }
+            try {
+                currentEventLoop().sleep(Duration.milliseconds(500L))
+                assertTrue(client.isClosed)
+            } finally {
+                release.signal()
+            }
+            assertTrue(writing.await())
+            assertEquals(1, a.closes)
+            assertFalse(scope.job.isCancelled)
+        }
+    }
+
+    @Test
+    fun `an old wakeup cannot time out an operation whose idle is disabled`() {
+        withHttp1 suspend {
+            _, a, _, client, server ->
+            idleExchange(client, server, Some(Duration.milliseconds(150L)))
+            a.writeDelay = Duration.milliseconds(350L)
+            idleExchange(client, server, None)
+            assertFalse(client.isClosed)
+        }
+    }
+
+    @Test
+    fun `pending idle wakeups retire when both directions transfer to a tunnel`() {
+        val options =
+            HttpIoTimeoutOptions(
+                readIdle = Some(Duration.milliseconds(150L)),
+                writeIdle = Some(Duration.milliseconds(150L))
+            )
+        withHttp1(options, options) suspend {
+            _, a, b, client, server ->
+            client.sendRequest(prepareHttp2Upgrade(request())).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            server.sendResponse(http2UpgradeResponse()).finish()
+            receiveBytes(client.receiveResponse().body)
+            val clientTunnel = client.takeTransport()
+            val serverTunnel = server.takeTransport()
+            try {
+                currentEventLoop().sleep(Duration.milliseconds(350L))
+                assertEquals(0, a.closes)
+                assertEquals(0, b.closes)
+                sendBytes(serverTunnel, "ok".toByteArray())
+                NativeByteBuffer.allocate(2L).use suspend {
+                    buffer ->
+                    clientTunnel.readFully(buffer, 2L)
+                    assertEquals("ok", String.fromUtf8(buffer.readBytes(2L)))
+                }
+            } finally {
+                clientTunnel.close()
+                serverTunnel.close()
+            }
+            assertEquals(1, a.closes)
+            assertEquals(1, b.closes)
+        }
+    }
+}
+
+private suspend fun idleExchange(
+    client: AsyncHttp1Connection,
+    server: AsyncHttp1Connection,
+    limit: Duration?
+) {
+    client.sendRequest(request(), writeIdle = limit).finish()
+    receiveBytes(server.receiveRequest()!!.body)
+    server.sendResponse(response()).finish()
+    receiveBytes(client.receiveResponse().body)
+}

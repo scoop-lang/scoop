@@ -1,0 +1,65 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.text.*
+
+@Extern(lib = "echo_metrics", name = "echo_metrics")
+private fun snapshot()
+
+@Extern(lib = "echo_metrics", name = "echo_configure_tcp")
+private fun configureTcp(port: Int)
+
+private suspend fun echo(stream: AsyncTcpStream, bufferSize: Long) {
+    stream.useAsync suspend {
+        peer -> NativeByteBuffer.allocate(bufferSize).use suspend {
+            buffer -> while (true) {
+                buffer.clear()
+                val count = peer.readInto(buffer)
+                if (count == 0L)
+                    break
+                peer.writeFully(buffer, count)
+            }
+        }
+    }
+}
+
+private suspend fun serve(scope: CoroutineScope, port: Int, connections: Int, bufferSize: Long) {
+    val address = SocketAddress(IpAddress.IPV4_LOOPBACK, port)
+    currentEventLoop().listenTcp(address, backlog = 1024, reuseAddress = true).useAsync suspend {
+        listener ->
+        @Unsafe
+        {
+            configureTcp(port)
+        }
+        for (_ in 0 ..< connections) {
+            val stream = listener.accept()
+            scope.launch suspend { echo(stream, bufferSize) }
+        }
+    }
+}
+
+fun main(args: Array<String>) {
+    val workerCount = args[1L].toInt()
+    val port = args[2L].toInt()
+    val connections = args[3L].toInt()
+    val bufferSize = args[4L].toLong()
+    @Unsafe
+    {
+        snapshot()
+    }
+    if (workerCount == 0) {
+        eventLoop { blocking { threads = 1 } }.run { serve(this, port, connections, bufferSize) }
+    } else {
+        asyncRuntime {
+            workers = workerCount;
+            blocking { threads = 1 }
+        }.run { serve(this, port, connections, bufferSize) }
+    }
+    @Unsafe
+    {
+        snapshot()
+    }
+}

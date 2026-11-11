@@ -29,14 +29,14 @@ internal suspend fun createTemporaryFileOnLoop(
     return suspendCoroutine<TemporaryFile> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(
+                        return@CallbackOperation nativeStatus(
                             id,
                             startTemporaryFile(native, id, base, pattern)
                         )

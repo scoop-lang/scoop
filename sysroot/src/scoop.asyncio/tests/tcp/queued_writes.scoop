@@ -46,7 +46,17 @@ private class AsyncTcpQueuedWriteTest {
                     }
                 }
                 val writer = scope.launch suspend { client.writeFully(output) }
-                while (!outputBlocked(backend, client)) {
+                while (true) {
+                    if (outputBlocked(backend, client)) {
+                        // Backpressure can fall between two completed short writes.
+                        // A zero-byte skip observes the borrow without changing positions.
+                        try {
+                            output.skip(0L)
+                        }
+                        catch (_: IllegalStateException) {
+                            break
+                        }
+                    }
                     assertFalse(
                         writer.isCompleted,
                         Some("kernel accepted the entire backpressure payload")

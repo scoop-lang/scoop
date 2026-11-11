@@ -80,7 +80,7 @@ fn semantic_layer_fingerprints_have_fixed_vectors() {
         [
             "2b0c50412a4b638493bc7451f2059eebf86a3bb10d8a98e1a1a2fb18f573aaf7",
             "244fa7efe075bccafd7c9e2b2bca196c834dc6d3955d5d76c07c4a70e7274bf4",
-            "ce9fe5079c0a08b533b491c567eb7be68c81f72468a77648cefe2f37c6ced75d",
+            "bd5e085060fc727b293f88a2d7a7c2a3b1cb529469e60e3771267f7a9b5855cc",
         ]
     );
 }

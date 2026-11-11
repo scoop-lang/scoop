@@ -1,6 +1,8 @@
 #include "../../native/linux/backend.h"
+#include "completion_queue.h"
 #include <errno.h>
 #include <poll.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 static int wait_cq(ScoopIoLoop *loop, unsigned wanted) {
@@ -21,6 +23,7 @@ static int wait_cq(ScoopIoLoop *loop, unsigned wanted) {
     return 0;
 }
 static void drain(ScoopIoLoop *loop) {
+    scoop_io_loop_rearm(loop, false);
     for (ScoopIoRequest *request = loop->requests; request;) {
         ScoopIoRequest *next = request->next;
         scoop_io_request_cancel(loop, request->completion.event.id);
@@ -28,10 +31,52 @@ static void drain(ScoopIoLoop *loop) {
     }
     while (!scoop_io_loop_idle(loop)) {
         scoop_io_loop_poll(loop, true);
-        while (scoop_io_loop_batch_size(loop))
-            scoop_io_loop_next(loop);
+        while (test_completion_count(loop))
+            scoop_io_loop_take_batch(loop);
+        scoop_io_loop_rearm(loop, false);
     }
     scoop_io_loop_destroy(loop);
+}
+
+static void ready_prepare(ScoopIoRequest *request, unsigned index, struct io_uring_sqe *sqe) {
+    (void)request;
+    (void)index;
+    io_uring_prep_nop(sqe);
+}
+static void ready_result(ScoopIoRequest *request, unsigned index, int result) {
+    (void)index;
+    if (result < 0)
+        scoop_io_request_error(request, -result);
+    else
+        scoop_io_request_end(request);
+}
+static void ready_finish(ScoopIoRequest *request) {
+    scoop_io_complete(request->loop, &request->completion, 0);
+}
+
+int scoop_test_ring_submission_turn(void) {
+    ScoopIoCreated created = scoop_io_loop_create();
+    if (created.status.code)
+        return -created.status.code;
+    ScoopIoLoop *loop = created.pointer;
+    ScoopIoRequest *request = calloc(1, sizeof(*request));
+    if (!request) {
+        drain(loop);
+        return -ENOMEM;
+    }
+    request->prepare = ready_prepare;
+    request->result = ready_result;
+    request->finish = ready_finish;
+    scoop_io_request_init(request, loop, 42);
+    scoop_io_request_queue(request, 0);
+    scoop_io_ring_poll(loop);
+    ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+    int status =
+        batch.count == 1 && batch.records[0].id == 42 && batch.records[0].kind == SCOOP_IO_DONE
+            ? 0
+            : -EPROTO;
+    drain(loop);
+    return status;
 }
 
 int scoop_test_ring_cancel_order(bool control_first) {
@@ -44,9 +89,9 @@ int scoop_test_ring_cancel_order(bool control_first) {
         drain(loop);
         return status;
     }
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     scoop_io_timer_cancel(loop, 42);
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     status = wait_cq(loop, 2);
     if (!status) {
         struct io_uring_cqe *cqes[2];
@@ -59,10 +104,11 @@ int scoop_test_ring_cancel_order(bool control_first) {
             io_uring_cq_advance(&loop->ring, 2);
             unsigned first = (entries[0]->index >= 3) == control_first ? 0 : 1;
             scoop_io_entry_complete(entries[first], results[first]);
-            if (scoop_io_loop_batch_size(loop))
+            if (test_completion_count(loop))
                 status = -EPROTO;
             scoop_io_entry_complete(entries[1 - first], results[1 - first]);
-            if (scoop_io_loop_batch_size(loop) != 1 || scoop_io_loop_next(loop).id != 42)
+            ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+            if (batch.count != 1 || batch.records[0].id != 42)
                 status = -EPROTO;
         }
     }
@@ -99,10 +145,9 @@ int scoop_test_ring_pressure(void) {
     unsigned completed = 0;
     while (!scoop_io_loop_idle(loop)) {
         scoop_io_loop_poll(loop, true);
-        while (scoop_io_loop_batch_size(loop)) {
-            scoop_io_loop_next(loop);
-            completed++;
-        }
+        while (test_completion_count(loop))
+            completed += (unsigned)scoop_io_loop_take_batch(loop).count;
+        scoop_io_loop_rearm(loop, false);
     }
     if (completed != capacity * 3)
         status = -EPROTO;
@@ -111,7 +156,7 @@ int scoop_test_ring_pressure(void) {
 }
 
 int scoop_test_ring_data_ready(ScoopIoLoop *loop) {
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     return wait_cq(loop, 1);
 }
 
@@ -131,6 +176,60 @@ int scoop_test_ring_capabilities(void) {
             status = -EPROTO;
         io_uring_free_probe(probe);
     }
+    drain(loop);
+    return status;
+}
+
+int scoop_test_ring_batches(void) {
+    enum { count = SCOOP_IO_BATCH_CAPACITY * 2 + 3 };
+    ScoopIoCreated created = scoop_io_loop_create();
+    if (created.status.code)
+        return -created.status.code;
+    ScoopIoLoop *loop = created.pointer;
+    int status = 0;
+    for (int64_t id = 1; id <= count; id++) {
+        status = -scoop_io_timer_start(loop, id, 0, 1).code;
+        if (status)
+            goto done;
+    }
+    while (test_completion_count(loop) != count) {
+        status = -scoop_io_loop_poll(loop, true).code;
+        if (status)
+            goto done;
+    }
+    ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+    if (batch.count != SCOOP_IO_BATCH_CAPACITY) {
+        status = -EPROTO;
+        goto done;
+    }
+    int64_t first = batch.records[0].id;
+    status = -scoop_io_loop_poll(loop, false).code;
+    if (status)
+        goto done;
+    scoop_io_loop_rearm(loop, false);
+    struct pollfd notification = {.fd = loop->notification, .events = POLLIN};
+    if (poll(&notification, 1, 0) != 1 || batch.records[0].id != first) {
+        status = -EPROTO;
+        goto done;
+    }
+    bool seen[count] = {false};
+    unsigned completed = 0;
+    while (batch.count) {
+        for (int64_t i = 0; i < batch.count; i++) {
+            ScoopIoEvent event = batch.records[i];
+            if (event.id < 1 || event.id > count || seen[event.id - 1] ||
+                event.kind != SCOOP_IO_DONE) {
+                status = -EPROTO;
+                goto done;
+            }
+            seen[event.id - 1] = true;
+            completed++;
+        }
+        batch = scoop_io_loop_take_batch(loop);
+    }
+    if (completed != count || !scoop_io_loop_idle(loop))
+        status = -EPROTO;
+done:
     drain(loop);
     return status;
 }

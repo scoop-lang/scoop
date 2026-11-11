@@ -64,7 +64,7 @@ private class EventLoopTimerTest {
     }
 
     @Test
-    fun `cancel an active timer waits for native close and completed results stay successful`() {
+    fun `cancel an active timer waits for owner removal and completed results stay successful`() {
         val loop = eventLoop()
         val cleaned = AtomicBoolean(false)
         loop.run {
@@ -78,7 +78,7 @@ private class EventLoopTimerTest {
                         cleaned.store(true)
                     }
                 }
-            // This native completion proves the earlier timer has been submitted.
+            // This wait lets the owner accept the earlier long timer.
             loop.sleep(Duration.nanoseconds(1L))
             gcCollect()
             pending.cancel()

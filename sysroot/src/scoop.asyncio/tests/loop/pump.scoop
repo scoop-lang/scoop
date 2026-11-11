@@ -1,21 +1,60 @@
 package scoop.asyncio
 
 import scoop.test.*
+import scoop.platform.concurrent.Thread
 
 @Test
 private class LoopPumpTest {
     @Test
+    fun `concurrent publishers wake an idle owner and retain every command`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val seen = Array<Long>(4L) { 0L }.toMutableArray()
+        val completed = AtomicLong(0L)
+        val publishers = ArrayList<Thread>()
+        try {
+            for (index in 0L ..< 4L) {
+                publishers.add(
+                    Thread.start {
+                        for (sequence in 0L ..< 256L) {
+                            owner.post {
+                                assertEquals(sequence, seen[index])
+                                seen[index] = sequence + 1L
+                                completed.fetchAdd(1L)
+                                Unit
+                            }
+                        }
+                    }
+                )
+            }
+            while (completed.load() < 1024L) {
+                owner.pump(native)
+                if (completed.load() < 1024L && !owner.hasQueuedWork())
+                    owner.poll(native, true)
+            }
+            for (count in seen)
+                assertEquals(256L, count)
+        } finally {
+            for (publisher in publishers)
+                publisher.join()
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
+    @Test
     fun `one turn leaves commands and ready work produced during resume for the next turn`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val seen = ArrayList<Int>()
         owner.post {
             seen.add(1)
             owner.post { seen.add(3) }
-            owner.ready.add {
+            owner.enqueueReady {
                 seen.add(2)
-                owner.ready.add { seen.add(4) }
+                owner.enqueueReady { seen.add(4) }
             }
         }
         try {
@@ -34,10 +73,96 @@ private class LoopPumpTest {
     }
 
     @Test
+    fun `operations and callbacks share order and defer delivery work to the next turn`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val seen = ArrayList<Int>()
+        val cancelled = CancellationException()
+        val completed =
+            CallbackOperation(
+                owner,
+                owner.nextOperation(),
+                {
+                    _, id ->
+                    seen.add(2)
+                    IoStart.Finished(NativeEvent(id, IoResult.Bytes(7L)))
+                },
+                { _, _ -> fail(Some("completed operation was cancelled")) },
+                {
+                    event, failure ->
+                    assertEquals(7L, resultProgress(event.result))
+                    assertNoLoopValue(failure)
+                    seen.add(4)
+                    owner.post { seen.add(6) }
+                    owner.enqueueReady { seen.add(7) }
+                }
+            )
+        val stopped =
+            CallbackOperation(
+                owner,
+                owner.nextOperation(),
+                { _, _ -> fail(Some("cancelled operation was started")) },
+                { _, _ -> fail(Some("unstarted operation needed native cancellation")) },
+                {
+                    _, failure ->
+                    assertSame(cancelled, failure!!)
+                    seen.add(5)
+                }
+            )
+        assertTrue(stopped.selectFailure(cancelled))
+        owner.post { seen.add(1) }
+        owner.submit(completed)
+        owner.post { seen.add(3) }
+        owner.submit(stopped)
+        try {
+            owner.pump(native)
+            assertEquals(5L, seen.size)
+            for (index in 0L ..< seen.size)
+                assertEquals((index + 1L).toInt(), seen[index])
+            owner.pump(native)
+            assertEquals(7L, seen.size)
+            assertEquals(6, seen[5L])
+            assertEquals(7, seen[6L])
+        } finally {
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
+    @Test
+    fun `commands published during repeated delivery remain queued for the next turn`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val seen = ArrayList<Long>()
+        try {
+            for (round in 0L ..< 16L) {
+                val base = round * 3L
+                owner.post {
+                    seen.add(base)
+                    Thread.start { owner.post { seen.add(base + 2L) } }.join()
+                    owner.enqueueReady { seen.add(base + 1L) }
+                    owner.pump(native)
+                }
+                owner.pump(native)
+                assertEquals(base + 2L, seen.size)
+                owner.pump(native)
+                assertEquals(base + 3L, seen.size)
+            }
+            for (index in 0L ..< seen.size)
+                assertEquals(index, seen[index])
+        } finally {
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
+    @Test
     fun `nested pump does not enter queued commands recursively`() {
         val loop = eventLoop()
         val owner = loop.state
-        val native = owner.open(loop, LoopExecutionPlan.Owner(LoopBlockingConfig.Owned(1)))
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
         val entered = AtomicBoolean(false)
         owner.post {
             owner.post { entered.store(true) }

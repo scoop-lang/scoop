@@ -18,7 +18,7 @@ private class PacketValue(val value: Int)
 @Test
 private class AsyncioConsumerTest {
     @Test
-    fun `runtime generic result crosses workers owner and shared blocking pool`() {
+    fun `runtime generic result crosses reactor workers and shared blocking pool`() {
         val owner = currentThreadId()
         val result =
             asyncRuntime {
@@ -35,9 +35,9 @@ private class AsyncioConsumerTest {
                         }
                     }
                 withExecutor(loop.executor) {
-                    assertEquals(owner, currentThreadId())
+                    assertNotEquals(owner, currentThreadId())
                     loop.sleep(Duration.nanoseconds(1L))
-                    assertEquals(owner, currentThreadId())
+                    assertNotEquals(owner, currentThreadId())
                 }
                 value.await()
             }

@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn source_interface_v93_carries_optional_context_queries() {
+fn source_interface_v94_requires_root_coroutine_handshakes() {
     assert_retired_version(
         hir_cross_cone_interface_capability(),
-        93,
+        94,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -41,10 +41,10 @@ fn mir_foundation_v10_encodes_gc_leaf_function_pointer_identity() {
 }
 
 #[test]
-fn lir_layout_abi_v19_describes_gc_leaf_function_pointer_layouts() {
+fn lir_layout_abi_v20_separates_interfaces_from_private_imports() {
     assert_retired_version(
         lir_cross_cone_layout_abi_capability(),
-        19,
+        20,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -61,10 +61,10 @@ fn lir_param_free_v3_retains_target_coercions() {
 }
 
 #[test]
-fn compiler_protocol_v22_exposes_native_app_entry() {
+fn compiler_protocol_v23_requires_root_coroutine_handshakes() {
     assert_retired_version(
         hir_core_bootstrap_interface_capability(),
-        22,
+        23,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

@@ -70,7 +70,7 @@ public class HttpServer private constructor(private val state: ServerState): Asy
                     ready ->
                     val owner = currentJobOrNone()!!
                     state.lock.withLock { state.owner = Some(owner) }
-                    ready.trySend(Unit)
+                    ready.ready()
                     runServer(state)
                 }
                 caller.ensureActive()
@@ -162,8 +162,9 @@ public class HttpServer private constructor(private val state: ServerState): Asy
 }
 
 internal suspend fun runServer(state: ServerState) {
+    val connectionExecutor = currentCoroutineExecutorOrNone() ?: state.loop.executor
     try {
-        coroutineScope<Unit> {
+        withExecutor<Unit>(state.loop.executor) {
             val scope = this
             try {
                 while (state.running()) {
@@ -178,8 +179,8 @@ internal suspend fun runServer(state: ServerState) {
                             ready ->
                             val owner = job
                             state.lock.withLock { connection.job = Some(owner) }
-                            ready.trySend(Unit)
-                            runServerConnection(state, connection)
+                            ready.ready()
+                            dispatchServerConnection(state, connection, connectionExecutor)
                         }
                     }
                     catch (error: Throwable) {

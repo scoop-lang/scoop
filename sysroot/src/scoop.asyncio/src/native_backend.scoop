@@ -17,6 +17,9 @@ internal struct NativeRecord(
     val resource: Ptr<Unit>?
 )
 
+@CLayout
+internal struct NativeBatch(val records: Ptr<NativeRecord>, val count: Long)
+
 internal fun backendFailure(operation: String, status: Int): PlatformException {
     val error = nativeStatusError(status)
     return PlatformException(operation, error.kind, Some(error))
@@ -54,11 +57,11 @@ internal fun nativeLoopWake(loop: Ptr<Unit>)
 @Extern(name = "scoop_io_loop_poll")
 internal fun nativeLoopPoll(loop: Ptr<Unit>, wait: Boolean): NativeIoStatus
 
-@Extern(name = "scoop_io_loop_batch_size")
-internal fun nativeLoopBatchSize(loop: Ptr<Unit>): Long
+@Extern(name = "scoop_io_loop_take_batch")
+internal fun nativeLoopTakeBatch(loop: Ptr<Unit>): NativeBatch
 
-@Extern(name = "scoop_io_loop_next")
-internal fun nativeLoopNext(loop: Ptr<Unit>): NativeRecord
+@Extern(name = "scoop_io_loop_rearm")
+internal fun nativeLoopRearm(loop: Ptr<Unit>, managedReady: Boolean)
 
 @Extern(name = "scoop_io_loop_destroy")
 internal fun nativeLoopDestroy(loop: Ptr<Unit>): NativeIoStatus

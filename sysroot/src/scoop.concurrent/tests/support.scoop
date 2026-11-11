@@ -10,6 +10,7 @@ internal class ManualExecutor: CoroutineExecutor {
     private val lock = Mutex()
     private val queue = ArrayDeque<() -> Unit>()
     val active = AtomicInt(0)
+    val resumed = AtomicInt(0)
 
     val queued: Long get() = lock.withLock { queue.size }
 
@@ -43,6 +44,10 @@ private class ManualTicket(private val owner: ManualExecutor): ExecutorTask {
     public override val executor: CoroutineExecutor get() = owner
     public override fun dispatch(work: CoroutineWork) {
         owner.enqueue { work.run() }
+    }
+    public override fun dispatchResume(work: CoroutineWork) {
+        owner.resumed.fetchAdd(1)
+        dispatch(work)
     }
     public override fun dispatchBlocking(work: BlockingWork) {
         owner.enqueue { work.run() }

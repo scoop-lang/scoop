@@ -21,7 +21,7 @@ internal suspend fun controlTty(owner: OwnedEndpoint, control: TtyControl): IoRe
             return suspendCoroutine<IoResult> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {

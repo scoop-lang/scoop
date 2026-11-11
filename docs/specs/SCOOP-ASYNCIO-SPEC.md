@@ -20,6 +20,7 @@ Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Li
 public interface EventLoop {
     public val executor: CoroutineExecutor
     public suspend fun sleep(duration: Duration)
+    public fun schedule(duration: Duration, completion: (Throwable?) -> Unit): Disposable
     public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<SocketAddress>
     public suspend fun connectTcp(address: SocketAddress): AsyncTcpStream
     public suspend fun listenTcp(address: SocketAddress, backlog: Int = 128, reuseAddress: Boolean = false): AsyncTcpListener
@@ -46,7 +47,29 @@ public fun currentEventLoop(): EventLoop
 
 资源与操作由共享 `LoopOwner` 持有，不依赖具体 EventLoop 类。一次非阻塞处理只消费进入该轮时取得的命令和 native 完成快照，再恢复本轮 ready；恢复期间产生的命令和 ready 留到下一轮，嵌套处理不递归进入。同步驱动反复调用同一流程，只有无可执行工作时才等待。
 
+ready 交付恢复 continuation 时，目标 executor 可以按并发库规范第 5 节，在多个 worker 的受控 poll 窗口内直接驱动已交出旧执行权的协程。操作须在恢复前结束本次 native 退休、借用与资源占用清理，恢复后不得再访问已让出的本次状态。新产生的 ready 仍留到下一轮，不从 native 提交栈同步交付，不递归 pump；单 worker 与独立 LoopExecutor 继续通过普通队列恢复。
+
+命令和 ready 的批次存储由 owner 复用。外部命令在 inbox 同步边界交换接收与消费容器；本地命令在 owner 上交换，不再复制到外部命令容器。每轮先消费外部快照，再消费本地快照；完成处理后交换 ready 批次。处理期间产生的工作进入下一接收容器，不得因本轮清理而丢失。消费结束或回调抛出时清空本轮容器中的引用，容量保留给后续批次；空轮不新建容器或迭代器。可复用容器只在 owner 放弃本轮访问后才重新作为接收容器，外部生产者不访问正在消费的批次。
+
+操作对象直接参与 ready 排队；需要跨线程提交的操作与普通命令共用队列，不为提交／交付各自建立捕获该操作的包装闭包。AsyncRuntime 在资源所属 worker 上直接登记操作并开始 native 请求，不再把本地操作排队发给自己；其他 worker／外线程以及独立 PlatformEventLoop 的操作仍经命令队列交付 owner。本地开始以当前 owner 执行点为序，不与尚未消费的普通命令建立额外总序；排队命令自身的顺序保持。直接开始不递归 pump，不同步调用 continuation 或完成回调；同步完成和失败也进入 ready，ready 消费期间产生的完成留到下一轮。原生请求仍在 worker 推进时批量提交，不逐操作强制刷新内核队列。
+
+TCP、文件字节传输与 TTY 写入使用资源持有的可复用等待槽，实现 `SuspendRegistration<Long>`。TCP 读／写各有一槽，文件两个方向仍共用同一资源忙状态，TTY 写入有自己的槽。等待槽同时持有本次借用、continuation、结果仲裁与原生提交／取消状态；不为每次传输新建操作对象、方向释放对象或另一套清理闭包。每次调用仍独立取得和解除 buffer 借用，不把借用扩大到连接生命周期。真正退休后先提交实际进度、清空本次捕获、解除借用与方向占用，再恢复调用方；恢复可立即开始下一次调用，旧交付栈不得再访问已让出的本次状态。准备／登记失败完整释放已经取得的资源；零长度完成同样的状态、范围和取消检查，不登记 native 请求。
+
+等待槽的取消监听按当前 Job 绑定复用；换 Job 或资源关闭时解除旧绑定。没有活动传输时，Job 取消不提交 native 撤销；新的调用仍检查当前 Job。旧绑定回调不能选择新 Job 的结果，已排队取消命令只作用于其捕获的本次传输代次，不能撤销后来复用该槽的传输。取消／关闭与完成在同一状态边界选择一次结果；错误引用先完成发布，交付方再读取，不把未完成的引用写入视为可交付结果。
+
+等待槽首次提交后可在 owner 的完成登记中保留至资源关闭，native 编号在该槽内复用；只有前一次真实 native 退休、ready 交付及借用结束后才能提交下一次，同一编号不同时表示两笔在途请求。资源的运行／关闭、方向占用和输出结束在一个同步状态边界转换，字节传输不逐次建立独立 reservation 对象。关闭停止新接纳，等活动等待槽、原生请求和借用排空后解除完成登记及 Job 捕获；普通完成不额外排队执行无事可做的关闭检查。其他操作继续使用同一 owner、native 批次与 ready 机制，不另建调度器或资源生命周期。
+
+完成结果由具体操作持有，公共操作基类只提供 owner、编号与排队／完成接收合同；一次性回调操作和资源持有的字节等待槽分别保存自身所需的仲裁、订阅与交付状态，不为每种操作保留完整的通用 native 结果布局。字节传输在 owner 选定结果后保存实际传输量与待交付异常；错误转换失败同样保存为异常，不能跳过借用解除。完整 native 结果只由需要它的回调操作保活。结果保存不调用 continuation 或业务回调，进度提交、借用和方向释放、恢复仍在本轮 ready 交付时按原次序执行；成功、取消和关闭的仲裁规则不变。
+
+native 完成以有界批次跨 FFI 交付，不逐条调用 native 取出。后端把已退休请求的完成记录复制到 loop 自有、可复用的 GC-free 连续数组，并在本轮完成交付后统一释放对应请求记录；当前轮尚未执行的取消／关闭命令仍可访问请求相关端点。数组内容在下一次取批次前保持不变。managed owner 在当前 pump 中按序读取该快照，完成记录中的独立资源继续沿既有交付／迟到关闭协议处理。剩余完成留在队列，当前批次结束后重新通知；不因批次容量丢弃完成或提前解除在途 buffer 借用。每轮结束统一发布仍需推进的 managed／native 工作。阻塞请求提交后仍立即交给共享池，不能推迟到可能执行用户回调的整轮结束。
+
+Linux 的原生提交队列和逻辑完成队列均由 owner 更新：提交、取消及完成处理不逐请求通知自己，由 pump 结束边界根据真实剩余工作统一 rearm。内核 CQE、阻塞 worker 完成及外线程命令仍各自发布持久通知；此边界不能吞掉先于等待到达的工作。Darwin／Windows 的外线程完成生产者保留原同步与唤醒，取出与消费同样使用批次接口。pump 结束、GUI 返回宿主和 worker 进入等待前均满足这个进度合同。
+
+Linux 的一次 native 推进先消费已有 CQ 快照，再批量发布待提交请求，随后消费提交后已经可见的 CQ 快照，使本次提交的即时完成能进入同轮 managed 完成批次。两次消费均以当时 CQ 数量为界，不循环等待新完成；后一次消费产生的后续提交留给下一轮并按真实剩余工作通知。数据请求与取消控制请求仍分别退休，不能因同轮完成而提前释放在途借用或请求记录。
+
 后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
+
+共享运行状态按职责同步：启动时一次发布、之后不变的 binding 与 execution 供 worker 以 acquire 读取，不与每次命令投递共用全局锁；结束时只停止接纳，不并发改写这些已发布引用。操作编号独立原子分配。命令队列、通知资源的有效期与停止接纳由独立 inbox 协调，竞争线程通过平台 mutex 的 NativeSafe 等待让出 CPU，不能在包含 native 唤醒的临界区外无界自旋。命令从空变为非空时发送一次通知，同一待消费批次的后续投递合并通知；入队、通知与停止接纳仍在同一边界，避免后端销毁后的访问。owner 取走一批后重新允许通知，并在本轮退出时检查真实待处理工作，防止清除旧通知时漏掉新批次。根结果／清理状态使用自己的同步，ready、操作表和资源表继续只由 owner 更新，不在其锁内执行用户回调。
 
 ### 2.1 多线程根运行
 
@@ -61,17 +84,19 @@ public class AsyncRuntime {
 }
 ```
 
-AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、借用该池的 MultiThreadExecutor 和 PlatformEventLoop。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。初始化失败按创建顺序的逆序回收已建立资源。
+AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、每 worker 一个 native reactor，以及借用该池的 MultiThreadExecutor。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。全部 reactor 建立后才启动 coroutine workers；初始化失败回收已建立资源，部分线程启动失败先停止并 join 已启动线程，再收尾未启动的 reactor。
 
-调用 run 的线程只驱动 I/O owner；用户根及默认子任务在 MultiThreadExecutor 上执行，保留同一个 EventLoop binding。currentEventLoop().executor 仍是 owner executor，可显式 withExecutor 切换。worker 不并发 poll 同一个 backend，I/O 的提交、完成选择和资源退休仍遵守本节的 owner 边界。两种 executor 的 managed blocking 调用共用本次 runtime 的池。
+调用 run 的线程等待结果；用户根及默认子任务在 MultiThreadExecutor 上执行，各 worker 同时驱动自己的 reactor。运行只有一个逻辑 EventLoop binding 和一棵结构化任务树；currentEventLoop().executor 返回共享 worker executor，不提供固定 owner 线程承诺。独立 PlatformEventLoop 与 GUI attach 保持 2.1 的 owner executor 合同。普通资源创建优先选择当前 runtime worker；不在本池 worker 上的调用按轮转分配。单个 listener 接收的新连接在交付前轮转分配到各 reactor，应用无需多个端口或手工分片。
 
-根及结构化子树结束后先请求 worker executor draining，继续驱动 owner 并保持共享阻塞池接纳。等待全部 worker 执行登记、驱动及其阻塞工作退出后，才使 LoopExecutor draining；此先后关系保证已接纳 worker 的 finally 仍可切换到 owner。LoopExecutor 排空后再关闭遗留资源和排空 native I/O，最后停止共享阻塞池，等待其退出执行循环，销毁后端并 join 两组线程。正常结果 T 或最终异常在这些步骤之后返回，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
+资源的 native owner 在创建时确定，已有 handle、在途请求与借用不随任务窃取迁移。accept 请求仍由 listener owner 提交并退休，新 stream 从首次登记／IOCP 关联起属于目标 owner；目标 owner 接纳资源或关闭迟到成功后才恢复调用方。每个 reactor 由自己的 worker 串行推进；本地操作直接开始，普通命令本地排队，跨 worker 提交与取消通过 inbox 发布。完成在所属 worker 上进入现有 executor 的本地队列，任务仍可被窃取。worker 在有限批任务之间处理 I/O／timer，持续可运行任务不能饿死 I/O；空闲时发布观察状态并重查任务与 I/O，再通过可被任务投递打断的 native 等待休眠。所有 reactor 和通用 blocking 共用本次 runtime 的阻塞池。
+
+根及结构化子树结束后先请求 worker executor draining，各 worker 继续推进 I/O，并保持共享阻塞池接纳。全部执行登记归零且已接纳的队列工作排空后，各 worker 才关闭所属遗留资源、排空实际 native I/O 和 ready、销毁 reactor 并退出。全部 reactor 收尾和 coroutine workers join 后，最后停止并 join 共享阻塞池。正常结果 T 或最终异常在这些步骤之后返回，非取消异常优先于取消，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。任一 backend 失败取消同一个根 Job，但仍执行全部 reactor 的收尾。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
 
 ## 3. 取消、完成与关闭
 
 直接 I/O 属于提交时的当前 Job，不为每次操作创建子任务。登记前已取消则不提交。操作完成与取消在 managed 状态中选择一次结果；native 结束是独立事实。借用解除、实际进度提交及未交付资源清理完成后才恢复，包括取消结果。成功先选定则后来的取消不覆盖成功；取消先选定则迟到成功只执行清理。撤销提交或控制请求的完成不替代实际数据请求的退休。
 
-取消须等待真实原生操作停止：Darwin 收齐 source cancel handler 与正在执行的 work；Linux 消费目标及取消控制请求的 CQE。定时器也遵守该退休条件。单独取消 TCP read／write、UDP receive 不关闭健康资源，TCP write 保留真实部分进度。shutdownOutput 提交后的取消终止整个 stream。UDP send 提交后等待真实结果并保留已发送长度；文件／DNS work 队列可撤销，已执行 syscall 必须等 worker 完成。迟到 open／connect／accept 成功先关闭未交付资源。
+取消须等待真实原生操作停止：Darwin 收齐 source cancel handler 与正在执行的 work；Linux 消费目标及取消控制请求的 CQE。共享定时唤醒自身也遵守该退休条件；逻辑计时等待按第 5 节从 owner 队列移除后完成，不等待其他使用者共享的唤醒关闭。单独取消 TCP read／write、UDP receive 不关闭健康资源，TCP write 保留真实部分进度。shutdownOutput 提交后的取消终止整个 stream。UDP send 提交后等待真实结果并保留已发送长度；文件／DNS work 队列可撤销，已执行 syscall 必须等 worker 完成。迟到 open／connect／accept 成功先关闭未交付资源。
 
 close 拒绝新操作，将未选定结果的在途操作以 IoClosedException 结束；先获胜的 Job 取消不被覆盖。close 不隐含 flush、sync 或对端确认，等待所有操作、借用和 native 退休后完成；并发 close 等同一次收尾，后续重复 close 不重报旧错误。文件须先等在途请求与活动 worker，再执行一次 raw close，不能重试已消费 fd。EventLoop 收尾继续关闭所有资源，即使某项失败。
 
@@ -117,7 +142,15 @@ AsyncByteStream 允许使用不同 buffer 各一个 read 和 write 同时在途�
 
 ## 5. 定时等待
 
-sleep 使用 Duration，负值非法，零在取消检查后立即完成。正时长按单调截止时间等待；Darwin 使用 dispatch timer，Linux 使用 TIMEOUT；到期核对截止时间，不提前报告完成。不承诺精确唤醒时刻。取消停止并关闭 timer，收齐 native 关闭后恢复。
+sleep 使用 Duration，负值非法，零在取消检查后立即完成。正时长从调用时的单调时刻计起，排队时间计入等待；到期核对截止时间，不提前报告完成。不承诺精确唤醒时刻。取消与到期选择一次结果，取消先选定时由 owner 移除逻辑登记后恢复 CancellationException；不等待其他计时使用者共享的 native 唤醒关闭。
+
+`schedule` 是框架超时使用的一次性定时通知，沿用当前活动 Job 与 EventLoop 检查。非负时长从调用时的单调时刻计起；包括零时长在内，completion 都只能在后续 owner 轮次调用，不在登记栈内调用。到期成功传入 None，native 启动或完成失败传入原始错误；最多通知一次。通知是普通非挂起函数，不建立 coroutine、execution 或结构化子 Job，不捕获 Context，在 owner 上且在所有内部锁外执行。通知应只更新状态、取消所属 Job 或通知已有等待者；抛出的异常记为 loop 失败并取消根，仍完成正常清理。
+
+返回的 Disposable 可在任意线程幂等撤销。撤销先于回调选定则不调用 completion，并立即释放其捕获；已经选定的回调允许结束，dispose 不等待它，消费者以自己的状态边界处理竞争。撤销和所属 Job 取消都不通过抛 CancellationException 完成定时通知。通知本身不延长创建者的结构化任务；调用方在操作结束时 dispose，loop 退出时撤销全部遗留通知并排空 native 资源。使用者需要挂起等待、取消异常或继承 execution 时仍使用 sleep。
+
+sleep 与 schedule 共用 owner 的逻辑期限队列。登记和撤销只通过命令发布，队列以期限排序并支持直接移除已撤销登记，不把失效节点及其捕获保留到原期限。每轮在处理已有 ready 之后，以一次单调时钟快照选定到期项，通知进入下一轮 ready；通知产生的新登记不能在当前轮递归执行。极长合法 Duration 不因转换为绝对时间或总纳秒数而溢出。
+
+逻辑队列只为最早期限维护一个当前 native 唤醒，复用现有后端 timer 和 LoopOperation 退休协议。新期限更早时替换唤醒，旧唤醒取消后仍保活至实际退休；移除最早项或队列暂时变空时，可保留已经安排的较早唤醒，醒来核对真实队列，不产生提前通知或持续空转。native 唤醒不保留某个调用者的 continuation 或回调捕获。当前唤醒启动／完成失败时，尚未选定结果的逻辑登记接收该错误，已选定取消不被覆盖；已替换或关闭的旧唤醒不能结束新登记。loop 清理时移除遗留逻辑登记，取消当前唤醒并等待全部 native 退休。该共享层不改变后端 ABI，Darwin／Linux／Windows 继续分别用 dispatch timer／TIMEOUT／QPC timer 提供唤醒。
 
 ## 6. 网络
 

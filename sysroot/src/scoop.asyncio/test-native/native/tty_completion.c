@@ -1,4 +1,5 @@
 #include "../../native/loop.h"
+#include "completion_queue.h"
 #include <errno.h>
 #ifdef _WIN32
 #include "../../../scoop.platform/native/windows_api.h"
@@ -9,7 +10,7 @@ int scoop_test_tty_completion_ready(ScoopIoLoop *loop) {
         ScoopIoStatus status = scoop_io_loop_poll(loop, false);
         if (status.code)
             return status.code;
-        if (scoop_io_loop_batch_size(loop))
+        if (test_completion_count(loop))
             return 0;
         ULONGLONG elapsed = GetTickCount64() - started;
         if (elapsed >= 5000)
@@ -31,7 +32,7 @@ int scoop_test_tty_completion_ready(ScoopIoLoop *loop) {
         int status = -scoop_io_loop_poll(loop, false).code;
         if (status < 0)
             return status;
-        if (scoop_io_loop_batch_size(loop))
+        if (test_completion_count(loop))
             return 0;
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);

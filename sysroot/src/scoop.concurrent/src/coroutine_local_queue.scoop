@@ -1,0 +1,130 @@
+package scoop.concurrent
+
+private const val LOCAL_CAPACITY: Long = 256L
+
+private const val POSITION_MASK: Long = 0x7fffffffffffffffL
+
+// Only the owning worker publishes slots. A steal reservation keeps its slots
+// unavailable for reuse until copying and clearing have both completed.
+internal class CoroutineLocalQueue {
+    private val slots = MutableArray<CoroutineSubmission?>(LOCAL_CAPACITY) { _ -> None }
+    private val head = AtomicLong(0L)
+    private val tail = AtomicLong(0L)
+    private val reservation = AtomicLong(-1L)
+
+    private fun distance(start: Long, end: Long): Long = (end - start) and POSITION_MASK
+    private fun advance(index: Long, count: Long): Long = (index + count) and POSITION_MASK
+
+    private fun available(end: Long): Long {
+        val current = head.load(MemoryOrder.Acquire)
+        val reserved = reservation.load(MemoryOrder.Acquire)
+        var used = distance(current, end)
+        if (reserved != -1L) {
+            val held = distance(reserved, end)
+            if (held > used)
+                used = held
+        }
+        return LOCAL_CAPACITY - used
+    }
+
+    internal fun tryPut(work: CoroutineSubmission): Boolean {
+        val end = tail.load(MemoryOrder.Relaxed)
+        if (available(end) <= 0L)
+            return false
+        slots[end and (LOCAL_CAPACITY - 1L)] = Some(work)
+        tail.store(advance(end, 1L), MemoryOrder.Release)
+        return true
+    }
+
+    internal fun take(): CoroutineSubmission? {
+        var current = head.load(MemoryOrder.Relaxed)
+        while (true) {
+            if (current == tail.load(MemoryOrder.Relaxed))
+                return None
+            if (
+                head.compareAndSet(
+                    current,
+                    advance(current, 1L),
+                    MemoryOrder.AcqRel,
+                    MemoryOrder.Relaxed
+                )
+            ) {
+                val index = current and (LOCAL_CAPACITY - 1L)
+                val work = slots[index]!!
+                slots[index] = None
+                return Some(work)
+            }
+            current = head.load(MemoryOrder.Relaxed)
+        }
+    }
+
+    internal fun refill(inbox: CoroutineQueue): Int {
+        var end = tail.load(MemoryOrder.Relaxed)
+        val room = available(end)
+        var count = 0L
+        while (count < room) {
+            when (inbox.take()) {
+                case Some(val work) -> {
+                    slots[end and (LOCAL_CAPACITY - 1L)] = Some(work)
+                    end = advance(end, 1L)
+                    count += 1L
+                }
+                case None -> break
+            }
+        }
+        if (count > 0L)
+            tail.store(end, MemoryOrder.Release)
+        return count.toInt()
+    }
+
+    // The caller owns target. Its available-space snapshot remains valid while
+    // reserving this source, because nobody else can publish into target.
+    internal fun stealInto(target: CoroutineLocalQueue, limit: Int): CoroutineSubmission? {
+        val targetEnd = target.tail.load(MemoryOrder.Relaxed)
+        var room = target.available(targetEnd)
+        if (room < 0L)
+            room = 0L
+        while (true) {
+            val current = head.load(MemoryOrder.Acquire)
+            if (!reservation.compareAndSet(-1L, current, MemoryOrder.AcqRel, MemoryOrder.Relaxed))
+                return None
+            val end = tail.load(MemoryOrder.Acquire)
+            var count = (distance(current, end) + 1L) / 2L
+            if (count > room + 1L)
+                count = room + 1L
+            if (count > limit.toLong())
+                count = limit.toLong()
+            if (count == 0L) {
+                reservation.store(-1L, MemoryOrder.Release)
+                return None
+            }
+            if (
+                !head.compareAndSet(
+                    current,
+                    advance(current, count),
+                    MemoryOrder.AcqRel,
+                    MemoryOrder.Relaxed
+                )
+            ) {
+                reservation.store(-1L, MemoryOrder.Release)
+                continue
+            }
+            val firstIndex = current and (LOCAL_CAPACITY - 1L)
+            val first = slots[firstIndex]!!
+            slots[firstIndex] = None
+            var copied = 1L
+            var targetCursor = targetEnd
+            while (copied < count) {
+                val index = advance(current, copied) and (LOCAL_CAPACITY - 1L)
+                target.slots[targetCursor and (LOCAL_CAPACITY - 1L)] = slots[index]
+                slots[index] = None
+                targetCursor = advance(targetCursor, 1L)
+                copied += 1L
+            }
+            reservation.store(-1L, MemoryOrder.Release)
+            if (count > 1L)
+                target.tail.store(targetCursor, MemoryOrder.Release)
+            return Some(first)
+        }
+    }
+}

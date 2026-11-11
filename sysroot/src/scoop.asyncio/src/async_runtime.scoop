@@ -1,6 +1,9 @@
 package scoop.asyncio
 
-/** Runs coroutines on managed workers while its caller drives a single I/O owner. */
+import scoop.concurrent.BlockingTaskPool
+import scoop.concurrent.multiThreadExecutor
+
+/** Runs coroutines and I/O on the same managed workers, sharing one logical event loop. */
 public class AsyncRuntime internal constructor(private val config: AsyncRuntimeConfig) {
     private val accepted = AtomicBoolean(false)
 
@@ -9,10 +12,38 @@ public class AsyncRuntime internal constructor(private val config: AsyncRuntimeC
         requireLoopRootCaller()
         if (!accepted.compareAndSet(false, true))
             throw IllegalStateException(Some("async runtime already used"))
-        return createRuntimeWorkers(config).use {
-            workers ->
-            val loop = PlatformEventLoop(LoopExecutionPlan.Runtime(workers))
-            loop.runPrepared(block)
+        val result = RuntimeResult<T>()
+        val configuration = config
+        BlockingTaskPool(configuration.blockingThreads).use {
+            pool -> RuntimeEventLoop.create(configuration.workers, pool).use {
+                runtime -> multiThreadExecutor {
+                    workers = configuration.workers
+                    blocking(pool)
+                    drivers(runtime.drivers)
+                }.use {
+                    executor ->
+                    runtime.bindExecutor(executor)
+                    val loop: EventLoop = runtime
+                    context(loop) {
+                        startDispatchedCoroutine<T>(
+                            executor,
+                            {
+                                coroutineScope<T> {
+                                    runtime.bindRoot(job)
+                                    block(this)
+                                }
+                            },
+                            result
+                        )
+                    }
+                    result.await()
+                    runtime.rootFailure = result.failure
+                }
+            }
+        }
+        @Unsafe
+        {
+            return result.value.assumeInit()
         }
     }
 }

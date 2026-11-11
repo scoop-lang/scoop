@@ -53,8 +53,8 @@ static void update_remembered(ScoopGcRememberedGroup *group, ScoopGcSlotVisitor 
     }
 }
 
-static void enqueue_update_array(ScoopGcMarkWorker *owner, void *object, const uint64_t *scan) {
-    ScoopGcArrayScan array = scoop_gc_array_scan(object, scan);
+static void enqueue_update_array(ScoopGcMarkWorker *owner, void *object, const uint64_t *scan,
+                                 ScoopGcArrayScan array) {
     uint64_t stride = scoop_gc_array_stride(scan);
     for (uint64_t first = 0; first < array.count;) {
         uint64_t length = array.count - first;
@@ -146,9 +146,12 @@ void scoop_gc_update_run_task(ScoopGcMarkWorker *worker, ScoopGcMarkTask task) {
         scoop_heap_claim_current_object(current);
 #endif
         if (scoop_gc_scan_is_array(scan)) {
-            enqueue_update_array(worker, current, scan);
-        } else {
-            scoop_gc_scan_object(current, scan, visitor, context);
+            ScoopGcArrayScan array = scoop_gc_array_scan(current, scan);
+            if (array.count > GC_MARK_INLINE_ARRAY) {
+                enqueue_update_array(worker, current, scan, array);
+                continue;
+            }
         }
+        scoop_gc_scan_object(current, scan, visitor, context);
     }
 }

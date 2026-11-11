@@ -861,7 +861,7 @@ pub struct CoroutineFunction {
 #[derive(Debug)]
 pub enum CoroutineLowering {
     Immediate,
-    /// Every suspension returns the callee's step using the original completion.
+    /// Every suspension delegates to the original completion's caller handshake.
     /// This has no local frame, but can still suspend.
     TailForwarding,
     StateMachine {

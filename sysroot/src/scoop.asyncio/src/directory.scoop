@@ -48,14 +48,14 @@ internal suspend fun openDirectoryOnLoop(loop: LoopOwner, path: Path): AsyncDire
     return suspendCoroutine<AsyncDirectoryEntries> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation path.withIoPath {
+                        return@CallbackOperation path.withIoPath {
                             name -> @Unsafe
                             {
                                 return@withIoPath nativeStatus(
@@ -85,7 +85,10 @@ internal suspend fun openDirectoryOnLoop(loop: LoopOwner, path: Path): AsyncDire
                                     cleanup -> continuation.resumeWithException(
                                         when (cleanup) {
                                             case None -> error
-                                            case Some(val other) -> ResourceUseException(error, other)
+                                            case Some(val other) -> ResourceUseException(
+                                                error,
+                                                other
+                                            )
                                         }
                                     )
                                 }

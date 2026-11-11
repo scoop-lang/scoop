@@ -144,11 +144,11 @@ static void create_start(void *context) {
 
 static int submit_create(ScoopIoLoop *loop, int64_t id, SocketAction action,
                          struct ScoopSocketAddress address, int backlog, bool reuse,
-                         ScoopIoEndpoint *listener) {
+                         ScoopIoEndpoint *listener, ScoopIoLoop *target) {
     SocketCreate *request = calloc(1, sizeof(*request));
     if (!request)
         return -ENOMEM;
-    request->endpoint = scoop_io_endpoint_new(loop);
+    request->endpoint = scoop_io_endpoint_new(target);
     if (!request->endpoint) {
         free(request);
         return -ENOMEM;
@@ -164,19 +164,19 @@ static int submit_create(ScoopIoLoop *loop, int64_t id, SocketAction action,
 }
 
 int scoop_io_tcp_connect(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address) {
-    return submit_create(loop, id, TCP_CONNECT, address, 0, false, NULL);
+    return submit_create(loop, id, TCP_CONNECT, address, 0, false, NULL, loop);
 }
 int scoop_io_tcp_listen(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
                         int backlog, bool reuse) {
-    return submit_create(loop, id, TCP_LISTEN, address, backlog, reuse, NULL);
+    return submit_create(loop, id, TCP_LISTEN, address, backlog, reuse, NULL, loop);
 }
 int scoop_io_udp_bind(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
                       bool reuse) {
-    return submit_create(loop, id, UDP_BIND, address, 0, reuse, NULL);
+    return submit_create(loop, id, UDP_BIND, address, 0, reuse, NULL, loop);
 }
-int scoop_io_tcp_accept(ScoopIoEndpoint *endpoint, int64_t id) {
+int scoop_io_tcp_accept(ScoopIoEndpoint *endpoint, ScoopIoLoop *target, int64_t id) {
     return submit_create(endpoint->loop, id, TCP_ACCEPT, (struct ScoopSocketAddress){0}, 0, false,
-                         endpoint);
+                         endpoint, target);
 }
 void scoop_io_tcp_connect_cancel(ScoopIoLoop *loop, int64_t id) {
     scoop_io_request_cancel(loop, id);

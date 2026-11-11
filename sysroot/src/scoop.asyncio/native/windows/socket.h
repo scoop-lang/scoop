@@ -29,7 +29,7 @@ void scoop_io_socket_error(ScoopIoEvent *event, ScoopIoStatus status);
 int scoop_io_tcp_connect(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address);
 int scoop_io_tcp_listen(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
                         int backlog, bool reuse);
-int scoop_io_tcp_accept(ScoopIoSocket *socket, int64_t id);
+int scoop_io_tcp_accept(ScoopIoSocket *socket, ScoopIoLoop *target, int64_t id);
 void scoop_io_accept_cancel(ScoopIoSocket *socket, int64_t id);
 void scoop_io_tcp_connect_cancel(ScoopIoLoop *loop, int64_t id);
 ScoopIoSocketName scoop_io_tcp_address(ScoopIoSocket *socket, bool peer);

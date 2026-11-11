@@ -8,6 +8,39 @@ import scoop.text.contains
 @Test
 private class ServerOwnershipTests {
     @Test
+    fun `concurrent worker initialization publishes usable server ownership`() {
+        asyncRuntime {
+            workers = 4
+            blocking { threads = 1 }
+        }.run {
+            val scope = this
+            val executor = currentCoroutineExecutorOrNone()!!
+            val routes =
+                routing {
+                    get(
+                        "/",
+                        {
+                            _ ->
+                            assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                            text("initialized")
+                        }
+                    )
+                }
+            for (index in 0L ..< 16L) {
+                scope.launch {
+                    val connections = this
+                    HttpServer.listen(routes, connections, port = 0).useAsync {
+                        server -> networkClient(server.localAddress, connections).useAsync {
+                            client -> for (request in 0L ..< 4L)
+                                assertEquals("initialized", requestText(client))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `cancellation before the queued server owner starts leaves the listener reusable`() {
         val routes = routing { get("/", { _ -> text("reused") }) }
         val loop = eventLoop()

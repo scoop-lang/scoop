@@ -2390,6 +2390,7 @@ public interface CoroutineExecutor {
 public interface ExecutorTask {
     public val executor: CoroutineExecutor
     public fun dispatch(work: CoroutineWork)
+    public fun dispatchResume(work: CoroutineWork) { dispatch(work) }
     public fun dispatchBlocking(work: BlockingWork)
     public fun complete()
 }
@@ -2409,9 +2410,15 @@ execution 是低层任务的内部 managed 执行对象，与 Job 树、普通 C
 
 对合法活动登记，dispatch/dispatchBlocking 必须保活、接受并恰好执行 work 一次，不因 Draining 拒绝，不在调用 dispatch 的栈内运行。其他 worker 可以在 dispatch 返回前执行，发布前必须准备好全部状态及根。dispatchBlocking 使用独立阻塞队列，不能直接驱动等待者的 coroutine frame。这些合法投递及 complete 不抛普通异常；不变量破坏与不可恢复分配失败遵守既有 runtime 规则。完成后投递或重复 complete 是协议错误。登记在最终 completion 通知结束且驱动退出后释放一次；取消不能提前释放仍有执行义务的登记。
 
-startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保留明确的立即启动语义，并继承当前 executor。真实挂起之后，有 executor 的外部恢复总是排队回目标 execution；无 executor 时可在恢复线程继续，但也必须经过任务级驱动互斥。结果提交与恢复调度分离，已经提交的成功不能被排队期间的取消覆盖。
+同一登记的 dispatch 与 complete 重叠时，投递可以先被接纳，或因登记已完成而报协议状态错误；成功返回的投递必须恰好执行一次，不能丢在关闭后的队列中。complete 已返回之后才开始的投递必须拒绝。普通协程驱动按上述登记生命周期避免这种竞争。
 
-所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
+startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保留明确的立即启动语义，并继承当前 executor。真实挂起且旧驱动已经交出执行权后，有 executor 的恢复通过 dispatchResume 回到目标 execution；其默认实现调用 dispatch 排队。executor 可以只在自身控制的事件推进阶段于当前物理 worker 直接执行恢复，但必须限制连续执行，不能递归执行恢复中新产生的任务。外线程、其他 executor 的线程及普通任务正文中的恢复继续排队。普通 dispatch、startDispatchedCoroutine、withExecutor 和 yieldCoroutine 仍强制排队，不能借恢复入口消去。无 executor 时可在恢复线程继续，但也必须经过任务级驱动互斥。结果提交与恢复调度分离，已经提交的成功不能被调度期间的取消覆盖。
+
+dispatchResume 与 dispatch 共用同一活动登记、恰好一次执行及 Draining 接纳合同；它不增加登记或独立队列。发布方在调用前须完成旧驱动的 frame／Context／catch 收尾和新 work 的状态及根发布，并允许恢复在调用返回前完成整个任务。旧驱动退出时已经锁存的外部恢复由旧驱动通过普通 dispatch 排队；尚在发布的恢复可在旧驱动交出调度义务后使用 dispatchResume。yield 的强制让出始终由旧驱动排队，不可变成同步恢复。
+
+所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。仅转交相同类型结果、没有后续处理或清理的尾挂起链可以共用调用方的握手，不要求每一层建立 frame／adapter；低层任务入口也必须提供这一边界，不能把用户 completion 直接交给 registration。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；从其他 execution 或无 execution 的上下文提交的结果按外部恢复调度，不能因经过尾转交而变成内部完成。公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
+
+execution 的驱动权、action 槽与调度义务通过同一原子状态交接；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。当前驱动读取自身登记由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
 
 withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
 

@@ -1,0 +1,173 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.test.*
+
+@Test
+private class ResumeDispatchTest {
+    @Test
+    fun `idle resumes use the resume entry while start and yield stay queued`() {
+        val executor = ManualExecutor()
+        val waiters = ArrayList<Continuation<Int>>()
+        val done =
+            startRaw(executor) {
+                val value = suspendCoroutine<Int> { waiters.add(it) }
+                yieldCoroutine()
+                value
+            }
+        assertEquals(0, executor.resumed.load())
+        assertTrue(executor.runOne())
+        waiters[0L].resume(17)
+        assertEquals(1, executor.resumed.load())
+        assertEquals(0, done.calls)
+        assertTrue(executor.runOne())
+        assertEquals(1, executor.resumed.load())
+        assertEquals(0, done.calls)
+        assertTrue(executor.runOne())
+        assertEquals(17, done.get())
+        assertEquals(0, executor.active.load())
+
+        val immediate = startRaw(executor) { suspendCoroutine<Int> { it.resume(29) } }
+        assertEquals(0, immediate.calls)
+        assertTrue(executor.runOne())
+        assertEquals(29, immediate.get())
+        assertEquals(1, executor.resumed.load())
+    }
+
+    @Test
+    fun `parallel reactor resumes are bounded and accepted while draining`() {
+        exercisePollResumes(false)
+    }
+
+    @Test
+    fun `reactor resume roots survive moving collection`() {
+        exercisePollResumes(true)
+    }
+
+    @Test
+    fun `nested and ordinary dispatch cannot reenter the current drive`() {
+        val drivers = Array<ResumeDriver>(4L) { ResumeDriver() }
+        resumeExecutor(drivers).use {
+            executor ->
+            val ticket = executor.registerTask(None)
+            val eventDone = ThreadResult<Unit>()
+            val nestedDone = ThreadResult<Unit>()
+            val ordinaryDone = ThreadResult<Unit>()
+            drivers[0L].post {
+                val owner = currentThreadId()
+                val running = AtomicBoolean(true)
+                ticket.dispatchResume(
+                    FunctionCoroutineWork {
+                        assertEquals(owner, currentThreadId())
+                        ticket.dispatchResume(
+                            FunctionCoroutineWork {
+                                assertTrue(currentThreadId() != owner || !running.load())
+                                nestedDone.resume(Unit)
+                            }
+                        )
+                        ticket.dispatch(
+                            FunctionCoroutineWork {
+                                assertTrue(currentThreadId() != owner || !running.load())
+                                ordinaryDone.resume(Unit)
+                            }
+                        )
+                        running.store(false)
+                    }
+                )
+                assertFalse(running.load())
+                eventDone.resume(Unit)
+            }
+            eventDone.await()
+            nestedDone.await()
+            ordinaryDone.await()
+            ticket.complete()
+        }
+    }
+
+    @Test
+    fun `foreign threads and another executors reactor cannot run a resume inline`() {
+        val drivers = Array<ResumeDriver>(4L) { ResumeDriver() }
+        resumeExecutor(drivers).use {
+            executor ->
+            val ticket = executor.registerTask(None)
+            val caller = currentThreadId()
+            val foreignDone = ThreadResult<Unit>()
+            ticket.dispatchResume(
+                FunctionCoroutineWork {
+                    assertTrue(currentThreadId() != caller)
+                    foreignDone.resume(Unit)
+                }
+            )
+            foreignDone.await()
+            val otherDrivers = Array<ResumeDriver>(2L) { ResumeDriver() }
+            resumeExecutor(otherDrivers).use {
+                _ ->
+                val eventDone = ThreadResult<Unit>()
+                val workDone = ThreadResult<Unit>()
+                otherDrivers[0L].post {
+                    val other = currentThreadId()
+                    ticket.dispatchResume(
+                        FunctionCoroutineWork {
+                            assertTrue(currentThreadId() != other)
+                            workDone.resume(Unit)
+                        }
+                    )
+                    eventDone.resume(Unit)
+                }
+                eventDone.await()
+                workDone.await()
+            }
+            ticket.complete()
+        }
+    }
+}
+
+private fun exercisePollResumes(collect: Boolean) {
+    for (count in [1, 4]) {
+        val drivers = Array<ResumeDriver>(count.toLong()) { ResumeDriver() }
+        resumeExecutor(drivers).use {
+            executor ->
+            val ticket = executor.registerTask(None)
+            val eventDone = ThreadResult<Unit>()
+            val done = Array<ThreadResult<Unit>>(64L) { ThreadResult<Unit>() }
+            val direct = AtomicInt(0)
+            executor.requestShutdown()
+            drivers[0L].post {
+                val owner = currentThreadId()
+                val polling = AtomicBoolean(true)
+                for (index in 0L ..< done.size) {
+                    ticket.dispatchResume(
+                        FunctionCoroutineWork {
+                            if (currentThreadId() == owner && polling.load())
+                                direct.fetchAdd(1)
+                            if (collect && index % 16L == 0L)
+                                gcCollect()
+                            done[index].resume(Unit)
+                        }
+                    )
+                }
+                assertEquals(
+                    if (count == 1)
+                        0
+                    else
+                        32,
+                    direct.load()
+                )
+                polling.store(false)
+                eventDone.resume(Unit)
+            }
+            eventDone.await()
+            for (result in done)
+                result.await()
+            assertEquals(
+                if (count == 1)
+                    0
+                else
+                    32,
+                direct.load()
+            )
+            ticket.complete()
+        }
+    }
+}

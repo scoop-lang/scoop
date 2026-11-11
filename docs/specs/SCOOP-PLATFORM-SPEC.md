@@ -97,6 +97,9 @@ open 对象保持 `0 <= readPosition <= writePosition <= capacity`，只有 `[0,
 - getBytes(index: Long, count: Long): Array<Byte> 返回已初始化绝对区间的独立副本，不改读写游标，也可读取已消费的前缀。count 非负，index 位于 `[0, writePosition]`，且 count 不超过 `writePosition-index`；writer 位置仅允许空区间。负 count 抛 IllegalArgumentException，区间越界抛 IndexOutOfBoundsException。范围检查与复制使用一次状态同步，借用期间仍可读取已初始化区域；关闭后即使空区间也抛 IllegalStateException。
 - readBytes(count: Long): Array<Byte> 返回独立副本，分配与复制成功后才消费输入。
 - readInto(array: MutableArray<Byte>, offset: Long = 0L, count: Long = array.size-offset) 复制到受检数组区间；writeBytes(array: List<Byte>, offset: Long = 0L, count: Long = array.size-offset) 接收只读字节列表。先验证两侧区间，在现有 writable 借用内、状态锁外取得所选输入区间的快照后复制，完成后才提交游标；用户 getter 可查询缓冲区，重入修改遵守 4.3 的借用规则；count 为负抛 IllegalArgumentException，数组区间非法抛 IndexOutOfBoundsException。
+
+  writeBytes 的实际输入为不可变 `Array<Byte>` 时，直接在同步 withDataPointer pin 范围内批量复制所选区间，不逐项调用 getter 或建立重复快照；普通 List 仍先完成快照，getter 失败不提交目标内容和游标。两条路径共用 writable 借用、区间与进度合同，managed 地址不逃逸或跨挂起。
+
 - read/writeInt8、UInt8、Int16、UInt16、Int32、UInt32、Int64、UInt64、Float、Double 提供相应定宽读写；write 的首参数为 value，除单字节外都必须显式传入 `scoop.bytes.ByteOrder`。浮点按位型编码，包括 NaN 与负零。
 
 顺序读写先检查完整宽度，不留下半个数值或半次游标变化。超出可读／可写范围抛 IndexOutOfBoundsException，负数量抛 IllegalArgumentException。任意 byte offset 都合法，不依赖数值自然对齐；实现逐字节组合或复制到对齐局部，禁止对未对齐的 typed pointer 直接 load/store。
@@ -251,6 +254,8 @@ Windows 的 systemVersion 使用 [RtlGetVersion](https://learn.microsoft.com/en-
 
 `scoop.platform.time.SystemClock` 实现 scoop.time.Clock，now 返回实时钟的 Instant；`MonotonicTimeSource` 实现 TimeSource，markNow 返回以自身为 source、以 CLOCK_MONOTONIC 读数构造 Duration 的 TimeMark。实时钟可以回拨，monotonic 不与 epoch 混用，同源比较仍由 std 检查。native 读取失败抛 PlatformException，不伪造零读数；转换遵守 std 的范围规则。
 
+native 时钟读取是短同步 `GCLeaf` 调用，只读取 OS 时钟并返回整数结果与错误，不分配 managed 对象、等待或回调；返回后的 Instant／TimeMark 构造仍遵守普通 managed 分配与 safepoint 规则。阻塞 sleep 保持 NativeSafe。
+
 Windows 实时钟使用 GetSystemTimePreciseAsFileTime，将 1601 epoch 的 100 ns tick 转为 Unix epoch 的规范化秒／纳秒；monotonic 使用 QueryPerformanceCounter／QueryPerformanceFrequency，整数缩放不溢出或丢失整秒精度。native 时钟结果同时保存本次错误码，Windows 使用 Win32，POSIX 使用原 errno。
 
 sleep(duration: Duration) 拒绝负值，零直接返回。sleep 与 ConditionVariable 的 native 时间分量使用 Duration.floorSeconds／nanosecondsOfSecond；toComponents 是面向调用者的趋零分解，不用于替代规范化的 native 分量。正值通过 NativeSafe 等待；使用 monotonic 截止时间在 EINTR 后继续，允许调度造成延迟，不承诺精确唤醒。截止时间超出目标表示范围时报告溢出错误；不以通用超时配额限制有效时长。等待不阻止其他 mutator 推进或 GC。
@@ -280,6 +285,8 @@ Thread hook 只做非阻塞 pthread_detach 并释放 native 观察权。控制�
 Windows 使用所选 CRT 的 `_beginthreadex`，join 以 WaitForSingleObject 等待后 CloseHandle，hook 只 CloseHandle 并释放观察权。两份 native 存活权与 callback 规则保持；currentThreadId 使用系统 thread ID，yield 使用 SwitchToThread，没有可切换线程不算失败。创建和分配失败保留 CRT 的实际 errno；join、mutex 与 condition 的 Windows 失败属于 Win32，self-join 报 ERROR_POSSIBLE_DEADLOCK 且保留观察权。
 
 Mutex() 为 final Disposable class，使用非递归 ERRORCHECK mutex，提供 lock、tryLock、unlock、withLock<T>(block: () -> T)、isDisposed。tryLock 忙时返回 false；重入 lock 和非持有者 unlock 报 native 错误。withLock 在 finally 解锁，支持泛型结果和异常，只有普通同步回调，没有 suspend 重载。
+
+native tryLock 与 unlock 使用短同步 `GCLeaf` 调用；lock 先执行一次同样的非阻塞尝试，忙时才进入 NativeSafe 阻塞加锁。两条路径在同一次活动调用内保活 owner，保持重入、错误和释放规则，不在 managed 模式下自旋等待。普通 managed 调用中的创建／销毁、条件变量操作及真正的 mutex 等待仍使用 NativeSafe；release hook 保持既有调用约束。
 
 ConditionVariable(mutex: Mutex) 保活并绑定一个 Mutex，提供 await()、await(timeout: Duration): Boolean、signal、broadcast、dispose 和 isDisposed。await 要求当前线程持有该 mutex，原子释放／等待／重新取得；超时重载 true 表示唤醒，false 表示超时。任何返回都不能证明谓词成立，调用方使用 while 循环。负时长拒绝，零超时仍执行释放／重新取得；Linux 使用 CLOCK_MONOTONIC cond clock，Darwin 使用相对等待接口，避免 realtime 校时改变超时。超出目标时间表示范围按实际错误报告。
 

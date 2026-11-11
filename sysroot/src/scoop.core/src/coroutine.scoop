@@ -69,11 +69,25 @@ public struct FunctionSuspendRegistration<T>(
  */
 public fun <T> startCoroutine(task: SuspendTask<T>, completion: Continuation<T>) {
     val execution = prepareCoroutineExecution(currentCoroutineExecutorOrNone(), None)
-    startCoroutineExecution(execution, false, task, ExecutionCompletion(execution, completion))
+    startCoroutineTask(execution, false, task, completion)
+}
+
+internal fun <T> startCoroutineTask(
+    execution: CoroutineExecution,
+    dispatched: Boolean,
+    task: SuspendTask<T>,
+    completion: Continuation<T>
+) {
+    startCoroutineExecution(
+        execution,
+        dispatched,
+        RootSuspendTask(Some(task), completion),
+        ExecutionCompletion(execution)
+    )
 }
 
 @Intrinsic("coroutine_start")
-internal fun <T> startCoroutineExecution(
+private fun <T> startCoroutineExecution(
     execution: CoroutineExecutionDriver,
     dispatched: Boolean,
     task: SuspendTask<T>,
@@ -87,7 +101,7 @@ public fun <T> startDispatchedCoroutine(
     completion: Continuation<T>
 ) {
     val execution = prepareCoroutineExecution(Some(executor), None)
-    startCoroutineExecution(execution, true, task, ExecutionCompletion(execution, completion))
+    startCoroutineTask(execution, true, task, completion)
 }
 
 /** Starts a suspending function by submitting its first drive to the selected executor. */

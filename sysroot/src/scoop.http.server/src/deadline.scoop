@@ -1,6 +1,5 @@
 package scoop.http.server
 
-import scoop.asyncio.currentEventLoop
 import scoop.time.Duration
 
 /** A server-owned deadline that expired after its operation's cleanup completed. */
@@ -18,27 +17,15 @@ internal suspend fun <T> serverDeadline(
 ): T {
     if (!present(duration))
         return block()
-    val expired = AtomicBoolean(false)
+    val deadline = RequestDeadline(duration, operation)
     try {
         return coroutineScope<T> {
-            val scope = this
-
-            val timer =
-                scope.launch suspend {
-                    currentEventLoop().sleep(duration!!)
-                    expired.store(true)
-                    scope.job.cancel()
-                }
-            try {
-                block()
-            }
-            finally {
-                timer.cancel()
-            }
+            deadline.start(job)
+            block()
         }
     } catch (error: CancellationException) {
-        if (expired.load())
-            throw HttpServerTimeoutException(operation, duration!!)
-        throw error
+        throw deadline.selectedFailure ?: error
+    } finally {
+        deadline.stop()
     }
 }
