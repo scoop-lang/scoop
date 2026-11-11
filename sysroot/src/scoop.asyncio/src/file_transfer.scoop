@@ -15,10 +15,10 @@ internal class FileTransfer(private val owner: OwnedFile, writing: Boolean): Byt
     protected override fun start(pointer: Ptr<Unit>): IoStart {
         @Unsafe
         {
-            return nativeStatus(
-                id,
+            val status =
                 nativeFileTransfer(owner.pointer, id, borrowed.pointer(), borrowed.length, writing)
-            )
+            loop.dispatchBlocking(pointer)
+            return nativeStatus(id, status)
         }
     }
 

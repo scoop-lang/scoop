@@ -12,10 +12,9 @@ internal class TtyWrite(private val owner: OwnedEndpoint): ByteTransfer(owner.lo
     protected override fun start(pointer: Ptr<Unit>): IoStart {
         @Unsafe
         {
-            return nativeStatus(
-                id,
-                nativeTtyWrite(owner.pointer, id, borrowed.pointer(), borrowed.length)
-            )
+            val status = nativeTtyWrite(owner.pointer, id, borrowed.pointer(), borrowed.length)
+            loop.dispatchBlocking(pointer)
+            return nativeStatus(id, status)
         }
     }
 

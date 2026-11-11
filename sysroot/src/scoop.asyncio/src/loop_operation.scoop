@@ -75,6 +75,8 @@ internal abstract class PendingOperation internal constructor(
     }
 
     public final override fun begin(pointer: Ptr<Unit>) {
+        // Control operations must observe earlier byte submissions, including close/shutdown.
+        loop.flushTransfers()
         val cancelled =
             lock.withLock {
                 when (choice) {
@@ -98,6 +100,7 @@ internal abstract class PendingOperation internal constructor(
             case Pending -> {}
             case Finished(val event) -> loop.complete(event)
         }
+        loop.dispatchBlocking(pointer)
     }
 
     protected fun unsubscribe() {

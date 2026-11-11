@@ -26,6 +26,7 @@ internal class LoopOwner(
     private val resources: ArrayList<LoopResource> = ArrayList<LoopResource>()
     private val timers = LoopTimers(this)
     private var cleaning: Boolean = false
+    private var pendingTransfers: Boolean = false
     private var ready: ArrayList<LoopWork> = ArrayList<LoopWork>()
 
     fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
@@ -155,7 +156,30 @@ internal class LoopOwner(
             operation.registered = true
         }
         operation.begin(pointer!!)
-        dispatchBlocking(pointer!!)
+    }
+
+    fun submitTcp(endpoint: Ptr<Unit>, id: Long, bytes: Ptr<Byte>?, count: Long, writing: Boolean) {
+        @Unsafe
+        {
+            while (!nativeTcpEnqueue(pointer!!, endpoint, id, bytes, count, writing))
+                flushTransfers()
+        }
+        pendingTransfers = true
+    }
+
+    fun flushTransfers() {
+        if (!pendingTransfers)
+            return
+        pendingTransfers = false
+        @Unsafe
+        {
+            val failures = nativeTcpFlush(pointer!!)
+            var index = 0L
+            while (index < failures.count) {
+                complete(decodeEvent(failures.records.load(index)))
+                index += 1L
+            }
+        }
     }
 
     fun enqueueReady(action: () -> Unit) {
@@ -179,6 +203,7 @@ internal class LoopOwner(
     }
 
     fun cancel(id: Long) {
+        flushTransfers()
         when (operations[id]) {
             case Some(val operation) -> operation.cancelNative(pointer!!)
             case None -> {}
@@ -251,6 +276,7 @@ internal class LoopOwner(
     }
 
     fun poll(native: Ptr<Unit>, wait: Boolean) {
+        flushTransfers()
         @Unsafe
         {
             val status = nativeLoopPoll(native, wait)

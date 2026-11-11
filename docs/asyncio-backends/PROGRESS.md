@@ -586,6 +586,31 @@ Scoop 格式／静态检查、release 构建、Python ruff 通过。core executo
 
 固定产物、源码、原始数据、图表与复现脚本位于 `/home/chenxu/benchmarks/http-improvements-20261112-round28`。仅 Linux GNU/io_uring 实测；闭环 P50 未校正 coordinated omission，三次短测不代表长期分布。HTTP／JSON、GC 参数矩阵及其他平台未重测。清理本轮不再需要的应用／测试 target，保留源码 LLVM SDK 与构建缓存、最终编译器、系统库、固定二进制和原始记录。
 
+## 第二十九轮：owner 轮次批量提交 TCP 请求
+
+B28 的 1,848 个用户态采样中，fesetenv self 占 11.1%，其中约 85% 来自 TCP 启动和随后的阻塞队列提取。每次读写都分别进入 NativeSafe，而普通 TCP 不产生阻塞池工作。按[设计](DESIGN.md)将逐请求入口收缩为 owner 独占的固定容量数组登记：GCLeaf 只保存 GC-free 字段；真正的请求分配、平台调用和提交失败在批量 NativeSafe 入口内处理。满批、poll／等待、pump 退出、取消和普通控制操作都是提交边界；native idle／destroy 也计入暂存请求。buffer、方向、Job、continuation 和真实退休规则保持，文件／TTY／普通操作仍立即派发阻塞工作。
+
+复用 B28 通过带私有补丁的源码 LLVM 构建的固定编译器，本轮无编译器修改。最初 HTTP consumer 正常拒绝仍要求旧 asyncio 语义指纹的 compression 产物；随后用 scripts/prepare_sysroot.py 按依赖顺序重建全部 18 个系统库及配套 runtime 资源，上层验证通过。安装目录与固定 B28／Go 产物未改动。初版测量单独保留；下表来自补齐 native idle 生命周期检查、完成配套重建后的最终二进制。
+
+原公开 API echo；1 KiB 消息、64 KiB buffer，独立 owner／单／四 worker，单／64 连接，固定独立 CPU 集，每配置随机交错三次，预热 1 秒＋测量 4 秒。64 连接中位数：
+
+| 配置 | echo／秒 | 总 CPU μs／echo | 用户态 μs | 内核态 μs | P50 μs | RSS MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| B28-1 | 219,501 | 4.556 | 1.845 | 2.711 | 290.815 | 15.008 |
+| B29-1 | 242,445 | 4.124 | 1.459 | 2.670 | 262.143 | 15.680 |
+| Go-1 | 281,542 | 3.552 | 0.565 | 2.998 | 227.327 | 6.387 |
+| B28-4 | 671,891 | 5.790 | 2.828 | 2.962 | 92.159 | 26.184 |
+| B29-4 | 731,429 | 5.322 | 2.372 | 2.952 | 83.967 | 26.207 |
+| Go-4 | 799,498 | 3.984 | 0.760 | 3.231 | 67.583 | 6.668 |
+
+四 worker 吞吐 +8.9%、用户态 CPU -16.1%、总 CPU -8.1%、P50 -8.9%；单 worker 吞吐 +10.5%、用户态 CPU -20.9%。单连接四 worker 本组吞吐 -4.8%、总 CPU +1.8%，存在回退；不能宣称低并发也有收益。四 worker 吞吐范围 B28 为 669,292–674,058，B29 为 729,132–743,052，未剔除低值。GC 分配约 0.890 KiB／echo，与 B28 基本相同；没有把收益归因于减少分配或收集。
+
+独立计数中，每次 echo 的浮点环境恢复：单 worker 4.258 → 0.316，四 worker 4.578 → 0.705；包含启动／预热／收尾，仪表版本吞吐不参与性能结论。最终 1,804 个用户态采样点中，fesetenv self 降至 1.83%；根登记 7.21%、ByteTransfer.complete 4.88%、buffer 状态访问 4.49%。不能把重叠调用子树相加。用户态 CPU 仍是 Go 的 3.12 倍，主要差距尚未解决；下一步沿整个请求生命周期分析传输完成、借用、Job／execution 的重复状态和根管理，不继续细调批次或浮点指令。
+
+格式／类型检查及 native warnings 检查通过。最终 asyncio 190 项普通测试、2 项 moving＋minor GC stress、TLS 和 HTTP/1＋HTTP/2 各一项组合测试通过。新增用例覆盖同一 owner 调用栈提交超过容量、暂存地址期间 GC、尚未提交就取消／关闭；大消息／小 buffer 核对 1,167 次响应。正式 48 样本共核对 62,629,836 次响应，全部正确。仅 Linux GNU/io_uring 实测，其他平台共用协议但未执行；HTTP／JSON 性能及 GC 参数矩阵未重测，闭环 P50 未校正 coordinated omission，短测不代表长期分布。
+
+固定二进制、源码快照、图表、原始数据与复现步骤位于 `/home/chenxu/benchmarks/http-improvements-20261112-round29`。清理本轮应用／测试／准备 target，保留固定产物、源码 LLVM 工具链、可复用缓存和日志；未推送。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

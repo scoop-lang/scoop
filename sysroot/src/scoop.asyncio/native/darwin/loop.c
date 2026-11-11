@@ -126,7 +126,7 @@ void scoop_io_complete(ScoopIoLoop *loop, ScoopIoCompletion *completion, int sta
 }
 
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
-    if (loop->retired_batch)
+    if (loop->retired_batch || loop->tcp_submissions.count)
         return false;
     pthread_mutex_lock(&loop->mutex);
     bool idle =

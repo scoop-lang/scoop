@@ -93,7 +93,7 @@ void scoop_io_complete(ScoopIoLoop *loop, ScoopIoCompletion *completion, int sta
 }
 
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
-    if (loop->retired_batch)
+    if (loop->retired_batch || loop->tcp_submissions.count)
         return false;
     if (loop->requests || loop->pending.head || loop->control.head ||
         io_uring_sq_ready(&loop->ring) || io_uring_cq_ready(&loop->ring))

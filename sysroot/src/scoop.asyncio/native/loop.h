@@ -46,6 +46,20 @@ typedef struct ScoopIoBatch {
     int64_t count;
 } ScoopIoBatch;
 
+typedef struct {
+    void *endpoint;
+    int64_t id;
+    void *bytes;
+    int64_t count;
+    bool writing;
+} ScoopIoTcpSubmission;
+
+typedef struct {
+    ScoopIoTcpSubmission entries[SCOOP_IO_BATCH_CAPACITY];
+    ScoopIoEvent failures[SCOOP_IO_BATCH_CAPACITY];
+    unsigned count;
+} ScoopIoTcpSubmissions;
+
 typedef struct ScoopIoLoop ScoopIoLoop;
 
 typedef struct ScoopIoStatus {
@@ -67,6 +81,9 @@ void scoop_io_loop_wake(ScoopIoLoop *loop);
 ScoopIoStatus scoop_io_loop_poll(ScoopIoLoop *loop, bool wait);
 ScoopIoBatch scoop_io_loop_take_batch(ScoopIoLoop *loop);
 void scoop_io_loop_rearm(ScoopIoLoop *loop, bool managed_ready);
+bool scoop_io_tcp_enqueue(ScoopIoLoop *loop, void *endpoint, int64_t id, void *bytes,
+                           int64_t count, bool writing);
+ScoopIoBatch scoop_io_tcp_flush(ScoopIoLoop *loop);
 bool scoop_io_loop_idle(ScoopIoLoop *loop);
 #ifdef _WIN32
 void *scoop_io_loop_event(ScoopIoLoop *loop);

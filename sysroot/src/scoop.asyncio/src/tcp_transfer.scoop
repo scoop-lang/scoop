@@ -15,12 +15,8 @@ internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean): 
     protected override fun start(pointer: Ptr<Unit>): IoStart {
         @Unsafe
         {
-            val status =
-                if (writing)
-                    nativeTcpWrite(owner.pointer, id, borrowed.pointer(), borrowed.length)
-                else
-                    nativeTcpRead(owner.pointer, id, borrowed.pointer(), borrowed.length)
-            return nativeStatus(id, status)
+            loop.submitTcp(owner.pointer, id, borrowed.pointer(), borrowed.length, writing)
+            return IoStart.Pending
         }
     }
 

@@ -37,6 +37,7 @@ internal class LoopDriver {
             owner.advanceTimers()
             owner.dispatchBlocking(native)
         } finally {
+            owner.flushTransfers()
             commands.clear()
             localCommands.clear()
             ready.clear()

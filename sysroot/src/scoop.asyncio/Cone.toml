@@ -63,6 +63,9 @@ c_flags = ["-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-fno-strict
 path = "native/common/batch.c"
 
 [[native.sources]]
+path = "native/common/tcp_batch.c"
+
+[[native.sources]]
 path = "native/common/deadline.c"
 when = { os = ["darwin", "linux"] }
 

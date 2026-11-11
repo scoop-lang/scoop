@@ -37,6 +37,7 @@ struct ScoopIoLoop {
     bool failure_reported, submission_blocked;
     int64_t completions;
     ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];
+    ScoopIoTcpSubmissions tcp_submissions;
     ScoopIoCompletion *retired_batch;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests;
