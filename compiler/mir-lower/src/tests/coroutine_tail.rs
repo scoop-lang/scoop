@@ -1,5 +1,6 @@
 use super::*;
 
+mod registration;
 pub(super) mod sample;
 use sample::{Shape, lower_tail, program};
 

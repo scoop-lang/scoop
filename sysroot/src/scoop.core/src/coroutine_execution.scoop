@@ -227,25 +227,37 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
     }
 }
 
-internal class ExecutionCompletion<T>(
-    private val execution: CoroutineExecution,
+// This real caller owns the root registration handshake, including when every
+// user suspend call tail-forwards the primitive to its original completion.
+internal class RootSuspendTask<T>(
+    private var task: SuspendTask<T>?,
     private val completion: Continuation<T>
-): Continuation<T> {
-    public override fun resume(value: T) {
-        try {
-            completion.resume(value)
-        }
-        finally {
-            execution.finish()
-        }
+): SuspendTask<Unit> {
+    public override suspend fun run() {
+        // The frame needs this object for completion, but must not keep the
+        // original task's unused captures alive after starting its body.
+        val body = task!!
+        task = None
+        val value =
+            try {
+                body.run()
+            }
+            catch (error: Throwable) {
+                completion.resumeWithException(error)
+                return
+            }
+        // Keep user completion outside the body catch: it must be notified once
+        // even if the notification itself throws.
+        completion.resume(value)
     }
+}
 
+internal class ExecutionCompletion(private val execution: CoroutineExecution): Continuation<Unit> {
+    public override fun resume(value: Unit) {
+        execution.finish()
+    }
     public override fun resumeWithException(exception: Throwable) {
-        try {
-            completion.resumeWithException(exception)
-        }
-        finally {
-            execution.finish()
-        }
+        execution.finish()
+        throw exception
     }
 }

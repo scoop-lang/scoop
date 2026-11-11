@@ -27,7 +27,10 @@ diagnostics = []
 
 [[steps]]
 name = "middle"
-argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/sources/middle", "--profile", "${profile}", "--sysroot", "${sysroot}", "--cone-path", "${work}/artifacts", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json", "-o", "${work}/artifacts/dev.m58.profiles/middle/0.1.0/cone.slib"]
+# Keep both profile boundaries without making a debug middle reuse private scan
+# definitions that disappear when its debug provider becomes release. Such a
+# physical ODR dependency requires rebuilding the consumer under the link contract.
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/sources/middle", "--profile", "${replacement}", "--sysroot", "${sysroot}", "--cone-path", "${work}/artifacts", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json", "-o", "${work}/artifacts/dev.m58.profiles/middle/0.1.0/cone.slib"]
 exit = 0
 stdout = ""
 stderr = ""

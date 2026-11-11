@@ -1,4 +1,4 @@
-//! Forward a tail suspend call's complete step and completion without a frame.
+//! Delegate tail suspensions to the caller's existing registration handshake.
 
 use super::*;
 
@@ -29,21 +29,18 @@ pub(super) fn rewrite(
     }) || !sites.iter().all(|site| {
         site.resume.result == metadata.source_return
             && site.resume.pending.0.is_empty()
-            && direct_target(lowerer, &site.kind).is_some_and(|callee| {
-                lowerer.functions[callee].return_ty == function.return_ty
-                    && lowerer.functions[callee]
-                        .params
-                        .last()
-                        .map(|param| &param.ty)
-                        == function.params.last().map(|param| &param.ty)
-            })
-            && returns::unchanged(&function.body, &site.resume, completed, &addressed)
+            // The checked suspend call already selects the same completion /
+            // step ABI for this exact result, including dynamic and external
+            // targets. Yield must retain its unconditional scheduling boundary.
+            && !matches!(site.kind, SuspendKind::Yield)
+            && returns::unchanged(&function.body, site, sites, completed, &addressed)
     }) {
         return false;
     }
 
     let function_id = metadata.function;
     let owner = metadata.source;
+    let suspended = lowerer.coroutines.steps[metadata.step].suspended();
     let function = &mut lowerer.functions[function_id];
     let completion = function
         .params
@@ -51,51 +48,49 @@ pub(super) fn rewrite(
         .expect("suspend ABI has a completion");
     let completion = mir::Expr::local(completion.local, completion.ty.clone());
     for site in sites {
-        let SuspendKind::Call(mut call) = site.kind.clone() else {
-            unreachable!("only direct suspend calls were selected");
+        let (call, result) = match site.kind.clone() {
+            SuspendKind::Call(mut call) => {
+                call.args.push(completion.clone());
+                let result = function.body.locals.alloc(mir::Local {
+                    debug_variable: Default::default(),
+                    name: format!("$tail_step.{}", site.resume.state),
+                    ty: function.return_ty.clone(),
+                    mutable: false,
+                });
+                lowerer.local_values.record_generated_local(
+                    function_id,
+                    result,
+                    owner,
+                    hir::StructuralDefinitionSiteRole::SyntheticValue,
+                    hir::SyntheticLocalRole::Temporary,
+                );
+                (
+                    mir::CallEffect::Value {
+                        destination: result,
+                        call,
+                    },
+                    mir::Expr::local(result, function.return_ty.clone()),
+                )
+            }
+            SuspendKind::Intrinsic { method, receiver } => (
+                mir::CallEffect::Unit(mir::Call {
+                    target: method.call(*receiver),
+                    args: vec![completion.clone()],
+                }),
+                suspended_value(&function.return_ty, suspended),
+            ),
+            SuspendKind::Yield => unreachable!("yield cannot delegate its scheduling boundary"),
         };
-        call.args.push(completion.clone());
-        let result = function.body.locals.alloc(mir::Local {
-            debug_variable: Default::default(),
-            name: format!("$tail_step.{}", site.resume.state),
-            ty: function.return_ty.clone(),
-            mutable: false,
-        });
-        lowerer.local_values.record_generated_local(
-            function_id,
-            result,
-            owner,
-            hir::StructuralDefinitionSiteRole::SyntheticValue,
-            hir::SyntheticLocalRole::Temporary,
-        );
         let block = &mut function.body.blocks[site.resume.block];
-        let span = block.statements[site.resume.statement].span;
+        let mut statement = statement(mir::StatementKind::Call(call));
+        if matches!(site.kind, SuspendKind::Call(_)) {
+            statement.span = block.statements[site.resume.statement].span;
+            statement.debug_origin = block.statements[site.resume.statement].debug_origin.clone();
+        }
         block.statements.truncate(site.resume.statement);
-        block.statements.push(mir::Statement {
-            debug_origin: Default::default(),
-            kind: mir::StatementKind::Call(mir::CallEffect::Value {
-                destination: result,
-                call,
-            }),
-            span,
-        });
-        block.terminator = mir::Terminator::Return {
-            value: mir::Expr::local(result, function.return_ty.clone()),
-        };
+        block.statements.push(statement);
+        block.terminator = mir::Terminator::Return { value: result };
     }
     lowerer.coroutines.functions[coroutine].lowering = mir::CoroutineLowering::TailForwarding;
     true
-}
-
-fn direct_target(lowerer: &Lowerer, kind: &SuspendKind) -> Option<mir::FunctionId> {
-    let SuspendKind::Call(call) = kind else {
-        return None;
-    };
-    match call.target {
-        mir::CallTarget::Direct(mir::Callee::User(function)) => Some(function),
-        mir::CallTarget::Direct(mir::Callee::Monomorphized(instance)) => {
-            Some(lowerer.instances.meta[instance].function)
-        }
-        _ => None,
-    }
 }

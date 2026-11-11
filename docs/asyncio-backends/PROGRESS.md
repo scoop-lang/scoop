@@ -558,6 +558,34 @@ Scoop 格式／静态检查、release 构建、Python ruff 通过。core executo
 
 固定产物、源数据、图表、源码和复现脚本在 `/home/chenxu/benchmarks/http-improvements-20261112-round27`。只实测 Linux GNU/io_uring；三次闭环 P50 未校正 coordinated omission，不代表长期分布。HTTP／JSON、GC 参数矩阵、不均匀连接与长尾未重测。完成后清理本轮编译／测试及诊断 target，保留固定产物、源码、原始数据和共享缓存。
 
+## 第二十八轮：调用方统一挂起握手与尾链无帧转交
+
+沿 B27 的多层协程成本继续验证。应用层展开诊断四 worker 吞吐约 +16%、用户态 CPU 约 −22%，仅作为定位证据。正式实现扩展编译器尾挂起转交到跨 Cone、interface、virtual、closure 与 suspendCoroutine 原语；无后续处理／清理的包装直接传递原 completion。需要继续执行的调用方保留 Registering／Waiting 握手，core 根任务提供一次真实调用边界并及时清空原 task 引用。普通调用 adapter 按当前与保存的 execution 身份区分内部完成和外部恢复；yield、异常、Context、取消和 GC 根合同保留。
+
+按项目 scripts 流程从 LLVM 22.1.8 源码构建 SDK，应用四个宿主私有补丁，libunwind 单独应用 EH index miss 补丁；确认新编译器实际加载本轮 libLLVM。重建编译器、18 个系统库和四种 runtime 资源到仓库外独立目录，使用最终独立编译缓存。安装目录 ~/.scoop、固定 B27／Go／回调二进制不变。
+
+原公开 API 裸 TCP echo，单端口、1 KiB 消息、64 KiB buffer；独立 loop、单／四 worker，单／64 连接，每组随机交错三次，预热 1 秒＋测量 4 秒。64 连接中位数：
+
+| 配置 | echo／秒 | 总 CPU μs／echo | 用户态 μs | 内核态 μs | P50 μs | RSS MiB | KiB／echo |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| B27-1 | 205,891 | 4.869 | 2.182 | 2.664 | 307.199 | 26.184 | 1.342 |
+| B28-1 | 221,222 | 4.509 | 1.853 | 2.656 | 290.815 | 15.037 | 0.881 |
+| Go-1 | 278,599 | 3.562 | 0.565 | 2.998 | 227.327 | 6.383 | 0.003 |
+| B27-4 | 600,709 | 6.363 | 3.342 | 3.057 | 99.327 | 26.539 | 1.351 |
+| B28-4 | 651,891 | 5.887 | 2.880 | 3.007 | 92.159 | 26.098 | 0.890 |
+| 回调-4 | 752,468 | 5.071 | 2.110 | 2.973 | 79.871 | 19.180 | 0.641 |
+| Go-4 | 791,926 | 4.012 | 0.760 | 3.282 | 68.607 | 6.738 | 0.001 |
+
+四 worker 吞吐 +8.5%、总 CPU／echo −7.5%、用户态 CPU −13.8%、P50 −7.2%、分配 −34.1%。三次吞吐范围 B27 为 565,609–608,396，B28 为 635,398–672,682，未剔除低值。单 worker 吞吐 +7.4%、用户态 CPU −15.1%；单连接四 worker 吞吐仅 +0.1%、总 CPU −0.3%，基本持平。单 worker RSS 26.18 → 15.04 MiB，四 worker 26.54 → 26.10 MiB；内存下降并非所有配置相同。四 worker 累计收集计时约 91.7 → 49.6 ns／echo，计数覆盖启动／预热／收尾，不是 STW 暂停分位数或 Go pause 的同口径指标。
+
+用户态 CPU 仍是 Go 的 3.79 倍，吞吐仍差 1.21 倍，本轮没有解决主要差距。独立用户态采样 1,848 点，互斥子树为 execution 52.6%、I/O pump 37.5%、GC／heap 1.7%、findWork 0.9%；self 中 fesetenv 11.1%、编译器根登记 6.6%、adapter 5.4%。子树含真实 API 工作，不全是可消除开销。回调自身仍需 2.11 μs 用户态 CPU／echo，Go 为 0.76 μs；下一轮转向回调与协程共有的 I/O 处理和 managed/native 边界整体成本，不继续挤尾包装、队列分支或 P99。
+
+验证捕获并修复内部 imports 进入 LIR 接口指纹的问题：导出 layout／descriptor／dispatch／callable ABI／shape support 相同时，优化删去私有状态机导入不应误判接口不兼容。生产端直接编码已有 typed exports；完整内部导入及物理定义检查保留。HIR core-bootstrap-interface／cross-cone-interface 升至 23／94，LIR layout ABI 升至 20，runtime ABI 不变。若预编译下游曾复用上游私有 scan 定义，上游优化后删除该定义仍按既有合同要求重建下游；本轮不扩张为 ODR 复用策略改造。混合 profile fixture 改以相反的 middle profile 起步，保留两处 profile 边界与未重建 middle 的上游替换，双向通过。重建 core fixture 复用当前协议，只交换 Continuation 槽位并添加测试 API。
+
+格式／lint 通过。LIR 380 项、slib 268 项通过；MIR lowering 200 项通过、7 项已有函数编号快照失败，未修改基线为 197 项通过及同 7 项失败，另加的接口一致性测试通过。396 项普通库／组合测试及 6 项定向 moving＋minor GC 通过；最终 CLI 65 项通过，含尾注册同步／迟到／失败／重复完成、跨线程恢复、Context 生命周期与混合 profile。正式 60 样本核对 75,606,480 次响应，最终大消息／小 buffer 3 样本核对 1,173 次响应，全部正确。开发编译器复用旧缓存造成的格式不匹配已通过独立缓存完整重建闭合，原失败日志保留。
+
+固定产物、源码、原始数据、图表与复现脚本位于 `/home/chenxu/benchmarks/http-improvements-20261112-round28`。仅 Linux GNU/io_uring 实测；闭环 P50 未校正 coordinated omission，三次短测不代表长期分布。HTTP／JSON、GC 参数矩阵及其他平台未重测。清理本轮不再需要的应用／测试 target，保留源码 LLVM SDK 与构建缓存、最终编译器、系统库、固定二进制和原始记录。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

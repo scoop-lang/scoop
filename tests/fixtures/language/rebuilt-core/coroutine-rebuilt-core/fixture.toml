@@ -25,7 +25,9 @@ checks = []
 [[steps]]
 name = "modify_core"
 files = [
-  {"copy" = {"from" = "${fixture}/../../coroutines/core-coroutine.scoop", "to" = "${work}/core-source/src/coroutine.scoop"}},
+  {replace = {path = "${work}/core-source/src/coroutine.scoop", old = "public fun resume(value: T)", new = "public fun resumeWithException(exception: Throwable)"}},
+  {replace = {path = "${work}/core-source/src/coroutine.scoop", old = "public fun resumeWithException(exception: Throwable)\n}", new = "public fun resume(value: T)\n}"}},
+  {copy = {from = "${fixture}/../../coroutines/core-coroutine.scoop", to = "${work}/core-source/src/rebuilt_await.scoop"}},
 ]
 
 [[steps]]

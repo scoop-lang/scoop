@@ -1027,6 +1027,8 @@ completion 的成功、失败与恢复具有唯一获胜方和 release/acquire �
 
 每个低层任务有独立的 managed execution，保存固定 executor、活动任务登记和驱动状态；direct、virtual 与 closure suspend 调用共享同一 execution。结果提交与取得驱动权分离：registration/callee 尚未返回时的 completion 只发布结果，这些挂起入口使用同一 Registering/Waiting 握手；强制 yield 直接进入 Waiting 并提交 Unit，仍须退出当前驱动后才重新排队。execution 在 Running、Idle、Queued、Finished 之间协调同一任务，最多一个驱动者及一个待领取调度项。当前驱动必须先退出 frame 访问、结束 native catch 并恢复 resumer Context，才能让下一驱动执行。发布 payload 后才以 release 发布 ready，读取端 acquire 后消费；发布临界路径不调用用户代码。
 
+尾部挂起转交可以沿用调用方的 hidden completion 与注册握手；仍需保存 live values 或执行清理的调用方保留完整 frame。普通 core 的根任务包装提供最外层注册握手，开始调用前取出并清空保存的 task 引用，避免挂起后继续保活已经不用的任务捕获。在被包装正文正常或异常结束后通知用户 completion，随后由独立的最终 completion 结束 execution。用户 completion 抛出的异常不能再次通知该 completion。Waiting adapter 提交恢复时比较当前与保存的 execution 身份；同 execution 的完成链可在当前驱动退出后迭代执行，其他来源按外部恢复处理，yield 始终强制排队。比较使用普通 managed 引用，尾转交不增加 runtime 对象布局、TLS 根或裸指针保活例外。
+
 有 executor 的恢复通过目标 execution 调度；dispatch 强制排队，旧驱动已退出 frame／Context／catch 访问后发布的恢复可通过 dispatchResume 在 executor 控制的事件推进阶段于同一物理 worker 执行。连续执行有界，恢复中新产生的恢复仍排队；普通任务正文或外线程不得借该入口同步驱动目标任务。另一 worker 可以在 dispatch 返回前开始，dispatchResume 也可能在返回前结束任务，因此不能把函数返回视为发布屏障。无 executor 时允许当前线程恢复，但仍经过同一驱动状态协调。编译器内部、同 execution 的完成链可由当前驱动循环消费，不能递归增长 native 完成栈；用户 completion 仍是一次公开通知。此区分是普通库协议，不增加 runtime ABI、TLS 根或新的任务状态机。
 
 execution、work、typed 结果及异常都是普通 managed 对象，必须由实际队列/TaskContext/frame 引用保活，遵守写屏障与精确扫描。实际任务终止且完成通知退出后才释放 executor 登记；取消不提前释放登记，不覆盖已提交成功。worker attach/detach、park/join 复用现有线程与 NativeSafe 合同，C runtime 不实现调度队列，不新增 executor TLS 根。源码协议见语言规范 11.9.3。

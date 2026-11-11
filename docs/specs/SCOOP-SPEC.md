@@ -2416,7 +2416,7 @@ startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保
 
 dispatchResume 与 dispatch 共用同一活动登记、恰好一次执行及 Draining 接纳合同；它不增加登记或独立队列。发布方在调用前须完成旧驱动的 frame／Context／catch 收尾和新 work 的状态及根发布，并允许恢复在调用返回前完成整个任务。旧驱动退出时已经锁存的外部恢复由旧驱动通过普通 dispatch 排队；尚在发布的恢复可在旧驱动交出调度义务后使用 dispatchResume。yield 的强制让出始终由旧驱动排队，不可变成同步恢复。
 
-所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
+所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。仅转交相同类型结果、没有后续处理或清理的尾挂起链可以共用调用方的握手，不要求每一层建立 frame／adapter；低层任务入口也必须提供这一边界，不能把用户 completion 直接交给 registration。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；从其他 execution 或无 execution 的上下文提交的结果按外部恢复调度，不能因经过尾转交而变成内部完成。公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
 
 execution 的驱动权、action 槽与调度义务通过同一原子状态交接；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。当前驱动读取自身登记由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
 

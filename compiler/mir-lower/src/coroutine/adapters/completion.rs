@@ -50,19 +50,38 @@ pub(super) fn generate_completion_method(
         frame_layout.task_storage.core,
         mir::ContextStorageRole::Binding,
     ));
+    let saved_execution = mir::Expr::new(
+        binding_ty.clone(),
+        mir::ExprKind::Context(mir::ContextOperation::Execution {
+            task: Box::new(frame_field(
+                adapter_frame(this, adapter, frame_class),
+                frame_layout.task.field_index(),
+                mir::Type::Context(frame_layout.task_storage),
+            )),
+        }),
+    );
+    let external = if external {
+        mir::Expr::new(mir::Type::Boolean, mir::ExprKind::BoolLiteral(true))
+    } else {
+        // A tail-forwarded primitive can complete this ordinary call adapter
+        // from outside the task. Only the same execution's completion chain
+        // may be consumed internally by its current drive.
+        mir::Expr::new(
+            mir::Type::Boolean,
+            mir::ExprKind::Binary {
+                op: mir::BinOp::RefNe,
+                lhs: Box::new(saved_execution.clone()),
+                rhs: Box::new(mir::Expr::new(
+                    binding_ty,
+                    mir::ExprKind::Context(mir::ContextOperation::CurrentExecution),
+                )),
+            },
+        )
+    };
     let execution = mir::Expr::new(
         mir::Type::Interface(resume.interface),
         mir::ExprKind::Context(mir::ContextOperation::UnwrapBinding {
-            binding: Box::new(mir::Expr::new(
-                binding_ty,
-                mir::ExprKind::Context(mir::ContextOperation::Execution {
-                    task: Box::new(frame_field(
-                        adapter_frame(this, adapter, frame_class),
-                        frame_layout.task.field_index(),
-                        mir::Type::Context(frame_layout.task_storage),
-                    )),
-                }),
-            )),
+            binding: Box::new(saved_execution),
         }),
     );
     let work_ty = mir::Type::Interface(work_interface);
@@ -77,10 +96,7 @@ pub(super) fn generate_completion_method(
     submitted.push(statement(mir::StatementKind::Call(mir::CallEffect::Unit(
         mir::Call {
             target: resume.call(execution),
-            args: vec![
-                work,
-                mir::Expr::new(mir::Type::Boolean, mir::ExprKind::BoolLiteral(external)),
-            ],
+            args: vec![work, external],
         },
     ))));
     let dispatch = blocks.alloc(mir::BasicBlock {

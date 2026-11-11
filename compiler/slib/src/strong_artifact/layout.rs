@@ -158,31 +158,28 @@ impl AssembledCrossConeLayoutArtifactV1 {
             link_identity_closure.remove_members(&removed);
         }
 
-        let metadata = assemble_metadata(LayoutMetadataInput {
-            hir_foundation,
-            hir_production,
-            hir_cross_cone,
-            hir_type_semantics,
-            mir_foundation,
-            mir_production,
-            mir_cross_cone,
-            mir_type_bridge,
-            lir_foundation,
-            lir_cross_cone,
-            lir_layout_abi,
-            code: &code,
-            link_identity_closure: &link_identity_closure,
-            link_support: &link_support,
-        })?;
-
-        let foundation_fingerprints = SemanticFingerprintRecord::from_metadata_sections(
+        let metadata = assemble_metadata(
+            LayoutMetadataInput {
+                hir_foundation,
+                hir_production,
+                hir_cross_cone,
+                hir_type_semantics,
+                mir_foundation,
+                mir_production,
+                mir_cross_cone,
+                mir_type_bridge,
+                lir_foundation,
+                lir_cross_cone,
+                lir_layout_abi,
+                code: &code,
+                link_identity_closure: &link_identity_closure,
+                link_support: &link_support,
+            },
             &compatibility,
             &direct_dependencies,
-            &metadata.hir.sections,
-            &metadata.mir.sections,
-            &metadata.lir.sections,
-        )
-        .map_err(CrossConeLayoutArtifactWriteError::SemanticFingerprints)?;
+        )?;
+
+        let foundation_fingerprints = metadata.fingerprints;
         let semantic_fingerprints = SemanticFingerprintRecord::from_digests(
             foundation_fingerprints.hir(),
             foundation_fingerprints.mir(),

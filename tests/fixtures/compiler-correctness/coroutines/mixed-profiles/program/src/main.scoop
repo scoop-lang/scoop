@@ -1,17 +1,37 @@
 package dev.m58.profiles
+
 import dev.m58.profiles.profiles.middle.*
 
-fun check(value: Boolean) { if (!value) throw IllegalStateException() }
-class Done : Continuation<Int> {
+fun check(value: Boolean) {
+    if (!value)
+        throw IllegalStateException()
+}
+
+class Done: Continuation<Int> {
     var calls = 0
     var result = 0
-    public override fun resume(value: Int) { calls += 1; result = value }
-    public override fun resumeWithException(error: Throwable) { throw error }
+    var failure: Throwable? = None
+    public override fun resume(value: Int) {
+        calls += 1;
+        result = value
+    }
+    public override fun resumeWithException(error: Throwable) {
+        calls += 1;
+        failure = Some(error)
+    }
 }
-class Gate : SuspendRegistration<Int> {
+
+class Gate(val completeThenThrow: Boolean = false): SuspendRegistration<Int> {
     var waiter: Continuation<Int>? = None
-    public override fun register(continuation: Continuation<Int>) { waiter = Some(continuation) }
+    public override fun register(continuation: Continuation<Int>) {
+        waiter = Some(continuation)
+        if (completeThenThrow) {
+            continuation.resume(42)
+            throw UnwrapException()
+        }
+    }
 }
+
 fun main() {
     val immediate = Done()
     startCoroutine(suspend { value() }, immediate)
@@ -23,5 +43,17 @@ fun main() {
     gcCollect()
     gate.waiter!!.resume(42)
     check(delayed.calls == 1 && delayed.result == 42)
+    val invalid = Gate(true)
+    val failed = Done()
+    startCoroutine(suspend { waitFor(invalid) }, failed)
+    check(failed.calls == 1 && failed.failure!! is IllegalStateException)
+    var rejected = false
+    try {
+        invalid.waiter!!.resume(99)
+    }
+    catch (error: IllegalStateException) {
+        rejected = true
+    }
+    check(rejected && failed.calls == 1)
     println("mixed profiles preserve boxed and suspended calls")
 }

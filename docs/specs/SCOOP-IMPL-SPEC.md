@@ -379,7 +379,7 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 普通的 work／execution 方法沿既有普通依赖 callable 选择和接口派发路径导入；LocalConcrete 分别保存本地方法与依赖定义的 typed 身份及槽位，实际存在的协程协议沿既有 core function 选择路径请求机器依赖，MIR 消费相应本地或 external callee。不能把非泛型协议方法当作泛型模板重新发射到消费 Cone。泛型 Continuation／SuspendTask 等仍按实际类型实参具体化。
 
-direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；退役在 callee 返回前直接发布 Waiting 的路径。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。
+保留状态机的 direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；无帧尾转交共用调用方已有的 adapter。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。普通 suspend 调用的 Waiting adapter 在提交恢复时比较当前 execution 与 frame 保存的 execution：同一对象是内部完成链，否则是外部恢复；非尾原语与 yield 保持强制外部恢复。不能依据调用点是普通调用就把其尾部原语产生的外部结果标为内部完成。
 
 恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，旧驱动已经交出执行权后的恢复由普通 core 实现通过 ExecutorTask.dispatchResume 调度；executor 可按语言规范 11.9.3 在受控事件推进阶段执行，否则排队。旧驱动退出时已经锁存并由其领取的外部恢复继续通过 dispatch 排队；尚在发布的恢复须先取得旧驱动交出的调度义务，才能使用 dispatchResume。该普通接口方法不增加编译器 core 协程角色或 coroutine ABI。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
 
@@ -393,7 +393,9 @@ release 在 suspend ABI 转换前，从 source-signature CFG 与私有 call-site
 
 该克隆复用普通内联的参数求值、local 身份与 CFG 重映射，同时更新 call-site 的块、语句位置、语义顺序和调用点 cleanup。共享插入位置的待生成 suspend 注册仍位于原语句之前；callee 无自身 cleanup，克隆调用继承 caller 的 pending 链及异常出口。内联完成后才转换 hidden completion／step ABI，并只生成一次正式状态机。全部 suspend site 已实际消除的函数沿既有 Immediate 路径；剩余调用仍参与尾转交或状态机生成。该局部阶段不导入普通外部正文，也不把无帧尾转交判为同步。
 
-release 在状态机生成前识别整函数的尾挂起转交。首版要求所有挂起点都是本 Cone 的直接 suspend 调用，结果 exact type 与当前函数相同；调用后仅沿未取地址的普通局部初始化／赋值复制和无条件边返回该结果，没有 EH、pending cleanup、Context restore 或其他结果处理。内联的返回汇合临时值遵守同一规则；不按临时变量名称放宽检查。可以有多个尾调用分支及直接返回普通值的分支。合格调用追加原 hidden completion，并直接返回 callee 的 CoroutineStep；普通返回仍构造 Completed。本函数不生成 frame／adapter，callee 可以真正挂起。无帧尾转交与无挂起点的立即完成以不同 lowering 分支表示，不能据此前者推断同步；原语注册、唯一完成及异常协议保持。该优化不要求 LLVM 机器 tail call，不承诺尾递归常数栈。
+release 在状态机生成前识别整函数的尾挂起转交。所有挂起点必须是结果 exact type 与当前函数相同的 suspend 调用或 suspendCoroutine 原语；调用后仅沿未取地址的普通局部初始化／赋值复制和无条件边返回该结果，没有 EH、pending cleanup、Context restore、其他挂起点或结果处理。后缀判断同时消费真实语句和私有挂起记录，不能忽略占据同一语句位置的多个 Unit 注册。内联的返回汇合临时值遵守同一规则；不按临时变量名称放宽检查。可以有多个尾调用分支及直接返回普通值的分支。direct、跨 Cone、virtual、interface 与 closure 调用沿已经完成的 typed 调用选择追加原 hidden completion，并直接返回 callee 的 CoroutineStep；原语直接将该 completion 传给 register，返回 Suspended，由调用方握手消费同步完成或进入等待。普通返回仍构造 Completed。本函数不生成 frame／adapter，callee 可以真正挂起。无帧尾转交与无挂起点的立即完成以不同 lowering 分支表示，不能据此前者推断同步；yield 不参与尾转交。该优化不要求 LLVM 机器 tail call，不承诺尾递归常数栈。
+
+所有 profile 的普通 core 启动入口先将任务包装为 SuspendTask<Unit>：根包装以真实 try/catch 等待原 task.run，正文失败只通知用户失败，正文成功只通知用户成功；用户 completion 的异常位于正文 catch 之外。这个有后续工作的调用提供最外层 latch，不能被尾转交消除。内部 coroutine_start 启动该包装，最终 Continuation<Unit> 仅负责结束 execution 并传播未处理异常，不能提前结束仍在恢复根包装的 execution。启动仍只创建一个 execution 与一次 executor 登记。该边界是尾原语可用的编译契约，HIR core-bootstrap-interface／cross-cone-interface 升至 23／94，旧系统库按普通版本边界重建；MIR／LIR 格式、生成身份及 runtime ABI 保持。
 
 `==` / `!=` 保存已选定的 operator callable；若它来自普通用户接口，则保留该接口 application、slot 与实际 implementation。派生结构比较降为普通 typed 成员调用和短路控制流；`Equals<T>.equals` 是同一 operator 契约的普通接口调用。bound 调用在单态化时映射到已确定的实现，不能重新按名字搜索 equals。基本类型的精确 intrinsic 比较保持原运算与 effect；接口分派需要的适配正文同样是完整 typed callable，不能把 NoGc 直接实现误当成具有相同 effect 的 Managed slot 入口。
 
@@ -782,9 +784,9 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/93`、`cross-cone-type-semantics/32` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/23`、`cross-cone-interface/94`、`cross-cone-type-semantics/32` |
 | MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
-| LIR / `org.scoop-lang.lir` | `identity-foundation/15`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/18`、`link-identity-closure/22`、`link-support/1` |
+| LIR / `org.scoop-lang.lir` | `identity-foundation/15`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/20`、`cone-production/18`、`link-identity-closure/22`、`link-support/1` |
 
 本次原生函数指针调用演进采用上述 profile：HIR foundation 保存带模式的 exact/signature type key，core bootstrap 保存两个实际 intrinsic family 及转换，cross-cone interface/type-semantics 保存调用、转换与 TypeInfo；MIR 保存动态 native callee；LIR foundation/layout 保存 pointer destination 和完整 C ABI plan。旧 profile 按通常版本规则拒绝并重建，不从缺省字段把旧 `FunPtr` 猜成 NativeSafe，也不协商或混用两套类型身份。callable intrinsic tag 30 保留 main 的 `ThrowablePrintStackTrace`；`CompileEnv` 使用 tag 34，`IncludeStr`／`IncludeBytes`／`IncludeDir` 保持 31／32／33。
 
@@ -848,6 +850,8 @@ ODR member 目录保存于 `link-identity-closure/22` 的字段 6，与字段 1 
 distribution、output、image owner、typed registration projection、OptimizationMode 副本、重复的 RuntimeImage／Code fingerprint、native contract／library／C++ 和 C bridge production 投影不作为后续复核材料持久化。RuntimeImage 与 Code fingerprint 使用顶层 manifest 已保存的值，native requirements 使用 LIR foundation，入口使用实际语义与 production 数据。ODR directory 的 member 保存实际 role 与 OdrAbiFingerprint，field 4 保留不用；纯语义 member 不产生空物理条目。对象生产阶段的实际 Code 输入与指纹公式保留。
 
 ODR 目录中的条目同时表达定义和对已有定义的需求：有本产物 primary defined owner 的条目提供物理候选，没有本地 primary 的条目必须由实际依赖闭包中的候选满足。Compile 与 Link 按依赖先序合并完整 key、role 和 shared ABI；每个需求都必须有真实物理定义，不能由无依赖关系的兄弟产物补足。RegistrationRecord 只登记实际本地定义，不为省去的副本保存独立导入要求；GC／EH 与注册记录随最终选中的完整对象消费，不要求不同优化模式产生相同的私有 safepoint 集合。输出的合并目录总是包含至少一个完整候选，不保存空候选或递归转发条目。
+
+`cross-cone-layout-abi/20` 的 LIR 语义指纹仅使用字段 1–5 的导出 layout、descriptor、dispatch、callable ABI 和 shape support，编码为同名字段的五字段 map。字段 6 的实际内部导入保留在完整 section 中，供编译与链接消费；它随私有状态机消除而变化，不进入依赖接口指纹。生产端直接编码已有 typed exports，不重新解码或验证刚生成的 metadata。实际物理 imports 继续进入既有 Code contribution，直接依赖的 LIR 指纹继续参与当前 Cone 的语义指纹。此摘要合同更新要求旧 `/19` 产物重建，runtime ABI 不变。
 
 ODR 物理实现的可用性属于机器代码生产输入，不进入 HIR／MIR／LIR 语义指纹。优化会增删内部 callable、layout、descriptor 和 scan，不能因此拒绝语义与 ABI 相容的 debug／release 或 GC 配置组合。源码编译缓存将本次实际 direct／support 依赖摘要中已有的 Code 指纹纳入输入键；依赖机器代码或可用实现变化时，相关源码消费者重新执行对象生产与去重，不另存可用性目录或摘要。仅凭传递依赖的直接消费者 Code 未变不能复用更上层缓存；各源码节点使用与 child 请求相同的完整依赖投影。语义相容的预编译消费者仍由正常链接选择检查实际需要的定义；缺少被省去的 primary 实现时报告缺失定义，要求从源码重建该消费者。不读取命中产物、不在缓存判断时扫描对象，也不把 Code 指纹作为预编译依赖的语义相等条件。
 

@@ -1,24 +1,35 @@
-fun check(value: Boolean) { if (!value) throw IllegalStateException() }
+fun check(value: Boolean) {
+    if (!value)
+        throw IllegalStateException()
+}
+
 class Request(val value: Int)
+
 context(request: Request)
 fun current(): Int = request.value
 
-class Gate(val mode: Int, val expectedContext: Int = 0) : SuspendRegistration<Int> {
+class Gate(val mode: Int, val expectedContext: Int = 0): SuspendRegistration<Int> {
     var waiter: Continuation<Int>? = None
     public override fun register(continuation: Continuation<Int>) {
-        if (expectedContext != 0) check(current() == expectedContext)
+        if (expectedContext != 0)
+            check(current() == expectedContext)
         waiter = Some(continuation)
-        if (mode == 1 || mode == 3) continuation.resume(41)
-        if (mode == 2) continuation.resumeWithException(UnwrapException())
-        if (mode == 3) throw UnwrapException()
+        if (mode == 1 || mode == 3)
+            continuation.resume(41)
+        if (mode == 2)
+            continuation.resumeWithException(UnwrapException())
+        if (mode == 3)
+            throw UnwrapException()
     }
 }
-class Done(val expectedContext: Int = 0) : Continuation<Int> {
+
+class Done(val expectedContext: Int = 0): Continuation<Int> {
     var calls = 0
     var value = 0
     var failure: Throwable? = None
     public override fun resume(value: Int) {
-        if (expectedContext != 0) check(current() == expectedContext)
+        if (expectedContext != 0)
+            check(current() == expectedContext)
         calls += 1
         this.value = value
     }
@@ -27,48 +38,157 @@ class Done(val expectedContext: Int = 0) : Continuation<Int> {
         failure = Some(exception)
     }
 }
+
 var arguments = 0
-fun argument(): Int { arguments += 1; return 1 }
+
+fun argument(): Int {
+    arguments += 1;
+    return 1
+}
+
 suspend fun leaf(gate: Gate, increment: Int): Int = suspendCoroutine(gate) + increment
+
 suspend fun first(gate: Gate, increment: Int): Int = leaf(gate, increment)
+
 suspend fun second(gate: Gate): Int = first(gate, argument())
+
 suspend fun branch(gate: Gate, route: Int): Int {
-    if (route == 0) return second(gate)
-    if (route == 1) return first(gate, 2)
+    if (route == 0)
+        return second(gate)
+    if (route == 1)
+        return first(gate, 2)
     return 17
 }
+
 suspend fun <T> identity(value: T): T = value
+
 suspend fun <T> forward(value: T): T = identity(value)
 
 var cleanups = 0
-suspend fun guarded(gate: Gate): Int {
-    try { return branch(gate, 0) }
-    catch (error: UnwrapException) { return 9 }
-    finally { cleanups += 1 }
-}
-suspend fun scoped(gate: Gate): Int = context(Request(7)) { first(gate, 1) }
 
-class UnitGate : SuspendRegistration<Unit> {
+suspend fun guarded(gate: Gate): Int {
+    try {
+        return branch(gate, 0)
+    }
+    catch (error: UnwrapException) {
+        return 9
+    }
+    finally {
+        cleanups += 1
+    }
+}
+
+suspend fun scoped(gate: Gate): Int =
+    context(Request(7)) {
+        first(gate, 1)
+    }
+
+class UnitGate: SuspendRegistration<Unit> {
     var waiter: Continuation<Unit>? = None
-    public override fun register(continuation: Continuation<Unit>) { waiter = Some(continuation) }
+    var registrations = 0
+    public override fun register(continuation: Continuation<Unit>) {
+        registrations += 1
+        waiter = Some(continuation)
+    }
 }
-class UnitDone : Continuation<Unit> {
+
+class UnitDone: Continuation<Unit> {
     var calls = 0
-    public override fun resume(value: Unit) { calls += 1 }
-    public override fun resumeWithException(exception: Throwable) { throw exception }
+    public override fun resume(value: Unit) {
+        calls += 1
+    }
+    public override fun resumeWithException(exception: Throwable) {
+        throw exception
+    }
 }
-suspend fun unitLeaf(gate: UnitGate) { suspendCoroutine(gate) }
-suspend fun unitWrapper(gate: UnitGate) { return unitLeaf(gate) }
-suspend fun discardResult(gate: Gate) { first(gate, 1) }
+
+suspend fun unitLeaf(gate: UnitGate) {
+    suspendCoroutine(gate)
+}
+
+suspend fun unitWrapper(gate: UnitGate) {
+    return unitLeaf(gate)
+}
+
+suspend fun discardResult(gate: Gate) {
+    first(gate, 1)
+}
+
+// The complete chain, including its primitive, can share the root caller latch.
+suspend fun rawLeaf(gate: Gate): Int = suspendCoroutine(gate)
+
+interface TailReader {
+    suspend fun read(): Int
+}
+
+class InterfaceReader(val gate: Gate): TailReader {
+    public override suspend fun read(): Int = rawLeaf(gate)
+}
+
+open class VirtualReader {
+    public open suspend fun read(): Int = 0
+}
+
+class DerivedReader(val reader: TailReader): VirtualReader {
+    public override suspend fun read(): Int = reader.read()
+}
+
+suspend fun invokeReader(reader: VirtualReader): Int = reader.read()
+
+suspend fun invokeClosure(block: suspend () -> Int): Int = block.invoke()
+
+suspend fun unitPair(first: UnitGate, second: UnitGate) {
+    suspendCoroutine(first)
+    suspendCoroutine(second)
+}
+
+fun rootTailChain() {
+    var mode = 0
+    while (mode < 4) {
+        val gate = Gate(mode)
+        val done = Done()
+        val reader = DerivedReader(InterfaceReader(gate))
+        startCoroutine(suspend { invokeClosure(suspend { invokeReader(reader) }) }, done)
+        if (mode == 0) {
+            check(done.calls == 0)
+            gcCollect()
+            gate.waiter!!.resume(41)
+        }
+        check(done.calls == 1)
+        if (mode < 2)
+            check(done.value == 41)
+        if (mode == 2)
+            check(done.failure!! is UnwrapException)
+        if (mode == 3)
+            check(done.failure!! is IllegalStateException)
+        duplicate(gate)
+        mode += 1
+    }
+    val first = UnitGate()
+    val second = UnitGate()
+    val done = UnitDone()
+    startCoroutine(suspend { unitPair(first, second) }, done)
+    check(done.calls == 0 && first.registrations == 1 && second.registrations == 0)
+    first.waiter!!.resume(Unit)
+    check(done.calls == 0 && second.registrations == 1)
+    gcCollect()
+    second.waiter!!.resume(Unit)
+    check(done.calls == 1)
+}
 
 fun duplicate(gate: Gate) {
     var rejected = false
-    try { gate.waiter!!.resume(99) }
-    catch (error: IllegalStateException) { rejected = true }
+    try {
+        gate.waiter!!.resume(99)
+    }
+    catch (error: IllegalStateException) {
+        rejected = true
+    }
     check(rejected)
 }
 
 fun main() {
+    rootTailChain()
     var mode = 0
     while (mode < 4) {
         val gate = Gate(mode)
@@ -82,9 +202,12 @@ fun main() {
             gate.waiter!!.resume(41)
         }
         check(done.calls == 1)
-        if (mode < 2) check(done.value == 42)
-        if (mode == 2) check(done.failure!! is UnwrapException)
-        if (mode == 3) check(done.failure!! is IllegalStateException)
+        if (mode < 2)
+            check(done.value == 42)
+        if (mode == 2)
+            check(done.failure!! is UnwrapException)
+        if (mode == 3)
+            check(done.failure!! is IllegalStateException)
         duplicate(gate)
         check(done.calls == 1)
         mode += 1

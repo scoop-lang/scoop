@@ -41,10 +41,13 @@ pub(super) struct LayoutMetadataAssembly {
     pub hir: LayerAssembly,
     pub mir: LayerAssembly,
     pub lir: LayerAssembly,
+    pub fingerprints: crate::SemanticFingerprintRecord,
 }
 
 pub(super) fn assemble_metadata(
     mut input: LayoutMetadataInput<'_, '_>,
+    compatibility: &crate::CompatibilityRecord,
+    direct_dependencies: &[crate::DependencyRecord],
 ) -> Result<LayoutMetadataAssembly, CrossConeLayoutArtifactWriteError> {
     let hir_cross_cone = input
         .hir_cross_cone
@@ -116,6 +119,28 @@ pub(super) fn assemble_metadata(
             )?,
         ],
     )?;
+    let ordinary = build_section(
+        StrongArtifactSectionV1::LirCrossConeBridge,
+        MetadataLocation::Lir,
+        lir_cross_cone_param_free_bridge_capability(),
+        MemberPurposeSet::COMPILE_AND_LINK,
+        input.lir_cross_cone,
+    )?;
+    let layout_interface = build_section(
+        StrongArtifactSectionV1::LirCrossConeLayoutAbi,
+        MetadataLocation::Lir,
+        lir_cross_cone_layout_abi_capability(),
+        MemberPurposeSet::COMPILE_AND_LINK,
+        input.lir_layout_abi.exports(),
+    )?;
+    let fingerprints = crate::SemanticFingerprintRecord::from_metadata_sections(
+        compatibility,
+        direct_dependencies,
+        &hir.sections,
+        &mir.sections,
+        &[ordinary.clone(), layout_interface],
+    )
+    .map_err(CrossConeLayoutArtifactWriteError::SemanticFingerprints)?;
     let lir = LayerAssembly::new(
         MetadataLocation::Lir,
         vec![
@@ -133,13 +158,7 @@ pub(super) fn assemble_metadata(
                 MemberPurposeSet::COMPILE_AND_LINK,
                 input.lir_foundation,
             )?,
-            build_section(
-                StrongArtifactSectionV1::LirCrossConeBridge,
-                MetadataLocation::Lir,
-                lir_cross_cone_param_free_bridge_capability(),
-                MemberPurposeSet::COMPILE_AND_LINK,
-                input.lir_cross_cone,
-            )?,
+            ordinary,
             build_section(
                 StrongArtifactSectionV1::LirProduction,
                 MetadataLocation::Lir,
@@ -163,5 +182,10 @@ pub(super) fn assemble_metadata(
             )?,
         ],
     )?;
-    Ok(LayoutMetadataAssembly { hir, mir, lir })
+    Ok(LayoutMetadataAssembly {
+        hir,
+        mir,
+        lir,
+        fingerprints,
+    })
 }
