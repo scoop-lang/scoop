@@ -1,0 +1,13 @@
+package test.first
+
+public import test.support.visible as forwarded
+
+public fun choose(): Int = 1
+
+public fun String.decorate(): Int = 1
+
+public val marker: Int = 1
+
+public struct Record(val value: Int)
+
+private fun secret(): Int = 0

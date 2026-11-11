@@ -1,0 +1,11 @@
+schema = 1
+[cone]
+group = "test"
+name = "diagnostic-consumer"
+version = "1.0.0"
+kind = "library"
+[dependencies]
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"
+"test:diagnostic-first" = {version = "1.0.0", path = "first"}
+"test:diagnostic-second" = {version = "1.0.0", path = "second"}

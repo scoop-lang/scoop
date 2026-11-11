@@ -65,6 +65,7 @@ fn related(origin: &hir::SemanticSourceLocation, message: impl Into<String>) -> 
         source: Some(Box::new(origin.source.clone())),
         span: origin.span,
         message: message.into(),
+        import_path: Vec::new(),
     }
 }
 

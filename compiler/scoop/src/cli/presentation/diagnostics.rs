@@ -48,9 +48,15 @@ impl Reporter {
             };
             match self.0 {
                 MessageFormat::Json => {
-                    let notes = diagnostic.notes().iter().map(|note| json!({
+                    let notes = diagnostic.notes().iter().map(|note| {
+                        let mut value = json!({
                         "message": note.message(), "origin": origin(note.origin()), "display": display(note.origin(), sources, contents),
-                    })).collect::<Vec<_>>();
+                        });
+                        if !note.import_path().is_empty() {
+                            value["importPath"] = json!(note.import_path());
+                        }
+                        value
+                    }).collect::<Vec<_>>();
                     write_json(&json!({
                         "schema": 1, "kind": "diagnostic", "severity": severity, "code": diagnostic.code(),
                         "message": diagnostic.message(), "origin": origin(diagnostic.origin()), "notes": notes,

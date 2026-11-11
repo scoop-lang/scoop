@@ -87,6 +87,8 @@ python3 scripts/build_scoop_example.py --sysroot "$SCOOP_MAINT_SYSROOT"
 
 语言服务入口为 `scoop-lsp query`，合同见[语言服务 CLI](../language-service/CLI.md)。更新查询能力时同步该工具的帮助、JSON 合同、skill 用法及真实 stdio 对照测试；不另建类型分析逻辑。按名字发现 API 使用 `scoop api search/show`；实际位置类型使用 LSP。维护者更新文档时同时生成 `api/index.json` 和 Cone 数据，用查询命令检查完整重载、属性访问器、有效 import 和目标。
 
+诊断修复还要比较人类输出、编译 JSON 和 LSP 的主位置/原因/关联位置；importPath 与 code-actions 使用同一组前端候选。验证好/坏对照、编辑应用后的检查以及源码/依赖上下文变化后的动作失效。compiler worker 协议变化时重建并选用配套的 scoop/scoopc；仅有诊断协议变化不要求无关的目标系统库重建。本流程的诊断实例为 F08 嵌套 Option 实参错误和 `diagnostic-roots-and-import-actions` fixture。
+
 ## 6. 按实际影响验证
 
 先格式化与 lint，再测试。以下命令按修改范围选择；格式化命令会改文件，应在本次需要处理的目录/文件上运行。文档纯文字改动只需链接、命令和事实核对，不因此启动编译器全量验收。

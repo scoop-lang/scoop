@@ -10,7 +10,7 @@
 | B1 | 材料完成，待效果验收 | 通用设计、调试和复审流程已进入 skill；与 B2 示例一同进行 B7 对照 |
 | B2 | 完成，本机验证通过 | 31 个完整主题；进程、环境、终端、报告和 UI；Cone 行为测试及真实进程/原生宿主验证 |
 | B3 | 完成，本机验证通过 | 文档同步发布 API 数据；`scoop api search/show` 读取真实签名、约束、导入、文档和来源 |
-| B4 | 待实施 | 编译诊断 |
+| B4 | 完成，相关回归通过 | 保留实参根因、真实 import 提示及版本化编辑；完整前端测试有 42 项已独立复现的既有失败 |
 | B5 | 完成，本机验证通过 | `scoop-lsp query` 复用 stdio LSP，提供 11 类查询、JSON、位置编码和正文覆盖 |
 | B6 | 待实施 | 进程通信截止时间 |
 | B7 | 进行中 | K3 原版 skill 数据处理基线及七组独立输入通过；新材料与多领域对照继续进行 |
@@ -50,6 +50,15 @@
 - 3 项阅读器 Rust 测试、25 项文档测试、6 组正式文档 CLI fixture 通过，覆盖真实 std/test 重载、公开别名、Unicode、隐藏声明、属性访问器、来源、错误流和增量移除旧声明。新增文件导致的增量文件数期望同步为 13；实例成员筛选在真实 Result 属性与 ChildProcess 方法上验证。
 - macOS/AArch64 安装站点实际发布 44 个内置 Cone，安装后的驱动查询 Option、assertEquals、ChildProcess、NO_COLOR 和空结果通过。Ruff、Rust/Scoop 格式化、目标 crate Clippy、84 项 fixture 规则测试（4 项平台跳过）、4 项打包布局测试、9 项示例阅读器测试和 skill 结构/引用检查通过。当前 Rust 1.99 对未修改依赖仍有已有 Clippy warnings；没有据此声称其他平台运行已验收。
 - skill、独立命令说明、安装脚本与维护工作流同步；Kimi skill 与开发安装材料已更新，后续评测使用新进程。查询不隐式生成文档或准备工具链。
+
+## B4 根因诊断与导入修复
+
+- 当前源码与导入候选共用参数推断结果，保留已经确定的独立实参错误。实际 std/test 的 F08 原例、交换参数、嵌套 Option 和安全调用均指向错误实参；好例继续调用原有 assertEquals，真正独立的名义约束错误仍被报告。内部根因分类只服务前端传播，不进入 wire、产物或 runtime。
+- import 候选复用当前 Cone、直接依赖、公开转导出和真实 receiver 约束。编译 JSON 的 note.importPath 与 LSP 的 data.imports 保留同一组标识符路径和实际来源；歧义、不可见、传递依赖及已有冲突绑定不生成错误导入。当前提示枚举包级公开绑定，完整 API 发现仍由 scoop api 负责。
+- LSP 提供语法/import quickfix，并核对正文及分析版本；CLI 新增 code-actions，直接返回版本化 WorkspaceEdit，调用方确认正文未变后应用。实际测试包含中文引用标识符、CRLF、当前源码/跨 Cone/标准库扩展、每个合法导入选项应用后通过检查，以及正文或其他源码变化后的 ContentModified。没有自动包装 Some 或自动选择同名 API。
+- compiler worker 协议升至 31，附注新增 import 路径字段；重建配套命令，复用既有目标系统库。正式诊断/import fixture、原 CLI 查询 fixture 及原声明诊断 fixture 通过，比较主位置、原因和关联源码范围。编辑态在坏 import 后继续分析所产生的明确依赖错误单独断言，不掩盖严格编译在文件头停止的区别。
+- 七项新增前端回归通过。完整 HIR 测试为 2122 通过、42 失败；在改动前 d11d78d7c3 的独立源码与构建目录复现完全相同的 42 项失败，集中于已有 core/MIR 测试输入和形状期望。本批没有将该全量结果描述为全绿，也未扩展修改无关测试。source/protocol/analysis/LSP 测试全部通过；Rust/Scoop/Ruff 格式化、相关 all-targets Clippy、84 项 fixture 规则（4 平台跳过）及 skill 结构/相对引用检查通过，Clippy 仍有未修改依赖的已有警告。
+- 独立命令文档、skill 的查询与诊断步骤、工具导航和更新工作流同步；Kimi 与开发安装根的材料按同一版本更新，新评测使用新进程。本批实走了诊断变更的维护流程，库 API 变更流程将在 B6 验证。
 
 ## B5 语言服务命令行
 

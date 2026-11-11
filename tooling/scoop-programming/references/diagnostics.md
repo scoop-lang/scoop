@@ -10,6 +10,10 @@
 4. 将复杂调用拆成有类型注解的局部 val，或在最小程序里保留出错的调用和实际声明。先修复内层参数，再检查外层；不要同时换 API、弱化断言并增加异常捕获，这会丢失定位依据。
 5. 小程序与规范/声明仍冲突时，保留最小源码、工具链版本、完整诊断及命令报告编译器问题。临时绕行必须保持业务语义，不能把未经证实的限制写成语言事实。
 
+缺少名称或扩展时，先看诊断 note 中的 `available with import`。编译 JSON 的 note 带 `importPath` 标识符数组，LSP 诊断的 data.imports 提供同一组路径；它们来自当前 Cone/直接依赖的真实可见声明。可用 `scoop-lsp query code-actions 文件 --line 行 --column 列 --format json` 取得相应插入。路径可能含需反引号引用的标识符，优先审阅工具生成的编辑，不把标识符数组直接用点拼成源码。无提示不等于 API 不存在，继续查 `scoop api search/show` 和依赖/可见性。
+
+例如 `fun optional(value: String?): String? = value` 与 `assertEquals(Some("x"), optional("x"))` 的问题在 optional 的实参。应明确实际意图并修为 `optional(Some("x"))`，保持原断言。编译器会尽量保留这个内层错误；候选仍可能依赖期望类型，因此复杂调用需要按上面的步骤缩小，不能仅凭外层错误文字推断语言限制。
+
 | 现象 | 优先核对 |
 | --- | --- |
 | String 与 Option<String> 不匹配 | `T?` 是 Option<T>，存在值显式 Some；期望类型和安全调用的嵌套层数 |

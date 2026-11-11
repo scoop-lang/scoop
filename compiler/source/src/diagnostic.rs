@@ -31,6 +31,10 @@ pub struct Diagnostic {
     pub source: Option<Box<SourceIdentity>>,
     pub span: Option<Span>,
     pub message: String,
+    /// Call inference established an argument error independent of candidate
+    /// context. Frontend candidate aggregation may forward identical roots;
+    /// presentation and compiler protocol do not serialize this classification.
+    pub is_argument_root: bool,
     /// Related source locations which explain the primary diagnostic.
     /// Notes never replace the primary location and therefore always have
     /// a concrete span.
@@ -46,6 +50,8 @@ pub struct DiagnosticNote {
     pub source: Option<Box<SourceIdentity>>,
     pub span: Span,
     pub message: String,
+    /// An actual import path suggested by semantic lookup. Empty for other notes.
+    pub import_path: Vec<String>,
 }
 
 impl Diagnostic {
@@ -60,6 +66,7 @@ impl Diagnostic {
             source: None,
             span: Some(span),
             message: message.into(),
+            is_argument_root: false,
             notes: Vec::new(),
         }
     }
@@ -75,6 +82,7 @@ impl Diagnostic {
             source: None,
             span: Some(span),
             message: message.into(),
+            is_argument_root: false,
             notes: Vec::new(),
         }
     }
@@ -91,6 +99,7 @@ impl Diagnostic {
             source: None,
             span: None,
             message: message.into(),
+            is_argument_root: false,
             notes: Vec::new(),
         }
     }
@@ -163,6 +172,7 @@ impl DiagnosticNote {
             source: None,
             span,
             message: message.into(),
+            import_path: Vec::new(),
         }
     }
 
@@ -215,6 +225,7 @@ mod tests {
             source: None,
             span: None,
             message: "link warning".to_string(),
+            is_argument_root: false,
             notes: Vec::new(),
         };
         assert_eq!(

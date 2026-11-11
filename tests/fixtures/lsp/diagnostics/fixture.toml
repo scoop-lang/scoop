@@ -1,0 +1,18 @@
+schema = 1
+name = "diagnostic-roots-and-import-actions"
+inputs = ["project", "check.py", "../workspace"]
+tools = ["scoop", "scoopc", "scoop-lsp", "scoop-pm", "python"]
+requires_target_execution = false
+tags = ["lsp", "diagnostics", "imports"]
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/project", to = "${work}/project"}}]
+
+[[steps]]
+name = "check"
+argv = ["${python}", "${fixture}/check.py", "${scoop}", "${scoopc}", "${scoop-lsp}", "${scoop-pm}", "${work}/project", "${sysroot}", "${target}", "${cache}"]
+timeout = 180
+exit = 0
+stdout = "diagnostic roots and import actions passed\n"
+stderr = ""

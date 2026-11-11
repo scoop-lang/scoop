@@ -67,6 +67,7 @@ impl PendingDocumentation {
                             source: Some(Box::new(source.clone())),
                             span: span(note.location.range),
                             message: note.message.clone(),
+                            import_path: Vec::new(),
                         }
                     })
                     .collect();

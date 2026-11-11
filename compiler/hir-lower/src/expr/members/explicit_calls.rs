@@ -490,6 +490,15 @@ impl Lowerer {
                 name.span,
                 format!("type `{found}` has no {capability} `{}`", name.text),
             );
+            if !direct_required.infix
+                && direct_required.operator.is_none()
+                && direct_required.property_delegate_operator.is_none()
+            {
+                self.append_import_suggestions(
+                    name,
+                    crate::imports::MissingNameUse::Method(receiver.ty),
+                );
+            }
         }
         None
     }

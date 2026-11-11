@@ -1,0 +1,3 @@
+package test.second
+
+public fun choose(): Int = 2

@@ -90,14 +90,26 @@ impl Lowerer {
         let hints = loop {
             let partial = match previous.take() {
                 Some(partial) => partial,
-                None => self
-                    .solve_constraints_partially(session, environment)
-                    .map_err(|failure| {
-                        Box::new(ArgumentInferenceFailure {
-                            arguments: values.clone(),
-                            kind: ArgumentInferenceFailureKind::Constraint(failure),
-                        })
-                    })?,
+                None => match self.solve_constraints_partially(session, environment) {
+                    Ok(partial) => partial,
+                    Err(constraint) => {
+                        // The candidate is already inapplicable. Keep an argument
+                        // error observed during synthesis instead of losing it to
+                        // an outer bound that happened to be checked first.
+                        let kind = if let Some((mut state, failure)) =
+                            independent_failures.iter_mut().find_map(Option::take)
+                        {
+                            std::mem::swap(self, &mut state);
+                            ArgumentInferenceFailureKind::Expression(failure)
+                        } else {
+                            ArgumentInferenceFailureKind::Constraint(constraint)
+                        };
+                        return Err(Box::new(ArgumentInferenceFailure {
+                            arguments: values,
+                            kind,
+                        }));
+                    }
+                },
             };
             let complete = partial
                 .owner
@@ -130,7 +142,19 @@ impl Lowerer {
                         independent_failures[index] = None;
                         progress = true;
                     }
-                    Err(failure) => {
+                    Err(mut failure) => {
+                        if independent_failures[index]
+                            .as_ref()
+                            .is_some_and(|(_, prior)| {
+                                !prior.context_dependent
+                                    && prior.span == failure.span
+                                    && prior.reason == failure.reason
+                            })
+                        {
+                            // The same error occurred with and without this
+                            // candidate's expected type. Reuse that fact.
+                            failure.context_dependent = false;
+                        }
                         if let Some(mut saved) = saved {
                             std::mem::swap(self, &mut saved);
                             first_failure.get_or_insert((saved, failure));

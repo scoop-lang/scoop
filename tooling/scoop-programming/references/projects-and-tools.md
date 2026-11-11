@@ -103,12 +103,15 @@ scoop-lsp query signature src/main.scoop --line 8 --column 20
 scoop-lsp query completion src/main.scoop --line 9 --column 10
 scoop-lsp query definition src/main.scoop --line 8 --column 12
 scoop-lsp query diagnostics src/main.scoop --format json
+scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query symbols src/main.scoop
 ```
 
 行列应取实际源码；两者从 1 开始，列默认计 Unicode 标量（utf-32）。可选 `--position-encoding utf-8|utf-16|utf-32`；JSON 内 LSP range 仍为零基并附 positionEncoding/rangeBase。用 `--project` 指向另一个 Cone 或 workspace，文件与路径选项仍相对当前目录。`--sysroot`、`--target`、`--purpose production|test` 应与实际开发视图一致；`--package-manager`、`--cone-path`、`--package-cache-dir`、`--lockfile` 可选择已有依赖资源。
 
 文档查询的 `--stdin` 读取完整未保存正文，不改磁盘。JSON 的 result 是原 LSP 结果；diagnostics 包含当前文档及项目诊断。status=empty 表示无结果，partial 表示存在错误或服务器分析问题，要同时读诊断。查询成功含 empty/partial 都退出 0；输入/协议错误退出 1，用法错误退出 2，错误在 stderr。查询不替代 build/test，也不生成机器产物。
+
+`code-actions` 返回已展开的语法/import 编辑。多个 import 路径需要根据实际意图选择；没有动作时继续查看诊断及 API 声明。编辑中的版本 1 仅表示本次临时 buffer，应用前确认正文未变，按 positionEncoding 的零基范围编辑，再执行 `scoop check`。命令不自动修改文件，也不将普通值自动包装为 Some。
 
 type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
 

@@ -404,9 +404,15 @@ impl Lowerer {
                 span,
                 format!("struct `{}` has no field `{name}`", structure.name),
             );
+            if let ast::FieldSelector::Name(field) = selector {
+                self.append_import_suggestions(
+                    field,
+                    crate::imports::MissingNameUse::Property(receiver_ty),
+                );
+            }
             return None;
         }
-        match self.types[receiver_ty].clone() {
+        let result = match self.types[receiver_ty].clone() {
             Type::Class(application) => {
                 let class_id = self.class_applications[application].template;
                 let class_name = self.nominal_template_name(class_id).to_owned();
@@ -465,6 +471,15 @@ impl Lowerer {
                 self.error(span, format!("type `{found}` has no fields"));
                 None
             }
+        };
+        if result.is_none()
+            && let ast::FieldSelector::Name(field) = selector
+        {
+            self.append_import_suggestions(
+                field,
+                crate::imports::MissingNameUse::Property(receiver_ty),
+            );
         }
+        result
     }
 }

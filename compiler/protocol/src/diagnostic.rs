@@ -73,6 +73,7 @@ impl ProtocolByteSpan {
 pub struct DiagnosticNoteV1 {
     message: String,
     origin: DiagnosticOriginV1,
+    import_path: Vec<String>,
 }
 
 impl DiagnosticNoteV1 {
@@ -83,7 +84,11 @@ impl DiagnosticNoteV1 {
         if !valid_text(&message) {
             return Err(ProtocolValidationError::InvalidDiagnosticMessage);
         }
-        Ok(Self { message, origin })
+        Ok(Self {
+            message,
+            origin,
+            import_path: Vec::new(),
+        })
     }
 
     pub fn message(&self) -> &str {
@@ -93,15 +98,32 @@ impl DiagnosticNoteV1 {
     pub const fn origin(&self) -> &DiagnosticOriginV1 {
         &self.origin
     }
+
+    pub fn with_import_path(mut self, path: Vec<String>) -> Result<Self, ProtocolValidationError> {
+        if path
+            .iter()
+            .any(|part| scoop_identity::CanonicalIdentifier::new(part).is_err())
+        {
+            return Err(ProtocolValidationError::InvalidDiagnosticImport);
+        }
+        self.import_path = path;
+        Ok(self)
+    }
+
+    pub fn import_path(&self) -> &[String] {
+        &self.import_path
+    }
 }
 
 impl WireEncode for DiagnosticNoteV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(2)?;
+        encoder.map(3)?;
         encoder.field(1)?;
         encoder.text(&self.message)?;
         encoder.field(2)?;
-        self.origin.encode(encoder)
+        self.origin.encode(encoder)?;
+        encoder.field(3)?;
+        encode_import_path(encoder, &self.import_path)
     }
 }
 
@@ -191,31 +213,53 @@ impl WireDecode for StructuredDiagnosticV1 {
 struct DecodedDiagnosticNoteV1 {
     message: String,
     origin: DecodedDiagnosticOriginV1,
+    import_path: Vec<String>,
 }
 
 impl DecodedDiagnosticNoteV1 {
     fn validate(self) -> Result<DiagnosticNoteV1, ProtocolValidationError> {
-        DiagnosticNoteV1::new(self.message, self.origin.validate()?)
+        DiagnosticNoteV1::new(self.message, self.origin.validate()?)?
+            .with_import_path(self.import_path)
     }
 }
 
 impl WireEncode for DecodedDiagnosticNoteV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(2)?;
+        encoder.map(3)?;
         encoder.field(1)?;
         encoder.text(&self.message)?;
         encoder.field(2)?;
-        self.origin.encode(encoder)
+        self.origin.encode(encoder)?;
+        encoder.field(3)?;
+        encode_import_path(encoder, &self.import_path)
     }
 }
 
 impl WireDecode for DecodedDiagnosticNoteV1 {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decoder.expect_map(2)?;
+        decoder.expect_map(3)?;
         let message = decoder.field(1, Decoder::owned_text)?;
         let origin = decoder.field(2, DecodedDiagnosticOriginV1::decode)?;
-        Ok(Self { message, origin })
+        let import_path = decoder.field(3, |decoder| {
+            decoder.decode_array(|decoder, _| decoder.owned_text())
+        })?;
+        Ok(Self {
+            message,
+            origin,
+            import_path,
+        })
     }
+}
+
+fn encode_import_path(
+    encoder: &mut Encoder,
+    path: &[String],
+) -> Result<(), scoop_wire::cbor::EncodeError> {
+    encoder.array(path.len() as u64)?;
+    for part in path {
+        encoder.text(part)?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -317,7 +361,15 @@ mod tests {
             "SCOOPC_TEST_WARNING".to_owned(),
             "bounded warning".to_owned(),
             DiagnosticOriginV1::None,
-            Vec::new(),
+            vec![
+                DiagnosticNoteV1::new(
+                    "available with import tools.`测 试`".into(),
+                    DiagnosticOriginV1::None,
+                )
+                .unwrap()
+                .with_import_path(vec!["tools".into(), "测 试".into()])
+                .unwrap(),
+            ],
         )
         .unwrap();
         let encoded = scoop_wire::encode(&diagnostic).unwrap();

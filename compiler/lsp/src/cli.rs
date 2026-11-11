@@ -111,6 +111,8 @@ enum QueryKind {
     WorkspaceSymbols { name: String },
     /// Syntax, semantic and project diagnostics for this document.
     Diagnostics(Document),
+    /// Concrete syntax and import edits at this position; does not apply them.
+    CodeActions(Position),
     /// Actual server capabilities, without loading a project.
     Capabilities,
 }

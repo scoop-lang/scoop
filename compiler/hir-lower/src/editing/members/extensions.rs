@@ -22,7 +22,7 @@ impl Lowerer {
                 for target in layer.candidates {
                     let candidate = match target {
                         ExtensionCallTarget::Current(function) => self
-                            .editing_source_extension_applicable(function, receiver)
+                            .source_extension_receiver_applicable(function, receiver)
                             .map(|applies| {
                                 applies.then_some(Target::Callable(hir::SemanticCallable::Current(
                                     function,
@@ -40,7 +40,7 @@ impl Lowerer {
                             })
                             .ok_or(U::DeclarationFailure)
                             .and_then(|declaration| {
-                                self.editing_imported_extension_applicable(&declaration, receiver)
+                                self.imported_extension_receiver_applicable(&declaration, receiver)
                                     .map(|applies| {
                                         applies
                                             .then(|| {
@@ -67,7 +67,7 @@ impl Lowerer {
                             if !self.property_is_accessible(property, Some(receiver)) {
                                 continue;
                             }
-                            self.editing_source_extension_applicable(
+                            self.source_extension_receiver_applicable(
                                 self.extension_property_getter(property),
                                 receiver,
                             )
@@ -84,7 +84,7 @@ impl Lowerer {
         Ok(())
     }
 
-    fn editing_source_extension_applicable(
+    pub(crate) fn source_extension_receiver_applicable(
         &mut self,
         function: hir::FunctionId,
         receiver: hir::TypeId,
@@ -99,10 +99,10 @@ impl Lowerer {
         }
         let parameters = self.signatures[&function].type_params.clone();
         let declared = self.extension_receivers[&function];
-        Ok(self.editing_receiver_applicable(&parameters, declared, receiver))
+        Ok(self.receiver_constraints_applicable(&parameters, declared, receiver))
     }
 
-    pub(super) fn editing_receiver_applicable(
+    pub(super) fn receiver_constraints_applicable(
         &mut self,
         parameters: &[hir::TypeParamDecl],
         declared: hir::TypeId,
@@ -135,7 +135,7 @@ impl Lowerer {
                 property.interface().accessors().getter(),
             ))
             .map_err(|_| U::DeclarationFailure)?;
-        self.editing_imported_extension_applicable(&getter, receiver)
+        self.imported_extension_receiver_applicable(&getter, receiver)
             .map(|applies| {
                 applies.then_some(Target::ImportedProperty(property.interface().declaration()))
             })

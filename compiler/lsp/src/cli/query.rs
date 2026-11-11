@@ -47,7 +47,11 @@ pub(super) fn execute(query: &Query) -> io::Result<Output> {
         "processId": std::process::id(),
         "capabilities": {
             "general": {"positionEncodings": [query.position_encoding.name()]},
-            "textDocument": {"documentSymbol": {"hierarchicalDocumentSymbolSupport": true}}
+            "workspace": {"workspaceEdit": {"documentChanges": true}},
+            "textDocument": {
+                "documentSymbol": {"hierarchicalDocumentSymbolSupport": true},
+                "codeAction": {"codeActionLiteralSupport": {"codeActionKind": {"valueSet": ["quickfix"]}}}
+            }
         },
         "workspaceFolders": root.as_ref().map(|path| file_uri(path).map(|uri| vec![json!({"uri": uri, "name": path.display().to_string()})])).transpose()?,
         "initializationOptions": {
@@ -210,6 +214,7 @@ impl QueryKind {
             | Self::Definition(p)
             | Self::TypeDefinition(p)
             | Self::Implementation(p)
+            | Self::CodeActions(p)
             | Self::References(p) => Some(&p.document),
             Self::Symbols(d) | Self::Diagnostics(d) => Some(d),
             Self::WorkspaceSymbols { .. } | Self::Capabilities => None,
@@ -227,6 +232,7 @@ impl QueryKind {
             Self::References(_) => "references",
             Self::Symbols(_) => "symbols",
             Self::Diagnostics(_) => "diagnostics",
+            Self::CodeActions(_) => "code-actions",
             Self::WorkspaceSymbols { .. } => "workspace-symbols",
             Self::Capabilities => "capabilities",
         }
@@ -241,6 +247,17 @@ impl QueryKind {
             Self::TypeDefinition(p) => ("textDocument/typeDefinition", Some(p)),
             Self::Implementation(p) => ("textDocument/implementation", Some(p)),
             Self::References(p) => ("textDocument/references", Some(p)),
+            Self::CodeActions(p) => {
+                let point = json!({"line": p.line - 1, "character": p.column - 1});
+                return (
+                    "textDocument/codeAction",
+                    json!({
+                        "textDocument": {"uri": uri},
+                        "range": {"start": point, "end": point},
+                        "context": {"diagnostics": [], "only": ["quickfix"]},
+                    }),
+                );
+            }
             Self::Symbols(_) => ("textDocument/documentSymbol", None),
             // A cheap document query orders the response after workspace refresh and didOpen.
             Self::Diagnostics(_) => ("textDocument/documentSymbol", None),

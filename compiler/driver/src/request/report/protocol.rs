@@ -82,6 +82,7 @@ fn convert<'a>(
                     &source_text,
                 )?,
             )
+            .and_then(|result| result.with_import_path(note.import_path.clone()))
             .map_err(mapping)
         })
         .collect::<Result<Vec<_>, _>>()?;

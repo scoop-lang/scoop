@@ -102,6 +102,36 @@ pub(super) fn text(output: &Output) -> serde_json::Result<String> {
                 }
             }
             "diagnostics" => {}
+            "code-actions" => {
+                let actions: Vec<lsp_types::CodeAction> =
+                    serde_json::from_value(output.result.clone())?;
+                for action in actions {
+                    let _ = writeln!(text, "{}", action.title);
+                    if let Some(lsp_types::DocumentChanges::Edits(documents)) =
+                        action.edit.and_then(|edit| edit.document_changes)
+                    {
+                        for document in documents {
+                            for edit in document.edits {
+                                let edit = match edit {
+                                    lsp_types::OneOf::Left(edit) => edit,
+                                    lsp_types::OneOf::Right(edit) => edit.text_edit,
+                                };
+                                let _ = writeln!(
+                                    text,
+                                    "{}:{}:{}..{}:{} (buffer version {:?})\n{}",
+                                    document.text_document.uri.as_str(),
+                                    edit.range.start.line + 1,
+                                    edit.range.start.character + 1,
+                                    edit.range.end.line + 1,
+                                    edit.range.end.character + 1,
+                                    document.text_document.version,
+                                    edit.new_text
+                                );
+                            }
+                        }
+                    }
+                }
+            }
             _ => {
                 let _ = writeln!(text, "{}", serde_json::to_string_pretty(&output.result)?);
             }
