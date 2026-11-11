@@ -4,45 +4,198 @@ import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.memory.NativeByteBorrow
 import scoop.platform.io.WriteZeroException
 
-// One operation owns registration, native retirement and the borrow's cleanup.
-internal abstract class ByteTransfer(
-    loop: LoopOwner,
-    protected val borrowed: NativeByteBorrow,
-    private val reservation: Disposable,
-    private val job: Job,
-    protected val writing: Boolean
-): LoopOperation(loop, loop.nextOperation()), SuspendRegistration<Long> {
+private const val TRANSFER_IDLE: Long = 0L
+
+private const val TRANSFER_PENDING: Long = 1L
+
+private const val TRANSFER_PUBLISHING: Long = 2L
+
+private const val TRANSFER_STOPPED: Long = 3L
+
+private const val TRANSFER_COMPLETED: Long = 4L
+
+private const val TRANSFER_MASK: Long = 7L
+
+// The resource owns this slot; its direction gate serializes successive uses.
+internal abstract class ByteTransfer(loop: LoopOwner, protected val writing: Boolean):
+LoopOperation(loop, loop.nextOperation(), true), SuspendRegistration<Long> {
+    private val state = AtomicLong(TRANSFER_IDLE)
+    private val binding = AtomicLong(0L)
+    private var job: Job? = None
+    private var subscription: Disposable? = None
+    private var borrow: NativeByteBorrow? = None
     private var continuation: Continuation<Long>? = None
+    private var selectedError: Throwable? = None
     private var transferred: Long = 0L
     private var completionError: Throwable? = None
+    // Only the owner touches the native phase, independently of result selection.
+    private var nativeActive: Boolean = false
+    private var delivering: Boolean = false
 
-    protected abstract fun attach()
+    protected val borrowed: NativeByteBorrow get() = borrow!!
+    protected abstract fun acquire()
+    protected abstract fun release()
+    protected abstract fun closing(): Boolean
+    protected abstract fun start(pointer: Ptr<Unit>): IoStart
+    protected abstract fun cancelRequest(pointer: Ptr<Unit>)
     protected abstract fun failure(result: IoResult, selected: Throwable?): Throwable?
 
-    public final override fun register(continuation: Continuation<Long>) {
-        if (borrowed.length == 0L) {
-            releaseBorrow(0L)
-            continuation.resume(0L)
-            return
-        }
-        this.continuation = Some(continuation)
+    fun prepare(buffer: NativeByteBuffer, count: Long, current: Job): ByteTransfer {
+        acquire()
         try {
-            subscribe(job)
-            attach()
-            loop.submit(this)
+            val previous = state.load(MemoryOrder.Acquire)
+            if (previous > Long.MAX_VALUE - 8L)
+                throw ArithmeticException()
+            borrow = Some(borrowTransfer(buffer, count, writing))
+            bind(current)
+            state.store(previous + 8L + TRANSFER_PENDING, MemoryOrder.Release)
+            // A cached listener can already have fired while this slot was idle.
+            if (current.isCancelled)
+                selectFailure(CancellationException())
+            return this
         } catch (error: Throwable) {
-            this.continuation = None
+            val value = borrow
+            borrow = None
             try {
-                unsubscribe()
-            }
-            finally {
-                releaseBorrow(0L)
+                when (value) {
+                    case Some(val value) -> @Unsafe
+                    {
+                        value.complete(0L)
+                    }
+                    case None -> {}
+                }
+            } finally {
+                release()
             }
             throw error
         }
     }
 
-    protected final override fun recordCompletion(event: NativeEvent, selected: Throwable?) {
+    private fun bind(current: Job) {
+        when (job) {
+            case Some(val previous) -> if (previous === current)
+                return
+            case None -> {}
+        }
+        val version = binding.load(MemoryOrder.Relaxed) + 1L
+        binding.store(version, MemoryOrder.Release)
+        subscription?.dispose()
+        subscription = None
+        job = None
+        val listener =
+            current.invokeOnCancellation {
+                error ->
+                val ticket = selectStop(error, version)
+                if (ticket != 0L)
+                    queueCancellation(ticket)
+            }
+        subscription = Some(listener)
+        job = Some(current)
+    }
+
+    public final override fun register(continuation: Continuation<Long>) {
+        this.continuation = Some(continuation)
+        loop.submit(this)
+    }
+
+    private fun selectStop(error: Throwable, version: Long = 0L): Long {
+        val previous = state.load(MemoryOrder.Acquire)
+        if ((previous and TRANSFER_MASK) != TRANSFER_PENDING)
+            return 0L
+        if (version != 0L && binding.load(MemoryOrder.Acquire) != version)
+            return 0L
+        val ticket = previous - TRANSFER_PENDING
+        if (
+            !state.compareAndSet(
+                previous,
+                ticket + TRANSFER_PUBLISHING,
+                MemoryOrder.AcqRel,
+                MemoryOrder.Acquire
+            )
+        )
+            return 0L
+        selectedError = Some(error)
+        state.store(ticket + TRANSFER_STOPPED, MemoryOrder.Release)
+        return ticket
+    }
+
+    public final override fun selectFailure(error: Throwable): Boolean = selectStop(error) != 0L
+
+    public final override fun requestFailure(error: Throwable) {
+        val ticket = selectStop(error)
+        if (ticket != 0L)
+            queueCancellation(ticket)
+    }
+
+    private fun queueCancellation(ticket: Long) {
+        loop.post {
+            // The prior transfer may have retired and this slot may already be reused.
+            if (state.load(MemoryOrder.Acquire) == ticket + TRANSFER_STOPPED)
+                loop.cancel(id)
+        }
+    }
+
+    public final override fun run() {
+        if (delivering)
+            finish()
+        else
+            loop.beginOperation(this)
+    }
+
+    public final override fun begin(pointer: Ptr<Unit>) {
+        if (closing())
+            selectFailure(IoClosedException())
+        if (
+            (state.load(MemoryOrder.Acquire) and TRANSFER_MASK) !=
+                TRANSFER_PENDING ||
+                borrowed.length ==
+                0L
+        ) {
+            loop.complete(NativeEvent(id, IoResult.Bytes(0L)))
+            return
+        }
+        val result =
+            try {
+                start(pointer)
+            } catch (error: Throwable) {
+                selectFailure(error)
+                IoStart.Finished(NativeEvent(id, IoResult.Done))
+            }
+        when (result) {
+            case Pending -> nativeActive = true
+            case Finished(val event) -> loop.complete(event)
+        }
+    }
+
+    public final override fun cancelNative(pointer: Ptr<Unit>) {
+        if (nativeActive)
+            cancelRequest(pointer)
+    }
+
+    public final override fun complete(event: NativeEvent) {
+        nativeActive = false
+        var previous = state.load(MemoryOrder.Acquire)
+        while (true) {
+            val choice = previous and TRANSFER_MASK
+            if (choice == TRANSFER_PUBLISHING) {
+                previous = state.load(MemoryOrder.Acquire)
+                continue
+            }
+            if (choice != TRANSFER_PENDING && choice != TRANSFER_STOPPED)
+                throw IllegalStateException(Some("transfer completed without an active request"))
+            if (
+                state.compareAndSet(
+                    previous,
+                    (previous and TRANSFER_MASK.inv()) + TRANSFER_COMPLETED,
+                    MemoryOrder.AcqRel,
+                    MemoryOrder.Acquire
+                )
+            )
+                break
+            previous = state.load(MemoryOrder.Acquire)
+        }
+        val selected = selectedError
+        selectedError = None
         transferred = resultProgress(event.result)
         completionError =
             try {
@@ -50,14 +203,20 @@ internal abstract class ByteTransfer(
             } catch (error: Throwable) {
                 Some(error)
             }
+        delivering = true
+        loop.enqueueReady(this)
     }
 
-    protected final override fun finish() {
+    private fun finish() {
         val target = continuation!!
-        continuation = None
+        val value = borrowed
         val count = transferred
         val error = completionError
+        continuation = None
+        borrow = None
         completionError = None
+        delivering = false
+        state.store(state.load(MemoryOrder.Relaxed) and TRANSFER_MASK.inv(), MemoryOrder.Release)
         val result =
             try {
                 try {
@@ -65,28 +224,32 @@ internal abstract class ByteTransfer(
                         case Some(val error) -> throw error
                         case None -> {}
                     }
-                    if (writing && count == 0L)
+                    if (writing && count == 0L && value.length != 0L)
                         throw WriteZeroException()
                     count
                 } finally {
-                    releaseBorrow(count)
+                    try {
+                        @Unsafe
+                        {
+                            value.complete(count)
+                        }
+                    } finally {
+                        release()
+                    }
                 }
             } catch (error: Throwable) {
                 target.resumeWithException(error)
                 return
             }
+        // A direct continuation can immediately reuse the slot after release().
         target.resume(result)
     }
 
-    private fun releaseBorrow(count: Long) {
-        try {
-            @Unsafe
-            {
-                borrowed.complete(count)
-            }
-        } finally {
-            reservation.dispose()
-        }
+    fun closeSlot() {
+        loop.forgetOperation(this)
+        subscription?.dispose()
+        subscription = None
+        job = None
     }
 }
 

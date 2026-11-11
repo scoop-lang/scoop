@@ -4,9 +4,17 @@ internal enum EndpointKind {
     Tcp, Udp, Tty
 }
 
-internal enum EndpointPhase {
-    Open, Closing, Closed
-}
+private const val ENDPOINT_CLOSING: Int = 1
+
+private const val ENDPOINT_CLOSED: Int = 2
+
+private const val ENDPOINT_PHASE: Int = 3
+
+private const val ENDPOINT_INPUT: Int = 4
+
+private const val ENDPOINT_OUTPUT: Int = 8
+
+private const val ENDPOINT_ENDED: Int = 16
 
 internal interface LoopResource {
     public fun closeFromLoop()
@@ -17,38 +25,56 @@ internal class OwnedEndpoint(
     val pointer: Ptr<Unit>,
     val kind: EndpointKind
 ): LoopResource {
-    private val lock: IoLock = IoLock()
-    private var phase: EndpointPhase = EndpointPhase.Open
-    private var inputBusy: Boolean = false
-    private var outputBusy: Boolean = false
+    // Generic control operations share attachment fields; byte slots are installed once.
+    private val lock = IoLock()
+    private val state = AtomicInt(0)
     private var input: LoopOperation? = None
     private var output: LoopOperation? = None
-    private var outputEnded: Boolean = false
+    private var inputTransfer: ByteTransfer? = None
+    private var outputTransfer: ByteTransfer? = None
+    // Closing callbacks and native state belong exclusively to the loop owner.
     private var nativeClosed: Boolean = false
     private var closeFailure: Throwable? = None
-    private var waiters: ArrayList<(Throwable?) -> Unit> = ArrayList<(Throwable?) -> Unit>()
+    private var waiters = ArrayList<(Throwable?) -> Unit>()
 
-    val isClosed: Boolean get() = lock.withLock { phase == EndpointPhase.Closed }
-    val isClosing: Boolean get() = lock.withLock { phase != EndpointPhase.Open }
+    val isClosed: Boolean get() =
+        (state.load(MemoryOrder.Acquire) and ENDPOINT_PHASE) == ENDPOINT_CLOSED
+    val isClosing: Boolean get() = (state.load(MemoryOrder.Acquire) and ENDPOINT_PHASE) != 0
+
+    fun installTransfers(input: ByteTransfer?, output: ByteTransfer?) {
+        inputTransfer = input
+        outputTransfer = output
+    }
+
+    fun acquireDirection(writing: Boolean) {
+        val bit =
+            if (writing)
+                ENDPOINT_OUTPUT
+            else
+                ENDPOINT_INPUT
+        var previous = state.load(MemoryOrder.Acquire)
+        while (true) {
+            if ((previous and ENDPOINT_PHASE) != 0)
+                throw IoClosedException()
+            if ((previous and bit) != 0)
+                throw IllegalStateException(Some("I/O direction is busy"))
+            if (writing && (previous and ENDPOINT_ENDED) != 0)
+                throw IllegalStateException(Some("TCP output was shut down"))
+            val observed =
+                state.compareAndExchange(
+                    previous,
+                    previous or bit,
+                    MemoryOrder.AcqRel,
+                    MemoryOrder.Acquire
+                )
+            if (observed == previous)
+                return
+            previous = observed
+        }
+    }
 
     fun reserve(writing: Boolean): EndpointReservation {
-        lock.withLock {
-            if (phase != EndpointPhase.Open)
-                throw IoClosedException()
-            if (
-                if (writing)
-                    outputBusy
-                else
-                    inputBusy
-            )
-                throw IllegalStateException(Some("I/O direction is busy"))
-            if (writing && outputEnded)
-                throw IllegalStateException(Some("TCP output was shut down"))
-            if (writing)
-                outputBusy = true
-            else
-                inputBusy = true
-        }
+        acquireDirection(writing)
         return EndpointReservation(this, writing)
     }
 
@@ -59,7 +85,7 @@ internal class OwnedEndpoint(
                     output = Some(operation)
                 else
                     input = Some(operation)
-                phase != EndpointPhase.Open
+                isClosing
             }
         if (closing)
             operation.selectFailure(IoClosedException())
@@ -67,20 +93,27 @@ internal class OwnedEndpoint(
 
     fun releaseDirection(writing: Boolean) {
         lock.withLock {
-            if (writing) {
-                outputBusy = false;
+            if (writing)
                 output = None
-            }
-            else {
-                inputBusy = false;
+            else
                 input = None
-            }
         }
-        loop.post { finishClose() }
+        releaseTransfer(writing)
+    }
+
+    fun releaseTransfer(writing: Boolean) {
+        val bit =
+            if (writing)
+                ENDPOINT_OUTPUT
+            else
+                ENDPOINT_INPUT
+        val previous = state.fetchAnd(bit.inv(), MemoryOrder.AcqRel)
+        if ((previous and ENDPOINT_PHASE) == ENDPOINT_CLOSING)
+            loop.post { finishClose() }
     }
 
     fun markOutputEnded() {
-        lock.withLock { outputEnded = true }
+        state.fetchOr(ENDPOINT_ENDED, MemoryOrder.Release)
     }
 
     suspend fun close() {
@@ -100,21 +133,18 @@ internal class OwnedEndpoint(
     }
 
     fun closeOnLoop(waiter: (Throwable?) -> Unit) {
-        val previous =
-            lock.withLock {
-                val old = phase
-                if (old != EndpointPhase.Closed)
-                    waiters.add(waiter)
-                if (old == EndpointPhase.Open)
-                    phase = EndpointPhase.Closing
-                old
-            }
-        if (previous == EndpointPhase.Closed) {
-            loop.enqueueReady { waiter(None) };
+        val previous = state.load(MemoryOrder.Acquire) and ENDPOINT_PHASE
+        if (previous == 0)
+            state.fetchOr(ENDPOINT_CLOSING, MemoryOrder.AcqRel)
+        if (previous == ENDPOINT_CLOSED) {
+            loop.enqueueReady { waiter(None) }
             return
         }
-        if (previous == EndpointPhase.Closing)
+        waiters.add(waiter)
+        if (previous == ENDPOINT_CLOSING)
             return
+        inputTransfer?.selectFailure(IoClosedException())
+        outputTransfer?.selectFailure(IoClosedException())
         val active = lock.withLock { (input, output) }
         when (active._1) {
             case Some(val operation) -> operation.selectFailure(IoClosedException());
@@ -145,11 +175,8 @@ internal class OwnedEndpoint(
                 { _, _ -> },
                 {
                     event, selected ->
-                    lock.withLock {
-                        nativeClosed = true
-                        closeFailure =
-                            completionFailure("I/O endpoint close", event.result, selected)
-                    }
+                    nativeClosed = true
+                    closeFailure = completionFailure("I/O endpoint close", event.result, selected)
                     finishClose()
                 }
             )
@@ -157,23 +184,23 @@ internal class OwnedEndpoint(
     }
 
     private fun finishClose() {
-        val completed: ArrayList<(Throwable?) -> Unit>? =
-            lock.withLock {
-                if (phase != EndpointPhase.Closing || !nativeClosed || inputBusy || outputBusy)
-                    return@withLock None
-                phase = EndpointPhase.Closed
-                val callbacks = waiters
-                waiters = ArrayList<(Throwable?) -> Unit>()
-                Some(callbacks)
-            }
-        when (completed) {
-            case Some(val callbacks) -> {
-                loop.forget(this)
-                for (callback in callbacks)
-                    loop.enqueueReady { callback(closeFailure) }
-            }
-            case None -> {}
-        }
+        val current = state.load(MemoryOrder.Acquire)
+        if (
+            (current and ENDPOINT_PHASE) !=
+                ENDPOINT_CLOSING ||
+                !nativeClosed ||
+                (current and (ENDPOINT_INPUT or ENDPOINT_OUTPUT)) !=
+                0
+        )
+            return
+        inputTransfer?.closeSlot()
+        outputTransfer?.closeSlot()
+        state.store(ENDPOINT_CLOSED, MemoryOrder.Release)
+        val callbacks = waiters
+        waiters = ArrayList<(Throwable?) -> Unit>()
+        loop.forget(this)
+        for (callback in callbacks)
+            loop.enqueueReady { callback(closeFailure) }
     }
 
     public override fun closeFromLoop() {

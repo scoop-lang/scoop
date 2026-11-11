@@ -72,6 +72,10 @@ public interface AsyncTty: AsyncByteSink, AsyncCloseable {
 }
 
 internal class TtyEndpoint(internal val owner: OwnedEndpoint): AsyncTty {
+    private val outputTransfer = TtyWrite(owner)
+    init {
+        owner.installTransfers(None, Some(outputTransfer))
+    }
     internal var pendingResize: TtyRead? = None
     public override val isClosed: Boolean get() = owner.isClosed
 
@@ -81,7 +85,7 @@ internal class TtyEndpoint(internal val owner: OwnedEndpoint): AsyncTty {
         timeout: Duration?
     ): TtyRead = receiveTty(this, buffer, count, timeout)
     public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
-        writeTty(owner, buffer, count)
+        suspendCoroutine(outputTransfer.prepare(buffer, count, owner.loop.requireJob()))
     public override suspend fun flush() {
         owner.loop.requireJob();
         owner.reserve(true).dispose()

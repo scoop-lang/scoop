@@ -150,7 +150,10 @@ internal class LoopOwner(
     }
 
     fun beginOperation(operation: LoopOperation) {
-        operations.put(operation.id, operation)
+        if (!operation.registered) {
+            operations.put(operation.id, operation)
+            operation.registered = true
+        }
         operation.begin(pointer!!)
         dispatchBlocking(pointer!!)
     }
@@ -183,8 +186,19 @@ internal class LoopOwner(
     }
 
     fun complete(event: NativeEvent) {
-        val operation = operations.remove(event.id)!!
+        val operation = operations[event.id]!!
+        if (!operation.retained) {
+            operations.remove(event.id)
+            operation.registered = false
+        }
         operation.complete(event)
+    }
+
+    fun forgetOperation(operation: LoopOperation) {
+        if (operation.registered) {
+            operations.remove(operation.id)
+            operation.registered = false
+        }
     }
 
     fun retain(resource: LoopResource) {

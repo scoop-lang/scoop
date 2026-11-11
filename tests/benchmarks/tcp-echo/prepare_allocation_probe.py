@@ -43,37 +43,32 @@ internal fun traceLeave() {
 }
 """
     )
-    path = source / "tcp_transfer.scoop"
+    path = source / "loop_owner.scoop"
     replace(
         path,
-        "    val job = owner.loop.requireJob()",
-        "    traceEnter(1)\n    val job = owner.loop.requireJob()\n    traceLeave()",
+        "    fun requireJob(cancellable: Boolean = true): Job {",
+        "    fun requireJob(cancellable: Boolean = true): Job {\n        traceEnter(1)",
     )
-    replace(
-        path,
-        "    val reservation = owner.reserve(writing)",
-        "    traceEnter(2)\n    val reservation = owner.reserve(writing)\n    traceLeave()",
-    )
-    replace(
-        path,
-        "        val borrowed = borrowTransfer(buffer, count, writing)",
-        "        traceEnter(3)\n        val borrowed = borrowTransfer(buffer, count, writing)\n        traceLeave()",
-    )
-    replace(
-        path,
-        "            return TcpTransfer(owner, borrowed, reservation, job, writing)",
-        "            traceEnter(4)\n            val result = TcpTransfer(owner, borrowed, reservation, job, writing)\n            traceLeave()\n            return result",
-    )
+    replace(path, "        return job", "        traceLeave()\n        return job")
     path = source / "byte_transfer.scoop"
     replace(
-        path,
-        "            subscribe(job)",
-        "            traceEnter(5)\n            subscribe(job)\n            traceLeave()",
+        path, "        acquire()", "        traceEnter(2)\n        acquire()\n        traceLeave()"
     )
     replace(
         path,
-        "            attach()\n            loop.submit(this)",
-        "            traceEnter(6)\n            attach()\n            loop.submit(this)\n            traceLeave()",
+        "            borrow = Some(borrowTransfer(buffer, count, writing))",
+        "            traceEnter(3)\n            borrow = Some(borrowTransfer(buffer, count, writing))\n            traceLeave()",
+    )
+    replace(
+        path,
+        "            bind(current)",
+        "            traceEnter(5)\n            bind(current)\n            traceLeave()\n            traceEnter(4)",
+    )
+    replace(path, "            return this", "            traceLeave()\n            return this")
+    replace(
+        path,
+        "        loop.submit(this)",
+        "        traceEnter(6)\n        loop.submit(this)\n        traceLeave()",
     )
     replace(
         path,
@@ -82,13 +77,13 @@ internal fun traceLeave() {
     )
     replace(
         path,
-        "    private fun releaseBorrow(count: Long) {",
-        "    private fun releaseBorrow(count: Long) {\n        traceEnter(9)",
+        "        val target = continuation!!",
+        "        traceEnter(9)\n        val target = continuation!!",
     )
     replace(
         path,
-        "            reservation.dispose()\n        }",
-        "            reservation.dispose()\n        }\n        traceLeave()",
+        "                        release()",
+        "                        release()\n                        traceLeave()",
     )
     path = source / "loop_owner.scoop"
     replace(

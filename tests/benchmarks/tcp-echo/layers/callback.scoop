@@ -5,7 +5,7 @@ import scoop.platform.memory.NativeByteBuffer
 // Diagnostic only: retain the real transfer/borrow/cancellation path, but drive
 // repeated I/O without a new compiler coroutine suspension for each operation.
 private class DiagnosticEcho(
-    private val owner: OwnedEndpoint,
+    private val stream: TcpStream,
     private val buffer: NativeByteBuffer,
     private val job: Job,
     private val done: Continuation<Unit>
@@ -22,7 +22,8 @@ private class DiagnosticEcho(
                     buffer.readableBytes
                 else
                     buffer.writableBytes
-            val transfer = diagnosticPrepareTransfer(owner, buffer, count, writing, job)
+            job.ensureActive()
+            val transfer = stream.prepareTransfer(buffer, count, writing, job)
             transfer.register(DiagnosticEchoStep(this, writing))
         } catch (error: Throwable) {
             fail(error)
@@ -71,7 +72,7 @@ public suspend fun diagnosticCallbackEcho(stream: AsyncTcpStream, bufferSize: Lo
             buffer ->
             val job = currentJobOrNone()!!
             suspendCoroutine<Unit> {
-                done -> DiagnosticEcho((peer as TcpStream).owner, buffer, job, done).start()
+                done -> DiagnosticEcho(peer as TcpStream, buffer, job, done).start()
             }
         }
     }

@@ -1,50 +1,16 @@
 package scoop.asyncio
 
-import scoop.platform.memory.NativeByteBuffer
-import scoop.platform.memory.NativeByteBorrow
-
-internal suspend fun transferTcp(
-    owner: OwnedEndpoint,
-    buffer: NativeByteBuffer,
-    count: Long,
-    writing: Boolean
-): Long = suspendCoroutine(prepareTcpTransfer(owner, buffer, count, writing))
-
-private fun prepareTcpTransfer(
-    owner: OwnedEndpoint,
-    buffer: NativeByteBuffer,
-    count: Long,
-    writing: Boolean
-): TcpTransfer {
-    val job = owner.loop.requireJob()
-    val reservation = owner.reserve(writing)
-    try {
-        val borrowed = borrowTransfer(buffer, count, writing)
-        try {
-            return TcpTransfer(owner, borrowed, reservation, job, writing)
-        } catch (error: Throwable) {
-            @Unsafe
-            {
-                borrowed.complete(0L)
-            }
-            throw error
-        }
-    } catch (error: Throwable) {
-        reservation.dispose()
-        throw error
+internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean): ByteTransfer(
+    owner.loop,
+    writing
+) {
+    protected override fun acquire() {
+        owner.acquireDirection(writing)
     }
-}
-
-private class TcpTransfer(
-    private val owner: OwnedEndpoint,
-    borrowed: NativeByteBorrow,
-    reservation: EndpointReservation,
-    job: Job,
-    writing: Boolean
-): ByteTransfer(owner.loop, borrowed, reservation, job, writing) {
-    protected override fun attach() {
-        owner.attach(this, writing)
+    protected override fun release() {
+        owner.releaseTransfer(writing)
     }
+    protected override fun closing(): Boolean = owner.isClosing
 
     protected override fun start(pointer: Ptr<Unit>): IoStart {
         @Unsafe
@@ -58,7 +24,7 @@ private class TcpTransfer(
         }
     }
 
-    public override fun cancelNative(pointer: Ptr<Unit>) {
+    protected override fun cancelRequest(pointer: Ptr<Unit>) {
         @Unsafe
         {
             if (writing)

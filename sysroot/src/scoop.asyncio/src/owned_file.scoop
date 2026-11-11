@@ -2,32 +2,46 @@ package scoop.asyncio
 
 import scoop.platform.system.OsString
 
-private enum FilePhase {
-    Open, Closing, Closed
-}
+private const val FILE_CLOSING: Int = 1
+
+private const val FILE_CLOSED: Int = 2
+
+private const val FILE_PHASE: Int = 3
+
+private const val FILE_BUSY: Int = 4
 
 internal class OwnedFile(
     val loop: LoopOwner,
     val pointer: Ptr<Unit>,
     val context: OsString
 ): LoopResource {
-    private val lock: IoLock = IoLock()
-    private var phase: FilePhase = FilePhase.Open
-    private var busy: Boolean = false
+    private val lock = IoLock()
+    private val state = AtomicInt(0)
     private var active: LoopOperation? = None
+    private var inputTransfer: ByteTransfer? = None
+    private var outputTransfer: ByteTransfer? = None
     private var closing: Boolean = false
-    private var waiters: ArrayList<(Throwable?) -> Unit> = ArrayList<(Throwable?) -> Unit>()
+    private var waiters = ArrayList<(Throwable?) -> Unit>()
 
-    val isClosed: Boolean get() = lock.withLock { phase == FilePhase.Closed }
+    val isClosed: Boolean get() = (state.load(MemoryOrder.Acquire) and FILE_PHASE) == FILE_CLOSED
+    val isClosing: Boolean get() = (state.load(MemoryOrder.Acquire) and FILE_PHASE) != 0
+
+    fun installTransfers(input: ByteTransfer, output: ByteTransfer) {
+        inputTransfer = Some(input)
+        outputTransfer = Some(output)
+    }
+
+    fun acquire() {
+        val previous =
+            state.compareAndExchange(0, FILE_BUSY, MemoryOrder.AcqRel, MemoryOrder.Acquire)
+        if ((previous and FILE_PHASE) != 0)
+            throw IoClosedException()
+        if ((previous and FILE_BUSY) != 0)
+            throw IllegalStateException(Some("file operation is active"))
+    }
 
     fun reserve(): FileReservation {
-        lock.withLock {
-            if (phase != FilePhase.Open)
-                throw IoClosedException()
-            if (busy)
-                throw IllegalStateException(Some("file operation is active"))
-            busy = true
-        }
+        acquire()
         return FileReservation(this)
     }
 
@@ -35,18 +49,21 @@ internal class OwnedFile(
         val stopped =
             lock.withLock {
                 active = Some(operation);
-                phase != FilePhase.Open
+                isClosing
             }
         if (stopped)
             operation.selectFailure(IoClosedException())
     }
 
     fun releaseOperation() {
-        lock.withLock {
-            busy = false;
-            active = None
-        }
-        loop.post { closeWhenIdle() }
+        lock.withLock { active = None }
+        releaseTransfer()
+    }
+
+    fun releaseTransfer() {
+        val previous = state.fetchAnd(FILE_BUSY.inv(), MemoryOrder.AcqRel)
+        if ((previous and FILE_PHASE) == FILE_CLOSING)
+            loop.post { closeWhenIdle() }
     }
 
     suspend fun close() {
@@ -59,21 +76,17 @@ internal class OwnedFile(
     }
 
     fun closeOnLoop(waiter: (Throwable?) -> Unit) {
-        val previous =
-            lock.withLock {
-                val old = phase
-                if (old != FilePhase.Closed)
-                    waiters.add(waiter)
-                if (old == FilePhase.Open)
-                    phase = FilePhase.Closing
-                old
-            }
-        if (previous == FilePhase.Closed) {
-            loop.enqueueReady { waiter(None) };
+        val previous = state.load(MemoryOrder.Acquire) and FILE_PHASE
+        if (previous == FILE_CLOSED) {
+            loop.enqueueReady { waiter(None) }
             return
         }
-        if (previous == FilePhase.Closing)
+        waiters.add(waiter)
+        if (previous == FILE_CLOSING)
             return
+        state.fetchOr(FILE_CLOSING, MemoryOrder.AcqRel)
+        inputTransfer?.requestFailure(IoClosedException())
+        outputTransfer?.requestFailure(IoClosedException())
         val operation = lock.withLock { active }
         when (operation) {
             case Some(val value) -> value.requestFailure(IoClosedException());
@@ -83,17 +96,9 @@ internal class OwnedFile(
     }
 
     private fun closeWhenIdle() {
-        val start =
-            lock.withLock {
-                if (phase != FilePhase.Closing || busy || closing)
-                    false
-                else {
-                    closing = true;
-                    true
-                }
-            }
-        if (!start)
+        if (state.load(MemoryOrder.Acquire) != FILE_CLOSING || closing)
             return
+        closing = true
         val operation =
             CallbackOperation(
                 loop,
@@ -110,13 +115,11 @@ internal class OwnedFile(
                     event, selected ->
                     val error =
                         completionFailure("file close", event.result, selected, Some(context))
-                    val callbacks =
-                        lock.withLock {
-                            phase = FilePhase.Closed
-                            val previous = waiters
-                            waiters = ArrayList<(Throwable?) -> Unit>()
-                            previous
-                        }
+                    inputTransfer?.closeSlot()
+                    outputTransfer?.closeSlot()
+                    state.store(FILE_CLOSED, MemoryOrder.Release)
+                    val callbacks = waiters
+                    waiters = ArrayList<(Throwable?) -> Unit>()
                     loop.forget(this)
                     for (callback in callbacks)
                         loop.enqueueReady { callback(error) }

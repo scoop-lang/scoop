@@ -41,10 +41,15 @@ public interface AsyncFile: AsyncByteSource, AsyncByteSink, AsyncCloseable {
 }
 
 internal class WorkerFile(private val owner: OwnedFile): AsyncFile {
+    private val inputTransfer = FileTransfer(owner, false)
+    private val outputTransfer = FileTransfer(owner, true)
+    init {
+        owner.installTransfers(inputTransfer, outputTransfer)
+    }
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long =
-        transferFile(owner, buffer, count, false)
+        suspendCoroutine(inputTransfer.prepare(buffer, count, owner.loop.requireJob()))
     public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
-        transferFile(owner, buffer, count, true)
+        suspendCoroutine(outputTransfer.prepare(buffer, count, owner.loop.requireJob()))
     public override suspend fun close() {
         owner.close()
     }

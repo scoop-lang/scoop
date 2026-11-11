@@ -78,7 +78,7 @@ taskset -c 18 python3 tests/benchmarks/tcp-echo/measure.py \
 
 ## 分配归因探针
 
-`prepare_allocation_probe.py` 把当前 asyncio 复制到仓库外，并在操作建立、借用、取消登记、提交、完成和 pump 等实际阶段插入计数调用；同时生成带 echo／read／write 边界标记的服务器。生产库源码不被修改。`allocation_probe.c` 只通过公开 `scoop_rt_gc_debug_metrics` 读取累计分配字节，按嵌套阶段计入互斥区间；接口本身还读取 RSS，因此插桩程序只用于分配归因，不能用于 CPU、吞吐或延迟比较。
+`prepare_allocation_probe.py` 把当前 asyncio 复制到仓库外，并在方向接纳、借用、等待槽准备、Job 绑定、提交、完成和 pump 等实际阶段插入计数调用；同时生成带 echo／read／write 边界标记的服务器。生产库源码不被修改。`allocation_probe.c` 只通过公开 `scoop_rt_gc_debug_metrics` 读取累计分配字节，按嵌套阶段计入互斥区间；接口本身还读取 RSS，因此插桩程序只用于分配归因，不能用于 CPU、吞吐或延迟比较。
 
 ```sh
 python3 tests/benchmarks/tcp-echo/prepare_allocation_probe.py \

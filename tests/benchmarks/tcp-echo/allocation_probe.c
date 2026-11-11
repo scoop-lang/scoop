@@ -7,20 +7,12 @@
 #include "scoop_rt.h"
 
 enum { PHASES = 14, DEPTH = 16, WARMUP = 1000 };
-static const char *const names[PHASES] = {"require_job",
-                                          "reserve_direction",
-                                          "borrow_buffer",
-                                          "create_operation",
-                                          "subscribe_cancellation",
-                                          "attach_and_submit",
-                                          "begin_operation",
-                                          "complete_operation",
-                                          "release_borrow",
-                                          "resume_continuation",
-                                          "pump_other",
-                                          "read_call_other",
-                                          "write_call_other",
-                                          "unattributed"};
+static const char *const names[PHASES] = {
+    "require_job",         "acquire_direction",  "borrow_buffer",
+    "prepare_slot",        "bind_cancellation",  "submit_transfer",
+    "begin_operation",     "complete_operation", "release_borrow",
+    "resume_continuation", "pump_other",         "read_call_other",
+    "write_call_other",    "unattributed"};
 
 /* One coroutine on one runtime worker is the only measured mutator. The caller
  * prints totals after that worker has joined. These probes measure allocations,

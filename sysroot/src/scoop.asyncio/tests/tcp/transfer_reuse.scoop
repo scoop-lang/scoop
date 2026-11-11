@@ -1,0 +1,151 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+import scoop.time.Duration
+
+// Each step is a one-shot continuation. The next read starts on the delivery stack.
+private class ReentrantRead(
+    private val stream: TcpStream,
+    private val buffer: NativeByteBuffer,
+    private val job: Job,
+    private val index: Int,
+    private val done: Continuation<Unit>
+): Continuation<Long> {
+    public override fun resume(value: Long) {
+        try {
+            assertEquals(1L, value)
+            assertEquals(index.toByte(), buffer.readByte())
+            buffer.clear()
+            if (index == 31) {
+                done.resume(Unit)
+                return
+            }
+            if (index % 8 == 0)
+                gcCollect()
+            stream.prepareTransfer(buffer, 1L, false, job).register(
+                ReentrantRead(stream, buffer, job, index + 1, done)
+            )
+        } catch (error: Throwable) {
+            done.resumeWithException(error)
+        }
+    }
+    public override fun resumeWithException(error: Throwable) {
+        done.resumeWithException(error)
+    }
+}
+
+private class RetiredRead(
+    private val stream: TcpStream,
+    private val buffer: NativeByteBuffer,
+    private val job: Job,
+    private val delayed: ArrayList<LoopWork>,
+    private val done: Continuation<Unit>
+): Continuation<Long> {
+    public override fun resume(value: Long) {
+        done.resumeWithException(IllegalStateException(Some("cancelled read succeeded")))
+    }
+    public override fun resumeWithException(error: Throwable) {
+        try {
+            assertTrue(error is CancellationException)
+            buffer.clear()
+            stream.prepareTransfer(buffer, 1L, false, job).register(
+                ReentrantRead(stream, buffer, job, 0, done)
+            )
+            // Deliver the prior request's cancel command after the next native read started.
+            for (command in delayed)
+                command.run()
+        } catch (error: Throwable) {
+            done.resumeWithException(error)
+        }
+    }
+}
+
+@Test
+private class AsyncTcpTransferReuseTest {
+    @Test
+    fun `retired cancellation cannot hit a new read started by the same ready delivery`() {
+        asyncRuntime { workers = 1 }.run {
+            val scope = this
+            val loop = currentEventLoop()
+            val(_, client, peer) = tcpPair(loop, scope)
+            val stream = peer as TcpStream
+            NativeByteBuffer.allocate(32L).use suspend {
+                output ->
+                for (index in 0 ..< 32)
+                    output.writeByte(index.toByte())
+                client.writeFully(output)
+            }
+            NativeByteBuffer.allocate(1L).use suspend {
+                input ->
+                val job = currentJobOrNone()!!
+                suspendCoroutine<Unit> {
+                    done ->
+                    val transfer = stream.prepareTransfer(input, 1L, false, job)
+                    transfer.requestFailure(CancellationException())
+                    val delayed = stream.owner.loop.takeLocalCommands(ArrayList<LoopWork>())
+                    assertEquals(1L, delayed.size)
+                    transfer.register(RetiredRead(stream, input, job, delayed, done))
+                }
+                input.clear()
+            }
+            stream.close()
+            client.close()
+        }
+    }
+
+    @Test
+    fun `changing the reading job detaches the old idle cancellation binding`() {
+        for (workers in [1, 4]) {
+            asyncRuntime { this.workers = workers }.run {
+                val scope = this
+                val loop = currentEventLoop()
+                val(_, client, server) = tcpPair(loop, scope)
+                val firstRead = AtomicBoolean(false)
+                val first =
+                    scope.launch suspend {
+                        NativeByteBuffer.allocate(1L).use suspend {
+                            input ->
+                            server.readFully(input, 1L)
+                            assertEquals(41.toByte(), input.readByte())
+                            firstRead.store(true)
+                            loop.sleep(Duration.seconds(1000000L))
+                        }
+                    }
+                NativeByteBuffer.allocate(1L).use suspend {
+                    output ->
+                    output.writeByte(41)
+                    client.writeFully(output)
+                }
+                while (!firstRead.load())
+                    loop.sleep(Duration.nanoseconds(1L))
+                NativeByteBuffer.allocate(1L).use suspend {
+                    input ->
+                    val second = scope.async<Long> suspend { server.readInto(input, 1L) }
+                    while (true) {
+                        try {
+                            input.clear()
+                        }
+                        catch (_: IllegalStateException) {
+                            break
+                        }
+                        loop.sleep(Duration.nanoseconds(1L))
+                    }
+                    first.cancel()
+                    first.join()
+                    assertFalse(second.isCompleted)
+                    gcCollect()
+                    NativeByteBuffer.allocate(1L).use suspend {
+                        output ->
+                        output.writeByte(42)
+                        client.writeFully(output)
+                    }
+                    assertEquals(1L, second.await())
+                    assertEquals(42.toByte(), input.readByte())
+                }
+                server.close()
+                client.close()
+            }
+        }
+    }
+}

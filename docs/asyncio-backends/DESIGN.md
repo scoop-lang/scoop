@@ -338,3 +338,11 @@ DNS、路径修改和目录枚举继续使用共享 worker 生命周期。平台
 Windows 临时创建在 worker 内取得规范父目录，拼接完整前缀与随机后缀，再以 CREATE_NEW 创建 overlapped 文件；创建后复用同一 HANDLE，不重新打开路径。内部临时结果包含 owner、UTF-16 路径及关联状态，创建已成功但 IOCP 关联失败时交由原有 close／delete 清理流程报告错误；成功交付的 close 仍不删除路径。熵源沿 platform 的 BCrypt helper，完成记录增加 NtStatus 分支，保持原码。
 
 TTY 复用 platform 的独占 console owner；输入 worker 用 WaitForMultipleObjects 同时等待 console input 与单次取消 event，再用非等待输入转换取得字节、resize 或 EOF。截止时间与 timer 共用 QPC 算法，在提交时计算，超时唤醒后重新核对。输出复用已有 worker 的同步 WriteFile，取消排队工作可跳过写入，已运行工作实际返回后才释放借用。close 取消输入等待和排队输出，等待两个方向完成后恢复模式并关闭句柄；worker 不调用 managed 代码。控制操作直接返回 Win32／PosixErrno 记录，不用 captureErrno 捕获 Win32 错误。参见 [console 输入等待](https://learn.microsoft.com/en-us/windows/console/low-level-console-input-functions)与 [console handles](https://learn.microsoft.com/en-us/windows/console/console-handles)。
+
+### 4.3 B26：资源持有字节传输等待状态
+
+B25 的分层实验把主要用户态差距定位到通用 managed I/O 和协程恢复。字节传输首先改为资源持有的等待槽：复用操作身份与完成登记，按 Job 复用取消监听，每次只填入实际 buffer 借用和 continuation。资源的方向接纳／释放直接改变同步状态，去掉每次 reservation 的对象与正常完成后的关闭检查投递；真正关闭仍等所有借用与 native 请求退休。
+
+槽的本次传输代次与 Job 绑定代次分别承担实际的竞争边界：旧取消回调检查绑定，排队撤销检查传输代次。取消错误通过选定／发布状态交付；正常完成选定后不再被迟到取消覆盖。槽在解除借用及资源忙状态前清空本次捕获，允许恢复回调马上启动下一次使用，不把旧操作的尾部清理留到复用之后。native 编号在实际退休后复用，资源关闭时清除持久登记。公开 suspend API、每次 buffer 借用、原生真实退休以及结构化任务合同保持。
+
+此次只重构字节传输的 managed 生命周期，后端共享原来的真实 I/O 实现。以完整 TCP 程序与 B24 固定产物、Go 的吞吐和 CPU／echo 比较，不以减少某个字段或分配小项作为完成依据。

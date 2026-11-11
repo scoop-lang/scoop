@@ -1,50 +1,16 @@
 package scoop.asyncio
 
-import scoop.platform.memory.NativeByteBuffer
-import scoop.platform.memory.NativeByteBorrow
-
-internal suspend fun transferFile(
-    owner: OwnedFile,
-    buffer: NativeByteBuffer,
-    count: Long,
-    writing: Boolean
-): Long = suspendCoroutine(prepareFileTransfer(owner, buffer, count, writing))
-
-private fun prepareFileTransfer(
-    owner: OwnedFile,
-    buffer: NativeByteBuffer,
-    count: Long,
-    writing: Boolean
-): FileTransfer {
-    val job = owner.loop.requireJob()
-    val reservation = owner.reserve()
-    try {
-        val borrowed = borrowTransfer(buffer, count, writing)
-        try {
-            return FileTransfer(owner, borrowed, reservation, job, writing)
-        } catch (error: Throwable) {
-            @Unsafe
-            {
-                borrowed.complete(0L)
-            }
-            throw error
-        }
-    } catch (error: Throwable) {
-        reservation.dispose()
-        throw error
+internal class FileTransfer(private val owner: OwnedFile, writing: Boolean): ByteTransfer(
+    owner.loop,
+    writing
+) {
+    protected override fun acquire() {
+        owner.acquire()
     }
-}
-
-private class FileTransfer(
-    private val owner: OwnedFile,
-    borrowed: NativeByteBorrow,
-    reservation: FileReservation,
-    job: Job,
-    writing: Boolean
-): ByteTransfer(owner.loop, borrowed, reservation, job, writing) {
-    protected override fun attach() {
-        owner.attach(this)
+    protected override fun release() {
+        owner.releaseTransfer()
     }
+    protected override fun closing(): Boolean = owner.isClosing
 
     protected override fun start(pointer: Ptr<Unit>): IoStart {
         @Unsafe
@@ -56,7 +22,7 @@ private class FileTransfer(
         }
     }
 
-    public override fun cancelNative(pointer: Ptr<Unit>) {
+    protected override fun cancelRequest(pointer: Ptr<Unit>) {
         @Unsafe
         {
             nativeWorkCancel(pointer, id)

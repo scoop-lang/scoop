@@ -24,24 +24,6 @@ def main():
     (output / "sysroot/vendor").symlink_to(repo / "sysroot/vendor")
     for name in ["raw", "callback"]:
         shutil.copy2(templates / f"{name}.scoop", cone / f"src/diagnostic_{name}.scoop")
-    path = cone / "src/tcp_transfer.scoop"
-    source = path.read_text()
-    start = source.index("private fun prepareTcpTransfer(")
-    end = source.index("\nprivate class TcpTransfer(", start)
-    preparation = source[start:end]
-    # The completion runs on the reactor, so retain the connection's actual Job
-    # instead of asking for an ambient coroutine Context on every callback.
-    preparation = preparation.replace(
-        "private fun prepareTcpTransfer(", "internal fun diagnosticPrepareTransfer(", 1
-    )
-    preparation = preparation.replace(
-        "    writing: Boolean\n", "    writing: Boolean,\n    job: Job\n", 1
-    )
-    preparation = preparation.replace("): TcpTransfer {", "): SuspendRegistration<Long> {", 1)
-    preparation = preparation.replace(
-        "    val job = owner.loop.requireJob()", "    job.ensureActive()", 1
-    )
-    path.write_text(source + "\n" + preparation)
     server = (repo / "tests/benchmarks/tcp-echo/server.scoop").read_text()
     start = server.index("private suspend fun echo(")
     end = server.index("private suspend fun serve(", start)
