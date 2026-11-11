@@ -29,7 +29,7 @@ internal abstract class LoopOperation internal constructor(val loop: LoopOwner, 
 
     fun subscribe(job: Job) {
         val registration = job.invokeOnCancellation { requestFailure(CancellationException()) }
-        // Completion cannot run until this operation has been enqueued.
+        // Completion cannot run until this operation has been submitted.
         subscription = Some(registration)
     }
 

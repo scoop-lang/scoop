@@ -1,0 +1,101 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+import scoop.test.*
+
+@Test
+private class RuntimeSubmissionTest {
+    @Test
+    fun `local operations begin during registration and defer success or cancellation delivery`() {
+        asyncRuntime {
+            workers = 1;
+            blocking { threads = 1 }
+        }.run {
+            val owner = (currentEventLoop() as RuntimeEventLoop).nextOwner()
+            for (stopped in [false, true]) {
+                val started = AtomicBoolean(false)
+                val delivered = AtomicBoolean(false)
+                val cancelled = CancellationException()
+                val result =
+                    suspendCoroutine<Long> {
+                        continuation ->
+                        val operation =
+                            CallbackOperation(
+                                owner,
+                                owner.nextOperation(),
+                                {
+                                    _, id ->
+                                    started.store(true)
+                                    IoStart.Finished(NativeEvent(id, IoResult.Bytes(7L)))
+                                },
+                                { _, _ -> fail(Some("unpublished operation was cancelled")) },
+                                {
+                                    event, failure ->
+                                    if (stopped)
+                                        assertSame(cancelled, failure!!)
+                                    else
+                                        assertNoLoopValue(failure)
+                                    delivered.store(true)
+                                    continuation.resume(resultProgress(event.result))
+                                }
+                            )
+                        operation.subscribe(currentJobOrNone()!!)
+                        if (stopped)
+                            assertTrue(operation.selectFailure(cancelled))
+                        owner.submit(operation)
+                        assertEquals(!stopped, started.load())
+                        assertFalse(delivered.load())
+                    }
+                assertEquals(
+                    if (stopped)
+                        0L
+                    else
+                        7L,
+                    result
+                )
+                assertTrue(delivered.load())
+            }
+        }
+    }
+
+    @Test
+    fun `foreign submissions wait for their resource worker before native start`() {
+        asyncRuntime {
+            workers = 1;
+            blocking { threads = 1 }
+        }.run {
+            val owner = (currentEventLoop() as RuntimeEventLoop).nextOwner()
+            val thread = currentThreadId()
+            val started = AtomicBoolean(false)
+            val result =
+                suspendCoroutine<Long> {
+                    continuation ->
+                    val operation =
+                        CallbackOperation(
+                            owner,
+                            owner.nextOperation(),
+                            {
+                                _, id ->
+                                started.store(true)
+                                assertEquals(thread, currentThreadId())
+                                IoStart.Finished(NativeEvent(id, IoResult.Bytes(9L)))
+                            },
+                            { _, _ -> fail(Some("completed operation was cancelled")) },
+                            {
+                                event, failure ->
+                                assertNoLoopValue(failure)
+                                assertEquals(thread, currentThreadId())
+                                continuation.resume(resultProgress(event.result))
+                            }
+                        )
+                    operation.subscribe(currentJobOrNone()!!)
+                    // The sole reactor worker stays in registration until the publisher exits.
+                    Thread.start { owner.submit(operation) }.join()
+                    assertFalse(started.load())
+                }
+            assertEquals(9L, result)
+            assertTrue(started.load())
+        }
+    }
+}

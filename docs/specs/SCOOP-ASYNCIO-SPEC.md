@@ -49,13 +49,17 @@ public fun currentEventLoop(): EventLoop
 
 命令和 ready 的批次存储由 owner 复用。外部命令在 inbox 同步边界交换接收与消费容器；本地命令在 owner 上交换，不再复制到外部命令容器。每轮先消费外部快照，再消费本地快照；完成处理后交换 ready 批次。处理期间产生的工作进入下一接收容器，不得因本轮清理而丢失。消费结束或回调抛出时清空本轮容器中的引用，容量保留给后续批次；空轮不新建容器或迭代器。可复用容器只在 owner 放弃本轮访问后才重新作为接收容器，外部生产者不访问正在消费的批次。
 
-操作对象直接参与提交与 ready 排队，保留同一命令顺序和分轮边界；提交／交付不再各自建立捕获该操作的包装闭包。普通命令与操作共用队列，操作的结果仲裁仍与 owner 上的提交／交付阶段分离。TCP、文件字节传输与 TTY 写入由操作自身实现 `SuspendRegistration<Long>`：准备阶段取得方向登记与 buffer 借用，登记后由同一个对象持有 continuation、原生提交／取消和完成职责。真正退休后先提交实际进度、解除借用和方向占用，再恢复调用方；不为保存这些清理义务建立额外的 suspend 包装、进度对象或三组捕获闭包。准备或提交前失败仍完整释放已经取得的资源；零长度操作完成同样的状态、参数和取消检查，不提交 native I/O。其他操作使用同一结果仲裁与排队机制提供各自的完成行为，不另建调度器或生命周期。
+操作对象直接参与 ready 排队；需要跨线程提交的操作与普通命令共用队列，不为提交／交付各自建立捕获该操作的包装闭包。AsyncRuntime 在资源所属 worker 上直接登记操作并开始 native 请求，不再把本地操作排队发给自己；其他 worker／外线程以及独立 PlatformEventLoop 的操作仍经命令队列交付 owner。本地开始以当前 owner 执行点为序，不与尚未消费的普通命令建立额外总序；排队命令自身的顺序保持。直接开始不递归 pump，不同步调用 continuation 或完成回调；同步完成和失败也进入 ready，ready 消费期间产生的完成留到下一轮。原生请求仍在 worker 推进时批量提交，不逐操作强制刷新内核队列。
+
+操作的结果仲裁仍与 owner 上的提交／交付阶段分离。TCP、文件字节传输与 TTY 写入由操作自身实现 `SuspendRegistration<Long>`：准备阶段取得方向登记与 buffer 借用，登记后由同一个对象持有 continuation、原生提交／取消和完成职责。真正退休后先提交实际进度、解除借用和方向占用，再恢复调用方；不为保存这些清理义务建立额外的 suspend 包装、进度对象或三组捕获闭包。准备或提交前失败仍完整释放已经取得的资源；零长度操作完成同样的状态、参数和取消检查，不提交 native I/O。其他操作使用同一结果仲裁与排队机制提供各自的完成行为，不另建调度器或生命周期。
 
 完成结果由具体操作持有，公共操作基类只保存仲裁、订阅和提交／交付阶段，不为每种操作保留完整的通用 native 结果布局。字节传输在 owner 选定结果后保存实际传输量与待交付异常；错误转换失败同样保存为异常，不能跳过借用解除。完整 native 结果只由需要它的回调操作保活。结果保存不调用 continuation 或业务回调，进度提交、借用和方向释放、恢复仍在本轮 ready 交付时按原次序执行；成功、取消和关闭的仲裁规则不变。
 
 native 完成以有界批次跨 FFI 交付，不逐条调用 native 取出。后端把已退休请求的完成记录复制到 loop 自有、可复用的 GC-free 连续数组，并在本轮完成交付后统一释放对应请求记录；当前轮尚未执行的取消／关闭命令仍可访问请求相关端点。数组内容在下一次取批次前保持不变。managed owner 在当前 pump 中按序读取该快照，完成记录中的独立资源继续沿既有交付／迟到关闭协议处理。剩余完成留在队列，当前批次结束后重新通知；不因批次容量丢弃完成或提前解除在途 buffer 借用。每轮结束统一发布仍需推进的 managed／native 工作。阻塞请求提交后仍立即交给共享池，不能推迟到可能执行用户回调的整轮结束。
 
 Linux 的原生提交队列和逻辑完成队列均由 owner 更新：提交、取消及完成处理不逐请求通知自己，由 pump 结束边界根据真实剩余工作统一 rearm。内核 CQE、阻塞 worker 完成及外线程命令仍各自发布持久通知；此边界不能吞掉先于等待到达的工作。Darwin／Windows 的外线程完成生产者保留原同步与唤醒，取出与消费同样使用批次接口。pump 结束、GUI 返回宿主和 worker 进入等待前均满足这个进度合同。
+
+Linux 的一次 native 推进先消费已有 CQ 快照，再批量发布待提交请求，随后消费提交后已经可见的 CQ 快照，使本次提交的即时完成能进入同轮 managed 完成批次。两次消费均以当时 CQ 数量为界，不循环等待新完成；后一次消费产生的后续提交留给下一轮并按真实剩余工作通知。数据请求与取消控制请求仍分别退休，不能因同轮完成而提前释放在途借用或请求记录。
 
 后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
 
@@ -78,7 +82,7 @@ AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表�
 
 调用 run 的线程等待结果；用户根及默认子任务在 MultiThreadExecutor 上执行，各 worker 同时驱动自己的 reactor。运行只有一个逻辑 EventLoop binding 和一棵结构化任务树；currentEventLoop().executor 返回共享 worker executor，不提供固定 owner 线程承诺。独立 PlatformEventLoop 与 GUI attach 保持 2.1 的 owner executor 合同。普通资源创建优先选择当前 runtime worker；不在本池 worker 上的调用按轮转分配。单个 listener 接收的新连接在交付前轮转分配到各 reactor，应用无需多个端口或手工分片。
 
-资源的 native owner 在创建时确定，已有 handle、在途请求与借用不随任务窃取迁移。accept 请求仍由 listener owner 提交并退休，新 stream 从首次登记／IOCP 关联起属于目标 owner；目标 owner 接纳资源或关闭迟到成功后才恢复调用方。每个 reactor 由自己的 worker 串行推进；同 owner 的命令本地排队，跨 worker 提交与取消通过 inbox 发布。完成在所属 worker 上进入现有 executor 的本地队列，任务仍可被窃取。worker 在有限批任务之间处理 I/O／timer，持续可运行任务不能饿死 I/O；空闲时发布观察状态并重查任务与 I/O，再通过可被任务投递打断的 native 等待休眠。所有 reactor 和通用 blocking 共用本次 runtime 的阻塞池。
+资源的 native owner 在创建时确定，已有 handle、在途请求与借用不随任务窃取迁移。accept 请求仍由 listener owner 提交并退休，新 stream 从首次登记／IOCP 关联起属于目标 owner；目标 owner 接纳资源或关闭迟到成功后才恢复调用方。每个 reactor 由自己的 worker 串行推进；本地操作直接开始，普通命令本地排队，跨 worker 提交与取消通过 inbox 发布。完成在所属 worker 上进入现有 executor 的本地队列，任务仍可被窃取。worker 在有限批任务之间处理 I/O／timer，持续可运行任务不能饿死 I/O；空闲时发布观察状态并重查任务与 I/O，再通过可被任务投递打断的 native 等待休眠。所有 reactor 和通用 blocking 共用本次 runtime 的阻塞池。
 
 根及结构化子树结束后先请求 worker executor draining，各 worker 继续推进 I/O，并保持共享阻塞池接纳。全部执行登记归零且已接纳的队列工作排空后，各 worker 才关闭所属遗留资源、排空实际 native I/O 和 ready、销毁 reactor 并退出。全部 reactor 收尾和 coroutine workers join 后，最后停止并 join 共享阻塞池。正常结果 T 或最终异常在这些步骤之后返回，非取消异常优先于取消，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。任一 backend 失败取消同一个根 Job，但仍执行全部 reactor 的收尾。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
 

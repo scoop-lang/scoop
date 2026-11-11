@@ -138,7 +138,9 @@ B18 已以 `AsyncRuntime` 为实际消费者整合现有调度器，并同步 as
 - 每个资源仍由所属 reactor 串行提交／消费 native I/O，跨 worker 的操作发给该 owner。完成在相应物理 worker 上恢复排队，利用现有同池本地投递规则让后续业务与 I/O 保持局部性；stealing、跨 executor 恢复和调用方 Context 合同保持，不能靠禁止任务迁移获得实验收益。
 - 共享根结束后先排空已接纳任务，再由各 reactor 清理遗留资源、取消与实际 native 请求。共享 blocking pool 在所有 reactor 收尾完成前继续接纳必要工作，最后才停止并 join。初始化部分失败、backend 失败、取消与关闭复用同一生命周期，不创建 detached 根任务或提前释放借用。
 
-`CoroutineWorkerDriver` 把每个已创建的 reactor 接入现有 worker；每处理至多 32 个队列任务推进一次非阻塞 pump，空闲发布观察状态后再 pump 并重查任务。任务投递通过同一 native 通知打断等待。`RuntimeWorkerContext` 的 TLS 只保存标量身份；同物理 owner 的命令进入复用的本地数组，跨 owner 仍使用现有 inbox。两类命令都异步消费，不在提交栈内执行 I/O 状态机。
+`CoroutineWorkerDriver` 把每个已创建的 reactor 接入现有 worker；每处理至多 32 个队列任务推进一次非阻塞 pump，空闲发布观察状态后再 pump 并重查任务。任务投递通过同一 native 通知打断等待。`RuntimeWorkerContext` 的 TLS 只保存标量身份。B24 将资源所属 worker 上的操作登记与 native 开始放到本地调用栈，去掉操作发给自身命令队列的往返；普通本地命令仍进入复用数组，跨 owner 操作与命令仍使用现有 inbox。同步结果也只排入 ready，交付不进入提交栈、不递归 pump；内核请求继续批量推进。独立 PlatformEventLoop／宿主接入保持原有命令提交合同。
+
+Linux 的 B24 native 推进分为已有 CQ 消费、待提交 SQ 批量发布、提交后 CQ 消费。后一次消费让提交时已完成的请求进入同轮 managed 完成批次；两次读取各自以可见 CQ 数量为界，不循环等待新事件。后一次完成产生的重试／取消提交留到下一轮，并由已有 rearm 保证进度。请求和控制 CQE 的退休条件保持，C 层只发布完成记录，continuation 仍由 managed ready 阶段恢复。独立 event loop 共用此 native 推进，但保持原有 managed 提交队列。
 
 B18 使用普通 `AsyncRuntime` 和一个监听端口，测量单／四 worker、单／64 连接的吞吐、延迟、CPU、分配与 GC，保留独立 event loop 对照。新增持续 runnable 负载下的四 reactor timer 进度、跨 executor I/O、单 listener 分配、部分传输与移动 GC 交接测试，并通过既有取消、单次完成和关闭排空回归。仅 Linux/io_uring 已实测；Darwin／Windows 的目标 owner 参数已同步但尚未实机验证，不均匀连接与混合 CPU 负载的性能仍待验证。多 reactor 下仍有显著用户态和托管分配成本；继续按实际采样处理，不通过放宽取消、GC 或资源规则换取吞吐。
 

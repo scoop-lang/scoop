@@ -5,6 +5,13 @@ import scoop.test.*
 @Test
 private class LinuxRingRetirementTest {
     @Test
+    fun `an immediately completed submission joins the same native turn`() {
+        @Unsafe
+        {
+            assertEquals(0, testRingSubmissionTurn())
+        }
+    }
+    @Test
     fun `completion batches remain stable and rearm all records beyond one batch`() {
         @Unsafe
         {
@@ -48,6 +55,9 @@ private class LinuxRingRetirementTest {
         }
     }
 }
+
+@Extern(name = "scoop_test_ring_submission_turn")
+private fun testRingSubmissionTurn(): Int
 
 @Extern(name = "scoop_test_ring_cancel_order")
 private fun testRingCancelOrder(controlFirst: Boolean): Int

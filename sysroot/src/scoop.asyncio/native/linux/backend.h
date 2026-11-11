@@ -48,6 +48,7 @@ void scoop_io_notify_locked(ScoopIoLoop *loop);
 void scoop_io_fail(ScoopIoLoop *loop, int error);
 int scoop_io_ring_capabilities(const struct io_uring_probe *probe, unsigned features);
 int scoop_io_ring_create(ScoopIoLoop *loop);
+void scoop_io_ring_submit(ScoopIoLoop *loop);
 void scoop_io_ring_poll(ScoopIoLoop *loop);
 void scoop_io_request_init(ScoopIoRequest *request, ScoopIoLoop *loop, int64_t id);
 void scoop_io_request_queue(ScoopIoRequest *request, unsigned index);

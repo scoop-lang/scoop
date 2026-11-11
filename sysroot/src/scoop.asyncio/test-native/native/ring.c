@@ -2,6 +2,7 @@
 #include "completion_queue.h"
 #include <errno.h>
 #include <poll.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 static int wait_cq(ScoopIoLoop *loop, unsigned wanted) {
@@ -37,6 +38,47 @@ static void drain(ScoopIoLoop *loop) {
     scoop_io_loop_destroy(loop);
 }
 
+static void ready_prepare(ScoopIoRequest *request, unsigned index, struct io_uring_sqe *sqe) {
+    (void)request;
+    (void)index;
+    io_uring_prep_nop(sqe);
+}
+static void ready_result(ScoopIoRequest *request, unsigned index, int result) {
+    (void)index;
+    if (result < 0)
+        scoop_io_request_error(request, -result);
+    else
+        scoop_io_request_end(request);
+}
+static void ready_finish(ScoopIoRequest *request) {
+    scoop_io_complete(request->loop, &request->completion, 0);
+}
+
+int scoop_test_ring_submission_turn(void) {
+    ScoopIoCreated created = scoop_io_loop_create();
+    if (created.status.code)
+        return -created.status.code;
+    ScoopIoLoop *loop = created.pointer;
+    ScoopIoRequest *request = calloc(1, sizeof(*request));
+    if (!request) {
+        drain(loop);
+        return -ENOMEM;
+    }
+    request->prepare = ready_prepare;
+    request->result = ready_result;
+    request->finish = ready_finish;
+    scoop_io_request_init(request, loop, 42);
+    scoop_io_request_queue(request, 0);
+    scoop_io_ring_poll(loop);
+    ScoopIoBatch batch = scoop_io_loop_take_batch(loop);
+    int status =
+        batch.count == 1 && batch.records[0].id == 42 && batch.records[0].kind == SCOOP_IO_DONE
+            ? 0
+            : -EPROTO;
+    drain(loop);
+    return status;
+}
+
 int scoop_test_ring_cancel_order(bool control_first) {
     ScoopIoCreated created = scoop_io_loop_create();
     if (created.status.code != 0)
@@ -47,9 +89,9 @@ int scoop_test_ring_cancel_order(bool control_first) {
         drain(loop);
         return status;
     }
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     scoop_io_timer_cancel(loop, 42);
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     status = wait_cq(loop, 2);
     if (!status) {
         struct io_uring_cqe *cqes[2];
@@ -114,7 +156,7 @@ int scoop_test_ring_pressure(void) {
 }
 
 int scoop_test_ring_data_ready(ScoopIoLoop *loop) {
-    scoop_io_ring_poll(loop);
+    scoop_io_ring_submit(loop);
     return wait_cq(loop, 1);
 }
 

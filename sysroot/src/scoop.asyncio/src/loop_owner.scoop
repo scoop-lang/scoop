@@ -137,7 +137,16 @@ internal class LoopOwner(
     }
 
     fun submit(operation: LoopOperation) {
-        postWork(LoopWork.Operation(operation))
+        when (runtime) {
+            case Some(val runtime) -> if (
+                runtime.isCurrentWorker(worker) && running.load(MemoryOrder.Acquire)
+            ) {
+                beginOperation(operation)
+                return
+            }
+            case None -> {}
+        }
+        inbox.post(LoopWork.Operation(operation))
     }
 
     fun beginOperation(operation: LoopOperation) {
