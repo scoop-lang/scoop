@@ -85,7 +85,7 @@ internal class OwnedDirectory(
                 old
             }
         if (previous == DirectoryPhase.Closed) {
-            loop.ready.add { waiter(None) };
+            loop.enqueueReady { waiter(None) };
             return
         }
         if (previous == DirectoryPhase.Closing)
@@ -111,14 +111,14 @@ internal class OwnedDirectory(
         if (!start)
             return
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     _,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(id, nativeDirectoryClose(pointer, id))
+                        return@CallbackOperation nativeStatus(id, nativeDirectoryClose(pointer, id))
                     }
                 },
                 { _, _ -> },
@@ -135,7 +135,7 @@ internal class OwnedDirectory(
                         }
                     loop.forget(this)
                     for (callback in callbacks)
-                        loop.ready.add { callback(error) }
+                        loop.enqueueReady { callback(error) }
                 }
             )
         loop.submit(operation)

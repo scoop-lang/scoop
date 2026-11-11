@@ -21,14 +21,14 @@ internal suspend fun resolveOnLoop(
     return suspendCoroutine<Array<SocketAddress>> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation host.withIoString {
+                        return@CallbackOperation host.withIoString {
                             pointer -> @Unsafe
                             {
                                 return@withIoString nativeStatus(
@@ -54,7 +54,7 @@ internal suspend fun resolveOnLoop(
                         }
                         catch (error: Throwable) {
                             continuation.resumeWithException(error);
-                            return@LoopOperation
+                            return@CallbackOperation
                         }
                     continuation.resume(addresses)
                 }

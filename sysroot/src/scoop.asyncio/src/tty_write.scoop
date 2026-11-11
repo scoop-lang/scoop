@@ -2,79 +2,57 @@ package scoop.asyncio
 
 import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.memory.NativeByteBorrow
-import scoop.platform.io.WriteZeroException
 
-private class TtyWriteProgress {
-    var count: Long = 0L
-}
+internal suspend fun writeTty(owner: OwnedEndpoint, buffer: NativeByteBuffer, count: Long): Long =
+    suspendCoroutine(prepareTtyWrite(owner, buffer, count))
 
-internal suspend fun writeTty(owner: OwnedEndpoint, buffer: NativeByteBuffer, count: Long): Long {
+private fun prepareTtyWrite(owner: OwnedEndpoint, buffer: NativeByteBuffer, count: Long): TtyWrite {
     val job = owner.loop.requireJob()
     val reservation = owner.reserve(true)
     try {
-        val borrowed = borrowTty(buffer, count, true)
-        val progress = TtyWriteProgress()
+        val borrowed = borrowTransfer(buffer, count, true)
         try {
-            if (count == 0L)
-                return 0L
-            return suspendCoroutine<Long> {
-                continuation ->
-                val operation =
-                    LoopOperation(
-                        owner.loop,
-                        owner.loop.nextOperation(),
-                        {
-                            _,
-                            id -> @Unsafe
-                            {
-                                return@LoopOperation nativeStatus(
-                                    id,
-                                    nativeTtyWrite(owner.pointer, id, borrowed.pointer(), count)
-                                )
-                            }
-                        },
-                        {
-                            _,
-                            id -> @Unsafe
-                            {
-                                nativeTtyCancelWrite(owner.pointer, id)
-                            }
-                        },
-                        {
-                            event, selected ->
-                            progress.count = resultProgress(event.result)
-                            when (completionFailure("TTY write", event.result, selected)) {
-                                case Some(val error) -> continuation.resumeWithException(error)
-                                case None -> {
-                                    if (progress.count == 0L)
-                                        continuation.resumeWithException(WriteZeroException())
-                                    else
-                                        continuation.resume(progress.count)
-                                }
-                            }
-                        }
-                    )
-                operation.subscribe(job)
-                owner.attach(operation, true)
-                owner.loop.submit(operation)
-            }
-        } finally {
+            return TtyWrite(owner, borrowed, reservation, job)
+        } catch (error: Throwable) {
             @Unsafe
             {
-                borrowed.complete(progress.count)
+                borrowed.complete(0L)
             }
+            throw error
         }
-    } finally {
+    } catch (error: Throwable) {
         reservation.dispose()
+        throw error
     }
 }
 
-internal fun borrowTty(buffer: NativeByteBuffer, count: Long, writing: Boolean): NativeByteBorrow {
-    @Unsafe
-    {
-        return if (writing)
-            buffer.borrowReadable(count)
-        else
-            buffer.borrowWritable(count)
+private class TtyWrite(
+    private val owner: OwnedEndpoint,
+    borrowed: NativeByteBorrow,
+    reservation: EndpointReservation,
+    job: Job
+): ByteTransfer(owner.loop, borrowed, reservation, job, true) {
+    protected override fun attach() {
+        owner.attach(this, true)
     }
+
+    protected override fun start(pointer: Ptr<Unit>): IoStart {
+        @Unsafe
+        {
+            return nativeStatus(
+                id,
+                nativeTtyWrite(owner.pointer, id, borrowed.pointer(), borrowed.length)
+            )
+        }
+    }
+
+    public override fun cancelNative(pointer: Ptr<Unit>) {
+        @Unsafe
+        {
+            nativeTtyCancelWrite(owner.pointer, id)
+        }
+    }
+
+    protected override fun failure(result: IoResult, selected: Throwable?): Throwable? =
+        completionFailure("TTY write", result, selected)
 }

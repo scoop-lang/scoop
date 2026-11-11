@@ -1,0 +1,91 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.memory.NativeByteBorrow
+import scoop.platform.io.WriteZeroException
+
+// One operation owns registration, native retirement and the borrow's cleanup.
+internal abstract class ByteTransfer(
+    loop: LoopOwner,
+    protected val borrowed: NativeByteBorrow,
+    private val reservation: Disposable,
+    private val job: Job,
+    protected val writing: Boolean
+): LoopOperation(loop, loop.nextOperation()), SuspendRegistration<Long> {
+    private var continuation: Continuation<Long>? = None
+
+    protected abstract fun attach()
+    protected abstract fun failure(result: IoResult, selected: Throwable?): Throwable?
+
+    public final override fun register(continuation: Continuation<Long>) {
+        if (borrowed.length == 0L) {
+            releaseBorrow(0L)
+            continuation.resume(0L)
+            return
+        }
+        this.continuation = Some(continuation)
+        try {
+            subscribe(job)
+            attach()
+            loop.submit(this)
+        } catch (error: Throwable) {
+            this.continuation = None
+            try {
+                unsubscribe()
+            }
+            finally {
+                releaseBorrow(0L)
+            }
+            throw error
+        }
+    }
+
+    protected final override fun finish(event: NativeEvent, selected: Throwable?) {
+        val target = continuation!!
+        continuation = None
+        val count = resultProgress(event.result)
+        val result =
+            try {
+                try {
+                    when (failure(event.result, selected)) {
+                        case Some(val error) -> throw error
+                        case None -> {}
+                    }
+                    if (writing && count == 0L)
+                        throw WriteZeroException()
+                    count
+                } finally {
+                    releaseBorrow(count)
+                }
+            } catch (error: Throwable) {
+                target.resumeWithException(error)
+                return
+            }
+        target.resume(result)
+    }
+
+    private fun releaseBorrow(count: Long) {
+        try {
+            @Unsafe
+            {
+                borrowed.complete(count)
+            }
+        } finally {
+            reservation.dispose()
+        }
+    }
+}
+
+internal fun borrowTransfer(
+    buffer: NativeByteBuffer,
+    count: Long,
+    writing: Boolean
+): NativeByteBorrow {
+    @Unsafe
+    {
+        return if (writing)
+            buffer.borrowReadable(count)
+        else
+            buffer.borrowWritable(count)
+    }
+}

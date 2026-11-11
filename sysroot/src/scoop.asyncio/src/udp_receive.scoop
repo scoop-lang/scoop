@@ -39,14 +39,14 @@ private suspend fun receiveBorrowed(
         return suspendCoroutine<Datagram> {
             continuation ->
             val operation =
-                LoopOperation(
+                CallbackOperation(
                     owner.loop,
                     owner.loop.nextOperation(),
                     {
                         _,
                         id -> @Unsafe
                         {
-                            return@LoopOperation nativeStatus(
+                            return@CallbackOperation nativeStatus(
                                 id,
                                 nativeUdpReceive(
                                     owner.pointer,

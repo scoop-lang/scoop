@@ -69,7 +69,7 @@ internal class OwnedFile(
                 old
             }
         if (previous == FilePhase.Closed) {
-            loop.ready.add { waiter(None) };
+            loop.enqueueReady { waiter(None) };
             return
         }
         if (previous == FilePhase.Closing)
@@ -95,14 +95,14 @@ internal class OwnedFile(
         if (!start)
             return
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     _,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(id, nativeFileClose(pointer, id))
+                        return@CallbackOperation nativeStatus(id, nativeFileClose(pointer, id))
                     }
                 },
                 { _, _ -> },
@@ -119,7 +119,7 @@ internal class OwnedFile(
                         }
                     loop.forget(this)
                     for (callback in callbacks)
-                        loop.ready.add { callback(error) }
+                        loop.enqueueReady { callback(error) }
                 }
             )
         loop.submit(operation)

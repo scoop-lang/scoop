@@ -110,7 +110,7 @@ internal class OwnedEndpoint(
                 old
             }
         if (previous == EndpointPhase.Closed) {
-            loop.ready.add { waiter(None) };
+            loop.enqueueReady { waiter(None) };
             return
         }
         if (previous == EndpointPhase.Closing)
@@ -125,14 +125,14 @@ internal class OwnedEndpoint(
             case None -> {}
         }
         val closing =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     _,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(
+                        return@CallbackOperation nativeStatus(
                             id,
                             when (kind) {
                                 case Tcp -> nativeTcpClose(pointer, id)
@@ -170,7 +170,7 @@ internal class OwnedEndpoint(
             case Some(val callbacks) -> {
                 loop.forget(this)
                 for (callback in callbacks)
-                    loop.ready.add { callback(closeFailure) }
+                    loop.enqueueReady { callback(closeFailure) }
             }
             case None -> {}
         }

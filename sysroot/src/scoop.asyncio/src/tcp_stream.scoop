@@ -50,7 +50,7 @@ internal class TcpStream(
             suspendCoroutine<Unit> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {
@@ -62,7 +62,7 @@ internal class TcpStream(
                                     progress.submitted = true;
                                     owner.markOutputEnded()
                                 }
-                                return@LoopOperation nativeStatus(id, status)
+                                return@CallbackOperation nativeStatus(id, status)
                             }
                         },
                         { _, _ -> owner.closeOnLoop { _ -> } },

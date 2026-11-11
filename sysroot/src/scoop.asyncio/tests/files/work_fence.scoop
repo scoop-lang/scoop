@@ -16,7 +16,7 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
         suspendCoroutine<Unit> {
             continuation ->
             val operation =
-                LoopOperation(
+                CallbackOperation(
                     loop.state,
                     loop.state.nextOperation(),
                     {
@@ -25,7 +25,7 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
                         {
                             val result = createFence(native, id, testPoolSize(), spare)
                             if (result.status.code != 0)
-                                return@LoopOperation nativeStatus(id, result.status)
+                                return@CallbackOperation nativeStatus(id, result.status)
                             pointer = result.pointer
                             loop.state.post {
                                 when (cancelAfterPriorWork) {
@@ -39,9 +39,9 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
                                     }
                                     case None -> {}
                                 }
-                                loop.state.ready.add { continuation.resume(Unit) }
+                                loop.state.enqueueReady { continuation.resume(Unit) }
                             }
-                            return@LoopOperation IoStart.Pending
+                            return@CallbackOperation IoStart.Pending
                         }
                     },
                     { _, _ -> },

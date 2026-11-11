@@ -76,14 +76,14 @@ internal suspend fun openFileOnLoop(loop: LoopOwner, path: Path, options: OpenOp
     return suspendCoroutine<AsyncFile> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation path.withIoPath {
+                        return@CallbackOperation path.withIoPath {
                             pointer -> @Unsafe
                             {
                                 return@withIoPath nativeStatus(
@@ -112,7 +112,10 @@ internal suspend fun openFileOnLoop(loop: LoopOwner, path: Path, options: OpenOp
                                 case Some(val error) -> owner.closeOnLoop {
                                     cleanup -> continuation.resumeWithException(
                                         when (cleanup) {
-                                            case Some(val value) -> ResourceUseException(error, value)
+                                            case Some(val value) -> ResourceUseException(
+                                                error,
+                                                value
+                                            )
                                             case None -> error
                                         }
                                     )

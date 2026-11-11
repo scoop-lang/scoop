@@ -1,0 +1,14 @@
+package scoop.asyncio
+
+// Both queues preserve publication order without allocating an operation wrapper.
+internal enum LoopWork {
+    Callback(() -> Unit)
+    Operation(LoopOperation)
+
+    fun run() {
+        when (this) {
+            case Callback(val action) -> action()
+            case Operation(val operation) -> operation.run()
+        }
+    }
+}

@@ -116,6 +116,8 @@ Linux 的 GUI 层把通知 eventfd 加入自己已有的 fd watch。Wayland 连�
 
 B19 将 native 完成改为每批一次 FFI 交付：后端复用一个 64 条记录的连续数组，取出时复制已退休请求的结果，本轮命令和完成消费结束后才统一释放请求记录；数组只在下一次取批次时改写，managed pump 直接读取 GC-free 记录。超过容量的完成保留在队列。每轮末尾统一 rearm 尚未处理的命令、ready 和 native 工作。阻塞请求仍在提交时交给共享池，避免后续 owner 回调等待尚未启动的工作。Linux 的提交和逻辑完成只有 owner 生产，移除它们逐请求的自唤醒；内核 eventfd、外线程命令和阻塞完成继续负责异步通知。Darwin／Windows 保留外线程生产者的同步边界。批次容量是调度实现选择，不限制程序可建立的请求数量。
 
+B20 收拢 managed 操作生命周期：`LoopOperation` 承担结果仲裁与 owner 上的提交／交付，命令和 ready 以普通闭包或操作引用排队。字节传输操作同时实现已有 `SuspendRegistration<Long>`，保留实际 borrow、方向登记和 continuation，完成时在恢复调用方前结束借用和方向占用；TCP、文件和 TTY 写共用这一真实生命周期。读写入口只做普通准备和一次原语挂起，移除跨挂起 finally、单独 progress 对象与 start／cancel／finish 捕获链。其余操作通过同一基类的回调实现继续表达不同资源交付规则。提交、取消、ready 次序和 GUI 分轮合同保持，未增加 public API 或 compiler/runtime 协议。
+
 处理过程中 GUI 可能进入嵌套主循环；`pumping` 标志阻止递归进入状态机，嵌套通知只记录需再次处理，外层退出时重新唤醒。普通用户回调仍可能运行很久，本库不抢占它，也不把 CPU 计算自动搬到后台。
 
 `run` 反复调用同一个 `pump`，无可执行工作时在统一通知 fd 上阻塞等待；等待使用 `NativeSafe`，不能标为 `GCLeaf`。`attach` 由 host 可读回调调用 `pump`，内部不等待 I/O、worker 或监听注销。正时长 timer 的到期由后端通知，宿主不需要周期轮询；空闲时没有常驻 idle 回调。

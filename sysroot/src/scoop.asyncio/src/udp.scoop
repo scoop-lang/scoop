@@ -52,14 +52,14 @@ internal suspend fun bindUdpOnLoop(
     return suspendCoroutine<AsyncUdpSocket> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(
+                        return@CallbackOperation nativeStatus(
                             id,
                             nativeUdpBind(native, id, target, reuse)
                         )

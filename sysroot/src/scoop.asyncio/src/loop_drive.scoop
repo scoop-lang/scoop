@@ -18,7 +18,7 @@ internal class LoopDriver {
             {
                 val completions = nativeLoopTakeBatch(native)
                 for (command in pending)
-                    command()
+                    command.run()
                 var index = 0L
                 while (index < completions.count) {
                     owner.complete(decodeEvent(completions.records.load(index)))
@@ -27,9 +27,9 @@ internal class LoopDriver {
             }
             owner.startCleanup()
             val batch = owner.ready
-            owner.ready = ArrayList<() -> Unit>()
+            owner.ready = ArrayList<LoopWork>()
             for (resume in batch)
-                resume()
+                resume.run()
             owner.startCleanup()
             owner.advanceTimers()
             owner.dispatchBlocking(native)

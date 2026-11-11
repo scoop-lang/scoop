@@ -40,14 +40,14 @@ private suspend fun sendBorrowed(
         return suspendCoroutine<Long> {
             continuation ->
             val operation =
-                LoopOperation(
+                CallbackOperation(
                     owner.loop,
                     owner.loop.nextOperation(),
                     {
                         _,
                         id -> @Unsafe
                         {
-                            return@LoopOperation nativeStatus(
+                            return@CallbackOperation nativeStatus(
                                 id,
                                 nativeUdpSend(
                                     owner.pointer,

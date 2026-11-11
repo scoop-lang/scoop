@@ -28,7 +28,7 @@ internal class LoopTimers(private val owner: LoopOwner) {
 
     private fun notify(timer: LoopTimer, error: Throwable?) {
         when (timer.notification(error)) {
-            case Some(val notification) -> owner.ready.add(notification)
+            case Some(val notification) -> owner.enqueueReady(notification)
             case None -> {}
         }
     }
@@ -97,17 +97,17 @@ internal class LoopTimers(private val owner: LoopOwner) {
 // Superseded wakeups retain only the queue and their deadline until native retirement.
 internal class LoopTimerWakeup(owner: LoopOwner, timers: LoopTimers, val deadline: LoopDeadline) {
     val operation =
-        LoopOperation(
+        CallbackOperation(
             owner,
             owner.nextOperation(),
             {
                 native, id ->
                 val remaining = deadline.remaining(MonotonicTimeSource.markNow())
                 if (remaining <= Duration.ZERO)
-                    return@LoopOperation IoStart.Finished(NativeEvent(id, IoResult.Done))
+                    return@CallbackOperation IoStart.Finished(NativeEvent(id, IoResult.Done))
                 @Unsafe
                 {
-                    return@LoopOperation nativeStatus(
+                    return@CallbackOperation nativeStatus(
                         id,
                         nativeTimerStart(
                             native,

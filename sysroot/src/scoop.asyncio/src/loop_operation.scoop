@@ -4,16 +4,28 @@ internal enum OperationChoice {
     Pending, Stopped(Throwable?), Completed
 }
 
-internal class LoopOperation internal constructor(
-    val loop: LoopOwner,
-    val id: Long,
-    private val start: (Ptr<Unit>, Long) -> IoStart,
-    private val cancel: (Ptr<Unit>, Long) -> Unit,
-    private val finish: (NativeEvent, Throwable?) -> Unit
-) {
+private enum OperationDelivery {
+    Submit
+    Finish(NativeEvent, Throwable?)
+}
+
+internal abstract class LoopOperation internal constructor(val loop: LoopOwner, val id: Long) {
     private val lock: IoLock = IoLock()
     private var choice: OperationChoice = OperationChoice.Pending
     private var subscription: Disposable? = None
+    // Only the loop owner changes the delivery phase.
+    private var delivery = OperationDelivery.Submit
+
+    protected abstract fun start(pointer: Ptr<Unit>): IoStart
+    abstract fun cancelNative(pointer: Ptr<Unit>)
+    protected abstract fun finish(event: NativeEvent, failure: Throwable?)
+
+    fun run() {
+        when (delivery) {
+            case Submit -> loop.beginOperation(this)
+            case Finish(val event, val failure) -> finish(event, failure)
+        }
+    }
 
     fun subscribe(job: Job) {
         val registration = job.invokeOnCancellation { requestFailure(CancellationException()) }
@@ -59,7 +71,7 @@ internal class LoopOperation internal constructor(
         }
         val result =
             try {
-                start(pointer, id)
+                start(pointer)
             }
             catch (error: Throwable) {
                 selectFailure(error);
@@ -71,8 +83,12 @@ internal class LoopOperation internal constructor(
         }
     }
 
-    fun cancelNative(pointer: Ptr<Unit>) {
-        cancel(pointer, id)
+    protected fun unsubscribe() {
+        when (subscription) {
+            case Some(val value) -> value.dispose()
+            case None -> {}
+        }
+        subscription = None
     }
 
     fun complete(event: NativeEvent) {
@@ -86,11 +102,24 @@ internal class LoopOperation internal constructor(
                     case Completed -> throw IllegalStateException(Some("operation completed twice"))
                 }
             }
-        when (subscription) {
-            case Some(val value) -> value.dispose();
-            case None -> {}
-        }
-        subscription = None
-        loop.ready.add { finish(event, failure) }
+        unsubscribe()
+        delivery = OperationDelivery.Finish(event, failure)
+        loop.ready.add(LoopWork.Operation(this))
+    }
+}
+
+internal class CallbackOperation(
+    loop: LoopOwner,
+    id: Long,
+    private val onStart: (Ptr<Unit>, Long) -> IoStart,
+    private val onCancel: (Ptr<Unit>, Long) -> Unit,
+    private val onFinish: (NativeEvent, Throwable?) -> Unit
+): LoopOperation(loop, id) {
+    protected override fun start(pointer: Ptr<Unit>): IoStart = onStart(pointer, id)
+    public override fun cancelNative(pointer: Ptr<Unit>) {
+        onCancel(pointer, id)
+    }
+    protected override fun finish(event: NativeEvent, failure: Throwable?) {
+        onFinish(event, failure)
     }
 }

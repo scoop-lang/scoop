@@ -8,14 +8,17 @@ internal suspend fun connectTcpOnLoop(loop: LoopOwner, address: SocketAddress): 
     return suspendCoroutine<AsyncTcpStream> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(id, nativeTcpConnect(native, id, target))
+                        return@CallbackOperation nativeStatus(
+                            id,
+                            nativeTcpConnect(native, id, target)
+                        )
                     }
                 },
                 {
@@ -61,14 +64,14 @@ internal suspend fun listenTcpOnLoop(
     return suspendCoroutine<AsyncTcpListener> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(
+                        return@CallbackOperation nativeStatus(
                             id,
                             nativeTcpListen(native, id, target, backlog, reuse)
                         )

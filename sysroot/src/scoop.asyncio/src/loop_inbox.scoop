@@ -6,13 +6,13 @@ import scoop.platform.concurrent.Mutex
 internal class LoopInbox {
     private val lock = Mutex()
     private var native: Ptr<Unit>? = None
-    private var commands = ArrayList<() -> Unit>()
+    private var commands = ArrayList<LoopWork>()
 
     fun open(pointer: Ptr<Unit>) {
         lock.withLock { native = Some(pointer) }
     }
 
-    fun post(command: () -> Unit, required: Boolean = false) {
+    fun post(command: LoopWork, required: Boolean = false) {
         lock.withLock {
             when (native) {
                 case Some(val pointer) -> {
@@ -47,8 +47,8 @@ internal class LoopInbox {
         }
     }
 
-    fun take(): ArrayList<() -> Unit> {
-        val empty = ArrayList<() -> Unit>()
+    fun take(): ArrayList<LoopWork> {
+        val empty = ArrayList<LoopWork>()
         return lock.withLock {
             val batch = commands
             commands = empty

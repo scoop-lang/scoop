@@ -113,14 +113,14 @@ internal suspend fun openTtyOnLoop(loop: LoopOwner): AsyncTty {
     return suspendCoroutine<AsyncTty> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(id, nativeTtyOpen(native, id))
+                        return@CallbackOperation nativeStatus(id, nativeTtyOpen(native, id))
                     }
                 },
                 { _, _ -> },

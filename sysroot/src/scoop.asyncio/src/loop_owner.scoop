@@ -9,7 +9,7 @@ internal class LoopOwner(
     // Root results use this lock; I/O publication has its own parking mutex.
     private val lock: IoLock = IoLock()
     private val inbox = LoopInbox()
-    private val localCommands = ArrayList<() -> Unit>()
+    private val localCommands = ArrayList<LoopWork>()
     private val published = AtomicBoolean(false)
     private val running = AtomicBoolean(false)
     // Initialized before publication and retained unchanged through shutdown.
@@ -26,7 +26,7 @@ internal class LoopOwner(
     private val resources: ArrayList<LoopResource> = ArrayList<LoopResource>()
     private val timers = LoopTimers(this)
     private var cleaning: Boolean = false
-    var ready: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
+    var ready: ArrayList<LoopWork> = ArrayList<LoopWork>()
 
     fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
         val state = prepareLoopExecution(this, config)
@@ -89,7 +89,7 @@ internal class LoopOwner(
     }
 
     fun enqueueExecution(command: () -> Unit) {
-        inbox.post(command, true)
+        inbox.post(LoopWork.Callback(command), true)
     }
 
     fun requireJob(cancellable: Boolean = true): Job {
@@ -107,6 +107,10 @@ internal class LoopOwner(
     }
 
     fun post(command: () -> Unit) {
+        postWork(LoopWork.Callback(command))
+    }
+
+    private fun postWork(command: LoopWork) {
         when (runtime) {
             case Some(val runtime) -> if (
                 runtime.isCurrentWorker(worker) && running.load(MemoryOrder.Acquire)
@@ -133,11 +137,17 @@ internal class LoopOwner(
     }
 
     fun submit(operation: LoopOperation) {
-        post {
-            operations.put(operation.id, operation)
-            operation.begin(pointer!!)
-            dispatchBlocking(pointer!!)
-        }
+        postWork(LoopWork.Operation(operation))
+    }
+
+    fun beginOperation(operation: LoopOperation) {
+        operations.put(operation.id, operation)
+        operation.begin(pointer!!)
+        dispatchBlocking(pointer!!)
+    }
+
+    fun enqueueReady(action: () -> Unit) {
+        ready.add(LoopWork.Callback(action))
     }
 
     fun scheduleTimer(timer: LoopTimer) {
@@ -253,7 +263,7 @@ internal class LoopOwner(
         inbox.wake()
     }
 
-    fun takeCommands(): ArrayList<() -> Unit> {
+    fun takeCommands(): ArrayList<LoopWork> {
         val batch = inbox.take()
         for (command in localCommands)
             batch.add(command)

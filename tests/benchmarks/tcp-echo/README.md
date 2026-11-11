@@ -9,7 +9,7 @@
 - `metrics.c`：只在启动时为 Linux listener 设置 TCP_NODELAY、刷新就绪通知，并在整个工作负载前后打印既有 GC 指标，不参与 echo 热路径。
 - `measure.py`：依次测量固定二进制，服务器与客户端绑定不同 CPU，保存原始输出和 `/proc` 快照。
 
-所有服务器线程，包括 I/O owner、GC helper 和 Go runtime 线程，都受同一服务器 CPU 集合限制。因此 `AsyncRuntime(workers=1)` 与 Go `GOMAXPROCS=1` 都只有一个 CPU 的总资源，但前者还有独立的 I/O owner；线程数会另外记录。
+所有服务器线程，包括 reactor worker、GC helper 和 Go runtime 线程，都受同一服务器 CPU 集合限制。因此 `AsyncRuntime(workers=1)` 与 Go `GOMAXPROCS=1` 都只有一个 CPU 的总资源。当前 AsyncRuntime 由各 worker 驱动自己的 reactor，caller 等待结果；独立 eventLoop 则由 owner 驱动。线程数会另外记录。
 
 ## 构建
 
@@ -59,6 +59,8 @@ taskset -c 18 python3 tests/benchmarks/tcp-echo/measure.py \
 CPU 编号必须按实际机器选择。脚本检查客户端与服务器集合不重叠，单 worker／单独 event loop 使用服务器集合的第一个 CPU。已完成的 `result.json` 会复用；新一轮测量使用新目录，不覆盖旧样本。
 
 ## reactor 架构对照
+
+以下是 B17 使用的历史诊断对照。B18 已将每 worker reactor 接入正式 AsyncRuntime，当前主路径比较使用上面的普通单端口程序；旧实验数据不代表当前 AsyncRuntime 仍有单 owner 往返。
 
 为区分“单 I/O owner 与业务 worker 反复交接”和“多个 loop 各自在本线程完成 I/O 与业务”的成本，加入独立 reactor 变体。每个 loop 只接受分配给自己的连接数；`metrics.c` 等全部 listener 就绪后才输出 READY，客户端以 `-shards` 在连续端口间轮询建立连接。此分流发生在测量前，echo 正文、每连接在途数、内容校验和延迟统计保持一致。
 

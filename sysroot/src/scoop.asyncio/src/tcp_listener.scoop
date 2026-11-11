@@ -28,14 +28,14 @@ internal class TcpListener(
             return suspendCoroutine<AsyncTcpStream> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {
                             _,
                             id -> @Unsafe
                             {
-                                return@LoopOperation nativeStatus(
+                                return@CallbackOperation nativeStatus(
                                     id,
                                     nativeTcpAccept(owner.pointer, target.nativePointer(), id)
                                 )

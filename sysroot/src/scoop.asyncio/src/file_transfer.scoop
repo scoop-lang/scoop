@@ -2,100 +2,75 @@ package scoop.asyncio
 
 import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.memory.NativeByteBorrow
-import scoop.platform.io.WriteZeroException
-
-private class FileProgress {
-    var count: Long = 0L
-}
 
 internal suspend fun transferFile(
     owner: OwnedFile,
     buffer: NativeByteBuffer,
     count: Long,
     writing: Boolean
-): Long {
+): Long = suspendCoroutine(prepareFileTransfer(owner, buffer, count, writing))
+
+private fun prepareFileTransfer(
+    owner: OwnedFile,
+    buffer: NativeByteBuffer,
+    count: Long,
+    writing: Boolean
+): FileTransfer {
     val job = owner.loop.requireJob()
     val reservation = owner.reserve()
     try {
-        val borrowed = borrowFile(buffer, count, writing)
-        val progress = FileProgress()
+        val borrowed = borrowTransfer(buffer, count, writing)
         try {
-            if (count == 0L)
-                return 0L
-            return suspendCoroutine<Long> {
-                continuation ->
-                val operation =
-                    LoopOperation(
-                        owner.loop,
-                        owner.loop.nextOperation(),
-                        {
-                            _,
-                            id -> @Unsafe
-                            {
-                                return@LoopOperation nativeStatus(
-                                    id,
-                                    nativeFileTransfer(
-                                        owner.pointer,
-                                        id,
-                                        borrowed.pointer(),
-                                        borrowed.length,
-                                        writing
-                                    )
-                                )
-                            }
-                        },
-                        {
-                            native,
-                            id -> @Unsafe
-                            {
-                                nativeWorkCancel(native, id)
-                            }
-                        },
-                        {
-                            event, selected ->
-                            progress.count = resultProgress(event.result)
-                            when (
-                                completionFailure(
-                                    if (writing)
-                                        "file write"
-                                    else
-                                        "file read",
-                                    event.result,
-                                    selected,
-                                    Some(owner.context)
-                                )
-                            ) {
-                                case Some(val error) -> continuation.resumeWithException(error)
-                                case None -> {
-                                    if (writing && progress.count == 0L)
-                                        continuation.resumeWithException(WriteZeroException())
-                                    else
-                                        continuation.resume(progress.count)
-                                }
-                            }
-                        }
-                    )
-                operation.subscribe(job)
-                owner.attach(operation)
-                owner.loop.submit(operation)
-            }
-        } finally {
+            return FileTransfer(owner, borrowed, reservation, job, writing)
+        } catch (error: Throwable) {
             @Unsafe
             {
-                borrowed.complete(progress.count)
+                borrowed.complete(0L)
             }
+            throw error
         }
-    } finally {
+    } catch (error: Throwable) {
         reservation.dispose()
+        throw error
     }
 }
 
-private fun borrowFile(buffer: NativeByteBuffer, count: Long, writing: Boolean): NativeByteBorrow {
-    @Unsafe
-    {
-        return if (writing)
-            buffer.borrowReadable(count)
-        else
-            buffer.borrowWritable(count)
+private class FileTransfer(
+    private val owner: OwnedFile,
+    borrowed: NativeByteBorrow,
+    reservation: FileReservation,
+    job: Job,
+    writing: Boolean
+): ByteTransfer(owner.loop, borrowed, reservation, job, writing) {
+    protected override fun attach() {
+        owner.attach(this)
     }
+
+    protected override fun start(pointer: Ptr<Unit>): IoStart {
+        @Unsafe
+        {
+            return nativeStatus(
+                id,
+                nativeFileTransfer(owner.pointer, id, borrowed.pointer(), borrowed.length, writing)
+            )
+        }
+    }
+
+    public override fun cancelNative(pointer: Ptr<Unit>) {
+        @Unsafe
+        {
+            nativeWorkCancel(pointer, id)
+        }
+    }
+
+    protected override fun failure(result: IoResult, selected: Throwable?): Throwable? =
+        completionFailure(
+            if (writing)
+                "file write"
+            else
+                "file read",
+            result,
+            selected,
+            Some(owner.context)
+        )
 }

@@ -52,9 +52,9 @@ private class LoopPumpTest {
         owner.post {
             seen.add(1)
             owner.post { seen.add(3) }
-            owner.ready.add {
+            owner.enqueueReady {
                 seen.add(2)
-                owner.ready.add { seen.add(4) }
+                owner.enqueueReady { seen.add(4) }
             }
         }
         try {
@@ -66,6 +66,64 @@ private class LoopPumpTest {
             assertEquals(4L, seen.size)
             assertEquals(3, seen[2L])
             assertEquals(4, seen[3L])
+        } finally {
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+
+    @Test
+    fun `operations and callbacks share order and defer delivery work to the next turn`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val seen = ArrayList<Int>()
+        val cancelled = CancellationException()
+        val completed =
+            CallbackOperation(
+                owner,
+                owner.nextOperation(),
+                {
+                    _, id ->
+                    seen.add(2)
+                    IoStart.Finished(NativeEvent(id, IoResult.Bytes(7L)))
+                },
+                { _, _ -> fail(Some("completed operation was cancelled")) },
+                {
+                    event, failure ->
+                    assertEquals(7L, resultProgress(event.result))
+                    assertNoLoopValue(failure)
+                    seen.add(4)
+                    owner.post { seen.add(6) }
+                    owner.enqueueReady { seen.add(7) }
+                }
+            )
+        val stopped =
+            CallbackOperation(
+                owner,
+                owner.nextOperation(),
+                { _, _ -> fail(Some("cancelled operation was started")) },
+                { _, _ -> fail(Some("unstarted operation needed native cancellation")) },
+                {
+                    _, failure ->
+                    assertSame(cancelled, failure!!)
+                    seen.add(5)
+                }
+            )
+        assertTrue(stopped.selectFailure(cancelled))
+        owner.post { seen.add(1) }
+        owner.submit(completed)
+        owner.post { seen.add(3) }
+        owner.submit(stopped)
+        try {
+            owner.pump(native)
+            assertEquals(5L, seen.size)
+            for (index in 0L ..< seen.size)
+                assertEquals((index + 1L).toInt(), seen[index])
+            owner.pump(native)
+            assertEquals(7L, seen.size)
+            assertEquals(6, seen[5L])
+            assertEquals(7, seen[6L])
         } finally {
             owner.finishRoot(None)
             owner.drive(native)
