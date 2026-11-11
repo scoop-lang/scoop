@@ -14,6 +14,10 @@ Windows 主驱动使用 `sco.exe`，下文的 `scoop ...` 在 Windows 上对应 
 
 编译器、内置库或配套工具变更后的同步步骤见[标准更新工作流](../docs/scoop-programming/UPDATE-WORKFLOW.md)；面向 AI 的设计指导、示例、API 查询、诊断及语言服务接入改进见[改进计划](../docs/scoop-programming/PLAN.md)。计划中的新增命令与主题在完成实现后才进入 skill 的正式用法。
 
+## API 查询
+
+[`scoop api search/show`](../docs/scoop-doc/API.md) 通过 `compiler/api` 的独立命令读取 `scoop doc` 发布的 JSON，提供完整声明、receiver、约束、访问器、导入路径、文档与源码位置。安装根与应用目标必须对应；查询不构建或安装资源。开发安装见 [scripts](../scripts/README.md)。
+
 ## 编辑器工具
 
 终端和 AI Agent 可用 [`scoop-lsp query`](../docs/language-service/CLI.md) 查询当前项目的类型、补全、签名、定义、引用与诊断；它复用同一 LSP 服务器并支持 JSON。

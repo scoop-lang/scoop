@@ -163,7 +163,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(relative)
                 if populated:
-                    for name in ("scoop-example", "scoop-bundle"):
+                    for name in ("scoop-example", "scoop-bundle", "scoop-api"):
                         command = sysroot / f"commands/{name}{suffix}"
                         command.write_text("#!/bin/sh\nexit 37\n")
                         command.chmod(0o755)
@@ -352,7 +352,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 self.assertTrue(commands.is_dir())
                 self.assertFalse((commands / ".gitkeep").exists())
                 if populated:
-                    for name in ("scoop-example", "scoop-bundle"):
+                    for name in ("scoop-example", "scoop-bundle", "scoop-api"):
                         command = sysroot / f"commands/{name}{suffix}"
                         self.assertEqual(
                             (commands / command.name).read_bytes(), command.read_bytes()

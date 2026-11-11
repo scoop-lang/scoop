@@ -1,6 +1,6 @@
 # Scoop AI 编程支持改进计划
 
-日期：2026-11-12。状态：实施中，分批进展与验证见 [PROGRESS.md](PROGRESS.md)；维护采用配套的[标准更新工作流](UPDATE-WORKFLOW.md)。`scoop-lsp query` 已在 B5 实现；下文的 `scoop api` 和新增示例主题在对应批次完成前均为拟议能力，不能作为当前工具链的使用说明。
+日期：2026-11-12。状态：实施中，分批进展与验证见 [PROGRESS.md](PROGRESS.md)；维护采用配套的[标准更新工作流](UPDATE-WORKFLOW.md)。`scoop-lsp query`、`scoop api` 与 31 个完整示例主题已分别在 B5、B3 和 B2 实现；具体命令合同见对应工具文档。
 
 ## 1. 目标与范围
 

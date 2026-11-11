@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 mod catalog;
+mod data;
 mod markdown;
 mod pages;
 mod roots;

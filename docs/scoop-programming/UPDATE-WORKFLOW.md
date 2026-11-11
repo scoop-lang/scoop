@@ -2,7 +2,7 @@
 
 日期：2026-11-12。适用对象：编译器、内置库、正式 CLI、语言服务、文档、示例和发行工具的维护者。配套[改进计划](PLAN.md)。
 
-本工作流的现有命令可用于当前仓库。API 数据查询和 Agent 语言服务客户端尚属计划能力，仅在其实现后执行对应步骤。流程遵守仓库 AGENTS.md 与权威规范，不新增审批、认证或通用检查框架。
+本工作流的命令适用于当前仓库，包括 `scoop api` 与 `scoop-lsp query`；验证前显式构建并选用配套命令。流程遵守仓库 AGENTS.md 与权威规范，不新增审批、认证或通用检查框架。
 
 ## 1. 何时执行，谁负责
 
@@ -85,7 +85,7 @@ python3 scripts/build_scoop_example.py --sysroot "$SCOOP_MAINT_SYSROOT"
 
 离线 API 文档由现有 `scoop doc` 或安装根的 post-install 流程生成。开发时只生成受影响的文档；发行时按已安装目标和库清单生成完整站点，遵循 [scripts 说明](../../scripts/README.md)。检查签名、公开 re-export、源码位置及相关链接，不手工修改生成的 HTML 或缓存文件。
 
-语言服务入口为 `scoop-lsp query`，合同见[语言服务 CLI](../language-service/CLI.md)。更新查询能力时同步该工具的帮助、JSON 合同、skill 用法及真实 stdio 对照测试；不另建类型分析逻辑。B3 的独立 API 查询尚未交付时，不能把 `scoop api` 写成必需步骤；旧工具链继续保留示例、文档和库源码查询路径。
+语言服务入口为 `scoop-lsp query`，合同见[语言服务 CLI](../language-service/CLI.md)。更新查询能力时同步该工具的帮助、JSON 合同、skill 用法及真实 stdio 对照测试；不另建类型分析逻辑。按名字发现 API 使用 `scoop api search/show`；实际位置类型使用 LSP。维护者更新文档时同时生成 `api/index.json` 和 Cone 数据，用查询命令检查完整重载、属性访问器、有效 import 和目标。
 
 ## 6. 按实际影响验证
 
@@ -182,7 +182,7 @@ python3 tooling/scoop-example/tests/run_examples.py \
 
 ## 9. 新查询能力落地后增加的步骤
 
-以下是[改进计划 B3/B5](PLAN.md)的配套工作，当前不执行：
+以下是已交付的 [B3/B5](PLAN.md) 查询入口的同期维护步骤：
 
 - API 查询：在原有文档生成/安装更新中输出同目标机器数据；从发布的查询入口验证改动符号、重载、约束、import、相关例子和无匹配行为。API 读取不触发隐式构建或重验生成过程。
 - 语言服务客户端：诊断或查询能力变化时，同步实际 capability 和帮助；用真实项目位置验证客户端与 LSP 一致，包括非 ASCII 文本、生产/测试依赖和源码更新。

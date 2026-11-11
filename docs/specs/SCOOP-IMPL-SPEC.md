@@ -1297,6 +1297,10 @@ Rust 文本后端的维护源码位于 `native/text_backend`，独立 Cargo pack
 
 post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-base-<target>` 包，以及可选的 `lib-gui-<target>` 包）安装完成后，使用配套工具为这些目标已安装的内置库源码生成文档。文档入口位于 SYSROOT 的 `docs/index.html`，按目标生成的共同站点位于 `docs/<canonical-target-triple>/`；页面、搜索、资源及内嵌源码保存在安装根，跨库导航遵守该目标的真实声明身份。内置库 Markdown 中指向仓库 `docs/`、`scripts/`、`tests/` 或可选 `vendor/` 的相对链接，在组装时改为本次源码 revision 的 GitHub 链接；这些设计及维护文档作为外部参考，库内资源仍使用相对链接并随离线站点提供。文档警告或生成失败使 post-install 返回非零状态；安装器保留已装工具链并提示用 `scoop-install docs` 重试。此步骤属于显式安装编排，普通 `scoop doc` 不隐式准备 sysroot；`.slib` 不增加完整源码、注释正文或文档缓存。
 
+每个实际目标站点同时发布 `api/index.json` 与按 Cone 分开的 `api/<doc-cone-key>.json`，采用公开 schema 1。它们从现有 `ConeInput`、有效可见性、声明签名、文档和 export binding 投影，保存目标、坐标、完整重载、receiver、约束、可导入绑定、源码位置及已有说明；缺失说明保持缺失，不从名称推测异常或资源合同。文档键仍为展示地址，不替代语言实体 id。发布、更新判断和失败不发布使用原有文档流程，命中时不重读输入或重验产物；私有文档缓存不是查询接口。
+
+外部命令 `scoop api search`／`scoop api show` 读取这些公开数据，提供 text／JSON、目标和 Cone 筛选。默认读取所选安装根的宿主默认目标文档；`--docs` 选择一个具体项目站点，`--target` 在提供时必须与其记录相同。search 搜索名称、package、receiver、文档与别名，show 按名称、限定名或文档键保留全部匹配重载；有多个声明时列出实际候选，不猜测当前位置的可调用性。正常查询包括空结果退出 0；读取／格式错误退出 1，用法错误退出 2；JSON 使用显式 schema、kind 和 status，错误写 stderr。查询不隐式执行编译、安装、网络访问或缓存准备，文档中存在 API 也不代表当前项目已声明依赖。具体字段与命令见 [API 查询](../scoop-doc/API.md)。
+
 普通 build／run／test 的 executable 和两个 link 命令默认消费 `lib/<canonical-target-triple>/runtime/index.cbor`，不触发 runtime 源码构建。显式 `--runtime-objects` 选择另一份索引；build／run／test 的 `--runtime-root` 明确请求从源码构建，与对象选项互斥。缺失实际需要的索引时报告目标和所选路径，不补建或改选其他目标；library 构建不读取未使用的 runtime。
 
 Linux 和 Windows 的最终链接直接使用所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a`，显式 `--unwind-prefix` 选择该 prefix 的 `lib/libunwind.a`；不为最终链接读取 `unwind.h` 或编译探测程序。实际链接需要时才选择 archive，最终程序命中时跳过链接准备。runtime 源码构建仍使用维护 prefix 的头文件与 archive，不要求先组装发行目录，并按普通更新规则跟踪自身实际源码与头文件输入。随包公共 unwind 头继续供实际源码编译使用，不构成工具资格检查。

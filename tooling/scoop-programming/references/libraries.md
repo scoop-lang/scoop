@@ -4,10 +4,11 @@
 
 ## 查找顺序
 
-1. `<SYSROOT>/src/<cone>/examples/README.md` 列出完整库示例；存在库根 `README.md` 时阅读其 API 概览与使用条件。
-2. `<SYSROOT>/docs/index.html` 是随包离线 API 入口，选择应用目标；声明页给出签名、说明、类型链接和源码。自己的多 Cone 文档可由 `scoop doc` 生成。
-3. 对尚不确定的类型、重载或行为，用 `rg` 在所选库的源码和测试中定位实际声明。例如 `rg -n 'fun decodeFromString|fun encodeToString' <SYSROOT>/src/scoop.json`。同时查看 package、可见性、泛型条件、默认参数和 suspend 标记。
-4. 从库 `Cone.toml` 取得准确 coordinate 和版本，在应用中声明实际直接使用的库并添加所需 import。源码依赖则使用项目指定的源码版本。
+1. 用 `scoop api search "Option orElse"` 等命令按名称、库、receiver 与说明查找，再用 `scoop api show orElse --cone scoop.std` 读取全部重载。`--format json` 保留 signature、receiver、属性 getter/setter 可见性、documentation、source 和 imports；从 imports 的 coordinate 声明依赖，从 path 取得实际导入路径。关键字或含空格的名称使用反引号。
+2. 默认查询安装根的宿主默认目标；应用选择其他目标时传 `--target`。自己的文档用 `scoop doc . --output-dir ./api-docs` 显式生成，再传 `--docs ./api-docs` 查询。文档缺失时工具会报告读取错误；不要把它解释为 API 不存在，也不要通过查询隐式重建工具链。
+3. `<SYSROOT>/docs/index.html` 是离线页面入口，选择实际目标；`<SYSROOT>/src/<cone>/examples/README.md` 和库根 README 提供完整用法及运行条件。
+4. 对未记录的行为、默认值正文或尚不确定的组合，用 `rg` 在该库的源码和测试定位实际声明。例如 `rg -n 'fun decodeFromString|fun encodeToString' <SYSROOT>/src/scoop.json`。查找 package、可见性、泛型条件、默认参数和 suspend 标记。文档的 `…` 表示省略默认表达式，不能当作实际值。
+5. API 文档不代表库已进入当前项目。核对 Cone 的准确坐标，声明直接使用的库并添加 import；源码依赖使用项目指定版本。文档里没有的说明保持未知，不依据名称猜测资源责任或异常。
 
 编辑器已有 Scoop LSP 时，利用诊断、补全、签名、跳转定义、引用和重命名核对项目语义。LSP 不代替正式 CLI 构建／测试，也不负责安装工具链。
 

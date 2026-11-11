@@ -1072,6 +1072,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scoop-api"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "scoop-target-data",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "scoop-ast"
 version = "0.0.0"
 dependencies = [
@@ -1107,6 +1118,7 @@ dependencies = [
  "minijinja",
  "pathdiff",
  "pulldown-cmark",
+ "scoop-api",
  "scoop-ast",
  "scoop-hir",
  "scoop-identity",

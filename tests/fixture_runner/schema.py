@@ -80,6 +80,7 @@ BUILTINS = {
     "scoop-link",
     "scoop-lsp",
     "scoop-pm",
+    "scoop-api",
     "terminal-host",
     "cc",
     "cc_family",

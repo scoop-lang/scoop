@@ -2,6 +2,7 @@ use super::*;
 
 mod catalog;
 mod content;
+mod data;
 mod links;
 mod relations;
 mod sources;
