@@ -529,6 +529,35 @@ Scoop 格式／静态检查与 release 构建、Python ruff、分配辅助 C11 �
 
 固定产物、源码、原始数据、图表与复现脚本位于 `/home/chenxu/benchmarks/http-improvements-20261112-round26`。安装目录和旧轮次产物未改。仅 Linux GNU/io_uring 实测，其他平台未实机验证；闭环 P50 未校正 coordinated omission，每组三次。HTTP／JSON、GC 参数矩阵、不均匀连接与长尾未重测，底层倍数差距仍未完全解决。
 
+## 第二十七轮：并行 reactor 上受控恢复
+
+针对 B26 完整路径仍显著高于回调程序的用户态成本，区分必须排队的新任务／yield 与已经交出旧驱动权的恢复。core 增加普通 ExecutorTask.dispatchResume，默认排队；MultiThreadExecutor 只在本池多个 worker 的 driver.poll 内直接执行恢复，每轮最多 32 次，执行中的嵌套恢复继续排队。原无锁 FIFO／inbox、work stealing、登记、Context、取消、公开 suspend API、编译器与 runtime ABI 保持。单 worker、外线程、其他 executor 及独立 LoopExecutor 继续排队。
+
+选择前做了三个隔离诊断：展开多层 suspend 调用、就地恢复、本地恢复槽。本地槽只改善单连接，64 连接没有收益，停止推进；就地恢复的并行收益明显，但单 worker 回退，因此正式方案保留单核队列。展开调用只用于定位 frame／adapter 成本，不作为公开 API 的替代实现。短测各一次，正式结论采用以下重复测量。
+
+安装工具链不变，重建 core 及实际依赖闭包到独立 overlay，保留 B26／回调／Go 固定二进制。单端口、1 KiB 消息、64 KiB buffer，单／四 worker、独立 loop、单／64 连接；每组随机交错三次，预热 1 秒＋测量 4 秒。64 连接中位数：
+
+| 配置 | echo／秒 | 总 CPU μs／echo | 用户态 μs | 内核态 μs | P50 μs | RSS MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| B26，1 worker | 207,836 | 4.81 | 2.10 | 2.68 | 303.10 | 26.12 |
+| B27，1 worker | 206,703 | 4.84 | 2.17 | 2.72 | 307.20 | 26.15 |
+| Go，1 worker | 279,810 | 3.58 | 0.59 | 3.05 | 229.38 | 6.39 |
+| B26，4 worker | 490,220 | 7.42 | 4.21 | 3.19 | 119.81 | 26.59 |
+| B27，4 worker | 597,452 | 6.29 | 3.34 | 3.00 | 99.33 | 26.55 |
+| Go，4 worker | 778,174 | 3.99 | 0.76 | 3.24 | 68.61 | 6.82 |
+
+四 worker 吞吐 +21.9%，总 CPU／echo −15.2%，用户态 CPU −20.7%，P50 −17.1%。Go 吞吐优势从 1.59 倍缩到 1.30 倍，用户态 CPU 差距仍从 5.51 倍缩到 4.36 倍，尚未解决主要差距。B26 三次吞吐范围 368,782–494,829，含一次明显波动，未剔除；B27 为 596,917–602,987。单 worker 吞吐 −0.5%、总 CPU +0.5%，基本持平；独立 loop／64 连接基本持平，单连接吞吐 −2.1%，全部保留。四 worker 单连接总 CPU 22.05 → 9.43 μs／echo（−57.2%）、用户态 14.05 → 5.03 μs，吞吐 +33.2%，显示恢复迁移确为低并发大头。
+
+候选独立用户态采样共 1,902 点，按互斥调用子树归类：execution 57.2%、managed I/O／reactor 33.0%、GC／heap 2.5%、findWork 0.8%，其余为 park 或其他／截断栈。B26 的 findWork 为 4.9%。子树包括真实 API 工作，不全是可消除开销；GC／heap 分类也不包含散布在主路径的编译器根登记和屏障。回调四 worker 为 761,823 echo／秒、用户态 2.14 μs／echo，完整路径为 3.34 μs；差值包含调度、批次、局部性和 GC，不作为逐函数时间分账。下一大项转向多层 coroutine drive／frame／adapter 及执行边界，不继续微调队列或回到 JSON／P99。
+
+四 worker 分配 1.403 → 1.351 KiB／echo，RSS 约 26.6 MiB，未明显下降；累计收集计时约 118.4 → 90.5 ns／echo。计数覆盖启动、预热与收尾，Scoop 收集计时不是暂停分位数或 Go STW 的同口径指标。完整 CPU／内存／GC 数据在外部报告。
+
+Scoop 格式／静态检查、release 构建、Python ruff 通过。core executor 27 项、concurrent 76 项、asyncio 188 项、consumer 2 项、TLS／HTTP Runtime 各 1 项通过；定向 moving＋minor GC 共 6 项通过。新增五项测试覆盖恢复入口选择、强制 yield、并行恢复上限、单核回退、嵌套／普通投递、外线程／其他 executor、Draining 和移动根。正式 60 样本（含 12 个回调样本）共核对 71,885,685 次响应，三个 64 KiB／257 字节 buffer 短传输样本共 1,080 次响应，均正确。
+
+初次候选目录沿用旧库目录链接，构建已停止；六个被覆盖的旧库从原编译缓存逐字节恢复，候选输出改为独立目录。安装目录及固定对照可执行文件未改，恢复路径与摘要保留在外部记录。测试捕获状态、验证脚本参数和报告环境问题均已闭合。
+
+固定产物、源数据、图表、源码和复现脚本在 `/home/chenxu/benchmarks/http-improvements-20261112-round27`。只实测 Linux GNU/io_uring；三次闭环 P50 未校正 coordinated omission，不代表长期分布。HTTP／JSON、GC 参数矩阵、不均匀连接与长尾未重测。完成后清理本轮编译／测试及诊断 target，保留固定产物、源码、原始数据和共享缓存。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

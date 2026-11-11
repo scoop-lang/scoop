@@ -381,7 +381,7 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；退役在 callee 返回前直接发布 Waiting 的路径。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。
 
-恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，公开外部恢复按 executor 队列调度。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
+恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，旧驱动已经交出执行权后的恢复由普通 core 实现通过 ExecutorTask.dispatchResume 调度；executor 可按语言规范 11.9.3 在受控事件推进阶段执行，否则排队。旧驱动退出时已经锁存并由其领取的外部恢复继续通过 dispatch 排队；尚在发布的恢复须先取得旧驱动交出的调度义务，才能使用 dispatchResume。该普通接口方法不增加编译器 core 协程角色或 coroutine ABI。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
 
 内部 `coroutine_yield` 是无参数、Unit 结果的 suspend intrinsic，使用 tag 37。其私有结构化 MIR／CFG 表示为独立 Yield 节点，不伪造 registration callable；该节点保存 live values 和清理状态，建立 Waiting adapter，提交 Unit 成功结果并请求外部恢复，然后无条件返回 Suspended。当前 execution 直到所有调用层和 Context／异常清理退出后才发布下一次驱动。公开 yieldCoroutine 在调用该 intrinsic 前确认存在 executor，并在前后检查取消；无 executor 时不产生 Yield 节点的动态执行。HIR core-bootstrap-interface／cross-cone-interface 升至 22／92，MIR／LIR 的既有状态机表示不新增版本或 runtime ABI。
 

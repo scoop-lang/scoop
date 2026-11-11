@@ -73,7 +73,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
         pending = Some(work)
         if (current == DRIVE_IDLE) {
             state.store(DRIVE_QUEUED, MemoryOrder.Release)
-            schedule()
+            schedule(true)
             return
         }
         val ready =
@@ -92,7 +92,7 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
             DRIVE_PUBLISHING -> {}
             DRIVE_DETACHED -> {
                 state.store(DRIVE_QUEUED, MemoryOrder.Release)
-                schedule()
+                schedule(true)
             }
             DRIVE_FINISHED -> {
                 // The failed drive retired its registration while publication
@@ -131,10 +131,13 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
         drive(work)
     }
 
-    private fun schedule() {
-        // Acquire the registration before dispatch can run and finish elsewhere.
+    private fun schedule(resuming: Boolean = false) {
+        // Capture before dispatch can run and retire this registration.
         when (registration) {
-            case Some(val task) -> task.dispatch(this)
+            case Some(val task) -> if (resuming)
+                task.dispatchResume(this)
+            else
+                task.dispatch(this)
             case None -> run()
         }
     }

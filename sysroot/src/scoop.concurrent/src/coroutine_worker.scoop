@@ -14,6 +14,9 @@ internal class CoroutineWorker(val index: Int, val driver: CoroutineWorkerDriver
     // Only this worker changes its polling cursors.
     var localTurns = 0
     var victim = index + 1
+    var polling = false
+    var executing = false
+    var pollResumes = 0
     private val lock = Mutex()
     private val changed = ConditionVariable(lock)
     // 0 = awake, 1 = observing queues / parked, 2 = notified.

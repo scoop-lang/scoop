@@ -19,6 +19,10 @@ internal class MultiThreadTicket(
         owner.dispatch(this, work)
     }
 
+    public override fun dispatchResume(work: CoroutineWork) {
+        owner.dispatch(this, work, true)
+    }
+
     public override fun dispatchBlocking(work: BlockingWork) {
         owner.dispatchBlocking(this, work)
     }

@@ -109,8 +109,14 @@ public class MultiThreadExecutor internal constructor(
         join()
     }
 
-    internal fun dispatch(ticket: MultiThreadTicket, work: CoroutineWork) {
+    internal fun dispatch(
+        ticket: MultiThreadTicket,
+        work: CoroutineWork,
+        resuming: Boolean = false
+    ) {
         requireActive(ticket)
+        if (resuming && workers.tryResume(ticket.affinity, work))
+            return
         if (!workers.submit(ticket.affinity, work))
             throw IllegalStateException(Some("executor task is already complete"))
     }

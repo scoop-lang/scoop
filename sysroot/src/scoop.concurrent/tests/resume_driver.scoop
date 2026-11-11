@@ -1,0 +1,54 @@
+package scoop.concurrent.tests
+
+import scoop.collections.ArrayDeque
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+
+// A real worker driver with externally supplied events and persistent wakeups.
+internal class ResumeDriver: CoroutineWorkerDriver {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private val events = ArrayDeque<() -> Unit>()
+    private var notified = false
+
+    fun post(event: () -> Unit) {
+        lock.withLock {
+            events.addLast(event)
+            changed.signal()
+        }
+    }
+
+    public override fun enter() {}
+
+    public override fun poll() {
+        val event = lock.withLock { events.removeFirstOrNone() }
+        when (event) {
+            case Some(val event) -> event()
+            case None -> {}
+        }
+    }
+
+    public override fun park() {
+        lock.withLock {
+            while (events.size == 0L && !notified)
+                changed.await()
+            notified = false
+        }
+    }
+
+    public override fun wake() {
+        lock.withLock {
+            notified = true
+            changed.signal()
+        }
+    }
+
+    public override fun close() {}
+}
+
+internal fun resumeExecutor(sources: Array<ResumeDriver>): MultiThreadExecutor =
+    multiThreadExecutor {
+        workers = sources.size.toInt()
+        drivers(Array<CoroutineWorkerDriver>(sources.size) { sources[it] })
+        blocking { threads = 1 }
+    }

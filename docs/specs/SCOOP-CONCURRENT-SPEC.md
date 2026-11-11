@@ -111,7 +111,9 @@ MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine wo
 
 每个 worker 使用平台 Thread.start 的长期 managed 入口，等待路径为 NativeSafe，执行路径保留普通 safepoint。每个 CoroutineWork 负责进入及恢复自己的 TaskContext；BlockingWork 遵守语言规范 11.9.3 的 binding 快照、独立 invocation 与结果交付合同。work 抛出的未捕获 completion／协议异常在 worker 边界打印异常栈并以退出码 1 终止进程，不能只结束一个 worker；普通任务正文／blocking 闭包的异常仍由 core 交给 completion／Job。
 
-executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记、complete 与总计数使用生命周期锁；ticket 的原子活动标记供普通 dispatch 读取，投递不更新 ticket 计数、不取得 executor 全局锁。活动登记归零后，关闭在每条外部 inbox 末端以 CAS 发布终止标记，与正常入队争用同一链接；所有 inbox 封闭后才通知 worker 排空退出。本地队列只由其物理 owner 发布，owner 返回调度循环后须先排空已有工作，不能因停止标记跳过仍有工作的本地队列。与 complete 重叠的投递按语言规范 11.9.3 接纳或拒绝，成功投递的工作不能遗失。有效登记的 coroutine／blocking work 必须排队，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+多个 worker 且接入第 6 节 driver 时，dispatchResume 可在本池物理 worker 的 poll 内直接执行已交出旧驱动权的恢复，更新同一 ticket 的归属，不再建立队列项或通知其他 worker。每次 poll 最多直接执行 32 次，任一 CoroutineWork 正在执行时到达的恢复、超过此批次数的恢复以及普通 dispatch 继续进入原有队列。单 worker、无 driver、其他线程和其他 executor 的恢复也继续排队；单 worker 没有跨 worker 交接可省，不增加回调栈内执行的代价。此选择不改变 Context、登记、取消或 work-stealing 协议，不建立第二套任务生命周期。
+
+executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记、complete 与总计数使用生命周期锁；ticket 的原子活动标记供普通 dispatch 读取，投递不更新 ticket 计数、不取得 executor 全局锁。活动登记归零后，关闭在每条外部 inbox 末端以 CAS 发布终止标记，与正常入队争用同一链接；所有 inbox 封闭后才通知 worker 排空退出。本地队列只由其物理 owner 发布，owner 返回调度循环后须先排空已有工作，不能因停止标记跳过仍有工作的本地队列。与 complete 重叠的投递按语言规范 11.9.3 接纳或拒绝，成功投递的工作不能遗失。有效登记的普通 dispatch／blocking work 必须排队，dispatchResume 遵守上述执行窗口，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
 
 新根分散到 worker 队列，同 executor 的子登记继承父登记最近执行的 worker，外部恢复优先回该 worker；被窃取执行后更新归属。这只是内部局部性选择，不提供固定线程承诺，也不承担 payload 发布或关闭同步，归属读取／写入可使用 Relaxed 原子序。同池物理 worker 内部投递优先使用本地 FIFO，并先将已有 inbox 工作移入可用槽位；没有空间时继续排到 inbox，不能让 yield 越过已观察到的外部工作。队列不承诺不同来源之间的全局 FIFO，但须定期处理每个来源，不能用私有优先槽无限抢占旧工作。
 
@@ -145,7 +147,7 @@ public interface CoroutineWorkerDriver {
 
 enter 在 worker 执行任务前调用一次；poll 在有限批任务之间及空闲重查时非阻塞推进事件；park 仅在发布观察状态并重查后等待。wake 可跨线程并发调用，须让已开始或即将开始的 park 返回，不能丢失先于等待到达的通知。除 wake 外的方法均由所属 worker 串行调用。已启动 worker 在队列排空后调用一次 close，再发布 worker 终止；close 排空 driver 自有工作，不能等待其他尚未退出的 coroutine worker。wake 与 close 的竞争由 driver 的资源生命周期边界协调。driver 内部异常应交给所属 I/O 运行的结果；未捕获异常沿第 5 节 worker 协议处理。未启动 worker 的 driver 由调用方清理。
 
-无 driver 时继续使用原有条件变量等待。自有 blocking pool 的停止推迟到全部 coroutine workers（含 driver 收尾）退出后；借用池仍由其 owner 管理。该接口只连接实际事件驱动与现有调度器，不提供后端注册表、第二套任务树或任务执行替代入口。
+poll 的直接恢复窗口由 worker 在调用前建立、在全部正常／异常出口关闭；执行 work 期间关闭嵌套直接恢复资格。driver 的 enter、park、wake 和 close 不开启该窗口。无 driver 时继续使用原有条件变量等待。自有 blocking pool 的停止推迟到全部 coroutine workers（含 driver 收尾）退出后；借用池仍由其 owner 管理。该接口只连接实际事件驱动与现有调度器，不提供后端注册表、第二套任务树或任务执行替代入口。
 
 ```scoop
 public class BlockingPoolBuilder public constructor() {

@@ -346,3 +346,13 @@ B25 的分层实验把主要用户态差距定位到通用 managed I/O 和协程
 槽的本次传输代次与 Job 绑定代次分别承担实际的竞争边界：旧取消回调检查绑定，排队撤销检查传输代次。取消错误通过选定／发布状态交付；正常完成选定后不再被迟到取消覆盖。槽在解除借用及资源忙状态前清空本次捕获，允许恢复回调马上启动下一次使用，不把旧操作的尾部清理留到复用之后。native 编号在实际退休后复用，资源关闭时清除持久登记。公开 suspend API、每次 buffer 借用、原生真实退休以及结构化任务合同保持。
 
 此次只重构字节传输的 managed 生命周期，后端共享原来的真实 I/O 实现。以完整 TCP 程序与 B24 固定产物、Go 的吞吐和 CPU／echo 比较，不以减少某个字段或分配小项作为完成依据。
+
+### 4.4 B27：并行 reactor 上受控恢复
+
+B26 完整协程的用户态 CPU 仍明显高于直接使用同一字节等待槽的回调程序。隔离实验分别展开多层 suspend 调用、在 reactor 完成栈内恢复、增加 owner 本地恢复槽：本地槽只改善单连接，高并发没有收益；就地恢复改善并行场景，但单 worker 回退。因此先改变并行恢复交接，不继续微调队列槽，也不把展开后的诊断程序作为公开 API 的替代品。
+
+core 的 ExecutorTask 增加普通 dispatchResume 方法，默认仍排队；只有旧 drive 已完成 frame／Context／catch 收尾并交出执行权的发布者使用它。startDispatchedCoroutine、withExecutor、yield 及旧 drive 退出时已经锁存并由其领取的外部恢复仍用强制排队的 dispatch。编译器生成的 adapter、execution 原子发布协议和 runtime ABI 不变。
+
+MultiThreadExecutor 只在本池多个 worker 的 driver.poll 窗口内直接执行恢复，每轮最多 32 次，执行中的嵌套恢复继续进入原有无锁 FIFO／inbox。单 worker、外线程、其他 executor、普通用户任务和非 poll 的 driver 阶段都继续排队。直接恢复复用相同执行入口、ticket、TaskContext 和 managed 根；不增加生命周期或私有优先队列。I/O 在交付前已经结束本次借用及资源占用，产生的新 ready 留到下一轮，因此直接恢复不递归 pump，也不从提交栈交付完成。
+
+此变化减少完成事件到可运行任务的入队、唤醒和迁移，但保留协程 frame／adapter 的成本。验收同时比较单／多 worker、单／多连接的完整公开 API 程序、固定回调程序和 Go，后续依据剩余 CPU 差距选择下一大项。

@@ -55,6 +55,21 @@ internal class CoroutineWorkers private constructor(
         }
     }
 
+    internal fun tryResume(affinity: AtomicInt, work: CoroutineWork): Boolean {
+        // With one worker there is no cross-worker handoff to eliminate.
+        if (records.size <= 1L)
+            return false
+        val current = CoroutineWorkerContext.current(identity)
+        if (current < 0)
+            return false
+        val record = records[current.toLong()]
+        if (!record.polling || record.executing || record.pollResumes == 32)
+            return false
+        record.pollResumes += 1
+        execute(record, affinity, work)
+        return true
+    }
+
     internal fun submit(affinity: AtomicInt, work: CoroutineWork): Boolean {
         val current = CoroutineWorkerContext.current(identity)
         val target =
@@ -154,15 +169,34 @@ internal class CoroutineWorkers private constructor(
     }
 
     private fun execute(record: CoroutineWorker, work: CoroutineSubmission) {
-        work.affinity.store(record.index, MemoryOrder.Relaxed)
-        work.work.run()
+        execute(record, work.affinity, work.work)
+    }
+
+    private fun execute(record: CoroutineWorker, affinity: AtomicInt, work: CoroutineWork) {
+        affinity.store(record.index, MemoryOrder.Relaxed)
+        record.executing = true
+        try {
+            work.run()
+        } finally {
+            record.executing = false
+        }
+    }
+
+    private fun poll(record: CoroutineWorker) {
+        record.pollResumes = 0
+        record.polling = true
+        try {
+            record.driver?.poll()
+        } finally {
+            record.polling = false
+        }
     }
 
     private fun drive(record: CoroutineWorker) {
         var turns = 0
         while (true) {
             if (turns == 0) {
-                record.driver?.poll()
+                poll(record)
                 turns = 32
             }
             when (findWork(record)) {
@@ -179,7 +213,7 @@ internal class CoroutineWorkers private constructor(
             // scan or changes the parking predicate before the worker can sleep.
             observers.fetchAdd(1)
             record.observe()
-            record.driver?.poll()
+            poll(record)
             val work = findWork(record)
             when (work) {
                 case Some(val work) -> {
