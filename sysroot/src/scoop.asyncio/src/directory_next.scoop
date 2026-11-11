@@ -19,14 +19,14 @@ internal suspend fun nextDirectoryName(owner: OwnedDirectory, job: Job): OsStrin
     suspendCoroutine<OsString?> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 owner.loop,
                 owner.loop.nextOperation(),
                 {
                     _,
                     id -> @Unsafe
                     {
-                        return@LoopOperation nativeStatus(
+                        return@CallbackOperation nativeStatus(
                             id,
                             nativeDirectoryNext(owner.pointer, id)
                         )

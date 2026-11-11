@@ -94,7 +94,7 @@ private suspend fun <R> fileControl(
         return suspendCoroutine<R> {
             continuation ->
             val operation =
-                LoopOperation(
+                CallbackOperation(
                     owner.loop,
                     owner.loop.nextOperation(),
                     { _, id -> nativeStatus(id, start(id)) },
@@ -123,7 +123,7 @@ private suspend fun <R> fileControl(
                                     }
                                     catch (error: Throwable) {
                                         continuation.resumeWithException(error);
-                                        return@LoopOperation
+                                        return@CallbackOperation
                                     }
                                 continuation.resume(value)
                             }

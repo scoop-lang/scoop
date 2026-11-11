@@ -5,16 +5,18 @@ import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.concurrent.*
 import scoop.time.Duration
 
-internal class TransportFailure : Exception(Some("test HTTP transport failure"))
-internal class CleanupFailure : Exception(Some("test HTTP cleanup failure"))
+internal class TransportFailure: Exception(Some("test HTTP transport failure"))
 
-internal class ObservedTransport(val inner: AsyncTcpStream) : AsyncByteStream, AsyncCloseable {
+internal class CleanupFailure: Exception(Some("test HTTP cleanup failure"))
+
+internal class ObservedTransport(val inner: AsyncTcpStream): AsyncByteStream, AsyncCloseable {
     var reads: Long = 0L
     var writes: Long = 0L
     var closes: Int = 0
     var readLimit: Long = 4093L
     var writeLimit: Long = 2053L
     var failWrite: Boolean = false
+    var failWriteAfter: Long? = None
     var zeroWrite: Boolean = false
     var failClose: Boolean = false
     var writeGate: AsyncGate? = None
@@ -34,35 +36,73 @@ internal class ObservedTransport(val inner: AsyncTcpStream) : AsyncByteStream, A
         reads += 1L
         readJob = currentJobOrNone()
         readStarted.signal()
-        if (present(readGate)) readGate!!.await()
-        if (closing.load()) throw IoClosedException()
-        return inner.readInto(buffer, if (count < readLimit) count else readLimit)
+        if (present(readGate))
+            readGate!!.await()
+        if (closing.load())
+            throw IoClosedException()
+        return inner.readInto(
+            buffer,
+            if (count < readLimit)
+                count
+            else
+                readLimit
+        )
     }
     public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long {
         writes += 1L
         writeJob = currentJobOrNone()
         writeStarted.signal()
-        if (present(writeGate)) writeGate!!.await()
-        if (writeDelay > Duration.ZERO) currentEventLoop().sleep(writeDelay)
-        if (closing.load()) throw IoClosedException()
-        if (failWrite) throw TransportFailure()
-        if (zeroWrite) return 0L
-        return inner.writeFrom(buffer, if (count < writeLimit) count else writeLimit)
+        if (present(writeGate))
+            writeGate!!.await()
+        if (writeDelay > Duration.ZERO)
+            currentEventLoop().sleep(writeDelay)
+        if (closing.load())
+            throw IoClosedException()
+        if (failWrite)
+            throw TransportFailure()
+        if (zeroWrite)
+            return 0L
+        var limit =
+            if (count < writeLimit)
+                count
+            else
+                writeLimit
+        when (failWriteAfter) {
+            case Some(val remaining) -> {
+                if (remaining == 0L)
+                    throw TransportFailure()
+                if (limit > remaining)
+                    limit = remaining
+            }
+            case None -> {}
+        }
+        val written = inner.writeFrom(buffer, limit)
+        when (failWriteAfter) {
+            case Some(val remaining) -> failWriteAfter = Some(remaining - written)
+            case None -> {}
+        }
+        return written
     }
     public override suspend fun flush() {
         flushStarted.signal()
-        if (present(flushGate)) flushGate!!.await()
-        if (closing.load()) throw IoClosedException()
+        if (present(flushGate))
+            flushGate!!.await()
+        if (closing.load())
+            throw IoClosedException()
         inner.flush()
     }
     public override suspend fun close() {
         closes += 1
         closing.store(true)
-        if (present(writeGate)) writeGate!!.signal()
-        if (present(flushGate)) flushGate!!.signal()
+        if (present(writeGate))
+            writeGate!!.signal()
+        if (present(flushGate))
+            flushGate!!.signal()
         closeStarted.signal()
-        if (present(closeGate)) closeGate!!.await()
+        if (present(closeGate))
+            closeGate!!.await()
         inner.close()
-        if (failClose) throw CleanupFailure()
+        if (failClose)
+            throw CleanupFailure()
     }
 }

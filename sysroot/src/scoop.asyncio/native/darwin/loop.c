@@ -125,31 +125,9 @@ void scoop_io_complete(ScoopIoLoop *loop, ScoopIoCompletion *completion, int sta
     pthread_mutex_unlock(&loop->mutex);
 }
 
-int64_t scoop_io_loop_batch_size(ScoopIoLoop *loop) {
-    pthread_mutex_lock(&loop->mutex);
-    int64_t count = loop->completions;
-    pthread_mutex_unlock(&loop->mutex);
-    return count;
-}
-
-ScoopIoEvent scoop_io_loop_next(ScoopIoLoop *loop) {
-    pthread_mutex_lock(&loop->mutex);
-    ScoopIoCompletion *entry = loop->head;
-    if (entry) {
-        loop->head = entry->next;
-        if (!loop->head)
-            loop->tail = NULL;
-        loop->completions--;
-    }
-    pthread_mutex_unlock(&loop->mutex);
-    if (!entry)
-        return (ScoopIoEvent){0};
-    ScoopIoEvent event = entry->event;
-    free(entry);
-    return event;
-}
-
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
+    if (loop->retired_batch || loop->tcp_submissions.count)
+        return false;
     pthread_mutex_lock(&loop->mutex);
     bool idle =
         !loop->head && !loop->requests && !loop->work && !loop->actions && !loop->work_runners;

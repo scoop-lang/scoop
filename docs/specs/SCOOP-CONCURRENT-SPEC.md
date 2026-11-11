@@ -107,11 +107,19 @@ public class BlockingTaskPool public constructor(threads: Int) : Closeable {
 }
 ```
 
-MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine workers；BlockingTaskPool 建立独立的固定 managed workers，执行任意普通 Scoop 闭包所产生的 BlockingWork，不限制为 GC-free。两类 worker 复用内部线程队列实现，队列中的普通 managed work wrapper 保活实际 CoroutineWork／BlockingWork。短平台 Mutex 保护 FIFO ArrayDeque 和关闭状态，ConditionVariable 在同一锁下检查谓词、等待与唤醒；锁外执行 work。没有隐式全局池、无限线程、调用线程 fallback 或任意队列数上限。
+MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine workers；BlockingTaskPool 建立独立的固定 managed workers，执行任意普通 Scoop 闭包所产生的 BlockingWork，不限制为 GC-free。协程 worker 各有一个单生产者本地环形 FIFO 和一个接收外部投递的 CAS 无锁 inbox。物理 worker 内的同池投递进入自己的本地队列，外部恢复进入目标 inbox；本地空间不足时溢出到 inbox，不限制实际可接纳工作总量。worker 定期检查外部来源，空闲时批量窃取其他 worker 的本地工作；阻塞池保持独立的 Mutex／ConditionVariable FIFO，不参与窃取。没有隐式全局池、无限线程或调用线程 fallback。
 
 每个 worker 使用平台 Thread.start 的长期 managed 入口，等待路径为 NativeSafe，执行路径保留普通 safepoint。每个 CoroutineWork 负责进入及恢复自己的 TaskContext；BlockingWork 遵守语言规范 11.9.3 的 binding 快照、独立 invocation 与结果交付合同。work 抛出的未捕获 completion／协议异常在 worker 边界打印异常栈并以退出码 1 终止进程，不能只结束一个 worker；普通任务正文／blocking 闭包的异常仍由 core 交给 completion／Job。
 
-executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记检查、计数和 complete 在同一锁下处理。有效登记的 coroutine／blocking work 必须排队，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+多个 worker 且接入第 6 节 driver 时，dispatchResume 可在本池物理 worker 的 poll 内直接执行已交出旧驱动权的恢复，更新同一 ticket 的归属，不再建立队列项或通知其他 worker。每次 poll 最多直接执行 32 次，任一 CoroutineWork 正在执行时到达的恢复、超过此批次数的恢复以及普通 dispatch 继续进入原有队列。单 worker、无 driver、其他线程和其他 executor 的恢复也继续排队；单 worker 没有跨 worker 交接可省，不增加回调栈内执行的代价。此选择不改变 Context、登记、取消或 work-stealing 协议，不建立第二套任务生命周期。
+
+executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记、complete 与总计数使用生命周期锁；ticket 的原子活动标记供普通 dispatch 读取，投递不更新 ticket 计数、不取得 executor 全局锁。活动登记归零后，关闭在每条外部 inbox 末端以 CAS 发布终止标记，与正常入队争用同一链接；所有 inbox 封闭后才通知 worker 排空退出。本地队列只由其物理 owner 发布，owner 返回调度循环后须先排空已有工作，不能因停止标记跳过仍有工作的本地队列。与 complete 重叠的投递按语言规范 11.9.3 接纳或拒绝，成功投递的工作不能遗失。有效登记的普通 dispatch／blocking work 必须排队，dispatchResume 遵守上述执行窗口，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+
+新根分散到 worker 队列，同 executor 的子登记继承父登记最近执行的 worker，外部恢复优先回该 worker；被窃取执行后更新归属。这只是内部局部性选择，不提供固定线程承诺，也不承担 payload 发布或关闭同步，归属读取／写入可使用 Relaxed 原子序。同池物理 worker 内部投递优先使用本地 FIFO，并先将已有 inbox 工作移入可用槽位；没有空间时继续排到 inbox，不能让 yield 越过已观察到的外部工作。队列不承诺不同来源之间的全局 FIFO，但须定期处理每个来源，不能用私有优先槽无限抢占旧工作。
+
+本地槽位使用 managed 数组，每项工作领取后清空引用；在途窃取保留所占范围，完成复制和清空之前不能把槽位交回 producer。窃取中的 worker 暂停时，owner 可继续处理未预留工作，空间不足的新工作进入 inbox，其他窃取者不在该预留上自旋等待。inbox 的节点和在途读取仍是正常 managed 根，领取后清除 payload，并将旧 head 后继替换为独立终止标记；不能恢复为表示开放末端的自链接。标量 thread-local 状态仅识别物理 worker 所属池和序号，不保存 managed 指针或提供公开线程亲和保证。队列算法不使用 mutex，分配和 GC 仍遵守通常运行时合同。
+
+休眠与队列分开：worker 先发布观察状态，再扫描全部工作来源，最后在自身 parking mutex 下检查通知后等待；生产者先发布工作，再以原子状态通知观察中的 worker，并在该 worker 的 mutex 下 signal。扫描已找到工作时到达的通知须转交其他观察者，不能因为本线程不再等待就丢弃其唤醒义务。关闭广播通知全部 worker；实际执行、入队、出队与窃取不持有 parking 或生命周期锁。
 
 requestShutdown 幂等请求排空，不取消 Job。executor 的活动登记为零后才停止 coroutine 队列和自有 blocking pool 的接纳；正式 Terminated 还须全部 coroutine workers 退出执行循环、自己的 blocking 工作实际退出，以及自有 blocking pool 全部退出执行循环。共享池不关闭，只等待本 executor 的工作完成。悬挂且永不恢复的原始任务可以使关闭无限等待，这是其调用者的生命周期责任。
 
@@ -125,6 +133,22 @@ invokeOnTermination 是组合组件使用的普通一次性通知，不创建 co
 
 ## 6. Executor 配置
 
+AsyncRuntime 通过以下窄接口将 reactor 接到 coroutine worker，不再另建调度队列。每个 driver 只交给一个 worker；资源由调用方在工厂调用前准备，调用方保留初始化失败后的清理责任。
+
+```scoop
+public interface CoroutineWorkerDriver {
+    public fun enter()
+    public fun poll()
+    public fun park()
+    public fun wake()
+    public fun close()
+}
+```
+
+enter 在 worker 执行任务前调用一次；poll 在有限批任务之间及空闲重查时非阻塞推进事件；park 仅在发布观察状态并重查后等待。wake 可跨线程并发调用，须让已开始或即将开始的 park 返回，不能丢失先于等待到达的通知。除 wake 外的方法均由所属 worker 串行调用。已启动 worker 在队列排空后调用一次 close，再发布 worker 终止；close 排空 driver 自有工作，不能等待其他尚未退出的 coroutine worker。wake 与 close 的竞争由 driver 的资源生命周期边界协调。driver 内部异常应交给所属 I/O 运行的结果；未捕获异常沿第 5 节 worker 协议处理。未启动 worker 的 driver 由调用方清理。
+
+poll 的直接恢复窗口由 worker 在调用前建立、在全部正常／异常出口关闭；执行 work 期间关闭嵌套直接恢复资格。driver 的 enter、park、wake 和 close 不开启该窗口。无 driver 时继续使用原有条件变量等待。自有 blocking pool 的停止推迟到全部 coroutine workers（含 driver 收尾）退出后；借用池仍由其 owner 管理。该接口只连接实际事件驱动与现有调度器，不提供后端注册表、第二套任务树或任务执行替代入口。
+
 ```scoop
 public class BlockingPoolBuilder public constructor() {
     public var threads: Int
@@ -133,11 +157,14 @@ public class ExecutorBuilder public constructor() {
     public var workers: Int
     public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
     public fun blocking(pool: BlockingTaskPool)
+    public fun drivers(drivers: Array<CoroutineWorkerDriver>)
 }
 public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): MultiThreadExecutor
 ```
 
 workers 默认取平台逻辑 CPU 数的合法正 Int 表示，blocking 默认 4 threads。配置函数执行一次，结束后复制为不可变配置；再次修改捕获的 builder 不影响已建立对象。blocking 的两种配置分别选择自有池／借用池，最后一次配置生效，不能同时存在两组池。全部数量在创建任何线程前校验，非正值抛 IllegalArgumentException。工厂立即创建可用 executor；失败清理自身创建的池与 worker，不关闭借用池。BlockingPoolBuilder 是可跨 Cone 复用的普通配置类，后续 event loop／runtime 使用同一配置语义。
+
+drivers 可选，数组长度必须等于 workers，否则在线程创建前抛 IllegalArgumentException。配置快照复制数组元素，不受之后修改原数组影响；driver 本身由各 worker 独占使用，不复制其资源。
 
 ## 7. 验证边界
 

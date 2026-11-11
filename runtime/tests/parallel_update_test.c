@@ -55,6 +55,13 @@ static void check_remembered_ranges(ParallelFixture *fixture, bool survivors) {
     scoop_gc_heap_unlock();
 }
 
+static size_t mixed_array_length(size_t index) {
+    const size_t small[] = {0, 1, 2, 7, 8, 31, 63, 64, 65};
+    const size_t large[] = {1023, 1024, 1025, 1031};
+    return index % 97 == 0 ? large[(index / 97) % (sizeof large / sizeof *large)]
+                           : small[index % (sizeof small / sizeof *small)];
+}
+
 static void check_mixed_arrays(ParallelFixture *fixture) {
     const size_t count = 2049;
     ScoopArray *outer = nursery_allocate(&parallel_array_td, 24 + count * sizeof(ParallelEdge));
@@ -62,7 +69,7 @@ static void check_mixed_arrays(ParallelFixture *fixture) {
     fixture->objects[4] = outer;
     for (size_t index = 0; index < count; index++) {
         bool numbers = index % 3 == 0;
-        size_t length = index % 97 == 0 ? 1031 : index % 9;
+        size_t length = mixed_array_length(index);
         size_t stride = numbers ? sizeof(uint64_t) : sizeof(ParallelEdge);
         const ScoopTypeDescriptor *td = numbers ? &parallel_numbers_td : &parallel_array_td;
         ScoopArray *child = nursery_allocate(td, 24 + length * stride);
@@ -81,8 +88,8 @@ static void check_mixed_arrays(ParallelFixture *fixture) {
         elements[index] = (ParallelEdge){child, index, fixture->objects[1]};
         scoop_rt_gc_write_barrier(&elements[index], sizeof elements[index]);
     }
-    /* More than one live chunk mixes empty, pointer-free and reference arrays;
-     * some reference arrays also publish a final partial range during update. */
+    /* More than one live chunk mixes empty, pointer-free and reference arrays.
+     * Lengths cross the small-array batch boundary and the range split boundary. */
     for (size_t round = 0; round < 2; round++) {
         nursery_collect(round == 0);
         if (round == 0) {
@@ -91,7 +98,7 @@ static void check_mixed_arrays(ParallelFixture *fixture) {
         ParallelEdge *elements = (void *)((char *)fixture->objects[4] + 24);
         for (size_t index = 0; index < count; index++) {
             bool numbers = index % 3 == 0;
-            size_t length = index % 97 == 0 ? 1031 : index % 9;
+            size_t length = mixed_array_length(index);
             ScoopArray *child = elements[index].left;
             assert(child->size == length && elements[index].padding == index);
             assert(elements[index].right == fixture->objects[1]);

@@ -52,6 +52,10 @@ HttpRequestBody.json 使用显式 ValueDecoder 或 T.Companion；只接受 appli
 
 启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
 
+server、连接和 H2 请求任务的初始化交接使用一次完成通知，区分已经安装状态与未安装即结束。等待方直接等待该交接结果，不为一次通知建立 Channel 或额外结构化作用域；取消仍先通知启动中的子任务，再等待其完成交接，不能提前丢弃尚在移交的资源。通知只选择一次，唤醒在状态锁外执行。
+
+TCP 接受循环及连接所有权安装在 EventLoop owner executor 上推进，不跟随业务请求在 worker 队列中逐次等待。连接的协议处理、业务与正常清理使用 server 所属 scope 的原 executor，继承相同 Context 和 Job 树；worker 尚未开始执行即被取消时，由已经接管连接的 owner 任务关闭 transport 并撤销连接登记。该分工复用已有 executor，不增加线程。
+
 HttpServer.takeOwnership(listener, application, scope, options) 检查选项和当前／父 Job，在父 scope 中登记自己的所有者后接管 listener。登记前失败仍由调用方清理；登记后失败由 server 清理。返回表示接受循环已建立。application 和可共享的 TlsServerContext 由调用方持有，不随 server 自动关闭。一个连接的握手、业务和清理失败在连接边界隔离；不取消其他连接。
 
 HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=httpServerOptions()) 在当前 EventLoop 上创建 TCP listener，再沿同一 takeOwnership 流程启动；创建的 listener 在任何启动失败时都由此入口关闭。host 可显式选择其他 IPv4／IPv6 地址，port=0 由 OS 选择端口；HttpServer.localAddress 保存实际监听地址，关闭后仍可读取。需要 backlog、reuseAddress 等底层选项时，仍可自行创建 listener 后接管。
@@ -69,6 +73,10 @@ Expect 使用 HTTP 消息层的完整解析结果。包含未知 expectation 时
 TLS 握手总时限默认 10 秒；首条请求头从握手完成（明文为连接任务开始）到完整首部的总时限默认 10 秒，包含明文协议探测；H1 后续无活动请求时从开始等待到下一完整请求头的总时限默认 60 秒。bodyReadIdle 和 responseWriteIdle 默认 30 秒，复用异步 HTTP 层真实 I/O 进展计时；这些不是请求总时限。requestDeadline 默认关闭，启用后覆盖进入管线直到响应和请求子任务结束。超时执行协作式取消并等待清理，不在已关闭连接上补发 504。H1 没有独立的断开通知，TCP 半关闭仍可以等待响应。
 
 HttpContext.setDeadline(Duration?) 允许端点或 middleware 在最终响应提交前覆盖本次请求的总时限；None 明确关闭，非负 Duration 始终从本次请求进入管线时计起，不从设置时重新计时。新的期限可以缩短或延长，也可以在默认关闭时启用；不改变连接或 I/O idle 规则。已到期、取消或结束的请求不能被恢复。期限观测与请求处于同一结构化作用域，覆盖管线及其子任务的实际结束；到期后等待取消清理，完成通知保留实际到期时配置的时长。
+
+请求头及请求总时限使用 asyncio 的一次性 schedule 通知；正常结束撤销通知，不为计时建立并取消辅助 coroutine。关闭的请求总时限不登记 watcher，动态启用／变更时按原管线起点重新登记；替换与到期选择在同一状态边界，旧通知不得取消更新后的请求。到期或 native timer 失败只取消所属操作／请求，结构化子任务及资源仍实际清理完毕后交付对应异常。
+
+H1 完成一条请求并释放活动请求名额后，若连接仍可复用，先通过 executor 的普通 runnable 队列让出执行，再处理下一条请求。不能依赖超时任务的创建／取消或 I/O 恰好真正挂起来提供公平性；缓冲命中、提前完成的 I/O 与持续 keep-alive 请求也必须给其他已排队工作执行机会。该边界不限制请求数量或执行时间，不抢占单个 handler。
 
 server 有 Running／Draining／Closed 三态。shutdownGracefully 先停止接受并取消无活动请求的 H1 连接；活动请求完成后关闭，不进入下一次业务分派。默认自然排空宽限 30 秒，届满后取消所有者和剩余连接，等待真实 I/O 与资源清理。close 直接执行强制取消并等待；并发等待共享同一所有者结果。awaitTermination 只等待。调用方取消关闭等待也不能跳过本地资源清理；清理失败保留实际异常。
 

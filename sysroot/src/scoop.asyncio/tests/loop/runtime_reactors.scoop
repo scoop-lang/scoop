@@ -1,0 +1,149 @@
+package scoop.asyncio
+
+import scoop.concurrent.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class RuntimeReactorsTest {
+    @Test
+    fun `root and reactor failures preserve body and cleanup ordering`() {
+        val body = IllegalArgumentException(Some("root failure"))
+        val cleanup = IllegalStateException(Some("reactor failure"))
+        val failure =
+            assertFailsWith<ResourceUseException> {
+                asyncRuntime {
+                    workers = 4;
+                    blocking { threads = 1 }
+                }.run {
+                    val runtime = currentEventLoop() as RuntimeEventLoop
+                    runtime.nextOwner().cleanupFailed(cleanup)
+                    throw body
+                }
+            }
+        assertSame(body, failure.primaryFailure)
+        assertSame(cleanup, failure.cleanupFailure)
+    }
+
+    @Test
+    fun `every reactor advances timers while runnable work keeps arriving`() {
+        asyncRuntime {
+            workers = 4;
+            blocking { threads = 1 }
+        }.run {
+            val runtime = currentEventLoop() as RuntimeEventLoop
+            val owners = Array<LoopOwner>(4L) { runtime.nextOwner() }
+            val events = Channel<Int>(4L)
+            val running = AtomicBoolean(true)
+            for (_ in 0 ..< 16)
+                launch {
+                    while (running.load())
+                        yieldCoroutine()
+                }
+            try {
+                for (index in 0 ..< 4) {
+                    scheduleOnLoop(owners[index.toLong()], Duration.nanoseconds(1L)) {
+                        failure ->
+                        when (failure) {
+                            case Some(val error) -> throw error
+                            case None -> {}
+                        }
+                        assertEquals(index, RuntimeWorkerContext.current(runtime.identity))
+                        assertEquals(TrySendResult.Sent, events.trySend(index))
+                    }
+                }
+                var mask = 0
+                for (_ in 0 ..< 4)
+                    mask = mask or (1 shl events.receive().toLong())
+                assertEquals(15, mask)
+            } finally {
+                running.store(false)
+            }
+        }
+    }
+
+    @Test
+    fun `one listener transfers streams and preserves I/O across another executor`() {
+        exerciseReactorStreams(1, false)
+        exerciseReactorStreams(4, false)
+    }
+
+    @Test
+    fun `reactor stream handoffs survive moving collection`() {
+        exerciseReactorStreams(4, true)
+    }
+}
+
+private fun exerciseReactorStreams(workerCount: Int, collect: Boolean) {
+    multiThreadExecutor {
+        this.workers = 2;
+        blocking { threads = 1 }
+    }.use {
+        other -> asyncRuntime {
+            this.workers = workerCount;
+            blocking { threads = 1 }
+        }.run {
+            val scope = this
+            val loop = currentEventLoop()
+            val executor = loop.executor
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync {
+                listener ->
+                scope.launch suspend {
+                    for (_ in 0 ..< 8) {
+                        val peer = listener.accept()
+                        scope.launch suspend {
+                            peer.useAsync {
+                                NativeByteBuffer.allocate(7L).use {
+                                    bytes ->
+                                    var remaining = 257L
+                                    while (remaining > 0L) {
+                                        bytes.clear()
+                                        val count =
+                                            peer.readInto(
+                                                bytes,
+                                                if (remaining < 7L)
+                                                    remaining
+                                                else
+                                                    7L
+                                            )
+                                        assertTrue(count > 0L)
+                                        if (collect)
+                                            gcCollect()
+                                        peer.writeFully(bytes, count)
+                                        remaining -= count
+                                        yieldCoroutine()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                val clients =
+                    Array<Deferred<Unit>>(8L) {
+                        index -> scope.async<Unit> suspend {
+                            loop.connectTcp(listener.localAddress).useAsync {
+                                stream -> NativeByteBuffer.allocate(257L).use {
+                                    bytes ->
+                                    for (offset in 0L ..< 257L)
+                                        bytes.writeByte((offset + index).toByte())
+                                    withExecutor(other) {
+                                        assertSame(loop, currentEventLoop())
+                                        stream.writeFully(bytes)
+                                        bytes.clear()
+                                        stream.readFully(bytes)
+                                    }
+                                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                                    for (offset in 0L ..< 257L)
+                                        assertEquals((offset + index).toByte(), bytes.readByte())
+                                }
+                            }
+                        }
+                    }
+                for (client in clients)
+                    client.await()
+            }
+        }
+    }
+}

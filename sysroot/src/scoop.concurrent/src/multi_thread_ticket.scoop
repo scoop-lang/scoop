@@ -1,0 +1,33 @@
+package scoop.concurrent
+
+internal class MultiThreadTicket(
+    internal val owner: MultiThreadExecutor,
+    worker: Int
+): ExecutorTask {
+    internal val affinity = AtomicInt(worker)
+    private val admitted = AtomicBoolean(true)
+    internal val active: Boolean get() = admitted.load()
+
+    // The owner serializes registration and retirement with its lifecycle mutex.
+    internal fun retire() {
+        admitted.store(false)
+    }
+
+    public override val executor: CoroutineExecutor get() = owner
+
+    public override fun dispatch(work: CoroutineWork) {
+        owner.dispatch(this, work)
+    }
+
+    public override fun dispatchResume(work: CoroutineWork) {
+        owner.dispatch(this, work, true)
+    }
+
+    public override fun dispatchBlocking(work: BlockingWork) {
+        owner.dispatchBlocking(this, work)
+    }
+
+    public override fun complete() {
+        owner.complete(this)
+    }
+}

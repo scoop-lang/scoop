@@ -100,8 +100,15 @@ fn reader_retains_saved_selected_semantics() {
     let roots = vec![LayoutAbiDependencyV1::new(remote, target)];
     let expected = empty_exports(consumer);
     let dependencies = [terminal.exports()];
+    let unselected = section(expected.clone(), &dependencies, &[]).unwrap();
     let section = section(expected.clone(), &dependencies, &roots).unwrap();
     let bytes = encode(&section).unwrap();
+    assert_ne!(bytes, encode(&unselected).unwrap());
+    assert_eq!(
+        encode(section.exports()).unwrap(),
+        encode(unselected.exports()).unwrap()
+    );
+    assert_eq!(encode(section.exports()).unwrap()[0], 0xa5);
     let decoded: DecodedCrossConeLayoutAbiSectionV1 = decode_canonical(&bytes).unwrap();
     let mut pending = PendingIdentityValidation::new();
     pending.register_authority(remote).unwrap();

@@ -97,13 +97,28 @@ impl<L: WireEncode, C: WireEncode, D: WireEncode, T: WireEncode> WireEncode
 impl WireEncode for CrossConeLayoutAbiSectionV1<'_> {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
         encoder.map(6)?;
-        field(encoder, 1, self.layouts())?;
-        field(encoder, 2, self.descriptors())?;
-        field(encoder, 3, self.dispatch())?;
-        field(encoder, 4, self.callables())?;
-        field(encoder, 5, self.shape_support())?;
+        encode_exports(self.exports(), encoder)?;
         field(encoder, 6, self.selected())
     }
+}
+
+/// Dependency interfaces exclude imports used only by the implementation.
+impl WireEncode for LayoutAbiExportConstituentsV1 {
+    fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
+        encoder.map(5)?;
+        encode_exports(self, encoder)
+    }
+}
+
+fn encode_exports(
+    exports: &LayoutAbiExportConstituentsV1,
+    encoder: &mut Encoder,
+) -> Result<(), scoop_wire::cbor::EncodeError> {
+    field(encoder, 1, exports.layouts())?;
+    field(encoder, 2, exports.descriptors())?;
+    field(encoder, 3, exports.dispatch())?;
+    field(encoder, 4, exports.callables())?;
+    field(encoder, 5, exports.shape_support())
 }
 
 impl WireDecode for DecodedSelectedDependencyLayoutAbiSetV1 {

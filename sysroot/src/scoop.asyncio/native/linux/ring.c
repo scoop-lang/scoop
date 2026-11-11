@@ -62,7 +62,7 @@ static void ring_error(ScoopIoLoop *loop, int status) {
     // submission via the kernel SQ head; never repack or free published entries.
 }
 
-void scoop_io_ring_poll(ScoopIoLoop *loop) {
+static void reap_completions(ScoopIoLoop *loop) {
     unsigned count = io_uring_cq_ready(&loop->ring);
     for (unsigned i = 0; i < count; i++) {
         struct io_uring_cqe *completion;
@@ -79,6 +79,9 @@ void scoop_io_ring_poll(ScoopIoLoop *loop) {
     if (io_uring_cq_has_overflow(&loop->ring)) {
         ring_error(loop, io_uring_get_events(&loop->ring));
     }
+}
+
+void scoop_io_ring_submit(ScoopIoLoop *loop) {
     while (loop->control.head || loop->pending.head) {
         struct io_uring_sqe *sqe = io_uring_get_sqe(&loop->ring);
         if (!sqe)
@@ -100,6 +103,14 @@ void scoop_io_ring_poll(ScoopIoLoop *loop) {
         loop->submission_blocked = status < 0 && !retryable(status);
         ring_error(loop, status);
     }
+}
+
+void scoop_io_ring_poll(ScoopIoLoop *loop) {
+    reap_completions(loop);
+    scoop_io_ring_submit(loop);
+    // Immediate results can join this turn's completion batch. This second
+    // snapshot stays bounded; any follow-up submission belongs to the next turn.
+    reap_completions(loop);
     if (io_uring_cq_ready(&loop->ring) ||
         (!loop->submission_blocked &&
          (io_uring_sq_ready(&loop->ring) ||

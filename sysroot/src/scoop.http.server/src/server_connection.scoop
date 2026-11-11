@@ -6,6 +6,29 @@ import scoop.http.asyncio.*
 import scoop.tls.asyncio.AsyncTlsStream
 import scoop.platform.time.MonotonicTimeSource
 
+internal suspend fun dispatchServerConnection(
+    state: ServerState,
+    entry: ServerConnection,
+    executor: CoroutineExecutor
+) {
+    val entered = AtomicBoolean(false)
+    try {
+        withExecutor<Unit>(executor) {
+            entered.store(true)
+            runServerConnection(state, entry)
+        }
+    } finally {
+        // A queued worker task can be cancelled before entering its body.
+        if (!entered.load()) {
+            try {
+                entry.transport.close()
+            } finally {
+                state.unregister(entry)
+            }
+        }
+    }
+}
+
 internal suspend fun runServerConnection(state: ServerState, entry: ServerConnection) {
     try {
         coroutineScope<Unit> {

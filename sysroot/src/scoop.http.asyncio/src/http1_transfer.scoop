@@ -1,23 +1,55 @@
 package scoop.http.asyncio
 
 import scoop.platform.io.WriteZeroException
+import scoop.platform.memory.NativeByteBuffer
+import scoop.http.Http1BodyChunk
 
-internal suspend fun writeH1Wire(state: H1State, bytes: Array<Byte>) {
+internal suspend fun writeH1Wire(state: H1State, bytes: Array<Byte>, flush: Boolean = true) {
     var offset = 0L
     while (offset < bytes.size) {
         state.output.clear()
-        val count = if (bytes.size - offset < state.output.writableBytes) bytes.size - offset else state.output.writableBytes
+        val count =
+            if (bytes.size - offset < state.output.writableBytes)
+                bytes.size - offset
+            else
+                state.output.writableBytes
         state.output.writeBytes(bytes, offset, count)
         while (state.output.readableBytes > 0L) {
             val pending = state.output.readableBytes
             beginH1Io(state, false)
             val written = state.transport.writeFrom(state.output, pending)
             httpProgress(written, pending)
-            if (written == 0L) throw WriteZeroException()
+            if (written == 0L)
+                throw WriteZeroException()
             progressH1Io(state, false, true)
         }
         offset += count
     }
+    if (flush)
+        flushH1Transport(state)
+}
+
+internal suspend fun writeH1Body(
+    state: H1State,
+    chunk: Http1BodyChunk,
+    buffer: NativeByteBuffer,
+    count: Long
+) {
+    writeH1Wire(state, chunk.prefix, false)
+    var remaining = count
+    while (remaining > 0L) {
+        beginH1Io(state, false)
+        val before = buffer.readableBytes
+        val written = state.transport.writeFrom(buffer, remaining)
+        httpProgress(written, remaining)
+        if (before - buffer.readableBytes != written)
+            throw IllegalStateException(Some("invalid HTTP body transport progress"))
+        if (written == 0L)
+            throw WriteZeroException()
+        remaining -= written
+        progressH1Io(state, false, true)
+    }
+    writeH1Wire(state, chunk.suffix, false)
     flushH1Transport(state)
 }
 

@@ -64,14 +64,14 @@ int scoop_test_iocp_timers(void) {
     scoop_io_timer_cancel(loop, 2);
     CHECK(!test_result(loop, &event) && event.id == 1);
     CHECK(!test_result(loop, &event) && event.id == 2);
-    CHECK(!scoop_io_loop_batch_size(loop));
+    CHECK(!test_completion_count(loop));
     for (int64_t id = 10; id < 522; ++id)
         CHECK(!scoop_io_timer_start(loop, id, 10000, 0).code);
     for (int64_t id = 521; id >= 10; --id)
         scoop_io_timer_cancel(loop, id);
     for (int64_t id = 521; id >= 10; --id)
         CHECK(!test_result(loop, &event) && event.id == id);
-    CHECK(!scoop_io_loop_batch_size(loop));
+    CHECK(!test_completion_count(loop));
     CHECK(!test_drain(loop));
     return 0;
 }

@@ -21,6 +21,11 @@ public interface ExecutorTask {
     /** Enqueues one drive; it must never invoke work inline or reject an active task. */
     public fun dispatch(work: CoroutineWork)
 
+    /** Resumes a released drive; an executor may run it during a bounded event turn. */
+    public fun dispatchResume(work: CoroutineWork) {
+        dispatch(work)
+    }
+
     /** Enqueues one blocking computation with the same lifetime guarantee. */
     public fun dispatchBlocking(work: BlockingWork)
 

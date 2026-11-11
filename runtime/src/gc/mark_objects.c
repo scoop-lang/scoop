@@ -97,14 +97,14 @@ mark_slot_layout(ScoopGcMarkBlockCount *counts, size_t word, size_t size) {
     }
 }
 
-static void enqueue_array(ScoopGcMarkWorker *worker, void *object, const uint64_t *scan) {
-    ScoopGcArrayScan array = scoop_gc_array_scan(object, scan);
+static void enqueue_array(ScoopGcMarkWorker *worker, void *object, const uint64_t *scan,
+                          ScoopGcArrayScan array) {
+    uint64_t stride = scoop_gc_array_stride(scan);
     for (uint64_t first = 0; first < array.count;) {
         uint64_t length = array.count - first;
         if (length > GC_MARK_ARRAY_RANGE) {
             length = GC_MARK_ARRAY_RANGE;
         }
-        uint64_t stride = scoop_gc_array_stride(scan);
         scoop_gc_mark_queue_push(worker,
                                  (ScoopGcMarkTask){
                                      .kind = SCOOP_MARK_ARRAY_TASK,
@@ -222,10 +222,15 @@ mark_target(ScoopGcMarkWorker *worker, void *object, void **remembered_slot) {
     worker->marked++;
     worker->traced++;
     const uint64_t *scan = scoop_gc_object_scan(object);
-    bool array = scan != NULL && scoop_gc_scan_is_array(scan);
-    append_live(worker, object, scan != NULL && !array);
-    if (array) {
-        enqueue_array(worker, object, scan);
+    if (scan != NULL && scoop_gc_scan_is_array(scan)) {
+        ScoopGcArrayScan array = scoop_gc_array_scan(object, scan);
+        bool split = array.count > GC_MARK_INLINE_ARRAY;
+        append_live(worker, object, !split && array.count != 0);
+        if (split) {
+            enqueue_array(worker, object, scan, array);
+        }
+    } else {
+        append_live(worker, object, scan != NULL);
     }
 }
 

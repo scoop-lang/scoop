@@ -21,6 +21,12 @@ public interface EventLoop {
      */
     public suspend fun sleep(duration: Duration)
     /**
+     * Schedules one owner-thread notification without creating a coroutine. None means elapsed;
+     * an error reports timer failure. Disposal or current-job cancellation suppresses an unselected
+     * notification. The callback does not inherit Context and must not block the owner.
+     */
+    public fun schedule(duration: Duration, completion: (Throwable?) -> Unit): Disposable
+    /**
      * Resolves the host and port, optionally restricted to one address family.
      */
     public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<

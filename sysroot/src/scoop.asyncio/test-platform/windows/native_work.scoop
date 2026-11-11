@@ -13,11 +13,14 @@ internal fun executeNativeTestWork(loop: Ptr<Unit>) {
 
 @Unsafe
 internal fun nextNativeTestResult(loop: Ptr<Unit>): NativeRecord {
-    while (nativeLoopBatchSize(loop) == 0L) {
+    var batch = nativeLoopTakeBatch(loop)
+    while (batch.count == 0L) {
         executeNativeTestWork(loop)
         assertEquals(0, nativeLoopPoll(loop, true).code)
+        batch = nativeLoopTakeBatch(loop)
     }
-    return nativeLoopNext(loop)
+    assertEquals(1L, batch.count)
+    return batch.records.load(0L)
 }
 
 @Extern(name = "scoop_io_work_take")

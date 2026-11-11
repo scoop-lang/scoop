@@ -1,109 +1,42 @@
 package scoop.asyncio
 
-import scoop.platform.memory.NativeByteBuffer
-import scoop.platform.memory.NativeByteBorrow
-import scoop.platform.io.WriteZeroException
+internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean): ByteTransfer(
+    owner.loop,
+    writing
+) {
+    protected override fun acquire() {
+        owner.acquireDirection(writing)
+    }
+    protected override fun release() {
+        owner.releaseTransfer(writing)
+    }
+    protected override fun closing(): Boolean = owner.isClosing
 
-private class TcpProgress {
-    var count: Long = 0L
-}
-
-internal suspend fun transferTcp(
-    owner: OwnedEndpoint,
-    buffer: NativeByteBuffer,
-    count: Long,
-    writing: Boolean
-): Long {
-    val job = owner.loop.requireJob()
-    val reservation = owner.reserve(writing)
-    try {
-        val borrowed = borrowTcp(buffer, count, writing)
-        val progress = TcpProgress()
-        try {
-            if (count == 0L)
-                return 0L
-            return suspendCoroutine<Long> {
-                continuation ->
-                val operation =
-                    LoopOperation(
-                        owner.loop,
-                        owner.loop.nextOperation(),
-                        {
-                            _,
-                            id -> @Unsafe
-                            {
-                                val status =
-                                    if (writing)
-                                        nativeTcpWrite(
-                                            owner.pointer,
-                                            id,
-                                            borrowed.pointer(),
-                                            borrowed.length
-                                        )
-                                    else
-                                        nativeTcpRead(
-                                            owner.pointer,
-                                            id,
-                                            borrowed.pointer(),
-                                            borrowed.length
-                                        )
-                                return@LoopOperation nativeStatus(id, status)
-                            }
-                        },
-                        {
-                            _,
-                            id -> @Unsafe
-                            {
-                                if (writing)
-                                    nativeTcpWriteCancel(owner.pointer, id)
-                                else
-                                    nativeTcpReadCancel(owner.pointer, id)
-                            }
-                        },
-                        {
-                            event, selected ->
-                            progress.count = resultProgress(event.result)
-                            when (
-                                completionFailure(
-                                    if (writing)
-                                        "TCP write"
-                                    else
-                                        "TCP read",
-                                    event.result,
-                                    selected
-                                )
-                            ) {
-                                case Some(val error) -> continuation.resumeWithException(error)
-                                case None -> {
-                                    if (writing && progress.count == 0L)
-                                        continuation.resumeWithException(WriteZeroException())
-                                    else
-                                        continuation.resume(progress.count)
-                                }
-                            }
-                        }
-                    )
-                operation.subscribe(job)
-                owner.attach(operation, writing)
-                owner.loop.submit(operation)
-            }
-        } finally {
-            @Unsafe
-            {
-                borrowed.complete(progress.count)
-            }
+    protected override fun start(pointer: Ptr<Unit>): IoStart {
+        @Unsafe
+        {
+            loop.submitTcp(owner.pointer, id, borrowed.pointer(), borrowed.length, writing)
+            return IoStart.Pending
         }
-    } finally {
-        reservation.dispose()
     }
-}
 
-private fun borrowTcp(buffer: NativeByteBuffer, count: Long, writing: Boolean): NativeByteBorrow {
-    @Unsafe
-    {
-        return if (writing)
-            buffer.borrowReadable(count)
-        else
-            buffer.borrowWritable(count)
+    protected override fun cancelRequest(pointer: Ptr<Unit>) {
+        @Unsafe
+        {
+            if (writing)
+                nativeTcpWriteCancel(owner.pointer, id)
+            else
+                nativeTcpReadCancel(owner.pointer, id)
+        }
     }
+
+    protected override fun failure(result: IoResult, selected: Throwable?): Throwable? =
+        completionFailure(
+            if (writing)
+                "TCP write"
+            else
+                "TCP read",
+            result,
+            selected
+        )
 }

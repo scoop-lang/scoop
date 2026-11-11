@@ -84,40 +84,17 @@ void scoop_io_complete(ScoopIoLoop *loop, ScoopIoCompletion *completion, int sta
         completion->event.code = -status;
     }
     completion->next = NULL;
-    pthread_mutex_lock(&loop->mutex);
     if (loop->tail)
         loop->tail->next = completion;
     else
         loop->head = completion;
     loop->tail = completion;
     loop->completions++;
-    scoop_io_notify_locked(loop);
-    pthread_mutex_unlock(&loop->mutex);
-}
-int64_t scoop_io_loop_batch_size(ScoopIoLoop *loop) {
-    pthread_mutex_lock(&loop->mutex);
-    int64_t count = loop->completions;
-    pthread_mutex_unlock(&loop->mutex);
-    return count;
-}
-ScoopIoEvent scoop_io_loop_next(ScoopIoLoop *loop) {
-    pthread_mutex_lock(&loop->mutex);
-    ScoopIoCompletion *entry = loop->head;
-    if (entry) {
-        loop->head = entry->next;
-        if (!loop->head)
-            loop->tail = NULL;
-        loop->completions--;
-    }
-    pthread_mutex_unlock(&loop->mutex);
-    if (!entry)
-        return (ScoopIoEvent){0};
-    ScoopIoEvent event = entry->event;
-    free(entry);
-    return event;
 }
 
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
+    if (loop->retired_batch || loop->tcp_submissions.count)
+        return false;
     if (loop->requests || loop->pending.head || loop->control.head ||
         io_uring_sq_ready(&loop->ring) || io_uring_cq_ready(&loop->ring))
         return false;

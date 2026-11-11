@@ -1,0 +1,133 @@
+package scoop.asyncio
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+internal fun scheduleOnLoop(
+    loop: LoopOwner,
+    duration: Duration,
+    completion: (Throwable?) -> Unit
+): Disposable {
+    val job = loop.requireJob()
+    if (duration < Duration.ZERO)
+        throw IllegalArgumentException(Some("negative timer duration"))
+    val timer = LoopTimer(loop, duration, false, completion)
+    timer.start(job)
+    return timer
+}
+
+private enum TimerChoice {
+    Pending, Stopped(Throwable?), Completed
+}
+
+// The heap position belongs only to the owner; result selection can race with another thread.
+internal class LoopTimer(
+    private val loop: LoopOwner,
+    duration: Duration,
+    private val notifyCancellation: Boolean,
+    completion: (Throwable?) -> Unit
+): Disposable {
+    val deadline = LoopDeadline(MonotonicTimeSource.markNow(), duration)
+    var heapIndex = -1L
+    private val lock = IoLock()
+    private var choice = TimerChoice.Pending
+    private var callback: ((Throwable?) -> Unit)? = Some(completion)
+    private var subscription: Disposable? = None
+
+    private fun pending(): Boolean =
+        when (choice) {
+            case Pending -> true
+            else -> false
+        }
+
+    val isPending: Boolean get() = lock.withLock { pending() }
+
+    fun start(job: Job) {
+        val listener =
+            job.invokeOnCancellation {
+                val error: Throwable? =
+                    if (notifyCancellation)
+                        Some(CancellationException())
+                    else
+                        None
+                if (selectStop(error))
+                    loop.cancelTimer(this)
+            }
+        val stopped =
+            lock.withLock {
+                if (pending()) {
+                    subscription = Some(listener)
+                    false
+                } else
+                    true
+            }
+        if (stopped)
+            listener.dispose()
+        loop.scheduleTimer(this)
+    }
+
+    private fun selectStop(error: Throwable?): Boolean {
+        val result: (Boolean, Disposable?) =
+            lock.withLock {
+                if (!pending())
+                    return@withLock (false, None)
+                choice = TimerChoice.Stopped(error)
+                if (!notifyCancellation)
+                    callback = None
+                val saved = subscription
+                subscription = None;
+                (true, saved)
+            }
+        val(selected, listener) = result
+        listener?.dispose()
+        return selected
+    }
+
+    public override fun dispose() {
+        if (selectStop(None))
+            loop.cancelTimer(this)
+    }
+
+    fun closeFromLoop() {
+        selectStop(
+            if (notifyCancellation)
+                Some(IoClosedException())
+            else
+                None
+        )
+    }
+
+    // Selection happens before queuing the callback, so a later cancellation cannot replace it.
+    fun notification(error: Throwable?): (() -> Unit)? {
+        val result: (((Throwable?) -> Unit)?, Disposable?, Throwable?) =
+            lock.withLock {
+                val selected =
+                    when (choice) {
+                        case Completed -> return@withLock (None, None, error)
+                        case Stopped(val stopped) -> stopped
+                        case Pending -> error
+                    }
+                choice = TimerChoice.Completed
+                val saved = (callback, subscription, selected)
+                callback = None
+                subscription = None
+                saved
+            }
+        val(handler, listener, failure) = result
+        listener?.dispose()
+        return when (handler) {
+            case Some(val notify) -> Some(
+                {
+                    try {
+                        notify(failure)
+                    }
+                    catch (error: Throwable) {
+                        loop.cleanupFailed(error)
+                        loop.cancelRoot()
+                    }
+                }
+            )
+            case None -> None
+        }
+    }
+}

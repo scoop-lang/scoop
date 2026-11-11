@@ -31,11 +31,31 @@ internal class TcpStream(
     public override val localAddress: SocketAddress,
     public override val peerAddress: SocketAddress
 ): AsyncTcpStream {
+    private val inputTransfer = TcpTransfer(owner, false)
+    private val outputTransfer = TcpTransfer(owner, true)
+
+    init {
+        owner.installTransfers(Some(inputTransfer), Some(outputTransfer))
+    }
+
+    internal fun prepareTransfer(
+        buffer: NativeByteBuffer,
+        count: Long,
+        writing: Boolean,
+        job: Job
+    ): ByteTransfer =
+        (
+            if (writing)
+                outputTransfer
+            else
+                inputTransfer
+        ).prepare(buffer, count, job)
+
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long =
-        transferTcp(owner, buffer, count, false)
+        suspendCoroutine(prepareTransfer(buffer, count, false, owner.loop.requireJob()))
 
     public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
-        transferTcp(owner, buffer, count, true)
+        suspendCoroutine(prepareTransfer(buffer, count, true, owner.loop.requireJob()))
 
     public override suspend fun flush() {
         owner.loop.requireJob()
@@ -50,7 +70,7 @@ internal class TcpStream(
             suspendCoroutine<Unit> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {
@@ -62,7 +82,7 @@ internal class TcpStream(
                                     progress.submitted = true;
                                     owner.markOutputEnded()
                                 }
-                                return@LoopOperation nativeStatus(id, status)
+                                return@CallbackOperation nativeStatus(id, status)
                             }
                         },
                         { _, _ -> owner.closeOnLoop { _ -> } },

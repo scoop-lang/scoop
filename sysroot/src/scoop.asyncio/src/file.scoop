@@ -41,10 +41,15 @@ public interface AsyncFile: AsyncByteSource, AsyncByteSink, AsyncCloseable {
 }
 
 internal class WorkerFile(private val owner: OwnedFile): AsyncFile {
+    private val inputTransfer = FileTransfer(owner, false)
+    private val outputTransfer = FileTransfer(owner, true)
+    init {
+        owner.installTransfers(inputTransfer, outputTransfer)
+    }
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long =
-        transferFile(owner, buffer, count, false)
+        suspendCoroutine(inputTransfer.prepare(buffer, count, owner.loop.requireJob()))
     public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
-        transferFile(owner, buffer, count, true)
+        suspendCoroutine(outputTransfer.prepare(buffer, count, owner.loop.requireJob()))
     public override suspend fun close() {
         owner.close()
     }
@@ -76,14 +81,14 @@ internal suspend fun openFileOnLoop(loop: LoopOwner, path: Path, options: OpenOp
     return suspendCoroutine<AsyncFile> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation path.withIoPath {
+                        return@CallbackOperation path.withIoPath {
                             pointer -> @Unsafe
                             {
                                 return@withIoPath nativeStatus(
@@ -112,7 +117,10 @@ internal suspend fun openFileOnLoop(loop: LoopOwner, path: Path, options: OpenOp
                                 case Some(val error) -> owner.closeOnLoop {
                                     cleanup -> continuation.resumeWithException(
                                         when (cleanup) {
-                                            case Some(val value) -> ResourceUseException(error, value)
+                                            case Some(val value) -> ResourceUseException(
+                                                error,
+                                                value
+                                            )
                                             case None -> error
                                         }
                                     )

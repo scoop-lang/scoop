@@ -46,7 +46,7 @@ internal class LoopMailbox(private val owner: LoopOwner) {
         when (waiting) {
             case Some(val continuation) -> {
                 waiting = None
-                owner.ready.add { continuation.resume(Unit) }
+                owner.enqueueReady { continuation.resume(Unit) }
             }
             case None -> {}
         }

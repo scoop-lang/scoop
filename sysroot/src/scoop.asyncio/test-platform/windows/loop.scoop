@@ -15,14 +15,18 @@ private class WindowsCompletionTest {
             try {
                 assertEquals(0, nativeTimerStart(loop, 0x123456789L, 0L, 1000000).code)
                 gcCollect()
-                while (nativeLoopBatchSize(loop) == 0L)
+                var batch = nativeLoopTakeBatch(loop)
+                while (batch.count == 0L) {
                     assertEquals(0, nativeLoopPoll(loop, true).code)
-                val record = nativeLoopNext(loop)
+                    batch = nativeLoopTakeBatch(loop)
+                }
+                assertEquals(1L, batch.count)
+                val record = batch.records.load(0L)
                 assertEquals(0x123456789L, record.id)
                 assertEquals(0, record.kind)
                 assertEquals(0, record.code)
                 assertEquals(0L, record.count)
-                assertEquals(0L, nativeLoopBatchSize(loop))
+                assertEquals(0L, nativeLoopTakeBatch(loop).count)
             } finally {
                 assertEquals(0, testDrain(loop))
             }

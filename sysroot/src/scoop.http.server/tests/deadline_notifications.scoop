@@ -1,0 +1,65 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class ServerDeadlineNotificationTests {
+    @Test
+    fun `replaced and stopped deadlines cannot cancel later work`() {
+        asyncRuntime {
+            workers = 4;
+            blocking { threads = 1 }
+        }.run {
+            val loop = currentEventLoop()
+            val scope = this
+            for (index in 0L ..< 64L) {
+                scope.launch suspend {
+                    val deadline = RequestDeadline(Some(Duration.seconds(60L)))
+                    deadline.start(currentJobOrNone()!!)
+                    deadline.set(Some(Duration.seconds(120L)))
+                    deadline.set(None)
+                    deadline.stop()
+                    loop.sleep(Duration.nanoseconds(1L))
+                    ensureActive()
+                    assertFalse(present(deadline.selectedFailure))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `operation deadline stays armed while structured children finish`() {
+        eventLoop().run {
+            val scope = this
+            val cleaned = AtomicBoolean(false)
+            var timedOut = false
+            try {
+                serverDeadline<Unit>(
+                    Some(Duration.milliseconds(20L)),
+                    "test children",
+                    suspend {
+                        // The helper establishes this Job, so the child belongs to its timed subtree.
+                        coroutineScope<Unit> {
+                            val children = this
+                            children.launch suspend {
+                                try {
+                                    currentEventLoop().sleep(Duration.days(1L))
+                                }
+                                finally {
+                                    cleaned.store(true)
+                                }
+                            }
+                        }
+                    }
+                )
+            } catch (error: HttpServerTimeoutException) {
+                assertEquals("test children", error.operation)
+                timedOut = true
+            }
+            assertTrue(timedOut && cleaned.load())
+            assertFalse(scope.job.isCancelled)
+        }
+    }
+}

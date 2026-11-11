@@ -1,0 +1,65 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class AsyncRuntimeConcurrencyTest {
+    @Test
+    fun `concurrent streams and timers preserve bytes across worker and owner batches`() {
+        asyncRuntime {
+            workers = 4
+            blocking { threads = 1 }
+        }.run {
+            val scope = this
+            val loop = currentEventLoop()
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0), backlog = 128).useAsync {
+                listener ->
+                val accepting =
+                    launch {
+                        for (_ in 0 ..< 64) {
+                            val peer = listener.accept()
+                            launch {
+                                peer.useAsync {
+                                    NativeByteBuffer.allocate(1L).use {
+                                        buffer -> for (_ in 0 ..< 16) {
+                                            buffer.clear()
+                                            peer.readFully(buffer)
+                                            peer.writeFully(buffer)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                val clients = ArrayList<Deferred<Unit>>()
+                for (index in 0 ..< 64) {
+                    clients.add(
+                        scope.async {
+                            loop.connectTcp(listener.localAddress).useAsync {
+                                stream -> NativeByteBuffer.allocate(1L).use {
+                                    buffer -> for (round in 0 ..< 16) {
+                                        val expected = (index + round).toByte()
+                                        buffer.clear()
+                                        buffer.writeByte(expected)
+                                        stream.writeFully(buffer)
+                                        buffer.clear()
+                                        stream.readFully(buffer)
+                                        assertEquals(expected, buffer.readByte())
+                                        if (round % 4 == 0)
+                                            loop.sleep(Duration.nanoseconds(1L))
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+                for (client in clients)
+                    client.await()
+                accepting.join()
+            }
+        }
+    }
+}

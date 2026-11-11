@@ -1,0 +1,55 @@
+package scoop.concurrent
+
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.ThreadId
+
+internal class CoroutineWorker(val index: Int, val driver: CoroutineWorkerDriver?) {
+    val inbox = CoroutineQueue.create()
+    val local = CoroutineLocalQueue()
+    // Lifecycle fields are protected by the pool's lifecycle mutex.
+    var thread: Thread? = None
+    var id: ThreadId? = None
+    // Only this worker changes its polling cursors.
+    var localTurns = 0
+    var victim = index + 1
+    var polling = false
+    var executing = false
+    var pollResumes = 0
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    // 0 = awake, 1 = observing queues / parked, 2 = notified.
+    private val state = AtomicInt(0)
+
+    fun observe() {
+        state.store(1)
+    }
+
+    fun stopObserving(): Boolean = state.exchange(0) == 2
+
+    fun notify(): Boolean {
+        if (!state.compareAndSet(1, 2))
+            return false
+        when (driver) {
+            case Some(val driver) -> driver.wake()
+            case None -> lock.withLock { changed.signal() }
+        }
+        return true
+    }
+
+    fun park(stopping: AtomicBoolean) {
+        when (driver) {
+            case Some(val driver) -> {
+                if (state.load() == 1 && !stopping.load())
+                    driver.park()
+                return
+            }
+            case None -> {}
+        }
+        lock.withLock {
+            while (state.load() == 1 && !stopping.load())
+                changed.await()
+        }
+    }
+}

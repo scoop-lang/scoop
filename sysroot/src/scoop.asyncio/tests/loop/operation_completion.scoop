@@ -1,0 +1,58 @@
+package scoop.asyncio
+
+import scoop.platform.system.OsString
+import scoop.test.*
+
+@Test
+private class OperationCompletionTest {
+    @Test
+    fun `callback results survive collection before ready delivery`() {
+        val loop = eventLoop()
+        val owner = loop.state
+        val native = owner.open(loop, LoopBlockingConfig.Owned(1))
+        val delivered = AtomicLong(0L)
+        val operation =
+            CallbackOperation(
+                owner,
+                owner.nextOperation(),
+                {
+                    _,
+                    id -> IoStart.Finished(
+                        NativeEvent(
+                            id,
+                            IoResult.DirectoryName(OsString.fromString("completed path"))
+                        )
+                    )
+                },
+                { _, _ -> fail(Some("retired operation was cancelled")) },
+                {
+                    event, failure ->
+                    assertNoLoopValue(failure)
+                    when (event.result) {
+                        case DirectoryName(val path) -> assertEquals(
+                            "completed path",
+                            path.decodeUtf8()
+                        )
+                        case _ -> fail(Some("callback lost its native result"))
+                    }
+                    delivered.fetchAdd(1L)
+                    Unit
+                }
+            )
+        owner.submit(operation)
+        owner.post {
+            assertEquals(0L, delivered.load())
+            assertFalse(operation.selectFailure(CancellationException()))
+            gcCollect()
+        }
+        try {
+            owner.pump(native)
+            assertEquals(1L, delivered.load())
+            owner.pump(native)
+            assertEquals(1L, delivered.load())
+        } finally {
+            owner.finishRoot(None)
+            owner.drive(native)
+        }
+    }
+}

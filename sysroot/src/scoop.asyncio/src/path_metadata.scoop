@@ -26,14 +26,14 @@ internal suspend fun metadataOnLoop(
     return suspendCoroutine<FileMetadata> {
         continuation ->
         val operation =
-            LoopOperation(
+            CallbackOperation(
                 loop,
                 loop.nextOperation(),
                 {
                     native,
                     id -> @Unsafe
                     {
-                        return@LoopOperation path.withIoPath {
+                        return@CallbackOperation path.withIoPath {
                             pointer -> @Unsafe
                             {
                                 return@withIoPath nativeStatus(

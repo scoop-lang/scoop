@@ -37,5 +37,5 @@ internal enum LoopBlockingConfig {
 public fun eventLoop(configure: EventLoopBuilder.() -> Unit = {}): PlatformEventLoop {
     val builder = EventLoopBuilder()
     configure(builder)
-    return PlatformEventLoop(LoopExecutionPlan.Owner(builder.snapshot()))
+    return PlatformEventLoop(builder.snapshot())
 }

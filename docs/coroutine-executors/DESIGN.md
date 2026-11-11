@@ -12,7 +12,7 @@
 - `AsyncMutex` 与 `AsyncConditionVariable` 能跨挂起点、跨 executor 同步；等待不占住 OS thread，解锁不要求回到加锁时的 OS thread。
 - `MultiThreadExecutor` 使用多个已登记到 Scoop runtime 的 managed worker，并行驱动不同任务；一个任务在不同轮次可以迁移 worker，同一时刻只能有一个驱动者。
 - executor 管理独立的 `BlockingTaskPool`；`blocking { ... }` 可以执行普通 Scoop 闭包、分配托管对象、调用同步库和 FFI，返回类型化结果或异常。现有 GC-free native work 迁入同一套阻塞任务设施。
-- `PlatformEventLoop` 提供固定 owner 线程的 executor；`AsyncRuntime` 组合 I/O owner 和 managed worker pool，使 I/O 归属与协程执行位置分开。
+- `PlatformEventLoop` 提供固定 owner 线程的 executor；`AsyncRuntime` 让 managed worker 各自驱动 reactor，资源 owner 稳定，任务执行位置仍可随 stealing 改变。
 - 编译器统一处理启动、挂起、结果发布、恢复入队、TaskContext 和完成边界，覆盖普通函数、接口调用、闭包调用与跨 Cone 产物。
 - 普通应用通过 runtime/executor 配置 builder、带 receiver 的 coroutine scope、`blocking` 与 `withExecutor` 工作，不需要手工处理 continuation、work 或任务登记。
 
@@ -329,14 +329,16 @@ continuation 的“结果已经确定”和 execution 的“现在可以驱动�
 
 ### 5.3 execution 驱动门
 
-execution 内部保存待执行 action 与驱动状态，使用短临界区协调：
+execution 使用一个原子状态交接驱动权和单个 managed action 槽位，不为读取登记、提交、领取、退出判定分别取得同一把锁：
 
-- 当前为 `Running`：外部完成只提交 action，不取得驱动权。
-- 当前为 `Idle`：提交者把状态改为 `Queued`，发布唯一的 work。
-- 当前为 `Queued`：新的合法 action 归并到同一待执行状态，不再重复投递。
-- worker 运行 work：以 acquire 取得 `Queued -> Running`，然后执行 action。
-- 当前驱动退出：先完成所有 Context/异常出口，再原子检查待执行 action；没有 action 则 `Idle`，否则 `Queued` 并在锁外 dispatch。
-- 最终完成：进入 `Finished`，解除不再使用的引用，再释放任务登记。
+- 当前为 `Running`：提交者先 CAS 取得 `Publishing`，再写 action 槽，最后以 release 发布 `ReadyInternal` 或 `ReadyExternal`；提交者不访问 frame。
+- 当前为 `Idle`：提交者 CAS 取得 `Detached`，写 action 槽并以 release 发布 `Queued`，然后投递唯一的 work。
+- 当前驱动退出：完成全部 Context／异常出口后，若仍为 `Running`，CAS 交出为 `Idle`；若提交者尚在 `Publishing`，CAS 改为 `Detached` 后直接返回，由提交者完成发布并投递，不等待被抢占的发布者。
+- 若退出时已经 acquire 观察到 ready，当前驱动取得已发布的 action。内部完成链直接迭代；有 executor 的外部恢复保持 action 槽并 release 发布 `Queued`，随后 dispatch。
+- worker 以 CAS 取得 `Queued -> Taking` 的唯一领取权，读取并清空 action 槽后才发布 `Running`，防止新提交者覆盖尚未读取的槽位。`Queued`／`Taking`／发布中收到第二个 resume 仍是协议错误，不合并独立恢复。
+- 最终 completion 在当前驱动中将 `Running` 改为 `Finishing`；Context／异常出口结束后清空登记并发布 `Finished`，再 complete 一次。驱动异常退出也原子发布 `Finished`；如果观察到在途发布，由发布者清空 action，避免清理与尚未完成的写入竞争。
+
+action 的普通字段读写由上述状态的 release／acquire 同步，不能以 GC 屏障代替。状态常量仅为本类的私有表示，不增加 compiler／runtime ABI。任务登记在创建时建立，只在最终驱动退出时清空：当前驱动查询自己的登记，以及独占的闲置提交者在 dispatch 之前读取登记，均由既有所有权保护，不需要另一把锁。dispatch 之前先取得局部登记引用；其他 worker 可在 dispatch 返回前执行并完成，提交方返回后不得再读取或修改 execution 的普通槽位。
 
 合法单任务控制流不会出现两个独立挂起分支同时继续。驱动门不是支持任意并发调用同一 continuation 的多路执行器；重复 resume 仍按原规则报错，且不能先改写 payload、Context 或队列。
 
@@ -528,27 +530,33 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
 
 正式终止必须同时满足：没有活动任务登记、没有排队 coroutine work、没有正在执行的驱动，也没有本 executor 尚未退休或交付的阻塞 operation。拥有独立 blocking pool 时还须完成该池的关闭并等待 worker 退出执行循环；其 OS join 同样由 executor.join 完成。借用共享池时只等待自己的 operation，由共享池 owner 最后关闭池。单看队列为空不够，因为挂起任务仍可能需要外部 I/O、Channel 或取消来恢复。
 
-### 9.2 正确性基线实现
+### 9.2 无锁任务队列与登记发布
 
-使用一个受平台 Mutex 保护的 ArrayDeque，加一个平台 ConditionVariable。coroutine 与 blocking 池复用内部 managed work wrapper 队列，wrapper 保活实际工作和必要的退休逻辑。worker 取走一项 work 后解锁执行；队列为空时在谓词循环中 park。enqueue、终止判断和 signal/broadcast 使用同一把调度锁，避免检查为空与进入等待之间丢唤醒。
+协程 worker 各有一个本地环形 FIFO 和一个外部 inbox。本地队列由所属物理 worker 单独发布，复用 256 个 managed 槽位；外部及溢出投递使用 [Michael–Scott 算法](https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html)的 managed inbox。inbox 的 head、tail 和 next 使用 AtomicRef，发布者帮助推进落后的 tail，消费者以 head CAS 唯一领取节点。未链接的 next 指向节点自身，等价于算法的空链；节点不复用。在途引用由 GC 保活并随搬迁更新，因此无需裸地址计数标签或 native epoch 回收。领取成功者取出并清空 payload，避免 dummy head 保留已经完成的任务；其他消费者不读取该 payload。
+
+已评估 [Crossbeam deque](https://docs.rs/crossbeam-deque/latest/crossbeam_deque/)的 worker／stealer 模型。直接使用其 native 存储需要另加移动 GC 根管理，而现有 AtomicRef 已提供所需 CAS 与写屏障；这里使用已知队列算法，不新增 runtime ABI。每个 worker 的 inbox 允许外部生产者和其他 worker 消费，外部恢复直接投递任务最近执行的 worker，不再先经过一个全局 injection 锁或队列。
+
+executor 的任务登记、complete 与关闭计数由生命周期 mutex 保护。普通 dispatch 读取 ticket 的原子活动标记，物理 worker 内的同池投递直接发布到本地槽位，其他投递以 inbox 链接 CAS 发布，不维护另一套逐投递计数。登记排空后，每条 inbox 以相同的末端链接 CAS 写入独立终止标记；入队先赢则工作位于标记之前，关闭先赢则投递报告登记已完成。全部 inbox 封闭后才设置 workers 的停止状态并唤醒。worker 只能在本地及外部来源都无工作时退出；本地 producer 就是尚未退出的 owner，因此停止期间的成功本地发布仍由活着的 worker 排空。只有与 complete 重叠的投递可能拒绝；仍有效的登记在 Draining 中继续正常投递。blocking 的活动检查、计数与入队仍由生命周期锁协调。
+
+消费者推进 head 后，将旧 head 的 next 写为独立终止标记，断开退休节点指向后续活动链的引用。保留旧链接会让在途引用或分代 GC 中尚未回收的旧节点延长后继对象的存活。类似的 GC 队列节点脱链动机见 [OpenJDK ConcurrentLinkedQueue](https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentLinkedQueue.java)。这里不能将旧 next 恢复为自身，因为自身表示仍可入队的空末端，迟到生产者的 CAS 会误成功。终止标记不进入 head／tail；读取者先复核 head／tail 身份，持有退休节点的竞争者只重试，不能把标记当成普通工作。
 
 worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进入目标 frame TaskContext 并在退出时恢复；worker 外层环境不能残留上一任务的 Job、binding 或 execution。等待路径 NativeSafe，运行路径保留普通 GC safepoint。
 
-调度锁不跨 `work.run()`；任务内同步阻塞会占住一个 worker，长期不挂起的计算会阻止该 worker 调度其他任务。普通纯 CPU 循环需要主动 `yieldCoroutine`，调度器不从另一个线程注入异常或中断用户指令。
+任务内同步阻塞会占住一个 worker，长期不挂起的计算会阻止该 worker 调度其他任务。普通纯 CPU 循环需要主动 `yieldCoroutine`，调度器不从另一个线程注入异常或中断用户指令。长期同步工作仍应进入独立 blocking pool；协程窃取不执行 blocking work。
 
-该实现已经提供真正的多线程协程并行，足以作为全部正确性测试的稳定基线。可能长时间占住线程的同步工作应进入独立的 blocking pool；现有 native I/O work 也迁入该池，不在 backend 下保留另一组仅可执行 GC-free 工作的线程。
+### 9.3 Work stealing 与停车
 
-### 9.3 Work stealing 的演进
+本地 FIFO 采用单 producer、owner／stealer 竞争 head 的环形结构，参考 [Tokio 的本地 FIFO 与批量窃取](https://github.com/tokio-rs/tokio/blob/master/tokio/src/runtime/scheduler/multi_thread/queue.rs)。槽位为普通 managed 数组，不保存未扫描 native 指针。producer 写入槽位后以 Release 发布 tail，owner 以 head CAS 领取；本地发布不分配任务节点。空闲时窃取至多一半工作，先执行最早一项，余项批量发布到自己的 FIFO；周期公平检查只取一项，避免繁忙 worker 持续搬走对方的大批任务。
 
-在基线正确、存在吞吐或调度锁竞争证据后，按同一个 executor 协议替换内部调度，不再修改源码协程 ABI：
+为保留宽索引，本实现分别保存 head、tail 和窃取范围起点三个 AtomicLong，不把两个索引压缩成 32-bit 字段。非负索引按 63 bit 环绕，-1 表示没有在途窃取。stealer 先以 CAS 预留当前 head，再以 AcqRel head CAS 领取一段；失败后释放预留并重试，已有预留时其他 stealer 直接检查别的来源。producer 先 Acquire 读取 head、再 Acquire 读取预留起点，用两个环形距离的较大值判断空间：若看到窃取后的 head，同步关系保证也能看到此前建立的预留，或已经完成的释放；若看到旧 head，本身已经保留被窃取的槽位。预留直到所有读取／清空完成才 Release 释放。owner 的后续 head RMW 保持 release sequence，不能让 producer 提前复用仍在读取的槽位。
 
-- 外部提交进入全局 injection queue；worker 内部派生的 work 可进入本地 deque。
-- worker 优先处理本地工作，并定期处理全局队列；本地为空时从其他 worker 取一批工作。`yieldCoroutine` 不能进入会立即反复优先运行自身的私有快捷槽。
-- 首个版本可以用各 deque 的短锁实现 stealing；窃取时先移出 victim 的批次，再投到自己的队列，不同时持有两把 worker 队列锁。
-- 进入 park 前在 parking mutex 下把自己的停车记录设为 `observing=true, notified=false`，释放后检查全部可能的工作来源，再在同一 mutex 下检查 notified 和终止条件才 wait。发布或转移可运行工作时，先使队列可见，再在 parking mutex 下为 observing worker 设置 notified 并唤醒；找到工作或结束等待后清除 observing。基线可以通知全部 observing worker，后续按实测优化定向唤醒，但不能丢失“扫描期间有发布”的记录。
-- 队列和被窃取的批次保持 managed 根。不能直接把可移动对象裸指针塞进不参与 GC 扫描的 native lock-free deque。
+仅 producer 写 tail，因此已观察到的可用槽位不会被另一个 producer 占用。inbox 移入和窃取移入可以按该快照批量填充，再一次发布 tail；移交使工作重新可见后通知观察者，避免转换队列期间丢失唤醒。本地入队前先移入已有 inbox 工作；空间不足时新投递继续排到 inbox，保留 yield 对已排队工作的让出行为。每个实际 worker 在进入／退出驱动时设置／清除标量 TLS 的池身份与 worker 序号，识别同池物理调用；跨池投递始终使用对方 inbox。TLS 不持有 managed 引用，不改变 TaskContext 或公开 API。
 
-如果后续需要无锁 deque，先评估现有成熟实现与 Scoop GC 的适配成本；不为复刻某个运行时的固定队列长度、特定 CAS 布局而另建复杂调度 ABI。work stealing 不改变单任务串行、排队启动、取消或关闭语义。
+新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时以 Relaxed 原子序更新该归属。归属只选择有效的目标 inbox，旧值仍合法；payload 的同步来自各队列的发布操作，不从归属读取推导 happens-before。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他来源的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有优先槽反复越过已经排队的工作。窃取批次直接进入已有本地槽位，不另建转运队列。
+
+每个 worker 有独立的 parking mutex／condition 和原子 Awake／Observing／Notified 状态。准备停车时先注册观察者并发布 Observing，然后扫描全部队列；仍无工作才在自己的 mutex 下检查状态并 await。发布者先使队列工作可见，再把一个 Observing 改为 Notified，最后在该 worker 的 mutex 下 signal；通知与等待之间因此没有遗漏窗口。已经找到工作却收到通知的 worker 会将通知转交其他观察者，避免将未消费工作的通知吞掉。关闭通知全部观察者，worker 在无可领工作且已关闭时退出。同步只用于休眠与生命周期，入队、出队和窃取不获取 mutex。
+
+work stealing 不改变单任务串行、排队启动、Context、取消或关闭语义。业务队列始终保留 managed 根，不借用 GC 的标记队列，也不向未扫描 native 容器写入可移动引用。
 
 公平性保证限定为不无限忽略已有队列来源；不承诺所有任务相等的运行时间。实现中的队列轮询参数是局部调度选择，不是语言可见的通用执行预算。
 
@@ -647,7 +655,7 @@ I/O 适配的取消仍由该操作自己的选择状态决定：取消可以先�
 
 `PlatformEventLoop.run/attach` 为用户根任务选择 LoopExecutor。之后不只内置 I/O，Channel、Mutex、第三方 callback、普通 `suspendCoroutine` 的真实挂起恢复也都回 owner 线程。
 
-`EventLoop` 增加只读 `executor: CoroutineExecutor`，在运行或附着已建立、尚未终止时返回该 owner executor；运行前和终止后访问报状态错误。LoopExecutor 的具体类保持内部实现。worker 需要显式执行 owner 代码时可使用 `withExecutor(currentEventLoop().executor)`；普通 I/O 调用自身已经负责把 backend 操作提交到 owner，不要求用户先切换。
+`EventLoop` 增加只读 `executor: CoroutineExecutor`，在运行或附着已建立、尚未终止时返回相应 executor；运行前和终止后访问报状态错误。独立 `PlatformEventLoop` 返回 owner executor，LoopExecutor 的具体类保持内部实现；worker 需要显式执行该 owner 代码时可使用 `withExecutor(loop.executor)`。AsyncRuntime 返回共享 worker executor，不承诺固定线程；普通 I/O 调用自身负责向资源 owner 提交，不要求用户先切换。
 
 LoopExecutor 使用独立的内部 work 队列或现有内部命令通道，并复用 backend wake。它必须遵守任务登记与 draining 合同；不能调用关闭时允许丢弃应用消息的 `EventLoopSession.post` 来调度 continuation。
 
@@ -677,20 +685,20 @@ public class AsyncRuntime {
 }
 ```
 
-`AsyncRuntime` 位于 asyncio，由 §3.4 的 builder 创建，组合一个 PlatformEventLoop、一个 MultiThreadExecutor 和双方共享的 BlockingTaskPool。调用 run 的线程驱动 I/O owner，用户根及默认子任务在 coroutine worker pool 上执行，blocking 闭包进入独立的 blocking workers。实例单次使用，根入口拒绝已有活动 Job/EventLoop；类型化 run 在子树和全部清理完成后直接返回 T，不增加 runWithResult 同义入口。
+`AsyncRuntime` 位于 asyncio，由 §3.4 的 builder 创建，组合每 worker 一个 reactor、一个 MultiThreadExecutor 和共享 BlockingTaskPool。调用 run 的线程等待结果，用户根及默认子任务在 coroutine workers 上执行；同一 worker 同时推进所属 reactor，blocking 闭包进入独立的 blocking workers。实例单次使用，根入口拒绝已有活动 Job/EventLoop；类型化 run 在子树和全部清理完成后直接返回 T，不增加 runWithResult 同义入口。
 
-这里暂不使多个 worker 并发 poll 同一个 backend：现有资源容器、io_uring/IOCP/宿主 watch 的 owner 合同要求串行驱动。将来即使改变 backend driver 分配，也不改变 Channel、Mutex 和协程调度 ABI。
+每个 backend 仍由所属 worker 串行驱动，跨 worker 操作发布到资源 owner；单 listener 的 accepted stream 在交付前分配到目标 reactor。一个逻辑 EventLoop binding 保持不变，现有本地队列与 work stealing 继续工作；不迁移已绑定 handle 或在途操作。具体交接与 worker 等待合同见[asyncio 规范 2.2](../specs/SCOOP-ASYNCIO-SPEC.md)和[并发规范第 6 节](../specs/SCOOP-CONCURRENT-SPEC.md#6-executor-配置)。Channel、Mutex 和 core 协程 ABI 不变。
 
 关闭按依赖顺序推进：
 
 1. 关闭 runtime/session 的应用入口；失败或外部关闭请求取消根 Job，正常根结束则保留正常结果。独立持有 executor 的低层调用仍按该 executor 实际进入 draining 的时机判断登记，不承诺一条关闭请求同时关闭所有相互依赖的 executor。
 2. 请求 worker executor draining，继续驱动 I/O 并保持共享 blocking pool 接纳工作。已接纳任务仍可恢复、运行 finally、建立同 executor 的清理子任务或 blocking operation；根及其子树必须真实结束。
 3. 等待 worker executor 的全部执行登记、coroutine work、正在执行的驱动以及它提交的 blocking operation 排空。不能只等结构化根，因为低层入口可能还有未结束登记。
-4. worker executor 已完全结束后，不再有其任务需要新建 owner 清理切换，此时使 LoopExecutor draining，排空它已接纳的任务与工作。随后以 owner 内部命令／ready 关闭遗留 I/O 资源，排空 native 操作、取消和资源清理；这些库内收尾不新建用户 coroutine 登记，文件关闭等仍可使用共享 blocking pool。
-5. 两个 executor、资源和 owner 清理均不再产生 blocking work 后，才使共享 blocking pool 停止接纳；排空所有已接纳 work，等待运行中的普通函数真实返回及线程退出。
-6. 所有结果通知都已消费、owner 内部队列和 backend 排空后，移除宿主 watch/关闭 native loop；join coroutine/blocking worker 并回收线程句柄，状态同步对象按 §9.1 保留到 GC，最后返回结果或异常。
+4. 全部登记归零且任务队列排空后，各 worker 以 owner 内部命令／ready 关闭遗留 I/O 资源，排空 native 操作、取消和资源清理，销毁所属 backend 后才退出并发布终止；这些库内收尾不新建用户 coroutine 登记，文件关闭等仍可使用共享 blocking pool。
+5. worker executor 和全部 reactor 收尾完成并 join 后，才使共享 blocking pool 停止接纳；排空所有已接纳 work，等待运行中的普通函数真实返回及线程退出。
+6. join blocking workers 并回收线程句柄，状态同步对象按 §9.1 保留到 GC，最后返回结果或异常。独立 PlatformEventLoop／GUI 的单 owner、宿主 watch 注销和 LoopExecutor 收尾继续按 asyncio 规范执行。
 
-I/O owner 在阻塞工作实际退休和结果交付前必须继续推进，LoopExecutor 也要允许已接纳 worker 的必要清理切换；过早停止调度、blocking pool 或 I/O 任一侧都会造成永久等待。手工组合多个 executor 时，调用者同样要保持清理依赖的目标 executor 存活；向已经 draining 的另一 executor 新建根登记会正常失败，不自动“复活”它。
+I/O owner 在阻塞工作实际退休和结果交付前必须继续推进；过早停止调度、blocking pool 或 I/O 任一侧都会造成永久等待。手工组合多个 executor 时，调用者同样要保持清理依赖的目标 executor 存活；向已经 draining 的另一 executor 新建根登记会正常失败，不自动“复活”它。
 
 `attach` 的关闭完成通知必须发生在全部清理之后，host 此前仍须提供驱动机会。关闭请求本身不在 GUI owner 上等待仍在运行的 blocking 任务；完成通知驱动后续收尾，只对已退出线程执行最终句柄回收。未完成 coroutine 和 blocking completion 都不是可丢弃的应用 post。
 

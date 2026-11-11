@@ -1,0 +1,152 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class ScheduledTimerTests {
+    @Test
+    fun `zero notification is queued and positive duration is monotonic`() {
+        val loop = eventLoop()
+        loop.run {
+            val called = AtomicBoolean(false)
+            val immediate =
+                loop.schedule(Duration.ZERO) {
+                    error ->
+                    when (error) {
+                        case Some(val failure) -> throw failure;
+                        case None -> {}
+                    }
+                    assertFalse(called.exchange(true))
+                }
+            assertFalse(called.load())
+            val began = MonotonicTimeSource.markNow()
+            suspendCoroutine<Unit> {
+                continuation ->
+                loop.schedule(Duration.milliseconds(2L)) {
+                    error -> finishUnit(continuation, error)
+                }
+                Unit
+            }
+            assertTrue(MonotonicTimeSource.markNow() - began >= Duration.milliseconds(2L))
+            assertTrue(called.load())
+            immediate.dispose()
+            immediate.dispose()
+        }
+    }
+
+    @Test
+    fun `disposal before submit and from another thread suppresses callbacks through GC`() {
+        val loop = eventLoop()
+        val calls = AtomicLong(0L)
+        loop.run {
+            val early =
+                loop.schedule(Duration.days(1L)) {
+                    _ ->
+                    calls.fetchAdd(1L);
+                    Unit
+                }
+            early.dispose()
+            val active =
+                loop.schedule(Duration.days(1L)) {
+                    _ ->
+                    calls.fetchAdd(1L);
+                    Unit
+                }
+            loop.sleep(Duration.nanoseconds(1L))
+            gcCollect()
+            Thread.start {
+                active.dispose();
+                active.dispose()
+            }.join()
+            loop.sleep(Duration.nanoseconds(1L))
+            assertEquals(0L, calls.load())
+        }
+        assertEquals(0L, calls.load())
+    }
+
+    @Test
+    fun `job cancellation and loop cleanup retire unawaited timers`() {
+        val loop = eventLoop()
+        val calls = AtomicLong(0L)
+        loop.run {
+            val scope = this
+            val child =
+                scope.launch suspend {
+                    loop.schedule(Duration.days(1L)) {
+                        _ ->
+                        calls.fetchAdd(1L);
+                        Unit
+                    }
+                    loop.sleep(Duration.nanoseconds(1L))
+                    currentJobOrNone()!!.cancel()
+                }
+            child.join()
+            loop.schedule(Duration.days(1L)) {
+                _ ->
+                calls.fetchAdd(1L);
+                Unit
+            }
+            Unit
+        }
+        assertEquals(0L, calls.load())
+    }
+
+    @Test
+    fun `expiry and disposal race across workers without duplicate callbacks or stranded timers`() {
+        asyncRuntime {
+            workers = 4;
+            blocking { threads = 1 }
+        }.run {
+            val loop = currentEventLoop()
+            val scope = this
+            for (producer in 0 ..< 8) {
+                scope.launch suspend {
+                    for (index in 0 ..< 64) {
+                        val calls = AtomicLong(0L)
+                        val timer =
+                            loop.schedule(Duration.ZERO) {
+                                error ->
+                                when (error) {
+                                    case Some(val failure) -> throw failure;
+                                    case None -> {}
+                                }
+                                calls.fetchAdd(1L)
+                                Unit
+                            }
+                        if (index % 2 == 0)
+                            yieldCoroutine()
+                        timer.dispose()
+                        loop.sleep(Duration.nanoseconds(1L))
+                        assertTrue(calls.load() <= 1L)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `notification failure cancels the root and still runs structured cleanup`() {
+        val loop = eventLoop()
+        val failure = IllegalStateException(Some("timer callback failed"))
+        val cleaned = AtomicBoolean(false)
+        var observed = false
+        try {
+            loop.run {
+                loop.schedule(Duration.ZERO) { _ -> throw failure }
+                try {
+                    loop.sleep(Duration.days(1L))
+                }
+                finally {
+                    cleaned.store(true)
+                }
+            }
+        } catch (error: Throwable) {
+            assertSame(failure, error)
+            observed = true
+        }
+        assertTrue(observed && cleaned.load())
+    }
+}

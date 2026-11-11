@@ -1,0 +1,146 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+private class BatchCompletions(private val done: Continuation<Unit>, private var remaining: Int) {
+    private var failure: Throwable? = None
+
+    fun complete(error: Throwable?) {
+        when (failure) {
+            case None -> failure = error
+            case Some(_) -> {}
+        }
+        remaining -= 1
+        if (remaining == 0) {
+            when (failure) {
+                case Some(val error) -> done.resumeWithException(error)
+                case None -> done.resume(Unit)
+            }
+        }
+    }
+}
+
+private class BatchByteCompletion(private val results: BatchCompletions): Continuation<Long> {
+    public override fun resume(value: Long) {
+        try {
+            assertEquals(1L, value)
+            results.complete(None)
+        } catch (error: Throwable) {
+            results.complete(Some(error))
+        }
+    }
+    public override fun resumeWithException(error: Throwable) {
+        results.complete(Some(error))
+    }
+}
+
+private class BatchStoppedCompletion(
+    private val results: BatchCompletions,
+    private val input: NativeByteBuffer,
+    private val closing: Boolean
+): Continuation<Long> {
+    public override fun resume(value: Long) {
+        results.complete(Some(IllegalStateException(Some("stopped read succeeded"))))
+    }
+    public override fun resumeWithException(error: Throwable) {
+        val failure =
+            try {
+                if (closing)
+                    assertTrue(error is IoClosedException)
+                else
+                    assertTrue(error is CancellationException)
+                input.clear()
+                None
+            } catch (failure: Throwable) {
+                Some(failure)
+            }
+        results.complete(failure)
+    }
+}
+
+@Test
+private class AsyncTcpSubmissionBatchTest {
+    @Test
+    fun `one owner turn can submit more reads and writes than the native batch capacity`() {
+        asyncRuntime { workers = 1 }.run {
+            val loop = currentEventLoop()
+            val clients = ArrayList<TcpStream>()
+            val peers = ArrayList<TcpStream>()
+            val inputs = ArrayList<NativeByteBuffer>()
+            val outputs = ArrayList<NativeByteBuffer>()
+            try {
+                for (index in 0 ..< 70) {
+                    val(_, client, peer) = tcpPair(loop, this)
+                    clients.add(client as TcpStream)
+                    peers.add(peer as TcpStream)
+                    inputs.add(NativeByteBuffer.allocate(1L))
+                    val output = NativeByteBuffer.allocate(1L)
+                    output.writeByte(index.toByte())
+                    outputs.add(output)
+                }
+                val job = currentJobOrNone()!!
+                suspendCoroutine<Unit> {
+                    done ->
+                    val results = BatchCompletions(done, 140)
+                    for (index in 0L ..< 70L) {
+                        peers[index].prepareTransfer(inputs[index], 1L, false, job)
+                        .register(BatchByteCompletion(results))
+                        clients[index].prepareTransfer(outputs[index], 1L, true, job)
+                        .register(BatchByteCompletion(results))
+                    }
+                    // Collection while addresses are staged must preserve the managed owners.
+                    gcCollect()
+                }
+                for (index in 0L ..< 70L) {
+                    assertEquals(index.toByte(), inputs[index].readByte())
+                    assertEquals(0L, outputs[index].readableBytes)
+                    peers[index].close()
+                    clients[index].close()
+                }
+            } finally {
+                for (buffer in inputs)
+                    buffer.close()
+                for (buffer in outputs)
+                    buffer.close()
+            }
+        }
+    }
+
+    @Test
+    fun `cancellation and close retire a read staged earlier on the same owner stack`() {
+        for (closing in [false, true]) {
+            asyncRuntime { workers = 1 }.run {
+                val(_, client, peer) = tcpPair(currentEventLoop(), this)
+                val stream = peer as TcpStream
+                NativeByteBuffer.allocate(1L).use suspend {
+                    input ->
+                    val job = currentJobOrNone()!!
+                    suspendCoroutine<Unit> {
+                        done ->
+                        val results =
+                            BatchCompletions(
+                                done,
+                                if (closing)
+                                    2
+                                else
+                                    1
+                            )
+                        val transfer = stream.prepareTransfer(input, 1L, false, job)
+                        transfer.register(BatchStoppedCompletion(results, input, closing))
+                        assertFailsWith<IllegalStateException> { input.clear() }
+                        if (closing)
+                            stream.owner.closeOnLoop { error -> results.complete(error) }
+                        else {
+                            transfer.selectFailure(CancellationException())
+                            stream.owner.loop.cancel(transfer.id)
+                        }
+                    }
+                    input.clear()
+                }
+                peer.close()
+                client.close()
+            }
+        }
+    }
+}

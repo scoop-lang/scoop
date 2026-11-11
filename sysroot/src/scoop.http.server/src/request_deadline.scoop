@@ -1,61 +1,92 @@
 package scoop.http.server
 
+import scoop.asyncio.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.*
 
-internal class RequestDeadline(initial: Duration?) {
+internal class RequestDeadline(initial: Duration?, private val operation: String = "request") {
     private val started: TimeMark = MonotonicTimeSource.markNow()
-    private val lock: ServerLock = ServerLock()
-    private val changes: ServerSignal = ServerSignal()
+    private val loop: EventLoop = currentEventLoop()
+    private val lock = ServerLock()
     private var duration: Duration? = initial
-    private var expired: Duration? = None
-    private var stopped: Boolean = false
+    private var owner: Job? = None
+    private var alarm: RequestAlarm? = None
+    private var timer: Disposable? = None
+    private var failure: Throwable? = None
+    private var stopped = false
 
-    val expiredLimit: Duration? get() = lock.withLock { expired }
+    val selectedFailure: Throwable? get() = lock.withLock { failure }
+
+    fun start(job: Job) {
+        lock.withLock { owner = Some(job) }
+        set(duration)
+    }
 
     fun set(value: Duration?) {
         requireServerDuration(value)
-        lock.withLock {
-            if (stopped || present(expired))
-                throw IllegalStateException(Some("request deadline is no longer active"))
-            duration = value
-        }
-        changes.signal()
+        val previous =
+            lock.withLock {
+                if (stopped || present(failure))
+                    throw IllegalStateException(Some("request deadline is no longer active"))
+                val job = owner!!
+                val next =
+                    if (present(value))
+                        Some(RequestAlarm(value!!))
+                    else
+                        None
+                val registration =
+                    when (next) {
+                        case Some(val target) -> context(job) {
+                            context(loop) {
+                                Some(
+                                    loop.schedule(
+                                        remainingServerTime(value, started)!!,
+                                        { error -> expire(target, error) }
+                                    )
+                                )
+                            }
+                        }
+                        case None -> None
+                    }
+                val saved = timer
+                duration = value
+                alarm = next
+                timer = registration
+                saved
+            }
+        previous?.dispose()
+    }
+
+    private fun expire(target: RequestAlarm, error: Throwable?) {
+        val job =
+            lock.withLock {
+                if (stopped || !present(alarm) || alarm!! !== target)
+                    None
+                else {
+                    failure = Some(error ?: HttpServerTimeoutException(operation, target.limit))
+                    alarm = None
+                    timer = None
+                    owner
+                }
+            }
+        job?.cancel()
     }
 
     fun stop() {
-        lock.withLock { stopped = true }
-    }
-
-    suspend fun watch(owner: Job) {
-        while (true) {
-            val remaining = lock.withLock { remainingServerTime(duration, started) }
-            try {
-                serverDeadline<Unit>(
-                    remaining,
-                    "request deadline wait",
-                    suspend { changes.await() }
-                )
+        val previous =
+            lock.withLock {
+                stopped = true
+                alarm = None
+                owner = None
+                val saved = timer
+                timer = None
+                saved
             }
-            catch (_: HttpServerTimeoutException) {
-                val elapsed =
-                    lock.withLock {
-                        val current = remainingServerTime(duration, started)
-                        if (stopped || !present(current) || current!! > Duration.ZERO)
-                            false
-                        else {
-                            expired = duration;
-                            true
-                        }
-                    }
-                if (elapsed) {
-                    owner.cancel();
-                    return
-                }
-            }
-        }
+        previous?.dispose()
     }
 }
+
+private class RequestAlarm(val limit: Duration)
 
 internal suspend fun executeRequestPipeline(
     application: HttpApplication,
@@ -69,26 +100,15 @@ internal suspend fun executeRequestPipeline(
     val deadline = RequestDeadline(duration)
     try {
         coroutineScope<Unit> {
-            val owner = this
-
-            val timer = owner.launch suspend { deadline.watch(owner.job) }
-            try {
-                coroutineScope<Unit> {
-                    val scope = this
-
-                    val ctx = HttpContext(request, output, requestId, scope.job, info, deadline)
-                    result.context = Some(ctx)
-                    application.execute(ctx)
-                }
-            } finally {
-                deadline.stop();
-                timer.cancel()
-            }
+            deadline.start(job)
+            val ctx = HttpContext(request, output, requestId, job, info, deadline)
+            result.context = Some(ctx)
+            application.execute(ctx)
         }
     } catch (error: CancellationException) {
-        val expired = deadline.expiredLimit
-        if (present(expired))
-            throw HttpServerTimeoutException("request", expired!!)
-        throw error
+        throw deadline.selectedFailure ?: error
+    } finally {
+        // The request's entire structured subtree has finished before disarming the timer.
+        deadline.stop()
     }
 }

@@ -1,0 +1,108 @@
+//! dep: scoop:scoop.concurrent:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.time.*
+import scoop.text.*
+
+private class StartGate {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private var opened = false
+    fun await() {
+        lock.withLock {
+            while (!opened)
+                changed.await()
+        }
+    }
+    fun open() {
+        lock.withLock {
+            opened = true;
+            changed.broadcast()
+        }
+    }
+}
+
+private class Pump(
+    private val task: ExecutorTask,
+    private val gate: StartGate,
+    private val total: AtomicLong,
+    private val iterations: Int
+): CoroutineWork {
+    private var remaining = iterations
+    public override fun run() {
+        if (remaining == iterations)
+            gate.await()
+        remaining -= 1
+        if (remaining == 0) {
+            total.fetchAdd(iterations.toLong())
+            task.complete()
+        } else {
+            // No mutable payload is accessed after publication to the next worker.
+            task.dispatch(this)
+        }
+    }
+}
+
+private class Completed: Continuation<Unit> {
+    public override fun resume(value: Unit) {}
+    public override fun resumeWithException(error: Throwable) {
+        error.printStackTrace()
+        exit(1)
+    }
+}
+
+private fun runBatch(workerCount: Int, tasks: Int, iterations: Int, yielding: Boolean): Long {
+    val executor =
+        multiThreadExecutor {
+            workers = workerCount;
+            blocking { threads = 1 }
+        }
+    val gate = StartGate()
+    val total = AtomicLong(0L)
+    for (_ in 0 ..< tasks) {
+        if (yielding) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    gate.await()
+                    for (_ in 0 ..< iterations)
+                        yieldCoroutine()
+                    total.fetchAdd(iterations.toLong())
+                    Unit
+                },
+                Completed()
+            )
+        } else {
+            val task = executor.registerTask(None)
+            task.dispatch(Pump(task, gate, total, iterations))
+        }
+    }
+    val start = MonotonicTimeSource.markNow()
+    gate.open()
+    executor.requestShutdown()
+    executor.join()
+    val duration = start.elapsedNow()
+    if (total.load() != tasks.toLong() * iterations.toLong())
+        throw IllegalStateException(Some("scheduler lost work"))
+    return duration.floorSeconds * 1000000000L + duration.nanosecondsOfSecond.toLong()
+}
+
+fun main(args: Array<String>) {
+    val workers = args[1L].toInt()
+    val tasks = args[2L].toInt()
+    val iterations = args[3L].toInt()
+    val yielding = args[4L] == "yield"
+    if (workers <= 0 || tasks <= 0 || iterations <= 0 || (!yielding && args[4L] != "dispatch"))
+        throw IllegalArgumentException(Some("usage: WORKERS TASKS ITERATIONS dispatch|yield"))
+    runBatch(workers, tasks, 256, yielding)
+    val nanos = runBatch(workers, tasks, iterations, yielding)
+    println(
+        "operations=" +
+            (tasks.toLong() * iterations.toLong()).toString() +
+            " nanos=" +
+            nanos.toString()
+    )
+}

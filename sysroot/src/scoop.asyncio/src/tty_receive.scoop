@@ -19,7 +19,7 @@ internal suspend fun receiveTty(
         throw IllegalArgumentException(Some("negative TTY timeout"))
     val reservation = owner.reserve(false)
     try {
-        val borrowed = borrowTty(buffer, count, false)
+        val borrowed = borrowTransfer(buffer, count, false)
         val progress = TtyReadProgress()
         try {
             if (count == 0L)
@@ -32,14 +32,14 @@ internal suspend fun receiveTty(
             return suspendCoroutine<TtyRead> {
                 continuation ->
                 val operation =
-                    LoopOperation(
+                    CallbackOperation(
                         owner.loop,
                         owner.loop.nextOperation(),
                         {
                             _,
                             id -> @Unsafe
                             {
-                                return@LoopOperation nativeStatus(
+                                return@CallbackOperation nativeStatus(
                                     id,
                                     nativeTtyReceive(
                                         owner.pointer,

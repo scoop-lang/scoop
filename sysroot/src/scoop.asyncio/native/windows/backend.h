@@ -27,6 +27,9 @@ struct ScoopIoLoop {
     bool failure_reported, stopping, collecting;
     unsigned work_runners;
     int64_t completions;
+    ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];
+    ScoopIoTcpSubmissions tcp_submissions;
+    ScoopIoCompletion *retired_batch;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests, *packets_head, *packets_tail;
     ScoopIoTimer *timers;

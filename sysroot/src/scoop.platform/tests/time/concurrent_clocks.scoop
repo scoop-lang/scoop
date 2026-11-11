@@ -1,0 +1,34 @@
+package scoop.platform.time
+
+import scoop.platform.concurrent.Thread
+import scoop.time.Duration
+import scoop.test.*
+
+@Test
+private class ConcurrentClocksTest {
+    @Test
+    fun `clock reads preserve values while other threads collect`() {
+        val workers =
+            Array<Thread>(4L) {
+                _ -> Thread.start {
+                    var previous = MonotonicTimeSource.markNow()
+                    var index = 0
+                    while (index < 32) {
+                        val wall = SystemClock.now()
+                        val current = MonotonicTimeSource.markNow()
+                        assertTrue(current >= previous)
+                        assertTrue(
+                            wall.nanosecondsOfSecond >= 0 && wall.nanosecondsOfSecond < 1000000000
+                        )
+                        if (index % 8 == 0)
+                            gcCollect()
+                        assertTrue(current.elapsedNow() >= Duration.ZERO)
+                        previous = current
+                        index += 1
+                    }
+                }
+            }
+        for (worker in workers)
+            worker.join()
+    }
+}

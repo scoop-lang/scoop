@@ -90,6 +90,7 @@ private fun readClock(monotonic: Boolean): NativeTime {
     }
 }
 
+@GCLeaf
 @Extern(name = "scoop_platform_clock")
 private fun nativeClock(monotonic: Boolean): NativeTime
 
