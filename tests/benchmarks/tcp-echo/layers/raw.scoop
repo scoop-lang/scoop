@@ -1,0 +1,254 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.Mutex
+import scoop.platform.concurrent.Thread
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.memory.NativeByteBorrow
+import scoop.platform.net.*
+
+// Diagnostic lower bound: identical native requests, with explicit connection
+// state and one borrow for its lifetime, without the managed operation framework.
+private fun rawCheck(status: Int) {
+    if (status < 0)
+        throw backendFailure("raw echo", status)
+}
+
+private fun rawRequire(value: Boolean) {
+    if (!value)
+        throw IllegalStateException(Some("invalid raw echo completion"))
+}
+
+private fun rawCreate(): Ptr<Unit> {
+    @Unsafe
+    {
+        val created = nativeLoopCreate()
+        rawCheck(-created.status.code)
+        return created.pointer!!
+    }
+}
+
+private fun rawBorrow(buffer: NativeByteBuffer): NativeByteBorrow {
+    @Unsafe
+    {
+        return buffer.borrowWritable(buffer.capacity)
+    }
+}
+
+private fun rawAddress(borrow: NativeByteBorrow): Ptr<Byte> {
+    @Unsafe
+    {
+        return borrow.pointer()!!
+    }
+}
+
+private class RawConnection(val id: Long, val capacity: Long) {
+    val buffer = NativeByteBuffer.allocate(capacity)
+    val borrow = rawBorrow(buffer)
+    val bytes = rawAddress(borrow)
+    var peer: Ptr<Unit>? = None
+    var phase = 0
+    var length = 0L
+    var offset = 0L
+
+    fun read() {
+        phase = 0
+        @Unsafe
+        {
+            rawCheck(nativeTcpRead(peer!!, id, Some(bytes), capacity))
+        }
+    }
+    fun write() {
+        phase = 1
+        @Unsafe
+        {
+            rawCheck(nativeTcpWrite(peer!!, id, Some(bytes + offset), length - offset))
+        }
+    }
+    fun release() {
+        @Unsafe
+        {
+            borrow.complete(0L)
+        }
+        buffer.close()
+    }
+}
+
+private class RawServer(val count: Int, val width: Int, bufferSize: Long) {
+    val connections =
+        Array<RawConnection>(count.toLong()) { index -> RawConnection(index + 1L, bufferSize) }
+    val workers =
+        Array<RawWorker>(width.toLong()) {
+            index -> RawWorker(index.toInt(), (count + width - 1 - index.toInt()) / width)
+        }
+    var listener: Ptr<Unit>? = None
+    var accepted = 0
+    var listenerClosed = false
+
+    fun accept() {
+        @Unsafe
+        {
+            rawCheck(nativeTcpAccept(listener!!, workers[(accepted % width).toLong()].native, -2L))
+        }
+    }
+}
+
+private class RawWorker(val index: Int, val expected: Int) {
+    val native = rawCreate()
+    private val lock = Mutex()
+    private var inbox = ArrayList<RawConnection>()
+    private var received = 0
+    private var remaining = expected
+
+    fun publish(connection: RawConnection) {
+        lock.withLock {
+            inbox.add(connection)
+            @Unsafe
+            {
+                nativeLoopWake(native)
+            }
+        }
+    }
+    private fun receive() {
+        if (received == expected)
+            return
+        val pending =
+            lock.withLock {
+                val pending = inbox
+                inbox = ArrayList<RawConnection>()
+                pending
+            }
+        for (connection in pending) {
+            received += 1
+            connection.read()
+        }
+    }
+    private fun complete(server: RawServer, event: NativeRecord) {
+        if (event.kind == 5)
+            rawCheck(-event.code)
+        if (event.id == -2L) {
+            rawRequire(index == 0 && event.kind == 3 && server.accepted < server.count)
+            val connection = server.connections[server.accepted.toLong()]
+            connection.peer = event.resource
+            val target = server.workers[(server.accepted % server.width).toLong()]
+            server.accepted += 1
+            if (target === this) {
+                received += 1
+                connection.read()
+            } else {
+                target.publish(connection)
+            }
+            if (server.accepted == server.count) {
+                @Unsafe
+                {
+                    rawCheck(nativeTcpClose(server.listener!!, -3L))
+                }
+            } else {
+                server.accept()
+            }
+            return
+        }
+        if (event.id == -3L) {
+            rawRequire(event.kind == 0)
+            server.listenerClosed = true
+            return
+        }
+        rawRequire(event.id >= 1L && event.id <= server.count.toLong())
+        rawRequire((event.id - 1L) % server.width.toLong() == index.toLong())
+        val connection = server.connections[event.id - 1L]
+        if (connection.phase == 0) {
+            if (event.kind == 2) {
+                connection.phase = 2
+                @Unsafe
+                {
+                    rawCheck(nativeTcpClose(connection.peer!!, connection.id))
+                }
+            } else {
+                rawRequire(
+                    event.kind == 1 && event.count > 0L && event.count <= connection.capacity
+                )
+                connection.length = event.count
+                connection.offset = 0L
+                connection.write()
+            }
+        } else
+            if (connection.phase == 1) {
+                rawRequire(
+                    event.kind ==
+                        1 &&
+                        event.count >
+                        0L &&
+                        event.count <=
+                        connection.length -
+                        connection.offset
+                )
+                connection.offset += event.count
+                if (connection.offset < connection.length)
+                    connection.write()
+                else
+                    connection.read()
+            } else {
+                rawRequire(connection.phase == 2 && event.kind == 0)
+                connection.peer = None
+                remaining -= 1
+            }
+    }
+    fun drive(server: RawServer) {
+        if (index == 0)
+            server.accept()
+        while (remaining > 0 || (index == 0 && !server.listenerClosed)) {
+            receive()
+            @Unsafe
+            {
+                rawCheck(-nativeLoopPoll(native, true).code)
+                val batch = nativeLoopTakeBatch(native)
+                var offset = 0L
+                while (offset < batch.count) {
+                    complete(server, batch.records.load(offset))
+                    offset += 1L
+                }
+                nativeLoopRearm(native, false)
+            }
+        }
+        @Unsafe
+        {
+            rawCheck(-nativeLoopDestroy(native).code)
+        }
+        lock.dispose()
+    }
+}
+
+public fun diagnosticRawEcho(width: Int, port: Int, count: Int, bufferSize: Long) {
+    val server = RawServer(count, width, bufferSize)
+    val native = server.workers[0L].native
+    @Unsafe
+    {
+        rawCheck(
+            nativeTcpListen(
+                native,
+                -1L,
+                ioAddress(SocketAddress(IpAddress.IPV4_LOOPBACK, port)),
+                1024,
+                true
+            )
+        )
+        rawCheck(-nativeLoopPoll(native, false).code)
+        val batch = nativeLoopTakeBatch(native)
+        rawRequire(batch.count == 1L)
+        val event = batch.records.load(0L)
+        rawRequire(event.kind == 3)
+        server.listener = event.resource
+        nativeLoopRearm(native, false)
+        rawConfigure(port)
+    }
+    val threads =
+        Array<Thread>(width.toLong()) {
+            index -> Thread.start { server.workers[index].drive(server) }
+        }
+    for (thread in threads)
+        thread.join()
+    for (connection in server.connections)
+        connection.release()
+}
+
+@Extern(lib = "echo_metrics", name = "echo_configure_tcp")
+private fun rawConfigure(port: Int)

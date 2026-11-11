@@ -1,0 +1,78 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+
+// Diagnostic only: retain the real transfer/borrow/cancellation path, but drive
+// repeated I/O without a new compiler coroutine suspension for each operation.
+private class DiagnosticEcho(
+    private val owner: OwnedEndpoint,
+    private val buffer: NativeByteBuffer,
+    private val job: Job,
+    private val done: Continuation<Unit>
+) {
+    fun start() {
+        buffer.clear()
+        submit(false)
+    }
+
+    private fun submit(writing: Boolean) {
+        try {
+            val count =
+                if (writing)
+                    buffer.readableBytes
+                else
+                    buffer.writableBytes
+            val transfer = diagnosticPrepareTransfer(owner, buffer, count, writing, job)
+            transfer.register(DiagnosticEchoStep(this, writing))
+        } catch (error: Throwable) {
+            fail(error)
+        }
+    }
+
+    fun complete(writing: Boolean, count: Long) {
+        try {
+            if (writing) {
+                if (buffer.readableBytes > 0L)
+                    submit(true)
+                else
+                    start()
+            } else {
+                if (count == 0L)
+                    done.resume(Unit)
+                else
+                    submit(true)
+            }
+        } catch (error: Throwable) {
+            fail(error)
+        }
+    }
+
+    fun fail(error: Throwable) {
+        done.resumeWithException(error)
+    }
+}
+
+// Each transfer gets its own one-shot completion, preserving the Continuation contract.
+private class DiagnosticEchoStep(
+    private val state: DiagnosticEcho,
+    private val writing: Boolean
+): Continuation<Long> {
+    public override fun resume(value: Long) {
+        state.complete(writing, value)
+    }
+    public override fun resumeWithException(error: Throwable) {
+        state.fail(error)
+    }
+}
+
+public suspend fun diagnosticCallbackEcho(stream: AsyncTcpStream, bufferSize: Long) {
+    stream.useAsync suspend {
+        peer -> NativeByteBuffer.allocate(bufferSize).use suspend {
+            buffer ->
+            val job = currentJobOrNone()!!
+            suspendCoroutine<Unit> {
+                done -> DiagnosticEcho((peer as TcpStream).owner, buffer, job, done).start()
+            }
+        }
+    }
+}
