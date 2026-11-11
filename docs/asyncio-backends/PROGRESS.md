@@ -676,6 +676,29 @@ Go net/http／Gin／Axum 四 worker 大响应分别约 240,990／233,372／339,5
 
 共 42 个无仪表诊断样本、9,996,862 个 wrk 请求，无请求错误；样本前后核对完整正文，分配采样期间另核对 220 个响应。仅 Linux GNU/io_uring、静态明文 HTTP/1.1 实测；本轮未重测 Go／Gin／Axum、JSON、TLS、HTTP/2 或长尾。Python 工具格式／lint 和仓库 diff 检查通过。原始数据、图表、固定产物、未采用草稿和复现说明位于 `/home/chenxu/benchmarks/http-improvements-20261112-round32`；清理本轮临时 target，保留冻结工具链、缓存与证据，未推送。
 
+## 第三十三轮：排除协程 caller 内联豁免，确认剩余边界成本
+
+发现普通 MIR 内联整体跳过生成的协程／callback caller。据此试验解除 caller 豁免、保留 callee 协议边界的候选；复用 B28 从源码构建且包含私有补丁的 LLVM 22.1.8，在独立目录重建编译器、18 个 Scoop 库和相同 HTTP 程序。序列化源码未改。本轮候选收益不足，已撤回全部实现、规范和测试草稿，正式底座仍为 B31。
+
+静态 1 KiB、64 连接、默认 GC／超时、TCP_NODELAY；服务器与客户端独立绑核，前后各三次随机交错，预热 2 秒＋测量 6 秒：
+
+| worker | req/s 前 → 后 | 总 CPU μs/请求 | 分配 KiB/请求 | RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 21,805 → 22,419 | 45.87 → 44.68 | 35.623 → 35.570 | 46.33 → 45.71 |
+| 4 | 46,995 → 58,698 | 58.01 → 55.14 | 35.720 → 35.660 | 51.86 → 52.24 |
+
+单 worker 吞吐仅 +2.8%、CPU −2.6%。四 worker 基线三次为 36,117／46,995／58,729 req/s，候选为 58,698／61,255／55,976；全部保留，不能把吞吐中位数变化宣称为稳定收益，其 CPU 中位数也仅下降 4.9%。完整原始样本和 P50 保留在外部报告，未围绕长尾调参。
+
+对候选再做单 worker／单连接的 100 GET 分配追踪，减去零 GET 控制边界；对象和字节数均与 runtime 计数相符。与 B32 对同一 B31 底座的追踪相比，每请求 **894 → 892 对象、37,504 → 37,456 字节**，仅少了两个装箱值。**303 个闭包、50 个 coroutine frame、61 个 continuation adapter 完全没变**。core 优化报告的 inlined 决策从 710 增至 727；CoroutineLock.withLock 的 119 条 unsupported-body、26 条 not-profitable、1 条 inlined 仍完全相同。报告包含多轮决策，不能当成运行频次。
+
+沿实际闭包分配位置归组：Job 相关每请求 77 个，native buffer／borrow 40 个，Mutex.lock／unlock 28 个，listener／registration 20 个，生成 driver 40 个，其余 98 个。它们是分配位置，不能全视为可消除分配。正常路径中的同步包装仍留下大量闭包；下一项应验证跨同步闭包和清理边界的整体消除能力。当前 MIR 拒绝含未消除 EH 的 callee，LIR 使用函数级隐式异常槽；直接放开限制会涉及 Resume 向 caller handler 转交、catch 生命周期和异常状态覆盖，不能只删除检查或放宽成本阈值。本轮未实现该方案，也未估计其性能收益。
+
+另对正式 B31 二进制做独立 8 秒／199 Hz 用户态 CPU 采样。单／四 worker 为 1,266／4,774 点；四 worker 根登记 self 为 8.69%，driver／adapter 为 7.73%／4.36%，CoroutineLock.withLock 为 2.41%。生成正文含真实 API 工作，inclusive 调用栈可重叠，不能将其全部当成调度／包装开销。成本分布继续支持检查多层调用、状态和分配边界。
+
+12 个无仪表样本共 2,734,941 个 wrk 请求，无请求错误；各样本前后另核对完整正文，分配追踪的 100 个响应逐字节核验。Rust 格式及 workspace/all-targets clippy 完成（有原有警告）；MIR 单测 202 项通过、7 个旧快照函数编号失败，恢复原 caller 排除逻辑复跑仍是同样 7 项失败。新增测试通过，覆盖立即返回与显式 yield；候选未采用，未宣称完整库行为／CLI 验收通过。
+
+固定产物、撤回补丁、分配／CPU 追踪、图表和复现说明位于 `/home/chenxu/benchmarks/http-improvements-20261112-round33`。仅 Linux GNU/io_uring、静态 HTTP/1.1 实测，未重测 Go／Gin／Axum、TLS、HTTP/2 或 JSON。清理本轮临时 target 和不再需要的 debug 编译输出，保留固定工具链、release 构建缓存与诊断证据；未修改安装目录或前轮产物，未推送。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
