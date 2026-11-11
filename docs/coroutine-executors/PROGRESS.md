@@ -223,3 +223,37 @@ B14 改后四 worker 的纯 dispatch 热点集中在通用链表队列的领取�
 格式与静态检查、concurrent 全套 69 项、asyncio 全套 175 项通过；三个专用队列用例在 moving＋minor GC stress 下通过。覆盖槽位复用与 FIFO、批量转移的目标容量、8,192 项恰好一次领取、1,024 个子任务的窃取和溢出、关闭时排空本地工作，以及既有公平性／唤醒／Context 组合。三个短传输配置通过；正式 echo 含预热校验 18,950,465 次响应，短／长调度分别核对 50,331,648／1,610,612,736 次操作，全部无错误。
 
 报告、固定二进制、源码、全部范围和异常样本保存在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round15`。CPU／RSS 取预热后的测量窗口，GC／分配包含预热和收尾；闭环延迟未校正 coordinated omission，每配置仅三次。只实测 Linux x86-64 GNU，本轮未重测 Go、HTTP、JSON 或其他平台。
+
+## 2026-11-11：协程执行驱动的原子所有权交接（B16）
+
+B15 的完整 yield 采样中，`CoroutineLock.withLock` 合计占用户态 self 的 27.88%。本轮移除 `CoroutineExecution` 在查询登记、提交恢复、领取工作和退出判定中的重复锁，改为一个原子状态交接驱动权与可复用的 managed action 槽位。发布者取得写权后 release 发布，驱动者 acquire 领取；旧驱动若发现发布尚未完成，可直接交出后续调度义务，由发布者完成投递，不等待对方线程。
+
+领取者先进入 Taking 并清空槽位，再允许下一次恢复；最终 completion 结束且 Context／异常出口清理完成后才释放登记。异常退出与在途发布竞争时由槽位拥有者清理，避免普通字段的并发写入。内部完成链仍迭代消费，有 executor 的外部恢复及 yield 仍入队。规范和设计先行更新；本轮只改 core 执行驱动，没有修改 B15 的队列／窃取、runtime ABI 或 GC 算法。
+
+继续使用 `~/.scoop` 的固定编译器，独立 sysroot 选择本轮 core 及重建依赖，不修改安装目录。以固定 B15 二进制对照，并加入 B14 四 worker yield 复核；27 个长运行样本随机交错，每项 64 × 1,048,576 次正式操作，各三次中位数如下。
+
+| 长运行纯调度 | workers | 改前操作／秒 | 改后操作／秒 | 变化 |
+| --- | ---: | ---: | ---: | ---: |
+| CoroutineWork dispatch | 1 | 23,699,820 | 23,784,752 | +0.4% |
+| CoroutineWork dispatch | 4 | 29,871,619 | 26,690,234 | −10.7% |
+| yieldCoroutine | 1 | 3,445,949 | 5,299,923 | +53.8% |
+| yieldCoroutine | 4 | 5,564,338 | 7,715,508 | +38.7% |
+
+同轮 B14 四 worker yield 为 5,970,985 次／秒，本轮高出 29.2%，超过 B15 回退前的水平。四 worker dispatch 的三次范围很宽：改前 23,904,528–41,872,361，改后 22,262,543–39,101,358；中位回退和全部样本保留，尚未定位根因，不将整个调度路径描述为全面改善。
+
+裸 TCP echo 仍为 1 KiB 消息、64 KiB 复用缓冲、默认 GC、1 秒预热／6 秒测量，CPU 配额保持，36 个样本各三次中位数如下。
+
+| TCP echo 配置 | echo／秒，前 → 后 | CPU μs／echo，前 → 后 | P99 μs，前 → 后 | RSS MiB，前 → 后 |
+| --- | ---: | ---: | ---: | ---: |
+| 1 worker，1 连接 | 45,892 → 47,292 | 21.71 → 21.15 | 29.95 → 27.14 | 12.26 → 11.88 |
+| 4 workers，1 连接 | 47,091 → 47,240 | 27.57 → 27.53 | 30.98 → 32.77 | 11.82 → 12.16 |
+| 1 worker，64 连接 | 81,350 → 81,491 | 12.29 → 12.27 | 1,245.18 → 1,228.80 | 31.45 → 31.01 |
+| 4 workers，64 连接 | 112,004 → 114,055 | 16.23 → 15.81 | 794.62 → 802.82 | 31.65 → 31.54 |
+
+64 连接四 worker 吞吐提高 1.8%、CPU 成本下降 2.6%；单独 event loop 为 111,430 → 116,501（+4.6%），但该配置同样经过改后的 core 驱动，不能当成未变化的控制组。纯协程收益没有等比例转化为网络收益。每 echo 分配下降约 0.73–0.77 KiB；64 连接四 worker 为 5.710 → 4.958 KiB，生命周期 GC 收集时间为 912.37 → 831.47 ms。单连接四 worker P99 回退 5.8%，没有尾延迟全面改善的证据。
+
+独立用户态采样中，四 worker yield 不再出现 `CoroutineLock.withLock` 样本；`CoroutineExecution.resume`、编译生成的 coroutine adapters 合计、本地队列 take 分别占 20.73%、26.77%、7.73% self。低层 dispatch 的 take／findWork／submit 为 30.46%／19.86%／9.21%。实际 echo 的 owner 约使用一个 CPU 的 83.2%，四个业务 worker 各约 22.5–22.9%，未证明 owner 已满核；全进程用户态热点仍含 Mutex、pump、native 浮点环境恢复、GC 和外部 inbox。下一轮继续调查每次 I/O 的 worker 提交、owner 完成与 worker 恢复整条往返，以及操作／回调链的分配，不转向 HTTP／JSON 或条件快路径。self 比例不是请求墙钟分账，异常大 offset 未用于指令归因。
+
+格式、静态检查和 release 验证通过：core consumer 的 executors 组 27 项、concurrent 全套 71 项、asyncio 全套 175 项；四个专用用例在 moving＋minor GC stress 下通过。新增外线程反复恢复，覆盖无 executor／单 worker／四 worker 各 512 次的成功和异常、结果顺序、Context、恰好一次及 yield，另有定向移动 GC。三个短传输配置通过，正式 echo 含预热核对 19,297,016 次响应，长调度核对 1,811,939,328 次操作，全部无错误。
+
+完整报告、固定产物、源代码、原始采样与复现命令在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round16`。重建 core 后遇到的旧依赖／隐式 core 选择错误已通过匹配的独立 sysroot 与依赖重建闭合，日志保留。CPU／RSS 取预热后窗口，GC／分配含预热和收尾；闭环延迟未校正 coordinated omission，各配置仅三次。仅实测 Linux x86-64 GNU，本轮未重测 Go、HTTP、JSON 性能或其他平台。

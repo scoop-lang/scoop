@@ -1,0 +1,112 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+private class DriveHandoffSlot {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private var waiter: Continuation<Int>? = None
+
+    fun publish(next: Continuation<Int>) {
+        lock.withLock {
+            assertTrue(absent(waiter))
+            waiter = Some(next)
+            changed.signal()
+        }
+    }
+
+    fun take(): Continuation<Int> =
+        lock.withLock {
+            while (absent(waiter))
+                changed.await()
+            val next = waiter!!
+            waiter = None
+            next
+        }
+}
+
+private fun exerciseDriveHandoffs(executor: CoroutineExecutor?, count: Int, collect: Boolean) {
+    val slot = DriveHandoffSlot()
+    val failure = Throwable()
+    val done = ThreadResult<Unit>()
+    val resumed = AtomicInt(0)
+    val responder =
+        Thread.start {
+            context(Label(99)) {
+                for (index in 0 ..< count) {
+                    val next = slot.take()
+                    if (index % 2 == 0)
+                        yield()
+                    if (index % 16 == 0)
+                        next.resumeWithException(failure)
+                    else
+                        next.resume(index)
+                    assertEquals(99, labelValue())
+                    assertTrue(absent(currentCoroutineExecutorOrNone()))
+                    if (collect && index % 8 == 0)
+                        gcCollect()
+                }
+            }
+        }
+    val body: suspend () -> Unit =
+        {
+            for (index in 0 ..< count) {
+                var value = -1
+                try {
+                    value = suspendCoroutine<Int> { next -> slot.publish(next) }
+                } catch (error: Throwable) {
+                    assertSame(failure, error)
+                }
+                assertEquals(
+                    if (index % 16 == 0)
+                        -1
+                    else
+                        index,
+                    value
+                )
+                assertEquals(7, labelValue())
+                when (executor) {
+                    case Some(val expected) -> assertSame(
+                        expected,
+                        currentCoroutineExecutorOrNone()!!
+                    )
+                    case None -> assertTrue(absent(currentCoroutineExecutorOrNone()))
+                }
+                assertEquals(index, resumed.fetchAdd(1))
+                yieldCoroutine()
+            }
+        }
+    context(Label(7)) {
+        when (executor) {
+            case Some(val executor) -> startDispatchedCoroutine(executor, body, done)
+            case None -> startCoroutine(body, done)
+        }
+    }
+    done.await()
+    responder.join()
+    assertEquals(count, resumed.load())
+}
+
+@Test
+private class CoroutineDriveHandoffTest {
+    @Test
+    fun `foreign resumes cross drive exits and retain task context`() {
+        exerciseDriveHandoffs(None, 512, false)
+        for (count in [1, 4]) {
+            multiThreadExecutor {
+                workers = count
+                blocking { threads = 1 }
+            }.use { executor -> exerciseDriveHandoffs(Some(executor), 512, false) }
+        }
+    }
+
+    @Test
+    fun `drive handoffs survive moving collection`() {
+        multiThreadExecutor {
+            workers = 4
+            blocking { threads = 1 }
+        }.use { executor -> exerciseDriveHandoffs(Some(executor), 32, true) }
+    }
+}

@@ -329,14 +329,16 @@ continuation 的“结果已经确定”和 execution 的“现在可以驱动�
 
 ### 5.3 execution 驱动门
 
-execution 内部保存待执行 action 与驱动状态，使用短临界区协调：
+execution 使用一个原子状态交接驱动权和单个 managed action 槽位，不为读取登记、提交、领取、退出判定分别取得同一把锁：
 
-- 当前为 `Running`：外部完成只提交 action，不取得驱动权。
-- 当前为 `Idle`：提交者把状态改为 `Queued`，发布唯一的 work。
-- 当前为 `Queued`：新的合法 action 归并到同一待执行状态，不再重复投递。
-- worker 运行 work：以 acquire 取得 `Queued -> Running`，然后执行 action。
-- 当前驱动退出：先完成所有 Context/异常出口，再原子检查待执行 action；没有 action 则 `Idle`，否则 `Queued` 并在锁外 dispatch。
-- 最终完成：进入 `Finished`，解除不再使用的引用，再释放任务登记。
+- 当前为 `Running`：提交者先 CAS 取得 `Publishing`，再写 action 槽，最后以 release 发布 `ReadyInternal` 或 `ReadyExternal`；提交者不访问 frame。
+- 当前为 `Idle`：提交者 CAS 取得 `Detached`，写 action 槽并以 release 发布 `Queued`，然后投递唯一的 work。
+- 当前驱动退出：完成全部 Context／异常出口后，若仍为 `Running`，CAS 交出为 `Idle`；若提交者尚在 `Publishing`，CAS 改为 `Detached` 后直接返回，由提交者完成发布并投递，不等待被抢占的发布者。
+- 若退出时已经 acquire 观察到 ready，当前驱动取得已发布的 action。内部完成链直接迭代；有 executor 的外部恢复保持 action 槽并 release 发布 `Queued`，随后 dispatch。
+- worker 以 CAS 取得 `Queued -> Taking` 的唯一领取权，读取并清空 action 槽后才发布 `Running`，防止新提交者覆盖尚未读取的槽位。`Queued`／`Taking`／发布中收到第二个 resume 仍是协议错误，不合并独立恢复。
+- 最终 completion 在当前驱动中将 `Running` 改为 `Finishing`；Context／异常出口结束后清空登记并发布 `Finished`，再 complete 一次。驱动异常退出也原子发布 `Finished`；如果观察到在途发布，由发布者清空 action，避免清理与尚未完成的写入竞争。
+
+action 的普通字段读写由上述状态的 release／acquire 同步，不能以 GC 屏障代替。状态常量仅为本类的私有表示，不增加 compiler／runtime ABI。任务登记在创建时建立，只在最终驱动退出时清空：当前驱动查询自己的登记，以及独占的闲置提交者在 dispatch 之前读取登记，均由既有所有权保护，不需要另一把锁。dispatch 之前先取得局部登记引用；其他 worker 可在 dispatch 返回前执行并完成，提交方返回后不得再读取或修改 execution 的普通槽位。
 
 合法单任务控制流不会出现两个独立挂起分支同时继续。驱动门不是支持任意并发调用同一 continuation 的多路执行器；重复 resume 仍按原规则报错，且不能先改写 payload、Context 或队列。
 

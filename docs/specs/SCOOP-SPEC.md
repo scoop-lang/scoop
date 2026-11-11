@@ -2415,6 +2415,8 @@ startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保
 
 所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
 
+execution 的驱动权、action 槽与调度义务通过同一原子状态交接；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。当前驱动读取自身登记由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
+
 withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
 
 blocking 在当前 executor 的阻塞队列执行普通托管闭包；没有当前 executor 时抛 IllegalStateException。显式 receiver 版本使用指定目标。阻塞任务继承调用处的 binding 快照但不继承 caller execution，可以分配对象、调用同步库与合法 FFI。结果及异常以精确类型保活，实际闭包和 managed callback 出口结束后才交付。排队取消与开始执行原子竞争：取消先获胜则不执行用户闭包；已经开始则不强制终止，等待其真实结束并交付结果/异常，后续取消检查仍看到 Job 的取消状态。不能丢弃已返回资源以假装阻塞调用被中断。

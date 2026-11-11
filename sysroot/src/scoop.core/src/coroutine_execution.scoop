@@ -1,12 +1,24 @@
-private struct CoroutinePendingWork(val work: CoroutineWork, val external: Boolean)
+private const val DRIVE_NEW: Int = 0
 
-private enum CoroutineDriveState {
-    New
-    Running(CoroutinePendingWork?, Boolean)
-    Idle
-    Queued(CoroutineWork)
-    Finished
-}
+private const val DRIVE_RUNNING: Int = 1
+
+private const val DRIVE_IDLE: Int = 2
+
+private const val DRIVE_QUEUED: Int = 3
+
+private const val DRIVE_TAKING: Int = 4
+
+private const val DRIVE_PUBLISHING: Int = 5
+
+private const val DRIVE_DETACHED: Int = 6
+
+private const val DRIVE_READY_INTERNAL: Int = 7
+
+private const val DRIVE_READY_EXTERNAL: Int = 8
+
+private const val DRIVE_FINISHING: Int = 9
+
+private const val DRIVE_FINISHED: Int = 10
 
 private enum CoroutineDriveAction {
     Continue(CoroutineWork)
@@ -18,87 +30,110 @@ private enum CoroutineDriveAction {
 // A drive owns all frame accesses, TaskContext changes and native catch cleanup.
 // Results may arrive concurrently, but another drive starts only after run exits.
 internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver, CoroutineWork {
-    private val lock: CoroutineLock = CoroutineLock()
+    private val state = AtomicInt(DRIVE_NEW)
     private var registration: ExecutorTask? = task
-    private var state: CoroutineDriveState = CoroutineDriveState.New
+    private var pending: CoroutineWork? = None
 
-    public override fun task(): ExecutorTask? = lock.withLock { registration }
+    // Only the current drive queries its registration. Completion clears it
+    // after that drive has left the frame and restored the resumer's context.
+    public override fun task(): ExecutorTask? = registration
 
     public override fun start(work: CoroutineWork, dispatched: Boolean) {
-        lock.withLock {
-            when (state) {
-                case CoroutineDriveState.New -> {
-                    state =
-                        if (dispatched)
-                            CoroutineDriveState.Queued(work)
-                        else
-                            CoroutineDriveState.Running(None, false)
-                }
-                case _ -> throw IllegalStateException(Some("coroutine already started"))
-            }
-        }
-        if (dispatched)
+        val initial =
+            if (dispatched)
+                DRIVE_DETACHED
+            else
+                DRIVE_RUNNING
+        if (!state.compareAndSet(DRIVE_NEW, initial, MemoryOrder.AcqRel, MemoryOrder.Acquire))
+            throw IllegalStateException(Some("coroutine already started"))
+        if (dispatched) {
+            pending = Some(work)
+            state.store(DRIVE_QUEUED, MemoryOrder.Release)
             schedule()
-        else
+        } else {
             drive(work)
+        }
     }
 
     public override fun resume(work: CoroutineWork, external: Boolean) {
-        val ready =
-            lock.withLock {
-                when (state) {
-                    case CoroutineDriveState.Running(val pending, val finishing) -> {
-                        if (finishing || !coroutineAbsent(pending)) {
-                            throw IllegalStateException(Some("coroutine already resumed"))
-                        }
-                        state =
-                            CoroutineDriveState.Running(
-                                Some(CoroutinePendingWork(work, external)),
-                                false
-                            )
-                        false
-                    }
-                    case CoroutineDriveState.Idle -> {
-                        state = CoroutineDriveState.Queued(work)
-                        true
-                    }
-                    case _ -> throw IllegalStateException(Some("coroutine is not waiting"))
+        var current = state.load(MemoryOrder.Acquire)
+        while (true) {
+            val claimed =
+                when (current) {
+                    DRIVE_RUNNING -> DRIVE_PUBLISHING
+                    DRIVE_IDLE -> DRIVE_DETACHED
+                    else -> throw IllegalStateException(Some("coroutine is not waiting"))
                 }
-            }
-        if (ready)
+            val observed =
+                state.compareAndExchange(current, claimed, MemoryOrder.AcqRel, MemoryOrder.Acquire)
+            if (observed == current)
+                break
+            current = observed
+        }
+        pending = Some(work)
+        if (current == DRIVE_IDLE) {
+            state.store(DRIVE_QUEUED, MemoryOrder.Release)
             schedule()
-    }
-
-    internal fun finish() {
-        lock.withLock {
-            when (state) {
-                case CoroutineDriveState.Running(val pending, val finishing) -> {
-                    if (finishing || !coroutineAbsent(pending)) {
-                        throw IllegalStateException(Some("coroutine already completed"))
-                    }
-                    state = CoroutineDriveState.Running(None, true)
-                }
-                case _ -> throw IllegalStateException(Some("coroutine has no active drive"))
+            return
+        }
+        val ready =
+            if (external)
+                DRIVE_READY_EXTERNAL
+            else
+                DRIVE_READY_INTERNAL
+        when (
+            state.compareAndExchange(
+                DRIVE_PUBLISHING,
+                ready,
+                MemoryOrder.AcqRel,
+                MemoryOrder.Acquire
+            )
+        ) {
+            DRIVE_PUBLISHING -> {}
+            DRIVE_DETACHED -> {
+                state.store(DRIVE_QUEUED, MemoryOrder.Release)
+                schedule()
             }
+            DRIVE_FINISHED -> {
+                // The failed drive retired its registration while publication
+                // was in flight. Only this publisher may clear the slot now.
+                pending = None
+            }
+            else -> throw IllegalStateException(Some("coroutine lost its pending publication"))
         }
     }
 
+    internal fun finish() {
+        if (
+            !state.compareAndSet(
+                DRIVE_RUNNING,
+                DRIVE_FINISHING,
+                MemoryOrder.AcqRel,
+                MemoryOrder.Acquire
+            )
+        )
+            throw IllegalStateException(Some("coroutine has no unfinished drive"))
+    }
+
     public override fun run() {
-        val work =
-            lock.withLock {
-                when (state) {
-                    case CoroutineDriveState.Queued(val work) -> {
-                        state = CoroutineDriveState.Running(None, false)
-                        work
-                    }
-                    case _ -> throw IllegalStateException(Some("coroutine work is not queued"))
-                }
-            }
+        if (
+            !state.compareAndSet(
+                DRIVE_QUEUED,
+                DRIVE_TAKING,
+                MemoryOrder.AcqRel,
+                MemoryOrder.Acquire
+            )
+        )
+            throw IllegalStateException(Some("coroutine work is not queued"))
+        val work = pending!!
+        pending = None
+        state.store(DRIVE_RUNNING, MemoryOrder.Release)
         drive(work)
     }
 
     private fun schedule() {
-        when (task()) {
+        // Acquire the registration before dispatch can run and finish elsewhere.
+        when (registration) {
             case Some(val task) -> task.dispatch(this)
             case None -> run()
         }
@@ -130,43 +165,56 @@ internal class CoroutineExecution(task: ExecutorTask?): CoroutineExecutionDriver
         }
     }
 
-    private fun afterDrive(): CoroutineDriveAction =
-        lock.withLock {
-            when (state) {
-                case CoroutineDriveState.Running(val pending, val finishing) -> {
-                    if (finishing) {
-                        state = CoroutineDriveState.Finished
-                        val task = registration
-                        registration = None
-                        return@withLock CoroutineDriveAction.Complete(task)
-                    }
-                    when (pending) {
-                        case Some(val next) -> {
-                            if (next.external && !coroutineAbsent(registration)) {
-                                state = CoroutineDriveState.Queued(next.work)
-                                CoroutineDriveAction.Dispatch
-                            } else {
-                                state = CoroutineDriveState.Running(None, false)
-                                CoroutineDriveAction.Continue(next.work)
-                            }
-                        }
-                        case None -> {
-                            state = CoroutineDriveState.Idle
-                            CoroutineDriveAction.Stop
-                        }
-                    }
+    private fun afterDrive(): CoroutineDriveAction {
+        var current = state.load(MemoryOrder.Acquire)
+        while (true) {
+            when (current) {
+                DRIVE_RUNNING, DRIVE_PUBLISHING -> {
+                    val released =
+                        if (current == DRIVE_RUNNING)
+                            DRIVE_IDLE
+                        else
+                            DRIVE_DETACHED
+                    val observed =
+                        state.compareAndExchange(
+                            current,
+                            released,
+                            MemoryOrder.AcqRel,
+                            MemoryOrder.Acquire
+                        )
+                    if (observed == current)
+                        return CoroutineDriveAction.Stop
+                    current = observed
                 }
-                case _ -> throw IllegalStateException(Some("coroutine lost its active drive"))
+                DRIVE_READY_INTERNAL, DRIVE_READY_EXTERNAL -> {
+                    if (current == DRIVE_READY_EXTERNAL && !coroutineAbsent(registration)) {
+                        state.store(DRIVE_QUEUED, MemoryOrder.Release)
+                        return CoroutineDriveAction.Dispatch
+                    }
+                    val work = pending!!
+                    pending = None
+                    state.store(DRIVE_RUNNING, MemoryOrder.Release)
+                    return CoroutineDriveAction.Continue(work)
+                }
+                DRIVE_FINISHING -> {
+                    val task = registration
+                    registration = None
+                    state.store(DRIVE_FINISHED, MemoryOrder.Release)
+                    return CoroutineDriveAction.Complete(task)
+                }
+                else -> throw IllegalStateException(Some("coroutine lost its active drive"))
             }
         }
+    }
 
-    private fun abortDrive(): ExecutorTask? =
-        lock.withLock {
-            state = CoroutineDriveState.Finished
-            val task = registration
-            registration = None
-            task
-        }
+    private fun abortDrive(): ExecutorTask? {
+        val previous = state.exchange(DRIVE_FINISHED, MemoryOrder.AcqRel)
+        if (previous != DRIVE_PUBLISHING && previous != DRIVE_DETACHED)
+            pending = None
+        val task = registration
+        registration = None
+        return task
+    }
 
     private fun completeRegistration(task: ExecutorTask?) {
         when (task) {

@@ -258,6 +258,12 @@ concurrent 64 项、asyncio 175 项和两个定向移动 GC 用例通过。生�
 
 concurrent 69 项、asyncio 175 项及三个定向移动 GC 用例通过。实现、主路径采样与全部测量限制见[协程调度进度](../coroutine-executors/PROGRESS.md)；固定产物、报告和原始数据在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round15`。没有修改 asyncio、HTTP 或 JSON 实现。
 
+## 第十六轮：协程驱动权的原子交接
+
+移除 core 执行驱动在提交、领取、登记查询和退出判定中的重复锁，以原子状态交接 action 槽与调度义务；本地队列和批量 work stealing 保持。单／四 worker 完整 yield 分别提高 53.8%／38.7%，四 worker 结果也超过同轮复测的 B14 水平。四 worker 低层 dispatch 中位回退 10.7%，三次范围很宽，根因尚未确定。
+
+64 连接四 worker 裸 TCP echo 吞吐提高 1.8%、CPU／echo 下降 2.6%、分配下降 13.2%；单连接四 worker P99 回退 5.8%。网络收益仍有限，下一轮继续跟踪必经的 I/O 提交／完成／恢复往返。core executors 27 项、concurrent 71 项、asyncio 175 项和四个定向移动 GC 用例通过。实现与测量限制见[协程调度进度](../coroutine-executors/PROGRESS.md)，完整报告和固定产物位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round16`；未修改 asyncio、HTTP 或 JSON 实现。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
