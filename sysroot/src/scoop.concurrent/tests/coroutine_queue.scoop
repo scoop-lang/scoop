@@ -1,0 +1,83 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class CoroutineQueueTest {
+    @Test
+    fun `FIFO payloads survive moving collection while retained only by queue nodes`() {
+        val queue = CoroutineQueue.create()
+        val affinity = AtomicInt(0)
+        val observed = ArrayList<Int>()
+        for (index in 0 ..< 1024) {
+            queue.put(CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(index) }))
+        }
+        gcCollect()
+        for (index in 0 ..< 1024) {
+            queue.take()!!.work.run()
+            assertEquals(index, observed[index.toLong()])
+        }
+        assertTrue(absent(queue.take()))
+        gcCollect()
+        queue.put(CoroutineSubmission(affinity, FunctionCoroutineWork { observed.add(1024) }))
+        queue.take()!!.work.run()
+        assertEquals(1025L, observed.size)
+        assertTrue(absent(queue.take()))
+    }
+
+    @Test
+    fun `concurrent producers and consumers transfer each managed payload exactly once`() {
+        exerciseConcurrentQueue(2048)
+    }
+
+    @Test
+    fun `concurrent queue references survive moving collection`() {
+        exerciseConcurrentQueue(64)
+    }
+}
+
+private fun exerciseConcurrentQueue(perProducer: Int) {
+    val expected = perProducer * 4
+    val queue = CoroutineQueue.create()
+    val affinity = AtomicInt(0)
+    val seen = Array<AtomicInt>(expected.toLong()) { _ -> AtomicInt(0) }
+    val received = AtomicInt(0)
+    val consumers =
+        Array<Thread>(4L) {
+            _ -> Thread.start {
+                while (received.load() < expected) {
+                    when (queue.take()) {
+                        case Some(val work) -> {
+                            work.work.run()
+                            received.fetchAdd(1)
+                        }
+                        case None -> yield()
+                    }
+                }
+            }
+        }
+    val producers =
+        Array<Thread>(4L) {
+            producer -> Thread.start {
+                for (offset in 0 ..< perProducer) {
+                    val index = producer * perProducer.toLong() + offset.toLong()
+                    queue.put(
+                        CoroutineSubmission(
+                            affinity,
+                            FunctionCoroutineWork { assertEquals(0, seen[index].fetchAdd(1)) }
+                        )
+                    )
+                }
+            }
+        }
+    for (producer in producers)
+        producer.join()
+    for (consumer in consumers)
+        consumer.join()
+    assertEquals(expected, received.load())
+    for (value in seen)
+        assertEquals(1, value.load())
+    assertTrue(absent(queue.take()))
+}

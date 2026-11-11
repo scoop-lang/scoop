@@ -7,7 +7,7 @@ import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.ThreadId
 import scoop.platform.concurrent.currentThreadId
 
-// Shared only by the coroutine executor and the managed blocking pool.
+// Blocking work has its own FIFO and does not participate in coroutine work stealing.
 internal class WorkerGroup private constructor() {
     private val lock = Mutex()
     private val changed = ConditionVariable(lock)

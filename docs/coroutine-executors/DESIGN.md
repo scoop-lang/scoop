@@ -528,27 +528,25 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
 
 正式终止必须同时满足：没有活动任务登记、没有排队 coroutine work、没有正在执行的驱动，也没有本 executor 尚未退休或交付的阻塞 operation。拥有独立 blocking pool 时还须完成该池的关闭并等待 worker 退出执行循环；其 OS join 同样由 executor.join 完成。借用共享池时只等待自己的 operation，由共享池 owner 最后关闭池。单看队列为空不够，因为挂起任务仍可能需要外部 I/O、Channel 或取消来恢复。
 
-### 9.2 正确性基线实现
+### 9.2 无锁任务队列与登记发布
 
-使用一个受平台 Mutex 保护的 ArrayDeque，加一个平台 ConditionVariable。coroutine 与 blocking 池复用内部 managed work wrapper 队列，wrapper 保活实际工作和必要的退休逻辑。worker 取走一项 work 后解锁执行；队列为空时在谓词循环中 park。enqueue、终止判断和 signal/broadcast 使用同一把调度锁，避免检查为空与进入等待之间丢唤醒。
+协程 worker 各有自己的无锁 FIFO。队列采用 [Michael–Scott 算法](https://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html)的 managed 实现：head、tail 和 next 使用 AtomicRef，发布者帮助推进落后的 tail，消费者以 head CAS 唯一领取节点。未链接的 next 指向节点自身，等价于算法的空链；节点不复用。在途引用由 GC 保活并随搬迁更新，因此无需裸地址计数标签或 native epoch 回收。领取成功者取出并清空 payload，避免 dummy head 保留已经完成的任务；其他消费者不读取该 payload。
+
+已评估 [Crossbeam deque](https://docs.rs/crossbeam-deque/latest/crossbeam_deque/)的 worker／stealer 模型。直接使用其 native 存储需要另加移动 GC 根管理，而现有 AtomicRef 已提供所需 CAS 与写屏障；这里使用已知队列算法，不新增 runtime ABI。每个 worker 的队列允许外部生产者和其他 worker 消费，外部恢复直接投递任务最近执行的 worker，不再先经过一个全局 injection 锁或队列。
+
+executor 的任务登记与关闭计数仍由生命周期 mutex 保护。每个 ticket 的原子字记录活动标记与正在发布的工作数：dispatch 先取得发布义务，工作可见后释放；complete 关闭接纳，直到已有发布义务全部释放才扣减 executor 登记。正常 coroutine dispatch 不进入生命周期 mutex。这个计数表示实际尚未完成的发布义务，不限制任务数，也不参与调度计费。
 
 worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进入目标 frame TaskContext 并在退出时恢复；worker 外层环境不能残留上一任务的 Job、binding 或 execution。等待路径 NativeSafe，运行路径保留普通 GC safepoint。
 
-调度锁不跨 `work.run()`；任务内同步阻塞会占住一个 worker，长期不挂起的计算会阻止该 worker 调度其他任务。普通纯 CPU 循环需要主动 `yieldCoroutine`，调度器不从另一个线程注入异常或中断用户指令。
+任务内同步阻塞会占住一个 worker，长期不挂起的计算会阻止该 worker 调度其他任务。普通纯 CPU 循环需要主动 `yieldCoroutine`，调度器不从另一个线程注入异常或中断用户指令。长期同步工作仍应进入独立 blocking pool；协程窃取不执行 blocking work。
 
-该实现已经提供真正的多线程协程并行，足以作为全部正确性测试的稳定基线。可能长时间占住线程的同步工作应进入独立的 blocking pool；现有 native I/O work 也迁入该池，不在 backend 下保留另一组仅可执行 GC-free 工作的线程。
+### 9.3 Work stealing 与停车
 
-### 9.3 Work stealing 的演进
+新根轮询分配 worker，子登记继承同 executor 父登记的最近 worker；领取工作时更新该归属。worker 优先消费自己的 FIFO，空闲时按轮转顺序扫描并窃取其他队列的最早工作；每处理有限批本地工作也先检查其他来源。yield 与普通恢复同样排队，不能通过私有快捷槽反复越过已经排队的工作。窃取直接执行领取的工作，不反复搬移节点或另建转运队列。
 
-在基线正确、存在吞吐或调度锁竞争证据后，按同一个 executor 协议替换内部调度，不再修改源码协程 ABI：
+每个 worker 有独立的 parking mutex／condition 和原子 Awake／Observing／Notified 状态。准备停车时先注册观察者并发布 Observing，然后扫描全部队列；仍无工作才在自己的 mutex 下检查状态并 await。发布者先完成队列 CAS，再把一个 Observing 改为 Notified，最后在该 worker 的 mutex 下 signal；通知与等待之间因此没有遗漏窗口。已经找到工作却收到通知的 worker 会将通知转交其他观察者，避免将未消费工作的通知吞掉。关闭通知全部观察者，worker 在无可领工作且已关闭时退出。同步只用于休眠与生命周期，入队、出队和窃取不获取 mutex。
 
-- 外部提交进入全局 injection queue；worker 内部派生的 work 可进入本地 deque。
-- worker 优先处理本地工作，并定期处理全局队列；本地为空时从其他 worker 取一批工作。`yieldCoroutine` 不能进入会立即反复优先运行自身的私有快捷槽。
-- 首个版本可以用各 deque 的短锁实现 stealing；窃取时先移出 victim 的批次，再投到自己的队列，不同时持有两把 worker 队列锁。
-- 进入 park 前在 parking mutex 下把自己的停车记录设为 `observing=true, notified=false`，释放后检查全部可能的工作来源，再在同一 mutex 下检查 notified 和终止条件才 wait。发布或转移可运行工作时，先使队列可见，再在 parking mutex 下为 observing worker 设置 notified 并唤醒；找到工作或结束等待后清除 observing。基线可以通知全部 observing worker，后续按实测优化定向唤醒，但不能丢失“扫描期间有发布”的记录。
-- 队列和被窃取的批次保持 managed 根。不能直接把可移动对象裸指针塞进不参与 GC 扫描的 native lock-free deque。
-
-如果后续需要无锁 deque，先评估现有成熟实现与 Scoop GC 的适配成本；不为复刻某个运行时的固定队列长度、特定 CAS 布局而另建复杂调度 ABI。work stealing 不改变单任务串行、排队启动、取消或关闭语义。
+work stealing 不改变单任务串行、排队启动、Context、取消或关闭语义。业务队列始终保留 managed 根，不借用 GC 的标记队列，也不向未扫描 native 容器写入可移动引用。
 
 公平性保证限定为不无限忽略已有队列来源；不承诺所有任务相等的运行时间。实现中的队列轮询参数是局部调度选择，不是语言可见的通用执行预算。
 

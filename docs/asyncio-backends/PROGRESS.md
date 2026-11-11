@@ -240,6 +240,12 @@ Linux GNU／io_uring，1 KiB 消息，1／64 连接；所有服务器线程绑�
 
 30 个样本累计含预热校验 36277676 次 echo，全部成功；另以 64 KiB 消息／257 字节缓冲区验证短传输，三个配置均通过。格式、静态检查和 release 构建通过。闭环延迟未校正 coordinated omission；Go 四 worker 的客户端约使用 6.45 个 CPU，表中吞吐不代表其绝对能力上限。分配与 GC 快照含启动、预热和收尾，Scoop 收集时间与 Go STW 时间不直接比较；用户态 profile 的异常符号偏移未用于函数归因。完整结果、范围、RSS、GC、独立线程采样、固定产物与复现脚本位于仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round12`。
 
+## 第十三轮：调度主路径的无锁队列与 work stealing
+
+MultiThreadExecutor 已采用每 worker 独立的 CAS 无锁 FIFO 与 work stealing，正常 dispatch 移除 executor 全局锁。固定新旧产物的三次中位对照中，四 worker 纯 dispatch 为原来的 6.96 倍、yield 为 3.32 倍；64 连接裸 TCP echo 吞吐提高 24.8%，CPU／echo 下降 19.2%。单连接吞吐基本持平，但 P99 和 RSS 回退；后续仍沿调度主路径检查扩展性和唤醒成本。
+
+本轮生产改动仅在 concurrent，asyncio 175 项回归通过。实现、完整结果及正确性范围见[协程调度进度](../coroutine-executors/PROGRESS.md)；固定二进制、原始记录和报告在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round13`，未重新测量 HTTP 或 JSON。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

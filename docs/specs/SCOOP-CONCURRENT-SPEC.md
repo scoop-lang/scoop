@@ -107,11 +107,15 @@ public class BlockingTaskPool public constructor(threads: Int) : Closeable {
 }
 ```
 
-MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine workers；BlockingTaskPool 建立独立的固定 managed workers，执行任意普通 Scoop 闭包所产生的 BlockingWork，不限制为 GC-free。两类 worker 复用内部线程队列实现，队列中的普通 managed work wrapper 保活实际 CoroutineWork／BlockingWork。短平台 Mutex 保护 FIFO ArrayDeque 和关闭状态，ConditionVariable 在同一锁下检查谓词、等待与唤醒；锁外执行 work。没有隐式全局池、无限线程、调用线程 fallback 或任意队列数上限。
+MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine workers；BlockingTaskPool 建立独立的固定 managed workers，执行任意普通 Scoop 闭包所产生的 BlockingWork，不限制为 GC-free。协程 worker 各有独立的 CAS 无锁 FIFO，优先消费本地队列并定期检查其他队列，空闲时从其他 worker 窃取工作；阻塞池保持独立的 Mutex／ConditionVariable FIFO，不参与窃取。没有隐式全局池、无限线程、调用线程 fallback 或任意队列数上限。
 
 每个 worker 使用平台 Thread.start 的长期 managed 入口，等待路径为 NativeSafe，执行路径保留普通 safepoint。每个 CoroutineWork 负责进入及恢复自己的 TaskContext；BlockingWork 遵守语言规范 11.9.3 的 binding 快照、独立 invocation 与结果交付合同。work 抛出的未捕获 completion／协议异常在 worker 边界打印异常栈并以退出码 1 终止进程，不能只结束一个 worker；普通任务正文／blocking 闭包的异常仍由 core 交给 completion／Job。
 
-executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记检查、计数和 complete 在同一锁下处理。有效登记的 coroutine／blocking work 必须排队，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记与总计数使用生命周期锁；每个 ticket 以原子状态协调活动标记与正在发布的工作，正常 coroutine dispatch 不取得 executor 全局锁。complete 停止该 ticket 接纳新投递，最后一个已经进入的发布者完成入队后才退休登记，避免队列排空与迟到入队竞争。有效登记的 coroutine／blocking work 必须排队，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+
+新根分散到 worker 队列，同 executor 的子登记继承父登记最近执行的 worker，恢复优先回该 worker；被窃取执行后更新归属。这只是内部局部性选择，不提供固定线程承诺。worker 的 FIFO 包括 yield 重新投递，不能用私有优先槽无限抢占旧工作。队列节点和在途读取都是正常 managed 根，原子引用沿既有 GC 屏障与搬迁更新；不在未扫描 native 队列保存可移动指针。队列算法不使用 mutex，分配和 GC 仍遵守通常运行时合同。
+
+休眠与队列分开：worker 先发布观察状态，再扫描全部工作来源，最后在自身 parking mutex 下检查通知后等待；生产者先发布工作，再以原子状态通知观察中的 worker，并在该 worker 的 mutex 下 signal。扫描已找到工作时到达的通知须转交其他观察者，不能因为本线程不再等待就丢弃其唤醒义务。关闭广播通知全部 worker；实际执行、入队、出队与窃取不持有 parking 或生命周期锁。
 
 requestShutdown 幂等请求排空，不取消 Job。executor 的活动登记为零后才停止 coroutine 队列和自有 blocking pool 的接纳；正式 Terminated 还须全部 coroutine workers 退出执行循环、自己的 blocking 工作实际退出，以及自有 blocking pool 全部退出执行循环。共享池不关闭，只等待本 executor 的工作完成。悬挂且永不恢复的原始任务可以使关闭无限等待，这是其调用者的生命周期责任。
 

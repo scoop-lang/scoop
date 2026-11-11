@@ -128,3 +128,34 @@
 - 无窗口宿主测试补齐 CoroutineScope receiver 内对外层 handler 的显式限定，编译通过。两个 Windows GUI 用例未计为通过：均在进入事件循环前以 `create application` 失败；独立的普通 `Application.run` 程序同样返回 Win32 错误 5。原生 DPI 探针设置 Per-Monitor V2 也返回错误 5，给临时测试副本嵌入 V2 manifest 仍未解除失败。本轮保留现有窗口合同，没有把初始化失败当成协程验收通过；Windows 原生 I/O host／attach 行为已由完整 asyncio 测试覆盖。
 - Darwin Surface asyncio 的运行验收仍受旧 Skia archive 缺少 PathOps 符号限制，源码检查通过。以上两项图形限制不影响已通过的 core、concurrent、asyncio、TLS 与 HTTP 结果；本轮不扩展修改图形后端或构建第三方 Skia。
 - 普通常规行为使用 release；GC 压力仅用于上述定向验证。原始日志、临时探针、测试副本与 fixture 工作目录在汇总后清理，保留开发 sysroot、构建缓存和可复用的测试产物。
+
+## 2026-11-11：每 worker 无锁队列与 work stealing（B13）
+
+协程调度从共享带锁 FIFO 改为每 worker 独立的 Michael–Scott managed CAS 队列。正常 dispatch 不再进入 executor 全局锁；恢复优先回最近执行的 worker，空闲时窃取其他队列，每处理有限批本地工作也检查其他来源。节点及在途引用使用既有 AtomicRef／GC 根，不新增 native 容器或 runtime ABI。每个 ticket 的原子发布状态协调 complete 与在途入队；休眠／唤醒使用各 worker 自己的同步对象，生命周期和独立 blocking pool 仍使用锁。
+
+先更新规范和设计，再使用已安装 `~/.scoop` 工具链构建独立 concurrent／asyncio 产物。相同源码、CPU 配额和 runtime，对固定新旧二进制随机交错各测三次；测量与编译、测试串行。新增纯调度基准，以 64 个任务、每任务 32,768 次操作隔离队列及协程恢复成本。下表为中位数。
+
+| 纯调度负载 | workers | 改前操作／秒 | 改后操作／秒 | 变化 |
+| --- | ---: | ---: | ---: | ---: |
+| CoroutineWork dispatch | 1 | 3,358,635 | 6,045,277 | +80.0% |
+| CoroutineWork dispatch | 4 | 1,165,277 | 8,115,486 | +596.4% |
+| yieldCoroutine | 1 | 1,790,952 | 2,659,999 | +48.5% |
+| yieldCoroutine | 4 | 968,029 | 3,217,713 | +232.4% |
+
+裸 TCP echo 复用 B12 的客户端与服务端业务代码，1 KiB 消息、64 KiB 复用缓冲、默认 GC；每项预热 1 秒、测量 6 秒。服务端所有线程共享一个或四个物理 P 核，客户端绑定独立 CPU。64 连接的结果如下。
+
+| 配置 | echo／秒，前 → 后 | CPU μs／echo，前 → 后 | P99 μs，前 → 后 | RSS MiB，前 → 后 |
+| --- | ---: | ---: | ---: | ---: |
+| 仅 event loop | 110,821 → 110,423 | 9.02 → 9.04 | 770 → 778 | 31.02 → 30.60 |
+| 1 worker | 77,641 → 80,510 | 12.88 → 12.42 | 1,278 → 1,311 | 31.27 → 30.25 |
+| 4 workers | 85,338 → 106,477 | 20.35 → 16.45 | 1,393 → 885 | 31.04 → 30.84 |
+
+四 worker 的纯 dispatch 为原来的 6.96 倍，yield 为 3.32 倍；真实并发 echo 吞吐提高 24.8%、CPU 成本下降 19.2%。这确认共享调度路径是实质瓶颈，但新实现从一核扩展到四核的收益仍有限，尚不能认为底层瓶颈已经解决。
+
+单连接回退完整保留：吞吐基本持平（1 worker 46,173 → 45,413，4 workers 46,680 → 46,866 echo／秒），P99 分别为 31.49 → 39.94、34.82 → 53.76 μs；RSS 从 12.42／13.07 增至 25.75／25.93 MiB。尚未定位这些回退的根因，不将其直接归因于 GC。后续继续检查调度主路径的扩展性、任务分配与唤醒成本。
+
+格式与静态检查通过。并发库共覆盖 62 个不同用例：首次全套 60 项，新增专用搬迁／公平性用例后分别通过最终队列 3 项与 stealing 4 项；生产代码未再变化。asyncio 175 项通过。覆盖多生产者／消费者恰好一次领取、FIFO、窃取、公平轮询、空队列唤醒、投递与 complete／shutdown 竞争，以及既有 Context／取消／共享阻塞池。两个定向用例在 moving＋minor GC stress 下通过；初次将 8,192 项普通并发测试用于逐分配搬迁压力时，耗时集中于全堆验证，已明确中止，不计为通过。保留普通 8,192 项测试，并以专用 256 项并发测试验证压力搬迁。
+
+短传输的三个配置全部通过；36 个正式 echo 样本含预热校验 18,229,563 次完整响应，24 个纯调度样本核对 50,331,648 次正式操作，全部无错误。echo 为闭环延迟，未校正 coordinated omission；每组仅三次。CPU／RSS 取预热后窗口，GC／分配包含启动、预热和收尾；上下文切换不等同于锁等待次数。仅实测 Linux x86-64 GNU，本轮未重测 HTTP、Darwin 或 Windows。
+
+固定二进制、全部原始数据、报告、源码快照及复现脚本保存在仓库外 `/home/chenxu/benchmarks/http-improvements-20261111-round13`。本轮生产改动仅限 concurrent 调度；asyncio、HTTP、JSON 和 GC 实现未变。

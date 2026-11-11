@@ -1,0 +1,134 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class WorkStealingTest {
+    @Test
+    fun `idle workers steal children from the worker blocked inside their parent`() {
+        multiThreadExecutor {
+            workers = 2;
+            blocking { threads = 1 }
+        }.use {
+            executor -> dispatch(executor) {
+                coroutineScope {
+                    val parentThread = currentThreadId()
+                    val gate = WorkerGate()
+                    val count = AtomicInt(0)
+                    for (_ in 0 ..< 64) {
+                        launch {
+                            assertNotEquals(parentThread, currentThreadId())
+                            if (count.fetchAdd(1) == 63)
+                                gate.open()
+                        }
+                    }
+                    // Children inherit this worker's queue. Only a thief can open the gate.
+                    gate.await()
+                    assertEquals(64, count.load())
+                }
+            }.await()
+        }
+    }
+
+    @Test
+    fun `a continuously yielding local task does not starve another workers queue`() {
+        multiThreadExecutor {
+            workers = 2;
+            blocking { threads = 1 }
+        }.use {
+            executor -> dispatch(executor) {
+                coroutineScope {
+                    val started = WorkerGate()
+                    val rescued = WorkerGate()
+                    val stop = AtomicBoolean(false)
+                    val busy =
+                        async {
+                            started.open()
+                            while (!stop.load())
+                                yieldCoroutine()
+                        }
+                    started.await()
+                    val rescue =
+                        async {
+                            stop.store(true)
+                            rescued.open()
+                        }
+                    // This worker cannot drain its queue. The other worker keeps its
+                    // own queue nonempty, so periodic foreign polling must find rescue.
+                    rescued.await()
+                    busy.await()
+                    rescue.await()
+                }
+            }.await()
+        }
+    }
+
+    @Test
+    fun `foreign producers wake parked workers over repeated empty queue transitions`() {
+        multiThreadExecutor {
+            workers = 4;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val total = AtomicInt(0)
+            val producers =
+                Array<Thread>(4L) {
+                    _ -> Thread.start {
+                        for (_ in 0 ..< 256) {
+                            dispatch(executor) {
+                                total.fetchAdd(1)
+                                yieldCoroutine()
+                                total.fetchAdd(1)
+                            }.await()
+                        }
+                    }
+                }
+            for (producer in producers)
+                producer.join()
+            assertEquals(2048, total.load())
+        }
+    }
+
+    @Test
+    fun `dispatch racing completion and shutdown executes every accepted publication`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 4;
+                blocking { threads = 1 }
+            }
+        val keeper = executor.registerTask(None)
+        val tickets = Array<ExecutorTask>(2048L) { _ -> executor.registerTask(Some(keeper)) }
+        val accepted = AtomicInt(1)
+        val executed = AtomicInt(0)
+        val gate = WorkerGate()
+        tickets[0L].dispatch(FunctionCoroutineWork { executed.fetchAdd(1) })
+        val producers =
+            Array<Thread>(4L) {
+                producer -> Thread.start {
+                    gate.await()
+                    for (offset in 0 ..< 512) {
+                        val task = tickets[producer * 512L + offset.toLong()]
+                        try {
+                            task.dispatch(FunctionCoroutineWork { executed.fetchAdd(1) })
+                            accepted.fetchAdd(1)
+                        } catch (_: IllegalStateException) {}
+                    }
+                }
+            }
+        gate.awaitEntered(4)
+        executor.requestShutdown()
+        gate.open()
+        for (task in tickets)
+            task.complete()
+        keeper.complete()
+        for (producer in producers)
+            producer.join()
+        executor.join()
+        assertEquals(accepted.load(), executed.load())
+        assertTrue(executor.isTerminated)
+        assertFailsWith<IllegalStateException> { tickets[0L].complete() }
+        executor.close()
+    }
+}

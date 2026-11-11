@@ -1,0 +1,244 @@
+package scoop.concurrent
+
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+
+internal class CoroutineWorkers private constructor(count: Int) {
+    private val records = Array<CoroutineWorker>(count.toLong()) { i -> CoroutineWorker(i.toInt()) }
+    private val stopping = AtomicBoolean(false)
+    private val observers = AtomicInt(0)
+    private val assignment = AtomicInt(0)
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private val listeners = TerminationListeners(lock)
+    private var live = 0
+    private var stopped = false
+    private var joining = false
+    private var joined = false
+
+    internal companion object {
+        internal fun create(count: Int): CoroutineWorkers {
+            if (count <= 0)
+                throw IllegalArgumentException(Some("worker count must be positive"))
+            val workers = CoroutineWorkers(count)
+            workers.start()
+            return workers
+        }
+    }
+
+    internal fun chooseWorker(): Int {
+        var current = assignment.load()
+        while (true) {
+            val next =
+                if (current + 1 == records.size.toInt())
+                    0
+                else
+                    current + 1
+            if (assignment.compareAndSet(current, next))
+                return current
+            current = assignment.load()
+        }
+    }
+
+    internal fun submit(affinity: AtomicInt, work: CoroutineWork) {
+        if (stopping.load())
+            throw ExecutorClosedException()
+        val target = affinity.load()
+        records[target.toLong()].queue.put(CoroutineSubmission(affinity, work))
+        notifyOne(target)
+    }
+
+    private fun notifyOne(preferred: Int) {
+        if (observers.load() == 0)
+            return
+        var index = preferred
+        var checked = 0L
+        while (checked < records.size) {
+            if (index == records.size.toInt())
+                index = 0
+            if (records[index.toLong()].notify())
+                return
+            index += 1
+            checked += 1L
+        }
+    }
+
+    private fun findWork(record: CoroutineWorker): CoroutineSubmission? {
+        record.localTurns += 1
+        if (record.localTurns < 32) {
+            when (record.queue.take()) {
+                case Some(val work) -> return Some(work)
+                case None -> {}
+            }
+        } else {
+            record.localTurns = 0
+        }
+        var checked = 0L
+        while (checked < records.size - 1L) {
+            if (record.victim == records.size.toInt())
+                record.victim = 0
+            val victim = record.victim
+            record.victim += 1
+            if (victim == record.index)
+                continue
+            checked += 1L
+            when (records[victim.toLong()].queue.take()) {
+                case Some(val work) -> return Some(work)
+                case None -> {}
+            }
+        }
+        return record.queue.take()
+    }
+
+    private fun execute(record: CoroutineWorker, work: CoroutineSubmission) {
+        work.affinity.store(record.index)
+        work.work.run()
+    }
+
+    private fun drive(record: CoroutineWorker) {
+        while (true) {
+            when (findWork(record)) {
+                case Some(val work) -> {
+                    execute(record, work);
+                    continue
+                }
+                case None -> {}
+            }
+            if (stopping.load())
+                return
+            // Publish observation before scanning, so an enqueue either appears in this
+            // scan or changes the parking predicate before the worker can sleep.
+            observers.fetchAdd(1)
+            record.observe()
+            val work = findWork(record)
+            when (work) {
+                case Some(val work) -> {
+                    val notified = record.stopObserving()
+                    observers.fetchSub(1)
+                    if (notified)
+                        notifyOne(record.index + 1)
+                    execute(record, work)
+                }
+                case None -> {
+                    record.park(stopping)
+                    record.stopObserving()
+                    observers.fetchSub(1)
+                }
+            }
+        }
+    }
+
+    private fun start() {
+        try {
+            for (record in records) {
+                lock.withLock { live += 1 }
+                try {
+                    val thread = Thread.start { run(record) }
+                    lock.withLock { record.thread = Some(thread) }
+                } catch (error: Throwable) {
+                    lock.withLock { live -= 1 }
+                    throw error
+                }
+            }
+        } catch (error: Throwable) {
+            requestShutdown()
+            join()
+            throw error
+        }
+    }
+
+    private fun run(record: CoroutineWorker) {
+        try {
+            lock.withLock { record.id = Some(currentThreadId()) }
+            try {
+                drive(record)
+            } finally {
+                val notifications =
+                    lock.withLock {
+                        live -= 1;
+                        finishIfEmpty()
+                    }
+                notifications.deliver()
+            }
+        } catch (error: Throwable) {
+            error.printStackTrace()
+            exit(1)
+        }
+    }
+
+    internal val isTerminated: Boolean get() = lock.withLock { stopped }
+
+    internal fun onTermination(handler: () -> Unit): Disposable = listeners.subscribe(handler)
+
+    internal fun requestShutdown() {
+        stopping.store(true)
+        for (record in records)
+            record.notify()
+        val notifications = lock.withLock { finishIfEmpty() }
+        notifications.deliver()
+    }
+
+    private fun finishIfEmpty(): WaitNotifications {
+        val notifications = WaitNotifications()
+        if (stopping.load() && live == 0 && !stopped) {
+            stopped = true
+            listeners.finishLocked(notifications)
+        }
+        return notifications
+    }
+
+    internal val isCurrentWorker: Boolean get() {
+        val id = currentThreadId()
+        return lock.withLock {
+            for (record in records) {
+                when (record.id) {
+                    case Some(val current) -> if (current == id)
+                        return@withLock true
+                    case None -> {}
+                }
+            }
+            false
+        }
+    }
+
+    internal fun join() {
+        if (isCurrentWorker)
+            throw IllegalStateException(Some("worker cannot wait for its own group"))
+        val perform =
+            lock.withLock {
+                if (!stopping.load())
+                    throw IllegalStateException(Some("request shutdown before join"))
+                while (joining)
+                    changed.await()
+                if (joined)
+                    return@withLock false
+                joining = true
+                true
+            }
+        if (!perform)
+            return
+        try {
+            for (record in records) {
+                val thread = lock.withLock { record.thread }
+                when (thread) {
+                    case Some(val thread) -> {
+                        thread.join()
+                        lock.withLock {
+                            record.thread = None;
+                            record.id = None
+                        }
+                    }
+                    case None -> {}
+                }
+            }
+            lock.withLock { joined = true }
+        } finally {
+            lock.withLock {
+                joining = false;
+                changed.broadcast()
+            }
+        }
+    }
+}

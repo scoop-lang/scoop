@@ -20,7 +20,7 @@ public class MultiThreadExecutor internal constructor(
     private var tasks = 0L
     private var blockingWork = 0L
     private var workersStopping = false
-    private val workers = WorkerGroup.create(workerCount)
+    private val workers = CoroutineWorkers.create(workerCount)
 
     init {
         workers.onTermination { checkTermination() }
@@ -55,8 +55,18 @@ public class MultiThreadExecutor internal constructor(
                 if (!admitted)
                     throw ExecutorClosedException()
             }
+            val preferred =
+                when (parent) {
+                    case Some(val parent) -> if (
+                        parent is MultiThreadTicket && parent.owner === this
+                    )
+                        parent.affinity.load()
+                    else
+                        workers.chooseWorker()
+                    case None -> workers.chooseWorker()
+                }
             tasks += 1L
-            MultiThreadTicket(this)
+            MultiThreadTicket(this, preferred)
         }
 
     /** Stops admission of new roots, preserving active tasks and their children. */
@@ -99,31 +109,35 @@ public class MultiThreadExecutor internal constructor(
     }
 
     internal fun dispatch(ticket: MultiThreadTicket, work: CoroutineWork) {
-        lock.withLock {
-            requireActive(ticket)
-            workers.submit { work.run() }
+        ticket.beginPublication()
+        try {
+            workers.submit(ticket.affinity, work)
+        } finally {
+            ticket.endPublication()
         }
     }
 
     internal fun dispatchBlocking(ticket: MultiThreadTicket, work: BlockingWork) {
-        lock.withLock {
-            requireActive(ticket)
-            blockingWork += 1L
-            try {
-                blockingPool.submit(ExecutorBlockingWork(this, work))
+        ticket.beginPublication()
+        try {
+            lock.withLock {
+                blockingWork += 1L
+                try {
+                    blockingPool.submit(ExecutorBlockingWork(this, work))
+                }
+                catch (error: Throwable) {
+                    blockingWork -= 1L
+                    throw error
+                }
             }
-            catch (error: Throwable) {
-                blockingWork -= 1L
-                throw error
-            }
+        } finally {
+            ticket.endPublication()
         }
     }
 
-    internal fun complete(ticket: MultiThreadTicket) {
+    internal fun retireTask() {
         val stop =
             lock.withLock {
-                requireActive(ticket)
-                ticket.active = false
                 tasks -= 1L
                 shouldStopWorkers()
             }
@@ -149,11 +163,6 @@ public class MultiThreadExecutor internal constructor(
             }
             checkTermination()
         }
-    }
-
-    private fun requireActive(ticket: MultiThreadTicket) {
-        if (ticket.owner !== this || !ticket.active)
-            throw IllegalStateException(Some("executor task is already complete"))
     }
 
     private fun shouldStopWorkers(): Boolean {
@@ -213,20 +222,6 @@ public class MultiThreadExecutor internal constructor(
 
 private enum ExecutorPhase {
     Open, Draining, Terminated
-}
-
-internal class MultiThreadTicket(internal val owner: MultiThreadExecutor): ExecutorTask {
-    internal var active = true
-    public override val executor: CoroutineExecutor get() = owner
-    public override fun dispatch(work: CoroutineWork) {
-        owner.dispatch(this, work)
-    }
-    public override fun dispatchBlocking(work: BlockingWork) {
-        owner.dispatchBlocking(this, work)
-    }
-    public override fun complete() {
-        owner.complete(this)
-    }
 }
 
 private class ExecutorBlockingWork(
