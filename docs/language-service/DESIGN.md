@@ -4,6 +4,8 @@
 
 依据：[语言规范](../specs/SCOOP-SPEC.md)的语法、名称、类型与文档规则，[实现规范](../specs/SCOOP-IMPL-SPEC.md)2.1、2.2、2.7、2.11、2.20，[M47 设计](../milestone47/DESIGN.md)及[同步查询协议](../milestone47/PROTOCOL.md)。运行时继续遵守[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)，本设计没有 runtime 变更。
 
+一次性终端查询使用配套的 [scoop-lsp query](CLI.md)，复用现有 LSP 传输及语义实现。
+
 ## 1. 设计决定
 
 公共基础分成源码、语法和语义查询三个边界，由编译 driver 与语言服务分别编排。M47 使用固定编译视图，LSP 使用可更新的编辑视图；它们共享事实与算法，不共享会话生命周期。

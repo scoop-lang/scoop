@@ -67,6 +67,8 @@ scoop example start/cone --format json
 
 需要库能力时，按[库与 API 查找](references/libraries.md)确定所属 Cone、import、实际签名及资源生命周期。只读取相关声明和调用示例；示例未命中时直接定位库，不反复扩大教程关键词或通读全部源码。改写 Option/Result 分支前先查已有组合操作，注意返回形状和 fallback 的求值时机。
 
+需要当前位置的类型、成员或调用签名时，检查所选工具链的 `scoop-lsp query --help`，按[语言服务查询](references/projects-and-tools.md#语言服务查询)使用 hover、completion、signature 等入口。它按当前 Cone 和依赖回答；按名字发现尚未使用的库 API 仍查文档和声明。较旧工具链没有 query 时沿用这些已有路径。
+
 新建多文件项目优先使用 `scoop new my-app --group example.app`，目标目录必须尚不存在；默认带测试。小型独立程序可以使用单文件模式。具体依赖、package、源码选择、测试和工具选项见[项目与命令](references/projects-and-tools.md)。特别注意：
 - 传项目目录或 `Cone.toml` 才会编译整个 Cone；传 `src/main.scoop` 会选择单文件模式。
 - 依赖声明和 import 分别负责可用库与可用名称；单文件 `//! dep:` 注释在 manifest 模式中不起作用。

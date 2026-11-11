@@ -1955,7 +1955,11 @@ digest kinds 4、8、9，digest owner tags 4、11、9，保留不用；全部 ru
 
 本节规定 M47 与 LSP 的共同基础。模块分工与查询边界见[公共基础设计](../language-service/DESIGN.md)，实际交付与验证见[实施与验收](../language-service/PROGRESS.md)；M47 的同步生成流程由[其主设计](../milestone47/DESIGN.md)及[协议](../milestone47/PROTOCOL.md)规定。合法源码的语言语义、成功 HIR 的完备性、产物和 runtime 合同保持。
 
-M63中项目成员、workspace继承和精确依赖绑定统一来自独立PM的本地数据模型，见[包管理规范7](SCOOP-PACKAGE-SPEC.md#7-pm-与构建-driver-的接口)。analysis/LSP不自行解释第二套版本规则，不在编辑或补全时下载依赖；本地缺少锁定源码时提示执行fetch。编辑buffer仍由语言服务覆盖对应source，不能通过重写全局共享源码cache实现编辑态。
+M63中项目成员、workspace继承和精确依赖绑定统一来自独立PM的本地数据模型，见[包管理规范7](SCOOP-PACKAGE-SPEC.md#7-pm-与构建-driver-的接口)。analysis/LSP不自行解释第二套版本规则；初始化缺失的 lock 时使用既有 PM resolve，之后离线读取 metadata，不在每次编辑或补全时下载依赖。本地缺少锁定源码时提示执行fetch。编辑buffer仍由语言服务覆盖对应source，不能通过重写全局共享源码cache实现编辑态。
+
+**命令行查询。** `scoop-lsp query` 为已有 LSP 提供一次性 CLI 客户端；默认入口及 `--stdio` 继续运行语言服务器。查询通过配套服务器的标准 LSP 请求/通知复用 analysis 与原前端，不另建语义引擎或符号索引。入口包括 hover、signature、completion、definition、type-definition、implementation、references、symbols、workspace-symbols、diagnostics 和 capabilities。项目、目标、production/test purpose、sysroot、直接依赖及编辑正文使用同一语言服务合同；查询不编译产物或准备系统库。命令及输出见[语言服务 CLI](../language-service/CLI.md)。
+
+CLI 查询位置为一基行列，列默认计 Unicode 标量，也可显式选择 UTF-8/UTF-16；通过原 LSP 编码协商转换，不复制位置算法。换行遵循 LSP 的 LF/CRLF/CR 规则。JSON 保留 LSP 结果中的零基 range，显式报告 positionEncoding 和 rangeBase；人类位置显示为一基。磁盘正文可由显式 stdin buffer 覆盖，仅参与本次会话，不写回源码。输出区分 ok、empty 与携带错误诊断或服务器分析问题的 partial；源程序错误作为数据返回，不冒充完整语义结果，也不丢弃已可确定的事实。协议/输入读取失败退出 1，用法错误退出 2，错误写 stderr；成功查询（包括 empty/partial）退出 0。完成后 shutdown/exit 并回收本次服务器进程。
 
 **源码与位置。** 同一文本版本提供不可变 UTF-8 源码、byte range 和可复用的行索引。普通文件继续沿用 SourceIdentity；编辑 buffer 和生成正文的本地定位由输入宿主维护，不使用显示路径、LSP URI、文档版本或请求编号构造语言实体身份。语义查询只消费显式传入的源码和依赖视图，不进行源码发现、磁盘读取或工具启动。LSP 在边界协商位置编码并转换为 byte offset；其零基行列、UTF-16 默认值及换行定义不能直接套用 CLI 的显示列或持久 SourcePointRecord。
 

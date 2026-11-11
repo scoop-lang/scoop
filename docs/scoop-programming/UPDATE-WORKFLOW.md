@@ -85,7 +85,7 @@ python3 scripts/build_scoop_example.py --sysroot "$SCOOP_MAINT_SYSROOT"
 
 离线 API 文档由现有 `scoop doc` 或安装根的 post-install 流程生成。开发时只生成受影响的文档；发行时按已安装目标和库清单生成完整站点，遵循 [scripts 说明](../../scripts/README.md)。检查签名、公开 re-export、源码位置及相关链接，不手工修改生成的 HTML 或缓存文件。
 
-在 B3/B5 尚未实现时，不能在 skill 中使用 `scoop api`/`scoop query` 作为必需步骤。应保留当前示例、文档和库源码查询路径。
+语言服务入口为 `scoop-lsp query`，合同见[语言服务 CLI](../language-service/CLI.md)。更新查询能力时同步该工具的帮助、JSON 合同、skill 用法及真实 stdio 对照测试；不另建类型分析逻辑。B3 的独立 API 查询尚未交付时，不能把 `scoop api` 写成必需步骤；旧工具链继续保留示例、文档和库源码查询路径。
 
 ## 6. 按实际影响验证
 

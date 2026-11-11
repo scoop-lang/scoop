@@ -93,6 +93,25 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。
 
+## 语言服务查询
+
+使用所选工具链配套的 `scoop-lsp`；先用 `scoop-lsp query --help` 确认该版本提供入口。在含 Cone.toml 的项目/workspace 目录运行：
+
+```sh
+scoop-lsp query hover src/main.scoop --line 8 --column 12 --format json
+scoop-lsp query signature src/main.scoop --line 8 --column 20
+scoop-lsp query completion src/main.scoop --line 9 --column 10
+scoop-lsp query definition src/main.scoop --line 8 --column 12
+scoop-lsp query diagnostics src/main.scoop --format json
+scoop-lsp query symbols src/main.scoop
+```
+
+行列应取实际源码；两者从 1 开始，列默认计 Unicode 标量（utf-32）。可选 `--position-encoding utf-8|utf-16|utf-32`；JSON 内 LSP range 仍为零基并附 positionEncoding/rangeBase。用 `--project` 指向另一个 Cone 或 workspace，文件与路径选项仍相对当前目录。`--sysroot`、`--target`、`--purpose production|test` 应与实际开发视图一致；`--package-manager`、`--cone-path`、`--package-cache-dir`、`--lockfile` 可选择已有依赖资源。
+
+文档查询的 `--stdin` 读取完整未保存正文，不改磁盘。JSON 的 result 是原 LSP 结果；diagnostics 包含当前文档及项目诊断。status=empty 表示无结果，partial 表示存在错误或服务器分析问题，要同时读诊断。查询成功含 empty/partial 都退出 0；输入/协议错误退出 1，用法错误退出 2，错误在 stderr。查询不替代 build/test，也不生成机器产物。
+
+type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
+
 ## 测试和诊断
 
 从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。

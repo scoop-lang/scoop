@@ -16,6 +16,8 @@ Windows 主驱动使用 `sco.exe`，下文的 `scoop ...` 在 Windows 上对应 
 
 ## 编辑器工具
 
+终端和 AI Agent 可用 [`scoop-lsp query`](../docs/language-service/CLI.md) 查询当前项目的类型、补全、签名、定义、引用与诊断；它复用同一 LSP 服务器并支持 JSON。
+
 本目录提供独立的 Tree-sitter 语法包和 VS Code 扩展。语法以
 [语言规范](../docs/specs/SCOOP-SPEC.md)为准，并使用编译器已有源码和专门的编辑器
 fixture 检查两者的一致性。
