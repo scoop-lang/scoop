@@ -13,6 +13,8 @@ internal abstract class ByteTransfer(
     protected val writing: Boolean
 ): LoopOperation(loop, loop.nextOperation()), SuspendRegistration<Long> {
     private var continuation: Continuation<Long>? = None
+    private var transferred: Long = 0L
+    private var completionError: Throwable? = None
 
     protected abstract fun attach()
     protected abstract fun failure(result: IoResult, selected: Throwable?): Throwable?
@@ -40,14 +42,26 @@ internal abstract class ByteTransfer(
         }
     }
 
-    protected final override fun finish(event: NativeEvent, selected: Throwable?) {
+    protected final override fun recordCompletion(event: NativeEvent, selected: Throwable?) {
+        transferred = resultProgress(event.result)
+        completionError =
+            try {
+                failure(event.result, selected)
+            } catch (error: Throwable) {
+                Some(error)
+            }
+    }
+
+    protected final override fun finish() {
         val target = continuation!!
         continuation = None
-        val count = resultProgress(event.result)
+        val count = transferred
+        val error = completionError
+        completionError = None
         val result =
             try {
                 try {
-                    when (failure(event.result, selected)) {
+                    when (error) {
                         case Some(val error) -> throw error
                         case None -> {}
                     }

@@ -5,8 +5,7 @@ internal enum OperationChoice {
 }
 
 private enum OperationDelivery {
-    Submit
-    Finish(NativeEvent, Throwable?)
+    Submit, Finish
 }
 
 internal abstract class LoopOperation internal constructor(val loop: LoopOwner, val id: Long) {
@@ -18,12 +17,13 @@ internal abstract class LoopOperation internal constructor(val loop: LoopOwner, 
 
     protected abstract fun start(pointer: Ptr<Unit>): IoStart
     abstract fun cancelNative(pointer: Ptr<Unit>)
-    protected abstract fun finish(event: NativeEvent, failure: Throwable?)
+    protected abstract fun recordCompletion(event: NativeEvent, failure: Throwable?)
+    protected abstract fun finish()
 
     fun run() {
         when (delivery) {
             case Submit -> loop.beginOperation(this)
-            case Finish(val event, val failure) -> finish(event, failure)
+            case Finish -> finish()
         }
     }
 
@@ -103,10 +103,13 @@ internal abstract class LoopOperation internal constructor(val loop: LoopOwner, 
                 }
             }
         unsubscribe()
-        delivery = OperationDelivery.Finish(event, failure)
+        recordCompletion(event, failure)
+        delivery = OperationDelivery.Finish
         loop.enqueueReady(this)
     }
 }
+
+private struct CallbackCompletion(val event: NativeEvent, val failure: Throwable?)
 
 internal class CallbackOperation(
     loop: LoopOwner,
@@ -115,11 +118,18 @@ internal class CallbackOperation(
     private val onCancel: (Ptr<Unit>, Long) -> Unit,
     private val onFinish: (NativeEvent, Throwable?) -> Unit
 ): LoopOperation(loop, id) {
+    private var completion: CallbackCompletion? = None
+
     protected override fun start(pointer: Ptr<Unit>): IoStart = onStart(pointer, id)
     public override fun cancelNative(pointer: Ptr<Unit>) {
         onCancel(pointer, id)
     }
-    protected override fun finish(event: NativeEvent, failure: Throwable?) {
-        onFinish(event, failure)
+    protected override fun recordCompletion(event: NativeEvent, failure: Throwable?) {
+        completion = Some(CallbackCompletion(event, failure))
+    }
+    protected override fun finish() {
+        val result = completion!!
+        completion = None
+        onFinish(result.event, result.failure)
     }
 }
