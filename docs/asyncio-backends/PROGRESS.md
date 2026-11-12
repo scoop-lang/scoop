@@ -619,6 +619,10 @@ B28 的 1,848 个用户态采样中，fesetenv self 占 11.1%，其中约 85% �
 
 TCP 在 NativeSafe 批次内由 owner 尝试直接读写，未就绪时复用端点方向的 dispatch source；通知 pipe 合并并减少控制动作的空唤醒，关闭仍等待所有 source 退休。64 连接单／四 worker 吞吐 +12.1%／+14.8%，CPU／echo −22.7%／−47.2%，最终吞吐为 Go 的 83.1%／84.2%；独立 eventLoop 的吞吐仅 +2.8%，P50 +4.3%，保留该限制。520 项功能测试、四项定向 GC、48 个正式样本和五个短传输样本全部通过。实现、完整 Go 对照、波动范围与复现位置见 [macOS 优化记录](MACOS-OPTIMIZATION.md)。
 
+## Windows TCP echo 同机对照（2026-11-13）
+
+使用 `~/.scoop` 当前工具链，在 Xeon W-2133／Windows 11 上与 Go 1.27.4 比较同一公开 API 负载。基准补齐 Windows 进程统计、TCP_NODELAY 与 QPC 高精度单调时钟；未修改生产实现。最终 30 项样本与五项短传输检查全部正确。单连接吞吐约为 Go 的 64%，64 连接单／四 worker 为 78.3%／80.7%，CPU／echo 分别为 Go 的 1.67／1.48 倍；Scoop 从一到四 worker 扩展 2.61 倍。完整结果、时钟修正、波动范围和同机施压限制见 [Windows 对照记录](WINDOWS-TCP-ECHO.md)。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
