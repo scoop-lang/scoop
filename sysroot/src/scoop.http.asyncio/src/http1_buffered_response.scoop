@@ -1,0 +1,162 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.io.WriteZeroException
+import scoop.platform.memory.NativeByteBorrow
+import scoop.platform.memory.NativeByteBuffer
+import scoop.time.Duration
+
+@GCLeaf
+@Extern(name = "scoop_platform_memory_move")
+private fun moveResponseBytes(destination: Ptr<Byte>, source: Ptr<Byte>, count: Long)
+
+private class H1ResponseTransfer(val source: NativeByteBorrow) {
+    var headSize: Long = 0L
+    var sent: Long = 0L
+
+    fun bodyProgress(): Long =
+        if (sent > headSize)
+            sent - headSize
+        else
+            0L
+}
+
+internal suspend fun sendH1BufferedResponse(
+    state: H1State,
+    head: HttpResponseHead,
+    buffer: NativeByteBuffer,
+    count: Long,
+    writeIdle: Duration?
+) {
+    httpJob(state.loop, true)
+    httpIdleLimit(writeIdle)
+    httpCount(count, buffer.readableBytes)
+    @Unsafe
+    {
+        val transfer = H1ResponseTransfer(buffer.borrowReadable(count))
+        try {
+            val body =
+                h1PreparedOperation<(H1Output, Array<Byte>), H1Output>(
+                    state,
+                    false,
+                    {
+                        requireH1Output(state, HttpRole.Server)
+                        val request =
+                            state.requests.firstOrNone() ?:
+                                throw IllegalStateException(Some("no HTTP/1 request to answer"))
+                        val content = httpResponseAllowsContent(head, request.method)
+                        if (!content && count != 0L)
+                            throw IllegalArgumentException(
+                                Some("this HTTP response cannot carry a body")
+                            )
+                        val framing =
+                            if (content)
+                                Http1BodyFraming.Length(count)
+                            else
+                                Http1BodyFraming.Empty
+                        val bytes = state.encoder.beginResponse(head, request.method, framing)
+                        state.encoder.prepareBody(count)
+                        state.encoder.finish()
+                        val output =
+                            H1Output(
+                                head.status >= 200U || head.status == 101U,
+                                Some(request),
+                                writeIdle
+                            )
+                        state.outgoing = Some(output)
+                        (output, bytes)
+                    },
+                    suspend {
+                        prepared ->
+                        val(output, bytes) = prepared
+                        writeH1BufferedResponse(state, bytes, transfer)
+                        completeH1Output(state, output)
+                        output
+                    },
+                    writeIdle
+                )
+            closeAfterH1Output(state, body)
+        } finally {
+            @Unsafe
+            {
+                transfer.source.complete(transfer.bodyProgress())
+            }
+        }
+    }
+}
+
+private suspend fun writeH1BufferedResponse(
+    state: H1State,
+    head: Array<Byte>,
+    transfer: H1ResponseTransfer
+) {
+    transfer.headSize = head.size
+    if (head.size > Long.MAX_VALUE - transfer.source.length)
+        throw ArithmeticException()
+    val size = head.size + transfer.source.length
+    val blockSize =
+        if (size < 65536L)
+            size
+        else
+            65536L
+    state.output.clear()
+    state.output.ensureWritable(blockSize)
+    var position = 0L
+    while (position < size) {
+        state.output.clear()
+        if (position < head.size) {
+            val remaining = head.size - position
+            val count =
+                if (remaining < blockSize)
+                    remaining
+                else
+                    blockSize
+            state.output.writeBytes(head, position, count)
+            position += count
+        }
+        val available = blockSize - state.output.readableBytes
+        if (position >= head.size && position < size && available > 0L) {
+            val offset = position - head.size
+            val remaining = size - position
+            val count =
+                if (remaining < available)
+                    remaining
+                else
+                    available
+            @Unsafe
+            {
+                val source = transfer.source.pointer()!! + offset
+                state.output.withWritableBytes {
+                    destination, _ ->
+                    @Unsafe
+                    {
+                        moveResponseBytes(destination!!, source, count)
+                    }
+                    count
+                }
+            }
+            position += count
+        }
+        while (state.output.readableBytes > 0L) {
+            beginH1Io(state, false)
+            val before = state.output.readableBytes
+            val written =
+                try {
+                    state.transport.writeFrom(state.output, before)
+                }
+                finally {
+                    transfer.sent += before - state.output.readableBytes
+                }
+            httpProgress(written, before)
+            if (before - state.output.readableBytes != written)
+                throw IllegalStateException(
+                    Some("HTTP transport reported inconsistent write progress")
+                )
+            if (written == 0L)
+                throw WriteZeroException()
+            progressH1Io(state, false, true)
+        }
+    }
+    flushH1Transport(state)
+}

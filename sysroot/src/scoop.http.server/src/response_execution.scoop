@@ -3,39 +3,121 @@ package scoop.http.server
 import scoop.asyncio.*
 import scoop.compression.asyncio.AsyncCompressionSink
 import scoop.http.HttpField
+import scoop.platform.memory.NativeByteBuffer
 
 internal suspend fun executeResponse(ctx: HttpContext, plan: ResponsePlan) {
     ctx.response.commit(plan.head.status)
+    if (!present(plan.encoding) && ctx.output is Http1ResponseOutput) {
+        when (plan.body) {
+            case HttpBody.Bytes(val value) -> {
+                if (!plan.allowsContent || value.size <= 65536L) {
+                    sendBufferedResponse(ctx, plan, ctx.output as Http1ResponseOutput, value)
+                    return
+                }
+            }
+            else -> {}
+        }
+    }
     val sink = ctx.output.begin(plan.head, plan.framingLength)
-    val wireLength = if (!plan.allowsContent) Some(0L) else if (present(plan.encoding)) None else plan.originalLength
+    val wireLength =
+        if (!plan.allowsContent)
+            Some(0L)
+        else
+            if (present(plan.encoding))
+                None
+            else
+                plan.originalLength
     val wire = HttpBodyWriter(sink, wireLength)
     try {
         if (plan.allowsContent && present(plan.encoding)) {
             val selected = plan.encoding!!
-            AsyncCompressionSink(wire, selected.options, selected.bufferSize).useAsync suspend { compressor ->
-                sendResponseBody(ctx, plan, HttpBodyWriter(compressor, plan.originalLength), wire, Some(compressor))
+            AsyncCompressionSink(wire, selected.options, selected.bufferSize).useAsync suspend {
+                compressor -> sendResponseBody(
+                    ctx,
+                    plan,
+                    HttpBodyWriter(compressor, plan.originalLength),
+                    wire,
+                    Some(compressor)
+                )
             }
-        } else sendResponseBody(ctx, plan, wire, wire, None)
-    } finally { wire.invalidate(); ctx.encodedResponseBytes = wire.writtenBytes }
+        } else
+            sendResponseBody(ctx, plan, wire, wire, None)
+    } finally {
+        wire.invalidate();
+        ctx.encodedResponseBytes = wire.writtenBytes
+    }
 }
 
-private suspend fun sendResponseBody(ctx: HttpContext, plan: ResponsePlan, writer: HttpBodyWriter,
-    wire: HttpBodyWriter, compressor: AsyncCompressionSink?) {
-    try {
-        if (plan.allowsContent) when (plan.body) {
-            case HttpBody.Empty -> writer.flush()
-            case HttpBody.Bytes(val value) -> writer.writeAll(value)
-            case HttpBody.Stream(val value) -> value.produce(writer)
-            case HttpBody.File(_) -> throw IllegalStateException(Some("file response was not prepared by its executor"))
-            case HttpBody.WebSocket(_) -> throw IllegalStateException(Some("upgrade response was not prepared by its executor"))
+private suspend fun sendBufferedResponse(
+    ctx: HttpContext,
+    plan: ResponsePlan,
+    output: Http1ResponseOutput,
+    value: Array<Byte>
+) {
+    val size =
+        if (plan.allowsContent)
+            value.size
+        else
+            0L
+    NativeByteBuffer.allocate(size).use suspend {
+        buffer ->
+        if (size != 0L)
+            buffer.writeBytes(value)
+        try {
+            output.sendBuffered(plan.head, buffer)
+            ctx.response.finish()
+        } finally {
+            ctx.responseBytes = buffer.readPosition
+            ctx.encodedResponseBytes = buffer.readPosition
         }
+    }
+}
+
+private suspend fun sendResponseBody(
+    ctx: HttpContext,
+    plan: ResponsePlan,
+    writer: HttpBodyWriter,
+    wire: HttpBodyWriter,
+    compressor: AsyncCompressionSink?
+) {
+    try {
+        if (plan.allowsContent)
+            when (plan.body) {
+                case HttpBody.Empty -> writer.flush()
+                case HttpBody.Bytes(val value) -> writer.writeAll(value)
+                case HttpBody.Stream(val value) -> value.produce(writer)
+                case HttpBody.File(_) -> throw IllegalStateException(
+                    Some("file response was not prepared by its executor")
+                )
+                case HttpBody.WebSocket(_) -> throw IllegalStateException(
+                    Some("upgrade response was not prepared by its executor")
+                )
+            }
         writer.complete()
-        if (present(compressor)) { compressor!!.finish(); wire.complete() }
-        val trailers: List<HttpField> = if (plan.allowsContent) when (plan.body) {
-            case HttpBody.Stream(val value) -> if (present(value.trailers)) value.trailers!!() else ArrayList<HttpField>()
-            else -> ArrayList<HttpField>()
-        } else ArrayList<HttpField>()
-        ctx.output.finish(if (present(compressor)) compressedFields(trailers) else trailers)
+        if (present(compressor)) {
+            compressor!!.finish();
+            wire.complete()
+        }
+        val trailers: List<HttpField> =
+            if (plan.allowsContent)
+                when (plan.body) {
+                    case HttpBody.Stream(val value) -> if (present(value.trailers))
+                        value.trailers!!()
+                    else
+                        ArrayList<HttpField>()
+                    else -> ArrayList<HttpField>()
+                }
+            else
+                ArrayList<HttpField>()
+        ctx.output.finish(
+            if (present(compressor))
+                compressedFields(trailers)
+            else
+                trailers
+        )
         ctx.response.finish()
-    } finally { writer.invalidate(); ctx.responseBytes = writer.writtenBytes }
+    } finally {
+        writer.invalidate();
+        ctx.responseBytes = writer.writtenBytes
+    }
 }

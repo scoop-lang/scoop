@@ -86,35 +86,11 @@ public class AsyncHttp1Writer internal constructor(
             suspend {
                 bytes ->
                 writeH1Wire(state, bytes)
-                state.lock.withLock {
-                    body.life.completed = true
-                    state.outgoing = None
-                    if (body.finalResponse) {
-                        val request = state.requests.removeFirst()
-                        request.body.responseFinished = true
-                        resumeH1AfterRejection(state, request.body)
-                    }
-                    Unit
-                }
-                completeH1Body(state, body.life)
+                completeH1Output(state, body)
             },
             body.writeIdle
         )
-        val closing =
-            state.lock.withLock {
-                state.closeAfterOutput ||
-                    (
-                        state.encoder.role ==
-                            HttpRole.Server &&
-                            state.encoder.mustClose &&
-                            !state.encoder.isSwitched
-                    )
-            }
-        if (closing)
-            closeH1(state)
-        else
-            if (body.finalResponse && present(body.request))
-                closeAfterH1Input(state, body.request!!.body)
+        closeAfterH1Output(state, body)
     }
 
     /**
@@ -137,7 +113,39 @@ public class AsyncHttp1Writer internal constructor(
     }
 }
 
-private fun requireH1Output(state: H1State, role: HttpRole) {
+internal fun completeH1Output(state: H1State, body: H1Output) {
+    state.lock.withLock {
+        body.life.completed = true
+        state.outgoing = None
+        if (body.finalResponse) {
+            val request = state.requests.removeFirst()
+            request.body.responseFinished = true
+            resumeH1AfterRejection(state, request.body)
+        }
+        Unit
+    }
+    completeH1Body(state, body.life)
+}
+
+internal suspend fun closeAfterH1Output(state: H1State, body: H1Output) {
+    val closing =
+        state.lock.withLock {
+            state.closeAfterOutput ||
+                (
+                    state.encoder.role ==
+                        HttpRole.Server &&
+                        state.encoder.mustClose &&
+                        !state.encoder.isSwitched
+                )
+        }
+    if (closing)
+        closeH1(state)
+    else
+        if (body.finalResponse && present(body.request))
+            closeAfterH1Input(state, body.request!!.body)
+}
+
+internal fun requireH1Output(state: H1State, role: HttpRole) {
     if (state.closeAfterOutput)
         throw IoClosedException()
     if (state.encoder.role != role)

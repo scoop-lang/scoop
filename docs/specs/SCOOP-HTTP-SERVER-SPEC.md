@@ -66,6 +66,8 @@ HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, o
 
 每条 H1 连接顺序处理请求，每条请求进入独立 coroutineScope，创建独立 HttpContext、body 和 requestId。HttpConnectionInfo 提供只读本地／对端地址、协议与 TLS 信息；不把 X-Forwarded-* 当成已验证地址。已完成请求的业务 Context 不泄漏到下一条请求。HEAD 和无内容状态继续由协议层定界，未知长度 H1.1 为 chunked、H1.0 为 EOF。响应写出后才放弃未消费的输入；未读完时强制 Connection: close，不自动 drain 上传。
 
+无动态压缩、正文已经是至多 64 KiB 字节数组的 H1 响应，使用协议层完整响应入口合并头部与正文的发送和操作生命周期；HEAD 等不发送正文的字节响应同样适用。仍先执行原响应准备、beforeCommit、长度和状态检查，保留请求作用域与超时。完成快照的输出计数按实际正文进度记录；大字节响应、producer、压缩和 H2 继续使用有界流式写入，不能为采用该入口而预读 producer 或增加无界 native 缓冲。
+
 Expect 使用 HTTP 消息层的完整解析结果。包含未知 expectation 时默认 417，畸形语法 400；只有应用第一次读取非空 body 且尚未提交最终响应时，才发送一次 100-continue。100 不经过最终响应草稿或完成通知。应用直接拒绝不先发送 100；最终响应开始后不再从未读 body 触发 100。
 
 默认 maxConnections=1024，maxActiveRequests=256；连接容量覆盖握手和 keep-alive，请求容量覆盖 handler、流式输出及其清理。登记、排空和容量判断在同一状态边界完成；无容量直接关闭新连接／当前 H1 连接，不为拒绝响应另建等待队列。requestBodyLimit=8 MiB，bufferedBodyLimit=2 MiB；路由可在选择 body 消费方式之前明确调整 body 总量上限，非法负值是配置错误。
