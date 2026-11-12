@@ -768,6 +768,36 @@ c64 小响应每请求分配约 35.52／35.60 → 27.45／27.49 KiB，累计 GC 
 
 固定产物、源码快照、分配／CPU／io_uring 追踪、全部样本、图表和复现命令位于 `/home/chenxu/benchmarks/http-improvements-20261112-round36`，初版产物和数据另存 `initial/`。已清理本轮约 314 MiB 临时 target，保留固定二进制、sysroot、后续可复用 cache 与证据；未触碰旧轮 compiler/LLVM 或安装目录，未推送。仅 Linux GNU/io_uring、明文静态 HTTP/1.1 性能；TLS、HTTP/2 和其他平台的性能未测。
 
+## 第三十七轮：请求生命周期、完成链与传输成本上限
+
+正式实现保持 B36。复用 B34 compiler 和 B28 源码编译、含私有补丁的 LLVM；没有修改 JSON／序列化、编译器或 runtime。固定 B36 完整服务／协议程序的独立用户 CPU 采样分别为 5,045／3,753 个样本，另采集 4,365 个大响应样本。生成 driver／adapter 通过唯一的 wrapper→driver 机器调用边归属源码；不能把父子 inclusive 占比相加。小响应按最近 managed caller 互斥归因，Coroutine／Job 合计 **21.9%**、NativeBuffer／Mutex **9.5%**；runtime 工作有可见 managed caller 时计入该 caller。单独抽取 native 进入／返回和浮点环境的 self 样本，完整框架为 **5.4%**、协议程序为 **13.1%**，这是与前述分类重叠的子集，不能据此将细粒度 FFI 当作全部 HTTP 差距。
+
+评估过将 header deadline 并入已有 H1 读操作的完整候选，保留总时限、idle、取消和清理合同，格式／静态检查／构建通过。单／四 worker CPU 32.19／40.17 → 29.38／35.59 μs/请求，仅下降 **8.7%／11.4%**；单 worker P50 1,775 → 2,033 μs，四 worker 吞吐 80,897 → 73,038 req/s。实现与规范全部撤回，未继续调 timer，也未对未采用候选运行全量库验收。首次 optional failure 类型推断错误修正后才取得这些结果。
+
+随后在仓库外做请求生命周期消减诊断：移除 request scope 时临时使用连接 Job；关闭 head deadline 时也不再建立其 scope。这些程序改变隔离／超时语义，只用于测成本上限，不能交付。默认 GC、64 连接、独立绑核，预热 2 秒＋测量 6 秒，每配置两次随机交错，中位数如下：
+
+| 诊断程序 | 单 worker CPU μs/请求 | 四 worker CPU μs/请求 | 四 worker req/s |
+| --- | ---: | ---: | ---: |
+| 完整 B36 | 32.53 | 41.12 | 74,258 |
+| 移除 head deadline／scope | 28.16 | 35.11 | 83,396 |
+| 移除 request scope | 30.60 | 36.42 | 79,377 |
+| 两者均移除 | 23.85 | 30.20 | 97,080 |
+
+两者均移除只解释约 **27%** CPU，不能把独立消减相加，更不能通过取消语义换取生产收益。64 KiB 的额外成本另做核对：B36 三次中位数中单 worker 的 user／system 为 36.56／13.08 μs/请求；本轮 Go net/http 单次参考为 4.54／9.18 μs。大响应用户 CPU 采样中 memmove self 为 **10.15%**。将输出块从 64 临时增至 128 KiB，使 64 KiB 的 SEND 从 2 变 1；单／四 worker CPU 49.90／60.13 → 44.64／55.73 μs，只下降 **10.5%／7.3%**，小响应约下降 2%。该诊断也未采用，不围绕块大小继续调参，当前证据不足以优先扩大为 vectored I/O 改造。
+
+独立 uprobes＋io_uring tracepoint 对每组 1,000 GET 减去同连接零 GET 控制，所有正文逐字节核验。计数不参与性能表：
+
+| 程序／正文 | 内部恢复/请求 | 外部恢复/请求 | execution drive/请求 | RECV/请求 | SEND/请求 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| B36 完整服务／1 KiB | 25 | 5 | 7 | 1 | 1 |
+| B36 协议程序／1 KiB | 9 | 2 | 2 | 1 | 1 |
+| B36 完整服务／64 KiB | 25 | 6 | 8 | 1 | 2 |
+| 扩大输出块／64 KiB | 25 | 5 | 7 | 1 | 1 |
+
+外部恢复包含强制 yield 和跨 execution 的完成通知，不能当作 OS 唤醒；内部恢复由现有驱动循环迭代消费，也不等于反复进入 worker 队列。完整服务／协议程序每个小请求约有 541／219 次 compiler-root 登记，含测量区间内 timer／GC 的影响。源码中登记会逐项检查 entries 并遍历当前根链查重，深调用链会放大这项成本；这里只定位，未修改。已有 CoroutineStep 支持同步 Completed、尾部转交及同 execution 完成链，下一项应验证实际挂起后的完成传递和根维护能否整体减少，而不是假设这些能力缺失，或重复 B30 的操作包装、B32 的同 execution scope、B35 的闭包强制内联。
+
+本轮 **50 个成功性能样本、17,612,050 个 wrk 请求**无请求错误，各样本前后另核验正文；另有 **5,000 个计数请求**逐字节通过。初次 Go 参考启动与二进制链接准备发生先后错误，未产生请求；修复后独立重跑并保留失败记录。仅静态明文 HTTP/1.1、Linux GNU/io_uring；没有 JSON、P99、TLS／H2 或其他平台性能结论。原始样本、perf、uprobes、候选补丁／源码、固定二进制和报告在 `/home/chenxu/benchmarks/http-improvements-20261112-round37`。仅提交调查结论；已清理不再需要的本轮构建 cache／target，未触碰安装目录、旧轮产物或用户文件，未推送。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
