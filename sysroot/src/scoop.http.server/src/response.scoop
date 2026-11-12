@@ -7,16 +7,25 @@ public class HttpResponseDraft internal constructor(initialStatus: UInt, fields:
     private val values: ArrayList<HttpField> = ArrayList<HttpField>()
     private var writable: Boolean = true
     private var currentStatus: UInt = initialStatus
-    init { for (value in fields) values.add(value) }
+    init {
+        for (value in fields)
+            values.add(value)
+    }
 
     /** The final response status, writable only during preparation. */
     public var status: UInt
-        get() = currentStatus
-        set(value) { requireMutable(); currentStatus = value }
+    get() = currentStatus
+    set(value) {
+        requireMutable();
+        currentStatus = value
+    }
     /** Returns an independent ordered snapshot of the current draft fields. */
     public val fields: Array<HttpField> get() = values.toArray()
     /** Adds an independent field without combining repeated values. */
-    public fun add(value: HttpField) { requireMutable(); values.add(value) }
+    public fun add(value: HttpField) {
+        requireMutable();
+        values.add(value)
+    }
     /** Removes every field with this ASCII case-insensitive name. */
     public fun remove(name: String) {
         requireMutable()
@@ -24,27 +33,36 @@ public class HttpResponseDraft internal constructor(initialStatus: UInt, fields:
         var index = values.size
         while (index > 0L) {
             index -= 1L
-            if (values[index].hasName(bytes)) values.removeAt(index)
+            if (values[index].hasName(bytes))
+                values.removeAt(index)
         }
     }
     /** Replaces all fields with the new field's name. */
-    public fun set(value: HttpField) { remove(String.fromUtf8(value.name)); add(value) }
+    public fun set(value: HttpField) {
+        remove(String.fromUtf8(value.name));
+        add(value)
+    }
 
     private fun requireMutable() {
-        if (!writable) throw IllegalStateException(Some("response draft is no longer mutable"))
+        if (!writable)
+            throw IllegalStateException(Some("response draft is no longer mutable"))
     }
-    internal fun seal() { writable = false }
+    internal fun seal() {
+        writable = false
+    }
 }
 
-internal enum HeaderChange { Set(HttpField), Add(HttpField), Remove(String) }
+internal enum HeaderChange {
+    Set(HttpField), Add(HttpField), Remove(String)
+}
 
 /** Response mutations allowed before execution, with read-only completion facts afterwards. */
 public class HttpResponse internal constructor() {
     /** Appends or expires cookies as independent Set-Cookie fields. */
     public val cookies: ResponseCookies get() = ResponseCookies(this)
     internal val lock: ServerLock = ServerLock()
-    private val changes: ArrayList<HeaderChange> = ArrayList<HeaderChange>()
-    private val callbacks: ArrayList<(HttpResponseDraft) -> Unit> = ArrayList<(HttpResponseDraft) -> Unit>()
+    private var changes: ArrayList<HeaderChange>? = None
+    private var callbacks: ArrayList<(HttpResponseDraft) -> Unit>? = None
     private var claimed: Boolean = false
     private var committed: Boolean = false
     private var finished: Boolean = false
@@ -61,47 +79,112 @@ public class HttpResponse internal constructor() {
     public val status: UInt? get() = lock.withLock { finalStatus }
 
     private fun requireMutable() {
-        if (claimed || committed || finished || aborted) throw IllegalStateException(Some("response is no longer mutable"))
+        if (claimed || committed || finished || aborted)
+            throw IllegalStateException(Some("response is no longer mutable"))
     }
 
     /** Replaces all occurrences of the field's name at response preparation. */
-    public fun set(value: HttpField) { lock.withLock { requireMutable(); changes.add(HeaderChange.Set(value)) } }
+    public fun set(value: HttpField) {
+        change(HeaderChange.Set(value))
+    }
     /** Appends one field at response preparation, preserving duplicates. */
-    public fun add(value: HttpField) { lock.withLock { requireMutable(); changes.add(HeaderChange.Add(value)) } }
+    public fun add(value: HttpField) {
+        change(HeaderChange.Add(value))
+    }
     /** Removes all matching fields at response preparation. */
-    public fun remove(name: String) { lock.withLock { requireMutable(); changes.add(HeaderChange.Remove(name)) } }
-    /** Registers a non-suspending draft callback; it runs at most once. */
-    public fun beforeCommit(callback: (HttpResponseDraft) -> Unit) {
-        lock.withLock { requireMutable(); callbacks.add(callback) }
+    public fun remove(name: String) {
+        change(HeaderChange.Remove(name))
     }
 
-    internal fun prepare(result: HttpResult, minimal: Boolean): HttpResponseDraft {
-        val snapshot = lock.withLock {
+    private fun change(value: HeaderChange) {
+        lock.withLock {
             requireMutable()
-            claimed = true
-            val pending = callbacks.toArray()
-            callbacks.clear()
-            (changes.toArray(), pending)
+            if (!present(changes))
+                changes = Some(ArrayList<HeaderChange>())
+            changes!!.add(value)
         }
-        val (edits, beforeCommit) = snapshot
+    }
+    /** Registers a non-suspending draft callback; it runs at most once. */
+    public fun beforeCommit(callback: (HttpResponseDraft) -> Unit) {
+        lock.withLock {
+            requireMutable()
+            if (!present(callbacks))
+                callbacks = Some(ArrayList<(HttpResponseDraft) -> Unit>())
+            callbacks!!.add(callback)
+        }
+    }
+
+    internal fun claimUnchanged(): Boolean =
+        lock.withLock {
+            requireMutable()
+            if (present(changes) || present(callbacks))
+                return@withLock false
+            claimed = true
+            true
+        }
+
+    internal fun prepare(result: HttpResult, minimal: Boolean): HttpResponseDraft {
+        val snapshot =
+            lock.withLock {
+                requireMutable()
+                claimed = true
+                val pending =
+                    if (present(callbacks))
+                        callbacks!!.toArray()
+                    else
+                        []
+                callbacks = None
+                return@withLock (
+                    if (present(changes))
+                        changes!!.toArray()
+                    else
+                        [],
+                    pending
+                )
+            }
+        val(edits, beforeCommit) = snapshot
         val draft = HttpResponseDraft(result.status, result.fields)
         if (!minimal) {
-            for (change in edits) when (change) {
-                case HeaderChange.Set(val value) -> draft.set(value)
-                case HeaderChange.Add(val value) -> draft.add(value)
-                case HeaderChange.Remove(val name) -> draft.remove(name)
+            for (change in edits)
+                when (change) {
+                    case HeaderChange.Set(val value) -> draft.set(value)
+                    case HeaderChange.Add(val value) -> draft.add(value)
+                    case HeaderChange.Remove(val name) -> draft.remove(name)
+                }
+            try {
+                for (callback in beforeCommit)
+                    callback(draft)
             }
-            try { for (callback in beforeCommit) callback(draft) }
-            catch (error: Throwable) { draft.seal(); throw CommitCallbackFailure(error) }
+            catch (error: Throwable) {
+                draft.seal();
+                throw CommitCallbackFailure(error)
+            }
         }
         draft.seal()
         return draft
     }
 
-    internal fun releasePreparation() { lock.withLock { if (!committed && !aborted) claimed = false; Unit } }
-    internal fun commit(status: UInt) { lock.withLock { committed = true; finalStatus = Some(status) } }
-    internal fun finish() { lock.withLock { finished = true } }
-    internal fun abort() { lock.withLock { aborted = true } }
+    internal fun releasePreparation() {
+        lock.withLock {
+            if (!committed && !aborted)
+                claimed = false;
+            Unit
+        }
+    }
+    internal fun commit(status: UInt) {
+        lock.withLock {
+            committed = true;
+            finalStatus = Some(status)
+        }
+    }
+    internal fun finish() {
+        lock.withLock { finished = true }
+    }
+    internal fun abort() {
+        lock.withLock { aborted = true }
+    }
 }
 
-internal class CommitCallbackFailure(val original: Throwable) : Exception(Some("beforeCommit failed"))
+internal class CommitCallbackFailure(val original: Throwable): Exception(
+    Some("beforeCommit failed")
+)

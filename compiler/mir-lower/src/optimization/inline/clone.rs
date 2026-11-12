@@ -2,11 +2,14 @@ use std::collections::BTreeSet;
 
 use scoop_identity::{CallableMaterialization, StructuralDefinitionSiteRole, SyntheticLocalRole};
 
-use super::{Choice, LocalValueRegistry, index, mir};
+use super::{Choice, LocalValueRegistry, exception_edges, index, mir};
 
 pub(super) struct Expansion {
     pub(super) continuation: mir::BlockId,
     pub(super) blocks: Vec<Option<mir::BlockId>>,
+    pub(super) locals: Vec<Option<mir::LocalId>>,
+    pub(super) exception_states: Vec<mir::ExceptionStateId>,
+    pub(super) unwind: Option<mir::BlockId>,
     pub(super) result_prefix: usize,
 }
 
@@ -20,6 +23,7 @@ pub(super) fn apply(
     owner: CallableMaterialization,
     caller_id: mir::FunctionId,
     ancestry: &mut Vec<Vec<super::Target>>,
+    auxiliary_locals: &[mir::LocalId],
 ) -> Expansion {
     let caller_ancestry = ancestry[index(choice.block)].clone();
     let (statement, tail, terminator, terminator_origin, unwind) = {
@@ -38,6 +42,23 @@ pub(super) fn apply(
         callee.debug_origin.clone(),
         statement.debug_origin.clone(),
     );
+    let has_exception_paths = choice.blocks.iter().any(|(_, block)| {
+        block
+            .statements
+            .iter()
+            .any(|statement| matches!(statement.kind, mir::StatementKind::Eh(_)))
+            || matches!(block.terminator, mir::Terminator::Resume { .. })
+    });
+    let handler = has_exception_paths
+        .then(|| unwind.map(|pad| exception_edges::handler(caller, pad)))
+        .flatten();
+    let exception_states = callee
+        .body
+        .exception_states
+        .iter()
+        .map(|(_, state)| caller.body.exception_states.alloc(state.clone()))
+        .collect::<Vec<_>>();
+    let exception_state = |state: mir::ExceptionStateId| exception_states[index(state)];
     let mir::StatementKind::Call(effect) = statement.kind else {
         unreachable!("only a selected call is expanded")
     };
@@ -83,6 +104,7 @@ pub(super) fn apply(
     });
 
     let mut needed = BTreeSet::new();
+    needed.extend(auxiliary_locals.iter().copied());
     for parameter in &callee.params {
         needed.insert(parameter.local);
     }
@@ -161,6 +183,7 @@ pub(super) fn apply(
             mir::ExprKind::Local(id) | mir::ExprKind::AddressOf { local: id, .. } => {
                 *id = local(*id)
             }
+            mir::ExprKind::CaughtException { state } => *state = exception_state(*state),
             _ => {}
         });
         for statement in &mut block.statements {
@@ -171,6 +194,22 @@ pub(super) fn apply(
                 | mir::StatementKind::Call(mir::CallEffect::Value {
                     destination: id, ..
                 }) => *id = local(*id),
+                mir::StatementKind::Eh(mir::EhStatement::LandingPad { cleanup, state }) => {
+                    *state = exception_state(*state);
+                    if let Some(handler) = handler {
+                        *cleanup &= handler.cleanup;
+                    }
+                }
+                mir::StatementKind::Eh(mir::EhStatement::BeginCatch { state }) => {
+                    *state = exception_state(*state);
+                }
+                mir::StatementKind::Eh(mir::EhStatement::Forward {
+                    source,
+                    destination,
+                }) => {
+                    *source = exception_state(*source);
+                    *destination = exception_state(*destination);
+                }
                 _ => {}
             }
         }
@@ -210,9 +249,23 @@ pub(super) fn apply(
             mir::Terminator::Rethrow { unwind: exit } => mir::Terminator::Rethrow {
                 unwind: exit.map(target).or(unwind),
             },
-            terminal @ (mir::Terminator::Resume
-            | mir::Terminator::Trap { .. }
-            | mir::Terminator::Unreachable) => terminal,
+            mir::Terminator::Resume { state } => {
+                let source = exception_state(state);
+                if let Some(handler) = handler {
+                    block.statements.push(mir::Statement {
+                        debug_origin: block.terminator_origin.clone(),
+                        kind: mir::StatementKind::Eh(mir::EhStatement::Forward {
+                            source,
+                            destination: handler.state,
+                        }),
+                        span: statement.span,
+                    });
+                    mir::Terminator::Goto(handler.continuation)
+                } else {
+                    mir::Terminator::Resume { state: source }
+                }
+            }
+            terminal @ (mir::Terminator::Trap { .. } | mir::Terminator::Unreachable) => terminal,
         };
         block.name = caller.body.blocks[target(old)].name.clone();
         caller.body.blocks[target(old)] = block;
@@ -227,6 +280,9 @@ pub(super) fn apply(
     Expansion {
         continuation,
         blocks,
+        locals,
+        exception_states,
+        unwind,
         result_prefix: usize::from(result.is_some()),
     }
 }

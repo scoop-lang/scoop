@@ -39,6 +39,9 @@ for name in ("guardedUse", "guardedDirect"):
         assert "ClosureAlloc" in function and calls_use(function), name
 
 if release:
+    protected = body("protectedLoop")
+    assert "ClosureAlloc" not in protected and "ClosureCapture" not in protected
+    assert "forward_exception" in protected
     imported = body("importedGuarded")
     assert "landing_pad" not in imported and "      call " not in imported
     cleanup = body("cleanupFailure")

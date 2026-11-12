@@ -31,12 +31,14 @@ pub(super) fn generate_work_method(
         mir::Type::MachineScalar(mir::MachineScalarKind::CoroutineFrameState),
     ));
     let mut blocks = Arena::new();
+    let mut exception_states = Arena::new();
     let invalid = protocol_error_block(lowerer, module, &mut locals, &mut blocks, None);
     let exits = drive_exit_blocks(
         lowerer,
         module,
         &mut locals,
         &mut blocks,
+        &mut exception_states,
         this,
         step,
         adapter,
@@ -172,6 +174,7 @@ pub(super) fn generate_work_method(
         }],
         return_ty: mir::Type::Unit,
         body: mir::Body {
+            exception_states,
             locals,
             blocks,
             entry,

@@ -396,21 +396,6 @@ static void test_frame_root_families(void) {
     scoop_rt_pop_caller_roots(&caller_frame);
     assert(caller_region.ref != caller_old);
     assert(((TestLeaf *)caller_region.ref)->value == 42);
-
-    struct {
-        void *ref;
-    } compiler_region = {.ref = new_leaf(43)};
-    void *compiler_old = compiler_region.ref;
-    ScoopCallerRootEntry compiler_entry = {
-        .base = &compiler_region,
-        .scan = one_root_scan,
-    };
-    ScoopCompilerRootFrame compiler_frame = {0};
-    scoop_rt_push_compiler_roots(&compiler_frame, &compiler_entry, 1);
-    collect_without_stack_root();
-    scoop_rt_pop_compiler_roots(&compiler_frame);
-    assert(compiler_region.ref != compiler_old);
-    assert(((TestLeaf *)compiler_region.ref)->value == 43);
 }
 
 static void test_handle_and_immortal_roots(void) {

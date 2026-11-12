@@ -80,7 +80,17 @@ static void reject_bad_roots(void) {
     }
     data.roots[1] = (uint32_t)-8 | 1;
     assert(ops->validate_record(&record, &error));
-    data.roots[1] |= 2;
+    data.roots[1] = 2;
+    assert(ops->validate_record(&record, &error));
+    data.roots[1] = (uint32_t)-16 | 3;
+    assert(ops->validate_record(&record, &error));
+    data.roots[1] = (uint32_t)-8 | 3;
+    assert(!ops->validate_record(&record, &error));
+    assert(error.code == SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME);
+    data.roots[1] = 10;
+    assert(!ops->validate_record(&record, &error));
+    assert(error.code == SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME);
+    data.roots[1] = 4;
     assert(!ops->validate_record(&record, &error));
     assert(error.code == SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION);
     data.map.stack_size = 16;

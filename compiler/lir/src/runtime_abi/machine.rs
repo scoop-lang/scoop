@@ -107,13 +107,10 @@ impl RuntimeAbiSymbolV1 {
             Self::WriteBarrier | Self::RecordDirtyCardGroup => leaf(&[P, I(64)], V),
             Self::PushPinFrame => leaf(&[P, P], V),
             Self::PopPinFrame => leaf(&[P], V),
-            Self::FinishTlabAllocation | Self::PushCallerRoots | Self::PushCompilerRoots => {
-                leaf(&[P, P, I(64)], V)
-            }
+            Self::FinishTlabAllocation | Self::PushCallerRoots => leaf(&[P, P, I(64)], V),
             Self::BeginCatch | Self::CallbackRetain | Self::CallbackFailure => leaf(&[P], P),
-            Self::EndCatch | Self::PopTopCompilerRoots => leaf(&[], V),
+            Self::EndCatch => leaf(&[], V),
             Self::PopCallerRoots
-            | Self::PopCompilerRoots
             | Self::LeaveNativeSafe
             | Self::LeaveNativeBorrowed
             | Self::CallbackRelease => leaf(&[P], V),

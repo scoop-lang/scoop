@@ -321,6 +321,7 @@ pub(super) fn body_with_terminator(
         unwind: None,
     });
     mir::Body {
+        exception_states: Default::default(),
         locals,
         blocks,
         entry,
@@ -370,6 +371,10 @@ pub(super) fn single_catch_body(
     catch_statements: Vec<mir::Statement>,
 ) -> mir::Body {
     let mut blocks = Arena::new();
+    let mut exception_states = Arena::new();
+    let state = exception_states.alloc(mir::ExceptionState);
+    let handler_state = exception_states.alloc(mir::ExceptionState);
+    let exit_state = exception_states.alloc(mir::ExceptionState);
     let entry = cfg_block(&mut blocks, "entry");
     let unwind = cfg_block(&mut blocks, "try.unwind.1");
     let dispatch = cfg_block(&mut blocks, "try.dispatch.2");
@@ -394,6 +399,7 @@ pub(super) fn single_catch_body(
         unwind,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: false,
+            state: state,
         }))],
         mir::Terminator::Goto(dispatch),
         None,
@@ -401,12 +407,14 @@ pub(super) fn single_catch_body(
     set_cfg_block(
         &mut blocks,
         dispatch,
-        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch))],
+        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+            state,
+        }))],
         mir::Terminator::Branch {
             cond: expr(
                 mir::Type::Boolean,
                 mir::ExprKind::IsInstance {
-                    operand: Box::new(mir::Expr::caught_exception()),
+                    operand: Box::new(mir::Expr::caught_exception(state)),
                     check_ty: Box::new(catch_ty.clone()),
                 },
             ),
@@ -420,6 +428,7 @@ pub(super) fn single_catch_body(
         handler_pad,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: true,
+            state: handler_state,
         }))],
         mir::Terminator::Goto(handler_cleanup),
         None,
@@ -428,7 +437,9 @@ pub(super) fn single_catch_body(
         &mut blocks,
         handler_cleanup,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch))],
-        mir::Terminator::Resume,
+        mir::Terminator::Resume {
+            state: handler_state,
+        },
         None,
     );
     set_cfg_block(
@@ -436,6 +447,7 @@ pub(super) fn single_catch_body(
         exit_pad,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: true,
+            state: exit_state,
         }))],
         mir::Terminator::Goto(exit_cleanup),
         None,
@@ -444,7 +456,7 @@ pub(super) fn single_catch_body(
         &mut blocks,
         exit_cleanup,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch))],
-        mir::Terminator::Resume,
+        mir::Terminator::Resume { state: exit_state },
         None,
     );
     set_cfg_block(
@@ -468,7 +480,7 @@ pub(super) fn single_catch_body(
         expr(
             catch_ty.clone(),
             mir::ExprKind::Retype {
-                operand: Box::new(mir::Expr::caught_exception()),
+                operand: Box::new(mir::Expr::caught_exception(state)),
                 ty: Box::new(catch_ty),
             },
         ),
@@ -493,6 +505,7 @@ pub(super) fn single_catch_body(
     );
 
     mir::Body {
+        exception_states,
         locals,
         blocks,
         entry,

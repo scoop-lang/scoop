@@ -37,8 +37,8 @@ impl MirOptimizationOptions {
     };
 }
 
-pub(super) fn inline_synchronous_coroutines(lowerer: &mut crate::Lowerer) {
-    inline::inline_synchronous_coroutines(lowerer);
+pub(super) fn inline_suspend_calls(lowerer: &mut crate::Lowerer) {
+    inline::inline_suspend_calls(lowerer);
 }
 
 #[cfg(test)]

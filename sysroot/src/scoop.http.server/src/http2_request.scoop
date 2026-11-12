@@ -19,9 +19,9 @@ internal suspend fun executeHttp2Request(
         val body =
             HttpRequestBody(
                 source,
-                state.options.requestBodyLimit,
+                state.options.request.bodyLimit,
                 incoming.head.fields,
-                state.options.bufferedBodyLimit
+                state.options.request.bufferedBodyLimit
             )
         val request = HttpRequest(incoming.head, body, expectations)
         coroutineScope<Unit> {
@@ -36,7 +36,7 @@ internal suspend fun executeHttp2Request(
                 output,
                 requestId,
                 entry.info,
-                state.options.requestDeadline,
+                state.options.request.deadline,
                 result
             )
         }
@@ -64,7 +64,7 @@ internal suspend fun executeHttp2Request(
                 present(incoming.stream.failure) &&
                 result.failure!! ===
                 incoming.stream.failure!!
-        completeServerRequest(state, result, started, cancelledByStream)
+        completeRequest(state.options.request.onCompleted, result, started, cancelledByStream)
         activity.finished(incoming.stream.id)
     }
 }

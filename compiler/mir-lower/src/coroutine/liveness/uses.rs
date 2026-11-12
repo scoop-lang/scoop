@@ -74,7 +74,7 @@ pub(super) fn terminator_uses(terminator: &mir::Terminator) -> HashSet<mir::Loca
         mir::Terminator::Throw { exception, .. } => expr_uses(exception, &mut uses),
         mir::Terminator::Goto(_)
         | mir::Terminator::Rethrow { .. }
-        | mir::Terminator::Resume
+        | mir::Terminator::Resume { .. }
         | mir::Terminator::Trap { .. }
         | mir::Terminator::Unreachable => {}
     }
@@ -99,7 +99,7 @@ pub(super) fn terminator_successors(block: &mir::BasicBlock) -> Vec<mir::BlockId
             }
         }
         mir::Terminator::Return { .. }
-        | mir::Terminator::Resume
+        | mir::Terminator::Resume { .. }
         | mir::Terminator::Trap { .. }
         | mir::Terminator::Unreachable => {}
     }
@@ -306,7 +306,7 @@ pub(super) fn expr_uses(expr: &mir::Expr, uses: &mut HashSet<mir::LocalId>) {
         | mir::ExprKind::GlobalRead(_)
         | mir::ExprKind::InitializationUnitAddress(_)
         | mir::ExprKind::GlobalAddress { .. }
-        | mir::ExprKind::CaughtException
+        | mir::ExprKind::CaughtException { .. }
         | mir::ExprKind::SizeOf(_)
         | mir::ExprKind::AlignOf(_)
         | mir::ExprKind::FunctionAddress { .. } => {}

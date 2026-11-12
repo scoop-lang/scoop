@@ -1,0 +1,116 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.*
+
+// Header failure ends this connection, so its existing Job owns the wait and cancellation.
+internal class Http1HeadDeadline(private val job: Job): Closeable {
+    private val loop = currentEventLoop()
+    private val lock = ServerLock()
+    private var waiting = false
+    private var closed = false
+    private var started: TimeMark = MonotonicTimeSource.markNow()
+    private var limit: Duration? = None
+    private var failure: Throwable? = None
+    private var alarm: Http1HeadAlarm? = None
+
+    fun begin(duration: Duration?) {
+        requireServerDuration(duration)
+        job.ensureActive()
+        lock.withLock {
+            if (closed || waiting || present(failure))
+                throw IllegalStateException(Some("HTTP/1 header wait is not available"))
+            started = MonotonicTimeSource.markNow()
+            limit = duration
+            waiting = true
+            if (present(duration))
+                armLocked(started, duration!!)
+            Unit
+        }
+    }
+
+    // The lock selects completion against timeout before another request may start.
+    fun finish(): Throwable? =
+        lock.withLock {
+            waiting = false
+            limit = None
+            failure
+        }
+
+    private fun armLocked(now: TimeMark, remaining: Duration) {
+        when (alarm) {
+            case Some(val existing) -> {
+                if (existing.delay - (now - existing.started) <= remaining)
+                    return
+                existing.notification?.dispose()
+            }
+            case None -> {}
+        }
+        val next = Http1HeadAlarm(now, remaining)
+        alarm = Some(next)
+        context(job) {
+            context(loop) {
+                next.notification = Some(loop.schedule(remaining, { error -> tick(next, error) }))
+            }
+        }
+    }
+
+    private fun tick(selected: Http1HeadAlarm, error: Throwable?) {
+        val cancel =
+            try {
+                lock.withLock {
+                    if (closed || !present(alarm) || alarm!! !== selected)
+                        return@withLock false
+                    alarm = None
+                    selected.notification = None
+                    if (!waiting || !present(limit))
+                        return@withLock false
+                    val duration = limit!!
+                    val now = MonotonicTimeSource.markNow()
+                    val remaining = duration - (now - started)
+                    if (present(error) || remaining <= Duration.ZERO) {
+                        failure =
+                            Some(
+                                error ?: HttpServerTimeoutException("HTTP/1 request head", duration)
+                            )
+                        waiting = false
+                        true
+                    } else {
+                        armLocked(now, remaining)
+                        false
+                    }
+                }
+            } catch (failure: Throwable) {
+                lock.withLock {
+                    if (closed || !waiting)
+                        false
+                    else {
+                        this.failure = Some(failure)
+                        waiting = false
+                        true
+                    }
+                }
+            }
+        if (cancel)
+            job.cancel()
+    }
+
+    public override fun close() {
+        val previous =
+            lock.withLock {
+                closed = true
+                waiting = false
+                limit = None
+                val saved = alarm
+                alarm = None
+                saved
+            }
+        if (present(previous))
+            previous!!.notification?.dispose()
+    }
+}
+
+private class Http1HeadAlarm(val started: TimeMark, val delay: Duration) {
+    var notification: Disposable? = None
+}

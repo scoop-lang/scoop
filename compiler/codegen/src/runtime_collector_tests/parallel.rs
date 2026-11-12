@@ -1,6 +1,28 @@
 use super::compile::compile_and_run_configuration;
 use super::{compile_and_run_with_flags, workspace_root};
 
+#[cfg(target_os = "linux")]
+#[test]
+fn automatic_gc_workers_follow_cpu_affinity_and_preserve_explicit_override() {
+    let output = compile_and_run_configuration(
+        &workspace_root(),
+        "gc_cpu_affinity_test",
+        "runtime/tests/gc_cpu_affinity_test.c",
+        false,
+        false,
+        &["-O2"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        output.stdout,
+        b"automatic GC workers follow CPU affinity; explicit override preserves live graphs\n"
+    );
+}
+
 #[test]
 fn marking_preserves_exact_live_lines_across_bitmap_words_and_block_edges() {
     for (stress, optimization) in [(false, "-O2"), (true, "-O0")] {

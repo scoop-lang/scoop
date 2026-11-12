@@ -1,0 +1,135 @@
+package scoop.http
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+@Test
+private class Http1EventBatchTests {
+    @Test
+    fun `pending events precede later input and retain owned bytes`() {
+        val events = ArrayList<Http1Event>()
+        Http1Decoder.server().use {
+            decoder -> NativeByteBuffer.allocate(1024L).use {
+                buffer ->
+                val first =
+                    "POST /first HTTP/1.1\r\nX-Item: one\r\nx-item: two\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nbody\r\n0\r\nX-End: yes\r\n\r\n"
+                buffer.writeBytes(first.toByteArray())
+                assertEquals(first.byteLength, decoder.receive(buffer))
+                events.add(decoder.nextEvent()!!)
+                buffer.clear()
+                val second = "GET /second HTTP/1.1\r\nX-Item: later\r\n\r\n"
+                buffer.writeBytes(second.toByteArray())
+                assertEquals(second.byteLength, decoder.receive(buffer))
+                decoder.endInput()
+                drainHttp1(decoder, events)
+                buffer.clear()
+                buffer.writeBytes("overwritten".toByteArray())
+            }
+        }
+        assertEquals(7L, events.size)
+        val heads = http1Requests(events)
+        assertEquals(2L, heads.size)
+        val fields = heads[0L].fields.findAll("x-item".toByteArray())
+        assertEquals(2L, fields.size)
+        assertEquals("one", String.fromUtf8(fields[0L].value))
+        assertEquals("two", String.fromUtf8(fields[1L].value))
+        assertEquals("body", String.fromUtf8(http1Data(events)))
+        assertEquals(2L, http1EndCount(events))
+        assertTrue(
+            when (events[2L]) {
+                case Trailers(val values) -> values.size ==
+                    1L &&
+                    String.fromUtf8(values[0L].value) ==
+                    "yes"
+                else -> false
+            }
+        )
+        assertTrue(
+            when (events[4L]) {
+                case Request(_) -> true;
+                else -> false
+            }
+        )
+        assertTrue(
+            when (events[5L]) {
+                case Trailers(val values) -> values.size == 0L;
+                else -> false
+            }
+        )
+        when (heads[1L].target) {
+            case Http1(val value) -> assertEquals("/second", String.fromUtf8(value))
+            else -> fail(Some("unexpected request target"))
+        }
+    }
+
+    @Test
+    fun `EOF appends to a partially consumed response batch`() {
+        val events = ArrayList<Http1Event>()
+        Http1Decoder.client().use {
+            decoder ->
+            decoder.expectResponse("GET".toByteArray())
+            NativeByteBuffer.allocate(256L).use {
+                buffer ->
+                val response = "HTTP/1.0 200 Reason\r\nX-Item: retained\r\n\r\ntail"
+                buffer.writeBytes(response.toByteArray())
+                assertEquals(response.byteLength, decoder.receive(buffer))
+                events.add(decoder.nextEvent()!!)
+                decoder.endInput()
+                drainHttp1(decoder, events)
+            }
+        }
+        assertEquals(4L, events.size)
+        val head = http1Responses(events)[0L]
+        assertEquals("Reason", String.fromUtf8(head.reason!!))
+        assertEquals("retained", String.fromUtf8(head.fields[0L].value))
+        assertEquals("tail", String.fromUtf8(http1Data(events)))
+        assertEquals(1L, http1EndCount(events))
+    }
+
+    @Test
+    fun `close releases pending and newly queued batches without invalidating returned heads`() {
+        val events = ArrayList<Http1Event>()
+        Http1Decoder.server().use {
+            decoder -> NativeByteBuffer.allocate(256L).use {
+                buffer ->
+                val message = "GET /saved HTTP/1.1\r\nX-Saved: value\r\n\r\n"
+                buffer.writeBytes(message.toByteArray())
+                assertEquals(message.byteLength, decoder.receive(buffer))
+                events.add(decoder.nextEvent()!!)
+                buffer.clear()
+                buffer.writeBytes(message.toByteArray())
+                assertEquals(message.byteLength, decoder.receive(buffer))
+                decoder.close()
+                decoder.close()
+                assertFailsWith<IllegalStateException> { decoder.nextEvent() }
+            }
+        }
+        val head = http1Requests(events)[0L]
+        assertEquals("GET", String.fromUtf8(head.method))
+        assertEquals("value", String.fromUtf8(head.fields[0L].value))
+    }
+
+    @Test
+    fun `message snapshots detach mutable methods reasons and field lists`() {
+        val method = "GET".toMutableByteArray()
+        val reason = "OK".toMutableByteArray()
+        val fields = ArrayList<HttpField>()
+        fields.add(HttpField("x-one".toByteArray(), "first".toByteArray()))
+        val request =
+            HttpRequestHead(
+                HttpVersion.Http11,
+                method,
+                HttpRequestTarget.Http1("/".toByteArray()),
+                fields
+            )
+        val response = HttpResponseHead(HttpVersion.Http11, 200U, Some(reason), fields)
+        method[0L] = 80.toByte()
+        reason[0L] = 78.toByte()
+        fields.clear()
+        assertEquals("GET", String.fromUtf8(request.method))
+        assertEquals("OK", String.fromUtf8(response.reason!!))
+        assertEquals(1L, request.fields.size)
+        assertEquals(1L, response.fields.size)
+        assertEquals("first", String.fromUtf8(response.fields[0L].value))
+    }
+}

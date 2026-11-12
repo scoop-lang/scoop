@@ -30,6 +30,7 @@ impl<'a> CfgLowerer<'a> {
         });
         UnwindTarget {
             owner,
+            state: self.exception_states.alloc(mir::ExceptionState),
             pad,
             continuation,
             handles_in_function,

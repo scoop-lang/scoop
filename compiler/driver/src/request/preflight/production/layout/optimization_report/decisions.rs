@@ -5,6 +5,7 @@ pub(super) fn inline(outcome: InlineOutcome) -> &'static str {
     match outcome {
         InlineOutcome::Inlined => "inlined",
         InlineOutcome::ClassFields => "inlined-with-class-fields",
+        InlineOutcome::KnownClosure => "inlined-known-closure",
         InlineOutcome::Required => "required-expansion",
         InlineOutcome::Profitability => "not-profitable",
         InlineOutcome::CallerGrowth => "caller-growth",
@@ -13,7 +14,6 @@ pub(super) fn inline(outcome: InlineOutcome) -> &'static str {
         InlineOutcome::UnsupportedBody => "unsupported-body",
         InlineOutcome::RecursiveCallee => "recursive-callee",
         InlineOutcome::ProtocolCallee => "protocol-callee",
-        InlineOutcome::ProtocolCaller => "protocol-caller",
         InlineOutcome::RecursiveExpansion => "recursive-expansion",
         InlineOutcome::Depth => "expansion-depth",
         InlineOutcome::GrowthExhausted => "growth-exhausted",

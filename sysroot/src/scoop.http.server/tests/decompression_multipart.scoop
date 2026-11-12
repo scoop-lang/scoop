@@ -86,7 +86,7 @@ private class ServerDecompressionMultipartTests {
                         routes,
                         httpServerOptions {
                             this.allowCleartextHttp2 = true
-                            this.onRequestCompleted = Some(completed::receive)
+                            request { onCompleted = Some(completed::receive) }
                         },
                         suspend {
                             scope, _, address ->

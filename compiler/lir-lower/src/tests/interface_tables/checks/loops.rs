@@ -195,14 +195,18 @@ fn exceptional_retries_reuse_parameters_but_not_repeated_initializers() {
     for parameter in [false, true] {
         let (mut module, scope, _, success) = looping(parameter);
         let body = &mut module.functions[scope].body;
+        let state = body.exception_states.alloc(mir::ExceptionState);
         let retry = body.blocks.alloc(mir::BasicBlock {
             terminator_origin: Default::default(),
             name: "retry".into(),
             statements: vec![
                 stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                     cleanup: false,
+                    state,
                 })),
-                stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+                stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                    state,
+                })),
                 stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
             ],
             terminator: mir::Terminator::Goto(body.entry),

@@ -87,7 +87,7 @@ fn managed_live_plan_produces_as1_relocation() {
 }
 
 #[test]
-fn managed_invoke_uses_explicit_compiler_roots_without_exceptional_relocation() {
+fn managed_invoke_uses_stack_root_table_on_normal_and_exceptional_edges() {
     let mut callee_blocks = Arena::default();
     let callee_entry = callee_blocks.alloc(BasicBlock {
         terminator_origin: Default::default(),
@@ -240,25 +240,23 @@ fn managed_invoke_uses_explicit_compiler_roots_without_exceptional_relocation() 
         "managed invoke must not rely on exceptional relocation:\n{ir}"
     );
     assert!(
-        ir.contains("@scoop_rt_push_compiler_roots")
-            && ir.contains("@scoop_rt_pop_compiler_roots")
-            && ir.contains("@scoop_rt_pop_top_compiler_roots"),
-        "normal and unwind edges do not clean the compiler root frame:\n{ir}"
+        ir.contains("\"deopt\"(ptr %invoke_root_table)")
+            && !ir.contains("@scoop_rt_push_compiler_roots")
+            && !ir.contains("@scoop_rt_pop_compiler_roots")
+            && !ir.contains("@scoop_rt_pop_top_compiler_roots"),
+        "invoke must expose its stack table without runtime root-chain operations:\n{ir}"
     );
 
-    let assert_reload_pop_restore = |body: &str, pop: &str, edge: &str| {
+    let assert_reload_restore = |body: &str, edge: &str| {
         let reload = body
             .find("load volatile ptr addrspace(1), ptr %managed_root_storage")
-            .unwrap_or_else(|| panic!("{edge} edge does not reload its published root:\n{body}"));
-        let pop = body
-            .find(pop)
-            .unwrap_or_else(|| panic!("{edge} edge does not pop its compiler-root frame:\n{body}"));
+            .unwrap_or_else(|| panic!("{edge} edge does not reload its root storage:\n{body}"));
         let restore = body
             .find("store volatile ptr addrspace(1) %published_root_reload")
             .unwrap_or_else(|| panic!("{edge} edge does not restore its reloaded root:\n{body}"));
         assert!(
-            reload < pop && pop < restore,
-            "{edge} edge must reload before pop and restore after pop:\n{body}"
+            reload < restore,
+            "{edge} edge must use the reloaded value:\n{body}"
         );
     };
 
@@ -266,7 +264,7 @@ fn managed_invoke_uses_explicit_compiler_roots_without_exceptional_relocation() 
         .split_once("invoke.normal.cleanup.0:")
         .expect("managed invoke has a normal cleanup block")
         .1;
-    assert_reload_pop_restore(normal_cleanup, "@scoop_rt_pop_compiler_roots", "normal");
+    assert_reload_restore(normal_cleanup, "normal");
 
     let unwind_cleanup = ir
         .split_once("unwind:")
@@ -275,5 +273,5 @@ fn managed_invoke_uses_explicit_compiler_roots_without_exceptional_relocation() 
         .split_once("invoke.normal.cleanup.0:")
         .expect("unwind landing block precedes the normal cleanup block")
         .0;
-    assert_reload_pop_restore(unwind_cleanup, "@scoop_rt_pop_top_compiler_roots", "unwind");
+    assert_reload_restore(unwind_cleanup, "unwind");
 }

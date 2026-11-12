@@ -1,0 +1,47 @@
+package scoop.http
+
+// These two records match the native event's owned field storage on 64-bit targets.
+@CLayout
+internal struct NativeHttpByteStorage(val data: Ptr<Byte>?, val size: ULong, val capacity: ULong)
+
+@CLayout
+internal struct NativeHttpFieldStorage(
+    val name: NativeHttpByteStorage,
+    val value: NativeHttpByteStorage,
+    val neverIndex: Int
+)
+
+@CLayout
+internal struct NativeHttpEventView(
+    val info: NativeHttpEventInfo,
+    val first: NativeHttpBytes,
+    val second: NativeHttpBytes,
+    val fields: Ptr<NativeHttpFieldStorage>?,
+    val fieldCount: Long,
+    val next: ULong
+)
+
+@GCLeaf
+@Extern(name = "scoop_http1_take_events")
+internal fun http1TakeEvents(handle: ULong): ULong
+
+@GCLeaf
+@Extern(name = "scoop_http_event_view")
+internal fun httpEventView(handle: ULong): NativeHttpEventView
+
+@Extern(name = "scoop_http_event_batch_free")
+internal fun httpEventBatchFree(handle: ULong)
+
+@Unsafe
+internal fun httpEventFields(view: NativeHttpEventView): Array<HttpField> =
+    Array<HttpField>(view.fieldCount) {
+        index -> @Unsafe
+        {
+            val field = view.fields!!.load(index)
+            return@Array HttpField(
+                httpBytes(NativeHttpBytes(field.name.data, field.name.size.toLong())),
+                httpBytes(NativeHttpBytes(field.value.data, field.value.size.toLong())),
+                field.neverIndex != 0
+            )
+        }
+    }

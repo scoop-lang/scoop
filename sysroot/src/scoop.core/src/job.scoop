@@ -1,18 +1,21 @@
 /**
  * The terminal exception used for cooperative job cancellation.
  */
-public class CancellationException public constructor() : Exception(Some("task was cancelled"))
+public class CancellationException public constructor(): Exception(Some("task was cancelled"))
 
 /**
  * Tracks a coroutine and its structured children. Completion waits for children; cancellation
  * requests propagate to children and registered handlers.
  */
-public open class Job internal constructor(parent: Job?, private val propagatesFailure: Boolean = true) {
+public open class Job internal constructor(
+    parent: Job?,
+    private val propagatesFailure: Boolean = true
+) {
     private val lock: CoroutineLock = CoroutineLock()
     private var parent: Job? = parent
     private val children: ArrayList<Job> = ArrayList<Job>()
-    private val completionListeners: CoroutineListeners = CoroutineListeners()
-    private val cancellationListeners: CoroutineListeners = CoroutineListeners()
+    private val completionListeners: CoroutineListeners = CoroutineListeners(lock)
+    private val cancellationListeners: CoroutineListeners = CoroutineListeners(lock)
     private var bodyEnded: Boolean = false
     private var completed: Boolean = false
     private var cancelling: Int = 0
@@ -43,26 +46,48 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
      * Requests cancellation of this job and its children. Repeated requests preserve the existing
      * cancellation outcome.
      */
-    public fun cancel() { requestCancellation(None) }
+    public fun cancel() {
+        requestCancellation(None)
+    }
 
     /**
      * Registers a cancellation handler and returns a disposable registration; an already-cancelled
      * job invokes it immediately.
      */
     public fun invokeOnCancellation(handler: (CancellationException) -> Unit): Disposable {
-        val (listener, callNow, tracked) = lock.withLock {
-            if (!coroutineAbsent(cancellation)) {
-                if (!completed) cancelling += 1
-                return@withLock (CoroutineRegistration(cancellationListeners, { handler(cancellationReason()) }), true, !completed)
+        val(listener, callNow, tracked) =
+            lock.withLock {
+                if (!coroutineAbsent(cancellation)) {
+                    if (!completed)
+                        cancelling += 1
+                    return@withLock (
+                        CoroutineRegistration(
+                            cancellationListeners,
+                            { handler(cancellationReason()) }
+                        ),
+                        true,
+                        !completed
+                    )
+                }
+                if (completed) {
+                    val entry =
+                        CoroutineRegistration(
+                            cancellationListeners,
+                            { handler(cancellationReason()) }
+                        )
+                    entry.takeActionLocked()
+                    return@withLock (entry, false, false)
+                }
+                val entry = cancellationListeners.addLocked { handler(cancellationReason()) }
+                (entry, false, false)
             }
-            val entry = cancellationListeners.add { handler(cancellationReason()) }
-            if (completed) entry.dispose()
-            (entry, false, false)
-        }
         if (callNow) {
-            try { listener.fire() }
+            try {
+                listener.fire()
+            }
             catch (error: Throwable) {
-                if (!tracked) throw error
+                if (!tracked)
+                    throw error
                 requestCancellation(Some(error))
             } finally {
                 if (tracked) {
@@ -77,30 +102,47 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
     private fun cancellationReason(): CancellationException = lock.withLock { cancellation!! }
 
     internal fun attach(child: Job) {
-        val cancelChild = lock.withLock {
-            if (bodyEnded) throw IllegalStateException(Some("coroutine scope is closed"))
-            children.add(child)
-            !coroutineAbsent(cancellation)
-        }
-        if (cancelChild) child.cancel()
+        val cancelChild =
+            lock.withLock {
+                if (bodyEnded)
+                    throw IllegalStateException(Some("coroutine scope is closed"))
+                children.add(child)
+                !coroutineAbsent(cancellation)
+            }
+        if (cancelChild)
+            child.cancel()
     }
 
     private fun removeChild(child: Job) {
-        lock.withLock {
-            var index = 0L
-            while (index < children.size) {
-                if (children[index] === child) {
-                    children.removeAt(index)
-                    return@withLock
+        val done =
+            lock.withLock {
+                var index = 0L
+                while (index < children.size) {
+                    if (children[index] === child) {
+                        children.removeAt(index)
+                        break
+                    }
+                    index += 1L
                 }
-                index += 1L
+                completeLocked()
             }
-        }
-        tryComplete()
+        publishCompletion(done)
     }
 
     internal fun finishBody(error: Throwable?) {
-        lock.withLock { bodyEnded = true; cancelling += 1 }
+        if (coroutineAbsent(error)) {
+            val done =
+                lock.withLock {
+                    bodyEnded = true
+                    completeLocked()
+                }
+            publishCompletion(done)
+            return
+        }
+        lock.withLock {
+            bodyEnded = true;
+            cancelling += 1
+        }
         try {
             when (error) {
                 case Some(val reason) -> requestCancellation(Some(reason))
@@ -113,22 +155,32 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
     }
 
     private fun requestCancellation(error: Throwable?) {
-        val dispatch: CoroutineCancellation? = lock.withLock {
-            if (completed) return@withLock None
-            var propagate: Throwable? = None
-            when (error) {
-                case Some(val reason) -> {
-                    if (!(reason is CancellationException) && coroutineAbsent(failure)) {
-                        failure = Some(reason)
-                        propagate = Some(reason)
+        val dispatch: CoroutineCancellation? =
+            lock.withLock {
+                if (completed)
+                    return@withLock None
+                var propagate: Throwable? = None
+                when (error) {
+                    case Some(val reason) -> {
+                        if (!(reason is CancellationException) && coroutineAbsent(failure)) {
+                            failure = Some(reason)
+                            propagate = Some(reason)
+                        }
                     }
+                    case None -> {}
                 }
-                case None -> {}
+                if (coroutineAbsent(cancellation))
+                    cancellation = Some(CancellationException())
+                cancelling += 1
+                Some(
+                    CoroutineCancellation(
+                        parent,
+                        propagate,
+                        children.toArray(),
+                        cancellationListeners.takeLocked()
+                    )
+                )
             }
-            if (coroutineAbsent(cancellation)) cancellation = Some(CancellationException())
-            cancelling += 1
-            Some(CoroutineCancellation(parent, propagate, children.toArray(), cancellationListeners.take()))
-        }
         when (dispatch) {
             case None -> return
             case Some(val batch) -> {
@@ -136,17 +188,24 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
                     when (batch.failure) {
                         case Some(val reason) -> {
                             when (batch.parent) {
-                                case Some(val owner) -> if (propagatesFailure) owner.requestCancellation(Some(reason))
+                                case Some(val owner) -> if (propagatesFailure)
+                                    owner.requestCancellation(Some(reason))
                                 case None -> {}
                             }
                         }
                         case None -> {}
                     }
-                    for (child in batch.children) child.cancel()
-                    for (listener in batch.listeners) {
-                        try { listener.fire() }
-                        catch (reason: Throwable) { requestCancellation(Some(reason)) }
-                    }
+                    for (child in batch.children)
+                        child.cancel()
+                    if (!coroutineAbsent(batch.listeners))
+                        for (listener in batch.listeners!!) {
+                            try {
+                                listener.fire()
+                            }
+                            catch (reason: Throwable) {
+                                requestCancellation(Some(reason))
+                            }
+                        }
                 } finally {
                     lock.withLock { cancelling -= 1 }
                     tryComplete()
@@ -156,14 +215,20 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
     }
 
     private fun tryComplete() {
-        val batch: CoroutineCompletion? = lock.withLock {
-            if (completed || !bodyEnded || children.size != 0L || cancelling != 0) return@withLock None
-            completed = true
-            val owner = parent
-            parent = None
-            for (listener in cancellationListeners.take()) listener.dispose()
-            Some(CoroutineCompletion(owner, completionListeners.take()))
-        }
+        publishCompletion(lock.withLock { completeLocked() })
+    }
+
+    private fun completeLocked(): CoroutineCompletion? {
+        if (completed || !bodyEnded || children.size != 0L || cancelling != 0)
+            return None
+        completed = true
+        val owner = parent
+        parent = None
+        cancellationListeners.clearLocked()
+        return Some(CoroutineCompletion(owner, completionListeners.takeLocked()))
+    }
+
+    private fun publishCompletion(batch: CoroutineCompletion?) {
         when (batch) {
             case None -> {}
             case Some(val done) -> {
@@ -172,30 +237,42 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
                         case Some(val owner) -> owner.removeChild(this)
                         case None -> {}
                     }
-                } finally { notifyCoroutineListeners(done.listeners) }
+                } finally {
+                    notifyCoroutineListeners(done.listeners)
+                }
             }
         }
     }
 
     internal fun onCompletion(action: () -> Unit): Disposable {
-        val listener = lock.withLock { completionListeners.add(action) }
-        if (isCompleted) listener.fire()
+        val(listener, ready) =
+            lock.withLock {
+                if (completed)
+                    (CoroutineRegistration(completionListeners, action), true)
+                else
+                    (completionListeners.addLocked(action), false)
+            }
+        if (ready)
+            listener.fire()
         return listener
     }
 
-    internal fun finalFailure(): Throwable? = lock.withLock {
-        if (!completed) throw IllegalStateException(Some("task has not completed"))
-        if (!coroutineAbsent(failure)) return@withLock failure
-        when (cancellation) {
-            case Some(val reason) -> Some(reason)
-            case None -> None
+    internal fun finalFailure(): Throwable? =
+        lock.withLock {
+            if (!completed)
+                throw IllegalStateException(Some("task has not completed"))
+            if (!coroutineAbsent(failure))
+                return@withLock failure
+            when (cancellation) {
+                case Some(val reason) -> Some(reason)
+                case None -> None
+            }
         }
-    }
 
     internal suspend fun joinUncancelled() {
-        suspendCoroutine<Unit> { continuation ->
-            onCompletion { continuation.resume(Unit) }
-        }
+        if (isCompleted)
+            return
+        suspendCoroutine<Unit> { continuation -> onCompletion { continuation.resume(Unit) } }
     }
 
     /**
@@ -203,7 +280,8 @@ public open class Job internal constructor(parent: Job?, private val propagatesF
      * deferred result.
      */
     public suspend fun join() {
-        suspendCancellableCoroutine<Unit> { continuation ->
+        suspendCancellableCoroutine<Unit> {
+            continuation ->
             val listener = onCompletion { continuation.tryResume(Unit) }
             continuation.invokeOnCancellation { _ -> listener.dispose() }
         }
@@ -214,7 +292,10 @@ private class CoroutineCancellation(
     val parent: Job?,
     val failure: Throwable?,
     val children: Array<Job>,
-    val listeners: ArrayList<CoroutineRegistration>
+    val listeners: ArrayList<CoroutineRegistration>?
 )
 
-private class CoroutineCompletion(val parent: Job?, val listeners: ArrayList<CoroutineRegistration>)
+private class CoroutineCompletion(
+    val parent: Job?,
+    val listeners: ArrayList<CoroutineRegistration>?
+)

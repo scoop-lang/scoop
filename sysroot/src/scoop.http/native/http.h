@@ -70,6 +70,13 @@ typedef struct {
   int64_t value_size;
   int32_t never_index;
 } http_field_view;
+typedef struct {
+  http_event_info info;
+  http_byte_view first, second;
+  const http_field *fields;
+  int64_t field_count;
+  uint64_t next;
+} http_event_view;
 
 int http_bytes_append(http_bytes *bytes, const void *data, size_t size);
 void http_bytes_clear(http_bytes *bytes);

@@ -30,21 +30,42 @@ pub(in crate::link_object) fn encode<'a>(
             return Err(error("callable safepoints repeat a return PC"));
         }
         previous = Some(record.instruction_offset());
-        // Normalization checked the header and equal, aligned SP/FP root pairs.
-        let roots = record.locations()[3..]
-            .chunks_exact(2)
-            .map(|pair| {
-                let CanonicalStackmapLocationV1::Indirect {
-                    dwarf_register,
-                    signed_offset_bits,
-                    ..
-                } = pair[0]
-                else {
-                    unreachable!("normalized root location");
-                };
-                (signed_offset_bits as u32) | u32::from(dwarf_register == u32::from(fp))
-            })
-            .collect::<Vec<_>>();
+        // Normalization checked the optional Direct region table and root pairs.
+        let CanonicalStackmapLocationV1::Constant {
+            value_bits: deopt_count,
+            ..
+        } = record.locations()[2]
+        else {
+            unreachable!("normalized deopt count");
+        };
+        let mut roots = Vec::new();
+        if deopt_count != 0 {
+            let CanonicalStackmapLocationV1::Direct {
+                dwarf_register,
+                signed_offset_bits,
+                ..
+            } = record.locations()[3]
+            else {
+                unreachable!("normalized region table");
+            };
+            roots
+                .push((signed_offset_bits as u32) | u32::from(dwarf_register == u32::from(fp)) | 2);
+        }
+        roots.extend(
+            record.locations()[3 + deopt_count as usize..]
+                .chunks_exact(2)
+                .map(|pair| {
+                    let CanonicalStackmapLocationV1::Indirect {
+                        dwarf_register,
+                        signed_offset_bits,
+                        ..
+                    } = pair[0]
+                    else {
+                        unreachable!("normalized root location");
+                    };
+                    (signed_offset_bits as u32) | u32::from(dwarf_register == u32::from(fp))
+                }),
+        );
         let layout = if let Some(offset) = layouts.get(&roots) {
             *offset
         } else {

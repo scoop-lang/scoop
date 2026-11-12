@@ -119,6 +119,7 @@ pub(super) fn wrapper_body(
         unwind: None,
     });
     mir::Body {
+        exception_states: Default::default(),
         locals,
         blocks,
         entry,

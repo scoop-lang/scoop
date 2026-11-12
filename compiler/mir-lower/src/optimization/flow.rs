@@ -172,7 +172,7 @@ impl<'a> Analysis<'a> {
                 mir::Terminator::Return { .. }
                 | mir::Terminator::Throw { unwind: None, .. }
                 | mir::Terminator::Rethrow { unwind: None }
-                | mir::Terminator::Resume
+                | mir::Terminator::Resume { .. }
                 | mir::Terminator::Trap { .. }
                 | mir::Terminator::Unreachable => {}
             }

@@ -148,7 +148,7 @@ private class CoroutineYieldTest {
                 if (cancelBefore)
                     1
                 else
-                    3,
+                    2,
                 executor.submitted
             )
             assertEquals(0, executor.active)

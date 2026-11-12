@@ -6,6 +6,7 @@ mod classes;
 mod closures;
 mod cold;
 mod copies;
+mod coroutine_callers;
 mod exception_paths;
 mod inline_regions;
 mod interface_views;

@@ -269,7 +269,7 @@ public suspend fun yieldCoroutine()
 | `startDispatchedCoroutine` | 总是排队 | 新 execution 选择参数 executor；不创建 Job |
 | `scope.launch/async(block)` | scope 有 executor 时排队；无 executor 的低层作用域才立即启动 | 使用 scope 的默认 executor，binding 取调用处快照，登记到 scope 的 Job |
 | `scope.launch/async(executor, block)` | 总是排队 | 选择参数 executor，binding 取调用处快照，父 Job 仍是该 scope |
-| `coroutineScope` | 可在当前驱动内开始 | 保留现有失败边界与等待整个子树的语义 |
+| `coroutineScope` | 在当前 execution 内执行，复用其活动登记 | 建立独立 Job，保留失败边界与等待整个子树的语义 |
 | `nonCancellableScope` | 同上 | 隔离父取消，继续继承 executor；清理不会切到别的线程池 |
 | `withExecutor(executor, block)` | 新子任务排队，参数与当前 executor 相同也排队 | 新作用域作为失败边界；完成整个子树后返回原任务 |
 | `blocking(block)` | 当前 executor 的阻塞队列 | 普通闭包在新 binding 快照中运行，当前 coroutine 等待实际结束 |
@@ -279,7 +279,7 @@ public suspend fun yieldCoroutine()
 
 scope 改为保存 Job、默认 executor 和正文活动期间的父执行登记。默认 executor 来自该作用域建立时的任务执行归属；普通 Context binding 仍取 launch/async 调用处快照，不把整个 TaskContext 冻结到 scope 中。这样从 foreign callback、阻塞闭包或其他 executor 调用已捕获的 scope，也不会悄悄把新任务启动到调用线程。
 
-调用者先把 child attach 到父 Job，再登记和发布工作；登记失败必须通过既有 Job 完成路径结束该 child，不能留下永远等待的子任务。block 的 receiver 是新 child scope；该 scope 关闭时解除其父执行登记引用，关闭后仍禁止启动子任务。这是明确的 breaking change，不保留“scope 只存 Job、默认 executor 取调用线程环境”的双重规则。
+launch／async 调用者先把 child attach 到父 Job，再登记和发布工作；登记失败必须通过既有 Job 完成路径结束该 child，不能留下永远等待的子任务。block 的 receiver 是新 child scope；该 scope 关闭时解除其父执行登记引用，关闭后仍禁止启动子任务。coroutineScope／nonCancellableScope 直接在当前 execution 内运行正文，不额外登记任务，子树未结束时才登记内部等待。这是明确的 breaking change，不保留“scope 只存 Job、默认 executor 取调用线程环境”的双重规则。
 
 结构化任务已被接纳后，开始执行时若 Job 已取消，则结束为取消并照常完成登记。调度不得为任务创建一个脱离父子关系的隐含 Job。
 

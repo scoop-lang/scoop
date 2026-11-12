@@ -23,13 +23,15 @@ static bool windows_validate_record(const ScoopGcPcEntry *record, ScoopPlatformE
     for (uint32_t index = 0; index < scoop_gc_root_count(record); index++) {
         uint32_t root = scoop_gc_root(record, index);
         int64_t offset = scoop_gc_root_offset(root);
-        if ((root & 6) != 0) {
+        if ((root & 4) != 0) {
             *error = (ScoopPlatformError){SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION,
                                           record->site->safepoint_id, index};
             return false;
         }
-        if (!scoop_gc_root_uses_fp(root) &&
-            (offset < 0 || (uint64_t)offset > record->map->stack_size - 8)) {
+        size_t size = scoop_gc_root_size(root);
+        if (record->map->stack_size < size ||
+            (!scoop_gc_root_uses_fp(root) &&
+             (offset < 0 || (uint64_t)offset > record->map->stack_size - size))) {
             *error = (ScoopPlatformError){SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME,
                                           record->site->safepoint_id, index};
             return false;
@@ -39,9 +41,8 @@ static bool windows_validate_record(const ScoopGcPcEntry *record, ScoopPlatformE
 }
 
 static bool windows_frame_from_anchor(const ScoopManagedAnchor *anchor,
-                                      const ScoopGcPcEntry *record,
-                                      ScoopPlatformStackBounds bounds, ScoopManagedFrame *frame,
-                                      ScoopPlatformError *error) {
+                                      const ScoopGcPcEntry *record, ScoopPlatformStackBounds bounds,
+                                      ScoopManagedFrame *frame, ScoopPlatformError *error) {
     if (anchor == NULL || record == NULL || frame == NULL || error == NULL ||
         !valid_stack_size(record->map->stack_size) || anchor->return_pc != record->return_pc ||
         anchor->stack_pointer % 16 != 0 ||
@@ -53,8 +54,8 @@ static bool windows_frame_from_anchor(const ScoopManagedAnchor *anchor,
                                           record == NULL ? 0 : record->site->safepoint_id, 0};
         return false;
     }
-    *frame = (ScoopManagedFrame){anchor->return_pc, anchor->stack_pointer,
-                                 anchor->frame_pointer, record};
+    *frame = (ScoopManagedFrame){anchor->return_pc, anchor->stack_pointer, anchor->frame_pointer,
+                                 record};
     return true;
 }
 
@@ -74,7 +75,9 @@ static bool windows_resolve_root(const ScoopManagedFrame *frame, uint32_t index,
         (offset >= 0 && (uint64_t)offset > frame->record->map->stack_size - base))
         goto outside;
     uint64_t resolved = offset < 0 ? base - (uint64_t)-offset : base + (uint64_t)offset;
-    if (resolved > frame->record->map->stack_size - 8 || resolved % 8 != 0)
+    if (resolved > frame->record->map->stack_size ||
+        frame->record->map->stack_size - resolved < scoop_gc_root_size(location) ||
+        resolved % 8 != 0)
         goto outside;
     *slot = (void **)(frame->stack_pointer + resolved);
     return true;
@@ -109,8 +112,8 @@ static bool windows_next_frame(const ScoopManagedFrame *frame, uintptr_t boundar
     context.Rbp = frame->frame_pointer;
     void *handler_data = NULL;
     DWORD64 establisher;
-    RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, function, &context,
-                     &handler_data, &establisher, NULL);
+    RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, function, &context, &handler_data,
+                     &establisher, NULL);
     if (context.Rip == 0 || context.Rsp <= frame->stack_pointer || context.Rsp % 16 != 0 ||
         !range_contains(bounds, context.Rsp, 0) || !range_contains(bounds, context.Rbp, 0))
         goto invalid;
@@ -118,8 +121,7 @@ static bool windows_next_frame(const ScoopManagedFrame *frame, uintptr_t boundar
         *has_next = false;
         return true;
     }
-    if (context.Rsp >= boundary || context.Rbp < context.Rsp ||
-        context.Rbp <= frame->frame_pointer)
+    if (context.Rsp >= boundary || context.Rbp < context.Rsp || context.Rbp <= frame->frame_pointer)
         goto invalid;
     *pc = context.Rip;
     *sp = context.Rsp;

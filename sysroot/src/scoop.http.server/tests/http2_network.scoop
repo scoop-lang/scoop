@@ -50,7 +50,7 @@ private class ServerHttp2NetworkTests {
         val options =
             httpServerOptions {
                 this.allowCleartextHttp2 = true
-                this.onRequestCompleted = Some({ value -> completed.receive(value) })
+                request { onCompleted = Some({ value -> completed.receive(value) }) }
             }
         withServer(
             routes,

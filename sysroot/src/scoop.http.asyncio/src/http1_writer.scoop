@@ -29,97 +29,86 @@ public class AsyncHttp1Writer internal constructor(
     /**
      * Writes body bytes according to the selected framing, allowing short progress.
      */
-    public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
-        h1PreparedOperation<(Long, Http1BodyChunk), Long>(
-            state,
-            false,
-            {
-                requireActive()
-                httpCount(count, buffer.readableBytes)
-                val prefix =
-                    if (count < 16384L)
-                        count
-                    else
-                        16384L
-                @Unsafe
+    public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long {
+        val operation =
+            beginH1Operation<Http1BodyChunk>(
+                state,
+                false,
                 {
-                    val chunk =
-                        if (prefix == 0L)
-                            state.encoder.prepareBody(prefix)
-                        else
-                            buffer.withReadableBytes { _, _ -> state.encoder.prepareBody(prefix) }
-                    return@h1PreparedOperation (prefix, chunk)
-                }
-            },
-            suspend {
-                prepared ->
-                val(prefix, chunk) = prepared
-                if (prefix != 0L)
-                    writeH1Body(state, chunk, buffer, prefix)
-                prefix
-            },
-            body.writeIdle
-        )
+                    requireActive()
+                    httpCount(count, buffer.readableBytes)
+                    @Unsafe
+                    {
+                        val chunk =
+                            if (count == 0L)
+                                state.encoder.prepareBody(count)
+                            else
+                                buffer.withReadableBytes {
+                                    _,
+                                    _ -> state.encoder.prepareBody(count)
+                                }
+                        return@beginH1Operation chunk
+                    }
+                },
+                body.writeIdle
+            )
+        try {
+            operation.job.ensureActive()
+            if (count != 0L)
+                writeH1Body(state, operation.prepared, buffer, count)
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+        endH1Operation(operation)
+        return count
+    }
 
     /**
      * Drains accepted output and flushes the transport without ending the body.
      */
     public override suspend fun flush() {
-        h1Operation<Unit>(
-            state,
-            false,
-            {
-                if (!body.life.completed)
-                    requireActive()
-            },
-            suspend { flushH1Transport(state) },
-            body.writeIdle
-        )
+        val operation =
+            beginH1Operation<Unit>(
+                state,
+                false,
+                {
+                    if (!body.life.completed)
+                        requireActive()
+                },
+                body.writeIdle
+            )
+        try {
+            operation.job.ensureActive()
+            flushH1Transport(state)
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+        endH1Operation(operation)
     }
 
     /**
      * Finishes the selected body framing and sends allowed trailers, then completes this writer.
      */
     public suspend fun finish(trailers: List<HttpField> = ArrayList<HttpField>()) {
-        h1PreparedOperation<Array<Byte>, Unit>(
-            state,
-            false,
-            {
-                requireActive();
-                state.encoder.finish(trailers)
-            },
-            suspend {
-                bytes ->
-                writeH1Wire(state, bytes)
-                state.lock.withLock {
-                    body.life.completed = true
-                    state.outgoing = None
-                    if (body.finalResponse) {
-                        val request = state.requests.removeFirst()
-                        request.body.responseFinished = true
-                        resumeH1AfterRejection(state, request.body)
-                    }
-                    Unit
-                }
-                completeH1Body(state, body.life)
-            },
-            body.writeIdle
-        )
-        val closing =
-            state.lock.withLock {
-                state.closeAfterOutput ||
-                    (
-                        state.encoder.role ==
-                            HttpRole.Server &&
-                            state.encoder.mustClose &&
-                            !state.encoder.isSwitched
-                    )
-            }
-        if (closing)
-            closeH1(state)
-        else
-            if (body.finalResponse && present(body.request))
-                closeAfterH1Input(state, body.request!!.body)
+        val operation =
+            beginH1Operation<Array<Byte>>(
+                state,
+                false,
+                {
+                    requireActive()
+                    state.encoder.finish(trailers)
+                },
+                body.writeIdle
+            )
+        try {
+            operation.job.ensureActive()
+            writeH1Wire(state, operation.prepared)
+            completeH1Output(state, body)
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+        endH1Operation(operation)
+        closeAfterH1Output(state, body)
     }
 
     /**
@@ -142,7 +131,39 @@ public class AsyncHttp1Writer internal constructor(
     }
 }
 
-private fun requireH1Output(state: H1State, role: HttpRole) {
+internal fun completeH1Output(state: H1State, body: H1Output) {
+    state.lock.withLock {
+        body.life.completed = true
+        state.outgoing = None
+        if (body.finalResponse) {
+            val request = state.requests.removeFirst()
+            request.body.responseFinished = true
+            resumeH1AfterRejection(state, request.body)
+        }
+        Unit
+    }
+    completeH1Body(state, body.life)
+}
+
+internal suspend fun closeAfterH1Output(state: H1State, body: H1Output) {
+    val closing =
+        state.lock.withLock {
+            state.closeAfterOutput ||
+                (
+                    state.encoder.role ==
+                        HttpRole.Server &&
+                        state.encoder.mustClose &&
+                        !state.encoder.isSwitched
+                )
+        }
+    if (closing)
+        closeH1(state)
+    else
+        if (body.finalResponse && present(body.request))
+            closeAfterH1Input(state, body.request!!.body)
+}
+
+internal fun requireH1Output(state: H1State, role: HttpRole) {
     if (state.closeAfterOutput)
         throw IoClosedException()
     if (state.encoder.role != role)
@@ -156,55 +177,69 @@ internal suspend fun sendH1Request(
     head: HttpRequestHead,
     framing: Http1BodyFraming,
     writeIdle: Duration?
-): AsyncHttp1Writer =
-    h1PreparedOperation<(H1Output, Array<Byte>), AsyncHttp1Writer>(
-        state,
-        false,
-        {
-            requireH1Output(state, HttpRole.Client)
-            val bytes = state.encoder.beginRequest(head, framing)
-            state.decoder.expectResponse(head.method)
-            state.clientPending += 1L
-            val body = H1Output(false, writeIdle = writeIdle)
-            state.outgoing = Some(body)
-            (body, bytes)
-        },
-        suspend {
-            prepared ->
-            val(body, bytes) = prepared
+): AsyncHttp1Writer {
+    val operation =
+        beginH1Operation<(H1Output, Array<Byte>)>(
+            state,
+            false,
+            {
+                requireH1Output(state, HttpRole.Client)
+                val bytes = state.encoder.beginRequest(head, framing)
+                state.decoder.expectResponse(head.method)
+                state.clientPending += 1L
+                val body = H1Output(false, writeIdle = writeIdle)
+                state.outgoing = Some(body)
+                (body, bytes)
+            },
+            writeIdle
+        )
+    val writer =
+        try {
+            operation.job.ensureActive()
+            val(body, bytes) = operation.prepared
             writeH1Wire(state, bytes)
             listenH1Body(state, body.life, httpJob(state.loop, true))
             AsyncHttp1Writer(state, body)
-        },
-        writeIdle
-    )
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+    endH1Operation(operation)
+    return writer
+}
 
 internal suspend fun sendH1Response(
     state: H1State,
     head: HttpResponseHead,
     framing: Http1BodyFraming,
     writeIdle: Duration?
-): AsyncHttp1Writer =
-    h1PreparedOperation<(H1Output, Array<Byte>), AsyncHttp1Writer>(
-        state,
-        false,
-        {
-            requireH1Output(state, HttpRole.Server)
-            val request =
-                state.requests.firstOrNone() ?:
-                    throw IllegalStateException(Some("no HTTP/1 request to answer"))
-            val bytes = state.encoder.beginResponse(head, request.method, framing)
-            val body =
-                H1Output(head.status >= 200U || head.status == 101U, Some(request), writeIdle)
-            state.outgoing = Some(body)
-            (body, bytes)
-        },
-        suspend {
-            prepared ->
-            val(body, bytes) = prepared
+): AsyncHttp1Writer {
+    val operation =
+        beginH1Operation<(H1Output, Array<Byte>)>(
+            state,
+            false,
+            {
+                requireH1Output(state, HttpRole.Server)
+                val request =
+                    state.requests.firstOrNone() ?:
+                        throw IllegalStateException(Some("no HTTP/1 request to answer"))
+                val bytes = state.encoder.beginResponse(head, request.method, framing)
+                val body =
+                    H1Output(head.status >= 200U || head.status == 101U, Some(request), writeIdle)
+                state.outgoing = Some(body)
+                (body, bytes)
+            },
+            writeIdle
+        )
+    val writer =
+        try {
+            operation.job.ensureActive()
+            val(body, bytes) = operation.prepared
             writeH1Wire(state, bytes)
             listenH1Body(state, body.life, httpJob(state.loop, true))
             AsyncHttp1Writer(state, body)
-        },
-        writeIdle
-    )
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+    endH1Operation(operation)
+    return writer
+}

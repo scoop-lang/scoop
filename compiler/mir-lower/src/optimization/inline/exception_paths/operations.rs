@@ -56,6 +56,6 @@ fn expression(expression: &mir::Expr) -> bool {
             | E::Retype { .. }
             | E::FieldAccess { .. }
             | E::ClosureCapture { .. }
-            | E::CaughtException
+            | E::CaughtException { .. }
     )
 }

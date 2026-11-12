@@ -86,7 +86,7 @@ private class ServerLifecycleTests {
             }
         withServer(
             routes,
-            httpServerOptions { this.onRequestCompleted = Some(completed::receive) },
+            httpServerOptions { request { onCompleted = Some(completed::receive) } },
             suspend {
                 scope,
                 server,
@@ -191,8 +191,10 @@ private class ServerLifecycleTests {
         val options =
             httpServerOptions {
                 this.maxActiveRequests = 1L
-                this.requestDeadline = Some(Duration.milliseconds(80))
-                this.onRequestCompleted = Some(completed::receive)
+                request {
+                    deadline = Some(Duration.milliseconds(80))
+                    onCompleted = Some(completed::receive)
+                }
             }
         withServer(
             routes,
@@ -288,8 +290,10 @@ private class ServerLifecycleTests {
             }
         val options =
             httpServerOptions {
-                this.requestBodyLimit = Some(3L)
-                this.bufferedBodyLimit = 2L
+                request {
+                    bodyLimit = Some(3L)
+                    bufferedBodyLimit = 2L
+                }
             }
         withServer(
             routes,

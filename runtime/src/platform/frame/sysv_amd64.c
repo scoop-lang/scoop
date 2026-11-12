@@ -21,8 +21,7 @@ static bool valid_stack_size(uint64_t size) {
     return size >= 8 && size <= INT64_MAX && size % 16 == 8;
 }
 
-static bool root_frame_offset(const ScoopGcPcEntry *record, uint32_t location,
-                              uint64_t *offset) {
+static bool root_frame_offset(const ScoopGcPcEntry *record, uint32_t location, uint64_t *offset) {
     uint64_t fp_offset = record->map->stack_size - 8;
     uint64_t base = !scoop_gc_root_uses_fp(location) ? 0 : fp_offset;
     int64_t displacement = scoop_gc_root_offset(location);
@@ -39,7 +38,8 @@ static bool root_frame_offset(const ScoopGcPcEntry *record, uint32_t location,
         }
         resolved = base + (uint64_t)displacement;
     }
-    if (resolved > fp_offset || fp_offset - resolved < 8 || resolved % 8 != 0) {
+    if (resolved > fp_offset || fp_offset - resolved < scoop_gc_root_size(location) ||
+        resolved % 8 != 0) {
         return false;
     }
     *offset = resolved;
@@ -55,7 +55,7 @@ static bool amd64_validate_record(const ScoopGcPcEntry *record, ScoopPlatformErr
     for (uint32_t index = 0; index < scoop_gc_root_count(record); index++) {
         uint32_t root = scoop_gc_root(record, index);
         uint64_t offset;
-        if ((root & 6) != 0) {
+        if ((root & 4) != 0) {
             *error = (ScoopPlatformError){SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION,
                                           record->site->safepoint_id, index};
             return false;
@@ -69,8 +69,7 @@ static bool amd64_validate_record(const ScoopGcPcEntry *record, ScoopPlatformErr
     return true;
 }
 
-static bool amd64_frame_from_anchor(const ScoopManagedAnchor *anchor,
-                                    const ScoopGcPcEntry *record,
+static bool amd64_frame_from_anchor(const ScoopManagedAnchor *anchor, const ScoopGcPcEntry *record,
                                     ScoopPlatformStackBounds bounds, ScoopManagedFrame *frame,
                                     ScoopPlatformError *error) {
     if (anchor == NULL || record == NULL || frame == NULL || error == NULL ||
@@ -84,13 +83,13 @@ static bool amd64_frame_from_anchor(const ScoopManagedAnchor *anchor,
         }
         return false;
     }
-    *frame = (ScoopManagedFrame){anchor->return_pc, anchor->stack_pointer,
-                                 anchor->frame_pointer, record};
+    *frame = (ScoopManagedFrame){anchor->return_pc, anchor->stack_pointer, anchor->frame_pointer,
+                                 record};
     return true;
 }
 
-static bool amd64_resolve_root(const ScoopManagedFrame *frame, uint32_t root_index,
-                               void ***slot, ScoopPlatformError *error) {
+static bool amd64_resolve_root(const ScoopManagedFrame *frame, uint32_t root_index, void ***slot,
+                               ScoopPlatformError *error) {
     if (frame == NULL || frame->record == NULL || slot == NULL || error == NULL ||
         root_index >= scoop_gc_root_count(frame->record)) {
         if (error != NULL)

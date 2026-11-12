@@ -177,7 +177,7 @@ pub fn walk_expr(expr: &Expr, visitor: &mut impl FnMut(&Expr)) {
         | ExprKind::SizeOf(_)
         | ExprKind::AlignOf(_)
         | ExprKind::FunctionAddress { .. }
-        | ExprKind::CaughtException => {}
+        | ExprKind::CaughtException { .. } => {}
     }
 }
 
@@ -357,7 +357,7 @@ pub fn walk_expr_mut(expr: &mut Expr, visitor: &mut impl FnMut(&mut Expr)) {
         | ExprKind::SizeOf(_)
         | ExprKind::AlignOf(_)
         | ExprKind::FunctionAddress { .. }
-        | ExprKind::CaughtException => {}
+        | ExprKind::CaughtException { .. } => {}
     }
 }
 
@@ -412,7 +412,7 @@ pub fn visit_terminator_exprs(terminator: &Terminator, visitor: &mut impl FnMut(
         Terminator::Throw { exception, .. } => visit_expr(exception, visitor),
         Terminator::Goto(_)
         | Terminator::Rethrow { .. }
-        | Terminator::Resume
+        | Terminator::Resume { .. }
         | Terminator::Trap { .. }
         | Terminator::Unreachable => {}
     }

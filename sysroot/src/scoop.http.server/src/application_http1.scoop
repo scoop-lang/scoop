@@ -1,0 +1,21 @@
+package scoop.http.server
+
+import scoop.http.asyncio.AsyncHttp1Connection
+import scoop.http.asyncio.Http1IncomingRequest
+
+/**
+ * Executes the connection's current unread request in its own structured request scope.
+ * The caller owns the connection, head reception, request identifiers and loop fairness.
+ * Returns after response execution, request cleanup and completion observation. Protocol
+ * failure or unread input may close the borrowed connection; successful calls may reuse it.
+ * Transport upgrades require HttpServer's ownership path and are rejected before commit.
+ */
+public suspend fun HttpApplication.executeHttp1(
+    connection: AsyncHttp1Connection,
+    incoming: Http1IncomingRequest,
+    info: HttpConnectionInfo,
+    requestId: String,
+    options: HttpRequestOptions = HttpRequestOptions.Default
+) {
+    executeHttp1Request(this, Http1ResponseOutput(connection, incoming), requestId, info, options)
+}

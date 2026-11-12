@@ -1,0 +1,59 @@
+package test.core.tests.executors
+
+import scoop.test.*
+
+@Test
+private class LexicalScopeExecutorTest {
+    @Test
+    fun `nested lexical scopes retain admission through suspension and draining`() {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val done = DriveCompletion<Int>()
+        val children = AtomicInt(0)
+        context(DriveMarker(37)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    coroutineScope {
+                        val outer = job
+                        executor.draining = true
+                        coroutineScope {
+                            val inner = job
+                            assertFalse(inner === outer)
+                            nonCancellableScope {
+                                assertFalse(job === inner)
+                                assertEquals(1L, executor.parents.size)
+                                assertEquals(37, markerNumber())
+                                gate.await()
+                                assertSame(job, currentJobOrNone()!!)
+                            }
+                            assertSame(inner, currentJobOrNone()!!)
+                            launch { children.fetchAdd(1) }
+                        }
+                        assertSame(outer, currentJobOrNone()!!)
+                        assertEquals(1, children.load())
+                        42
+                    }
+                },
+                done
+            )
+        }
+        executor.runOne()
+        assertEquals(1, executor.active)
+        assertEquals(1L, executor.parents.size)
+        assertEquals(0, done.calls)
+        gate.waiter!!.resume(7)
+        while (executor.queued > 0L)
+            executor.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(1, done.calls)
+        assertEquals(2L, executor.parents.size)
+        assertEquals(0, executor.active)
+        assertTrue(
+            when (currentJobOrNone()) {
+                case None -> true
+                case Some(_) -> false
+            }
+        )
+    }
+}

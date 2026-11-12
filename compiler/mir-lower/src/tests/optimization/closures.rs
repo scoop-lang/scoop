@@ -1,6 +1,7 @@
 use super::*;
 
 mod exception_paths;
+mod priority;
 mod sample;
 
 fn scope(module: &mir::Module) -> mir::FunctionId {

@@ -3,7 +3,7 @@
 void generated_entry_header_probe(void) {
     ScoopCallerRootEntry entry = {0};
     ScoopCallerRootFrame caller = {0};
-    ScoopCompilerRootFrame compiler = {0};
+    ScoopStackRootTable regions = {0};
     ScoopThreadTransition transition = {0};
     ScoopAllocationContext allocation = {0};
     ScoopInitializationCell initialization_cell = {0};
@@ -11,7 +11,7 @@ void generated_entry_header_probe(void) {
 
     (void)entry;
     (void)caller;
-    (void)compiler;
+    (void)regions;
     (void)transition;
     (void)allocation;
     (void)initialization_cell;
@@ -35,9 +35,6 @@ void generated_entry_header_probe(void) {
     (void)scoop_rt_init_cycle_message;
     (void)scoop_rt_push_caller_roots;
     (void)scoop_rt_pop_caller_roots;
-    (void)scoop_rt_push_compiler_roots;
-    (void)scoop_rt_pop_compiler_roots;
-    (void)scoop_rt_pop_top_compiler_roots;
     (void)scoop_rt_enter_native_safe;
     (void)scoop_rt_leave_native_safe;
     (void)scoop_rt_enter_native_borrowed;

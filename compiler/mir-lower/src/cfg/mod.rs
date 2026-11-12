@@ -13,6 +13,7 @@ struct UnwindScopeId(u32);
 #[derive(Clone)]
 struct UnwindTarget {
     owner: UnwindScopeId,
+    state: mir::ExceptionStateId,
     pad: mir::BlockId,
     continuation: mir::BlockId,
     handles_in_function: bool,
@@ -197,6 +198,7 @@ pub(crate) fn lower(
     });
     let mut lowerer = CfgLowerer {
         current_origin: mir::DebugOrigin::Generated,
+        exception_states: Arena::new(),
         locals,
         blocks,
         entry,
@@ -238,6 +240,7 @@ pub(crate) fn lower(
     );
     LoweredBody {
         body: mir::Body {
+            exception_states: lowerer.exception_states,
             locals: lowerer.locals,
             blocks: lowerer.blocks,
             entry: lowerer.entry,
@@ -250,6 +253,7 @@ pub(crate) fn lower(
 
 struct CfgLowerer<'a> {
     current_origin: mir::DebugOrigin,
+    exception_states: Arena<mir::ExceptionState>,
     locals: Arena<mir::Local>,
     blocks: Arena<mir::BasicBlock>,
     entry: mir::BlockId,

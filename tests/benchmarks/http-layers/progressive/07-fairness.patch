@@ -1,0 +1,10 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -79,6 +79,7 @@
+                             reply.body.size
+                     )
+                 }
++                yieldCoroutine()
+             }
+         }
+     }

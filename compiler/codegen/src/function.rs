@@ -74,8 +74,7 @@ struct FnEmitter<'a, 'ctx> {
     /// Sources used by each unwind successor, transposed from the complete
     /// per-invoke edge flags before LLVM block emission.
     unwind_root_sources: HashMap<scoop_lir::BlockId, Vec<scoop_lir::CallerRootSource>>,
-    /// Every landingpad reached by an invoke has one dynamic compiler frame;
-    /// NoGc invokes publish an empty one so cleanup remains predecessor-free.
+    /// Landingpads reload the canonical storage selected by their invoke edges.
     compiler_unwind_blocks: HashSet<scoop_lir::BlockId>,
     compiler_invoke_index: u32,
     allocation_index: u32,
@@ -116,7 +115,7 @@ impl FnEmitter<'_, '_> {
     }
 }
 
-struct CompilerRootFrame<'ctx> {
+struct CompilerRootTable<'ctx> {
     pointer: PointerValue<'ctx>,
 }
 

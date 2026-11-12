@@ -171,29 +171,53 @@ private class StructuredCompletion<T>(val task: Deferred<T>): Continuation<T> {
  * Runs a block in a child scope and waits for its children before returning the block's result.
  */
 public suspend fun <T> coroutineScope(block: suspend CoroutineScope.() -> T): T =
-    runCoroutineScope(currentJobOrNone(), currentCoroutineExecutorOrNone(), false, block)
+    runCoroutineScope(currentJobOrNone(), block)
 
 /**
  * Runs a structured scope detached from parent cancellation. The scope still owns a job whose own
  * cancellation and child completion rules apply.
  */
 public suspend fun <T> nonCancellableScope(block: suspend CoroutineScope.() -> T): T =
-    runCoroutineScope(None, currentCoroutineExecutorOrNone(), false, block)
+    runCoroutineScope(None, block)
 
 /** Runs a structured child scope on the selected executor and waits for all of its children. */
 public suspend fun <T> withExecutor(
     executor: CoroutineExecutor,
     block: suspend CoroutineScope.() -> T
-): T = runCoroutineScope(currentJobOrNone(), Some(executor), true, block)
-
-private suspend fun <T> runCoroutineScope(
-    parent: Job?,
-    executor: CoroutineExecutor?,
-    dispatched: Boolean,
-    block: suspend CoroutineScope.() -> T
 ): T {
     val task =
-        startStructuredTask(parent, executor, currentExecutorTask(), dispatched, false, block)
+        startStructuredTask(
+            currentJobOrNone(),
+            Some(executor),
+            currentExecutorTask(),
+            true,
+            false,
+            block
+        )
+    task.joinUncancelled()
+    return task.getCompleted()
+}
+
+private suspend fun <T> runCoroutineScope(parent: Job?, block: suspend CoroutineScope.() -> T): T {
+    val task = Deferred<T>(parent, false)
+    parent?.attach(task)
+    val job: Job = task
+    val scope = CoroutineScope(job, currentCoroutineExecutorOrNone())
+    context(job) {
+        val result =
+            try {
+                Some(runScopeBody(scope, block))
+            }
+            catch (error: Throwable) {
+                task.finishBody(Some(error))
+                None
+            }
+        // A failed completion notification must not complete the body a second time.
+        when (result) {
+            case Some(val value) -> task.succeed(value)
+            case None -> {}
+        }
+    }
     task.joinUncancelled()
     return task.getCompleted()
 }

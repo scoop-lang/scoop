@@ -86,14 +86,9 @@ fn normalize_record(
             provisional.header.stack_size,
         ));
     }
-    let expected_location_count = usize::try_from(expected.root_pair_count)
-        .ok()
-        .and_then(|count| count.checked_mul(2))
-        .and_then(|count| count.checked_add(3))
-        .ok_or(StackmapNormalizationError::LocationCountOverflow)?;
-    if provisional.locations.len() != expected_location_count {
+    if provisional.locations.len() < 3 {
         return Err(StackmapNormalizationError::LocationCountMismatch {
-            expected: expected_location_count,
+            expected: 3,
             actual: provisional.locations.len(),
         });
     }
@@ -104,8 +99,26 @@ fn normalize_record(
         .enumerate()
         .map(|(index, location)| normalize_location(index, location, constant_pool))
         .collect::<Result<Vec<_>, _>>()?;
-    validate_header_locations(&locations)?;
-    validate_root_pairs(&locations[3..], provisional.header.stack_size, architecture)?;
+    let deopt_count = validate_header_locations(&locations, expected)?;
+    let expected_location_count = usize::try_from(expected.root_pair_count)
+        .ok()
+        .and_then(|count| count.checked_mul(2))
+        .and_then(|count| count.checked_add(3 + deopt_count))
+        .ok_or(StackmapNormalizationError::LocationCountOverflow)?;
+    if provisional.locations.len() != expected_location_count {
+        return Err(StackmapNormalizationError::LocationCountMismatch {
+            expected: expected_location_count,
+            actual: provisional.locations.len(),
+        });
+    }
+    if deopt_count != 0 {
+        validate_region_table(&locations[3], provisional.header.stack_size, architecture)?;
+    }
+    validate_root_pairs(
+        &locations[3 + deopt_count..],
+        provisional.header.stack_size,
+        architecture,
+    )?;
     let live_outs = provisional
         .live_outs
         .iter()
@@ -196,7 +209,8 @@ fn normalize_location(
 
 fn validate_header_locations(
     locations: &[CanonicalStackmapLocationV1],
-) -> Result<(), StackmapNormalizationError> {
+    expected: ExpectedStackmapSemanticsV1,
+) -> Result<usize, StackmapNormalizationError> {
     let values = locations[..3]
         .iter()
         .enumerate()
@@ -213,8 +227,45 @@ fn validate_header_locations(
             values[1],
         ));
     }
-    if values[2] != 0 {
+    if values[2] != 0
+        && (values[2] != 1
+            || expected.role != SafepointSiteRole::ManagedInvoke
+            || expected.root_pair_count != 0)
+    {
         return Err(StackmapNormalizationError::NonZeroDeoptCount(values[2]));
+    }
+    Ok(values[2] as usize)
+}
+
+fn validate_region_table(
+    location: &CanonicalStackmapLocationV1,
+    stack_size: u64,
+    architecture: StackmapFrame,
+) -> Result<(), StackmapNormalizationError> {
+    let CanonicalStackmapLocationV1::Direct {
+        size: 8,
+        dwarf_register,
+        signed_offset_bits,
+    } = *location
+    else {
+        return Err(StackmapNormalizationError::InvalidRootLocation(0));
+    };
+    let register = u16::try_from(dwarf_register)
+        .map_err(|_| StackmapNormalizationError::InvalidRootLocation(0))?;
+    let offset = signed_offset_bits as i64;
+    // The table contains its entries address and count, both pointer-sized.
+    if offset % 8 != 0
+        || !frame::valid_root(architecture, register, offset, stack_size)
+        || !offset
+            .checked_add(8)
+            .is_some_and(|last| frame::valid_root(architecture, register, last, stack_size))
+    {
+        return Err(StackmapNormalizationError::RootOutsideFrame {
+            index: 0,
+            stack_size,
+            dwarf_register: register,
+            signed_offset: offset,
+        });
     }
     Ok(())
 }

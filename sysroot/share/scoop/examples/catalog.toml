@@ -53,9 +53,9 @@ recommended = ["async/tasks"]
 [[groups]]
 id = "http"
 title = "HTTP"
-summary = "连接本机服务，读取并关闭响应。"
-aliases = ["scoop.http.client"]
-recommended = ["http/get"]
+summary = "连接本机服务，或在已有连接上执行应用请求。"
+aliases = ["scoop.http.client", "scoop.http.server"]
+recommended = ["http/get", "http/existing-connection"]
 
 [[groups]]
 id = "cli"
@@ -417,6 +417,19 @@ related = ["async/tasks", "json/typed", "io/resources"]
 files = [
   { path = "client.scoop", source = "src/scoop.http.client/examples/get.scoop", language = "scoop" },
   { path = "server.scoop", source = "src/scoop.http.server/examples/hello.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "http/existing-connection"
+title = "在已有连接上执行 HTTP 应用"
+summary = "独立管理 H1 连接，复用应用路由、请求配置与资源清理。"
+aliases = ["http-application", "已有连接"]
+keywords = ["scoop.http.server", "scoop.http.asyncio", "HttpApplication", "executeHttp1", "HttpRequestOptions", "AsyncHttp1Connection", "HTTP", "请求", "连接", "组合", "路由"]
+document = "topics/http/existing-connection.md"
+requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。", "需要本机回环 TCP；自动选择临时端口，不需要外网。"]
+related = ["http/get", "async/tasks", "io/resources"]
+files = [
+  { path = "existing_connection.scoop", source = "src/scoop.http.server/examples/existing_connection.scoop", language = "scoop" },
 ]
 
 [[topics]]

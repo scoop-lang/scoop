@@ -1,0 +1,44 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.platform.net.*
+import scoop.time.Duration
+
+/** Supplies protocol peers without constructing HttpServer or its connection state. */
+internal fun withApplicationHttp1(
+    block: suspend (
+        CoroutineScope,
+        AsyncHttp1Connection,
+        AsyncHttp1Connection,
+        HttpConnectionInfo
+    ) -> Unit
+) {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this
+        val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
+        try {
+            val connecting =
+                scope.async<AsyncTcpStream> suspend { loop.connectTcp(listener.localAddress) }
+            val accepted = listener.accept()
+            val info =
+                HttpConnectionInfo(accepted.localAddress, accepted.peerAddress, HttpProtocol.Http1)
+            val client = AsyncHttp1Connection.takeOwnershipAsClient(connecting.await(), scope)
+            val server = AsyncHttp1Connection.takeOwnershipAsServer(accepted, scope)
+            try {
+                serverDeadline<Unit>(
+                    Some(Duration.seconds(5)),
+                    "application test",
+                    suspend { coroutineScope<Unit> { block(this, server, client, info) } }
+                )
+            } finally {
+                client.close()
+                server.close()
+            }
+        } finally {
+            listener.close()
+        }
+    }
+}

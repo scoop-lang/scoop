@@ -36,7 +36,7 @@ fn elf_cone_image_emits_the_runtime_record() {
                 .section_by_index(symbol.section_index().unwrap())
                 .unwrap();
             let start = usize::try_from(symbol.address() - section.address()).unwrap();
-            let record = &section.data().unwrap()[start..start + 208];
+            let record = &section.data().unwrap()[start..start + 192];
             assert_eq!(
                 u64::from_le_bytes(record[0..8].try_into().unwrap()),
                 0x5343_4f4f_5049_4d47
@@ -45,7 +45,7 @@ fn elf_cone_image_emits_the_runtime_record() {
                 u32::from_le_bytes(record[8..12].try_into().unwrap()),
                 scoop_lir::RUNTIME_METADATA_ABI_VERSION_V1
             );
-            assert_eq!(u32::from_le_bytes(record[12..16].try_into().unwrap()), 208);
+            assert_eq!(u32::from_le_bytes(record[12..16].try_into().unwrap()), 192);
         }
     }
 }

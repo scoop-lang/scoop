@@ -66,16 +66,21 @@ public class HttpBodyWriter internal constructor(
 
     /** Writes an entire byte sequence through a bounded buffer. */
     public suspend fun writeAll(value: List<Byte>) {
-        NativeByteBuffer.allocate(8192L).use suspend {
+        val capacity =
+            if (value.size < 65536L)
+                value.size
+            else
+                65536L
+        NativeByteBuffer.allocate(capacity).use suspend {
             buffer ->
             var index = 0L
             while (index < value.size) {
                 buffer.clear()
                 val count =
-                    if (value.size - index < 8192L)
+                    if (value.size - index < capacity)
                         value.size - index
                     else
-                        8192L
+                        capacity
                 buffer.writeBytes(value, index, count)
                 writeFully(buffer)
                 index += count

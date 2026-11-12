@@ -5,41 +5,35 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
 import scoop.time.TimeMark
 
-internal class H1Idle(val limit: Duration) {
-    var clock: HttpIoClock? = None
+internal class H1Idle(val reading: Boolean, val limit: Duration) {
+    var progress: TimeMark? = None
+
+    fun remaining(now: TimeMark): Duration = limit - (now - progress!!)
+
+    fun expired(now: TimeMark): HttpIoTimeoutException? {
+        val elapsed = now - progress!!
+        return if (elapsed >= limit)
+            Some(timeout(elapsed))
+        else
+            None
+    }
+
+    fun timeout(elapsed: Duration): HttpIoTimeoutException =
+        HttpIoTimeoutException(
+            if (reading)
+                HttpIoDirection.Read
+            else
+                HttpIoDirection.Write,
+            HttpProtocol.Http1,
+            0,
+            limit,
+            elapsed
+        )
 }
 
 // A wakeup belongs to the connection, never to an operation that may already have returned.
 internal class H1IdleAlarm(val started: TimeMark, val delay: Duration) {
     var notification: Disposable? = None
-}
-
-internal suspend fun <T> withH1Idle(
-    state: H1State,
-    reading: Boolean,
-    limit: Duration?,
-    block: suspend () -> T
-): T {
-    if (limit == None)
-        return block()
-    val idle = H1Idle(limit!!)
-    state.lock.withLock {
-        if (reading)
-            state.readIdle = Some(idle)
-        else
-            state.writeIdle = Some(idle)
-    }
-    try {
-        return block()
-    }
-    finally {
-        state.lock.withLock {
-            if (reading)
-                state.readIdle = None
-            else
-                state.writeIdle = None
-        }
-    }
 }
 
 internal fun beginH1Io(state: H1State, reading: Boolean) {
@@ -55,28 +49,21 @@ internal fun beginH1Io(state: H1State, reading: Boolean) {
                 return@withLock None
             val value = idle!!
             val now = MonotonicTimeSource.markNow()
-            val start = !present(value.clock)
-            if (start)
-                value.clock =
-                    Some(
-                        HttpIoClock(
-                            if (reading)
-                                HttpIoDirection.Read
-                            else
-                                HttpIoDirection.Write,
-                            HttpProtocol.Http1,
-                            0,
-                            value.limit,
-                            now
-                        )
-                    )
-            val clock = value.clock!!
-            val expired = clock.expired(now)
+            val start = !present(value.progress)
+            val expired =
+                if (start) {
+                    value.progress = Some(now)
+                    if (value.limit == Duration.ZERO)
+                        Some(value.timeout(Duration.ZERO))
+                    else
+                        None
+                } else
+                    value.expired(now)
             if (present(expired))
                 terminateH1(state, expired!!)
             else
                 if (start)
-                    armH1IdleLocked(state, reading, clock, now)
+                    armH1IdleLocked(state, reading, now, value.limit)
             expired
         }
     if (present(error)) {
@@ -96,14 +83,14 @@ internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean)
                     state.writeIdle
             if (!present(idle))
                 return@withLock None
-            val clock = idle!!.clock!!
+            val clock = idle!!
             val now = MonotonicTimeSource.markNow()
             val expired = clock.expired(now)
             if (present(expired))
                 terminateH1(state, expired!!)
             else
                 if (progressed)
-                    clock.progress = now
+                    clock.progress = Some(now)
             expired
         }
     if (present(error)) {
@@ -113,8 +100,7 @@ internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean)
 }
 
 // The state lock serializes replacement, callback selection, and connection cleanup.
-private fun armH1IdleLocked(state: H1State, reading: Boolean, clock: HttpIoClock, now: TimeMark) {
-    val remaining = clock.remaining(now)
+private fun armH1IdleLocked(state: H1State, reading: Boolean, now: TimeMark, remaining: Duration) {
     val previous =
         if (reading)
             state.readAlarm
@@ -177,9 +163,9 @@ private fun finishH1IdleTick(
                     state.readIdle
                 else
                     state.writeIdle
-            if (!present(idle) || !present(idle!!.clock))
+            if (!present(idle) || !present(idle!!.progress))
                 return@withLock
-            val clock = idle!!.clock!!
+            val clock = idle!!
             val now = MonotonicTimeSource.markNow()
             val error: Throwable? =
                 when (failure) {
@@ -192,7 +178,7 @@ private fun finishH1IdleTick(
             if (present(error))
                 terminateH1(state, error!!)
             else
-                armH1IdleLocked(state, reading, clock, now)
+                armH1IdleLocked(state, reading, now, clock.remaining(now))
         }
     } catch (error: Throwable) {
         state.lock.withLock { terminateH1(state, error) }

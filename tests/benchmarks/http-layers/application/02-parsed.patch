@@ -1,0 +1,17 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -105,13 +105,7 @@
+             use(
+                 suspend {
+                     ctx, _ ->
+-                    val target =
+-                        when (ctx.request.head.target) {
+-                            case Http1(val raw) -> String.fromUtf8(raw)
+-                            else -> throw IllegalArgumentException(
+-                                Some("benchmark requires HTTP/1 target")
+-                            )
+-                        }
++                    val target = ctx.request.path
+                     val result =
+                         when (target) {
+                             case "/small" -> small

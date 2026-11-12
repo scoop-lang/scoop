@@ -11,7 +11,9 @@ public enum HttpProtocol {
     /**
      * HTTP/2 binary framing and multiplexed streams.
      */
-    Http2 }
+    Http2
+}
+
 /**
  * The protocol version represented by a message head.
  */
@@ -27,7 +29,9 @@ public enum HttpVersion {
     /**
      * HTTP/2 message semantics.
      */
-    Http2 }
+    Http2
+}
+
 /**
  * Selects client or server responsibilities for parsing, framing, and masking.
  */
@@ -39,7 +43,9 @@ public enum HttpRole {
     /**
      * The endpoint receives requests and sends responses.
      */
-    Server }
+    Server
+}
+
 /**
  * The protocol state affected by a failure.
  */
@@ -55,7 +61,8 @@ public enum HttpFailureScope {
     /**
      * The connection-level protocol state failed.
      */
-    Connection }
+    Connection
+}
 
 /**
  * A protocol failure carrying operation, backend code, affected scope, stream identity, and
@@ -94,25 +101,28 @@ public class HttpException public constructor(
      * Whether input ended before required protocol bytes arrived.
      */
     public val isUnexpectedEof: Boolean = false
-) : Exception(Some(operation + ": " + detail))
+): Exception(Some(operation + ": " + detail))
 
 /**
  * An owned snapshot of HTTP field name and value bytes. Duplicate fields and original ordering
  * remain distinct; text decoding is explicit.
  */
-public class HttpField public constructor(name: List<Byte>, value: List<Byte>,
+public class HttpField public constructor(
+    name: List<Byte>,
+    value: List<Byte>,
     /**
      * Whether header compression must avoid indexing this field.
      */
-    public val neverIndex: Boolean = false) {
+    public val neverIndex: Boolean = false
+) {
     /**
-     * The copied field-name bytes.
+     * The immutable field-name snapshot.
      */
-    public val name: Array<Byte> = name.toArray()
+    public val name: Array<Byte> = httpSnapshot(name)
     /**
-     * The copied field-value bytes without implicit character decoding.
+     * The immutable field-value snapshot without implicit character decoding.
      */
-    public val value: Array<Byte> = value.toArray()
+    public val value: Array<Byte> = httpSnapshot(value)
 }
 
 /**
@@ -121,7 +131,9 @@ public class HttpField public constructor(name: List<Byte>, value: List<Byte>,
  */
 public fun List<HttpField>.findAll(name: List<Byte>): Array<HttpField> {
     val result = ArrayList<HttpField>()
-    for (field in this) if (httpAsciiEqual(field.name, name)) result.add(field)
+    for (field in this)
+        if (httpAsciiEqual(field.name, name))
+            result.add(field)
     return result.toArray()
 }
 
@@ -149,8 +161,10 @@ public enum HttpRequestTarget {
  * the corresponding value not enter the compression table.
  */
 public struct Http2RequestIndexing(
-    val method: Boolean = false, val scheme: Boolean = false,
-    val authority: Boolean = false, val path: Boolean = false
+    val method: Boolean = false,
+    val scheme: Boolean = false,
+    val authority: Boolean = false,
+    val path: Boolean = false
 )
 
 /**
@@ -176,11 +190,11 @@ public class HttpRequestHead public constructor(
     /**
      * The case-sensitive method token bytes.
      */
-    public val method: Array<Byte> = method.toArray()
+    public val method: Array<Byte> = httpSnapshot(method)
     /**
      * Ordered regular fields, preserving duplicates.
      */
-    public val fields: Array<HttpField> = fields.toArray()
+    public val fields: Array<HttpField> = httpSnapshot(fields)
 }
 
 /**
@@ -206,25 +220,36 @@ public class HttpResponseHead public constructor(
     /**
      * The optional HTTP/1 reason-phrase bytes; absent for HTTP/2.
      */
-    public val reason: Array<Byte>? = when (reason) {
-        case Some(val bytes) -> Some(bytes.toArray())
-        case None -> None
-    }
+    public val reason: Array<Byte>? =
+        when (reason) {
+            case Some(val bytes) -> Some(httpSnapshot(bytes))
+            case None -> None
+        }
     /**
      * Ordered regular fields, preserving duplicates.
      */
-    public val fields: Array<HttpField> = fields.toArray()
+    public val fields: Array<HttpField> = httpSnapshot(fields)
 }
 
+internal fun <T> httpSnapshot(values: List<T>): Array<T> =
+    if (values is Array<T>)
+        values
+    else
+        values.toArray()
+
 internal fun httpAsciiEqual(left: List<Byte>, right: List<Byte>): Boolean {
-    if (left.size != right.size) return false
+    if (left.size != right.size)
+        return false
     var index = 0L
     while (index < left.size) {
         var a = left[index].toUByte().toInt()
         var b = right[index].toUByte().toInt()
-        if (a >= 65 && a <= 90) a += 32
-        if (b >= 65 && b <= 90) b += 32
-        if (a != b) return false
+        if (a >= 65 && a <= 90)
+            a += 32
+        if (b >= 65 && b <= 90)
+            b += 32
+        if (a != b)
+            return false
         index += 1L
     }
     return true

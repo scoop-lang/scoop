@@ -27,6 +27,25 @@ private fun race(first: () -> Unit, second: () -> Unit) {
 @Test
 private class CancellationRaceTest {
     @Test
+    fun `job cancellation racing disposal selects a listener at most once`() {
+        var round = 0
+        while (round < 24) {
+            val executor = ManualExecutor()
+            val task = startTask(executor) { suspendCancellableCoroutine<Unit> { _ -> } }
+            executor.drain()
+            val calls = AtomicInt(0)
+            val listener = task.job!!.invokeOnCancellation { _ -> calls.fetchAdd(1) }
+            race({ task.job!!.cancel() }, { listener.dispose() })
+            executor.drain()
+            assertTrue(calls.load() == 0 || calls.load() == 1)
+            assertEquals(1, task.calls)
+            assertTrue(task.job!!.isCompleted)
+            assertEquals(0, executor.active.load())
+            round += 1
+        }
+    }
+
+    @Test
     fun `receive cancellation races message commitment without losing values`() {
         var round = 0
         while (round < 24) {

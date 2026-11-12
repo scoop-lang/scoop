@@ -1,0 +1,67 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -76,19 +76,36 @@
+     }
+ }
+ 
+-private suspend fun writeWire(peer: AsyncTcpStream, output: NativeByteBuffer, wire: Array<Byte>) {
++// Keep the same output chunks while separating header and body storage.
++private suspend fun writeParts(
++    peer: AsyncTcpStream,
++    output: NativeByteBuffer,
++    head: Array<Byte>,
++    body: Array<Byte>,
++    bodyCount: Long
++) {
++    output.clear()
++    output.writeBytes(head)
++    var used = head.size
+     var offset = 0L
+-    while (offset < wire.size) {
++    while (offset < bodyCount) {
++        val remaining = bodyCount - offset
+         val count =
+-            if (wire.size - offset > 65536L)
+-                65536L
++            if (remaining > 65536L - used)
++                65536L - used
+             else
+-                wire.size - offset
+-        output.clear()
+-        output.writeBytes(wire, offset, count)
++                remaining
++        output.writeBytes(body, offset, count)
++        offset += count
++        used += count
++        if (used == 65536L) {
++            peer.writeFully(output)
++            output.clear()
++            used = 0L
++        }
++    }
++    if (used != 0L)
+         peer.writeFully(output)
+-        offset += count
+-    }
+ }
+ 
+ private suspend fun serve(peer: AsyncTcpStream, replies: Array<Reply>) {
+@@ -104,13 +121,15 @@
+                         if (method != "GET" && method != "HEAD")
+                             throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+                         val reply = replies[selectReply(request)]
+-                        writeWire(
++                        writeParts(
+                             stream,
+                             output,
++                            reply.head,
++                            reply.body,
+                             if (method == "HEAD")
+-                                reply.head
++                                0L
+                             else
+-                                reply.wire
++                                reply.body.size
+                         )
+                     }
+                 } finally {

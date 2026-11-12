@@ -1,0 +1,328 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.text.*
+
+@Extern(lib = "benchmetrics", name = "bench_metrics")
+private fun dumpMetrics()
+
+@Extern(lib = "benchmetrics", name = "bench_tcp_options")
+private fun configureTcp(port: Int)
+
+private struct Request(val head: HttpRequestHead, val keepAlive: Boolean)
+
+private enum BenchStage {
+    Codec, Session, Receive, Connection
+}
+
+private struct Reply(
+    val body: Array<Byte>,
+    val head: Array<Byte>,
+    val wire: Array<Byte>,
+    val response: HttpResponseHead
+)
+
+// The raw path requires bodyless inputs and retains the decoder's keep-alive result.
+private suspend fun readRequest(
+    peer: AsyncByteStream,
+    input: NativeByteBuffer,
+    decoder: Http1Decoder
+): Request? {
+    var pending: HttpRequestHead? = None
+    while (true) {
+        when (decoder.nextEvent()) {
+            case Some(val event) -> when (event) {
+                case Http1Event.Request(val head) -> pending = Some(head)
+                case End(val keepAlive) -> return Some(
+                    Request(
+                        pending ?:
+                            throw IllegalStateException(Some("missing benchmark request head")),
+                        keepAlive
+                    )
+                )
+                case Trailers(_) -> continue
+                else -> throw IllegalArgumentException(
+                    Some("benchmark requires a bodyless GET or HEAD")
+                )
+            }
+            case None -> {
+                if (input.readableBytes == 0L) {
+                    input.clear()
+                    if (peer.readInto(input) == 0L) {
+                        decoder.endInput()
+                        return None
+                    }
+                }
+                decoder.receive(input)
+            }
+        }
+    }
+}
+
+private fun selectReply(request: HttpRequestHead): Long {
+    val target =
+        when (request.target) {
+            case Http1(val raw) -> String.fromUtf8(raw)
+            else -> throw IllegalArgumentException(Some("benchmark requires HTTP/1 target"))
+        }
+    return when (target) {
+        case "/small" -> 0L
+        case "/large" -> 1L
+        case "/__metrics" -> {
+            @Unsafe
+            {
+                dumpMetrics()
+            };
+            2L
+        }
+        else -> throw IllegalArgumentException(Some("unknown benchmark target"))
+    }
+}
+
+// Keep the same output chunks while separating header and body storage.
+private suspend fun writeParts(
+    peer: AsyncByteStream,
+    output: NativeByteBuffer,
+    head: Array<Byte>,
+    body: Array<Byte>,
+    bodyCount: Long
+) {
+    output.clear()
+    output.writeBytes(head)
+    var used = head.size
+    var offset = 0L
+    while (offset < bodyCount) {
+        val remaining = bodyCount - offset
+        val count =
+            if (remaining > 65536L - used)
+                65536L - used
+            else
+                remaining
+        output.writeBytes(body, offset, count)
+        offset += count
+        used += count
+        if (used == 65536L) {
+            peer.writeFully(output)
+            output.clear()
+            used = 0L
+        }
+    }
+    if (used != 0L)
+        peer.writeFully(output)
+}
+
+private suspend fun serveCodec(peer: AsyncTcpStream, replies: Array<Reply>) {
+    peer.useAsync suspend {
+        stream -> NativeByteBuffer.allocate(16384L).use suspend {
+            input -> NativeByteBuffer.allocate(65536L).use suspend {
+                output ->
+                val decoder = Http1Decoder.server()
+                val encoder = Http1Encoder(HttpRole.Server)
+                try {
+                    while (true) {
+                        val received = readRequest(stream, input, decoder) ?: break
+                        val request = received.head
+                        val method = String.fromUtf8(request.method)
+                        if (method != "GET" && method != "HEAD")
+                            throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+                        val reply = replies[selectReply(request)]
+                        val count =
+                            if (method == "HEAD")
+                                0L
+                            else
+                                reply.body.size
+                        val framing =
+                            if (method == "HEAD")
+                                Http1BodyFraming.Empty
+                            else
+                                Http1BodyFraming.Length(count)
+                        val head = encoder.beginResponse(reply.response, request.method, framing)
+                        encoder.prepareBody(count)
+                        encoder.finish()
+                        writeParts(stream, output, head, reply.body, count)
+                    }
+                } finally {
+                    encoder.close()
+                    decoder.close()
+                }
+            }
+        }
+    }
+}
+
+// This bodyless diagnostic retains the real message association and completion helpers.
+private fun benchIncoming(state: H1State, request: Request): Http1IncomingRequest {
+    val body = H1Input()
+    state.lock.withLock {
+        h1Open(state)
+        if (present(state.incoming))
+            throw IllegalStateException(Some("previous benchmark body is active"))
+        state.incoming = Some(body)
+        state.events.addLast(Http1Event.End(request.keepAlive))
+    }
+    advanceH1End(state, body)
+    state.lock.withLock { state.requests.addLast(H1RequestContext(request.head.method, body)) }
+    return Http1IncomingRequest(request.head, AsyncHttp1Body(state, body))
+}
+
+private suspend fun benchManualResponse(state: H1State, reply: Reply, count: Long) {
+    val prepared =
+        state.lock.withLock {
+            h1Open(state)
+            requireH1Output(state, HttpRole.Server)
+            val request =
+                state.requests.firstOrNone() ?:
+                    throw IllegalStateException(Some("missing benchmark request"))
+            val framing =
+                if (httpResponseAllowsContent(reply.response, request.method))
+                    Http1BodyFraming.Length(count)
+                else
+                    Http1BodyFraming.Empty
+            val bytes = state.encoder.beginResponse(reply.response, request.method, framing)
+            state.encoder.prepareBody(count)
+            state.encoder.finish()
+            val output = H1Output(true, Some(request))
+            state.outgoing = Some(output)
+            (output, bytes)
+        }
+    val(output, bytes) = prepared
+    writeParts(state.transport, state.output, bytes, reply.body, count)
+    completeH1Output(state, output)
+    closeAfterH1Output(state, output)
+}
+
+private suspend fun serve(
+    peer: AsyncTcpStream,
+    scope: CoroutineScope,
+    replies: Array<Reply>,
+    stage: BenchStage
+) {
+    if (stage == BenchStage.Codec) {
+        serveCodec(peer, replies)
+        return
+    }
+    AsyncHttp1Connection.takeOwnershipAsServer(peer, scope).useAsync suspend {
+        connection -> NativeByteBuffer.allocate(16384L).use suspend {
+            bodyInput ->
+            val state = connection.state
+            // Match the raw path's capacity; actual wire writes remain capped at 64 KiB.
+            state.output.ensureWritable(65536L)
+            while (true) {
+                val incoming =
+                    if (stage == BenchStage.Session) {
+                        val request =
+                            readRequest(state.transport, state.input, state.decoder) ?: break
+                        benchIncoming(state, request)
+                    } else
+                        connection.receiveRequest() ?: break
+                bodyInput.clear()
+                if (incoming.body.readInto(bodyInput) != 0L)
+                    throw IllegalArgumentException(
+                        Some("benchmark requires a bodyless GET or HEAD")
+                    )
+                val method = String.fromUtf8(incoming.head.method)
+                if (method != "GET" && method != "HEAD")
+                    throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+                val reply = replies[selectReply(incoming.head)]
+                val count =
+                    if (method == "HEAD")
+                        0L
+                    else
+                        reply.body.size
+                if (stage == BenchStage.Connection)
+                    connection.sendResponse(reply.response, reply.body, count)
+                else
+                    benchManualResponse(state, reply, count)
+            }
+        }
+    }
+}
+
+private fun makeReplies(): Array<Reply> {
+    val bodies =
+        [
+            Array<Byte>(1024L) { 120.toByte() },
+            Array<Byte>(65536L) { 120.toByte() },
+            "ok".toByteArray()
+        ]
+    return Array<Reply>(bodies.size) {
+        index ->
+        val body = bodies[index]
+        val head =
+            (
+                "HTTP/1.1 200 \r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                    body.size.toString() +
+                    "\r\n\r\n"
+            ).toByteArray()
+        val wire =
+            Array<Byte>(head.size + body.size) {
+                i -> if (i < head.size)
+                    head[i]
+                else
+                    body[i - head.size]
+            }
+        val response =
+            HttpResponseHead(
+                HttpVersion.Http11,
+                200U,
+                fields =
+                    [
+                        HttpField(
+                            "Content-Type".toByteArray(),
+                            "application/octet-stream".toByteArray()
+                        ),
+                        HttpField(
+                            "Content-Length".toByteArray(),
+                            body.size.toString().toByteArray()
+                        )
+                    ]
+            )
+        Reply(body, head, wire, response)
+    }
+}
+
+fun main(args: Array<String>) {
+    val workers = args[1L].toInt()
+    val port = args[2L].toInt()
+    val stage =
+        when (args[3L]) {
+            case "codec" -> BenchStage.Codec
+            case "session" -> BenchStage.Session
+            case "receive" -> BenchStage.Receive
+            case "connection" -> BenchStage.Connection
+            else -> throw IllegalArgumentException(Some("unknown benchmark stage"))
+        }
+    val replies = makeReplies()
+    asyncRuntime {
+        this.workers = workers
+        blocking { threads = 1 }
+    }.run {
+        val scope = this
+        currentEventLoop().listenTcp(
+            SocketAddress(IpAddress.IPV4_LOOPBACK, port),
+            backlog = 1024,
+            reuseAddress = true
+        ).useAsync suspend {
+            listener ->
+            @Unsafe
+            {
+                configureTcp(port)
+            }
+            println("READY")
+            while (true) {
+                val stream = listener.accept()
+                scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                    try {
+                        serve(stream, scope, replies, stage)
+                    }
+                    catch (error: Throwable) {
+                        println("CONNECTION_ERROR")
+                    }
+                }
+            }
+        }
+    }
+}

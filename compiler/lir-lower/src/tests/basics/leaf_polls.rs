@@ -47,6 +47,7 @@ fn identity(ty: mir::Type, copies: usize) -> lir::Module {
         parameters,
         ty,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,

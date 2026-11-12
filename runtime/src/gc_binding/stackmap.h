@@ -43,10 +43,13 @@ static inline int32_t scoop_gc_root_offset(uint32_t encoded) {
     return offset;
 }
 static inline bool scoop_gc_root_uses_fp(uint32_t encoded) { return (encoded & 1) != 0; }
+static inline bool scoop_gc_root_is_region_table(uint32_t encoded) { return (encoded & 2) != 0; }
+static inline size_t scoop_gc_root_size(uint32_t encoded) {
+    return scoop_gc_root_is_region_table(encoded) ? 16 : 8;
+}
 
 bool scoop_stackmap_finish_index(ScoopStackMapIndex *index, uintptr_t *duplicate_pc);
 void scoop_stackmap_dispose_index(ScoopStackMapIndex *index);
-const ScoopGcPcEntry *scoop_stackmap_lookup(const ScoopStackMapIndex *index,
-                                            uintptr_t return_pc);
+const ScoopGcPcEntry *scoop_stackmap_lookup(const ScoopStackMapIndex *index, uintptr_t return_pc);
 
 #endif

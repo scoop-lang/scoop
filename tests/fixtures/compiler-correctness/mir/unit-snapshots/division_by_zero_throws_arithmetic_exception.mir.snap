@@ -17,7 +17,7 @@
       assign $new.1
         Type ArithmeticException
         ClassAlloc ArithmeticException
-      call @fn21 direct
+      call @fn24 direct
         Type ArithmeticException
         Local $new.1
       call $prepared.throwable: ArithmeticException = @scoop_rt_prepare_throwable direct

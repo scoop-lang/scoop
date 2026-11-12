@@ -12,9 +12,9 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::llvm_sys::core::{
-    LLVMBuildCall2, LLVMBuildInvoke2, LLVMConstIntGetZExtValue, LLVMGetIntrinsicDeclaration,
-    LLVMGetNumArgOperands, LLVMGetOperand, LLVMGlobalGetValueType, LLVMIsAConstantInt,
-    LLVMLookupIntrinsicID,
+    LLVMBuildCall2, LLVMBuildInvokeWithOperandBundles, LLVMConstIntGetZExtValue,
+    LLVMGetIntrinsicDeclaration, LLVMGetNumArgOperands, LLVMGetOperand, LLVMGlobalGetValueType,
+    LLVMIsAConstantInt, LLVMLookupIntrinsicID,
 };
 use inkwell::module::Module as LlvmModule;
 use inkwell::passes::PassBuilderOptions;

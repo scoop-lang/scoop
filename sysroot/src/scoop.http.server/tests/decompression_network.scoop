@@ -19,8 +19,10 @@ private class ServerDecompressionNetworkTests {
         withServer(
             routes,
             httpServerOptions {
-                this.requestBodyLimit = Some(64L)
-                this.onRequestCompleted = Some(completed::receive)
+                request {
+                    bodyLimit = Some(64L)
+                    onCompleted = Some(completed::receive)
+                }
             },
             suspend {
                 scope, _, address ->
@@ -104,7 +106,7 @@ private class ServerDecompressionNetworkTests {
             routes,
             httpServerOptions {
                 this.allowCleartextHttp2 = true
-                this.onRequestCompleted = Some(completed::receive)
+                request { onCompleted = Some(completed::receive) }
             },
             suspend {
                 scope,

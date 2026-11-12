@@ -32,18 +32,24 @@ pub(super) fn build(
         span,
     };
     let mut blocks = Arena::new();
-    let switch = crate::task_context::TaskSwitch::new(core, &mut locals, &mut blocks);
+    let mut exception_states = Arena::new();
+    let state = exception_states.alloc(mir::ExceptionState);
+    let switch =
+        crate::task_context::TaskSwitch::new(core, &mut locals, &mut blocks, &mut exception_states);
     let catch = blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: "callback.failure".to_string(),
         statements: vec![
             statement(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                 cleanup: false,
+                state,
             })),
-            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state,
+            })),
             statement(mir::StatementKind::ValDecl {
                 local: exception,
-                init: mir::Expr::new(throwable.clone(), mir::ExprKind::CaughtException),
+                init: mir::Expr::new(throwable.clone(), mir::ExprKind::CaughtException { state }),
             }),
             statement(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
             statement(mir::StatementKind::Expr(store(
@@ -109,6 +115,7 @@ pub(super) fn build(
         params: storage.params,
         return_ty: mir::Type::MachineScalar(mir::MachineScalarKind::ForeignCallbackStatus),
         body: mir::Body {
+            exception_states,
             locals,
             blocks,
             entry,
