@@ -5,7 +5,7 @@ pub(super) fn check(
     input: &scoop_mir::ConeMirInput,
     graph: &mut scoop_identity::ValidatedIdentityGraph,
     types: &CanonicalParamFreeMirTypeExportsV1,
-    unit: &CanonicalParamFreeMirTypeExportsV1,
+    core_types: &CanonicalParamFreeMirTypeExportsV1,
 ) {
     assert!(matches!(
         Production::from_strong_input(input, types, graph, types),
@@ -28,7 +28,7 @@ pub(super) fn check(
                 .collect(),
         )
         .unwrap();
-        let index = MirTypeBridgeTypeIndexV1::try_new(&[&partial, unit]).unwrap();
+        let index = MirTypeBridgeTypeIndexV1::try_new(&[&partial, core_types]).unwrap();
         let error = Production::from_strong_input(input, types, graph, &index)
             .err()
             .unwrap();
@@ -37,7 +37,7 @@ pub(super) fn check(
             "{error}"
         );
     }
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, unit]).unwrap();
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, core_types]).unwrap();
     with_production("public val unrelated: Int = 1", |_, other, _, _, _| {
         assert!(matches!(
             Production::from_strong_input(other, types, graph, &index),

@@ -5,7 +5,7 @@ pub(super) fn traps(
     input: &scoop_mir::ConeMirInput,
     graph: &scoop_identity::ValidatedIdentityGraph,
     types: &CanonicalParamFreeMirTypeExportsV1,
-    unit: &CanonicalParamFreeMirTypeExportsV1,
+    core_types: &CanonicalParamFreeMirTypeExportsV1,
     bindings: &CanonicalMirCallableBindingsV1,
 ) {
     use scoop_mir::{
@@ -34,7 +34,7 @@ pub(super) fn traps(
     };
     let inherited = find("Again");
     let unrelated = find("Abstract");
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, unit]).unwrap();
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, core_types]).unwrap();
     assert!(matches!(
         ParamFreeMirCallableBindingV1::try_new(
             MirCallableBridgeAuthority {
@@ -59,7 +59,7 @@ pub(super) fn traps(
             .collect(),
     )
     .unwrap();
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[&partial, unit]).unwrap();
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[&partial, core_types]).unwrap();
     assert!(matches!(ParamFreeMirCallableBindingV1::try_new(
         MirCallableBridgeAuthority { identities: graph, foundation: input.foundation(), types: &index },
         inherited.origin().clone(), inherited.implementation(), inherited.semantic_signature().clone(),
@@ -101,7 +101,7 @@ pub(super) fn check(
     });
 
     let actual = complete_type_exports(output, input, source, graph);
-    let unit = dependencies::unit(input, graph);
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit]).unwrap();
+    let core_types = dependencies::core(input);
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
     lower_source_callable_bindings(output, &public, source, input, graph, &index, &[]).unwrap();
 }

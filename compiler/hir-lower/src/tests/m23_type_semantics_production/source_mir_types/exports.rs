@@ -42,17 +42,7 @@ fn with_exports<R>(
             &mir::SelectedExternalMirSet::empty(input.module().cone),
         )
         .unwrap();
-        let mut dependencies = dependencies::unit(input, graph).into_records();
-        if input
-            .module()
-            .meta
-            .source_exact_types
-            .get(&mir::Type::Boolean)
-            .is_some()
-        {
-            dependencies.extend(dependencies::boolean(input, graph).into_records());
-        }
-        let dependencies = mir::CanonicalParamFreeMirTypeExportsV1::try_new(dependencies).unwrap();
+        let dependencies = dependencies::core(input);
         let context = MirTypeBridgeExportInputV1 {
             hir: output,
             public: &public,

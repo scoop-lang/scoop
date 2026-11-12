@@ -146,9 +146,7 @@ fn imported_generic_nominals_substitute_payloads_and_preserve_origin() {
                     assert_eq!(item.fields[0].ty, value.type_arguments[0]);
                 }
                 hir::CanonicalHirFoundation::from_dependency_output(&output).unwrap();
-                let dependencies =
-                    scoop_mir::SelectedExternalMirSet::try_from_callables(local.cone, Vec::new())
-                        .unwrap();
+                let dependencies = select_library_callables(&output);
                 scoop_mir_lower::lower_current_cone(
                     &output,
                     dependencies,

@@ -12,8 +12,8 @@ fn actual_constructor_bindings_preserve_value_and_class_signatures() {
             .join("../../tests/fixtures/language/mir-constructor-production");
         let source = std::fs::read_to_string(directory.join(format!("{name}.scoop"))).unwrap();
         let bytes = with_production(&source, |output, input, _hir, graph, types| {
-            let unit = dependencies::unit(input, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &unit]).unwrap();
+            let core_types = dependencies::core(input);
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &core_types]).unwrap();
             let bindings =
                 lower_constructor_bindings(output, &public_interface(output), input, graph, &index)
                     .unwrap();
@@ -31,8 +31,8 @@ fn actual_constructor_bindings_preserve_value_and_class_signatures() {
         with_production(
             &prepend_declarations(&source, "private class Unrelated() {}\n"),
             |output, input, _hir, graph, types| {
-                let unit = dependencies::unit(input, graph);
-                let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &unit]).unwrap();
+                let core_types = dependencies::core(input);
+                let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &core_types]).unwrap();
                 let bindings = lower_constructor_bindings(
                     output,
                     &public_interface(output),
@@ -52,14 +52,14 @@ fn actual_constructor_bindings_reject_missing_inputs() {
     with_production(
         "public class Container public constructor()",
         |output, input, _hir, graph, types| {
-            let unit = dependencies::unit(input, graph);
+            let core_types = dependencies::core(input);
             rejections::check(
                 output,
                 &public_interface(output),
                 input,
                 graph,
                 types,
-                &unit,
+                &core_types,
             );
         },
     );

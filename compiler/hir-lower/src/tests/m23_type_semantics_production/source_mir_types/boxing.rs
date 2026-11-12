@@ -51,10 +51,9 @@ fn actual_boxing_callables_cover_value_members_defaults_and_diamonds() {
     for name in ["standalone", "combined"] {
         let (_, source) = fixture(name);
         let bytes = with_production(&source, |output, input, hir, graph, types| {
-            let unit = dependencies::unit(input, graph);
-            let boolean = dependencies::boolean(input, graph);
+            let core_types = dependencies::core(input);
             let actual = complete_type_exports(output, input, hir, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit, &boolean]).unwrap();
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
             let source = sources(output, hir, input, graph, types, &index);
             let bindings = CanonicalMirCallableBindingsV1::from_interface_adjusts(
                 input, types, graph, &index, &source,
@@ -74,10 +73,9 @@ fn actual_boxing_callables_cover_value_members_defaults_and_diamonds() {
         with_production(
             &prepend_declarations(&source, "private struct Unrelated() {}\n"),
             |output, input, hir, graph, types| {
-                let unit = dependencies::unit(input, graph);
-                let boolean = dependencies::boolean(input, graph);
+                let core_types = dependencies::core(input);
                 let actual = complete_type_exports(output, input, hir, graph);
-                let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit, &boolean]).unwrap();
+                let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
                 let source = sources(output, hir, input, graph, types, &index);
                 let bindings = CanonicalMirCallableBindingsV1::from_interface_adjusts(
                     input, types, graph, &index, &source,
@@ -94,9 +92,8 @@ fn actual_boxing_callables_require_target_bindings_and_types() {
     let (_, source) = fixture("standalone");
     with_production(&source, |output, input, hir, graph, types| {
         let actual = complete_type_exports(output, input, hir, graph);
-        let unit = dependencies::unit(input, graph);
-        let boolean = dependencies::boolean(input, graph);
-        let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit, &boolean]).unwrap();
+        let core_types = dependencies::core(input);
+        let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
         let source = sources(output, hir, input, graph, types, &index);
         rejections::check(input, graph, types, &index, &source);
     });
