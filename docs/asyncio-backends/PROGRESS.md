@@ -1257,3 +1257,57 @@ B46／B47 的历史单项撤回结论仍成立；这里测量的是 B49 上的�
 **采纳组合实现，正式底座更新为 B51，并保留协议四 worker、小响应的回退记录。** 固定 SDK、完整／协议 ELF、五个验收 ELF、源码补丁、symbols、脚本、日志、全部样本、计数及采样保存在 `/home/chenxu/benchmarks/http-improvements-20261112-round51`；收尾清理本轮 cache／target 与 Python 缓存。
 
 用户在本轮验收期间进一步指定下一轮方法：先直接用 TCP 写最简手写 HTTP server 并测量，再在同一个程序里逐步替换为现有解析、编码、连接／会话及请求执行，按相邻阶段的实际增量定位最大瓶颈；同时记录真实组合障碍，改善功能正交性和可组合性。B44 的旧分层结果仅供参考，不能替代当前固定版本上的渐进实验。
+
+## 第五十二轮：从最简 TCP HTTP server 逐步替换并定位组合边界
+
+本轮从 `5c20fe1a0` 开始，固定 B51 SDK、B34 CLI 和 B28 源码构建且带私有补丁的 LLVM。按用户新方法，先实现仅用 AsyncTcpStream／NativeByteBuffer 的最简服务并测量，再在同一个程序中逐步换入现有实现。没有修改生产库、编译器、runtime 或 GC；正式底座仍为 B51。
+
+仓库保留 [手写起点](../../tests/benchmarks/http-layers/manual_server.scoop) 和 [八个连续补丁](../../tests/benchmarks/http-layers/progressive)，顺序为 `manual → decoder → split → encoder → connection → idle → scope → fair → server`。每一步都有固定源码、ELF、symbols、验证和测量。补丁全部通过 `git apply --check`，连续应用后的源码与各阶段固定源码逐字节一致；构建与边界说明见 [诊断 README](../../tests/benchmarks/http-layers/README.md)。
+
+最简服务只实现受控的无正文 GET／HEAD、`/small`、`/large`、`/__metrics`、分段请求头和连续请求；不实现通用字段校验、请求正文、升级或完整会话语义。输入缓冲 16 KiB，输出按同一 64 KiB 上限填充。起点的单／四 worker 吞吐为 **196,667／527,437 req/s**、CPU **5.09／6.94 μs/请求**；同批 Go 为 **138,846／425,537 req/s**、**7.20／8.73 μs**。这只是有限语义的起点，不代表完整 HTTP 实现超过 Go。
+
+所有计时使用 1 KiB 正文、64 连接、默认 GC、TCP_NODELAY、独立绑核，预热 2 秒、测量 8 秒；相邻两版正反顺序各一次。先测得 `idle → server` 增加 **8.82／10.75 μs**，为当时最大增量，随后在该区间补入独立请求作用域与公平 yield，得到下表。每格是该相邻对照自己的两次中位数，单位为 CPU μs/请求，括号为增量：
+
+| 本步变化 | 单 worker：前 → 后（增量） | 四 worker：前 → 后（增量） |
+| --- | --- | --- |
+| 正式解码 | 5.08 → 5.77（+0.69） | 6.90 → 7.91（+1.02） |
+| 拆分头／正文填充 | 5.80 → 6.04（+0.24） | 7.88 → 8.21（+0.33） |
+| 正式编码 | 6.02 → 6.37（+0.35） | 8.17 → 8.54（+0.36） |
+| 协议连接 | 6.25 → 9.03（+2.79） | 8.59 → 11.93（+3.34） |
+| 读／写 idle | 9.10 → 9.85（+0.75） | 11.93 → 12.41（+0.48） |
+| 独立请求作用域 | 9.68 → 11.74（+2.07） | 12.00 → 13.52（+1.52） |
+| 公平 yield | 11.84 → 11.70（−0.13） | 13.74 → 14.52（+0.78） |
+| 完整 server 剩余职责 | 11.50 → 18.83（+7.32） | 14.70 → 22.27（+7.57） |
+
+**最大剩余增量仍在 `fair → server`，不是某个已经独立测出的 codec 小项。** 该对照吞吐为单 worker **86,892→53,100**、四 worker **248,883→164,909 req/s**。最后一步同时引入请求对象与 body 视图、应用分派／middleware、响应执行、头部计时、server 登记及收尾，不能将整笔差额称为路由成本或可直接消除的开销。
+
+这些数值不是可精确相加的成本账本。公平 yield 在单 worker 没有稳定的正向成本差异；同一个 `idle` ELF 在不同四 worker 对照中吞吐为 **263,143～323,679 req/s**。全部成功样本保留，不挑较快结果，也不调 GC 来压平波动。每步的吞吐、P50／P80、RSS 和样本范围保存在外部汇总中。
+
+实际组合结果如下：Http1Decoder／Http1Encoder 可脱离 socket 和调度单独使用；AsyncHttp1Connection 可接既有 AsyncByteStream，但同时接管内部缓冲、消息状态、操作取消和关闭。数组响应入口能够直接使用已有正文，本轮连接步骤也以复用缓冲读取空正文，避免旧协议诊断中的中间缓冲和 `readAllBytes` 聚合；两者不能混称同一程序。应用层仍只有随 HttpServer 从 listener 接入的公开执行路径；`HttpApplication.execute`、HttpContext 构造与 ResponseOutput 是内部边界，H1 输出还直接引用 ServerState／ServerConnection。因此，继续细分最大的请求执行区间，需要先在真实 server 调用链中拆清这些职责，保留 middleware Context、HEAD、未读正文、取消、截止时间、真实输出进度及清理，不为诊断程序另造生产框架。
+
+独立探针对同连接执行 1,000 GET 减 0 GET。小响应各阶段 RECV／SEND 均为每请求各一次，其他计数如下：
+
+| 阶段 | 内部恢复／请求 | 外部恢复／请求 | execution drive／请求 |
+| --- | --- | --- | --- |
+| manual／decoder／split／encoder | 3 | 2 | 2 |
+| connection／idle | 4 | 2 | 2 |
+| scope | 7 | 2 | 2 |
+| fair | 8 | 3 | 3 |
+| server | 16 | 3 | 3 |
+
+`manual`、`encoder`、`connection`、`server` 的 64 KiB 响应另行核对，均为每请求 1 次 RECV、2 次 SEND。完整 server 与 `fair` 的外部恢复和小响应收发次数相同，内部恢复增加 8 次；这是继续定位请求执行内部工作的依据，不能据次数直接分摊 CPU。
+
+结束时另做完整原版、旧协议程序和 Go 的同轮正反参照，单位依次为单／四 worker：
+
+| 程序 | req/s | CPU μs/请求 |
+| --- | --- | --- |
+| 本轮三路径 server | 54,136／160,073 | 18.49／22.49 |
+| B51 原版完整 server | 55,242／158,894 | 18.10／22.36 |
+| B51 原版协议程序 | 101,006／235,969 | 9.90／13.18 |
+| Go net/http | 139,524／435,487 | 7.17／8.71 |
+
+原版完整服务仍需 Go 约 **2.53／2.57 倍 CPU**。旧协议程序四 worker 两次为 **245,318／226,620 req/s**，其波动和 B51 回退没有在本轮闭合。本轮三路径程序是诊断终点，没有把它当成新的生产优化。
+
+九个阶段分别通过格式、静态检查、release 构建及 **392 个**分段／pipeline／并发 GET／HEAD 大小响应核验，共 **3,528 个**；独立探针另逐字节核对 **13,000 个**响应。全部 **96 个无仪表样本、173,626,789 个测量请求**无 wrk 错误。所有计时前后检查响应，wrk 不逐字节验证全部负载。64 KiB 本轮只做功能与 I/O 次数检查；没有重跑未改生产库的全套 Cone、CLI／Rust、其他平台或 Gin／Axum 矩阵。
+
+固定源码、九个 ELF、symbols、脚本、原始结果、计数和验证均保存在 `/home/chenxu/benchmarks/http-improvements-20261112-round52`，核心汇总为 `step-summary.json`、`summary.json`、`measurement-report.json`。该目录的 `candidate/sysroot` 只链接 B51 正式 SDK，不能在该链接上覆盖重建。收尾按要求提交、合并远端 main、推送并清理本轮 cache／target 和 Python 缓存；保留输入、产物和全部测量材料。下一轮继续逐步替换的方法，优先拆分已实测最大的请求执行组合边界，暂不继续细磨解析、编码或 GC。

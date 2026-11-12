@@ -1,0 +1,216 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.text.*
+
+@Extern(lib = "benchmetrics", name = "bench_metrics")
+private fun dumpMetrics()
+
+@Extern(lib = "benchmetrics", name = "bench_tcp_options")
+private fun configureTcp(port: Int)
+
+private struct Request(val consumed: Long, val method: Array<Byte>, val target: Array<Byte>)
+
+private struct Reply(val body: Array<Byte>, val head: Array<Byte>, val wire: Array<Byte>)
+
+// This deliberately incomplete parser only serves the benchmark's bodyless GET and HEAD inputs.
+@Unsafe
+private fun scanHead(data: Ptr<Byte>, count: Long): Request? {
+    var end = 4L
+    while (end <= count) {
+        if (
+            data.load(end - 4L) ==
+                13.toByte() &&
+                data.load(end - 3L) ==
+                10.toByte() &&
+                data.load(end - 2L) ==
+                13.toByte() &&
+                data.load(end - 1L) ==
+                10.toByte()
+        )
+            break
+        end += 1L
+    }
+    if (end > count)
+        return None
+    var first = 0L
+    while (first < end && data.load(first) != 32.toByte())
+        first += 1L
+    var second = first + 1L
+    while (second < end && data.load(second) != 32.toByte())
+        second += 1L
+    if (first == 0L || second >= end || second == first + 1L)
+        throw IllegalArgumentException(Some("invalid benchmark request line"))
+    val method =
+        Array<Byte>(first) {
+            index -> @Unsafe
+            {
+                return@Array data.load(index)
+            }
+        }
+    val targetStart = first + 1L
+    val target =
+        Array<Byte>(second - first - 1L) {
+            index -> @Unsafe
+            {
+                return@Array data.load(targetStart + index)
+            }
+        }
+    return Some(Request(end, method, target))
+}
+
+private suspend fun readRequest(peer: AsyncTcpStream, input: NativeByteBuffer): Request? {
+    while (true) {
+        @Unsafe
+        {
+            val request: Request? =
+                input.withReadableBytes {
+                    data,
+                    count -> @Unsafe
+                    {
+                        if (count == 0L)
+                            return@withReadableBytes None
+                        return@withReadableBytes scanHead(data!!, count)
+                    }
+                }
+            when (request) {
+                case Some(val value) -> {
+                    input.skip(value.consumed)
+                    return request
+                }
+                case None -> {
+                    input.compact()
+                    if (input.writableBytes == 0L)
+                        throw IllegalArgumentException(
+                            Some("benchmark request head exceeds input buffer")
+                        )
+                    if (peer.readInto(input) == 0L) {
+                        if (input.readableBytes != 0L)
+                            throw IllegalArgumentException(Some("truncated benchmark request head"))
+                        return None
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun selectReply(request: Request): Long {
+    val target = String.fromUtf8(request.target)
+    return when (target) {
+        case "/small" -> 0L
+        case "/large" -> 1L
+        case "/__metrics" -> {
+            @Unsafe
+            {
+                dumpMetrics()
+            }
+            2L
+        }
+        else -> throw IllegalArgumentException(Some("unknown benchmark target"))
+    }
+}
+
+private suspend fun writeWire(peer: AsyncTcpStream, output: NativeByteBuffer, wire: Array<Byte>) {
+    var offset = 0L
+    while (offset < wire.size) {
+        val count =
+            if (wire.size - offset > 65536L)
+                65536L
+            else
+                wire.size - offset
+        output.clear()
+        output.writeBytes(wire, offset, count)
+        peer.writeFully(output)
+        offset += count
+    }
+}
+
+private suspend fun serve(peer: AsyncTcpStream, replies: Array<Reply>) {
+    peer.useAsync suspend {
+        stream -> NativeByteBuffer.allocate(16384L).use suspend {
+            input -> NativeByteBuffer.allocate(65536L).use suspend {
+                output -> while (true) {
+                    val request = readRequest(stream, input) ?: break
+                    val method = String.fromUtf8(request.method)
+                    if (method != "GET" && method != "HEAD")
+                        throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+                    val reply = replies[selectReply(request)]
+                    writeWire(
+                        stream,
+                        output,
+                        if (method == "HEAD")
+                            reply.head
+                        else
+                            reply.wire
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun makeReplies(): Array<Reply> {
+    val bodies =
+        [
+            Array<Byte>(1024L) { 120.toByte() },
+            Array<Byte>(65536L) { 120.toByte() },
+            "ok".toByteArray()
+        ]
+    return Array<Reply>(bodies.size) {
+        index ->
+        val body = bodies[index]
+        val head =
+            (
+                "HTTP/1.1 200 \r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                    body.size.toString() +
+                    "\r\n\r\n"
+            ).toByteArray()
+        val wire =
+            Array<Byte>(head.size + body.size) {
+                i -> if (i < head.size)
+                    head[i]
+                else
+                    body[i - head.size]
+            }
+        Reply(body, head, wire)
+    }
+}
+
+fun main(args: Array<String>) {
+    val workers = args[1L].toInt()
+    val port = args[2L].toInt()
+    val replies = makeReplies()
+    asyncRuntime {
+        this.workers = workers
+        blocking { threads = 1 }
+    }.run {
+        val scope = this
+        currentEventLoop().listenTcp(
+            SocketAddress(IpAddress.IPV4_LOOPBACK, port),
+            backlog = 1024,
+            reuseAddress = true
+        ).useAsync suspend {
+            listener ->
+            @Unsafe
+            {
+                configureTcp(port)
+            }
+            println("READY")
+            while (true) {
+                val stream = listener.accept()
+                scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                    try {
+                        serve(stream, replies)
+                    }
+                    catch (error: Throwable) {
+                        println("CONNECTION_ERROR")
+                    }
+                }
+            }
+        }
+    }
+}

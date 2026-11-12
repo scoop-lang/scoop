@@ -1,0 +1,169 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -1,7 +1,9 @@
+ //! dep: scoop:scoop.asyncio:0.1.0
++//! dep: scoop:scoop.http:0.1.0
+ //! dep: scoop:scoop.platform:0.1.0
+ 
+ import scoop.asyncio.*
++import scoop.http.*
+ import scoop.platform.memory.NativeByteBuffer
+ import scoop.platform.net.*
+ import scoop.text.*
+@@ -16,83 +18,43 @@
+ 
+ private struct Reply(val body: Array<Byte>, val head: Array<Byte>, val wire: Array<Byte>)
+ 
+-// This deliberately incomplete parser only serves the benchmark's bodyless GET and HEAD inputs.
+-@Unsafe
+-private fun scanHead(data: Ptr<Byte>, count: Long): Request? {
+-    var end = 4L
+-    while (end <= count) {
+-        if (
+-            data.load(end - 4L) ==
+-                13.toByte() &&
+-                data.load(end - 3L) ==
+-                10.toByte() &&
+-                data.load(end - 2L) ==
+-                13.toByte() &&
+-                data.load(end - 1L) ==
+-                10.toByte()
+-        )
+-            break
+-        end += 1L
+-    }
+-    if (end > count)
+-        return None
+-    var first = 0L
+-    while (first < end && data.load(first) != 32.toByte())
+-        first += 1L
+-    var second = first + 1L
+-    while (second < end && data.load(second) != 32.toByte())
+-        second += 1L
+-    if (first == 0L || second >= end || second == first + 1L)
+-        throw IllegalArgumentException(Some("invalid benchmark request line"))
+-    val method =
+-        Array<Byte>(first) {
+-            index -> @Unsafe
+-            {
+-                return@Array data.load(index)
++// Only the parser and decoded message representation differ from the handwritten stage.
++private suspend fun readRequest(
++    peer: AsyncTcpStream,
++    input: NativeByteBuffer,
++    decoder: Http1Decoder
++): Request? {
++    var pending: Request? = None
++    while (true) {
++        when (decoder.nextEvent()) {
++            case Some(val event) -> when (event) {
++                case Http1Event.Request(val head) -> {
++                    val target =
++                        when (head.target) {
++                            case Http1(val raw) -> raw
++                            else -> throw IllegalArgumentException(
++                                Some("benchmark requires HTTP/1 target")
++                            )
++                        }
++                    pending = Some(Request(0L, head.method, target))
++                }
++                case End(_) -> return Some(
++                    pending ?: throw IllegalStateException(Some("missing benchmark request head"))
++                )
++                case Trailers(_) -> continue
++                else -> throw IllegalArgumentException(
++                    Some("benchmark requires a bodyless GET or HEAD")
++                )
+             }
+-        }
+-    val targetStart = first + 1L
+-    val target =
+-        Array<Byte>(second - first - 1L) {
+-            index -> @Unsafe
+-            {
+-                return@Array data.load(targetStart + index)
+-            }
+-        }
+-    return Some(Request(end, method, target))
+-}
+-
+-private suspend fun readRequest(peer: AsyncTcpStream, input: NativeByteBuffer): Request? {
+-    while (true) {
+-        @Unsafe
+-        {
+-            val request: Request? =
+-                input.withReadableBytes {
+-                    data,
+-                    count -> @Unsafe
+-                    {
+-                        if (count == 0L)
+-                            return@withReadableBytes None
+-                        return@withReadableBytes scanHead(data!!, count)
+-                    }
+-                }
+-            when (request) {
+-                case Some(val value) -> {
+-                    input.skip(value.consumed)
+-                    return request
+-                }
+-                case None -> {
+-                    input.compact()
+-                    if (input.writableBytes == 0L)
+-                        throw IllegalArgumentException(
+-                            Some("benchmark request head exceeds input buffer")
+-                        )
++            case None -> {
++                if (input.readableBytes == 0L) {
++                    input.clear()
+                     if (peer.readInto(input) == 0L) {
+-                        if (input.readableBytes != 0L)
+-                            throw IllegalArgumentException(Some("truncated benchmark request head"))
++                        decoder.endInput()
+                         return None
+                     }
+                 }
++                decoder.receive(input)
+             }
+         }
+     }
+@@ -133,20 +95,26 @@
+     peer.useAsync suspend {
+         stream -> NativeByteBuffer.allocate(16384L).use suspend {
+             input -> NativeByteBuffer.allocate(65536L).use suspend {
+-                output -> while (true) {
+-                    val request = readRequest(stream, input) ?: break
+-                    val method = String.fromUtf8(request.method)
+-                    if (method != "GET" && method != "HEAD")
+-                        throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+-                    val reply = replies[selectReply(request)]
+-                    writeWire(
+-                        stream,
+-                        output,
+-                        if (method == "HEAD")
+-                            reply.head
+-                        else
+-                            reply.wire
+-                    )
++                output ->
++                val decoder = Http1Decoder.server()
++                try {
++                    while (true) {
++                        val request = readRequest(stream, input, decoder) ?: break
++                        val method = String.fromUtf8(request.method)
++                        if (method != "GET" && method != "HEAD")
++                            throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
++                        val reply = replies[selectReply(request)]
++                        writeWire(
++                            stream,
++                            output,
++                            if (method == "HEAD")
++                                reply.head
++                            else
++                                reply.wire
++                        )
++                    }
++                } finally {
++                    decoder.close()
+                 }
+             }
+         }

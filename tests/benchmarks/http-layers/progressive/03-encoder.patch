@@ -1,0 +1,79 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -16,7 +16,12 @@
+ 
+ private struct Request(val consumed: Long, val method: Array<Byte>, val target: Array<Byte>)
+ 
+-private struct Reply(val body: Array<Byte>, val head: Array<Byte>, val wire: Array<Byte>)
++private struct Reply(
++    val body: Array<Byte>,
++    val head: Array<Byte>,
++    val wire: Array<Byte>,
++    val response: HttpResponseHead
++)
+ 
+ // Only the parser and decoded message representation differ from the handwritten stage.
+ private suspend fun readRequest(
+@@ -114,6 +119,7 @@
+             input -> NativeByteBuffer.allocate(65536L).use suspend {
+                 output ->
+                 val decoder = Http1Decoder.server()
++                val encoder = Http1Encoder(HttpRole.Server)
+                 try {
+                     while (true) {
+                         val request = readRequest(stream, input, decoder) ?: break
+@@ -121,18 +127,23 @@
+                         if (method != "GET" && method != "HEAD")
+                             throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+                         val reply = replies[selectReply(request)]
+-                        writeParts(
+-                            stream,
+-                            output,
+-                            reply.head,
+-                            reply.body,
++                        val count =
+                             if (method == "HEAD")
+                                 0L
+                             else
+                                 reply.body.size
+-                        )
++                        val framing =
++                            if (method == "HEAD")
++                                Http1BodyFraming.Empty
++                            else
++                                Http1BodyFraming.Length(count)
++                        val head = encoder.beginResponse(reply.response, request.method, framing)
++                        encoder.prepareBody(count)
++                        encoder.finish()
++                        writeParts(stream, output, head, reply.body, count)
+                     }
+                 } finally {
++                    encoder.close()
+                     decoder.close()
+                 }
+             }
+@@ -163,7 +174,23 @@
+                 else
+                     body[i - head.size]
+             }
+-        Reply(body, head, wire)
++        val response =
++            HttpResponseHead(
++                HttpVersion.Http11,
++                200U,
++                fields =
++                    [
++                        HttpField(
++                            "Content-Type".toByteArray(),
++                            "application/octet-stream".toByteArray()
++                        ),
++                        HttpField(
++                            "Content-Length".toByteArray(),
++                            body.size.toString().toByteArray()
++                        )
++                    ]
++            )
++        Reply(body, head, wire, response)
+     }
+ }
+ 
