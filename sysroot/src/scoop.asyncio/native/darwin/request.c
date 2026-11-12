@@ -9,7 +9,8 @@ void scoop_io_action_begin(ScoopIoLoop *loop) {
 void scoop_io_action_end(ScoopIoLoop *loop) {
     pthread_mutex_lock(&loop->mutex);
     loop->actions--;
-    scoop_io_notify_locked(loop);
+    if (!loop->actions)
+        scoop_io_notify_locked(loop);
     pthread_mutex_unlock(&loop->mutex);
 }
 

@@ -989,6 +989,14 @@ Scoop 格式、生产 Cone 和 tests 检查、外部 Python 格式／lint 通过
 
 固定 ELF、候选 SDK、源码快照／补丁、manifest、脚本、原始结果及验收日志保存在 `/home/chenxu/benchmarks/http-improvements-20261112-round45`。清理本轮构建／测试缓存，保留依赖底座、旧轮产物、原安装目录和用户文件。按用户要求，本轮提交后停止并留下交接文档，不开始下一轮优化；后续应继续 HTTP 请求／连接主路径，不能重新转向 GC 或序列化。
 
+## macOS TCP echo 同机对照（2026-11-12）
+
+使用已安装的当前工具链，在 M3 Ultra / macOS 27.2.1 上复用 B29 的公开 API echo 负载，与 Go 1.27.3 同机比较。30 个正式样本与五个短传输样本全部正确；Scoop 吞吐为 Go 的 54%–75%，CPU/echo 为 2.3–4.4 倍，四 worker 未带来吞吐扩展。Mac 基准补齐进程测量和 accepted socket 的 TCP_NODELAY 设置，生产实现未改动。参数、完整中位数、波动范围、独立调用栈与平台限制见 [macOS 对照记录](MACOS-TCP-ECHO.md)。
+
+## macOS TCP 后端优化（2026-11-13）
+
+TCP 在 NativeSafe 批次内由 owner 尝试直接读写，未就绪时复用端点方向的 dispatch source；通知 pipe 合并并减少控制动作的空唤醒，关闭仍等待所有 source 退休。64 连接单／四 worker 吞吐 +12.1%／+14.8%，CPU／echo −22.7%／−47.2%，最终吞吐为 Go 的 83.1%／84.2%；独立 eventLoop 的吞吐仅 +2.8%，P50 +4.3%，保留该限制。520 项功能测试、四项定向 GC、48 个正式样本和五个短传输样本全部通过。实现、完整 Go 对照、波动范围与复现位置见 [macOS 优化记录](MACOS-OPTIMIZATION.md)。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
@@ -1429,3 +1437,5 @@ H1 输出适配器仅保留协议连接与当前消息；server 派生适配器�
 同轮正式三路径 server 与 Go 的 CPU 为 **18.46／22.30** 对 **7.18／8.70 μs**，吞吐 **54,168／158,295** 对 **139,074／432,947 req/s**，仍需约 **2.57／2.56 倍 CPU**。协议接入已分成小项，不能因改变分组就宣称重新找到一个大瓶颈。下一轮先复测尚未细分的独立请求作用域（B52 为 +2.07／+1.52 μs），逐步换入 Job 建立、绑定和收尾，再与完整请求路径对照，判断共同成本；根据新结果选实现，不继续队列、解析缓存或 GC 支线。
 
 传输补丁已通过 `git apply --check` 并逐字节重建已测源码；README 所述同 Cone 组装与原 B53 每个源码文件、manifest 和诊断入口一致。固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round55`，保留原始结果、脚本、日志、ELF／symbols、`measurement-report.json`、`source/before`、`source/local` 和候选快照。`candidate/sysroot`、`source/candidate`、`candidate.patch` 与 `*-after` ELF 均是撤回材料，不能用作下一轮正式底座。仓库只保存本轮诊断和结论；按约定提交、合并远端 main、推送，清理本轮 cache／target、锁文件和 Python 缓存，保留用户两项未跟踪脚本。
+
+提交诊断后合并远端 `main` 的 `6e9baf029`（macOS asyncio 优化）。唯一冲突在本进度文档，HTTP 历史和两项 macOS 记录均保留。共享 TCP 批次的 Linux C 警告检查、loop owner 格式检查及 asyncio 生产源码静态检查通过；没有重建固定性能 SDK、重测本轮性能或在本机执行 macOS 验收。

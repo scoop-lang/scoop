@@ -1,9 +1,15 @@
 #ifndef SCOOP_ASYNCIO_DARWIN_ENDPOINT_H
 #define SCOOP_ASYNCIO_DARWIN_ENDPOINT_H
 
-#include "../common/socket.h"
 #include "../../../scoop.platform/native/tty/terminal.h"
+#include "../common/socket.h"
 #include "wait.h"
+
+typedef struct {
+    struct ScoopIoEndpoint *endpoint;
+    dispatch_source_t source;
+    bool writing, suspended;
+} ScoopIoTcpSource;
 
 typedef struct ScoopIoEndpoint {
     ScoopIoCompletion completion;
@@ -12,6 +18,7 @@ typedef struct ScoopIoEndpoint {
     unsigned active;
     bool closing, eof;
     ScoopIoWait *input, *output;
+    ScoopIoTcpSource tcp_sources[2];
     scoop_terminal *terminal;
     int64_t columns, rows;
 } ScoopIoEndpoint;
@@ -22,5 +29,8 @@ void scoop_io_endpoint_finished(ScoopIoWait *wait, ScoopIoEndpoint *endpoint, bo
 void scoop_io_endpoint_cancel(ScoopIoEndpoint *endpoint, int64_t id);
 int scoop_io_endpoint_close(ScoopIoEndpoint *endpoint, int64_t id);
 ScoopIoEndpoint *scoop_io_endpoint_new(ScoopIoLoop *loop);
+bool scoop_io_tcp_try_transfer(ScoopIoEndpoint *endpoint, int64_t id, void *bytes, int64_t length,
+                               bool writing, ScoopIoEvent *event);
+void scoop_io_tcp_sources_close(ScoopIoEndpoint *endpoint);
 
 #endif

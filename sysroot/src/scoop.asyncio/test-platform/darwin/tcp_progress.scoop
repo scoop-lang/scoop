@@ -1,0 +1,53 @@
+package scoop.asyncio
+
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+private suspend fun checkTcpProgress(loop: EventLoop, scope: CoroutineScope) {
+    val(_, client, server) = tcpPair(loop, scope)
+    val sender =
+        scope.launch suspend {
+            NativeByteBuffer.allocate(32L).use suspend {
+                output -> for (_ in 0 ..< 64) {
+                    output.clear()
+                    for (index in 0L ..< 32L)
+                        output.writeByte(index.toByte())
+                    client.writeFully(output)
+                }
+            }
+            client.shutdownOutput()
+        }
+    NativeByteBuffer.allocate(32L).use suspend {
+        input ->
+        for (_ in 0 ..< 64) {
+            input.clear()
+            server.readFully(input, 32L)
+            for (index in 0L ..< 32L)
+                assertEquals(index.toByte(), input.getByte(index))
+        }
+        input.clear()
+        assertEquals(0L, server.readInto(input))
+        assertEquals(0L, server.readInto(input))
+        input.writeByte(91)
+        server.writeFully(input)
+        server.shutdownOutput()
+        input.clear()
+        client.readFully(input, 1L)
+        assertEquals(91.toByte(), input.getByte(0L))
+        assertEquals(0L, client.readInto(input))
+    }
+    sender.join()
+}
+
+@Test
+private class DarwinTcpProgressTest {
+    @Test
+    fun `direct transfers and queued reads preserve repeated EOF and the reverse direction`() {
+        eventLoop().run { checkTcpProgress(currentEventLoop(), this) }
+    }
+
+    @Test
+    fun `worker reactors preserve stream progress across native direction handoff`() {
+        asyncRuntime { workers = 4 }.run { checkTcpProgress(currentEventLoop(), this) }
+    }
+}

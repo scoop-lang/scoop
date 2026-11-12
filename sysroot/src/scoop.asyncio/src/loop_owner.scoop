@@ -173,10 +173,10 @@ internal class LoopOwner(
         pendingTransfers = false
         @Unsafe
         {
-            val failures = nativeTcpFlush(pointer!!)
+            val completed = nativeTcpFlush(pointer!!)
             var index = 0L
-            while (index < failures.count) {
-                complete(decodeEvent(failures.records.load(index)))
+            while (index < completed.count) {
+                complete(decodeEvent(completed.records.load(index)))
                 index += 1L
             }
         }

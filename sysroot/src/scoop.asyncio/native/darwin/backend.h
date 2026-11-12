@@ -19,6 +19,7 @@ struct ScoopIoLoop {
     pthread_mutex_t mutex;
     dispatch_queue_t queue;
     int wake_read, wake_write, failure;
+    bool notified;
     unsigned actions, work_runners;
     int64_t completions;
     ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];

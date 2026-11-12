@@ -67,6 +67,12 @@ Linux 的原生提交队列和逻辑完成队列均由 owner 更新：提交、�
 
 Linux 的一次 native 推进先消费已有 CQ 快照，再批量发布待提交请求，随后消费提交后已经可见的 CQ 快照，使本次提交的即时完成能进入同轮 managed 完成批次。两次消费均以当时 CQ 数量为界，不循环等待新完成；后一次消费产生的后续提交留给下一轮并按真实剩余工作通知。数据请求与取消控制请求仍分别退休，不能因同轮完成而提前释放在途借用或请求记录。
 
+Darwin 在同一 NativeSafe TCP 提交批次内，由资源 owner 先尝试 nonblocking read／write。已完成的字节数、EOF 与实际错误直接写入该批次的结果数组，不为这些结果创建 dispatch 请求或跨线程通知；仅 EAGAIN／EWOULDBLOCK 进入原串行 I/O queue 等待。结果仍由 managed owner 仲裁并排入 ready，不能从 native 提交栈恢复 continuation。方向独占和前次真实退休保证同方向请求不同时由 owner 与 dispatch handler 执行；读方向的 EOF／错误状态随已退休完成交接，反向传输不改写这些状态。取消与关闭前先提交已有批次，关闭停止新接纳，保留实际部分传输、borrow 与请求寿命。
+
+Darwin 的 TCP 就绪 source 按端点与方向复用，由串行 I/O queue 管理。source 的 context 仅持有端点及方向，不保留前次请求或 buffer；有等待请求时启用，完成或取消时先暂停 source、清除该方向请求，再发布完成，之后的 handler 只能查找当时的等待请求。端点关闭取消全部 source，平衡暂停状态，并等待全部 cancel handler 结束后才关闭 fd 和交付关闭完成；未退休 source 计入 native loop 的存活工作。UDP、TTY、连接与 timer 继续使用各自原有等待和退休规则。
+
+Darwin 的通知 pipe 最多保留一个未消费提示。完成／命令发布、提示合并以及 owner 消费提示并重新允许通知均在同一 loop mutex 边界内完成；没有提示时不读取或查询 pipe 的字节数。原生控制动作结束只在最后一个存活动作退休时通知排空进度，数据完成始终按原协议通知。外线程在消费边界之后发布的新工作必须产生可观察通知，剩余 native／managed 工作仍在 pump 返回或等待前 rearm。通知不承担完成计数或资源生命周期判断。
+
 后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
 
 共享运行状态按职责同步：启动时一次发布、之后不变的 binding 与 execution 供 worker 以 acquire 读取，不与每次命令投递共用全局锁；结束时只停止接纳，不并发改写这些已发布引用。操作编号独立原子分配。命令队列、通知资源的有效期与停止接纳由独立 inbox 协调，竞争线程通过平台 mutex 的 NativeSafe 等待让出 CPU，不能在包含 native 唤醒的临界区外无界自旋。命令从空变为非空时发送一次通知，同一待消费批次的后续投递合并通知；入队、通知与停止接纳仍在同一边界，避免后端销毁后的访问。owner 取走一批后重新允许通知，并在本轮退出时检查真实待处理工作，防止清除旧通知时漏掉新批次。根结果／清理状态使用自己的同步，ready、操作表和资源表继续只由 owner 更新，不在其锁内执行用户回调。

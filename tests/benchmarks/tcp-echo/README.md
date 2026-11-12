@@ -6,14 +6,16 @@
 - `reactors.scoop`：架构诊断变体，同一进程启动指定数量的独立 event loop，每个 loop 在自己的线程处理连接和 I/O，仍共享进程 GC。使用从给定端口开始的连续端口，连接均匀分配；它没有跨 loop work stealing，不是 AsyncRuntime 的替代实现。
 - `server.go`：每个连接一个 goroutine，`GOMAXPROCS` 对应请求的 worker 数。
 - `client.go`：同一个 Go 客户端用于全部服务器；每连接仅有一个未完成请求，每次校验完整正文和变化的序号。连接建立后先预热，再计时，最后保持连接至测量器完成 CPU 快照。
-- `metrics.c`：只在启动时为 Linux listener 设置 TCP_NODELAY、刷新就绪通知，并在整个工作负载前后打印既有 GC 指标，不参与 echo 热路径。
-- `measure.py`：依次测量固定二进制，服务器与客户端绑定不同 CPU，保存原始输出和 `/proc` 快照。
+- `metrics.c`：在连接准备时设置 TCP_NODELAY、刷新就绪通知，并在整个工作负载前后打印既有 GC 指标，不参与 echo 热路径。Linux 从 listener 继承该选项，Darwin 在每次 accept 后为已连接 socket 显式设置；两者都在客户端开始预热前完成。
+- `measure.py`：依次测量固定二进制，保存原始输出与进程快照。Linux 将服务器与客户端绑定不同 CPU 并读取 `/proc`；macOS 使用 `psutil` 读取进程指标，由系统调度线程。
 
-所有服务器线程，包括 reactor worker、GC helper 和 Go runtime 线程，都受同一服务器 CPU 集合限制。因此 `AsyncRuntime(workers=1)` 与 Go `GOMAXPROCS=1` 都只有一个 CPU 的总资源。当前 AsyncRuntime 由各 worker 驱动自己的 reactor，caller 等待结果；独立 eventLoop 则由 owner 驱动。线程数会另外记录。
+Linux 上所有服务器线程，包括 reactor worker、GC helper 和 Go runtime 线程，都受同一服务器 CPU 集合限制。因此 `AsyncRuntime(workers=1)` 与 Go `GOMAXPROCS=1` 都只有一个 CPU 的总资源。macOS 没有这里所需的硬 CPU 亲和性接口，worker 数只限制对应执行器的并行度，不限制 libdispatch、GC 或 Go runtime 的其他线程。当前 AsyncRuntime 由各 worker 驱动自己的 reactor，caller 等待结果；独立 eventLoop 则由 owner 驱动。线程数会另外记录。
 
 ## 构建
 
 使用安装的 Scoop 编译器及已准备的库产物；产物、缓存和原始测量放在仓库外。下面的输出目录及可选库路径按当前环境填写：
+
+Darwin 编译 `metrics.c` 时，还需给 `cc` 传入与 Scoop 目标一致的 `-mmacosx-version-min`（当前发行基线见 `scripts/release.toml` 的 `minimum_os`，本次为 `27.0.1`）；不要默认使用较新的宿主 SDK 部署版本。
 
 ```sh
 bench_work=/path/outside/repository/tcp-echo
@@ -26,7 +28,7 @@ ar rcs "$bench_work/bin/libecho_metrics.a" "$bench_work/metrics.o"
   --library-path "$bench_work/bin" -o "$bench_work/bin/scoop-echo"
 ```
 
-消费本地改进后的固定库时传 `--cone-path`，从当前 runtime 源码构建时显式传 `--runtime-root` 与所需 `--unwind-prefix`；两者均写进该次构建记录。不要在计时期间构建或修改二进制。
+替换安装的 asyncio 等系统库时，用 `--sysroot` 明确选择含候选产物的独立目录；可复用其他未变化的预编译库与 native/runtime 资源。`--cone-path` 可补充普通库搜索，但不能据此假定已覆盖 sysroot 中的同名系统库。构建记录应保留实际选中的候选依赖路径。从当前 runtime 源码构建时显式传 `--runtime-root` 与所需 `--unwind-prefix`；这些参数均写进该次构建记录。不要在计时期间构建或修改二进制。
 
 核心库更新后，其他库应与其重建匹配；使用独立 `--sysroot` 选择这组产物，不能让单文件入口隐式选到安装目录的旧 core。安装编译器与安装 sysroot 都不需要覆盖。`reactors.scoop` 使用同一组固定库、runtime 和 metrics archive 构建：
 
@@ -57,6 +59,17 @@ taskset -c 18 python3 tests/benchmarks/tcp-echo/measure.py \
 ```
 
 CPU 编号必须按实际机器选择。脚本检查客户端与服务器集合不重叠，单 worker／单独 event loop 使用服务器集合的第一个 CPU。已完成的 `result.json` 会复用；新一轮测量使用新目录，不覆盖旧样本。
+
+macOS 使用相同的服务器、客户端、消息校验和计时协议，Python 需要 `psutil`（本次使用 7.2.2）。省略 `taskset`、`--server-cpus` 和 `--client-cpus`；`--client-workers` 默认为 8，与上述 Linux 客户端一致。复现 B29 的测量时长时使用 `--seconds 4`：
+
+```sh
+python3 tests/benchmarks/tcp-echo/measure.py \
+  --scoop-server "$bench_work/bin/scoop-echo" --go-server "$bench_work/bin/go-echo" \
+  --client "$bench_work/bin/echo-client" --work "$bench_work/results" \
+  --workers 1,4 --connections 1,64 --seconds 4 --warmup 1 --repeats 3
+```
+
+结果明确记录 `cpu_affinity=none`。CPU 指标仍为整个服务器进程的用户态／内核态时间，100% 表示一个核；macOS 的 RSS 峰值是每 100 ms 采样的最大值，标记为 `sampled_rss`，不等同于 Linux 的 `VmHWM`。macOS 不记录 Linux 的逐线程 CPU 快照。比较优先使用同一台机器上的 Scoop／Go 数据，跨操作系统的绝对吞吐还受硬件、后端和线程调度方式影响。
 
 ## reactor 架构对照
 
