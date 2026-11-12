@@ -1,5 +1,7 @@
 # 程序性能基准
 
+[HTTP 解析与传输分层诊断](http-layers/README.md)把 llhttp 核心、C 事件桥接、Scoop 消息转换、响应编码和异步连接分开测量，使用同一个 TCP 路径定位静态响应的主要成本。
+
 ## 预构建程序的 A/B 对照
 
 `compare.py` 用于比较两个已经构建并验证输出的程序，支持 Darwin 和 Linux。构建不进入计时区间；同一组输入参数分别传给 baseline 和 candidate，先预热，再按 AB／BA 次序交替启动独立进程。它直接服务编译器、runtime 和库优化的前后对照，也可比较同一程序的不同运行配置。

@@ -1,0 +1,65 @@
+# HTTP 解析与传输分层诊断
+
+这些程序定位正常、无正文 GET 的主路径成本，不是另一个生产 HTTP 实现。`thin_server.scoop` 的四种模式使用同一个 AsyncTcpStream、相同响应字节、每连接复用的输入／输出 buffer：
+
+| 模式 | 请求输入 | 响应输出 |
+| --- | --- | --- |
+| `wire` | 只寻找头部结束分隔符 | 提前编码的完整响应 |
+| `native` | 正式 llhttp 和 C 字段／事件桥接，单次 FFI 消费结果 | 同上 |
+| `codec` | 正式 Http1Decoder，构造 Scoop 消息对象 | 同上 |
+| `encode` | 同上 | 每次调用正式 Http1Encoder，再合并正文 |
+
+每种模式支持 `/small` 的 1 KiB、`/large` 的 64 KiB 和 `/__metrics`。正文为重复的 `x`。`native` 使用正式 C 解析器，但诊断消费端只选择目标，不向调用者暴露字段；`codec`／`encode` 还包含目标转 String 的成本。输入头可以分段；性能工作负载每连接只有一个在途请求。不要发送 pipeline、请求正文或 Upgrade，也不要据这些程序判断 HTTP 完整语义的兼容性。`wire` 不做完整协议校验。正常接收／发送仍经现有协程和 TCP 后端。
+
+与 AsyncHttp1Connection／完整 server 对照时，差额包含它们提供的流式 body、并发方向、取消、超时、关闭及请求处理合同，不能把诊断程序直接作为生产替代。这里只计量正常请求，不测试或调节 GC 策略。64 KiB 响应在薄路径可一次发送，而当前协议连接层按 64 KiB 块分段；用于定位共同小响应主路径的正式表只取 1 KiB。
+
+## 构建
+
+选用已固定的 sysroot 和配套 CLI。以下 `bench_llvm` 必须指向从项目源码和私有补丁构建的 LLVM；不需要重建编译器或系统库。设置 `bench_sdk`、`bench_cli`、`bench_llvm`、仓库外的 `bench_work` 后，在仓库根目录运行：
+
+```sh
+mkdir -p "$bench_work/bin" "$bench_work/cache" "$bench_work/target"
+bench_source="$PWD/tests/benchmarks/http-layers"
+bench_http="$bench_sdk/src/scoop.http/native"
+bench_llhttp="$bench_sdk/vendor/llhttp"
+
+"$bench_llvm/bin/clang" -O2 -g -fno-omit-frame-pointer \
+  -Wall -Wextra -Werror -Wno-unused-parameter \
+  -I"$bench_http" -I"$bench_llhttp/include" \
+  "$bench_source/codec_micro.c" \
+  "$bench_http/data.c" "$bench_http/http1.c" "$bench_http/http1_callbacks.c" \
+  "$bench_llhttp/src/api.c" "$bench_llhttp/src/http.c" "$bench_llhttp/src/llhttp.c" \
+  -o "$bench_work/bin/codec-micro"
+
+"$bench_llvm/bin/clang" -O2 -I"$bench_http" -I"$bench_llhttp/include" \
+  -c "$bench_source/http_diag.c" -o "$bench_work/bin/http_diag.o"
+"$bench_llvm/bin/llvm-ar" rcs "$bench_work/bin/libhttpdiag.a" "$bench_work/bin/http_diag.o"
+
+# Reuse the TCP benchmark's Linux listener configuration and metrics helper.
+"$bench_llvm/bin/clang" -O2 -I"$bench_sdk/include" \
+  -Decho_metrics=bench_metrics -Decho_configure_tcp=bench_tcp_options \
+  -c tests/benchmarks/tcp-echo/metrics.c -o "$bench_work/bin/metrics.o"
+"$bench_llvm/bin/llvm-ar" rcs "$bench_work/bin/libbenchmetrics.a" "$bench_work/bin/metrics.o"
+
+PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop build "$bench_source/thin_server.scoop" \
+  --release --sysroot "$bench_sdk" --cache-dir "$bench_work/cache" \
+  --target-dir "$bench_work/target" --library-path "$bench_work/bin" \
+  --unwind-prefix "$bench_sdk/lib/x86_64-unknown-linux-gnu/unwind" \
+  --keep-symbols -o "$bench_work/bin/thin-server"
+```
+
+平台 C compiler／headers 需要额外设置时，沿配套 SDK 的正常 `--cc` 参数传入。
+
+## 测量
+
+`codec-micro MODE COUNT SPLIT COUNT_ALLOC` 重用 parser，输入为 46 字节的 `GET /small HTTP/1.1`，仅带 Host。`llhttp` 模式没有用户回调，是协议核心下界；`bridge` 使用生产回调、字段和事件队列，读取事件并全部释放。SPLIT 为 0 时整条输入，为 1 时每次输入一字节。CPU 时间不含 parser 建立和销毁，输出 checksum 和请求数，构建时必须保留 assert。
+
+```sh
+taskset -c 0 "$bench_work/bin/codec-micro" llhttp 1000000 0 0
+taskset -c 0 "$bench_work/bin/codec-micro" bridge 1000000 0 0
+BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/thin-server" 1 18081 native
+```
+
+独立计数程序沿相同 C 构建命令增加 `-DALLOC_COUNT -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free`，另存为 `codec-alloc`，以 `bridge 1000 0 1` 运行。带计数的时长不进入性能表。字节数是请求的分配容量之和，不是峰值占用或 allocator 实际分配大小。
+
+网络实验先逐字节验证正文，再运行独立绑核客户端；对各模式交替正序／逆序运行，使用相同 worker、连接数、预热和测量时间。吞吐测试与 profiler／uprobes 分开。`/__metrics` 的 C 输出可能与连接结束日志共享一行，读取时按 `METRICS ` 标记解码，不能要求标记位于行首。实际结果与诊断边界见 [HTTP 主路径记录](../../../docs/asyncio-backends/PROGRESS.md#第四十四轮http-解析传输与语言边界的主路径定位)。

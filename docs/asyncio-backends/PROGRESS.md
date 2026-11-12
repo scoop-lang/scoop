@@ -915,6 +915,51 @@ Scoop 格式与受影响 Cone 检查通过。普通 release 验收共 **717 项*
 
 固定二进制、候选系统库、补丁、源码快照、原始样本、采样与验证记录保存在 `/home/chenxu/benchmarks/http-improvements-20261112-round42`。清理本轮不再需要的构建／测试缓存，安装目录、旧轮产物、仓库原有 target 和用户文件保持。仅在当前性能分支提交，未推送；后续仍聚焦 HTTP 主路径和已观察到的平均吞吐问题，序列化保持不动。
 
+## 第四十四轮：HTTP 解析、传输与语言边界的主路径定位
+
+按用户要求停止 B43 的 GC 支线；该轮只有仓库外诊断，没有采纳候选或修改正式 runtime。本轮直接复用 B42 系统库、完整服务与协议程序，继续使用 B34 CLI 和 B28 含私有补丁的源码 LLVM，只新增[分层诊断程序](../../tests/benchmarks/http-layers/README.md)。没有修改生产库、编译器、runtime 或 JSON／序列化。
+
+**不应以“C 解析器慢”为由重写 llhttp。主要成本在现有 Scoop 连接与请求执行层；C／Scoop 的结果转换也有冗余，但不是数倍差距的大头。** HTTP/1 响应编码与传输编排本来就在 Scoop 中，底层 TCP C 代码与已经验证过的裸 TCP 路径共用。
+
+先脱离网络测相同 46 字节 GET，重用 parser，每组一百万条，正反顺序交替五次。llhttp 无用户回调的核心下界为 **0.056 μs/请求**；使用生产 C 回调、字段分配、事件队列并取出／释放全部事件为 **0.194 μs/请求**。逐字节分段分别为 0.281／0.699 μs；这是分段输入诊断，不代表常态网络输入。独立 allocator 包装计数确认，整条输入时每请求有 **3 次 calloc、6 次 realloc，累计请求容量 960 字节**；三个事件包括 Request、空 Trailers、End。计数版不进入计时表，容量之和不是峰值内存。
+
+网络实验使用同一个薄服务器的四种模式：仅识别头部结束并发送预编码响应；接入真实 llhttp 和全部 C 事件处理、一次 FFI 返回目标；改用正式 Http1Decoder 构造 Scoop 消息；再加入正式 Http1Encoder。后两层另使用 B42 固定的 AsyncHttp1Connection 和完整 HttpServer 程序，Go 使用原有固定 net/http 程序。全部为明文 HTTP/1.1、1 KiB 静态正文、64 连接、TCP_NODELAY、默认 GC，服务与客户端独立绑核，预热 2 秒＋测量 6 秒，每配置正／逆序各一次。中位数如下：
+
+| 路径 | 1 worker req/s | CPU μs/请求 | P50／P80 μs | RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| TCP＋分隔符＋预编码响应 | 210,622 | 4.75 | 298.5／305 | 30.31 |
+| TCP＋llhttp／C 事件＋预编码响应 | 201,295 | 4.96 | 311／318 | 29.52 |
+| TCP＋Scoop 解码对象＋预编码响应 | 150,577 | 6.64 | 418／426 | 30.49 |
+| TCP＋正式解码／编码 | 121,545 | 8.23 | 517／545.5 | 30.70 |
+| AsyncHttp1Connection | 68,547 | 14.59 | 843／1,084.5 | 31.97 |
+| 完整 HttpServer | 33,786 | 29.60 | 1,849／2,161 | 43.74 |
+| Go net/http | 139,895 | 7.15 | 462／707 | 14.20 |
+
+| 路径 | 4 workers req/s | CPU μs/请求 | P50／P80 μs | RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| TCP＋分隔符＋预编码响应 | 601,813 | 6.35 | 94／102 | 30.80 |
+| TCP＋llhttp／C 事件＋预编码响应 | 592,145 | 6.47 | 98／103.5 | 30.92 |
+| TCP＋Scoop 解码对象＋预编码响应 | 448,363 | 8.44 | 125.5／148 | 32.16 |
+| TCP＋正式解码／编码 | 337,245 | 10.53 | 155／226.5 | 31.51 |
+| AsyncHttp1Connection | 217,573 | 16.80 | 228.5／430 | 35.32 |
+| 完整 HttpServer | 103,391 | 35.21 | 499.5／899.5 | 49.59 |
+| Go net/http | 433,921 | 8.73 | 132.5／246.5 | 15.54 |
+
+单 worker 相邻路径的 CPU 增量约为 **0.21／1.68／1.59／6.36／15.01 μs**；四 worker 分别为 0.12／1.97／2.09／6.27／18.41 μs。它们是完整路径差分，不是 profiler 的互斥函数自耗；包含目标转换、对象表示、buffer 使用和各层实际语义的差别。薄路径没有完整 server 的请求／连接生命周期、取消、超时或流式 body 合同，不能直接作为生产实现或宣称它在完整 HTTP 功能下胜过 Go。即使把协议 C 的约 0.2 μs 完全消除，也解释不了完整服务相对 Go 约 4.1 倍的 CPU 差距。
+
+源码与独立计数给出的设计问题是：
+
+- 自写 C 桥接使用通用拥有型事件：字段在输入 → C buffer 复制，随后 [native/common.scoop](../../sysroot/src/scoop.http/src/native/common.scoop) 逐字段取回、构造临时 Array，[model.scoop](../../sysroot/src/scoop.http/src/model.scoop) 的构造器又取得独立快照。GET 没有正文也产生空 trailer 事件。问题在表示与接口粒度，不能仅归结为实现语言。
+- 对协议／完整服务各做 1,000 个相同 GET，并减去同连接零 GET 控制：接收及事件访问共 **16 次普通 native 调用/请求**，再加 **3／4 次 switched 查询**；RECV、SEND 都各一次。它们包含返回 managed 的边界成本，和 C 函数本体耗时不同。若重做桥接，应批量交付结果、明确字节所有权并只构造一次消息，不能把 llhttp 的每个细碎回调直接换成 Scoop 回调。
+- [http1_input.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_input.scoop) 把 C 队列转换为 Scoop 事件后再放入连接队列；[http1_operation.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_operation.scoop) 对每次读写建立方向保护、取消监听和 idle 包装；body 完成及关闭继续经过各自状态与同步。HTTP 编码还有临时字符串、字段集合扫描和 ByteArrayBuilder 的多次快照。这些已是 Scoop 实现，重写 C 无法覆盖。
+- 最大差额位于完整请求执行：[server_http1.scoop](../../sysroot/src/scoop.http.server/src/server_http1.scoop)、[server_request.scoop](../../sysroot/src/scoop.http.server/src/server_request.scoop)、[response_execution.scoop](../../sysroot/src/scoop.http.server/src/response_execution.scoop) 又叠加请求边界、Context／body／response 表示、deadline 和资源收尾；静态响应还新建 native buffer，再复制到连接输出。下一步应围绕连接状态与一次请求的完整执行过程合并重复工作，保留真实生命周期合同；不要继续围绕约 0.2 μs 的解析本体做局部优化。
+
+本轮没有发现能够解释数倍差距的 C 解析算法或 TCP 发送次数问题；这不是完整 C 正确性审计。现有 C buffer 的所有权用于保证任意分段输入后事件仍有效，未来改为借用／区间表示必须同时处理 buffer 复用，不能简单删除复制。
+
+C 的严格警告构建、Scoop 格式与 release 构建通过。四种薄路径共 **1,024 个大小交替响应**逐字节检查，包含 GET 头部所有分割点；两组 uprobes 另核验 **2,000 个 1 KiB 正文**。28 个性能样本共 **44,657,645 个测量请求**无 wrk 请求错误，每个样本前后另检查正文；wrk 不逐个验证正文。四 worker 初次一组在测量前因并发关闭日志与 metrics 共行而使采集脚本失败，保留原日志，按标记解析后重跑该组；没有删除或替换成功样本。未改生产实现，未运行全仓回归。
+
+原始结果、固定产物、源码快照、计数及外部脚本位于 `/home/chenxu/benchmarks/http-improvements-20261112-round44`；不提交原始日志。保留 B43 被叫停的诊断说明与结果，清理本轮和 B43 不再使用的构建缓存；固定 SDK、旧轮正式产物和仓库原有 target 保持。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
