@@ -1,0 +1,56 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -54,27 +54,29 @@
+                 val incoming = connection.receiveRequest() ?: break
+-                bodyInput.clear()
+-                if (incoming.body.readInto(bodyInput) != 0L)
+-                    throw IllegalArgumentException(
+-                        Some("benchmark requires a bodyless GET or HEAD")
++                context(currentJobOrNone()!!) {
++                    bodyInput.clear()
++                    if (incoming.body.readInto(bodyInput) != 0L)
++                        throw IllegalArgumentException(
++                            Some("benchmark requires a bodyless GET or HEAD")
++                        )
++                    val target =
++                        when (incoming.head.target) {
++                            case Http1(val raw) -> raw
++                            else -> throw IllegalArgumentException(
++                                Some("benchmark requires HTTP/1 target")
++                            )
++                        }
++                    val request = Request(0L, incoming.head.method, target)
++                    val method = String.fromUtf8(request.method)
++                    if (method != "GET" && method != "HEAD")
++                        throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
++                    val reply = replies[selectReply(request)]
++                    connection.sendResponse(
++                        reply.response,
++                        reply.body,
++                        if (method == "HEAD")
++                            0L
++                        else
++                            reply.body.size
+                     )
+-                val target =
+-                    when (incoming.head.target) {
+-                        case Http1(val raw) -> raw
+-                        else -> throw IllegalArgumentException(
+-                            Some("benchmark requires HTTP/1 target")
+-                        )
+-                    }
+-                val request = Request(0L, incoming.head.method, target)
+-                val method = String.fromUtf8(request.method)
+-                if (method != "GET" && method != "HEAD")
+-                    throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+-                val reply = replies[selectReply(request)]
+-                connection.sendResponse(
+-                    reply.response,
+-                    reply.body,
+-                    if (method == "HEAD")
+-                        0L
+-                    else
+-                        reply.body.size
+-                )
++                }
+             }

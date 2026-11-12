@@ -194,6 +194,20 @@ BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/protocol-layers" 1 18081 codec
 
 先验证各模式的分段、pipeline、并发大小 GET／HEAD 响应，再完成两端校准及三个相邻对照。原程序、诊断程序和生产候选必须分别保存，生产库的改动另用原完整连接／server 源码重建后比较；内部诊断不替代生产回归。传输接口与内部三步的测量、两端校准和事件队列候选的撤回依据见 [B55 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十五轮拆分协议连接成本并撤回事件队列候选)。
 
+## 继续拆分独立请求作用域
+
+`scope/` 从原 `idle`（应用到 `05-idle.patch`）分支，在同一个请求处理区域连续替换三步，最后回到原 `scope` 源码。使用固定 B53 SDK 和原传输、协议连接、30 秒读写 idle 配置：
+
+| 步骤 | 补丁 | 本步接入 |
+| --- | --- | --- |
+| `binding` | `01-binding.patch` | 用 `context(currentJobOrNone()!!)` 重新绑定当前连接自己的 Job，测实际 push／restore 和查找成本 |
+| `detached` | `02-detached.patch` | 改用原 `nonCancellableScope<Unit>`，加入独立 Job、CoroutineScope、失败处理与结构化收尾 |
+| `scope` | `03-parent.patch` | 改用原 `coroutineScope<Unit>`，加入父 Job 的关联、取消传播和完成时移除 |
+
+重新绑定同一 Job 仍执行实际 Context push／restore；固定实现不会因对象身份相同跳过 push。该步骤使用每条连接自己的 Job，避免把所有请求的操作监听集中到共同父 Job 上。它保留原操作语义，却不提供独立请求 Job；`detached` 则按已有 API 隔离父取消。两者都是受控无正文请求的成本对照，不能作为完整请求作用域的替代实现。
+
+各步骤保留固定 ELF，先验证分段／pipeline／并发大小 GET／HEAD 响应，再按原 `idle → scope` 总对照和三个相邻步骤交替测量。不同组的短测差额不能精确相加；四 worker 的 CPU 利用率与吞吐可能同时变化，应同时查看每请求 CPU、延迟及全部样本。三份补丁已逐字节重建已测源码；结果、独立计数和跨层采样见 [B56 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十六轮拆分请求作用域并重新检查跨层成本)。
+
 ## 测量
 
 `codec-micro MODE COUNT SPLIT COUNT_ALLOC` 重用 parser，输入为 46 字节的 `GET /small HTTP/1.1`，仅带 Host。`llhttp` 模式没有用户回调，是协议核心下界；`bridge` 使用生产回调、字段和事件队列，读取事件并全部释放。SPLIT 为 0 时整条输入，为 1 时每次输入一字节。CPU 时间不含 parser 建立和销毁，输出 checksum 和请求数，构建时必须保留 assert。
