@@ -41,51 +41,37 @@ fn names(output: &hir::LocalConcreteHirOutput) -> BTreeSet<String> {
 
 #[test]
 fn materialized_types_include_parents_and_exclude_unevaluated_defaults() {
-    with_hir_source(&fixture("standalone"), |output, _| {
-        let local = &output.output().local;
-        assert!(
-            local
-                .types
-                .iter()
-                .any(|(_, ty)| ty.kind == TypeKind::String)
-        );
-        assert!(
-            local
-                .types
-                .iter()
-                .any(|(_, ty)| matches!(ty.kind, TypeKind::Integer(_)))
-        );
-        let materialized = names(local);
-        assert_eq!(
-            materialized,
-            BTreeSet::from(
-                [
-                    "Array",
-                    "Boolean",
-                    "Continuation",
-                    "Deferred",
-                    "Exception",
-                    "IllegalStateException",
-                    "Long",
-                    "Option",
-                    "SourceOnly",
-                    "String",
-                    "SuspendRegistration",
-                    "SuspendTask",
-                    "Throwable",
-                    "UInt8",
-                    "Unit"
-                ]
-                .map(str::to_owned)
-            )
-        );
-        assert!(
-            !local
-                .functions
-                .iter()
-                .any(|(_, function)| function.name == "unexpanded")
-        );
-    });
+    let declaration = fixture("standalone");
+    for uses_default in [false, true] {
+        let source = if uses_default {
+            format!("{declaration}\nfun useDefault(): Boolean = flag()\n")
+        } else {
+            declaration.clone()
+        };
+        with_hir_source(&source, |output, _| {
+            let local = &output.output().local;
+            let materialized = names(local);
+            for required in ["Deferred", "SourceOnly", "ParentPayload", "Long"] {
+                assert!(
+                    materialized.contains(required),
+                    "parent closure must retain {required}"
+                );
+            }
+            assert_eq!(
+                materialized.contains("DefaultOnly"),
+                uses_default,
+                "a type used only by the default follows the actual omitted-argument call"
+            );
+            assert_eq!(
+                local
+                    .functions
+                    .iter()
+                    .any(|(_, function)| function.name == "unexpanded"),
+                uses_default,
+                "the generic default body is instantiated only when used"
+            );
+        });
+    }
 }
 
 #[test]

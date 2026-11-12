@@ -12,8 +12,8 @@ pub(super) fn check(
             scoop_mir::MirCallableBridgeError::MissingType { .. }
         ))
     ));
-    let boolean = dependencies::boolean(input, graph);
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &boolean]).unwrap();
+    let core_types = dependencies::core(input);
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &core_types]).unwrap();
     let empty = CanonicalParamFreeMirTypeExportsV1::default();
     assert!(
         lower_derived_equality_bindings(output, input, &empty, graph, &index)

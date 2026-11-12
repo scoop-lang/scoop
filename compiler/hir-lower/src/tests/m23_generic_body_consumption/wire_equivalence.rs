@@ -116,14 +116,7 @@ pub(super) fn compare_consumers(label: &str, provider: &str, consumer: &str) {
         published
             .complete_cross_cone_interface_source_points(output.output().export.module(), &public)
             .unwrap();
-        let initialization = if output.output().local.initialization_units.is_empty() {
-            Vec::new()
-        } else {
-            vec![core.project_initialization_cycle_to_mir()]
-        };
-        let dependencies =
-            scoop_mir::SelectedExternalMirSet::try_from_callables(source.cone(), initialization)
-                .unwrap();
+        let dependencies = select_library_callables(&output);
         let mir =
             scoop_mir_lower::lower_current_cone(&output, dependencies, Default::default(), None)
                 .unwrap_or_else(|errors| panic!("{label}: {errors:?}"));

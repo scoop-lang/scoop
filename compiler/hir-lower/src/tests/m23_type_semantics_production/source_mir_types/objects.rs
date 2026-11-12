@@ -18,13 +18,14 @@ fn actual_object_values_and_initialization_callables_share_source_identities() {
                 graph,
             )
             .unwrap();
-            let unit = dependencies::unit(input, graph);
+            let core_types = dependencies::core(input);
             assert!(
-                unit.records()
+                core_types
+                    .records()
                     .iter()
                     .all(|record| types.get(record.exact()).is_none())
             );
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &unit]).unwrap();
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &core_types]).unwrap();
             let product = Production::from_strong_input(input, &types, graph, &index).unwrap();
             assertions::actual(output, input, &product);
             assertions::wire(input, graph, &index, &product);
@@ -50,8 +51,8 @@ fn actual_object_values_and_initialization_callables_share_source_identities() {
                     graph,
                 )
                 .unwrap();
-                let unit = dependencies::unit(input, graph);
-                let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &unit]).unwrap();
+                let core_types = dependencies::core(input);
+                let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &core_types]).unwrap();
                 let product = Production::from_strong_input(input, &types, graph, &index).unwrap();
                 assert_eq!(
                     (
@@ -77,8 +78,8 @@ fn actual_object_production_rejects_missing_dependencies() {
                 graph,
             )
             .unwrap();
-            let unit = dependencies::unit(input, graph);
-            rejections::check(input, graph, &types, &unit);
+            let core_types = dependencies::core(input);
+            rejections::check(input, graph, &types, &core_types);
         },
     );
     with_production(
@@ -91,8 +92,8 @@ fn actual_object_production_rejects_missing_dependencies() {
                 graph,
             )
             .unwrap();
-            let unit = dependencies::unit(input, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &unit]).unwrap();
+            let core_types = dependencies::core(input);
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &core_types]).unwrap();
             let product = Production::from_strong_input(input, &types, graph, &index).unwrap();
             assert!(product.objects().records().is_empty());
             assert!(product.callables().entries().is_empty());

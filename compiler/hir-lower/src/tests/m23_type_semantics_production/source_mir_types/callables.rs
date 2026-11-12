@@ -13,9 +13,9 @@ fn actual_source_callables_cover_functions_members_accessors_and_traps() {
             .join("../../tests/fixtures/language/mir-callable-production");
         let source = std::fs::read_to_string(directory.join(format!("{name}.scoop"))).unwrap();
         let bytes = with_production(&source, |output, input, hir, graph, _| {
-            let unit = dependencies::unit(input, graph);
+            let core_types = dependencies::core(input);
             let actual = complete_type_exports(output, input, hir, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit]).unwrap();
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
             let public = public_interface(output);
             let bindings =
                 lower_source_callable_bindings(output, &public, hir, input, graph, &index, &[])
@@ -28,7 +28,7 @@ fn actual_source_callables_cover_functions_members_accessors_and_traps() {
             );
             if name == "combined" {
                 assertions::combined(input, &bindings);
-                rejections::traps(output, input, graph, &actual, &unit, &bindings);
+                rejections::traps(output, input, graph, &actual, &core_types, &bindings);
             }
             encode(&bindings).unwrap()
         });
@@ -38,9 +38,9 @@ fn actual_source_callables_cover_functions_members_accessors_and_traps() {
                 "private fun unrelated(value: Token): Token = value\n",
             ),
             |output, input, hir, graph, _| {
-                let unit = dependencies::unit(input, graph);
+                let core_types = dependencies::core(input);
                 let actual = complete_type_exports(output, input, hir, graph);
-                let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit]).unwrap();
+                let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
                 let bindings = lower_source_callable_bindings(
                     output,
                     &public_interface(output),
@@ -69,8 +69,8 @@ fn actual_source_callables_reject_missing_inputs() {
         "public interface Empty {}",
         |output, input, hir, graph, _| {
             let actual = complete_type_exports(output, input, hir, graph);
-            let unit = dependencies::unit(input, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit]).unwrap();
+            let core_types = dependencies::core(input);
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
             let bindings = lower_source_callable_bindings(
                 output,
                 &public_interface(output),
@@ -97,8 +97,8 @@ fn closed_generic_no_gc_signatures_use_actual_application_type_exports() {
         let types =
             scoop_mir_lower::lower_type_exports(output.output().local.module(), hir, input, graph)
                 .unwrap();
-        let unit = dependencies::unit(input, graph);
-        let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &unit]).unwrap();
+        let core_types = dependencies::core(input);
+        let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &core_types]).unwrap();
         let public = public_interface(output);
         let bindings =
             lower_source_callable_bindings(output, &public, hir, input, graph, &index, &[])
@@ -149,7 +149,7 @@ fn closed_generic_no_gc_signatures_use_actual_application_type_exports() {
             })
             .collect();
         let invalid = CanonicalParamFreeMirTypeExportsV1::try_new(invalid).unwrap();
-        let index = MirTypeBridgeTypeIndexV1::try_new(&[&invalid, &unit]).unwrap();
+        let index = MirTypeBridgeTypeIndexV1::try_new(&[&invalid, &core_types]).unwrap();
         let raw: scoop_mir::DecodedCanonicalMirCallableBindingsV1 = decoded(&bindings);
         assert!(matches!(raw.validate(graph, input.foundation(), &index),
             Err(scoop_mir::MirCallableBridgeError::NoGcContainsReferences { exact: found })

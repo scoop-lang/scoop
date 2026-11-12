@@ -101,7 +101,7 @@ pub(super) fn check(
     input: &scoop_mir::ConeMirInput,
     graph: &scoop_identity::ValidatedIdentityGraph,
     types: &CanonicalParamFreeMirTypeExportsV1,
-    unit: &CanonicalParamFreeMirTypeExportsV1,
+    core_types: &CanonicalParamFreeMirTypeExportsV1,
 ) {
     assert!(matches!(
         lower_constructor_bindings(output, public, input, graph, types),
@@ -110,12 +110,12 @@ pub(super) fn check(
         ))
     ));
     assert!(matches!(
-        lower_constructor_bindings(output, public, input, graph, unit),
+        lower_constructor_bindings(output, public, input, graph, core_types),
         Err(Error::Bridge(
             scoop_mir::MirCallableBridgeError::MissingType { .. }
         ))
     ));
-    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, unit]).unwrap();
+    let index = MirTypeBridgeTypeIndexV1::try_new(&[types, core_types]).unwrap();
     with_production(
         "public class Other public constructor()",
         |other, other_input, _, _, _| {

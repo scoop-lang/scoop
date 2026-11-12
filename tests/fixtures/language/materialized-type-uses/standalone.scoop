@@ -1,6 +1,14 @@
 package test
-fun <T> unexpanded(value: String): Boolean = true
-fun flag(value: Boolean = unexpanded<Boolean>("default")): Boolean = value
+
+private struct DefaultOnly<T>(val value: T) {}
+
+private fun <T> unexpanded(value: T): Boolean = true
+
+private fun flag(value: Boolean = unexpanded<DefaultOnly<Int>>(DefaultOnly<Int>(7))): Boolean =
+    value
+
+public struct ParentPayload<T>(val value: T) {}
 
 public interface SourceOnly<T> {}
-public class Deferred: SourceOnly<Long> {}
+
+public class Deferred: SourceOnly<ParentPayload<Long>> {}
