@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <limits.h>
 
-typedef enum { TCP_READ, TCP_WRITE, TCP_SHUTDOWN, UDP_READ, UDP_WRITE } SocketAction;
+typedef enum { TCP_READ, TCP_SHUTDOWN, UDP_READ, UDP_WRITE } SocketAction;
 typedef struct {
     ScoopIoRequest request;
     ScoopIoSocket *socket;
@@ -14,8 +14,43 @@ typedef struct {
     struct ScoopDatagram *datagram;
 } SocketIo;
 
-static bool writing(SocketAction action) {
-    return action == TCP_WRITE || action == TCP_SHUTDOWN || action == UDP_WRITE;
+static bool writing(SocketAction action) { return action == TCP_SHUTDOWN || action == UDP_WRITE; }
+
+void scoop_io_tcp_result(ScoopIoSocket *socket, ScoopIoEvent *event, DWORD count,
+                         ScoopIoStatus status, bool output) {
+    event->count = count;
+    if (status.code) {
+        if (!output && status.code != WSA_OPERATION_ABORTED)
+            socket->read_error = status;
+        scoop_io_socket_error(event, status);
+    } else if (!output && count == 0) {
+        socket->eof = true;
+        event->kind = SCOOP_IO_EOF;
+    } else
+        event->kind = SCOOP_IO_BYTES;
+}
+
+// The owner holds this direction until managed ready delivery ends the current borrow.
+bool scoop_io_tcp_try_transfer(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t length,
+                               bool output, ScoopIoEvent *event) {
+    *event = (ScoopIoEvent){.id = id};
+    if (!output && (socket->eof || socket->read_error.code)) {
+        scoop_io_tcp_result(socket, event, 0, socket->read_error, false);
+        return true;
+    }
+    int prefix = length > INT_MAX ? INT_MAX : (int)length;
+    int count =
+        output ? send(socket->socket, bytes, prefix, 0) : recv(socket->socket, bytes, prefix, 0);
+    ScoopIoStatus status = {0};
+    if (count == SOCKET_ERROR) {
+        int error = WSAGetLastError();
+        if (error == WSAEWOULDBLOCK)
+            return false;
+        status = scoop_io_winsock(error);
+        count = 0;
+    }
+    scoop_io_tcp_result(socket, event, (DWORD)count, status, output);
+    return true;
 }
 
 static void finish(SocketIo *request, DWORD count, ScoopIoStatus status, DWORD flags) {
@@ -28,7 +63,9 @@ static void finish(SocketIo *request, DWORD count, ScoopIoStatus status, DWORD f
         status.code = 0;
     }
     event->count = count;
-    if (!status.code && request->action == UDP_READ) {
+    if (request->action == TCP_READ)
+        scoop_io_tcp_result(socket, event, count, status, false);
+    else if (!status.code && request->action == UDP_READ) {
         request->datagram->source = scoop_socket_address_decode(
             (struct sockaddr *)&request->address, request->address_length);
         if (!request->datagram->source.family)
@@ -39,16 +76,10 @@ static void finish(SocketIo *request, DWORD count, ScoopIoStatus status, DWORD f
             event->kind = SCOOP_IO_DATAGRAM;
             event->resource = request->datagram;
         }
-    } else if (!status.code && request->action == TCP_READ && count == 0) {
-        socket->eof = true;
-        event->kind = SCOOP_IO_EOF;
     } else if (!status.code && request->action != TCP_SHUTDOWN)
         event->kind = SCOOP_IO_BYTES;
-    if (status.code) {
-        if (request->action == TCP_READ && status.code != WSA_OPERATION_ABORTED)
-            socket->read_error = status;
+    if (request->action != TCP_READ)
         scoop_io_socket_error(event, status);
-    }
     if (event->kind != SCOOP_IO_DATAGRAM)
         free(request->datagram);
     scoop_io_socket_finished(&request->request, socket, writing(request->action));
@@ -94,10 +125,6 @@ static int submit(ScoopIoSocket *socket, int64_t id, SocketAction action, void *
         status = WSARecv(socket->socket, &request->buffer, 1, NULL, &request->flags,
                          &request->request.overlapped, NULL);
         break;
-    case TCP_WRITE:
-        status = WSASend(socket->socket, &request->buffer, 1, NULL, 0, &request->request.overlapped,
-                         NULL);
-        break;
     case TCP_SHUTDOWN:
         status = shutdown(socket->socket, SD_SEND);
         finish(request, 0, scoop_io_winsock(status ? WSAGetLastError() : 0), 0);
@@ -132,9 +159,6 @@ static int submit(ScoopIoSocket *socket, int64_t id, SocketAction action, void *
 
 int scoop_io_tcp_read(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t count) {
     return submit(socket, id, TCP_READ, bytes, count, (struct ScoopSocketAddress){0});
-}
-int scoop_io_tcp_write(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t count) {
-    return submit(socket, id, TCP_WRITE, bytes, count, (struct ScoopSocketAddress){0});
 }
 int scoop_io_tcp_shutdown(ScoopIoSocket *socket, int64_t id) {
     return submit(socket, id, TCP_SHUTDOWN, NULL, 0, (struct ScoopSocketAddress){0});

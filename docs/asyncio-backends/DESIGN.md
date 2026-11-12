@@ -327,6 +327,10 @@ Linux 在 6.1 基线与当前发行内核各验证 GNU／musl 所需行为；未
 
 ## 13. Windows：IOCP 后端
 
+Windows TCP 的直接完成沿用第 7 节与 Linux 优化已经建立的 owner 批量提交边界。ConnectEx／AcceptEx 的 context 更新成功后，为交付的 stream 设置 FIONBIO；此时尚无业务传输，不改变已关联的 IOCP 或资源 owner。NativeSafe flush 先用不带 OVERLAPPED 的 recv／send 尝试传输；字节数、EOF 和实际错误写入批次结果，不分配请求、不经过收集线程、不通知 event。未就绪读取回到 WSARecv 请求及真实 packet 退休路径，不启用 skip-completion 模式。直接与等待完成共用 TCP 结果转换和读方向 EOF／错误状态，反向写入不改写它们；managed 仲裁与 ready 继续负责实际进度、buffer 借用、方向和 Job 的收尾。关闭与取消先 flush 暂存传输；native 直接完成不等于已经允许业务复用 buffer。UDP、连接、文件和 timer 的等待协议保持。
+
+TCP 写入遇到 WSAEWOULDBLOCK 时，懒创建该请求的 WSA event，订阅 FD_WRITE／FD_CLOSE，并在清除旧事件后重试 send，避免注册边界丢失就绪。仍未就绪才安装一次性 thread-pool wait。callback 先释放自己的 wait 对象，再在既有 loop mutex 下发布原生完成节点；解锁后不再访问请求和 loop。owner 清除网络事件后再次尝试 send，必要时安装下一次等待。取消只标记原有请求并设置等待 event，等待 callback 的真实退休，不取消含用户数据的 WSASend，也不猜测取消后的发送量。owner 完成请求时解除 WSAEventSelect 并关闭 event；socket 关闭仍等待 active 请求归零。这样背压与取消共用既有请求登记、完成队列和生命周期，不使用轮询或专用阻塞 I/O 线程。
+
 每个 loop 拥有一个 IOCP、一个不可继承的 manual-reset event 和一个原生收集线程。收集线程使用 GetQueuedCompletionStatus 等待，直接把请求内预留的完成节点入队，随后 SetEvent；无 I/O 或 timer 时没有周期轮询。owner 的提交、取消、解码和 continuation 恢复继续使用共享驱动。IOCP 句柄不直接交给 GUI；GUI 监听 event，按既有 remove 完成合同退出监听。
 
 OVERLAPPED 在请求内稳定存放，owner 在提交前登记请求。收集线程只写完成 code／count 和原生队列，owner 取出后才执行具体操作的收尾。同步成功不启用 skip-completion 模式，仍等 packet；同步失败仅在 API 明确不会投递 packet 时本地收尾。`CancelIoEx(handle, &overlapped)` 只请求取消，不关闭健康资源，也不退休借用；ERROR_NOT_FOUND 是与真实完成的正常竞争。依据 [IOCP](https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports)、[完成获取](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus)和[取消](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex)合同实现，不用取消成功冒充数据完成。

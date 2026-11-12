@@ -69,6 +69,8 @@ Linux 的一次 native 推进先消费已有 CQ 快照，再批量发布待提�
 
 Darwin 在同一 NativeSafe TCP 提交批次内，由资源 owner 先尝试 nonblocking read／write。已完成的字节数、EOF 与实际错误直接写入该批次的结果数组，不为这些结果创建 dispatch 请求或跨线程通知；仅 EAGAIN／EWOULDBLOCK 进入原串行 I/O queue 等待。结果仍由 managed owner 仲裁并排入 ready，不能从 native 提交栈恢复 continuation。方向独占和前次真实退休保证同方向请求不同时由 owner 与 dispatch handler 执行；读方向的 EOF／错误状态随已退休完成交接，反向传输不改写这些状态。取消与关闭前先提交已有批次，关闭停止新接纳，保留实际部分传输、borrow 与请求寿命。
 
+Windows 的已交付 TCP stream 使用 nonblocking SOCKET。在同一 NativeSafe 提交批次内，owner 先执行不带 OVERLAPPED 的 recv／send；实际字节数、EOF 和非 WSAEWOULDBLOCK 错误直接进入该批次的结果数组，不创建 native 请求，也不产生或等待 IOCP packet。未就绪的读取提交 overlapped WSARecv，即使同步成功也仍等实际 packet。未就绪的写入用 WSAEventSelect 的 FD_WRITE／FD_CLOSE 与一次性 thread-pool wait 等待，再回 owner 尝试 nonblocking send；等待阶段不向可取消的 WSASend 提交用户数据，因为取消完成的零字节数不能可靠代表已经进入 TCP 流的前缀。取消写入只唤醒该等待，实际等待 callback 退休后交付零新增进度；已经成功的 send 前缀仍按原数值提交。关闭先取消等待，全部 callback 不再访问请求后才释放 socket、event 和 buffer 借用。直接与等待路径共用 TCP 结果规则；结果均回到原 managed 仲裁、ready、进度提交和借用解除流程。方向独占与前次真实退休后才能复用的约束保持，取消和关闭先 flush 已暂存传输，不从 native 提交栈恢复调用方。
+
 Darwin 的 TCP 就绪 source 按端点与方向复用，由串行 I/O queue 管理。source 的 context 仅持有端点及方向，不保留前次请求或 buffer；有等待请求时启用，完成或取消时先暂停 source、清除该方向请求，再发布完成，之后的 handler 只能查找当时的等待请求。端点关闭取消全部 source，平衡暂停状态，并等待全部 cancel handler 结束后才关闭 fd 和交付关闭完成；未退休 source 计入 native loop 的存活工作。UDP、TTY、连接与 timer 继续使用各自原有等待和退休规则。
 
 Darwin 的通知 pipe 最多保留一个未消费提示。完成／命令发布、提示合并以及 owner 消费提示并重新允许通知均在同一 loop mutex 边界内完成；没有提示时不读取或查询 pipe 的字节数。原生控制动作结束只在最后一个存活动作退休时通知排空进度，数据完成始终按原协议通知。外线程在消费边界之后发布的新工作必须产生可观察通知，剩余 native／managed 工作仍在 pump 返回或等待前 rearm。通知不承担完成计数或资源生命周期判断。
@@ -187,9 +189,9 @@ bindUdp 同样先由 platform socket_bind 配置 reuseAddress 并绑定新的 fd
 
 后端错误保留 NativeErrorDomain.PosixErrno 与实际 errno；TCP read 的零结果按 EOF 解释，库主动取消／关闭不伪造 OS 错误。Linux 网络输出使用 MSG_NOSIGNAL，Darwin 输出前设置 SO_NOSIGPIPE。不改进程 signal handler。
 
-Windows 网络使用不可继承的 overlapped SOCKET，沿 platform 的地址与 reuseAddress 规则绑定，并关联本 loop 的 IOCP。ConnectEx 先绑定同族本地通配地址；AcceptEx 不预读业务数据，完成后分别更新 connect／accept context，再交付可查询地址的独立 stream。TCP 使用 WSARecv／WSASend，UDP 使用 WSARecvFrom／WSASendTo；同步成功仍消费实际 completion packet。包完成后用非阻塞 WSAGetOverlappedResult 取得实际 Winsock 结果和 flags，保留已知传输长度；UDP 的 WSAEMSGSIZE receive 交付已填满的前缀及 truncated，不把它当 TCP 式后缀重读。
+Windows 网络使用不可继承的 overlapped SOCKET，沿 platform 的地址与 reuseAddress 规则绑定，并关联本 loop 的 IOCP。ConnectEx 先绑定同族本地通配地址；AcceptEx 不预读业务数据，完成后分别更新 connect／accept context，并为 TCP stream 设置 FIONBIO，再交付可查询地址的独立 stream。TCP 读取在第 2 节的 owner 直接尝试未就绪后使用 overlapped WSARecv；写入按第 2 节等待可写后再次尝试 send。UDP 使用 WSARecvFrom／WSASendTo；overlapped 同步成功仍消费实际 completion packet。包完成后用非阻塞 WSAGetOverlappedResult 取得实际 Winsock 结果和 flags，保留已知传输长度；UDP 的 WSAEMSGSIZE receive 交付已填满的前缀及 truncated，不把它当 TCP 式后缀重读。
 
-Windows 的单次数据请求通过 CancelIoEx 撤销，真实 packet 到达后才释放 buffer 和 OVERLAPPED；取消不关闭健康 SOCKET。close 先撤销在途操作，全部退休后执行一次 closesocket；迟到 connect／accept 成功继续按第 3 节关闭未交付资源。Winsock 调用的错误保留 Winsock，IOCP 关联／取消控制的错误保留 Win32；CRT 分配错误保留 PosixErrno。未启用阻塞 linger，也不通过线程模拟整套 socket I/O。
+Windows 的 overlapped 请求通过 CancelIoEx 撤销，真实 packet 到达后才释放 buffer 和 OVERLAPPED；TCP 可写等待按第 2 节唤醒并等待 callback 退休。取消不关闭健康 SOCKET。close 先撤销在途操作，全部退休后执行一次 closesocket；迟到 connect／accept 成功继续按第 3 节关闭未交付资源。Winsock 调用的错误保留 Winsock，IOCP 关联／取消控制和 thread-pool wait 创建错误保留 Win32；CRT 分配错误保留 PosixErrno。未启用阻塞 linger，也不通过线程模拟整套 socket I/O。
 
 ## 7. DNS 与文件
 
@@ -397,7 +399,7 @@ Linux 新后端支持基线为内核 6.1，初始化实际探测所需操作与 
 
 ### 11.6 Windows 完成端口
 
-Windows 的异步数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP。每个 loop 的原生收集线程阻塞等待完成，只发布原生记录并唤醒 owner，不执行 managed 代码；owner 消费有限完成快照并复用本规范的结果选择、借用和关闭规则。同步成功但仍会产生 completion packet 的操作也等该 packet；只有明确未提交的失败可以本地结束。CancelIoEx 的返回和 ERROR_NOT_FOUND 均不能代替目标完成。
+Windows 已提交的 overlapped 数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP。每个 loop 的原生收集线程阻塞等待完成，只发布原生记录并唤醒 owner，不执行 managed 代码；owner 消费有限完成快照并复用本规范的结果选择、借用和关闭规则。同步成功但仍会产生 completion packet 的操作也等该 packet；只有明确未提交的失败可以本地结束。第 2 节不带 OVERLAPPED 的 TCP 直接尝试不产生 packet，按实际同步结果完成。CancelIoEx 的返回和 ERROR_NOT_FOUND 均不能代替目标完成。
 
 同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
 

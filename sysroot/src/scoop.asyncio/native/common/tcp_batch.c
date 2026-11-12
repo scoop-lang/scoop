@@ -31,7 +31,7 @@ ScoopIoBatch scoop_io_tcp_flush(ScoopIoLoop *loop) {
     int64_t completed = 0;
     for (unsigned i = 0; i < count; i++) {
         ScoopIoTcpSubmission entry = submissions->entries[i];
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(_WIN32)
         if (scoop_io_tcp_try_transfer(entry.endpoint, entry.id, entry.bytes, entry.count,
                                       entry.writing, &submissions->results[completed])) {
             completed++;

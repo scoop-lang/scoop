@@ -15,6 +15,7 @@ struct ScoopIoRequest {
     ScoopIoRequest *next, *packet_next;
     HANDLE handle;
     void (*finish)(ScoopIoRequest *, DWORD, DWORD);
+    void (*cancel)(ScoopIoRequest *);
     DWORD count, error;
     bool cancelled;
 };
@@ -49,6 +50,7 @@ DWORD scoop_io_timers_poll_locked(ScoopIoLoop *loop);
 void scoop_io_request_init(ScoopIoRequest *request, ScoopIoLoop *loop, int64_t id, HANDLE handle,
                            void (*finish)(ScoopIoRequest *, DWORD, DWORD));
 void scoop_io_request_retire(ScoopIoRequest *request);
+void scoop_io_packet_locked(ScoopIoRequest *request, DWORD count, DWORD error);
 void scoop_io_request_cancel(ScoopIoLoop *loop, int64_t id);
 
 #endif

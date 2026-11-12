@@ -25,6 +25,8 @@ ScoopIoStatus scoop_io_socket_associate(ScoopIoSocket *socket);
 ScoopIoStatus scoop_io_socket_result(ScoopIoRequest *request, DWORD *count, DWORD *flags);
 void scoop_io_socket_finished(ScoopIoRequest *request, ScoopIoSocket *socket, bool writing);
 void scoop_io_socket_error(ScoopIoEvent *event, ScoopIoStatus status);
+void scoop_io_tcp_result(ScoopIoSocket *socket, ScoopIoEvent *event, DWORD count,
+                         ScoopIoStatus status, bool output);
 
 int scoop_io_tcp_connect(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address);
 int scoop_io_tcp_listen(ScoopIoLoop *loop, int64_t id, struct ScoopSocketAddress address,
@@ -35,6 +37,8 @@ void scoop_io_tcp_connect_cancel(ScoopIoLoop *loop, int64_t id);
 ScoopIoSocketName scoop_io_tcp_address(ScoopIoSocket *socket, bool peer);
 int scoop_io_tcp_read(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t count);
 int scoop_io_tcp_write(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t count);
+bool scoop_io_tcp_try_transfer(ScoopIoSocket *socket, int64_t id, void *bytes, int64_t count,
+                               bool output, ScoopIoEvent *event);
 int scoop_io_tcp_shutdown(ScoopIoSocket *socket, int64_t id);
 void scoop_io_read_cancel(ScoopIoSocket *socket, int64_t id);
 int scoop_io_tcp_close(ScoopIoSocket *socket, int64_t id);

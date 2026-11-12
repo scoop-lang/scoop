@@ -8,6 +8,34 @@ import scoop.platform.system.NativeErrorDomain
 @Test
 private class WindowsSocketCompletionTest {
     @Test
+    fun `IPv4 write readiness resumes after real socket backpressure`() {
+        @Unsafe
+        {
+            assertEquals(0, testTcpWriteWait(false))
+        }
+    }
+    @Test
+    fun `IPv6 write readiness rearms after repeated backpressure`() {
+        @Unsafe
+        {
+            assertEquals(0, testTcpWriteWait(true))
+        }
+    }
+    @Test
+    fun `IPv4 batches complete ready transfers and retire pending receives`() {
+        @Unsafe
+        {
+            assertEquals(0, testTcpBatch(false))
+        }
+    }
+    @Test
+    fun `IPv6 batches preserve prefixes EOF and reverse traffic`() {
+        @Unsafe
+        {
+            assertEquals(0, testTcpBatch(true))
+        }
+    }
+    @Test
     fun `IPv4 connects accepts and transfers in both directions`() {
         @Unsafe
         {
@@ -129,6 +157,12 @@ private class WindowsSocketCompletionTest {
 
 @Extern(name = "scoop_test_iocp_tcp")
 private fun testTcp(ipv6: Boolean): Int
+
+@Extern(name = "scoop_test_iocp_tcp_batch")
+private fun testTcpBatch(ipv6: Boolean): Int
+
+@Extern(name = "scoop_test_iocp_tcp_write_wait")
+private fun testTcpWriteWait(ipv6: Boolean): Int
 
 @Extern(name = "scoop_test_iocp_socket_close")
 private fun testSocketClose(): Int

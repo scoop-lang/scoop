@@ -24,6 +24,11 @@ static void finish(SocketCreate *request, ScoopIoStatus status) {
         setsockopt(socket->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
                    (const char *)&request->listener->socket, sizeof(SOCKET)) != 0)
         status = scoop_io_winsock(WSAGetLastError());
+    if (!status.code && (request->action == TCP_CONNECT || request->action == TCP_ACCEPT)) {
+        u_long nonblocking = 1;
+        if (ioctlsocket(socket->socket, FIONBIO, &nonblocking) != 0)
+            status = scoop_io_winsock(WSAGetLastError());
+    }
     ScoopIoEvent *event = &request->request.completion.event;
     if (status.code) {
         scoop_io_socket_error(event, status);

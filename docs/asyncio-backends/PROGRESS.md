@@ -623,6 +623,10 @@ TCP 在 NativeSafe 批次内由 owner 尝试直接读写，未就绪时复用端
 
 使用 `~/.scoop` 当前工具链，在 Xeon W-2133／Windows 11 上与 Go 1.27.4 比较同一公开 API 负载。基准补齐 Windows 进程统计、TCP_NODELAY 与 QPC 高精度单调时钟；未修改生产实现。最终 30 项样本与五项短传输检查全部正确。单连接吞吐约为 Go 的 64%，64 连接单／四 worker 为 78.3%／80.7%，CPU／echo 分别为 Go 的 1.67／1.48 倍；Scoop 从一到四 worker 扩展 2.61 倍。完整结果、时钟修正、波动范围和同机施压限制见 [Windows 对照记录](WINDOWS-TCP-ECHO.md)。
 
+## Windows TCP 后端优化 W1（2026-11-13）
+
+TCP 在 NativeSafe 批次内尝试 nonblocking 传输，未就绪读取继续使用 IOCP；未就绪写入改为 FD_WRITE／FD_CLOSE 和一次性 thread-pool wait，保持可精确核验的取消进度。216 项普通 asyncio 测试、六项定向 GC、48 个最终性能样本和五项短传输检查全部通过。64 连接单／四 worker 吞吐 +28.5%／+20.7%，CPU／echo −42.7%／−29.9%；独立 eventLoop 单连接吞吐 −18.1%，保留该回退及全部低样本。实现、背压取消修正、Go 对照和原始记录位置见 [Windows 优化记录](WINDOWS-OPTIMIZATION.md)。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
