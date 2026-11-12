@@ -129,18 +129,22 @@ process current/peak RSS. Advice success is not a promise of immediate RSS chang
 M34 implementation and measurement status is tracked in
 `docs/milestone34/PROGRESS.md`.
 
-Marking runs after all mutators stop. Minor collection and heaps with less than
-4 MiB of active blocks use the coordinator alone; larger full collections use
-up to four workers including the coordinator, bounded by online CPU count.
-`SCOOP_GC_WORKERS=1..8` overrides that policy for comparisons. Internal workers
+Marking runs after all mutators stop. Collections with less than 4 MiB of
+candidate blocks use the coordinator alone: young blocks for minor collection,
+active heap blocks for full collection. Larger collections use up to eight
+workers including the coordinator, bounded by the initializing thread's available
+CPU count. Linux uses its CPU affinity mask, falling back to online CPU count
+if that query fails; other platforms retain their processor-count query.
+The pool does not dynamically follow later affinity changes.
+`SCOOP_GC_WORKERS=1..16` overrides that policy for comparisons. Internal workers
 are created lazily, remain outside the mutator registry, and are joined at
 shutdown. Thread creation failure joins workers already created and selects the
 same single-worker collector for subsequent collections. Ordinary tasks scan up
 to 64 objects, and reference arrays are split into ranges of up to 1024 elements.
 Global outstanding work includes active tasks and child publication; an empty
-queue does not end marking. Copying, reference updates, release hooks and memory
-reclamation remain on the coordinator. The retained live set avoids a second
-reachability traversal during full reference updates.
+queue does not end marking. Reservation, copying and reference updates reuse the
+pool; release hooks and memory reclamation remain on the coordinator. The retained
+live set avoids a second reachability traversal during full reference updates.
 
 `SCOOP_GC_STATS=1` writes one JSON metrics record to stderr on normal program
 exit. Pause times measure the collector phase inside STW, after threads have
