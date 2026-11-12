@@ -33,6 +33,7 @@
 2. 选定本次源码构建的配套命令和开发 sysroot，或候选发行安装根。ABI/产物格式变更时，相关 driver、compiler、linker、package manager 使用当前配套构建；按 [scripts 说明](../../scripts/README.md) 显式准备受影响目标的资源。
    编译器或工具的 Rust 依赖图变化时，同时更新实际消费它们的独立 Cargo 项目锁文件，例如 `scripts/runtime_builder/Cargo.lock`。不要通过移除准备命令的 `--locked` 绕过失效锁文件。
 3. 确认版本与实际命令入口。Windows 主驱动为 `sco.exe`，其他宿主为 `scoop`；外部命令仍使用 `scoop-` 前缀。不要偶然从 PATH 选到同名 Windows 包管理器或另一份工具链。
+   首次将一套新开发安装交给评测 Agent 前，用它将采用的环境和参数完成一个小程序的 build/run，确认 native 链接器也可发现；本批已有同环境运行结果时直接复用。仅 --version 或 check 成功不足以证明这一点。开发二进制不在正式安装布局时，显式设置配套 LLVM 路径或已有 --linker 参数；把环境修复与 Agent 对语言/API 的修复分开记录。
 4. 用最小程序确认关键规则。实际运行与规范冲突时定位并修正冲突，不能据一次复杂程序的候选错误就把限制写进 skill。
 
 下面变量用于后续命令示例，替换为本次真实路径；工作目录位于仓库外。仅演示现有命令，不执行安装或修改用户 Agent 配置。

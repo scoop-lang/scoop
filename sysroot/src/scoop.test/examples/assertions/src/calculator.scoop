@@ -5,3 +5,19 @@ public fun divide(total: Int, count: Int): Int {
         throw IllegalArgumentException(Some("count must not be zero"))
     return total / count
 }
+
+/**
+ * Adds nonnegative millisecond counts. Throws IllegalArgumentException for a negative value or
+ * a total that does not fit Long. An empty input returns zero.
+ */
+public fun sumNonnegativeMillis(values: List<Long>): Long {
+    var total = 0L
+    for (value in values) {
+        if (value < 0L)
+            throw IllegalArgumentException(Some("milliseconds must be nonnegative"))
+        if (value > Long.MAX_VALUE - total)
+            throw IllegalArgumentException(Some("total milliseconds exceed Long range"))
+        total += value
+    }
+    return total
+}

@@ -435,9 +435,9 @@ files = [
 [[topics]]
 id = "test/assertions"
 title = "给 Cone 编写测试"
-summary = "测试普通值、异常、结构相等、嵌套 Option 与惰性回调。"
+summary = "测试普通值、异常、结构相等、惰性回调和数值汇总边界。"
 aliases = ["assertions", "单元测试"]
-keywords = ["scoop.test", "Test", "assertEquals", "assertFailsWith", "test-dependencies", "filter", "Option", "Result", "struct", "tuple", "assertNotEquals", "fallback", "调用次数"]
+keywords = ["scoop.test", "Test", "assertEquals", "assertFailsWith", "test-dependencies", "filter", "Option", "Result", "struct", "tuple", "assertNotEquals", "fallback", "调用次数", "Long", "sumNonnegativeMillis", "overflow", "溢出"]
 document = "topics/test/assertions.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["start/cone", "language/errors"]

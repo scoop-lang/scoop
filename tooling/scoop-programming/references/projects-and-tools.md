@@ -121,6 +121,8 @@ type-definition、implementation、references 提供进一步导航。workspace-
 
 编译器 human／`--message-format json` 诊断写 stderr，stdout 留给程序；同时检查退出状态。检查成功不等于测试执行成功，也不等于所有目标都已验证。已有源码依赖、generator 或 native 工具产生的日志可能同时出现在 stderr，不把整个流假定为单个 JSON 对象。
 
+验证可执行程序自己的标准流时，可以先用 `scoop build . --release -o ./app` 明确输出位置，再直接运行 `./app` 并分别收集 stdout、stderr 和退出码。Windows 使用 `app.exe`。输出路径由公开的 `-o` 选项确定，无需读取 `.scoop-output-*.record` 等内部构建记录。
+
 需要排查具体编译转换或性能问题时，`scoop build . --release --emit optimizations --dump-dir observations` 可观察优化决策；`--emit` 还支持 ast/hir/mir/lir/symbols/all。只选所需阶段，普通程序开发不依赖完整 IR 快照。已有产物链接用 `scoop link --help`；`scoopc` 和 `scoop-link` 是低层入口，应用通常使用 umbrella `scoop` 完成编排。
 
 `scoop clean` 会删除所选 target 目录及其中全部 profile／构建缓存；只在确实要清理输出时使用，不作为类型或库查找错误的常规修复。系统库准备与发行脚本属于工具链维护流程。

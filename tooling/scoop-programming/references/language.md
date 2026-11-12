@@ -31,6 +31,7 @@ fun greeting(name: String?): String =
 - 插值使用 `f"Hello, ${name}!"`；普通字符串的 `${name}` 保留原文，不使用 Kotlin 的 `$name` 插值。
 - `Char` 表示 Unicode 标量。`String.charLength`、常用容器 `size` 与索引使用 `Long`，例如 `values[0L]`。UTF-8 字节、Unicode 标量、字素簇和终端显示列宽是不同单位。
 - 依据 API 使用 `Int`、`Long` 等准确类型；不要假设可隐式转换任意数值变量。需要 Long 常量时用 `0L` 等写法。
+- 整数 `+`、`-`、`*` 等运算按位宽回绕，溢出不抛异常。输入能解析为 Long，不保证汇总或单位换算仍在范围内；按实际业务在运算前检查边界。例如非负毫秒汇总可以先检查 `next > Long.MAX_VALUE - total`，超出时保留明确失败。`test/assertions` 有正常、最大值、负值和汇总溢出的完整例子。
 - `Array<T>` 只读，数组字面量写 `[7, 9]`；固定长度可写存储使用 `MutableArray<T>`，动态增删使用 `ArrayList<T>`。
 - `toArray()` 创建元素序列的浅快照；之后修改原列表不会改变快照序列，但元素引用的对象仍可共享。`List` 等协议和扩展方法的可用性以实际声明及 import 为准。
 
