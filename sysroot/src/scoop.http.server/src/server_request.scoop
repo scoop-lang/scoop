@@ -16,7 +16,11 @@ internal suspend fun executeHttp1Request(
     info: HttpConnectionInfo,
     options: HttpRequestOptions
 ) {
-    val started = MonotonicTimeSource.markNow()
+    val started =
+        if (present(options.onCompleted))
+            Some(MonotonicTimeSource.markNow())
+        else
+            None
     val result = RequestExecution()
     val incoming = output.incoming
     try {
@@ -56,7 +60,8 @@ internal suspend fun executeHttp1Request(
                         cleanup
                 )
         }
-        completeRequest(options.onCompleted, result, started)
+        if (present(started))
+            completeRequest(options.onCompleted!!, result, started!!)
     }
     if (present(result.failure))
         throw result.failure!!
@@ -80,12 +85,12 @@ internal suspend fun closeRequestViews(result: RequestExecution) {
 }
 
 internal fun completeRequest(
-    observer: ((HttpRequestCompletion) -> Unit)?,
+    observer: (HttpRequestCompletion) -> Unit,
     result: RequestExecution,
     started: TimeMark,
     cancelledByStream: Boolean = false
 ) {
-    if (!present(result.context) || !present(observer))
+    if (!present(result.context))
         return
     val ctx = result.context!!
     val error = result.failure
@@ -123,7 +128,7 @@ internal fun completeRequest(
             error
         )
     try {
-        observer!!(snapshot)
+        observer(snapshot)
     }
     catch (_: Throwable) {
         return

@@ -559,8 +559,9 @@ public class NativeByteBuffer private constructor(): Closeable {
     @Unsafe
     public fun borrowWritable(count: Long): NativeByteBorrow = beginBorrow(Some(count), true)
 
-    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow =
-        withState {
+    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow {
+        acquireState()
+        try {
             requireMutable()
             val available =
                 if (writable)
@@ -585,9 +586,13 @@ public class NativeByteBuffer private constructor(): Closeable {
                         Some(memory!! + offset)
                 val borrow = NativeByteBorrow(this, pointer, length, writable)
                 borrowed = true
-                return@withState borrow
+                return borrow
             }
         }
+        finally {
+            releaseState()
+        }
+    }
 
     internal fun finishBorrow(count: Long, length: Long, writable: Boolean) {
         withState {

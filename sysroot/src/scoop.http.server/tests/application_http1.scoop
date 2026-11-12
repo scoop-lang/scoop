@@ -14,6 +14,53 @@ private fun executionMarker(): String = marker.value
 @Test
 private class ApplicationHttp1Tests {
     @Test
+    fun `completion observation is selected per request and includes handler time`() {
+        val completed = ServerTestCompletions()
+        val pause = Duration.milliseconds(2L)
+        val application =
+            routing {
+                get(
+                    "/ok",
+                    suspend {
+                        _ ->
+                        currentEventLoop().sleep(pause)
+                        text("ok")
+                    }
+                )
+            }
+        val observed = httpRequestOptions { onCompleted = Some(completed::receive) }
+        withApplicationHttp1(
+            suspend {
+                scope, server, client, info ->
+                val serving =
+                    scope.async<Unit> suspend {
+                        for (index in 0L ..< 3L) {
+                            application.executeHttp1(
+                                server,
+                                server.receiveRequest()!!,
+                                info,
+                                index.toString(),
+                                if (index == 1L)
+                                    observed
+                                else
+                                    HttpRequestOptions.Default
+                            )
+                            assertTrue(server.isReusable)
+                        }
+                    }
+                for (_ in 0L ..< 3L)
+                    assertEquals("ok", requestText(client, "/ok"))
+                serving.await()
+            }
+        )
+        val observations = completed.snapshot()
+        assertEquals(1L, observations.size)
+        assertEquals("1", observations[0L].requestId)
+        assertEquals(HttpRequestOutcome.Completed, observations[0L].outcome)
+        assertTrue(observations[0L].elapsed >= pause)
+    }
+
+    @Test
     fun `borrowed execution reuses the connection and preserves middleware HEAD and mapped errors`() {
         val contexts = ArrayList<HttpContext>()
         val produced = TestCounter()
