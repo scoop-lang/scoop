@@ -47,8 +47,12 @@ void scoop_io_fail_locked(ScoopIoLoop *loop, ScoopIoStatus error) {
 }
 
 void scoop_io_notify_locked(ScoopIoLoop *loop) {
+    if (loop->notified)
+        return;
     if (!SetEvent(loop->notification))
         scoop_io_fail_locked(loop, scoop_io_win32(GetLastError()));
+    else
+        loop->notified = true;
 }
 
 void scoop_io_loop_wake(ScoopIoLoop *loop) {
@@ -71,8 +75,12 @@ ScoopIoStatus scoop_io_loop_poll(ScoopIoLoop *loop, bool wait) {
         ReleaseSRWLockExclusive(&loop->mutex);
     }
     AcquireSRWLockExclusive(&loop->mutex);
-    if (!ResetEvent(loop->notification))
-        scoop_io_fail_locked(loop, scoop_io_win32(GetLastError()));
+    if (loop->notified) {
+        if (!ResetEvent(loop->notification))
+            scoop_io_fail_locked(loop, scoop_io_win32(GetLastError()));
+        else
+            loop->notified = false;
+    }
     ScoopIoRequest *packets = loop->packets_head;
     loop->packets_head = loop->packets_tail = NULL;
     ScoopIoStatus status = loop->failure_reported ? (ScoopIoStatus){0} : loop->failure;

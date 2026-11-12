@@ -335,7 +335,7 @@ TCP 写入遇到 WSAEWOULDBLOCK 时，懒创建该请求的 WSA event，订阅 F
 
 OVERLAPPED 在请求内稳定存放，owner 在提交前登记请求。收集线程只写完成 code／count 和原生队列，owner 取出后才执行具体操作的收尾。同步成功不启用 skip-completion 模式，仍等 packet；同步失败仅在 API 明确不会投递 packet 时本地收尾。`CancelIoEx(handle, &overlapped)` 只请求取消，不关闭健康资源，也不退休借用；ERROR_NOT_FOUND 是与真实完成的正常竞争。依据 [IOCP](https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports)、[完成获取](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus)和[取消](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex)合同实现，不用取消成功冒充数据完成。
 
-原生队列发布、SetEvent、ResetEvent 与队列取快照在同一 SRW lock 下完成，外线程命令唤醒也经过该边界；owner 清除旧通知后产生的新通知不会丢失。取走的一批有限工作处理完后返回宿主，期间产生的工作保留下一轮通知。借出的 event 由 loop 独占重置和关闭，host 不消费其状态；不能使用会被 host 等待自动消费的 auto-reset event。
+原生队列发布、SetEvent、ResetEvent 与队列取快照在同一 SRW lock 下完成，外线程命令唤醒也经过该边界。锁内记录是否已有未消费提示，合并重复 SetEvent，并跳过空轮询的 ResetEvent；只有系统调用成功才更新该状态。owner 清除旧通知后产生的新通知不会丢失。取走的一批有限工作处理完后返回宿主，期间产生的工作保留下一轮通知；未取完的逻辑完成与 managed ready 工作由 rearm 重新通知。借出的 event 由 loop 独占重置和关闭，host 不消费其状态；不能使用会被 host 等待自动消费的 auto-reset event。
 
 timer 使用 QPC 截止时间，由收集线程的有界毫秒等待推进；插入更早 deadline 时通过 PostQueuedCompletionStatus 唤醒收集线程。超时后重新核对 QPC，不提前完成；超长等待按 DWORD 可表示的有限片段推进。timer 移除与到期入队受同一锁保护，取消没有额外 callback 或悬空 context。收集线程只做内存／队列工作，不能在其上执行阻塞文件、DNS、用户 NativeWork 或 managed continuation。
 

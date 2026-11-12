@@ -401,7 +401,7 @@ Linux 新后端支持基线为内核 6.1，初始化实际探测所需操作与 
 
 Windows 已提交的 overlapped 数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP。每个 loop 的原生收集线程阻塞等待完成，只发布原生记录并唤醒 owner，不执行 managed 代码；owner 消费有限完成快照并复用本规范的结果选择、借用和关闭规则。同步成功但仍会产生 completion packet 的操作也等该 packet；只有明确未提交的失败可以本地结束。第 2 节不带 OVERLAPPED 的 TCP 直接尝试不产生 packet，按实际同步结果完成。CancelIoEx 的返回和 ERROR_NOT_FOUND 均不能代替目标完成。
 
-同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
+同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；未消费的通知合并为一次 SetEvent，没有待消费通知时不执行 ResetEvent。owner 清除旧通知后发布的工作必须重新通知；有限批次处理后仍有逻辑完成或 managed ready 工作时重新置位。通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
 
 timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿共享 managed 阻塞池执行，已开始的工作等真实返回，不因取消提前释放输入。
 

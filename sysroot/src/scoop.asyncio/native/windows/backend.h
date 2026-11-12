@@ -25,7 +25,7 @@ struct ScoopIoLoop {
     HANDLE port, notification;
     uint64_t frequency;
     ScoopIoStatus failure;
-    bool failure_reported, stopping, collecting;
+    bool failure_reported, stopping, collecting, notified;
     unsigned work_runners;
     int64_t completions;
     ScoopIoEvent batch[SCOOP_IO_BATCH_CAPACITY];
