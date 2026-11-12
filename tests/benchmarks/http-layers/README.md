@@ -158,6 +158,42 @@ BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/application-layers" 1 18081 pr
 
 同样先验证每个模式，再按相邻步骤交替测量；使用外部脚本时可以将模式命名为 `local-protocol` 等以区分预编译库程序。三个补充补丁已逐字节重建固定源码，上述同 Cone 重建方式也已与实际测量源码核对。所有原始输出、同 Cone 的源码副本和 ELF 留在仓库外，仓库仅保存诊断入口与必要的差异补丁。结果及其限制见 [B54 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十四轮拆分应用成本并重新选择协议连接层)。
 
+## 继续拆分协议连接接入
+
+`connection/01-transport.patch` 从 `encoder`（应用到 `03-encoder.patch`）分支，只把输入泵和输出函数的参数从 AsyncTcpStream 改为 AsyncByteStream。编解码、缓冲和报文保持相同，先量出通过已有传输接口调用的成本。
+
+`connection_layers.scoop` 保存 B55 开始时的内部拆分实验，使用 **B53 固定 SDK 中的原 `scoop.http.asyncio` 源码**。它直接访问该版本的内部消息状态；不要用后续已经调整状态结构的源码替代基线。按上节方式保留 Cone coordinate、改为 executable 并加入此文件，四个模式共享一个 ELF：
+
+| 模式 | 本步接入 |
+| --- | --- |
+| `codec` | 正式 codec、AsyncByteStream 接口、手写输入泵及 64 KiB 分块输出 |
+| `session` | 原连接所有权、请求关联、H1 输入／输出对象、空正文读取和消息完成；仍使用手写输入泵和分块输出 |
+| `receive` | 用原 `receiveRequest` 替换输入泵及手工消息登记，接入正式事件接收与读操作管理 |
+| `connection` | 用原数组 `sendResponse` 替换手工发送，接入完整响应进度、写操作与 flush |
+
+手工消息登记只处理受控无正文请求，复用原 `advanceH1End`、`completeH1Output` 和关闭判断；前几个模式不具备完整操作的取消／错误处理语义。四个模式的响应仍按至多 64 KiB 分块；内部连接的输出缓冲在建连时预留 64 KiB。内部 `codec` 的请求载体保存完整 head 和 keep-alive 结果，调用形态也不同，因此两端分别以原 `transport` 与原 `connection` ELF 校准。相邻差额包含这些实际接入变化，不能作为单个函数或对象的独立成本。
+
+使用固定 B53 SDK，先按下列方式准备源码；后续格式检查、静态检查、构建参数沿上节命令，将输入改为 `protocol-cone`，输出另存为 `protocol-layers`：
+
+```sh
+python3 - "$bench_sdk/src/scoop.http.asyncio" "$bench_work/protocol-cone" \
+  "$bench_source/connection_layers.scoop" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+
+source, destination, helper = map(Path, sys.argv[1:])
+destination.mkdir()
+shutil.copytree(source / "src", destination / "src")
+manifest = (source / "Cone.toml").read_text().split("[test-dependencies]")[0]
+(destination / "Cone.toml").write_text(manifest.replace('kind = "library"', 'kind = "executable"'))
+shutil.copyfile(helper, destination / "src/benchmark.scoop")
+PY
+BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/protocol-layers" 1 18081 codec
+```
+
+先验证各模式的分段、pipeline、并发大小 GET／HEAD 响应，再完成两端校准及三个相邻对照。原程序、诊断程序和生产候选必须分别保存，生产库的改动另用原完整连接／server 源码重建后比较；内部诊断不替代生产回归。传输接口与内部三步的测量、两端校准和事件队列候选的撤回依据见 [B55 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十五轮拆分协议连接成本并撤回事件队列候选)。
+
 ## 测量
 
 `codec-micro MODE COUNT SPLIT COUNT_ALLOC` 重用 parser，输入为 46 字节的 `GET /small HTTP/1.1`，仅带 Host。`llhttp` 模式没有用户回调，是协议核心下界；`bridge` 使用生产回调、字段和事件队列，读取事件并全部释放。SPLIT 为 0 时整条输入，为 1 时每次输入一字节。CPU 时间不含 parser 建立和销毁，输出 checksum 和请求数，构建时必须保留 assert。
