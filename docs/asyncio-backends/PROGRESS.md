@@ -722,6 +722,25 @@ Rust fmt、workspace/all-targets clippy 完成（有原有警告）；MIR 247 �
 
 本轮保留异常状态修正和完整 EH 内联能力，继续追查 HTTP 分配与调用成本。仅 Linux GNU/io_uring 静态 HTTP/1.1 性能实测，未重测 Go／Gin／Axum、JSON、TLS／HTTP2 性能或长尾。补丁、固定产物、图表、验证记录和复现说明位于 `/home/chenxu/benchmarks/http-improvements-20261112-round34`；清理本轮不再需要的临时构建与 fixture 目录，保留源码、固定二进制、release 构建缓存及原始证据，未推送。
 
+## 第三十五轮：消除多数同步闭包，CPU 收益仍不足
+
+以 B34 固定编译器／库为底座，做一次诊断性展开：在合法 target、ABI、递归与协议边界检查后，对实参含已知 ClosureClass 的调用临时越过普通成本及增长拒绝。展开深度、真实分配使用证明和其他调用的规则保留，仍累计增长；它不是严格数学上界，也不作为可交付成本模型。独立重建 compiler 和静态 server 的 17 个实际依赖库，继续使用 B28 源码 LLVM SDK；未改 JSON／序列化源码。
+
+1 KiB、64 连接、默认 GC／超时、TCP_NODELAY、独立绑核，前后各三次随机交错，预热 2 秒＋测量 6 秒：
+
+| worker | req/s 前 → 后 | 总 CPU μs/请求 | 分配 KiB/请求 | RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 22,518 → 23,320 | 44.482 → 42.953 | 35.509 → 27.435 | 44.82 → 43.11 |
+| 4 | 64,041 → 69,086 | 54.066 → 51.255 | 35.591 → 27.385 | 52.37 → 49.71 |
+
+单／四 worker 的 CPU/请求仅下降 **3.4%／5.2%**，吞吐中位数 +3.6%／+7.9%；四 worker 基线 50,396–69,452、候选 68,896–74,156 req/s，有波动和重叠。12 个样本共 3,255,395 个 wrk 请求，无请求错误；样本前后核对完整正文，所有样本及 P50 保留。首次预热因遗漏 wrk 工具目录链接而退出，尚无测量样本；修复链接后完整重跑，失败记录单独保留。
+
+100 GET 减去零 GET 控制边界的分配追踪，与 runtime 对象／字节计数一致，正文逐字节核验。每请求 **890 → 650 对象、37,392 → 28,592 bytes**；闭包 **301 → 59（−80.4%）**，而 **50 个 coroutine frame、61 个 adapter 不变**。core 的 withLock 多轮内联决策 2 → 67，145 条内联决策越过普通成本接受条件；这些不是运行频次。消除了多数同步闭包，整体 CPU 成本仍变化很小，因此不继续围绕该方案调整阈值或搭建联合估价；不能由此推广为所有分配或内联都不重要。
+
+诊断规则已撤回，正式实现保持 B34。下一项聚焦 HTTP 异步调用链的状态与重复准备：基线实际帧分配包括每请求 5 个 h1PreparedOperation、4 个 writeH1Wire、5 个 withH1Idle，需进一步测量它们及上层调用链的执行成本，不能将分配次数直接当成 CPU 比例。完整 framework／协议层原有 CPU 差距也继续保留，不重复用局部内联解释全部差距。
+
+Rust fmt、workspace/all-targets clippy 与外部 Python 格式／lint 通过（clippy 有原有警告）；既有 exception-path-inlining provider／consumer 的 release 程序在 moving GC 下通过全部语义断言，正常成本选择对应的 MIR inspector 未用于此诊断。候选收益不足，未运行全量库／CLI 验收。固定候选、撤回补丁、计数、图表和复现说明在 `/home/chenxu/benchmarks/http-improvements-20261112-round35`；清理不再需要的临时 target、smoke 工作目录和 debug 编译输出，保留产物与证据，未推送。仅 Linux GNU/io_uring 静态 HTTP/1.1 性能，未重测 Go／Gin／Axum、JSON、TLS／HTTP2 或长尾。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。
