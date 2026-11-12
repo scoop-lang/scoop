@@ -37,13 +37,14 @@ internal class Http1ResponseOutput(
     private fun prepareHead(head: HttpResponseHead): HttpResponseHead {
         if (!started.compareAndSet(false, true))
             throw IllegalStateException(Some("HTTP/1 response already started"))
-        val fields = ArrayList<HttpField>()
         val closing = !incoming.body.isComplete || !state.running()
+        if (!closing)
+            return head
+        val fields = ArrayList<HttpField>()
         for (value in head.fields)
-            if (!closing || !value.hasName("Connection".toByteArray()))
+            if (!value.hasName("Connection".toByteArray()))
                 fields.add(value)
-        if (closing)
-            fields.add(field("Connection", "close"))
+        fields.add(field("Connection", "close"))
         val reason: List<Byte>? =
             when (head.reason) {
                 case None -> None;

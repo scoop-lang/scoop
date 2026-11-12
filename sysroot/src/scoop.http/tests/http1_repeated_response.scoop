@@ -1,0 +1,97 @@
+package scoop.http
+
+import scoop.test.*
+
+@Test
+private class Http1RepeatedResponseTests {
+    @Test
+    fun `repeated immutable heads restart lengths and observe each method snapshot`() {
+        val head =
+            HttpResponseHead(
+                HttpVersion.Http11,
+                200U,
+                fields = [HttpField("Content-Length".toByteArray(), "3".toByteArray())]
+            )
+        val method = ArrayList<Byte>()
+        for (byte in "GET".toByteArray())
+            method.add(byte)
+        val encoder = Http1Encoder(HttpRole.Server)
+        val first = encoder.beginResponse(head, method, Http1BodyFraming.Length(3L))
+        encoder.prepareBody(3L)
+        encoder.finish()
+        for (_ in 0 ..< 3) {
+            assertEquals(
+                String.fromUtf8(first),
+                String.fromUtf8(encoder.beginResponse(head, method, Http1BodyFraming.Length(3L)))
+            )
+            assertTrue(encoder.isMessageOpen)
+            assertFailsWith<IllegalStateException> { encoder.finish() }
+            encoder.prepareBody(3L)
+            encoder.finish()
+            assertFalse(encoder.isMessageOpen)
+        }
+        method.clear()
+        for (byte in "HEAD".toByteArray())
+            method.add(byte)
+        encoder.beginResponse(head, method)
+        encoder.finish()
+        method.clear()
+        for (byte in "GET".toByteArray())
+            method.add(byte)
+        assertFailsWith<IllegalArgumentException> { encoder.beginResponse(head, method) }
+        encoder.beginResponse(head, method, Http1BodyFraming.Length(3L))
+        encoder.prepareBody(3L)
+        encoder.finish()
+        encoder.close()
+        assertEquals("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n", String.fromUtf8(first))
+        assertFailsWith<IllegalStateException> {
+            encoder.beginResponse(head, method, Http1BodyFraming.Length(3L))
+        }
+    }
+
+    @Test
+    fun `new heads framing and failed validation cannot reuse earlier wire bytes`() {
+        val head = HttpResponseHead(HttpVersion.Http11, 200U)
+        Http1Encoder(HttpRole.Server).use {
+            encoder ->
+            val first =
+                encoder.beginResponse(head, "GET".toByteArray(), Http1BodyFraming.Length(3L))
+            encoder.prepareBody(3L)
+            encoder.finish()
+            assertEquals(
+                "HTTP/1.1 200 \r\nContent-Length: 0\r\n\r\n",
+                String.fromUtf8(encoder.beginResponse(head, "GET".toByteArray()))
+            )
+            encoder.finish()
+            assertEquals(
+                "HTTP/1.1 200 \r\nTransfer-Encoding: chunked\r\n\r\n",
+                String.fromUtf8(
+                    encoder.beginResponse(head, "GET".toByteArray(), Http1BodyFraming.Chunked)
+                )
+            )
+            encoder.finish()
+            val invalid =
+                HttpResponseHead(
+                    HttpVersion.Http11,
+                    200U,
+                    fields = [HttpField("X-Value".toByteArray(), "bad\r\nvalue".toByteArray())]
+                )
+            for (_ in 0 ..< 2)
+                assertFailsWith<IllegalArgumentException> {
+                    encoder.beginResponse(invalid, "GET".toByteArray())
+                }
+            assertFalse(encoder.isMessageOpen)
+            assertEquals(
+                "HTTP/1.1 201 \r\nContent-Length: 0\r\n\r\n",
+                String.fromUtf8(
+                    encoder.beginResponse(
+                        HttpResponseHead(HttpVersion.Http11, 201U),
+                        "GET".toByteArray()
+                    )
+                )
+            )
+            encoder.finish()
+            assertEquals("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n", String.fromUtf8(first))
+        }
+    }
+}

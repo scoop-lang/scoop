@@ -40,34 +40,46 @@ public class HttpContext internal constructor(
     public fun setDeadline(duration: Duration?) {
         requestJob.ensureActive()
         if (requestJob.isCompleted || response.isCommitted || response.isAborted)
-            throw IllegalStateException(Some("request deadline can only change before response commit"))
+            throw IllegalStateException(
+                Some("request deadline can only change before response commit")
+            )
         deadline.set(duration)
     }
 
     /** Executes a final response, waiting for its producer and protocol completion. */
-    public suspend fun respond(result: HttpResult) { sendResult(result, false) }
+    public suspend fun respond(result: HttpResult) {
+        sendResult(result, false)
+    }
 
     internal suspend fun sendResult(result: HttpResult, minimal: Boolean) {
-        if (!responding.compareAndSet(false, true)) throw IllegalStateException(Some("response is already executing"))
+        if (!responding.compareAndSet(false, true))
+            throw IllegalStateException(Some("response is already executing"))
         try {
             requestJob.ensureActive()
             when (result.body) {
                 case HttpBody.File(val value) -> executeFileResponse(this, result, value, minimal)
-                case HttpBody.WebSocket(val value) -> executeWebSocketResponse(this, result, value, minimal)
+                case HttpBody.WebSocket(val value) -> executeWebSocketResponse(
+                    this,
+                    result,
+                    value,
+                    minimal
+                )
                 else -> {
-                    val draft = response.prepare(result, minimal)
-                    executeResponse(this, prepareResponse(this, result, draft, minimal))
+                    executeResponse(this, prepareRequestResponse(this, result, minimal))
                 }
             }
         } catch (error: Throwable) {
             response.releasePreparation()
             throw error
-        } finally { responding.store(false) }
+        } finally {
+            responding.store(false)
+        }
     }
 
     internal suspend fun abort() {
         if (aborting.compareAndSet(false, true)) {
-            if (!response.isFinished) response.abort()
+            if (!response.isFinished)
+                response.abort()
             output.abort()
         }
     }

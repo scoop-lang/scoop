@@ -77,6 +77,8 @@ Http1Encoder 生成起始行、字段、body 定界与结束字节，保持调�
 
 编码器固定 HttpRole。beginRequest／beginResponse 返回头部字节，后者显式接收对应请求方法；writeBody 消费 NativeByteBuffer 的指定前缀并返回编码字节，finish 返回结束／trailer 字节。每次 begin 都需要 finish，包括空 body。Http1BodyFraming 为 Empty、Length(count)、Chunked、Eof；isMessageOpen、mustClose、isSwitched 分别表示当前消息、连接复用与协议切换状态。编码器实现 Closeable，不执行传输。
 
+编码器可保留最近一次成功编码的不可变响应头及其结果；只有头对象相同、请求方法字节及定界相同才复用已完成的头部校验和编码。方法参数仍先取得本次快照，不能重复读取有副作用的 List 来判断命中。每次 begin 仍检查编码器状态并重新开始独立的消息长度／完成状态；失败不发布新的编码结果，close 释放保留项。返回的不可变头部字节可以共享，后续编码及 close 不改变已经返回的内容。
+
 传输适配层使用 `prepareBody(count: Long): Http1BodyChunk` 接受非负正文长度并取得独立的 `prefix: Array<Byte>`／`suffix: Array<Byte>`，按 prefix、原正文、suffix 的顺序发送；固定长度与 EOF 定界的前后缀为空，正长度 chunked 为十六进制长度加 CRLF 和末尾 CRLF，零长度不产生终结 chunk。成功准备即从 Content-Length 余量扣除 count，不消费或保留调用者的 buffer；发送失败后不能重试同一已接受片段。`finish` 仍负责最终零 chunk 与 trailer。内存编码用的 `writeBody` 复用相同的长度检查和分帧构造，只在实际需要完整编码数组时复制正文；失败不得提交输入游标或已声明长度。
 
 body 定界显式选择无 body、已知长度、chunked 或响应 EOF。Content-Length 与 Transfer-Encoding 必须与所选定界一致；缺少所需字段时由编码器添加，不允许冲突的重复定界。chunked 仅用于 HTTP/1.1；EOF 定界不用于请求。发送的字节数不得超过已知长度，完成时检查剩余长度；trailer 只随 chunked 结束交付。

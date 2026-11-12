@@ -1,0 +1,44 @@
+package scoop.http.server
+
+import scoop.http.HttpVersion
+
+// Only immutable response data is shared; each request owns its response state and progress.
+internal class PreparedByteResponse(
+    val version: HttpVersion,
+    val method: String,
+    val plan: ResponsePlan
+)
+
+internal fun prepareRequestResponse(
+    ctx: HttpContext,
+    result: HttpResult,
+    minimal: Boolean
+): ResponsePlan {
+    val bytes =
+        when (result.body) {
+            case HttpBody.Bytes(_) -> true;
+            else -> false
+        }
+    if (
+        !minimal &&
+            bytes &&
+            !present(ctx.compressionOptions) &&
+            ctx.output is
+            Http1ResponseOutput &&
+            ctx.response.claimUnchanged()
+    ) {
+        val version = ctx.request.head.version
+        val method = ctx.request.method
+        when (result.preparedBytes.load()) {
+            case Some(val prepared) -> if (prepared.version == version && prepared.method == method)
+                return prepared.plan
+            case None -> {}
+        }
+        val draft = HttpResponseDraft(result.status, result.fields)
+        draft.seal()
+        val plan = prepareResponse(ctx, result, draft, false)
+        result.preparedBytes.store(Some(PreparedByteResponse(version, method, plan)))
+        return plan
+    }
+    return prepareResponse(ctx, result, ctx.response.prepare(result, minimal), minimal)
+}

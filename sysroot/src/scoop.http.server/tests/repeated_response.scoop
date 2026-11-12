@@ -1,0 +1,180 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.compression.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.test.*
+
+@Test
+private class ServerRepeatedResponseTests {
+    @Test
+    fun `shared byte results preserve callbacks edits method selection and failure mapping`() {
+        val shared = text("hello")
+        val callbacks = TestCounter()
+        val completed = ServerTestCompletions(8L)
+        val routes =
+            routing {
+                this.get(
+                    "/{mode}",
+                    suspend {
+                        ctx ->
+                        val mode = ctx.pathParams.text("mode")
+                        if (mode == "edit")
+                            ctx.response.set(field("X-Mode", "edit"))
+                        if (mode == "callback" || mode == "failure")
+                            ctx.response.beforeCommit {
+                                draft ->
+                                callbacks.value += 1
+                                if (mode == "failure")
+                                    throw IllegalArgumentException(Some("commit failed"))
+                                draft.set(field("X-Mode", "callback"))
+                            }
+                        shared
+                    }
+                )
+            }
+        withServer(
+            routes,
+            httpServerOptions { this.onRequestCompleted = Some(completed::receive) },
+            suspend {
+                scope,
+                _,
+                address -> networkClient(address, scope).useAsync suspend {
+                    client ->
+                    for (
+                        (mode, method) in [
+                            ("plain", "GET"),
+                            ("plain", "GET"),
+                            ("edit", "GET"),
+                            ("callback", "GET"),
+                            ("plain", "HEAD"),
+                            ("plain", "GET"),
+                            ("failure", "GET"),
+                            ("plain", "GET")
+                        ]
+                    ) {
+                        client.sendRequest(networkRequest("/" + mode, method)).finish()
+                        val incoming = client.receiveResponse()
+                        val value = networkText(incoming.body)
+                        assertEquals(
+                            if (mode == "failure")
+                                500U
+                            else
+                                200U,
+                            incoming.head.status
+                        )
+                        if (mode != "failure") {
+                            assertEquals(
+                                if (method == "HEAD")
+                                    ""
+                                else
+                                    "hello",
+                                value
+                            )
+                            assertEquals(Some(5L), parseHttpContentLength(incoming.head.fields))
+                        }
+                        assertEquals(
+                            if (mode == "edit" || mode == "callback")
+                                Some(mode)
+                            else
+                                None,
+                            RequestHeaders(incoming.head.fields).getSingle("X-Mode")
+                        )
+                    }
+                    completed.ready.await()
+                    assertEquals(8L, completed.snapshot().size)
+                    assertEquals(0L, completed.snapshot()[4L].responseBytes)
+                    assertEquals(5L, completed.snapshot()[7L].responseBytes)
+                    assertTrue(client.isReusable)
+                }
+            }
+        )
+        assertEquals(2, callbacks.value)
+        assertEquals(1L, shared.fields.size)
+    }
+
+    @Test
+    fun `shared results keep compression version and unread request closure request specific`() {
+        val shared = text("hello")
+        val routes =
+            routing {
+                this.get("/plain", suspend { _ -> shared })
+                this.post("/plain", suspend { _ -> shared })
+                this.route(
+                    "GET",
+                    "/compressed",
+                    suspend { _ -> shared },
+                    [responseCompression(responseCompressionOptions { this.minimumBytes = 0L })]
+                )
+            }
+        withServer(
+            routes,
+            block =
+                suspend {
+                    scope, _, address ->
+                    networkClient(address, scope).useAsync suspend {
+                        client -> for (path in ["/plain", "/plain", "/compressed", "/plain"]) {
+                            client.sendRequest(
+                                networkRequest(path, fields = [field("Accept-Encoding", "gzip")])
+                            ).finish()
+                            val incoming = client.receiveResponse()
+                            val data = incoming.body.readAllBytes(1024L)
+                            if (path == "/compressed") {
+                                assertEquals(
+                                    Some("gzip"),
+                                    RequestHeaders(incoming.head.fields).getSingle(
+                                        "Content-Encoding"
+                                    )
+                                )
+                                assertEquals(
+                                    "hello",
+                                    String.fromUtf8(
+                                        decompress(
+                                            data,
+                                            DecompressionOptions(CompressionFormat.Gzip)
+                                        )
+                                    )
+                                )
+                            } else {
+                                assertEquals(
+                                    None,
+                                    RequestHeaders(incoming.head.fields).getSingle(
+                                        "Content-Encoding"
+                                    )
+                                )
+                                assertEquals("hello", String.fromUtf8(data))
+                            }
+                        }
+                    }
+                    networkClient(address, scope).useAsync suspend {
+                        client ->
+                        client.sendRequest(
+                            networkRequest("/plain", version = HttpVersion.Http10)
+                        ).finish()
+                        val incoming = client.receiveResponse()
+                        assertEquals(HttpVersion.Http10, incoming.head.version)
+                        assertEquals("hello", networkText(incoming.body))
+                    }
+                    networkClient(address, scope).useAsync suspend {
+                        client ->
+                        client.sendRequest(networkRequest("/plain")).finish()
+                        val incoming = client.receiveResponse()
+                        assertEquals(HttpVersion.Http11, incoming.head.version)
+                        assertEquals("hello", networkText(incoming.body))
+                        client.sendRequest(
+                            networkRequest("/plain", "POST"),
+                            Http1BodyFraming.Length(4L)
+                        )
+                        val early = client.receiveResponse()
+                        assertEquals(
+                            Some("close"),
+                            RequestHeaders(early.head.fields).getSingle("Connection")
+                        )
+                        assertEquals("hello", networkText(early.body))
+                        assertFalse(client.isReusable)
+                    }
+                }
+        )
+    }
+}
