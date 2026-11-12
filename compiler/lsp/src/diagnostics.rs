@@ -31,33 +31,7 @@ pub(crate) fn collect(
             diagnostics.push(diagnostic);
         }
     }
-    let semantic = match semantics.diagnostics(snapshot, source_id) {
-        Ok(diagnostics) => diagnostics,
-        Err(
-            ProjectAnalysisError::ConfigurationUnavailable
-            | ProjectAnalysisError::SourceDependencyUnavailable { .. },
-        ) => Vec::new(),
-        Err(
-            ProjectAnalysisError::Cancelled
-            | ProjectAnalysisError::Declarations(DeclarationAnalysisError::Cancelled),
-        ) => {
-            return Err(convert::error(
-                ErrorCode::RequestCanceled,
-                "analysis revision changed",
-            ));
-        }
-        Err(
-            ProjectAnalysisError::Artifact(message) | ProjectAnalysisError::Dependency(message),
-        ) => {
-            return Err(convert::error(ErrorCode::RequestFailed, message));
-        }
-        Err(error) => {
-            return Err(convert::error(
-                ErrorCode::RequestFailed,
-                format!("{error:?}"),
-            ));
-        }
-    };
+    let semantic = semantic(snapshot, source_id, semantics)?;
     for diagnostic in &semantic {
         if let Some(diagnostic) =
             convert::diagnostic(&source.text, diagnostic, settings.encoding, |note| {
@@ -90,4 +64,32 @@ pub(crate) fn collect(
     });
     diagnostics.dedup();
     Ok(diagnostics)
+}
+
+pub(crate) fn semantic(
+    snapshot: &AnalysisSnapshot,
+    source_id: SourceId,
+    semantics: &mut SemanticSession,
+) -> Result<Vec<scoop_source::Diagnostic>, ResponseError> {
+    match semantics.diagnostics(snapshot, source_id) {
+        Ok(diagnostics) => Ok(diagnostics),
+        Err(
+            ProjectAnalysisError::ConfigurationUnavailable
+            | ProjectAnalysisError::SourceDependencyUnavailable { .. },
+        ) => Ok(Vec::new()),
+        Err(
+            ProjectAnalysisError::Cancelled
+            | ProjectAnalysisError::Declarations(DeclarationAnalysisError::Cancelled),
+        ) => Err(convert::error(
+            ErrorCode::RequestCanceled,
+            "analysis revision changed",
+        )),
+        Err(
+            ProjectAnalysisError::Artifact(message) | ProjectAnalysisError::Dependency(message),
+        ) => Err(convert::error(ErrorCode::RequestFailed, message)),
+        Err(error) => Err(convert::error(
+            ErrorCode::RequestFailed,
+            format!("{error:?}"),
+        )),
+    }
 }

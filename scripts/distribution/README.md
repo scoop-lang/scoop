@@ -45,7 +45,7 @@ tar -xJf scoop-0.0.0-dev-native-x86_64-w64-windows-llvm-mingw-ucrt.tar.xz -C "$H
 
 post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只为已安装的目标生成离线 API 文档，不再构建系统库。LLDB 所需的配套 Python 仍随 bin 包提供，无需另装解释器。默认只处理宿主默认目标；用 `--target <triple>` 处理另一目标，或用 `--all-targets` 处理全部已安装的目标（未安装的目标跳过并提示）。所选目标的 `lib/<target>/` 未安装（缺少系统 `.slib`）时报错，并提示安装对应的 `scoop-<version>-lib-base-<target>.tar.xz`；GUI 库文档只在已安装 lib-gui 包时生成。支持 `--target`、`--all-targets`、`--jobs` 和 `--work-dir`；普通工作目录为安装根的 `build/post-install`。修正文档错误后可以重试；已有缓存按输入变化复用。
 
-升级发行版后，在已有项目执行 `scoop clean` 再重新构建；显式配置在 `target` 外的 `--cache-dir` 也需要清理。项目缓存跟踪实际源码、有效清单配置和依赖产物，不监控工具文件、版本与 SDK 状态。
+使用 `scoop-install` 切换版本时，默认和显式 `--cache-dir` 都按明确工具链发行身份选择独立目录；无需清理其他版本的缓存。目录内继续跟踪实际源码、有效清单配置和依赖产物，不监控工具文件或 SDK 状态。
 
 安装根的 `VERSION` 随 bin 包提供，第一行为发行版本，随后记录源码 revision 与宿主平台。`scoop --version`、`scoopc --version`、`scoop-link --version`、`scoop-lsp --version`、`scoop-pm --version` 显示同一份发行版本和源码 revision。`share/scoop/toolchain.toml` 列出宿主、默认目标、各目标的有序内置 Cone 清单、native 版本、VSIX 和编程 skill 路径；`share/scoop/install/targets.list` 列出本 release 为该 host 提供的目标（默认目标在首行），`<target>.list` 与 `<target>.gui.list` 分别保存该目标非 GUI 与 GUI Cone 的顺序，供 post-install 读取。普通命令不把它作为启动验证清单。
 
@@ -104,7 +104,7 @@ scoop check my-cone --tests
 scoop build my-cone --target x86_64-unknown-linux-musl
 ```
 
-最后一条命令用于 GNU 宿主包，并要求 musl 开发环境。非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。`src` 保留库源码，`vendor` 保留相关 native 输入。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
+最后一条命令用于 GNU 宿主包，并要求 musl 开发环境。非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。默认 `sources` 组件保留内置 Cone、胶水、头与资源，支持 LSP 导航；按需的 `vendor` 组件保存上游源码和构建补丁，普通应用无需下载。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
 
 `scoop fmt` 默认格式化当前 Cone 的生产、测试及各平台声明的源码，也接受多个 Cone 或显式 `.scoop` 文件。默认写回变化文件；`--check` 只检查格式，有差异时退出 1，可用于 CI。语法错误文件保留原文，其他已选文件继续处理。
 

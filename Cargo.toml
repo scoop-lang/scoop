@@ -19,6 +19,7 @@ members = [
     "compiler/ast",
     "compiler/parser",
     "compiler/doc",
+    "compiler/api",
     "compiler/hir",
     "compiler/hir-lower",
     "compiler/mir",
@@ -90,6 +91,7 @@ scoop-manifest = { path = "compiler/manifest" }
 scoop-protocol = { path = "compiler/protocol" }
 scoop-generator-protocol = { path = "compiler/generator-protocol" }
 scoop-toolchain = { path = "compiler/toolchain" }
+scoop-api = { path = "compiler/api" }
 scoop-linker = { path = "compiler/linker" }
 scoop = { path = "compiler/scoop" }
 scoop-pm = { path = "compiler/pm" }

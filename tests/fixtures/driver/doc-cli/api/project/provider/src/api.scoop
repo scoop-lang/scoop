@@ -1,0 +1,9 @@
+package examples.api.provider
+
+/**
+ * Formats a reading without I/O. Unicode: α中.
+ */
+@DocAlias("reading text")
+public fun describe(value: Int = 5): String = f"reading=${value}"
+
+private fun hiddenImplementation(): Int = 0

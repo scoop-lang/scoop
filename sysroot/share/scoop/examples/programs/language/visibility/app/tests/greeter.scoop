@@ -1,0 +1,19 @@
+package examples.consumer
+
+import examples.greeter.Greeter
+import examples.greeter.Greeting
+import scoop.test.*
+
+@Test
+private class GreeterTests {
+    @Test
+    fun `consumer calls the public interface`() {
+        val greeting: Greeting = Greeter("Ada")
+        assertEquals("Hello, Ada!", greeting.message())
+    }
+
+    @Test
+    fun `empty input is a present name`() {
+        assertEquals("Hello, !", Greeter("").message())
+    }
+}

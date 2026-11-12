@@ -75,10 +75,17 @@ impl Entry {
         };
         let path = self.record();
         let bytes = scoop_wire::encode(&warnings).map_err(error)?;
+        // Match the compiler's documentation publisher when the installation's
+        // cache paths exceed the legacy Windows path limit.
+        #[cfg(windows)]
+        let directory = std::fs::canonicalize(&self.directory).map_err(|e| io_error(&path, e))?;
+        #[cfg(not(windows))]
+        let directory = &self.directory;
+        let destination = directory.join("warnings.cbor");
         let mut file =
-            tempfile::NamedTempFile::new_in(&self.directory).map_err(|e| io_error(&path, e))?;
+            tempfile::NamedTempFile::new_in(directory).map_err(|e| io_error(&path, e))?;
         std::io::Write::write_all(&mut file, &bytes).map_err(|e| io_error(&path, e))?;
-        file.persist(&path).map_err(|e| io_error(&path, e))?;
+        file.persist(destination).map_err(|e| io_error(&path, e))?;
         Ok(())
     }
 }

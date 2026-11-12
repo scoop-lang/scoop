@@ -1,0 +1,11 @@
+package test.editor
+
+import scoop.test.*
+
+@Test
+class CliTests {
+    @Test
+    fun returnsValue() {
+        assertEquals(42, Box().value())
+    }
+}

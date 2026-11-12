@@ -126,7 +126,7 @@ impl Lowerer {
         } else {
             match self.resolve_type_name_path(std::slice::from_ref(&call.callee), &[]) {
                 Ok(Some(crate::types::ResolvedTypeName::Annotation(_))) => self.error(call.callee.span, format!("annotation class `{name}` has no runtime constructor")),
-                Ok(_) => self.error(call.callee.span, format!("unknown function `{name}`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation")),
+                Ok(_) => self.missing_name_error(&call.callee, format!("unknown function `{name}`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation"), crate::imports::MissingNameUse::Call),
                 Err(()) => return None,
             }
         }

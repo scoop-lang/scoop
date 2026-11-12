@@ -333,16 +333,20 @@ Windows 使用独立的完整宽度进程 HANDLE，不以 pid 代替 owner。wai
 
 ### 11.3 communicate
 
-communicate(input: List<Byte>? = None): ProcessOutput 收集 stdout/stderr 的独立字节数组及 ExitStatus。提供输入要求配置 stdin Pipe，已经 take 的配置 pipe 拒绝自动通信；输入列表的快照与参数检查发生在消费任何端点之前，getter 失败照常传播。未配置输出 pipe 时对应数组为空，合并 stderr 时只收集 stdout。
+communicate(input: List<Byte>? = None): ProcessOutput 收集 stdout/stderr 的独立字节数组及 ExitStatus；communicate(timeout: Duration, input: List<Byte>? = None) 使用有限等待。提供输入要求配置 stdin Pipe，已经 take 的配置 pipe 拒绝自动通信；输入列表的快照与参数检查发生在消费任何端点之前，getter 失败照常传播。负 timeout 拒绝且不消费端点。未配置输出 pipe 时对应数组为空，合并 stderr 时只收集 stdout。
 
-通信接管仍拥有的 pipes，用 poll 与 nonblocking fd 同时推进 stdin 写入、stdout/stderr 排空，写完立即关闭 stdin，读至 EOF 分别关闭输出，最后 wait。该驱动只服务当前通信，不引入事件循环或异步框架；等待通过 NativeSafe，EINTR 重试，EAGAIN 回到 poll，不忙循环。所有数据在 Scoop 中积累，C shim 只封装系统调用，不预计算业务结果。
+有限等待从参数检查及输入快照完成后开始，以同一单调时间起点覆盖 stdin 写入、stdout/stderr 排空和最终进程观察，不在每个阶段重新计时。零值不等待管道进展；仍有管道工作时直接超时，没有管道工作且退出状态可立即观察时允许成功。非零时限下，已经观察到全部管道结束及 child 退出则正常返回；未完成时首先观察到到期则进入超时收尾，边界竞争不承诺固定一方获胜。很长的有限等待分段交给 native 等待接口，不因毫秒转换溢出而变成无限等待。
 
-通信驱动失败时关闭其端点，显式 kill 并 reap 本次负责的 child，再传播原异常及必要清理失败；没有遗留工作线程或跨调用 buffer 借用。正常 communicate 不终止 child。普通用户自管 pipes／wait 仍需安排三方向进度；继承管道的后代进程可能延迟 EOF，API 不承诺超时或管理整个进程树。
+到期抛 ProcessTimeoutException，其 stdout、stderr 保存收尾完成前已实际读到的独立字节数组，不保证包含仍留在 OS 管道中的尾部数据。通信驱动失败或超时时关闭其端点，显式 kill 并 reap 本次负责的 child，再传播原异常及必要清理失败。超时是主异常；已经先观察到的 I/O 错误仍是主异常，不用超时覆盖它，后续关闭、终止、回收错误按 ResourceUseException 组合。成功收尾后重复 wait 返回缓存的最终状态，child 的普通 close 仍可调用。正常 communicate 不终止 child。
 
-Windows 的同步管道通信为实际配置的 stdout／stderr 各启动一个库内 Thread 排空，调用线程写 stdin 并在输入结束后关闭。各线程独立拥有其管道和 buffer，读取失败先请求终止本次 child，使其余方向能结束；线程创建或写入失败同样先终止 child，再等待已启动的 reader。同一次通信的失败共享一次终止请求，避免在异步终止期间重复请求并覆盖原始 I/O 错误。所有 reader 在返回前 join，端点逐一关闭，失败按既有 ResourceUseException 规则合并；不建立线程池、后台进程管理器或异步调度器。后代保留 pipe 导致的 EOF 延迟仍适用前述限制。
+超时限定的是通信等待，操作系统调度、取消和终止收尾可能延迟实际返回，不承诺硬实时。后代继承 pipe 时，有限等待仍取消本次拥有端点的操作并关闭端点，不为了等待后代 EOF 继续无限 read/join；不终止或回收不属于本 ChildProcess 的后代，不建立进程树管理器。无 timeout 的重载和普通用户自管 pipes／wait 仍由调用方安排三方向进度及结束条件。
+
+POSIX 通信接管仍拥有的 pipes，用 poll 与 nonblocking fd 同时推进 stdin 写入、stdout/stderr 排空，写完立即关闭 stdin，读至 EOF 分别关闭输出，最后观察 child。该驱动只服务当前通信，不引入事件循环或异步框架；等待通过 NativeSafe，EINTR 返回驱动重算剩余时长，EAGAIN 回到 poll，不忙循环。所有数据在 Scoop 中积累，C shim 只封装系统调用，不预计算业务结果。
+
+Windows 为实际配置的三个方向各启动一个库内 Thread，独立拥有其管道和 buffer；调用线程使用现有 Mutex／ConditionVariable 等待进展或到期。线程创建、读写失败及到期均触发同一次终止请求，并用 CancelSynchronousIo 取消尚未完成的 worker。取消使用 worker 注册的真实 duplicated thread HANDLE，保留至 join 后关闭，不按可能复用的线程 id 重新打开。停止标记使 worker 不再提交下一次读写；取消与提交竞争时重新取消并等待进展，ERROR_NOT_FOUND 只表示当时没有可取消请求，不证明 worker 已结束。只有停止后的 ERROR_OPERATION_ABORTED 属于预期取消，其余 I/O 错误仍保留。所有 worker 在返回前 join，端点逐一关闭，没有遗留工作线程或跨调用 buffer 借用；不建立线程池或异步调度器。
 
 依据：[POSIX spawn 与 file actions](https://pubs.opengroup.org/onlinepubs/9799919799/functions/posix_spawn.html)、[Linux posix_spawn](https://man7.org/linux/man-pages/man3/posix_spawn.3.html) 以及当前 Darwin SDK 的 spawn 扩展。上述能力均为普通 platform 库，不增加 runtime 进程管理协议。
-Windows 依据：[CreateProcessW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw)、[HANDLE_LIST](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)、[CRT 参数解析](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments) 与 [TerminateProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess)。
+Windows 依据：[CreateProcessW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw)、[HANDLE_LIST](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)、[CRT 参数解析](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)、[TerminateProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess) 与 [CancelSynchronousIo](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelsynchronousio)。
 
 ## 12. 阻塞 DNS、TCP 与 UDP
 

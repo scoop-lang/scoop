@@ -131,18 +131,15 @@ jobs:
         with:
           msystem: MSYS
           install: make perl
-      - name: Download the fixed LLVM-MinGW toolchains
+      - name: Reuse upstream downloads
+        uses: actions/cache@v6
+        with:
+          path: tmp/downloads
+          key: downloads-${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('scripts/release.toml') }}
+          restore-keys: downloads-${{ runner.os }}-
+      - name: Prepare the fixed LLVM-MinGW toolchains
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('scripts/release.toml').read_text())['llvm_mingw'])"
-          New-Item -ItemType Directory -Force tmp/llvm-mingw | Out-Null
-          foreach ($crt in @('msvcrt', 'ucrt')) {
-            $name = "llvm-mingw-$version-$crt-x86_64"
-            Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/$name.zip" -OutFile "tmp/llvm-mingw/$name.zip"
-            Expand-Archive "tmp/llvm-mingw/$name.zip" -DestinationPath tmp/llvm-mingw
-            Remove-Item "tmp/llvm-mingw/$name.zip"
-          }
+        run: python scripts/package_inputs.py --download-dir tmp/downloads --work-dir tmp/llvm-mingw --mingw msvcrt ucrt
       - name: Reuse the matching LLVM and LLDB SDKs
         uses: actions/cache@v6
         with:
@@ -161,22 +158,23 @@ jobs:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           python - <<'PY'
-          import os, platform, shlex, subprocess, sys, tomllib, urllib.request
+          import os, platform, shlex, subprocess, sys, tomllib
           from pathlib import Path
           host = os.environ['PACKAGE_HOST']
           work = Path('tmp/package', host).resolve()
           work.mkdir(parents=True, exist_ok=True)
           release = tomllib.loads(Path('scripts/release.toml').read_text())
-          license_file = work / 'python-LICENSE.txt'
-          urllib.request.urlretrieve(
-              f'https://raw.githubusercontent.com/python/cpython/v{platform.python_version()}/LICENSE',
-              license_file,
-          )
+          sys.path.insert(0, str(Path('scripts').resolve()))
+          from download_support import download_directory
+          from package_inputs import python_license
+          downloads = download_directory(Path('tmp/downloads'))
+          license_file = python_license(downloads, platform.python_version())
           arguments = [
               sys.executable, 'scripts/package_toolchain.py',
               '--version', os.environ['RELEASE_VERSION'],
               '--revision', os.environ['SOURCE_REVISION'],
               '--work-dir', str(work), '--output-dir', 'tmp/dist',
+              '--download-dir', str(downloads),
               '--jobs', os.environ['BUILD_JOBS'], '--python-license', str(license_file),
           ]
           suffix = '.exe' if sys.platform == 'win32' else ''
@@ -273,18 +271,21 @@ jobs:
           if upload.exists():
               shutil.rmtree(upload)
           for name in (dist / f'packages-{host}.list').read_text().splitlines():
-              shared = name in (f'scoop-{version}-sources.tar.xz', f'scoop-{version}-llvm-sources.tar.xz')
+              shared = name in (f'scoop-{version}-sources.tar.xz', f'scoop-{version}-vendor.tar.xz')
               if shared and host != 'aarch64-apple-darwin':
                   continue
               directory = upload / ('sources' if shared else 'host')
               directory.mkdir(parents=True, exist_ok=True)
               shutil.copy2(dist / name, directory / name)
+          shutil.copy2(dist / f'manifest-{host}.toml', upload / 'host')
+          if host == 'aarch64-apple-darwin':
+              shutil.copy2(dist / 'manifest-shared.toml', upload / 'sources')
           PY
       - name: Upload the host packages
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-${{ matrix.host }}
-          path: tmp/release-upload/host/*.tar.xz
+          path: tmp/release-upload/host/*
           compression-level: 0
           if-no-files-found: error
       - name: Upload the shared source packages
@@ -292,7 +293,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-sources
-          path: tmp/release-upload/sources/*.tar.xz
+          path: tmp/release-upload/sources/*
           compression-level: 0
           if-no-files-found: error
 
@@ -302,11 +303,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           pattern: scoop-release-*
           path: packages
           merge-multiple: true
+      - name: Merge the release manifest
+        run: python3 scripts/package_manifest.py --output packages/manifest.toml packages/manifest-*.toml
       - name: Publish all packages to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -315,10 +322,14 @@ jobs:
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ -z "$draft" ]; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "Scoop $RELEASE_VERSION"
+          elif [ "$draft" != true ]; then
+            echo "Release $RELEASE_TAG is already published; use a new version for another build." >&2
+            exit 1
           fi
-          gh release upload "$RELEASE_TAG" packages/*.tar.xz --clobber
+          gh release upload "$RELEASE_TAG" packages/*.tar.xz packages/manifest.toml --clobber
           if [ "$PRERELEASE" = true ]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
           else

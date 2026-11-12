@@ -4,6 +4,8 @@
 
 依据：[语言规范](../specs/SCOOP-SPEC.md)的语法、名称、类型与文档规则，[实现规范](../specs/SCOOP-IMPL-SPEC.md)2.1、2.2、2.7、2.11、2.20，[M47 设计](../milestone47/DESIGN.md)及[同步查询协议](../milestone47/PROTOCOL.md)。运行时继续遵守[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)，本设计没有 runtime 变更。
 
+一次性终端查询使用配套的 [scoop-lsp query](CLI.md)，复用现有 LSP 传输及语义实现。
+
 ## 1. 设计决定
 
 公共基础分成源码、语法和语义查询三个边界，由编译 driver 与语言服务分别编排。M47 使用固定编译视图，LSP 使用可更新的编辑视图；它们共享事实与算法，不共享会话生命周期。
@@ -82,6 +84,8 @@ CLI 的一基显示行列与持久 SourcePointRecord 继续按各自合同使用
 ### 3.3 诊断与编辑
 
 公共诊断保留现有 severity、message、主位置与 related notes。新的语法诊断可增加供具体修复使用的诊断代码和 byte edit；不依靠匹配英文 message 来决定 code action，也不要求一次性重编所有历史诊断编号。
+
+语义诊断的关联声明附注可带结构化 import 路径。前端在失败查找处从当前 Cone、直接依赖、实际可见性和 receiver 约束取得候选；宿主只按同版语法头生成插入编辑，不再做名称或类型求解。多个合法路径分别提供动作，存在路径歧义或被更高层绑定占据时不提供该修复。导入动作检查文档及分析 revision，避免把旧依赖/目标上下文的候选用于新版本；不把缺少依赖当作缺少 import。
 
 与源码有关的诊断和编辑必须绑定相应文本版本；无源码的工具／配置错误使用独立分支。M47 的注解关联位置、LSP 的 relatedInformation 与 CLI 的 notes 都由同一来源事实投影。
 

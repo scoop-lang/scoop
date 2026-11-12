@@ -1,0 +1,24 @@
+package examples.report
+
+import scoop.platform.fs.Path
+import scoop.platform.fs.readText
+import scoop.platform.system.PlatformException
+
+fun main(args: Array<String>): Int {
+    if (args.size != 2L) {
+        eprintln("usage: file-report <utf8-file>")
+        return 2
+    }
+    try {
+        val contents = Path.fromString(args[1L]).readText()
+        val report = inspectText(contents)
+        println(renderReport(report))
+        return 0
+    } catch (error: PlatformException) {
+        eprintln(error.message ?: "cannot read file")
+        return 1
+    } catch (error: CharacterCodingException) {
+        eprintln(error.message ?: "invalid UTF-8 text")
+        return 1
+    }
+}

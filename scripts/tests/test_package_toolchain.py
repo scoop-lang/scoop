@@ -53,8 +53,12 @@ class ComponentArchiveTests(unittest.TestCase):
                         "[Contract](../../../docs/specs/LIBRARY.md#api)\n"
                         "[Build](../../../scripts/README.md)\n[Source](main.scoop)\n"
                         "[Peer](../../../tests/fixtures/libraries/client-network/peer.py)\n"
+                        "[Vendor](../../vendor/ryu/README.scoop.md#license)\n"
                     ),
-                    "sysroot/src/library/examples/README.md": "[Build](../../../../scripts/README.md)\n",
+                    "sysroot/src/library/examples/README.md": (
+                        "[Build](../../../../scripts/README.md)\n"
+                        "[Vendor](../../../vendor/ryu/README.scoop.md)\n"
+                    ),
                     "docs/specs/LIBRARY.md": "# API\n",
                     "scripts/README.md": "Build instructions\n",
                     "sysroot/src/library/Cone.toml": (
@@ -159,7 +163,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(relative)
                 if populated:
-                    for name in ("scoop-example", "scoop-bundle"):
+                    for name in ("scoop-example", "scoop-bundle", "scoop-api"):
                         command = sysroot / f"commands/{name}{suffix}"
                         command.write_text("#!/bin/sh\nexit 37\n")
                         command.chmod(0o755)
@@ -218,7 +222,6 @@ class ComponentArchiveTests(unittest.TestCase):
                     ),
                     patch.object(package_toolchain.package_licenses, "collect_bin"),
                     patch.object(package_toolchain.package_licenses, "collect_llvm"),
-                    patch.object(package_toolchain.package_licenses, "collect_sources"),
                     patch.object(package_toolchain.package_licenses, "collect_base_libraries"),
                     patch.object(package_toolchain.package_licenses, "collect_gui_libraries"),
                 ):
@@ -349,7 +352,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 self.assertTrue(commands.is_dir())
                 self.assertFalse((commands / ".gitkeep").exists())
                 if populated:
-                    for name in ("scoop-example", "scoop-bundle"):
+                    for name in ("scoop-example", "scoop-bundle", "scoop-api"):
                         command = sysroot / f"commands/{name}{suffix}"
                         self.assertEqual(
                             (commands / command.name).read_bytes(), command.read_bytes()
@@ -385,11 +388,13 @@ class ComponentArchiveTests(unittest.TestCase):
                     (sources_root / "src/library/README.md").read_text(),
                     f"[Contract]({repository_url}docs/specs/LIBRARY.md#api)\n"
                     f"[Build]({repository_url}scripts/README.md)\n[Source](main.scoop)\n"
-                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n",
+                    f"[Peer]({repository_url}tests/fixtures/libraries/client-network/peer.py)\n"
+                    f"[Vendor]({repository_url}sysroot/vendor/ryu/README.scoop.md#license)\n",
                 )
                 self.assertEqual(
                     (sources_root / "src/library/examples/README.md").read_text(),
-                    f"[Build]({repository_url}scripts/README.md)\n",
+                    f"[Build]({repository_url}scripts/README.md)\n"
+                    f"[Vendor]({repository_url}sysroot/vendor/ryu/README.scoop.md)\n",
                 )
                 for relative in (
                     "catalog.toml",
@@ -546,17 +551,6 @@ class ComponentArchiveTests(unittest.TestCase):
             if os.name != "nt":
                 self.assertTrue((installed / "bin/scoop").stat().st_mode & 0o111)
             self.assertFalse((installed / source.name).exists())
-
-    def test_source_archive_retains_its_named_directory(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            work = Path(temporary)
-            source = work / "scoop-1.2.3-llvm-sources"
-            source.mkdir()
-            (source / "LICENSE.TXT").write_text("license")
-            destination = work / "sources.tar.xz"
-            archive(source, destination, arcname=source.name)
-            with tarfile.open(destination) as package:
-                self.assertEqual(package.getnames(), [source.name, source.name + "/LICENSE.TXT"])
 
     def test_failed_archive_keeps_previous_package(self):
         with tempfile.TemporaryDirectory() as temporary:

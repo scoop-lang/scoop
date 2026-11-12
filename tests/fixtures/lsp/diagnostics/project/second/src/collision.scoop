@@ -1,0 +1,3 @@
+package test.collision
+
+public struct Clash(val value: Int)

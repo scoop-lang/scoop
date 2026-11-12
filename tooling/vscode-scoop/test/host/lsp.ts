@@ -290,11 +290,74 @@ export async function runLanguageServerTests() {
     async () => Boolean((await hover(document, "selectFlag"))?.length),
     "recovery after server path correction",
   );
+  const other = vscode.Uri.file(
+    path.join(path.dirname(folder.uri.fsPath), "other workspace"),
+  );
+  await vscode.workspace.fs.createDirectory(
+    vscode.Uri.joinPath(other, ".vscode"),
+  );
+  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(other, "src"));
+  await write(
+    vscode.Uri.joinPath(other, ".vscode/settings.json"),
+    JSON.stringify({
+      "scoop.server.enabled": true,
+      "scoop.server.path": server,
+      "scoop.sysroot": settings().get("sysroot", ""),
+      "scoop.target": "invalid-second-target",
+    }),
+  );
+  const otherManifest = vscode.Uri.joinPath(other, "Cone.toml");
+  await write(
+    otherManifest,
+    'schema = 1\n[cone]\ngroup = "test"\nname = "second"\nversion = "1.0.0"\nkind = "library"\n',
+  );
+  const otherSource = vscode.Uri.joinPath(other, "src/main.scoop");
+  await write(otherSource, "fun secondFlag(): Boolean = true\n");
+  assert.ok(
+    vscode.workspace.updateWorkspaceFolders(1, 0, {
+      uri: other,
+      name: "Other Scoop version",
+    }),
+  );
+  await eventually(
+    () => vscode.workspace.workspaceFolders?.length === 2,
+    "second workspace registered",
+  );
+  const otherDocument = await vscode.workspace.openTextDocument(otherSource);
+  await vscode.window.showTextDocument(otherDocument);
+  await eventually(
+    () =>
+      vscode.languages
+        .getDiagnostics(otherManifest)
+        .some((diagnostic) =>
+          diagnostic.message.includes("invalid-second-target"),
+        ),
+    "second workspace configuration is separate",
+  );
+  await eventually(
+    async () => Boolean((await hover(document, "selectFlag"))?.length),
+    "first workspace keeps its own service",
+  );
+  await vscode.workspace
+    .getConfiguration("scoop", other)
+    .update("target", "", vscode.ConfigurationTarget.WorkspaceFolder);
+  await eventually(
+    async () => Boolean((await hover(otherDocument, "secondFlag"))?.length),
+    "second workspace service becomes usable",
+  );
+  assert.equal(vscode.languages.getDiagnostics(manifestUri).length, 0);
+  assert.ok(vscode.workspace.updateWorkspaceFolders(1, 1));
+  await eventually(
+    () => vscode.workspace.workspaceFolders?.length === 1,
+    "second workspace removed",
+  );
+  await vscode.window.showTextDocument(document);
+  await vscode.commands.executeCommand("scoop.restartLanguageServer");
   await update("server.enabled", false);
   await vscode.commands.executeCommand("scoop.restartLanguageServer");
   assert.deepEqual(await hover(document, "selectFlag"), []);
   assert.equal(vscode.languages.getDiagnostics(untitled.uri).length, 0);
   console.log(
-    "Scoop LSP Extension Host: completion, hover, signature, navigation, symbols, references, rename, diagnostics, quickfix, Cone overlays, configuration, watchers, restart and fallback passed.",
+    "Scoop LSP Extension Host: completion, hover, signature, navigation, symbols, references, rename, diagnostics, quickfix, Cone overlays, configuration, watchers, workspace-scoped services, restart and fallback passed.",
   );
 }

@@ -1,0 +1,13 @@
+schema = 1
+
+[cone]
+group = "test"
+name = "cli-queries"
+version = "1.0.0"
+kind = "library"
+
+[dependencies]
+"scoop:scoop.std" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"

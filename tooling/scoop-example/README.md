@@ -42,6 +42,8 @@ SCOOP_SYSROOT="$PWD/sysroot" scoop example --list
 
 ## 内容维护
 
+编译器、内置库或工具更新时，按[标准更新工作流](../../docs/scoop-programming/UPDATE-WORKFLOW.md)确定需要同步的主题、skill 和文档；新增能力同时移除已经失效的限制与 workaround。
+
 编辑 [catalog.toml](../../sysroot/share/scoop/examples/catalog.toml) 注册已完成的主题。`document` 相对索引目录，`source` 相对安装根，`path` 是用户保存文件时的相对路径。已有库例子引用原源码；新增教学程序放在 `programs/<主题 ID>/`。正文使用“运行、预期结果、关键说明、常见误用”四节，不复制源码代码块。相关主题必须已经发布。
 
 当前有 26 个完整主题，包括编译期资源／环境和块级 import；后续内容按[主题清单](../../docs/scoop-example/TOPICS.md)补充。新增主题时同步增加下述独立行为验证；不要将待补内容先放进 catalog。主题目录和三个输出形态详见[设计](../../docs/scoop-example/DESIGN.md)。

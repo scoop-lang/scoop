@@ -1,0 +1,37 @@
+package scoop.examples.state
+
+import scoop.ui.state
+
+internal class CounterEntry(val id: Long) {
+    val count = state(0)
+    fun increment() {
+        count.value += 1
+    }
+}
+
+internal class CounterModel {
+    val entries = state<Array<CounterEntry>>([CounterEntry(1L), CounterEntry(2L)])
+    private var nextId = 3L
+
+    fun add() {
+        val next = ArrayList<CounterEntry>()
+        for (entry in entries.value)
+            next.add(entry)
+        next.add(CounterEntry(nextId))
+        nextId += 1L
+        entries.value = next.toArray()
+    }
+
+    fun reverse() {
+        val previous = entries.value
+        entries.value = Array<CounterEntry>(previous.size) { previous[previous.size - it - 1L] }
+    }
+
+    fun remove(id: Long) {
+        val next = ArrayList<CounterEntry>()
+        for (entry in entries.value)
+            if (entry.id != id)
+                next.add(entry)
+        entries.value = next.toArray()
+    }
+}

@@ -17,10 +17,12 @@ from pathlib import Path
 from urllib.parse import quote
 
 import build_scoop_bundle
+import build_scoop_api
 import build_scoop_example
 import package_debugger
 import package_licenses
 import package_llvm
+import package_manifest
 import package_native
 import package_tooling
 import package_windows
@@ -30,6 +32,7 @@ from build_skia import LIBRARY as SKIA_LIBRARY
 from build_skia import TARGETS as SKIA_TARGETS
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
+from download_support import download_directory
 from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order
@@ -203,6 +206,12 @@ def relocate_markdown_links(root, revision):
         updated = re.sub(
             r"(?<=\]\()" + re.escape(prefix) + r"(?=(?:docs|scripts|tests)/)", repository, text
         )
+        vendor_prefix = "../" * (len(path.relative_to(root).parts) - 1)
+        updated = re.sub(
+            r"(?<=\]\()" + re.escape(vendor_prefix) + r"(?=vendor/)",
+            repository + "sysroot/",
+            updated,
+        )
         if updated != text:
             path.write_text(updated, encoding="utf-8")
 
@@ -238,12 +247,12 @@ def stage_commands(root, args):
     suffix = ".exe" if host_definition(args.host)["system"] == "Windows" else ""
     return {
         (sysroot / "commands" / (name + suffix)).resolve(): root / "commands" / (name + suffix)
-        for name in ("scoop-example", "scoop-bundle")
+        for name in ("scoop-example", "scoop-bundle", "scoop-api")
     }
 
 
 def assemble_sources(root, args):
-    """Stage the target-independent source package: Cones, vendor inputs and headers."""
+    """Stage Scoop Cones, native glue, headers and examples for source navigation."""
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
     for name in ("src", "include"):
         shutil.copytree(
@@ -259,6 +268,12 @@ def assemble_sources(root, args):
         root / "native/text_backend",
         ignore=shutil.ignore_patterns("target"),
     )
+    shutil.copytree(sysroot / "share/scoop/examples", root / "share/scoop/examples")
+
+
+def assemble_vendor(root, args):
+    """Stage selected upstream sources and build patches, independently of Cones."""
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
     for vendor in (sysroot / "vendor").iterdir():
         if not vendor.is_dir():
             continue
@@ -267,10 +282,19 @@ def assemble_sources(root, args):
             version = vendor / VERSION
             shutil.copytree(version / "patches", destination / VERSION / "patches")
             shutil.copy2(version / "README.md", destination / VERSION / "README.md")
+            shutil.copy2(
+                ROOT / "scripts/patches/lldb-scoop-source-names.patch",
+                destination / VERSION / "patches/lldb-scoop-source-names.patch",
+            )
+            shutil.copy2(
+                args.llvm_archive, destination / VERSION / f"llvm-project-{VERSION}.src.tar.xz"
+            )
+            shutil.copy2(
+                args.llvm_source / "llvm/LICENSE.TXT", destination / VERSION / "LICENSE.TXT"
+            )
         else:
             shutil.copytree(vendor, destination)
-    shutil.copytree(sysroot / "share/scoop/examples", root / "share/scoop/examples")
-    package_licenses.collect_sources(root, sysroot)
+    package_licenses.collect_vendor(root, sysroot)
 
 
 GUI_ROOT_CONES = ("scoop.window", "scoop.graphics")
@@ -484,6 +508,9 @@ def main():
         type=Path,
         help="Use a local LLVM source archive instead of downloading the fixed release",
     )
+    parser.add_argument(
+        "--download-dir", type=Path, help="Reuse upstream downloads (SCOOP_DOWNLOAD_DIR)"
+    )
     parser.add_argument("--llvm-prefix", type=Path, help="Reuse an installed matching LLVM version")
     parser.add_argument("--gn", default="gn", help="GN executable used to prepare Skia resources")
     parser.add_argument(
@@ -550,6 +577,7 @@ def main():
         parser.error("--revision must be nonempty and on one line")
     args.work_dir = (args.work_dir or ROOT / "tmp/package" / args.host).resolve()
     args.output_dir = args.output_dir.resolve()
+    args.download_dir = download_directory(args.download_dir)
     if args.prepared_sysroot is not None:
         args.prepared_sysroot = args.prepared_sysroot.resolve(strict=True)
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
@@ -570,7 +598,7 @@ def main():
     if windows:
         package_windows.host_environment(args, environment)
     args.llvm_source, args.llvm_archive = package_llvm.prepare(
-        args.work_dir, args.llvm_source, args.llvm_archive
+        args.work_dir, args.llvm_source, args.llvm_archive, args.download_dir
     )
     extension = args.vscode_extension or package_tooling.build(args.work_dir, environment)
     if args.llvm_prefix is None:
@@ -670,6 +698,8 @@ def main():
             "scoop-lsp",
             "-p",
             "scoop-pm",
+            "-p",
+            "scoop-api",
             "--bins",
             "-j",
             str(args.jobs),
@@ -686,6 +716,7 @@ def main():
     example_environment.pop("CARGO_ENCODED_RUSTFLAGS", None)
     example = build_scoop_example.build(args.work_dir / "scoop-example", example_environment)
     build_scoop_example.install(example, sysroot)
+    build_scoop_api.install(cargo_output / "release" / ("scoop-api" + suffix), sysroot)
     bundle = build_scoop_bundle.build(args.work_dir / "scoop-bundle", example_environment)
     build_scoop_bundle.install(bundle, sysroot)
     targets = list(host_definition(args.host)["distribution_targets"])
@@ -763,21 +794,9 @@ def main():
                 native_root = base / f"native-{target}"
                 package_windows.stage_target_sdk(native_root, target, args)
                 publish(f"native-{target}", native_root)
-        llvm_sources = base / f"scoop-{args.version}-llvm-sources"
-        vendor = llvm_sources / "vendor/llvm-project" / VERSION
-        shutil.copytree(
-            ROOT / "sysroot/vendor/llvm-project" / VERSION / "patches", vendor / "patches"
-        )
-        shutil.copy2(
-            ROOT / "scripts/patches/lldb-scoop-source-names.patch",
-            vendor / "patches/lldb-scoop-source-names.patch",
-        )
-        shutil.copy2(
-            ROOT / "sysroot/vendor/llvm-project" / VERSION / "README.md", vendor / "README.md"
-        )
-        shutil.copy2(args.llvm_archive, vendor / f"llvm-project-{VERSION}.src.tar.xz")
-        shutil.copy2(args.llvm_source / "llvm/LICENSE.TXT", vendor / "LICENSE.TXT")
-        publish("llvm-sources", llvm_sources, arcname=llvm_sources.name)
+        vendor_root = base / "vendor"
+        assemble_vendor(vendor_root, args)
+        publish("vendor", vendor_root)
         for name, task in pending:
             task.result()
             packages.append(name)
@@ -785,6 +804,9 @@ def main():
     staged = listing.with_suffix(".list.new")
     staged.write_text("\n".join(packages) + "\n", encoding="utf-8")
     staged.replace(listing)
+    package_manifest.produce(
+        output, args.version, args.revision, args.host, targets, packages, release
+    )
 
 
 if __name__ == "__main__":

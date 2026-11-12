@@ -12,6 +12,7 @@ import {
   testArguments,
   toolCommand,
 } from "../src/debug-settings.ts";
+import { serverCommand } from "../src/server-settings.ts";
 
 test("debug tool discovery uses the host's installed command names", async () => {
   assert.equal(
@@ -273,4 +274,29 @@ test("cancelled builds reject without returning an executable", async () => {
     ),
     { name: "AbortError" },
   );
+});
+
+test("language service and debugger discover the same configured Scoop home", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "scoop-home-"));
+  const previous = process.env.SCOOP_HOME;
+  try {
+    process.env.SCOOP_HOME = directory;
+    await mkdir(path.join(directory, "bin"));
+    for (const name of ["scoop-lsp", "scoop-lldb-dap"]) {
+      const executable = path.join(
+        directory,
+        "bin",
+        `${name}${process.platform === "win32" ? ".exe" : ""}`,
+      );
+      await writeFile(executable, "test executable", { mode: 0o755 });
+      assert.equal(await toolCommand(name, ""), executable);
+      if (name === "scoop-lsp")
+        assert.equal(await serverCommand(""), executable);
+    }
+    assert.equal(await serverCommand("/explicit/lsp"), "/explicit/lsp");
+  } finally {
+    if (previous === undefined) delete process.env.SCOOP_HOME;
+    else process.env.SCOOP_HOME = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -21,7 +21,7 @@ fun greeting(name: String?): String =
 - `struct Point(val x: Int, val y: Int)` 是不可变值，存储字段只能用 `val`。更新写 `point.{x: 8}`，产生副本；不使用 Kotlin 的 `data class` 或 `.copy(x = 8)`。
 - `enum Lookup { Found(String), Missing }` 是带标签的值类型；构造写 `Lookup.Found("Ada")`，匹配并绑定载荷写 `case Lookup.Found(val name)`，绑定完整值写 `case val whole`。裸模式名只匹配 variant，拼错时为编译错误。它不是 `enum class`。
 - tuple、struct 和 enum 的复制都是值复制；其中的引用字段仍指向同一对象。`val` 禁止重新绑定，不禁止修改引用对象。
-- `==` 的结构比较不自动让自定义值类型实现 `Equals<T>`、`Hash` 或 `ToString`。字典 key、泛型断言、插值和序列化需满足各入口实际的名义约束或成员要求；先查声明，再按需声明 conformance 或提供公开方法。
+- `==` 的结构比较不自动让自定义值类型实现 `Equals<T>`、`Hash` 或 `ToString`。各入口的名义约束与成员要求不同；例如 `scoop.test.assertEquals` 同时有名义相等和结构相等重载，Option 及具备派生相等能力的 struct/enum/tuple 可以直接使用。字典 key、插值和序列化仍需核对各自声明，不能把一个重载的约束当成所有入口的限制。
 - `===`／`!==` 仅比较引用身份。不要用它们比较值类型。
 
 完整构造、解构、接口化和副本更新见 `language/struct`、`language/interfaces`、`language/overview`。
@@ -31,6 +31,7 @@ fun greeting(name: String?): String =
 - 插值使用 `f"Hello, ${name}!"`；普通字符串的 `${name}` 保留原文，不使用 Kotlin 的 `$name` 插值。
 - `Char` 表示 Unicode 标量。`String.charLength`、常用容器 `size` 与索引使用 `Long`，例如 `values[0L]`。UTF-8 字节、Unicode 标量、字素簇和终端显示列宽是不同单位。
 - 依据 API 使用 `Int`、`Long` 等准确类型；不要假设可隐式转换任意数值变量。需要 Long 常量时用 `0L` 等写法。
+- 整数 `+`、`-`、`*` 等运算按位宽回绕，溢出不抛异常。输入能解析为 Long，不保证汇总或单位换算仍在范围内；按实际业务在运算前检查边界。例如非负毫秒汇总可以先检查 `next > Long.MAX_VALUE - total`，超出时保留明确失败。`test/assertions` 有正常、最大值、负值和汇总溢出的完整例子。
 - `Array<T>` 只读，数组字面量写 `[7, 9]`；固定长度可写存储使用 `MutableArray<T>`，动态增删使用 `ArrayList<T>`。
 - `toArray()` 创建元素序列的浅快照；之后修改原列表不会改变快照序列，但元素引用的对象仍可共享。`List` 等协议和扩展方法的可用性以实际声明及 import 为准。
 
@@ -42,7 +43,7 @@ fun greeting(name: String?): String =
 - lambda 的末尾表达式为结果；裸 `return` 非法，局部提前返回用明确标签，例如 `adjust@ { x -> if (x < 0) return@adjust 0; x * 2 }`。
 - 闭包只捕获外层局部 `val`，不能读取或写入捕获的局部 `var`。快照先保存为 `val`；共享可变状态放在由 `val` 引用的显式对象中。跨线程共享仍需要同步，GC 不提供数据竞争保障。
 - 函数值调用按函数类型使用位置参数，不保留原声明的命名参数、默认参数或 vararg 调用便利。
-- 挂起 lambda 显式写 `suspend { ... }`，不会由期望类型自动转换。普通 `main` 需要通过实际事件循环入口进入挂起上下文，不能直接调用挂起函数，也不引入 `kotlinx.coroutines` API。
+- 未定型的 `{ ... }` 按期望函数类型确定挂起性，例如 `val action: suspend () -> Int = { 42 }`；显式 `suspend { ... }` 也合法。已定型的普通函数值不会自动转换为挂起函数值，需要适配时用新的 lambda 包装。普通 `main` 通过实际事件循环入口进入挂起上下文，不能直接调用挂起函数，也不引入 `kotlinx.coroutines` API。
 - `suspend` 不等于后台线程或并行执行。任务取消后仍按 API 使用 `join`／`await` 等待收尾；不把 sleep 当同步协议。
 
 参考 `language/functions`、`language/lambdas`、`async/tasks`。异步 API 的完整入口与资源管理见 [libraries.md](libraries.md)。

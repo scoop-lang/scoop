@@ -2,6 +2,7 @@ package scoop
 
 /**
  * A value carrying either a successful result or an explicitly typed failure.
+ * See `scoop example language/errors` for composition that preserves the failure value.
  */
 public enum Result<T, E> {
     /**
@@ -16,10 +17,11 @@ public enum Result<T, E> {
     /**
      * Whether this value holds Success.
      */
-    public val isSuccess: Boolean get() = when (this) {
-        case Success(_) -> true
-        case Failure(_) -> false
-    }
+    public val isSuccess: Boolean get() =
+        when (this) {
+            case Success(_) -> true
+            case Failure(_) -> false
+        }
     /**
      * Whether this value holds Failure.
      */
@@ -32,62 +34,72 @@ public enum Result<T, E> {
         /**
          * Encodes the selected variant using its supplied payload codec.
          */
-        public fun encoder(success: ValueEncoder<T>, failure: ValueEncoder<E>): ValueEncoder<Result<T, E>> = ResultEncoder<T, E>(success, failure)
+        public fun encoder(success: ValueEncoder<T>, failure: ValueEncoder<E>): ValueEncoder<
+            Result<T, E>
+        > = ResultEncoder<T, E>(success, failure)
         /**
          * Decodes a success or failure variant using its supplied payload codec.
          */
-        public fun decoder(success: ValueDecoder<T>, failure: ValueDecoder<E>): ValueDecoder<Result<T, E>> = ResultDecoder<T, E>(success, failure)
+        public fun decoder(success: ValueDecoder<T>, failure: ValueDecoder<E>): ValueDecoder<
+            Result<T, E>
+        > = ResultDecoder<T, E>(success, failure)
     }
 }
 
 /**
  * Returns the successful value as Some, or None on failure.
  */
-public fun <T, E> Result<T, E>.getOrNone(): T? = when (this) {
-    case Result.Success(val value) -> Some(value)
-    case Result.Failure(_) -> None
-}
+public fun <T, E> Result<T, E>.getOrNone(): T? =
+    when (this) {
+        case Result.Success(val value) -> Some(value)
+        case Result.Failure(_) -> None
+    }
 
 /**
  * Returns the failure value as Some, or None on success.
  */
-public fun <T, E> Result<T, E>.errorOrNone(): E? = when (this) {
-    case Result.Success(_) -> None
-    case Result.Failure(val error) -> Some(error)
-}
+public fun <T, E> Result<T, E>.errorOrNone(): E? =
+    when (this) {
+        case Result.Success(_) -> None
+        case Result.Failure(val error) -> Some(error)
+    }
 
 /**
  * Returns the success value, or evaluates the failure callback.
  */
-public fun <T, E> Result<T, E>.getOrElse(onFailure: (E) -> T): T = when (this) {
-    case Result.Success(val value) -> value
-    case Result.Failure(val error) -> onFailure(error)
-}
+public fun <T, E> Result<T, E>.getOrElse(onFailure: (E) -> T): T =
+    when (this) {
+        case Result.Success(val value) -> value
+        case Result.Failure(val error) -> onFailure(error)
+    }
 
 /**
  * Runs exactly the callback corresponding to the success or failure variant.
  */
-public fun <T, E, R> Result<T, E>.fold(onSuccess: (T) -> R, onFailure: (E) -> R): R = when (this) {
-    case Result.Success(val value) -> onSuccess(value)
-    case Result.Failure(val error) -> onFailure(error)
-}
+public fun <T, E, R> Result<T, E>.fold(onSuccess: (T) -> R, onFailure: (E) -> R): R =
+    when (this) {
+        case Result.Success(val value) -> onSuccess(value)
+        case Result.Failure(val error) -> onFailure(error)
+    }
 
 /**
  * Returns the success value or throws the stored Throwable.
  */
-public fun <T, E : Throwable> Result<T, E>.getOrThrow(): T = when (this) {
-    case Result.Success(val value) -> value
-    case Result.Failure(val error) -> throw error
-}
+public fun <T, E: Throwable> Result<T, E>.getOrThrow(): T =
+    when (this) {
+        case Result.Success(val value) -> value
+        case Result.Failure(val error) -> throw error
+    }
 
 /**
  * Runs the block and captures a thrown Throwable as Failure.
  */
-public fun <T> runCatching(block: () -> T): Result<T, Throwable> = try {
-    Result.Success<T, Throwable>(block())
-} catch (error: Throwable) {
-    Result.Failure<T, Throwable>(error)
-}
+public fun <T> runCatching(block: () -> T): Result<T, Throwable> =
+    try {
+        Result.Success<T, Throwable>(block())
+    } catch (error: Throwable) {
+        Result.Failure<T, Throwable>(error)
+    }
 
 /**
  * Keeps the success value and discards a failure into None.

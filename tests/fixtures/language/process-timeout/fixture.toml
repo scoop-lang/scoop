@@ -1,0 +1,22 @@
+schema = 1
+name = "process-communication-deadline"
+root = "consumer"
+inputs = ["consumer", "child.py", "verify.py"]
+tools = ["scoop", "scoopc", "python"]
+tags = ["platform", "process", "language"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${python}", "${fixture}/verify.py", "${build.result.output}", "${fixture}/child.py", "${work}/children"]
+exit = 0
+stdout = "process communication deadlines and cleanup passed\n"
+stderr = ""

@@ -45,14 +45,14 @@ int scoop_platform_pipe_nonblocking(ScoopPlatformFileHandle handle) {
 }
 
 int scoop_platform_process_poll(ScoopPlatformFileHandle input, ScoopPlatformFileHandle output,
-                                ScoopPlatformFileHandle error) {
+                                ScoopPlatformFileHandle error, int32_t milliseconds) {
     struct pollfd descriptors[3] = {{scoop_file_handle(input), POLLOUT, 0},
                                     {scoop_file_handle(output), POLLIN, 0},
                                     {scoop_file_handle(error), POLLIN, 0}};
-    int result;
-    do {
-        result = poll(descriptors, 3, -1);
-    } while (result < 0 && errno == EINTR);
+    int result = poll(descriptors, 3, milliseconds);
+    // The managed driver recomputes the shared deadline after an interruption.
+    if (result < 0 && errno == EINTR)
+        return 0;
     if (result < 0)
         return -1;
     int ready = 0;

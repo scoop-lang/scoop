@@ -74,6 +74,15 @@ assert any(
 if mode == "no_deps":
     assert "no generated documentation" in text
 else:
+    api_index = json.loads((root / "api/index.json").read_text())
+    declarations = [
+        item
+        for cone in api_index["cones"]
+        for item in json.loads((root / cone["file"]).read_text())["declarations"]
+    ]
+    state = next(item for item in declarations if item["name"] == "state")
+    assert state["property"]["getter"]["visibility"] == "public"
+    assert state["property"]["setter"]["visibility"] == "private"
     assert any(row["name"] == "VisibleBase" and row["kind"] == "re-export" for row in index)
     origin = next(
         row["url"] for row in index if row["name"] == "copy" and row["kind"] == "function"

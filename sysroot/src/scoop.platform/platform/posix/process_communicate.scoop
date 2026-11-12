@@ -10,13 +10,15 @@ internal fun ChildProcess.transferPipes(
     input: PipeSink?,
     output: PipeSource?,
     error: PipeSource?,
-    bytes: Array<Byte>?
+    bytes: Array<Byte>?,
+    deadline: ProcessDeadline?,
+    abort: () -> Unit
 ): (Array<Byte>, Array<Byte>) {
     try {
-        return ProcessPipes(input, output, error).transfer(bytes)
+        return ProcessPipes(input, output, error).transfer(bytes, deadline)
     } catch (failure: Throwable) {
         try {
-            kill()
+            abort()
         }
         catch (cleanup: Throwable) {
             throw ResourceUseException(failure, cleanup)
@@ -38,11 +40,16 @@ internal class ProcessPipes internal constructor(
             open[index] = !(files[index]?.isClosed ?: true)
     }
 
-    internal fun transfer(input: Array<Byte>?): (Array<Byte>, Array<Byte>) =
+    internal fun transfer(input: Array<Byte>?, deadline: ProcessDeadline?): (
+        Array<Byte>,
+        Array<Byte>
+    ) =
         use {
             val bytes = input ?: Array<Byte>(0L) { 0.toByte() }
             val output = ByteArrayBuilder()
             val error = ByteArrayBuilder()
+            if ((deadline?.milliseconds() ?: -1) == 0 && (open[0L] || open[1L] || open[2L]))
+                throw ProcessTimeoutException([], [])
             for (index in 0L ..< 3L) {
                 if (open[index]) {
                     files[index]!!.withHandle {
@@ -60,7 +67,10 @@ internal class ProcessPipes internal constructor(
                 buffer ->
                 var written = 0L
                 while (open[0L] || open[1L] || open[2L]) {
-                    val ready = poll()
+                    val milliseconds = deadline?.milliseconds() ?: -1
+                    if (milliseconds == 0)
+                        throw ProcessTimeoutException(output.toByteArray(), error.toByteArray())
+                    val ready = poll(milliseconds)
                     if ((ready and 1) != 0) {
                         written += writeInput(bytes, written)
                         if (written == bytes.size)
@@ -75,13 +85,13 @@ internal class ProcessPipes internal constructor(
             (output.toByteArray(), error.toByteArray())
         }
 
-    private fun poll(): Int =
+    private fun poll(milliseconds: Int): Int =
         withHandle(0L) inputScope@{
             input -> withHandle(1L) outputScope@{
                 output -> withHandle(2L) errorScope@{
                     error -> @Unsafe
                     {
-                        val(ready, code) = nativePoll(input, output, error)
+                        val(ready, code) = nativePoll(input, output, error, milliseconds)
                         checkNativeStatus(ready, code, "poll process pipes")
                         return@errorScope ready
                     }
@@ -154,5 +164,6 @@ private fun nativeNonblocking(handle: NativeFileHandle): (Int, Int)
 private fun nativePoll(
     input: NativeFileHandle,
     output: NativeFileHandle,
-    error: NativeFileHandle
+    error: NativeFileHandle,
+    milliseconds: Int
 ): (Int, Int)

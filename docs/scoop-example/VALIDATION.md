@@ -1,5 +1,12 @@
 # scoop example 验证记录
 
+## 2026-11-12 跨领域示例
+
+- 当前发布 31 个主题。30 个非 UI 主题完成正式运行，UI 单独通过三个 Cone 测试与应用构建；真实点击验证重复操作、重排身份、删除和快捷键新增。UI 背景在视觉检查后修正。
+- 进程、环境变量、文件报告、HTTP 失败路径分别检查真实输入、stdout/stderr 与退出码；terminal/output 覆盖重定向以及 macOS 上的真实 PTY（窄屏、颜色与 NO_COLOR）。Windows PTY 未据此验收。
+- 独立阅读器 9 项测试与 Clippy 通过，发布检索包含 process/environment/system/terminal/orElse/ViewKey。Scoop、Rust、Ruff 0.16.10 格式与 lint 通过。
+- 复用合并主干后集中构建的编译器、系统库和共享 cache。原始日志及 AI 样本保存在仓库外；批次摘要见 [实施进展](../scoop-programming/PROGRESS.md)。
+
 ## 2026-10-29 编译期输入与块级 import
 
 - 独立阅读器的 fmt、clippy（警告视为错误）和 9 项测试通过；索引、Markdown／source／JSON 的文件原文一致性覆盖当前 26 个主题。Python 验证脚本通过 ruff 0.16.10 格式化与检查，新增 Scoop 程序和 API 注释通过 scoop fmt。

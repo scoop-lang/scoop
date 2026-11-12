@@ -109,6 +109,7 @@ impl Lowerer {
             source: Some(Box::new(generated.origin.source)),
             span: generated.origin.span,
             message: "implementation requested here".into(),
+            import_path: Vec::new(),
         };
         for diagnostic in self.diagnostics[before_errors..]
             .iter_mut()

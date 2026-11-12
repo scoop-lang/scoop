@@ -1,33 +1,39 @@
 //! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.concurrent:0.1.0
 
 import scoop.asyncio.*
+import scoop.concurrent.Channel
 import scoop.time.Duration
 
 fun main() {
     val loop = eventLoop()
     loop.run {
         val scope = this;
-        val first =
-            scope.async<Int> suspend {
+        val work: suspend CoroutineScope.() -> Int =
+            {
                 loop.sleep(Duration.milliseconds(20L))
                 20
             }
+        val first = scope.async<Int>(work)
         val second =
-            scope.async<Int> suspend {
+            scope.async<Int> {
                 loop.sleep(Duration.milliseconds(10L))
                 22
             }
         println(first.await() + second.await())
 
+        val started = Channel<Unit>(1L)
         val pending =
             scope.launch suspend {
                 try {
+                    started.send(Unit)
                     loop.sleep(Duration.seconds(60L))
                 } finally {
                     println("Cancelled task cleaned up")
                 }
             }
-        loop.sleep(Duration.milliseconds(1L))
+        started.receive()
+        started.close()
         pending.cancel()
         pending.join()
     }

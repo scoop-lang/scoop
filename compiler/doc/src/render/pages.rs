@@ -81,7 +81,7 @@ impl SiteRenderer<'_, '_> {
             .cones
             .get(key)
             .ok_or_else(|| RenderError::MissingCone(key.clone()))?;
-        let mut files = Vec::new();
+        let mut files = vec![self.api_data(cone)?];
         for ((owner, package), path) in &self.catalog.packages {
             if owner != key {
                 continue;

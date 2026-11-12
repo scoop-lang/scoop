@@ -1,6 +1,6 @@
 # `scoop example` 外部子命令与示例内容设计
 
-状态：已实现。日期：2026-10-29。命令、首批 24 个主题、安装与独立验证均已落地，后续增加编译期输入与 import 两个主题；验证结果见 [VALIDATION.md](VALIDATION.md)。
+状态：已实现。日期：2026-11-12。当前发布 31 个完整主题，包含进程、环境、终端、文件报告和有状态 UI；验证结果见 [VALIDATION.md](VALIDATION.md)。
 
 用户决定：通过附加子命令提供能力，不修改编译器。公开入口为 `scoop example`，实际程序为 `<SYSROOT>/commands/scoop-example`，沿用已有的外部命令分发。
 
@@ -87,7 +87,7 @@ API 符号查询、错误码解释、项目模板生成不进入这次交付。�
 | Kotlin 风格的 lambda 捕获和 return | 捕获不可重新绑定的 binding；共享可变状态通过显式引用对象；lambda 局部返回使用标签 |
 | 常用方法在 Any 或所有类型上都存在 | 依据实际能力调用；示例不虚构通用 toString/hashCode 或隐式接口实现 |
 | 写了 import 就引入了库 | 依赖声明与名称导入分别完成；单文件默认 core/std，manifest 的 std 按需要显式声明 |
-| suspend 自动带来后台线程或事件循环 | 普通 main 显式进入 EventLoop；suspend lambda 显式标记；launch/async 不承诺切换线程 |
+| suspend 自动带来后台线程或事件循环 | 普通 main 显式进入 EventLoop；未定型 lambda 可从期望类型确定挂起性，已定型普通函数值不自动转换；launch/async 不承诺切换线程 |
 | GC 或 close 自动完成协议收尾 | use/useAsync 负责各自清理；finish、flush、shutdownGracefully 按实际 API 另行调用 |
 | 字符位置、字节数和字素数相同 | String 标量、UTF-8 字节和字素簇分别处理；索引和计数使用现有 Long 合同 |
 
@@ -102,6 +102,8 @@ API 符号查询、错误码解释、项目模板生成不进入这次交付。�
 输出断言使用实际语义：确定性的文字给出完整结果；时间、临时路径、随机值说明变化部分；并发程序只承诺已由 join/await 建立的顺序。server 页说明请求与响应，不将启动端口或构建诊断当作固定程序输出。
 
 ## 4. 现有内容的复用与补齐
+
+AI 编程支持的后续批次按[改进计划](../scoop-programming/PLAN.md)扩展 Option/Result 组合、值类型断言、进程、环境、终端、多文件报告与有状态 UI。流程继续采用完整主题和单一源码，不把库 API 索引塞进示例检索。无匹配提示应说明搜索范围，指向分类、文档/库源码以及实际可用的查询入口。普通组合行为由所属或配套 Cone 测试承担；runner 从公开 JSON 还原文件，处理标准流、真实进程、网络/TTY/UI 运行前提。
 
 当前 `sysroot/src/*/examples/` 共 61 份 Scoop 源文件，包括两个测试 Cone 的生产与测试文件。它们已有大量短程序；这个数量不等于 61 个独立主题，也不表示已经完成本命令的内容验收。
 
@@ -243,6 +245,6 @@ scoop --sysroot /path/to/scoop example json/typed
 ## 10. 实现位置
 
 - [独立阅读器及维护说明](../../tooling/scoop-example/README.md)：参数、索引、搜索和渲染。
-- [发布索引](../../sysroot/share/scoop/examples/catalog.toml)：当前 26 个主题、文件引用与导航。
+- [发布索引](../../sysroot/share/scoop/examples/catalog.toml)：当前 31 个主题、文件引用与导航。
 - [维护安装脚本](../../scripts/build_scoop_example.py)：仅构建此命令；完整打包入口自动调用。
 - [示例验收脚本](../../tooling/scoop-example/tests/run_examples.py)：从公开输出还原文件并实际运行。

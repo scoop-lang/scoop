@@ -42,12 +42,15 @@ pub(super) fn render(
     let mut rendered = Vec::new();
     let shared = match record::reuse(&shared_key, previous.map(|p| &p.shared), output, stage)? {
         Some(pages) => pages,
-        None => record::render(
-            stage,
-            shared_key,
-            renderer.render_shared().map_err(error)?,
-            &mut rendered,
-        )?,
+        None => {
+            let mut shared = renderer.render_shared().map_err(error)?;
+            shared.push(
+                renderer
+                    .api_index(request.target.canonical_triple())
+                    .map_err(error)?,
+            );
+            record::render(stage, shared_key, shared, &mut rendered)?
+        }
     };
     let mut cones = BTreeMap::new();
     for id in selected {

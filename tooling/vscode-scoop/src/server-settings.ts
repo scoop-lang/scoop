@@ -23,6 +23,10 @@ export function analysisOptions(settings: Record<string, unknown>) {
   );
 }
 
+export function scoopHome(): string {
+  return process.env.SCOOP_HOME || path.join(os.homedir(), ".scoop");
+}
+
 export async function serverCommand(configured: string): Promise<string> {
   if (configured) {
     return configured.startsWith("~/") || configured.startsWith("~\\")
@@ -30,8 +34,8 @@ export async function serverCommand(configured: string): Promise<string> {
       : configured;
   }
   const installed = path.join(
-    os.homedir(),
-    ".scoop/bin",
+    scoopHome(),
+    "bin",
     process.platform === "win32" ? "scoop-lsp.exe" : "scoop-lsp",
   );
   try {

@@ -1,0 +1,3 @@
+package test.`选 择`
+
+public fun `测 试`(): Int = 1

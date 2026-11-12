@@ -38,11 +38,11 @@ withPadding 是不可变配置派生，withIndex 是惰性迭代变换，二者�
 
 | 主题 | Scoop 的使用规则与差异 |
 | --- | --- |
-| 字符串 | String.length 计 Unicode 标量且为 O(n)，byteLength 计 UTF-8 字节且为 O(1)，整数下标定位为 O(n)。文本 `e` + U+0301 + `😀` 的长度分别是 Scoop 3、Rust str.len() 7 字节、Swift String.count 2 字素簇、Kotlin String.length 4 个 UTF-16 code unit。顺序处理字符优先迭代 |
+| 字符串 | String.charLength 计 Unicode 标量且为 O(n)，byteLength 计 UTF-8 字节且为 O(1)，getCharAt 定位为 O(n)。文本 `e` + U+0301 + `😀` 的计数分别是 Scoop charLength 3、Rust str.len() 7 字节、Swift String.count 2 字素簇、Kotlin String.length 4 个 UTF-16 code unit。顺序处理字符优先迭代；上述计数都不直接代表终端列宽 |
 | 迭代终止 | Iterator.next(): Option<T>，无需 Kotlin 风格的 hasNext()；返回 None 表示结束 |
 | 嵌套可选值 | T? 是 Option<T>，Some(None) 与 None 不同；mapNotNone 只去掉一层。Map.getOrPut 只把外层 None 视为缺少键，已有 Some(None) 不触发缺省值生成 |
 | Result | Result<T, E> 使用 Success／Failure，E 无异常上界；mapError、flatMap 与 getOrThrow 各按明确的载荷／异常约束使用 |
-| 数组与能力 | Array 只读、MutableArray 可写；Any 没有通用 equals／hashCode／toString 回退。普通 struct 可派生 ==，但不自动获得 Equals<T> conformance；assertEquals 要求该显式能力，数组内容比较由实际元素规则决定 |
+| 数组与能力 | Array 只读、MutableArray 可写；Any 没有通用 equals／hashCode／toString 回退。普通 struct 可派生 ==，但不自动获得 Equals<T> conformance；assertEquals 按实际类型选择名义 Equals<T> 或公开 equals(T): Boolean 的成员要求入口，Option、struct、enum、tuple 可使用其派生相等能力。数组内容比较由实际元素规则决定 |
 | 任务执行 | scope 有 executor 时 launch／async 排队，无 executor 的低层 scope 才允许同步启动；普通 binding 取调用处快照，executor 取 scope 默认值或显式参数。blocking 接受普通托管闭包；withExecutor 建立结构化子作用域。CancellableContinuation.tryResume 返回 Boolean，一步选择并提交恢复，不使用 Kotlin 的 tryResume／completeResume 两阶段协议 |
 | CLI | parse(arguments) 不含程序名，parseCommandLine(argv) 包含程序名；CliResult.Parsed／HelpRequested 表达正常控制流程 |
 

@@ -103,16 +103,31 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                     .map_err(|_| convert::error(ErrorCode::RequestCanceled, "request cancelled"))?;
                 let result = match query.kind {
                     QueryKind::CodeAction(query_kind) => queries::code_actions::actions(
-                        &query.uri,
-                        source,
-                        version,
+                        queries::code_actions::Context {
+                            uri: &query.uri,
+                            source_id,
+                            source,
+                            version,
+                            snapshot: &work.snapshot,
+                            settings: work.settings,
+                            cancellation: &cancellation,
+                        },
                         &query_kind,
-                        work.settings,
-                        &cancellation,
+                        semantics,
                     ),
-                    QueryKind::ResolveCodeAction(data) => {
-                        queries::code_actions::resolve(data, source, version, work.settings)
-                    }
+                    QueryKind::ResolveCodeAction(data) => queries::code_actions::resolve(
+                        queries::code_actions::Context {
+                            uri: &query.uri,
+                            source_id,
+                            source,
+                            version,
+                            snapshot: &work.snapshot,
+                            settings: work.settings,
+                            cancellation: &cancellation,
+                        },
+                        data,
+                        semantics,
+                    ),
                     QueryKind::Syntax(query_kind) => {
                         query_kind.run(&query.uri, source, work.settings, &cancellation)
                     }

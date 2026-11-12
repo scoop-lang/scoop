@@ -6,23 +6,29 @@ import scoop.asyncio.*
 import scoop.http.client.*
 import scoop.url.Url
 
-fun main(args: Array<String>) {
-    val url =
-        Url.parse(
-            if (args.size > 1L)
-                args[1L]
-            else
-                "http://127.0.0.1:8080/"
-        )
-    val loop = eventLoop()
-    loop.run {
-        withHttpClient suspend {
-            client -> client.withResponse(httpRequest(url)) suspend {
-                response ->
-                response.requireSuccess()
-                println(response.status)
-                println(response.body.text(1_048_576L))
+fun main(args: Array<String>): Int =
+    try {
+        val url =
+            Url.parse(
+                if (args.size > 1L)
+                    args[1L]
+                else
+                    "http://127.0.0.1:8080/"
+            )
+        val loop = eventLoop()
+        loop.run {
+            withHttpClient suspend {
+                client -> client.withResponse(httpRequest(url)) suspend {
+                    response ->
+                    response.requireSuccess()
+                    val body = response.body.text(1_048_576L)
+                    println(response.status)
+                    println(body)
+                }
             }
         }
+        0
+    } catch (error: Exception) {
+        eprintln(error.message ?: "HTTP request failed")
+        1
     }
-}

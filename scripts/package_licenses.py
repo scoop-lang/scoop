@@ -153,11 +153,12 @@ def collect_llvm(root, source, host, native, python_license=None):
     collector.finish()
 
 
-def collect_sources(root, sysroot):
-    """Licenses of the vendored upstream inputs shipped with the source package."""
-    collector = Collector(root, "sources")
+def collect_upstream(collector, sysroot, *, include_gui):
+    """Include notices with both upstream sources and the binaries built from them."""
     for vendor in (sysroot / "vendor").iterdir():
         if vendor.is_dir() and vendor.name != "llvm-project":
+            if vendor.name == "skia" and not include_gui:
+                continue
             license_root = vendor / "2.15" if vendor.name == "liburing" else vendor
             collector.add(vendor.name, "See included documents", license_files(license_root))
             if vendor.name == "text_backend":
@@ -168,6 +169,11 @@ def collect_sources(root, sysroot):
                         package["license"],
                         license_files(vendor / "licenses" / name),
                     )
+
+
+def collect_vendor(root, sysroot):
+    collector = Collector(root, "vendor")
+    collect_upstream(collector, sysroot, include_gui=True)
     collector.finish()
 
 
@@ -176,6 +182,7 @@ def collect_base_libraries(root, sysroot, target):
     collector = Collector(root, "lib-base-" + target)
     notices = sysroot / "lib" / target / NOTICE_DIRECTORY
     collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
+    collect_upstream(collector, sysroot, include_gui=False)
     collector.finish()
 
 

@@ -1,0 +1,63 @@
+package examples.testing
+
+import scoop.*
+import scoop.test.*
+import scoop.text.toIntOrNone
+
+private struct Reading(val count: Int, val label: String)
+
+private class Calls {
+    var count: Int = 0
+}
+
+@Test
+private class ValueTests {
+    @Test
+    fun `value equality keeps expected and actual`() {
+        assertEquals(Reading(0, ""), Reading(0, ""))
+        assertEquals((0, ""), (0, ""))
+        assertEquals<Option<String>>(None, None)
+        assertEquals(Some(""), Some(""))
+        assertNotEquals<Option<String>>(None, Some(""))
+    }
+
+    @Test
+    fun `fallback runs only for absence`() {
+        val calls = Calls()
+        val fallback: () -> String =
+            {
+                calls.count += 1;
+                "fallback"
+            }
+        assertEquals("", Some("").getOrElse(fallback))
+        assertEquals(0, calls.count)
+        val missing: String? = None
+        assertEquals("fallback", missing.getOrElse(fallback))
+        assertEquals(1, calls.count)
+        assertEquals(
+            Some(""),
+            Some("").orElse {
+                calls.count += 1;
+                Some("other")
+            }
+        )
+        assertEquals(1, calls.count)
+    }
+
+    @Test
+    fun `flatMap preserves absence and Result preserves failure`() {
+        val input: String? = Some("7")
+        assertEquals(Some(Some(7)), input.map { it.toIntOrNone() })
+        assertEquals(Some(7), input.flatMap { it.toIntOrNone() })
+        assertEquals<Option<Int>>(None, Some("bad").flatMap { it.toIntOrNone() })
+        val result = Some("bad").flatMap { it.toIntOrNone() }.toResult { "invalid count" }
+        val calls = Calls()
+        val changed =
+            result.map {
+                calls.count += 1;
+                it * 2
+            }
+        assertEquals(Result.Failure<Int, String>("invalid count"), changed)
+        assertEquals(0, calls.count)
+    }
+}

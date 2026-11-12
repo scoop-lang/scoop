@@ -86,7 +86,7 @@ impl Installation {
 #[test]
 fn published_catalog_has_complete_documents_and_real_files() {
     let catalog = Catalog::parse(&catalog_text()).unwrap();
-    assert_eq!(catalog.topics.len(), 26);
+    assert_eq!(catalog.topics.len(), 31);
     let root = repository().join("sysroot");
     for topic in catalog.topics {
         assert!(!topic.title.is_empty() && !topic.summary.is_empty());
@@ -143,6 +143,19 @@ fn search_matches_all_words_and_keeps_editorial_order() {
             .collect::<Vec<_>>(),
         ["language/overview", "language/option"]
     );
+    for query in [
+        "process",
+        "environment",
+        "system",
+        "terminal",
+        "orElse",
+        "ViewKey",
+    ] {
+        assert!(
+            !search(&catalog, query).is_empty(),
+            "missing topic for {query}"
+        );
+    }
     assert!(search(&catalog, "json nowhere-present").is_empty());
     assert!(search(&catalog, " ").is_empty());
     assert!(
@@ -162,7 +175,7 @@ fn directories_aliases_search_and_version_use_the_executable_installation() {
     assert_eq!(install.json(&[])["version"], "test-install\nrevision: abc");
     assert_eq!(install.json(&[])["kind"], "index");
     let all = install.json(&["--list"]);
-    assert_eq!(all["topics"].as_array().unwrap().len(), 26);
+    assert_eq!(all["topics"].as_array().unwrap().len(), 31);
     let group = install.json(&["scoop.json"]);
     assert_eq!(group["kind"], "group");
     assert_eq!(group["topics"][0]["id"], "json/typed");

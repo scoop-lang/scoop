@@ -15,7 +15,16 @@ fn documentation_pipeline_checks_bodies_and_shares_hir_with_artifact_production(
     write_manifest_cone(&root, "test", "documentation", "library", SOURCE);
     std::fs::create_dir_all(root.join("tests")).unwrap();
     std::fs::write(root.join("tests/excluded.scoop"), "invalid test source").unwrap();
-    let input_path = workspace.path().join("library.json");
+    // A versioned installation can put documentation cache files past MAX_PATH.
+    let input_path = workspace
+        .path()
+        .join("toolchains")
+        .join("installed-version-".repeat(4))
+        .join("build/post-install/cache/toolchains")
+        .join("t".repeat(64))
+        .join("documentation-v4")
+        .join("d".repeat(64))
+        .join("library.json");
     let artifact_path = workspace.path().join("library.slib");
     let make_request = || {
         SingleConeBuildRequest::documentation(

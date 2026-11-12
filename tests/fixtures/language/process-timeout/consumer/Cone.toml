@@ -1,0 +1,19 @@
+schema = 1
+
+[cone]
+group = "test"
+name = "process-timeout"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"
+
+[native]
+c_flags = ["-Wall", "-Wextra", "-Werror"]
+
+[[native.sources]]
+path = "native/resources.c"

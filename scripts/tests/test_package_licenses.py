@@ -105,7 +105,7 @@ class ComponentLicenseTests(unittest.TestCase):
             self.assertFalse((licenses / "test-only-1.0.0").exists())
             self.assertEqual((licenses / "README.md").read_text().count("| shared-1.0.0 |"), 1)
 
-    def test_source_licenses_cover_vendor_inputs(self):
+    def test_vendor_and_base_licenses_cover_upstream_inputs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             sysroot = root / "sysroot"
@@ -120,8 +120,8 @@ class ComponentLicenseTests(unittest.TestCase):
                 json.dumps([{"name": "encoding_rs", "version": "1.0.0", "license": "MIT"}])
             )
             installation = root / "installation"
-            package_licenses.collect_sources(installation, sysroot)
-            licenses = installation / "share/licenses/sources"
+            package_licenses.collect_vendor(installation, sysroot)
+            licenses = installation / "share/licenses/vendor"
             self.assertEqual((licenses / "liburing/COPYING").read_text(), "liburing license")
             self.assertEqual(
                 (licenses / "text-encoding_rs-1.0.0/COPYRIGHT").read_text(),
@@ -130,6 +130,16 @@ class ComponentLicenseTests(unittest.TestCase):
             table = (licenses / "README.md").read_text()
             self.assertIn("| liburing |", table)
             self.assertIn("| text-encoding_rs-1.0.0 | MIT |", table)
+            target = "x86_64-unknown-linux-gnu"
+            notices = sysroot / "lib" / target / "rust-std"
+            notices.mkdir(parents=True)
+            (notices / "COPYRIGHT-library.txt").write_text("Rust license")
+            package_licenses.collect_base_libraries(installation, sysroot, target)
+            base = installation / f"share/licenses/lib-base-{target}"
+            self.assertEqual((base / "liburing/COPYING").read_text(), "liburing license")
+            self.assertEqual(
+                (base / "text-encoding_rs-1.0.0/COPYRIGHT").read_text(), "encoding_rs license"
+            )
 
     def test_llvm_licenses_include_python_and_collected_gcc_runtime(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -161,6 +171,7 @@ class ComponentLicenseTests(unittest.TestCase):
             notices = root / "sysroot/lib" / target / "rust-std"
             notices.mkdir(parents=True)
             (notices / "COPYRIGHT-library.txt").write_text("Rust license")
+            (root / "sysroot/vendor").mkdir()
             installation = root / "installation"
             package_licenses.collect_base_libraries(installation, root / "sysroot", target)
             licenses = installation / f"share/licenses/lib-base-{target}"

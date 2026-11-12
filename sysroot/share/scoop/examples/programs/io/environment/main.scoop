@@ -1,0 +1,12 @@
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.*
+import scoop.platform.env.environmentVariable
+
+fun main() {
+    val label = environmentVariable("SCOOP_EXAMPLE_LABEL")
+    println(label.fold({ f"present: '${it.decodeUtf8()}'" }, { "missing" }))
+    // Only absence invokes the fallback. A present empty value remains empty.
+    val effective = label.map { it.decodeUtf8() }.getOrElse { "guest" }
+    println(f"effective: '${effective}'")
+}

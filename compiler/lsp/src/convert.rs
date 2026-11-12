@@ -60,7 +60,11 @@ pub(crate) fn diagnostic(
         return Ok(None);
     };
     let mut notes = Vec::new();
+    let mut imports = std::collections::BTreeSet::new();
     for note in &diagnostic.notes {
+        if !note.import_path.is_empty() {
+            imports.insert(note.import_path.clone());
+        }
         if let Some(location) = note_location(note)? {
             notes.push(DiagnosticRelatedInformation {
                 location,
@@ -77,6 +81,7 @@ pub(crate) fn diagnostic(
         source: Some("scoop".to_owned()),
         message: diagnostic.message.clone(),
         related_information: (!notes.is_empty()).then_some(notes),
+        data: (!imports.is_empty()).then(|| serde_json::json!({ "imports": imports })),
         ..Diagnostic::default()
     }))
 }

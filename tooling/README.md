@@ -12,7 +12,15 @@ Windows 主驱动使用 `sco.exe`，下文的 `scoop ...` 在 Windows 上对应 
 
 维护 skill 时同步核对当前 CLI 帮助、示例和库声明；在临时工作目录用配套工具实际编译、运行涉及的写法。归档布局与参考文件完整性由 `python3 -m unittest discover -s scripts/tests -p test_package_toolchain.py` 覆盖；修改 Python 后先按 [scripts 说明](../scripts/README.md) 执行格式化与 lint。
 
+编译器、内置库或配套工具变更后的同步步骤见[标准更新工作流](../docs/scoop-programming/UPDATE-WORKFLOW.md)；面向 AI 的设计指导、示例、API 查询、诊断及语言服务接入改进见[改进计划](../docs/scoop-programming/PLAN.md)。计划中的新增命令与主题在完成实现后才进入 skill 的正式用法。
+
+## API 查询
+
+[`scoop api search/show`](../docs/scoop-doc/API.md) 通过 `compiler/api` 的独立命令读取 `scoop doc` 发布的 JSON，提供完整声明、receiver、约束、访问器、导入路径、文档与源码位置。安装根与应用目标必须对应；查询不构建或安装资源。开发安装见 [scripts](../scripts/README.md)。
+
 ## 编辑器工具
+
+终端和 AI Agent 可用 [`scoop-lsp query`](../docs/language-service/CLI.md) 查询当前项目的类型、补全、签名、定义、引用与诊断；`code-actions` 返回可审阅的语法/import 编辑。它们复用同一 LSP 服务器并支持 JSON；编辑应用前须确认查询正文未变。
 
 本目录提供独立的 Tree-sitter 语法包和 VS Code 扩展。语法以
 [语言规范](../docs/specs/SCOOP-SPEC.md)为准，并使用编译器已有源码和专门的编辑器

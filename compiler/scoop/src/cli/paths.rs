@@ -27,5 +27,6 @@ pub(super) fn build_cache(
                 .join("build")
                 .join(profile.as_str())
         });
-    ArtifactCacheRoot::new(absolute(cwd, path)?).map_err(config)
+    ArtifactCacheRoot::new(scoop_toolchain::versioned_cache_root(absolute(cwd, path)?))
+        .map_err(config)
 }

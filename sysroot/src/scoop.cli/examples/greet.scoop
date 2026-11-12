@@ -1,13 +1,16 @@
 //! dep: scoop:scoop.cli:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
 
 import scoop.cli.*
+import scoop.platform.io.standardError
+import scoop.platform.io.writeLine
 
 struct Options(
     @CliArgument(position = 0L, help = "Name to greet") val name: String,
     @CliOption(names = ["--count", "-n"], defaultText = "1") val count: Int = 1,
     @CliFlag(names = ["--excited", "-e"]) val excited: Boolean = false
 ) {
-    companion object : ValueDecoder<Options>
+    companion object: ValueDecoder<Options>
 }
 
 fun main(args: Array<String>): Int {
@@ -17,17 +20,21 @@ fun main(args: Array<String>): Int {
             case CliResult.HelpRequested -> print(schema.help())
             case CliResult.Parsed(val options) -> {
                 if (options.count < 1) {
-                    println("count must be positive")
+                    standardError.writeLine("count must be positive")
                     return 2
                 }
-                val ending = if (options.excited) "!" else "."
-                for (index in 1..options.count) {
+                val ending =
+                    if (options.excited)
+                        "!"
+                    else
+                        "."
+                for (index in 1 .. options.count) {
                     println(f"Hello, ${options.name}${ending}")
                 }
             }
         }
     } catch (error: DecodingException) {
-        println(error.message ?: "invalid arguments")
+        standardError.writeLine(error.message ?: "invalid arguments")
         return 2
     }
     return 0

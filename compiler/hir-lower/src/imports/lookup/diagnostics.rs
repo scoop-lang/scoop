@@ -17,7 +17,7 @@ pub(super) fn sort_candidate_notes(notes: &mut [ast::DiagnosticNote]) {
 }
 
 impl Lowerer {
-    pub(super) fn dependency_candidate_note(
+    pub(crate) fn dependency_candidate_note(
         &self,
         target: hir::ImportedTarget,
     ) -> Result<ast::DiagnosticNote, String> {

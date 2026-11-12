@@ -1,0 +1,30 @@
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.platform.io.*
+import scoop.platform.time.sleep
+import scoop.time.Duration
+
+fun main(args: Array<String>): Int {
+    if (args.size != 2L)
+        return 2
+    return when (args[1L]) {
+        case "echo" -> {
+            write(standardInput.readText())
+            flushOutput()
+            eprintln("child diagnostic")
+            0
+        }
+        case "empty" -> 0
+        case "fail" -> {
+            eprintln("child failed");
+            7
+        }
+        case "wait" -> {
+            println("partial output")
+            flushOutput()
+            sleep(Duration.seconds(30L))
+            0
+        }
+        else -> 2
+    }
+}

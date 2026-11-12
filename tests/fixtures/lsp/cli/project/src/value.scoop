@@ -1,0 +1,13 @@
+package test.editor
+
+interface Valued {
+    fun value(): Int
+}
+
+class Box: Valued {
+    override fun value(): Int = 42
+}
+
+fun identity(number: Int): Int = number
+
+fun use(`😀名`: Box): Int = identity(`😀名`.value())

@@ -291,7 +291,7 @@ impl Lowerer {
                     } else {
                         format!("unknown type `{}`", name.text)
                     };
-                    self.error(name.span, what);
+                    self.missing_name_error(name, what, crate::imports::MissingNameUse::Type);
                     return None;
                 };
                 let arity = self.enums[enum_id].type_params.len();
@@ -397,7 +397,11 @@ impl Lowerer {
                     _ if matches!(self.core, crate::CoreLoweringAuthority::Imported(_))
                         && name.text != "Unit" =>
                     {
-                        self.error(name.span, format!("unknown type `{}`", name.text));
+                        self.missing_name_error(
+                            name,
+                            format!("unknown type `{}`", name.text),
+                            crate::imports::MissingNameUse::Type,
+                        );
                         None
                     }
                     "Unit" => Some(self.unit),
@@ -412,7 +416,11 @@ impl Lowerer {
                     "Boolean" => Some(self.boolean),
                     "String" => Some(self.string),
                     _ => {
-                        self.error(name.span, format!("unknown type `{}`", name.text));
+                        self.missing_name_error(
+                            name,
+                            format!("unknown type `{}`", name.text),
+                            crate::imports::MissingNameUse::Type,
+                        );
                         None
                     }
                 }

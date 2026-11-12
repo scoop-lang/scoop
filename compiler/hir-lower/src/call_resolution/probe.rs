@@ -61,12 +61,8 @@ impl Lowerer {
                 explicit_arguments: input.explicit_arguments,
                 bound_receiver: input.bound_receiver,
             });
-        let InferredArguments {
-            types,
-            values,
-            sinks,
-            result,
-        } = self.infer_contextual_arguments(ArgumentInferenceInput {
+        let diagnostics_before = self.diagnostics.len();
+        let inferred = self.infer_contextual_arguments(ArgumentInferenceInput {
             expressions: input.expressions,
             patterns: &patterns,
             parameters: &parameters,
@@ -75,6 +71,18 @@ impl Lowerer {
             result: input.result,
             expected_result: input.expected_result,
             forced_hint: input.forced_hint,
+        });
+        let InferredArguments {
+            types,
+            values,
+            sinks,
+            result,
+        } = inferred.inspect_err(|failure| {
+            let independent = matches!(&failure.kind,
+                ArgumentInferenceFailureKind::Expression(error) if !error.context_dependent);
+            for diagnostic in &mut self.diagnostics[diagnostics_before..] {
+                diagnostic.is_argument_root = independent;
+            }
         })?;
         let bindings = parameters
             .into_iter()

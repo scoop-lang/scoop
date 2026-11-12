@@ -6,7 +6,6 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runTests } from "@vscode/test-electron";
@@ -46,23 +45,23 @@ await build({
   external: ["vscode"],
 });
 
-const temporary = await mkdtemp(
-  // macOS's per-user temporary path can exceed Electron's Unix socket limit.
-  path.join(
-    await realpath(process.platform === "darwin" ? "/tmp" : os.tmpdir()),
-    "scoop-vscode-test-",
-  ),
-);
+const scratch = path.join(repository, "tmp");
+await mkdir(scratch, { recursive: true });
+const temporary = await mkdtemp(path.join(await realpath(scratch), "v-"));
 const workspace = path.join(temporary, "workspace");
-await mkdir(path.join(workspace, ".vscode"), { recursive: true });
+await mkdir(workspace, { recursive: true });
+const workspaceFile = path.join(temporary, "test.code-workspace");
 await writeFile(
-  path.join(workspace, ".vscode/settings.json"),
+  workspaceFile,
   JSON.stringify({
-    "scoop.server.enabled": false,
-    "scoop.server.path": server,
-    "scoop.debug.compilerPath": compiler,
-    "scoop.sysroot": sysroot,
-    "scoop.trace.server": "verbose",
+    folders: [{ path: workspace }],
+    settings: {
+      "scoop.server.enabled": false,
+      "scoop.server.path": server,
+      "scoop.debug.compilerPath": compiler,
+      "scoop.sysroot": sysroot,
+      "scoop.trace.server": "verbose",
+    },
   }),
 );
 let succeeded = false;
@@ -73,11 +72,11 @@ try {
     vscodeExecutablePath: process.env.VSCODE_EXECUTABLE_PATH,
     version: process.env.VSCODE_VERSION,
     launchArgs: [
-      workspace,
+      workspaceFile,
       "--user-data-dir",
-      path.join(temporary, "profile"),
+      path.join(temporary, "p"),
       "--extensions-dir",
-      path.join(temporary, "extensions"),
+      path.join(temporary, "e"),
       "--disable-extensions",
       "--log",
       "trace",

@@ -214,9 +214,14 @@ export function registerDebugging(context: vscode.ExtensionContext): void {
           "scoop-lldb-dap",
           settings.get("debug.adapterPath", ""),
         );
-        return new vscode.DebugAdapterExecutable(command, [
-          "--repl-mode=variable",
-        ]);
+        return new vscode.DebugAdapterExecutable(
+          command,
+          ["--repl-mode=variable"],
+          {
+            cwd:
+              session.configuration.cwd ?? session.workspaceFolder?.uri.fsPath,
+          },
+        );
       },
     }),
     vscode.commands.registerCommand("scoop.debugFile", async () => {

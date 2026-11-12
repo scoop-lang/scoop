@@ -67,6 +67,7 @@ impl PendingDocumentation {
                             source: Some(Box::new(source.clone())),
                             span: span(note.location.range),
                             message: note.message.clone(),
+                            import_path: Vec::new(),
                         }
                     })
                     .collect();
@@ -90,12 +91,26 @@ impl PendingDocumentation {
                 .parent()
                 .expect("documentation paths are absolute");
             std::fs::create_dir_all(parent)?;
+            // tempfile's Windows persistence uses native APIs that need the
+            // long-path form for both the temporary and destination names.
+            #[cfg(windows)]
+            let parent = std::fs::canonicalize(parent)?;
+            #[cfg(windows)]
+            let parent = parent.as_path();
+            #[cfg(windows)]
+            let destination = parent.join(
+                self.destination
+                    .file_name()
+                    .expect("documentation destinations have a JSON filename"),
+            );
+            #[cfg(not(windows))]
+            let destination = &self.destination;
             let mut temporary = tempfile::Builder::new()
                 .prefix(".scoop-doc-")
                 .tempfile_in(parent)?;
             temporary.write_all(&self.input)?;
             temporary
-                .persist(&self.destination)
+                .persist(destination)
                 .map_err(|error| error.error)?;
             Ok(())
         };

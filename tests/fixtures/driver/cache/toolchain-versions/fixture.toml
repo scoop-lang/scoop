@@ -1,0 +1,77 @@
+schema = 1
+name = "cli-toolchain-cache-versions"
+inputs = ["input.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["cli", "cache", "driver"]
+requires_target_execution = false
+variants = [
+  {name = "default", vars = {cache_args = []}},
+  {name = "explicit", vars = {cache_args = ["--cache-dir", "${work}/cache"]}},
+  {name = "environment", vars = {cache_args = []}, env = {SCOOP_CACHE_DIR = "${work}/shared-cache"}},
+]
+
+[vars]
+options = ["--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--target-dir", "${work}/target", "--message-format", "json"]
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/input.scoop", to = "${work}/input.scoop"}}]
+
+[[steps]]
+name = "first"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/input.scoop", {each = "${options}"}, {each = "${cache_args}"}, "-o", "${work}/published"]
+env = {SCOOP_TOOLCHAIN_ID = "release-one"}
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${first.result.observations.child_invocations}", equals = ["${first.result.root.identity}"]},
+  {file = "${work}/input.scoop", exists = true},
+]
+
+[[steps]]
+name = "same"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/input.scoop", {each = "${options}"}, {each = "${cache_args}"}, "-o", "${work}/published"]
+env = {SCOOP_TOOLCHAIN_ID = "release-one"}
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${same.result.observations.child_invocations}", equals = []},
+  {actual = "${same.result.root.path}", equals = "${first.result.root.path}"},
+  {file = "${work}/input.scoop", exists = true},
+]
+
+[[steps]]
+name = "second"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/input.scoop", {each = "${options}"}, {each = "${cache_args}"}, "-o", "${work}/published"]
+env = {SCOOP_TOOLCHAIN_ID = "release-two"}
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${second.result.observations.child_invocations}", equals = ["${second.result.root.identity}"]},
+  {actual = "${second.result.root.path}", not_equals = "${first.result.root.path}"},
+  {file = "${work}/input.scoop", exists = true},
+]
+
+[[steps]]
+name = "return_first"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/input.scoop", {each = "${options}"}, {each = "${cache_args}"}, "-o", "${work}/published"]
+env = {SCOOP_TOOLCHAIN_ID = "release-one"}
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${return_first.result.observations.child_invocations}", equals = []},
+  {actual = "${return_first.result.root.path}", equals = "${first.result.root.path}"},
+  {file = "${work}/input.scoop", exists = true},
+]
