@@ -105,6 +105,59 @@ PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop check "$bench_work/server.scoop" \
 
 后续补丁按表中顺序应用。九个补丁已通过 `git apply --check`，应用后的源码与各阶段固定源码逐字节一致。原链的固定源码、ELF、脚本和相邻增量见 [B52 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十二轮从最简-tcp-http-server-逐步替换并定位组合边界)；B53 的应用接入、完整 server 回归与新相邻增量见 [B53 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十三轮拆出应用请求执行并量出连接管理的净增量)。
 
+## 继续拆分应用请求执行
+
+`application/` 是从上述 `08-application.patch` 的结果分出的补充对照，三个补丁依次作用于同一个 `server.scoop`。它们使用现有公开 API，不修改协议连接或应用执行器：
+
+| 步骤 | 补丁 | 本步变化 |
+| --- | --- | --- |
+| `direct` | `01-direct.patch` | 全局 middleware 按原始 target 选择预建结果并 `ctx.respond`，跳过正式目标解析和路由 |
+| `parsed` | `02-parsed.patch` | 仅改用 `ctx.request.path`，换入目标校验、路径解码及 query 解析 |
+| `routed` | `03-routed.patch` | 保留一个全局 middleware，改为调用 `next()` 并使用原来的三条路由 |
+
+另将 `routed` 与未加 middleware 的原始 `application` 单独比较，量出空 middleware 委托的成本。`direct` 本身仍有 middleware 生命周期和短路检查；`parsed → routed` 同时换入路由与 `next()` 委托，不能叫作纯路由树成本。`path` 返回已解析对象中的字符串，不额外重建路径。
+
+`application_layers.scoop` 用于进一步拆开只能从同一 Cone 访问的请求执行部件。将**固定 SDK 中未修改的 server 源码**复制到仓库外，保留原 Cone coordinate，仅改为 executable 并加入该文件；这使诊断可以调用真实内部实现，无需公开内部构造器或修改生产库。所有模式使用同一个 ELF，最后一个参数选择模式：
+
+| 模式 | 本步接入 |
+| --- | --- |
+| `protocol` | 原 AsyncHttp1Connection、独立请求作用域、直接数组响应、协议正文关闭、caller ID 与 yield |
+| `request` | 加入原 H1 输出适配器、Expect 状态、HttpRequest／正文视图及视图清理 |
+| `context` | 加入原 RequestDeadline（默认 None）、HttpContext 及精确类型绑定，仍直接发送数组 |
+| `response` | 用原 `ctx.respond` 替换数组响应，执行响应认领、准备、状态和进度记录 |
+| `direct` | 用原 `executeHttp1` 执行全局短路 middleware；也接回共享错误、完成及清理编排 |
+| `application` | 同一执行器接入原来的三条路由 |
+
+这些模式仅用于受控无正文请求。内部 `protocol` 使用 caller ID、`incoming.body.close()` 和额外诊断调用，不等同于原 `fair` 的空正文读取路径；前几个模式也没有完整应用的错误映射和完成观察。先对照预编译库的 `application` 与同 Cone 的 `application`，校准编译单元与调用形式的影响，再解释内部相邻增量；不得用内部程序的绝对性能替代正式 server 性能。
+
+```sh
+python3 - "$bench_sdk/src/scoop.http.server" "$bench_work/application-cone" \
+  "$bench_source/application_layers.scoop" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+
+source, destination, helper = map(Path, sys.argv[1:])
+destination.mkdir()
+shutil.copytree(source / "src", destination / "src")
+manifest = (source / "Cone.toml").read_text().split("[test-dependencies]")[0]
+(destination / "Cone.toml").write_text(manifest.replace('kind = "library"', 'kind = "executable"'))
+shutil.copyfile(helper, destination / "src/benchmark.scoop")
+PY
+PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop fmt --check \
+  --sysroot "$bench_sdk" "$bench_work/application-cone/src/benchmark.scoop"
+PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop check "$bench_work/application-cone" \
+  --release --sysroot "$bench_sdk" --cache-dir "$bench_work/cache"
+PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop build "$bench_work/application-cone" \
+  --release --sysroot "$bench_sdk" --cache-dir "$bench_work/cache" \
+  --target-dir "$bench_work/target-application" --library-path "$bench_work/bin" \
+  --unwind-prefix "$bench_sdk/lib/x86_64-unknown-linux-gnu/unwind" \
+  --keep-symbols -o "$bench_work/bin/application-layers"
+BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/application-layers" 1 18081 protocol
+```
+
+同样先验证每个模式，再按相邻步骤交替测量；使用外部脚本时可以将模式命名为 `local-protocol` 等以区分预编译库程序。三个补充补丁已逐字节重建固定源码，上述同 Cone 重建方式也已与实际测量源码核对。所有原始输出、同 Cone 的源码副本和 ELF 留在仓库外，仓库仅保存诊断入口与必要的差异补丁。结果及其限制见 [B54 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十四轮拆分应用成本并重新选择协议连接层)。
+
 ## 测量
 
 `codec-micro MODE COUNT SPLIT COUNT_ALLOC` 重用 parser，输入为 46 字节的 `GET /small HTTP/1.1`，仅带 Host。`llhttp` 模式没有用户回调，是协议核心下界；`bridge` 使用生产回调、字段和事件队列，读取事件并全部释放。SPLIT 为 0 时整条输入，为 1 时每次输入一字节。CPU 时间不含 parser 建立和销毁，输出 checksum 和请求数，构建时必须保留 assert。

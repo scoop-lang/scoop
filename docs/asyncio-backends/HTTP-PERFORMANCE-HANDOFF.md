@@ -1,12 +1,32 @@
-# HTTP 性能任务交接（B53，2026-11-13）
+# HTTP 性能任务交接（B54，2026-11-13）
 
 任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，但完整 HTTP 静态服务仍有数倍差距。当前工作分支是 `perf/http-asyncio-optimizations`。用户最新要求是每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈，不能沿同一方向持续打磨微小收益。详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
 
-**当前正式 SDK 为 B53：在 B51 性能底座上拆出独立 H1 应用请求执行，完整 server 复用相同逻辑。** 这是组合性与定位能力的改进，单独对照的 CPU 中位数高约 0.4%～1.4%，不记为性能加速。性能仍使用固定 B34 CLI、B28 源码构建且带私有补丁的 LLVM；没有改变编译器、runtime 或 GC 的实现。B50 请求目标解析复用及其他撤回候选不能作为正式底座。Git 中两项未跟踪的用户打包脚本仍须保留。
+**当前正式 SDK 仍为 B53；B54 交付应用分层诊断，未修改生产实现。** B53 在 B51 性能底座上拆出独立 H1 应用请求执行，完整 server 复用相同逻辑；单独对照的 CPU 中位数高约 0.4%～1.4%，属于组合性改进，不记为性能加速。性能仍使用固定 B34 CLI、B28 源码构建且带私有补丁的 LLVM；没有改变编译器、runtime 或 GC 的实现。B50 请求目标解析复用及其他撤回候选不能作为正式底座。Git 中两项未跟踪的用户打包脚本仍须保留。
 
-**用户指定的最简 TCP HTTP server → 逐步替换实验继续推进，最大的区间已从完整 server 收窄到应用请求执行。** B53 在原链中插入 `application`；下一轮优先细分 `fair → application` 的约 6.3～6.7 μs，不重做十个阶段，也不继续细磨已证明较小的头部计时或连接登记。
+**应用请求执行已经细分，下一轮优先对象重新转为协议连接接入。** B54 沿现有 middleware 组合区分目标解析与路由，再用原内部实现量出请求视图、Context、响应及执行编排。各分项均小于本轮复测的 `encoder → connection` **+2.72／+2.95 μs**。这仍是需要继续拆分的组合区间，尚未证明某个函数是根因；不要继续默认把整个应用层当成最大的单项。
 
-## B53 最新结果：应用执行可独立接入，仍是最大增量
+## B54 最新结果：应用分项与重新评估
+
+先从原 `application` 派生三个公开组合：原始 target 的短路 middleware `direct`、改用 `ctx.request.path` 的 `parsed`、委托 `next()` 到原三条路由的 `routed`。`fair → direct` 仍增加 **4.02／4.57 μs**；目标解析增加 **1.78／1.33 μs**，后续路由与 `next()` 委托增加 **1.32／1.66 μs**。空委托 middleware 另有 **0.32／1.37 μs** 的对照；它不能从不同组中精确扣除，`direct` 也并非没有 middleware 成本。
+
+随后将未修改的 server 源码放到仓库外同一 Cone，逐步接入原内部实现，六个模式共享一个 ELF。先校准完整应用路径，同 Cone 比预编译库的 CPU 低 **1.7%／1.9%**；因此内部相邻增量用于定位，绝对性能不能替代生产基线。1 KiB、64 连接、默认 GC、独立绑核，预热 2 秒＋测量 8 秒，正反各一次，CPU 单位 μs/请求：
+
+| 内部接入步骤 | 单 worker 增量 | 四 worker 增量 |
+| --- | ---: | ---: |
+| 请求／正文视图、H1 适配器与清理 | +1.08 | +0.95 |
+| Context、默认 deadline 与精确绑定 | +0.65 | +0.94 |
+| `ctx.respond`、响应状态及进度 | +0.80 | +0.86 |
+| 原执行器、短路 middleware 与共享编排 | +0.61 | +0.76 |
+| 正式分派替换短路 middleware | +2.18 | +2.21 |
+
+**本轮重新测量 B52 固定 `encoder → connection` ELF，CPU 为 6.38→9.09／8.55→11.50，即 +2.72／+2.95 μs，仍大于这些应用分项。** 后续从该区间继续逐步换入正文 reader／writer、消息与操作生命周期等组成。这里的 `connection` 是逐层程序，不是 B51 原版协议程序，不能用它关闭旧四 worker 回退。
+
+同轮完整三路径 server 与 Go 的 CPU 为 **18.73／22.28** 对 **7.13／8.73 μs**，仍约 **2.63／2.55 倍**。**96 个无仪表样本、113,458,612 个测量请求**无 wrk 错误。三个新公开程序与六个内部模式共验证 **3,528 个**分段／pipeline／并发大小 GET／HEAD 响应；独立计数另验证 **6,000 个**。内部六模式恢复次数为 **8、9、10、13、14、16**，外部恢复／drive 均为 **3／3**，RECV／SEND 均为 **1／1**；计数不能直接换算成 CPU。
+
+本轮没有生产实现改动，未重跑完整 Cone／Rust／CLI fixture，也未测大响应性能、Gin／Axum 或其他平台。固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round54`；`source/local` 和 `bin/scoop-local` 仅作内部诊断，`candidate/sysroot` 是未修改的 B53 独立副本。源码、三个补丁及复现方式见 [基准说明](../../tests/benchmarks/http-layers/README.md#继续拆分应用请求执行)，完整边界见 [B54 记录](PROGRESS.md#第五十四轮拆分应用成本并重新选择协议连接层)。
+
+## B53 已交付：应用执行可独立接入
 
 新增公开 `HttpApplication.executeHttp1(connection, incoming, info, requestId, options)`，在调用方管理的 H1 连接上执行当前未消费请求。请求 Job、Context、body 视图、middleware／路由、错误映射、响应、期限和清理与完整 server 共用；`HttpRequestOptions` 可独立创建或配置到 `HttpServerOptions.request`。原平铺请求选项已直接迁移。借用入口不移交 transport，WebSocket 升级在提交前返回 400；完整 server 的升级与 H2 路径保持原合同。用法见 [库说明](../../sysroot/src/scoop.http.server/README.md)。
 
@@ -276,10 +296,10 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 
 ## 接手后优先做什么
 
-用户要求**每轮重新评估最大瓶颈，并通过逐步替换同时改善功能正交性和可组合性**。B53 已补入独立应用执行，后续无需重做整条链。
+用户要求**每轮重新评估最大瓶颈，并通过逐步替换同时改善功能正交性和可组合性**。B53 已补入独立应用执行，B54 已细分应用各项，后续无需重做整条链。
 
-1. 以 B53 SDK、固定的 B52 `fair` 和 B53 `application`／`server` 为参照，优先细分 **6.33／6.66 μs** 的 `fair → application`；头部计时、连接登记等剩余 server 路径净增量仅 **0.31／0.83 μs**，当前不优先优化。
-2. 沿共享的 `executeHttp1Request → executeRequestPipeline → HttpApplication.execute`，继续逐步换入请求／body 视图、分派与响应执行，以实际最大增量选实现工作。不要将整段叫作路由成本，也不要为实验简单公开内部构造器或建立平行生产框架；真实的接入需求才支持继续拆 API。
+1. 以 B53 SDK 和 B52 固定 `encoder`／`connection` 为参照，继续拆开本轮重测的 **+2.72／+2.95 μs** 协议连接接入。应用内部当前最大的净增量为正式分派 **+2.18／+2.21 μs**，其余约 1 μs 或更低；请求视图、deadline、响应小分支不作为下一轮优先对象。
+2. 从原 `encoder` 程序逐步接入真实正文 reader／writer、消息状态、操作生命周期与缓冲管理，沿 `AsyncHttp1Connection.receiveRequest`／`sendResponse` 查清可分离边界。B54 同 Cone 方式可用于必要的内部诊断，但要校准编译单元与调用形式；不要为实验简单公开内部构造器或建立平行生产框架，真实接入需求才支持继续拆 API。
 3. 每次只改变一个可说明的边界，保留 workload、传输形态、默认 GC、绑核、计时和完整 server／Go 参照；验证后测相邻增量。所有成功样本保留，短对照不能精确相加，计数和 inclusive 采样不能代替收益测量。
 4. 保留请求 Job、middleware Context、HEAD、未读正文、取消、期限、真实输出进度与清理，并覆盖共享实现对 H2／WebSocket 的影响。借用 H1 入口没有升级接管能力，不能当作完整 server 替代。
 
@@ -291,6 +311,8 @@ B44 旧结果不能替代当前渐进对照；B50 解析复用和其他撤回候
 
 | 用途 | 路径 |
 | --- | --- |
+| B54 应用分项、协议复测、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round54` |
+| B54 内部诊断源码／ELF | `B54/source/local`、`B54/bin/scoop-local`（不是生产库候选） |
 | B53 应用接入、脚本、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round53` |
 | 当前正式 SDK | `B53/candidate/sysroot` |
 | B53 应用／三路径完整 server ELF | `B53/bin/scoop-policy-application`、`B53/bin/scoop-policy-server` |

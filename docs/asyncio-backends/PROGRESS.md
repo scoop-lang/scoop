@@ -1351,3 +1351,42 @@ H1 输出适配器仅保留协议连接与当前消息；server 派生适配器�
 公开 API 同步了库说明、skill 库导航、发布主题 `http/existing-connection` 和 catalog。主题从正式 `scoop example --format json` 还原，以 B34 和新预编译 SDK 实际运行，输出 `200` 与 `Hello, borrowed connection!` 后退出；按 `executeHttp1` 可检索。示例阅读器格式、clippy 和 **9 项**测试通过。B34 早于新增 API 数据格式，因此文档另用当前源码构建的配套命令，仍链接 B28 源码 LLVM；生成后用 `scoop api search/show` 检查挂起签名、默认配置、公开元数据构造器、import、新配置属性和旧平铺属性的移除。最初从独立 SDK 的源码根生成时出现 README 外部文档缺失警告，改用仓库库根生成后无警告，原日志保留；这些文档工具没有用于性能测量。
 
 固定 SDK、前后源码、ELF／symbols、脚本、计数、原始结果和验证保存在 `/home/chenxu/benchmarks/http-improvements-20261112-round53`；`summary.json` 与 `measurement-report.json` 保留全部样本与边界。下一轮从 `fair → application` 的 **6.33／6.66 μs** 出发，继续逐步换入共享执行器中的请求／正文视图、应用分派和响应执行，再按实际最大增量选实现工作；不重复整个渐进链，不以删去请求隔离、middleware Context 或正确收尾来制造加速。
+
+## 第五十四轮：拆分应用成本并重新选择协议连接层
+
+从 `64ecfd02` 开始，继续使用 B53 正式 SDK、B34 CLI、B28 源码构建且带私有补丁的 LLVM 与默认 GC。**本轮只交付诊断源码、差异补丁和测量结论，生产 SDK 仍为 B53，没有生产性能改动。** 先以现有公开 middleware 组合拆分最大的应用区间，再用未修改的 server 源码建立仓库外同 Cone 诊断，逐步接入真实内部部件。没有为测量扩大公开 API，也没有启动 GC 或编译器支线。
+
+公开组合从原 `application` 派生三个程序：`direct` 的全局 middleware 按原始 target 选择结果并 `ctx.respond`；`parsed` 仅换成 `ctx.request.path`；`routed` 让 middleware 调用 `next()`，交给原三条路由。另以原 `application` 对照 `routed`，量出空 middleware 委托的实际成本。`path` 返回已解析对象中的字符串，不额外重建路径。三个连续补丁保存在 `tests/benchmarks/http-layers/application/`。
+
+1 KiB、64 连接、TCP_NODELAY、默认 GC、服务和客户端独立绑核，预热 2 秒＋测量 8 秒，正反顺序各一次。各格只使用对应两次中位数，CPU 单位为 μs/请求：
+
+| 公开组合 | 单 worker：前 → 后（增量） | 四 worker：前 → 后（增量） |
+| --- | --- | --- |
+| `fair → direct` | 11.77 → 15.79（+4.02） | 14.65 → 19.22（+4.57） |
+| `direct → parsed` | 15.50 → 17.28（+1.78） | 19.26 → 20.59（+1.33） |
+| `parsed → routed` | 17.04 → 18.36（+1.32） | 20.55 → 22.21（+1.66） |
+| `application → routed` | 18.10 → 18.42（+0.32） | 21.48 → 22.86（+1.37） |
+
+`direct` 仍包含 middleware 的短路与生命周期检查，不能把第一行全归给请求对象；第三行同时换入路由及 `next()` 委托，不是纯路由树成本。四 worker 空 middleware 的跨样本波动也保留，不能把不同组差额精确相加。
+
+为继续拆开约 4 μs 的区间，将未修改的 `scoop.http.server/src` 复制到仓库外，保留 Cone coordinate，仅改为 executable 并加入 [内部诊断入口](../../tests/benchmarks/http-layers/application_layers.scoop)。所有模式使用同一 ELF；前几个模式只处理受控无正文请求，最后两个模式调用原 `executeHttp1`。先校准预编译库与同 Cone 的完整应用路径：CPU **17.60→17.30／21.52→21.12 μs**，低约 **1.7%／1.9%**；这包含编译单元与调用形式的影响，不能把内部绝对性能冒充生产性能。
+
+内部各相邻步骤的 CPU 增量如下。`protocol` 已有原协议连接、独立请求作用域、caller ID、正文关闭和 yield；它使用诊断调用及 `body.close()`，不等同于原 `fair` 的空正文读取。表内也包含实际接入所需的调用、异常边界和清理差异，不能当作每个类自身的独立成本。
+
+| 内部替换 | 单 worker | 四 worker |
+| --- | ---: | ---: |
+| `protocol → request`：H1 适配器、Expect、请求／正文视图与清理 | +1.08 | +0.95 |
+| `request → context`：原 Context、默认 deadline 与精确绑定 | +0.65 | +0.94 |
+| `context → response`：原 `ctx.respond` 与响应状态／进度 | +0.80 | +0.86 |
+| `response → direct`：原执行器、短路 middleware 与共享编排 | +0.61 | +0.76 |
+| `direct → application`：正式分派替换短路 middleware | +2.18 | +2.21 |
+
+因此停止在请求视图、deadline 或响应小分支上继续细磨，并重新比较整条链。使用 B52 原固定 ELF 在本轮复测 `encoder → connection`：CPU **6.38→9.09（+2.72）／8.55→11.50（+2.95）μs**，吞吐 **156,533→110,044／414,779→287,555 req/s**。**协议连接接入重新成为当前最大的待拆分增量。** 它包含消息对象、正文 reader／writer、操作生命周期与缓冲等真实接入工作，尚未证明某个单函数是根因；也不表示全部增量都可消除。该 `connection` 是逐层程序，不是 B51 原版协议程序，不能据此宣称其四 worker 回退已闭合。
+
+同轮完整三路径 server 与 Go 的 CPU 为 **18.73／22.28** 对 **7.13／8.73 μs**，仍约 **2.63／2.55 倍**；吞吐分别为 **53,392／162,849** 和 **140,171／434,310 req/s**。没有重新构建原多路完整程序，未测大响应性能、Gin／Axum 或其他平台。
+
+独立计数使用同一连接的 1,000 GET 减 0 GET，另逐字节验证 **6,000 个**响应。六个内部模式的恢复次数依次为 **8、9、10、13、14、16**，外部恢复／drive 均为 **3／3**，RECV／SEND 均为 **1／1**。传输次数保持相同；计数与性能测量分开，不能按恢复次数分摊 CPU。
+
+三个公开组合和六个内部模式通过格式、静态检查、release 构建及专门网络验证，共 **3,528 个**分段／pipeline／并发大小 GET／HEAD 响应。**96 个无仪表样本、113,458,612 个测量请求**无 wrk 错误；压测本身不逐字节检查每个响应。生产实现未变，未重复 server 全套 Cone、Rust 或 CLI fixture；历史 SSE 间歇故障根因仍未修复。
+
+三个补充补丁已通过 `git apply --check` 并逐字节重建固定源码；从固定 SDK 按 README 重建的同 Cone 源码也与已测版本一致。固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round54`，保留所有输入、原始日志、ELF、符号、脚本、`measurement-report.json` 和同 Cone 诊断源码。仓库仅保存三个补充补丁、内部诊断入口与复现说明。下一轮从原 `encoder` 程序继续逐步换入协议连接的真实组成部分，以新测量选择最大的区间；本轮应用分项已经量出，不再默认优先处理整个应用层，也不把旧的低收益候选重新包装成结论。

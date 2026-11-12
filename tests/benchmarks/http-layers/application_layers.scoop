@@ -1,0 +1,269 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.http.server.*
+import scoop.platform.net.*
+import scoop.text.*
+import scoop.time.Duration
+
+@Extern(lib = "benchmetrics", name = "bench_metrics")
+private fun dumpMetrics()
+
+@Extern(lib = "benchmetrics", name = "bench_tcp_options")
+private fun configureTcp(port: Int)
+
+private struct Reply(
+    val body: Array<Byte>,
+    val head: Array<Byte>,
+    val wire: Array<Byte>,
+    val response: HttpResponseHead,
+    val result: HttpResult
+)
+
+// This executable keeps the unmodified server sources in one Cone for internal diagnostics.
+private enum BenchStage {
+    Protocol, Request, Context, Response, Direct, Application
+}
+
+private fun benchReply(head: HttpRequestHead, replies: Array<Reply>): Reply {
+    val target =
+        when (head.target) {
+            case Http1(val raw) -> String.fromUtf8(raw)
+            else -> throw IllegalArgumentException(Some("benchmark requires HTTP/1 target"))
+        }
+    return when (target) {
+        case "/small" -> replies[0L]
+        case "/large" -> replies[1L]
+        case "/__metrics" -> {
+            @Unsafe
+            {
+                dumpMetrics()
+            }
+            replies[2L]
+        }
+        else -> throw IllegalArgumentException(Some("unknown benchmark target"))
+    }
+}
+
+private suspend fun benchRaw(
+    connection: AsyncHttp1Connection,
+    head: HttpRequestHead,
+    method: String,
+    replies: Array<Reply>
+) {
+    if (method != "GET" && method != "HEAD")
+        throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+    val reply = benchReply(head, replies)
+    connection.sendResponse(
+        reply.response,
+        reply.body,
+        if (method == "HEAD")
+            0L
+        else
+            reply.body.size
+    )
+}
+
+private suspend fun benchPipeline(
+    stage: BenchStage,
+    request: HttpRequest,
+    output: Http1ResponseOutput,
+    requestId: String,
+    info: HttpConnectionInfo,
+    replies: Array<Reply>
+) {
+    if (stage == BenchStage.Request) {
+        coroutineScope<Unit> { benchRaw(output.connection, request.head, request.method, replies) }
+        return
+    }
+    val deadline = RequestDeadline(None)
+    try {
+        coroutineScope<Unit> {
+            deadline.start(job)
+            val ctx = HttpContext(request, output, requestId, job, info, deadline)
+            context(ctx) {
+                if (stage == BenchStage.Context)
+                    benchRaw(output.connection, ctx.request.head, ctx.request.method, replies)
+                else
+                    ctx.respond(benchReply(ctx.request.head, replies).result)
+            }
+        }
+    } catch (error: CancellationException) {
+        throw deadline.selectedFailure ?: error
+    } finally {
+        deadline.stop()
+    }
+}
+
+private suspend fun benchExecute(
+    stage: BenchStage,
+    connection: AsyncHttp1Connection,
+    incoming: Http1IncomingRequest,
+    requestId: String,
+    info: HttpConnectionInfo,
+    replies: Array<Reply>
+) {
+    // All diagnostic stages use bodyless inputs and close the same protocol body.
+    // The first stage deliberately has no application request views or Context.
+    try {
+        if (stage == BenchStage.Protocol) {
+            coroutineScope<Unit> {
+                benchRaw(connection, incoming.head, String.fromUtf8(incoming.head.method), replies)
+            }
+        } else {
+            val output = Http1ResponseOutput(connection, incoming)
+            val expectations = RequestExpectations(incoming.head.fields)
+            val source = Http1RequestInput(connection, incoming, output, expectations)
+            val body = HttpRequestBody(source, Some(8388608L), incoming.head.fields, 2097152L)
+            val request = HttpRequest(incoming.head, body, expectations)
+            try {
+                benchPipeline(stage, request, output, requestId, info, replies)
+            }
+            finally {
+                body.closeView()
+            }
+        }
+    } finally {
+        incoming.body.close()
+    }
+}
+
+private suspend fun serve(
+    peer: AsyncTcpStream,
+    scope: CoroutineScope,
+    application: HttpApplication,
+    replies: Array<Reply>,
+    stage: BenchStage
+) {
+    val info = HttpConnectionInfo(peer.localAddress, peer.peerAddress, HttpProtocol.Http1)
+    AsyncHttp1Connection.takeOwnershipAsServer(
+        peer,
+        scope,
+        ioTimeouts = HttpIoTimeoutOptions(Some(Duration.seconds(30L)), Some(Duration.seconds(30L)))
+    ).useAsync suspend {
+        connection ->
+        var nextId = 0UL
+        while (true) {
+            val incoming = connection.receiveRequest() ?: break
+            nextId += 1UL
+            if (stage == BenchStage.Application || stage == BenchStage.Direct)
+                application.executeHttp1(connection, incoming, info, nextId.toString())
+            else
+                benchExecute(stage, connection, incoming, nextId.toString(), info, replies)
+            if (!connection.isReusable)
+                break
+            yieldCoroutine()
+        }
+    }
+}
+
+private fun makeReplies(): Array<Reply> {
+    val bodies =
+        [
+            Array<Byte>(1024L) { 120.toByte() },
+            Array<Byte>(65536L) { 120.toByte() },
+            "ok".toByteArray()
+        ]
+    return Array<Reply>(bodies.size) {
+        index ->
+        val body = bodies[index]
+        val head =
+            (
+                "HTTP/1.1 200 \r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                    body.size.toString() +
+                    "\r\n\r\n"
+            ).toByteArray()
+        val wire =
+            Array<Byte>(head.size + body.size) {
+                i -> if (i < head.size)
+                    head[i]
+                else
+                    body[i - head.size]
+            }
+        val response =
+            HttpResponseHead(
+                HttpVersion.Http11,
+                200U,
+                fields =
+                    [
+                        HttpField(
+                            "Content-Type".toByteArray(),
+                            "application/octet-stream".toByteArray()
+                        ),
+                        HttpField(
+                            "Content-Length".toByteArray(),
+                            body.size.toString().toByteArray()
+                        )
+                    ]
+            )
+        Reply(body, head, wire, response, bytes(body))
+    }
+}
+
+fun main(args: Array<String>) {
+    val workers = args[1L].toInt()
+    val port = args[2L].toInt()
+    val stage =
+        when (args[3L]) {
+            case "protocol" -> BenchStage.Protocol
+            case "request" -> BenchStage.Request
+            case "context" -> BenchStage.Context
+            case "response" -> BenchStage.Response
+            case "direct" -> BenchStage.Direct
+            case "application" -> BenchStage.Application
+            else -> throw IllegalArgumentException(Some("unknown benchmark stage"))
+        }
+    val replies = makeReplies()
+    val small = replies[0L].result
+    val large = replies[1L].result
+    val metrics = replies[2L].result
+    val application =
+        routing {
+            if (stage == BenchStage.Direct)
+                use(suspend { ctx, _ -> ctx.respond(benchReply(ctx.request.head, replies).result) })
+            get("/small", suspend { _ -> small })
+            get("/large", suspend { _ -> large })
+            get(
+                "/__metrics",
+                suspend {
+                    _ ->
+                    @Unsafe
+                    {
+                        dumpMetrics()
+                    }
+                    metrics
+                }
+            )
+        }
+    asyncRuntime {
+        this.workers = workers
+        blocking { threads = 1 }
+    }.run {
+        val scope = this
+        currentEventLoop().listenTcp(
+            SocketAddress(IpAddress.IPV4_LOOPBACK, port),
+            backlog = 1024,
+            reuseAddress = true
+        ).useAsync suspend {
+            listener ->
+            @Unsafe
+            {
+                configureTcp(port)
+            }
+            println("READY")
+            while (true) {
+                val stream = listener.accept()
+                scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                    try {
+                        serve(stream, scope, application, replies, stage)
+                    }
+                    catch (error: Throwable) {
+                        println("CONNECTION_ERROR")
+                    }
+                }
+            }
+        }
+    }
+}
