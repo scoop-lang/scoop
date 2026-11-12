@@ -1,0 +1,102 @@
+package test.core.tests.structured.registration
+
+import scoop.test.*
+
+private class ListenerState {
+    var job: Job? = None
+    var skipped: Disposable? = None
+    var gate: Continuation<Unit>? = None
+    var count: Int = 0
+}
+
+private class ThrowingJoinCompletion(private val failure: Throwable): Continuation<Unit> {
+    var calls: Int = 0
+    public override fun resume(value: Unit) {
+        calls += 1
+        throw failure
+    }
+    public override fun resumeWithException(error: Throwable) {
+        calls += 1
+        throw error
+    }
+}
+
+@Test
+private class JobListenerLifecycleTest {
+    @Test
+    fun `callbacks can revoke a detached notification and register another handler`() {
+        val state = ListenerState()
+        val done = Completion<Unit>()
+        val failure = Throwable()
+        startCoroutine(
+            {
+                coroutineScope {
+                    val owner = job
+                    state.job = Some(owner)
+                    owner.invokeOnCancellation {
+                        _ ->
+                        assertTrue(owner.isCancelled)
+                        state.skipped!!.dispose()
+                        owner.invokeOnCancellation { _ -> state.count += 1 }
+                    }
+                    state.skipped = Some(owner.invokeOnCancellation { _ -> fail() })
+                    owner.invokeOnCancellation { _ -> throw failure }
+                    owner.invokeOnCancellation { _ -> state.count += 1 }
+                    suspendCoroutine<Unit> { next -> state.gate = Some(next) }
+                }
+            },
+            done
+        )
+        state.job!!.cancel()
+        assertEquals(2, state.count)
+        assertFalse(done.done)
+        state.job!!.cancel()
+        state.skipped!!.dispose()
+        state.gate!!.resume(Unit)
+        assertTrue(done.done)
+        assertSame(failure, done.error!!)
+        assertEquals(2, state.count)
+    }
+
+    @Test
+    fun `normally completed jobs ignore late cancellation handlers`() {
+        val state = ListenerState()
+        val done = Completion<Unit>()
+        startCoroutine({ coroutineScope { state.job = Some(job) } }, done)
+        assertTrue(done.done)
+        assertTrue(state.job!!.isCompleted)
+        val late = state.job!!.invokeOnCancellation { _ -> fail() }
+        state.job!!.cancel()
+        late.dispose()
+        late.dispose()
+        assertFalse(state.job!!.isCancelled)
+    }
+
+    @Test
+    fun `completion notification failure escapes once without changing the completed job`() {
+        val state = ListenerState()
+        val done = Completion<Unit>()
+        val failure = Throwable()
+        val throwing = ThrowingJoinCompletion(failure)
+        val notified = Completion<Unit>()
+        startCoroutine(
+            {
+                coroutineScope {
+                    state.job = Some(job)
+                    suspendCoroutine<Unit> { next -> state.gate = Some(next) }
+                }
+            },
+            done
+        )
+        startCoroutine({ state.job!!.join() }, throwing)
+        startCoroutine({ state.job!!.join() }, notified)
+        state.gate!!.resume(Unit)
+        assertEquals(1, throwing.calls)
+        assertTrue(notified.done)
+        assertTrue(absent(notified.error))
+        assertTrue(done.done)
+        assertSame(failure, done.error!!)
+        assertTrue(state.job!!.isCompleted)
+        assertFalse(state.job!!.isCancelled)
+    }
+}

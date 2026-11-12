@@ -1,0 +1,57 @@
+package scoop.concurrent.tests
+
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+private class JobListenerState {
+    var job: Job? = None
+    var running: Disposable? = None
+    var pending: Disposable? = None
+    var body: Continuation<Unit>? = None
+}
+
+@Test
+private class ConcurrentJobListenerTest {
+    @Test
+    fun `disposing does not wait for a selected callback and suppresses pending callbacks`() {
+        val gate = WorkerGate()
+        val calls = AtomicInt(0)
+        val done = TestResult<Unit>()
+        val state = JobListenerState()
+        startCoroutine(
+            {
+                coroutineScope {
+                    state.job = Some(job)
+                    state.running =
+                        Some(
+                            job.invokeOnCancellation {
+                                _ ->
+                                calls.fetchAdd(1)
+                                gate.await()
+                            }
+                        )
+                    state.pending = Some(job.invokeOnCancellation { _ -> calls.fetchAdd(100) })
+                    suspendCoroutine<Unit> { next -> state.body = Some(next) }
+                }
+            },
+            done
+        )
+        val canceller = Thread.start { state.job!!.cancel() }
+        gate.awaitEntered(1)
+        try {
+            state.running!!.dispose()
+            state.pending!!.dispose()
+            assertTrue(state.job!!.isCancelled)
+            assertFalse(state.job!!.isCompleted)
+            state.job!!.invokeOnCancellation { _ -> calls.fetchAdd(1) }
+        } finally {
+            gate.open()
+            canceller.use { it.join() }
+        }
+        state.body!!.resume(Unit)
+        assertEquals(2, calls.load())
+        assertEquals(1, done.calls)
+        assertTrue(done.error!! is CancellationException)
+        assertTrue(state.job!!.isCompleted)
+    }
+}

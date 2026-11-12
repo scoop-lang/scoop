@@ -10,31 +10,36 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
 
     internal fun bind(job: Job) {
         val registration = job.invokeOnCancellation { error -> cancel(error) }
-        val finished = lock.withLock {
-            if (coroutineAbsent(continuation)) return@withLock true
-            jobRegistration = Some(registration)
-            false
-        }
-        if (finished) registration.dispose()
+        val finished =
+            lock.withLock {
+                if (coroutineAbsent(continuation))
+                    return@withLock true
+                jobRegistration = Some(registration)
+                false
+            }
+        if (finished)
+            registration.dispose()
     }
 
     internal val isCompleted: Boolean get() = lock.withLock { coroutineAbsent(continuation) }
 
-    private fun take(reason: CancellationException?): Continuation<T>? = lock.withLock {
-        val target = continuation
-        if (coroutineAbsent(target)) return@withLock None
-        continuation = None
-        cancellation = reason
-        when (jobRegistration) {
-            case Some(val registration) -> registration.dispose()
-            case None -> {}
+    private fun take(reason: CancellationException?): Continuation<T>? =
+        lock.withLock {
+            val target = continuation
+            if (coroutineAbsent(target))
+                return@withLock None
+            continuation = None
+            cancellation = reason
+            when (jobRegistration) {
+                case Some(val registration) -> registration.dispose()
+                case None -> {}
+            }
+            jobRegistration = None
+            target
         }
-        jobRegistration = None
-        target
-    }
 
     private fun discardListeners() {
-        for (listener in listeners.take()) listener.dispose()
+        listeners.clear()
     }
 
     /**
@@ -69,8 +74,12 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
         when (take(Some(error))) {
             case None -> {}
             case Some(val target) -> {
-                try { notifyCoroutineListeners(listeners.take()) }
-                finally { target.resumeWithException(error) }
+                try {
+                    notifyCoroutineListeners(listeners.take())
+                }
+                finally {
+                    target.resumeWithException(error)
+                }
             }
         }
     }
@@ -80,13 +89,16 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
      * continuation invokes the handler immediately.
      */
     public fun invokeOnCancellation(handler: (CancellationException) -> Unit): Disposable {
-        val listener = lock.withLock {
-            val entry = listeners.add { handler(cancellation!!) }
-            if (coroutineAbsent(continuation) && coroutineAbsent(cancellation)) entry.dispose()
-            entry
-        }
+        val listener =
+            lock.withLock {
+                val entry = listeners.add { handler(cancellation!!) }
+                if (coroutineAbsent(continuation) && coroutineAbsent(cancellation))
+                    entry.dispose()
+                entry
+            }
         val cancelled = lock.withLock { !coroutineAbsent(cancellation) }
-        if (cancelled) listener.fire()
+        if (cancelled)
+            listener.fire()
         return listener
     }
 }
@@ -95,17 +107,23 @@ public class CancellableContinuation<T> internal constructor(continuation: Conti
  * Registers a suspension tied to the current job when one exists. Cancellation competes with
  * result delivery through the supplied continuation.
  */
-public suspend fun <T> suspendCancellableCoroutine(registration: (CancellableContinuation<T>) -> Unit): T =
-    suspendCoroutine<T> { raw ->
+public suspend fun <T> suspendCancellableCoroutine(
+    registration: (CancellableContinuation<T>) -> Unit
+): T =
+    suspendCoroutine<T> {
+        raw ->
         val continuation = CancellableContinuation<T>(raw)
         when (currentJobOrNone()) {
             case Some(val job) -> continuation.bind(job)
             case None -> {}
         }
         if (!continuation.isCompleted) {
-            try { registration(continuation) }
+            try {
+                registration(continuation)
+            }
             catch (error: Throwable) {
-                if (!continuation.tryResumeWithException(error)) throw error
+                if (!continuation.tryResumeWithException(error))
+                    throw error
             }
         }
     }
