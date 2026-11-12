@@ -203,6 +203,15 @@ fn nested_trys_unwind_to_their_own_pads() {
     let outer_body = cfg_block_named(&body, "try.body.8");
     let outer_unwind = cfg_block_named(&body, "try.unwind.1");
     let outer_dispatch = cfg_block_named(&body, "try.dispatch.2");
+    let mir::StatementKind::Eh(mir::EhStatement::LandingPad {
+        state: outer_state, ..
+    }) = body.blocks[outer_unwind].statements[0].kind
+    else {
+        unreachable!()
+    };
+    let state = body.exception_states.alloc(mir::ExceptionState);
+    let handler_state = body.exception_states.alloc(mir::ExceptionState);
+    let exit_state = body.exception_states.alloc(mir::ExceptionState);
     let outer_end = cfg_block_named(&body, "try.end.7");
     let inner_unwind = cfg_block(&mut body.blocks, "try.unwind.inner");
     let inner_dispatch = cfg_block(&mut body.blocks, "try.dispatch.inner");
@@ -220,6 +229,7 @@ fn nested_trys_unwind_to_their_own_pads() {
         inner_unwind,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: false,
+            state: state,
         }))],
         mir::Terminator::Goto(inner_dispatch),
         None,
@@ -227,12 +237,14 @@ fn nested_trys_unwind_to_their_own_pads() {
     set_cfg_block(
         &mut body.blocks,
         inner_dispatch,
-        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch))],
+        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+            state,
+        }))],
         mir::Terminator::Branch {
             cond: expr(
                 mir::Type::Boolean,
                 mir::ExprKind::IsInstance {
-                    operand: Box::new(mir::Expr::caught_exception()),
+                    operand: Box::new(mir::Expr::caught_exception(state)),
                     check_ty: Box::new(mir::Type::Class(e1)),
                 },
             ),
@@ -246,6 +258,7 @@ fn nested_trys_unwind_to_their_own_pads() {
         inner_handler_pad,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: false,
+            state: handler_state,
         }))],
         mir::Terminator::Goto(inner_handler_cleanup),
         None,
@@ -253,7 +266,13 @@ fn nested_trys_unwind_to_their_own_pads() {
     set_cfg_block(
         &mut body.blocks,
         inner_handler_cleanup,
-        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch))],
+        vec![
+            stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
+            stmt(mir::StatementKind::Eh(mir::EhStatement::Forward {
+                source: handler_state,
+                destination: outer_state,
+            })),
+        ],
         mir::Terminator::Goto(outer_dispatch),
         Some(outer_unwind),
     );
@@ -262,6 +281,7 @@ fn nested_trys_unwind_to_their_own_pads() {
         inner_exit_pad,
         vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: false,
+            state: exit_state,
         }))],
         mir::Terminator::Goto(inner_exit_cleanup),
         None,
@@ -269,7 +289,13 @@ fn nested_trys_unwind_to_their_own_pads() {
     set_cfg_block(
         &mut body.blocks,
         inner_exit_cleanup,
-        vec![stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch))],
+        vec![
+            stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
+            stmt(mir::StatementKind::Eh(mir::EhStatement::Forward {
+                source: exit_state,
+                destination: outer_state,
+            })),
+        ],
         mir::Terminator::Goto(outer_dispatch),
         Some(outer_unwind),
     );
@@ -296,7 +322,7 @@ fn nested_trys_unwind_to_their_own_pads() {
                 expr(
                     mir::Type::Class(e1),
                     mir::ExprKind::Retype {
-                        operand: Box::new(mir::Expr::caught_exception()),
+                        operand: Box::new(mir::Expr::caught_exception(state)),
                         ty: Box::new(mir::Type::Class(e1)),
                     },
                 ),

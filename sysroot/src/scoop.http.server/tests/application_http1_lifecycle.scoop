@@ -1,0 +1,188 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class ApplicationHttp1LifecycleTests {
+    @Test
+    fun `borrowed execution sends an early response before closing unread upload input`() {
+        val completed = ServerTestCompletions()
+        val application = routing { post("/deny", suspend { _ -> text("denied", 403U) }) }
+        val options = httpRequestOptions { onCompleted = Some(completed::receive) }
+        withApplicationHttp1(
+            suspend {
+                scope, server, client, info ->
+                val serving =
+                    scope.async<Unit> suspend {
+                        application.executeHttp1(
+                            server,
+                            server.receiveRequest()!!,
+                            info,
+                            "early",
+                            options
+                        )
+                    }
+                client.sendRequest(
+                    networkRequest("/deny", "POST", [field("Expect", "100-continue")]),
+                    Http1BodyFraming.Length(99999L)
+                )
+                val response = client.receiveResponse()
+                assertEquals(403U, response.head.status)
+                assertEquals("denied", networkText(response.body))
+                serving.await()
+                assertFalse(server.isReusable)
+                assertTrue(server.isClosed)
+            }
+        )
+        val value = completed.snapshot()[0L]
+        assertEquals(0L, value.receivedBytes)
+        assertEquals(6L, value.responseBytes)
+        assertEquals(HttpRequestOutcome.Completed, value.outcome)
+    }
+
+    @Test
+    fun `borrowed execution enforces its configured request body limit`() {
+        val application = routing { post("/", suspend { ctx -> text(ctx.request.body.text()) }) }
+        val options = httpRequestOptions { bodyLimit = Some(3L) }
+        withApplicationHttp1(
+            suspend {
+                scope, server, client, info ->
+                val serving =
+                    scope.async<Unit> suspend {
+                        application.executeHttp1(
+                            server,
+                            server.receiveRequest()!!,
+                            info,
+                            "limited",
+                            options
+                        )
+                    }
+                val upload =
+                    client.sendRequest(networkRequest("/", "POST"), Http1BodyFraming.Length(4L))
+                networkWrite(upload, "body")
+                upload.finish()
+                val response = client.receiveResponse()
+                assertEquals(413U, response.head.status)
+                networkText(response.body)
+                serving.await()
+            }
+        )
+    }
+
+    @Test
+    fun `a borrowed request deadline joins handler and child cleanup before reporting completion`() {
+        val childStarted = ServerTestGate()
+        val childCleaned = TestCounter()
+        val handlerCleaned = TestCounter()
+        val completed = ServerTestCompletions()
+        val application =
+            routing {
+                get(
+                    "/",
+                    suspend {
+                        _ -> try {
+                            coroutineScope<Unit> {
+                                launch suspend {
+                                    try {
+                                        childStarted.signal()
+                                        currentEventLoop().sleep(Duration.seconds(5))
+                                    } finally {
+                                        childCleaned.value += 1
+                                    }
+                                }
+                                childStarted.await()
+                                currentEventLoop().sleep(Duration.seconds(5))
+                            }
+                            text("expired request returned")
+                        } finally {
+                            handlerCleaned.value += 1
+                        }
+                    }
+                )
+            }
+        val options =
+            httpRequestOptions {
+                deadline = Some(Duration.milliseconds(40))
+                onCompleted =
+                    Some(
+                        {
+                            value ->
+                            assertEquals(1, childCleaned.value)
+                            assertEquals(1, handlerCleaned.value)
+                            completed.receive(value)
+                        }
+                    )
+            }
+        withApplicationHttp1(
+            suspend {
+                scope, server, client, info ->
+                val serving =
+                    scope.async<Throwable?> suspend {
+                        try {
+                            application.executeHttp1(
+                                server,
+                                server.receiveRequest()!!,
+                                info,
+                                "expired",
+                                options
+                            )
+                            None
+                        } catch (error: Throwable) {
+                            Some(error)
+                        }
+                    }
+                client.sendRequest(networkRequest()).finish()
+                val failure = serving.await()
+                assertTrue(failure!! is HttpServerTimeoutException)
+                assertTrue(server.isClosed)
+                assertFalse(scope.job.isCancelled)
+            }
+        )
+        val value = completed.snapshot()[0L]
+        assertEquals(HttpRequestOutcome.Cancelled, value.outcome)
+        assertTrue(value.failure!! is HttpServerTimeoutException)
+    }
+
+    @Test
+    fun `borrowed execution rejects transport upgrade before commit or session execution`() {
+        val called = TestCounter()
+        val application =
+            routing {
+                get(
+                    "/",
+                    suspend {
+                        _ -> webSocket(webSocketOptions(), suspend { _, _ -> called.value += 1 })
+                    }
+                )
+            }
+        withApplicationHttp1(
+            suspend {
+                scope, server, client, info ->
+                val serving =
+                    scope.async<Unit> suspend {
+                        application.executeHttp1(server, server.receiveRequest()!!, info, "upgrade")
+                    }
+                client.sendRequest(
+                    networkRequest(
+                        fields =
+                            [
+                                field("Connection", "Upgrade"),
+                                field("Upgrade", "websocket"),
+                                field("Sec-WebSocket-Version", "13"),
+                                field("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+                            ]
+                    )
+                ).finish()
+                val response = client.receiveResponse()
+                assertEquals(400U, response.head.status)
+                networkText(response.body)
+                serving.await()
+            }
+        )
+        assertEquals(0, called.value)
+    }
+}

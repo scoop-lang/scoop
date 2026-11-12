@@ -55,7 +55,7 @@ private class ServerCompressionLifecycleTests {
             httpServerOptions {
                 this.allowCleartextHttp2 = true
                 this.http2Limits = Http2Limits(maxPendingBodyBytes = 16L)
-                this.onRequestCompleted = Some(completed::receive)
+                request { onCompleted = Some(completed::receive) }
             }
         withServer(
             routes,

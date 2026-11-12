@@ -37,13 +37,6 @@ static void scan_thread(const ScoopThreadState *thread, ScoopGcRootVisitor visit
                                  visitor.context);
         }
     }
-    for (ScoopCompilerRootFrame *frame = thread->compiler_roots; frame != NULL;
-         frame = frame->previous) {
-        for (uint64_t index = 0; index < frame->count; index++) {
-            visitor.visit_region(frame->entries[index].base, frame->entries[index].scan,
-                                 visitor.context);
-        }
-    }
     for (ScoopNativeRegionRootFrame *frame = thread->native_region_roots; frame != NULL;
          frame = frame->previous) {
         for (uint64_t index = 0; index < frame->count; index++) {

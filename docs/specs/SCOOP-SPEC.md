@@ -2342,13 +2342,15 @@ public suspend fun <T> coroutineScope(block: suspend CoroutineScope.() -> T): T
 public suspend fun <T> nonCancellableScope(block: suspend CoroutineScope.() -> T): T
 ```
 
-coroutineScope 建立属于当前 Job 的子作用域；当前没有 Job 时建立有调用方的根作用域。CoroutineScope 只能由 core 建立，保存 Job、建立时的默认 executor 及正文活动期间的父执行登记。子任务先 attach 到父 Job，再完成 11.9.3 的执行登记和发布；登记失败也必须结束已 attach 的 child。launch/async 的 block receiver 是该 child 自己的 scope。无显式 executor 时使用 scope 保存的默认 executor，有显式参数时使用指定目标；有 executor 总是排队，无 executor 才可同步启动。
+coroutineScope 建立属于当前 Job 的子作用域；当前没有 Job 时建立有调用方的根作用域。CoroutineScope 只能由 core 建立，保存 Job、建立时的默认 executor 及正文活动期间的父执行登记。launch/async 子任务先 attach 到父 Job，再完成 11.9.3 的执行登记和发布；登记失败也必须结束已 attach 的 child。launch/async 的 block receiver 是该 child 自己的 scope。无显式 executor 时使用 scope 保存的默认 executor，有显式参数时使用指定目标；有 executor 总是排队，无 executor 才可同步启动。
 
 普通 binding 取 launch/async 调用处快照，以精确静态类型 Job 安装 child 的绑定；不会把创建 scope 时的整份 Context 冻结下来。因而从 callback 或其他 executor 调用已捕获 scope，仍向该 scope 的默认 executor 投递。scope 正文退出后解除父执行登记引用并禁止新增 child。原始 startCoroutine 传播 binding 和执行归属，不自动登记新 Job。currentJobOrNone 返回当前精确 Job binding；无绑定时返回 None，顶层 ensureActive 此时无操作。
 
 nonCancellableScope 用于取消后的必要异步清理。它建立只由当前调用等待结果的作用域，继承其他 Context，但调用方已有或后续的取消不传入该作用域；仍须等 block 和全部注册子任务真实完成后才返回。作用域自身的显式取消、子任务失败、关闭后禁止登记和异常交付遵守 coroutineScope 的相同规则。返回时恢复原 Job，不清除原取消，也不在出口以调用方取消覆盖返回值或清理异常。它不开放游离启动的 Job，不建立线程或 EventLoop；调用者仍通过普通 try／finally 和资源作用域保留原失败。
 
 正文退出后关闭直接子任务登记，已关闭 CoroutineScope 的 launch／async 抛 IllegalStateException。Job 仅在正文及所有已登记子任务完成后发布最终结果；完成前取消不等于已完成。父子及等待者引用在不再需要时解除。join 可多次、多等待者调用，只等待目标结束；await 同样可重复，返回保存的类型化结果或抛该任务的最终异常。coroutineScope 内部等待不被调用方的取消提前中断，必须等子树完成收尾。
+
+coroutineScope 与 nonCancellableScope 是当前 execution 内的词法作用域：建立独立 Job、安装其 binding，并以当前活动执行登记作为作用域正文的父执行归属，不额外登记或启动低层任务。正文结束先关闭 scope，再结束 Job；只在子树仍未结束时登记内部等待，已完成的 Job 可直接取得最终结果。正常正文结束与无活动 child／取消通知时的完成选择在同一临界区提交。Job 状态及其取消／完成监听共享同步边界，选择通知或撤销时同时移除登记并释放 callback 引用，实际通知仍在锁外；不能把完成通知抛出的异常重新当作正文失败再结束 Job。launch／async 和 withExecutor 继续建立独立 execution，保留强制投递与执行登记合同。
 
 launch／async 正文或其子任务的非取消失败立即向父任务传播，并向其他活动后代请求取消；传播到 coroutineScope 的作用域 Job 时止于该作用域。coroutineScope 先取消并等待自己的子树收尾，再从原挂起调用处抛出原失败，不能在调用方有机会 catch 之前取消调用方 Job 或其其他子任务。调用方未捕获时，异常按其自身任务的失败继续传播。core 以内部 propagatesFailure=false 表达该调用边界，不开放无归属 Job。
 

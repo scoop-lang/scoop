@@ -14,6 +14,7 @@ impl TaskSwitch {
         core: mir::ConeIdentity,
         locals: &mut Arena<mir::Local>,
         blocks: &mut Arena<mir::BasicBlock>,
+        states: &mut Arena<mir::ExceptionState>,
     ) -> Self {
         let storage = mir::ContextStorageType::new(core, mir::ContextStorageRole::SwitchGuard);
         let guard = locals.alloc(mir::Local {
@@ -22,9 +23,15 @@ impl TaskSwitch {
             ty: mir::Type::Context(storage),
             mutable: false,
         });
-        let unwind = cleanup(blocks, vec![leave(guard, storage)], "context.unwind");
+        let unwind = cleanup(
+            blocks,
+            states,
+            vec![leave(guard, storage)],
+            "context.unwind",
+        );
         let catch_unwind = cleanup(
             blocks,
+            states,
             vec![
                 stmt(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
                 leave(guard, storage),
@@ -119,20 +126,23 @@ fn leave(guard: mir::LocalId, storage: mir::ContextStorageType) -> mir::Statemen
 
 fn cleanup(
     blocks: &mut Arena<mir::BasicBlock>,
+    states: &mut Arena<mir::ExceptionState>,
     mut statements: Vec<mir::Statement>,
     name: &str,
 ) -> mir::BlockId {
+    let state = states.alloc(mir::ExceptionState);
     statements.insert(
         0,
         stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: true,
+            state,
         })),
     );
     blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: name.to_string(),
         statements,
-        terminator: mir::Terminator::Resume,
+        terminator: mir::Terminator::Resume { state },
         unwind: None,
     })
 }

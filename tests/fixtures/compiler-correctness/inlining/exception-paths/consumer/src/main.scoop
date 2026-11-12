@@ -2,7 +2,10 @@ package dev.performance.resources
 
 import dev.performance.resources.provider.*
 
-fun check(value: Boolean) { if (!value) throw IllegalStateException() }
+fun check(value: Boolean) {
+    if (!value)
+        throw IllegalStateException()
+}
 
 class Marker(var value: Int)
 
@@ -22,8 +25,10 @@ fun importedGuarded(value: Int): Int {
 
 fun opaqueGuarded(value: Int): Int = opaque(value)
 
-class FailingLease(val failure: Throwable) : Disposable {
-    public override fun dispose() { throw failure }
+class FailingLease(val failure: Throwable): Disposable {
+    public override fun dispose() {
+        throw failure
+    }
 }
 
 fun cleanupFailure(failure: Throwable): Boolean {
@@ -50,6 +55,7 @@ fun unresolved(resource: Disposable, callback: (Disposable) -> Int): Int {
 }
 
 class Payload(val value: Int)
+
 var retained: Payload? = None
 
 fun escapingPayload(value: Int): Payload {
@@ -58,8 +64,10 @@ fun escapingPayload(value: Int): Payload {
     return payload
 }
 
-class CollectingLease : Disposable {
-    public override fun dispose() { gcCollect() }
+class CollectingLease: Disposable {
+    public override fun dispose() {
+        gcCollect()
+    }
 }
 
 fun retainedReference(value: Int): Int {
@@ -68,6 +76,57 @@ fun retainedReference(value: Int): Int {
     val result = CollectingLease().use { payload }
     gcCollect()
     return result.value
+}
+
+class CleanupCounter(var value: Int)
+
+fun protectedCallback(counter: CleanupCounter, body: () -> Int): Int {
+    try {
+        return body()
+    } finally {
+        counter.value += 1
+    }
+}
+
+fun protectedLoop(failure: Throwable): Int {
+    val counter = CleanupCounter(0)
+    var sum = 0
+    var index = 0
+    while (index < 16) {
+        val current = index
+        try {
+            sum += protectedCallback(counter) {
+                if (current % 2 == 0)
+                    throw failure
+                current
+            }
+        } catch (actual: Throwable) {
+            check(actual === failure)
+            sum += 100
+        }
+        index += 1
+    }
+    return counter.value * 10000 + sum
+}
+
+fun nestedCleanup(first: Throwable, second: Throwable, transient: Throwable): Boolean {
+    try {
+        try {
+            throw first
+        } catch (actual: Throwable) {
+            check(actual === first)
+            throw second
+        } finally {
+            try {
+                throw transient
+            } catch (actual: Throwable) {
+                check(actual === transient)
+            }
+        }
+    } catch (actual: Throwable) {
+        return actual === second
+    }
+    return false
 }
 
 fun main() {
@@ -87,5 +146,7 @@ fun main() {
     check(bodyFailure(failure))
     check(unresolved(Lease(0L), { 19 }) == 19)
     check(retainedReference(42) == 42)
+    check(protectedLoop(failure) == 160864)
+    check(nestedCleanup(failure, Exception(Some("second")), Exception(Some("transient"))))
     println("exception specialization preserves cleanup, failures and roots")
 }

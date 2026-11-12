@@ -126,3 +126,19 @@ http_field_view scoop_http_event_field(uint64_t handle, int64_t index) {
 void scoop_http_event_free(uint64_t handle) {
   http_event_free((http_event *)(uintptr_t)handle);
 }
+
+http_event_view scoop_http_event_view(uint64_t handle) {
+  const http_event *event = (const http_event *)(uintptr_t)handle;
+  return (http_event_view){
+      event->info,
+      {event->bytes[0].data, (int64_t)event->bytes[0].size},
+      {event->bytes[1].data, (int64_t)event->bytes[1].size},
+      event->fields.items,
+      (int64_t)event->fields.size,
+      (uint64_t)(uintptr_t)event->next};
+}
+
+void scoop_http_event_batch_free(uint64_t handle) {
+  http_events events = {(http_event *)(uintptr_t)handle, NULL};
+  http_events_clear(&events);
+}

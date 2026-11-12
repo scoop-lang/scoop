@@ -1,0 +1,233 @@
+package scoop.http.asyncio
+
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class Http1BufferedResponseTests {
+    @Test
+    fun `complete informational response leaves the request for its final response`() {
+        withHttp1 suspend {
+            _, _, _, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            NativeByteBuffer.allocate(3L).use suspend {
+                buffer ->
+                server.sendResponse(response(103U), buffer)
+                val information = client.receiveResponse()
+                assertEquals(103U, information.head.status)
+                assertEquals(0L, receiveBytes(information.body).size)
+                buffer.writeBytes("end".toByteArray())
+                @Unsafe
+                {
+                    val borrowed = buffer.borrowReadable(3L)
+                    try {
+                        try {
+                            server.sendResponse(response(), buffer);
+                            fail(Some("borrowed source accepted"))
+                        }
+                        catch (_: IllegalStateException) {}
+                    } finally {
+                        borrowed.complete(0L)
+                    }
+                }
+                assertEquals(0L, buffer.readPosition)
+                server.sendResponse(response(), buffer)
+            }
+            assertEquals("end", String.fromUtf8(receiveBytes(client.receiveResponse().body)))
+            assertTrue(client.isReusable && server.isReusable)
+        }
+    }
+
+    @Test
+    fun `cancelled complete response waits for cleanup before releasing its source borrow`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val closed = AsyncGate()
+            transport.writeGate = Some(AsyncGate())
+            transport.closeGate = Some(closed)
+            val cancelled = AtomicBoolean(false)
+            NativeByteBuffer.allocate(3L).use suspend {
+                buffer ->
+                buffer.writeBytes("abc".toByteArray())
+                val sending =
+                    scope.launch suspend {
+                        try {
+                            server.sendResponse(response(), buffer);
+                            fail(Some("cancelled send succeeded"))
+                        }
+                        catch (_: CancellationException) {
+                            cancelled.store(true)
+                        }
+                    }
+                transport.writeStarted.await()
+                sending.cancel()
+                transport.closeStarted.await()
+                assertFalse(sending.isCompleted)
+                try {
+                    buffer.clear();
+                    fail(Some("active source borrow released early"))
+                }
+                catch (_: IllegalStateException) {}
+                closed.signal()
+                sending.join()
+                assertTrue(cancelled.load())
+                assertEquals(0L, buffer.readPosition)
+                buffer.clear()
+            }
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+            assertEquals(1, transport.closes)
+        }
+    }
+
+    @Test
+    fun `complete response coalesces the head and reuses the connection`() {
+        withHttp1 suspend {
+            _,
+            _,
+            transport,
+            client,
+            server -> for (size in [0L, 1024L, 50000L, 65536L]) {
+                client.sendRequest(request()).finish()
+                receiveBytes(server.receiveRequest()!!.body)
+                val payload = Array<Byte>(size) { index -> (index % 251L).toByte() }
+                val writes = transport.writes
+                transport.writeLimit = Long.MAX_VALUE
+                NativeByteBuffer.allocate(size).use suspend {
+                    buffer ->
+                    buffer.writeBytes(payload)
+                    server.sendResponse(response(), buffer)
+                    assertEquals(size, buffer.readPosition)
+                }
+                if (size <= 1024L)
+                    assertEquals(1L, transport.writes - writes)
+                if (size == 65536L)
+                    assertEquals(2L, transport.writes - writes)
+                val incoming = client.receiveResponse()
+                val received = receiveBytes(incoming.body)
+                assertEquals(payload.size, received.size)
+                for (index in 0L ..< size)
+                    assertEquals(payload[index], received[index])
+                assertTrue(client.isReusable && server.isReusable)
+            }
+        }
+    }
+
+    @Test
+    fun `short complete response writes preserve body progress across buffer boundaries`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val payload = Array<Byte>(131079L) { index -> (index % 239L).toByte() }
+            transport.writeLimit = 997L
+            val receiving =
+                scope.async<Array<Byte>> suspend { receiveBytes(client.receiveResponse().body) }
+            NativeByteBuffer.allocate(payload.size + 3L).use suspend {
+                buffer ->
+                buffer.writeBytes(payload)
+                buffer.writeBytes("end".toByteArray())
+                server.sendResponse(response(), buffer, payload.size)
+                assertEquals(payload.size, buffer.readPosition)
+                assertEquals("end", String.fromUtf8(buffer.readBytes(3L)))
+            }
+            val received = receiving.await()
+            assertEquals(payload.size, received.size)
+            for (index in 0L ..< payload.size)
+                assertEquals(payload[index], received[index])
+            assertTrue(client.isReusable && server.isReusable)
+        }
+    }
+
+    @Test
+    fun `failed complete response consumes only the transmitted body prefix`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val headSize =
+                Http1Encoder(HttpRole.Server).use {
+                    encoder -> encoder.beginResponse(
+                        response(),
+                        "GET".toByteArray(),
+                        Http1BodyFraming.Length(7L)
+                    ).size
+                }
+            transport.failWriteAfter = Some(headSize + 2L)
+            NativeByteBuffer.allocate(7L).use suspend {
+                buffer ->
+                buffer.writeBytes("content".toByteArray())
+                try {
+                    server.sendResponse(response(), buffer);
+                    fail(Some("partial write succeeded"))
+                }
+                catch (_: TransportFailure) {}
+                assertEquals(2L, buffer.readPosition)
+                assertEquals("ntent", String.fromUtf8(buffer.readBytes(5L)))
+            }
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+            assertEquals(1, transport.closes)
+        }
+    }
+
+    @Test
+    fun `complete response keeps idle cancellation active through the final flush`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            transport.flushGate = Some(AsyncGate())
+            NativeByteBuffer.allocate(3L).use suspend {
+                buffer ->
+                buffer.writeBytes("abc".toByteArray())
+                try {
+                    server.sendResponse(
+                        response(),
+                        buffer,
+                        writeIdle = Some(Duration.milliseconds(100L))
+                    )
+                    fail(Some("stalled flush succeeded"))
+                } catch (error: HttpIoTimeoutException) {
+                    assertTrue(error.direction == HttpIoDirection.Write)
+                }
+                assertEquals(3L, buffer.readPosition)
+                buffer.clear()
+            }
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+            assertEquals(1, transport.closes)
+        }
+    }
+
+    @Test
+    fun `HEAD rejects a nonempty body before sending and preserves representation length`() {
+        withHttp1 suspend {
+            _, _, transport, client, server ->
+            client.sendRequest(request("HEAD")).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val head =
+                HttpResponseHead(HttpVersion.Http11, 200U, fields = [field("Content-Length", "3")])
+            val writes = transport.writes
+            NativeByteBuffer.allocate(3L).use suspend {
+                buffer ->
+                buffer.writeBytes("abc".toByteArray())
+                try {
+                    server.sendResponse(head, buffer);
+                    fail(Some("HEAD body accepted"))
+                }
+                catch (_: IllegalArgumentException) {}
+                assertEquals(0L, buffer.readPosition)
+                assertEquals(writes, transport.writes)
+                server.sendResponse(head, buffer, 0L)
+                assertEquals(0L, buffer.readPosition)
+            }
+            val received = client.receiveResponse()
+            assertEquals(0L, receiveBytes(received.body).size)
+            assertEquals(Some(3L), parseHttpContentLength(received.head.fields))
+            assertTrue(client.isReusable && server.isReusable)
+        }
+    }
+}

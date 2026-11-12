@@ -45,6 +45,7 @@ EXPECTED = {
     "json/typed": '{"name":"Ada","scores":[7,9]}\nAda: 9\nno note\n',
     "async/tasks": "42\nCancelled task cleaned up\n",
     "http/get": "200\nHello, Scoop!\n",
+    "http/existing-connection": "200\nHello, borrowed connection!\n",
     "cli/options": "Hello, Ada!\nHello, Ada!\n",
     "test/assertions": None,
     "io/processes": "stdout: Hello, 子进程!\nstderr: child diagnostic\nexit 0\nempty: 0 bytes, exit 0\nfailed: exit 7, child failed\ntimeout: partial output\nspawn failed before a child was created\n",

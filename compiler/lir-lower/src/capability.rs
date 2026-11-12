@@ -172,7 +172,7 @@ fn validate_terminator(
         }
         mir::Terminator::Goto(_)
         | mir::Terminator::Rethrow { .. }
-        | mir::Terminator::Resume
+        | mir::Terminator::Resume { .. }
         | mir::Terminator::Trap { .. }
         | mir::Terminator::Unreachable => Ok(()),
     }
@@ -301,7 +301,7 @@ fn expression_requirement(
         | mir::ExprKind::FunctionAddress { .. }
         | mir::ExprKind::ForeignCallbackRegister { .. }
         | mir::ExprKind::ForeignCallbackOperation { .. }
-        | mir::ExprKind::CaughtException
+        | mir::ExprKind::CaughtException { .. }
         | mir::ExprKind::Retype { .. }
         | mir::ExprKind::FieldAccess { .. }
         | mir::ExprKind::AtomicFieldLoad { .. }

@@ -1,0 +1,7 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -54,3 +54,3 @@
+                 val incoming = connection.receiveRequest() ?: break
+-                context(currentJobOrNone()!!) {
++                nonCancellableScope<Unit> {
+                     bodyInput.clear()

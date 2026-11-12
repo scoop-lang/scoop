@@ -59,16 +59,6 @@ uint64_t scoop_rt_thread_debug_caller_root_count(void) {
     return count;
 }
 
-uint64_t scoop_rt_thread_debug_compiler_root_count(void) {
-    ScoopThreadState *state = scoop_thread_current_required();
-    uint64_t count = 0;
-    for (ScoopCompilerRootFrame *frame = state->compiler_roots; frame != NULL;
-         frame = frame->previous) {
-        count += frame->count;
-    }
-    return count;
-}
-
 uint64_t scoop_rt_thread_debug_transition_depth(void) {
     ScoopThreadState *state = scoop_thread_current_required();
     uint64_t depth = 0;

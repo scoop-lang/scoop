@@ -71,13 +71,15 @@ fn a_merge_reuses_only_a_guard_shared_by_every_reachable_predecessor() {
 fn invoke_normal_continuations_keep_guarded_metadata() {
     let (mut module, scope, success) = guarded(false);
     let body = &mut module.functions[scope].body;
+    let state = body.exception_states.alloc(mir::ExceptionState);
     let cleanup = body.blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: "cleanup".into(),
         statements: vec![stmt(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
             cleanup: true,
+            state,
         }))],
-        terminator: mir::Terminator::Resume,
+        terminator: mir::Terminator::Resume { state },
         unwind: None,
     });
     body.blocks[success].unwind = Some(cleanup);

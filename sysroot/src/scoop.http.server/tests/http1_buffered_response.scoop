@@ -1,0 +1,82 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class ServerBufferedResponseTests {
+    @Test
+    fun `buffered HTTP1 preserves commit changes HEAD metadata and completion counts`() {
+        val completed = ServerTestCompletions(6L)
+        val commits = TestCounter()
+        val routes =
+            routing {
+                this.get(
+                    "/{size}",
+                    suspend {
+                        ctx ->
+                        val size = ctx.pathParams.text("size").toLong()
+                        ctx.response.beforeCommit {
+                            draft ->
+                            commits.value += 1
+                            draft.set(field("X-Commit", "yes"))
+                        }
+                        bytes(Array<Byte>(size) { index -> (index % 239L).toByte() })
+                    }
+                )
+            }
+        withServer(
+            routes,
+            httpServerOptions { request { onCompleted = Some(completed::receive) } },
+            suspend {
+                scope,
+                _,
+                address -> networkClient(address, scope).useAsync suspend {
+                    client ->
+                    for (size in [1024L, 65536L, 65537L]) {
+                        for (method in ["GET", "HEAD"]) {
+                            client.sendRequest(
+                                networkRequest("/" + size.toString(), method)
+                            ).finish()
+                            val incoming = client.receiveResponse()
+                            assertEquals(Some(size), parseHttpContentLength(incoming.head.fields))
+                            assertEquals(
+                                "yes",
+                                String.fromUtf8(
+                                    incoming.head.fields.findAll("X-Commit".toByteArray())[0L].value
+                                )
+                            )
+                            val data = incoming.body.readAllBytes(65537L)
+                            assertEquals(
+                                if (method == "HEAD")
+                                    0L
+                                else
+                                    size,
+                                data.size
+                            )
+                            for (index in 0L ..< data.size)
+                                assertEquals((index % 239L).toByte(), data[index])
+                        }
+                    }
+                    completed.ready.await()
+                    val records = completed.snapshot()
+                    for (index in 0L ..< records.size) {
+                        val expected =
+                            if (index % 2L == 1L)
+                                0L
+                            else
+                                [1024L, 65536L, 65537L][index / 2L]
+                        assertEquals(expected, records[index].responseBytes)
+                        assertEquals(expected, records[index].encodedResponseBytes)
+                        assertEquals(HttpRequestOutcome.Completed, records[index].outcome)
+                    }
+                    assertEquals(6, commits.value)
+                    assertTrue(client.isReusable)
+                }
+            }
+        )
+    }
+}

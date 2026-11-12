@@ -22,7 +22,7 @@ pub(in crate::tests) fn lower_tail(source: &hir::ExportHirOutput, enabled: bool)
 }
 
 pub(in crate::tests) fn program(shape: Shape, depth: usize, unit: bool) -> hir::ExportHirOutput {
-    build_program(shape, depth, unit, 64)
+    build_program(shape, depth, unit, 1024)
 }
 
 pub(in crate::tests) fn small_program(

@@ -249,6 +249,7 @@ fn return_inside_a_branch_seals_its_block() {
         vec![param("x", INT, x)],
         INT,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,

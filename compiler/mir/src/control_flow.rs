@@ -66,6 +66,7 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub struct Body {
     pub locals: Arena<Local>,
+    pub exception_states: Arena<ExceptionState>,
     pub blocks: Arena<BasicBlock>,
     pub entry: BlockId,
     /// Normalized loop headers that require a managed safepoint poll when
@@ -189,6 +190,7 @@ impl Body {
         });
         Self {
             locals,
+            exception_states: Arena::new(),
             blocks,
             entry,
             loop_header_polls: Vec::new(),
@@ -269,14 +271,27 @@ pub enum CallEffect {
 
 #[derive(Debug, Clone)]
 pub enum EhStatement {
-    /// Capture the active native exception into function-local EH slots.
+    /// Capture the active native exception into an independent state.
     LandingPad {
         cleanup: bool,
+        state: ExceptionStateId,
     },
     /// Begin the catch represented by the captured exception.
-    BeginCatch,
+    BeginCatch {
+        state: ExceptionStateId,
+    },
     EndCatch,
+    /// Forward an in-flight record without beginning or ending a catch.
+    Forward {
+        source: ExceptionStateId,
+        destination: ExceptionStateId,
+    },
 }
+
+/// Storage for one native exception record, raw pointer and caught object.
+/// Separate states keep nested cleanup and inlined callees independent.
+#[derive(Debug, Clone)]
+pub struct ExceptionState;
 
 #[derive(Debug, Clone)]
 pub enum Terminator {
@@ -303,7 +318,9 @@ pub enum Terminator {
     },
     /// Continue native unwinding with the exception record captured by the
     /// nearest landing/cleanup pad.
-    Resume,
+    Resume {
+        state: ExceptionStateId,
+    },
     /// A native fatal diagnostic, not a managed String value.
     Trap {
         message: String,
@@ -529,8 +546,8 @@ impl Expr {
         Self::new(Type::Unit, ExprKind::UnitLiteral)
     }
 
-    pub fn caught_exception() -> Self {
-        Self::new(Type::Any, ExprKind::CaughtException)
+    pub fn caught_exception(state: ExceptionStateId) -> Self {
+        Self::new(Type::Any, ExprKind::CaughtException { state })
     }
 
     pub fn enum_tag(operand: Expr) -> Self {
@@ -812,7 +829,9 @@ pub enum ExprKind {
     },
     /// The managed exception pointer produced by the active `BeginCatch`.
     /// It is only valid in blocks dominated by that statement.
-    CaughtException,
+    CaughtException {
+        state: ExceptionStateId,
+    },
     /// Zero-cost reference retyping (for example an `Any` local narrowed by
     /// a class smart cast). The explicit result type keeps downstream field
     /// and dispatch reconstruction independent of the local's declared type.

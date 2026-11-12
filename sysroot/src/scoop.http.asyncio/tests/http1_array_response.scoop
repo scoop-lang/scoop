@@ -1,0 +1,103 @@
+package scoop.http.asyncio
+
+import scoop.http.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class Http1ArrayResponseTests {
+    @Test
+    fun `array responses reuse output across short writes and keep their source unchanged`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            val progress = Http1ResponseProgress()
+            transport.writeLimit = 997L
+            for (size in [1024L, 131079L, 0L]) {
+                client.sendRequest(request()).finish()
+                receiveBytes(server.receiveRequest()!!.body)
+                val payload = Array<Byte>(size + 3L) { index -> (index % 239L).toByte() }
+                val receiving =
+                    scope.async<Array<Byte>> suspend { receiveBytes(client.receiveResponse().body) }
+                server.sendResponse(response(), payload, size, progress = Some(progress))
+                val received = receiving.await()
+                assertEquals(size, progress.writtenBytes)
+                assertEquals(size, received.size)
+                for (index in 0L ..< size)
+                    assertEquals(payload[index], received[index])
+                for (index in 0L ..< payload.size)
+                    assertEquals((index % 239L).toByte(), payload[index])
+                assertTrue(client.isReusable && server.isReusable)
+            }
+        }
+    }
+
+    @Test
+    fun `array progress reports a failed body prefix and completed bytes before failed flush`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val headSize =
+                Http1Encoder(HttpRole.Server).use {
+                    encoder -> encoder.beginResponse(
+                        response(),
+                        "GET".toByteArray(),
+                        Http1BodyFraming.Length(7L)
+                    ).size
+                }
+            transport.failWriteAfter = Some(headSize + 2L)
+            val progress = Http1ResponseProgress()
+            try {
+                server.sendResponse(response(), "content".toByteArray(), progress = Some(progress))
+                fail(Some("partial write succeeded"))
+            } catch (_: TransportFailure) {}
+            assertEquals(2L, progress.writtenBytes)
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+            assertEquals(1, transport.closes)
+        }
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            transport.flushGate = Some(AsyncGate())
+            val progress = Http1ResponseProgress()
+            try {
+                server.sendResponse(
+                    response(),
+                    "abc".toByteArray(),
+                    writeIdle = Some(Duration.milliseconds(100L)),
+                    progress = Some(progress)
+                )
+                fail(Some("stalled flush succeeded"))
+            } catch (error: HttpIoTimeoutException) {
+                assertEquals(HttpIoDirection.Write, error.direction)
+            }
+            assertEquals(3L, progress.writtenBytes)
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+        }
+    }
+
+    @Test
+    fun `array HEAD response retains representation metadata without accepting body bytes`() {
+        withHttp1 suspend {
+            _, _, transport, client, server ->
+            client.sendRequest(request("HEAD")).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val head =
+                HttpResponseHead(HttpVersion.Http11, 200U, fields = [field("Content-Length", "3")])
+            val progress = Http1ResponseProgress()
+            val writes = transport.writes
+            try {
+                server.sendResponse(head, "abc".toByteArray(), progress = Some(progress))
+                fail(Some("HEAD body accepted"))
+            } catch (_: IllegalArgumentException) {}
+            assertEquals(writes, transport.writes)
+            server.sendResponse(head, "abc".toByteArray(), 0L, progress = Some(progress))
+            val received = client.receiveResponse()
+            assertEquals(Some(3L), parseHttpContentLength(received.head.fields))
+            assertEquals(0L, receiveBytes(received.body).size)
+            assertEquals(0L, progress.writtenBytes)
+            assertTrue(client.isReusable && server.isReusable)
+        }
+    }
+}

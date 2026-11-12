@@ -54,6 +54,12 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
         local %1 $sc.1: exception_record
         local %2 $sc.2: ptr<raw>
         local %3 $sc.3: ptr<managed>
+        local %4 $sc.4: exception_record
+        local %5 $sc.5: ptr<raw>
+        local %6 $sc.6: ptr<managed>
+        local %7 $sc.7: exception_record
+        local %8 $sc.8: ptr<raw>
+        local %9 $sc.9: ptr<managed>
       block entry
         poll managed-void-target2 sp<managed-poll:0> live=[]
         br @try.body.8
@@ -69,20 +75,20 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
         cbr t3 then @try.catch.9 else @try.next.10
       block try.handler_pad.3
         (t4, t5) = cleanup_pad : (exception_record, ptr<raw>)
-        store t4 -> local1
-        store t5 -> local2
+        store t4 -> local4
+        store t5 -> local5
         br @try.handler_cleanup.4
       block try.handler_cleanup.4
         end_catch
-        resume local1
+        resume local4
       block try.exit_pad.5
         (t6, t7) = cleanup_pad : (exception_record, ptr<raw>)
-        store t6 -> local1
-        store t7 -> local2
+        store t6 -> local7
+        store t7 -> local8
         br @try.exit_cleanup.6
       block try.exit_cleanup.6
         end_catch
-        resume local1
+        resume local7
       block try.end.7
         ret
       block try.body.8
@@ -129,7 +135,7 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
       td td8 UInt @scoop$1$td$cd33e50d4bee20d1122a80e678258fafccbdcf60a258a56f92d698b61932d841 type-id=18175881444594673019 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
       td td9 UInt8 @scoop$1$td$e9b2707b5c4d75570191bbd4adbfff0c67aeef329cffb1987b73a4d7e813681e type-id=16653769684987306371 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
       td td10 Long @scoop$1$td$ecd8b585ebc7fc3d76d9765f2fe1d8dec433276d11f6de158399c5b02e14f55c type-id=3262026339401001817 shape=BoxedValue minimum-size=24 align=8 parent=none vtable=[] itables=[]
-      td td11 task-context @scoop$1$td$db9fdace23f2040d3622172122120f4e46c6786180d6495caf23e609df021eac type-id=11462109518987149384 shape=FixedObject minimum-size=24 align=8 parent=none vtable=[] itables=[]
+      td td11 task-context @scoop$1$td$db9fdace23f2040d3622172122120f4e46c6786180d6495caf23e609df021eac type-id=11462109518987149384 shape=FixedObject minimum-size=32 align=8 parent=none vtable=[] itables=[]
       layout String size=24 align=8 refs=[]
       layout Int8 size=1 align=1 refs=[]
       layout Int16 size=2 align=2 refs=[]
@@ -141,7 +147,7 @@ fn try_catch_lowers_to_invoke_landingpad_and_rethrow() {
       layout ULong size=8 align=8 refs=[]
       layout Boolean size=1 align=1 refs=[]
       layout task-context value size=8 align=8 refs=[0]
-      layout task-context size=24 align=8 refs=[16]
+      layout task-context size=32 align=8 refs=[16, 24]
       layout MyError value size=8 align=8 refs=[0]
       layout MyError size=16 align=8 refs=[]
       layout String value size=8 align=8 refs=[0]

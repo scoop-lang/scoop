@@ -116,6 +116,7 @@ fn trap_terminators_branch_to_a_shared_trap_block() {
         vec![param("o", option_ty, o)],
         INT,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,

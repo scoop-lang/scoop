@@ -1,0 +1,193 @@
+fun <T> absent(value: T?): Boolean =
+    when (value) {
+        case None -> true;
+        case Some(_) -> false
+    }
+
+fun check(value: Boolean) {
+    if (!value)
+        throw IllegalStateException()
+}
+
+class Node(val value: Int)
+
+class Marker(val value: Int)
+
+class Failed: Exception(Some("failed"))
+
+class Gate<T>: SuspendRegistration<T> {
+    var waiter: Continuation<T>? = None
+    public override fun register(continuation: Continuation<T>) {
+        waiter = Some(continuation)
+    }
+    fun complete(value: T) {
+        val saved = waiter!!;
+        waiter = None;
+        saved.resume(value)
+    }
+}
+
+class Done<T>: Continuation<T> {
+    var count = 0
+    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
+    var error: Throwable? = None
+    public override fun resume(value: T) {
+        count += 1;
+        this.value = MaybeUninit<T>.initialized(value)
+    }
+    public override fun resumeWithException(error: Throwable) {
+        count += 1;
+        this.error = Some(error)
+    }
+    fun result(): T {
+        check(count == 1 && absent(error));
+        @Unsafe
+        {
+            return value.assumeInit()
+        }
+    }
+}
+
+var marks = 0
+
+suspend fun returning(node: Node, gate: Gate<Int>, cleanup: Gate<Unit>): Node {
+    val increment = suspendCoroutine(gate)
+    check(increment == 7)
+    try {
+        return node
+    }
+    finally {
+        suspendCoroutine(cleanup);
+        marks += contextOrNone<Marker>()!!.value
+    }
+}
+
+suspend fun callReturning(node: Node, gate: Gate<Int>, cleanup: Gate<Unit>): Int {
+    context(Marker(3)) {
+        val returned = returning(node, gate, cleanup)
+        check(returned === node)
+        return returned.value + contextOrNone<Marker>()!!.value
+    }
+}
+
+suspend fun failing(error: Failed, cleanup: Gate<Unit>): Int {
+    try {
+        throw error
+    }
+    finally {
+        suspendCoroutine(cleanup);
+        marks += 5
+    }
+}
+
+suspend fun callFailing(error: Failed, cleanup: Gate<Unit>): Int {
+    try {
+        return failing(error, cleanup)
+    }
+    catch (actual: Failed) {
+        check(actual === error);
+        return 9
+    }
+}
+
+suspend fun innerCleanup(gate: Gate<Unit>) {
+    try {
+        marks += 1
+    }
+    finally {
+        suspendCoroutine(gate);
+        marks += 2
+    }
+}
+
+suspend fun pendingCaller(node: Node, gate: Gate<Unit>): Node {
+    try {
+        return node
+    }
+    finally {
+        innerCleanup(gate);
+        marks += 4
+    }
+}
+
+suspend fun loopCleanup(gate: Gate<Unit>): Int {
+    var index = 0
+    while (index < 2) {
+        try {
+            index += 1
+            if (index == 1)
+                continue
+            break
+        } finally {
+            suspendCoroutine(gate);
+            marks += 1
+        }
+    }
+    return index
+}
+
+suspend fun callLoop(gate: Gate<Unit>): Int = loopCleanup(gate) + 10
+
+suspend fun twoUnits(first: Gate<Unit>, second: Gate<Unit>) {
+    suspendCoroutine(first)
+    suspendCoroutine(second)
+}
+
+suspend fun callUnits(first: Gate<Unit>, second: Gate<Unit>): Int {
+    twoUnits(first, second)
+    return 17
+}
+
+fun main() {
+    val node = Node(40)
+    val value = Gate<Int>()
+    val cleanup = Gate<Unit>()
+    val returned = Done<Int>()
+    startCoroutine(suspend { callReturning(node, value, cleanup) }, returned)
+    check(returned.count == 0)
+    gcCollect()
+    value.complete(7)
+    check(returned.count == 0 && marks == 0)
+    gcCollect()
+    cleanup.complete(Unit)
+    check(returned.result() == 43 && marks == 3)
+    check(absent(contextOrNone<Marker>()))
+
+    val error = Failed()
+    val failedCleanup = Gate<Unit>()
+    val caught = Done<Int>()
+    startCoroutine(suspend { callFailing(error, failedCleanup) }, caught)
+    check(caught.count == 0)
+    gcCollect()
+    failedCleanup.complete(Unit)
+    check(caught.result() == 9 && marks == 8)
+
+    val pendingGate = Gate<Unit>()
+    val pending = Done<Node>()
+    startCoroutine(suspend { pendingCaller(node, pendingGate) }, pending)
+    check(pending.count == 0 && marks == 9)
+    gcCollect()
+    pendingGate.complete(Unit)
+    check(pending.result() === node && marks == 15)
+
+    val loopGate = Gate<Unit>()
+    val loop = Done<Int>()
+    startCoroutine(suspend { callLoop(loopGate) }, loop)
+    check(loop.count == 0)
+    loopGate.complete(Unit)
+    check(loop.count == 0 && marks == 16)
+    gcCollect()
+    loopGate.complete(Unit)
+    check(loop.result() == 12 && marks == 17)
+
+    val first = Gate<Unit>()
+    val second = Gate<Unit>()
+    val units = Done<Int>()
+    startCoroutine(suspend { callUnits(first, second) }, units)
+    first.complete(Unit)
+    check(units.count == 0)
+    gcCollect()
+    second.complete(Unit)
+    check(units.result() == 17)
+    println("fused suspend calls preserve values, cleanup and Context")
+}

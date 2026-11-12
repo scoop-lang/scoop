@@ -151,6 +151,31 @@ public class AsyncHttp1Connection internal constructor(
         writeIdle: Duration? = ioTimeouts.writeIdle
     ): AsyncHttp1Writer = sendH1Response(state, head, body, writeIdle)
     /**
+     * Sends and completes a response with an already-buffered body. The source cursor records
+     * actual body progress, including a prefix accepted before failure.
+     */
+    public suspend fun sendResponse(
+        head: HttpResponseHead,
+        buffer: NativeByteBuffer,
+        count: Long = buffer.readableBytes,
+        writeIdle: Duration? = ioTimeouts.writeIdle
+    ) {
+        sendH1BufferedResponse(state, head, buffer, count, writeIdle)
+    }
+    /**
+     * Sends an immutable byte prefix through the connection's reusable output buffer. Optional
+     * progress remains readable after success or failure and excludes response-header bytes.
+     */
+    public suspend fun sendResponse(
+        head: HttpResponseHead,
+        bytes: Array<Byte>,
+        count: Long = bytes.size,
+        writeIdle: Duration? = ioTimeouts.writeIdle,
+        progress: Http1ResponseProgress? = None
+    ) {
+        sendH1ArrayResponse(state, head, bytes, count, writeIdle, progress)
+    }
+    /**
      * Receives the next request head and body, or None at clean connection EOF.
      */
     public suspend fun receiveRequest(

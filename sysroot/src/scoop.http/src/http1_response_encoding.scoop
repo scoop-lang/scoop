@@ -1,0 +1,11 @@
+package scoop.http
+
+// A successful encoding of immutable inputs. Message progress stays in the encoder.
+internal class Http1ResponseEncoding(
+    val head: HttpResponseHead,
+    val method: Array<Byte>,
+    val framing: Http1BodyFraming,
+    val bytes: Array<Byte>,
+    val closing: Boolean,
+    val switched: Boolean
+)

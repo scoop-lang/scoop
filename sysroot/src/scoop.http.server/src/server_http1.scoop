@@ -23,6 +23,7 @@ where T: AsyncByteStream, T: AsyncCloseable {
             HttpIoTimeoutOptions(options.bodyReadIdle, options.responseWriteIdle)
         )
     var failure: Throwable? = None
+    val headDeadline = Http1HeadDeadline(scope.job)
     try {
         try {
             var first = true
@@ -32,12 +33,20 @@ where T: AsyncByteStream, T: AsyncCloseable {
                         remainingServerTime(options.firstRequestHeadTimeout, started)
                     else
                         options.keepAliveIdleTimeout
+                headDeadline.begin(timeout)
                 val incoming =
-                    serverDeadline<Http1IncomingRequest?>(
-                        timeout,
-                        "HTTP/1 request head",
-                        suspend { connection.receiveRequest() }
-                    )
+                    try {
+                        connection.receiveRequest()
+                    } catch (error: Throwable) {
+                        val expired = headDeadline.finish()
+                        if (error is CancellationException && present(expired))
+                            throw expired!!
+                        throw error
+                    }
+                val expired = headDeadline.finish()
+                if (present(expired))
+                    throw expired!!
+                scope.job.ensureActive()
                 first = false
                 if (!present(incoming))
                     break
@@ -45,7 +54,13 @@ where T: AsyncByteStream, T: AsyncCloseable {
                 if (!present(requestId))
                     break
                 try {
-                    executeHttp1Request(state, entry, connection, incoming!!, requestId!!)
+                    executeHttp1Request(
+                        state.application,
+                        ServerHttp1ResponseOutput(state, entry, connection, incoming!!),
+                        requestId!!,
+                        entry.info,
+                        state.options.request
+                    )
                 }
                 finally {
                     state.endRequest(entry)
@@ -60,6 +75,7 @@ where T: AsyncByteStream, T: AsyncCloseable {
             throw error
         }
         finally {
+            headDeadline.close()
             closeServerResource(state, connection, failure)
         }
         val upgraded = state.lock.withLock { entry.webSocket }

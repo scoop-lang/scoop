@@ -74,7 +74,15 @@ static void visit_managed_segment(const ScoopThreadState *thread, ScoopManagedAn
                 slot == NULL) {
                 managed_frame_fatal(error);
             }
-            visitor.visit_slot(slot, visitor.context);
+            if (scoop_gc_root_is_region_table(scoop_gc_root(record, index))) {
+                const ScoopStackRootTable *table = (const void *)slot;
+                for (uint64_t entry = 0; entry < table->count; entry++) {
+                    visitor.visit_region(table->entries[entry].base, table->entries[entry].scan,
+                                         visitor.context);
+                }
+            } else {
+                visitor.visit_slot(slot, visitor.context);
+            }
         }
 
         uintptr_t return_pc = 0;
@@ -83,8 +91,8 @@ static void visit_managed_segment(const ScoopThreadState *thread, ScoopManagedAn
         bool has_next = false;
         error = (ScoopPlatformError){0};
         if (!platform_bundle->managed_frames->next_frame(&frame, boundary, bounds, &return_pc,
-                                                         &stack_pointer, &frame_pointer,
-                                                         &has_next, &error)) {
+                                                         &stack_pointer, &frame_pointer, &has_next,
+                                                         &error)) {
             managed_frame_fatal(error);
         }
         if (!has_next) {

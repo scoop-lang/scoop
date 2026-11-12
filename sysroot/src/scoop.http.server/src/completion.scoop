@@ -6,7 +6,7 @@ import scoop.time.Duration
 import scoop.tls.TlsConnectionInfo
 
 /** Immutable connection metadata; forwarded headers never replace these socket addresses. */
-public class HttpConnectionInfo internal constructor(
+public class HttpConnectionInfo public constructor(
     /** The actual local socket address. */
     public val localAddress: SocketAddress,
     /** The actual peer socket address. */
@@ -31,7 +31,7 @@ public enum HttpRequestOutcome {
 
 /** Completion facts detached from the mutable request and its resource lifetimes. */
 public class HttpRequestCompletion internal constructor(
-    /** The server-generated request identifier. */
+    /** The request identifier supplied by the server or the application caller. */
     public val requestId: String,
     /** The selected route, absent for an unmatched fallback or special target. */
     public val route: HttpRouteInfo?,

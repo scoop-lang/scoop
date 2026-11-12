@@ -83,11 +83,25 @@ pub(super) fn dump_statements(
                 dump_expr(module, locals, value, indent + 1, out);
             }
             StatementKind::Eh(eh) => match eh {
-                EhStatement::LandingPad { cleanup } => {
-                    out.push_str(&format!("{pad}landing_pad cleanup={cleanup}\n"));
+                EhStatement::LandingPad { cleanup, state } => {
+                    out.push_str(&format!(
+                        "{pad}landing_pad eh{} cleanup={cleanup}\n",
+                        state.into_raw().into_u32()
+                    ));
                 }
-                EhStatement::BeginCatch => out.push_str(&format!("{pad}begin_catch\n")),
+                EhStatement::BeginCatch { state } => out.push_str(&format!(
+                    "{pad}begin_catch eh{}\n",
+                    state.into_raw().into_u32()
+                )),
                 EhStatement::EndCatch => out.push_str(&format!("{pad}end_catch\n")),
+                EhStatement::Forward {
+                    source,
+                    destination,
+                } => out.push_str(&format!(
+                    "{pad}forward_exception eh{} -> eh{}\n",
+                    source.into_raw().into_u32(),
+                    destination.into_raw().into_u32(),
+                )),
             },
         }
     }
@@ -138,7 +152,9 @@ pub(super) fn dump_terminator(
                 .unwrap_or_default();
             out.push_str(&format!("{pad}rethrow{edge}\n"));
         }
-        Terminator::Resume => out.push_str(&format!("{pad}resume\n")),
+        Terminator::Resume { state } => {
+            out.push_str(&format!("{pad}resume eh{}\n", state.into_raw().into_u32()))
+        }
         Terminator::Trap { message } => {
             out.push_str(&format!("{pad}trap {message:?}\n"));
         }

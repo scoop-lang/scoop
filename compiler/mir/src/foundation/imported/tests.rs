@@ -43,6 +43,7 @@ fn ordinary_module(callable: crate::ExternalCallableUse) -> Module {
         params: Vec::new(),
         return_ty: Type::Unit,
         body: Body {
+            exception_states: Default::default(),
             locals: Arena::new(),
             blocks,
             entry,

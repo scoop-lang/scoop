@@ -46,7 +46,7 @@ pub fn visit_terminator_exprs_mut(
         Terminator::Throw { exception, .. } => visit_expr_mut(exception, visitor),
         Terminator::Goto(_)
         | Terminator::Rethrow { .. }
-        | Terminator::Resume
+        | Terminator::Resume { .. }
         | Terminator::Trap { .. }
         | Terminator::Unreachable => {}
     }

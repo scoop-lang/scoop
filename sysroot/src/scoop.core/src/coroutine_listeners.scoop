@@ -4,72 +4,106 @@ internal class CoroutineLock {
 
     internal fun <T> withLock(block: () -> T): T {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
-        try { return block() }
-        finally { held.store(false, MemoryOrder.Release) }
+        try {
+            return block()
+        }
+        finally {
+            held.store(false, MemoryOrder.Release)
+        }
     }
 }
 
-internal class CoroutineListeners {
-    private val lock: CoroutineLock = CoroutineLock()
-    private var entries: ArrayList<CoroutineRegistration> = ArrayList<CoroutineRegistration>()
+internal class CoroutineListeners(private val lock: CoroutineLock = CoroutineLock()) {
+    private var entries: ArrayList<CoroutineRegistration>? = None
 
-    internal fun add(action: () -> Unit): CoroutineRegistration = lock.withLock {
+    internal fun add(action: () -> Unit): CoroutineRegistration =
+        lock.withLock { addLocked(action) }
+
+    // The owning Job can update its state and listeners in one critical section.
+    internal fun addLocked(action: () -> Unit): CoroutineRegistration {
         val entry = CoroutineRegistration(this, action)
-        entries.add(entry)
-        entry
+        if (coroutineAbsent(entries))
+            entries = Some(ArrayList<CoroutineRegistration>())
+        entries!!.add(entry)
+        return entry
     }
 
-    internal fun remove(entry: CoroutineRegistration) {
+    internal fun select(entry: CoroutineRegistration): (() -> Unit)? =
         lock.withLock {
-            var index = 0L
-            while (index < entries.size) {
-                if (entries[index] === entry) {
-                    entries.removeAt(index)
-                    return@withLock
+            val callback = entry.takeActionLocked()
+            when (entries) {
+                case None -> {}
+                case Some(val values) -> if (!coroutineAbsent(callback)) {
+                    var index = 0L
+                    while (index < values.size) {
+                        if (values[index] === entry) {
+                            values.removeAt(index)
+                            break
+                        }
+                        index += 1L
+                    }
                 }
-                index += 1L
             }
+            callback
         }
+
+    internal fun take(): ArrayList<CoroutineRegistration>? = lock.withLock { takeLocked() }
+
+    internal fun takeLocked(): ArrayList<CoroutineRegistration>? {
+        val result = entries
+        entries = None
+        return result
     }
 
-    internal fun take(): ArrayList<CoroutineRegistration> = lock.withLock {
-        val result = entries
-        entries = ArrayList<CoroutineRegistration>()
-        result
+    internal fun clear() {
+        lock.withLock { clearLocked() }
+    }
+
+    internal fun clearLocked() {
+        when (takeLocked()) {
+            case Some(val values) -> for (entry in values)
+                entry.takeActionLocked()
+            case None -> {}
+        }
     }
 }
 
 internal class CoroutineRegistration(
     private val owner: CoroutineListeners,
     action: () -> Unit
-) : Disposable {
-    private val lock: CoroutineLock = CoroutineLock()
+): Disposable {
     private var action: (() -> Unit)? = Some(action)
 
+    internal fun takeActionLocked(): (() -> Unit)? {
+        val result = action
+        action = None
+        return result
+    }
+
     internal fun fire() {
-        val callback = lock.withLock {
-            val result = action
-            action = None
-            result
-        }
-        owner.remove(this)
-        when (callback) {
+        when (owner.select(this)) {
             case Some(val invoke) -> invoke()
             case None -> {}
         }
     }
 
     public override fun dispose() {
-        lock.withLock { action = None }
-        owner.remove(this)
+        owner.select(this)
     }
 }
 
-internal fun notifyCoroutineListeners(entries: ArrayList<CoroutineRegistration>) {
+internal fun notifyCoroutineListeners(entries: ArrayList<CoroutineRegistration>?) {
+    if (coroutineAbsent(entries))
+        return
     var failure: Throwable? = None
-    for (entry in entries) {
-        try { entry.fire() }
-        catch (error: Throwable) { if (coroutineAbsent(failure)) failure = Some(error) }
+    for (entry in entries!!) {
+        try {
+            entry.fire()
+        }
+        catch (error: Throwable) {
+            if (coroutineAbsent(failure))
+                failure = Some(error)
+        }
     }
     when (failure) {
         case Some(val error) -> throw error
@@ -77,7 +111,8 @@ internal fun notifyCoroutineListeners(entries: ArrayList<CoroutineRegistration>)
     }
 }
 
-internal fun <T> coroutineAbsent(value: T?): Boolean = when (value) {
-    case None -> true
-    case Some(_) -> false
-}
+internal fun <T> coroutineAbsent(value: T?): Boolean =
+    when (value) {
+        case None -> true
+        case Some(_) -> false
+    }

@@ -46,6 +46,7 @@ pub enum OptimizationDecision {
 pub enum InlineOutcome {
     Inlined,
     ClassFields,
+    KnownClosure,
     Required,
     Profitability,
     CallerGrowth,
@@ -54,7 +55,6 @@ pub enum InlineOutcome {
     UnsupportedBody,
     RecursiveCallee,
     ProtocolCallee,
-    ProtocolCaller,
     RecursiveExpansion,
     Depth,
     GrowthExhausted,

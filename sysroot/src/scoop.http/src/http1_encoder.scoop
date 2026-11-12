@@ -51,6 +51,7 @@ public class Http1Encoder public constructor(
     private var switched: Boolean = false
     private var framing: Http1BodyFraming = Http1BodyFraming.Empty
     private var remaining: Long = 0L
+    private var responseEncoding: Http1ResponseEncoding? = None
 
     /**
      * Whether its state has been released.
@@ -89,6 +90,11 @@ public class Http1Encoder public constructor(
     ): Array<Byte> {
         val close = appendHttp1Headers(output, fields, version, mode, kind)
         val bytes = output.toByteArray()
+        beginMessage(mode, close, kind == Http1HeadKind.Switch)
+        return bytes
+    }
+
+    private fun beginMessage(mode: Http1BodyFraming, close: Boolean, switch: Boolean) {
         active = true
         framing = mode
         remaining =
@@ -97,8 +103,7 @@ public class Http1Encoder public constructor(
                 else -> 0L
             }
         closing = close
-        switched = kind == Http1HeadKind.Switch
-        return bytes
+        switched = switch
     }
 
     /**
@@ -131,7 +136,7 @@ public class Http1Encoder public constructor(
 
     /**
      * Encodes a server response using the exact originating method to determine body and switching
-     * rules.
+     * rules. Returned bytes are immutable and remain valid across later messages and close.
      */
     public fun beginResponse(
         head: HttpResponseHead,
@@ -140,6 +145,21 @@ public class Http1Encoder public constructor(
     ): Array<Byte> {
         requireBegin(HttpRole.Server)
         val method = requestMethod.toArray()
+        when (responseEncoding) {
+            case Some(val encoded) -> {
+                if (
+                    encoded.head ===
+                        head &&
+                        encoded.framing ==
+                        body &&
+                        httpBytesEqual(encoded.method, method)
+                ) {
+                    beginMessage(body, encoded.closing, encoded.switched)
+                    return encoded.bytes
+                }
+            }
+            case None -> {}
+        }
         requireHttp1Method(method)
         val kind = http1ResponseKind(head, method)
         val output = ByteArrayBuilder()
@@ -154,7 +174,13 @@ public class Http1Encoder public constructor(
             case None -> {}
         }
         output.append("\r\n".toByteArray())
-        return begin(output, head.fields, head.version, body, kind)
+        val close = appendHttp1Headers(output, head.fields, head.version, body, kind)
+        val bytes = output.toByteArray()
+        val switch = kind == Http1HeadKind.Switch
+        val encoded = Http1ResponseEncoding(head, method, body, bytes, close, switch)
+        beginMessage(body, close, switch)
+        responseEncoding = Some(encoded)
+        return bytes
     }
 
     private fun frameBody(count: Long): Http1BodyChunk {
@@ -260,5 +286,6 @@ public class Http1Encoder public constructor(
     public override fun close() {
         closed = true;
         active = false
+        responseEncoding = None
     }
 }

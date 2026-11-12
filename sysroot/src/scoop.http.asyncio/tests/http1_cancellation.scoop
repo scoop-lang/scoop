@@ -5,12 +5,15 @@ import scoop.http.*
 import scoop.platform.concurrent.Thread
 import scoop.platform.memory.NativeByteBuffer
 import scoop.test.*
+import scoop.time.Duration
 
 @Test
 private class AsyncHttp1CancellationTests {
     @Test
     fun `borrowed body input is rejected before framing and leaves the connection usable`() {
-        withHttp1 suspend {
+        withHttp1(
+            clientTimeouts = HttpIoTimeoutOptions(writeIdle = Some(Duration.milliseconds(150L)))
+        ) suspend {
             _, _, _, client, server ->
             val writer = client.sendRequest(request("POST"), Http1BodyFraming.Length(3L))
             NativeByteBuffer.allocate(3L).use suspend {
@@ -30,6 +33,8 @@ private class AsyncHttp1CancellationTests {
                         borrowed.complete(0L)
                     }
                 }
+                currentEventLoop().sleep(Duration.milliseconds(350L))
+                assertFalse(client.isClosed)
                 assertEquals(3L, writer.writeFrom(buffer, 3L))
             }
             writer.finish()

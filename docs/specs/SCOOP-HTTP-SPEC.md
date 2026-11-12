@@ -16,7 +16,7 @@ HTTP/1 使用 llhttp 9.4.3；HTTP/2 使用 nghttp2 1.70.0 的完整上游协议�
 
 ## 2. 消息、字段与错误
 
-HttpField 的构造参数为 `List<Byte>`，名称和值各取得独立 `Array<Byte>` 快照，另有 neverIndex。字段集合保留顺序和重复项；ASCII 大小写无关查询返回每一项，不合并 Set-Cookie 等同名值。字段值允许后端实际接受的非 ASCII／非 UTF-8 字节。文本转换由调用者通过已有编码 API 显式执行。
+HttpField 的构造参数为 `List<Byte>`，名称和值各取得不随源列表后续修改而变化的 `Array<Byte>` 快照，另有 neverIndex。消息和字段构造可直接保留已经不可变的 Array；其他 List 仍复制为 Array，不能保留可变源列表。字段集合保留顺序和重复项；ASCII 大小写无关查询返回每一项，不合并 Set-Cookie 等同名值。字段值允许后端实际接受的非 ASCII／非 UTF-8 字节。文本转换由调用者通过已有编码 API 显式执行。
 
 方法保留 token 字节。HTTP/1 request-target 保留原有字节；HTTP/2 的 scheme、authority、path 与 CONNECT authority 单独表达。响应有版本、状态码和字段；HTTP/1 保留实际 reason phrase，HTTP/2 没有该数据，不生成默认文本。正常接收的请求／响应头必须具备该消息所需信息，不能把未完成的字段块当作消息交付。
 
@@ -33,6 +33,8 @@ HttpException 的 isUnexpectedEof 明确表示该错误是否来自后端确认�
 ## 3. HTTP/1 接收
 
 Http1Decoder 的 client／server 工厂固定接收角色、选项和局部字段限制；对象实现 Closeable，调用者串行使用。receive 消费 NativeByteBuffer 中的实际前缀，nextEvent 取走已完成事件，endInput 明确交付 EOF。关闭后不能继续推进；关闭本身不执行 I/O。
+
+内部 native 桥接按已完成事件批次移交所有权；nextEvent 仍逐项、按原顺序交付 Request／Response、Data、Trailers、End 和 Switch，包括空 Trailers。尚未消费的批次与后续 receive 产生的事件分开保存，后续输入不能使正在转换的字段或正文指针失效。每项事件只在 native 存储仍有效时构造一次 managed 字节快照；批次耗尽或 decoder 关闭时统一释放 native 事件，部分消费后的关闭同样释放整个批次。已经返回的消息在后续 receive、endInput、resumeHttp1 和 close 后继续有效。批次取出和只读视图访问为有界、无分配、无阻塞、无回调的 GCLeaf 操作；解析与 native 内存释放仍使用普通 native 边界。
 
 receiveWithProgress 使用相同输入合同，返回 Http1ReceiveResult(count, startedMessages)。startedMessages 是本次消费中新开始的消息数，直接来自 llhttp 的 message-begin 回调，信息响应与最终响应分别计数；部分起始行也会开始一条消息，不必等到完整头部。零输入返回两个零，普通 receive 与该入口可以交替使用；已经由普通 receive 消费的开始不在下一次重报。该计数不改变消息事件，也不另行解析起始行或推测响应边界。
 
@@ -76,6 +78,8 @@ lenientTextVersion 只影响文本起始行的解析；后端接受的数字不�
 Http1Encoder 生成起始行、字段、body 定界与结束字节，保持调用者字段的相对顺序。发送方法和字段名必须为合法 token；request-target、reason phrase、字段值不能通过 CR、LF、NUL 等非法结构字节注入报文。接收宽容选项不作用于发送。
 
 编码器固定 HttpRole。beginRequest／beginResponse 返回头部字节，后者显式接收对应请求方法；writeBody 消费 NativeByteBuffer 的指定前缀并返回编码字节，finish 返回结束／trailer 字节。每次 begin 都需要 finish，包括空 body。Http1BodyFraming 为 Empty、Length(count)、Chunked、Eof；isMessageOpen、mustClose、isSwitched 分别表示当前消息、连接复用与协议切换状态。编码器实现 Closeable，不执行传输。
+
+编码器可保留最近一次成功编码的不可变响应头及其结果；只有头对象相同、请求方法字节及定界相同才复用已完成的头部校验和编码。方法参数仍先取得本次快照，不能重复读取有副作用的 List 来判断命中。每次 begin 仍检查编码器状态并重新开始独立的消息长度／完成状态；失败不发布新的编码结果，close 释放保留项。返回的不可变头部字节可以共享，后续编码及 close 不改变已经返回的内容。
 
 传输适配层使用 `prepareBody(count: Long): Http1BodyChunk` 接受非负正文长度并取得独立的 `prefix: Array<Byte>`／`suffix: Array<Byte>`，按 prefix、原正文、suffix 的顺序发送；固定长度与 EOF 定界的前后缀为空，正长度 chunked 为十六进制长度加 CRLF 和末尾 CRLF，零长度不产生终结 chunk。成功准备即从 Content-Length 余量扣除 count，不消费或保留调用者的 buffer；发送失败后不能重试同一已接受片段。`finish` 仍负责最终零 chunk 与 trailer。内存编码用的 `writeBody` 复用相同的长度检查和分帧构造，只在实际需要完整编码数组时复制正文；失败不得提交输入游标或已声明长度。
 
@@ -155,7 +159,13 @@ prepareHttp2Upgrade 为普通 HTTP/1.1 请求添加升级字段，显式拒绝 C
 
 H1 按顺序关联请求与响应，同一方向只允许一个消息 body 操作；未定界完成的 body 不能作为下一条消息。关闭或取消未消费完的 body 关闭连接，不执行无界自动 drain。信息响应不结束对应请求。H2 用 stream ID 分开关联请求、响应和双向 body，单流可以独立结束或取消。
 
+H1 操作在同一次连接状态边界完成同步准备、占用方向和安装本次 idle 状态；准备失败不留下在途操作。取消监听覆盖随后的实际 I/O，操作返回前撤销监听，并在同一次状态边界释放方向和 idle 状态。开始与结束的同步管理不要求另建挂起调用层；失败仍先保留已选择的取消／超时原因，再等待传输和借用的实际收尾。正常操作结束只在连接已经关闭中时推进关闭过程。
+
 AsyncHttp1Connection 的 takeOwnershipAsClient／takeOwnershipAsServer 接收传输与 CoroutineScope。sendRequest／sendResponse 返回 AsyncHttp1Writer，每条消息用 finish 完成；receiveRequest 在正常 EOF 返回 None，receiveResponse 逐条交付信息／最终响应及 AsyncHttp1Body。body 在消费完数据及结束标记后公开已完成状态和 trailer，之后读取返回零；显式 close 未完成的 body 会关闭连接。服务端按接收顺序使用对应请求方法发送响应，拒绝升级后恢复 HTTP/1；接受切换后通过 takeTransport 移交前缀及传输。H1 的实际读写属于调用操作的 Job，连接另登记一个负责存活与本地关闭的 scope 子任务。
+
+完整响应重载 `sendResponse(head, buffer: NativeByteBuffer, count: Long = buffer.readableBytes, writeIdle: Duration? = ioTimeouts.writeIdle): Unit` 在一次写操作中发送头部、指定的全部正文并完成消息，不交付 writer。允许正文时使用精确 Content-Length；HEAD、无内容状态和切换响应要求 count 为零，沿原编码器处理元数据与定界。整个调用借用源 buffer，成功或失败后按底层实际接受的正文前缀推进游标并结束借用；头部字节不计入正文进度。传输错误、取消和 idle 超时关闭连接且不重试已发送内容。连接以至多 64 KiB 的输出块合并头部和正文，处理短写，最后 flush；不为整条大消息建立额外的完整副本。消息关联、信息响应、关闭与协议切换规则和 writer 入口相同。
+
+不可变数组重载 `sendResponse(head, bytes: Array<Byte>, count: Long = bytes.size, writeIdle: Duration? = ioTimeouts.writeIdle, progress: Http1ResponseProgress? = None): Unit` 使用同一个完整响应过程，直接按块复制到连接输出缓冲，不建立中间 native buffer，不持有跨挂起的 managed 裸指针。count 选择数组前缀且须处于 0～bytes.size。可选 Http1ResponseProgress 的 writtenBytes 在成功／失败返回后表示本次调用实际发送的正文前缀；参数检查成功、进入发送过程时清零，头部不计入，flush 失败保留此前已发送正文。一个 progress 对象同一时间只能属于一次调用，读取进度以该调用结束为边界。输入数组不变，其他定界、错误和清理规则与 native buffer 重载一致。
 
 HTTP/1 客户端工厂可选 captureTimings（默认 false）。开启后，Http1IncomingResponse.firstByteAt 保存包含该响应开始字节的底层 read 完成时的单调 TimeMark，缺省关闭时为 None；信息响应各有自己的值。开始边界来自 receiveWithProgress，时间随待交付的响应开始记录按序保存，跨多次读取的部分起始行和同批读取的流水线响应均正确配对。同次读取的新响应可以具有相同时间。此值表示 HTTP 可见输入的观测时间，不声称是网卡接收时间，也不把完整头部到达时间代替首字节。
 
@@ -191,7 +201,7 @@ HTTP/2 已正常关闭的流保留尚未被应用取走的完整响应头与 bod
 
 body readInto／writeFrom 采用既有 NativeByteBuffer 前缀合同，允许短传输。等待到达的数据时无需借用调用者 buffer；实际复制时才同步借用。跨挂起只保留稳定 native allocation，底层借用结束后才复用或释放缓冲。零长度经状态、范围和取消检查后返回零，不推进网络。
 
-H1 输出将分帧前后缀与正文分开传递：正文直接使用调用者 NativeByteBuffer，由底层 transport 按实际接受的前缀推进游标，不再转成托管数组并复制回连接输出缓冲。单次接受的正文仍有界，完整发送所选前缀及其分帧后返回；短写逐次推进，失败保留已有进度并关闭连接，不能在后缀失败后重发正文。前后缀与正文共用一次写操作及 I/O idle 观测，最后统一 flush；所有 native 借用完成后才允许关闭和返回。
+H1 输出将分帧前后缀与正文分开传递：正文直接使用调用者 NativeByteBuffer，由底层 transport 按实际接受的前缀推进游标，不再转成托管数组并复制回连接输出缓冲。合法 count 指定本次接受的有界前缀，H1 不再额外按固定块大小截断；完整发送该前缀及其分帧后返回。底层短写逐次推进，失败保留已有进度并关闭连接，不能在后缀失败后重发正文。前后缀与正文共用一次写操作及 I/O idle 观测，最后统一 flush；所有 native 借用完成后才允许关闭和返回。
 
 非空正文在准备阶段同步借用输入以确认其可用，并在该借用范围内选择分帧；不读取或复制正文内容。已被借用的输入在改变编码状态和写出任何字节之前拒绝，连接仍可继续使用。实际 I/O 仍由 transport 持有自己的 native 借用；调用方在整个挂起写操作结束前不得并发变更或关闭输入 buffer。
 

@@ -1,0 +1,38 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -102,24 +102,18 @@
+     val metrics = bytes(replies[2L].body)
+     val application =
+         routing {
+-            use(
++            use(suspend { _, next -> next() })
++            get("/small", suspend { _ -> small })
++            get("/large", suspend { _ -> large })
++            get(
++                "/__metrics",
+                 suspend {
+-                    ctx, _ ->
+-                    val target = ctx.request.path
+-                    val result =
+-                        when (target) {
+-                            case "/small" -> small
+-                            case "/large" -> large
+-                            case "/__metrics" -> {
+-                                @Unsafe
+-                                {
+-                                    dumpMetrics()
+-                                }
+-                                metrics
+-                            }
+-                            else -> throw IllegalArgumentException(Some("unknown benchmark target"))
+-                        }
+-                    ctx.respond(result)
++                    _ ->
++                    @Unsafe
++                    {
++                        dumpMetrics()
++                    }
++                    metrics
+                 }
+             )
+         }

@@ -110,13 +110,14 @@ typedef struct ScoopCallerRootFrame {
     uint64_t count;
 } ScoopCallerRootFrame;
 
-/* Roots spilled around a managed invoke. This chain is independent from the
- * outbound-native caller-root chain and is unwound dynamically. */
-typedef struct ScoopCompilerRootFrame {
-    struct ScoopCompilerRootFrame *previous;
-    ScoopCallerRootEntry *entries;
+/* Canonical regions published by a managed invoke's Direct stackmap location. */
+typedef struct ScoopStackRootTable {
+    const ScoopCallerRootEntry *entries;
     uint64_t count;
-} ScoopCompilerRootFrame;
+} ScoopStackRootTable;
+
+_Static_assert(sizeof(ScoopStackRootTable) == 16, "stack root table layout");
+_Static_assert(_Alignof(ScoopStackRootTable) == 8, "stack root table alignment");
 
 /* Stack-owned scoped borrow. The collector fixes the object before moving. */
 typedef struct ScoopPinFrame {
@@ -144,10 +145,6 @@ typedef struct ScoopThreadTransition {
 void scoop_rt_push_caller_roots(ScoopCallerRootFrame *frame, ScoopCallerRootEntry *entries,
                                 uint64_t count);
 void scoop_rt_pop_caller_roots(ScoopCallerRootFrame *frame);
-void scoop_rt_push_compiler_roots(ScoopCompilerRootFrame *frame, ScoopCallerRootEntry *entries,
-                                  uint64_t count);
-void scoop_rt_pop_compiler_roots(ScoopCompilerRootFrame *frame);
-void scoop_rt_pop_top_compiler_roots(void);
 void scoop_rt_enter_native_safe(ScoopThreadTransition *transition, uintptr_t managed_stack_low);
 void scoop_rt_leave_native_safe(ScoopThreadTransition *transition);
 void scoop_rt_enter_native_borrowed(ScoopThreadTransition *transition, uintptr_t managed_stack_low);

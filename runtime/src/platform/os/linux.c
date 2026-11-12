@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <pthread.h>
+#include <sched.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -45,6 +46,13 @@ static size_t linux_page_size(void) {
 }
 
 static size_t linux_processor_count(void) {
+    cpu_set_t allowed;
+    if (sched_getaffinity(0, sizeof allowed, &allowed) == 0) {
+        int count = CPU_COUNT(&allowed);
+        if (count > 0) {
+            return (size_t)count;
+        }
+    }
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return count > 0 ? (size_t)count : 1;
 }

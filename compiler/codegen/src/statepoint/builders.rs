@@ -1,8 +1,8 @@
 use super::*;
 
 /// Build the explicit zero-`gc-live` statepoint form required for a managed
-/// invoke. RS4GC cannot represent relocation on Scoop's Itanium exceptional
-/// edge, so invoke roots live in the compiler-root frame instead.
+/// invoke. Its canonical root regions are described by a Direct stack-table
+/// location, so both normal and Itanium exceptional edges reload the same storage.
 pub(crate) struct ManagedInvoke<'a, 'ctx> {
     pub(crate) callee: PointerValue<'ctx>,
     pub(crate) callee_type: FunctionType<'ctx>,
@@ -11,6 +11,7 @@ pub(crate) struct ManagedInvoke<'a, 'ctx> {
     pub(crate) normal: BasicBlock<'ctx>,
     pub(crate) unwind: BasicBlock<'ctx>,
     pub(crate) result_type: Option<BasicTypeEnum<'ctx>>,
+    pub(crate) root_table: Option<PointerValue<'ctx>>,
     pub(crate) abi_signature: Option<&'a scoop_lir::ScoopAbiSignature>,
     pub(crate) structs: &'a scoop_lir::StructDefs,
     pub(crate) enums: &'a scoop_lir::EnumDefs,
@@ -86,6 +87,7 @@ pub(crate) fn build_managed_invoke<'ctx>(
         normal,
         unwind,
         result_type,
+        root_table,
         abi_signature,
         structs,
         enums,
@@ -100,11 +102,18 @@ pub(crate) fn build_managed_invoke<'ctx>(
             safepoint.get()
         ))
     })?;
+    let bundle =
+        root_table.map(|table| inkwell::values::OperandBundle::create("deopt", &[table.into()]));
+    let mut bundles = bundle
+        .as_ref()
+        .map(|bundle| bundle.as_mut_ptr())
+        .into_iter()
+        .collect::<Vec<_>>();
     // SAFETY: the declaration is LLVM's overloaded statepoint intrinsic; the
     // fixed header, actual-call argument count and two zero variable sections
     // are constructed above, and both destinations belong to this function.
     let token = unsafe {
-        LLVMBuildInvoke2(
+        LLVMBuildInvokeWithOperandBundles(
             builder.as_mut_ptr(),
             LLVMGlobalGetValueType(statepoint),
             statepoint,
@@ -112,6 +121,8 @@ pub(crate) fn build_managed_invoke<'ctx>(
             operand_count,
             normal.as_mut_ptr(),
             unwind.as_mut_ptr(),
+            bundles.as_mut_ptr(),
+            bundles.len() as u32,
             name.as_ptr(),
         )
     };

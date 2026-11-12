@@ -89,7 +89,7 @@ impl<'a> Fields<'a> {
             if block.unwind.is_some()
                 || matches!(
                     block.terminator,
-                    mir::Terminator::Resume
+                    mir::Terminator::Resume { .. }
                         | mir::Terminator::Rethrow { .. }
                         | mir::Terminator::Throw {
                             unwind: Some(_),

@@ -51,7 +51,7 @@ fn emits_descriptors_scans_and_initial_state() {
             .unwrap()
             .into_struct_value();
         assert_eq!(constant_u64(prefix, 0), STATIC_STORAGE_DESCRIPTOR_MAGIC);
-        assert_eq!(constant_u64(prefix, 1), 11);
+        assert_eq!(constant_u64(prefix, 1), 12);
         assert_eq!(constant_u64(prefix, 2), STATIC_STORAGE_DESCRIPTOR_SIZE);
         assert_eq!(
             constant_u64(initializer, 2),

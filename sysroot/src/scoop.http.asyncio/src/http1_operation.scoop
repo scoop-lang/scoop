@@ -3,55 +3,106 @@ package scoop.http.asyncio
 import scoop.asyncio.*
 import scoop.time.Duration
 
-internal suspend fun <T> h1Operation(state: H1State, reading: Boolean, validate: () -> Unit,
-    block: suspend () -> T, idle: Duration? = None): T =
-    h1PreparedOperation<Unit, T>(state, reading, validate, suspend { _ -> block() }, idle)
+internal struct H1Operation<P>(
+    val state: H1State,
+    val reading: Boolean,
+    val prepared: P,
+    val job: Job,
+    val cancellation: Disposable
+)
 
-internal suspend fun <P, T> h1PreparedOperation(state: H1State, reading: Boolean, prepare: () -> P,
-    block: suspend (P) -> T, idle: Duration? = None): T {
+internal fun <P> beginH1Operation(
+    state: H1State,
+    reading: Boolean,
+    prepare: () -> P,
+    idle: Duration? = None
+): H1Operation<P> {
     val job = httpJob(state.loop, true)
     httpIdleLimit(idle)
-    val prepared = state.lock.withLock {
-        h1Open(state)
-        if (if (reading) state.readBusy else state.writeBusy) throw IllegalStateException(Some("HTTP/1 direction is busy"))
-        val value = prepare()
-        if (reading) state.readBusy = true else state.writeBusy = true
-        value
-    }
-    val listener = job.invokeOnCancellation { error ->
-        state.lock.withLock { terminateH1(state, error) }
-        driveH1Close(state)
-    }
-    val result = try { job.ensureActive(); withH1Idle<T>(state, reading, idle, suspend { block(prepared) }) }
-    catch (error: Throwable) {
-        val selected = state.lock.withLock { state.primary }
-        val failure = if (present(selected)) h1ClosedFailure(error, selected!!) else error
-        listener.dispose()
-        endH1Operation(state, reading)
-        failH1Operation(state, failure)
-    }
-    listener.dispose()
-    endH1Operation(state, reading)
-    return result
+    val prepared =
+        state.lock.withLock {
+            h1Open(state)
+            if (
+                if (reading)
+                    state.readBusy
+                else
+                    state.writeBusy
+            )
+                throw IllegalStateException(Some("HTTP/1 direction is busy"))
+            val value = prepare()
+            val clock =
+                if (present(idle))
+                    Some(H1Idle(reading, idle!!))
+                else
+                    None
+            if (reading) {
+                state.readBusy = true
+                state.readIdle = clock
+            } else {
+                state.writeBusy = true
+                state.writeIdle = clock
+            }
+            value
+        }
+    val listener =
+        job.invokeOnCancellation {
+            error ->
+            state.lock.withLock { terminateH1(state, error) }
+            driveH1Close(state)
+        }
+    return H1Operation(state, reading, prepared, job, listener)
 }
 
 private fun h1ClosedFailure(error: Throwable, selected: Throwable): Throwable {
-    if (error is IoClosedException) return selected
+    if (error is IoClosedException)
+        return selected
     if (error is ResourceUseException) {
         val primary = h1ClosedFailure(error.primaryFailure, selected)
-        if (primary !== error.primaryFailure) return ResourceUseException(primary, error.cleanupFailure)
+        if (primary !== error.primaryFailure)
+            return ResourceUseException(primary, error.cleanupFailure)
     }
     return error
 }
 
-private fun endH1Operation(state: H1State, reading: Boolean) {
-    state.lock.withLock { if (reading) state.readBusy = false else state.writeBusy = false }
-    driveH1Close(state)
+internal fun <P> endH1Operation(operation: H1Operation<P>) {
+    operation.cancellation.dispose()
+    val state = operation.state
+    val closing =
+        state.lock.withLock {
+            if (operation.reading) {
+                state.readBusy = false
+                state.readIdle = None
+            } else {
+                state.writeBusy = false
+                state.writeIdle = None
+            }
+            state.closing
+        }
+    if (closing)
+        driveH1Close(state)
+}
+
+internal suspend fun <P> failH1Operation(operation: H1Operation<P>, error: Throwable): Nothing {
+    val state = operation.state
+    val selected = state.lock.withLock { state.primary }
+    val failure =
+        if (present(selected))
+            h1ClosedFailure(error, selected!!)
+        else
+            error
+    endH1Operation(operation)
+    failH1Operation(state, failure)
 }
 
 internal suspend fun failH1Operation(state: H1State, primary: Throwable): Nothing {
-    val cleanup = try { closeH1(state); state.lock.withLock { state.closeFailure } }
-        catch (error: Throwable) { Some(error) }
+    val cleanup =
+        try {
+            closeH1(state);
+            state.lock.withLock { state.closeFailure }
+        }
+        catch (error: Throwable) {
+            Some(error)
+        }
     when (cleanup) {
         case Some(val error) -> throw ResourceUseException(primary, error)
         case None -> throw primary

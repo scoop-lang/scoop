@@ -1,0 +1,236 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.http:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.text.*
+
+@Extern(lib = "benchmetrics", name = "bench_metrics")
+private fun dumpMetrics()
+
+@Extern(lib = "benchmetrics", name = "bench_tcp_options")
+private fun configureTcp(port: Int)
+
+@Extern(lib = "httpdiag", name = "diag_new")
+private fun newDiagnostic(parser: Int): ULong
+
+@Extern(lib = "httpdiag", name = "diag_free")
+private fun freeDiagnostic(handle: ULong)
+
+@Extern(lib = "httpdiag", name = "diag_feed")
+private fun feedDiagnostic(handle: ULong, data: Ptr<Byte>, count: Long): Int
+
+private fun createDiagnostic(mode: Int): ULong {
+    @Unsafe
+    {
+        return newDiagnostic(
+            if (mode == 1)
+                1
+            else
+                0
+        )
+    }
+}
+
+private fun receiveDiagnostic(native: ULong, input: NativeByteBuffer, count: Long): Int {
+    @Unsafe
+    {
+        return input.withReadableBytes {
+            bytes,
+            _ -> @Unsafe
+            {
+                return@withReadableBytes feedDiagnostic(native, bytes!!, count)
+            }
+        }
+    }
+}
+
+private fun selectRoute(target: Array<Byte>): Int {
+    val value = String.fromUtf8(target)
+    if (value == "/small")
+        return 1
+    if (value == "/large")
+        return 2
+    if (value == "/__metrics")
+        return 3
+    return -1
+}
+
+private class CodecInput {
+    val decoder = Http1Decoder.server()
+    var route = 0
+    fun receive(buffer: NativeByteBuffer, count: Long): Int {
+        decoder.receive(buffer, count)
+        var complete = false
+        while (true) {
+            val event = decoder.nextEvent() ?: break
+            if (complete)
+                throw IllegalStateException(Some("diagnostic does not accept pipelining"))
+            when (event) {
+                case Request(val head) -> {
+                    route =
+                        when (head.target) {
+                            case Http1(val target) -> selectRoute(target)
+                            else -> -1
+                        }
+                }
+                case End(_) -> complete = true
+                case Trailers(_) -> {}
+                else -> throw IllegalStateException(Some("diagnostic requires a bodyless GET"))
+            }
+        }
+        if (!complete)
+            return 0
+        val result = route
+        route = 0
+        return result
+    }
+}
+
+private suspend fun serve(
+    stream: AsyncTcpStream,
+    mode: Int,
+    bodies: Array<Array<Byte>>,
+    wires: Array<Array<Byte>>
+) {
+    stream.useAsync suspend {
+        peer -> NativeByteBuffer.allocate(8192L).use suspend {
+            input -> NativeByteBuffer.allocate(131072L).use suspend {
+                output ->
+                val decoder = CodecInput()
+                val encoder = Http1Encoder(HttpRole.Server)
+                val head =
+                    HttpResponseHead(
+                        HttpVersion.Http11,
+                        200U,
+                        fields =
+                            [
+                                HttpField(
+                                    "Content-Type".toByteArray(),
+                                    "application/octet-stream".toByteArray()
+                                )
+                            ]
+                    )
+                val method = "GET".toByteArray()
+                val native = createDiagnostic(mode)
+                if (native == 0UL)
+                    throw IllegalStateException(Some("diagnostic allocation failed"))
+                try {
+                    while (true) {
+                        input.clear()
+                        val count = peer.readInto(input)
+                        if (count == 0L)
+                            break
+                        val route =
+                            if (mode < 2)
+                                receiveDiagnostic(native, input, count)
+                            else
+                                decoder.receive(input, count)
+                        if (route == 0)
+                            continue
+                        if (route < 0)
+                            throw IllegalStateException(Some("invalid diagnostic request"))
+                        if (route == 3) {
+                            @Unsafe
+                            {
+                                dumpMetrics()
+                            }
+                        }
+                        output.clear()
+                        if (mode == 3) {
+                            val body = bodies[(route - 1).toLong()]
+                            val encoded =
+                                encoder.beginResponse(
+                                    head,
+                                    method,
+                                    Http1BodyFraming.Length(body.size)
+                                )
+                            encoder.prepareBody(body.size)
+                            encoder.finish()
+                            output.writeBytes(encoded)
+                            output.writeBytes(body)
+                        } else {
+                            output.writeBytes(wires[(route - 1).toLong()])
+                        }
+                        peer.writeFully(output)
+                    }
+                } finally {
+                    @Unsafe
+                    {
+                        freeDiagnostic(native)
+                    }
+                    decoder.decoder.close()
+                    encoder.close()
+                }
+            }
+        }
+    }
+}
+
+fun main(args: Array<String>) {
+    val workers = args[1L].toInt()
+    val port = args[2L].toInt()
+    val mode =
+        when (args[3L]) {
+            case "wire" -> 0
+            case "native" -> 1
+            case "codec" -> 2
+            case "encode" -> 3
+            else -> throw IllegalArgumentException(Some("invalid diagnostic mode"))
+        }
+    val bodies =
+        [
+            Array<Byte>(1024L) { 120.toByte() },
+            Array<Byte>(65536L) { 120.toByte() },
+            "ok".toByteArray()
+        ]
+    val wires =
+        Array<Array<Byte>>(3L) {
+            index ->
+            val body = bodies[index]
+            val prefix =
+                (
+                    "HTTP/1.1 200 \r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                        body.size.toString() +
+                        "\r\n\r\n"
+                ).toByteArray()
+            Array<Byte>(prefix.size + body.size) {
+                i -> if (i < prefix.size)
+                    prefix[i]
+                else
+                    body[i - prefix.size]
+            }
+        }
+    asyncRuntime {
+        this.workers = workers;
+        blocking { threads = 1 }
+    }.run {
+        val scope = this
+        currentEventLoop().listenTcp(
+            SocketAddress(IpAddress.IPV4_LOOPBACK, port),
+            backlog = 1024,
+            reuseAddress = true
+        ).useAsync suspend {
+            listener ->
+            @Unsafe
+            {
+                configureTcp(port)
+            }
+            println("READY")
+            while (true) {
+                val stream = listener.accept()
+                scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                    try {
+                        serve(stream, mode, bodies, wires)
+                    }
+                    catch (error: Throwable) {
+                        println("CONNECTION_ERROR")
+                    }
+                }
+            }
+        }
+    }
+}

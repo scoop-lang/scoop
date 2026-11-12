@@ -57,6 +57,7 @@
 | --- | --- | --- | --- | --- |
 | language/compiler-inputs | 怎样把文本、字节、目录和构建版本嵌入产物？一个 Cone 与四个资源文件 | 编译期版本、原样文本、字节数、筛选排序后的路径、缺失查询；环境缺失与空值不同 | scoop.compiler 显式导入；`Option<String>`；源码相对路径与 Cone／symlink 边界；glob；不能取函数引用；不扩展常量表达式能力 | [完整项目](../../sysroot/share/scoop/examples/programs/language/compiler-inputs/)、[使用说明](../../sysroot/share/scoop/examples/topics/language/compiler-inputs.md) |
 | language/imports | 怎样在局部块中导入名称？同一 Cone 的两个 package 提供 greeting | 声明前后与离块后的不同问候，lambda 内的 star import | exact／alias／star；声明之后生效、嵌套继承、离块恢复；不能局部 public import；仍需声明依赖 | [完整项目](../../sysroot/share/scoop/examples/programs/language/imports/)、[使用说明](../../sysroot/share/scoop/examples/topics/language/imports.md) |
+| http/existing-connection | 怎样在已有 H1 连接上执行同一个应用？本机单请求客户端与服务端 | 200 与响应正文，然后自动退出 | 借用连接、未消费请求、调用方标识符、独立请求配置与清理；WebSocket 需要 server 接管 | [库示例](../../sysroot/src/scoop.http.server/examples/existing_connection.scoop)、[使用说明](../../sysroot/share/scoop/examples/topics/http/existing-connection.md) |
 
 新增主题已注册到发布索引，可以作为 related 目标。它们与首批内容共享同一阅读器和实际运行验证脚本。
 

@@ -1,8 +1,8 @@
-//! Select synchronous suspend call sites before adding the completion ABI.
+//! Merge suspend call bodies before constructing their frames and completion ABI.
 
 use std::collections::HashMap;
 
-use super::{CallerState, Choice, clone, graph, index, mir, policy, summary};
+use super::{CallerState, Choice, clone, exception_edges, graph, index, mir, policy, summary};
 use crate::Lowerer;
 use crate::cfg::{CallSite, CallSiteKind};
 
@@ -15,6 +15,20 @@ struct Template {
 }
 
 pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
+    for source in &lowerer.suspend_sources {
+        let function = &mut lowerer.functions[source.function];
+        let mut ancestry =
+            vec![vec![super::Target::Local(source.function)]; function.body.blocks.len()];
+        let moved = exception_edges::separate_entries(function, &mut ancestry);
+        sites::move_pad_calls(
+            lowerer
+                .coroutines
+                .pre_coroutine_call_sites
+                .get_mut(&source.function)
+                .expect("a suspend source has its call order"),
+            &moved,
+        );
+    }
     let templates = lowerer
         .suspend_sources
         .iter()
@@ -41,7 +55,7 @@ pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
             )
         })
         .collect::<HashMap<_, _>>();
-    let synchronous = synchronous_sources(lowerer, &templates);
+    let eligible = eligible_sources(lowerer, &templates);
     let callers = lowerer
         .suspend_sources
         .iter()
@@ -56,12 +70,7 @@ pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
             ancestry: vec![vec![super::Target::Local(id)]; function.body.blocks.len()],
         };
         while let Some((order, callee)) = choose(
-            lowerer,
-            &templates,
-            &synchronous,
-            &function,
-            &calls,
-            &mut state,
+            lowerer, &templates, &eligible, &function, &calls, &mut state,
         ) {
             let site = calls[order].clone();
             let template = &templates[&callee];
@@ -92,6 +101,7 @@ pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
                 owner,
                 id,
                 &mut state.ancestry,
+                &sites::auxiliary_locals(&template.calls),
             );
             sites::splice(&mut calls, order, &template.calls, &expansion);
         }
@@ -103,78 +113,45 @@ pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
     }
 }
 
-fn synchronous_sources(
+fn eligible_sources(
     lowerer: &Lowerer,
     templates: &HashMap<mir::FunctionId, Template>,
 ) -> Vec<bool> {
     let mut allowed = vec![false; lowerer.functions.len()];
     let mut dependencies = vec![Vec::new(); lowerer.functions.len()];
     for (&id, template) in templates {
-        allowed[index(id)] = policy::supported(&template.function)
-            && template
-                .function
-                .body
-                .blocks
-                .iter()
-                .all(|(_, block)| block.unwind.is_none())
-            && template.calls.iter().all(|site| site.pending.0.is_empty());
+        allowed[index(id)] = policy::executable(&template.function);
         for site in &template.calls {
             if matches!(site.kind, CallSiteKind::Suspend(_)) {
-                allowed[index(id)] = false;
                 continue;
             }
             let body = &template.function.body;
             let statement = &body.blocks[site.block].statements[site.statement];
-            if let Some((call, _, _)) = crate::coroutine::suspend_effect(lowerer, body, statement) {
-                if let Some(callee) =
+            if let Some((call, _, _)) = crate::coroutine::suspend_effect(lowerer, body, statement)
+                && let Some(callee) =
                     direct_target(lowerer, &call).filter(|id| templates.contains_key(id))
-                {
-                    dependencies[index(id)].push(index(callee));
-                } else {
-                    allowed[index(id)] = false;
-                }
+            {
+                dependencies[index(id)].push(index(callee));
             }
         }
     }
     let recursive = graph::cyclic_nodes(&dependencies);
-    let mut known = vec![false; allowed.len()];
-    loop {
-        let mut changed = false;
-        for id in 0..allowed.len() {
-            if allowed[id]
-                && !recursive[id]
-                && !known[id]
-                && dependencies[id].iter().all(|&target| known[target])
-            {
-                known[id] = true;
-                changed = true;
-            }
-        }
-        if !changed {
-            return known;
-        }
-    }
+    allowed
+        .iter()
+        .zip(recursive)
+        .map(|(allowed, recursive)| *allowed && !recursive)
+        .collect()
 }
 
 fn choose(
     lowerer: &Lowerer,
     templates: &HashMap<mir::FunctionId, Template>,
-    synchronous: &[bool],
+    eligible: &[bool],
     function: &mir::Function,
     calls: &[CallSite],
     state: &mut CallerState,
 ) -> Option<(usize, mir::FunctionId)> {
     let heats = policy::heats(&function.body);
-    let caller_size = policy::function_cost(&lowerer.structs.defs, function).size;
-    let mut reads = std::collections::HashSet::new();
-    for (_, block) in function.body.blocks.iter() {
-        mir::visit_block_exprs(block, &mut |expr| {
-            if let mir::ExprKind::Local(local) | mir::ExprKind::AddressOf { local, .. } = expr.kind
-            {
-                reads.insert(local);
-            }
-        });
-    }
     let mut order = calls.iter().enumerate().collect::<Vec<_>>();
     order.sort_by_key(|(_, site)| {
         let heat = heats[index(site.block)];
@@ -193,32 +170,19 @@ fn choose(
         let Some(callee) = direct_target(lowerer, call) else {
             continue;
         };
-        if !synchronous[index(callee)]
+        if !eligible[index(callee)]
             || state.ancestry[index(site.block)].contains(&super::Target::Local(callee))
         {
             continue;
         }
         let source = &templates[&callee];
-        let context = policy::Site {
-            heat: heats[index(site.block)],
-            caller_size,
-            result_used: match effect {
-                mir::CallEffect::Value { destination, .. } => reads.contains(destination),
-                mir::CallEffect::Unit(_) => false,
-            },
-        };
-        let cost = policy::assess(
-            &source.summary,
-            source.summary.baseline,
-            summary::complexity(&source.summary.blocks),
-            0,
-            0,
-            &context,
-        );
-        if cost.growth <= state.growth.remaining(context.heat)
-            && cost.weighted_benefit >= cost.penalty
-        {
-            state.growth.charge(cost.growth, context.heat);
+        let heat = heats[index(site.block)];
+        let growth = source.summary.original.size.saturating_sub(6).max(1);
+        // These boundaries otherwise materialize separate coroutine frames and
+        // completion adapters. Bound code growth without requiring a proof of
+        // synchronous completion or using the ordinary-call benefit estimate.
+        if growth <= state.growth.remaining(heat) {
+            state.growth.charge(growth, heat);
             return Some((order, callee));
         }
     }

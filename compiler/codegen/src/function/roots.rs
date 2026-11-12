@@ -372,14 +372,17 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         Ok(())
     }
 
-    pub(super) fn publish_compiler_roots(
+    pub(super) fn materialize_invoke_root_table(
         &mut self,
         roots: &[scoop_lir::ExceptionalRoot],
-    ) -> Result<CompilerRootFrame<'ctx>, CodegenError> {
+    ) -> Result<Option<CompilerRootTable<'ctx>>, CodegenError> {
         let context = self.context;
         let ptr = ptr_ty(context);
         let i64_type = context.i64_type();
         self.compiler_invoke_index += 1;
+        if roots.is_empty() {
+            return Ok(None);
+        }
         let mut entries = Vec::with_capacity(roots.len());
         for exceptional in roots {
             let root = &exceptional.root;
@@ -436,31 +439,26 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
             array
         };
-        let frame_type = context.struct_type(&[ptr.into(), ptr.into(), i64_type.into()], false);
-        let frame = self.entry_alloca(frame_type.into(), "compiler_root_frame")?;
+        let table_type = context.struct_type(&[ptr.into(), i64_type.into()], false);
+        let table = self.entry_alloca(table_type.into(), "invoke_root_table")?;
+        let entry_field = self
+            .builder
+            .build_struct_gep(table_type, table, 0, "invoke_root_entries")
+            .map_err(|error| CodegenError(format!("root table entries GEP: {error}")))?;
+        let count_field = self
+            .builder
+            .build_struct_gep(table_type, table, 1, "invoke_root_count")
+            .map_err(|error| CodegenError(format!("root table count GEP: {error}")))?;
+        let count = u64::try_from(roots.len())
+            .map_err(|_| CodegenError("root table count exceeds u64::MAX".to_string()))?;
         self.builder
-            .build_store(frame, frame_type.const_zero())
-            .map_err(|error| CodegenError(format!("zero compiler-root frame: {error}")))?;
-        let push = self.gc_leaf_fn(
-            scoop_lir::RuntimeAbiSymbolV1::PushCompilerRoots.logical_symbol(),
-            context
-                .void_type()
-                .fn_type(&[ptr.into(), ptr.into(), i64_type.into()], false),
-        );
-        let root_count = u64::try_from(roots.len())
-            .map_err(|_| CodegenError("compiler-root count exceeds u64::MAX".to_string()))?;
-        self.builder
-            .build_call(
-                push,
-                &[
-                    frame.into(),
-                    entries_pointer.into(),
-                    i64_type.const_int(root_count, false).into(),
-                ],
-                "push_compiler_roots",
-            )
-            .map_err(|error| CodegenError(format!("push compiler roots: {error}")))?;
-        Ok(CompilerRootFrame { pointer: frame })
+            .build_store(entry_field, entries_pointer)
+            .and_then(|_| {
+                self.builder
+                    .build_store(count_field, i64_type.const_int(count, false))
+            })
+            .map_err(|error| CodegenError(format!("initialize invoke root table: {error}")))?;
+        Ok(Some(CompilerRootTable { pointer: table }))
     }
 
     pub(super) fn validate_compiler_root_sources(
@@ -480,10 +478,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         Ok(())
     }
 
-    /// Establish post-call values while the corresponding runtime root frame
-    /// is still published. The matching volatile stores happen immediately
-    /// after the NoGC pop, making every continuation value explicitly depend
-    /// on the collector-updated storage rather than on a pre-call SSA copy.
+    /// Establish post-call values from the collector-updated canonical storage.
+    /// Volatile loads and stores keep continuation values independent of any
+    /// pre-call SSA copy on both normal and exceptional edges.
     pub(super) fn reload_published_roots(
         &self,
         sources: impl IntoIterator<Item = scoop_lir::CallerRootSource>,
@@ -523,22 +520,6 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         Ok(())
     }
 
-    pub(super) fn pop_compiler_roots(
-        &self,
-        frame: CompilerRootFrame<'ctx>,
-    ) -> Result<(), CodegenError> {
-        let pop = self.gc_leaf_fn(
-            scoop_lir::RuntimeAbiSymbolV1::PopCompilerRoots.logical_symbol(),
-            self.context
-                .void_type()
-                .fn_type(&[ptr_ty(self.context).into()], false),
-        );
-        self.builder
-            .build_call(pop, &[frame.pointer.into()], "pop_compiler_roots")
-            .map_err(|error| CodegenError(format!("pop compiler roots: {error}")))?;
-        Ok(())
-    }
-
     pub(super) fn finish_unwind_compiler_roots(&mut self) -> Result<(), CodegenError> {
         if !self.compiler_unwind_blocks.contains(&self.current_block) {
             return Ok(());
@@ -550,13 +531,6 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .unwrap_or_default();
         self.validate_compiler_root_sources(sources.iter().copied())?;
         let reloaded = self.reload_published_roots(sources.iter().copied())?;
-        let pop = self.gc_leaf_fn(
-            scoop_lir::RuntimeAbiSymbolV1::PopTopCompilerRoots.logical_symbol(),
-            self.context.void_type().fn_type(&[], false),
-        );
-        self.builder
-            .build_call(pop, &[], "pop_unwind_compiler_roots")
-            .map_err(|error| CodegenError(format!("pop unwind compiler roots: {error}")))?;
         self.restore_reloaded_roots(reloaded)?;
         if let Some(debug) = &self.debug {
             debug.borrow().invalidate_managed(

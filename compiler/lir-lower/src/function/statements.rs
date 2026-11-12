@@ -162,8 +162,8 @@ impl<'a> FunctionLowerer<'a> {
 
     fn lower_eh_statement(&mut self, statement: &mir::EhStatement) -> StorageResult<()> {
         match statement {
-            mir::EhStatement::LandingPad { cleanup } => {
-                let (record_slot, raw_slot) = self.exception_slots()?;
+            mir::EhStatement::LandingPad { cleanup, state } => {
+                let slots = self.exception_states[state];
                 let record = self.new_temp(lir::LirType::ExceptionRecord);
                 let raw = self.new_temp(lir::RAW_PTR);
                 if *cleanup {
@@ -172,35 +172,43 @@ impl<'a> FunctionLowerer<'a> {
                     self.push(lir::Instruction::LandingPad { record, raw });
                 }
                 self.push(lir::Instruction::Store {
-                    local: record_slot,
+                    local: slots.record,
                     value: lir::Value::Temp(record),
                 });
                 self.push(lir::Instruction::Store {
-                    local: raw_slot,
+                    local: slots.raw,
                     value: lir::Value::Temp(raw),
                 });
             }
-            mir::EhStatement::BeginCatch => {
-                let (_, raw_slot) = self.exception_slots()?;
+            mir::EhStatement::BeginCatch { state } => {
+                let slots = self.exception_states[state];
                 let exception = self.new_temp(lir::MANAGED_PTR);
                 self.push(lir::Instruction::BeginCatch {
                     out: exception,
-                    raw: lir::Value::Local(raw_slot),
+                    raw: lir::Value::Local(slots.raw),
                 });
-                let slot = match self.caught_exception {
-                    Some(slot) => slot,
-                    None => {
-                        let slot = self.new_hidden_local(lir::MANAGED_PTR)?;
-                        self.caught_exception = Some(slot);
-                        slot
-                    }
-                };
                 self.push(lir::Instruction::Store {
-                    local: slot,
+                    local: slots.caught,
                     value: lir::Value::Temp(exception),
                 });
             }
             mir::EhStatement::EndCatch => self.push(lir::Instruction::EndCatch),
+            mir::EhStatement::Forward {
+                source,
+                destination,
+            } => {
+                let source = self.exception_states[source];
+                let destination = self.exception_states[destination];
+                for (source, destination) in [
+                    (source.record, destination.record),
+                    (source.raw, destination.raw),
+                ] {
+                    self.push(lir::Instruction::Store {
+                        local: destination,
+                        value: lir::Value::Local(source),
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -289,10 +297,9 @@ impl<'a> FunctionLowerer<'a> {
                     self.seal(lir::Terminator::Unreachable);
                 }
             },
-            mir::Terminator::Resume => {
-                let (record, _) = self.exception_slots()?;
+            mir::Terminator::Resume { state } => {
                 self.seal(lir::Terminator::Resume {
-                    exception: lir::Value::Local(record),
+                    exception: lir::Value::Local(self.exception_states[state].record),
                 });
             }
             mir::Terminator::Trap { message } => {

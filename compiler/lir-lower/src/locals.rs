@@ -194,7 +194,7 @@ pub(super) fn address_taken(function: &mir::Function) -> HashSet<mir::LocalId> {
             | mir::ExprKind::GlobalRead(_)
             | mir::ExprKind::InitializationUnitAddress(_)
             | mir::ExprKind::GlobalAddress { .. }
-            | mir::ExprKind::CaughtException
+            | mir::ExprKind::CaughtException { .. }
             | mir::ExprKind::SizeOf(_)
             | mir::ExprKind::AlignOf(_)
             | mir::ExprKind::FunctionAddress { .. } => {}
@@ -247,7 +247,7 @@ pub(super) fn address_taken(function: &mir::Function) -> HashSet<mir::LocalId> {
             mir::Terminator::Throw { exception, .. } => collect_expr(exception, &mut out),
             mir::Terminator::Goto(_)
             | mir::Terminator::Rethrow { .. }
-            | mir::Terminator::Resume
+            | mir::Terminator::Resume { .. }
             | mir::Terminator::Trap { .. }
             | mir::Terminator::Unreachable => {}
         }

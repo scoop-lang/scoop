@@ -44,6 +44,7 @@ public class HttpResult internal constructor(
 ) {
     /** Ordered response fields, including independently preserved Set-Cookie entries. */
     public val fields: Array<HttpField> = fields.toArray()
+    internal val preparedBytes: Atomic<PreparedByteResponse?> = Atomic<PreparedByteResponse?>(None)
 
     init {
         val upgrading =

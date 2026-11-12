@@ -142,7 +142,9 @@ int32_t scoop_http1_switched(uint64_t handle) {
 const char *scoop_http1_error(uint64_t handle) {
   return ((http1 *)(uintptr_t)handle)->error.text;
 }
-uint64_t scoop_http1_next(uint64_t handle) {
-  return (uint64_t)(uintptr_t)http_events_pop(
-      &((http1 *)(uintptr_t)handle)->events);
+uint64_t scoop_http1_take_events(uint64_t handle) {
+  http1 *state = (http1 *)(uintptr_t)handle;
+  http_event *first = state->events.first;
+  state->events = (http_events){0};
+  return (uint64_t)(uintptr_t)first;
 }

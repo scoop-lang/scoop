@@ -171,13 +171,41 @@ static void initialize(void) {
     scoop_gc_marker.initialized = true;
 }
 
+static bool has_parallel_work(bool minor) {
+    const size_t threshold = (size_t)4 << 20;
+    size_t candidates = minor ? scoop_gc_heap_state.nursery_bytes : committed_bytes;
+    if (candidates >= threshold) {
+        return true;
+    }
+    if (!minor) {
+        return false;
+    }
+    size_t remaining = threshold - candidates;
+    ScoopGcCardGroup *first =
+        atomic_load_explicit(&scoop_gc_heap_state.dirty_card_groups, memory_order_acquire);
+    for (ScoopGcCardGroup *group = first; group != NULL;
+         group = scoop_heap_next_dirty_card_group(group)) {
+        ScoopGcRegion *region = group->region;
+        size_t index = region->large ? 0 : (size_t)(group - region->card_groups);
+        ScoopGcBlockMeta *block = &region->blocks[index];
+        if (!active_head(block) || block->head->generation != SCOOP_GC_OLD) {
+            continue;
+        }
+        /* Minor also scans and updates old dirty ranges, regardless of nursery size. */
+        if (remaining <= GC_REMEMBERED_GROUP_BYTES) {
+            return true;
+        }
+        remaining -= GC_REMEMBERED_GROUP_BYTES;
+    }
+    return false;
+}
+
 void scoop_gc_mark_pool_prepare(bool minor) {
     if (!scoop_gc_marker.initialized) {
         initialize();
     }
     size_t count = scoop_gc_marker.configured_workers;
-    size_t candidates = minor ? scoop_gc_heap_state.nursery_bytes : committed_bytes;
-    if (!scoop_gc_marker.forced && candidates < ((size_t)4 << 20)) {
+    if (count > 1 && !scoop_gc_marker.forced && !has_parallel_work(minor)) {
         count = 1;
     }
     if (count > 1 && scoop_gc_marker.created_workers == 0) {

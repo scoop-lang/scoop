@@ -1,0 +1,139 @@
+--- a/server.scoop
++++ b/server.scoop
+@@ -1,12 +1,13 @@
+ //! dep: scoop:scoop.asyncio:0.1.0
+ //! dep: scoop:scoop.http:0.1.0
+ //! dep: scoop:scoop.http.asyncio:0.1.0
++//! dep: scoop:scoop.http.server:0.1.0
+ //! dep: scoop:scoop.platform:0.1.0
+ 
+ import scoop.asyncio.*
+ import scoop.http.*
+ import scoop.http.asyncio.*
+-import scoop.platform.memory.NativeByteBuffer
++import scoop.http.server.*
+ import scoop.platform.net.*
+ import scoop.text.*
+ import scoop.time.Duration
+@@ -17,8 +18,6 @@
+ @Extern(lib = "benchmetrics", name = "bench_tcp_options")
+ private fun configureTcp(port: Int)
+ 
+-private struct Request(val consumed: Long, val method: Array<Byte>, val target: Array<Byte>)
+-
+ private struct Reply(
+     val body: Array<Byte>,
+     val head: Array<Byte>,
+@@ -26,61 +25,27 @@
+     val response: HttpResponseHead
+ )
+ 
+-private fun selectReply(request: Request): Long {
+-    val target = String.fromUtf8(request.target)
+-    return when (target) {
+-        case "/small" -> 0L
+-        case "/large" -> 1L
+-        case "/__metrics" -> {
+-            @Unsafe
+-            {
+-                dumpMetrics()
+-            }
+-            2L
+-        }
+-        else -> throw IllegalArgumentException(Some("unknown benchmark target"))
+-    }
+-}
+-
+-// The existing connection now owns codecs, input/output buffers and operation lifetimes.
+-private suspend fun serve(peer: AsyncTcpStream, scope: CoroutineScope, replies: Array<Reply>) {
++// Application execution borrows one request; the caller still owns the connection loop.
++private suspend fun serve(
++    peer: AsyncTcpStream,
++    scope: CoroutineScope,
++    application: HttpApplication
++) {
++    val info = HttpConnectionInfo(peer.localAddress, peer.peerAddress, HttpProtocol.Http1)
+     AsyncHttp1Connection.takeOwnershipAsServer(
+         peer,
+         scope,
+         ioTimeouts = HttpIoTimeoutOptions(Some(Duration.seconds(30L)), Some(Duration.seconds(30L)))
+     ).useAsync suspend {
+-        connection -> NativeByteBuffer.allocate(16384L).use suspend {
+-            bodyInput -> while (true) {
+-                val incoming = connection.receiveRequest() ?: break
+-                coroutineScope<Unit> {
+-                    bodyInput.clear()
+-                    if (incoming.body.readInto(bodyInput) != 0L)
+-                        throw IllegalArgumentException(
+-                            Some("benchmark requires a bodyless GET or HEAD")
+-                        )
+-                    val target =
+-                        when (incoming.head.target) {
+-                            case Http1(val raw) -> raw
+-                            else -> throw IllegalArgumentException(
+-                                Some("benchmark requires HTTP/1 target")
+-                            )
+-                        }
+-                    val request = Request(0L, incoming.head.method, target)
+-                    val method = String.fromUtf8(request.method)
+-                    if (method != "GET" && method != "HEAD")
+-                        throw IllegalArgumentException(Some("benchmark requires GET or HEAD"))
+-                    val reply = replies[selectReply(request)]
+-                    connection.sendResponse(
+-                        reply.response,
+-                        reply.body,
+-                        if (method == "HEAD")
+-                            0L
+-                        else
+-                            reply.body.size
+-                    )
+-                }
+-                yieldCoroutine()
+-            }
++        connection ->
++        var nextId = 0UL
++        while (true) {
++            val incoming = connection.receiveRequest() ?: break
++            nextId += 1UL
++            application.executeHttp1(connection, incoming, info, nextId.toString())
++            if (!connection.isReusable)
++                break
++            yieldCoroutine()
+         }
+     }
+ }
+@@ -132,6 +97,25 @@
+     val workers = args[1L].toInt()
+     val port = args[2L].toInt()
+     val replies = makeReplies()
++    val small = bytes(replies[0L].body)
++    val large = bytes(replies[1L].body)
++    val metrics = bytes(replies[2L].body)
++    val application =
++        routing {
++            get("/small", suspend { _ -> small })
++            get("/large", suspend { _ -> large })
++            get(
++                "/__metrics",
++                suspend {
++                    _ ->
++                    @Unsafe
++                    {
++                        dumpMetrics()
++                    }
++                    metrics
++                }
++            )
++        }
+     asyncRuntime {
+         this.workers = workers
+         blocking { threads = 1 }
+@@ -152,7 +136,7 @@
+                 val stream = listener.accept()
+                 scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                     try {
+-                        serve(stream, scope, replies)
++                        serve(stream, scope, application)
+                     }
+                     catch (error: Throwable) {
+                         println("CONNECTION_ERROR")

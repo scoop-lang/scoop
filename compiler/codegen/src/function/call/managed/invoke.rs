@@ -29,7 +29,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 )));
             }
         };
-        let frame = self.publish_compiler_roots(roots)?;
+        let table = self.materialize_invoke_root_table(roots)?;
         let cleanup = self.context.append_basic_block(
             self.llvm_function,
             &format!("invoke.normal.cleanup.{}", self.compiler_invoke_index - 1),
@@ -60,6 +60,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     normal: cleanup,
                     unwind: self.llvm_blocks[arena_index(unwind)],
                     result_type,
+                    root_table: table.map(|table| table.pointer),
                     abi_signature: apply_scoop_abi_attributes.then_some(signature),
                     structs: self.structs,
                     enums: self.enums,
@@ -125,7 +126,6 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .collect::<Vec<_>>();
         self.validate_compiler_root_sources(normal_sources.iter().copied())?;
         let reloaded_roots = self.reload_published_roots(normal_sources)?;
-        self.pop_compiler_roots(frame)?;
         self.restore_reloaded_roots(reloaded_roots)?;
         match result {
             TypedCallResult::ElidedZst { out, value } => {

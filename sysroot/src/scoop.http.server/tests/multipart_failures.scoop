@@ -28,7 +28,7 @@ private class ServerMultipartFailureTests {
             }
         withServer(
             routes,
-            httpServerOptions { this.onRequestCompleted = Some(completed::receive) },
+            httpServerOptions { request { onCompleted = Some(completed::receive) } },
             suspend {
                 scope, _, address ->
                 val valid = field("Content-Type", "multipart/form-data; boundary=test-boundary")
@@ -106,7 +106,7 @@ private class ServerMultipartFailureTests {
                 routes,
                 httpServerOptions {
                     this.allowCleartextHttp2 = true
-                    this.onRequestCompleted = Some(completed::receive)
+                    request { onCompleted = Some(completed::receive) }
                 },
                 suspend {
                     scope,

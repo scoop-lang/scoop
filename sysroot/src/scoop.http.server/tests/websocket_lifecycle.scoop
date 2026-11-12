@@ -67,8 +67,10 @@ private class ServerWebSocketLifecycleTests {
             }
         val options =
             httpServerOptions {
-                this.requestDeadline = Some(Duration.milliseconds(100))
-                this.onRequestCompleted = Some(http::receive)
+                request {
+                    deadline = Some(Duration.milliseconds(100))
+                    onCompleted = Some(http::receive)
+                }
                 this.onWebSocketCompleted = Some(completed::receive)
             }
         withServer(

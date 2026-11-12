@@ -25,22 +25,19 @@ public fun HttpServerOptions.copy(
     builder.maxConnections = this.maxConnections
     builder.maxActiveRequests = this.maxActiveRequests
     builder.maxWebSocketSessions = this.maxWebSocketSessions
-    builder.requestBodyLimit = this.requestBodyLimit
-    builder.bufferedBodyLimit = this.bufferedBodyLimit
+    builder.request = this.request
     builder.tlsHandshakeTimeout = this.tlsHandshakeTimeout
     builder.firstRequestHeadTimeout = this.firstRequestHeadTimeout
     builder.http2HeadTimeout = this.http2HeadTimeout
     builder.keepAliveIdleTimeout = this.keepAliveIdleTimeout
     builder.bodyReadIdle = this.bodyReadIdle
     builder.responseWriteIdle = this.responseWriteIdle
-    builder.requestDeadline = this.requestDeadline
     builder.gracefulShutdownTimeout = this.gracefulShutdownTimeout
     builder.http1Receive = this.http1Receive
     builder.http1Limits = this.http1Limits
     builder.http2Receive = this.http2Receive
     builder.http2Limits = this.http2Limits
     builder.http2Settings = this.http2Settings
-    builder.onRequestCompleted = this.onRequestCompleted
     builder.onWebSocketCompleted = this.onWebSocketCompleted
     builder.onConnectionError = this.onConnectionError
     builder.configure()
@@ -60,15 +57,13 @@ public class HttpServerOptionsBuilder internal constructor() {
     set(value) {
         configuredMaxWebSocketSessions = Some(value)
     }
-    public var requestBodyLimit: Long? = Some(8388608L)
-    public var bufferedBodyLimit: Long = 2097152L
+    public var request: HttpRequestOptions = httpRequestOptions()
     public var tlsHandshakeTimeout: Duration? = Some(Duration.seconds(10))
     public var firstRequestHeadTimeout: Duration? = Some(Duration.seconds(10))
     public var http2HeadTimeout: Duration? = Some(Duration.seconds(10))
     public var keepAliveIdleTimeout: Duration? = Some(Duration.seconds(60))
     public var bodyReadIdle: Duration? = Some(Duration.seconds(30))
     public var responseWriteIdle: Duration? = Some(Duration.seconds(30))
-    public var requestDeadline: Duration? = None
     public var gracefulShutdownTimeout: Duration = Duration.seconds(30)
     public var http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()
     public var http1Limits: Http1Limits = Http1Limits()
@@ -76,9 +71,12 @@ public class HttpServerOptionsBuilder internal constructor() {
         Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream)
     public var http2Limits: Http2Limits = Http2Limits()
     public var http2Settings: Http2Settings = Http2Settings()
-    public var onRequestCompleted: ((HttpRequestCompletion) -> Unit)? = None
     public var onWebSocketCompleted: ((HttpWebSocketCompletion) -> Unit)? = None
     public var onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None
+
+    public fun request(configure: HttpRequestOptionsBuilder.() -> Unit): Unit {
+        request = request.copy(configure)
+    }
 
     public fun http1Receive(configure: Http1ReceiveOptionsBuilder.() -> Unit): Unit {
         http1Receive = http1Receive.copy(configure)
@@ -108,22 +106,19 @@ public class HttpServerOptionsBuilder internal constructor() {
             maxConnections,
             maxActiveRequests,
             maxWebSocketSessions,
-            requestBodyLimit,
-            bufferedBodyLimit,
+            request,
             tlsHandshakeTimeout,
             firstRequestHeadTimeout,
             http2HeadTimeout,
             keepAliveIdleTimeout,
             bodyReadIdle,
             responseWriteIdle,
-            requestDeadline,
             gracefulShutdownTimeout,
             http1Receive,
             http1Limits,
             http2Receive,
             http2Limits,
             http2Settings,
-            onRequestCompleted,
             onWebSocketCompleted,
             onConnectionError
         )

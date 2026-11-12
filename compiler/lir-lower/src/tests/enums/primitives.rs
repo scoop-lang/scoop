@@ -82,6 +82,7 @@ fn lower_variant_primitives(
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -241,6 +242,7 @@ fn typed_variant_primitives_lower_through_niche_layout() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,

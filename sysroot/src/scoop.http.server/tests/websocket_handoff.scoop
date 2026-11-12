@@ -31,7 +31,7 @@ private class ServerWebSocketHandoffTests {
             }
         val options =
             httpServerOptions {
-                this.onRequestCompleted = Some(http::receive)
+                request { onCompleted = Some(http::receive) }
                 this.onWebSocketCompleted = Some(completed::receive)
             }
         withServer(
@@ -87,7 +87,7 @@ private class ServerWebSocketHandoffTests {
             }
         val options =
             httpServerOptions {
-                this.onRequestCompleted = Some(http::receive)
+                request { onCompleted = Some(http::receive) }
                 this.onWebSocketCompleted = Some(completed::receive)
             }
         withServer(

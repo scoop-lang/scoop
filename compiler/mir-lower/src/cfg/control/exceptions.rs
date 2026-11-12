@@ -86,14 +86,19 @@ impl<'a> CfgLowerer<'a> {
 
         self.enter(unwind);
         self.push(
-            mir::StatementKind::Eh(mir::EhStatement::LandingPad { cleanup: false }),
+            mir::StatementKind::Eh(mir::EhStatement::LandingPad {
+                cleanup: false,
+                state: own_target.state,
+            }),
             synthetic_span(),
         );
         self.seal(mir::Terminator::Goto(dispatch));
 
         self.enter(dispatch);
         self.push(
-            mir::StatementKind::Eh(mir::EhStatement::BeginCatch),
+            mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state: own_target.state,
+            }),
             synthetic_span(),
         );
         let mut unmatched_reachable = true;
@@ -114,7 +119,9 @@ impl<'a> CfgLowerer<'a> {
                         mir::ExprKind::IsInstance {
                             operand: Box::new(mir::Expr::new(
                                 mir::Type::Any,
-                                mir::ExprKind::CaughtException,
+                                mir::ExprKind::CaughtException {
+                                    state: own_target.state,
+                                },
                             )),
                             check_ty: catch.ty.clone(),
                         },
@@ -131,7 +138,7 @@ impl<'a> CfgLowerer<'a> {
                     init: mir::Expr::new(
                         catch.ty.as_ref().clone(),
                         mir::ExprKind::Retype {
-                            operand: Box::new(mir::Expr::caught_exception()),
+                            operand: Box::new(mir::Expr::caught_exception(own_target.state)),
                             ty: catch.ty.clone(),
                         },
                     ),
@@ -195,6 +202,7 @@ impl<'a> CfgLowerer<'a> {
             self.push(
                 mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                     cleanup: !handler_target.handles_in_function,
+                    state: handler_target.state,
                 }),
                 synthetic_span(),
             );
@@ -209,10 +217,7 @@ impl<'a> CfgLowerer<'a> {
                 self.lower_statements(finally);
             }
             if !self.current_sealed {
-                match enclosing.as_ref() {
-                    Some(target) => self.seal(mir::Terminator::Goto(target.continuation)),
-                    None => self.seal(mir::Terminator::Resume),
-                }
+                self.resume_native_exception(handler_target.state, enclosing.as_ref());
             }
         }
 
@@ -220,6 +225,7 @@ impl<'a> CfgLowerer<'a> {
         self.push(
             mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                 cleanup: !exit_target.handles_in_function,
+                state: exit_target.state,
             }),
             synthetic_span(),
         );
@@ -230,10 +236,7 @@ impl<'a> CfgLowerer<'a> {
             mir::StatementKind::Eh(mir::EhStatement::EndCatch),
             synthetic_span(),
         );
-        match enclosing.as_ref() {
-            Some(target) => self.seal(mir::Terminator::Goto(target.continuation)),
-            None => self.seal(mir::Terminator::Resume),
-        }
+        self.resume_native_exception(exit_target.state, enclosing.as_ref());
 
         self.enter(end);
         if !end_reachable {
@@ -413,6 +416,26 @@ impl<'a> CfgLowerer<'a> {
         }
     }
 
+    fn resume_native_exception(
+        &mut self,
+        source: mir::ExceptionStateId,
+        enclosing: Option<&UnwindTarget>,
+    ) {
+        match enclosing {
+            Some(target) => {
+                self.push(
+                    mir::StatementKind::Eh(mir::EhStatement::Forward {
+                        source,
+                        destination: target.state,
+                    }),
+                    synthetic_span(),
+                );
+                self.seal(mir::Terminator::Goto(target.continuation));
+            }
+            None => self.seal(mir::Terminator::Resume { state: source }),
+        }
+    }
+
     fn capture_unwind_target(&mut self, target: &UnwindTarget) {
         let destination = target
             .managed_exception
@@ -420,10 +443,18 @@ impl<'a> CfgLowerer<'a> {
         self.enter(target.pad);
         let span = synthetic_span();
         self.push(
-            mir::StatementKind::Eh(mir::EhStatement::LandingPad { cleanup: false }),
+            mir::StatementKind::Eh(mir::EhStatement::LandingPad {
+                cleanup: false,
+                state: target.state,
+            }),
             span,
         );
-        self.push(mir::StatementKind::Eh(mir::EhStatement::BeginCatch), span);
+        self.push(
+            mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state: target.state,
+            }),
+            span,
+        );
         self.push(
             mir::StatementKind::ValDecl {
                 local: destination,
@@ -433,7 +464,9 @@ impl<'a> CfgLowerer<'a> {
                         .expect("coroutine EH mode")
                         .throwable
                         .clone(),
-                    mir::ExprKind::CaughtException,
+                    mir::ExprKind::CaughtException {
+                        state: target.state,
+                    },
                 ),
             },
             span,

@@ -62,10 +62,9 @@ impl<'a> FunctionLowerer<'a> {
             }
             mir::ExprKind::BoolLiteral(value) => lir::Value::BoolConst(*value),
             mir::ExprKind::UnitLiteral => self.unit_value(),
-            mir::ExprKind::CaughtException => lir::Value::Local(
-                self.caught_exception
-                    .expect("CaughtException must be dominated by BeginCatch"),
-            ),
+            mir::ExprKind::CaughtException { state } => {
+                lir::Value::Local(self.exception_states[state].caught)
+            }
             mir::ExprKind::TupleLiteral(elements) => {
                 let mir::Type::Tuple(element_types) = ty else {
                     unreachable!("a tuple literal has a tuple type")

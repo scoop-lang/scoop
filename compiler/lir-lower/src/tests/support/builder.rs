@@ -350,6 +350,7 @@ impl Builder {
             params,
             return_ty,
             body: mir::Body {
+                exception_states: Default::default(),
                 locals,
                 blocks,
                 entry,

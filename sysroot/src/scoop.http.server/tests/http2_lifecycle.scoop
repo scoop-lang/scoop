@@ -157,7 +157,7 @@ private class ServerHttp2LifecycleTests {
             httpServerOptions {
                 this.allowCleartextHttp2 = true
                 this.maxActiveRequests = 1L
-                this.onRequestCompleted = Some({ value -> finished.receive(value) })
+                request { onCompleted = Some({ value -> finished.receive(value) }) }
             }
         withServer(
             routes,

@@ -20,10 +20,8 @@ public class HttpServerOptions internal constructor(
     public val maxActiveRequests: Long = 256L,
     /** Maximum reserved or active upgraded sessions, held until their cleanup ends. */
     public val maxWebSocketSessions: Long = maxConnections,
-    /** Default maximum body input bytes, or None for no total input limit. */
-    public val requestBodyLimit: Long? = Some(8388608L),
-    /** Default maximum bytes collected by aggregate body helpers. */
-    public val bufferedBodyLimit: Long = 2097152L,
+    /** Shared application-request limits, lifetime and completion observation. */
+    public val request: HttpRequestOptions = httpRequestOptions(),
     /** Total TLS handshake time, or None to disable this deadline. */
     public val tlsHandshakeTimeout: Duration? = Some(Duration.seconds(10)),
     /** Total time to receive the first complete request head, including cleartext probing. */
@@ -36,8 +34,6 @@ public class HttpServerOptions internal constructor(
     public val bodyReadIdle: Duration? = Some(Duration.seconds(30)),
     /** Write stagnation limit applied by the HTTP transport to response output. */
     public val responseWriteIdle: Duration? = Some(Duration.seconds(30)),
-    /** Total request lifetime deadline, disabled by default for long responses. */
-    public val requestDeadline: Duration? = None,
     /** Default natural-drain period before forced cancellation and cleanup. */
     public val gracefulShutdownTimeout: Duration = Duration.seconds(30),
     /** HTTP/1 receive behavior; strict defaults are preserved. */
@@ -51,27 +47,14 @@ public class HttpServerOptions internal constructor(
     public val http2Limits: Http2Limits = Http2Limits(),
     /** Local HTTP/2 settings, including the bounded incoming request queue. */
     public val http2Settings: Http2Settings = Http2Settings(),
-    /** Observes a completed request snapshot after its resources have been released. */
-    public val onRequestCompleted: ((HttpRequestCompletion) -> Unit)? = None,
     /** Observes an upgraded session only after business work and transport cleanup have ended. */
     public val onWebSocketCompleted: ((HttpWebSocketCompletion) -> Unit)? = None,
     /** Observes isolated connection failures without controlling another connection. */
     public val onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None
 ) {
     init {
-        if (
-            maxConnections <=
-                0L ||
-                maxActiveRequests <=
-                0L ||
-                maxWebSocketSessions <=
-                0L ||
-                bufferedBodyLimit <
-                0L
-        )
+        if (maxConnections <= 0L || maxActiveRequests <= 0L || maxWebSocketSessions <= 0L)
             throw IllegalArgumentException(Some("invalid HTTP server capacity"))
-        if (present(requestBodyLimit) && requestBodyLimit!! < 0L)
-            throw IllegalArgumentException(Some("negative request body limit"))
         for (
             value in [
                 tlsHandshakeTimeout,
@@ -80,7 +63,6 @@ public class HttpServerOptions internal constructor(
                 keepAliveIdleTimeout,
                 bodyReadIdle,
                 responseWriteIdle,
-                requestDeadline,
                 Some(gracefulShutdownTimeout)
             ]
         )
