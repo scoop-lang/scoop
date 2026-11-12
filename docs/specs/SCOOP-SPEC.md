@@ -2350,7 +2350,7 @@ nonCancellableScope 用于取消后的必要异步清理。它建立只由当前
 
 正文退出后关闭直接子任务登记，已关闭 CoroutineScope 的 launch／async 抛 IllegalStateException。Job 仅在正文及所有已登记子任务完成后发布最终结果；完成前取消不等于已完成。父子及等待者引用在不再需要时解除。join 可多次、多等待者调用，只等待目标结束；await 同样可重复，返回保存的类型化结果或抛该任务的最终异常。coroutineScope 内部等待不被调用方的取消提前中断，必须等子树完成收尾。
 
-coroutineScope 与 nonCancellableScope 是当前 execution 内的词法作用域：建立独立 Job、安装其 binding，并以当前活动执行登记作为作用域正文的父执行归属，不额外登记或启动低层任务。正文结束先关闭 scope，再结束 Job；只在子树仍未结束时登记内部等待，已完成的 Job 可直接取得最终结果。正常正文结束与无活动 child／取消通知时的完成选择在同一临界区提交。Job 状态及其取消／完成监听共享同步边界，选择通知或撤销时同时移除登记并释放 callback 引用，实际通知仍在锁外；不能把完成通知抛出的异常重新当作正文失败再结束 Job。launch／async 和 withExecutor 继续建立独立 execution，保留强制投递与执行登记合同。
+coroutineScope 与 nonCancellableScope 是当前 execution 内的词法作用域：建立独立 Job、安装其 binding，并以当前活动执行登记作为作用域正文的父执行归属，不额外登记或启动低层任务。正文结束先关闭 scope，再结束 Job；只在子树仍未结束时登记内部等待，已完成的 Job 可直接取得最终结果。正常正文结束与无活动 child／取消通知时的完成选择在同一临界区提交。Job 状态变更及其取消／完成监听共享同步边界，选择通知或撤销时同时移除登记并释放 callback 引用，实际通知仍在锁外；不能把完成通知抛出的异常重新当作正文失败再结束 Job。只读状态查询可以使用 acquire 读取的单向发布状态：取消异常先初始化，再 release 发布取消标志；最终结果、父关联解除和监听摘取完成后，才 release 发布完成标志。ensureActive 观察到取消后读取同一个已发布异常，完成后的查询不改变取消状态。launch／async 和 withExecutor 继续建立独立 execution，保留强制投递与执行登记合同。
 
 launch／async 正文或其子任务的非取消失败立即向父任务传播，并向其他活动后代请求取消；传播到 coroutineScope 的作用域 Job 时止于该作用域。coroutineScope 先取消并等待自己的子树收尾，再从原挂起调用处抛出原失败，不能在调用方有机会 catch 之前取消调用方 Job 或其其他子任务。调用方未捕获时，异常按其自身任务的失败继续传播。core 以内部 propagatesFailure=false 表达该调用边界，不开放无归属 Job。
 

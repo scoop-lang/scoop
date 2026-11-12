@@ -1560,3 +1560,54 @@ GDB 硬件 watchpoint 直接观察未修改 ELF 的分配计数；先核对 runt
 完整 server 小响应 CPU 仍为同轮 Go 的 **2.12／2.15 倍**，大响应为 **2.03／1.96 倍**，整体目标尚未完成。未改编译器或 runtime，未重跑全 Rust／CLI fixture、所有库、Gin／Axum 或其他平台实机验收；历史 SSE 根因与 B51 原版协议四 worker 回退仍未据此关闭。Scoop 格式与四个变更库的静态检查通过，外部 Python 使用 Ruff 0.16.10，shell 语法与 Git 空白检查通过，本轮覆盖的正确性及测量无失败。
 
 固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round58`，正式资源为 `candidate/sysroot`，`toolchain` 链接 B57 配套工具。`baseline/sysroot` 指向 B57；`bin/scoop-<control|candidate>-<manual|protocol|server>` 是本轮同路径重建的对照，旧 `bin/scoop-<manual|protocol|server>` 链接保留给开始时的分层诊断，不能混用。保留输入、六个新 ELF、符号、候选补丁、优化报告、全部结果、分配追踪、采样与复现脚本；原始日志不进入 Git。按约定提交、合并远端 main、推送后清理本轮 cache／target／lock 和临时构建产物，保留正式 SDK 及历史链接目标；用户两项未跟踪打包脚本保持。
+
+## 第五十九轮：发布 Job 只读状态并减少 HTTP 输出状态读取
+
+**本轮保留两项组合，正式 SDK 转为 B59，继续使用 B57 配套 CLI。** 收益较小：完整 server 单 worker 小响应 CPU 下降约 2.5%，手写和协议连接也有改善；四 worker 完整 server CPU 略升，大响应吞吐约低 0.9%，全部如实保留。遵循用户要求，保留有实际收益的通用改进，同时记录其代价，不把它写成所有负载均有收益。
+
+从 `892e34e28` 开始，上一轮已提交、合并 main、推送并清理。本轮先用 B58 SDK 重建五个应用中间程序，再比较手写 TCP、协议连接、请求执行和完整 server。36 个分层样本、**58,988,040 个请求**无 wrk 错误，五个新程序通过格式、静态检查、release 构建与 **1,960 个**真实响应验证。1 KiB、64 连接、默认 GC、独立绑核、预热 2 秒＋测量 8 秒，正反各一次；下表为两次中位数之差，单位 μs/请求：
+
+| 接入区间 | 单 worker 增量 | 四 worker 增量 |
+| --- | ---: | ---: |
+| 手写 TCP → 正式协议连接 | +3.477 | +4.387 |
+| 协议连接 → fair：idle、请求作用域与让出 | +2.255 | +2.732 |
+| fair → direct：完整请求执行、短路 middleware | +3.202 | +3.033 |
+| direct → parsed：正式请求目标解析 | +1.111 | +1.634 |
+| parsed → routed：正式路由分派 | +1.489 | +0.963 |
+| application → routed：额外委托 middleware | +1.017 | +1.002 |
+| application → server：完整监听服务 | +0.279 | +0.758 |
+
+最大的总区间仍是协议连接接入，应用端最大一步仍包含多个请求执行功能；不能把这些差额当作纯组件成本或精确加总。四个 acquire helper 的机器码均有入口和循环 poll，但 B58 原始样本多数落在 CAS 后的跳转附近，不能据此主攻重复 poll，也不能把采样位置精确等同于指令成本。随后在固定 ELF 上记录入口、CAS 尝试、成功和真实调用方，单连接 100 GET 减 0 GET：完整 server 每请求 **102 次**加锁，其中 Job 只读查询及其内联调用占 **24 次**，NativeByteBuffer.readableBytes 占 **10 次**。这组诊断没有失败 CAS 重试，不能推断 64 连接负载无争用。
+
+先修订语言规范 §11.9.1，再改变 Job 内部状态：取消异常初始化后 release 发布取消标志；结果、父关联解除和监听摘取完成后 release 发布完成标志。isCompleted、isCancelled、ensureActive 使用 acquire 读取；状态变更、监听登记与摘取仍受原锁保护，通知仍在锁外，取消异常身份不变。HTTP/1 缓冲响应在每次 writeFrom 后只取一次实际剩余字节数，复用到进度核对和循环条件，并省去首块的重复 clear；保留短写、异常、零进度、flush、idle 与清理。公开签名、编译器、runtime 和 GC 参数保持。
+
+两方使用同一 B57 工具链、B28 源码构建且带私有补丁的 LLVM 22.1.8、同一输入路径重建三个程序；候选重建 18 个库，runtime 35／metadata 12 保持。独立计数与分配追踪均在无计时的单连接负载进行，入口、尝试、成功、调用方与全部分配计数精确对齐：
+
+| 每请求诊断 | 完整 server：前 → 后 | 协议连接：前 → 后 |
+| --- | --- | --- |
+| CoroutineLock 获取次数 | 36 → 12 | 22 → 4 |
+| NativeByteBuffer 获取次数 | 26 → 22 | 29 → 25 |
+| 全部四类锁获取次数 | 102 → 74 | 74 → 52 |
+| 分配 bytes | 11,727.36 → 11,767.36 | 4,471.36 → 4,471.36 |
+| 分配对象数 | 272.56 → 273.56 | 99.56 → 99.56 |
+
+HttpLock 的 26／23 次及完整 server 的 14 次 ServerLock 保持；Job 查询的 24／18 次加锁全部消除，readableBytes 少 3 次、clear 少 1 次。完整 server 的分配代价是一个 **24-byte AtomicInt**，以及继承 Job 的 **`Deferred<Unit>` 由 88 增至 104 bytes**，合计 **+40 bytes/请求**。闭包和其他类型计数保持。此追踪与 64 连接压测不同，不能按对象或锁次数直接分摊 CPU。
+
+同路径 control／candidate 的正反对照采用与分层相同的条件，所有成功样本均保留，CPU 单位 μs/请求：
+
+| 负载 | 单 worker CPU：前 → 后 | 四 worker CPU：前 → 后 | 吞吐变化：单／四 worker |
+| --- | --- | --- | --- |
+| 1 KiB 手写 TCP | 4.288 → 4.215（−1.7%） | 5.891 → 5.851（−0.7%） | +1.6%／+0.5% |
+| 1 KiB 正式协议连接 | 7.843 → 7.778（−0.8%） | 10.297 → 10.143（−1.5%） | +0.9%／+0.5% |
+| 1 KiB 完整 server | 15.260 → 14.886（−2.5%） | 18.748 → 18.805（+0.3%） | +2.5%／+1.4% |
+| 64 KiB 完整 server | 27.998 → 27.825（−0.6%） | 31.589 → 31.633（+0.1%） | +0.6%／−0.9% |
+
+完整 server 小响应吞吐 **65,584→67,194／192,413→195,189 req/s**，P80 **1,210→1,199.5／486.5→479 μs**。单 worker 两个配对样本的 CPU 均下降，四 worker 小响应两组方向不同；大响应四 worker 的 P80 **765.5→770 μs**。完整 server 压测分配增加约 **0.34%～0.36%**，手写／协议基本保持；小响应 RSS 略降，大响应 RSS 高约 **0.1%～0.5%**。不把这些小变化当作长期分布或统计显著性结论。40 个组合样本、**71,011,793 个请求**无 wrk 错误；连同分层，本轮共 **76 个无仪表样本、129,999,833 个请求**。本轮未做单项消融，保留的是整体组合。
+
+普通 release 覆盖 core consumer **132**、platform **126**、concurrent **80**、asyncio **190**、http **313**、http.asyncio **165**、http.server **168**，共 **1,174 项**。新增测试验证取消通知未结束时的异常身份、完成标志后的正文结果可见性，以及跨完整输出块后的部分写入失败。初版测试的 `AtomicRef<Option<T>>` 违反 ref 约束，改用已有 WorkerGate 同步观察；HTTP 异步层首轮 **164／165** 通过，新增接收端 EOF 断言改为正式 HttpException.isUnexpectedEof 后，相关容器 **4／4** 复测通过。两个发布测试在 moving／minor 各 **2 项**通过。六个对照程序验证 **2,352 个**响应，连同分层共 **4,312 个**；锁与分配探针另核验 **1,000 个**响应。原始失败及闭合日志保留；Scoop 格式、变更实现及测试静态检查、外部 Ruff 0.16.10、shell 语法与 Git 空白检查通过。
+
+优化后用户态 cycles 为 **6,753／23,408**，共 **30,161 个**独立样本。按实际 source Cone 归属 self，server **20.20%／19.24%**、core **16.27%／16.21%**、http.asyncio **12.76%／11.83%**；四个 acquire helper 合计 **7.77%／8.51%**，其中 CoroutineLock.acquire 为 **1.63%／1.35%**。最大单项 self 约 **3.08%／2.64%**；仍没有单一大头，比例不能与 inclusive 树相加。下一轮先用 B59 重测协议接入与请求执行边界，再比较 receiveH1Request、executeHttp1Request、serveHttp1 的操作准备、请求数据构建与收尾；不继续默认打磨已消除的 Job 查询加锁，也不调整 GC 参数。
+
+完整 server 小响应 CPU 仍为同轮 Go 的 **2.08／2.13 倍**，大响应为 **2.02／1.92 倍**，长线目标尚未完成。仅在 Linux 实机验证；未改编译器或 runtime，未重跑全 Rust／CLI fixture、全部库、Gin／Axum 或其他平台。历史 SSE 根因和 B51 原版协议四 worker 回退未据此关闭。
+
+固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round59`；正式资源为 `candidate/sysroot`，CLI 为 `toolchain/bin`（链接 B57），`baseline/sysroot` 指向 B58。三个正式对照使用 `bin/scoop-<control|candidate>-<manual|protocol|server>`；不带 variant 的链接用于开始时的分层诊断。保留 SDK、输入、ELF、符号、补丁、全部结果、锁与分配追踪、profile 和复现脚本，原始日志在仓库外。按约定提交、合并远端 main、推送后清理本轮 cache／target／lock，保留历史资源与用户两项未跟踪打包脚本。

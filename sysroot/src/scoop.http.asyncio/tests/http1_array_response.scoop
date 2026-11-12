@@ -7,6 +7,46 @@ import scoop.time.Duration
 @Test
 private class Http1ArrayResponseTests {
     @Test
+    fun `partial failure after a full output block preserves total body progress`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            val payload = Array<Byte>(131079L) { index -> (index % 239L).toByte() }
+            val headSize =
+                Http1Encoder(HttpRole.Server).use {
+                    encoder -> encoder.beginResponse(
+                        response(),
+                        "GET".toByteArray(),
+                        Http1BodyFraming.Length(payload.size)
+                    ).size
+                }
+            val accepted = 65536L + 19L
+            transport.writeLimit = 997L
+            transport.failWriteAfter = Some(accepted)
+            val progress = Http1ResponseProgress()
+            val receiving =
+                scope.async<Unit> suspend {
+                    try {
+                        receiveBytes(client.receiveResponse().body)
+                        fail(Some("truncated response succeeded"))
+                    } catch (error: HttpException) {
+                        assertTrue(error.isUnexpectedEof)
+                    }
+                }
+            try {
+                server.sendResponse(response(), payload, progress = Some(progress))
+                fail(Some("partial write succeeded"))
+            } catch (_: TransportFailure) {}
+            assertEquals(accepted - headSize, progress.writtenBytes)
+            assertTrue(transport.writes > 2L)
+            assertTrue(server.isClosed && !scope.job.isCancelled)
+            assertEquals(1, transport.closes)
+            receiving.await()
+        }
+    }
+
+    @Test
     fun `array responses reuse output across short writes and keep their source unchanged`() {
         withHttp1 suspend {
             scope, _, transport, client, server ->

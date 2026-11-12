@@ -3,6 +3,10 @@
  */
 public class CancellationException public constructor(): Exception(Some("task was cancelled"))
 
+private const val JOB_CANCELLED: Int = 1
+
+private const val JOB_COMPLETED: Int = 2
+
 /**
  * Tracks a coroutine and its structured children. Completion waits for children; cancellation
  * requests propagate to children and registered handlers.
@@ -17,29 +21,30 @@ public open class Job internal constructor(
     private val completionListeners: CoroutineListeners = CoroutineListeners(lock)
     private val cancellationListeners: CoroutineListeners = CoroutineListeners(lock)
     private var bodyEnded: Boolean = false
-    private var completed: Boolean = false
+    private val status: AtomicInt = AtomicInt(0)
     private var cancelling: Int = 0
     private var cancellation: CancellationException? = None
     private var failure: Throwable? = None
 
+    private val completed: Boolean get() = (status.load(MemoryOrder.Relaxed) and JOB_COMPLETED) != 0
+
     /**
      * Whether the job and its children have reached a terminal state.
      */
-    public val isCompleted: Boolean get() = lock.withLock { completed }
+    public val isCompleted: Boolean get() =
+        (status.load(MemoryOrder.Acquire) and JOB_COMPLETED) != 0
     /**
      * Whether cancellation has been requested for this job.
      */
-    public val isCancelled: Boolean get() = lock.withLock { !coroutineAbsent(cancellation) }
+    public val isCancelled: Boolean get() =
+        (status.load(MemoryOrder.Acquire) and JOB_CANCELLED) != 0
 
     /**
      * Throws the job's cancellation exception when cancellation has been requested.
      */
     public fun ensureActive() {
-        val reason = lock.withLock { cancellation }
-        when (reason) {
-            case Some(val error) -> throw error
-            case None -> {}
-        }
+        if ((status.load(MemoryOrder.Acquire) and JOB_CANCELLED) != 0)
+            throw cancellation!!
     }
 
     /**
@@ -169,8 +174,10 @@ public open class Job internal constructor(
                     }
                     case None -> {}
                 }
-                if (coroutineAbsent(cancellation))
+                if (coroutineAbsent(cancellation)) {
                     cancellation = Some(CancellationException())
+                    status.store(JOB_CANCELLED, MemoryOrder.Release)
+                }
                 cancelling += 1
                 Some(
                     CoroutineCancellation(
@@ -221,11 +228,12 @@ public open class Job internal constructor(
     private fun completeLocked(): CoroutineCompletion? {
         if (completed || !bodyEnded || children.size != 0L || cancelling != 0)
             return None
-        completed = true
         val owner = parent
         parent = None
         cancellationListeners.clearLocked()
-        return Some(CoroutineCompletion(owner, completionListeners.takeLocked()))
+        val done = Some(CoroutineCompletion(owner, completionListeners.takeLocked()))
+        status.store(status.load(MemoryOrder.Relaxed) or JOB_COMPLETED, MemoryOrder.Release)
+        return done
     }
 
     private fun publishCompletion(batch: CoroutineCompletion?) {
