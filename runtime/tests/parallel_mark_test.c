@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include "parallel_mark_fixture.h"
+#include "../src/gc/mark_internal.h"
 
 #undef stress_move
 
@@ -81,6 +82,87 @@ static void run_case(size_t workers) {
     parallel_finish(&fixture);
 }
 
+static size_t dirty_edge(size_t group) {
+    return (group * GC_BLOCK_SIZE + sizeof(ParallelEdge) - 1) / sizeof(ParallelEdge);
+}
+
+static void check_automatic_minor_work(bool force_serial) {
+    if (force_serial) {
+        assert(setenv("SCOOP_GC_WORKERS", "1", 1) == 0);
+    } else {
+        assert(unsetenv("SCOOP_GC_WORKERS") == 0);
+    }
+    size_t workers = scoop_platform_bundle()->thread_vm->processor_count();
+    if (workers > GC_MARK_DEFAULT_MAX_WORKERS) {
+        workers = GC_MARK_DEFAULT_MAX_WORKERS;
+    }
+    if (force_serial) {
+        workers = 1;
+    }
+    const ScoopTypeDescriptor *types[] = {&nursery_node_td, &parallel_array_td};
+    scoop_thread_runtime_init();
+    scoop_test_image_init(types, 2, NULL, 0, NULL, 0);
+    scoop_thread_attach_main();
+    scoop_thread_enter_managed((void *)scoop_rt_thread_debug_stack_high());
+    void *storage = NULL;
+    void **slot = &storage;
+    ScoopNativeRootFrame roots;
+    scoop_rt_push_native_roots(&roots, &slot, 1);
+
+    const size_t groups = 128;
+    size_t elements = dirty_edge(groups);
+    storage = nursery_allocate(&parallel_array_td, 24 + elements * sizeof(ParallelEdge));
+    ((ScoopArray *)storage)->size = elements;
+    nursery_collect(false);
+    assert(nursery_metrics().last_mark_workers == workers);
+
+    /* A large clean old array must not make a small minor collection parallel. */
+    NurseryNode *young = nursery_node(999);
+    ParallelEdge *edges = (ParallelEdge *)((char *)storage + 24);
+    edges[0].left = young;
+    scoop_rt_gc_write_barrier(&edges[0].left, sizeof(void *));
+    nursery_collect(true);
+    assert(nursery_metrics().last_mark_workers == 1);
+    edges = (ParallelEdge *)((char *)storage + 24);
+    assert(((NurseryNode *)edges[0].left)->value == 999);
+
+    /* Most minor work can reside in old ranges, with only one young block. */
+    for (size_t group = 0; group < groups; group++) {
+        young = nursery_node(group);
+        edges = (ParallelEdge *)((char *)storage + 24);
+        size_t index = dirty_edge(group);
+        edges[index].left = edges[index].right = young;
+        scoop_rt_gc_write_barrier(&edges[index], sizeof edges[index]);
+    }
+    assert(scoop_gc_heap_state.nursery_bytes < ((size_t)4 << 20));
+    ScoopGcMetrics before = nursery_metrics();
+    nursery_collect(true);
+    ScoopGcMetrics after = nursery_metrics();
+    assert(after.minor_collections == before.minor_collections + 1);
+    assert(after.last_mark_workers == workers);
+    assert(after.traced_objects - before.traced_objects == groups);
+    assert(scoop_rt_gc_debug_last_moved_count() != 0);
+    edges = (ParallelEdge *)((char *)storage + 24);
+    for (size_t group = 0; group < groups; group++) {
+        size_t index = dirty_edge(group);
+        young = edges[index].left;
+        assert(young == edges[index].right && young->value == group);
+        assert(!scoop_gc_is_young_object_locked(young));
+    }
+
+    /* Cleared remembered ranges do not keep later small collections parallel. */
+    nursery_collect(true);
+    assert(nursery_metrics().last_mark_workers == 1);
+    nursery_collect(false);
+    assert(scoop_rt_gc_stats() == groups + 1);
+    scoop_rt_pop_native_roots(&roots);
+    nursery_collect(false);
+    assert(scoop_rt_gc_stats() == 0);
+    scoop_gc_shutdown();
+    scoop_thread_leave_managed();
+    scoop_thread_detach_main();
+}
+
 int main(void) {
     const size_t counts[] = {1, 2, 4, 8, 16};
     for (size_t index = 0; index < sizeof counts / sizeof *counts; index++) {
@@ -88,6 +170,17 @@ int main(void) {
         assert(child >= 0);
         if (child == 0) {
             run_case(counts[index]);
+            _exit(0);
+        }
+        int status = 0;
+        assert(waitpid(child, &status, 0) == child);
+        assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    }
+    for (size_t index = 0; index < 2; index++) {
+        pid_t child = fork();
+        assert(child >= 0);
+        if (child == 0) {
+            check_automatic_minor_work(index == 1);
             _exit(0);
         }
         int status = 0;

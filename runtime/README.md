@@ -130,11 +130,16 @@ M34 implementation and measurement status is tracked in
 `docs/milestone34/PROGRESS.md`.
 
 Marking runs after all mutators stop. Collections with less than 4 MiB of
-candidate blocks use the coordinator alone: young blocks for minor collection,
-active heap blocks for full collection. Larger collections use up to eight
-workers including the coordinator, bounded by the initializing thread's available
-CPU count. Linux uses its CPU affinity mask, falling back to online CPU count
-if that query fails; other platforms retain their processor-count query.
+candidate scan ranges use the coordinator alone. Full collection counts active
+heap blocks; minor collection counts young blocks and the coverage of registered
+dirty card groups whose blocks are still active and old. Young groups are not
+counted twice, and large objects contribute only their registered group ranges.
+The capacity check stops at the threshold without scanning objects or slots; it
+does not change card registration or retirement. Single-worker and explicit
+worker configurations skip this additional traversal. Larger collections use up
+to eight workers including the coordinator, bounded by the initializing thread's
+available CPU count. Linux uses its CPU affinity mask, falling back to online CPU
+count if that query fails; other platforms retain their processor-count query.
 The pool does not dynamically follow later affinity changes.
 `SCOOP_GC_WORKERS=1..16` overrides that policy for comparisons. Internal workers
 are created lazily, remain outside the mutator registry, and are joined at
