@@ -1,4 +1,4 @@
-"""Compare fixed Scoop and Go TCP echo binaries on separate Linux CPU sets."""
+"""Compare fixed Scoop and Go TCP echo binaries on Linux or macOS."""
 
 import argparse
 import json
@@ -7,6 +7,7 @@ import queue
 import random
 import statistics
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -17,6 +18,20 @@ def integers(value):
 
 
 def process(pid):
+    if sys.platform == "darwin":
+        import psutil
+
+        child = psutil.Process(pid)
+        with child.oneshot():
+            cpu = child.cpu_times()
+            switches = child.num_ctx_switches()
+            return {
+                "user_s": cpu.user,
+                "system_s": cpu.system,
+                "VmRSS": child.memory_info().rss / 1024,
+                "Threads": child.num_threads(),
+                "context_switches": switches.voluntary + switches.involuntary,
+            }
     root = Path(f"/proc/{pid}")
     ticks = os.sysconf("SC_CLK_TCK")
     fields = (root / "stat").read_text().rsplit(")", 1)[1].split()
@@ -68,11 +83,8 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
         assert result["status"] == "ok"
         return result
     directory.mkdir()
-    server_cpus = args.server_cpus[:cpu_count]
+    server_cpus = args.server_cpus[:cpu_count] if args.server_cpus else None
     command = [
-        "taskset",
-        "-c",
-        ",".join(map(str, server_cpus)),
         str(binary),
         str(workers),
         str(args.port),
@@ -80,9 +92,6 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
         str(args.buffer),
     ]
     client_command = [
-        "taskset",
-        "-c",
-        ",".join(map(str, args.client_cpus)),
         str(args.client),
         "-address",
         f"127.0.0.1:{args.port}",
@@ -95,15 +104,24 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
         "-warmup",
         str(args.warmup),
         "-workers",
-        str(len(args.client_cpus)),
+        str(args.client_workers),
     ]
+    if server_cpus:
+        command = ["taskset", "-c", ",".join(map(str, server_cpus)), *command]
+    if args.client_cpus:
+        client_command = [
+            "taskset",
+            "-c",
+            ",".join(map(str, args.client_cpus)),
+            *client_command,
+        ]
     if shards != 1:
         client_command.extend(["-shards", str(shards)])
     environment = {
         key: value
         for key, value in os.environ.items()
         if not key.startswith("SCOOP_GC_")
-        and key not in ("GOGC", "GOMEMLIMIT", "GODEBUG", "LD_PRELOAD")
+        and key not in ("GOGC", "GOMEMLIMIT", "GODEBUG", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES")
     }
     result = {
         "configuration": label,
@@ -115,6 +133,11 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
         "client_command": client_command,
         "server_cpus": server_cpus,
         "client_cpus": args.client_cpus,
+        "client_workers": args.client_workers,
+        "platform": sys.platform,
+        "cpu_affinity": "taskset" if server_cpus else "none",
+        "process_metrics": "psutil" if sys.platform == "darwin" else "procfs",
+        "rss_peak_source": "sampled_rss" if sys.platform == "darwin" else "VmHWM",
         "payload_bytes": args.payload,
         "buffer_bytes": args.buffer,
         "warmup_s": args.warmup,
@@ -210,11 +233,17 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
                 server_cpu_pct=server_cpu / elapsed * 100,
                 client_cpu_pct=client_cpu / elapsed * 100,
                 cpu_us_per_request=server_cpu * 1e6 / load["requests"],
+                user_cpu_us_per_request=(after["user_s"] - before["user_s"])
+                * 1e6
+                / load["requests"],
+                system_cpu_us_per_request=(after["system_s"] - before["system_s"])
+                * 1e6
+                / load["requests"],
                 system_cpu_pct=100
                 * (after["system_s"] - before["system_s"])
                 / max(server_cpu, 1e-9),
                 rss_mib_median=statistics.median(s["VmRSS"] for s in samples) / 1024,
-                rss_mib_peak=max(s["VmHWM"] for s in [*samples, after]) / 1024,
+                rss_mib_peak=max(s.get("VmHWM", s["VmRSS"]) for s in [*samples, after]) / 1024,
                 threads_peak=max(s["Threads"] for s in [*samples, after]),
                 context_switches_per_request=(
                     after["context_switches"] - before["context_switches"]
@@ -263,8 +292,11 @@ def main():
         "--scoop-reactors", type=Path, help="Optional server with independent owner-local loops"
     )
     parser.add_argument("--shuffle-seed", type=int, default=20261112)
-    parser.add_argument("--server-cpus", type=integers, default=[0, 2, 4, 6])
-    parser.add_argument("--client-cpus", type=integers, default=[8, 10, 12, 13, 14, 15, 16, 17])
+    parser.add_argument("--server-cpus", type=integers, help="Linux server CPU set")
+    parser.add_argument("--client-cpus", type=integers, help="Linux client CPU set")
+    parser.add_argument(
+        "--client-workers", type=int, help="Client GOMAXPROCS; defaults to CPU set size or 8"
+    )
     parser.add_argument("--workers", type=integers, default=[1, 4])
     parser.add_argument("--connections", type=integers, default=[1, 64])
     parser.add_argument("--payload", type=int, default=1024)
@@ -274,8 +306,23 @@ def main():
     parser.add_argument("--warmup", type=float, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     args = parser.parse_args()
-    assert not set(args.server_cpus) & set(args.client_cpus), "CPU sets overlap"
-    assert args.workers and min(args.workers) > 0 and max(args.workers) <= len(args.server_cpus)
+    if sys.platform == "linux":
+        if args.server_cpus is None:
+            args.server_cpus = [0, 2, 4, 6]
+        if args.client_cpus is None:
+            args.client_cpus = [8, 10, 12, 13, 14, 15, 16, 17]
+        assert args.server_cpus and args.client_cpus, "CPU sets must not be empty"
+        assert not set(args.server_cpus) & set(args.client_cpus), "CPU sets overlap"
+        assert args.workers and max(args.workers) <= len(args.server_cpus)
+    elif sys.platform == "darwin":
+        if args.server_cpus is not None or args.client_cpus is not None:
+            parser.error("macOS does not support taskset CPU affinity; omit CPU sets")
+    else:
+        parser.error("supported measurement platforms are Linux and macOS")
+    if args.client_workers is None:
+        args.client_workers = len(args.client_cpus) if args.client_cpus else 8
+    assert args.client_workers > 0
+    assert args.workers and min(args.workers) > 0
     assert min(args.connections) > 0 and args.payload >= 8 and args.buffer > 0
     assert args.seconds > 0 and args.warmup >= 0 and args.repeats > 0
     args.work.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,28 @@
+package scoop.asyncio
+
+import scoop.test.*
+
+@Test
+private class DarwinNotificationTest {
+    @Test
+    fun `wake bursts coalesce and rearm or final action retirement remains observable`() {
+        @Unsafe
+        {
+            assertEquals(0, testNotificationBurst())
+        }
+    }
+
+    @Test
+    fun `external publication races with consumption without losing the final wake`() {
+        @Unsafe
+        {
+            assertEquals(0, testNotificationRace())
+        }
+    }
+}
+
+@Extern(name = "scoop_test_darwin_notification_burst")
+private fun testNotificationBurst(): Int
+
+@Extern(name = "scoop_test_darwin_notification_race")
+private fun testNotificationRace(): Int

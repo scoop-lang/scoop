@@ -14,6 +14,9 @@ private fun snapshot()
 @Extern(lib = "echo_metrics", name = "echo_configure_tcp")
 private fun configureTcp(port: Int)
 
+@Extern(lib = "echo_metrics", name = "echo_configure_accepted_tcp")
+private fun configureAcceptedTcp(port: Int)
+
 @Extern(lib = "echo_metrics", name = "echo_configure_shards")
 private fun configureShards(count: Int)
 
@@ -41,6 +44,10 @@ private suspend fun serve(scope: CoroutineScope, port: Int, connections: Int, bu
         }
         for (_ in 0 ..< connections) {
             val stream = listener.accept()
+            @Unsafe
+            {
+                configureAcceptedTcp(port)
+            }
             scope.launch suspend { echo(stream, bufferSize) }
         }
     }

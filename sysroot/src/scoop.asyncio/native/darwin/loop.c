@@ -2,7 +2,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 static int notification_pipe(int descriptors[2]) {
@@ -50,13 +49,17 @@ ScoopIoCreated scoop_io_loop_create(void) {
 }
 
 void scoop_io_notify_locked(ScoopIoLoop *loop) {
+    if (loop->notified)
+        return;
     char hint = 1;
     ssize_t count;
     do {
         count = write(loop->wake_write, &hint, 1);
     } while (count < 0 && errno == EINTR);
-    if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK && !loop->failure)
-        loop->failure = errno;
+    if (count == 1 || (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+        loop->notified = true;
+    else if (!loop->failure)
+        loop->failure = count < 0 ? errno : EIO;
 }
 
 void scoop_io_loop_wake(ScoopIoLoop *loop) {
@@ -84,23 +87,19 @@ ScoopIoStatus scoop_io_loop_poll(ScoopIoLoop *loop, bool wait) {
                 return scoop_io_errno(-EIO);
         }
     }
-    int available = 0;
-    if (ioctl(loop->wake_read, FIONREAD, &available) < 0)
-        return scoop_io_errno(-errno);
-    char hints[256];
-    while (available > 0) {
-        size_t wanted = (size_t)available < sizeof(hints) ? (size_t)available : sizeof(hints);
-        ssize_t count = read(loop->wake_read, hints, wanted);
-        if (count > 0) {
-            available -= (int)count;
-            continue;
-        }
-        if (count < 0 && errno == EINTR)
-            continue;
-        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-            break;
-        return scoop_io_errno(count < 0 ? -errno : -EIO);
+    // Pair consumption with publication so a later producer cannot lose its wakeup.
+    pthread_mutex_lock(&loop->mutex);
+    if (loop->notified) {
+        char hint;
+        ssize_t count;
+        do {
+            count = read(loop->wake_read, &hint, 1);
+        } while (count < 0 && errno == EINTR);
+        loop->notified = false;
+        if (count != 1 && !loop->failure)
+            loop->failure = count < 0 ? errno : EIO;
     }
+    pthread_mutex_unlock(&loop->mutex);
     scoop_io_work_poll(loop);
     pthread_mutex_lock(&loop->mutex);
     int status = -loop->failure;
