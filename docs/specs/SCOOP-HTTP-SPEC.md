@@ -159,6 +159,8 @@ AsyncHttp1Connection 的 takeOwnershipAsClient／takeOwnershipAsServer 接收传
 
 完整响应重载 `sendResponse(head, buffer: NativeByteBuffer, count: Long = buffer.readableBytes, writeIdle: Duration? = ioTimeouts.writeIdle): Unit` 在一次写操作中发送头部、指定的全部正文并完成消息，不交付 writer。允许正文时使用精确 Content-Length；HEAD、无内容状态和切换响应要求 count 为零，沿原编码器处理元数据与定界。整个调用借用源 buffer，成功或失败后按底层实际接受的正文前缀推进游标并结束借用；头部字节不计入正文进度。传输错误、取消和 idle 超时关闭连接且不重试已发送内容。连接以至多 64 KiB 的输出块合并头部和正文，处理短写，最后 flush；不为整条大消息建立额外的完整副本。消息关联、信息响应、关闭与协议切换规则和 writer 入口相同。
 
+不可变数组重载 `sendResponse(head, bytes: Array<Byte>, count: Long = bytes.size, writeIdle: Duration? = ioTimeouts.writeIdle, progress: Http1ResponseProgress? = None): Unit` 使用同一个完整响应过程，直接按块复制到连接输出缓冲，不建立中间 native buffer，不持有跨挂起的 managed 裸指针。count 选择数组前缀且须处于 0～bytes.size。可选 Http1ResponseProgress 的 writtenBytes 在成功／失败返回后表示本次调用实际发送的正文前缀；参数检查成功、进入发送过程时清零，头部不计入，flush 失败保留此前已发送正文。一个 progress 对象同一时间只能属于一次调用，读取进度以该调用结束为边界。输入数组不变，其他定界、错误和清理规则与 native buffer 重载一致。
+
 HTTP/1 客户端工厂可选 captureTimings（默认 false）。开启后，Http1IncomingResponse.firstByteAt 保存包含该响应开始字节的底层 read 完成时的单调 TimeMark，缺省关闭时为 None；信息响应各有自己的值。开始边界来自 receiveWithProgress，时间随待交付的响应开始记录按序保存，跨多次读取的部分起始行和同批读取的流水线响应均正确配对。同次读取的新响应可以具有相同时间。此值表示 HTTP 可见输入的观测时间，不声称是网卡接收时间，也不把完整头部到达时间代替首字节。
 
 AsyncHttp1Connection.pendingResponseFirstByteAt 返回下一条尚未交付完整响应头的开始时间，尚无开始或未开启采样时为 None。该只读状态在输入失败后仍可读取，使头部尚未完整就超时／EOF 的调用也能保留已经确认的首字节；完整响应交付后，时间归入 Http1IncomingResponse，连接上的查询继续指向下一条待交付响应。

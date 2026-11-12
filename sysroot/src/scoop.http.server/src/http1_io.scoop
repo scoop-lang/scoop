@@ -52,8 +52,13 @@ internal class Http1ResponseOutput(
         return HttpResponseHead(head.version, head.status, reason, fields)
     }
 
-    internal suspend fun sendBuffered(head: HttpResponseHead, buffer: NativeByteBuffer) {
-        connection.sendResponse(prepareHead(head), buffer)
+    internal suspend fun sendBuffered(
+        head: HttpResponseHead,
+        bytes: Array<Byte>,
+        count: Long,
+        progress: Http1ResponseProgress
+    ) {
+        connection.sendResponse(prepareHead(head), bytes, count, progress = Some(progress))
     }
 
     public override suspend fun begin(head: HttpResponseHead, length: Long?): AsyncByteSink {

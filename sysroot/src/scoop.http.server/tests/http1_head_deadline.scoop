@@ -1,0 +1,90 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class Http1HeadDeadlineTests {
+    @Test
+    fun `an earlier header alarm respects the next wait and never times out an active handler`() {
+        val routes =
+            routing {
+                get("/quick", suspend { _ -> text("quick") })
+                get(
+                    "/slow",
+                    suspend {
+                        _ ->
+                        currentEventLoop().sleep(Duration.milliseconds(250L))
+                        text("slow")
+                    }
+                )
+            }
+        val options =
+            httpServerOptions {
+                firstRequestHeadTimeout = Some(Duration.milliseconds(100L))
+                keepAliveIdleTimeout = Some(Duration.milliseconds(200L))
+            }
+        withServer(
+            routes,
+            options,
+            suspend {
+                scope,
+                _,
+                address -> networkClient(address, scope).useAsync suspend {
+                    client ->
+                    assertEquals("quick", requestText(client, "/quick"))
+                    currentEventLoop().sleep(Duration.milliseconds(130L))
+                    assertEquals("slow", requestText(client, "/slow"))
+                    assertEquals("quick", requestText(client, "/quick"))
+                }
+            }
+        )
+    }
+
+    @Test
+    fun `a shorter keep alive deadline ends only its connection`() {
+        val expired = ServerTestGate()
+        val matched = AtomicBoolean(false)
+        val routes = routing { get("/", suspend { _ -> text("ok") }) }
+        val options =
+            httpServerOptions {
+                firstRequestHeadTimeout = Some(Duration.seconds(5L))
+                keepAliveIdleTimeout = Some(Duration.milliseconds(40L))
+                onConnectionError =
+                    Some(
+                        {
+                            _,
+                            error -> {
+                                if (error is HttpServerTimeoutException)
+                                    matched.store(
+                                        error.operation ==
+                                            "HTTP/1 request head" &&
+                                            error.limit ==
+                                            Duration.milliseconds(40L)
+                                    )
+                                expired.signal()
+                            }
+                        }
+                    )
+            }
+        withServer(
+            routes,
+            options,
+            suspend {
+                scope,
+                _,
+                address -> networkClient(address, scope).useAsync suspend {
+                    client ->
+                    assertEquals("ok", requestText(client, "/"))
+                    expired.await()
+                    assertTrue(matched.load())
+                    assertFalse(scope.job.isCancelled)
+                    networkClient(address, scope).useAsync suspend {
+                        other -> assertEquals("ok", requestText(other, "/"))
+                    }
+                }
+            }
+        )
+    }
+}

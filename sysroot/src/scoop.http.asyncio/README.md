@@ -8,6 +8,8 @@
 
 `AsyncHttp1Connection.sendRequest`／`sendResponse` 返回 writer，显式选择 Empty、Length、Chunked 或响应 Eof 定界，用 `writeFrom` 写入实际前缀，最后调用 `finish`；即使空 body 也需要 finish。接收头与 `AsyncHttp1Body` 一同交付，body 完成后可取得独立 trailer。信息响应逐条返回；服务端按请求顺序关联响应，HEAD、CONNECT 与 Upgrade 由内存编解码器处理。
 
+已有完整正文时，可用 `sendResponse(head, bytes: Array<Byte>, count = bytes.size)` 一次发送并完成消息，直接复用连接输出缓冲。需要在成功或失败后读取实际正文发送量时，传入 `progress = Some(Http1ResponseProgress())` 并在调用结束后读取其 `writtenBytes`；同一进度对象不能供并发调用共用。NativeByteBuffer 重载继续通过源游标记录进度。HEAD 等无正文响应传入 count=0，头部仍可携带允许的表示长度；这些入口都不返回 writer。
+
 同一方向只允许一个操作。未完成的 body 不能被下一条消息替换；提前关闭或取消 body 会关闭连接，不自动 drain。`close` 等待底层 I/O 和本地状态结束，支持取消后的 finally、并发等待与后续幂等调用。输入等待不借用调用者 buffer，已接受的发送前缀在失败时不回滚。
 
 接受 101／成功 CONNECT 后调用 `takeTransport`，得到先交付未消费后缀的 `HttpTransport`。旧连接已经释放协议状态，关闭旧对象不会再次关闭移交的传输。HTTP/1 客户端可发送任意合法方法 token；服务端请求解析仍受 llhttp 9.4.3 已知方法集合限制。具体接收选项、错误作用域和协议合同见 [HTTP 规范](../../../docs/specs/SCOOP-HTTP-SPEC.md)。

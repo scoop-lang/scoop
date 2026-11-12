@@ -163,6 +163,19 @@ public class AsyncHttp1Connection internal constructor(
         sendH1BufferedResponse(state, head, buffer, count, writeIdle)
     }
     /**
+     * Sends an immutable byte prefix through the connection's reusable output buffer. Optional
+     * progress remains readable after success or failure and excludes response-header bytes.
+     */
+    public suspend fun sendResponse(
+        head: HttpResponseHead,
+        bytes: Array<Byte>,
+        count: Long = bytes.size,
+        writeIdle: Duration? = ioTimeouts.writeIdle,
+        progress: Http1ResponseProgress? = None
+    ) {
+        sendH1ArrayResponse(state, head, bytes, count, writeIdle, progress)
+    }
+    /**
      * Receives the next request head and body, or None at clean connection EOF.
      */
     public suspend fun receiveRequest(

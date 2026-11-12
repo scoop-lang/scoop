@@ -3,7 +3,7 @@ package scoop.http.server
 import scoop.asyncio.*
 import scoop.compression.asyncio.AsyncCompressionSink
 import scoop.http.HttpField
-import scoop.platform.memory.NativeByteBuffer
+import scoop.http.asyncio.Http1ResponseProgress
 
 internal suspend fun executeResponse(ctx: HttpContext, plan: ResponsePlan) {
     ctx.response.commit(plan.head.status)
@@ -59,17 +59,13 @@ private suspend fun sendBufferedResponse(
             value.size
         else
             0L
-    NativeByteBuffer.allocate(size).use suspend {
-        buffer ->
-        if (size != 0L)
-            buffer.writeBytes(value)
-        try {
-            output.sendBuffered(plan.head, buffer)
-            ctx.response.finish()
-        } finally {
-            ctx.responseBytes = buffer.readPosition
-            ctx.encodedResponseBytes = buffer.readPosition
-        }
+    val progress = Http1ResponseProgress()
+    try {
+        output.sendBuffered(plan.head, value, size, progress)
+        ctx.response.finish()
+    } finally {
+        ctx.responseBytes = progress.writtenBytes
+        ctx.encodedResponseBytes = progress.writtenBytes
     }
 }
 
