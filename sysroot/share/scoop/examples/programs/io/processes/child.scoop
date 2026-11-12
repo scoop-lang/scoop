@@ -1,6 +1,8 @@
 //! dep: scoop:scoop.platform:0.1.0
 
 import scoop.platform.io.*
+import scoop.platform.time.sleep
+import scoop.time.Duration
 
 fun main(args: Array<String>): Int {
     if (args.size != 2L)
@@ -16,6 +18,12 @@ fun main(args: Array<String>): Int {
         case "fail" -> {
             eprintln("child failed");
             7
+        }
+        case "wait" -> {
+            println("partial output")
+            flushOutput()
+            sleep(Duration.seconds(30L))
+            0
         }
         else -> 2
     }

@@ -11,9 +11,9 @@
 | B2 | 完成，本机验证通过 | 31 个完整主题；进程、环境、终端、报告和 UI；Cone 行为测试及真实进程/原生宿主验证 |
 | B3 | 完成，本机验证通过 | 文档同步发布 API 数据；`scoop api search/show` 读取真实签名、约束、导入、文档和来源 |
 | B4 | 完成，相关回归通过 | 保留实参根因、真实 import 提示及版本化编辑；完整前端测试有 42 项已独立复现的既有失败 |
-| B5 | 完成，本机验证通过 | `scoop-lsp query` 复用 stdio LSP，提供 11 类查询、JSON、位置编码和正文覆盖 |
-| B6 | 待实施 | 进程通信截止时间 |
-| B7 | 进行中 | K3 原版 skill 数据处理基线及七组独立输入通过；新材料与多领域对照继续进行 |
+| B5 | 完成，本机验证通过 | `scoop-lsp query` 复用 stdio LSP；含 B4 新增 code-actions，共 12 类查询，支持 JSON、位置编码和正文覆盖 |
+| B6 | 完成，六个目标运行通过 | 覆盖整个通信和最终等待的期限，保留部分输出，完成直接 child、端点和 worker 收尾 |
+| B7 | 进行中 | K3 新旧材料数据样本均通过七组独立输入；K3.1 Pro 库样本通过独立消费者；进程、网络及 UI 样本继续进行 |
 
 ## B0 验证
 
@@ -69,8 +69,20 @@
 - Rust/Scoop/Ruff 格式检查、目标 crate 的 all-targets Clippy、skill 结构与链接检查通过；当前 Rust 1.99 在未修改代码中报告已有 lint warnings，新增 CLI 无警告。本批在 macOS/AArch64 验证，尚未据此声称其他宿主已验收。
 - 规范、独立命令说明、工具 README、skill 查询路径和维护工作流同步更新；旧工具链仍可使用文档与源码路径。对照评测和跨平台复验在后续批次记录。
 
+## B6 进程通信期限
+
+- 平台规范 §11.3、公开注释和实现同步增加 `ChildProcess.communicate(timeout: Duration, input)` 与 `ProcessTimeoutException`。期限使用同一单调起点，涵盖输入、两路输出和最终退出观察；负值不消费端点，零值不等待管道，长时长不会在毫秒转换时溢出。超时保存已收到的部分字节，原始 I/O 和清理错误仍按既有规则保留。
+- POSIX 复用 nonblocking/poll 驱动并在中断后重算剩余时间。Windows 每个实际方向使用独立 worker，停止后取消同步 I/O、等待退出并关闭真实 thread HANDLE；取消与提交竞争不会把 ERROR_NOT_FOUND 误当作完成。不管理后代进程，后代持有 pipe 也不令有限通信无限等待；没有新增全局 runtime 协议。
+- 正式 `process-communication-deadline` fixture 覆盖空成功、非零退出、启动失败、大量双向数据、参数及时间边界、分阶段共享期限、阻塞输入、部分输出、已退出 child 的后代持有 pipe、先发生的 BrokenPipe，以及重复超时后句柄和线程数恢复。资源检查没有用 GC 收集掩盖显式收尾。验证使用真实子进程，并在独立外部 watchdog 下观察结果。
+- macOS/AArch64、Linux/x86_64 GNU 与 musl、Windows/x86_64 MSVC UCRT 与 LLVM-MinGW UCRT/MSVCRT 六个目标均实际通过。原 process-native 回归在 macOS、Linux GNU/musl 通过；本机平台 Cone 的 16 项相关行为测试通过。远端复用配套的 d5e40a4e1aef 安装命令，以本分支 core/std/test/platform 源码构建独立目标库；未修改其他任务的 checkout。没有据此声称其他 CPU 架构已运行验收。
+- 平台复验修正了测试辅助代码的 SDK 头文件大小写、C 声明、Windows 标准输出字节写入，以及复用 work 目录时残留同步文件的问题；Linux 新 glibc 下的旧 native probe 将 atomic_load 移至 assert 外，保持原断言含义。这些修正没有放宽被测通信合同。
+- 本机显式准备目标系统库，重新生成 44 个 Cone 的 API 站点；实际查询已显示 communicate 两个重载及超时异常。io/processes 从正式 JSON 还原后构建、运行通过，正文、关键词、runner 与 skill 库导航同步。Kimi 和开发安装根的 skill 已替换，后续样本使用新进程。
+- 实走库 API 更新流程时补齐 runtime_builder 独立 Cargo.lock 中的文档工具依赖，保留 --locked；重试复用了四个未变化的 runtime 及 headers。受影响 Scoop/Python 格式化、Ruff、C 严格编译、skill 结构与链接检查通过。本批没有修改 Rust 源码，没有重复编译器全量测试。
+
 ## B7 当前样本
 
 - Kimi K3 使用原版 skill 快照与配置中的 max 思考强度完成 TSV 统计任务，用时约 801 秒；完成 85 次工具调用（含读取、检索、写入与验证），产生 3 个生产与 2 个测试 Scoop 文件。
 - 维护者另行验证正常统计、空输入、负数、后段非法记录、CRLF/排序、缺文件与缺参数，七组均通过；统计与渲染已分开。该基线说明不能预设旧 skill 一定产生坏结构，后续按具体缺陷、查询路径和反馈成本比较。
+- 更新材料后的 K3/max 样本用时约 526 秒、52 次工具调用，同样通过七组独立输入，并实际使用 API 查询；该轮没有使用 LSP。新旧工具链也有差异，且各配置只有一次样本，时间和调用数只用于描述观察，不能归因于 skill 或推断总体提升。
+- K3.1 Pro/high 修改已有库与消费者的样本约 592 秒完成。独立消费者验证输入对象和集合的后续修改不影响快照、返回集合不可作为 MutableList 修改、无 equals 的类型仍可泛型查找、首次匹配停止、空值、重复 id、负数和 Long 溢出，三组组合测试通过。公共 API 的行为注释仍不充分，评测记录保留此缺口。
 - OpenCode/DeepSeek V4.1 Flash 1017 的小型 LSP 使用样本仅作工具可用性参考，不纳入 Kimi 同模型对照。

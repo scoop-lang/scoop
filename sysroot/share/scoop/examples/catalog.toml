@@ -451,9 +451,9 @@ files = [
 [[topics]]
 id = "io/processes"
 title = "与子进程交换标准流"
-summary = "保留输入、输出、错误流、退出状态和启动失败。"
+summary = "保留输入、输出、错误流、退出状态；有限通信超时后收尾并保留部分输出。"
 aliases = ["process", "进程"]
-keywords = ["Process", "ProcessCommand", "communicate", "stdin", "stdout", "stderr", "ExitStatus", "system", "系统", "scoop.platform.process"]
+keywords = ["Process", "Command", "ChildProcess", "communicate", "stdin", "stdout", "stderr", "ExitStatus", "ProcessTimeoutException", "timeout", "超时", "system", "系统", "scoop.platform.process"]
 document = "topics/io/processes.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["io/resources", "io/environment"]

@@ -47,7 +47,7 @@ EXPECTED = {
     "http/get": "200\nHello, Scoop!\n",
     "cli/options": "Hello, Ada!\nHello, Ada!\n",
     "test/assertions": None,
-    "io/processes": "stdout: Hello, 子进程!\nstderr: child diagnostic\nexit 0\nempty: 0 bytes, exit 0\nfailed: exit 7, child failed\nspawn failed before a child was created\n",
+    "io/processes": "stdout: Hello, 子进程!\nstderr: child diagnostic\nexit 0\nempty: 0 bytes, exit 0\nfailed: exit 7, child failed\ntimeout: partial output\nspawn failed before a child was created\n",
     "io/environment": None,
     "terminal/output": "Scoop text report\nbytes=18, scalars=7, graphemes=4\n",
     "apps/file-report": "lines=2, scalars=4, utf8Bytes=6\n",

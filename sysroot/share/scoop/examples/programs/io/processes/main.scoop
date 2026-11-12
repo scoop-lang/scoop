@@ -5,14 +5,20 @@ import scoop.platform.fs.Path
 import scoop.platform.process.*
 import scoop.platform.system.*
 import scoop.text.trim
+import scoop.time.Duration
 
-fun capture(executable: Path, mode: String, input: String? = None): ProcessOutput =
+fun capture(
+    executable: Path,
+    mode: String,
+    input: String? = None,
+    timeout: Duration = Duration.seconds(5L)
+): ProcessOutput =
     command(executable) {
         arg(OsString.fromString(mode))
         stdin = Stdio.Pipe
         stdout = Stdio.Pipe
         stderr = Stdio.Pipe
-    }.spawn().use { child -> child.communicate(input.map { it.toByteArray() }) }
+    }.spawn().use { child -> child.communicate(timeout, input.map { it.toByteArray() }) }
 
 fun statusText(status: ExitStatus): String =
     when (status) {
@@ -34,6 +40,13 @@ fun main(args: Array<String>): Int {
     println(f"empty: ${empty.stdout.size} bytes, ${statusText(empty.status)}")
     val failed = capture(executable, "fail")
     println(f"failed: ${statusText(failed.status)}, ${String.fromUtf8(failed.stderr).trim()}")
+    try {
+        capture(executable, "wait", timeout = Duration.seconds(1L))
+        eprintln("the waiting child unexpectedly completed")
+        return 1
+    } catch (error: ProcessTimeoutException) {
+        println(f"timeout: ${String.fromUtf8(error.stdout).trim()}")
+    }
     try {
         command(Path.fromString(args[1L] + ".missing")).spawn().use { it.wait() }
         eprintln("the deliberately missing executable unexpectedly exists")

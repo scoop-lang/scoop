@@ -1,52 +1,173 @@
 package scoop.platform.process
 
-import scoop.platform.concurrent.Thread
+import scoop.collections.any
+import scoop.map
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.fs.File
 import scoop.platform.io.*
+import scoop.time.Duration
 
-private class ProcessPipeReader(private val source: PipeSource?) {
-    private var worker: Thread? = None
-    private var bytes: Array<Byte> = []
+internal enum ProcessPipeCompletion {
+    Completed, Failed, TimedOut
+}
 
-    fun start(abort: () -> Unit) {
-        when (source) {
-            case None -> {}
-            case Some(val pipe) -> worker =
-                Some(
-                    Thread.start {
-                        try {
-                            bytes = pipe.use { it.readAllBytes() }
-                        } catch (failure: Throwable) {
-                            var reported = failure
-                            try {
-                                abort()
-                            }
-                            catch (cleanup: Throwable) {
-                                reported = ResourceUseException(reported, cleanup)
-                            }
-                            throw reported
-                        }
-                    }
-                )
+internal class ProcessPipeState internal constructor(
+    internal val mutex: Mutex,
+    internal val changed: ConditionVariable
+) {
+    internal val stopping = AtomicBoolean(false)
+    private var completed = 0L
+    private var failure: Throwable? = None
+    private val failed: Boolean get() =
+        when (failure) {
+            case Some(_) -> true
+            case None -> false
+        }
+
+    internal fun complete(error: Throwable?) {
+        mutex.withLock {
+            when (error) {
+                case Some(val value) -> failure = Some(combineProcessFailure(failure, value))
+                case None -> {}
+            }
+            completed += 1L
+            changed.signal()
         }
     }
 
-    fun finish(): Array<Byte> {
-        var failure: Throwable? = None
-        try {
-            worker?.join()
+    internal fun failures(): Throwable? = mutex.withLock { failure }
+    internal fun hasFailure(): Boolean = mutex.withLock { failed }
+
+    internal fun await(count: Long, deadline: ProcessDeadline?): ProcessPipeCompletion =
+        mutex.withLock {
+            while (completed < count && !failed) {
+                when (deadline) {
+                    case None -> changed.await()
+                    case Some(val limit) -> {
+                        val milliseconds = limit.milliseconds()
+                        if (milliseconds == 0)
+                            return@withLock ProcessPipeCompletion.TimedOut
+                        changed.await(Duration.milliseconds(milliseconds.toLong()))
+                    }
+                }
+            }
+            return@withLock if (failed)
+                ProcessPipeCompletion.Failed
+            else
+                ProcessPipeCompletion.Completed
         }
-        catch (error: Throwable) {
+}
+
+private class ProcessPipes(input: PipeSink?, output: PipeSource?, error: PipeSource?): Closeable {
+    private val files: Array<File?> = [input?.file, output?.file, error?.file]
+
+    fun transfer(bytes: Array<Byte>?, deadline: ProcessDeadline?, abort: () -> Unit): (
+        Array<Byte>,
+        Array<Byte>
+    ) =
+        use {
+            Mutex().use {
+                mutex -> ConditionVariable(mutex).use conditionScope@{
+                    changed ->
+                    val state = ProcessPipeState(mutex, changed)
+                    val input = files[0L].map { ProcessPipeWorker(it, Some(bytes ?: []), state) }
+                    val output = files[1L].map { ProcessPipeWorker(it, None, state) }
+                    val error = files[2L].map { ProcessPipeWorker(it, None, state) }
+                    val workers = ArrayList<ProcessPipeWorker>()
+                    for (worker in [input, output, error]) {
+                        when (worker) {
+                            case Some(val value) -> workers.add(value)
+                            case None -> {}
+                        }
+                    }
+                    run(workers, output, error, state, deadline, abort)
+                    return@conditionScope (output?.bytes() ?: [], error?.bytes() ?: [])
+                }
+            }
+        }
+
+    private fun run(
+        workers: List<ProcessPipeWorker>,
+        stdout: ProcessPipeWorker?,
+        stderr: ProcessPipeWorker?,
+        state: ProcessPipeState,
+        deadline: ProcessDeadline?,
+        abort: () -> Unit
+    ) {
+        var failure: Throwable? = None
+        var cleanup: Throwable? = None
+        var timedOut = workers.size > 0L && (deadline?.milliseconds() ?: -1) == 0
+        try {
+            if (!timedOut) {
+                for (worker in workers)
+                    worker.start()
+                timedOut = state.await(workers.size, deadline) == ProcessPipeCompletion.TimedOut
+            }
+        } catch (error: Throwable) {
             failure = Some(error)
         }
-        try {
-            source?.close()
+        if (timedOut || (failure.map { true } ?: false) || state.hasFailure()) {
+            state.stopping.store(true, MemoryOrder.Release)
+            try {
+                abort()
+            } catch (error: Throwable) {
+                cleanup = Some(error)
+            }
+            // ERROR_NOT_FOUND can race with the next synchronous read/write submission.
+            // Keep requesting cancellation until each worker has actually finished.
+            var waitFailureReported = false
+            while (workers.any { !it.isFinished }) {
+                for (worker in workers) {
+                    try {
+                        worker.cancel()
+                    } catch (error: Throwable) {
+                        cleanup = Some(combineProcessFailure(cleanup, error))
+                    }
+                }
+                try {
+                    state.mutex.withLock { state.changed.await(Duration.milliseconds(1L)) }
+                } catch (error: Throwable) {
+                    if (!waitFailureReported) {
+                        waitFailureReported = true
+                        cleanup = Some(combineProcessFailure(cleanup, error))
+                    }
+                }
+            }
         }
-        catch (error: Throwable) {
-            failure = Some(combineProcessFailure(failure, error))
+        for (worker in workers) {
+            try {
+                worker.finish()
+            } catch (error: Throwable) {
+                cleanup = Some(combineProcessFailure(cleanup, error))
+            }
+        }
+        if (timedOut)
+            failure = Some(ProcessTimeoutException(stdout?.bytes() ?: [], stderr?.bytes() ?: []))
+        for (error in [state.failures(), cleanup]) {
+            when (error) {
+                case Some(val value) -> failure = Some(combineProcessFailure(failure, value))
+                case None -> {}
+            }
         }
         when (failure) {
             case Some(val error) -> throw error
-            case None -> return bytes
+            case None -> {}
+        }
+    }
+
+    public override fun close() {
+        var failure: Throwable? = None
+        for (file in files) {
+            try {
+                file?.close()
+            } catch (error: Throwable) {
+                failure = Some(combineProcessFailure(failure, error))
+            }
+        }
+        when (failure) {
+            case Some(val error) -> throw error
+            case None -> {}
         }
     }
 }
@@ -55,71 +176,7 @@ internal fun ChildProcess.transferPipes(
     input: PipeSink?,
     output: PipeSource?,
     error: PipeSource?,
-    bytes: Array<Byte>?
-): (Array<Byte>, Array<Byte>) {
-    val stdout = ProcessPipeReader(output)
-    val stderr = ProcessPipeReader(error)
-    val stopping = AtomicBoolean(false)
-    val abort: () -> Unit =
-        {
-            if (stopping.compareAndSet(false, true))
-                kill()
-        }
-    var failure: Throwable? = None
-    try {
-        stdout.start(abort)
-        stderr.start(abort)
-        val contents = bytes ?: Array<Byte>(0L) { 0.toByte() }
-        input?.use { sink -> sink.writeAllBytes(contents) }
-    } catch (error: Throwable) {
-        failure = Some(error)
-        try {
-            abort()
-        }
-        catch (cleanup: Throwable) {
-            failure = Some(combineProcessFailure(failure, cleanup))
-        }
-    }
-    try {
-        input?.close()
-    }
-    catch (cleanup: Throwable) {
-        failure = Some(combineProcessFailure(failure, cleanup))
-        try {
-            abort()
-        }
-        catch (stoppingFailure: Throwable) {
-            failure = Some(combineProcessFailure(failure, stoppingFailure))
-        }
-    }
-    var out: Array<Byte> = []
-    var err: Array<Byte> = []
-    try {
-        out = stdout.finish()
-    }
-    catch (cleanup: Throwable) {
-        failure = Some(combineProcessFailure(failure, cleanup))
-        try {
-            abort()
-        }
-        catch (stoppingFailure: Throwable) {
-            failure = Some(combineProcessFailure(failure, stoppingFailure))
-        }
-    }
-    try {
-        err = stderr.finish()
-    }
-    catch (cleanup: Throwable) {
-        failure = Some(combineProcessFailure(failure, cleanup))
-        try {
-            abort()
-        }
-        catch (stoppingFailure: Throwable) {
-            failure = Some(combineProcessFailure(failure, stoppingFailure))
-        }
-    }
-    when (failure) {
-        case Some(val error) -> throw error
-        case None -> return (out, err)
-    }
-}
+    bytes: Array<Byte>?,
+    deadline: ProcessDeadline?,
+    abort: () -> Unit
+): (Array<Byte>, Array<Byte>) = ProcessPipes(input, output, error).transfer(bytes, deadline, abort)

@@ -31,6 +31,7 @@
 
 1. 阅读受影响规范，明确这是新增行为、修正规范与实现冲突，还是只改善已有行为的说明。涉及语言、runtime 或 pipeline 合同先修改对应规范及引用方，再修改实现。
 2. 选定本次源码构建的配套命令和开发 sysroot，或候选发行安装根。ABI/产物格式变更时，相关 driver、compiler、linker、package manager 使用当前配套构建；按 [scripts 说明](../../scripts/README.md) 显式准备受影响目标的资源。
+   编译器或工具的 Rust 依赖图变化时，同时更新实际消费它们的独立 Cargo 项目锁文件，例如 `scripts/runtime_builder/Cargo.lock`。不要通过移除准备命令的 `--locked` 绕过失效锁文件。
 3. 确认版本与实际命令入口。Windows 主驱动为 `sco.exe`，其他宿主为 `scoop`；外部命令仍使用 `scoop-` 前缀。不要偶然从 PATH 选到同名 Windows 包管理器或另一份工具链。
 4. 用最小程序确认关键规则。实际运行与规范冲突时定位并修正冲突，不能据一次复杂程序的候选错误就把限制写进 skill。
 
@@ -88,6 +89,8 @@ python3 scripts/build_scoop_example.py --sysroot "$SCOOP_MAINT_SYSROOT"
 语言服务入口为 `scoop-lsp query`，合同见[语言服务 CLI](../language-service/CLI.md)。更新查询能力时同步该工具的帮助、JSON 合同、skill 用法及真实 stdio 对照测试；不另建类型分析逻辑。按名字发现 API 使用 `scoop api search/show`；实际位置类型使用 LSP。维护者更新文档时同时生成 `api/index.json` 和 Cone 数据，用查询命令检查完整重载、属性访问器、有效 import 和目标。
 
 诊断修复还要比较人类输出、编译 JSON 和 LSP 的主位置/原因/关联位置；importPath 与 code-actions 使用同一组前端候选。验证好/坏对照、编辑应用后的检查以及源码/依赖上下文变化后的动作失效。compiler worker 协议变化时重建并选用配套的 scoop/scoopc；仅有诊断协议变化不要求无关的目标系统库重建。本流程的诊断实例为 F08 嵌套 Option 实参错误和 `diagnostic-roots-and-import-actions` fixture。
+
+库 API 更新的实例为 `ChildProcess.communicate(timeout, input)`：先修改平台规范 §11.3，再更新公开声明注释和平台实现；用 `process-communication-deadline` fixture 验证整个期限、部分输出及收尾，运行原通信回归。显式准备受影响目标的系统库后，从正式示例 JSON 还原并运行 `io/processes`，更新其正文、关键词及 runner 期望，重新生成并查询 `communicate` 与 `ProcessTimeoutException` 的 API 数据，最后同步 skill 的库导航。只通过语义检查的目标不能记为 native 运行通过。若某个 Agent 使用复制安装的 skill，替换材料后启动新进程再做应用任务，避免仍用旧上下文。
 
 ## 6. 按实际影响验证
 
@@ -181,14 +184,3 @@ python3 tooling/scoop-example/tests/run_examples.py \
 无需单独提交逐项无影响声明、原始会话、完整终端日志或逐次 JSON 报告。原始材料留在仓库外。
 
 本次维护完成意味着：相关新写法可运行、旧错误指导被移除、示例和 API 文档可发现、实际调用方已迁移，正式输出与测试一致。环境不足的验证明确标为未完成，不能写成已通过。
-
-## 9. 新查询能力落地后增加的步骤
-
-以下是已交付的 [B3/B5](PLAN.md) 查询入口的同期维护步骤：
-
-- API 查询：在原有文档生成/安装更新中输出同目标机器数据；从发布的查询入口验证改动符号、重载、约束、import、相关例子和无匹配行为。API 读取不触发隐式构建或重验生成过程。
-- 语言服务客户端：诊断或查询能力变化时，同步实际 capability 和帮助；用真实项目位置验证客户端与 LSP 一致，包括非 ASCII 文本、生产/测试依赖和源码更新。
-- skill：只有命令及数据已进入配套工具链，才将其加入推荐查询路径；移除被新路径取代的繁琐步骤，保留有意义的源码定位入口。
-- 自动检查：扩展现有文档、示例、协议与打包测试，只覆盖新增合同；不新建重复语义检查、全库内容审计或通用评估服务。
-
-首次启用时，应将已实现部分移入本文对应常规步骤，并删除本节中的未来时表述，保持工作流可直接照做。

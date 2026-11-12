@@ -182,7 +182,7 @@ P0 表示先消除错误指导并改善当前开发路径；P1 表示补齐查�
 
 ### 进程通信截止时间
 
-当前[平台规范 §11](../specs/SCOOP-PLATFORM-SPEC.md)规定 `communicate` 不承诺超时，`close` 也不隐式终止进程。应先设计可选超时/截止时间参数和超时结果，再实现各平台，不把现有阻塞调用简单包在无法收尾的线程里。
+原有 `communicate` 不承诺超时，`close` 也不隐式终止进程。本批先更新[平台规范 §11.3](../specs/SCOOP-PLATFORM-SPEC.md)，增加 `communicate(timeout: Duration, input: List<Byte>? = None)` 和保留部分输出的 `ProcessTimeoutException`，再实现各平台；不能把阻塞调用简单包在无法收尾的线程里。原无时限重载和普通 `close` 保留各自用途。
 
 合同覆盖整个 stdin 写入、stdout/stderr 排空和等待阶段，使用单调时间。明确负值/零值、已经退出与刚好到期的竞争、部分输出、原始 I/O 错误与清理错误，以及返回前关闭端点、终止并回收本次负责 child 的责任。后代继承 pipe 的 EOF 延迟也必须有明确处理，不能令有限等待再次陷入无限 read/join。
 
