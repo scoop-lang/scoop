@@ -1,8 +1,23 @@
-# HTTP 性能任务交接（B45，2026-11-12）
+# HTTP 性能任务交接（B46，2026-11-12）
 
-本轮结束后按用户要求停止，等待其他 AI 接手。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，但完整 HTTP 静态服务仍有数倍差距。当前工作分支是 `perf/http-asyncio-optimizations`，没有推送。详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
+任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，但完整 HTTP 静态服务仍有数倍差距。当前工作分支是 `perf/http-asyncio-optimizations`。用户最新要求是每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈，不能沿同一方向持续打磨微小收益。详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
 
-B45 实现及验收记录已提交为 **`48cf2bdd0` — Reuse HTTP/1 connection timers and response output buffers**；本文单独作为交接提交。没有待完成的 B45 实现或仍运行的测试／性能进程。收尾清理了本轮约 1.07 GB 构建／测试缓存，固定产物和全部原始结果保留。Git 中余下两项未跟踪文件是下述用户打包脚本。
+B45 实现及验收记录已提交为 **`48cf2bdd0` — Reuse HTTP/1 connection timers and response output buffers**。B46 重新采样并完整实现过事件批次桥接候选，普通 HTTP Cone 311 项通过，但完整服务收益仅几个百分点，已撤回全部候选源码、规范和测试；正式性能底座仍是 B45。B46 的固定 ELF、SDK、补丁、测试和原始测量保存在仓库外，不能把其候选 SDK 当作已采纳底座。Git 中两项未跟踪的用户打包脚本仍须保留。
+
+## B46 最新评估：事件桥接候选已收束
+
+同机重测 B45／Go，64 连接、1 KiB 正文、默认 GC、独立绑核，正反顺序各一次、预热 2 秒＋测量 6 秒：
+
+| worker | 完整 B45 req/s／CPU μs | B45 协议连接 req/s／CPU μs | Go net/http req/s／CPU μs |
+| --- | --- | --- | --- |
+| 1 | 39,415／25.39 | 67,804／14.77 | 139,217／7.17 |
+| 4 | 120,316／30.67 | 216,154／16.75 | 429,331／8.80 |
+
+完整服务／协议程序各取得 6,734／6,194 个独立用户态 CPU 样本。按最近 HTTP 边界互斥归类，完整服务的请求执行与连接管理约 16.3%，但该组最大独立函数归属仅约 3.3%；解码与 native 桥接约 11.8%，HTTP/1 操作生命周期与 idle 约 10.6%，路由及 middleware 约 9.9%，响应编码约 7.2%。GC 栈约 11.4%，只作样本解释，不启动 GC 支线。原生栈与内联限制、实际分组脚本均保留；这些粗分组不能与 inclusive 子树相加，也不是可全部消除的成本。
+
+因此试过按批次接管 native 事件、直接读取字段视图、保留已有不可变数组快照，并只给有界无分配 getter／批次取出使用 GCLeaf。空 Trailers、分段输入、消息顺序与关闭后的已返回数据仍保留。独立 1,000 GET 减零 GET 的计数确认普通 native 调用由 20 次降到 2 次，另有 9 次 GCLeaf；RECV／SEND 均保持一次。**完整服务前后交替实测只有单／四 worker 吞吐 +2.6%／+3.7%，CPU −2.9%／−6.4%；单 worker P50 还回退 6.3%。候选已撤回，不再细调桥接。** 本轮没有采纳新的 HTTP 性能实现。
+
+详细数值、样本波动、验证范围见 [B46 记录](PROGRESS.md#第四十六轮重新归因并撤回低收益事件桥接候选)。原始目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round46`，其中 `candidate.patch` 和 `source/` 是撤回候选；`profiles/` 是 B45 正式底座采样；`summary.json` 汇总 20 个样本。后续继续使用下文 B45 固定产物。
 
 ## 用户明确的优先级
 
@@ -10,7 +25,7 @@ B45 实现及验收记录已提交为 **`48cf2bdd0` — Reuse HTTP/1 connection 
 - 先解决静态内容，JSON 和其他序列化暂时不动。当前关注吞吐、每请求 CPU、内存、P50／P80，不把 P99 当主要目标。
 - 用户已叫停 GC 支线。保留默认 GC 进行公平测量；GC 计数可以解释样本，不能因此又转向阈值、nursery 或 GC worker 调参。
 - 收益只有几个百分点的候选应及时收束、换方向，不反复打磨局部分支。不能用取消作用域、超时、清理或协议语义换取表面吞吐。
-- 每个完成项在该分支提交；未获指令不推送。先完整实现一项，再集中格式化、检查和必要测试，不逐个小修改跑大回归。
+- 每轮在该分支先提交，再 fetch 并 merge 远端 `main`，随后推送。先完整实现一项，再集中格式化、检查和必要测试，不逐个小修改跑大回归。
 - 源码／spec／测试遵守仓库 [AGENTS.md](../../AGENTS.md)。输出中文，代码标识符和注释英文。
 - 原安装目录 `~/.scoop` 和历史固定二进制保持。新候选、cache、日志与原始 JSON 都在仓库外；完成后清本轮不再需要的 cache／target，不动依赖底座或仓库原有大 target。
 - 重建编译器时必须使用从源码构建并带项目私有补丁的 LLVM；参考 [scripts/README.md](../../scripts/README.md) 和打包流程。不能替换为发行版 LLVM。下载使用 `https_proxy=http://192.168.2.106:10809`。
@@ -94,15 +109,15 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 
 ## 接手后优先做什么
 
-下一轮应从 **完整请求执行约 15 μs 的额外成本**和 **协议连接约 6 μs 的额外成本**继续下钻。B45 已消掉一部分；旧差额不能直接当成当前剩余量，需要用 B45 固定产物重新归因。
+下一轮应继续评估请求执行与协议操作的整体生命周期，先用成组差分证明可改善的上界，再选结构改造。B46 同轮测得完整 B45 相对协议连接多约 **10.6／13.9 μs CPU（单／四 worker）**；这包括功能与表示差异，不能全部视为重复工作。B44 的旧 15 μs／6 μs 分层差额已经不是当前底座，不能继续直接引用。每轮都应重新比较瓶颈，不能把本段当作固定实施路线。
 
 优先审视一次正常 GET 的请求状态、响应准备和操作生命周期是否在多层重复表达、复制及收尾：
 
 - [server_request.scoop](../../sysroot/src/scoop.http.server/src/server_request.scoop) 建立 RequestExecution、output、expectations、input、body、request；[request_deadline.scoop](../../sysroot/src/scoop.http.server/src/request_deadline.scoop) 再进入请求 scope／Context。保留实际的独立请求生命周期，分析能否让同一份内部状态贯穿处理过程。
 - [application.scoop](../../sysroot/src/scoop.http.server/src/application.scoop) 和响应准备路径：middleware 的终端调用、response draft／plan／head／fields 快照及多次扫描，是否可以在构建 application 或确定本次响应时合并。**这是待验证假设，尚无单独 CPU 占比**；不要直接为无 middleware 或某条路由硬编码快捷路径。早先单独路由上界只有约 8%，不值得独立反复打磨。
-- [http1_operation.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_operation.scoop)、[http1_input.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_input.scoop)：方向保护、取消监听、idle 包装和事件队列有重复状态；先用成组替换或边界计量证明大头，再设计生产改造。后续若做桥接，批量结果／单次对象构造优先于重写解析器。
+- [http1_operation.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_operation.scoop)、[http1_input.scoop](../../sysroot/src/scoop.http.asyncio/src/http1_input.scoop)：方向保护、取消监听、idle 包装和事件队列有重复状态；先用成组替换或边界计量证明大头，再设计生产改造。B46 已验证批量事件／单次快照只有几个百分点的完整服务收益，暂不继续桥接，也不重写解析器。
 
-先取得 CPU 归因或完整路径差分，再选一个足够大的结构改造。保持可组合 API、取消、截止时间、真实传输进度和清理合同。不要以禁用功能的诊断下界作为可交付候选；也不要重新开始 GC、P99 或 JSON 工作。本交接没有启动这些后续实验。
+先取得 CPU 归因或完整路径差分，再选一个足够大的结构改造。保持可组合 API、取消、截止时间、真实传输进度和清理合同。不要以禁用功能的诊断下界作为可交付候选；也不要重新开始 GC、P99 或 JSON 工作。B46 没有启动下一项请求／操作生命周期改造。
 
 ## 固定产物和复现入口
 
