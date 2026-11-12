@@ -4,28 +4,51 @@ import scoop.asyncio.*
 
 internal class HttpLock {
     private val held: AtomicBoolean = AtomicBoolean(false)
-    internal fun <T> withLock(block: () -> T): T {
+
+    private fun acquire() {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
-        try { return block() }
-        finally { held.store(false, MemoryOrder.Release) }
+    }
+
+    private fun unlock() {
+        held.store(false, MemoryOrder.Release)
+    }
+
+    internal fun <T> withLock(block: () -> T): T {
+        acquire()
+        try {
+            return block()
+        }
+        finally {
+            unlock()
+        }
     }
 }
 
-internal fun <T> present(value: T?): Boolean = when (value) { case Some(_) -> true; case None -> false }
+internal fun <T> present(value: T?): Boolean =
+    when (value) {
+        case Some(_) -> true;
+        case None -> false
+    }
 
 internal fun httpJob(loop: EventLoop, active: Boolean): Job {
-    if (currentEventLoop() !== loop) throw IllegalStateException(Some("HTTP operation belongs to another event loop"))
+    if (currentEventLoop() !== loop)
+        throw IllegalStateException(Some("HTTP operation belongs to another event loop"))
     val job = currentJobOrNone() ?: throw IllegalStateException(Some("HTTP I/O requires a Job"))
-    if (job.isCompleted) throw IllegalStateException(Some("HTTP I/O requires an active Job"))
-    if (active) job.ensureActive()
+    if (job.isCompleted)
+        throw IllegalStateException(Some("HTTP I/O requires an active Job"))
+    if (active)
+        job.ensureActive()
     return job
 }
 
 internal fun httpCount(count: Long, available: Long) {
-    if (count < 0L) throw IllegalArgumentException(Some("negative HTTP transfer count"))
-    if (count > available) throw IndexOutOfBoundsException()
+    if (count < 0L)
+        throw IllegalArgumentException(Some("negative HTTP transfer count"))
+    if (count > available)
+        throw IndexOutOfBoundsException()
 }
 
 internal fun httpProgress(count: Long, requested: Long) {
-    if (count < 0L || count > requested) throw IllegalStateException(Some("invalid HTTP transport progress"))
+    if (count < 0L || count > requested)
+        throw IllegalStateException(Some("invalid HTTP transport progress"))
 }

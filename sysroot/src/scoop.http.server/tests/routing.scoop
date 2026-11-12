@@ -69,6 +69,57 @@ private class ServerRoutingTests {
     }
 
     @Test
+    fun `a more specific fallback group does not intercept a selected endpoint`() {
+        val order = StringBuilder()
+        val routes =
+            routing {
+                use(
+                    suspend {
+                        _, next ->
+                        order.append("G")
+                        next()
+                        order.append("g")
+                    }
+                )
+                get(
+                    "/api/{id}/ready",
+                    suspend {
+                        ctx ->
+                        order.append("H")
+                        text(ctx.pathParams.text("id"))
+                    }
+                )
+                group("/api/fixed") {
+                    use(
+                        suspend {
+                            _, next ->
+                            order.append("S")
+                            next()
+                            order.append("s")
+                        }
+                    )
+                    fallback(
+                        suspend {
+                            _ ->
+                            order.append("F")
+                            text("group", 404U)
+                        }
+                    )
+                }
+            }
+        assertEquals("fixed", exercise(routes, "/api/fixed/ready").text())
+        assertEquals("GHg", order.toString())
+        val rejected = exercise(routes, "/api/fixed/ready", "POST")
+        assertEquals(405U, rejected.status)
+        assertEquals("GET, HEAD, OPTIONS", rejected.output.header("Allow"))
+        assertEquals("GHgGSsg", order.toString())
+        val missing = exercise(routes, "/api/fixed/absent")
+        assertEquals(404U, missing.status)
+        assertEquals("group", missing.text())
+        assertEquals("GHgGSsgGSFsg", order.toString())
+    }
+
+    @Test
     fun `group fallback and method rejection keep global and group middleware`() {
         val order = StringBuilder()
         val routes =

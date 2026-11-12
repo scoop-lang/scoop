@@ -2,13 +2,21 @@
 internal class CoroutineLock {
     private val held: AtomicBoolean = AtomicBoolean(false)
 
-    internal fun <T> withLock(block: () -> T): T {
+    private fun acquire() {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
+    }
+
+    private fun unlock() {
+        held.store(false, MemoryOrder.Release)
+    }
+
+    internal fun <T> withLock(block: () -> T): T {
+        acquire()
         try {
             return block()
         }
         finally {
-            held.store(false, MemoryOrder.Release)
+            unlock()
         }
     }
 }

@@ -77,13 +77,21 @@ public class NativeByteBuffer private constructor(): Closeable {
         }
     }
 
-    private fun <T> withState(block: () -> T): T {
+    private fun acquireState() {
         while (!stateLock.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
+    }
+
+    private fun releaseState() {
+        stateLock.store(false, MemoryOrder.Release)
+    }
+
+    private fun <T> withState(block: () -> T): T {
+        acquireState()
         try {
             return block()
         }
         finally {
-            stateLock.store(false, MemoryOrder.Release)
+            releaseState()
         }
     }
 

@@ -1498,8 +1498,65 @@ Rust 格式与 workspace clippy 通过，保留仓库已有风格警告；变更
 
 CLI 编译器组合 **8 组／13 变体／36 进程**，GC **5 组／9 变体／26 进程**通过，覆盖 invoke、异常根、深帧、interface、native callback 重入和异常。新增 fused-calls fixture 覆盖真实挂起、Context、返回值、finally 中再次挂起、pending 返回、break／continue 及多个 Unit 注册；普通 debug／release 通过，另在 debug／release × moving／minor 四次定向运行通过。普通 release Cone 测试为 concurrent **78**、asyncio **190**、http **313**、http.asyncio **164**、http.server **167**，合计 **912** 项通过。
 
-优化后完整 server 的单／四 worker 用户态 cycles 采样为 **6,904／24,193**，合计 **31,097**。沿唯一 native 调用边归属生成 driver／adapter，再按 typed template identity 合并 self；无法归属的生成代码与 native 保持独立，全部样本只计一次。旧 compiler-root push／pop 符号与热点已移除；最大的单个 HTTP 声明仅约 **2.82%／2.29%**。进一步按声明的精确 source Cone 身份聚合，server 为 **19.82%／19.83%**、concurrent 为 **18.03%／16.67%**、HTTP asyncio 为 **11.28%／10.87%**；这些是多个功能的执行成本，不是全部可消除的开销，不与 inclusive 子树相加。
+优化后完整 server 的单／四 worker 用户态 cycles 采样为 **6,904／24,193**，合计 **31,097**。沿唯一 native 调用边归属生成 driver／adapter，再按 typed template identity 合并 self；无法归属的生成代码与 native 保持独立，全部样本只计一次。旧 compiler-root push／pop 符号与热点已移除；最大的单个 HTTP 声明仅约 **2.82%／2.29%**。进一步按声明的精确 source Cone 身份聚合，server 为 **19.82%／19.83%**、core 为 **18.03%／16.67%**、HTTP asyncio 为 **11.28%／10.87%**；这些是多个功能的执行成本，不是全部可消除的开销，不与 inclusive 子树相加。
 
 新完整 server 小响应 CPU 仍为同轮 Go 的 **2.29／2.29 倍**，大响应为 **2.10／1.98 倍**。下一轮先在新底座重测请求执行／分派和协议连接的组合增量，追踪仍约 13.1 KB/请求的分配来源，再选最大的实际成本；不沿根登记或 Job 父子关系继续细磨。没有重跑所有 Rust crate、全部 fixture、所有库、Gin／Axum 或其他平台实机验收。历史 SSE 根因和 B51 原版协议四 worker 回退仍未据此关闭。
 
 固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round57`。正式资源为 `candidate/sysroot` 与 `toolchain/bin`，同源码 control 为 `control/sysroot` 与 `control-tools/bin`；保留六个 ELF、符号、输入、候选补丁、原始日志、全部结果和 profiler 数据。CLI 的版本字符串记录构建底座 `459ccd13f`，候选具体变更由 `patches/candidate.patch` 和 manifest 标明。构建／验收脚本保留当时命令；复用时在新目录恢复对应源码并调整路径。按约定先提交、合并远端 main 并推送，再清理本轮临时 worktree、Cargo／Cone cache、target 和准备目录；用户两项未跟踪脚本保持。
+
+## 第五十八轮：缩小同步包装并精简正常请求分派
+
+**本轮组合有确认收益，全部保留，正式 SDK 转为 B58，CLI 继续使用 B57 配套工具。** 完整 server 小响应 CPU 下降约 4.4%～5.9%，大响应下降约 3.7%～3.8%；通用手写与协议路径也有改善。遵循用户要求保留较小收益，同时按优化后的证据重新选择下一轮重点。
+
+从 `ef2223165` 开始，上一轮属于有进展，三项通用优化继续保留。本轮先用 B57 配套 CLI／SDK 重建五个应用中间程序，再与固定手写起点、正式协议连接、完整 server 和 Go 对照。1 KiB、64 连接、默认 GC、TCP_NODELAY、独立绑核，预热 2 秒＋测量 8 秒，正反各一次；36 个无仪表样本共 **57,402,024 个请求**，无 wrk 错误。CPU 单位 μs/请求，每格为该组两次中位数之差：
+
+| 接入区间 | 单 worker 增量 | 四 worker 增量 |
+| --- | ---: | ---: |
+| 手写 TCP → 正式协议连接 | +3.750 | +4.970 |
+| 协议连接 → fair：idle、请求作用域与让出 | +2.305 | +2.150 |
+| fair → direct：完整请求执行、短路 middleware | +3.138 | +3.580 |
+| direct → parsed：正式请求目标解析 | +0.942 | +1.024 |
+| parsed → routed：正式路由分派 | +1.821 | +1.963 |
+| application → routed：额外空委托 middleware | +0.530 | +0.805 |
+| application → server：完整监听服务 | +0.551 | +0.512 |
+
+最大的总区间是协议连接接入，应用端最大一步仍是完整请求执行；它们都包含多个实际功能与调用形态，不能冒充纯组件成本或精确加总。`application` 与 `routed` 的比较单独衡量额外委托，不是连续加入必要语义的一步。原完整 server CPU 为 **16.308／19.383 μs**，Go 为 **7.146／8.703 μs**。五个新程序先通过格式、静态检查、release 构建及 **1,960 个**分段、pipeline、并发大小 GET／HEAD 响应验证。
+
+GDB 硬件 watchpoint 直接观察未修改 ELF 的分配计数；先核对 runtime 35 的字段偏移，再在单连接预热后做 100 GET 减 0 GET，所有 bytes／objects 与计数器完全一致，bytes 也与进程 METRICS 对齐。完整 server 为 **13,639.36 bytes、318.56 个对象/请求**，协议连接为 **5,615.36 bytes、127.56 个对象/请求**。两者差额中的 **5,392 bytes** 来自普通源码对象，其余来自闭包、协程 frame、adapter 和 task context。此单连接诊断不同于 64 连接压测，分配量不等于存活量或 CPU 比例。
+
+在 `NativeByteBuffer.readableBytes` 的实际优化报告中，原泛型锁包装先消耗 134 个内联增长单位，只剩 5 个，而回调正文需要 13 个，闭包因此保留。本轮把 CoroutineLock、NativeByteBuffer、HttpLock、ServerLock 的共享加锁／解锁从泛型回调包装中拆出；原 AtomicBoolean、Acquire／Release 顺序及 finally 解锁均保留。新包装增长为 77，回调成功展开并消除闭包。HTTP 应用在 middleware 为空时直接执行下一层，仅在无端点、405 或默认 OPTIONS 时匹配 fallback group；正常端点仍使用其注册时的路由、参数和 middleware。没有改变公开 API、编译器、runtime 合同或 GC 参数。
+
+两方使用相同 B57 工具链、B28 源码构建且带私有补丁的 LLVM 22.1.8，以及同一 B58 输入路径，重新构建手写／协议／完整 server；候选独立重建 18 个系统库，runtime 35、metadata 12 保持。新对照的独立分配追踪结果：
+
+| 单连接诊断 | 前 → 后 | 差额 |
+| --- | --- | --- |
+| 完整 server 分配 bytes/请求 | 13,639.36 → 11,727.36 | −1,912（约 −14.0%） |
+| 完整 server 对象/请求 | 318.56 → 272.56 | −46 |
+| 其中闭包对象/请求 | 89 → 54 | −35 |
+| 协议连接分配 bytes/请求 | 5,615.36 → 4,471.36 | −1,144（约 −20.4%） |
+| 协议连接闭包对象/请求 | 71 → 43 | −28 |
+
+普通 release 测试 core consumer **132**、platform **126**、concurrent **78**、asyncio **190**、http **313**、http.asyncio **164**、http.server **168**，共 **1,171 项**通过。新增路由组合覆盖更具体 fallback 分组与参数端点共存时的正常选路、405 middleware 和 404 fallback。NativeByteBuffer 的借用、异常、跨挂起与并发行为另在 moving／minor 各 **17 项**通过。六个新对照程序另核验 **2,352 个**响应，连同分层程序共 **4,312 个**；分配探针另核验 **600 个**响应。
+
+复核发现 B57 的 source Cone `5ea5f5e8…` 被错误标注为 concurrent，实际为 core，包含 CoroutineExecution、runCoroutineScope 和 Job。本轮更正交接文档及上轮文字记录，**原始样本和 18.03%／16.67% 比例不变**；旧固定原始报告保留，新报告按实际源码归属标注。
+
+同路径重建的 control／candidate 按上述条件完成正反对照，CPU 单位 μs/请求：
+
+| 负载 | 单 worker CPU：前 → 后 | 四 worker CPU：前 → 后 | 吞吐变化：单／四 worker |
+| --- | --- | --- | --- |
+| 1 KiB 手写 TCP | 4.468 → 4.347（−2.7%） | 5.990 → 5.945（−0.8%） | +2.6%／+2.3% |
+| 1 KiB 正式协议连接 | 8.130 → 7.847（−3.5%） | 10.873 → 10.332（−5.0%） | +3.5%／+9.8% |
+| 1 KiB 完整 server | 16.182 → 15.226（−5.9%） | 19.795 → 18.915（−4.4%） | +6.2%／+6.5% |
+| 64 KiB 完整 server | 29.015 → 27.950（−3.7%） | 32.615 → 31.382（−3.8%） | +3.8%／+3.5% |
+
+完整 server 小响应吞吐为 **61,858→65,723／183,744→195,727 req/s**，P80 为 **1,267.5→1,209.5／540.5→476.0 μs**。64 连接压测中，每请求分配由约 **13,085／13,157** 降到 **11,172／11,244 bytes**（约 −14.6%）；手写／协议分配分别下降约 **29.3%～29.5%／21.3%**。大响应完整 server 分配下降约 **16.1%～16.2%**。完整 server RSS 下降约 0.7%～1.5%，手写程序 RSS 上升约 2.1%～3.6%，不把分配下降等同于存活量下降。三个 ELF text 段分别缩小约 **0.5%／0.2%／0.4%**。
+
+组合对照 **40 个无仪表样本、69,677,028 个测量请求**无 wrk 错误；连同开始时的分层诊断，本轮共 **76 个样本、127,079,052 个请求**。保留全部成功样本，构建、测试、计数、CPU 采样与性能测量分开运行。这些结果验证整个组合，未做各项独立消融；四 worker 手写路径的小变化也只按实测幅度记录。
+
+优化后单／四 worker 用户态 cycles 采样为 **6,946／23,462**，共 **30,408 个**独立样本。沿唯一 native 调用边归属生成 driver／adapter，再按 typed template identity 聚合 self；按实际 source Cone 身份分组，server 为 **19.26%／18.61%**、core **18.01%／17.39%**、http.asyncio **12.40%／11.46%**，concurrent 则为 **1.87%／2.74%**。四个 acquire helper 的 self 合计 **9.70%／10.00%**，其中最大单项 CoroutineLock.acquire 为 **3.40%／3.13%**。这些主体此前展开在调用方，新出现的符号占比不能直接解释为新增成本或锁争用；与 inclusive 子树也不能相加。
+
+剩余单连接分配中，普通源码对象约 **6,815 bytes/请求**，闭包 **2,176**、frame **1,608**、adapter **1,032**；Duration 为 **29 个／928 bytes**，NativeByteBorrow 为 **5 个／280 bytes**，这些比例不能代替 CPU 归因。下一轮先以 B58 重测协议连接及请求执行边界，再比较共享加锁执行、实际 I/O 与生命周期中的生成调用和对象分配。没有单一大头时继续组合主要几项，不把已经减少的闭包继续当成默认重点，也不调整 GC 参数。
+
+完整 server 小响应 CPU 仍为同轮 Go 的 **2.12／2.15 倍**，大响应为 **2.03／1.96 倍**，整体目标尚未完成。未改编译器或 runtime，未重跑全 Rust／CLI fixture、所有库、Gin／Axum 或其他平台实机验收；历史 SSE 根因与 B51 原版协议四 worker 回退仍未据此关闭。Scoop 格式与四个变更库的静态检查通过，外部 Python 使用 Ruff 0.16.10，shell 语法与 Git 空白检查通过，本轮覆盖的正确性及测量无失败。
+
+固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round58`，正式资源为 `candidate/sysroot`，`toolchain` 链接 B57 配套工具。`baseline/sysroot` 指向 B57；`bin/scoop-<control|candidate>-<manual|protocol|server>` 是本轮同路径重建的对照，旧 `bin/scoop-<manual|protocol|server>` 链接保留给开始时的分层诊断，不能混用。保留输入、六个新 ELF、符号、候选补丁、优化报告、全部结果、分配追踪、采样与复现脚本；原始日志不进入 Git。按约定提交、合并远端 main、推送后清理本轮 cache／target／lock 和临时构建产物，保留正式 SDK 及历史链接目标；用户两项未跟踪打包脚本保持。

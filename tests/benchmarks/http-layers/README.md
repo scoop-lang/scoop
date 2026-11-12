@@ -225,6 +225,19 @@ B57 runtime 合同为 35、metadata 为 12，CLI 与 SDK 必须配套；同源�
 
 完整 server 的 1 KiB 单／四 worker CPU 下降约 **12.4%／10.8%**，64 KiB 下降约 **7.0%／10.0%**，手写和协议层也均有收益。后续诊断必须在新底座重测所选区间，旧 B54～B56 的相邻差额不能继续作为当前成本。具体数值、覆盖范围与剩余问题见 [B57 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十七轮保留根表闭包展开与挂起调用合并的组合收益)。
 
+B58 在 B57 上重新构建 fair、direct、parsed、routed、application，连同手写起点、正式协议连接、完整 server 和 Go 完成同轮比较。手写 → 协议连接总增量为 **3.750／4.970 μs/请求**；应用内部 fair → direct 为 **3.138／3.580 μs**，仍包含请求执行的多个功能。各区间用于定位实际接入成本，不能视作独立函数成本或精确相加。
+
+随后保持同一 B57 工具链，将四个锁的共享原子同步主体从泛型回调包装中拆出，使实际同步闭包在现有增长上限内展开；HTTP 正常端点跳过空 middleware 包装和不需要的 fallback 搜索。两方从同一输入路径重建三个固定程序，保留异常、取消、Context、请求进度和清理。完整 server 小响应 CPU 下降约 **5.9%／4.4%**，大响应下降约 **3.7%／3.8%**；三层均有实测收益，组合全部保留。新的正式资源为：
+
+```sh
+bench_round=/home/chenxu/benchmarks/http-improvements-20261113-round58
+bench_sdk="$bench_round/candidate/sysroot"
+bench_cli="$bench_round/toolchain/bin"
+bench_llvm=/home/chenxu/benchmarks/http-improvements-20261112-round28/candidate/llvm/installed
+```
+
+B58 的 `toolchain` 链接 B57，ABI 35／metadata 12 保持。正式对照使用 `bin/scoop-<control|candidate>-<manual|protocol|server>`；不带 variant 的旧链接仅用于开始时的分层诊断。独立单连接 100 GET 减 0 GET 分配追踪与所有计数器精确对齐，完整 server 的闭包对象由 89 降到 54；它与 64 连接压测的分配量分开解释。原始优化报告、计数和新的 source Cone 归组留在仓库外，具体范围、RSS 变化与剩余问题见 [B58 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十八轮缩小同步包装并精简正常请求分派)。下一轮从这些固定输入重建所选中间层，再重新判断最大增量。
+
 ## 测量
 
 `codec-micro MODE COUNT SPLIT COUNT_ALLOC` 重用 parser，输入为 46 字节的 `GET /small HTTP/1.1`，仅带 Host。`llhttp` 模式没有用户回调，是协议核心下界；`bridge` 使用生产回调、字段和事件队列，读取事件并全部释放。SPLIT 为 0 时整条输入，为 1 时每次输入一字节。CPU 时间不含 parser 建立和销毁，输出 checksum 和请求数，构建时必须保留 assert。

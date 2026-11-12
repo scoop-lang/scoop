@@ -19,7 +19,10 @@ public class HttpApplication internal constructor(
     internal suspend fun execute(ctx: HttpContext) {
         context(ctx) {
             try {
-                invokeMiddleware(ctx, middleware, 0L, suspend { dispatch(ctx) })
+                if (middleware.size == 0L)
+                    dispatch(ctx)
+                else
+                    invokeMiddleware(ctx, middleware, 0L, suspend { dispatch(ctx) })
             }
             catch (error: Throwable) {
                 handleFailure(ctx, error)
@@ -39,23 +42,11 @@ public class HttpApplication internal constructor(
                     ctx.respond(text("Invalid asterisk target", 400U))
             }
             case TargetKind.Path -> {
-                val group =
-                    matchGroup(
-                        routes,
-                        target.segments,
-                        0L,
-                        ArrayList<PathSegment>(),
-                        GroupMatch(routes.group!!, [], 0L)
-                    )
                 val resource = matchResource(routes, target.segments, 0L, ArrayList<PathSegment>())
                 if (!present(resource)) {
+                    val group = matchFallbackGroup(target.segments)
                     ctx.parameters = PathParameters(group.group.names, group.values)
-                    invokeMiddleware(
-                        ctx,
-                        group.group.middleware,
-                        0L,
-                        suspend { endpoint(ctx, group.group.fallback) }
-                    )
+                    invokeEndpoint(ctx, group.group.middleware, group.group.fallback)
                 } else {
                     val match = resource!!
                     val route = selectedMethod(match.node, ctx.request.method)
@@ -63,13 +54,9 @@ public class HttpApplication internal constructor(
                         val selected = route!!
                         ctx.selectedRoute = Some(selected.info)
                         ctx.parameters = PathParameters(selected.names, match.values)
-                        invokeMiddleware(
-                            ctx,
-                            selected.middleware,
-                            0L,
-                            suspend { endpoint(ctx, selected.handler) }
-                        )
+                        invokeEndpoint(ctx, selected.middleware, selected.handler)
                     } else {
+                        val group = matchFallbackGroup(target.segments)
                         ctx.selectedRoute = Some(match.node.endpoints[0L].info)
                         ctx.parameters = PathParameters(group.group.names, group.values)
                         val result =
@@ -80,16 +67,25 @@ public class HttpApplication internal constructor(
                                     405U,
                                 resourceMethods(match.node)
                             )
-                        invokeMiddleware(
-                            ctx,
-                            group.group.middleware,
-                            0L,
-                            suspend { endpoint(ctx, suspend { _ -> result }) }
-                        )
+                        invokeEndpoint(ctx, group.group.middleware, suspend { _ -> result })
                     }
                 }
             }
         }
+    }
+
+    private fun matchFallbackGroup(parts: Array<PathSegment>): GroupMatch =
+        matchGroup(routes, parts, 0L, ArrayList<PathSegment>(), GroupMatch(routes.group!!, [], 0L))
+
+    private suspend fun invokeEndpoint(
+        ctx: HttpContext,
+        chain: Array<HttpMiddleware>,
+        handler: HttpHandler
+    ) {
+        if (chain.size == 0L)
+            endpoint(ctx, handler)
+        else
+            invokeMiddleware(ctx, chain, 0L, suspend { endpoint(ctx, handler) })
     }
 
     private suspend fun endpoint(ctx: HttpContext, handler: HttpHandler) {
