@@ -15,6 +15,17 @@ typedef struct {
     unsigned char accepted_addresses[2 * (sizeof(struct sockaddr_storage) + 16)];
 } SocketCreate;
 
+static void skip_read_packet(ScoopIoSocket *socket) {
+    WSAPROTOCOL_INFOW info = {0};
+    int length = sizeof(info);
+    if (getsockopt(socket->socket, SOL_SOCKET, SO_PROTOCOL_INFOW, (char *)&info, &length) == 0 &&
+        (info.dwServiceFlags1 & XP1_IFS_HANDLES))
+        socket->skip_read_packet =
+            SetFileCompletionNotificationModes((HANDLE)socket->socket,
+                                               FILE_SKIP_COMPLETION_PORT_ON_SUCCESS |
+                                                   FILE_SKIP_SET_EVENT_ON_HANDLE) != 0;
+}
+
 static void finish(SocketCreate *request, ScoopIoStatus status) {
     ScoopIoSocket *socket = request->socket;
     if (!status.code && request->action == TCP_CONNECT &&
@@ -28,6 +39,8 @@ static void finish(SocketCreate *request, ScoopIoStatus status) {
         u_long nonblocking = 1;
         if (ioctlsocket(socket->socket, FIONBIO, &nonblocking) != 0)
             status = scoop_io_winsock(WSAGetLastError());
+        else
+            skip_read_packet(socket);
     }
     ScoopIoEvent *event = &request->request.completion.event;
     if (status.code) {

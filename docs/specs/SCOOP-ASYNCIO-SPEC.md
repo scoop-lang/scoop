@@ -69,7 +69,7 @@ Linux 的一次 native 推进先消费已有 CQ 快照，再批量发布待提�
 
 Darwin 在同一 NativeSafe TCP 提交批次内，由资源 owner 先尝试 nonblocking read／write。已完成的字节数、EOF 与实际错误直接写入该批次的结果数组，不为这些结果创建 dispatch 请求或跨线程通知；仅 EAGAIN／EWOULDBLOCK 进入原串行 I/O queue 等待。结果仍由 managed owner 仲裁并排入 ready，不能从 native 提交栈恢复 continuation。方向独占和前次真实退休保证同方向请求不同时由 owner 与 dispatch handler 执行；读方向的 EOF／错误状态随已退休完成交接，反向传输不改写这些状态。取消与关闭前先提交已有批次，关闭停止新接纳，保留实际部分传输、borrow 与请求寿命。
 
-Windows 的已交付 TCP stream 使用 nonblocking SOCKET。在同一 NativeSafe 提交批次内，owner 先执行不带 OVERLAPPED 的 recv／send；实际字节数、EOF 和非 WSAEWOULDBLOCK 错误直接进入该批次的结果数组，不创建 native 请求，也不产生或等待 IOCP packet。未就绪的读取提交 overlapped WSARecv，即使同步成功也仍等实际 packet。未就绪的写入用 WSAEventSelect 的 FD_WRITE／FD_CLOSE 与一次性 thread-pool wait 等待，再回 owner 尝试 nonblocking send；等待阶段不向可取消的 WSASend 提交用户数据，因为取消完成的零字节数不能可靠代表已经进入 TCP 流的前缀。取消写入只唤醒该等待，实际等待 callback 退休后交付零新增进度；已经成功的 send 前缀仍按原数值提交。关闭先取消等待，全部 callback 不再访问请求后才释放 socket、event 和 buffer 借用。直接与等待路径共用 TCP 结果规则；结果均回到原 managed 仲裁、ready、进度提交和借用解除流程。方向独占与前次真实退休后才能复用的约束保持，取消和关闭先 flush 已暂存传输，不从 native 提交栈恢复调用方。
+Windows 的已交付 TCP stream 使用 nonblocking SOCKET。在同一 NativeSafe 提交批次内，owner 用不带 OVERLAPPED 的 send 写入；实际字节数和非 WSAEWOULDBLOCK 错误直接进入该批次的结果数组，不创建 native 请求，也不产生或等待 IOCP packet。读取直接提交使用稳定请求内存的 overlapped WSARecv。仅当 socket provider 声明 XP1_IFS_HANDLES 且设置 FILE_SKIP_COMPLETION_PORT_ON_SUCCESS 成功时，同步成功读取可按返回字节数直接进入结果数组并退休请求；WSA_IO_PENDING 仍等真实 packet。不支持该模式时，同步成功同样等实际 packet。未就绪的写入用 WSAEventSelect 的 FD_WRITE／FD_CLOSE 与一次性 thread-pool wait 等待，再回 owner 尝试 nonblocking send；等待阶段不向可取消的 WSASend 提交用户数据，因为取消完成的零字节数不能可靠代表已经进入 TCP 流的前缀。取消写入只唤醒该等待，实际等待 callback 退休后交付零新增进度；已经成功的 send 前缀仍按原数值提交。关闭先取消等待，全部 callback 不再访问请求后才释放 socket、event 和 buffer 借用。直接与等待路径共用 TCP 结果规则；结果均回到原 managed 仲裁、ready、进度提交和借用解除流程。方向独占与前次真实退休后才能复用的约束保持，取消和关闭先 flush 已暂存传输，不从 native 提交栈恢复调用方。
 
 Darwin 的 TCP 就绪 source 按端点与方向复用，由串行 I/O queue 管理。source 的 context 仅持有端点及方向，不保留前次请求或 buffer；有等待请求时启用，完成或取消时先暂停 source、清除该方向请求，再发布完成，之后的 handler 只能查找当时的等待请求。端点关闭取消全部 source，平衡暂停状态，并等待全部 cancel handler 结束后才关闭 fd 和交付关闭完成；未退休 source 计入 native loop 的存活工作。UDP、TTY、连接与 timer 继续使用各自原有等待和退休规则。
 
@@ -399,7 +399,7 @@ Linux 新后端支持基线为内核 6.1，初始化实际探测所需操作与 
 
 ### 11.6 Windows 完成端口
 
-Windows 已提交的 overlapped 数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP。每个 loop 的原生收集线程阻塞等待完成，只发布原生记录并唤醒 owner，不执行 managed 代码；owner 消费有限完成快照并复用本规范的结果选择、借用和关闭规则。同步成功但仍会产生 completion packet 的操作也等该 packet；只有明确未提交的失败可以本地结束。第 2 节不带 OVERLAPPED 的 TCP 直接尝试不产生 packet，按实际同步结果完成。CancelIoEx 的返回和 ERROR_NOT_FOUND 均不能代替目标完成。
+Windows 已提交的 overlapped 数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP。每个 loop 的原生收集线程阻塞等待完成，只发布原生记录并唤醒 owner，不执行 managed 代码；owner 消费有限完成快照并复用本规范的结果选择、借用和关闭规则。同步成功但仍会产生 completion packet 的操作也等该 packet；明确未提交的失败，以及已成功启用同步成功不投递 packet 模式的同步完成，可以本地结束。第 2 节不带 OVERLAPPED 的 TCP 写入不产生 packet，按实际同步结果完成。CancelIoEx 的返回和 ERROR_NOT_FOUND 均不能代替目标完成。
 
 同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；未消费的通知合并为一次 SetEvent，没有待消费通知时不执行 ResetEvent。owner 清除旧通知后发布的工作必须重新通知；有限批次处理后仍有逻辑完成或 managed ready 工作时重新置位。通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
 

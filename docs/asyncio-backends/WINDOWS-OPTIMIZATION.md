@@ -2,6 +2,8 @@
 
 2026-11-13，分支 `codex/windows-asyncio-performance`。沿用 [Windows 初次对照](WINDOWS-TCP-ECHO.md)的机器、公开 API echo 负载和 QPC 客户端，按功能记录优化及其限制。
 
+最终实现包含 W1、W2、W3，最新同轮对照见 W3。64 连接单／四 worker 吞吐接近 Go；单连接独立 eventLoop 相对 main 的回退仍未解决。
+
 ## W1：owner 批次直接完成 TCP 传输
 
 ConnectEx／AcceptEx 完成 context 更新后，对交付的 stream 设置 FIONBIO。NativeSafe TCP flush 在 owner 上尝试不带 OVERLAPPED 的 recv／send，实际字节数、EOF 和错误直接进入结果数组；未就绪读取回到原 WSARecv 和真实 IOCP packet 退休路径。未就绪写入改为 WSAEventSelect 的 FD_WRITE／FD_CLOSE 和一次性 thread-pool wait，唤醒后由 owner 再次 send；取消只结束等待。直接完成不分配 native 请求、不经收集线程；managed 仲裁、ready、部分进度、buffer 借用、方向占用及取消合同保持。没有启用 skip-completion 模式。
@@ -80,3 +82,39 @@ W2 的新增收益集中于高并发单 owner／单 worker：相对 W1 吞吐 **
 单连接限制仍明显。W2 单／四 worker 吞吐为 Go 的 **80.0%／84.5%**，CPU 为 **1.53／1.48 倍**。独立 eventLoop 比 main 低 **39.4%**，CPU 高 **53.1%**，P50 由 **62.975** 升至 **113.663 μs**；这是后续需要处理的实际回退。保留全部波动：W2 单连接独立 loop 为 **7,507–9,451** echo/s；64 连接单／四 worker 为 **44,959–46,309／83,903–111,854**，main 四 worker 为 **71,785–85,154**，W1 四 worker为 **80,300–109,923**。每组只有三次，单机闭环结果不代表独立服务器或持续负载上限。
 
 本阶段最终数据为仓库外 `w2-new-comparison`，短传输为 `w2-new-short-transfers`；固定程序为 `bin/scoop-echo-new-{main,w1,w2}.exe`，候选库与补丁在 `artifacts/w2`。`compare_stages.py` 保存实际交错矩阵，`build-comparison.ps1` 保存构建方式；`rebuild-one.ps1` 记录完整准备尝试，`finish-base.ps1` 补齐基础工具链 runtime。所有路径均相对于上述 `C:/Users/ChenXu/benchmarks/asyncio-windows-opt-20261113`。
+
+## W3：WSARecv 同步完成直接交付
+
+读取直接提交 WSARecv，去掉前置 nonblocking recv。参考当前 Go Windows 后端的模式选择：交付 TCP stream 前检查 provider 的 XP1_IFS_HANDLES，并尝试 FILE_SKIP_COMPLETION_PORT_ON_SUCCESS／FILE_SKIP_SET_EVENT_ON_HANDLE；仅设置成功才使用同步完成结果。OVERLAPPED、返回字节数与 flags 位于稳定请求内存中，同步返回字节数与收集线程写入的 packet count 分开。同步成功直接进入 owner 批次并退休 native 请求，WSA_IO_PENDING 继续等待真实 packet；未启用模式的 socket 连同步成功也等待 packet。写入沿用 W1 的实际 send 前缀与可取消就绪等待，managed ready、取消仲裁和 buffer 借用不变。
+
+本阶段不改编译器或 runtime，继续使用 W2 已重建的 `8b5adc7895ef069aa3eb8aa0dc35e0b4fbc7128c` 编译器、MSVC/UCRT 基础工具链和同一 Go／QPC 客户端。只重建 asyncio 库与消费程序。三轮随机交错对照 main、W2、W3、Go，共 **66** 样本，核验 **11,540,567** 个响应，其中计时窗口 **9,436,695** 个，全部正确；参数与 W2 相同，测量期间没有编译或测试负载。下面是本轮中位数，不与上一轮的 main／Go 数值混算：
+
+| 连接 | 运行方式 | main echo/s | W2 echo/s | W3 echo/s | W3 相对 main | W3 相对 W2 | Go echo/s |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 独立 eventLoop | 13,090 | 8,460 | 9,731 | −25.7% | +15.0% | — |
+| 1 | 1 worker | 9,065 | 10,691 | 10,642 | +17.4% | −0.5% | 12,600 |
+| 1 | 4 worker | 8,327 | 10,645 | 11,074 | +33.0% | +4.0% | 13,067 |
+| 64 | 独立 eventLoop | 30,676 | 42,432 | 42,371 | +38.1% | −0.1% | — |
+| 64 | 1 worker | 35,664 | 43,142 | 44,437 | +24.6% | +3.0% | 42,515 |
+| 64 | 4 worker | 87,127 | 95,109 | 108,184 | +24.2% | +13.7% | 106,144 |
+
+| 连接 | 运行方式 | main CPU μs／echo | W2 CPU μs／echo | W3 CPU μs／echo | Go CPU μs／echo |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | 独立 eventLoop | 69.83 | 97.89 | 97.55 | — |
+| 1 | 1 worker | 110.32 | 80.41 | 79.82 | 51.32 |
+| 1 | 4 worker | 125.77 | 80.36 | 85.01 | 52.79 |
+| 64 | 独立 eventLoop | 40.22 | 23.47 | 23.50 | — |
+| 64 | 1 worker | 36.24 | 22.99 | 22.41 | 23.61 |
+| 64 | 4 worker | 53.84 | 41.31 | 36.00 | 37.53 |
+
+64 连接单／四 worker，最终吞吐为 Go 的 **104.5%／101.9%**，CPU 相对 main 降低 **38.2%／33.1%**。W3 的新增收益主要在四 worker：相对 W2 吞吐 **+13.7%**、CPU **−12.8%**；单 worker 提升较小，独立 loop 基本持平。P50 为 **1,376.255／581.631 μs**，Go 为 **1,490.943／598.015 μs**；P99 为 **2,457.599／860.159 μs**，Go 为 **3,506.175／1,294.335 μs**。单 worker P99 高于 W2 的 2,359.295 μs，不能声称所有配置都改善。
+
+单连接独立 loop 的回退仍未解决：相对本轮 main 吞吐 **−25.7%**、CPU **+39.7%**，P50 **61.951 → 106.495 μs**。单／四 worker 的吞吐为 Go 的 **84.5%／84.7%**，CPU 为 **1.56／1.61 倍**，P99 为 **233.471／229.375 μs**，Go 为 **172.031／180.223 μs**；W3 单连接四 worker CPU 比 W2 高 **5.8%**。较早的 12 样本单连接定向检查中，W3 相对 W2 吞吐 +6.1%、相对 main −10.4%，数据单独留在 `w3-owner-check`，不拿其中较小的回退替换完整矩阵结果。
+
+保留全部波动：W3 单连接独立 loop 为 **8,698–9,732** echo/s，main 为 **10,172–13,501**；W3 的 64 连接单／四 worker 为 **41,865–44,961／106,895–108,483**，Go 为 **39,767–43,088／95,352–109,872**，W2 四 worker 为 **86,885–101,580**。每组只有三次，接近 Go 的短测中位数不证明长期吞吐等同。64 连接下 W3 单／四 worker 的分配为 **0.820／0.829 KiB／echo**，Go 为 **0.020／0.008**；峰值工作集为 **17.33／22.03 MiB**，Go 为 **12.53／12.77 MiB**。分配和内存差距仍在。
+
+原生测试为默认模式之外增加真实、从未启用 packet suppression 的 IPv4／IPv6 socket，验证已缓冲同步读取仍等待 packet，覆盖取消、旧取消不影响下一请求、EOF 与重复 EOF；普通连接继续覆盖直接批次、短读、反向传输、重复背压及关闭等待。实机探针确认连接和 accept 的 IPv4／IPv6 stream 均成功启用模式，所有底层检查通过。五项 64 KiB 消息／257 字节 buffer 检查另核验 **1,260** 个响应，全部正确；其间并行进行构建，只计正确性，不计性能。
+
+最终普通 release Cone 验收为 asyncio **217**、tls.asyncio **23**、http.asyncio **164**、http.server **167**，共 **571／571**，无 ignored 或 not run；moving／minor GC 的背压取消、传输复用及 TLS 短写共 **8／8**。验收与测量使用同一份 native 源码；C 格式与严格 warnings 检查通过。早期 W3 测试构建在复查字节数字段时主动中止，该次未计入通过数；最终结果来自修订后的重新编译。W2 的编译器、concurrent 和 fused-calls 验证记录继续保留，W3 未改变对应实现。
+
+本轮完整矩阵在仓库外 `w3-new-comparison`，短传输在 `w3-short-transfers`；固定程序为 `bin/scoop-echo-new-w3.exe`，候选库与补丁在 `artifacts/w3`。`build-w3.ps1` 与 `compare_w3.py` 保存实际构建和交错对照方式；`verify-w3.ps1` 与 `verify-w3-gc.ps1` 保存库与 GC 验收命令，服务端测试程序通过同一命令的 `--no-run` 提前并行构建后复用。所有路径相对于前述工作目录。测量仍仅覆盖 Windows MSVC/UCRT、本机闭环 TCP echo，不外推到其他 CRT、独立服务器或 HTTP 吞吐。
