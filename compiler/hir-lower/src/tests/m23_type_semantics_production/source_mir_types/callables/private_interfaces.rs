@@ -18,8 +18,8 @@ fn private_interface_body_has_a_provider_binding_without_local_calls() {
                 panic!("the helper retains its source function identity");
             };
             let types = complete_type_exports(output, input, hir, graph);
-            let unit = dependencies::unit(input, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &unit]).unwrap();
+            let core_types = dependencies::core(input);
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[&types, &core_types]).unwrap();
             let bindings = lower_source_callable_bindings(
                 output,
                 &public_interface(output),

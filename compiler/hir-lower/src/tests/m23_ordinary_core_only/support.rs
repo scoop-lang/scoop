@@ -28,29 +28,6 @@ pub(crate) struct TrustedCoreFixture {
 }
 
 impl TrustedCoreFixture {
-    pub(crate) fn project_initialization_cycle_to_mir(
-        &self,
-    ) -> scoop_mir::SelectedDependencyMirCallableV1 {
-        let scoop_hir::CoreProtocolCallableDefinitionV1::Function(definition) =
-            self.interface.initialization_cycle_thrower().definition()
-        else {
-            panic!("the fixture cycle thrower is a source function")
-        };
-        let signature = scoop_identity::ExactCallableSignature::new(
-            scoop_identity::Effect::Ordinary,
-            None,
-            vec![self.interface.string_exact_type()],
-            scoop_mir::core_unit_exact_type(),
-        );
-        scoop_mir::SelectedDependencyMirCallableV1::try_new(
-            self.foundation.origin(),
-            scoop_identity::DependencyCallableDeclarationId::Function(definition),
-            scoop_identity::StrongCallableDefinitionOwner::Function(definition),
-            signature,
-        )
-        .unwrap()
-    }
-
     pub(crate) fn import_dependency_foundation(
         &mut self,
         coordinate: &scoop_identity::ConeCoordinate,

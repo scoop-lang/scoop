@@ -45,9 +45,8 @@ fn with_dispatch<R>(
                 .collect(),
         )
         .unwrap();
-        let unit = dependencies::unit(input, graph);
-        let boolean = dependencies::boolean(input, graph);
-        let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &unit, &boolean]).unwrap();
+        let core_types = dependencies::core(input);
+        let index = MirTypeBridgeTypeIndexV1::try_new(&[&actual, &core_types]).unwrap();
         let callables = scoop_mir_lower::lower_source_callable_bindings(
             output,
             &public_interface(output),

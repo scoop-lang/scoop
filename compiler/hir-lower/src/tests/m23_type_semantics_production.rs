@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use scoop_identity::{ConeIdentity, NominalDeclarationOwner, PersistentExactTypeId};
 
 use super::m23_ordinary_core_only::support::{parsed_ordinary, trusted_core};
+use super::mir_dependencies::select_library_callables;
 use super::*;
 use crate::{CurrentConeSources, lower_current_cone};
 

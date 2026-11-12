@@ -33,9 +33,7 @@ fn debug_declarations_keep_current_and_imported_source_coordinates_through_mir()
                 origin
             });
             assert_ne!(expected[0], expected[1]);
-            let dependencies =
-                scoop_mir::SelectedExternalMirSet::try_from_callables(local.cone, Vec::new())
-                    .unwrap();
+            let dependencies = select_library_callables(&output);
             let mir = scoop_mir_lower::lower_current_cone(
                 &output,
                 dependencies,

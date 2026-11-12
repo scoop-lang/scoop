@@ -49,10 +49,7 @@ fn imported_pointer_intrinsics_use_source_places_and_typed_templates() {
                         )
                 );
                 hir::CanonicalHirFoundation::from_dependency_output(&output).unwrap();
-                let local = output.output().local.module();
-                let dependencies =
-                    scoop_mir::SelectedExternalMirSet::try_from_callables(local.cone, Vec::new())
-                        .unwrap();
+                let dependencies = select_library_callables(&output);
                 scoop_mir_lower::lower_current_cone(
                     &output,
                     dependencies,

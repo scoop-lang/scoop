@@ -23,6 +23,27 @@ fn decoded<T: WireDecode>(value: &impl WireEncode) -> T {
     decode_canonical(&encode(value).unwrap()).unwrap()
 }
 
+fn lower_mir_input(output: &hir::DependencyHirOutput) -> scoop_mir::ConeMirInput {
+    let selected = select_library_callables(output);
+    let lowered =
+        scoop_mir_lower::lower_current_cone(output, selected, Default::default(), None).unwrap();
+    let production = scoop_mir_lower::lower_production_section(
+        lowered.module().cone,
+        &hir::CoreBootstrapInterfaceSectionV1::from_export(&output.output().export).unwrap(),
+        lowered.foundation(),
+    )
+    .unwrap();
+    let shapes = output
+        .output()
+        .local
+        .materialization()
+        .roots()
+        .iter()
+        .map(|root| root.declaration().clone())
+        .collect();
+    scoop_mir::ConeMirInput::try_new(lowered, production, shapes).unwrap()
+}
+
 fn with_production<R>(
     source: &str,
     run: impl FnOnce(
@@ -33,54 +54,11 @@ fn with_production<R>(
         &CanonicalParamFreeMirTypeExportsV1,
     ) -> R,
 ) -> R {
-    source_dispatch::with_hir_source(source, |output, core| {
+    source_dispatch::with_hir_source(source, |output, _| {
         let hir_types =
             produce_cross_cone_type_semantics(output, &public_interface(output)).unwrap();
         let local = output.output().local.module();
-        let mut records = if local.initialization_units.is_empty() {
-            Vec::new()
-        } else {
-            vec![core.project_initialization_cycle_to_mir()]
-        };
-        records.extend(
-            output
-                .executable_dependency_callables()
-                .unwrap()
-                .into_iter()
-                .map(|use_| {
-                    let selected = use_.callable();
-                    let callable = selected.capability();
-                    scoop_mir::SelectedDependencyMirCallableV1::try_new(
-                        selected.provider(),
-                        callable.direct_declaration().unwrap(),
-                        callable.implementation(),
-                        callable.signature().clone(),
-                    )
-                    .unwrap()
-                }),
-        );
-        let selected =
-            scoop_mir::SelectedExternalMirSet::try_from_callables(local.cone, records).unwrap();
-        let mir_output =
-            scoop_mir_lower::lower_current_cone(output, selected, Default::default(), None)
-                .unwrap();
-        let module = mir_output.module();
-        let foundation = mir_output.foundation();
-        let production = scoop_mir_lower::lower_production_section(
-            module.cone,
-            &hir::CoreBootstrapInterfaceSectionV1::from_export(&output.output().export).unwrap(),
-            foundation,
-        )
-        .unwrap();
-        let shapes = output
-            .output()
-            .local
-            .materialization()
-            .roots()
-            .iter()
-            .map(|root| root.declaration().clone())
-            .collect();
-        let strong = scoop_mir::ConeMirInput::try_new(mir_output, production, shapes).unwrap();
+        let strong = lower_mir_input(output);
         let local_hir: hir::DecodedHirFoundation =
             decoded(&hir::CanonicalHirFoundation::from_type_semantics_output(output).unwrap());
         let mir: scoop_mir::DecodedMirFoundation = decoded(strong.foundation());

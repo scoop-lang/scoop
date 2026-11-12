@@ -1,65 +1,61 @@
 use super::*;
 
-// Unit is a language builtin. This dependency fixture retains the actual
-// imported identity present in MIR; it does not mint a local source type.
-pub(super) fn unit(
-    input: &scoop_mir::ConeMirInput,
-    graph: &scoop_identity::ValidatedIdentityGraph,
-) -> CanonicalParamFreeMirTypeExportsV1 {
-    use scoop_mir::*;
-    let Some(unit) = input.module().meta.source_exact_types.get(&Type::Unit) else {
-        return CanonicalParamFreeMirTypeExportsV1::default();
-    };
-    let scoop_identity::ExactTypeKey::Nominal(nominal) = *unit.identity_record().key() else {
-        panic!("Unit is nominal")
-    };
-    CanonicalParamFreeMirTypeExportsV1::try_new(vec![
-        ParamFreeMirTypeExportV1::try_new(
-            MirTypeBridgeAuthority {
-                identities: graph,
-                foundation: input.foundation(),
-            },
-            unit.identity_record().id(),
-            MirTypeOriginV1::SourceNominal(nominal),
-            MirTypeFactsV1::try_new(MirValueKindV1::ZeroSizedValue, MirGcKindV1::GcFree).unwrap(),
-            MirTypeRepresentationV1::Intrinsic(MirParamFreeIntrinsicV1::Unit),
-            MirBaseAndInterfacesV1 {
-                base: MirBaseClassV1::None,
-                interfaces: vec![],
-            },
-        )
-        .unwrap(),
-    ])
-    .unwrap()
+// Import representations from the same core fixture that supplied the HIR
+// declarations, including types used by implicit coroutine helpers.
+pub(super) fn core(input: &scoop_mir::ConeMirInput) -> CanonicalParamFreeMirTypeExportsV1 {
+    static TYPES: std::sync::OnceLock<CanonicalParamFreeMirTypeExportsV1> =
+        std::sync::OnceLock::new();
+    let types = TYPES.get_or_init(core_type_exports);
+    let records = input
+        .module()
+        .meta
+        .source_exact_types
+        .iter()
+        .filter(|identity| {
+            identity.owner() == scoop_mir::SourceExactTypeOwner::Cone(ConeIdentity::CORE)
+                && matches!(
+                    identity.identity_record().key(),
+                    scoop_identity::ExactTypeKey::Nominal(_)
+                )
+        })
+        .map(|identity| {
+            types
+                .get(identity.identity_record().id())
+                .unwrap_or_else(|| panic!("core fixture must export {:?}", identity.ty()))
+                .clone()
+        })
+        .collect();
+    CanonicalParamFreeMirTypeExportsV1::try_new(records).unwrap()
 }
 
-pub(super) fn boolean(
-    input: &scoop_mir::ConeMirInput,
-    graph: &scoop_identity::ValidatedIdentityGraph,
-) -> CanonicalParamFreeMirTypeExportsV1 {
-    use scoop_mir::*;
-    let Some(boolean) = input.module().meta.source_exact_types.get(&Type::Boolean) else {
-        return CanonicalParamFreeMirTypeExportsV1::default();
-    };
-    let scoop_identity::ExactTypeKey::Nominal(nominal) = *boolean.identity_record().key() else {
-        unreachable!()
-    };
-    CanonicalParamFreeMirTypeExportsV1::try_new(vec![
-        ParamFreeMirTypeExportV1::try_new(
-            MirTypeBridgeAuthority {
-                identities: graph,
-                foundation: input.foundation(),
-            },
-            boolean.identity_record().id(),
-            MirTypeOriginV1::SourceNominal(nominal),
-            MirTypeFactsV1::try_new(MirValueKindV1::NonZeroValue, MirGcKindV1::GcFree).unwrap(),
-            MirTypeRepresentationV1::Intrinsic(MirParamFreeIntrinsicV1::Boolean),
-            MirBaseAndInterfacesV1 {
-                base: MirBaseClassV1::None,
-                interfaces: vec![],
-            },
-        )
-        .unwrap(),
-    ])
+fn core_type_exports() -> CanonicalParamFreeMirTypeExportsV1 {
+    let core = trusted_core();
+    let input = lower_mir_input(&core.output);
+    let hir: hir::DecodedHirFoundation = decoded(core.source_foundation.as_ref());
+    let mir: scoop_mir::DecodedMirFoundation = decoded(input.foundation());
+    let mut pending = PendingIdentityValidation::new();
+    pending.register_authority(ConeIdentity::CORE).unwrap();
+    hir.register_identities(&mut pending).unwrap();
+    mir.register_identities(&mut pending).unwrap();
+    hir.resolve_identities(&mut pending).unwrap();
+    mir.resolve_identities(&mut pending).unwrap();
+    let graph = pending.finish().unwrap();
+    let source = crate::produce_cross_cone_type_semantics(
+        &core.output,
+        hir::SharedTypeMetadataV1 {
+            provider: ConeIdentity::CORE,
+            identities: &graph,
+            foundation: &core.source_foundation,
+            public: core.general_interface(),
+        },
+        &[],
+    )
+    .unwrap();
+    scoop_mir_lower::lower_type_exports(
+        core.output.output().local.module(),
+        &source,
+        &input,
+        &graph,
+    )
     .unwrap()
 }

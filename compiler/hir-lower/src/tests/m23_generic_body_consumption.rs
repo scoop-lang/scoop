@@ -3,6 +3,7 @@ use scoop_identity::ConeCoordinate;
 
 use super::m23_ordinary_core_only::support::{parsed_ordinary_text, trusted_core};
 use super::m23_ordinary_dependencies::support::{alias_expansions, project_dependency_text};
+use super::mir_dependencies::select_library_callables;
 use crate::{CurrentConeSources, lower_current_cone};
 
 mod abstracts;
@@ -173,8 +174,7 @@ fn imported_generic_bodies_infer_and_materialize_provider_templates() {
     let foundation = hir::CanonicalHirFoundation::from_dependency_output(&output)
         .expect("generic applications retain their actual foundation identities");
     let _ = scoop_wire::encode(&foundation).unwrap();
-    let dependencies =
-        scoop_mir::SelectedExternalMirSet::try_from_callables(local.cone, Vec::new()).unwrap();
+    let dependencies = select_library_callables(&output);
     scoop_mir_lower::lower_current_cone(&output, dependencies, Default::default(), None)
         .expect("dependency templates lower through the ordinary MIR body path");
 }

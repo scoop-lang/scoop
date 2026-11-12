@@ -17,8 +17,8 @@ fn actual_derived_equality_bindings_cover_nested_values_enum_and_explicit_overlo
     for name in ["standalone", "combined"] {
         let (_, source) = fixture(name);
         let bytes = with_production(&source, |output, input, _, graph, types| {
-            let boolean = dependencies::boolean(input, graph);
-            let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &boolean]).unwrap();
+            let core_types = dependencies::core(input);
+            let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &core_types]).unwrap();
             let bindings =
                 lower_derived_equality_bindings(output, input, types, graph, &index).unwrap();
             assertions::actual(input, &bindings);
@@ -47,8 +47,8 @@ fn actual_derived_equality_bindings_cover_nested_values_enum_and_explicit_overlo
         with_production(
             &prepend_declarations(&source, "private struct Unrelated() {}\n"),
             |output, input, _, graph, types| {
-                let boolean = dependencies::boolean(input, graph);
-                let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &boolean]).unwrap();
+                let core_types = dependencies::core(input);
+                let index = MirTypeBridgeTypeIndexV1::try_new(&[types, &core_types]).unwrap();
                 let bindings =
                     lower_derived_equality_bindings(output, input, types, graph, &index).unwrap();
                 assert_eq!(encode(&bindings).unwrap(), bytes);

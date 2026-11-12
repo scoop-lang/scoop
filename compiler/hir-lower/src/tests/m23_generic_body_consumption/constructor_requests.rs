@@ -41,10 +41,7 @@ fn shared_constructor_initialization_lowers_captures_in_each_executable_body() {
             &fixture("provider"),
             &fixture(case),
             |output, _, _, _, _| {
-                let module = output.output().local.module();
-                let dependencies =
-                    scoop_mir::SelectedExternalMirSet::try_from_callables(module.cone, Vec::new())
-                        .unwrap();
+                let dependencies = select_library_callables(&output);
                 scoop_mir_lower::lower_current_cone(
                     &output,
                     dependencies,
