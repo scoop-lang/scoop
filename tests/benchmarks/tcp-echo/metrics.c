@@ -14,9 +14,8 @@ static int expected_shards = 1;
 static atomic_int ready_shards;
 void echo_configure_shards(int count) { expected_shards = count; }
 
-/* Linux inherits TCP_NODELAY from the listener; the public async API has no
- * socket option. */
-void echo_configure_tcp(int port) {
+/* The public async API has no socket option; this runs only during connection setup. */
+static void configure_tcp_sockets(int port) {
     int found = 0;
     for (int fd = 0; fd < 1024; fd++) {
         struct sockaddr_in address;
@@ -31,10 +30,23 @@ void echo_configure_tcp(int port) {
     }
     if (!found)
         abort();
+}
+
+void echo_configure_tcp(int port) {
+    configure_tcp_sockets(port);
     if (atomic_fetch_add(&ready_shards, 1) + 1 == expected_shards) {
         fputs("READY\n", stdout);
         fflush(stdout);
     }
+}
+
+void echo_configure_accepted_tcp(int port) {
+#if defined(__APPLE__)
+    /* Darwin does not inherit TCP_NODELAY from the listener. */
+    configure_tcp_sockets(port);
+#else
+    (void)port;
+#endif
 }
 
 void echo_metrics(void) {
