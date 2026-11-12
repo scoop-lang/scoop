@@ -11,27 +11,27 @@ public enum Http1Event {
      * A complete incoming request head.
      */
     Request(HttpRequestHead),
-        /**
+    /**
          * An incoming response head, including informational responses.
          */
-        Response(HttpResponseHead),
-        /**
+    Response(HttpResponseHead),
+    /**
          * An owned body-byte chunk.
          */
-        Data(Array<Byte>),
+    Data(Array<Byte>),
     /**
      * Ordered trailer fields after the body.
      */
     Trailers(Array<HttpField>),
-        /**
+    /**
          * The current message ended; the Boolean indicates that the connection must close.
          */
-        End(Boolean),
-        /**
+    End(Boolean),
+    /**
          * The decoder reached a protocol-switch boundary and leaves the unread suffix in the input
          * buffer.
          */
-        Switch
+    Switch
 }
 
 /**
@@ -44,11 +44,15 @@ public struct Http1ReceiveResult(val count: Long, val startedMessages: Long)
  * An incremental in-memory HTTP/1 decoder. Register client request methods in order, feed bytes,
  * and drain events; serialize operations on one instance and close it explicitly.
  */
-public class Http1Decoder private constructor(private var handle: ULong,
+public class Http1Decoder private constructor(
+    private var handle: ULong,
     /**
      * The fixed client/server role of this codec.
      */
-    public val role: HttpRole) : Closeable {
+    public val role: HttpRole
+): Closeable {
+    private var batch: ULong = 0UL
+    private var pending: ULong = 0UL
     /**
      * Factories for explicitly owned client/server codec instances.
      */
@@ -56,21 +60,45 @@ public class Http1Decoder private constructor(private var handle: ULong,
         /**
          * Creates a client codec with the selected receive options and local limits.
          */
-        public fun client(options: Http1ReceiveOptions = Http1ReceiveOptions(), limits: Http1Limits = Http1Limits()): Http1Decoder =
-            create(HttpRole.Client, options, limits)
+        public fun client(
+            options: Http1ReceiveOptions = Http1ReceiveOptions(),
+            limits: Http1Limits = Http1Limits()
+        ): Http1Decoder = create(HttpRole.Client, options, limits)
 
         /**
          * Creates a server codec with the selected receive options and local limits.
          */
-        public fun server(options: Http1ReceiveOptions = Http1ReceiveOptions(), limits: Http1Limits = Http1Limits()): Http1Decoder =
-            create(HttpRole.Server, options, limits)
+        public fun server(
+            options: Http1ReceiveOptions = Http1ReceiveOptions(),
+            limits: Http1Limits = Http1Limits()
+        ): Http1Decoder = create(HttpRole.Server, options, limits)
 
-        private fun create(role: HttpRole, options: Http1ReceiveOptions, limits: Http1Limits): Http1Decoder {
+        private fun create(
+            role: HttpRole,
+            options: Http1ReceiveOptions,
+            limits: Http1Limits
+        ): Http1Decoder {
             val config = http1Config(options, limits)
-            @Unsafe {
-                val native = http1New(if (role == HttpRole.Server) 1 else 0, config)
-                if (native == 0UL) throw HttpException("create HTTP/1 decoder", HttpProtocol.Http1,
-                    HttpFailureScope.Operation, 0, "llhttp 9.4.3", -1, "cannot allocate HTTP/1 decoder")
+            @Unsafe
+            {
+                val native =
+                    http1New(
+                        if (role == HttpRole.Server)
+                            1
+                        else
+                            0,
+                        config
+                    )
+                if (native == 0UL)
+                    throw HttpException(
+                        "create HTTP/1 decoder",
+                        HttpProtocol.Http1,
+                        HttpFailureScope.Operation,
+                        0,
+                        "llhttp 9.4.3",
+                        -1,
+                        "cannot allocate HTTP/1 decoder"
+                    )
                 return Http1Decoder(native, role)
             }
         }
@@ -83,16 +111,36 @@ public class Http1Decoder private constructor(private var handle: ULong,
     /**
      * Whether parsing stopped at a protocol-switch boundary.
      */
-    public val isSwitched: Boolean get() { @Unsafe { return http1Switched(nativeHandle()) != 0 } }
+    public val isSwitched: Boolean get() {
+        @Unsafe
+        {
+            return http1Switched(nativeHandle()) != 0
+        }
+    }
 
     private fun nativeHandle(): ULong {
-        if (handle == 0UL) throw IllegalStateException(Some("HTTP/1 decoder is closed"))
+        if (handle == 0UL)
+            throw IllegalStateException(Some("HTTP/1 decoder is closed"))
         return handle
     }
 
-    @Unsafe private fun check(code: Int, operation: String, scope: HttpFailureScope = HttpFailureScope.Connection) {
-        if (code != 0) throw HttpException(operation, HttpProtocol.Http1, scope, 0,
-            "llhttp 9.4.3", code, String.fromCString(http1Error(nativeHandle())), http1IsUnexpectedEof(code) != 0)
+    @Unsafe
+    private fun check(
+        code: Int,
+        operation: String,
+        scope: HttpFailureScope = HttpFailureScope.Connection
+    ) {
+        if (code != 0)
+            throw HttpException(
+                operation,
+                HttpProtocol.Http1,
+                scope,
+                0,
+                "llhttp 9.4.3",
+                code,
+                String.fromCString(http1Error(nativeHandle())),
+                http1IsUnexpectedEof(code) != 0
+            )
     }
 
     /**
@@ -103,10 +151,16 @@ public class Http1Decoder private constructor(private var handle: ULong,
         val owned = nativeHandle()
         val bytes = method.toArray()
         requireHttp1Method(bytes)
-        @Unsafe {
-            val code = bytes.withDataPointer { pointer, count ->
-                @Unsafe { return@withDataPointer http1Expect(owned, pointer, count) }
-            }
+        @Unsafe
+        {
+            val code =
+                bytes.withDataPointer {
+                    pointer,
+                    count -> @Unsafe
+                    {
+                        return@withDataPointer http1Expect(owned, pointer, count)
+                    }
+                }
             check(code, "register HTTP/1 response", HttpFailureScope.Operation)
         }
     }
@@ -117,12 +171,20 @@ public class Http1Decoder private constructor(private var handle: ULong,
      */
     public fun receive(buffer: NativeByteBuffer, count: Long = buffer.readableBytes): Long {
         val owned = nativeHandle()
-        if (count < 0L || count > buffer.readableBytes) throw IllegalArgumentException(Some("invalid HTTP input count"))
-        if (count == 0L) return 0L
-        @Unsafe {
-            val step = buffer.withReadableBytes { pointer, _ ->
-                @Unsafe { return@withReadableBytes http1Receive(owned, pointer!!, count) }
-            }
+        if (count < 0L || count > buffer.readableBytes)
+            throw IllegalArgumentException(Some("invalid HTTP input count"))
+        if (count == 0L)
+            return 0L
+        @Unsafe
+        {
+            val step =
+                buffer.withReadableBytes {
+                    pointer,
+                    _ -> @Unsafe
+                    {
+                        return@withReadableBytes http1Receive(owned, pointer!!, count)
+                    }
+                }
             buffer.skip(step.count)
             check(step.code, "receive HTTP/1")
             return step.count
@@ -132,43 +194,88 @@ public class Http1Decoder private constructor(private var handle: ULong,
     /**
      * Reports transport EOF and validates whether the protocol input ended cleanly.
      */
-    public fun endInput() { @Unsafe { check(http1End(nativeHandle()), "finish HTTP/1 input") } }
+    public fun endInput() {
+        @Unsafe
+        {
+            check(http1End(nativeHandle()), "finish HTTP/1 input")
+        }
+    }
 
     /**
      * Consumes input and also reports how many messages started during this call.
      */
-    public fun receiveWithProgress(buffer: NativeByteBuffer, count: Long = buffer.readableBytes): Http1ReceiveResult {
+    public fun receiveWithProgress(
+        buffer: NativeByteBuffer,
+        count: Long = buffer.readableBytes
+    ): Http1ReceiveResult {
         val consumed = receive(buffer, count)
-        if (count == 0L) return Http1ReceiveResult(0L, 0L)
-        @Unsafe { return Http1ReceiveResult(consumed, http1StartedMessages(nativeHandle())) }
+        if (count == 0L)
+            return Http1ReceiveResult(0L, 0L)
+        @Unsafe
+        {
+            return Http1ReceiveResult(consumed, http1StartedMessages(nativeHandle()))
+        }
     }
 
     /**
      * Resumes HTTP/1 parsing after the server declines a candidate upgrade.
      */
-    public fun resumeHttp1() { @Unsafe { check(http1Resume(nativeHandle()), "decline HTTP/1 upgrade", HttpFailureScope.Operation) } }
+    public fun resumeHttp1() {
+        @Unsafe
+        {
+            check(http1Resume(nativeHandle()), "decline HTTP/1 upgrade", HttpFailureScope.Operation)
+        }
+    }
 
     /**
      * Removes the next queued event, or returns None when none is ready.
      */
     public fun nextEvent(): Http1Event? {
-        @Unsafe {
-            val event = http1Next(nativeHandle())
-            if (event == 0UL) return None
+        @Unsafe
+        {
+            val owned = nativeHandle()
+            if (pending == 0UL) {
+                batch = http1TakeEvents(owned)
+                pending = batch
+            }
+            if (pending == 0UL)
+                return None
+            val event = httpEventView(pending)
+            pending = event.next
             try {
-                val info = httpEventInfo(event)
-                return Some(when (info.kind) {
-                    case 1 -> Http1Event.Request(HttpRequestHead(httpEventVersion(info), httpBytes(httpEventBytes(event, 0)),
-                        HttpRequestTarget.Http1(httpBytes(httpEventBytes(event, 1))), httpEventFields(event)))
-                    case 2 -> Http1Event.Response(HttpResponseHead(httpEventVersion(info), info.status.toUInt(),
-                        Some(httpBytes(httpEventBytes(event, 0))), httpEventFields(event)))
-                    case 3 -> Http1Event.Data(httpBytes(httpEventBytes(event, 0)))
-                    case 4 -> Http1Event.Trailers(httpEventFields(event))
-                    case 5 -> Http1Event.End(info.flags != 0U)
-                    case 6 -> Http1Event.Switch
-                    else -> throw IllegalStateException(Some("invalid native HTTP/1 event"))
-                })
-            } finally { httpEventFree(event) }
+                val info = event.info
+                return Some(
+                    when (info.kind) {
+                        case 1 -> Http1Event.Request(
+                            HttpRequestHead(
+                                httpEventVersion(info),
+                                httpBytes(event.first),
+                                HttpRequestTarget.Http1(httpBytes(event.second)),
+                                httpEventFields(event)
+                            )
+                        )
+                        case 2 -> Http1Event.Response(
+                            HttpResponseHead(
+                                httpEventVersion(info),
+                                info.status.toUInt(),
+                                Some(httpBytes(event.first)),
+                                httpEventFields(event)
+                            )
+                        )
+                        case 3 -> Http1Event.Data(httpBytes(event.first))
+                        case 4 -> Http1Event.Trailers(httpEventFields(event))
+                        case 5 -> Http1Event.End(info.flags != 0U)
+                        case 6 -> Http1Event.Switch
+                        else -> throw IllegalStateException(Some("invalid native HTTP/1 event"))
+                    }
+                )
+            } finally {
+                if (pending == 0UL) {
+                    val completed = batch
+                    batch = 0UL
+                    httpEventBatchFree(completed)
+                }
+            }
         }
     }
 
@@ -178,6 +285,15 @@ public class Http1Decoder private constructor(private var handle: ULong,
     public override fun close() {
         val owned = handle
         handle = 0UL
-        if (owned != 0UL) @Unsafe { http1Free(owned) }
+        if (owned != 0UL)
+            @Unsafe
+            {
+                val remaining = batch
+                batch = 0UL
+                pending = 0UL
+                if (remaining != 0UL)
+                    httpEventBatchFree(remaining)
+                http1Free(owned)
+            }
     }
 }

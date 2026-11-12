@@ -1,10 +1,35 @@
-# HTTP 性能任务交接（B50，2026-11-12）
+# HTTP 性能任务交接（B51，2026-11-12）
 
 任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，但完整 HTTP 静态服务仍有数倍差距。当前工作分支是 `perf/http-asyncio-optimizations`。用户最新要求是每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈，不能沿同一方向持续打磨微小收益。详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
 
-**正式性能底座仍为 B49：复用不可变响应准备与头部编码，并延迟创建未使用的响应修改／回调列表。** B50 重新测量后撤回了请求目标解析复用候选。B45 的连接计时器与输出缓冲优化继续保留；B46、B47 的候选已撤回，B48 只有诊断。各轮固定 ELF、SDK、补丁、测试和原始测量保存在仓库外，不能把诊断或撤回候选的 SDK 当作已采纳底座。Git 中两项未跟踪的用户打包脚本仍须保留。
+**正式性能底座更新为 B51：在 B49 的响应复用基础上，组合采纳事件批次桥接与同步 H1 操作管理。** B46／B47 的历史单项低收益结论保留，B51 测量的是新底座上的完整组合；B50 请求目标解析复用仍撤回。各轮固定 ELF、SDK、补丁、测试和原始测量保存在仓库外，不能把旧诊断或撤回候选当作正式底座。Git 中两项未跟踪的用户打包脚本仍须保留。
 
-## B50 最新评估：请求目标解析不是主要突破口
+**下一轮按用户新指定的方法开展：从直接 TCP 的最简手写 HTTP server 开始，逐步换入现有 HTTP 各层，测相邻阶段增量，并同时检查功能正交性和可组合性。** 具体步骤见本文“接手后优先做什么”，不要继续只按聚合采样分组选择局部优化。
+
+## B51 最新结果与收益边界
+
+重新采集 B49 完整服务／协议程序的单／四 worker CPU cycles 后，完整服务的解码／桥接约占 13.09%／12.14%，操作／idle 约占 12.09%／11.64%。本轮按批次移交 native 事件、直接访问字段视图并复用不可变数组快照；同步开始／结束 H1 操作，合并准备、方向与 idle 状态。事件所有权、取消、超时、实际进度和清理均保留；没有修改编译器、runtime 或 GC。
+
+完整服务与同次重建的 B49 原版对照，64 连接、默认 GC、独立绑核，正反顺序各一次、预热 2 秒＋测量 8 秒，中位数：
+
+| 正文／worker | req/s（B49 → B51） | CPU μs/请求 | P50 μs |
+| --- | --- | --- | --- |
+| 1 KiB／1 | 46,843 → 54,976 | 21.36 → 18.20 | 1,205.5 → 1,011 |
+| 1 KiB／4 | 142,151 → 165,450 | 26.04 → 22.22 | 367 → 311.5 |
+| 64 KiB／1 | 28,741 → 32,145 | 34.82 → 31.15 | 2,015.5 → 1,820.5 |
+| 64 KiB／4 | 89,298 → 99,645 | 40.16 → 36.41 | 592.5 → 536.5 |
+
+包含双 worker 的完整矩阵中，小响应吞吐 +16.1%～17.4%、CPU −14.0%～14.8%；大响应吞吐 +9.9%～11.8%、CPU −9.1%～10.5%，P50／P80 与中位 RSS 均改善。完整服务小响应仍需 Go 约 **2.54 倍 CPU**，大响应约 **2.26～2.27 倍**，长线目标尚未完成。两项实现一起测量，没有当前底座上的四种组合对照，不能分别归因或声称已证明协同作用。
+
+**协议程序四 worker、小响应有回退，不能称所有路径都加速。** 初次对照后又补一组正反顺序，四次全部纳入：吞吐中位数 **249,873→240,622（−3.7%）**，CPU **14.90→13.15 μs（−11.7%）**，P50 203→178.5 μs，P80 **389→428 μs（+10.0%）**。原版吞吐范围 247,165～253,575，候选 233,702～250,824。它伴随默认 GC 并行度和暂停变化，未独立证明因果，也未调 GC。协议单 worker、小响应 CPU 则从 12.71 降至 9.92 μs，大响应单／四 worker 从 27.56／31.70 降至 24.59／28.75 μs。
+
+独立 1,000 GET 减 0 GET 探针：普通 HTTP native 调用每请求 **20→2**，另有 **9 次 GCLeaf**；内部恢复 **21→16**，drive／外部恢复仍各 3，RECV／SEND 仍各一次。最终 release 验收 `http` 313、`http.asyncio` 164、`http.server` 160、`http.client` 254、server consumer 6，共 **897 项通过**；另逐字节核验 **6,608 个网络响应**，两个 C 诊断工具构建及四种 codec 检查通过。旧客户端产物按新依赖正常重建；首次客户端测试因脚本总时限 45 秒过短中断，按源码中的多组 15 秒等待调整到 900 秒后完整通过，原日志保留。
+
+最终候选 **32,281 个独立 cycles 样本**中，解码／桥接为 **5.60%／5.13%**、操作／idle **8.42%／7.28%**；剩余请求／连接 **20.74%／21.19%**、路由／middleware **13.44%／12.78%**。最大单函数归属仍只有约 4%，应按下一轮逐层替换实验定位实际增量，不能把这些组全部视为可消除成本。
+
+详见 [B51 记录](PROGRESS.md#第五十一轮组合事件桥接与操作管理并确认收益边界)。**52 个无仪表样本、53,525,442 个测量请求**无 wrk 错误；计数、采样、测试均独立运行。正式目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round51`，SDK 为 `candidate/sysroot`，完整／协议 ELF 为 `bin/scoop-policy-combined`／`bin/scoop-policy-protocol-combined`。该目录中的 `scoop-full-after` 等旧别名仍指向 B49，不能误用。
+
+## B50 已排除：请求目标解析复用
 
 先复测 B49 完整服务、协议程序和 Go：1／4 worker、64 连接、1 KiB，每请求 CPU 分别为 **21.46／26.07**、**12.97／14.73**、**7.17／8.74 μs**。完整服务与协议程序仍差约 **8.49／11.34 μs**。复核 B49 指令栈时，目标解析约占 7.45%，其中路径解码约 4.18%；两者嵌套，不能相加，也不能直接当作可消除的 CPU 比例。
 
@@ -21,7 +46,7 @@
 
 候选格式、静态检查与 HTTP Server release **162/162** 测试通过。本轮 28 个无仪表样本、29,567,866 个测量请求无 wrk 错误，探针另逐字节核验 2,000 个响应。详见 [B50 记录](PROGRESS.md#第五十轮重新比较请求成本并撤回解析复用候选)。原始目录 `/home/chenxu/benchmarks/http-improvements-20261112-round50` 的 `candidate/sysroot`、`candidate.patch`、`source/candidate/` 和候选 ELF 都是撤回材料，不能作为下一轮底座。
 
-## B49 最新结果与剩余瓶颈
+## B49 已交付的响应复用
 
 同一不可变字节 HttpResult，在没有响应修改、beforeCommit 或压缩策略的 H1 请求中，按版本和方法复用最近一个纯计划；编码器按相同 head、方法快照和定界复用成功的头部字节。handler／middleware、响应认领、消息长度状态、实际 I/O、关闭判断和清理仍逐请求执行；其他准备条件走原流程。两份 HTTP spec 已同步，没有修改编译器、runtime 或 GC。
 
@@ -40,7 +65,7 @@
 
 最终候选的 **6,953 个独立指令样本**中，响应准备 0.73%、编码 0.56%，已不支持继续细磨这两层。最大的剩余 HTTP 分组是请求／连接执行 **18.35%**，随后是操作／idle **13.03%**、路由／middleware **11.66%**；请求组内 `executeRequestPipeline`／`serveHttp1` 分别约 3.54%／3.41%，没有一个占据主要差距的单函数。GC 栈 12.73% 只作解释；指令占比不等于 CPU 占比或可完全消除的成本。
 
-详见 [B49 记录](PROGRESS.md#第四十九轮复用不可变响应准备与编码并重新定位剩余成本)。52 个无仪表样本、48,958,855 个测量请求无 wrk 错误；探针及采样与性能测量分开。原始目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round49`，其 `candidate/sysroot`、`bin/scoop-full-after` 和 `bin/scoop-protocol-after` 是当前正式固定产物。
+详见 [B49 记录](PROGRESS.md#第四十九轮复用不可变响应准备与编码并重新定位剩余成本)。52 个无仪表样本、48,958,855 个测量请求无 wrk 错误；探针及采样与性能测量分开。原始目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round49`，其 `candidate/sysroot`、`bin/scoop-full-after` 和 `bin/scoop-protocol-after` 是 B51 的前版对照。
 
 ## B48 评估：分派、响应准备与实际指令工作量
 
@@ -93,6 +118,8 @@
 
 详见 [B47 记录](PROGRESS.md#第四十七轮成组评估生命周期并撤回低收益操作合并)。全部 40 个样本、27,417,209 个测量请求无 wrk 请求错误；候选性能只测了完整 H1 小响应，没有扩展到大响应或协议程序。原始目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round47`，`candidate.patch`、`source/candidate/` 和 `candidate/sysroot` 是撤回候选；`source/control|request|operation|both/` 与对应二进制是成组诊断。
 
+以上是 B47 的单项结论。B51 后来将完整操作实现与事件桥接组合，在 B49 底座上重新测量并采纳，见本文最新结果。
+
 ## B46 归因与事件桥接结论
 
 同机重测 B45／Go，64 连接、1 KiB 正文、默认 GC、独立绑核，正反顺序各一次、预热 2 秒＋测量 6 秒：
@@ -108,12 +135,15 @@
 
 详细数值、样本波动、验证范围见 [B46 记录](PROGRESS.md#第四十六轮重新归因并撤回低收益事件桥接候选)。原始目录为 `/home/chenxu/benchmarks/http-improvements-20261112-round46`，其中 `candidate.patch` 和 `source/` 是撤回候选；`profiles/` 是 B45 正式底座采样；`summary.json` 汇总 20 个样本。该轮未改变正式实现，后续已由 B49 推进。
 
+B51 后来在 B49 上测量并采纳事件桥接与操作管理的组合；B46 这组历史数值不能用于单独解释组合收益。
+
 ## 用户明确的优先级
 
 - 优先主路径、架构和数倍差距。完成 TCP 主线后，当前只推进 HTTP 协议／连接／请求执行层。
 - 先解决静态内容，JSON 和其他序列化暂时不动。当前关注吞吐、每请求 CPU、内存、P50／P80，不把 P99 当主要目标。
 - 用户已叫停 GC 支线。保留默认 GC 进行公平测量；GC 计数可以解释样本，不能因此又转向阈值、nursery 或 GC worker 调参。
 - 收益只有几个百分点的候选应及时收束、换方向，不反复打磨局部分支。不能用取消作用域、超时、清理或协议语义换取表面吞吐。
+- B51 结束后，先用直接 TCP 的最简手写 HTTP server 建立基线，再逐步替换现有各层；以实际增量找最大瓶颈，同时改善功能正交性和可组合性。
 - 每轮在该分支先提交，再 fetch 并 merge 远端 `main`，随后推送。先完整实现一项，再集中格式化、检查和必要测试，不逐个小修改跑大回归。
 - 源码／spec／测试遵守仓库 [AGENTS.md](../../AGENTS.md)。输出中文，代码标识符和注释英文。
 - 原安装目录 `~/.scoop` 和历史固定二进制保持。新候选、cache、日志与原始 JSON 都在仓库外；完成后清本轮不再需要的 cache／target，不动依赖底座或仓库原有大 target。
@@ -182,7 +212,7 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 - B19～B29：完成批次、owner 直接登记、本地／外部队列复用、资源等待槽、取消监听复用、受控恢复、尾挂起转交及 TCP 批量提交已实现。TCP 达到用户认可的阶段目标后已转向 HTTP。
 - B34：当前固定 CLI 含可组合异常状态及完整 EH 内联。曾修复多层 catch/finally 覆盖异常记录的真实错误。当前固定 LLVM 来自 B28 源码构建及私有补丁。
 - B36：完整字节响应已能合并 HTTP 写操作；B45 在此基础上进一步去掉中间 buffer。
-- B42（`f27fa2d97`）：词法 coroutineScope 保留独立 Job，但复用当前 execution；Job 状态／监听统一同步。每 GET execution drive 7→3、外部恢复 5→3，内部恢复仍 25。不要误以为整个挂起调用链都已消除。
+- B42（`f27fa2d97`）：词法 coroutineScope 保留独立 Job，但复用当前 execution；Job 状态／监听统一同步。当时每 GET execution drive 7→3、外部恢复 5→3，内部恢复仍 25。B51 新计数为 B49 原版内部恢复 21→候选 16，drive／外部恢复保持 3；不要继续把 25 当作当前基线。
 
 ## 不应重复投入的方向与未闭合问题
 
@@ -194,50 +224,54 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 | B40 去除逐次根登记 | 约 5%～7% 收益，不足以解释 HTTP 数倍差距，撤回。 |
 | B43 GC 支线 | 用户叫停，仅仓库外诊断；不要使用其候选 sysroot，不继续调 GC。 |
 | B50 请求目标解析复用 | 解析入口几乎全部消除，但重复 URI 的 CPU 仅下降 2.8%／5.9%；每次新 query 基本持平或略退。候选已撤回，没有新证据不重试。 |
+| B51 协议四 worker、小响应 | 四次全部纳入后吞吐 −3.7%、P80 +10.0%，同时 CPU −11.7%；默认 GC 行为变化随样本保留，未修复或证明因果。下一轮渐进对照应覆盖此路径，不调 GC 掩盖回退。 |
 | 默认 GC 的协议程序慢档 | B42 已观察到四 worker 偶发低吞吐，全部成功样本应保留。不能只挑中位数好看的样本，也不能把暂停／测量窗口比当成 GC CPU 占比。 |
 | 旧编译器测试漂移 | B28／B34 曾记录 MIR 函数编号、task-context 布局及产物快照等失败，部分经固定基线复现。B45 没有重跑它们，不能声称全仓绿；细节见对应轮次和外部日志。 |
 | B49 验收中的 SSE 生命周期故障 | 并行构建期间，候选和 B45 原版均在同一测试发生内存增长；隔离后两者各 3 次完整 server 验收通过。原始失败保留，未修复根因，不能把一次通过当作故障已解决。 |
 
 ## 接手后优先做什么
 
-每轮先重新比较可验证的瓶颈，不能沿上一轮方向持续打磨。**以 B49 为新基线，优先核对剩余请求／连接执行的具体重复工作。** B49 已让响应准备和编码分别降至不到 1% 的指令样本，不能继续引用 B45 的旧份额为缓存细调背书。
+用户在 B51 验收期间明确要求：**本轮结束后改用从最简 TCP HTTP server 逐层替换现有实现的方法，并同时改善 HTTP 框架的功能正交性和可组合性。** 每轮仍先找最大的实际瓶颈，不能沿上一轮方向持续打磨。
 
-用当前基线与 Go、完整服务与协议路径的 CPU 差额，以及 B49 `profiles/scoop-after-w1-small/` 和对应 symbols 检查 `executeRequestPipeline`、`serveHttp1` 相邻的请求表示、生命周期及传输交接。B50 已重测差额为约 8.49／11.34 μs，包含功能与表示差异；请求／连接组约 18.35% 也不是可免费删除的成本。下一次结构改造须指出可减少的具体重复状态或步骤，并实测整体收益。单纯请求目标解析复用已被 B50 排除；Context 快照本来就是 O(1)，公平 yield 也已有 B32 的约 0.45 μs 对照，不应再凭源码表象认作新的主要瓶颈。
+1. 使用当前正式固定 SDK，直接通过 TCP 写最简手写 HTTP server，先测固定请求与静态响应的基线。明确记录其不完善之处、实际承担的语义和输入范围。
+2. 在同一个程序中逐步换入现有协议解析、消息编码、连接／会话管理、请求执行等部分；每次只改变一个可说明的边界，保持工作负载、传输方式、绑核、GC、连接数与计时方式一致。层次按真实依赖确定，不能为匹配预设分组同时换掉多个无关部分。
+3. 每次替换后检查实际响应，测吞吐、每请求 CPU、P50／P80 和内存，报告相邻阶段的增量；完整框架和 Go 作为同轮参照。先根据增量确定最大成本，再用调用计数和采样解释，不把 inclusive 百分比当作可直接消除的成本。
+4. 同时记录组合障碍：单独使用解析器是否强制引入会话或调度、状态是否重复保存、所有权和清理是否能在各层清楚表达。根据真实接入需求拆清职责，保留必要协议和生命周期语义；抽象须有实际调用与复用依据。
 
-B46 的事件批次桥接、B47 的操作生命周期合并、B48 的分派／准备上界与当前同 Cone 优化边界都已经验证，不能重新当作未尝试的大收益路线。早先同步闭包、挂起 CFG 合并和根登记候选收益也有限，没有新证据不重试，不用“指令多”直接为编译器重写背书。保留请求生命周期、middleware 组合、取消、截止时间、真实进度和清理；不为静态路由硬编码捷径，不启动 GC、P99 或 JSON 支线。B46 CPU 栈与 B48／B49 指令栈的口径不同，不能相加。
+B44 的分层诊断源码可复用作工具，但必须用当前固定版本重新建立上述渐进对照，不能拿旧表格代替本次实验。B50 解析复用和其他已撤回候选保留历史结论；Context 快照本来是 O(1)，公平 yield 也已有 B32 的约 0.45 μs 对照。生产改造继续保留 middleware、取消、截止时间、真实进度和清理，不启动 GC、P99 或 JSON 支线。
 
 ## 固定产物和复现入口
 
-以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B49 和 B45 的部分 bin／tools 指向旧轮，不能删除其目标。
+以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B51／B49 的部分 bin／tools 指向旧轮，不能删除其目标。
 
 | 用途 | 路径 |
 | --- | --- |
-| 正式底座产物、脚本、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round49` |
-| 当前正式 SDK | `B49/candidate/sysroot` |
-| 当前完整／协议 ELF | `B49/bin/scoop-full-after`、`B49/bin/scoop-protocol-after` |
-| 上一个正式底座 | `/home/chenxu/benchmarks/http-improvements-20261112-round45/candidate/sysroot` |
-| 前版完整／协议 ELF | `B45/bin/scoop-full-after`、`B45/bin/scoop-protocol-after` |
+| 正式底座产物、脚本、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round51` |
+| 当前正式 SDK | `B51/candidate/sysroot` |
+| 当前完整／协议 ELF | `B51/bin/scoop-policy-combined`、`B51/bin/scoop-policy-protocol-combined` |
+| 上一个正式底座 | `/home/chenxu/benchmarks/http-improvements-20261112-round49/candidate/sysroot` |
+| 同次重建的前版完整／协议 ELF | `B51/bin/scoop-policy-control`、`B51/bin/scoop-policy-protocol-control` |
 | 固定 CLI | `/home/chenxu/benchmarks/http-improvements-20261112-round34/candidate/cargo/release` |
 | 源码 LLVM 22.1.8 SDK | `/home/chenxu/benchmarks/http-improvements-20261112-round28/candidate/llvm/installed` |
 | C compiler／headers 包装 | `/home/chenxu/benchmarks/http-improvements-20261112-round29/candidate/cc-with-headers` |
 | B44 分层诊断及结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round44` |
 | 固定 Go net/http | `/home/chenxu/benchmarks/http-20261111/bin/nethttp-server` |
 
-表中 B49／B45 表示各自完整根目录。B49 目录内：
+表中 B51／B49 表示各自完整根目录。B51 目录内：
 
-- `build.sh`、`validate.sh`：本轮真实构建／验收命令。先复制并调整到新目录再用；`build.sh` 会从当前仓库复制源文件。
+- `build_combined.sh`、`build_client.sh`、`validate.sh`、`validate_native.sh`：本轮真实构建／验收命令。先复制并调整到新目录再用；构建脚本会从当前仓库复制源文件。客户端测试包含多组长截止时间，使用 900 秒总时限。
 - `inputs/full_server.scoop`、`inputs/protocol_server.scoop`、`inputs/fresh_server.scoop`：完整服务、协议和每次新建响应的固定工作负载。
-- `screen.py`、`screen_fresh.py`、`extend.py`、`run.py`、`latency.lua`：测量入口；每个样本在 `results/<配置>/result.json`，另有原始 wrk、stdout／stderr。路径已存在时拒绝覆盖，重跑要用新目录或新的 mode。
+- `screen_combined.py`、`extend_combined.py`、`confirm_protocol.py`、`run.py`、`latency.lua`：测量入口；每个样本在 `results/<配置>/result.json`，另有原始 wrk、stdout／stderr。路径已存在时拒绝覆盖，重跑要用新目录或新的 mode。本轮未测 fresh 工作负载。
 - `verify_http.py`：1／2／4 worker、每组 32 客户端、大小与 GET／HEAD 交替的逐字节核验。
-- `count_responses.py`：独立 uprobes 计数，以同连接 1,000 个 GET 减 0 GET 控制；读取各自 symbols 并确认 ELF 中存在符号。其控制 ELF 为 B45 正式版；性能矩阵的 `scoop-policy-control` 则指向 B47 保留的 B45 原库重建程序。
-- `logs/test-scoop.http.log`、`logs/test-scoop.http.asyncio.log`、`logs/test-scoop.http.server.log`：633 项验收。`test-repeat-summary.json` 与 `logs/repeat-server-*` 保存隔离复跑，`logs/interim/` 和 `logs/control-test-server.log` 保留失败。
-- `manifest.json`、`summary.json`、`candidate.patch`、`source/`：产物来源、52 样本汇总、实现补丁和源码快照；`verification/`、`diagnostics/` 保存正文核验及计数，`cleanup.json` 记录清理范围。
-- `symbols-full-after`、`symbols-protocol-after`、`profile_instructions.py`、`attribute.py`、`partition.py` 与 `profiles/scoop-after-w1-small/`：最终候选的指令归因，归属脚本只配置了 B49 完整服务。注意内联和原生栈限制，不把子树与 self 重复相加。
+- `count_combined.py`、`diagnostics/count-summary.json`：同连接 1,000 GET 减 0 GET 的独立 HTTP 桥接、协程和 SQE 计数，使用各自 ELF／symbols。
+- `logs/test-*.log`、`validation-artifacts.json`、`bin/tests-*`：897 项验收及保留的五个测试 ELF。`check-tests-consumer-stale-client.log` 与 `test-scoop.http.client-timeout45.log` 保存已闭合的产物／脚本失败。
+- `manifest.json`、`summary.json`、`measurement-report.json`、`candidate.patch`、`source/`：产物来源、52 样本汇总、实现补丁和源码快照；`verification/`、`diagnostics/` 保存正文核验及计数，`cleanup.json` 记录清理范围。
+- `symbols-full-combined`、`symbols-protocol-combined`、`profile_cycles.py`、`attribute.py`、`partition.py` 与 `profiles/scoop-policy-combined-w*-small/`：最终候选的 cycles 归因。`scoop-after`／`protocol` 采样与对应旧别名属于 B49。注意内联和原生栈限制，不把子树与 self 重复相加。
 
 快速复测固定前后产物的例子（先把 `bench_next` 换成未使用目录）：
 
 ```sh
-bench_prior=/home/chenxu/benchmarks/http-improvements-20261112-round49
+bench_prior=/home/chenxu/benchmarks/http-improvements-20261112-round51
 bench_next=/home/chenxu/benchmarks/http-handoff-check
 mkdir "$bench_next"
 cp "$bench_prior/run.py" "$bench_prior/latency.lua" "$bench_next/"
@@ -247,7 +281,7 @@ cd "$bench_next"
 python3 - <<'PY'
 import run
 for repeat in range(2):
-    variants = ("scoop-before", "scoop-after")
+    variants = ("scoop-policy-control", "scoop-policy-combined")
     for variant in variants if repeat == 0 else reversed(variants):
         run.run_sample(variant, 1, "small", seconds=6, warmup=2,
                        repeat=repeat, mode="handoff-check")

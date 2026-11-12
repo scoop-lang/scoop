@@ -106,8 +106,8 @@ private suspend fun sendH1CompleteResponse(
     writeIdle: Duration?
 ) {
     try {
-        val body =
-            h1PreparedOperation<(H1Output, Array<Byte>), H1Output>(
+        val operation =
+            beginH1Operation<(H1Output, Array<Byte>)>(
                 state,
                 false,
                 {
@@ -138,15 +138,19 @@ private suspend fun sendH1CompleteResponse(
                     state.outgoing = Some(output)
                     (output, bytes)
                 },
-                suspend {
-                    prepared ->
-                    val(output, bytes) = prepared
-                    writeH1BufferedResponse(state, bytes, transfer)
-                    completeH1Output(state, output)
-                    output
-                },
                 writeIdle
             )
+        val body =
+            try {
+                operation.job.ensureActive()
+                val(output, bytes) = operation.prepared
+                writeH1BufferedResponse(state, bytes, transfer)
+                completeH1Output(state, output)
+                output
+            } catch (error: Throwable) {
+                failH1Operation(operation, error)
+            }
+        endH1Operation(operation)
         closeAfterH1Output(state, body)
     } finally {
         transfer.complete()

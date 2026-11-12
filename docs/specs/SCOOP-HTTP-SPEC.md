@@ -16,7 +16,7 @@ HTTP/1 使用 llhttp 9.4.3；HTTP/2 使用 nghttp2 1.70.0 的完整上游协议�
 
 ## 2. 消息、字段与错误
 
-HttpField 的构造参数为 `List<Byte>`，名称和值各取得独立 `Array<Byte>` 快照，另有 neverIndex。字段集合保留顺序和重复项；ASCII 大小写无关查询返回每一项，不合并 Set-Cookie 等同名值。字段值允许后端实际接受的非 ASCII／非 UTF-8 字节。文本转换由调用者通过已有编码 API 显式执行。
+HttpField 的构造参数为 `List<Byte>`，名称和值各取得不随源列表后续修改而变化的 `Array<Byte>` 快照，另有 neverIndex。消息和字段构造可直接保留已经不可变的 Array；其他 List 仍复制为 Array，不能保留可变源列表。字段集合保留顺序和重复项；ASCII 大小写无关查询返回每一项，不合并 Set-Cookie 等同名值。字段值允许后端实际接受的非 ASCII／非 UTF-8 字节。文本转换由调用者通过已有编码 API 显式执行。
 
 方法保留 token 字节。HTTP/1 request-target 保留原有字节；HTTP/2 的 scheme、authority、path 与 CONNECT authority 单独表达。响应有版本、状态码和字段；HTTP/1 保留实际 reason phrase，HTTP/2 没有该数据，不生成默认文本。正常接收的请求／响应头必须具备该消息所需信息，不能把未完成的字段块当作消息交付。
 
@@ -33,6 +33,8 @@ HttpException 的 isUnexpectedEof 明确表示该错误是否来自后端确认�
 ## 3. HTTP/1 接收
 
 Http1Decoder 的 client／server 工厂固定接收角色、选项和局部字段限制；对象实现 Closeable，调用者串行使用。receive 消费 NativeByteBuffer 中的实际前缀，nextEvent 取走已完成事件，endInput 明确交付 EOF。关闭后不能继续推进；关闭本身不执行 I/O。
+
+内部 native 桥接按已完成事件批次移交所有权；nextEvent 仍逐项、按原顺序交付 Request／Response、Data、Trailers、End 和 Switch，包括空 Trailers。尚未消费的批次与后续 receive 产生的事件分开保存，后续输入不能使正在转换的字段或正文指针失效。每项事件只在 native 存储仍有效时构造一次 managed 字节快照；批次耗尽或 decoder 关闭时统一释放 native 事件，部分消费后的关闭同样释放整个批次。已经返回的消息在后续 receive、endInput、resumeHttp1 和 close 后继续有效。批次取出和只读视图访问为有界、无分配、无阻塞、无回调的 GCLeaf 操作；解析与 native 内存释放仍使用普通 native 边界。
 
 receiveWithProgress 使用相同输入合同，返回 Http1ReceiveResult(count, startedMessages)。startedMessages 是本次消费中新开始的消息数，直接来自 llhttp 的 message-begin 回调，信息响应与最终响应分别计数；部分起始行也会开始一条消息，不必等到完整头部。零输入返回两个零，普通 receive 与该入口可以交替使用；已经由普通 receive 消费的开始不在下一次重报。该计数不改变消息事件，也不另行解析起始行或推测响应边界。
 
@@ -156,6 +158,8 @@ prepareHttp2Upgrade 为普通 HTTP/1.1 请求添加升级字段，显式拒绝 C
 异步入口使用 takeOwnership 命名，固定 EventLoop 归属，并接收实际结构化生命周期所需的 CoroutineScope。配置、参数、活动 Job 和登记前取消检查失败时，传输仍归调用者。成功登记后接管，后续失败关闭未交付的连接与 native 状态。交付后不得绕过 HTTP 包装层并发使用传输。
 
 H1 按顺序关联请求与响应，同一方向只允许一个消息 body 操作；未定界完成的 body 不能作为下一条消息。关闭或取消未消费完的 body 关闭连接，不执行无界自动 drain。信息响应不结束对应请求。H2 用 stream ID 分开关联请求、响应和双向 body，单流可以独立结束或取消。
+
+H1 操作在同一次连接状态边界完成同步准备、占用方向和安装本次 idle 状态；准备失败不留下在途操作。取消监听覆盖随后的实际 I/O，操作返回前撤销监听，并在同一次状态边界释放方向和 idle 状态。开始与结束的同步管理不要求另建挂起调用层；失败仍先保留已选择的取消／超时原因，再等待传输和借用的实际收尾。正常操作结束只在连接已经关闭中时推进关闭过程。
 
 AsyncHttp1Connection 的 takeOwnershipAsClient／takeOwnershipAsServer 接收传输与 CoroutineScope。sendRequest／sendResponse 返回 AsyncHttp1Writer，每条消息用 finish 完成；receiveRequest 在正常 EOF 返回 None，receiveResponse 逐条交付信息／最终响应及 AsyncHttp1Body。body 在消费完数据及结束标记后公开已完成状态和 trailer，之后读取返回零；显式 close 未完成的 body 会关闭连接。服务端按接收顺序使用对应请求方法发送响应，拒绝升级后恢复 HTTP/1；接受切换后通过 takeTransport 移交前缀及传输。H1 的实际读写属于调用操作的 Job，连接另登记一个负责存活与本地关闭的 scope 子任务。
 

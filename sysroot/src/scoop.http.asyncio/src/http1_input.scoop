@@ -9,13 +9,17 @@ import scoop.time.Duration
 internal suspend fun nextH1Event(state: H1State): Http1Event? {
     while (true) {
         val ready = state.lock.withLock { state.events.removeFirstOrNone() }
-        if (present(ready)) return ready
-        val ended = state.lock.withLock {
-            h1Open(state)
-            if (state.decoder.isSwitched) throw IllegalStateException(Some("HTTP/1 transport has switched protocols"))
-            state.inputEnded
-        }
-        if (ended) return None
+        if (present(ready))
+            return ready
+        val ended =
+            state.lock.withLock {
+                h1Open(state)
+                if (state.decoder.isSwitched)
+                    throw IllegalStateException(Some("HTTP/1 transport has switched protocols"))
+                state.inputEnded
+            }
+        if (ended)
+            return None
         if (state.input.readableBytes == 0L) {
             state.input.clear()
             val requested = state.input.writableBytes
@@ -25,8 +29,12 @@ internal suspend fun nextH1Event(state: H1State): Http1Event? {
             progressH1Io(state, true, count > 0L)
             state.lock.withLock {
                 h1Open(state)
-                if (count > 0L && state.captureTimings) state.inputReceivedAt = Some(MonotonicTimeSource.markNow())
-                if (count == 0L) { state.inputEnded = true; state.decoder.endInput() }
+                if (count > 0L && state.captureTimings)
+                    state.inputReceivedAt = Some(MonotonicTimeSource.markNow())
+                if (count == 0L) {
+                    state.inputEnded = true;
+                    state.decoder.endInput()
+                }
                 Unit
             }
         }
@@ -35,12 +43,15 @@ internal suspend fun nextH1Event(state: H1State): Http1Event? {
             if (state.input.readableBytes != 0L) {
                 if (state.captureTimings) {
                     val received = state.decoder.receiveWithProgress(state.input)
-                    for (_ in 0L..<received.startedMessages) state.responseStarts!!.addLast(state.inputReceivedAt!!)
-                } else state.decoder.receive(state.input)
+                    for (_ in 0L ..< received.startedMessages)
+                        state.responseStarts!!.addLast(state.inputReceivedAt!!)
+                } else
+                    state.decoder.receive(state.input)
             }
             while (true) {
                 val event = state.decoder.nextEvent()
-                if (!present(event)) break
+                if (!present(event))
+                    break
                 state.events.addLast(event!!)
             }
         }
@@ -49,87 +60,157 @@ internal suspend fun nextH1Event(state: H1State): Http1Event? {
 
 internal fun advanceH1End(state: H1State, body: H1Input) {
     while (true) {
-        val (changed, ended) = state.lock.withLock {
-            if (present(body.bytes) || state.events.size == 0L) return@withLock (false, false)
-            when (state.events.firstOrNone()!!) {
-                case Trailers(val fields) -> { state.events.removeFirst(); body.trailers = Some(fields); (true, false) }
-                case End(val keepAlive) -> {
-                    state.events.removeFirst()
-                    body.keepAlive = keepAlive
-                    body.life.completed = true
-                    resumeH1AfterRejection(state, body)
-                    state.incoming = None;
-                    (true, true)
+        val(changed, ended) =
+            state.lock.withLock {
+                if (present(body.bytes) || state.events.size == 0L)
+                    return@withLock (false, false)
+                when (state.events.firstOrNone()!!) {
+                    case Trailers(val fields) -> {
+                        state.events.removeFirst();
+                        body.trailers = Some(fields);
+                        (true, false)
+                    }
+                    case End(val keepAlive) -> {
+                        state.events.removeFirst()
+                        body.keepAlive = keepAlive
+                        body.life.completed = true
+                        resumeH1AfterRejection(state, body)
+                        state.incoming = None;
+                        (true, true)
+                    }
+                    else -> (false, false)
                 }
-                else -> (false, false)
             }
+        if (ended) {
+            completeH1Body(state, body.life);
+            return
         }
-        if (ended) { completeH1Body(state, body.life); return }
-        if (!changed) return
+        if (!changed)
+            return
     }
 }
 
 internal fun resumeH1AfterRejection(state: H1State, body: H1Input) {
-    if (!body.responseFinished || !body.life.completed || !state.decoder.isSwitched || state.encoder.isSwitched) return
+    if (
+        !body.responseFinished ||
+            !body.life.completed ||
+            !state.decoder.isSwitched ||
+            state.encoder.isSwitched
+    )
+        return
     state.decoder.resumeHttp1()
     if (state.events.size != 0L) {
-        val switched = when (state.events.firstOrNone()!!) { case Switch -> true; else -> false }
-        if (switched) state.events.removeFirst()
+        val switched =
+            when (state.events.firstOrNone()!!) {
+                case Switch -> true;
+                else -> false
+            }
+        if (switched)
+            state.events.removeFirst()
     }
 }
 
 private fun requireH1Head(state: H1State, role: HttpRole) {
-    if (state.decoder.role != role) throw IllegalStateException(Some("wrong HTTP/1 receive role"))
-    if (present(state.incoming)) throw IllegalStateException(Some("previous HTTP/1 body is not complete"))
-    if (role == HttpRole.Client && state.clientPending == 0L) throw IllegalStateException(Some("no HTTP/1 request is awaiting a response"))
+    if (state.decoder.role != role)
+        throw IllegalStateException(Some("wrong HTTP/1 receive role"))
+    if (present(state.incoming))
+        throw IllegalStateException(Some("previous HTTP/1 body is not complete"))
+    if (role == HttpRole.Client && state.clientPending == 0L)
+        throw IllegalStateException(Some("no HTTP/1 request is awaiting a response"))
 }
 
-private fun incomingH1(state: H1State, readIdle: Duration?, finalResponse: Boolean = false): H1Input {
+private fun incomingH1(
+    state: H1State,
+    readIdle: Duration?,
+    finalResponse: Boolean = false
+): H1Input {
     val body = H1Input(finalResponse, readIdle)
     state.lock.withLock { state.incoming = Some(body) }
     advanceH1End(state, body)
-    if (!body.life.completed) listenH1Body(state, body.life, httpJob(state.loop, true))
+    if (!body.life.completed)
+        listenH1Body(state, body.life, httpJob(state.loop, true))
     return body
 }
 
-internal suspend fun receiveH1Request(state: H1State, readIdle: Duration?): Http1IncomingRequest? =
-    h1Operation<Http1IncomingRequest?>(state, true, { requireH1Head(state, HttpRole.Server) }, suspend {
-        val next = nextH1Event(state)
-        if (!present(next)) return@h1Operation None
-        when (next!!) {
-            case Request(val head) -> {
-                val body = incomingH1(state, readIdle)
-                state.lock.withLock { state.requests.addLast(H1RequestContext(head.method, body)) }
-                Some(Http1IncomingRequest(head, AsyncHttp1Body(state, body)))
-            }
-            else -> throw IllegalStateException(Some("expected an HTTP/1 request head"))
-        }
-    }, readIdle)
-
-internal suspend fun receiveH1Response(state: H1State, readIdle: Duration?): Http1IncomingResponse =
-    h1Operation<Http1IncomingResponse>(state, true, { requireH1Head(state, HttpRole.Client) }, suspend {
-        val next = nextH1Event(state)
-        if (!present(next)) throw UnexpectedEofException()
-        when (next!!) {
-            case Response(val head) -> {
-                if (head.status >= 200U || head.status == 101U) state.lock.withLock { state.clientPending -= 1L }
-                val firstByteAt = state.lock.withLock {
-                    if (state.captureTimings) Some(state.responseStarts!!.removeFirst()) else None
+internal suspend fun receiveH1Request(state: H1State, readIdle: Duration?): Http1IncomingRequest? {
+    val operation =
+        beginH1Operation<Unit>(state, true, { requireH1Head(state, HttpRole.Server) }, readIdle)
+    val result =
+        try {
+            operation.job.ensureActive()
+            val next = nextH1Event(state)
+            if (!present(next))
+                None
+            else
+                when (next!!) {
+                    case Request(val head) -> {
+                        val body = incomingH1(state, readIdle)
+                        state.lock.withLock {
+                            state.requests.addLast(H1RequestContext(head.method, body))
+                        }
+                        Some(Http1IncomingRequest(head, AsyncHttp1Body(state, body)))
+                    }
+                    else -> throw IllegalStateException(Some("expected an HTTP/1 request head"))
                 }
-                Http1IncomingResponse(head, AsyncHttp1Body(state, incomingH1(state, readIdle, head.status >= 200U || head.status == 101U)), firstByteAt)
-            }
-            else -> throw IllegalStateException(Some("expected an HTTP/1 response head"))
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
         }
-    }, readIdle)
+    endH1Operation(operation)
+    return result
+}
+
+internal suspend fun receiveH1Response(state: H1State, readIdle: Duration?): Http1IncomingResponse {
+    val operation =
+        beginH1Operation<Unit>(state, true, { requireH1Head(state, HttpRole.Client) }, readIdle)
+    val result =
+        try {
+            operation.job.ensureActive()
+            val next = nextH1Event(state)
+            if (!present(next))
+                throw UnexpectedEofException()
+            when (next!!) {
+                case Response(val head) -> {
+                    if (head.status >= 200U || head.status == 101U)
+                        state.lock.withLock { state.clientPending -= 1L }
+                    val firstByteAt =
+                        state.lock.withLock {
+                            if (state.captureTimings)
+                                Some(state.responseStarts!!.removeFirst())
+                            else
+                                None
+                        }
+                    Http1IncomingResponse(
+                        head,
+                        AsyncHttp1Body(
+                            state,
+                            incomingH1(state, readIdle, head.status >= 200U || head.status == 101U)
+                        ),
+                        firstByteAt
+                    )
+                }
+                else -> throw IllegalStateException(Some("expected an HTTP/1 response head"))
+            }
+        } catch (error: Throwable) {
+            failH1Operation(operation, error)
+        }
+    endH1Operation(operation)
+    return result
+}
 
 internal suspend fun closeAfterH1Input(state: H1State, body: H1Input) {
-    val close = state.lock.withLock {
-        if (state.closed || !body.life.completed || state.decoder.isSwitched) false
-        else if (state.decoder.role == HttpRole.Client) {
-            if (body.finalResponse && (!body.keepAlive || state.encoder.mustClose)) state.closeAfterOutput = true
-            state.closeAfterOutput && !present(state.outgoing)
+    val close =
+        state.lock.withLock {
+            if (state.closed || !body.life.completed || state.decoder.isSwitched)
+                false
+            else
+                if (state.decoder.role == HttpRole.Client) {
+                    if (body.finalResponse && (!body.keepAlive || state.encoder.mustClose))
+                        state.closeAfterOutput = true
+                    state.closeAfterOutput && !present(state.outgoing)
+                }
+                else
+                    body.responseFinished && !body.keepAlive
         }
-        else body.responseFinished && !body.keepAlive
-    }
-    if (close) closeH1(state)
+    if (close)
+        closeH1(state)
 }
