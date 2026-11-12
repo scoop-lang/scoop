@@ -332,7 +332,6 @@ uint64_t scoop_rt_thread_debug_gc_epoch(void);
 uint64_t scoop_rt_thread_debug_last_gc_parked_count(void);
 uint64_t scoop_rt_thread_debug_last_gc_native_safe_count(void);
 uint64_t scoop_rt_thread_debug_caller_root_count(void);
-uint64_t scoop_rt_thread_debug_compiler_root_count(void);
 uint64_t scoop_rt_thread_debug_transition_depth(void);
 
 /* Read-only raw process arguments, available during eager initialization. */

@@ -61,10 +61,6 @@ pub(super) fn protocol_entries(module: &mir::Module) -> Vec<bool> {
     excluded
 }
 
-pub(super) fn supported(function: &mir::Function) -> bool {
-    executable(function) && supported_blocks(function.body.blocks.iter().map(|(_, b)| b))
-}
-
 pub(super) fn executable(function: &mir::Function) -> bool {
     function.body.blocks.iter().any(|(_, block)| {
         !block.statements.is_empty() || !matches!(block.terminator, mir::Terminator::Unreachable)

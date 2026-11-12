@@ -5,6 +5,7 @@ pub(super) fn inline(outcome: InlineOutcome) -> &'static str {
     match outcome {
         InlineOutcome::Inlined => "inlined",
         InlineOutcome::ClassFields => "inlined-with-class-fields",
+        InlineOutcome::KnownClosure => "inlined-known-closure",
         InlineOutcome::Required => "required-expansion",
         InlineOutcome::Profitability => "not-profitable",
         InlineOutcome::CallerGrowth => "caller-growth",

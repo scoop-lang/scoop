@@ -46,6 +46,7 @@ pub enum OptimizationDecision {
 pub enum InlineOutcome {
     Inlined,
     ClassFields,
+    KnownClosure,
     Required,
     Profitability,
     CallerGrowth,

@@ -1470,3 +1470,36 @@ H1 输出适配器仅保留协议连接与当前消息；server 派生适配器�
 两个新程序通过格式、静态检查、release 构建和 **784 个**专门网络响应验证；三份补丁均通过 `git apply --check`，逐字节重建已测源码。**44 个无仪表样本、71,544,259 个测量请求**无 wrk 错误；计数的 4,000 个响应和 CPU 采样另行运行，不计入这组性能数据。首次验证因未创建输出父目录而在启动服务前退出，补齐目录后通过；归因脚本的一项 Ruff 风格问题也已修正。没有生产代码变更，未重跑全部 Cone／Rust／CLI fixture、大响应性能、Gin／Axum 或其他平台验收，历史 SSE 和 B51 协议回退仍未闭合。
 
 固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round56`，保留两个新 ELF／symbols、原固定产物链接、脚本、原始结果、计数、CPU 栈及按声明归组的报告。分组核对保留了全部 51,994 个样本且不重复计数。按约定先提交本轮诊断、合并远端 main 并推送、清理本轮 cache／target，再继续组合优化实验；用户两项未跟踪脚本保持。
+
+## 第五十七轮：保留根表、闭包展开与挂起调用合并的组合收益
+
+从 `459ccd13f` 开始。B54～B56 已量出协议、应用与请求作用域的分散成本，B56 根登记 self 为约 9%～10%。按用户要求，找不到单一大头时将主要几项整体优化；本轮在相同源码底座构建 control／candidate 两套编译器、四种 runtime 和 18 个系统库，HTTP 程序源码保持一致。两套都使用 B28 源码构建且带私有补丁的 LLVM 22.1.8，不以旧 B34 CLI 与新 CLI 混做对照。**三项组合有确认收益，全部保留；当前正式 SDK 和配套 CLI 转为 B57。** 即使收益较小也应保留已验证的通用改进，同时在下一轮重新排序瓶颈。
+
+先同步实现／runtime 规范，再完成三项相互配合的改动：
+
+- managed invoke 的 canonical root regions 通过栈内 `{entries, count}` 表登记到机器栈映射，正常与异常后继重读 GC 更新后的 storage。删去旧 compiler-root 线程链、push／pop helper 及重复扫描；native caller roots 保留。statepoint 使用单个 Direct deopt 位置且 gc-live 为零，compact root 标记区分普通引用槽和 16-byte 表。三个目标 frame walker 及活动／冻结栈段扫描同步；runtime 合同升至 **35**、metadata 升至 **12**，配套产物全部重建。
+- 同步闭包只在精确 typed invoke 或参数仅经局部别名作为同步 invoke receiver 使用的 wrapper 上获得展开优先级。观察身份、保存、返回、取址或传递给其他调用不会获此优先级；caller／loop 的累计增长、六层深度、递归及 EH／ABI 合法性仍按普通规则执行。旧 B35 的粗放成本豁免没有恢复。
+- 源级 suspend CFG 合并允许真实挂起、yield、EH 和 pending cleanup，复用普通克隆的 local／block／exception 映射，移动注册 receiver／destination 和清理链，保持共享插入位置的语义顺序。增长按实际复制体积累计，递归不展开；合并后才生成 completion／step ABI 与状态机，yield 仍强制排队。没有另建 continuation ABI 或按 HTTP 函数名特殊处理。
+
+对照源码为 B52 手写起点、B52 `connection` 和 B53 三路径完整 server；这里的协议程序仍不是 B51 原版协议 ELF。64 连接、独立绑核、TCP_NODELAY、默认 GC，预热 2 秒＋测量 8 秒，正反各一次，全部成功样本纳入中位数。CPU 单位 μs/请求：
+
+| 负载 | 单 worker CPU：前 → 后 | 四 worker CPU：前 → 后 | 吞吐变化：单／四 worker |
+| --- | --- | --- | --- |
+| 1 KiB 手写 TCP | 5.160 → 4.451（−13.7%） | 6.907 → 6.049（−12.4%） | +16.0%／+18.6% |
+| 1 KiB 正式协议连接 | 9.095 → 8.025（−11.8%） | 11.923 → 10.845（−9.0%） | +13.4%／+7.2% |
+| 1 KiB 完整 server | 18.642 → 16.338（−12.4%） | 22.435 → 20.007（−10.8%） | +14.2%／+12.0% |
+| 64 KiB 完整 server | 30.961 → 28.788（−7.0%） | 36.116 → 32.510（−10.0%） | +7.8%／+11.0% |
+
+完整 server 小响应吞吐 **53,579→61,211／161,797→181,267 req/s**，P80 **1,431.5→1,282.5／603.0→544.5 μs**。单 worker 的手写／协议／完整 server 每请求分配分别为约 **2,302→1,846／6,576→5,360／14,863→13,085 bytes**，四 worker 的比例改善相近；大响应完整 server 分配下降约 11.3%，P80 下降约 6.7%／9.8%。分配量不等于存活量；手写 RSS 高约 1%～2.6%，完整 server RSS 低约 1%～2.8%。GNU size 的 text 段由 **3,346,094→3,172,198／11,339,932→11,124,020／17,727,215→17,375,027 bytes**，分别缩小约 **5.2%／1.9%／2.0%**。
+
+**40 个无仪表样本、64,827,820 个测量请求**无 wrk 错误；六个程序的单／四 worker 另逐字节核验 **2,352 个**分段、pipeline、并发大小 GET／HEAD 响应。性能与构建、测试、profiler 均分开运行，GC 参数和策略没有调整。只测三项组合，不能给出当前底座下各项独立收益，也不能相加历史百分比。
+
+Rust 格式与 workspace clippy 通过，保留仓库已有风格警告；变更 C 代码格式及 `-Wall -Wextra -Werror` 检查通过。MIR **213**、LIR **380**、slib **270** 项通过；codegen 首次 **400／410** 通过，修正后相关 **39** 项复测全部通过，覆盖的十项失败均闭合。六个 MIR 函数编号快照漂移在未修改 control 完全复现，仅同步编号；ABI／metadata 固定向量随合同更新，原已为 192-byte 的 image 测试不再按过时的 208-byte 读取。根表测试补齐必需的 slot callback，保留位测试改用仍保留的 bit 2；原始失败日志均保留，没有跳过测试。
+
+CLI 编译器组合 **8 组／13 变体／36 进程**，GC **5 组／9 变体／26 进程**通过，覆盖 invoke、异常根、深帧、interface、native callback 重入和异常。新增 fused-calls fixture 覆盖真实挂起、Context、返回值、finally 中再次挂起、pending 返回、break／continue 及多个 Unit 注册；普通 debug／release 通过，另在 debug／release × moving／minor 四次定向运行通过。普通 release Cone 测试为 concurrent **78**、asyncio **190**、http **313**、http.asyncio **164**、http.server **167**，合计 **912** 项通过。
+
+优化后完整 server 的单／四 worker 用户态 cycles 采样为 **6,904／24,193**，合计 **31,097**。沿唯一 native 调用边归属生成 driver／adapter，再按 typed template identity 合并 self；无法归属的生成代码与 native 保持独立，全部样本只计一次。旧 compiler-root push／pop 符号与热点已移除；最大的单个 HTTP 声明仅约 **2.82%／2.29%**。进一步按声明的精确 source Cone 身份聚合，server 为 **19.82%／19.83%**、concurrent 为 **18.03%／16.67%**、HTTP asyncio 为 **11.28%／10.87%**；这些是多个功能的执行成本，不是全部可消除的开销，不与 inclusive 子树相加。
+
+新完整 server 小响应 CPU 仍为同轮 Go 的 **2.29／2.29 倍**，大响应为 **2.10／1.98 倍**。下一轮先在新底座重测请求执行／分派和协议连接的组合增量，追踪仍约 13.1 KB/请求的分配来源，再选最大的实际成本；不沿根登记或 Job 父子关系继续细磨。没有重跑所有 Rust crate、全部 fixture、所有库、Gin／Axum 或其他平台实机验收。历史 SSE 根因和 B51 原版协议四 worker 回退仍未据此关闭。
+
+固定目录为 `/home/chenxu/benchmarks/http-improvements-20261113-round57`。正式资源为 `candidate/sysroot` 与 `toolchain/bin`，同源码 control 为 `control/sysroot` 与 `control-tools/bin`；保留六个 ELF、符号、输入、候选补丁、原始日志、全部结果和 profiler 数据。CLI 的版本字符串记录构建底座 `459ccd13f`，候选具体变更由 `patches/candidate.patch` 和 manifest 标明。构建／验收脚本保留当时命令；复用时在新目录恢复对应源码并调整路径。按约定先提交、合并远端 main 并推送，再清理本轮临时 worktree、Cargo／Cone cache、target 和准备目录；用户两项未跟踪脚本保持。

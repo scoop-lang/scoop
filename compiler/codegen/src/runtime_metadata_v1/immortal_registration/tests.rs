@@ -39,7 +39,7 @@ fn emits_strong_descriptor_with_object_and_type() {
         .unwrap()
         .into_struct_value();
     assert_eq!(constant_u64(prefix, 0), IMMORTAL_OBJECT_DESCRIPTOR_MAGIC);
-    assert_eq!(constant_u64(prefix, 1), 11);
+    assert_eq!(constant_u64(prefix, 1), 12);
     assert_eq!(constant_u64(prefix, 2), IMMORTAL_OBJECT_DESCRIPTOR_SIZE);
     let identity = initializer
         .get_field_at_index(1)

@@ -11,6 +11,45 @@ use super::*;
 mod compact_gc;
 
 #[test]
+fn invoke_region_table_preserves_direct_location_and_compact_kind() {
+    let expected = semantic_plan_for(SafepointSiteRole::ManagedInvoke, 0);
+    let table = ProvisionalLlvmStackmapLocationV3::new(LOCATION_DIRECT, 8, 7, 24);
+    let mut record = provisional(
+        expected,
+        vec![constant(8, 0), constant(8, 0), constant(8, 1), table],
+        Vec::new(),
+    );
+    record.header.stack_size = 56;
+    let normalized =
+        normalize_record(StackmapFrame::SysvAmd64Fixed, expected, &[], record).unwrap();
+    assert_eq!(normalized.canonical().root_pair_count(), 0);
+    let bytes = crate::link_object::compact_gc::codec::encode(
+        StackmapFrame::SysvAmd64Fixed,
+        std::iter::once(&normalized),
+    )
+    .unwrap();
+    assert_eq!(&bytes[48..], &[1, 0, 0, 0, 26, 0, 0, 0]);
+}
+
+#[test]
+fn invoke_region_table_requires_direct_address_and_complete_frame_extent() {
+    let expected = semantic_plan_for(SafepointSiteRole::ManagedInvoke, 0);
+    for location in [
+        ProvisionalLlvmStackmapLocationV3::new(LOCATION_INDIRECT, 8, 7, 0),
+        ProvisionalLlvmStackmapLocationV3::new(LOCATION_DIRECT, 8, 7, 8),
+        ProvisionalLlvmStackmapLocationV3::new(LOCATION_DIRECT, 8, 0, 0),
+    ] {
+        let mut record = provisional(
+            expected,
+            vec![constant(8, 0), constant(8, 0), constant(8, 1), location],
+            Vec::new(),
+        );
+        record.header.stack_size = 24;
+        assert!(normalize_record(StackmapFrame::SysvAmd64Fixed, expected, &[], record).is_err());
+    }
+}
+
+#[test]
 fn windows_roots_preserve_offsets_for_seh_reconstructed_registers() {
     let expected = semantic_plan(1);
     for (register, offset) in [(7, 32), (6, 16384), (6, -128)] {
@@ -396,8 +435,11 @@ fn root(offset: i32) -> ProvisionalLlvmStackmapLocationV3 {
 }
 
 fn semantic_plan(root_pair_count: u32) -> ExpectedStackmapSemanticsV1 {
+    semantic_plan_for(SafepointSiteRole::ManagedPoll, root_pair_count)
+}
+
+fn semantic_plan_for(role: SafepointSiteRole, root_pair_count: u32) -> ExpectedStackmapSemanticsV1 {
     let owner = callable_body("siteOwner");
-    let role = SafepointSiteRole::ManagedPoll;
     let site = PersistentSafepointSiteId::from_key(&SafepointSiteKey::new(owner, role, 0)).unwrap();
     ExpectedStackmapSemanticsV1 {
         site,

@@ -19,7 +19,7 @@
       assign $new.1
         Type ClassCastException
         ClassAlloc ClassCastException
-      call @fn25 direct
+      call @fn28 direct
         Type ClassCastException
         Local $new.1
       call $prepared.throwable: ClassCastException = @scoop_rt_prepare_throwable direct

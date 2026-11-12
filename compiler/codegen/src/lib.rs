@@ -21,8 +21,8 @@
 //! `SafepointId`, and protocol-specific root plan. Managed pointers become
 //! LLVM AS1 while raw/code/metadata pointers stay AS0. Ordinary calls and
 //! polls go through RS4GC after SROA; managed invokes use explicit zero-live
-//! statepoints plus compiler-root frames because LLVM cannot relocate the
-//! exceptional edge. Codegen consumes these plans mechanically and never
+//! statepoints plus stack-mapped root region tables because LLVM cannot
+//! relocate the exceptional edge. Codegen consumes these plans mechanically and never
 //! rediscovers CFG liveness. Every `HeapStore` / `ArraySet` still emits the
 //! monotonic card mark reserved for a future generational collector.
 

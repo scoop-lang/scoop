@@ -12,7 +12,7 @@ pub(super) struct Handler {
 pub(super) fn separate_entries(
     function: &mut mir::Function,
     ancestry: &mut Vec<Vec<Target>>,
-) -> bool {
+) -> Vec<(mir::BlockId, mir::BlockId)> {
     let pads = function
         .body
         .blocks
@@ -25,7 +25,7 @@ pub(super) fn separate_entries(
             .then_some(id)
         })
         .collect::<Vec<_>>();
-    let mut changed = false;
+    let mut moved = Vec::new();
     for pad in pads {
         let block = &mut function.body.blocks[pad];
         if block.statements.len() == 1 && matches!(block.terminator, mir::Terminator::Goto(_)) {
@@ -41,9 +41,9 @@ pub(super) fn separate_entries(
         let continuation = function.body.blocks.alloc(body);
         ancestry.push(ancestry[index(pad)].clone());
         function.body.blocks[pad].terminator = mir::Terminator::Goto(continuation);
-        changed = true;
+        moved.push((pad, continuation));
     }
-    changed
+    moved
 }
 
 pub(super) fn handler(function: &mir::Function, pad: mir::BlockId) -> Handler {

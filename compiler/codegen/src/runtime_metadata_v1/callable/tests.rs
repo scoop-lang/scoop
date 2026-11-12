@@ -51,7 +51,7 @@ fn emits_strong_record_identity_and_entry() {
         constant_u64(prefix, 0),
         CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC
     );
-    assert_eq!(constant_u64(prefix, 1), 11);
+    assert_eq!(constant_u64(prefix, 1), 12);
     assert_eq!(
         constant_u64(prefix, 2),
         CALLABLE_REGISTRATION_DESCRIPTOR_SIZE

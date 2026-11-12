@@ -20,6 +20,27 @@ static void replace_root(void **slot, void *raw_state) {
     state->visits++;
 }
 
+typedef struct RegionState {
+    const ScoopCallerRootEntry *entries;
+    void *replacement;
+    uint64_t visits;
+} RegionState;
+
+static void unexpected_slot(void **slot, void *context) {
+    (void)slot;
+    (void)context;
+    assert(0 && "a region table must not be visited as a single reference slot");
+}
+
+static void replace_region(void *base, const uint64_t *scan, void *raw_state) {
+    RegionState *state = raw_state;
+    assert(state->visits < 2);
+    assert(base == state->entries[state->visits].base);
+    assert(scan == state->entries[state->visits].scan);
+    *(void **)base = state->replacement;
+    state->visits++;
+}
+
 int main(void) {
     ScoopStackMapIndex index = scoop_test_stackmaps();
     scoop_gc_stackmaps_init(&index);
@@ -68,6 +89,41 @@ int main(void) {
     memcpy(&updated, &stack[0], sizeof updated);
     assert(state.visits == 1);
     assert(updated == replacement);
+
+    static const struct {
+        ScoopCallableGcMapV1 map;
+        ScoopGcSiteV1 site;
+        uint32_t roots[2];
+    } regions = {
+        .map = {{SCOOP_CALLABLE_GC_MAP_MAGIC_V1, SCOOP_RUNTIME_METADATA_ABI_VERSION_V1, 32},
+                32,
+                1,
+                2},
+        .site = {1, 0x10, 0},
+        .roots = {1, 2},
+    };
+    index.records[0] = (ScoopGcPcEntry){0x1010, &regions.map, &regions.site};
+    ScoopPlatformError error = {0};
+    assert(scoop_platform_bundle()->managed_frames->validate_record(&index.records[0], &error));
+    uint64_t scans[2] = {0, 0};
+    void *values[2] = {original, original};
+    ScoopCallerRootEntry entries[2] = {{&values[0], &scans[0]}, {&values[1], &scans[1]}};
+    ScoopStackRootTable table = {entries, 2};
+    memcpy(&stack[0], &table, sizeof table);
+    RegionState region_state = {entries, replacement, 0};
+    visitor = (ScoopGcRootVisitor){
+        .visit_slot = unexpected_slot, .visit_region = replace_region, .context = &region_state};
+    scoop_gc_visit_managed_stack(&thread, visitor);
+    assert(region_state.visits == 2);
+    assert(values[0] == replacement && values[1] == replacement);
+
+    values[0] = original;
+    values[1] = original;
+    region_state.visits = 0;
+    scoop_gc_visit_managed_segment(&thread, anchor.return_pc, anchor.stack_pointer,
+                                   anchor.frame_pointer, boundary, visitor);
+    assert(region_state.visits == 2);
+    assert(values[0] == replacement && values[1] == replacement);
 
     scoop_stackmap_dispose_index(&index);
     puts("exact stack root walk passed");

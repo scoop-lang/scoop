@@ -223,7 +223,7 @@ unit 由 `PersistentInitializationUnitId` 标识；diagnostic path 只用于显�
 
 ### 2.8 多 image 登记与启动 ABI
 
-runtime ABI contract 为 **34**，metadata ABI 为 **11**。contract 34／metadata 11 将机器根保存为 callable 引用的紧凑 GC 表，取消独立 safepoint registration 和运行时 LLVM stackmap 解析；compiler、runtime、系统库及机器产物须配套重建。contract 33 将 9.2 的 TaskContext 扩为 binding root 与 execution 两个 managed 字段；metadata 记录格式不变，compiler、runtime 与系统库机器正文须配套重建。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 11`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
+runtime ABI contract 为 **35**，metadata ABI 为 **12**。contract 35／metadata 12 将 managed invoke 的引用 region 表交由实际返回 PC 的栈映射描述，取消每次 invoke 的线程根链登记与退出清理；compiler、runtime、系统库及机器产物须配套重建。contract 34／metadata 11 将机器根保存为 callable 引用的紧凑 GC 表，取消独立 safepoint registration 和运行时 LLVM stackmap 解析；compiler、runtime、系统库及机器产物须配套重建。contract 33 将 9.2 的 TaskContext 扩为 binding root 与 execution 两个 managed 字段；metadata 记录格式不变，compiler、runtime 与系统库机器正文须配套重建。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 12`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
 
 | descriptor | magic | size（bytes） |
 | --- | --- | --- |
@@ -343,7 +343,7 @@ scan kind 为 None=0 或 Recursive=1；scan choice 为 `Empty=0 | Program=1 { sc
 
 `PersistentCallableBodyId = SHA-256(ByteSpan("scoop-callable-body-v2") || canonical(CallableBodyKey))`。key 的 u32 tag 与字段为 Strong=1 `{owner}`、Odr=2 `{member}`、RootGateway=3 `{root_cone, main_body_id}`、InitializationStartupGateway=4 `{unit_id}`、ReleaseHook=5 `{owner_exact_type_id}`。这些 body 的身份不能互换。身份与内容摘要由编译、链接过程生成；runtime 使用实际登记记录及引用，不重新生成摘要，也不以摘要非零断言替代实际索引和引用处理。
 
-LLVM stackmap v3 只作为机器生产边界的输入。reader 保留实际函数重定位、instruction offset、stack size、完整 location／live-out 顺序及其格式检查。每对 root 是同一 8-byte、8-byte 对齐的 SP/FP Indirect 可写槽，前三项为 8-byte Constant；location 数为 `3 + 2 * root_pair_count`。物理根数来自实际 RS4GC／机器结果，可能与逻辑 leaf 数不同；invoke 和 native transition 的机器 gc-live 为零，仍保留其 site。
+LLVM stackmap v3 只作为机器生产边界的输入。reader 保留实际函数重定位、instruction offset、stack size、完整 location／live-out 顺序及其格式检查。每对 gc-live root 是同一 8-byte、8-byte 对齐的 SP/FP Indirect 可写槽，前三项为 8-byte Constant。第三项为 deopt operand 数：普通 call／poll／native transition 为 0；带引用根的 ManagedInvoke 为 1，紧随其后的 Direct SP/FP location 指向本帧的 16-byte root region table，无引用根的 invoke 为 0。其后才是 gc-live root pairs，location 数为 `3 + deopt_count + 2 * root_pair_count`。root_pair_count 继续只统计实际机器 gc-live pairs，不把 table 中的 region 数量当作 pairs。invoke 和 native transition 的机器 gc-live 为零，仍保留其 site；其他位置或 role 的 deopt 数据不属于该合同。
 
 机器生产边界核对实际 site 的 owner、role、root count 和 frame 合同，再物化紧凑表。完整 `PersistentSafepointSiteId`、owner／role／ordinal 与非零 `SafepointId` 映射继续保存在现有 LIR foundation；最终链接从中投影并检查所选 body 的实际 site，不比较不同优化候选的 site 全集。runtime 不重复身份、ODR 或 raw record／登记的 join。
 
@@ -353,7 +353,7 @@ site_count 非零，site 按 instruction_offset 严格递增，ID 非零；retur
 
 每个布局为一个 u32 root_count 和紧随其后的 root_count 个 u32 位置。layout_word_offset 以布局区起点为基准、按 word 计数，必须指向布局的 count word。同一函数内完全相同的有序根序列共享布局，按 site 首次使用顺序放置；不合并序列内的重复槽。零根布局为单个零 word。root index 与相关诊断使用 u32，不截断根数。
 
-位置编码为 `bit_pattern_u32(signed_byte_offset) | base`，SP tag 为 0、FP 为 1，bits 1、2 必须为零。解码以 `encoded & 1` 选择 frame profile 的实际 SP／FP，并把 `encoded & 0xfffffff8` 按位解释为 i32 偏移。该表示覆盖全部 8-byte 对齐的 i32 偏移；生产边界拒绝不对齐或不可表示的位置。例：SP+32 为 `0x20`，FP-16 为 `0xfffffff1`。不得从 Windows stack size 推导或改写 FP 偏移。
+位置编码为 `bit_pattern_u32(signed_byte_offset) | base | kind`，SP tag 为 0、FP 为 1；bit 1 为 0 表示单个 8-byte 引用槽，为 1 表示 16-byte root region table；bit 2 必须为零。table 位置在紧凑根序列中先于 gc-live 槽，算作一个位置，不展开其动态 region 内容。解码以 `encoded & 1` 选择 frame profile 的实际 SP／FP，并把 `encoded & 0xfffffff8` 按位解释为 i32 偏移。该表示覆盖全部 8-byte 对齐的 i32 偏移；生产边界拒绝不对齐或不可表示的位置。例：SP+32 为 `0x20`，FP-16 为 `0xfffffff1`。不得从 Windows stack size 推导或改写 FP 偏移。
 
 启动沿已登记 callable 一次统计并分配 24-byte／site 的私有 PC 索引 `{ uintptr_t return_pc; const ScoopCallableGcMapV1 *map; const ScoopGcSiteV1 *site; }`。表头、完整范围、布局起点、编码与 frame 静态约束在读取边界检查；每个共享布局只验证一次，临时布局起点索引在该函数处理后释放。索引按实际 PC 排序，拒绝重复 PC 与代码范围之外的地址；根与帧大小直接引用不可变映像，不展开持久 record/root arrays。
 
@@ -363,7 +363,7 @@ managed 执行前完成索引发布。扫栈对精确 PC 二分查找，以根�
 
 #### 2.8.1 native-app 的可返回启动
 
-本合同使用 runtime ABI contract 34、metadata ABI 11；native-app descriptor 的新增函数签名与 executable descriptor 不可混用，旧 runtime 与机器产物重建。
+本合同使用 runtime ABI contract 35、metadata ABI 12；native-app descriptor 的新增函数签名与 executable descriptor 不可混用，旧 runtime 与机器产物重建。
 
 native-app 使用独立 `ScoopNativeAppEntryDescriptorV1`，magic 为 `0x53434f4f504e4150`，物理大小 128 bytes；字段按顺序为 magic、ABI version、size、root Cone identity、source callable identity、gateway callable identity、failure-root descriptor 指针、gateway 指针。其 gateway 类型为 `uint32_t (*)(const void *host_api, void *out_app_api)`。reader 在 descriptor 边界验证一次，并将共用的 owner、callable 和失败根关系规范化为 registry 的 root view；后续 storage/unit 验证复用该 view。失败根与 executable 采用相同的 managed Throwable 根布局，但使用独立 storage role。generated gateway 建立入口 poll、typed Scoop ABI 调用和 catch，正常与异常出口均恢复 Context，状态 0 表示成功，非 0 表示异常已发布到失败根。
 
@@ -449,7 +449,7 @@ ThreadVmOps 的读写映射按请求大小和对齐返回完整可用区间，�
 
 GC 私有 helper 的目标相关内联选择由完整 target 已绑定的 runtime tuning 通过构建参数提供，通用 GC 和平台 C 源都不直接使用架构宏选择调用方式。各目标共用同一算法与必要检查；内联选择不改变对象表示、函数 ABI、forwarding 规则或公开配置项，其性能依据按目标分别验证。
 
-managed 函数入口（下述有界叶函数除外）和循环回边，包括 continue 回边，提供 safepoint。编译器可将继续迭代区域内无调用、分配或异常的简单计数循环分块：正文包含局部整数／Boolean／严格浮点计算，或索引合法性已在 MIR 保证的固定表示数组值读写、普通字段读取、身份比较和长度读取（实现规范 2.19）。这些值包括单字引用、interface、相应 MaybeUninit 和单引用 payload 的可选值；写入保留 3.6 的完整屏障，初始化保留 2.4 的部分初始化扫描规则。正文可以含条件分支，但去除唯一回边后必须无环，所有继续迭代的路径到达同一 latch，不能绕过归纳变量与内层倒计数的更新。提前退出沿原 return、break 或检查失败出口执行；只在退出路径上的调用、分配、异常与清理保留原 safepoint／roots，不进入复制区域。原循环 header 保留 poll，生成的内层由实际 CFG 中的常数上限倒计数约束，最多执行 64 次后返回外层 poll。数组的 managed 基址在外层 poll 后取得，内层不新增握手或跨 safepoint 的裸地址；已有引用写屏障在原写入处完成，不能因为分块或“刚分配”而省略。该选择不承诺墙钟暂停上界，不改变任意其他循环或 continue 的 poll 责任。managed references 在 LLVM ABI 中使用 address space 1；跨 safepoint 存活的引用必须由 stackmap 或显式 compiler root frame 描述。
+managed 函数入口（下述有界叶函数除外）和循环回边，包括 continue 回边，提供 safepoint。编译器可将继续迭代区域内无调用、分配或异常的简单计数循环分块：正文包含局部整数／Boolean／严格浮点计算，或索引合法性已在 MIR 保证的固定表示数组值读写、普通字段读取、身份比较和长度读取（实现规范 2.19）。这些值包括单字引用、interface、相应 MaybeUninit 和单引用 payload 的可选值；写入保留 3.6 的完整屏障，初始化保留 2.4 的部分初始化扫描规则。正文可以含条件分支，但去除唯一回边后必须无环，所有继续迭代的路径到达同一 latch，不能绕过归纳变量与内层倒计数的更新。提前退出沿原 return、break 或检查失败出口执行；只在退出路径上的调用、分配、异常与清理保留原 safepoint／roots，不进入复制区域。原循环 header 保留 poll，生成的内层由实际 CFG 中的常数上限倒计数约束，最多执行 64 次后返回外层 poll。数组的 managed 基址在外层 poll 后取得，内层不新增握手或跨 safepoint 的裸地址；已有引用写屏障在原写入处完成，不能因为分块或“刚分配”而省略。该选择不承诺墙钟暂停上界，不改变任意其他循环或 continue 的 poll 责任。managed references 在 LLVM ABI 中使用 address space 1；跨 safepoint 存活的引用必须由 stackmap 的引用槽或 root region table 描述。
 
 普通 Managed body 从已激活的 MANAGED 状态进入。root／initialization startup gateway 是仅有的 MANAGED_PENDING 入口，必须先完成自身入口的有锁激活；callback 在 runtime 进入协议中先激活，native 返回完成原握手后才恢复 managed 执行。普通调用、动态分派与跨 Cone 调用沿用这个状态保证，不按函数名称或调用点是否可内联区分。
 
@@ -465,7 +465,7 @@ managed 函数入口（下述有界叶函数除外）和循环回边，包括 co
 
 SSA 接口在 safepoint 后由更新的 AS1 object 与原 AS0 metadata 分量重建；内存接口只回写 object。不能把两个分量改成整数后依赖保守扫描。
 
-普通 call/poll 的 relocation root 按 2.8 的实际 stackmap 更新。invoke 的正常与异常出口使用显式 compiler roots；native transition 使用 caller root frame，二者的 statepoint gc-live 为零。引用在握手后重新读取，再传给实际 native callee；native 返回的引用在重新允许 GC 前进入有效 root。
+普通 call/poll 的 relocation root 按 2.8 的实际 stackmap 更新。invoke 的正常与异常出口共用 canonical root storage，并用机器栈映射登记一个 root region table；native transition 使用 caller root frame，二者的 statepoint gc-live 为零。root region table 为 size 16／align 8 的 `{ const ScoopCallerRootEntry *entries @0; u64 count @8; }`；entry 保持 `{base, scan}`，可描述 struct／enum／interface 的完整精确引用布局。table 与 entries 在调用之前初始化，整个被调用期间有效，GC 按实际冻结栈帧发现并扫描，正常或异常返回后重读各自仍活跃的 canonical storage。生成代码不为 invoke 调用 push／pop helper，不建立另一个线程 compiler-root 链；NoGc invoke 和无引用根的 invoke 不物化空表。引用在握手后重新读取，再传给实际 native callee；native 返回的引用在重新允许 GC 前进入有效 root。
 
 调用期间保活不要求返回后恢复已死的直接实参。编译器按实现规范 2.4 保留实际 AS1 实参在调用站点的精确 root，仅为后继仍使用的值生成恢复；必要的传参 spill 仍由机器 ABI／stackmap 决定。间接按值 storage、借用、异常出口以及分配后仍用于初始化或复制的输入遵守各自保活与重读规则，不能由源码调用后无使用推导其已死。省略恢复不允许缩短调用期间的对象存活期，也不改变 collector 对实际物理根的更新。
 
@@ -493,7 +493,7 @@ Scoop GC 适配层解释已登记的 image／stackmap、线程发布的 managed 
 
 完整根集合包括：
 
-- 活动 managed 栈段的 stackmap roots 与 compiler root frames；
+- 活动 managed 栈段的 stackmap 引用槽与 root region tables；
 - native transition 冻结的外层 managed 栈段，以及全部 caller/native root frames；
 - 已登记的 Recursive static storage、初始化与 root-entry failure roots；
 - 当前 TaskContext，包括 native-safe 线程保存的 context；
@@ -1015,7 +1015,7 @@ root TaskContext 在首个 gateway 的入口 poll 后创建，在后续 eager ga
 
 core 的 `exit(code: Int): Nothing` 显式请求结束整个进程：先刷新 stdout/stderr，再调用 `_exit(code)`，传递完整 Int 值，不执行 finally、release hook、线程/token shutdown 检查或 join。刷新允许等待且按 NativeSafe 协议完成，期间保留其他线程仍可能访问的 GC 状态；不调用 C `exit()` 或补调 atexit/native C++ 析构。跳过刷新的立即终止接口留给后续平台库。
 
-`scoop_rt_exit(int32_t code)` 使用 Scoop ABI，Nothing 保持既有 managed-reference 返回 carrier，但入口永不返回。终止路径在任何可能阻塞的诊断或刷新前单向发布 NativeSafe；此后不得再访问未固定 managed 引用或恢复 managed 执行。当前没有后续使用的 managed 局部不要求新建栈图，既有 caller/native/compiler roots、pin 帧、外层冻结段和 TaskContext 槽保持有效且不被拆除，供并发 collector 扫描。启动 coordinator 已处于 NativeSafe；内部 collector/park 协议执行中请求这一公开终止入口属于 ABI 错误，不能以终止替代未完成的 collector 操作。
+`scoop_rt_exit(int32_t code)` 使用 Scoop ABI，Nothing 保持既有 managed-reference 返回 carrier，但入口永不返回。终止路径在任何可能阻塞的诊断或刷新前单向发布 NativeSafe；此后不得再访问未固定 managed 引用或恢复 managed 执行。当前没有后续使用的 managed 局部不要求新建栈图，既有 caller/native roots、机器栈图引用槽与 region table、pin 帧、外层冻结段和 TaskContext 槽保持有效且不被拆除，供并发 collector 扫描。启动 coordinator 已处于 NativeSafe；内部 collector/park 协议执行中请求这一公开终止入口属于 ABI 错误，不能以终止替代未完成的 collector 操作。
 
 语言级 panic／语言 trap、启动阶段未捕获异常与异常逃离 main 的进程退出码固定为 `1`，适用于全部四种 main。异常路径打印已发布异常的类型名、已有的首次抛出栈与必要的初始化路径，不调用用户 toString，也不把 gateway 的当前栈当作原抛出栈；随后刷新 stdout/stderr，并调用 `_exit(1)` 终止进程。输出等待使用 NativeSafe 协议，不因等待 stdio 锁或 I/O 阻止其他线程推进 GC；允许刷新等待，不承诺退出耗时上限。这条失败退出路径不等待其他 Scoop 线程 join、不销毁仍可能被它们访问的 GC 状态。语言级 panic／trap 在终止前采集并打印触发位置的当前栈，可直接进入同一诊断／终止路径，不伪造 Throwable 或带空 failure root 的 gateway 失败状态。runtime 内部 ABI／不变量破坏仍使用 fatal 诊断与 `abort()`；编译器显式生成的此类 trap 经过可打印原因及部分栈的 fatal 入口，不因统一打印而改为语言异常或退出码 1。外部信号终止保持目标系统的 signal 状态。快照和输出数据的稳定性遵守 5.6。
 

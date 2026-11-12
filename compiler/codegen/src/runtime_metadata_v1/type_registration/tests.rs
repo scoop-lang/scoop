@@ -38,7 +38,7 @@ fn emits_strong_record_with_type_descriptor() {
         .unwrap()
         .into_struct_value();
     assert_eq!(constant_u64(prefix, 0), TYPE_REGISTRATION_DESCRIPTOR_MAGIC);
-    assert_eq!(constant_u64(prefix, 1), 11);
+    assert_eq!(constant_u64(prefix, 1), 12);
     assert_eq!(constant_u64(prefix, 2), TYPE_REGISTRATION_DESCRIPTOR_SIZE);
     let identity = initializer
         .get_field_at_index(1)

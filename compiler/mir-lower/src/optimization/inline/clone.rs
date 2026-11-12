@@ -7,6 +7,9 @@ use super::{Choice, LocalValueRegistry, exception_edges, index, mir};
 pub(super) struct Expansion {
     pub(super) continuation: mir::BlockId,
     pub(super) blocks: Vec<Option<mir::BlockId>>,
+    pub(super) locals: Vec<Option<mir::LocalId>>,
+    pub(super) exception_states: Vec<mir::ExceptionStateId>,
+    pub(super) unwind: Option<mir::BlockId>,
     pub(super) result_prefix: usize,
 }
 
@@ -20,6 +23,7 @@ pub(super) fn apply(
     owner: CallableMaterialization,
     caller_id: mir::FunctionId,
     ancestry: &mut Vec<Vec<super::Target>>,
+    auxiliary_locals: &[mir::LocalId],
 ) -> Expansion {
     let caller_ancestry = ancestry[index(choice.block)].clone();
     let (statement, tail, terminator, terminator_origin, unwind) = {
@@ -100,6 +104,7 @@ pub(super) fn apply(
     });
 
     let mut needed = BTreeSet::new();
+    needed.extend(auxiliary_locals.iter().copied());
     for parameter in &callee.params {
         needed.insert(parameter.local);
     }
@@ -275,6 +280,9 @@ pub(super) fn apply(
     Expansion {
         continuation,
         blocks,
+        locals,
+        exception_states,
+        unwind,
         result_prefix: usize::from(result.is_some()),
     }
 }

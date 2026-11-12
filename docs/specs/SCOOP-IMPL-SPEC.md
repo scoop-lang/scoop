@@ -389,9 +389,11 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 生成类型、调用与字段角色按实际结构更新 coroutine metadata、core 协议、`.slib` profile 及 runtime ABI；不保留旧 adapter 或 TaskContext 布局的兼容分支。检查仍在实际声明、产物格式及 ABI 边界完成，不增加调度授权、独立证明记录或重复全图验证。
 
-release 在 suspend ABI 转换前，从 source-signature CFG 与私有 call-site 登记中确定本 Cone 直接可见的同步 suspend 正文：没有原语挂起、动态／外部 suspend 边、递归依赖或自身 EH／pending cleanup；这一事实可沿直接 suspend 依赖传播。普通 GC、可能抛异常或有副作用的非 suspend 调用不因此变成 NoGC 或纯操作。只在 2.19 的调用点评分、累计增长与六层展开深度范围内克隆正文，稳定模板不使用已展开函数重置成本；同步事实本身不能删除仍存在的调用点。
+release 在 suspend ABI 转换前，对本 Cone 已物化、直接可见的 suspend 正文进行源级调用合并；callee 可以真正挂起，包含原语注册、yield、异常处理及 pending cleanup。动态／外部 suspend 边留在合并后的 CFG 中，保留原调用选择及挂起性。递归依赖不展开，仍受稳定模板、累计 caller／loop 增长与六层展开深度限制；真实挂起边界的合并以避免独立 frame／adapter 为目的，不要求 callee 是同步函数，也不把它改为 NoGC 或纯操作。该局部阶段不导入普通外部正文。
 
-该克隆复用普通内联的参数求值、local 身份与 CFG 重映射，同时更新 call-site 的块、语句位置、语义顺序和调用点 cleanup。共享插入位置的待生成 suspend 注册仍位于原语句之前；callee 无自身 cleanup，克隆调用继承 caller 的 pending 链及异常出口。内联完成后才转换 hidden completion／step ABI，并只生成一次正式状态机。全部 suspend site 已实际消除的函数沿既有 Immediate 路径；剩余调用仍参与尾转交或状态机生成。该局部阶段不导入普通外部正文，也不把无帧尾转交判为同步。
+克隆复用普通内联的参数求值、local／异常状态身份和 CFG 重映射，同时移动私有 call-site 的块、语句位置、语义顺序、注册 receiver／destination 和 pending cleanup。callee 的异常出口组合到 caller 的实际 handler；原生 landing-pad entry 与普通转交入口分开，并同步更新其内部 call-site 位置。克隆挂起点先保留 caller 的 pending 链，再接上重映射的 callee 链；callee 的 return cleanup 改为到调用后续块的 fallthrough，返回 payload 按真实 CFG 的局部使用保活；break／continue／throw 的实际目标和异常引用随克隆更新。共享插入位置的待生成注册仍保持源语义顺序，yield 仍强制退出驱动并重新排队。
+
+合并完成后才转换 hidden completion／step ABI，并只生成一次正式状态机。全部 suspend site 已实际消除的函数沿既有 Immediate 路径；其余调用仍参与尾转交或状态机生成。同步 Completed、早到 completion 仲裁、取消、Context 与清理出口使用同一既有协议，不增加第二套 continuation ABI。
 
 release 在状态机生成前识别整函数的尾挂起转交。所有挂起点必须是结果 exact type 与当前函数相同的 suspend 调用或 suspendCoroutine 原语；调用后仅沿未取地址的普通局部初始化／赋值复制和无条件边返回该结果，没有 EH、pending cleanup、Context restore、其他挂起点或结果处理。后缀判断同时消费真实语句和私有挂起记录，不能忽略占据同一语句位置的多个 Unit 注册。内联的返回汇合临时值遵守同一规则；不按临时变量名称放宽检查。可以有多个尾调用分支及直接返回普通值的分支。direct、跨 Cone、virtual、interface 与 closure 调用沿已经完成的 typed 调用选择追加原 hidden completion，并直接返回 callee 的 CoroutineStep；原语直接将该 completion 传给 register，返回 Suspended，由调用方握手消费同步完成或进入等待。普通返回仍构造 Completed。本函数不生成 frame／adapter，callee 可以真正挂起。无帧尾转交与无挂起点的立即完成以不同 lowering 分支表示，不能据此前者推断同步；yield 不参与尾转交。该优化不要求 LLVM 机器 tail call，不承诺尾递归常数栈。
 
@@ -457,7 +459,7 @@ ARM64 release 的 TLAB context 地址在每次函数调用内按首次使用取�
 
 `ManagedPoll` 表示运行时规范 3.2 的条件 poll，携带唯一慢路径 site 与完整 live set。codegen 发射 acquire 检查和快／慢分支，只在慢分支物化该站点的 managed leaves、调用协调入口并回写 relocation；后续使用通过普通 canonical storage／SSA 合流取得快路径原值或慢路径新值。Full 模式用于已激活的普通 managed 执行，只读取 world phase；Gateway 模式保留入口 pending 的 mode／epoch 检查，不能仅按 world phase 删除首次激活。TLS 与全局数据引用使用闭合 runtime ABI 目录中的普通数据合同。
 
-普通 Managed call 的 LIR 根计划分别记录调用期间所需的来源与返回后是否需要恢复。直接 ABI 的 managed pointer／接口 object 实参由 LLVM 的实际 AS1 call operand 保持为调用期间的 root；返回后已死的来源不生成恢复 `llvm.fake.use` 或 leaf 写回。正常后继仍活跃的来源保留恢复；Indirect／byval 实参的内部 leaves 沿显式 leaf 暴露与恢复路径保留，不能把 AS0 storage 地址当作 managed root。codegen 展开分配、装箱、数组与 String 复制时，分配后仍使用的输入同样必须恢复，即使源码层操作之后不再读取它们。poll 的活跃值全部需要恢复。invoke 按已有 normal／unwind 两份使用条件恢复显式 compiler roots；native transition 保持原发布、borrow 与返回握手协议。最终逻辑根身份只要求实际恢复的 leaves，物理 root 数继续消费 RS4GC 的实际结果，包含只有调用期间用途的 direct AS1 实参。此内部 LIR 信息不改变 `.slib`、调用 ABI 或 runtime stackmap 格式，全部 profile 遵守相同规则。
+普通 Managed call 的 LIR 根计划分别记录调用期间所需的来源与返回后是否需要恢复。直接 ABI 的 managed pointer／接口 object 实参由 LLVM 的实际 AS1 call operand 保持为调用期间的 root；返回后已死的来源不生成恢复 `llvm.fake.use` 或 leaf 写回。正常后继仍活跃的来源保留恢复；Indirect／byval 实参的内部 leaves 沿显式 leaf 暴露与恢复路径保留，不能把 AS0 storage 地址当作 managed root。codegen 展开分配、装箱、数组与 String 复制时，分配后仍使用的输入同样必须恢复，即使源码层操作之后不再读取它们。poll 的活跃值全部需要恢复。invoke 按 normal／unwind 两份使用条件从 canonical storage 恢复引用；其 root region table 按运行时规范 2.8／3.2 放入 statepoint 的单个 deopt operand，并由真实机器 Direct frame location 发布；native transition 保持原发布、borrow 与返回握手协议。最终逻辑根身份只要求实际恢复的 leaves，物理 root 数继续消费 RS4GC 的实际结果，包含只有调用期间用途的 direct AS1 实参。普通 call／poll 的恢复信息不改变源码调用 ABI；invoke 的 root region table 随运行时规范 2.8 的 contract 35／metadata 12 配套演进，全部 profile 遵守相同规则。
 
 debug 在原读取位置将含 managed 引用的普通聚合 load 分解为实际字段读取，保留目标布局、对齐与源码位置；volatile 读取保持原有访问。随后执行 SROA／mem2reg／SCCP／EarlyCSE／InstSimplify，合并无中间写入的重复读取，避免调用实参与后继根的等值读取直到机器下降才合并。debug 不运行会移动或重组用户计算的 InstCombine，保证仍有实际计算的语句能在原求值顺序中设置断点。两种模式都在晚期聚合分解和 RS4GC 前完成读取规范化；release 复用原有 InstCombine 等优化步骤，不增加独立根等价分析。该 profile 规则与调试信息级别正交，不为调试新增读取或保活。
 
@@ -1840,9 +1842,11 @@ MIR 中每个 native 异常捕获状态使用正文内独立、类型化的 Exce
 
 尺寸惩罚以实际化简后保留正文相对被替换调用的预计净增长为基础，控制流复杂度和 caller 当前规模增加惩罚。收益与惩罚使用简单的 MIR 权重，不代表机器周期或保证发生的复制次数。静态热度越高，可接受的净增长及复杂度越大；热度本身不省略冷分支的代码体积。普通内联按热度优先、同级原 block／statement 顺序选择，随后仍按原位置展开，保持求值次序。
 
-增长按调用点所在的最内层自然循环累计；同 header 的多个回边属于同一区域，循环之外及没有自然 header 的不可归约环使用共享区域。复用现有支配与自然循环分析，区域由当前 caller 的 block 身份区分，不依赖源码或函数名称。内联新暴露的循环保有独立额度，循环包装本身的完整增长仍计入其原调用区域。各区域以原始 caller 大小为基准，并按调用点热度使用有限上限；整个 caller 另有累计总上限，防止不断暴露的新区域造成无界膨胀。区域与总增长均跨轮保留，重新分析、化简及删除代码不返还额度；克隆只追加 block，原 header 身份与累计记录保持。递归祖先与六层展开限制保持。这些限制只控制优化膨胀，不决定程序是否合法或 ABI；具体参数记录于性能文档，统一用于本 Cone、泛型及跨 Cone 正文。同步 suspend 在原有合法性范围内复用同一评分、静态热度与区域累计，尚无实参证明的收益记为零，保留独立的基础增长常数 96。
+增长按调用点所在的最内层自然循环累计；同 header 的多个回边属于同一区域，循环之外及没有自然 header 的不可归约环使用共享区域。复用现有支配与自然循环分析，区域由当前 caller 的 block 身份区分，不依赖源码或函数名称。内联新暴露的循环保有独立额度，循环包装本身的完整增长仍计入其原调用区域。各区域以原始 caller 大小为基准，并按调用点热度使用有限上限；整个 caller 另有累计总上限，防止不断暴露的新区域造成无界膨胀。区域与总增长均跨轮保留，重新分析、化简及删除代码不返还额度；克隆只追加 block，原 header 身份与累计记录保持。递归祖先与六层展开限制保持。这些限制只控制优化膨胀，不决定程序是否合法或 ABI；具体参数记录于性能文档，统一用于本 Cone、泛型及跨 Cone 正文。状态机生成前的 suspend 合并复用静态热度、区域累计与整个 caller 上限，按被复制完整正文计算净增长，保留独立的基础增长常数 96；它以消除独立 frame／adapter 边界为选择理由，不使用普通同步调用的收益评分。
 
 内联产生新调用点或改变常量、类型及控制流后，重新评估当前 caller 的相关调用点；稳定模板摘要仍复用。普通 release 默认启用上述低成本分析，不依赖 PGO，不新增试内联或多套策略框架。`--emit optimizations` 的调用点记录包含热度及来源、实参事实、结果用途、预计可消除工作、净增长、复杂度、caller 规模和接受／拒绝理由；增长估价同时记录区域 header、区域剩余与整个 caller 剩余，实际可用量为两者较小值。先判断调用目标、正文可用性与递归约束，再报告额度耗尽，不能用增长理由遮住没有正文或尚未解析的动态调用。未请求时不保存事件，任何诊断代码都不进入程序或库的机器产物。诊断格式可随模型更新，不进入 MIR／LIR 持久格式或 ABI。未来 profile 可以向同一收益模型提供频次事实。
+
+已知同步闭包可以优先暴露实际执行正文：直接目标必须是该 closure class 的 typed invoke；包装函数中的对应形参则只能经纯局部别名作为同步调用的 receiver 使用，不能被返回、存储、取址或传给其他调用。闭包身份来自现有实参数据流，挂起性与 invoke 身份来自 typed MIR，不按名称选择。这类调用仍按完整保留正文扣减原有区域和 caller 累计增长，遵守递归、六层展开与 ABI／异常合法性限制；诊断以独立的已知闭包理由记录，不虚记尚未发生的分配或根消除收益。最终环境和字段消除继续由普通局部分配替换决定，debug 不采用此优先规则。
 
 内联选择重新分析当前 caller 时，可以利用先前展开暴露的 exact receiver，复用普通去虚拟化的完整签名与 dispatch 规则直接选择实现正文，不必等待下一轮才使用已知事实。入选调用保存相应的完整实参适配，包含具体 receiver 类型和必要 unbox；展开时使用这份调用，保留原参数求值与值快照。未知 receiver、缺失正文或不满足成本限制的调用保留现有处理。新直接目标同样受递归／展开祖先限制约束，不改变跨 Cone、接口或调用 ABI，也不新增持久分析摘要。
 
@@ -1941,7 +1945,7 @@ release 在 roots 定稿前以 MemorySSA 消除跨无写入分支的重复加载
 
 全部 profile 在晚期聚合分解后、根身份定稿和 RS4GC 之前，合并同一基本块内等价的指针 PHI／select。PHI 按实际前驱与 incoming value 对应关系比较，select 按条件及两支的值比较，类型与地址空间必须一致；只含同一非自身输入的 PHI 和两支相同的 select 可以直接使用该输入。替换暴露的后续等价合流继续处理，不能把不同路径的对象或复制快照合并。此清理只替换标量值，不改变控制流、site 或逻辑恢复标记，不运行可能将分量重建折回旧聚合的 InstCombine。这样，聚合视图与已有 object 分量共享已证明相同的 SSA 根，不把合并推迟到机器准备阶段；返回、存储和实参仍在使用处从 RS4GC 更新后的分量重建。
 
-GC 转换后每个 post-site managed use 必须来自正确更新的引用；invoke 的 normal/unwind 与 native transition 继续使用各自显式 root frames。不能在 root plan 定稿后增加未经描述的 safepoint、重复 site、外来 owner 或异常边。backend contract field 28 为 1，表示此最终根与发射合同。
+GC 转换后每个 post-site managed use 必须来自正确更新的引用；invoke 的 normal/unwind 使用机器栈映射中的 root region table，native transition 继续使用 caller root frame。不能在 root plan 定稿后增加未经描述的 safepoint、重复 site、外来 owner 或异常边。backend contract field 28 为 1，表示此最终根与发射合同。
 
 ODR 只比较 key 与 shared ABI，按实际需要选择物理 member。body 的机器码、EH、紧凑 GC 表、callable registration、函数私有常量与 Context cells 必须同选；独立 helper 可分别选择。2.10.1 规划的共享常量通过真实引用单独选择，不归入每个 callable materialization 的私有数据组。共享同一完整接口数组的 dispatch definition 也必须同选，重复候选按这组实际物理 definitions 整组复用；不能将父表 alias 与其数组分别选自不同对象。shared TD、storage、cell 与初始化保持唯一，native linker 不得改变已确定选择。
 

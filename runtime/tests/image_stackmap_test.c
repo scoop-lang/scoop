@@ -90,7 +90,7 @@ static const char *corrupt(ScoopStackmapFixture *fixture, unsigned test) {
         sites[0].safepoint_id = 0;
         return "GC site order, ID or root layout offset";
     case 11:
-        roots[1] |= 2;
+        roots[1] |= 4;
         return "invalid managed frame or root layout";
     case 12:
         roots[1] = 64;

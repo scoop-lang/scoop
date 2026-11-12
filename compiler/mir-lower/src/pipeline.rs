@@ -310,7 +310,7 @@ impl Lowerer {
         }
 
         if self.coroutine_elision {
-            optimization::inline_synchronous_coroutines(&mut self);
+            optimization::inline_suspend_calls(&mut self);
         }
         self.transform_suspend_abis(module);
         coroutine::transform(&mut self, module);

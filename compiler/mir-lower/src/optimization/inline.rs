@@ -17,13 +17,14 @@ use mir::optimization_report::InlineOutcome;
 
 mod class_fields;
 mod clone;
+mod closures;
 mod exception_edges;
 mod exception_paths;
 mod policy;
 mod selection;
 mod summary;
 mod suspend;
-pub(super) use suspend::run as inline_synchronous_coroutines;
+pub(super) use suspend::run as inline_suspend_calls;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Target {
@@ -289,7 +290,8 @@ impl Context<'_, '_> {
         let mut debug_records = mir::DebugRecords::default();
         let mut changed = false;
         loop {
-            changed |= exception_edges::separate_entries(&mut function, &mut state.ancestry);
+            changed |=
+                !exception_edges::separate_entries(&mut function, &mut state.ancestry).is_empty();
             let choices = self.choose(id, &function, &state.ancestry, &mut state.growth);
             if choices.is_empty() {
                 break;
@@ -308,6 +310,7 @@ impl Context<'_, '_> {
                     owner,
                     id,
                     &mut state.ancestry,
+                    &[],
                 );
             }
         }

@@ -5,8 +5,8 @@ use std::cmp::Reverse;
 use std::collections::HashSet;
 
 use super::{
-    Choice, Context, Target, class_fields, exception_paths, flow, index, mir, policy, simplify,
-    summary,
+    Choice, Context, Target, class_fields, closures, exception_paths, flow, index, mir, policy,
+    simplify, summary,
 };
 use crate::optimization::allocation::InlineReceivers;
 use crate::optimization::poll_chunks::CallRanges;
@@ -214,6 +214,16 @@ impl Context<'_, '_> {
                                 (Some(ordinary), InlineOutcome::Required)
                             } else if accepted(ordinary, remaining) {
                                 (Some(ordinary), InlineOutcome::Inlined)
+                            } else if ordinary.growth <= remaining
+                                && closures::exposes_known_invoke(
+                                    self.module,
+                                    callee,
+                                    source,
+                                    &blocks,
+                                    &arguments,
+                                )
+                            {
+                                (Some(ordinary), InlineOutcome::KnownClosure)
                             } else if self.allocation_elision
                                 && source
                                     .params

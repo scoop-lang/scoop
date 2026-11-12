@@ -1,6 +1,6 @@
 # HTTP 逐层替换与解析传输诊断
 
-当前渐进实验以 `manual_server.scoop` 和 `progressive/` 为入口，先测最简 TCP 服务，再在同一个程序中逐步换入正式实现。每一步完成验证和相邻对照后重新判断最大增量，按结果继续拆分；具体步骤见下文“从手写 TCP 服务逐层替换”。`thin_server.scoop` 和 C 工具保留用于较早的解析／传输诊断，不能用其旧结果替代当前版本的渐进测量。
+当前渐进实验以 `manual_server.scoop` 和 `progressive/` 为入口，先测最简 TCP 服务，再在同一个程序中逐步换入正式实现。每一步完成验证和相邻对照后重新判断最大增量，按结果继续拆分；具体步骤见下文“从手写 TCP 服务逐层替换”。没有单一大头时，按已知成本从大到小组合优化主要几项，再测完整路径；正确性通过且整体有确认收益就保留，即使幅度较小。`thin_server.scoop` 和 C 工具保留用于较早的解析／传输诊断，不能用其旧结果替代当前版本的渐进测量。
 
 这些程序定位正常、无正文 GET 的主路径成本，不是另一个生产 HTTP 实现。`thin_server.scoop` 的四种模式使用同一个 AsyncTcpStream、相同响应字节、每连接复用的输入／输出 buffer：
 
@@ -207,6 +207,23 @@ BENCH_TCP_NODELAY=1 taskset -c 0 "$bench_work/bin/protocol-layers" 1 18081 codec
 重新绑定同一 Job 仍执行实际 Context push／restore；固定实现不会因对象身份相同跳过 push。该步骤使用每条连接自己的 Job，避免把所有请求的操作监听集中到共同父 Job 上。它保留原操作语义，却不提供独立请求 Job；`detached` 则按已有 API 隔离父取消。两者都是受控无正文请求的成本对照，不能作为完整请求作用域的替代实现。
 
 各步骤保留固定 ELF，先验证分段／pipeline／并发大小 GET／HEAD 响应，再按原 `idle → scope` 总对照和三个相邻步骤交替测量。不同组的短测差额不能精确相加；四 worker 的 CPU 利用率与吞吐可能同时变化，应同时查看每请求 CPU、延迟及全部样本。三份补丁已逐字节重建已测源码；结果、独立计数和跨层采样见 [B56 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十六轮拆分请求作用域并重新检查跨层成本)。
+
+## 在相同分层程序上验证通用优化
+
+B57 保留了 invoke 根表、已知同步闭包展开和源级 suspend CFG 合并三项组合。对照双方从同一源码底座分别构建编译器、runtime 和系统库，再用相同的手写起点、正式 `connection` 与完整 `server` 源码构建六个 ELF。这样可以验证通用改动对各层的影响，同时保留解析、连接和应用执行的独立接入方式。三项只做了整体对照，不将旧单项百分比相加。
+
+本机固定的 B57 正式工具及 SDK 可用于后续实验，新的输出与 cache 仍放在新的 `bench_work` 中：
+
+```sh
+bench_round=/home/chenxu/benchmarks/http-improvements-20261113-round57
+bench_sdk="$bench_round/candidate/sysroot"
+bench_cli="$bench_round/toolchain/bin"
+bench_llvm=/home/chenxu/benchmarks/http-improvements-20261112-round28/candidate/llvm/installed
+```
+
+B57 runtime 合同为 35、metadata 为 12，CLI 与 SDK 必须配套；同源码 control 的工具及 SDK 分别保存在 `control-tools/bin` 和 `control/sysroot`。固定程序为 `bin/scoop-<control|candidate>-<manual|protocol|server>`，其中 `protocol` 对应渐进链的 `connection`，不是早期原版协议程序。两个版本使用同一份 `inputs/<stage>/server.scoop`；原始结果、逐字节网络验证、独立 CPU 采样及源码归组留在仓库外。
+
+完整 server 的 1 KiB 单／四 worker CPU 下降约 **12.4%／10.8%**，64 KiB 下降约 **7.0%／10.0%**，手写和协议层也均有收益。后续诊断必须在新底座重测所选区间，旧 B54～B56 的相邻差额不能继续作为当前成本。具体数值、覆盖范围与剩余问题见 [B57 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十七轮保留根表闭包展开与挂起调用合并的组合收益)。
 
 ## 测量
 

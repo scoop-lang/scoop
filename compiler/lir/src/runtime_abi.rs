@@ -2,7 +2,7 @@
 //! link-object verification.
 
 /// Version shared by emitted runtime records and artifact readers.
-pub const RUNTIME_METADATA_ABI_VERSION_V1: u32 = 11;
+pub const RUNTIME_METADATA_ABI_VERSION_V1: u32 = 12;
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -88,7 +88,7 @@ impl WireEncode for RuntimeAbiContract {
         for field in 1..=3 {
             encoder.field(field)?;
             encoder.unsigned(match field {
-                1 => 34,
+                1 => 35,
                 3 => 2,
                 _ => INITIAL_SCHEMA,
             })?;
@@ -120,9 +120,6 @@ pub enum RuntimeAbiSymbolV1 {
     EndCatch,
     PushCallerRoots,
     PopCallerRoots,
-    PushCompilerRoots,
-    PopCompilerRoots,
-    PopTopCompilerRoots,
     EnterNativeSafe,
     LeaveNativeSafe,
     EnterNativeBorrowed,
@@ -140,7 +137,7 @@ pub enum RuntimeAbiSymbolV1 {
 }
 
 impl RuntimeAbiSymbolV1 {
-    pub const ALL: [Self; 64] = [
+    pub const ALL: [Self; 61] = [
         Self::ContextSlot,
         Self::PollState,
         Self::WorldPhase,
@@ -212,9 +209,6 @@ impl RuntimeAbiSymbolV1 {
         Self::EndCatch,
         Self::PushCallerRoots,
         Self::PopCallerRoots,
-        Self::PushCompilerRoots,
-        Self::PopCompilerRoots,
-        Self::PopTopCompilerRoots,
         Self::EnterNativeSafe,
         Self::LeaveNativeSafe,
         Self::EnterNativeBorrowed,
@@ -334,9 +328,6 @@ impl RuntimeAbiSymbolV1 {
             Self::PushPinFrame => "scoop_rt_push_pin_frame",
             Self::PopPinFrame => "scoop_rt_pop_pin_frame",
             Self::PopCallerRoots => "scoop_rt_pop_caller_roots",
-            Self::PushCompilerRoots => "scoop_rt_push_compiler_roots",
-            Self::PopCompilerRoots => "scoop_rt_pop_compiler_roots",
-            Self::PopTopCompilerRoots => "scoop_rt_pop_top_compiler_roots",
             Self::EnterNativeSafe => "scoop_rt_enter_native_safe",
             Self::LeaveNativeSafe => "scoop_rt_leave_native_safe",
             Self::EnterNativeBorrowed => "scoop_rt_enter_native_borrowed",
@@ -366,9 +357,6 @@ impl RuntimeAbiSymbolV1 {
             Self::EndCatch => 10,
             Self::PushCallerRoots => 11,
             Self::PopCallerRoots => 12,
-            Self::PushCompilerRoots => 13,
-            Self::PopCompilerRoots => 14,
-            Self::PopTopCompilerRoots => 15,
             Self::EnterNativeSafe => 16,
             Self::LeaveNativeSafe => 17,
             Self::EnterNativeBorrowed => 18,
@@ -809,11 +797,11 @@ mod tests {
     fn runtime_abi_contract_versions_current_metadata_layout() {
         assert_eq!(
             hex(&encode(&RuntimeAbiContract).unwrap()),
-            "a301182202010302"
+            "a301182302010302"
         );
         assert_eq!(
             RuntimeAbiContract.fingerprint().unwrap().to_string(),
-            "d9e12bd8939f7ac74afe858513484a3f03154b1cd473e229fa6646cc13642bcf"
+            "590e6c270da672b75511050912cbec921028f8092f799c197aba5ceeedfb3a2c"
         );
     }
 
@@ -904,7 +892,7 @@ mod tests {
         assert_eq!(allocation.symbol(), RuntimeAbiSymbolV1::AllocationContext);
         assert_eq!(
             allocation.id().to_string(),
-            "777a2e14af857dd28da3a3f3c0586a49384defc6ccd1c8533d392a44dab18852"
+            "9696f4ffe8022f8e061fba7cfc288edb9aea265361fffbb307e4cbd80cbef93b"
         );
         assert!(
             registry
@@ -960,7 +948,7 @@ mod tests {
                 .unwrap()
                 .id()
                 .to_string(),
-            "facbae98beb10347c63a56674c0ef89726df9c5ac15a165567494ab927efd6b2"
+            "7a81efe2f4186c2f877f02c23303bdbc6c362fee42ad1ece3886ed124a05a45c"
         );
     }
 

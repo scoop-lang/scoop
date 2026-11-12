@@ -75,6 +75,11 @@ static void aarch64_roots(void) {
     assert(scoop_gc_root_offset(UINT32_C(0x80000001)) == INT32_MIN);
     assert(scoop_gc_root_offset(UINT32_C(0x7ffffff9)) == INT32_MAX - 7);
     data.roots[1] = 2;
+    assert(ops->validate_record(&record, &error));
+    assert(scoop_gc_root_is_region_table(data.roots[1]));
+    assert(scoop_gc_root_size(data.roots[1]) == 16);
+    assert(ops->resolve_root(&frame, 0, &slot, &error) && slot == (void **)sp);
+    data.roots[1] = 4;
     assert(!ops->validate_record(&record, &error));
     assert(error.code == SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION);
     data.roots[1] = 64;
