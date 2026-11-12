@@ -1,0 +1,34 @@
+package scoop.http.server
+
+import scoop.time.Duration
+
+/** Builds reusable application-request configuration without starting any work. */
+public fun httpRequestOptions(
+    configure: HttpRequestOptionsBuilder.() -> Unit = {}
+): HttpRequestOptions {
+    val builder = HttpRequestOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpRequestOptions.copy(
+    configure: HttpRequestOptionsBuilder.() -> Unit = {}
+): HttpRequestOptions {
+    val builder = HttpRequestOptionsBuilder()
+    builder.bodyLimit = bodyLimit
+    builder.bufferedBodyLimit = bufferedBodyLimit
+    builder.deadline = deadline
+    builder.onCompleted = onCompleted
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpRequestOptionsBuilder internal constructor() {
+    public var bodyLimit: Long? = Some(8388608L)
+    public var bufferedBodyLimit: Long = 2097152L
+    public var deadline: Duration? = None
+    public var onCompleted: ((HttpRequestCompletion) -> Unit)? = None
+
+    internal fun snapshot(): HttpRequestOptions =
+        HttpRequestOptions(bodyLimit, bufferedBodyLimit, deadline, onCompleted)
+}

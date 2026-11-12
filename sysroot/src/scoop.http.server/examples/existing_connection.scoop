@@ -1,0 +1,59 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.http:0.1.0
+//! dep: scoop:scoop.http.asyncio:0.1.0
+//! dep: scoop:scoop.http.server:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.http.server.*
+import scoop.platform.net.*
+import scoop.time.Duration
+
+fun main() {
+    val loop = eventLoop()
+    val application = routing { get("/", suspend { _ -> text("Hello, borrowed connection!") }) }
+    val options =
+        httpRequestOptions {
+            bodyLimit = Some(1024L)
+            bufferedBodyLimit = 1024L
+            deadline = Some(Duration.seconds(5))
+        }
+    loop.run {
+        val scope = this
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+            listener ->
+            val client =
+                scope.async<Unit> suspend {
+                    AsyncHttp1Connection.takeOwnershipAsClient(
+                        loop.connectTcp(listener.localAddress),
+                        this
+                    ).useAsync suspend {
+                        connection ->
+                        val request =
+                            HttpRequestHead(
+                                HttpVersion.Http11,
+                                "GET".toByteArray(),
+                                HttpRequestTarget.Http1("/".toByteArray()),
+                                [HttpField("Host".toByteArray(), "localhost".toByteArray())]
+                            )
+                        connection.sendRequest(request).finish()
+                        val incoming = connection.receiveResponse()
+                        val body = String.fromUtf8(incoming.body.readAllBytes(1024L))
+                        println(incoming.head.status)
+                        println(body)
+                    }
+                }
+            val stream = listener.accept()
+            val info =
+                HttpConnectionInfo(stream.localAddress, stream.peerAddress, HttpProtocol.Http1)
+            AsyncHttp1Connection.takeOwnershipAsServer(stream, scope).useAsync suspend {
+                connection ->
+                val incoming = connection.receiveRequest()!!
+                application.executeHttp1(connection, incoming, info, "example-1", options)
+            }
+            client.await()
+        }
+    }
+}

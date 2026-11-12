@@ -41,7 +41,7 @@ private class ServerListenTests {
                 HttpServer.listen(
                     scope,
                     port = 0,
-                    options = httpServerOptions { this.requestBodyLimit = Some(3L) },
+                    options = httpServerOptions { request { bodyLimit = Some(3L) } },
                     applicationOptions =
                         httpApplicationOptions {
                             this.errorMapper = suspend { _, _ -> text("mapped", 503U) }

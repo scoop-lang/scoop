@@ -1,24 +1,21 @@
 --- a/server.scoop
 +++ b/server.scoop
-@@ -1,15 +1,13 @@
+@@ -1,12 +1,13 @@
  //! dep: scoop:scoop.asyncio:0.1.0
  //! dep: scoop:scoop.http:0.1.0
--//! dep: scoop:scoop.http.asyncio:0.1.0
+ //! dep: scoop:scoop.http.asyncio:0.1.0
 +//! dep: scoop:scoop.http.server:0.1.0
  //! dep: scoop:scoop.platform:0.1.0
  
  import scoop.asyncio.*
  import scoop.http.*
--import scoop.http.asyncio.*
+ import scoop.http.asyncio.*
 -import scoop.platform.memory.NativeByteBuffer
 +import scoop.http.server.*
  import scoop.platform.net.*
  import scoop.text.*
--import scoop.time.Duration
- 
- @Extern(lib = "benchmetrics", name = "bench_metrics")
- private fun dumpMetrics()
-@@ -17,73 +15,12 @@
+ import scoop.time.Duration
+@@ -17,8 +18,6 @@
  @Extern(lib = "benchmetrics", name = "bench_tcp_options")
  private fun configureTcp(port: Int)
  
@@ -27,10 +24,10 @@
  private struct Reply(
      val body: Array<Byte>,
      val head: Array<Byte>,
-     val wire: Array<Byte>,
+@@ -26,61 +25,27 @@
      val response: HttpResponseHead
  )
--
+ 
 -private fun selectReply(request: Request): Long {
 -    val target = String.fromUtf8(request.target)
 -    return when (target) {
@@ -49,11 +46,18 @@
 -
 -// The existing connection now owns codecs, input/output buffers and operation lifetimes.
 -private suspend fun serve(peer: AsyncTcpStream, scope: CoroutineScope, replies: Array<Reply>) {
--    AsyncHttp1Connection.takeOwnershipAsServer(
--        peer,
--        scope,
--        ioTimeouts = HttpIoTimeoutOptions(Some(Duration.seconds(30L)), Some(Duration.seconds(30L)))
--    ).useAsync suspend {
++// Application execution borrows one request; the caller still owns the connection loop.
++private suspend fun serve(
++    peer: AsyncTcpStream,
++    scope: CoroutineScope,
++    application: HttpApplication
++) {
++    val info = HttpConnectionInfo(peer.localAddress, peer.peerAddress, HttpProtocol.Http1)
+     AsyncHttp1Connection.takeOwnershipAsServer(
+         peer,
+         scope,
+         ioTimeouts = HttpIoTimeoutOptions(Some(Duration.seconds(30L)), Some(Duration.seconds(30L)))
+     ).useAsync suspend {
 -        connection -> NativeByteBuffer.allocate(16384L).use suspend {
 -            bodyInput -> while (true) {
 -                val incoming = connection.receiveRequest() ?: break
@@ -86,13 +90,19 @@
 -                }
 -                yieldCoroutine()
 -            }
--        }
--    }
--}
- 
- private fun makeReplies(): Array<Reply> {
-     val bodies =
-@@ -132,33 +69,46 @@
++        connection ->
++        var nextId = 0UL
++        while (true) {
++            val incoming = connection.receiveRequest() ?: break
++            nextId += 1UL
++            application.executeHttp1(connection, incoming, info, nextId.toString())
++            if (!connection.isReusable)
++                break
++            yieldCoroutine()
+         }
+     }
+ }
+@@ -132,6 +97,25 @@
      val workers = args[1L].toInt()
      val port = args[2L].toInt()
      val replies = makeReplies()
@@ -118,45 +128,12 @@
      asyncRuntime {
          this.workers = workers
          blocking { threads = 1 }
-     }.run {
-         val scope = this
--        currentEventLoop().listenTcp(
--            SocketAddress(IpAddress.IPV4_LOOPBACK, port),
--            backlog = 1024,
--            reuseAddress = true
--        ).useAsync suspend {
--            listener ->
--            @Unsafe
--            {
--                configureTcp(port)
--            }
-+        val listener =
-+            currentEventLoop().listenTcp(
-+                SocketAddress(IpAddress.IPV4_LOOPBACK, port),
-+                backlog = 1024,
-+                reuseAddress = true
-+            )
-+        @Unsafe
-+        {
-+            configureTcp(port)
-+        }
-+        val options =
-+            httpServerOptions { onConnectionError = Some({ _, _ -> println("CONNECTION_ERROR") }) }
-+        HttpServer.takeOwnership(listener, application, scope, options).useAsync suspend {
-+            server ->
-             println("READY")
--            while (true) {
--                val stream = listener.accept()
--                scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
--                    try {
+@@ -152,7 +136,7 @@
+                 val stream = listener.accept()
+                 scope.launch(currentCoroutineExecutorOrNone()!!) suspend {
+                     try {
 -                        serve(stream, scope, replies)
--                    }
--                    catch (error: Throwable) {
--                        println("CONNECTION_ERROR")
--                    }
--                }
--            }
-+            server.awaitTermination()
-         }
-     }
- }
++                        serve(stream, scope, application)
+                     }
+                     catch (error: Throwable) {
+                         println("CONNECTION_ERROR")

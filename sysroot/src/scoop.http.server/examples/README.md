@@ -5,6 +5,7 @@
 | 程序 | 内容 |
 | --- | --- |
 | [hello.scoop](hello.scoop) | 默认地址与端口、直接配置路由、文本响应 |
+| [existing_connection.scoop](existing_connection.scoop) | 在调用方管理的 H1 连接上执行一个应用请求，完成后退出 |
 | [routing.scoop](routing.scoop) | 预先构建 application、多层参数路由、分组 middleware 与 fallback |
 | [json.scoop](json.scoop) | 带默认值的 query DTO、JSON 请求与响应、自动生成 codec |
 | [sse.scoop](sse.scoop) | 逐条发送并 flush 的 SSE 事件流 |
@@ -22,7 +23,7 @@ export TMPDIR="$PWD/target/http-server/examples/scratch"
 cd sysroot/src/scoop.http.server/examples
 ```
 
-下文命令均从此 `examples` 目录开始。每次只运行一个示例；它们默认监听 `127.0.0.1:8080`，按 Ctrl+C 结束前台进程。需要换端口时，在现有调用中传入 `HttpServer.listen(scope, port = 3000)`；预先构建 application 的形式则是 `HttpServer.listen(application, scope, port = 3000)`。
+下文命令均从此 `examples` 目录开始。长时间运行的示例默认监听 `127.0.0.1:8080`，每次只运行一个，按 Ctrl+C 结束前台进程。需要换端口时，在现有调用中传入 `HttpServer.listen(scope, port = 3000)`；预先构建 application 的形式则是 `HttpServer.listen(application, scope, port = 3000)`。`existing_connection.scoop` 使用临时回环端口并自动退出。
 
 事件循环仍由程序显式创建，`listen` 沿用调用方的 loop 和 scope。
 
@@ -42,6 +43,18 @@ curl http://127.0.0.1:8080/
 ```
 
 这个示例直接使用 `HttpServer.listen` 的默认值与路由配置重载，不需要自行创建 TCP listener。
+
+## 接入已有连接
+
+```sh
+scoop run existing_connection.scoop --release
+# 200
+# Hello, borrowed connection!
+```
+
+程序自行建立 TCP 连接，把接收到的一个 H1 请求交给 `application.executeHttp1`。应用仍使用相同的路由、middleware、请求作用域和响应执行；连接、接收循环与请求 ID 由调用方管理。`HttpRequestOptions` 可独立创建，也可用于完整 server 的 `request` 配置。此入口不接管底层 transport，WebSocket 升级应交给 `HttpServer`。
+
+这个有限程序同时运行本机客户端，读完响应后关闭两端与 listener。完整说明见 `scoop example http/existing-connection`。
 
 ## 嵌套路由
 

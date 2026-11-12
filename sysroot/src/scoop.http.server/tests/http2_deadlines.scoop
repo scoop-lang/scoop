@@ -150,8 +150,10 @@ private class ServerHttp2DeadlineTests {
             httpServerOptions {
                 this.allowCleartextHttp2 = true
                 this.keepAliveIdleTimeout = Some(Duration.milliseconds(30))
-                this.requestDeadline = Some(Duration.milliseconds(150))
-                this.onRequestCompleted = Some(completed::receive)
+                request {
+                    deadline = Some(Duration.milliseconds(150))
+                    onCompleted = Some(completed::receive)
+                }
                 this.onConnectionError =
                     Some(
                         {

@@ -60,12 +60,14 @@ private class ServerSseLifecycleTests {
             val options =
                 httpServerOptions {
                     this.allowCleartextHttp2 = true
-                    this.requestDeadline =
-                        if (action == "deadline")
-                            Some(Duration.milliseconds(100))
-                        else
-                            None
-                    this.onRequestCompleted = Some(completed::receive)
+                    request {
+                        deadline =
+                            if (action == "deadline")
+                                Some(Duration.milliseconds(100))
+                            else
+                                None
+                        onCompleted = Some(completed::receive)
+                    }
                 }
             withServer(
                 routes,

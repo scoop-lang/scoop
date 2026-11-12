@@ -56,7 +56,7 @@ PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop build "$bench_source/thin_server.s
 
 `manual_server.scoop` 是不依赖 HTTP 库的起点，只使用 AsyncTcpStream、NativeByteBuffer 和少量手写报文处理。它识别头部结束与起始行，支持受控基准中的无正文 GET／HEAD、三个固定路径、分段输入和连续请求；不实现通用 HTTP 字段校验、请求正文、升级、超时或完整会话语义。每条连接复用 16 KiB 输入与 64 KiB 输出缓冲，静态响应预编码，输出按同一 64 KiB 上限写入。
 
-`progressive/` 保存已经构建和测量过的连续补丁，各步骤都是修改同一个 `server.scoop`，不另存九份重复程序：
+`progressive/` 保存连续补丁，各步骤都是修改同一个 `server.scoop`，不另存重复程序。`application` 及之后的步骤使用提供 `executeHttp1` 的 SDK：
 
 | 步骤 | 补丁 | 本步变化 |
 | --- | --- | --- |
@@ -68,9 +68,12 @@ PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop build "$bench_source/thin_server.s
 | `idle` | `05-idle.patch` | 仅启用与 server 相同的 30 秒读／写 idle 超时 |
 | `scope` | `06-request-scope.patch` | 每请求增加现有 coroutineScope，保留独立 Job 和结构化收尾 |
 | `fair` | `07-fairness.patch` | 每请求结束后增加一次 yieldCoroutine |
-| `server` | `08-server.patch` | 三路径不变，接入正式 HttpApplication／HttpServer |
+| `application` | `08-application.patch` | 复用 HttpApplication 的单条请求执行；调用方继续接收头、管理连接与 yield |
+| `server` | `09-server.patch` | 同一个 application 交给 HttpServer，加入头部计时、容量登记与关闭协调 |
 
-最后一步仍包含请求对象、应用分派、响应执行、头部计时及 server 登记等一组职责。当前公开 API 不能把应用单独接到既有协议连接上，因此不能把整个差额叫作路由成本。`scope` 和 `fair` 是发现该组合边界增量最大之后补入的进一步对照。连接步骤使用数组响应入口和复用缓冲读取空正文，不沿用旧协议程序的中间缓冲与 `readAllBytes`；两者不能混称同一个基线。
+`scope` 和 `fair` 是 B52 发现组合边界增量最大之后补入的对照。B53 再以 `HttpApplication.executeHttp1` 拆出应用执行：请求对象、body 视图、middleware／路由、响应执行和请求清理共用完整 server 的实现；caller 每连接生成请求 ID，完整 server 使用其登记与标识符逻辑。应用入口内部已创建独立请求作用域，因此替换手写 scope；空正文的结束也由执行器负责，不再沿用 caller 的 bodyInput 缓冲。公开入口多一层挂起调用也属于实际接入成本，不能把差额全部归给路由。借用入口不接管 transport，WebSocket 升级仍走完整 server 路径。
+
+连接步骤使用数组响应入口和复用缓冲读取空正文，不沿用旧协议程序的中间缓冲与 `readAllBytes`；两者不能混称同一个基线。各层有实际语义差异，有限诊断服务不能代替完整 server。
 
 每一步检查实际响应，测吞吐、每请求 CPU、P50／P80 和 RSS；完整原版 server 与 Go 作为同轮参照。相邻两版正反顺序各运行一次，保持负载、SDK、绑核、连接数、默认 GC 和计时方式相同；计数与性能测量分开。多次相邻对照的差额不是可以精确相加的成本账本，短测波动及所有成功样本均应保留。此程序的性能不代表完整 HTTP 实现。
 
@@ -100,7 +103,7 @@ PATH="$bench_cli:$bench_llvm/bin:$PATH" scoop check "$bench_work/server.scoop" \
   --release --sysroot "$bench_sdk" --cache-dir "$bench_work/cache"
 ```
 
-后续补丁按表中顺序应用。所有补丁已通过 `git apply --check`，应用后的源码与各阶段固定源码逐字节一致。B52 的固定源码、ELF、脚本、原始数据和相邻增量见 [HTTP 主路径记录](../../../docs/asyncio-backends/PROGRESS.md#第五十二轮从最简-tcp-http-server-逐步替换并定位组合边界)。
+后续补丁按表中顺序应用。九个补丁已通过 `git apply --check`，应用后的源码与各阶段固定源码逐字节一致。原链的固定源码、ELF、脚本和相邻增量见 [B52 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十二轮从最简-tcp-http-server-逐步替换并定位组合边界)；B53 的应用接入、完整 server 回归与新相邻增量见 [B53 记录](../../../docs/asyncio-backends/PROGRESS.md#第五十三轮拆出应用请求执行并量出连接管理的净增量)。
 
 ## 测量
 

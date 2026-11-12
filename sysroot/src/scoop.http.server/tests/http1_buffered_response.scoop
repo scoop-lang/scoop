@@ -30,7 +30,7 @@ private class ServerBufferedResponseTests {
             }
         withServer(
             routes,
-            httpServerOptions { this.onRequestCompleted = Some(completed::receive) },
+            httpServerOptions { request { onCompleted = Some(completed::receive) } },
             suspend {
                 scope,
                 _,

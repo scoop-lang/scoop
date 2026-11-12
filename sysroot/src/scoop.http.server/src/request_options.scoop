@@ -1,0 +1,28 @@
+package scoop.http.server
+
+import scoop.time.Duration
+
+/** Immutable limits, deadline and completion observation for one application request. */
+public class HttpRequestOptions internal constructor(
+    /** Maximum framed request body bytes, or None for no total input limit. */
+    public val bodyLimit: Long? = Some(8388608L),
+    /** Maximum bytes collected by aggregate body helpers. */
+    public val bufferedBodyLimit: Long = 2097152L,
+    /** Total request lifetime, including response execution and structured children. */
+    public val deadline: Duration? = None,
+    /** Observes the final snapshot after request resources and children have ended. */
+    public val onCompleted: ((HttpRequestCompletion) -> Unit)? = None
+) {
+    public companion object {
+        /** Shared immutable configuration for requests without explicit overrides. */
+        public val Default: HttpRequestOptions = HttpRequestOptions()
+    }
+
+    init {
+        if (present(bodyLimit) && bodyLimit!! < 0L)
+            throw IllegalArgumentException(Some("negative request body limit"))
+        if (bufferedBodyLimit < 0L)
+            throw IllegalArgumentException(Some("negative buffered body limit"))
+        requireServerDuration(deadline)
+    }
+}

@@ -129,6 +129,8 @@ HttpNext 已绑定当前请求，调用者不传另一个 HttpContext。它不�
 
 不公开泛型 ServiceProvider、GetService<T>()、自动控制器扫描或注解路由。
 
+应用请求执行也可与 listener／连接管理独立组合：`HttpApplication.executeHttp1` 借用既有 H1 连接上的当前请求，共享完整 server 的请求作用域、middleware、路由、响应和清理实现。调用方保留头接收、标识符、循环公平性和连接生命周期；没有 transport 接管权的入口拒绝 WebSocket 升级。`HttpRequestOptions` 独立保存请求限制、期限和完成观察，`HttpServerOptions.request` 复用该配置。详细合同见 [HTTP server 规范 §1.1](../specs/SCOOP-HTTP-SERVER-SPEC.md#11-已有-h1-连接上的单条请求)。
+
 启动入口直接位于 HttpServer 上，复用同一所有者和接受循环。签名概览如下：
 
 ~~~scoop
@@ -136,18 +138,18 @@ HttpServer.takeOwnership(
     listener: AsyncTcpListener,
     application: HttpApplication,
     scope: CoroutineScope,
-    options: HttpServerOptions = HttpServerOptions()
+    options: HttpServerOptions = httpServerOptions()
 ): HttpServer
 
 HttpServer.listen(application: HttpApplication, scope: CoroutineScope,
     port: Int = 8080, host: IpAddress = IpAddress.IPV4_LOOPBACK,
-    options: HttpServerOptions = HttpServerOptions()): HttpServer
+    options: HttpServerOptions = httpServerOptions()): HttpServer
 
 HttpServer.listen(scope: CoroutineScope, port: Int = 8080,
     host: IpAddress = IpAddress.IPV4_LOOPBACK,
-    options: HttpServerOptions = HttpServerOptions(),
-    applicationOptions: HttpApplicationOptions = HttpApplicationOptions(),
-    configure: (RouterBuilder) -> Unit): HttpServer
+    options: HttpServerOptions = httpServerOptions(),
+    applicationOptions: HttpApplicationOptions = httpApplicationOptions(),
+    configure: RouterBuilder.() -> Unit): HttpServer
 
 server.awaitTermination(): Unit
 server.shutdownGracefully(grace: Duration): Unit
@@ -627,8 +629,8 @@ HTTP drain 与 TLS close_notify 也有不同含义。当前 HTTP connection 拥�
 | --- | --- | --- |
 | HTTP header/start-line 限制 | 沿用现有 HttpHeaderLimits、Http1Limits | 已有默认总字段 64 KiB、单字段 16 KiB、100 项、H1 起始行 8 KiB |
 | H2 协议缓冲与 SETTINGS | 沿用 Http2Limits / Http2Settings，并可显式覆盖 | 保持协议窗口和实际消息队列的边界 |
-| bufferedBodyLimit | 2 MiB | bytes/text/json 等聚合入口的默认上限 |
-| requestBodyLimit | 8 MiB，可按路由增大或显式关闭 | 所有请求 body 消费路径累计的默认上限 |
+| request.bufferedBodyLimit | 2 MiB | bytes/text/json 等聚合入口的默认上限 |
+| request.bodyLimit | 8 MiB，可按路由增大或显式关闭 | 所有请求 body 消费路径累计的默认上限 |
 | maxConnections | 1024，可配置 | 已接管连接数 |
 | maxActiveRequests | 256，可配置 | 正在执行的应用请求；长响应也占用 |
 | 应用请求等待队列 | 首版不建立无界队列 | 无容量时直接拒绝或中止，避免只限制运行数却无限积压 |
@@ -636,12 +638,12 @@ HTTP drain 与 TLS close_notify 也有不同含义。当前 HTTP connection 拥�
 | firstRequestHeadTimeout | 10 s | 初始请求头完成前的边界，具体协议能力见下文 |
 | keepAliveIdleTimeout | 60 s | 没有活动请求时的连接空闲 |
 | bodyReadIdle / responseWriteIdle | 30 s，可配置 | 有待处理 I/O 时的真实停滞 |
-| requestDeadline | 默认关闭，路由可设置 | 从进入请求管线到响应执行结束；流式端点显式选择 |
+| request.deadline | 默认关闭，路由可设置 | 从进入请求管线到响应执行结束；流式端点显式选择 |
 | gracefulShutdownTimeout | 30 s | 允许已有请求自然完成的时间 |
 
 全局容量检查在创建业务任务前执行，不让过载请求先进入认证或数据库。H1 拒绝后关闭连接；H2 仅处理相应 stream。能够在现有容量和发送约束内快速完成时可以发送 503，否则关闭/取消；容量拒绝不承诺总能返回 HTTP 响应。不会为“等待发送 503”再建立无界的拒绝任务队列。
 
-requestBodyLimit 不能替代聚合上限；有界聚合也不能消除大量并发请求的总内存压力。关闭或增大流式路由的 body 总量上限是应用的显式选择。
+request.bodyLimit 不能替代聚合上限；有界聚合也不能消除大量并发请求的总内存压力。关闭或增大流式路由的 body 总量上限是应用的显式选择。
 
 当前超时能力必须准确描述：
 
@@ -716,7 +718,7 @@ SSE 属于活动 HTTP 请求，参与同一排空和 deadline。WebSocket 成功
 
 **HTTP 与生命周期。**默认结果为 200、`Content-Type: text/event-stream; charset=utf-8`、`Cache-Control: no-cache`，不设置固定 Content-Length；no-cache 不表示关闭所有中间代理缓冲。H1／H2 定界和 flush 交给现有 writer，不注入 Connection 字段或特定代理厂商字段。响应头提交并 flush 后才等待业务事件。HEAD 只发送元数据，不调用 producer、不启动心跳。204 停止重连等业务结果在返回 sse 之前由 handler 明确选择。
 
-默认关闭动态响应压缩，避免压缩缓冲延迟事件；显式开启时，每次 flush 必须穿透压缩同步点再到 HTTP writer。SSE 不自动关闭应用已配置的 requestDeadline；端点需要长连接时显式选择期限。Last-Event-ID 按单值请求字段读取，重复项或无法按选定文本约定解释时为 400；ID 的意义、历史查询和是否补发由应用负责，不建立框架级事件存储或重放服务。
+默认关闭动态响应压缩，避免压缩缓冲延迟事件；显式开启时，每次 flush 必须穿透压缩同步点再到 HTTP writer。SSE 不自动关闭应用已配置的 request.deadline；端点需要长连接时显式选择期限。Last-Event-ID 按单值请求字段读取，重复项或无法按选定文本约定解释时为 400；ID 的意义、历史查询和是否补发由应用负责，不建立框架级事件存储或重放服务。
 
 端点或 middleware 在最终响应提交前使用 `ctx.setDeadline(Duration?)` 覆盖本次请求期限；None 明确关闭，非负时长从进入本次请求管线时计起，不重置起点。不能恢复已经到期或取消的请求；连接与 I/O idle 仍独立生效。
 
@@ -746,7 +748,7 @@ SSE 属于活动 HTTP 请求，参与同一排空和 deadline。WebSocket 成功
 
 文本 helper 支持调用方显式 charset，以及 part 上有效的 charset 参数；两者冲突时报提取错误。未指定时使用严格 UTF-8；`_charset_` 作为普通字段交付，应用可以在读到它后显式选择后续文本的字符集，不回头缓冲或重解码之前的 part。嵌套 multipart 保持普通 part 正文，只有应用显式组合第二个 reader 才解析；不自动展开旧式 multipart/mixed。
 
-**大小与错误。**复用 MultipartLimits 的头部、字段数、part 数和分块上限。server 另建议 `maxFieldBytes = 64 KiB`、`maxPartBytes = 8 MiB`；requestBodyLimit 继续限制整个实际输入，启用解压时另受 15.5 的总明文限制。text 的有效上限为调用上限、字段上限和 part 上限中的最小值。copyTo／discard 同样经过 part 计数，不能通过换入口绕过限制。header、boundary、preamble、epilogue 仍计入外层 body；part Content-Length 不改变 boundary 定界，也不预先分配完整文件。
+**大小与错误。**复用 MultipartLimits 的头部、字段数、part 数和分块上限。server 另建议 `maxFieldBytes = 64 KiB`、`maxPartBytes = 8 MiB`；request.bodyLimit 继续限制整个实际输入，启用解压时另受 15.5 的总明文限制。text 的有效上限为调用上限、字段上限和 part 上限中的最小值。copyTo／discard 同样经过 part 计数，不能通过换入口绕过限制。header、boundary、preamble、epilogue 仍计入外层 body；part Content-Length 不改变 boundary 定界，也不预先分配完整文件。
 
 不匹配的媒体类型为 415；缺失 boundary、非法 disposition／name、截断和格式错误为 400；实际字段／part／总量超限为 413。只转换来自本次输入的错误，文件打开／写入失败和应用异常保留真实原因。reader 提前关闭不自动 drain；H1 在仍能发送错误结果时先响应再关闭连接，H2 先结束响应再放弃输入，遵守 9.3。
 
@@ -817,9 +819,9 @@ Content-Encoding 的 token 语法复用 parseHttpTokenFields；gzip、deflate、
 
 | 限制 | 默认建议与计数位置 |
 | --- | --- |
-| requestBodyLimit | 仍为 8 MiB；计 HTTP 去定界后、内容解码前的实际输入 |
+| request.bodyLimit | 仍为 8 MiB；计 HTTP 去定界后、内容解码前的实际输入 |
 | decodedBodyLimit | 8 MiB，可按路由覆盖；限制最终明文，并作为每个中间解码层的 maxOutputBytes，防止中间层先膨胀 |
-| bufferedBodyLimit | 仍为 2 MiB；聚合 bytes／text／json 时另外执行，以实际交付明文计算 |
+| request.bufferedBodyLimit | 仍为 2 MiB；聚合 bytes／text／json 时另外执行，以实际交付明文计算 |
 | 解码缓冲 | 复用现有 8192 字节默认值；各层有限推进，下游慢时不继续预取 |
 | zstd 最大窗口 | 默认建议 8 MiB，可显式增大；只作用于 zstd 实际窗口，不能给其他格式传无意义选项 |
 

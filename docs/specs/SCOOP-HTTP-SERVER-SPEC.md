@@ -10,6 +10,16 @@ HttpHandler 是 `suspend (HttpContext) -> HttpResult`，HttpNext 是 `suspend ()
 
 HttpContext 属于一次请求，保存 request、response、route、pathParams 和 requestId。实际执行必须处于活动 Job 中，requestJob 为该请求任务。框架在执行全局 middleware 前绑定精确 HttpContext。离开请求管线恢复原绑定；挂起和恢复不结束绑定。应用 Context 的缺失是装配错误，默认 500，不是匿名用户的认证结果。
 
+### 1.1 已有 H1 连接上的单条请求
+
+`public suspend fun HttpApplication.executeHttp1(connection: AsyncHttp1Connection, incoming: Http1IncomingRequest, info: HttpConnectionInfo, requestId: String, options: HttpRequestOptions = HttpRequestOptions.Default): Unit` 在既有协议连接上执行一条已接收请求。调用者传入该连接当前尚未消费的请求，并顺序等待执行完成后再接收下一条；不能并发执行同一连接的消息或绕过连接读写 transport。`HttpConnectionInfo(localAddress, peerAddress, protocol, tls=None)` 是公开的不可变元数据构造，地址／协议／TLS 信息和 requestId 由接入方提供；框架不从转发字段自动生成或认证这些事实。
+
+该入口借用连接并复用 HttpServer 的同一请求执行实现：创建独立请求 Job、HttpContext 和正文视图，处理 Expect、路由、middleware、错误映射、HEAD、流式响应、请求总时限及真实输出进度。管线和请求子任务结束后关闭正文视图、收尾当前输入、调用完成观察器，再返回或抛出实际失败。健康连接仍由调用者持有；失败、取消或未读正文可能按协议合同中止／关闭连接，不能保证错误后可复用。
+
+单条请求执行不创建 listener、接受循环、连接登记、请求头期限或公平调度；这些属于接入方。它不接管或移交底层 transport，因此 WebSocket 结果在提交前沿既有拒绝流程返回 400，且不执行会话回调。HttpServer 的 H1 输出适配器继续承担排空判断和 WebSocket 名额／接管，原升级、Context 退出及会话清理时序保持；H2 的既有 server 执行保持原 stream 取消与收尾合同。
+
+`HttpRequestOptions` 保存 bodyLimit（默认 Some(8 MiB)）、bufferedBodyLimit（默认 2 MiB）、deadline（默认 None）和 onCompleted（默认 None）。`HttpRequestOptions.Default` 共享上述不可变默认配置；`httpRequestOptions { ... }` 同步构造并校验新的选项，可在多条请求间复用；bodyLimit、bufferedBodyLimit 和 deadline 的非空值不得为负。HttpServerOptions 通过 `request: HttpRequestOptions` 使用同一配置，`request { ... }` 在当前配置上修改；原平铺的 requestBodyLimit、bufferedBodyLimit、requestDeadline、onRequestCompleted 配置直接迁移，不保留兼容转发。请求执行不重复校验已经构造的配置。
+
 ## 2. 路由与提取
 
 方法为大小写敏感 HTTP token。路径按原始 `/` 分片，各片段至多百分号解码一次；编码斜线不形成路由层级。静态片段比较解码后的字节，参数保留原始和解码后的字节；String 访问使用严格 UTF-8。路径不折叠连续斜线、尾斜线或点片段，query 不参与路由。
@@ -72,9 +82,9 @@ HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, o
 
 Expect 使用 HTTP 消息层的完整解析结果。包含未知 expectation 时默认 417，畸形语法 400；只有应用第一次读取非空 body 且尚未提交最终响应时，才发送一次 100-continue。100 不经过最终响应草稿或完成通知。应用直接拒绝不先发送 100；最终响应开始后不再从未读 body 触发 100。
 
-默认 maxConnections=1024，maxActiveRequests=256；连接容量覆盖握手和 keep-alive，请求容量覆盖 handler、流式输出及其清理。登记、排空和容量判断在同一状态边界完成；无容量直接关闭新连接／当前 H1 连接，不为拒绝响应另建等待队列。requestBodyLimit=8 MiB，bufferedBodyLimit=2 MiB；路由可在选择 body 消费方式之前明确调整 body 总量上限，非法负值是配置错误。
+默认 maxConnections=1024，maxActiveRequests=256；连接容量覆盖握手和 keep-alive，请求容量覆盖 handler、流式输出及其清理。登记、排空和容量判断在同一状态边界完成；无容量直接关闭新连接／当前 H1 连接，不为拒绝响应另建等待队列。request.bodyLimit=8 MiB，request.bufferedBodyLimit=2 MiB；路由可在选择 body 消费方式之前明确调整 body 总量上限，非法负值是配置错误。
 
-TLS 握手总时限默认 10 秒；首条请求头从握手完成（明文为连接任务开始）到完整首部的总时限默认 10 秒，包含明文协议探测；H1 后续无活动请求时从开始等待到下一完整请求头的总时限默认 60 秒。bodyReadIdle 和 responseWriteIdle 默认 30 秒，复用异步 HTTP 层真实 I/O 进展计时；这些不是请求总时限。requestDeadline 默认关闭，启用后覆盖进入管线直到响应和请求子任务结束。超时执行协作式取消并等待清理，不在已关闭连接上补发 504。H1 没有独立的断开通知，TCP 半关闭仍可以等待响应。
+TLS 握手总时限默认 10 秒；首条请求头从握手完成（明文为连接任务开始）到完整首部的总时限默认 10 秒，包含明文协议探测；H1 后续无活动请求时从开始等待到下一完整请求头的总时限默认 60 秒。bodyReadIdle 和 responseWriteIdle 默认 30 秒，复用异步 HTTP 层真实 I/O 进展计时；这些不是请求总时限。request.deadline 默认关闭，启用后覆盖进入管线直到响应和请求子任务结束。超时执行协作式取消并等待清理，不在已关闭连接上补发 504。H1 没有独立的断开通知，TCP 半关闭仍可以等待响应。
 
 HttpContext.setDeadline(Duration?) 允许端点或 middleware 在最终响应提交前覆盖本次请求的总时限；None 明确关闭，非负 Duration 始终从本次请求进入管线时计起，不从设置时重新计时。新的期限可以缩短或延长，也可以在默认关闭时启用；不改变连接或 I/O idle 规则。已到期、取消或结束的请求不能被恢复。期限观测与请求处于同一结构化作用域，覆盖管线及其子任务的实际结束；到期后等待取消清理，完成通知保留实际到期时配置的时长。
 
@@ -84,7 +94,7 @@ H1 完成一条请求并释放活动请求名额后，若连接仍可复用，�
 
 server 有 Running／Draining／Closed 三态。shutdownGracefully 先停止接受并取消无活动请求的 H1 连接；活动请求完成后关闭，不进入下一次业务分派。默认自然排空宽限 30 秒，届满后取消所有者和剩余连接，等待真实 I/O 与资源清理。close 直接执行强制取消并等待；并发等待共享同一所有者结果。awaitTermination 只等待。调用方取消关闭等待也不能跳过本地资源清理；清理失败保留实际异常。
 
-onRequestCompleted 在响应、请求子任务和输入收尾结束后接收不可变快照：requestId、route、method、状态、耗时、接收／交付及输出字节和完成类别。onConnectionError 观察握手或连接边界的失败。观察函数非挂起、在内部锁外调用；自身失败不改变已发出的结果或取消其他请求。完成不承诺对端已处理数据。
+request.onCompleted 在响应、请求子任务和输入收尾结束后接收不可变快照：requestId、route、method、状态、耗时、接收／交付及输出字节和完成类别。onConnectionError 观察握手或连接边界的失败。观察函数非挂起、在内部锁外调用；自身失败不改变已发出的结果或取消其他请求。完成不承诺对端已处理数据。
 
 ## 6. H2 请求与排空
 
@@ -100,7 +110,7 @@ H2 keepAliveIdleTimeout 仅在首个请求之后、没有活动请求、已排�
 
 ## 7. SSE 输出
 
-sse(options, produce) 构造普通 Stream 结果，状态为 200，Content-Type 为 text/event-stream; charset=utf-8，Cache-Control 为 no-cache，不设置固定长度。响应头提交并 flush 后才执行 producer；HEAD 不执行 producer 或启动心跳。SSE 不自动修改 requestDeadline，端点可在返回结果前显式调用 setDeadline。HttpRequest.lastEventId 复用单值字段提取，缺失返回 None，重复或非法 UTF-8 为 400；重放和历史存储由应用负责。
+sse(options, produce) 构造普通 Stream 结果，状态为 200，Content-Type 为 text/event-stream; charset=utf-8，Cache-Control 为 no-cache，不设置固定长度。响应头提交并 flush 后才执行 producer；HEAD 不执行 producer 或启动心跳。SSE 不自动修改 request.deadline，端点可在返回结果前显式调用 setDeadline。HttpRequest.lastEventId 复用单值字段提取，缺失返回 None，重复或非法 UTF-8 为 400；重放和历史存储由应用负责。
 
 SseWriter 仅在 producer 执行期间可用，借用 HTTP body，不提供结束响应的入口。send(SseMessage) 与 comment(String) 默认在完整块写出后 flush；可明确传入 flush=false 合并发送，再调用 flush()。编码与短写复用 HTTP 消息库的 SseEncoder／SseSink，不缓冲完整事件副本。应用至多执行一个发送或 flush 操作，并发调用在写出前失败，不破坏正在发送的事件。
 
@@ -114,7 +124,7 @@ HttpRequestBody.multipart(options) 在读取前检查唯一 Content-Type、multi
 
 nextPart 按线上顺序返回 RequestPart，完成外层 EOF 验证后返回 None。当前 part 必须读到 EOF 或完成显式 discard 后才能推进；旧流在推进后失效。part.head 保留原字段；nameBytes 是必需的 form-data name 参数，filenameBytes 可缺失或为空。空 name 保留；name／filename 的文本属性严格按 UTF-8 解码，不猜编码、不百分号解码、不解释路径、不优先使用 filename*。重复字段与附件分别交付，不折叠成 Map；缺失／非法 Content-Disposition 或 name 为 400。
 
-part.openStream、text 和 copyTo 共用一次消费权。discard(maxBytes) 可显式丢弃尚未读取的余下内容；关闭未完成 part 终止整个 multipart 视图。RequestMultipartOptions 复用 MultipartLimits，另外默认 maxFieldBytes=64 KiB、maxPartBytes=8 MiB、bufferSize=8192；上限须非负，bufferSize 须为正。每个 part 的实际累计字节在所有入口之间共享，文本上限取调用上限、字段上限与 part 上限的最小值。copyTo(sink, maxBytes) 使用有限缓冲并处理短写，借用 sink，不隐式 flush 或关闭。discard 复用底层有界丢弃，仍受剩余 part 上限约束。所有总量上限至多多读一个字节来区分恰好到限和超限；超限为 413，并使当前 multipart 视图不可继续读取。外层头部、boundary、preamble 和 epilogue 仍计入 requestBodyLimit。
+part.openStream、text 和 copyTo 共用一次消费权。discard(maxBytes) 可显式丢弃尚未读取的余下内容；关闭未完成 part 终止整个 multipart 视图。RequestMultipartOptions 复用 MultipartLimits，另外默认 maxFieldBytes=64 KiB、maxPartBytes=8 MiB、bufferSize=8192；上限须非负，bufferSize 须为正。每个 part 的实际累计字节在所有入口之间共享，文本上限取调用上限、字段上限与 part 上限的最小值。copyTo(sink, maxBytes) 使用有限缓冲并处理短写，借用 sink，不隐式 flush 或关闭。discard 复用底层有界丢弃，仍受剩余 part 上限约束。所有总量上限至多多读一个字节来区分恰好到限和超限；超限为 413，并使当前 multipart 视图不可继续读取。外层头部、boundary、preamble 和 epilogue 仍计入 request.bodyLimit。
 
 text 可显式传入 Charset，也使用 part Content-Type 中声明的有效 charset；两者冲突为 400，输入声明的不支持 charset 为 415。默认严格 UTF-8，BOM 行为复用 Charset.decode 的默认规则；只把实际文本输入错误映射为 400，后端故障保留原异常。_charset_ 是普通字段，嵌套 multipart 是普通正文，均不自动改变后续解析。格式错误／截断为 400，底层 MultipartLimits 超限为 413；只有读取本次输入产生的错误在提取边界转换，应用 sink、文件和业务错误保持真实原因。
 
@@ -154,7 +164,7 @@ requestDecompression(options) 在 next 前配置 HttpRequestBody，不读正文�
 
 原 head 保持不变。body.view 在成功选择前为 None，之后提供 HttpRequestBodyView：decodedEncodings 是实际去除的编码，按原字段顺序记录且不含 identity；contentLength 只在未变换时保留原 Content-Length，有实际解码时为 None。raw 入口不解析 Content-Encoding。isComplete 只在选定视图达到正常 EOF 后为 true，不能因底层已预取完压缩字节提前成立。
 
-requestBodyLimit 继续统计 HTTP 去定界后的实际编码输入，setLimit 仍只可在选择前调用。声明 Content-Length 超过该上限时在选择时拒绝 413；未知长度按实际推进检查。decodedBodyLimit 传给每层解码器的 maxOutputBytes，包括中间层；identity 视图也执行此明文上限。bufferedBodyLimit 另限制聚合明文，不因其他上限关闭而取消。zstd 窗口上限只传给 zstd。计数均检查溢出；完成快照 receivedBytes 为实际编码输入，deliveredBytes 为成功交付到选定正文视图的字节，multipart 的内部预取也在此边界计数。
+request.bodyLimit 继续统计 HTTP 去定界后的实际编码输入，setLimit 仍只可在选择前调用。声明 Content-Length 超过该上限时在选择时拒绝 413；未知长度按实际推进检查。decodedBodyLimit 传给每层解码器的 maxOutputBytes，包括中间层；identity 视图也执行此明文上限。bufferedBodyLimit 另限制聚合明文，不因其他上限关闭而取消。zstd 窗口上限只传给 zstd。计数均检查溢出；完成快照 receivedBytes 为实际编码输入，deliveredBytes 为成功交付到选定正文视图的字节，multipart 的内部预取也在此边界计数。
 
 解码器在首次非空读取时按层创建，借用上游；未读取的请求不分配 codec。部分构造失败的已创建 decoder 仍由请求收尾释放。格式损坏、截断、checksum 和非法尾随数据为携带原 CompressionException 的 HttpRejection 400；OutputLimit／WindowLimit 为 413；需要未提供字典或字典不匹配为 415。底层 I/O、取消、内存失败及 Backend 保留实际异常。gzip 连续 member、zstd 连续 frame 复用 compression 的 Automatic 模式，不计为额外编码层。失败的视图不能继续推进。
 
@@ -209,7 +219,8 @@ onWebSocketCompleted 非挂起观察 HttpWebSocketCompletion，包含独立 cont
 
 | 结果 | 构造入口与全部配置字段 |
 | --- | --- |
-| HttpServerOptions | `httpServerOptions(configure: HttpServerOptionsBuilder.() -> Unit = {})`；tls: TlsServerContext? = None；allowHttp1Fallback: Boolean = true；allowCleartextHttp2: Boolean = false；allowTlsHttp2: Boolean = true；maxConnections: Long = 1024L；maxActiveRequests: Long = 256L；maxWebSocketSessions: Long = maxConnections；requestBodyLimit: Long? = Some(8388608L)；bufferedBodyLimit: Long = 2097152L；tlsHandshakeTimeout: Duration? = Some(Duration.seconds(10))；firstRequestHeadTimeout: Duration? = Some(Duration.seconds(10))；http2HeadTimeout: Duration? = Some(Duration.seconds(10))；keepAliveIdleTimeout: Duration? = Some(Duration.seconds(60))；bodyReadIdle: Duration? = Some(Duration.seconds(30))；responseWriteIdle: Duration? = Some(Duration.seconds(30))；requestDeadline: Duration? = None；gracefulShutdownTimeout: Duration = Duration.seconds(30)；http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()；http1Limits: Http1Limits = Http1Limits()；http2Receive: Http2ReceiveOptions = Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream)；http2Limits: Http2Limits = Http2Limits()；http2Settings: Http2Settings = Http2Settings()；onRequestCompleted: ((HttpRequestCompletion) -> Unit)? = None；onWebSocketCompleted: ((HttpWebSocketCompletion) -> Unit)? = None；onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None |
+| HttpServerOptions | `httpServerOptions(configure: HttpServerOptionsBuilder.() -> Unit = {})`；tls: TlsServerContext? = None；allowHttp1Fallback: Boolean = true；allowCleartextHttp2: Boolean = false；allowTlsHttp2: Boolean = true；maxConnections: Long = 1024L；maxActiveRequests: Long = 256L；maxWebSocketSessions: Long = maxConnections；request: HttpRequestOptions = httpRequestOptions()；tlsHandshakeTimeout: Duration? = Some(Duration.seconds(10))；firstRequestHeadTimeout: Duration? = Some(Duration.seconds(10))；http2HeadTimeout: Duration? = Some(Duration.seconds(10))；keepAliveIdleTimeout: Duration? = Some(Duration.seconds(60))；bodyReadIdle: Duration? = Some(Duration.seconds(30))；responseWriteIdle: Duration? = Some(Duration.seconds(30))；gracefulShutdownTimeout: Duration = Duration.seconds(30)；http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()；http1Limits: Http1Limits = Http1Limits()；http2Receive: Http2ReceiveOptions = Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream)；http2Limits: Http2Limits = Http2Limits()；http2Settings: Http2Settings = Http2Settings()；onWebSocketCompleted: ((HttpWebSocketCompletion) -> Unit)? = None；onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None |
+| HttpRequestOptions | `httpRequestOptions(configure: HttpRequestOptionsBuilder.() -> Unit = {})`；bodyLimit: Long? = Some(8388608L)；bufferedBodyLimit: Long = 2097152L；deadline: Duration? = None；onCompleted: ((HttpRequestCompletion) -> Unit)? = None |
 | HttpApplicationOptions | `httpApplicationOptions(configure: HttpApplicationOptionsBuilder.() -> Unit = {})`；errorMapper: suspend (HttpContext, Throwable) -> HttpResult = suspend { ctx, _ ->         text("Internal Server Error\nRequest: " + ctx.requestId, 500U)     }；onError: ((HttpContext, Throwable) -> Unit)? = None |
 | HttpResult | `httpResult(configure: HttpResultBuilder.() -> Unit = {})`；status: UInt = 200U；fields: List<HttpField> = ArrayList<HttpField>()；body: HttpBody = HttpBody.Empty；allowCompression: Boolean = true |
 | FileResponseOptions | `fileResponseOptions(configure: FileResponseOptionsBuilder.() -> Unit = {})`；contentType: String? = None；entityTag: HttpEntityTag? = None；contentEncoding: String? = None；lastModifiedIsStrong: Boolean = false；bufferSize: Long = 8192L |

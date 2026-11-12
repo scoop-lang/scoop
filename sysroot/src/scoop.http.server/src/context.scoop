@@ -9,7 +9,7 @@ public class HttpContext internal constructor(
     /** The original request and its single-consumer body. */
     public val request: HttpRequest,
     internal val output: ResponseOutput,
-    /** A server-generated identifier, independent of untrusted incoming fields. */
+    /** The identifier supplied by the server or the caller of single-request execution. */
     public val requestId: String,
     /** The structured job that owns this request's work. */
     public val requestJob: Job,

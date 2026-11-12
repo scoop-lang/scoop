@@ -25,9 +25,7 @@ internal class RequestExpectations(private val fields: Array<HttpField>) {
         }
 }
 
-internal class Http1ResponseOutput(
-    val state: ServerState,
-    val entry: ServerConnection,
+internal open class Http1ResponseOutput(
     val connection: AsyncHttp1Connection,
     val incoming: Http1IncomingRequest
 ): ResponseOutput {
@@ -37,7 +35,7 @@ internal class Http1ResponseOutput(
     private fun prepareHead(head: HttpResponseHead): HttpResponseHead {
         if (!started.compareAndSet(false, true))
             throw IllegalStateException(Some("HTTP/1 response already started"))
-        val closing = !incoming.body.isComplete || !state.running()
+        val closing = shouldCloseAfterResponse()
         if (!closing)
             return head
         val fields = ArrayList<HttpField>()
@@ -90,6 +88,19 @@ internal class Http1ResponseOutput(
     public override suspend fun abort() {
         connection.close()
     }
+
+    protected open fun shouldCloseAfterResponse(): Boolean = !incoming.body.isComplete
+}
+
+/** Adds the owned server's drain and upgrade state to the ordinary H1 output adapter. */
+internal class ServerHttp1ResponseOutput(
+    val state: ServerState,
+    val entry: ServerConnection,
+    connection: AsyncHttp1Connection,
+    incoming: Http1IncomingRequest
+): Http1ResponseOutput(connection, incoming) {
+    protected override fun shouldCloseAfterResponse(): Boolean =
+        super.shouldCloseAfterResponse() || !state.running()
 }
 
 internal class Http1RequestInput(

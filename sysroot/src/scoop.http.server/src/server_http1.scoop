@@ -54,7 +54,13 @@ where T: AsyncByteStream, T: AsyncCloseable {
                 if (!present(requestId))
                     break
                 try {
-                    executeHttp1Request(state, entry, connection, incoming!!, requestId!!)
+                    executeHttp1Request(
+                        state.application,
+                        ServerHttp1ResponseOutput(state, entry, connection, incoming!!),
+                        requestId!!,
+                        entry.info,
+                        state.options.request
+                    )
                 }
                 finally {
                     state.endRequest(entry)
