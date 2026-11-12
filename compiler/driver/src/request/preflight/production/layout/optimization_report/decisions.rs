@@ -13,7 +13,6 @@ pub(super) fn inline(outcome: InlineOutcome) -> &'static str {
         InlineOutcome::UnsupportedBody => "unsupported-body",
         InlineOutcome::RecursiveCallee => "recursive-callee",
         InlineOutcome::ProtocolCallee => "protocol-callee",
-        InlineOutcome::ProtocolCaller => "protocol-caller",
         InlineOutcome::RecursiveExpansion => "recursive-expansion",
         InlineOutcome::Depth => "expansion-depth",
         InlineOutcome::GrowthExhausted => "growth-exhausted",

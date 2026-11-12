@@ -69,6 +69,7 @@ fn if_else_becomes_basic_blocks() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals: Arena::new(),
             blocks,
             entry,
@@ -198,6 +199,7 @@ fn while_becomes_basic_blocks() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -334,6 +336,7 @@ fn and_short_circuits_through_blocks() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -466,6 +469,7 @@ fn or_short_circuits_through_blocks() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -615,6 +619,7 @@ fn explicit_loop_header_poll_survives_coroutine_like_multi_entry_cfg_and_pruning
         params,
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -695,6 +700,7 @@ fn loop_header_poll_carries_live_managed_root() {
         params,
         mir::Type::String,
         mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,
@@ -756,6 +762,7 @@ fn unmarked_cycle_does_not_synthesize_a_loop_header_poll() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals: Arena::new(),
             blocks,
             entry,
@@ -801,6 +808,7 @@ fn no_gc_function_ignores_explicit_loop_header_poll_targets() {
         Vec::new(),
         mir::Type::Unit,
         mir::Body {
+            exception_states: Default::default(),
             locals: Arena::new(),
             blocks,
             entry,

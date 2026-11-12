@@ -304,7 +304,10 @@ pub(super) fn dump_expr(
             ));
             dump_expr(module, locals, callback, indent + 1, out);
         }
-        ExprKind::CaughtException => out.push_str(&format!("{pad}CaughtException\n")),
+        ExprKind::CaughtException { state } => out.push_str(&format!(
+            "{pad}CaughtException eh{}\n",
+            state.into_raw().into_u32()
+        )),
         ExprKind::Retype { operand, ty } => {
             out.push_str(&format!("{pad}Retype {}\n", type_name(module, ty)));
             dump_expr(module, locals, operand, indent + 1, out);

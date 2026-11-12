@@ -395,17 +395,26 @@ pub(super) fn rewrite_registration(
     body.loop_header_polls
         .push(mir::LoopHeaderPollTarget::new(registration_wait));
     body.blocks[registration_spin].terminator = mir::Terminator::Goto(registration_wait);
+    let exception_state = body.exception_states.alloc(mir::ExceptionState);
     let registration_failure = body.blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: format!("coroutine.registration_failure.{}", site.state),
         statements: vec![
             statement(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                 cleanup: false,
+                state: exception_state,
             })),
-            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state: exception_state,
+            })),
             statement(mir::StatementKind::ValDecl {
                 local: exception,
-                init: mir::Expr::new(throwable.clone(), mir::ExprKind::CaughtException),
+                init: mir::Expr::new(
+                    throwable.clone(),
+                    mir::ExprKind::CaughtException {
+                        state: exception_state,
+                    },
+                ),
             }),
             statement(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
             statement(mir::StatementKind::ValDecl {

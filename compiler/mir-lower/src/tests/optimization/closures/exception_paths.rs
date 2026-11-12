@@ -9,6 +9,7 @@ fn protected() -> (mir::Module, mir::FunctionId) {
         .unwrap()
         .0;
     let body = &mut module.functions[helper].body;
+    let state = body.exception_states.alloc(mir::ExceptionState);
     let statement = |kind| mir::Statement {
         debug_origin: Default::default(),
         kind,
@@ -18,7 +19,9 @@ fn protected() -> (mir::Module, mir::FunctionId) {
         terminator_origin: Default::default(),
         name: "caught".into(),
         statements: vec![
-            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state,
+            })),
             statement(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
         ],
         terminator: mir::Terminator::Return {
@@ -30,7 +33,10 @@ fn protected() -> (mir::Module, mir::FunctionId) {
         terminator_origin: Default::default(),
         name: "landing".into(),
         statements: vec![statement(mir::StatementKind::Eh(
-            mir::EhStatement::LandingPad { cleanup: false },
+            mir::EhStatement::LandingPad {
+                cleanup: false,
+                state,
+            },
         ))],
         terminator: mir::Terminator::Goto(caught),
         unwind: None,

@@ -15,6 +15,7 @@ pub(super) fn drive_exit_blocks(
     module: &hir::Module,
     locals: &mut Arena<mir::Local>,
     blocks: &mut Arena<mir::BasicBlock>,
+    states: &mut Arena<mir::ExceptionState>,
     this: mir::LocalId,
     step: mir::LocalId,
     adapter: mir::ClassId,
@@ -25,8 +26,13 @@ pub(super) fn drive_exit_blocks(
     outer_resume: &crate::coroutine_registry::ProtocolMethod,
     outer_failure: &crate::coroutine_registry::ProtocolMethod,
 ) -> DriveExitBlocks {
-    let switch =
-        crate::task_context::TaskSwitch::new(frame_layout.task_storage.core, locals, blocks);
+    let switch = crate::task_context::TaskSwitch::new(
+        frame_layout.task_storage.core,
+        locals,
+        blocks,
+        states,
+    );
+    let state = states.alloc(mir::ExceptionState);
     let completed_payload = lowerer
         .coroutines
         .step_metadata_for_type(step_ty)
@@ -107,11 +113,14 @@ pub(super) fn drive_exit_blocks(
         statements: vec![
             statement(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                 cleanup: false,
+                state,
             })),
-            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+            statement(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state,
+            })),
             statement(mir::StatementKind::ValDecl {
                 local: exception,
-                init: mir::Expr::new(throwable.clone(), mir::ExprKind::CaughtException),
+                init: mir::Expr::new(throwable.clone(), mir::ExprKind::CaughtException { state }),
             }),
             statement(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
         ],

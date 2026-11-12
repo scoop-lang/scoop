@@ -76,14 +76,14 @@ pub(super) fn supported_blocks<'a>(blocks: impl Iterator<Item = &'a mir::BasicBl
     for block in blocks {
         supported &= !matches!(
             block.terminator,
-            mir::Terminator::Resume | mir::Terminator::Rethrow { .. }
+            mir::Terminator::Resume { .. } | mir::Terminator::Rethrow { .. }
         );
         supported &= !block
             .statements
             .iter()
             .any(|statement| matches!(statement.kind, mir::StatementKind::Eh(_)));
         mir::visit_block_exprs(block, &mut |expression| {
-            supported &= !matches!(expression.kind, mir::ExprKind::CaughtException);
+            supported &= !matches!(expression.kind, mir::ExprKind::CaughtException { .. });
         });
     }
     supported

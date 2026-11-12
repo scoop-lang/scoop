@@ -54,7 +54,6 @@ pub enum InlineOutcome {
     UnsupportedBody,
     RecursiveCallee,
     ProtocolCallee,
-    ProtocolCaller,
     RecursiveExpansion,
     Depth,
     GrowthExhausted,

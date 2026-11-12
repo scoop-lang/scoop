@@ -304,9 +304,16 @@ pub(super) fn lower_function<'a>(
         trap_blocks: HashMap::new(),
         trap_messages: HashMap::new(),
         current_sealed: false,
-        exception_slots: None,
-        caught_exception: None,
+        exception_states: HashMap::new(),
     };
+    for (state, _) in function.body.exception_states.iter() {
+        let slots = ExceptionSlots {
+            record: lowerer.new_hidden_local(lir::LirType::ExceptionRecord)?,
+            raw: lowerer.new_hidden_local(lir::RAW_PTR)?,
+            caught: lowerer.new_hidden_local(lir::MANAGED_PTR)?,
+        };
+        lowerer.exception_states.insert(state, slots);
+    }
     if optimization == lir::OptimizationMode::Release {
         entry = lowerer.prepare_interface_queries(function, &address_taken, entry)?;
     }
@@ -448,11 +455,14 @@ struct FunctionLowerer<'a> {
     trap_messages: HashMap<String, lir::GlobalId>,
     /// Whether the current block was already sealed.
     current_sealed: bool,
-    /// Function-local spill slots shared by all landing pads. They
-    /// avoid phi nodes when an inner catch cleanup forwards the same
-    /// exception to an enclosing try's dispatch block.
-    exception_slots: Option<(lir::LocalId, lir::LocalId)>,
-    caught_exception: Option<lir::LocalId>,
+    exception_states: HashMap<mir::ExceptionStateId, ExceptionSlots>,
+}
+
+#[derive(Clone, Copy)]
+struct ExceptionSlots {
+    record: lir::LocalId,
+    raw: lir::LocalId,
+    caught: lir::LocalId,
 }
 
 impl<'a> FunctionLowerer<'a> {
@@ -518,17 +528,6 @@ impl<'a> FunctionLowerer<'a> {
             format!("$sc.{}", self.hidden_count),
             lir::LocalStorage::NonZero(value),
         )))
-    }
-
-    fn exception_slots(&mut self) -> StorageResult<(lir::LocalId, lir::LocalId)> {
-        if let Some(slots) = self.exception_slots {
-            return Ok(slots);
-        }
-        let record = self.new_hidden_local(lir::LirType::ExceptionRecord)?;
-        let raw = self.new_hidden_local(lir::RAW_PTR)?;
-        let slots = (record, raw);
-        self.exception_slots = Some(slots);
-        Ok(slots)
     }
 
     /// The value of a MIR local: a stack slot load, or the SSA

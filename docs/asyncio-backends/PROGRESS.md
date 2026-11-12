@@ -699,6 +699,29 @@ Go net/http／Gin／Axum 四 worker 大响应分别约 240,990／233,372／339,5
 
 固定产物、撤回补丁、分配／CPU 追踪、图表和复现说明位于 `/home/chenxu/benchmarks/http-improvements-20261112-round33`。仅 Linux GNU/io_uring、静态 HTTP/1.1 实测，未重测 Go／Gin／Axum、TLS、HTTP/2 或 JSON。清理本轮临时 target 和不再需要的 debug 编译输出，保留固定工具链、release 构建缓存与诊断证据；未修改安装目录或前轮产物，未推送。
 
+## 第三十四轮：可组合异常状态与完整 EH 内联
+
+将 native 异常状态从函数级共享隐式槽改为正文内独立的 `ExceptionStateId`，LandingPad、BeginCatch、CaughtException、Resume 显式引用状态。内联复制状态，callee 的 Resume 向 caller handler 转交原记录和 raw 指针，进入 LandingPad 后的普通正文；cleanup pad 继承外层 catch-all 能力，保持异常查找和 catch 生命周期一致。普通同步内联可保留完整 EH；生成 coroutine／callback caller 也参与优化，callee 协议边界保持。复用 B28 从源码构建、含私有补丁的 LLVM 22.1.8，在独立目录重建编译器和 18 个库；runtime ABI、JSON／序列化源码未改。
+
+旧版存在实际正确性问题：catch 抛出第二个异常，finally 再捕获第三个异常后，待传播记录被共享槽覆盖；固定旧编译器编译的极简程序以 SIGABRT 退出，报 `begin-catch observed an invalid record state`。候选正常保留并传播第二个 Throwable。既有 exception-path-inlining 用例新增该组合和带清理的闭包热循环；debug／release、跨产物和 moving GC 通过，release MIR 中该热循环的闭包分配／捕获读取已消除，保留显式异常转交。
+
+静态 1 KiB、64 连接、默认 GC／超时、TCP_NODELAY；独立绑核，前后各三次随机交错，预热 2 秒＋测量 6 秒：
+
+| worker | req/s 前 → 后 | 总 CPU μs/请求 | 分配 KiB/请求 | RSS MiB |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 22,188 → 22,447 | 45.071 → 44.626 | 35.617 → 35.507 | 45.16 → 44.83 |
+| 4 | 55,413 → 58,469 | 55.734 → 54.955 | 35.707 → 35.598 | 51.58 → 51.79 |
+
+单 worker 吞吐仅 +1.2%、CPU −1.0%，四 worker CPU −1.4%。四 worker 候选三次为 39,982／58,469／58,619 req/s，不能把吞吐中位数变化宣称为稳定收益。12 个样本共 2,781,079 个 wrk 请求，无请求错误；样本前后核对完整正文，P50 与所有原始样本保留在外部报告。本轮没有解决 HTTP 主瓶颈。
+
+相同单 worker／单连接的 100 GET 分配追踪减去零 GET 控制边界，字节和对象计数均与 runtime 相符，100 个正文逐字节核验。对 B31 正式底座，每请求 **894 → 890 对象、37,504 → 37,392 bytes**；闭包 **303 → 301**、装箱 4 → 2，**50 个 frame、61 个 adapter 未变**。core 的 withLock 多轮诊断已无 unsupported-body，但有 119 条 not-profitable、24 条 caller-growth，仅 2 条 inlined；不能把决策次数当成运行频次。机制在小程序上成立，真实调用链的主要边界仍保留。下一步先诊断已知同步闭包目标整体展开的收益，再据实际消除结果设计联合估价，不围绕本轮微小收益调参。
+
+统一验收：core consumer、concurrent、asyncio 及 consumer、HTTP.asyncio、HTTP.server，加 TLS／server Runtime consumer 合计 **707 项通过**；定向 moving／minor GC **6 项通过**。协程、同步挂起、native callback exception、异常线程根及内联 CLI 组合 **88 个用例通过、1 个旧产物快照失败**；固定 B28 编译器＋B31 sysroot 重跑 inlining-artifacts 同样在 provider 快照处失败。新增异常组合 fixture 两种 profile 通过。
+
+Rust fmt、workspace/all-targets clippy 完成（有原有警告）；MIR 247 项通过，MIR-lower 初测 202 通过／7 快照失败，LIR-lower 初测 176 通过／20 快照失败。更新本次 EH 表示涉及的三个代表快照后，MIR 对应用例及 LIR EH 6 项定向重测通过；其余六个 MIR 函数编号和十八个 LIR task-context 布局快照仍为已有漂移。codegen 408 通过／1 失败，未变的测试按 208 bytes 截取，未变的 image producer 已使用 192 bytes；没有将这些结果报告为全绿。原始差异与基线核对放在外部证据中。
+
+本轮保留异常状态修正和完整 EH 内联能力，继续追查 HTTP 分配与调用成本。仅 Linux GNU/io_uring 静态 HTTP/1.1 性能实测，未重测 Go／Gin／Axum、JSON、TLS／HTTP2 性能或长尾。补丁、固定产物、图表、验证记录和复现说明位于 `/home/chenxu/benchmarks/http-improvements-20261112-round34`；清理本轮不再需要的临时构建与 fixture 目录，保留源码、固定二进制、release 构建缓存及原始证据，未推送。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

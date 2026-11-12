@@ -997,7 +997,7 @@ fn start_coroutine_captures_context_before_dispatching_its_guarded_work() {
                 matches!(
                     &statement.kind,
                     mir::StatementKind::ValDecl { init, .. }
-                        if matches!(init.kind, mir::ExprKind::CaughtException)
+                        if matches!(init.kind, mir::ExprKind::CaughtException { .. })
                 )
             })
     );

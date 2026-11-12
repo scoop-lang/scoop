@@ -160,14 +160,13 @@ impl Context<'_, '_> {
                             {
                                 let specialized = self
                                     .ordinary
-                                    .then(|| exceptions.specialize(source, &arguments, blocks))
+                                    .then(|| {
+                                        exceptions.specialize(source, &arguments, blocks.clone())
+                                    })
                                     .flatten();
-                                let Some(specialized) = specialized else {
-                                    record(InlineOutcome::UnsupportedBody, None);
-                                    analysis.statement(statement, &mut state);
-                                    continue;
-                                };
-                                blocks = specialized;
+                                if let Some(specialized) = specialized {
+                                    blocks = specialized;
+                                }
                             }
                             let cost = policy::blocks_cost(
                                 &self.module.structs,

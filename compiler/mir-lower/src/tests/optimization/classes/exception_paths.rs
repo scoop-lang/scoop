@@ -2,14 +2,18 @@ use super::*;
 use mir::optimization_report::{AllocationKind, AllocationOutcome, OptimizationDecision};
 
 fn handler(body: &mut mir::Body, value: mir::Expr) -> mir::BlockId {
+    let state = body.exception_states.alloc(mir::ExceptionState);
     body.blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: "handler".into(),
         statements: vec![
             node(mir::StatementKind::Eh(mir::EhStatement::LandingPad {
                 cleanup: false,
+                state,
             })),
-            node(mir::StatementKind::Eh(mir::EhStatement::BeginCatch)),
+            node(mir::StatementKind::Eh(mir::EhStatement::BeginCatch {
+                state,
+            })),
             node(mir::StatementKind::Eh(mir::EhStatement::EndCatch)),
         ],
         terminator: mir::Terminator::Return { value },

@@ -169,6 +169,7 @@ pub(super) fn generate_completion_method(
         ],
         return_ty: mir::Type::Unit,
         body: mir::Body {
+            exception_states: Default::default(),
             locals,
             blocks,
             entry,

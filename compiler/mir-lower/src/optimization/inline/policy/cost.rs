@@ -81,7 +81,7 @@ pub(in crate::optimization::inline) fn cold_blocks(
         let successors = match block.terminator {
             mir::Terminator::Throw { unwind: None, .. }
             | mir::Terminator::Rethrow { unwind: None }
-            | mir::Terminator::Resume
+            | mir::Terminator::Resume { .. }
             | mir::Terminator::Trap { .. } => {
                 cold.insert(id);
                 pending.push(id);
@@ -130,7 +130,7 @@ pub(in crate::optimization::inline) fn block_cost(
         mir::Terminator::Branch { .. } => 2,
         mir::Terminator::Throw { .. }
         | mir::Terminator::Rethrow { .. }
-        | mir::Terminator::Resume => 8,
+        | mir::Terminator::Resume { .. } => 8,
         _ => 1,
     }
 }

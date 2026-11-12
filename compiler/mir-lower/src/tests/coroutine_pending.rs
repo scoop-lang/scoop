@@ -124,7 +124,8 @@ fn captured_exception_at(body: &mir::Body, target: mir::CoroutineUnwindTarget) -
             else {
                 return None;
             };
-            matches!(init.kind, mir::ExprKind::CaughtException).then_some((index, *destination))
+            matches!(init.kind, mir::ExprKind::CaughtException { .. })
+                .then_some((index, *destination))
         })
         .unwrap_or_else(|| {
             panic!(
@@ -135,13 +136,13 @@ fn captured_exception_at(body: &mir::Body, target: mir::CoroutineUnwindTarget) -
     assert!(block.statements[..capture_index].iter().any(|statement| {
         matches!(
             &statement.kind,
-            mir::StatementKind::Eh(mir::EhStatement::LandingPad { cleanup: false })
+            mir::StatementKind::Eh(mir::EhStatement::LandingPad { cleanup: false, .. })
         )
     }));
     assert!(block.statements[..capture_index].iter().any(|statement| {
         matches!(
             &statement.kind,
-            mir::StatementKind::Eh(mir::EhStatement::BeginCatch)
+            mir::StatementKind::Eh(mir::EhStatement::BeginCatch { .. })
         )
     }));
     assert!(
@@ -183,7 +184,7 @@ fn assert_per_scope_exception_storage(body: &mir::Body, minimum: usize) {
             else {
                 continue;
             };
-            if !matches!(init.kind, mir::ExprKind::CaughtException)
+            if !matches!(init.kind, mir::ExprKind::CaughtException { .. })
                 || !body.locals[*destination]
                     .name
                     .starts_with("$coroutine_exception")

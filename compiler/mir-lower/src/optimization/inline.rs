@@ -13,10 +13,11 @@ use super::{
     mir, simplify,
 };
 use crate::local_values::LocalValueRegistry;
-use mir::optimization_report::{InlineOutcome, OptimizationDecision, OptimizationSite};
+use mir::optimization_report::InlineOutcome;
 
 mod class_fields;
 mod clone;
+mod exception_edges;
 mod exception_paths;
 mod policy;
 mod selection;
@@ -154,33 +155,6 @@ impl Session {
             if !active[index(id)] {
                 continue;
             }
-            if self.ordinary && self.protocol[index(id)] {
-                if let Some(observer) = observer {
-                    for (block_id, block) in module.functions[id].body.blocks.iter() {
-                        for (statement, node) in block.statements.iter().enumerate() {
-                            if let mir::StatementKind::Call(effect) = &node.kind {
-                                observer.record(
-                                    OptimizationSite {
-                                        function: id,
-                                        block: block_id,
-                                        statement,
-                                        span: node.span,
-                                        inline_path: self.ancestry(id, block_id),
-                                    },
-                                    OptimizationDecision::Inline {
-                                        target: super::observation::call_target(
-                                            &super::call(effect).target,
-                                        ),
-                                        outcome: InlineOutcome::ProtocolCaller,
-                                        estimate: None,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
-                continue;
-            }
             if !self.ordinary
                 && !module.functions[id].body.blocks.iter().any(|(_, block)| {
                     block.statements.iter().any(|statement| {
@@ -315,6 +289,7 @@ impl Context<'_, '_> {
         let mut debug_records = mir::DebugRecords::default();
         let mut changed = false;
         loop {
+            changed |= exception_edges::separate_entries(&mut function, &mut state.ancestry);
             let choices = self.choose(id, &function, &state.ancestry, &mut state.growth);
             if choices.is_empty() {
                 break;

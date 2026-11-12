@@ -2,29 +2,29 @@
     bb0 entry
       goto bb8
     bb1 try.unwind.1
-      landing_pad cleanup=false
+      landing_pad eh2 cleanup=false
       goto bb2
     bb2 try.dispatch.2
-      begin_catch
+      begin_catch eh2
       branch bb9 bb10
         Type Boolean
         IsInstance MyError
           Type Any
-          CaughtException
+          CaughtException eh2
     bb3 try.handler_pad.3
-      landing_pad cleanup=true
+      landing_pad eh0 cleanup=true
       goto bb4
     bb4 try.handler_cleanup.4
       end_catch
       Type Int
       IntegerLiteral Int value=2 bits=0x00000002
-      resume
+      resume eh0
     bb5 try.exit_pad.5
-      landing_pad cleanup=true
+      landing_pad eh1 cleanup=true
       goto bb6
     bb6 try.exit_cleanup.6
       end_catch
-      resume
+      resume eh1
     bb7 try.end.7
       return
         Type Unit
@@ -33,7 +33,7 @@
       assign $new.1
         Type MyError
         ClassAlloc MyError
-      call @fn17 direct
+      call @fn20 direct
         Type MyError
         Local $new.1
       call $prepared.throwable: MyError = @scoop_rt_prepare_throwable direct
@@ -47,7 +47,7 @@
         Type MyError
         Retype MyError
           Type Any
-          CaughtException
+          CaughtException eh2
       goto bb11
     bb10 try.next.10 unwind bb5
       Type Int

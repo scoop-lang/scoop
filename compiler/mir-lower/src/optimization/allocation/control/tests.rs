@@ -28,6 +28,7 @@ fn natural_loop_depth_merges_latches_and_accounts_for_unwind_nodes() {
     blocks[ids[4]].unwind = Some(ids[6]);
     blocks[ids[5]].terminator = mir::Terminator::Goto(ids[1]);
     let body = mir::Body {
+        exception_states: Default::default(),
         entry: ids[0],
         blocks,
         locals: Arena::new(),
