@@ -15,4 +15,27 @@ private class CalculatorTests {
         val error = assertFailsWith<IllegalArgumentException> { divide(42, 0) }
         assertEquals(Some("count must not be zero"), error.message)
     }
+
+    @Test
+    fun `empty ordinary and maximum totals preserve their values`() {
+        assertEquals(0L, sumNonnegativeMillis([]))
+        assertEquals(12L, sumNonnegativeMillis([5L, 7L]))
+        assertEquals(Long.MAX_VALUE, sumNonnegativeMillis([Long.MAX_VALUE, 0L]))
+    }
+
+    @Test
+    fun `negative milliseconds are rejected`() {
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                sumNonnegativeMillis([Long.MAX_VALUE, -1L])
+            }
+        assertEquals(Some("milliseconds must be nonnegative"), error.message)
+    }
+
+    @Test
+    fun `individually valid values can overflow the total`() {
+        val error =
+            assertFailsWith<IllegalArgumentException> { sumNonnegativeMillis([Long.MAX_VALUE, 1L]) }
+        assertEquals(Some("total milliseconds exceed Long range"), error.message)
+    }
 }

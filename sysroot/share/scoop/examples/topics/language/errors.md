@@ -15,6 +15,8 @@ count=3
 finished
 count must be positive
 finished
+result=8
+invalid: not an integer
 ```
 
 ## 关键说明
@@ -24,6 +26,8 @@ parseCount 使用 std 的 String.toInt，再拒绝非正计数。此处选用可
 Exception.message 是 String?，打印时使用 `?:` 提供缺失说明。若希望把格式错误当成普通缺失，可选择 `toIntOrNone` 并显式处理 Option；这不会自动处理后面的业务限制。
 
 本例只捕获 IllegalArgumentException。若改为非数字输入，应依据 toInt 的 NumberFormatException 合同处理，而不是用此处的 catch 吞掉所有失败。
+
+`positiveCount` 将格式错误转为 `Result.Failure`，再用 `flatMap` 加上业务校验；`map` 只变换 Success，失败原因保持原值。Result 和组合函数来自 std。返回可预期业务失败时可以使用 Result；系统异常仍由明确的应用边界处理，两者不应折叠为同一个空值。
 
 ## 常见误用
 

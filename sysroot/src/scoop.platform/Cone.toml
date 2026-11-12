@@ -130,6 +130,9 @@ when = {os = "windows"}
 path = "native/process_windows_strings.c"
 when = {os = "windows"}
 [[native.sources]]
+path = "native/process_windows_pipes.c"
+when = {os = "windows"}
+[[native.sources]]
 path = "native/process_wait.c"
 [[native.sources]]
 path = "native/socket_addresses.c"

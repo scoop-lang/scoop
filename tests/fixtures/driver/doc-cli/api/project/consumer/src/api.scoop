@@ -1,0 +1,4 @@
+package examples.api.consumer
+
+public import examples.api.provider.describe as showReading
+public import examples.api.provider.describe as `show reading`

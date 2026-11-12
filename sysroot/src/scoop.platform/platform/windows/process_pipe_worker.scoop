@@ -1,0 +1,153 @@
+package scoop.platform.process
+
+import scoop.bytes.ByteArrayBuilder
+import scoop.platform.concurrent.Thread
+import scoop.platform.fs.File
+import scoop.platform.io.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.system.*
+
+internal class ProcessPipeWorker internal constructor(
+    private val file: File,
+    private val input: Array<Byte>?,
+    private val state: ProcessPipeState
+) {
+    private val collected = ByteArrayBuilder()
+    private var worker: Thread? = None
+    private var native: Ptr<Unit>? = None
+    private var cancellationFailureReported = false
+
+    internal val isFinished: Boolean get() = worker?.isFinished ?: true
+    internal fun bytes(): Array<Byte> = collected.toByteArray()
+
+    internal fun start() {
+        worker =
+            Some(
+                Thread.start {
+                    var failure: Throwable? = None
+                    try {
+                        state.mutex.withLock {
+                            @Unsafe
+                            {
+                                val result = nativeOpenThread()
+                                if (result.error != 0)
+                                    failOperatingSystem(
+                                        "register process pipe thread",
+                                        result.error
+                                    )
+                                native = result.handle
+                            }
+                        }
+                        when (input) {
+                            case Some(val bytes) -> write(bytes)
+                            case None -> read()
+                        }
+                    } catch (error: PlatformException) {
+                        val native = error.nativeError
+                        val cancelled =
+                            state.stopping.load(MemoryOrder.Acquire) &&
+                                native?.domain ==
+                                Some(NativeErrorDomain.Win32) &&
+                                native?.code ==
+                                Some(995)
+                        if (!cancelled)
+                            failure = Some(error)
+                    } catch (error: Throwable) {
+                        failure = Some(error)
+                    }
+                    try {
+                        file.close()
+                    } catch (error: Throwable) {
+                        failure = Some(combineProcessFailure(failure, error))
+                    }
+                    state.complete(failure)
+                }
+            )
+    }
+
+    private fun read() {
+        NativeByteBuffer.allocate(8192L).use {
+            buffer -> while (!state.stopping.load(MemoryOrder.Acquire)) {
+                buffer.clear()
+                val received = file.readInto(buffer)
+                if (received == 0L)
+                    return@use
+                collected.append(buffer.readBytes(received))
+            }
+        }
+    }
+
+    private fun write(bytes: Array<Byte>) {
+        var offset = 0L
+        while (offset < bytes.size && !state.stopping.load(MemoryOrder.Acquire)) {
+            val left = bytes.size - offset
+            offset += file.writeFrom(
+                bytes,
+                offset,
+                if (left > 8192L)
+                    8192L
+                else
+                    left
+            )
+        }
+    }
+
+    internal fun cancel() {
+        if (isFinished)
+            return
+        state.mutex.withLock {
+            when (native) {
+                case Some(val handle) -> @Unsafe
+                {
+                    val error = nativeCancelThread(handle)
+                    if (error != 0 && !cancellationFailureReported) {
+                        cancellationFailureReported = true
+                        failOperatingSystem("cancel process pipe I/O", error)
+                    }
+                }
+                case None -> {}
+            }
+        }
+    }
+
+    internal fun finish() {
+        var failure: Throwable? = None
+        try {
+            worker?.join()
+        } catch (error: Throwable) {
+            failure = Some(error)
+        }
+        when (native) {
+            case Some(val handle) -> {
+                native = None
+                try {
+                    @Unsafe
+                    {
+                        val error = nativeCloseThread(handle)
+                        if (error != 0)
+                            failOperatingSystem("close process pipe thread", error)
+                    }
+                } catch (error: Throwable) {
+                    failure = Some(combineProcessFailure(failure, error))
+                }
+            }
+            case None -> {}
+        }
+        when (failure) {
+            case Some(val error) -> throw error
+            case None -> {}
+        }
+    }
+}
+
+@CLayout
+private struct NativePipeThread(val handle: Ptr<Unit>?, val error: Int)
+
+@Extern(name = "scoop_platform_process_pipe_thread")
+private fun nativeOpenThread(): NativePipeThread
+
+@Extern(name = "scoop_platform_process_pipe_cancel")
+private fun nativeCancelThread(thread: Ptr<Unit>): Int
+
+@Extern(name = "scoop_platform_process_pipe_thread_close")
+private fun nativeCloseThread(thread: Ptr<Unit>): Int

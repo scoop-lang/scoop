@@ -172,6 +172,15 @@ impl Lowerer {
                 name.span,
                 format!("type `{found}` has no method `{}`", name.text),
             );
+            if !required.infix
+                && required.operator.is_none()
+                && required.property_delegate_operator.is_none()
+            {
+                self.append_import_suggestions(
+                    name,
+                    crate::imports::MissingNameUse::Method(receiver.ty),
+                );
+            }
         }
         None
     }

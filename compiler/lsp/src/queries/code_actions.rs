@@ -3,19 +3,47 @@ use lsp_types::{
     CodeAction, CodeActionContext, CodeActionKind, DocumentChanges, OneOf,
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
-use scoop_analysis::{Cancellation, SourceInput, SyntaxFix};
+use scoop_analysis::{
+    AnalysisSnapshot, Cancellation, SemanticSession, SourceId, SourceInput, SyntaxFix,
+};
 use scoop_source::{SourceEdit, Span};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{convert, initialize::Settings};
 
+mod imports;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct ResolveData {
     pub uri: Uri,
     source: u64,
     revision: u64,
-    missing: usize,
+    repair: Repair,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum Repair {
+    Syntax {
+        missing: usize,
+    },
+    Import {
+        path: Vec<String>,
+        start: u32,
+        end: u32,
+        analysis_revision: u64,
+    },
+}
+
+pub(crate) struct Context<'a> {
+    pub uri: &'a Uri,
+    pub source_id: SourceId,
+    pub source: &'a SourceInput,
+    pub version: Option<i32>,
+    pub snapshot: &'a AnalysisSnapshot,
+    pub settings: Settings,
+    pub cancellation: &'a Cancellation,
 }
 
 #[derive(Clone)]
@@ -25,14 +53,11 @@ pub(crate) struct ActionQuery {
 }
 
 pub(crate) fn actions(
-    uri: &Uri,
-    source: &SourceInput,
-    version: Option<i32>,
+    context: Context<'_>,
     query: &ActionQuery,
-    settings: Settings,
-    cancellation: &Cancellation,
+    semantics: &mut SemanticSession,
 ) -> Result<Value, ResponseError> {
-    if !settings.code_actions {
+    if !context.settings.code_actions {
         return Err(unsupported());
     }
     if query.context.only.as_ref().is_some_and(|kinds| {
@@ -43,8 +68,16 @@ pub(crate) fn actions(
         return super::json(Vec::<CodeAction>::new());
     }
     let range = Span::new(
-        convert::offset(&source.text, query.range.start, settings.encoding)?,
-        convert::offset(&source.text, query.range.end, settings.encoding)?,
+        convert::offset(
+            &context.source.text,
+            query.range.start,
+            context.settings.encoding,
+        )?,
+        convert::offset(
+            &context.source.text,
+            query.range.end,
+            context.settings.encoding,
+        )?,
     );
     if range.start > range.end {
         return Err(convert::error(
@@ -52,81 +85,118 @@ pub(crate) fn actions(
             "reversed code action range",
         ));
     }
-    let fixes = source
+    let fixes = context
+        .source
         .syntax_fixes(range)
         .map_err(|error| convert::error(ErrorCode::RequestFailed, error))?;
     let mut actions = Vec::with_capacity(fixes.len());
     for fix in fixes {
-        cancellation
+        context
+            .cancellation
             .check()
             .map_err(|_| super::semantic::cancelled())?;
-        actions.push(action(uri, source, version, fix, settings)?);
+        actions.push(syntax_action(&context, fix)?);
+    }
+    for repair in imports::repairs(&context, semantics, range)? {
+        actions.push(imports::action(&context, repair)?);
     }
     super::json(actions)
 }
 
 pub(crate) fn resolve(
+    context: Context<'_>,
     data: ResolveData,
-    source: &SourceInput,
-    version: Option<i32>,
-    settings: Settings,
+    semantics: &mut SemanticSession,
 ) -> Result<Value, ResponseError> {
-    if !settings.code_action_resolve {
+    if !context.settings.code_action_resolve {
         return Err(unsupported());
     }
-    if source.version.source.0 != data.source || source.version.revision.0 != data.revision {
+    if context.source.version.source.0 != data.source
+        || context.source.version.revision.0 != data.revision
+    {
         return Err(convert::error(
             ErrorCode::ContentModified,
             "code action source changed",
         ));
     }
-    let fix = source
-        .syntax_fix(data.missing)
-        .map_err(|error| convert::error(ErrorCode::RequestFailed, error))?
-        .ok_or_else(|| convert::error(ErrorCode::InvalidParams, "syntax repair is unavailable"))?;
-    super::json(action(&data.uri, source, version, fix, settings)?)
+    match data.repair {
+        Repair::Syntax { missing } => {
+            let fix = context
+                .source
+                .syntax_fix(missing)
+                .map_err(|error| convert::error(ErrorCode::RequestFailed, error))?
+                .ok_or_else(|| {
+                    convert::error(ErrorCode::InvalidParams, "syntax repair is unavailable")
+                })?;
+            super::json(syntax_action(&context, fix)?)
+        }
+        Repair::Import {
+            path,
+            start,
+            end,
+            analysis_revision,
+        } => {
+            if context.snapshot.revision.0 != analysis_revision {
+                return Err(convert::error(
+                    ErrorCode::ContentModified,
+                    "import context changed",
+                ));
+            }
+            let repair = imports::repairs(&context, semantics, Span::new(start, end))?
+                .into_iter()
+                .find(|repair| repair.path == path && repair.diagnostic == Span::new(start, end))
+                .ok_or_else(|| {
+                    convert::error(ErrorCode::InvalidParams, "import repair is unavailable")
+                })?;
+            super::json(imports::action(&context, repair)?)
+        }
+    }
+}
+
+fn syntax_action(context: &Context<'_>, fix: SyntaxFix) -> Result<CodeAction, ResponseError> {
+    action(
+        context,
+        format!("Insert `{}`", fix.edit.replacement),
+        fix.edit,
+        Repair::Syntax {
+            missing: fix.missing,
+        },
+    )
 }
 
 fn action(
-    uri: &Uri,
-    source: &SourceInput,
-    version: Option<i32>,
-    fix: SyntaxFix,
-    settings: Settings,
+    context: &Context<'_>,
+    title: String,
+    edit: SourceEdit,
+    repair: Repair,
 ) -> Result<CodeAction, ResponseError> {
-    let data = settings.code_action_resolve.then(|| ResolveData {
-        uri: uri.clone(),
-        source: fix.edit.source.source.0,
-        revision: fix.edit.source.revision.0,
-        missing: fix.missing,
+    let data = context.settings.code_action_resolve.then(|| ResolveData {
+        uri: context.uri.clone(),
+        source: edit.source.source.0,
+        revision: edit.source.revision.0,
+        repair,
     });
     Ok(CodeAction {
-        title: format!("Insert `{}`", fix.edit.replacement),
+        title,
         kind: Some(CodeActionKind::QUICKFIX),
-        edit: Some(workspace_edit(uri, source, version, fix.edit, settings)?),
+        edit: Some(WorkspaceEdit {
+            document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier {
+                    uri: context.uri.clone(),
+                    version: context.version,
+                },
+                edits: vec![OneOf::Left(TextEdit {
+                    range: convert::range(
+                        &context.source.text,
+                        edit.span,
+                        context.settings.encoding,
+                    )?,
+                    new_text: edit.replacement,
+                })],
+            }])),
+            ..Default::default()
+        }),
         data: data.map(super::json).transpose()?,
-        ..Default::default()
-    })
-}
-
-fn workspace_edit(
-    uri: &Uri,
-    source: &SourceInput,
-    version: Option<i32>,
-    edit: SourceEdit,
-    settings: Settings,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(WorkspaceEdit {
-        document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
-            text_document: OptionalVersionedTextDocumentIdentifier {
-                uri: uri.clone(),
-                version,
-            },
-            edits: vec![OneOf::Left(TextEdit {
-                range: convert::range(&source.text, edit.span, settings.encoding)?,
-                new_text: edit.replacement,
-            })],
-        }])),
         ..Default::default()
     })
 }

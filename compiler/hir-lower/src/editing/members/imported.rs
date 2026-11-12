@@ -47,7 +47,7 @@ impl Lowerer {
         Ok(())
     }
 
-    pub(super) fn editing_imported_extension_applicable(
+    pub(crate) fn imported_extension_receiver_applicable(
         &mut self,
         declaration: &hir::ImportedCallableDeclaration,
         receiver: hir::TypeId,
@@ -69,7 +69,7 @@ impl Lowerer {
         let declared = self
             .imported_signature_type_with_bindings(signature, &bindings)
             .map_err(|_| U::SignatureFailure)?;
-        Ok(self.editing_receiver_applicable(&parameters, declared, receiver))
+        Ok(self.receiver_constraints_applicable(&parameters, declared, receiver))
     }
 }
 

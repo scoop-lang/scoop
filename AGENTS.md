@@ -41,7 +41,7 @@ Scoop 是一门静态类型、编译到原生代码的语言：以 Kotlin 核心
 - 依赖本机 LLVM 22.1（`llvm-config` 在 `PATH` 中，或设置 `LLVM_SYS_221_PREFIX`）；`scoop-codegen` 与 `scoopc` 之外的其他 crate 无 LLVM 依赖。
 - 常用命令：
   - `cargo build` / `cargo test --workspace` — 构建 / Rust 单元与集成测试；
-  - `cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm --bins` — 构建文件 fixture 使用的配套命令；
+  - `cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-api --bins` — 构建文件 fixture 使用的配套命令；
   - 首次运行正式 CLI fixture 或内置库变更后，按 [准备脚本说明](scripts/README.md) 显式准备开发 sysroot，并设置 `SCOOP_SYSROOT="$PWD/sysroot"`；普通应用默认消费目标预编译资源，测试不自动执行准备或打包；
   - `python3 -m unittest discover -s tests/fixture_runner/tests` + `python3 tests/run_fixtures.py --all` — 公共规则测试与完整文件 fixture 验收；`cargo test` 不能替代这组正式 CLI 覆盖。声明规则与工具位置配置见 [fixture schema 1](tests/fixture_runner/README.md)；
   - `cargo fmt --all` + `cargo clippy --workspace --all-targets` — Rust 格式化 / lint（变更后、测试前先执行，见"编码准则"）；
@@ -73,6 +73,7 @@ Scoop 是一门静态类型、编译到原生代码的语言：以 Kotlin 核心
 
 - **spec 先行**：任何语言行为、runtime 契约、pipeline 职责的变更，先改对应的 spec 文档，再改实现；实现与 spec 冲突时以 spec 为准，发现 spec 本身矛盾时先提出并修订 spec。
 - **跨文档一致性**：三份 spec 互相引用（章节号），修改时注意同步引用方。
+- **同步编程材料**：语言、内置库或工具的可用写法与行为改变时，按[编程 skill 与工具更新工作流](docs/scoop-programming/UPDATE-WORKFLOW.md)同步受影响的 skill、声明文档、示例、工具说明及验证；不影响使用方式的内部重构无需机械更新这些材料。
 - **未发布阶段直接演进**：项目尚未发布任何版本，不承担历史版本的源码、API、ABI 或产物向后兼容承诺。可以按当前实际需求修改语言、库接口、runtime、产物和构建流程，并同步规范、实现、调用方与必要重建；不为保留旧设计增加兼容别名、转发层或双轨实现。同一次构建仍须满足实际类型、格式、目标与 ABI 相容性。允许改动不等于扩大任务范围，跨流水线能力仍须有独立、具体的需求和设计。
 
 ## 待决策

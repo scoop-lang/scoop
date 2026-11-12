@@ -9,7 +9,9 @@
 
 mod basics;
 mod builders;
+mod call_diagnostics;
 mod core;
+mod import_suggestions;
 mod initializer_diagnostics;
 mod interpolation;
 mod lambda_effects;

@@ -1,0 +1,17 @@
+schema = 1
+name = "doc-cli-api-query"
+inputs = ["project", "check.py"]
+tools = ["scoop", "scoopc", "scoop-api", "python"]
+requires_target_execution = false
+tags = ["documentation", "api", "cli"]
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/project", to = "${work}/project"}}]
+
+[[steps]]
+name = "query"
+argv = ["${python}", "${fixture}/check.py", "${scoop}", "${scoopc}", "${scoop-api}", "${work}", "${cache}", "${sysroot}", "${target}"]
+exit = 0
+stdout = "Published API queries passed.\n"
+stderr = ""

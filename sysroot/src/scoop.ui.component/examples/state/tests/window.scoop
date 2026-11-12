@@ -1,0 +1,73 @@
+package scoop.examples.state
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.material.materialTheme
+import scoop.window.*
+
+@Test
+private class WindowTests {
+    @Test
+    fun `native host mounts updates and releases the component scope`() {
+        val probe = WindowProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        context(ThemeSource(materialTheme())) {
+            host.use { owner -> Application().run(owner) }
+        }
+        assertTrue(probe.finished)
+        assertTrue(host.isClosed)
+        assertTrue(probe.window!!.isClosed)
+    }
+}
+
+private class WindowProbe {
+    val model = CounterModel()
+    var window: UiWindow? = None
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                window =
+                    host.attach(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop state lifecycle test"
+                                visible = false
+                            }
+                        ),
+                        { scope -> CounterPanel(model, scope) }
+                    )
+                assertTrue(
+                    when (window) {
+                        case Some(_) -> true
+                        case None -> false
+                    }
+                )
+                assertTrue(
+                    active.proxy().post {
+                        application ->
+                        model.entries.value[0L].increment()
+                        model.reverse()
+                        model.remove(2L)
+                        assertTrue(
+                            application.proxy().post {
+                                next ->
+                                window!!.close()
+                                assertTrue(
+                                    next.proxy().post {
+                                        last ->
+                                        finished = true
+                                        last.requestExit()
+                                    }
+                                )
+                            }
+                        )
+                    }
+                )
+            }
+            else -> {}
+        }
+    }
+}

@@ -1,0 +1,197 @@
+package test.process
+
+import scoop.platform.env.arguments
+import scoop.platform.fs.Path
+import scoop.platform.io.*
+import scoop.platform.process.*
+import scoop.platform.system.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.platform.time.elapsedNow
+import scoop.test.*
+import scoop.time.Duration
+
+@Extern(name = "process_test_handles")
+private fun handles(): Int
+
+@Extern(name = "process_test_threads")
+private fun threads(): Int
+
+private fun helper(mode: String): Command {
+    val args = arguments()
+    return command(Path.fromOsString(args[1L])) {
+        arguments =
+            [
+                args[2L],
+                OsString.fromString(mode),
+                OsString.fromString(args[3L].decodeUtf8() + "/" + mode)
+            ]
+        stdin = Stdio.Pipe
+        stdout = Stdio.Pipe
+        stderr = Stdio.Pipe
+    }
+}
+
+private fun text(bytes: Array<Byte>): String = OsString.fromByteArray(bytes).decodeUtf8()
+
+private fun primary(error: Throwable): Throwable =
+    if (error is ResourceUseException)
+        primary(error.primaryFailure)
+    else
+        error
+
+private fun exited(status: ExitStatus, expected: Int = 0) {
+    when (status) {
+        case ExitStatus.Exited(val code) -> assertEquals(expected, code)
+        case ExitStatus.Signaled(_) -> fail(Some("expected normal process exit"))
+    }
+}
+
+private fun killed(child: ChildProcess) {
+    when (child.wait()) {
+        case ExitStatus.Exited(val code) -> {
+            assertTrue(operatingSystem == OperatingSystem.Windows)
+            assertEquals(1, code)
+        }
+        case ExitStatus.Signaled(val signal) -> assertEquals(9, signal)
+    }
+}
+
+private fun timedOut(
+    child: ChildProcess,
+    timeout: Duration,
+    input: List<Byte>? = None
+): ProcessTimeoutException {
+    val failure = primary(assertFailsWith<Throwable> { child.communicate(timeout, input) })
+    assertTrue(failure is ProcessTimeoutException)
+    return failure as ProcessTimeoutException
+}
+
+private fun ready(child: ChildProcess) {
+    assertEquals("ready", child.stdout!!.readLine()!!)
+}
+
+private fun normalResults() {
+    helper("empty").spawn().use {
+        val result = it.communicate(Duration.seconds(5L))
+        exited(result.status)
+        assertEquals(0L, result.stdout.size)
+        assertEquals(0L, result.stderr.size)
+    }
+    helper("failed").spawn().use {
+        val result = it.communicate(Duration.seconds(5L))
+        exited(result.status, 7)
+        assertEquals("failure detail", text(result.stderr))
+        assertEquals(0L, result.stdout.size)
+    }
+    helper("empty").spawn().use {
+        assertFailsWith<IllegalArgumentException> { it.communicate(Duration.nanoseconds(-1L)) }
+        exited(it.communicate().status)
+    }
+    helper("empty").copy {
+        stdin = Stdio.Null
+        stdout = Stdio.Null
+        stderr = Stdio.Null
+    }.spawn().use {
+        exited(it.wait())
+        exited(it.communicate(Duration.ZERO).status)
+    }
+    val input = Array<Byte>(262144L) { (it % 251L).toByte() }
+    helper("echo").spawn().use {
+        val result = it.communicate(Duration.seconds(15L), Some(input))
+        exited(result.status)
+        assertEquals(393216L, result.stdout.size)
+        assertEquals(393216L, result.stderr.size)
+        for (index in 0L ..< 131072L) {
+            assertEquals(111.toByte(), result.stdout[index])
+            assertEquals(101.toByte(), result.stderr[index])
+        }
+        for (index in 0L ..< input.size) {
+            assertEquals(input[index], result.stdout[index + 131072L])
+            assertEquals(input[index], result.stderr[index + 131072L])
+        }
+    }
+    helper("empty").spawn().use { exited(it.communicate(Duration.seconds(Long.MAX_VALUE)).status) }
+    val failure =
+        assertFailsWith<PlatformException> {
+            command(Path.fromString(arguments()[3L].decodeUtf8() + "/missing-child")).spawn()
+        }
+    assertTrue(failure.kind == PlatformErrorKind.NotFound)
+}
+
+private fun deadlines() {
+    helper("hang").spawn().use {
+        ready(it)
+        val source = it.stdout!!
+        val failure = timedOut(it, Duration.ZERO)
+        assertEquals(0L, failure.stdout.size)
+        assertEquals(0L, failure.stderr.size)
+        killed(it)
+        assertFailsWith<IllegalStateException> { source.readAllBytes() }
+    }
+    helper("hang").spawn().use {
+        ready(it)
+        val failure =
+            timedOut(it, Duration.milliseconds(100L), Some(Array<Byte>(524288L) { 42.toByte() }))
+        assertEquals("partial-out", text(failure.stdout))
+        assertEquals("partial-err", text(failure.stderr))
+        killed(it)
+    }
+    helper("no-pipes").spawn().use {
+        ready(it)
+        val failure = timedOut(it, Duration.milliseconds(100L))
+        assertEquals(0L, failure.stdout.size)
+        assertEquals(0L, failure.stderr.size)
+        killed(it)
+    }
+    helper("stages").spawn().use {
+        ready(it)
+        val start = MonotonicTimeSource.markNow()
+        val failure = timedOut(it, Duration.seconds(1L), Some(Array<Byte>(262144L) { 1.toByte() }))
+        assertEquals("stage-out", text(failure.stdout))
+        assertTrue(
+            start.elapsedNow() < Duration.milliseconds(1600L),
+            Some("deadline restarted after pipe transfer")
+        )
+        killed(it)
+    }
+    helper("descendant").spawn().use {
+        ready(it)
+        exited(it.wait())
+        val failure = timedOut(it, Duration.milliseconds(100L))
+        assertEquals("partial-out", text(failure.stdout))
+        assertEquals("partial-err", text(failure.stderr))
+        exited(it.wait())
+    }
+    helper("descendant-error").spawn().use {
+        ready(it)
+        val failure =
+            primary(
+                assertFailsWith<Throwable> {
+                    it.communicate(Duration.seconds(5L), Some(Array<Byte>(131072L) { 1.toByte() }))
+                }
+            )
+        assertTrue(failure is PlatformException)
+        assertTrue((failure as PlatformException).kind == PlatformErrorKind.BrokenPipe)
+        killed(it)
+    }
+    for (index in 0L ..< 8L) {
+        helper("hang").spawn().use {
+            ready(it)
+            timedOut(it, Duration.milliseconds(1L + index))
+            killed(it)
+        }
+    }
+}
+
+fun main() {
+    normalResults()
+    @Unsafe
+    {
+        val beforeHandles = handles()
+        val beforeThreads = threads()
+        deadlines()
+        assertEquals(beforeHandles, handles())
+        assertEquals(beforeThreads, threads())
+    }
+    println("process communication deadlines and cleanup passed")
+}

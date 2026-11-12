@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import build_scoop_bundle
+import build_scoop_api
 import build_scoop_example
 import package_debugger
 import package_licenses
@@ -246,7 +247,7 @@ def stage_commands(root, args):
     suffix = ".exe" if host_definition(args.host)["system"] == "Windows" else ""
     return {
         (sysroot / "commands" / (name + suffix)).resolve(): root / "commands" / (name + suffix)
-        for name in ("scoop-example", "scoop-bundle")
+        for name in ("scoop-example", "scoop-bundle", "scoop-api")
     }
 
 
@@ -697,6 +698,8 @@ def main():
             "scoop-lsp",
             "-p",
             "scoop-pm",
+            "-p",
+            "scoop-api",
             "--bins",
             "-j",
             str(args.jobs),
@@ -713,6 +716,7 @@ def main():
     example_environment.pop("CARGO_ENCODED_RUSTFLAGS", None)
     example = build_scoop_example.build(args.work_dir / "scoop-example", example_environment)
     build_scoop_example.install(example, sysroot)
+    build_scoop_api.install(cargo_output / "release" / ("scoop-api" + suffix), sysroot)
     bundle = build_scoop_bundle.build(args.work_dir / "scoop-bundle", example_environment)
     build_scoop_bundle.install(bundle, sysroot)
     targets = list(host_definition(args.host)["distribution_targets"])

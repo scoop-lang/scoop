@@ -153,7 +153,8 @@ pid_t m45_process_waitpid(pid_t child, int *status, int options) {
 int m45_process_kill(pid_t child, int signal) {
     int before = atomic_load(&waits);
     collect();
-    assert(atomic_load(&waits) == before);
+    int after = atomic_load(&waits);
+    assert(after == before);
     atomic_fetch_add(&signals, 1);
     return kill(child, signal);
 }

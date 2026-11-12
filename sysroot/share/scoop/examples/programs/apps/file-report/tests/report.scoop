@@ -1,0 +1,25 @@
+package examples.report
+
+import scoop.test.*
+
+@Test
+private class ReportTests {
+    @Test
+    fun `empty content is a valid zero report`() {
+        assertEquals(TextReport(0L, 0L, 0L), inspectText(""))
+        assertEquals(TextReport(1L, 1L, 1L), inspectText("\n"))
+    }
+
+    @Test
+    fun `line endings and Unicode have explicit units`() {
+        assertEquals(TextReport(2L, 4L, 6L), inspectText("α\nβ\n"))
+        assertEquals(TextReport(2L, 5L, 5L), inspectText("a\r\nb\n"))
+        assertEquals(TextReport(1L, 2L, 3L), inspectText("é"))
+        assertEquals(TextReport(2L, 3L, 3L), inspectText("a\nb"))
+    }
+
+    @Test
+    fun `formatting consumes numeric fields at the boundary`() {
+        assertEquals("lines=2, scalars=4, utf8Bytes=6", renderReport(TextReport(2L, 4L, 6L)))
+    }
+}

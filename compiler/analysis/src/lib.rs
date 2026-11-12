@@ -4,6 +4,7 @@ mod cancellation;
 mod declarations;
 mod fixes;
 mod host;
+mod import_fixes;
 mod semantic;
 mod symbols;
 mod syntax;

@@ -1,0 +1,35 @@
+package scoop.examples.state
+
+import scoop.test.*
+
+@Test
+private class ModelTests {
+    @Test
+    fun `repeated events update current state and reordering retains identities`() {
+        val model = CounterModel()
+        val first = model.entries.value[0L]
+        val click: () -> Unit = { first.increment() }
+        click()
+        click()
+        assertEquals(2, first.count.value)
+        model.reverse()
+        assertSame(first, model.entries.value[1L])
+        assertEquals(2, model.entries.value[1L].count.value)
+        model.remove(2L)
+        assertEquals(1L, model.entries.value.size)
+        assertSame(first, model.entries.value[0L])
+        model.add()
+        assertEquals(3L, model.entries.value[1L].id)
+        assertEquals(0, model.entries.value[1L].count.value)
+    }
+
+    @Test
+    fun `an empty list can be populated again without reusing old ids`() {
+        val model = CounterModel()
+        model.remove(1L)
+        model.remove(2L)
+        assertEquals(0L, model.entries.value.size)
+        model.add()
+        assertEquals(3L, model.entries.value[0L].id)
+    }
+}

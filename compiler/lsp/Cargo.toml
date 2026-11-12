@@ -4,6 +4,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+clap.workspace = true
 scoop-analysis.workspace = true
 scoop-doc.workspace = true
 scoop-hir.workspace = true

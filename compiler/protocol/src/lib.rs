@@ -46,7 +46,7 @@ pub use response::{
 };
 
 /// Version selected by the unique `scoopc` machine transport entrypoint.
-pub const PROTOCOL_VERSION: u32 = 30;
+pub const PROTOCOL_VERSION: u32 = 31;
 
 pub(crate) const MAX_EMITTED_DUMPS: usize = StageDumpKindV1::ALL.len();
 
@@ -80,6 +80,7 @@ pub enum ProtocolValidationError {
     InvalidDiagnosticCode,
     InvalidDiagnosticMessage,
     InvalidDiagnosticSpan,
+    InvalidDiagnosticImport,
     InvalidSemanticSourcePath,
 
     InvalidArtifactSemanticPath,
@@ -159,6 +160,9 @@ impl std::fmt::Display for ProtocolValidationError {
             }
             Self::InvalidDiagnosticSpan => {
                 formatter.write_str("diagnostic byte span start must not exceed end")
+            }
+            Self::InvalidDiagnosticImport => {
+                formatter.write_str("diagnostic import path must contain canonical identifiers")
             }
             Self::InvalidSemanticSourcePath => {
                 formatter.write_str("diagnostic semantic source path is not canonical")

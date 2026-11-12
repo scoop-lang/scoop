@@ -1,0 +1,20 @@
+schema = 1
+
+[cone]
+group = "scoop.examples"
+name = "ui-state"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.surface" = "0.1.0"
+"scoop:scoop.ui" = "0.1.0"
+"scoop:scoop.ui.component" = "0.1.0"
+"scoop:scoop.ui.style" = "0.1.0"
+"scoop:scoop.ui.style.material" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"

@@ -186,9 +186,10 @@ impl Lowerer {
             self.commit_layer_diagnostics(&failure);
         } else {
             let found = self.type_name(receiver.ty);
-            self.error(
-                name.span,
+            self.missing_name_error(
+                name,
                 format!("type `{found}` has no method `{}`", name.text),
+                crate::imports::MissingNameUse::Method(receiver.ty),
             );
         }
         None

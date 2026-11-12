@@ -1,0 +1,58 @@
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.*
+import scoop.platform.fs.Path
+import scoop.platform.process.*
+import scoop.platform.system.*
+import scoop.text.trim
+import scoop.time.Duration
+
+fun capture(
+    executable: Path,
+    mode: String,
+    input: String? = None,
+    timeout: Duration = Duration.seconds(5L)
+): ProcessOutput =
+    command(executable) {
+        arg(OsString.fromString(mode))
+        stdin = Stdio.Pipe
+        stdout = Stdio.Pipe
+        stderr = Stdio.Pipe
+    }.spawn().use { child -> child.communicate(timeout, input.map { it.toByteArray() }) }
+
+fun statusText(status: ExitStatus): String =
+    when (status) {
+        case ExitStatus.Exited(val code) -> f"exit ${code}"
+        case ExitStatus.Signaled(val number) -> f"signal ${number}"
+    }
+
+fun main(args: Array<String>): Int {
+    if (args.size != 2L) {
+        eprintln("usage: processes <child-executable>")
+        return 2
+    }
+    val executable = Path.fromString(args[1L])
+    val echoed = capture(executable, "echo", Some("Hello, 子进程!\n"))
+    println(f"stdout: ${String.fromUtf8(echoed.stdout).trim()}")
+    println(f"stderr: ${String.fromUtf8(echoed.stderr).trim()}")
+    println(statusText(echoed.status))
+    val empty = capture(executable, "empty")
+    println(f"empty: ${empty.stdout.size} bytes, ${statusText(empty.status)}")
+    val failed = capture(executable, "fail")
+    println(f"failed: ${statusText(failed.status)}, ${String.fromUtf8(failed.stderr).trim()}")
+    try {
+        capture(executable, "wait", timeout = Duration.seconds(1L))
+        eprintln("the waiting child unexpectedly completed")
+        return 1
+    } catch (error: ProcessTimeoutException) {
+        println(f"timeout: ${String.fromUtf8(error.stdout).trim()}")
+    }
+    try {
+        command(Path.fromString(args[1L] + ".missing")).spawn().use { it.wait() }
+        eprintln("the deliberately missing executable unexpectedly exists")
+        return 1
+    } catch (error: PlatformException) {
+        println("spawn failed before a child was created")
+    }
+    return 0
+}

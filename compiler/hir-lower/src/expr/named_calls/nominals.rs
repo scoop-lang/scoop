@@ -225,8 +225,16 @@ impl Lowerer {
                     expected,
                 ));
             }
-            if failures.len() == 1 {
-                self.commit_layer_diagnostics(&failures.pop().expect("one failed candidate"));
+            let same_argument_roots = failures.first().is_some_and(|first| {
+                let roots = &first.diagnostics[diagnostics_before..];
+                !roots.is_empty()
+                    && roots.iter().all(|diagnostic| diagnostic.is_argument_root)
+                    && failures[1..]
+                        .iter()
+                        .all(|failure| failure.diagnostics[diagnostics_before..] == *roots)
+            });
+            if failures.len() == 1 || same_argument_roots {
+                self.commit_layer_diagnostics(&failures.pop().expect("a failed candidate"));
             } else if !failures.is_empty() {
                 let mut traces = failures
                     .iter()

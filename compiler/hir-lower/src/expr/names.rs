@@ -209,12 +209,13 @@ impl Lowerer {
                 );
                 return None;
             }
-            self.error(
-                name.span,
+            self.missing_name_error(
+                name,
                 format!(
                     "unknown variable `{}`; bare enum variants without an exact enum expected type must be qualified as `E.V` or given a type annotation",
                     name.text
                 ),
+                crate::imports::MissingNameUse::Value,
             );
             return None;
         };

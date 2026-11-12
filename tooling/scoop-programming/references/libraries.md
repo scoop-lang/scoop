@@ -4,10 +4,11 @@
 
 ## 查找顺序
 
-1. `<SYSROOT>/src/<cone>/examples/README.md` 列出完整库示例；存在库根 `README.md` 时阅读其 API 概览与使用条件。
-2. `<SYSROOT>/docs/index.html` 是随包离线 API 入口，选择应用目标；声明页给出签名、说明、类型链接和源码。自己的多 Cone 文档可由 `scoop doc` 生成。
-3. 对尚不确定的类型、重载或行为，用 `rg` 在所选库的源码和测试中定位实际声明。例如 `rg -n 'fun decodeFromString|fun encodeToString' <SYSROOT>/src/scoop.json`。同时查看 package、可见性、泛型条件、默认参数和 suspend 标记。
-4. 从库 `Cone.toml` 取得准确 coordinate 和版本，在应用中声明实际直接使用的库并添加所需 import。源码依赖则使用项目指定的源码版本。
+1. 用 `scoop api search "Option orElse"` 等命令按名称、库、receiver 与说明查找，再用 `scoop api show orElse --cone scoop.std` 读取全部重载。`--format json` 保留 signature、receiver、属性 getter/setter 可见性、documentation、source 和 imports；从 imports 的 coordinate 声明依赖，从 path 取得实际导入路径。关键字或含空格的名称使用反引号。
+2. 默认查询安装根的宿主默认目标；应用选择其他目标时传 `--target`。自己的文档用 `scoop doc . --output-dir ./api-docs` 显式生成，再传 `--docs ./api-docs` 查询。文档缺失时工具会报告读取错误；不要把它解释为 API 不存在，也不要通过查询隐式重建工具链。
+3. `<SYSROOT>/docs/index.html` 是离线页面入口，选择实际目标；`<SYSROOT>/src/<cone>/examples/README.md` 和库根 README 提供完整用法及运行条件。
+4. 对未记录的行为、默认值正文或尚不确定的组合，用 `rg` 在该库的源码和测试定位实际声明。例如 `rg -n 'fun decodeFromString|fun encodeToString' <SYSROOT>/src/scoop.json`。查找 package、可见性、泛型条件、默认参数和 suspend 标记。文档的 `…` 表示省略默认表达式，不能当作实际值。
+5. API 文档不代表库已进入当前项目。核对 Cone 的准确坐标，声明直接使用的库并添加 import；源码依赖使用项目指定版本。文档里没有的说明保持未知，不依据名称猜测资源责任或异常。
 
 编辑器已有 Scoop LSP 时，利用诊断、补全、签名、跳转定义、引用和重命名核对项目语义。LSP 不代替正式 CLI 构建／测试，也不负责安装工具链。
 
@@ -17,10 +18,11 @@
 
 | 需求                                              | Cone 与材料                                                                                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Option、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                                 |
+| Option 类型、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                              |
+| Result 类型、Option/Result 的映射、展平和惰性替代 | `scoop.std` 的 `src/results/`；操作选择见 [design.md](design.md#组合-optionresult保留失败信息) |
 | 编译期嵌入文件／目录、读取构建环境                | `scoop.core` 的 `scoop.compiler` package；`language/compiler-inputs`                           |
 | 集合算法、字典、字节／文本、日期与 Duration       | `scoop.std`；`collections/map` 和库 `examples/`                                                |
-| 文件、目录、系统资源、线程                        | `scoop.platform`；`io/files`、`io/resources`                                                   |
+| 文件、目录、进程、环境变量、线程                  | `scoop.platform`；`io/files`、`io/resources`、`io/processes`、`io/environment`；整合输入与计算见 `apps/file-report` |
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get` 及各库 README                             |
@@ -30,7 +32,8 @@
 | 密码与 TLS                                        | `scoop.crypto`、`scoop.tls`、`scoop.tls.asyncio` 的示例与 API 文档                             |
 | 数学、大整数和十进制数                            | `scoop.math` 的 README／示例                                                                   |
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
-| 终端、异步终端与交互行编辑                        | `scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例                            |
+| 终端、异步终端与交互行编辑                        | `terminal/output`；`scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例           |
+| UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；使用当前目标可用的库  |
 
 ## JSON 与 DTO
 
@@ -46,7 +49,7 @@ struct User(val name: String, val note: String? = None) {
 
 ## 异步与网络
 
-`async/tasks` 展示普通 main 创建 `PlatformEventLoop()` 并调用 `loop.run suspend { scope -> ... }`。复用此入口及结构化任务作用域；需要返回值用 `async`／`await`，无业务结果用 `launch`／`join`。不要发明 `runBlocking` 或全局后台任务入口。
+`async/tasks` 展示普通 main 调用 `eventLoop()` 并通过 `loop.run { ... }` 进入挂起上下文；回调中的 `this` 是 CoroutineScope，不是额外的 lambda 参数。`async` 的回调类型是 `suspend CoroutineScope.() -> T`，有 receiver 的函数类型与 `suspend () -> T` 不同。需要返回值用 `async`／`await`，无业务结果用 `launch`／`join`。不要发明 `runBlocking` 或全局后台任务入口。
 
 `http/get` 同时提供本机服务端与客户端。保持 `withHttpClient`、`withResponse` 等生命周期作用域，等服务开始监听后再运行客户端。读取正文遵守一次消费和读取上限的实际 API；例如示例的 `body.text(1_048_576L)`。这种 I/O 上限不代表所有业务请求都应使用同一数值。
 
@@ -55,5 +58,7 @@ struct User(val name: String, val note: String? = None) {
 ## 文件、终端与资源
 
 从 `io/files` 查 `Path`、`OsString` 和文本／字节操作；从 `io/resources` 查正常与异常路径的关闭。路径表示、编码和字符串不是可任意互换的类型。只清理当前任务实际创建的临时资源。
+
+外部命令用 `io/processes` 查 `Command` 与 `ChildProcess`。需要有限等待时使用 `child.communicate(timeout: Duration, input: List<Byte>? = None)`；同一单调期限覆盖输入、两个输出和进程等待。`ProcessTimeoutException.stdout/stderr` 保留部分字节，返回异常前库收尾所拥有的 child 与端点；后代进程不属于其管理范围。正常退出、非零退出、启动失败与超时分别处理；清理还失败时保留 `ResourceUseException.primaryFailure/cleanupFailure`。普通 `close` 不杀进程，不能用外包线程后放弃 join 的办法模拟超时。
 
 终端／行编辑示例可能需要真实 TTY，异步 HTTP 示例需要活动事件循环与服务，线程共享状态需要同步。用符合各自前提的方式验证，不能把无 TTY 或服务未启动造成的失败归为语言错误。

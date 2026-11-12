@@ -9,3 +9,6 @@ kind = "executable"
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "examples.greeter:library" = { version = "0.1.0", path = "../library" }
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"

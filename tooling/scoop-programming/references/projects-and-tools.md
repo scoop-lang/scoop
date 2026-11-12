@@ -72,7 +72,7 @@ workspace 根用 `[workspace] members = ["app", "library"]` 列出成员目录�
 
 Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.lock`；同仓库中的包可用 `subdir` 选择。不要把示例 URL、仓库或 commit 当作已存在的包。registry 只需托管静态索引和源码归档，PM 按索引下载所选版本；源码默认共享在 `~/.scoop/packages/`，构建输出仍归项目和构建缓存管理。
 
-缺少 lock 时，普通 build/run 自动调用配套 PM 解析并生成；`--locked` 要求已有匹配 lock，`--frozen` 还禁止联网。提交项目的 `Cone.lock`；修改声明后运行 `scoop pm resolve`，显式升级用 `scoop pm update`，获取已有锁定来源用 `scoop pm fetch`。`deps --why group:name` 解释选择原因，`add/remove` 编辑声明后不自动更新 lock。编辑器只消费本地已有的锁定依赖；提示缺少输入时先 resolve/fetch。源码打包和 publish 流程尚未提供。
+缺少 lock 时，普通 build/run 自动调用配套 PM 解析并生成；`--locked` 要求已有匹配 lock，`--frozen` 还禁止联网。提交项目的 `Cone.lock`；修改声明后运行 `scoop pm resolve`，显式升级用 `scoop pm update`，获取已有锁定来源用 `scoop pm fetch`。`deps --why group:name` 解释选择原因，`add/remove` 编辑声明后不自动更新 lock。语言服务缺少 lock 时可调用 PM 初始化，之后离线读取依赖 metadata；提示缺少输入时按实际诊断 resolve/fetch，不将整个语言服务流程描述为始终离线。源码打包和 publish 流程尚未提供。
 
 ## 按目的选择命令
 
@@ -93,11 +93,35 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。
 
+## 语言服务查询
+
+使用所选工具链配套的 `scoop-lsp`；先用 `scoop-lsp query --help` 确认该版本提供入口。在含 Cone.toml 的项目/workspace 目录运行：
+
+```sh
+scoop-lsp query hover src/main.scoop --line 8 --column 12 --format json
+scoop-lsp query signature src/main.scoop --line 8 --column 20
+scoop-lsp query completion src/main.scoop --line 9 --column 10
+scoop-lsp query definition src/main.scoop --line 8 --column 12
+scoop-lsp query diagnostics src/main.scoop --format json
+scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
+scoop-lsp query symbols src/main.scoop
+```
+
+行列应取实际源码；两者从 1 开始，列默认计 Unicode 标量（utf-32）。可选 `--position-encoding utf-8|utf-16|utf-32`；JSON 内 LSP range 仍为零基并附 positionEncoding/rangeBase。用 `--project` 指向另一个 Cone 或 workspace，文件与路径选项仍相对当前目录。`--sysroot`、`--target`、`--purpose production|test` 应与实际开发视图一致；`--package-manager`、`--cone-path`、`--package-cache-dir`、`--lockfile` 可选择已有依赖资源。
+
+文档查询的 `--stdin` 读取完整未保存正文，不改磁盘。JSON 的 result 是原 LSP 结果；diagnostics 包含当前文档及项目诊断。status=empty 表示无结果，partial 表示存在错误或服务器分析问题，要同时读诊断。查询成功含 empty/partial 都退出 0；输入/协议错误退出 1，用法错误退出 2，错误在 stderr。查询不替代 build/test，也不生成机器产物。
+
+`code-actions` 返回已展开的语法/import 编辑。多个 import 路径需要根据实际意图选择；没有动作时继续查看诊断及 API 声明。编辑中的版本 1 仅表示本次临时 buffer，应用前确认正文未变，按 positionEncoding 的零基范围编辑，再执行 `scoop check`。命令不自动修改文件，也不将普通值自动包装为 Some。
+
+type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
+
 ## 测试和诊断
 
-从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 的类型能力要求仍是普通泛型规则，自定义 struct 不能仅凭支持 `==` 就假设满足断言入口。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
+从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
 
 编译器 human／`--message-format json` 诊断写 stderr，stdout 留给程序；同时检查退出状态。检查成功不等于测试执行成功，也不等于所有目标都已验证。已有源码依赖、generator 或 native 工具产生的日志可能同时出现在 stderr，不把整个流假定为单个 JSON 对象。
+
+验证可执行程序自己的标准流时，可以先用 `scoop build . --release -o ./app` 明确输出位置，再直接运行 `./app` 并分别收集 stdout、stderr 和退出码。Windows 使用 `app.exe`。输出路径由公开的 `-o` 选项确定，无需读取 `.scoop-output-*.record` 等内部构建记录。
 
 需要排查具体编译转换或性能问题时，`scoop build . --release --emit optimizations --dump-dir observations` 可观察优化决策；`--emit` 还支持 ast/hir/mir/lir/symbols/all。只选所需阶段，普通程序开发不依赖完整 IR 快照。已有产物链接用 `scoop link --help`；`scoopc` 和 `scoop-link` 是低层入口，应用通常使用 umbrella `scoop` 完成编排。
 

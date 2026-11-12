@@ -23,7 +23,7 @@ calls=1
 
 共享可变状态显式放在 Counter 对象里：calls 的 binding 是 val，不能重新绑定，但其引用对象的 value 可以改变。负输入使用 `return@adjust 0` 只返回当前 lambda；正常路径增加计数并返回末尾表达式。
 
-挂起 lambda 必须显式写 `suspend { ... }`；普通 lambda 不会因期望类型自动变成挂起函数，详见 `async/tasks`。
+未定型的 `{ ... }` 从期望函数类型确定挂起性；显式 `suspend { ... }` 也合法。已定型的普通函数值保持其挂起性，不能隐式转换为挂起函数值。`async/tasks` 展示变量注解和任务参数中的挂起 lambda。
 
 ## 常见误用
 

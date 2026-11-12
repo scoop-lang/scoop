@@ -1,0 +1,41 @@
+//! dep: scoop:scoop.platform:0.1.0
+//! dep: scoop:scoop.terminal:0.1.0
+//! dep: scoop:scoop.charset:0.1.0
+
+import scoop.charset.graphemes
+import scoop.platform.env.environmentVariable
+import scoop.platform.io.standardOutput
+import scoop.terminal.*
+import scoop.terminal.style.*
+
+fun main() {
+    val sample = "A中é👩‍💻"
+    val details =
+        f"bytes=${sample.byteLength}, scalars=${sample.charLength}, graphemes=${
+            graphemes(sample).size
+        }"
+    if (!isTerminal(StandardStream.Output)) {
+        println("Scoop text report")
+        println(details)
+        return
+    }
+    TerminalSession.open().use {
+        terminal ->
+        val title =
+            if (terminal.size().columns < 24L)
+                "Scoop"
+            else
+                "Scoop text report"
+        val noColor = environmentVariable("NO_COLOR") != None
+        if (noColor)
+            println(title)
+        else
+            standardOutput.execute(
+                ContentStyle(foregroundColor = Some(Color.Green)).apply(title),
+                Print("\n")
+            )
+        // Do not align emoji using byte counts, scalar counts or sums of scalar widths.
+        println(details)
+        flushOutput()
+    }
+}

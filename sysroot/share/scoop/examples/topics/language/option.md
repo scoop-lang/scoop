@@ -14,6 +14,9 @@ scoop run --release main.scoop
 Hello, Ada!
 Hello, guest!
 3
+84
+present, scalars=0
+fallback
 ```
 
 ## 关键说明
@@ -21,6 +24,8 @@ Hello, guest!
 `T?` 是 `Option<T>` 的简写。`Some(value)` 携带数据，`None` 表示缺失；没有 null 值。`when` 显式解构后，value 的类型是 String。
 
 `name?.charLength` 得到 `Long?`，`?: 0L` 提供缺失时的 Long。需要不同缺失行为时，修改 None 分支或 Elvis 的右侧即可。Option 泛型不变；嵌套 `T??` 表示两层 Option。安全调用不会把返回值原有的 Option 自动展平。
+
+`map` 保留映射结果的层数；回调返回 Option 时，`flatMap` 直接连接两层操作。`fold` 分别处理 Some/None，Some(空文本) 仍是有值。`getOrElse` 的回调产生普通值，`orElse` 的回调产生另一个 Option；两者都仅在缺失时求值。这些扩展来自 std 的 `scoop` 包，源码显式导入。调用次数验证见 test/assertions。
 
 ## 常见误用
 

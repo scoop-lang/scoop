@@ -17,6 +17,8 @@ mod reexports;
 mod resolve;
 mod selector;
 mod source_scope;
+mod suggestions;
+pub(crate) use suggestions::MissingNameUse;
 #[cfg(test)]
 mod tests;
 mod unavailable_imports;

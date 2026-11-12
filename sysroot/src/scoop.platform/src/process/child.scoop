@@ -1,8 +1,10 @@
 package scoop.platform.process
 
+import scoop.map
 import scoop.platform.fs.*
 import scoop.platform.io.*
 import scoop.platform.system.*
+import scoop.time.Duration
 
 /**
  * Distinguishes normal process exit from signal termination.
@@ -209,7 +211,21 @@ public class ChildProcess internal constructor(
      * Feeds optional input while draining stdout and stderr, then waits and returns their
      * collected bytes and status.
      */
-    public fun communicate(input: List<Byte>? = None): ProcessOutput {
+    public fun communicate(input: List<Byte>? = None): ProcessOutput = communicateWith(input, None)
+
+    /**
+     * Uses one monotonic timeout for input, both outputs, and process exit. Negative durations
+     * leave the pipes untouched. On timeout, closes the pipes, kills and reaps the owned child,
+     * and throws ProcessTimeoutException with the bytes collected so far. Descendant processes
+     * are not managed. Cleanup and OS scheduling can delay return beyond the timeout.
+     */
+    public fun communicate(timeout: Duration, input: List<Byte>? = None): ProcessOutput {
+        if (timeout.floorSeconds < 0L)
+            throw IllegalArgumentException(Some("negative process communication timeout"))
+        return communicateWith(input, Some(timeout))
+    }
+
+    private fun communicateWith(input: List<Byte>?, timeout: Duration?): ProcessOutput {
         if (closed)
             throw IllegalStateException(Some("process is closed"))
         when (input) {
@@ -229,23 +245,37 @@ public class ChildProcess internal constructor(
                 case Some(val bytes) -> Some(bytes.toArray())
                 case None -> None
             }
+        val deadline = timeout.map { ProcessDeadline(it) }
         val sink = takeStdin()
         val source = takeStdout()
         val errors = takeStderr()
-        val transferred =
-            try {
-                transferPipes(sink, source, errors, snapshot)
-            } catch (failure: Throwable) {
-                var reported = failure
-                try {
-                    wait()
-                } catch (cleanup: Throwable) {
-                    reported = ResourceUseException(reported, cleanup)
+        val terminationRequested = AtomicBoolean(false)
+        val abort: () -> Unit =
+            {
+                if (terminationRequested.compareAndSet(false, true)) {
+                    kill()
                 }
-                throw reported
             }
-        val(stdout, stderr) = transferred
-        return ProcessOutput(stdout, stderr, wait())
+        try {
+            val(stdout, stderr) = transferPipes(sink, source, errors, snapshot, deadline, abort)
+            val status = waitForCommunication(deadline)
+            if (status == None)
+                throw ProcessTimeoutException(stdout, stderr)
+            return ProcessOutput(stdout, stderr, status!!)
+        } catch (failure: Throwable) {
+            var reported = failure
+            try {
+                abort()
+            } catch (cleanup: Throwable) {
+                reported = ResourceUseException(reported, cleanup)
+            }
+            try {
+                wait()
+            } catch (cleanup: Throwable) {
+                reported = ResourceUseException(reported, cleanup)
+            }
+            throw reported
+        }
     }
 
     /**

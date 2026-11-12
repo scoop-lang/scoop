@@ -1,0 +1,69 @@
+package scoop.platform.process
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.platform.time.elapsedNow
+import scoop.platform.time.sleep
+import scoop.time.Duration
+
+/**
+ * The communication deadline expired. The arrays contain bytes received before cleanup completed;
+ * unread pipe data is not included. The owned child has been killed and reaped unless cleanup also
+ * failed, in which case ResourceUseException retains this exception and the cleanup error.
+ */
+public class ProcessTimeoutException public constructor(
+    /**
+     * Bytes collected from the child's standard output.
+     */
+    public val stdout: Array<Byte>,
+    /**
+     * Bytes collected from the child's standard error.
+     */
+    public val stderr: Array<Byte>
+): Exception(Some("process communication timed out"))
+
+internal class ProcessDeadline internal constructor(private val timeout: Duration) {
+    private val start = MonotonicTimeSource.markNow()
+
+    internal fun remaining(): Duration {
+        val elapsed = start.elapsedNow()
+        return if (elapsed >= timeout)
+            Duration.ZERO
+        else
+            timeout - elapsed
+    }
+
+    internal fun milliseconds(): Int {
+        val left = remaining()
+        if (left.floorSeconds > 2147483L)
+            return Int.MAX_VALUE
+        val milliseconds =
+            left.floorSeconds * 1000L + (left.nanosecondsOfSecond.toLong() + 999999L) / 1000000L
+        return if (milliseconds > Int.MAX_VALUE.toLong())
+            Int.MAX_VALUE
+        else
+            milliseconds.toInt()
+    }
+}
+
+internal fun ChildProcess.waitForCommunication(deadline: ProcessDeadline?): ExitStatus? {
+    val limit =
+        when (deadline) {
+            case None -> return Some(wait())
+            case Some(val value) -> value
+        }
+    while (true) {
+        val status = tryWait()
+        if (status != None)
+            return status
+        val remaining = limit.remaining()
+        if (remaining == Duration.ZERO)
+            return None
+        // No portable process-completion fd exists on every supported POSIX host.
+        sleep(
+            if (remaining < Duration.milliseconds(10L))
+                remaining
+            else
+                Duration.milliseconds(10L)
+        )
+    }
+}

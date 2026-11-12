@@ -1,0 +1,8 @@
+schema = 1
+[cone]
+group = "examples.api.consumer"
+name = "api-consumer"
+version = "0.1.0"
+kind = "library"
+[dependencies]
+"examples.api.provider:api-provider" = { version = "0.1.0", path = "../provider" }

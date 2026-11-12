@@ -1,0 +1,5 @@
+package test.support
+
+public fun hiddenCapability(): Int = 3
+
+public fun visible(): Int = 4

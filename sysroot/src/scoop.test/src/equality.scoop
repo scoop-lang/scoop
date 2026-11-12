@@ -3,8 +3,9 @@ package scoop.test
 /**
  * Checks `expected.equals(actual)` using the type's declared or structurally available equality
  * operation. Failure records expected and actual values when they can be rendered.
+ * See `scoop example test/assertions` for scalar, struct, tuple and Option comparisons.
  */
-public fun <T : Equals<T>> assertEquals(
+public fun <T: Equals<T>> assertEquals(
     expected: T,
     actual: T,
     message: String? = None,
@@ -19,7 +20,7 @@ public fun <T : Equals<T>> assertEquals(
  * Fails if `expected.equals(actual)` is true, using the type's available equality operation and
  * preserving the assertion call site.
  */
-public fun <T : Equals<T>> assertNotEquals(
+public fun <T: Equals<T>> assertNotEquals(
     expected: T,
     actual: T,
     message: String? = None,
@@ -33,13 +34,16 @@ public fun <T : Equals<T>> assertNotEquals(
 /**
  * Checks `expected.equals(actual)` using the type's declared or structurally available equality
  * operation. Failure records expected and actual values when they can be rendered.
+ * See `scoop example test/assertions` for scalar, struct, tuple and Option comparisons.
  */
-public fun <T : !Equals<T>> assertEquals(
+public fun <T: ! Equals<T>> assertEquals(
     expected: T,
     actual: T,
     message: String? = None,
     location: SourceLocation = currentSourceLocation()
-) where requires(x: T, y: T) { x.equals(y): Boolean } {
+) where requires(x: T, y: T) {
+    x.equals(y): Boolean
+} {
     if (!expected.equals(actual)) {
         comparisonFailure("assertEquals", expected, actual, message, location)
     }
@@ -49,12 +53,14 @@ public fun <T : !Equals<T>> assertEquals(
  * Fails if `expected.equals(actual)` is true, using the type's available equality operation and
  * preserving the assertion call site.
  */
-public fun <T : !Equals<T>> assertNotEquals(
+public fun <T: ! Equals<T>> assertNotEquals(
     expected: T,
     actual: T,
     message: String? = None,
     location: SourceLocation = currentSourceLocation()
-) where requires(x: T, y: T) { x.equals(y): Boolean } {
+) where requires(x: T, y: T) {
+    x.equals(y): Boolean
+} {
     if (expected.equals(actual)) {
         comparisonFailure("assertNotEquals", expected, actual, message, location)
     }

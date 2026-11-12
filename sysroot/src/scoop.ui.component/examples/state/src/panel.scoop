@@ -1,0 +1,80 @@
+package scoop.examples.state
+
+import scoop.graphics.*
+import scoop.surface.ShortcutScope
+import scoop.surface.shortcutBinding
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Insets
+import scoop.ui.style.SurfaceKind
+import scoop.window.*
+
+internal class CounterPanel(private val model: CounterModel, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
+        // The component owns the shortcut registration until it unmounts.
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("i")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        { model.add() }
+                    )
+                ]
+            )
+        }
+    }
+
+    public override fun render(): View {
+        val model = this.model
+        return frame(
+            column {
+                spacing = 12.0
+                label("Independent counters")
+                row {
+                    spacing = 8.0
+                    button("Add", { model.add() })
+                    button("Reverse", { model.reverse() })
+                }
+                for (entry in model.entries.value) {
+                    add(
+                        component(
+                            entry,
+                            { props, mount -> CounterRow(props, model, mount) },
+                            ViewKey.Number(entry.id)
+                        )
+                    )
+                }
+            }
+        ) {
+            padding = Some(Insets.all(20.0))
+            surface = Some(SurfaceKind.Plain)
+            alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+        }
+    }
+}
+
+private class CounterRow(
+    private val props: Props<CounterEntry>,
+    private val model: CounterModel,
+    scope: ComponentScope
+): Component(scope) {
+    private val increment: () -> Unit = { props.value.increment() }
+    private val remove: () -> Unit = { model.remove(props.value.id) }
+
+    public override fun render(): View {
+        val entry = props.value
+        val increment = this.increment
+        val remove = this.remove
+        return row {
+            spacing = 8.0
+            button(f"Counter ${entry.id}: ${entry.count.value}", increment)
+            button("Remove", remove)
+        }
+    }
+}
