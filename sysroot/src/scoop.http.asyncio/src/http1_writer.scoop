@@ -132,17 +132,19 @@ public class AsyncHttp1Writer internal constructor(
 }
 
 internal fun completeH1Output(state: H1State, body: H1Output) {
-    state.lock.withLock {
-        body.life.completed = true
-        state.outgoing = None
-        if (body.finalResponse) {
-            val request = state.requests.removeFirst()
-            request.body.responseFinished = true
-            resumeH1AfterRejection(state, request.body)
+    val listener =
+        state.lock.withLock {
+            body.life.completed = true
+            state.outgoing = None
+            if (body.finalResponse) {
+                val request = state.requests.removeFirst()
+                request.body.responseFinished = true
+                resumeH1AfterRejection(state, request.body)
+            }
+            completeH1BodyLocked(body.life)
         }
-        Unit
-    }
-    completeH1Body(state, body.life)
+    if (present(listener))
+        listener!!.dispose()
 }
 
 internal suspend fun closeAfterH1Output(state: H1State, body: H1Output) {
@@ -154,13 +156,15 @@ internal suspend fun closeAfterH1Output(state: H1State, body: H1Output) {
                         HttpRole.Server &&
                         state.encoder.mustClose &&
                         !state.encoder.isSwitched
+                ) ||
+                (
+                    body.finalResponse &&
+                        present(body.request) &&
+                        closeAfterH1InputLocked(state, body.request!!.body)
                 )
         }
     if (closing)
         closeH1(state)
-    else
-        if (body.finalResponse && present(body.request))
-            closeAfterH1Input(state, body.request!!.body)
 }
 
 internal fun requireH1Output(state: H1State, role: HttpRole) {

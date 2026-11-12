@@ -1,14 +1,35 @@
 # HTTP 性能任务交接（B60，2026-11-13）
 
-任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，完整 HTTP 静态服务的小响应 CPU 仍为 Go 约 2.03～2.05 倍。当前工作分支是 `perf/http-asyncio-optimizations`。每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈。用户明确要求：找不到单一大头时，按已知成本从大到小，将主要几项整体优化一轮；**正确性通过、整体有可确认的收益就保留，即使幅度较小，也要考虑其对通用路径的价值。** 详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
+任务已恢复推进。长线目标尚未完成：裸 TCP 已达到用户认可的 Go 80%～90% 水平，完整 HTTP 静态服务的小响应 CPU 仍为 Go 约 1.99～2.00 倍。当前工作分支是 `perf/http-asyncio-optimizations`。每轮先提交，再合并远端 `main`、推送并清理临时文件；每轮重新评估最大瓶颈。用户明确要求：找不到单一大头时，按已知成本从大到小，将主要几项整体优化一轮；**正确性通过、整体有可确认的收益就保留，即使幅度较小，也要考虑其对通用路径的价值。** 详细历次记录在 [PROGRESS.md](PROGRESS.md)，不要把早期记录中的“下一步”当成当前指令。
 
-**当前正式底座为 B60：保留 Duration 加减、缓冲借用和请求初始化的组合优化，继承 B57～B59 的改进。** 正式 SDK 为 `B60/candidate/sysroot`，配套 CLI 为 `B60/toolchain/bin`（经 B59 链接 B57）；runtime 合同为 35、metadata 为 12，不能混用旧 B34 CLI／ABI 34 SDK。B60 从 `29eadca923` 开始，使用相同 B57 工具链及同一输入路径重建 control／candidate，候选重建 18 个库，沿用 B57 runtime。始终使用 B28 源码构建且带私有补丁的 LLVM 22.1.8；HTTP 基准源码、默认 GC 和参数保持一致。Git 中两项未跟踪的用户打包脚本仍须保留。
+**当前正式底座为 B61：保留 HTTP/1 状态更新合并与正文读取包装按需建立的组合，继承 B57～B60 的改进。** 正式 SDK 为 `B61/candidate/sysroot`，配套 CLI 为 `B61/toolchain/bin`（经 B60／B59 链接 B57）；runtime 合同为 35、metadata 为 12，不能混用旧 B34 CLI／ABI 34 SDK。B61 从 `2cfcadc9d7` 开始，以同一 B57 工具链和输入路径重建 control／candidate；候选从 B60 SDK 复制，只重建 http.asyncio、http.client、http.server，沿用原 runtime。始终使用 B28 源码构建且带私有补丁的 LLVM 22.1.8；HTTP 基准源码、默认 GC 和参数保持一致。Git 中两项未跟踪的用户打包脚本仍须保留。
 
-B55 收尾已合并远端 `main` 的 `6e9baf029`，其中共享完成批次字段的源码更新进入 B57 两套重建产物。B58 收尾合并了 `e6aa6c170`，B59 再次 fetch／merge 时 main 未变化。B57～B60 仅在 Linux 实机运行；B57 对其他目标的代码生成／根位置规则有相应单测覆盖，没有执行 macOS／Windows 实机验收。
+B55 收尾已合并远端 `main` 的 `6e9baf029`，其中共享完成批次字段的源码更新进入 B57 两套重建产物。B58 收尾合并了 `e6aa6c170`，B59／B60 再次 fetch／merge 时 main 未变化。B57～B61 仅在 Linux 实机运行；B57 对其他目标的代码生成／根位置规则有相应单测覆盖，没有执行 macOS／Windows 实机验收。
 
 B53 的独立 H1 应用执行与 B54～B56 的分层诊断继续保留。B57 重新限制了旧闭包候选的适用范围，并补齐根表与挂起合并的移动 GC、异常及 native callback 验证；它不是直接采纳旧 B35 的成本豁免，也不是把旧候选百分比相加。B50、B55 等已撤回实现不进入新底座。
 
-## B60 最新结果：保留时间运算、缓冲借用与请求初始化的组合
+## B61 最新结果：保留协议状态更新与正文初始化的组合
+
+重新完成 36 个分层样本后，协议接入仍是最大总增量，单／四 worker 为 **3.462／4.354 μs/请求**；fair → direct 的完整请求执行增量为 **3.118／3.151 μs**。这些区间包含实际功能与调用形态，不是纯组件成本。B60 的时间成本已约为 1%，本轮转向协议状态协调与正文初始化。
+
+HTTP/1 合并相邻输入、完成与关闭状态更新，保留完整事件队列、消息顺序和锁外监听撤销；body 输入包装与三个 AtomicBoolean 在选择消费者时才建立，保留元数据拒绝后的上限调整、原始读取重试、计数与清理。公开使用方式、编译器、runtime 与 GC 参数保持。1 KiB／64 KiB、64 连接、默认 GC、预热 2 秒＋测量 8 秒，正反各一次，CPU 单位 μs/请求：
+
+| 负载 | 单 worker CPU：前 → 后 | 四 worker CPU：前 → 后 | 吞吐变化：单／四 worker |
+| --- | --- | --- | --- |
+| 手写 TCP，1 KiB | 4.216 → 4.232（+0.38%） | 5.761 → 5.753（−0.14%） | −0.32%／+0.34% |
+| 正式协议连接，1 KiB | 7.651 → 7.385（−3.48%） | 10.033 → 10.157（+1.24%） | +3.72%／−3.31% |
+| 完整 server，1 KiB | 14.750 → 14.399（−2.38%） | 18.236 → 17.662（−3.15%） | +2.41%／+1.08% |
+| 完整 server，64 KiB | 27.299 → 26.960（−1.24%） | 30.744 → 30.278（−1.52%） | +1.20%／−2.07% |
+
+完整小响应四次配对 CPU 均下降，P80 为 **1,193.5→1,162／447.5→473.5 μs**。协议四 worker 两次 CPU 都略升，P80 **226.5→267.5 μs（+18.1%）**；完整大响应四 worker 的 P80 **684.5→724.5 μs（+5.84%）**。回退全部纳入，原因尚未定位。完整小响应 CPU 为 Go 约 **2.00／1.99 倍**，长线目标未完成；本轮保留的是整体组合，没有正文项单独消融。
+
+独立单连接追踪确认每请求少 **6 次** HTTP 锁获取：协议总次数 **52→46**，完整 server **73→67**。协议分配少 **120 bytes／3 个对象**，完整 server 少 **256 bytes／7 个对象**。代价是 RequestBodyState **88→120 bytes**，其 close frame **112→120 bytes**；已消费正文仍建立原读取包装。64 连接压测中完整小／大响应分配下降约 **2.35%／2.23%**，分配不等于存活量。
+
+**76 个无仪表样本、133,261,473 个请求**无错误。三个 HTTP 库 release **593 项**、新增用例 moving／minor **10 项**全部通过，另逐字节核验 **4,312 个**网络响应及 **800 个**锁／分配探针响应。初次静态检查的 Unit 返回值及 Equals 断言写法已修正并保留原始日志。
+
+完整 server 新 profile 共 **30,809 个**样本，server／core／http.asyncio self 为 **20.16%／17.72%／11.56%**（单 worker）及 **19.19%／16.76%／10.82%**（四 worker），最大单项约 **3.2%**。补充协议四 worker 前后采样共 **35,186 个**样本，HttpLock.acquire self **5.73%→4.02%**，仍未解释其 CPU／P80 回退。下一轮重新排序请求构建、execution 恢复与字节传输成本，并继续保留四 worker 的吞吐和 P80 对照。完整记录见 [B61](PROGRESS.md#第六十一轮合并-http1-状态更新并按需建立正文读取包装)。
+
+## B60 历史结果：保留时间运算、缓冲借用与请求初始化的组合
 
 先从最简 TCP 起点重测 36 组分层对照。手写 → 协议连接增量 **3.526／4.632 μs/请求**，fair → direct 请求执行增量 **3.155／3.325 μs**；B59 最大单项 self 约 3%，仍无单一大头。结合时间源码约 **3.11%／2.46%** self、每请求 29 个 Duration，以及五个残余借用包装闭包，选择三组共享成本整体优化。
 
@@ -422,23 +443,27 @@ HTTP 响应编码和传输编排本来就在 Scoop。B44 没有发现能解释�
 
 ## 接手后优先做什么
 
-用户要求**每轮重新评估最大瓶颈，并通过逐步替换同时改善功能正交性和可组合性**。B53 已补入独立应用执行，B54～B56 已细分应用、协议连接与请求作用域；B57～B60 已保留四轮共享成本的组合优化，小幅收益及其代价均按实际结果记录。
+用户要求**每轮重新评估最大瓶颈，并通过逐步替换同时改善功能正交性和可组合性**。B53 已补入独立应用执行，B54～B56 已细分应用、协议连接与请求作用域；B57～B61 已保留五轮共享成本的组合优化，小幅收益及其代价均按实际结果记录。
 
-1. 以 B60 SDK、B57 配套 CLI 和本轮同路径重建的三个候选程序为正式参照。B60 开始时的相邻差额只用于选择复测边界，不能当成优化后仍未变化的成本；先在新目录重建协议接入与请求执行／分派的相关中间程序，重新排序。
-2. 新 self 中 server 约 19.8%～20.1%、core 约 16.2%～16.3%、HTTP asyncio 约 11.8%～13.5%；最大单项约 3%。重点比较 receiveH1Request、executeHttp1Request、serveHttp1 中的操作准备、请求数据构建、读写与收尾。四个 acquire helper 合计约 8.0%～8.3%；B59 已消除 Job 只读查询的加锁，B60 又合并了期限初始化的临界区，不沿用旧次数推算可消除 CPU。新独立追踪中普通对象约 6,823 bytes、闭包 1,856、frame 1,616、adapter 1,032；总分配较 B59 少 344 bytes/请求。时间源码已降至约 1%，不默认继续打磨 Duration 或已删除的包装。继续结合 CPU、调用与分配证据选择主要组合。
+1. 以 B61 SDK、B57 配套 CLI 和本轮同路径重建的三个候选程序为正式参照。B61 开始时的相邻差额只用于选择复测边界，不能当成优化后仍未变化的成本；先在新目录重建协议接入与请求执行／分派的相关中间程序，重新排序。
+2. 新 self 中 server 约 19.2%～20.2%、core 约 16.8%～17.7%、HTTP asyncio 约 10.8%～11.6%；最大单项约 3.2%。重点比较剩余请求数据构建、execution 恢复、字节传输协调和收尾，继续对照四 worker 协议吞吐与完整服务 P80 的回退。四个 acquire helper 合计约 7.0%～8.2%；B61 每请求再减少六次 HTTP 加锁，不沿用旧次数推算可消除 CPU。新独立追踪中普通对象约 6,679 bytes、闭包 1,784、frame 1,624、adapter 984；总分配较 B60 少 256 bytes/请求。时间源码已降至约 1%，不默认继续打磨 Duration 或已删除的包装。继续结合 CPU、调用与分配证据选择主要组合，尚未定位的四 worker 回退不能仅凭 self 比例变化宣布关闭。
 3. 继续从最简 TCP 程序逐步接入既有实现，必要时用同 Cone 诊断拆边界并校准两端。没有单一大头时，从主要几项组合优化着手，以完整原版 server、协议连接、手写起点及 Go 的同轮对照决定保留；整体有确认收益即保留，不因旧单项幅度小而排除。需要单项归因时另做消融，不能相加历史百分比。
 4. 保持 workload、传输形态、默认 GC、绑核和计时一致；保留全部成功样本，计数／profiler 与无仪表压测分开。保留请求 Job、middleware Context、HEAD、未读正文、取消、期限、真实输出进度与清理，并覆盖共享实现对 H2／WebSocket 的影响。真实接入需求才支持继续拆 API，不为实验公开内部构造器或建立平行生产框架。
 
-B57 根登记热点已移除，B58 已减少每请求 35 个闭包，B59 消除了 Job 只读查询的加锁，B60 再减少六个闭包并简化时间运算，不再把旧分布当作默认重点；Job 父子关系在 B56 也不是主要增量。B50 解析复用和其他撤回候选保持各自历史结论，不省去必要语义，不启动 GC、P99 或 JSON 支线。
+B57 根登记热点已移除，B58 已减少每请求 35 个闭包，B59 消除了 Job 只读查询的加锁，B60 再减少六个闭包并简化时间运算，B61 合并 HTTP 状态更新并延后正文包装，不再把旧分布当作默认重点；Job 父子关系在 B56 也不是主要增量。B50 解析复用和其他撤回候选保持各自历史结论，不省去必要语义，不启动 GC、P99 或 JSON 支线。
 
 ## 固定产物和复现入口
 
-以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B60 的 baseline／toolchain／tools 和多轮 bin 指向历史固定资源，不能删除其目标。
+以下路径都在当前机器，原始日志不在 Git 中。**不要在这些目录上直接重建覆盖，新的实验另建目录。** B61 的 baseline／toolchain／tools 和多轮 bin 指向历史固定资源，不能删除其目标。
 
 | 用途 | 路径 |
 | --- | --- |
+| B61 组合优化、分层、锁／分配诊断、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round61` |
+| 当前正式 SDK／配套 CLI | `B61/candidate/sysroot`、`B61/toolchain/bin`（经 B60／B59 链接 B57；runtime 35／metadata 12） |
+| B61 同路径 control／candidate ELF 与符号 | `B61/bin/scoop-<variant>-<stage>`、`B61/symbols-<variant>-<stage>` |
+| B61 前版 SDK | `B61/baseline/sysroot`（链接 B60 正式 SDK） |
 | B60 组合优化、分层、分配诊断、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round60` |
-| 当前正式 SDK／配套 CLI | `B60/candidate/sysroot`、`B60/toolchain/bin`（经 B59 链接 B57；runtime 35／metadata 12） |
+| B60 历史正式 SDK／配套 CLI | `B60/candidate/sysroot`、`B60/toolchain/bin`（经 B59 链接 B57；runtime 35／metadata 12） |
 | B60 同路径 control／candidate ELF 与符号 | `B60/bin/scoop-<variant>-<stage>`、`B60/symbols-<variant>-<stage>` |
 | B60 前版 SDK | `B60/baseline/sysroot`（链接 B59 正式 SDK） |
 | B59 组合优化、分层、锁与分配诊断、原始结果 | `/home/chenxu/benchmarks/http-improvements-20261113-round59` |
@@ -474,7 +499,7 @@ B57 根登记热点已移除，B58 已减少每请求 35 个闭包，B59 消除�
 | B44 分层诊断及结果 | `/home/chenxu/benchmarks/http-improvements-20261112-round44` |
 | 固定 Go net/http | `/home/chenxu/benchmarks/http-20261111/bin/nethttp-server` |
 
-表中 B59／B58／B57／B56／B55／B54／B53／B52／B51／B49 表示各自完整根目录。B59 的 `candidate.patch` 对应 `892e34e28` 上的库及测试变更；`build_candidate.sh`、`validate_candidate.sh`、`validate_remaining.sh`、`measure_combined.py`、`measure_large.py` 保存实际构建、测试修正后的继续验收与测量命令。`prepare_lock_sites.py`、`profile_locks.py`、`summarize_locks.py` 记录实际 ELF 的入口／CAS／调用方，分配和 cycles 脚本继续保留。结果在 `measurement-report.json`、`validation-report.json`、`lock-comparison.json`、`allocation-comparison.json`、`profiles/` 和 `diagnostics/`。原 `scoop-<stage>` 链接用于开始时的分层诊断，正式新对照须用带 `control-`／`candidate-` 的程序。B58 原始报告与 `ef2223165` 上的候选补丁继续保留。
+表中 B61／B60／B59／B58／B57／B56／B55／B54／B53／B52／B51／B49 表示各自完整根目录。B61 的 `candidate.patch` 对应 `2cfcadc9d7` 上的库及测试变更；`check_build.sh`、`build_candidate.sh`、`validate_candidate.sh`、`measure_candidate.py` 保存构建、验收和对照命令，静态检查的两处修正及原始失败日志保留。`diagnose_candidate.sh`、`trace_locks_candidate.sh`、`diagnose_protocol.sh` 保存独立分配、锁与 cycles 采样步骤。结果在 `measurement-report.json`、`validation-report.json`、`lock-comparison.json`、`allocation-summary.json`、`profiles/` 和 `diagnostics/`。原 `scoop-<stage>` 链接用于开始时的分层诊断，正式新对照须用带 `control-`／`candidate-` 的程序。历史补丁、SDK 和原始报告继续保留。
 
 B57 的 `inputs/` 保留两套构建共用的三个源码，`patches/candidate.patch` 对应以 `459ccd13f` 为底座的已测编译器／runtime 变更；CLI 的版本字符串记录该构建底座，具体候选以此补丁和 manifest 区分。原构建／验收脚本保留实际命令，临时 worktree 和 cache 在收尾清理；复用时先在新目录恢复对应源码并调整路径，不覆盖固定 SDK、ELF 或结果。
 

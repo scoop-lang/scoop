@@ -1,0 +1,98 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.test.*
+
+@Test
+private class ServerBodySelectionLifetimeTests {
+    @Test
+    fun `an unselected body closes without reading and rejects later consumers`() {
+        eventLoop().run {
+            val input = DecompressionReadSource(TestSource("untouched".toByteArray()))
+            val body = HttpRequestBody(input, fields = requestEncodedFields("unknown"))
+            body.configureDecoding(requestDecompressionOptions())
+            body.setLimit(Some(0L))
+            assertFalse(present(body.view))
+            assertFalse(body.isComplete)
+            assertEquals(0L, body.receivedBytes)
+            assertEquals(0L, body.deliveredBytes)
+            body.closeView()
+            expectState { body.openStream() }
+            expectState { body.openRawStream() }
+            expectState { body.setLimit(None) }
+            expectState { body.configureDecoding(requestDecompressionOptions()) }
+            assertFalse(present(body.view))
+            assertFalse(body.isComplete)
+            assertEquals(0L, body.receivedBytes)
+            assertEquals(0L, body.deliveredBytes)
+            assertEquals(0, input.calls)
+        }
+    }
+
+    @Test
+    fun `failed decoded selection honors a revised input limit on raw retry`() {
+        eventLoop().run {
+            val input = DecompressionReadSource(TestSource("abc".toByteArray()))
+            val body = HttpRequestBody(input, fields = requestEncodedFields("unknown"))
+            body.configureDecoding(requestDecompressionOptions())
+            try {
+                try {
+                    body.openStream()
+                    fail(Some("unsupported coding selected"))
+                } catch (error: HttpRejection) {
+                    assertEquals(415U, error.result.status)
+                }
+                assertFalse(present(body.view))
+                assertEquals(0, input.calls)
+                body.setLimit(Some(2L))
+                val raw = body.openRawStream()
+                expectState { body.setLimit(None) }
+                try {
+                    networkText(raw)
+                    fail(Some("revised input limit ignored"))
+                } catch (error: HttpRejection) {
+                    assertEquals(413U, error.result.status)
+                }
+                assertEquals(3L, body.receivedBytes)
+                assertFalse(body.isComplete)
+            } finally {
+                body.closeView()
+            }
+        }
+    }
+
+    @Test
+    fun `selection after collection retains the source and its completed counters`() {
+        eventLoop().run {
+            val body =
+                HttpRequestBody(
+                    TestSource("abc".toByteArray()),
+                    limit = Some(1L),
+                    fields = [field("Content-Length", "3")]
+                )
+            gcCollect()
+            try {
+                try {
+                    body.openRawStream()
+                    fail(Some("declared length above the limit selected"))
+                } catch (error: HttpRejection) {
+                    assertEquals(413U, error.result.status)
+                }
+                body.setLimit(Some(3L))
+                val raw = body.openRawStream()
+                gcCollect()
+                assertEquals("abc", networkText(raw))
+                assertTrue(body.isComplete)
+                assertEquals(Some(3L), body.view!!.contentLength)
+                assertEquals(3L, body.receivedBytes)
+                assertEquals(3L, body.deliveredBytes)
+                expectState { body.openRawStream() }
+            } finally {
+                body.closeView()
+            }
+            assertEquals(3L, body.receivedBytes)
+            assertEquals(3L, body.deliveredBytes)
+            assertTrue(body.isComplete)
+        }
+    }
+}

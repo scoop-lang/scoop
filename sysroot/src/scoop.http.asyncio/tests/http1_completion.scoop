@@ -1,0 +1,94 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.test.*
+
+@Test
+private class AsyncHttp1CompletionTests {
+    @Test
+    fun `empty chunked trailers preserve the following request across input boundaries`() {
+        for (readLimit in [1L, 8192L]) {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this
+                val(peer, transport) = rawPair(loop, scope)
+                transport.readLimit = readLimit
+                val server = AsyncHttp1Connection.takeOwnershipAsServer(transport, scope)
+                try {
+                    sendBytes(
+                        peer,
+                        (
+                            "POST /first HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n" +
+                                "0\r\nX-Finished: yes\r\n\r\n" +
+                                "GET /next HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
+                        ).toByteArray()
+                    )
+                    val first = server.receiveRequest()!!
+                    assertEquals("POST", String.fromUtf8(first.head.method))
+                    assertEquals(0L, receiveBytes(first.body).size)
+                    assertTrue(first.body.isComplete)
+                    assertEquals("yes", String.fromUtf8(first.body.trailers!![0L].value))
+                    server.sendResponse(response(204U)).finish()
+                    first.body.close()
+                    val next = server.receiveRequest()!!
+                    assertEquals("GET", String.fromUtf8(next.head.method))
+                    assertEquals(0L, receiveBytes(next.body).size)
+                    assertTrue(next.body.isComplete)
+                    server.sendResponse(response(204U)).finish()
+                    assertTrue(server.isReusable)
+                    assertEquals(0, transport.closes)
+                } finally {
+                    server.close()
+                    peer.close()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `cancelling the finished message job leaves its connection reusable`() {
+        for (empty in [true, false]) {
+            withHttp1 suspend {
+                scope, _, _, client, server ->
+                val completed = AsyncGate()
+                val release = AsyncGate()
+                val serving =
+                    scope.launch suspend {
+                        val incoming = server.receiveRequest()!!
+                        assertEquals(
+                            if (empty)
+                                ""
+                            else
+                                "body",
+                            String.fromUtf8(receiveBytes(incoming.body))
+                        )
+                        val writer = server.sendResponse(response(), Http1BodyFraming.Length(2L))
+                        sendBytes(writer, "ok".toByteArray())
+                        writer.finish()
+                        assertTrue(incoming.body.isComplete && writer.isComplete)
+                        completed.signal()
+                        release.await()
+                    }
+                val writer = client.sendRequest(request("POST"), Http1BodyFraming.Chunked)
+                if (!empty)
+                    sendBytes(writer, "body".toByteArray())
+                writer.finish([field("X-Finished", "yes")])
+                assertEquals("ok", String.fromUtf8(receiveBytes(client.receiveResponse().body)))
+                completed.await()
+                try {
+                    serving.cancel()
+                    assertTrue(client.isReusable && server.isReusable)
+                } finally {
+                    release.signal()
+                    serving.join()
+                }
+                client.sendRequest(request()).finish()
+                assertTrue(server.receiveRequest()!!.body.isComplete)
+                server.sendResponse(response(204U)).finish()
+                assertEquals(204U, client.receiveResponse().head.status)
+                assertTrue(client.isReusable && server.isReusable)
+            }
+        }
+    }
+}

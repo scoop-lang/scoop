@@ -106,14 +106,9 @@ internal fun listenH1Body(state: H1State, life: H1BodyLifetime, job: Job) {
         listener.dispose()
 }
 
-internal fun completeH1Body(state: H1State, life: H1BodyLifetime) {
-    val listener =
-        state.lock.withLock {
-            life.completed = true
-            val value = life.listener
-            life.listener = None
-            value
-        }
-    if (present(listener))
-        listener!!.dispose()
+internal fun completeH1BodyLocked(life: H1BodyLifetime): Disposable? {
+    life.completed = true
+    val listener = life.listener
+    life.listener = None
+    return listener
 }

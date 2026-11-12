@@ -161,6 +161,8 @@ H1 按顺序关联请求与响应，同一方向只允许一个消息 body 操�
 
 H1 操作在同一次连接状态边界完成同步准备、占用方向和安装本次 idle 状态；准备失败不留下在途操作。取消监听覆盖随后的实际 I/O，操作返回前撤销监听，并在同一次状态边界释放方向和 idle 状态。开始与结束的同步管理不要求另建挂起调用层；失败仍先保留已选择的取消／超时原因，再等待传输和借用的实际收尾。正常操作结束只在连接已经关闭中时推进关闭过程。
 
+H1 接收保留解码器事件的原有顺序；一次输入后的解码、事件入队和首个事件交付可在同一状态边界完成。已无未交付正文数据时，队首相邻 trailer 与结束事件在同一状态边界完成当前 body，不能跨过下一条消息头。消息完成、请求关联及取消监听摘取一起更新，监听的实际撤销始终在状态锁外执行；拒绝升级后的恢复失败仍沿原连接失败路径收尾。
+
 AsyncHttp1Connection 的 takeOwnershipAsClient／takeOwnershipAsServer 接收传输与 CoroutineScope。sendRequest／sendResponse 返回 AsyncHttp1Writer，每条消息用 finish 完成；receiveRequest 在正常 EOF 返回 None，receiveResponse 逐条交付信息／最终响应及 AsyncHttp1Body。body 在消费完数据及结束标记后公开已完成状态和 trailer，之后读取返回零；显式 close 未完成的 body 会关闭连接。服务端按接收顺序使用对应请求方法发送响应，拒绝升级后恢复 HTTP/1；接受切换后通过 takeTransport 移交前缀及传输。H1 的实际读写属于调用操作的 Job，连接另登记一个负责存活与本地关闭的 scope 子任务。
 
 完整响应重载 `sendResponse(head, buffer: NativeByteBuffer, count: Long = buffer.readableBytes, writeIdle: Duration? = ioTimeouts.writeIdle): Unit` 在一次写操作中发送头部、指定的全部正文并完成消息，不交付 writer。允许正文时使用精确 Content-Length；HEAD、无内容状态和切换响应要求 count 为零，沿原编码器处理元数据与定界。整个调用借用源 buffer，成功或失败后按底层实际接受的正文前缀推进游标并结束借用；头部字节不计入正文进度。传输错误、取消和 idle 超时关闭连接且不重试已发送内容。连接以至多 64 KiB 的输出块合并头部和正文，处理短写，最后 flush；不为整条大消息建立额外的完整副本。消息关联、信息响应、关闭与协议切换规则和 writer 入口相同。
