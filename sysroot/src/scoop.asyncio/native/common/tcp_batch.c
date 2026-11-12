@@ -28,16 +28,23 @@ ScoopIoBatch scoop_io_tcp_flush(ScoopIoLoop *loop) {
     ScoopIoTcpSubmissions *submissions = &loop->tcp_submissions;
     unsigned count = submissions->count;
     submissions->count = 0;
-    int64_t failed = 0;
+    int64_t completed = 0;
     for (unsigned i = 0; i < count; i++) {
         ScoopIoTcpSubmission entry = submissions->entries[i];
+#if defined(__APPLE__)
+        if (scoop_io_tcp_try_transfer(entry.endpoint, entry.id, entry.bytes, entry.count,
+                                      entry.writing, &submissions->results[completed])) {
+            completed++;
+            continue;
+        }
+#endif
         int status = entry.writing
                          ? scoop_io_tcp_write(entry.endpoint, entry.id, entry.bytes, entry.count)
                          : scoop_io_tcp_read(entry.endpoint, entry.id, entry.bytes, entry.count);
         if (status < 0)
-            submissions->failures[failed++] =
+            submissions->results[completed++] =
                 (ScoopIoEvent){.id = entry.id, .kind = SCOOP_IO_POSIX_ERROR, .code = -status};
     }
-    // The owner consumes these errors before another flush; completion only queues ready work.
-    return (ScoopIoBatch){submissions->failures, failed};
+    // Results stay stable until the next flush; completion only queues managed ready work.
+    return (ScoopIoBatch){submissions->results, completed};
 }

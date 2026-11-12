@@ -611,6 +611,14 @@ B28 的 1,848 个用户态采样中，fesetenv self 占 11.1%，其中约 85% �
 
 固定二进制、源码快照、图表、原始数据与复现步骤位于 `/home/chenxu/benchmarks/http-improvements-20261112-round29`。清理本轮应用／测试／准备 target，保留固定产物、源码 LLVM 工具链、可复用缓存和日志；未推送。
 
+## macOS TCP echo 同机对照（2026-11-12）
+
+使用已安装的当前工具链，在 M3 Ultra / macOS 27.2.1 上复用 B29 的公开 API echo 负载，与 Go 1.27.3 同机比较。30 个正式样本与五个短传输样本全部正确；Scoop 吞吐为 Go 的 54%–75%，CPU/echo 为 2.3–4.4 倍，四 worker 未带来吞吐扩展。Mac 基准补齐进程测量和 accepted socket 的 TCP_NODELAY 设置，生产实现未改动。参数、完整中位数、波动范围、独立调用栈与平台限制见 [macOS 对照记录](MACOS-TCP-ECHO.md)。
+
+## macOS TCP 后端优化（2026-11-13）
+
+TCP 在 NativeSafe 批次内由 owner 尝试直接读写，未就绪时复用端点方向的 dispatch source；通知 pipe 合并并减少控制动作的空唤醒，关闭仍等待所有 source 退休。64 连接单／四 worker 吞吐 +12.1%／+14.8%，CPU／echo −22.7%／−47.2%，最终吞吐为 Go 的 83.1%／84.2%；独立 eventLoop 的吞吐仅 +2.8%，P50 +4.3%，保留该限制。520 项功能测试、四项定向 GC、48 个正式样本和五个短传输样本全部通过。实现、完整 Go 对照、波动范围与复现位置见 [macOS 优化记录](MACOS-OPTIMIZATION.md)。
+
 ## 平台迁移验证约定
 
 普通行为与真实 native 宿主测试均使用所属 Cone 的 `scoop.test`，不新增 fixture。每批先格式化与检查，再运行影响范围内的 release 测试；完成平台替换后再运行相关组合测试。原始日志保存在仓库外，不使用 `/tmp`。

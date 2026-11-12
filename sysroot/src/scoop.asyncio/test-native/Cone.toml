@@ -71,6 +71,10 @@ when = { os = "windows" }
 path = "native/host_darwin.c"
 when = { os = "darwin" }
 
+[[native.sources]]
+path = "native/darwin_notifications.c"
+when = { os = "darwin" }
+
 [[native.libraries]]
 name = "CoreFoundation"
 kind = "framework"

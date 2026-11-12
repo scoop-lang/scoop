@@ -18,10 +18,75 @@ static bool writing(SocketAction action) {
     return action == TCP_WRITE || action == TCP_SHUTDOWN || action == UDP_WRITE;
 }
 
+static void transfer_ready(void *context);
+
+static void tcp_source_ready(void *context) {
+    ScoopIoTcpSource *source = context;
+    ScoopIoEndpoint *endpoint = source->endpoint;
+    ScoopIoWait *wait = source->writing ? endpoint->output : endpoint->input;
+    if (wait)
+        transfer_ready(wait);
+}
+
+static void tcp_source_retired(void *context) {
+    ScoopIoTcpSource *source = context;
+    ScoopIoEndpoint *endpoint = source->endpoint;
+    ScoopIoLoop *loop = endpoint->loop;
+    dispatch_release(source->source);
+    source->source = NULL;
+    endpoint->active--;
+    scoop_io_endpoint_idle(endpoint);
+    scoop_io_action_end(loop);
+}
+
+static int tcp_wait_fd(ScoopIoEndpoint *endpoint, bool output) {
+    ScoopIoTcpSource *source = &endpoint->tcp_sources[output ? 1 : 0];
+    if (!source->source) {
+        source->source =
+            dispatch_source_create(output ? DISPATCH_SOURCE_TYPE_WRITE : DISPATCH_SOURCE_TYPE_READ,
+                                   (uintptr_t)endpoint->fd, 0, endpoint->loop->queue);
+        if (!source->source)
+            return -ENOMEM;
+        source->endpoint = endpoint;
+        source->writing = output;
+        scoop_io_action_begin(endpoint->loop);
+        dispatch_set_context(source->source, source);
+        dispatch_source_set_event_handler_f(source->source, tcp_source_ready);
+        dispatch_source_set_cancel_handler_f(source->source, tcp_source_retired);
+        dispatch_activate(source->source);
+    } else if (source->suspended) {
+        source->suspended = false;
+        dispatch_resume(source->source);
+    }
+    return 0;
+}
+
+void scoop_io_tcp_sources_close(ScoopIoEndpoint *endpoint) {
+    for (unsigned i = 0; i < 2; i++) {
+        ScoopIoTcpSource *source = &endpoint->tcp_sources[i];
+        if (!source->source)
+            continue;
+        endpoint->active++;
+        dispatch_source_cancel(source->source);
+        if (source->suspended) {
+            source->suspended = false;
+            dispatch_resume(source->source);
+        }
+    }
+}
+
 static void transfer_finish(ScoopIoWait *wait) {
     SocketIo *request = (void *)wait;
     if (wait->request.completion.event.kind != SCOOP_IO_DATAGRAM)
         free(request->packet);
+    if (request->action == TCP_READ || request->action == TCP_WRITE) {
+        ScoopIoTcpSource *source =
+            &request->endpoint->tcp_sources[writing(request->action) ? 1 : 0];
+        if (source->source && !source->suspended) {
+            source->suspended = true;
+            dispatch_suspend(source->source);
+        }
+    }
     scoop_io_endpoint_finished(wait, request->endpoint, writing(request->action));
 }
 static void transfer_cancel(ScoopIoRequest *request) { scoop_io_wait_end((void *)request); }
@@ -49,66 +114,88 @@ static ssize_t transfer_datagram(SocketIo *request) {
     return count;
 }
 
+// Direction ownership transfers only after the previous native completion is consumed.
+bool scoop_io_tcp_try_transfer(ScoopIoEndpoint *endpoint, int64_t id, void *bytes, int64_t length,
+                               bool output, ScoopIoEvent *event) {
+    *event = (ScoopIoEvent){.id = id};
+    if (!output && endpoint->read_error) {
+        event->kind = SCOOP_IO_POSIX_ERROR;
+        event->code = endpoint->read_error;
+        return true;
+    }
+    if (!output && endpoint->eof) {
+        event->kind = SCOOP_IO_EOF;
+        return true;
+    }
+    size_t prefix = (size_t)(length > INT_MAX ? INT_MAX : length);
+    ssize_t count;
+    do {
+        count =
+            output ? send(endpoint->fd, bytes, prefix, 0) : recv(endpoint->fd, bytes, prefix, 0);
+    } while (count < 0 && errno == EINTR);
+    if (count < 0) {
+        int error = errno;
+        if (error == EAGAIN || error == EWOULDBLOCK)
+            return false;
+        if (!output)
+            endpoint->read_error = error;
+        event->kind = SCOOP_IO_POSIX_ERROR;
+        event->code = error;
+    } else {
+        event->count = count;
+        if (!output && !count) {
+            endpoint->eof = true;
+            event->kind = SCOOP_IO_EOF;
+        } else
+            event->kind = SCOOP_IO_BYTES;
+    }
+    return true;
+}
+
 static void transfer_ready(void *context) {
     SocketIo *request = context;
     if (request->wait.ended)
         return;
     ScoopIoEndpoint *endpoint = request->endpoint;
     ScoopIoEvent *event = &request->wait.request.completion.event;
-    if (request->action == TCP_READ && (endpoint->eof || endpoint->read_error)) {
-        if (endpoint->read_error)
-            scoop_io_wait_error(&request->wait, endpoint->read_error);
-        else {
-            event->kind = SCOOP_IO_EOF;
+    if (request->action == TCP_READ || request->action == TCP_WRITE) {
+        if (scoop_io_tcp_try_transfer(endpoint, event->id, request->bytes, request->length,
+                                      writing(request->action), event)) {
             scoop_io_wait_end(&request->wait);
-        }
-        return;
-    }
-    ssize_t count;
-    size_t prefix = (size_t)(request->length > INT_MAX ? INT_MAX : request->length);
-    do {
-        switch (request->action) {
-        case TCP_READ:
-            count = recv(endpoint->fd, request->bytes, prefix, 0);
-            break;
-        case TCP_WRITE:
-            count = send(endpoint->fd, request->bytes, prefix, 0);
-            break;
-        case TCP_SHUTDOWN:
-            count = shutdown(endpoint->fd, SHUT_WR);
-            break;
-        case UDP_READ:
-        case UDP_WRITE:
-            count = transfer_datagram(request);
-            break;
-        }
-    } while (count < 0 && errno == EINTR);
-    if (count < 0) {
-        int error = errno;
-        if (error == EAGAIN || error == EWOULDBLOCK) {
-            if (!request->wait.count) {
-                int status = scoop_io_wait_fd(&request->wait, endpoint->fd,
-                                              writing(request->action), transfer_ready);
-                if (status < 0)
-                    scoop_io_wait_error(&request->wait, -status);
-            }
             return;
         }
-        if (request->action == TCP_READ)
-            endpoint->read_error = error;
-        scoop_io_wait_error(&request->wait, error);
+        int status = tcp_wait_fd(endpoint, writing(request->action));
+        if (status < 0)
+            scoop_io_wait_error(&request->wait, -status);
         return;
+    } else {
+        ssize_t count;
+        do {
+            count = request->action == TCP_SHUTDOWN ? shutdown(endpoint->fd, SHUT_WR)
+                                                    : transfer_datagram(request);
+        } while (count < 0 && errno == EINTR);
+        if (count >= 0) {
+            event->count = count;
+            if (request->action == UDP_READ) {
+                event->kind = SCOOP_IO_DATAGRAM;
+                event->resource = request->packet;
+            } else if (request->action == UDP_WRITE)
+                event->kind = SCOOP_IO_BYTES;
+            scoop_io_wait_end(&request->wait);
+            return;
+        }
+        int error = errno;
+        if (error != EAGAIN && error != EWOULDBLOCK) {
+            scoop_io_wait_error(&request->wait, error);
+            return;
+        }
     }
-    event->count = count;
-    if (request->action == UDP_READ) {
-        event->kind = SCOOP_IO_DATAGRAM;
-        event->resource = request->packet;
-    } else if (request->action == TCP_READ && !count) {
-        endpoint->eof = true;
-        event->kind = SCOOP_IO_EOF;
-    } else if (request->action != TCP_SHUTDOWN)
-        event->kind = SCOOP_IO_BYTES;
-    scoop_io_wait_end(&request->wait);
+    if (!request->wait.count) {
+        int status = scoop_io_wait_fd(&request->wait, endpoint->fd, writing(request->action),
+                                      transfer_ready);
+        if (status < 0)
+            scoop_io_wait_error(&request->wait, -status);
+    }
 }
 
 static void transfer_start(void *context) {

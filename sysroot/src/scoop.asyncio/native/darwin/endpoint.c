@@ -52,6 +52,7 @@ static void close_endpoint(void *context) {
         scoop_io_wait_end(endpoint->input);
     if (endpoint->output)
         scoop_io_wait_end(endpoint->output);
+    scoop_io_tcp_sources_close(endpoint);
     endpoint->active--;
     scoop_io_endpoint_idle(endpoint);
     scoop_io_action_end(loop);

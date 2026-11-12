@@ -122,7 +122,7 @@ B21 让每个 owner 复用外部命令、本地命令和 ready 各自的接收�
 
 B29 将 TCP 字节请求的 native 提交也归并到 owner 的轮次边界。每个后端 loop 持有固定容量的提交数组，逐请求的 GCLeaf 入口只写入 GC-free 的 endpoint、操作编号、借用地址、长度和方向；它不分配、不加锁、不调用操作系统、不回调、不改变浮点环境。资源、borrow、Job 和 continuation 仍由原 ByteTransfer 保活，只有真正完成才解除。数组满时先以一次 NativeSafe 调用提交旧批次，再登记当前请求；容量不是并发请求上限。所有实际平台调用、请求分配及同步失败处理均在 NativeSafe 批量入口内进行，不能把原有读写后端直接标为 GCLeaf。
 
-owner 在 poll／等待前、pump 退出前、取消及普通控制操作开始前提交已有批次，保持读写与 shutdown／close 的次序。暂存请求也计入 native loop 的非空闲状态，不能在尚有提交时销毁后端。批量入口把同步提交失败保存到独立的连续错误数组，managed 侧按原操作编号送入完成仲裁；数组在下一次提交时才改写，错误交付只进入 ready，不在读取数组期间恢复用户代码。native 开始后产生的结果继续走原完成队列。TCP 提交不逐次提取阻塞工作；可能产生阻塞工作的文件、TTY 与普通操作在提交后立即派发，轮次边界仍统一派发剩余工作，保留已有回调等待及排空合同。Linux、Darwin、Windows 共用批次协议，各自实际后端和退休规则保持。
+owner 在 poll／等待前、pump 退出前、取消及普通控制操作开始前提交已有批次，保持读写与 shutdown／close 的次序。暂存请求也计入 native loop 的非空闲状态，不能在尚有提交时销毁后端。批量入口把同步提交失败及平台直接完成保存到独立的连续结果数组，managed 侧按原操作编号送入完成仲裁；数组在下一次提交时才改写，结果交付只进入 ready，不在读取数组期间恢复用户代码。异步请求的后续结果继续走原完成队列。TCP 提交不逐次提取阻塞工作；可能产生阻塞工作的文件、TTY 与普通操作在提交后立即派发，轮次边界仍统一派发剩余工作，保留已有回调等待及排空合同。Linux、Darwin、Windows 共用批次协议，各自实际后端和退休规则保持。
 
 处理过程中 GUI 可能进入嵌套主循环；`pumping` 标志阻止递归进入状态机，嵌套通知只记录需再次处理，外层退出时重新唤醒。普通用户回调仍可能运行很久，本库不抢占它，也不把 CPU 计算自动搬到后台。
 
@@ -220,11 +220,19 @@ loop 生命周期为 `Created → Running → Stopping → Draining → Detachin
 
 每个 loop 有一条串行 I/O dispatch queue，负责 endpoint、source 与请求的原生状态。串行 queue 不等于固定线程；其 event／cancel handler 都只执行 C、发布完成，不运行 Scoop 用户代码。owner 的 submit／cancel 通过 `dispatch_async_f` 等 C 入口入队，不用 `dispatch_sync` 等待 owner 与 I/O queue 互相返回。
 
+Mac 同机测量显示四 worker 的内核态 CPU 和通知／等待交接成本明显高于 Go。沿用 Linux 的 owner 本地推进与批量边界，TCP 字节读写在已有 NativeSafe flush 中先由资源 owner 尝试非阻塞 syscall；字节数、EOF 和非 EAGAIN 错误进入原提交批次的结果数组，和提交失败一起交给 managed 完成仲裁。立即完成不分配 native 请求，不经过 dispatch queue，也不写通知 pipe；EAGAIN／EWOULDBLOCK 才创建原请求，由 dispatch source 继续等待。不是将 syscall 放进 GCLeaf，也不直接恢复 managed continuation。
+
+这条直接路径仅用于已经交付并按原协议占用方向的 TCP 端点。同方向的前次 handler 在发布完成之前结束其读写与 EOF／错误状态更新，owner 在消费完成后才允许下一次提交；反向传输不访问读方向状态。端点的 fd 在未关闭期间固定，关闭停止新接纳，并在 native close 入队前先 flush 已暂存传输。直接完成只写结果与读方向状态，不修改 I/O queue 独占的 active／input／output 或 source 容器。异步与直接路径共用同一 TCP syscall／EOF／错误处理函数，不能维护两套不同的传输语义。取消选择已经发生时仍保存实际写入进度，待原 ready 清理借用后恢复。
+
+通知使用 loop mutex 保护的一个未消费标记。生产者先发布实际工作，仅在标记为 false 时向 nonblocking pipe 写入一个提示；owner 在同一锁内读取该提示并清除标记，随后检查真实工作。没有提示时跳过原来的 FIONREAD／read 调用。控制动作结束仅在 actions 降到零时通知排空进度，避免每次把请求挂上就绪监听后都产生一次空唤醒；真正完成的通知保持。外线程不能插入到清除提示与标记之间，返回宿主或等待前仍按真实剩余完成／managed 工作 rearm。正常排空、取消、源退休及阻塞池完成使用同一通知规则，保留原 close-on-exec、EINTR、I/O 失败及无忙轮询合同。
+
 TCP／UDP／TTY 使用 nonblocking fd、READ／WRITE source 与实际 syscall：先尝试操作，遇到 EAGAIN 再等待就绪；只在有等待操作时启用相应兴趣，避免可写 socket 造成空转。连接就绪后检查 `SO_ERROR`；listen／accept、地址复用与 SIGPIPE 处理沿 platform 的既有 POSIX helper。source suspend／resume 必须平衡，取消 suspended source 时也须使 cancel handler 能到达。
 
-timer 用单调时钟 dispatch timer；到期仍核对截止时间，不能提前完成。取消 timer 或 fd 等待时，等待正在执行的 handler 与所需 cancel handler 结束才发布终止。一个 fd 被多个 source 引用时，资源关闭等所有 source 都退出再关闭 fd，不能把 fd 释放交给第一个 cancel handler。[Apple source 合同](https://github.com/apple-oss-distributions/libdispatch/blob/main/dispatch/source.h)要求这种顺序。
+TCP 的 source 在端点的读／写方向上懒创建并复用，避免每次 EAGAIN 都重新向 kqueue 注册、随后注销。source context 只指向端点内的方向记录，handler 查找当前 input／output，不捕获前次请求或借用地址。完成和取消在串行 queue 中暂停该方向 source、清除等待请求，再发布完成；后续请求需要等待时重新启用 source。空闲 source 不交付事件，但仍计入 loop 存活工作。close 先结束两个方向，再取消其 source 并平衡暂停，所有 cancel handler 退休后才关闭 fd。owner 直接路径不读取或修改这些 queue 专属字段。
 
-普通文件、目录、路径、DNS 和 `NativeWork` 复用现有 GC-free C helper，投递到后台 dispatch queue。文件操作保持每文件串行，不能在串行 I/O queue 或 GUI 主队列上执行可能阻塞的文件访问。尚未执行的 work 可以观察取消而跳过；已经执行的 work 必须完成并发布结果。dispatch 取消不是强制终止 `getaddrinfo` 或文件 syscall。
+timer 用单调时钟 dispatch timer；到期仍核对截止时间，不能提前完成。timer 及其他一次性 fd 等待在正在执行的 handler 与所需 cancel handler 结束后发布终止；TCP 复用 source 的请求按上述暂停和解除引用规则退休。一个 fd 被多个 source 引用时，资源关闭等所有 source 都退出再关闭 fd，不能把 fd 释放交给第一个 cancel handler。[Apple source 合同](https://github.com/apple-oss-distributions/libdispatch/blob/main/dispatch/source.h)要求这种顺序。
+
+普通文件、目录、路径、DNS 和 `NativeWork` 复用现有 GC-free C helper，投递到共享 managed 阻塞池。文件操作保持每文件串行，不能在串行 I/O queue 或 GUI 主队列上执行可能阻塞的文件访问。尚未执行的 work 可以观察取消而跳过；已经执行的 work 必须完成并发布结果，取消不会强制终止 `getaddrinfo` 或文件 syscall。
 
 使用系统 libdispatch 的 `_f` API，不要求 Scoop 支持 Objective-C、Blocks 或 `.m`／`.mm` native 编译；也不引入 `dispatch_io` 的 buffer／channel 所有权模型来复制当前资源合同。主循环进入 managed 的入口只在 host 适配层使用既有 `ForeignCallback`。
 
