@@ -16,7 +16,8 @@ public class ParsedMarkdown internal constructor(
     public val snapshot: MarkdownSnapshot,
     public val profile: MarkdownProfile,
     public val root: MarkdownNode,
-    private val index: Array<MarkdownNode>
+    private val index: Array<MarkdownNode>,
+    private val parents: Array<Long>
 ) {
     public val documentId: MarkdownDocumentId get() = snapshot.documentId
     public val revision: Long get() = snapshot.revision
@@ -29,6 +30,16 @@ public class ParsedMarkdown internal constructor(
         val value = index[id.ordinal]
         requireMarkdown(value.id === id, "Node belongs to a different Markdown parse")
         return value
+    }
+
+    /** Returns the parent in this same immutable tree; the document root has no parent. */
+    public fun parent(id: MarkdownNodeId): MarkdownNode? {
+        node(id)
+        val parent = parents[id.ordinal]
+        return if (parent < 0L)
+            None
+        else
+            Some(index[parent])
     }
 
     /** Preorder traversal includes the root and does not recurse on the native stack. */

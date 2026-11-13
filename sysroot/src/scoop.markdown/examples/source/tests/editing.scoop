@@ -1,0 +1,27 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownEditingExampleTests {
+    @Test
+    fun `headless structure commands share source transactions and inverse edits`() {
+        val source = "# Title ###\r\n\r\n[x][ref]\r\n\r\n[ref]: old\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val change =
+            document.transform(parsed) {
+                setHeading(parsed.root.children[0L].id, 3)
+                setLinkTarget(parsed.root.children[1L].children[0L].id, "new path")
+            }
+        assertEquals(1L, document.revision)
+        assertEquals(
+            "### Title ###\r\n\r\n[x](<new path>)\r\n\r\n[ref]: old\r\n",
+            document.toMarkdown()
+        )
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+    }
+}

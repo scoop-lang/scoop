@@ -1,0 +1,235 @@
+package scoop.markdown
+
+import scoop.text.*
+
+public enum MarkdownInlineStyle {
+    Emphasis, Strong, Strikethrough
+}
+
+private fun mdInlineStyle(node: MarkdownNode): MarkdownInlineStyle? =
+    when (node.content) {
+        case MarkdownContent.Emphasis -> Some(MarkdownInlineStyle.Emphasis)
+        case MarkdownContent.Strong -> Some(MarkdownInlineStyle.Strong)
+        case MarkdownContent.Strikethrough -> Some(MarkdownInlineStyle.Strikethrough)
+        else -> None
+    }
+
+private fun mdWrappedInline(
+    style: MarkdownInlineStyle,
+    children: Array<MdWriteInline>
+): MdWriteInline =
+    when (style) {
+        case MarkdownInlineStyle.Emphasis -> MdWriteInline.Emphasis(children)
+        case MarkdownInlineStyle.Strong -> MdWriteInline.Strong(children)
+        case MarkdownInlineStyle.Strikethrough -> MdWriteInline.Strike(children)
+    }
+
+private fun mdEditableInline(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Text(_) -> true
+        case MarkdownContent.CodeSpan(_) -> true
+        case MarkdownContent.Emphasis -> true
+        case MarkdownContent.Strong -> true
+        case MarkdownContent.Strikethrough -> true
+        case MarkdownContent.Link(_) -> true
+        case MarkdownContent.Image(_) -> true
+        case MarkdownContent.HtmlInline(_) -> true
+        else -> false
+    }
+
+/** Applies a style to a complete inline node. The editor maps visual selections separately. */
+public fun MarkdownTransformBuilder.wrapInline(id: MarkdownNodeId, style: MarkdownInlineStyle) {
+    val node = parsed.node(id)
+    requireMarkdown(mdEditableInline(node), "Only a complete inline node can be wrapped")
+    var ancestor: MarkdownNode? = Some(node)
+    while (true) {
+        val current = ancestor ?: break
+        if (mdInlineStyle(current) == Some(style))
+            return
+        ancestor = parsed.parent(current.id)
+    }
+    val body =
+        when (node.content) {
+            case MarkdownContent.Text(val text) -> MdWriteInline.Literal(text.text)
+            else -> MdWriteInline.Raw(snapshot.read(node.range))
+        }
+    val source = mdWriteInlines([mdWrappedInline(style, [body])], false, mdInTable(parsed, node))
+    protectInlineNeighbors(node, node)
+    replace(node.range, source)
+}
+
+/** Removes this node's style, keeping nested styles and reference labels intact. */
+public fun MarkdownTransformBuilder.unwrapInline(id: MarkdownNodeId) {
+    val node = parsed.node(id)
+    requireMarkdown(
+        mdInlineStyle(node) != None,
+        "unwrapInline requires an emphasis, strong or strike node"
+    )
+    val parent = parsed.parent(id)!!
+    var index = 0L
+    while (parent.children[index] !== node)
+        index += 1L
+    var first = node
+    var last = node
+    val parts = ArrayList<MdWriteInline>()
+    val leading =
+        if (node.children.size > 0L)
+            mdInlineStyle(node.children[0L])
+        else
+            None
+    val trailing =
+        if (node.children.size > 0L)
+            mdInlineStyle(node.children[node.children.size - 1L])
+        else
+            None
+    if (index > 0L && leading != None) {
+        val previous = parent.children[index - 1L]
+        if (previous.range.end == node.range.start && mdInlineStyle(previous) == leading) {
+            first = previous
+            parts.add(retainedInline(previous))
+        }
+    }
+    for (part in retainedChildren(node))
+        parts.add(part)
+    if (index + 1L < parent.children.size && trailing != None) {
+        val next = parent.children[index + 1L]
+        if (node.range.end == next.range.start && mdInlineStyle(next) == trailing) {
+            last = next
+            parts.add(retainedInline(next))
+        }
+    }
+    if (first === node && last === node) {
+        for (marker in node.markers)
+            replace(marker, "")
+        if (leading != None || trailing != None)
+            protectInlineNeighbors(node, node)
+        if (node.children.size > 0L) {
+            val begin = node.children[0L]
+            val end = node.children[node.children.size - 1L]
+            if (index > 0L && mdInlineStyle(parent.children[index - 1L]) != None)
+                encodeTextEdge(begin, true)
+            if (
+                index +
+                    1L <
+                    parent.children.size &&
+                    mdInlineStyle(parent.children[index + 1L]) !=
+                    None
+            )
+                encodeTextEdge(end, false)
+            if (index == 0L)
+                when (begin.content) {
+                    case MarkdownContent.Text(val text) -> {
+                        val code = MdInput(text).at(0L)
+                        if (
+                            mdDigit(code) ||
+                                code ==
+                                35 ||
+                                code ==
+                                45 ||
+                                code ==
+                                43 ||
+                                code ==
+                                42 ||
+                                code ==
+                                61 ||
+                                code ==
+                                95 ||
+                                code ==
+                                62 ||
+                                code ==
+                                91 ||
+                                code ==
+                                60
+                        )
+                            encodeTextEdge(begin, true, true)
+                    }
+                    else -> Unit
+                }
+        }
+    } else {
+        protectInlineNeighbors(first, last)
+        replace(
+            MarkdownRange(first.range.start, last.range.end),
+            mdWriteInlines(parts.toArray(), false, mdInTable(parsed, node))
+        )
+    }
+}
+
+private fun MarkdownTransformBuilder.retainedInline(node: MarkdownNode): MdWriteInline =
+    when (val style = mdInlineStyle(node)) {
+        case Some(val value) -> mdWrappedInline(value, retainedChildren(node))
+        case None -> MdWriteInline.Raw(snapshot.read(node.range))
+    }
+
+private fun MarkdownTransformBuilder.retainedChildren(node: MarkdownNode): Array<MdWriteInline> {
+    val parts = ArrayList<MdWriteInline>()
+    var end =
+        if (node.children.size == 0L)
+            node.range.start
+        else
+            node.children[0L].range.start
+    for (child in node.children) {
+        if (end < child.range.start)
+            parts.add(MdWriteInline.Raw(snapshot.read(MarkdownRange(end, child.range.start))))
+        parts.add(retainedInline(child))
+        end = child.range.end
+    }
+    return parts.toArray()
+}
+
+private fun MarkdownTransformBuilder.protectInlineNeighbors(
+    first: MarkdownNode,
+    last: MarkdownNode
+) {
+    val parent = parsed.parent(first.id)!!
+    var index = 0L
+    while (parent.children[index] !== first)
+        index += 1L
+    if (index > 0L) {
+        val previous = parent.children[index - 1L]
+        if (previous.range.end == first.range.start)
+            encodeTextEdge(previous, false)
+    }
+    while (parent.children[index] !== last)
+        index += 1L
+    if (index + 1L < parent.children.size) {
+        val next = parent.children[index + 1L]
+        if (last.range.end == next.range.start)
+            encodeTextEdge(next, true)
+    }
+}
+
+private fun MarkdownTransformBuilder.encodeTextEdge(
+    node: MarkdownNode,
+    first: Boolean,
+    force: Boolean = false
+) {
+    when (node.content) {
+        case MarkdownContent.Text(val text) -> {
+            if (text.byteLength == 0L)
+                return
+            val input = MdInput(text)
+            var start =
+                if (first)
+                    0L
+                else
+                    text.byteLength - 1L
+            while (start > 0L && markdownContinuation(text.bytes[start]))
+                start -= 1L
+            val end = input.scalarEnd(start)
+            val value = input.text(start, end)
+            val range = input.range(start, end)
+            if (
+                value.isBlank() ||
+                    snapshot.read(range) !=
+                    value ||
+                    (!force && mdEscape(input.at(start)))
+            )
+                return
+            val output = StringBuilder()
+            mdWriteEntity(output, value.toCharArray()[0L])
+            replace(range, output.toString())
+        }
+        else -> Unit
+    }
+}

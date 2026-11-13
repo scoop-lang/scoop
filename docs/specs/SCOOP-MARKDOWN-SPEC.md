@@ -74,7 +74,23 @@ inline builder 提供 text、emphasis、strong、strikethrough、code、link、i
 
 生成的新文档与已有 snapshot 的 PreserveSource 输出是两条明确的调用路径。默认保存仍调用源文档的 writeTo／toMarkdown，不能把生成器变成保存时的全篇重排。显式格式化和结构化编辑在后续章节给出独立合同。
 
-## 8. 后续编辑与扩展合同
+## 8. 结构事务
+
+`document.transform(parsed) { ... }` 在匹配 documentId／revision 的解析结果上准备结构修改，并通过 `MarkdownEdit` 一次发布。过期或其他文档的结果抛 IllegalStateException。准备期间不修改文档；按原始坐标稳定排序后检查操作不重叠，任何非法参数或冲突都使本次准备失败。一个事务内的方法都基于同一份原始解析；不能用第一次操作尚未发布的节点作为后续操作的输入。回调返回前文档若被其他调用修改，最终 apply 仍拒绝旧基线。
+
+`MarkdownTransformBuilder` 提供 `replaceSource`、`replaceText`、`setInlineContent`、`setHeading`、`setParagraph`、`wrapInline`、`unwrapInline`、`setLinkTarget`、`setReferenceDefinition`、`setTask`、`setTableCell`、`insertTableRow` 和 `removeTableRow`。节点参数使用该解析结果的 MarkdownNodeId，错误节点种类或索引抛 IllegalArgumentException。不同节点的互不重叠修改可以组合，旧快照与反向事务遵守既有合同。
+
+Paragraph、Heading 和 TableCell 的内容数据同时带有 `MarkdownText` 类型的行内解析输入：保留 Markdown 标记、实体和普通转义，去掉容器前缀、标题标记和任务框前缀；表格竖线先按 GFM 表格词法去转义。去前缀、换行规范化和表格转义均保留原始映射。这与叶 Text 的已解码显示文字明确区分。`ParsedMarkdown.parent(id)` 提供所属树内的父节点，根返回 None，不重新搜索整树。
+
+`replaceText` 替换 Text 或 CodeSpan 的显示内容，按所在表格与行内语法选择转义。`setInlineContent` 用 inline builder 替换一个段落、标题或表格单元格的内容，保持外围标记和容器；在该内容之外的源码不重写。标题与表格的内容仍是单行。`setHeading` 对已有 ATX 标题只改开头级别标记；Setext 的一／二级保留原风格，更高级或普通段落转成 ATX，多行正文合并为一行。`setParagraph` 去掉标题标记，并保护会被误识别为块标记的开头普通文字。wrap／unwrap 作用于完整行内节点；选区跨节点的格式操作在后续编辑器合同中补充。
+
+修改链接使用点的 `setLinkTarget` 保留 label 的源码并生成独立 inline target；共享引用定义不变。`setReferenceDefinition` 明确修改定义及其所有引用效果。`setTask` 只修改或增删任务框，添加任务框要求条目的第一个块是段落或空条目。源码显示的其他标记不因此统一格式化。
+
+任务条目的首段须保持段落，转为标题前先移除任务框；无法在 Markdown 中同时表达任务首段与独立标题的参数组合直接报错。空标题的行内内容插入点位于开头标记之后，存在关闭标记时保留必要的间隔。
+
+表格以第 0 行为 header。修改已有单元格只替换它的内容；为不齐的行补出缺失单元格时只追加必要分隔符。新 body row 的列数须匹配 header；删除不作用于 header。行修改继承所在引用／列表的续行前缀与本地换行，不把一个引用内的表格行插到引用外。整列操作、列表层级操作和显式格式化仍按设计继续补充。
+
+## 9. 后续编辑与扩展合同
 
 结构修改和扩展处理按设计逐项增补本规范后实现。跨修改的节点身份复用在后续增量解析接口中规定；普通解析结果里的身份不构成跨独立解析的匹配猜测。必要的语法树字段由完整数据结构表达；恢复节点保留源范围和真实文本，不以空处理分支或“尚未支持”占位符代替已声明能力。
 

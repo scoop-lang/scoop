@@ -28,6 +28,7 @@ public fun parseMarkdown(
                 var input = node.input().trim()
                 if (profile.taskLists && node.kind == MdKind.Paragraph)
                     input = mdTask(node, input)
+                node.ready = Some(input.value)
                 MdInlineParser(node, input, syntax, profile, references).parse()
             }
         }

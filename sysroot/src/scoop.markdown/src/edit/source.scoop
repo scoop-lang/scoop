@@ -1,0 +1,84 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdInlineSource(node: MarkdownNode): MarkdownText =
+    when (node.content) {
+        case MarkdownContent.Paragraph(val source) -> source
+        case MarkdownContent.Heading(_, _, val source) -> source
+        case MarkdownContent.TableCell(_, val source) -> source
+        else -> throw IllegalArgumentException(Some("The Markdown node is not an inline block"))
+    }
+
+internal fun mdInlineRange(source: MarkdownText): MarkdownRange =
+    MarkdownRange(
+        source.sourceAt(MarkdownPosition(0L), MarkdownBias.After).byteOffset,
+        source.sourceAt(MarkdownPosition(source.byteLength), MarkdownBias.Before).byteOffset
+    )
+
+internal fun mdSourceInput(snapshot: MarkdownSnapshot, range: MarkdownRange): MdInput {
+    val source = MdTextBuilder()
+    source.add(snapshot.read(range), range)
+    return MdInput(source.build(range.start))
+}
+
+internal fun mdNodeLine(snapshot: MarkdownSnapshot, node: MarkdownNode): Long =
+    snapshot.lineAt(MarkdownPosition(node.range.start))
+
+internal fun mdLocalNewline(snapshot: MarkdownSnapshot, position: Long): String {
+    var line = snapshot.lineAt(MarkdownPosition(position))
+    while (true) {
+        val body = snapshot.lineRange(line)
+        val full = snapshot.lineRange(line, true)
+        if (body.end < full.end)
+            return snapshot.read(MarkdownRange(body.end, full.end))
+        if (line == 0L)
+            return "\n"
+        line -= 1L
+    }
+}
+
+/** Replaces ancestor list markers by their columns, retaining quote markers and original tabs. */
+internal fun mdContinuationPrefix(snapshot: MarkdownSnapshot, node: MarkdownNode): String {
+    val start = snapshot.positionOfLine(mdNodeLine(snapshot, node)).byteOffset
+    val source = snapshot.read(MarkdownRange(start, node.range.start))
+    val result = StringBuilder()
+    for (character in source.toCharArray())
+        result.append(
+            if (character == '>' || character == ' ' || character == '\t')
+                character
+            else
+                ' '
+        )
+    return result.toString()
+}
+
+internal fun mdInTable(parsed: ParsedMarkdown, node: MarkdownNode): Boolean {
+    var current: MarkdownNode? = Some(node)
+    while (true) {
+        val value = current ?: return false
+        when (value.content) {
+            case MarkdownContent.Table(_) -> return true;
+            else -> Unit
+        }
+        current = parsed.parent(value.id)
+    }
+}
+
+internal fun mdSingleLine(node: MarkdownNode): Boolean =
+    when (node.content) {
+        case MarkdownContent.Heading(_, _, _) -> true
+        case MarkdownContent.TableCell(_, _) -> true
+        else -> false
+    }
+
+internal fun mdNodeEnding(snapshot: MarkdownSnapshot, node: MarkdownNode): String {
+    if (node.range.isEmpty)
+        return ""
+    val line = snapshot.lineAt(MarkdownPosition(node.range.end - 1L))
+    val body = snapshot.lineRange(line)
+    return if (body.end < node.range.end)
+        snapshot.read(MarkdownRange(body.end, node.range.end))
+    else
+        ""
+}

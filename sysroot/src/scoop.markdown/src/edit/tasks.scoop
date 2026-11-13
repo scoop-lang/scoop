@@ -1,0 +1,61 @@
+package scoop.markdown
+
+import scoop.text.*
+
+/** Changes a task checkbox, or removes it with None, without rewriting the item's content. */
+public fun MarkdownTransformBuilder.setTask(id: MarkdownNodeId, checked: Boolean?) {
+    val node = parsed.node(id)
+    val old =
+        when (node.content) {
+            case MarkdownContent.ListItem(val value) -> value
+            else -> throw IllegalArgumentException(Some("setTask requires a list item"))
+        }
+    if (old == checked)
+        return
+    when (old) {
+        case Some(_) -> {
+            val marker = node.markers[1L]
+            when (checked) {
+                case Some(val value) -> replace(
+                    marker,
+                    if (value)
+                        "[x]"
+                    else
+                        "[ ]"
+                )
+                case None -> {
+                    val body = mdInlineSource(node.children[0L])
+                    replace(MarkdownRange(marker.start, mdInlineRange(body).start), "")
+                }
+            }
+        }
+        case None -> {
+            val position =
+                if (node.children.size == 0L)
+                    node.markers[0L].end
+                else {
+                    val first = node.children[0L]
+                    when (first.content) {
+                        case MarkdownContent.Paragraph(val body) -> mdInlineRange(body).start
+                        else -> throw IllegalArgumentException(
+                            Some("A task checkbox requires a first paragraph or an empty item")
+                        )
+                    }
+                }
+            val marker = snapshot.read(node.markers[0L])
+            val space =
+                if (node.children.size == 0L && !marker.endsWith(" ") && !marker.endsWith("\t"))
+                    " "
+                else
+                    ""
+            replace(
+                MarkdownRange(position, position),
+                space +
+                    if (checked!!)
+                        "[x] "
+                    else
+                        "[ ] "
+            )
+        }
+    }
+}

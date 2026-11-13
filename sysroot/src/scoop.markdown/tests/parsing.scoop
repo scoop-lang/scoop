@@ -67,7 +67,7 @@ private class MarkdownParsingTests {
         assertEquals(1L, nul)
         assertEquals(source, document.toMarkdown())
         when (parsed.nodeAt(MarkdownPosition(0L)).content) {
-            case MarkdownContent.Heading(val level, _) -> assertEquals(1, level)
+            case MarkdownContent.Heading(val level, _, _) -> assertEquals(1, level)
             else -> assertTrue(false, Some("heading marker should resolve to the heading"))
         }
     }

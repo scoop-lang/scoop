@@ -1,0 +1,61 @@
+package scoop.markdown
+
+import scoop.collections.*
+import scoop.comparisons.comparatorOf
+
+/** Prepares local source replacements on one parse and publishes through the normal transaction path. */
+public fun MarkdownDocument.transform(
+    parsed: ParsedMarkdown,
+    configure: MarkdownTransformBuilder.() -> Unit
+): MarkdownChange {
+    if (parsed.documentId !== documentId || parsed.revision != revision)
+        throw IllegalStateException(
+            Some("Markdown structure edits require the current document parse")
+        )
+    val builder = MarkdownTransformBuilder(parsed)
+    builder.configure()
+    return apply(builder.edit())
+}
+
+/** All operations in this builder use the same original parse, not intermediate edited nodes. */
+public class MarkdownTransformBuilder internal constructor(public val parsed: ParsedMarkdown) {
+    internal val snapshot: MarkdownSnapshot = parsed.snapshot
+    private val replacements = ArrayList<MarkdownReplacement>()
+
+    public fun replaceSource(range: MarkdownRange, source: String) {
+        snapshot.checkRange(range)
+        replacements.add(MarkdownReplacement(range, source))
+    }
+
+    internal fun replace(range: MarkdownRange, source: String) {
+        replaceSource(range, source)
+    }
+
+    internal fun edit(): MarkdownEdit {
+        replacements.sortWith(
+            comparatorOf<MarkdownReplacement> {
+                left,
+                right -> if (left.range.start != right.range.start)
+                    left.range.start.compareTo(right.range.start)
+                else
+                    left.range.end.compareTo(right.range.end)
+            }
+        )
+        val result = ArrayList<MarkdownReplacement>()
+        for (replacement in replacements) {
+            if (result.size > 0L) {
+                val previous = result[result.size - 1L]
+                if (
+                    !replacement.range.isEmpty &&
+                        previous.range ==
+                        replacement.range &&
+                        previous.text ==
+                        replacement.text
+                )
+                    continue
+            }
+            result.add(replacement)
+        }
+        return MarkdownEdit(parsed.revision, result.toArray())
+    }
+}

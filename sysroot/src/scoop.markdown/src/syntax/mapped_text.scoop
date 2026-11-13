@@ -11,7 +11,7 @@ public struct MarkdownTextSpan(
     val mapping: MarkdownTextMapping
 )
 
-/** Decoded text with complete, ordered source mappings, independent of the live document. */
+/** Mapped display text, or explicitly identified inline source, independent of the live document. */
 public class MarkdownText internal constructor(
     public val text: String,
     public val spans: Array<MarkdownTextSpan>,

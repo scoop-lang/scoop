@@ -12,7 +12,7 @@ private class MarkdownParsingExampleTests {
         val parsed = document.parse(MarkdownProfile.CommonMark)
         val heading = parsed.root.children[0L]
         when (heading.content) {
-            case MarkdownContent.Heading(val level, val style) -> {
+            case MarkdownContent.Heading(val level, val style, _) -> {
                 assertEquals(1, level)
                 assertEquals(MarkdownHeadingStyle.Atx, style)
             }

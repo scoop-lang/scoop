@@ -49,11 +49,14 @@ public class MarkdownLinkTarget internal constructor(
     public val titleRange: MarkdownRange?
 )
 
-/** Each variant carries the fields required by that syntax. Child structure lives on the node. */
+/**
+ * Each variant carries its syntax data. Paragraph, Heading and TableCell carry inline source
+ * without container prefixes; leaf Text carries decoded display text. Children live on the node.
+ */
 public enum MarkdownContent {
     Document,
-    Paragraph,
-    Heading(Int, MarkdownHeadingStyle),
+    Paragraph(MarkdownText),
+    Heading(Int, MarkdownHeadingStyle, MarkdownText),
     BlockQuote,
     ListBlock(MarkdownListInfo),
     ListItem(Boolean?),
@@ -63,7 +66,7 @@ public enum MarkdownContent {
     ReferenceDefinition(String, MarkdownLinkTarget),
     Table(Array<MarkdownAlignment>),
     TableRow(Boolean),
-    TableCell(MarkdownAlignment),
+    TableCell(MarkdownAlignment, MarkdownText),
     Text(MarkdownText),
     CodeSpan(MarkdownText),
     Emphasis,

@@ -1,0 +1,110 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownTableEditTests {
+    @Test
+    fun `invalid table rows and task heading combinations do not publish`() {
+        val document = MarkdownDocument.fromText("| h |\n|---|\n| b |\n\n- [x] task\n")
+        val parsed = document.parse()
+        val table = parsed.root.children[0L]
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) { removeTableRow(table.id, 0L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                insertTableRow(table.id, 1L) {
+                    cell {};
+                    cell {}
+                }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                setHeading(parsed.root.children[1L].children[0L].children[0L].id, 2)
+            }
+        }
+        assertEquals(parsed.snapshot.toMarkdown(), document.toMarkdown())
+        assertEquals(0L, document.revision)
+    }
+
+    @Test
+    fun `cell replacement preserves neighboring source and fills missing columns`() {
+        val document =
+            MarkdownDocument.fromText(
+                "| a | b | c |\n|---|---|---|\n| **old** | `kept` | z |\n| short |\n"
+            )
+        val parsed = document.parse()
+        val table = parsed.root.children[0L]
+        document.transform(parsed) {
+            setTableCell(table.id, 1L, 0L) { text("a|b") }
+            setInlineContent(table.children[2L].children[2L].id) { code("new|value") }
+        }
+        assertEquals(
+            "| a | b | c |\n|---|---|---|\n| a\\|b | `kept` | z |\n| short |  | `new\\|value` |\n",
+            document.toMarkdown()
+        )
+        val latest = document.parse().root.children[0L]
+        when (latest.children[2L].children[2L].children[0L].content) {
+            case MarkdownContent.CodeSpan(val text) -> assertEquals("new|value", text.text)
+            else -> assertTrue(false)
+        }
+    }
+
+    @Test
+    fun `rows insert and remove inside quotes and lists with CRLF`() {
+        val source = "> - | a | b |\r\n>   |---|---|\r\n>   | old | kept |\r\n\r\nTail\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val table =
+            mdTestFind(parsed) {
+                node -> when (node.content) {
+                    case MarkdownContent.Table(_) -> true;
+                    else -> false
+                }
+            }
+        document.transform(parsed) {
+            insertTableRow(table.id, 1L) {
+                cell { text("new") };
+                cell { text("row") }
+            }
+        }
+        assertEquals(
+            "> - | a | b |\r\n>   |---|---|\r\n>   | new | row |\r\n>   | old | kept |\r\n\r\nTail\r\n",
+            document.toMarkdown()
+        )
+        val second = document.parse()
+        val current =
+            mdTestFind(second) {
+                node -> when (node.content) {
+                    case MarkdownContent.Table(_) -> true;
+                    else -> false
+                }
+            }
+        document.transform(second) { removeTableRow(current.id, 1L) }
+        assertEquals(source, document.toMarkdown())
+    }
+
+    @Test
+    fun `appending after a header or an unterminated row stays in its container`() {
+        for (source in ["> | a |\n> |---|", "> | a |\n> |---|\n", "> | a |\n> |---|\n> | old |"]) {
+            val document = MarkdownDocument.fromText(source)
+            val parsed = document.parse()
+            val table = parsed.root.children[0L].children[0L]
+            document.transform(parsed) {
+                insertTableRow(table.id, table.children.size) { cell { text("new") } }
+            }
+            val result = document.parse().root.children[0L].children[0L]
+            assertEquals(
+                table.children.size + 1L,
+                result.children.size,
+                Some(document.toMarkdown())
+            )
+            when (result.children[result.children.size - 1L].children[0L].children[0L].content) {
+                case MarkdownContent.Text(val text) -> assertEquals("new", text.text)
+                else -> assertTrue(false)
+            }
+        }
+    }
+}

@@ -107,13 +107,14 @@ internal class MdBuildNode(
     fun content(): MarkdownContent =
         when (kind) {
             case MdKind.Document -> MarkdownContent.Document
-            case MdKind.Paragraph -> MarkdownContent.Paragraph
+            case MdKind.Paragraph -> MarkdownContent.Paragraph(input().value)
             case MdKind.Heading -> MarkdownContent.Heading(
                 level,
                 if (setext)
                     MarkdownHeadingStyle.Setext
                 else
-                    MarkdownHeadingStyle.Atx
+                    MarkdownHeadingStyle.Atx,
+                input().value
             )
             case MdKind.Quote -> MarkdownContent.BlockQuote
             case MdKind.ListBlock -> {
@@ -129,7 +130,7 @@ internal class MdBuildNode(
             case MdKind.Reference -> MarkdownContent.ReferenceDefinition(label, target!!)
             case MdKind.Table -> MarkdownContent.Table(alignments)
             case MdKind.Row -> MarkdownContent.TableRow(header)
-            case MdKind.Cell -> MarkdownContent.TableCell(alignment)
+            case MdKind.Cell -> MarkdownContent.TableCell(alignment, input().value)
             case MdKind.Text -> MarkdownContent.Text(text)
             case MdKind.CodeSpan -> MarkdownContent.CodeSpan(text)
             case MdKind.Emphasis -> MarkdownContent.Emphasis
@@ -188,6 +189,7 @@ internal fun mdFreeze(
         snapshot,
         profile,
         root.frozen!!,
-        Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! }
+        Array<MarkdownNode>(nodes.size) { i -> nodes[i].frozen!! },
+        Array<Long>(nodes.size) { i -> nodes[i].parent?.ordinal ?: -1L }
     )
 }

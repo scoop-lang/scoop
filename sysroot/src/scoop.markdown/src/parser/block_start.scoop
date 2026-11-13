@@ -129,6 +129,7 @@ internal fun MdBlockParser.startBlock(container: MdBuildNode): Int {
                     bodyEnd -= 1L
             }
             mdAppendSource(node.source, input, bodyStart, bodyEnd)
+            node.ready = Some(node.source.build(input.range(bodyStart, bodyStart).start))
             offset = line.end
             skipContent = true
             return 2

@@ -53,7 +53,7 @@ private fun mdTestItem(node: MarkdownNode, output: StringBuilder, tight: Boolean
         val inline =
             tight &&
                 when (child.content) {
-                    case MarkdownContent.Paragraph -> true;
+                    case MarkdownContent.Paragraph(_) -> true;
                     else -> false
                 }
         if (index == 0L && !inline)
@@ -68,14 +68,14 @@ private fun mdTestItem(node: MarkdownNode, output: StringBuilder, tight: Boolean
 private fun mdTestRender(node: MarkdownNode, output: StringBuilder, tight: Boolean) {
     when (node.content) {
         case MarkdownContent.Document -> mdTestChildren(node, output)
-        case MarkdownContent.Paragraph -> {
+        case MarkdownContent.Paragraph(_) -> {
             if (!tight)
                 output.append("<p>")
             mdTestChildren(node, output)
             if (!tight)
                 output.append("</p>\n")
         }
-        case MarkdownContent.Heading(val level, _) -> {
+        case MarkdownContent.Heading(val level, _, _) -> {
             output.append("<h").append(level).append('>')
             mdTestChildren(node, output)
             output.append("</h").append(level).append(">\n")
@@ -127,7 +127,7 @@ private fun mdTestRender(node: MarkdownNode, output: StringBuilder, tight: Boole
             output.append("</table>\n")
         }
         case MarkdownContent.TableRow(val header) -> mdTestRow(node, output, header)
-        case MarkdownContent.TableCell(_) -> mdTestChildren(node, output)
+        case MarkdownContent.TableCell(_, _) -> mdTestChildren(node, output)
         case MarkdownContent.Text(val text) -> output.append(mdTestEscape(text.text))
         case MarkdownContent.CodeSpan(val text) -> output.append("<code>").append(
             mdTestEscape(text.text)
@@ -179,7 +179,7 @@ private fun mdTestRow(row: MarkdownNode, output: StringBuilder, header: Boolean)
     for (cell in row.children) {
         output.append('<').append(tag)
         when (cell.content) {
-            case MarkdownContent.TableCell(val alignment) -> {
+            case MarkdownContent.TableCell(val alignment, _) -> {
                 val value =
                     when (alignment) {
                         case MarkdownAlignment.Left -> "left";

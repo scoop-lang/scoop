@@ -1,0 +1,96 @@
+package scoop.markdown
+
+import scoop.text.*
+
+private fun mdTableColumns(node: MarkdownNode): Long =
+    when (node.content) {
+        case MarkdownContent.Table(val alignments) -> alignments.size
+        else -> throw IllegalArgumentException(Some("A table edit requires a table node"))
+    }
+
+public fun MarkdownTransformBuilder.setTableCell(
+    id: MarkdownNodeId,
+    row: Long,
+    column: Long,
+    configure: MarkdownInlineBuilder.() -> Unit
+) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(
+        row >= 0L && row < table.children.size && column >= 0L && column < columns,
+        "Markdown table cell is out of range"
+    )
+    val line = table.children[row]
+    val cell = line.children[column]
+    val value = mdWriteInlines(mdCollectInlines(configure), true, true)
+    val input = mdSourceInput(snapshot, line.range).trim()
+    val cells = mdTableCells(input)
+    if (column < cells.size)
+        replace(cell.range, value)
+    else {
+        val output = StringBuilder()
+        val last = input.size - 1L
+        var slashes = 0L
+        while (input.at(last - slashes - 1L) == 92)
+            slashes += 1L
+        if (input.at(last) != 124 || slashes % 2L != 0L)
+            output.append(" |")
+        for (index in cells.size .. column) {
+            output.append(' ')
+            if (index == column)
+                output.append(value)
+            output.append(" |")
+        }
+        val position = input.range(input.size, input.size).start
+        replace(MarkdownRange(position, position), output.toString())
+    }
+}
+
+/** Inserts a body row; index 1 is immediately below the header. */
+public fun MarkdownTransformBuilder.insertTableRow(
+    id: MarkdownNodeId,
+    index: Long,
+    configure: MarkdownTableRowBuilder.() -> Unit
+) {
+    val table = parsed.node(id)
+    val columns = mdTableColumns(table)
+    requireMarkdown(
+        index >= 1L && index <= table.children.size,
+        "Markdown body row index is out of range"
+    )
+    val builder = MarkdownTableRowBuilder()
+    builder.configure()
+    val cells = builder.snapshot()
+    requireMarkdown(cells.size == columns, "A new Markdown table row must match the header width")
+    val output = StringBuilder().append('|')
+    for (cell in cells)
+        output.append(' ').append(mdWriteInlines(cell, true, true)).append(" |")
+    val row = output.toString()
+    val newline = mdLocalNewline(snapshot, table.range.start)
+    val prefix = mdContinuationPrefix(snapshot, table)
+    if (index < table.children.size) {
+        val position = table.children[index].range.start
+        replace(MarkdownRange(position, position), row + newline + prefix)
+    } else {
+        val position = table.range.end
+        val ending = mdNodeEnding(snapshot, table)
+        val source =
+            if (ending == "")
+                newline + prefix + row
+            else
+                prefix + row + newline
+        replace(MarkdownRange(position, position), source)
+    }
+}
+
+public fun MarkdownTransformBuilder.removeTableRow(id: MarkdownNodeId, index: Long) {
+    val table = parsed.node(id)
+    mdTableColumns(table)
+    requireMarkdown(
+        index >= 1L && index < table.children.size,
+        "Only existing Markdown body rows can be removed"
+    )
+    val row = table.children[index]
+    val start = snapshot.positionOfLine(mdNodeLine(snapshot, row)).byteOffset
+    replace(MarkdownRange(start, row.range.end), "")
+}

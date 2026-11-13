@@ -1,0 +1,246 @@
+package scoop.markdown
+
+import scoop.test.*
+
+internal fun mdTestFind(
+    parsed: ParsedMarkdown,
+    predicate: (MarkdownNode) -> Boolean
+): MarkdownNode {
+    for (node in parsed.nodes())
+        if (predicate(node))
+            return node
+    throw IllegalStateException(Some("Expected Markdown test node was absent"))
+}
+
+@Test
+private class MarkdownTransformTests {
+    @Test
+    fun `independent structure edits publish once in source order and undo exactly`() {
+        val source = "# Title ###\r\n\r\n[x](old)\r\n"
+        val document = MarkdownDocument.fromText(source)
+        val parsed = document.parse()
+        val notices = ArrayList<MarkdownChange>()
+        val subscription = document.observe { change -> notices.add(change) }
+        val heading = parsed.root.children[0L]
+        val link = parsed.root.children[1L].children[0L]
+        val change =
+            document.transform(parsed) {
+                setLinkTarget(link.id, "new path")
+                setHeading(heading.id, 4)
+            }
+        assertEquals("#### Title ###\r\n\r\n[x](<new path>)\r\n", document.toMarkdown())
+        assertEquals(source, parsed.snapshot.toMarkdown())
+        assertEquals(1L, notices.size)
+        assertEquals(2L, change.replacements.size)
+        assertTrue(change.replacements[0L].range.end <= change.replacements[1L].range.start)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(source, document.toMarkdown())
+        subscription.close()
+    }
+
+    @Test
+    fun `foreign stale invalid and overlapping edits never partly publish`() {
+        val document = MarkdownDocument.fromText("# Title\n")
+        val parsed = document.parse()
+        val other = MarkdownDocument.fromText("# Title\n").parse()
+        assertFailsWith<IllegalStateException> { document.transform(other) {} }
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                setHeading(parsed.root.children[0L].id, 2)
+                setHeading(parsed.root.id, 3)
+            }
+        }
+        assertEquals("# Title\n", document.toMarkdown())
+        assertEquals(0L, document.revision)
+        val text = parsed.root.children[0L].children[0L]
+        assertFailsWith<IllegalArgumentException> {
+            document.transform(parsed) {
+                replaceText(text.id, "a")
+                setInlineContent(parsed.root.children[0L].id) { text("b") }
+            }
+        }
+        assertEquals(0L, document.revision)
+        document.transform(parsed) { setHeading(parsed.root.children[0L].id, 2) }
+        assertFailsWith<IllegalStateException> { document.transform(parsed) {} }
+    }
+
+    @Test
+    fun `headings preserve ATX Setext and container syntax where possible`() {
+        val document = MarkdownDocument.fromText("> Title\r\n> ====  \r\n\r\nTail\r\n")
+        val parsed = document.parse()
+        val heading = parsed.root.children[0L].children[0L]
+        document.transform(parsed) { setHeading(heading.id, 2) }
+        assertEquals("> Title\r\n> ----  \r\n\r\nTail\r\n", document.toMarkdown())
+        val second = document.parse()
+        document.transform(second) { setHeading(second.root.children[0L].children[0L].id, 3) }
+        assertEquals("> ### Title\r\n\r\nTail\r\n", document.toMarkdown())
+        val multiline = MarkdownDocument.fromText("> one\\\r\n> two\r\n> ---\r\n")
+        val multi = multiline.parse()
+        multiline.transform(multi) { setHeading(multi.root.children[0L].children[0L].id, 4) }
+        assertEquals("> #### one two\r\n", multiline.toMarkdown())
+    }
+
+    @Test
+    fun `paragraph conversion protects block-looking text and empty titles accept content`() {
+        val document = MarkdownDocument.fromText("## # literal ##\n")
+        val parsed = document.parse()
+        document.transform(parsed) { setParagraph(parsed.root.children[0L].id) }
+        assertEquals("<p># literal</p>\n", mdTestHtml(document.parse()))
+        val setext = MarkdownDocument.fromText("> 1\\. item\n> ===\n")
+        val tree = setext.parse()
+        setext.transform(tree) { setParagraph(tree.root.children[0L].children[0L].id) }
+        assertEquals("<blockquote>\n<p>1. item</p>\n</blockquote>\n", mdTestHtml(setext.parse()))
+        for (source in ["#\n", "# ###\n", "# \t\n"]) {
+            val empty = MarkdownDocument.fromText(source)
+            val old = empty.parse()
+            empty.transform(old) { setInlineContent(old.root.children[0L].id) { text("new") } }
+            assertEquals("<h1>new</h1>\n", mdTestHtml(empty.parse()), Some(empty.toMarkdown()))
+        }
+    }
+
+    @Test
+    fun `inline replacements preserve list quote prefixes and text semantics`() {
+        val document = MarkdownDocument.fromText("> - old  \r\n>   line\r\n\r\nTail\r\n")
+        val parsed = document.parse()
+        val paragraph =
+            mdTestFind(parsed) {
+                node -> when (node.content) {
+                    case MarkdownContent.Paragraph(_) -> true;
+                    else -> false
+                }
+            }
+        document.transform(parsed) {
+            setInlineContent(paragraph.id) {
+                text("first");
+                softBreak();
+                text("second")
+            }
+        }
+        assertEquals("> - first\r\n>   second\r\n\r\nTail\r\n", document.toMarkdown())
+        val leaf = MarkdownDocument.fromText("*&amp;*\n")
+        val tree = leaf.parse()
+        leaf.transform(tree) {
+            replaceText(tree.root.children[0L].children[0L].children[0L].id, "*bold*")
+        }
+        assertEquals("<p><em>*bold*</em></p>\n", mdTestHtml(leaf.parse()))
+    }
+
+    @Test
+    fun `inline wrapping and removal handle adjacent styles and block markers`() {
+        val document = MarkdownDocument.fromText("a[x](old)b\n")
+        val parsed = document.parse()
+        document.transform(parsed) {
+            wrapInline(parsed.root.children[0L].children[1L].id, MarkdownInlineStyle.Strong)
+        }
+        assertEquals(
+            "<p>a<strong><a href=\"old\">x</a></strong>b</p>\n",
+            mdTestHtml(document.parse())
+        )
+        for (source in ["**a**_b_", "a***b***", "**_b_**_c_", "**# heading**", "**---**"]) {
+            val doc = MarkdownDocument.fromText(source)
+            val tree = doc.parse()
+            val strong =
+                mdTestFind(tree) {
+                    node -> when (node.content) {
+                        case MarkdownContent.Strong -> true;
+                        else -> false
+                    }
+                }
+            doc.transform(tree) { unwrapInline(strong.id) }
+            val expected =
+                if (source == "**a**_b_" || source == "a***b***")
+                    "<p>a<em>b</em></p>\n"
+                else
+                    if (source == "**_b_**_c_")
+                        "<p><em>bc</em></p>\n"
+                    else
+                        if (source == "**# heading**")
+                            "<p># heading</p>\n"
+                        else
+                            "<p>---</p>\n"
+            assertEquals(expected, mdTestHtml(doc.parse()), Some(doc.toMarkdown()))
+        }
+    }
+
+    @Test
+    fun `link use edits stay separate from shared reference definitions`() {
+        val document =
+            MarkdownDocument.fromText(
+                "[**one**][target] [two][target]\r\n\r\n[target]: /old 't'\r\n"
+            )
+        val parsed = document.parse()
+        val one = parsed.root.children[0L].children[0L]
+        document.transform(parsed) { setLinkTarget(one.id, "new a", "n") }
+        assertEquals(
+            "[**one**](<new a> \"n\") [two][target]\r\n\r\n[target]: /old 't'\r\n",
+            document.toMarkdown()
+        )
+        val second = document.parse()
+        val definition = second.root.children[1L]
+        document.transform(second) { setReferenceDefinition(definition.id, "/shared", "s") }
+        assertEquals(
+            "<p><a href=\"new%20a\" title=\"n\"><strong>one</strong></a> " +
+                "<a href=\"/shared\" title=\"s\">two</a></p>\n",
+            mdTestHtml(document.parse())
+        )
+    }
+
+    @Test
+    fun `task mutations leave their body unchanged and preserve empty items`() {
+        val document = MarkdownDocument.fromText("- [X]  **body**\n- plain\n")
+        val parsed = document.parse()
+        document.transform(parsed) {
+            setTask(parsed.root.children[0L].children[0L].id, Some(false))
+        }
+        assertEquals("- [ ]  **body**\n- plain\n", document.toMarkdown())
+        val second = document.parse()
+        document.transform(second) {
+            setTask(second.root.children[0L].children[0L].id, None)
+            setTask(second.root.children[0L].children[1L].id, Some(true))
+        }
+        assertEquals("- **body**\n- [x] plain\n", document.toMarkdown())
+        val empty = MarkdownDocument.fromText("-\n")
+        val tree = empty.parse()
+        empty.transform(tree) { setTask(tree.root.children[0L].children[0L].id, Some(false)) }
+        assertEquals(
+            "<ul>\n<li><input type=\"checkbox\" disabled=\"\" /> </li>\n</ul>\n",
+            mdTestHtml(empty.parse())
+        )
+    }
+
+    @Test
+    fun `inline source and parent queries belong to the same immutable tree`() {
+        val document = MarkdownDocument.fromText("> - [x] a &amp;\r\n>   b\r\n")
+        val parsed = document.parse()
+        val paragraph =
+            mdTestFind(parsed) {
+                node -> when (node.content) {
+                    case MarkdownContent.Paragraph(_) -> true;
+                    else -> false
+                }
+            }
+        when (paragraph.content) {
+            case MarkdownContent.Paragraph(val source) -> {
+                assertEquals("a &amp;\nb", source.text)
+                assertEquals(
+                    "a",
+                    parsed.snapshot.read(
+                        MarkdownRange(
+                            source.sourceAt(MarkdownPosition(0L)).byteOffset,
+                            source.sourceAt(MarkdownPosition(1L)).byteOffset
+                        )
+                    )
+                )
+            }
+            else -> assertTrue(false)
+        }
+        val parent = parsed.parent(paragraph.id)!!
+        assertTrue(parent.children[0L] === paragraph)
+        when (parsed.parent(parsed.root.id)) {
+            case None -> Unit;
+            case Some(_) -> assertTrue(false)
+        }
+        val other = MarkdownDocument.fromText("a").parse()
+        assertFailsWith<IllegalArgumentException> { other.parent(paragraph.id) }
+    }
+}

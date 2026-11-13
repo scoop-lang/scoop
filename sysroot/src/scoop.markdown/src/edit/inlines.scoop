@@ -1,0 +1,129 @@
+package scoop.markdown
+
+import scoop.text.*
+
+public fun MarkdownTransformBuilder.replaceText(id: MarkdownNodeId, text: String) {
+    val node = parsed.node(id)
+    val source =
+        when (node.content) {
+            case MarkdownContent.Text(_) -> mdWriteLiteral(text, true, true)
+            case MarkdownContent.CodeSpan(_) -> mdWriteCode(text, mdInTable(parsed, node))
+            else -> throw IllegalArgumentException(
+                Some("replaceText requires a Text or CodeSpan node")
+            )
+        }
+    replace(node.range, source)
+}
+
+public fun MarkdownTransformBuilder.setInlineContent(
+    id: MarkdownNodeId,
+    configure: MarkdownInlineBuilder.() -> Unit
+) {
+    val node = parsed.node(id)
+    when (node.content) {
+        case MarkdownContent.TableCell(_, _) -> {
+            val row = parsed.parent(id)!!
+            val table = parsed.parent(row.id)!!
+            var rowIndex = 0L
+            var column = 0L
+            while (table.children[rowIndex] !== row)
+                rowIndex += 1L
+            while (row.children[column] !== node)
+                column += 1L
+            setTableCell(table.id, rowIndex, column, configure)
+            return
+        }
+        else -> Unit
+    }
+    val original = mdInlineSource(node)
+    var source =
+        mdWriteInlines(mdCollectInlines(configure), mdSingleLine(node), mdInTable(parsed, node))
+    when (node.content) {
+        case MarkdownContent.Heading(_, MarkdownHeadingStyle.Atx, _) -> {
+            if (original.byteLength == 0L && source != "") {
+                if (mdInlineRange(original).start == node.markers[0L].end)
+                    source = " " + source
+                if (node.markers.size > 1L)
+                    source += " "
+            }
+        }
+        else -> Unit
+    }
+    val prefix = mdContinuationPrefix(snapshot, node)
+    val newline = mdLocalNewline(snapshot, node.range.start)
+    replace(mdInlineRange(original), source.replace("\n", newline + prefix))
+}
+
+public fun MarkdownTransformBuilder.setLinkTarget(
+    id: MarkdownNodeId,
+    destination: String,
+    title: String = ""
+) {
+    val node = parsed.node(id)
+    val target =
+        when (node.content) {
+            case MarkdownContent.Link(val value) -> value
+            case MarkdownContent.Image(val value) -> value
+            else -> throw IllegalArgumentException(
+                Some("setLinkTarget requires a Link or Image node")
+            )
+        }
+    val image =
+        when (node.content) {
+            case MarkdownContent.Image(_) -> true;
+            else -> false
+        }
+    val label =
+        if (target.style == MarkdownLinkStyle.Autolink) {
+            val text = StringBuilder()
+            for (child in node.children)
+                when (child.content) {
+                    case MarkdownContent.Text(val value) -> text.append(value.text)
+                    else -> Unit
+                }
+            mdWriteLiteral(text.toString(), false, false)
+        } else
+            snapshot.read(MarkdownRange(node.markers[0L].end, node.markers[1L].start))
+    replace(
+        node.range,
+        (
+            if (image)
+                "!["
+            else
+                "["
+        ) +
+            label +
+            "]" +
+            mdWriteTarget(destination, title, mdInTable(parsed, node))
+    )
+}
+
+public fun MarkdownTransformBuilder.setReferenceDefinition(
+    id: MarkdownNodeId,
+    destination: String,
+    title: String = ""
+) {
+    val node = parsed.node(id)
+    when (node.content) {
+        case MarkdownContent.ReferenceDefinition(_, _) -> Unit
+        else -> throw IllegalArgumentException(
+            Some("setReferenceDefinition requires a reference definition")
+        )
+    }
+    val input = mdSourceInput(snapshot, node.range)
+    val end = MdLinkScanner(input, 0L).labelEnd()
+    val suffix =
+        if (title == "")
+            ""
+        else
+            " \"" + mdWriteQuoted(title) + "\""
+    replace(
+        node.range,
+        input.text(0L, end) +
+            ": <" +
+            mdWriteQuoted(destination) +
+            ">" +
+            suffix +
+            mdNodeEnding(snapshot, node)
+    )
+}

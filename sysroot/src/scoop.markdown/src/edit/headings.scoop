@@ -1,0 +1,157 @@
+package scoop.markdown
+
+import scoop.text.*
+
+public fun MarkdownTransformBuilder.setHeading(id: MarkdownNodeId, level: Int) {
+    requireMarkdown(level >= 1 && level <= 6, "Markdown heading level must be between 1 and 6")
+    val node = parsed.node(id)
+    val body =
+        when (node.content) {
+            case MarkdownContent.Heading(val oldLevel, val style, val source) -> {
+                if (oldLevel == level)
+                    return
+                if (style == MarkdownHeadingStyle.Atx) {
+                    replace(node.markers[0L], "#".repeat(level.toLong()))
+                    return
+                }
+                if (level <= 2) {
+                    val marker = node.markers[0L]
+                    val input = mdSourceInput(snapshot, marker)
+                    val length = input.run(0L, input.at(0L))
+                    replace(
+                        MarkdownRange(marker.start, marker.start + length),
+                        (
+                            if (level == 1)
+                                "="
+                            else
+                                "-"
+                        ).repeat(length)
+                    )
+                    return
+                }
+                source
+            }
+            case MarkdownContent.Paragraph(val source) -> {
+                when (val parent = parsed.parent(id)) {
+                    case Some(val value) -> when (value.content) {
+                        case MarkdownContent.ListItem(Some(_)) -> {
+                            requireMarkdown(
+                                value.children[0L] !== node,
+                                "A task item needs its first paragraph; remove the task checkbox before making it a heading"
+                            )
+                        }
+                        else -> Unit
+                    }
+                    case None -> Unit
+                }
+                source
+            }
+            else -> throw IllegalArgumentException(
+                Some("setHeading requires a paragraph or heading")
+            )
+        }
+    val source = mdHeadingBody(node, body)
+    replace(node.range, "#".repeat(level.toLong()) + " " + source + mdNodeEnding(snapshot, node))
+}
+
+private fun mdHeadingBody(node: MarkdownNode, body: MarkdownText): String {
+    val breaks = ArrayList<MarkdownRange>()
+    val pending = ArrayList<MarkdownNode>()
+    pending.add(node)
+    while (pending.size > 0L) {
+        val current = pending.removeAt(pending.size - 1L)
+        when (current.content) {
+            case MarkdownContent.SoftBreak -> breaks.add(current.range)
+            case MarkdownContent.HardBreak -> breaks.add(current.range)
+            else -> {
+                var index = current.children.size
+                while (index > 0L) {
+                    index -= 1L;
+                    pending.add(current.children[index])
+                }
+            }
+        }
+    }
+    val output = StringBuilder()
+    var offset = 0L
+    for (range in breaks) {
+        val start = body.textAt(MarkdownPosition(range.start), MarkdownBias.Before).byteOffset
+        val end = body.textAt(MarkdownPosition(range.end), MarkdownBias.After).byteOffset
+        output.append(mdBytesText(body.bytes, offset, start)).append(' ')
+        offset = end
+    }
+    output.append(mdBytesText(body.bytes, offset, body.byteLength))
+    return output.toString().replace("\n", " ")
+}
+
+public fun MarkdownTransformBuilder.setParagraph(id: MarkdownNodeId) {
+    val node = parsed.node(id)
+    when (node.content) {
+        case MarkdownContent.Paragraph(_) -> return
+        case MarkdownContent.Heading(_, val style, val body) -> {
+            if (style == MarkdownHeadingStyle.Setext) {
+                val marker = node.markers[0L]
+                val line = snapshot.lineAt(MarkdownPosition(marker.start))
+                replace(snapshot.lineRange(line, true), "")
+            } else {
+                val range = mdInlineRange(body)
+                replace(MarkdownRange(node.range.start, range.start), "")
+                val end = snapshot.lineRange(mdNodeLine(snapshot, node)).end
+                if (range.end < end)
+                    replace(MarkdownRange(range.end, end), "")
+            }
+            mdProtectParagraphStart(node, body)
+        }
+        else -> throw IllegalArgumentException(Some("setParagraph requires a paragraph or heading"))
+    }
+}
+
+private fun MarkdownTransformBuilder.mdProtectParagraphStart(
+    node: MarkdownNode,
+    body: MarkdownText
+) {
+    if (node.children.size == 0L || body.byteLength == 0L)
+        return
+    val first = node.children[0L]
+    when (first.content) {
+        case MarkdownContent.Text(val text) -> {
+            if (first.range.start != body.sourceAt(MarkdownPosition(0L)).byteOffset)
+                return
+            val input = MdInput(text)
+            if (input.size == 0L)
+                return
+            val end = input.scalarEnd(0L)
+            val range = input.range(0L, end)
+            val value = input.text(0L, end)
+            if (snapshot.read(range) != value)
+                return
+            val code = input.at(0L)
+            if (
+                mdDigit(code) ||
+                    code ==
+                    35 ||
+                    code ==
+                    45 ||
+                    code ==
+                    43 ||
+                    code ==
+                    42 ||
+                    code ==
+                    61 ||
+                    code ==
+                    95 ||
+                    code ==
+                    62 ||
+                    code ==
+                    91 ||
+                    code ==
+                    60
+            ) {
+                val output = StringBuilder()
+                mdWriteEntity(output, value.toCharArray()[0L])
+                replace(range, output.toString())
+            }
+        }
+        else -> Unit
+    }
+}
