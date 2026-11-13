@@ -1,0 +1,377 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.text.*
+import scoop.ui.textDirection
+import scoop.window.*
+
+internal struct MdSourceMove(
+    val position: MarkdownPosition,
+    val affinity: TextAffinity,
+    val preferredX: Double?
+)
+
+internal fun mdSourceCollapse(host: MarkdownSourceHost, right: Boolean): MdSourceMove {
+    val selected = host.current.selection.range
+    val first = MarkdownPosition(selected.start)
+    val last = MarkdownPosition(selected.end)
+    val snapshot = host.current.snapshot
+    val firstLine = snapshot.lineAt(first)
+    val lastLine = snapshot.lineAt(last)
+    val logicalOrder =
+        if (firstLine == lastLine)
+            mdWithSourceLine(host, firstLine) {
+                range, display, layout ->
+                val a =
+                    mdSourceVisualPosition(
+                        layout,
+                        display.toDisplay(
+                            TextPosition(
+                                min(first.byteOffset - range.start, range.byteLength),
+                                TextAffinity.Downstream
+                            )
+                        )
+                    )
+                val b =
+                    mdSourceVisualPosition(
+                        layout,
+                        display.toDisplay(
+                            TextPosition(
+                                min(last.byteOffset - range.start, range.byteLength),
+                                TextAffinity.Upstream
+                            )
+                        )
+                    )
+                val left = layout.caret(a)
+                val end = layout.caret(b)
+                when ((left, end)) {
+                    case(Some(val x), Some(val y)) -> x.y < y.y || (x.y == y.y && x.x <= y.x)
+                    else -> true
+                }
+            }
+        else
+            true
+    val end = logicalOrder == right
+    return MdSourceMove(
+        if (end)
+            last
+        else
+            first,
+        if (end)
+            TextAffinity.Upstream
+        else
+            TextAffinity.Downstream,
+        None
+    )
+}
+
+/** Keyboard operations can shape the current physical line before its next frame is ready. */
+internal fun <T> mdWithSourceLine(
+    host: MarkdownSourceHost,
+    index: Long,
+    action: (MarkdownRange, TextDisplay, TextLayout) -> T
+): T {
+    val snapshot = host.current.snapshot
+    when (host.accepted) {
+        case Some(val frame) -> if (frame.sourceRevision == snapshot.revision) {
+            when (frame.line(index)) {
+                case Some(val row) -> return action(row.range, row.display, row.layout)
+                case None -> Unit
+            }
+        }
+        case None -> Unit
+    }
+    val range = snapshot.lineRange(index)
+    val display = mdSourceDisplay(snapshot.read(range), host.options.tabSize)
+    val style = host.style.text
+    val content =
+        styledText {
+            text(display.text);
+            this.style = style
+        }
+    return Paragraph(
+        host.fonts,
+        content,
+        paragraphStyle { direction = host.scope.layoutDirection.textDirection() }
+    ).use {
+        paragraph ->
+        val layout =
+            if (host.options.wrap)
+                paragraph.layout(
+                    max(
+                        0.0,
+                        (host.accepted?.metrics?.size?.width ?: 640.0) - host.options.padding * 2.0
+                    )
+                )
+            else
+                paragraph.layoutUnwrapped()
+        layout.use { current -> action(range, display, current) }
+    }
+}
+
+internal fun mdSourceMove(host: MarkdownSourceHost, movement: TextMovement): MdSourceMove {
+    val state = host.current
+    val snapshot = state.snapshot
+    val cursor = state.selection.cursor
+    val index = snapshot.lineAt(cursor)
+    if (movement == TextMovement.DocumentStart)
+        return MdSourceMove(MarkdownPosition(0L), TextAffinity.Downstream, None)
+    if (movement == TextMovement.DocumentEnd)
+        return MdSourceMove(MarkdownPosition(snapshot.byteLength), TextAffinity.Upstream, None)
+    return mdWithSourceLine(host, index) {
+        range, display, layout ->
+        val relative = min(cursor.byteOffset - range.start, range.byteLength)
+        val position = display.toDisplay(TextPosition(relative, host.cursorAffinity))
+        val visual = mdSourceVisualPosition(layout, position)
+        if (movement == TextMovement.PageUp || movement == TextMovement.PageDown) {
+            val caret = layout.caret(visual)
+            val x = host.preferredX ?: (caret?.x ?: 0.0)
+            val distance = host.accepted?.metrics?.size?.height ?: 480.0
+            val y =
+                max(
+                    0.0,
+                    host.heights.prefix(index) +
+                        (caret?.y ?: 0.0) +
+                        (
+                            if (movement == TextMovement.PageUp)
+                                -distance
+                            else
+                                distance
+                        )
+                )
+            val destination = min(snapshot.lineCount - 1L, host.heights.indexAt(y))
+            return@mdWithSourceLine mdWithSourceLine(host, destination) {
+                nextRange, nextDisplay, nextLayout ->
+                val hit = nextLayout.hitTest(Point(x, y - host.heights.prefix(destination)))
+                val mapped = nextDisplay.toDocument(hit)
+                MdSourceMove(
+                    MarkdownPosition(nextRange.start + mapped.byteOffset),
+                    mapped.affinity,
+                    Some(x)
+                )
+            }
+        }
+        val local =
+            when (movement) {
+                case Backward -> Some(
+                    CaretMove(TextPosition(layout.moveGrapheme(position.byteOffset, false)), 0.0)
+                )
+                case Forward -> Some(
+                    CaretMove(TextPosition(layout.moveGrapheme(position.byteOffset, true)), 0.0)
+                )
+                case WordBackward -> Some(
+                    CaretMove(TextPosition(layout.moveWord(position.byteOffset, false)), 0.0)
+                )
+                case WordForward -> Some(
+                    CaretMove(TextPosition(layout.moveWord(position.byteOffset, true)), 0.0)
+                )
+                case ParagraphStart -> Some(CaretMove(TextPosition(0L), 0.0))
+                case ParagraphEnd -> Some(
+                    CaretMove(TextPosition(layout.text.byteLength, TextAffinity.Upstream), 0.0)
+                )
+                case Left -> layout.moveCaret(visual, CaretMovement.Left)
+                case Right -> layout.moveCaret(visual, CaretMovement.Right)
+                case WordLeft -> layout.moveCaret(visual, CaretMovement.WordLeft)
+                case WordRight -> layout.moveCaret(visual, CaretMovement.WordRight)
+                case Up -> layout.moveCaret(visual, CaretMovement.Up, host.preferredX)
+                case Down -> layout.moveCaret(visual, CaretMovement.Down, host.preferredX)
+                case LineStart -> layout.moveCaret(visual, CaretMovement.LineStart)
+                case LineEnd -> layout.moveCaret(visual, CaretMovement.LineEnd)
+                case LineLeft -> layout.moveCaret(visual, CaretMovement.LineLeft)
+                case LineRight -> layout.moveCaret(visual, CaretMovement.LineRight)
+                case PageUp -> None
+                case PageDown -> None
+                case DocumentStart -> None
+                case DocumentEnd -> None
+            }
+        val vertical =
+            movement ==
+                TextMovement.Up ||
+                movement ==
+                TextMovement.Down ||
+                movement ==
+                TextMovement.PageUp ||
+                movement ==
+                TextMovement.PageDown
+        when (local) {
+            case Some(val next) -> if (next.position != position) {
+                val mapped = display.toDocument(next.position)
+                return@mdWithSourceLine MdSourceMove(
+                    MarkdownPosition(range.start + mapped.byteOffset),
+                    mapped.affinity,
+                    if (vertical)
+                        Some(next.preferredX)
+                    else
+                        None
+                )
+            }
+            case None -> Unit
+        }
+        val previous =
+            movement ==
+                TextMovement.Backward ||
+                movement ==
+                TextMovement.WordBackward ||
+                movement ==
+                TextMovement.Left ||
+                movement ==
+                TextMovement.WordLeft ||
+                movement ==
+                TextMovement.Up ||
+                movement ==
+                TextMovement.PageUp
+        val following =
+            movement ==
+                TextMovement.Forward ||
+                movement ==
+                TextMovement.WordForward ||
+                movement ==
+                TextMovement.Right ||
+                movement ==
+                TextMovement.WordRight ||
+                movement ==
+                TextMovement.Down ||
+                movement ==
+                TextMovement.PageDown
+        if (
+            (!previous && !following) ||
+                (previous && index == 0L) ||
+                (following && index + 1L == snapshot.lineCount)
+        )
+            return@mdWithSourceLine MdSourceMove(cursor, host.cursorAffinity, host.preferredX)
+        val target =
+            if (previous)
+                index - 1L
+            else
+                index + 1L
+        val caret = layout.caret(visual)
+        val x = host.preferredX ?: (caret?.x ?: 0.0)
+        val destination = target
+        if (vertical)
+            mdWithSourceLine(host, destination) {
+                nextRange, nextDisplay, nextLayout ->
+                val hit =
+                    nextLayout.hitTest(
+                        Point(
+                            x,
+                            if (previous)
+                                nextLayout.size.height
+                            else
+                                0.0
+                        )
+                    )
+                val mapped = nextDisplay.toDocument(hit)
+                MdSourceMove(
+                    MarkdownPosition(nextRange.start + mapped.byteOffset),
+                    mapped.affinity,
+                    Some(x)
+                )
+            }
+        else {
+            val nextRange = snapshot.lineRange(destination)
+            MdSourceMove(
+                MarkdownPosition(
+                    if (previous)
+                        nextRange.end
+                    else
+                        nextRange.start
+                ),
+                if (previous)
+                    TextAffinity.Upstream
+                else
+                    TextAffinity.Downstream,
+                None
+            )
+        }
+    }
+}
+
+internal fun mdSourceDelete(host: MarkdownSourceHost, deletion: TextDeletion): MarkdownRange {
+    val selection = host.current.selection
+    if (!selection.collapsed)
+        return selection.range
+    if (deletion == TextDeletion.Backward || deletion == TextDeletion.Forward) {
+        val snapshot = host.current.snapshot
+        val cursor = selection.cursor.byteOffset
+        val line = snapshot.lineAt(selection.cursor)
+        val raw = snapshot.lineRange(line)
+        if (cursor > raw.end)
+            return MarkdownRange(raw.end, snapshot.lineRange(line, true).end)
+        val inside =
+            mdWithSourceLine(host, line) {
+                range, display, layout ->
+                val at =
+                    display.toDisplay(
+                        TextPosition(min(cursor - range.start, range.byteLength))
+                    ).byteOffset
+                val boundaries = layout.graphemeBoundaries
+                val next = mdSourceBoundaryIndex(boundaries, at)
+                if (next > 0L && next < boundaries.size && boundaries[next] != at) {
+                    val first = display.toDocument(TextPosition(boundaries[next - 1L])).byteOffset
+                    val last = display.toDocument(TextPosition(boundaries[next])).byteOffset
+                    Some(MarkdownRange(range.start + first, range.start + last))
+                } else
+                    None
+            }
+        when (inside) {
+            case Some(val range) -> return range
+            case None -> Unit
+        }
+    }
+    val movement =
+        when (deletion) {
+            case Backward -> TextMovement.Backward
+            case Forward -> TextMovement.Forward
+            case WordBackward -> TextMovement.WordBackward
+            case WordForward -> TextMovement.WordForward
+            case LineStart -> TextMovement.LineStart
+            case LineEnd -> TextMovement.LineEnd
+            case ParagraphStart -> TextMovement.ParagraphStart
+            case ParagraphEnd -> TextMovement.ParagraphEnd
+        }
+    val end = mdSourceMove(host, movement).position.byteOffset
+    return MarkdownRange(
+        min(end, selection.cursor.byteOffset),
+        max(end, selection.cursor.byteOffset)
+    )
+}
+
+internal fun mdSourceBoundaryIndex(boundaries: Array<Long>, at: Long): Long {
+    var first = 0L
+    var last = boundaries.size
+    while (first < last) {
+        val middle = first + (last - first) / 2L
+        if (boundaries[middle] < at)
+            first = middle + 1L
+        else
+            last = middle
+    }
+    return first
+}
+
+internal fun mdSourceVisualPosition(layout: TextLayout, position: TextPosition): TextPosition {
+    val boundaries = layout.graphemeBoundaries
+    val next = mdSourceBoundaryIndex(boundaries, position.byteOffset)
+    if (next < boundaries.size && boundaries[next] == position.byteOffset)
+        return position
+    val index =
+        if (position.affinity == TextAffinity.Upstream && next > 0L)
+            next - 1L
+        else
+            min(next, boundaries.size - 1L)
+    return TextPosition(boundaries[index], position.affinity)
+}
+
+internal fun mdSourceWord(host: MarkdownSourceHost, position: MarkdownPosition): MarkdownRange =
+    mdWithSourceLine(host, host.current.snapshot.lineAt(position)) {
+        range, display, layout ->
+        val relative = min(position.byteOffset - range.start, range.byteLength)
+        val word = layout.wordRange(display.toDisplay(TextPosition(relative)))
+        val first = display.toDocument(TextPosition(word.start)).byteOffset
+        val last = display.toDocument(TextPosition(word.end, TextAffinity.Upstream)).byteOffset
+        MarkdownRange(range.start + min(first, last), range.start + max(first, last))
+    }

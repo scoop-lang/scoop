@@ -1,0 +1,16 @@
+schema = 1
+[cone]
+group = "scoop.examples"
+name = "markdown-source-editor"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.markdown" = { version = "0.1.0", path = "../../../scoop.markdown" }
+"scoop:scoop.ui.markdown" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.ui" = "0.1.0"
+"scoop:scoop.surface" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"

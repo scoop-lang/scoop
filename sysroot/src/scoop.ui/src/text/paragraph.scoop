@@ -75,12 +75,7 @@ public class ParagraphHost public constructor(): Closeable {
     public fun scene(context: SceneContext, measurement: ParagraphMeasurement) {
         checkOpen()
         val layout = measurement.layout
-        val bounds = layout.paintBounds
-        context.drawTextLayer(
-            paintKey,
-            Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0),
-            measurement.generation
-        ) { paint -> paint.canvas.drawText(layout) }
+        context.drawTextLayout(paintKey, layout, measurement.generation)
         context.children()
     }
 

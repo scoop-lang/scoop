@@ -1,0 +1,31 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun mdSourceDisplay(text: String, tabs: Int): TextDisplay =
+    projectText(
+        TextEditSnapshot(text, TextPosition(0L), TextPosition(0L)),
+        textProjection {
+            input ->
+            val edits = ArrayList<TextEditReplacement>()
+            var offset = 0L
+            var column = 0
+            for (character in input.text) {
+                if (character == '\t') {
+                    val spaces = tabs - column % tabs
+                    val builder = StringBuilder()
+                    for (_ in 0 ..< spaces)
+                        builder.append(' ')
+                    edits.add(
+                        TextEditReplacement(Utf8Range(offset, offset + 1L), builder.toString())
+                    )
+                    column += spaces
+                } else
+                    column += 1
+                offset += character.toString().byteLength
+            }
+            edits.toArray()
+        }
+    )

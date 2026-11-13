@@ -1,0 +1,79 @@
+package scoop.ui.markdown
+
+import scoop.graphics.text.FontCollection
+import scoop.markdown.MarkdownChange
+import scoop.ui.*
+
+private class MdSourceProps(
+    val state: MarkdownEditorState,
+    val style: MarkdownSourceStyle?,
+    val options: MarkdownSourceOptions,
+    val fonts: FontCollection?,
+    val focus: FocusOptions,
+    val changed: (MarkdownChange) -> Unit
+)
+
+/** Source view for a shared Markdown editor state; its mount owns native and layout resources. */
+public fun markdownSourceEditor(
+    state: MarkdownEditorState,
+    style: MarkdownSourceStyle? = None,
+    options: MarkdownSourceOptions = MarkdownSourceOptions(),
+    fonts: FontCollection? = None,
+    focus: FocusOptions = FocusOptions(),
+    onChanged: (MarkdownChange) -> Unit = { _ -> Unit }
+): View =
+    component(
+        MdSourceProps(state, style, options, fonts, focus, onChanged),
+        { props, scope -> MdSourceComponent(props, scope) }
+    )
+
+private class MdSourceComponent(val props: Props<MdSourceProps>, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        props.value.state.snapshot
+        props.value.state.selection
+        props.value.state.markedRange
+        return element(props.value, { input, mount -> MdSourceElement(input, mount) })
+    }
+}
+
+private class MdSourceElement(val props: Props<MdSourceProps>, scope: ComponentScope): Element<
+    MarkdownSourceMeasurement
+>(scope) {
+    private val defaults = MarkdownSourceStyle()
+    private val host =
+        scope.resource {
+            MarkdownSourceHost(
+                scope,
+                props.value.state,
+                props.value.style ?: defaults,
+                props.value.options,
+                props.value.fonts
+            )
+        }
+    public override fun onMount() {
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        host.update(
+            input.state,
+            input.style ?: defaults,
+            input.options,
+            input.focus,
+            input.changed,
+            input.fonts
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownSourceMeasurement
+    > {
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, layout: MarkdownSourceMeasurement) {
+        host.scene(context, layout)
+    }
+}

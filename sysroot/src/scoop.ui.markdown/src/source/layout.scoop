@@ -1,0 +1,345 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+private class MdSourceMeasurePass(
+    val host: MarkdownSourceHost,
+    val context: MeasureContext,
+    val width: Double?
+) {
+    val measured = HashMap<Long, MdSourceLine>()
+    fun row(index: Long): MdSourceLine {
+        when (measured[index]) {
+            case Some(val row) -> return row;
+            case None -> Unit
+        }
+        val cache = host.rows[index] ?: MdSourceRow()
+        host.rows[index] = cache
+        val row = cache.measure(host, context, index, width)
+        measured[index] = row
+        val height = max(mdSourceEstimate(host.style), row.layout.size.height)
+        host.heights = host.heights.record(index, height)
+        host.maximumWidth = max(host.maximumWidth, row.layout.maxIntrinsicWidth)
+        return row
+    }
+    fun close() {
+        for (entry in measured)
+            entry.value.measurement.close()
+    }
+}
+
+internal fun mdMeasureSource(
+    host: MarkdownSourceHost,
+    context: MeasureContext,
+    constraints: Constraints
+): MarkdownSourceMeasurement {
+    val size =
+        constraints.constrain(Size(constraints.maxWidth ?: 640.0, constraints.maxHeight ?: 480.0))
+    val padding = host.options.padding
+    val width =
+        if (host.options.wrap)
+            Some(max(0.0, size.width - padding * 2.0))
+        else
+            None
+    if (host.layoutWidth != width) {
+        host.layoutWidth = width
+        host.heights = mdHeightRun(host.current.snapshot.lineCount, mdSourceEstimate(host.style))
+        host.maximumWidth = 0.0
+    }
+    val current = host.current
+    val snapshot = current.snapshot
+    val pass = MdSourceMeasurePass(host, context, width)
+    try {
+        pass.row(snapshot.lineAt(current.selection.cursor))
+        var adjustment: ScrollAdjustment? = None
+        when (host.anchor) {
+            case Some(val anchor) -> if (anchor.request == host.scroll.requestRevision) {
+                val index = snapshot.lineAt(anchor.source.position)
+                val row = pass.row(index)
+                val caret =
+                    row.layout.caret(
+                        row.position(anchor.source.position.byteOffset, anchor.source.bias)
+                    )
+                when (caret) {
+                    case Some(val rect) -> adjustment =
+                        Some(
+                            ScrollAdjustment(
+                                anchor.request,
+                                Point(
+                                    host.scroll.offset.x,
+                                    max(
+                                        0.0,
+                                        padding + host.heights.prefix(index) + rect.y + anchor.delta
+                                    )
+                                )
+                            )
+                        )
+                    case None -> Unit
+                }
+            }
+            case None -> Unit
+        }
+        val initial =
+            host.viewport.layout(
+                size,
+                Size(
+                    max(size.width, host.maximumWidth + padding * 2.0),
+                    max(size.height, host.heights.total + padding * 2.0)
+                ),
+                adjustment
+            )
+        val offset = initial.snapshot.offset
+        var index = host.heights.indexAt(max(0.0, offset.y - padding - host.options.overscan))
+        val bottom = offset.y + size.height + host.options.overscan
+        while (index < snapshot.lineCount && host.heights.prefix(index) + padding < bottom) {
+            pass.row(index)
+            index += 1L
+        }
+        val content =
+            Size(
+                if (host.options.wrap)
+                    size.width
+                else
+                    max(size.width, host.maximumWidth + padding * 2.0),
+                max(size.height, host.heights.total + padding * 2.0)
+            )
+        val scroll = host.viewport.layout(size, content, adjustment)
+        val rows = ArrayList<MdSourceLine>()
+        for (entry in pass.measured)
+            rows.add(entry.value)
+        val evicted = ArrayList<Long>()
+        for (entry in host.rows)
+            if (!pass.measured.containsKey(entry.key))
+                evicted.add(entry.key)
+        for (key in evicted) {
+            host.rows[key]!!.close();
+            host.rows.remove(key)
+        }
+        return MarkdownSourceMeasurement(
+            LayoutMetrics(size),
+            snapshot,
+            current.selection,
+            current.markedRange,
+            current.inputRevision,
+            host.heights,
+            rows.toArray(),
+            scroll,
+            host.scroll.requestRevision,
+            padding,
+            host.cursorAffinity
+        )
+    } catch (error: Throwable) {
+        pass.close();
+        throw error
+    }
+}
+
+internal fun mdSceneSource(
+    host: MarkdownSourceHost,
+    context: SceneContext,
+    measured: MarkdownSourceMeasurement
+) {
+    val frame = measured.retain()
+    try {
+        val current = host.current
+        val matches =
+            frame.sourceRevision ==
+                current.snapshot.revision &&
+                frame.inputRevision ==
+                current.inputRevision
+        val caret =
+            if (matches)
+                frame.caret(
+                    frame.selection.cursor,
+                    frame.selection.cursorBias,
+                    Some(frame.cursorAffinity)
+                )
+            else
+                None
+        val style = host.style
+        val extent = context.size
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, extent.width, extent.height),
+                Paint(style.background)
+            )
+        }
+        host.viewport.present(
+            context,
+            frame.scroll,
+            Some {
+                content ->
+                val viewport = frame.scrollSnapshot
+                host.area.setCaret(caret, Some(host.input.inputState.revision))
+                content.place(
+                    host.area,
+                    Rect(
+                        viewport.offset.x,
+                        viewport.offset.y,
+                        viewport.viewport.width,
+                        viewport.viewport.height
+                    )
+                )
+                for (row in frame.rows) {
+                    val top = frame.padding + frame.heights.prefix(row.index)
+                    val height =
+                        frame.heights.prefix(row.index + 1L) - frame.heights.prefix(row.index)
+                    if (
+                        top +
+                            height <
+                            viewport.offset.y ||
+                            top >
+                            viewport.offset.y +
+                            viewport.viewport.height
+                    )
+                        continue
+                    content.withState {
+                        line ->
+                        line.translate(frame.padding, top)
+                        val selection = frame.selection.range
+                        val first = max(selection.start, row.range.start)
+                        val last = min(selection.end, row.range.end)
+                        val color =
+                            if (host.area.isFocusActive)
+                                style.selection
+                            else
+                                style.inactiveSelection
+                        if (last > first) {
+                            val boxes =
+                                row.layout.selection(
+                                    row.display.displayRange(
+                                        Utf8Range(first - row.range.start, last - row.range.start)
+                                    )
+                                )
+                            line.draw {
+                                paint -> for (box in boxes)
+                                    paint.canvas.drawRect(box.rect, Paint(color))
+                            }
+                        }
+                        if (
+                            selection.start <=
+                                row.range.end &&
+                                selection.end >
+                                row.range.end &&
+                                row.fullRange.end >
+                                row.range.end
+                        ) {
+                            val end = row.layout.caret(row.position(row.range.end))
+                            when (end) {
+                                case Some(val rect) -> line.draw {
+                                    paint -> paint.canvas.drawRect(
+                                        Rect(
+                                            rect.x,
+                                            rect.y,
+                                            max(4.0, style.text.fontSize * 0.6),
+                                            rect.height
+                                        ),
+                                        Paint(color)
+                                    )
+                                };
+                                case None -> Unit
+                            }
+                        }
+                        line.drawTextLayout(row.paintKey, row.layout, row.generation)
+                        when (frame.marked) {
+                            case Some(val range) -> {
+                                val a = max(range.start, row.range.start)
+                                val b = min(range.end, row.range.end)
+                                if (b > a) {
+                                    val boxes =
+                                        row.layout.selection(
+                                            row.display.displayRange(
+                                                Utf8Range(a - row.range.start, b - row.range.start)
+                                            )
+                                        )
+                                    line.draw {
+                                        paint -> for (box in boxes)
+                                            paint.canvas.drawRect(
+                                                Rect(
+                                                    box.rect.x,
+                                                    box.rect.y + box.rect.height - 1.0,
+                                                    box.rect.width,
+                                                    1.0
+                                                ),
+                                                Paint(style.marked)
+                                            )
+                                    }
+                                }
+                            }
+                            case None -> Unit
+                        }
+                        Unit
+                    }
+                }
+                if (host.area.isFocusActive && host.caretVisible && frame.selection.collapsed)
+                    when (caret) {
+                        case Some(val rect) -> content.draw {
+                            paint -> paint.canvas.drawRect(rect, Paint(style.caret))
+                        }
+                        case None -> Unit
+                    }
+            }
+        )
+        context.onFrameComplete {
+            completion ->
+            if (
+                host.closed ||
+                    host.current !==
+                    current ||
+                    completion.submission ==
+                    FrameSubmission.Discarded
+            ) {
+                frame.close();
+                return@onFrameComplete
+            }
+            val old = host.accepted
+            host.accepted = Some(frame)
+            old?.close()
+            if (
+                frame.sourceRevision ==
+                    current.snapshot.revision &&
+                    frame.inputRevision ==
+                    current.inputRevision
+            ) {
+                val point = frame.hit(Point(frame.padding, frame.scrollSnapshot.offset.y))
+                when (point) {
+                    case Some(val at) -> when (
+                        frame.caret(at.position, affinity = Some(at.affinity))
+                    ) {
+                        case Some(val rect) -> host.anchor =
+                            Some(
+                                MdSourceAnchor(
+                                    MarkdownAnchor(at.position, MarkdownBias.Before),
+                                    frame.scrollSnapshot.offset.y - rect.y,
+                                    frame.requestRevision
+                                )
+                            )
+                        case None -> Unit
+                    }
+                    case None -> Unit
+                }
+                if (host.revealNeeded && host.area.isFocusActive) {
+                    host.revealNeeded = false
+                    when (caret) {
+                        case Some(val rect) -> host.focus.reveal(rect);
+                        case None -> Unit
+                    }
+                }
+                host.publishNative()
+                host.scheduleBlink()
+                mdSourceDragAccepted(host)
+            }
+        }
+    } catch (error: Throwable) {
+        frame.close();
+        throw error
+    }
+}

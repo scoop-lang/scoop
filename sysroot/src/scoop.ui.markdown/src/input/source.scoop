@@ -8,12 +8,13 @@ private struct MdSourceFragment(val range: MarkdownRange, val input: TextInputSt
 private fun mdSourceFragment(
     editor: MarkdownEditorState,
     context: Long,
-    revision: Long
+    revision: Long,
+    initial: Boolean = false
 ): MdSourceFragment {
     editor.checkEdit()
     if (context < 0L || context > 1152921504606846975L)
         throw IllegalArgumentException(Some("Invalid Markdown input context size"))
-    if (editor.isComposing)
+    if (editor.isComposing && !initial)
         throw IllegalStateException(
             Some("Accept the active Markdown composition before relocating input")
         )
@@ -49,7 +50,7 @@ public class MarkdownSourceInput public constructor(
     public val editor: MarkdownEditorState,
     public val contextBytes: Long = 4096L
 ): Closeable {
-    private var fragment = mdSourceFragment(editor, contextBytes, 0L)
+    private var fragment = mdSourceFragment(editor, contextBytes, 0L, true)
     private var sourceRevision = editor.snapshot.revision
     private var observedInput = editor.inputRevision
     private var closed = false
@@ -146,13 +147,21 @@ public class MarkdownSourceInput public constructor(
         return relocate
     }
 
-    public fun apply(batch: TextInputBatch): Boolean {
+    internal fun prepare(batch: TextInputBatch): MdInputPublication? {
         checkRead()
         editor.checkEdit()
         checkOwner()
         if (sourceRevision != editor.snapshot.revision || observedInput != editor.inputRevision)
             throw IllegalStateException(Some("Markdown input fragment needs synchronization"))
-        val prepared = mdPrepareSourceInput(this, fragment.input, batch) ?: return false
+        return mdPrepareSourceInput(this, fragment.input, batch)
+    }
+
+    public fun apply(batch: TextInputBatch): Boolean {
+        val prepared = prepare(batch) ?: return false
+        return publish(prepared)
+    }
+
+    internal fun publish(prepared: MdInputPublication): Boolean {
         try {
             return editor.publishInput(prepared)
         } finally {

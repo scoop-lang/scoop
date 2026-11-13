@@ -1,0 +1,150 @@
+package scoop.ui.markdown
+
+internal enum MdHeightKind {
+    Run(Long, Double), Branch(MdHeights, MdHeights)
+}
+
+/** Persistent runs keep unmeasured lines compact while edits retain unaffected measurements. */
+internal class MdHeights(val kind: MdHeightKind) {
+    val count: Long =
+        when (kind) {
+            case Run(val count, _) -> count
+            case Branch(val left, val right) -> left.count + right.count
+        }
+    val total: Double =
+        when (kind) {
+            case Run(val count, val extent) -> count.toDouble() * extent
+            case Branch(val left, val right) -> left.total + right.total
+        }
+    val depth: Int =
+        when (kind) {
+            case Run(val count, _) -> if (count == 0L)
+                0
+            else
+                1
+            case Branch(val left, val right) -> 1 +
+                (
+                    if (left.depth > right.depth)
+                        left.depth
+                    else
+                        right.depth
+                )
+        }
+    fun prefix(end: Long): Double {
+        if (end < 0L || end > count)
+            throw IllegalArgumentException(Some("Markdown layout index out of range"))
+        return when (kind) {
+            case Run(_, val extent) -> end.toDouble() * extent
+            case Branch(val left, val right) -> if (end <= left.count)
+                left.prefix(end)
+            else
+                left.total + right.prefix(end - left.count)
+        }
+    }
+    fun indexAt(y: Double): Long {
+        if (y <= 0.0)
+            return 0L
+        if (y >= total)
+            return count
+        return when (kind) {
+            case Run(_, val extent) -> (y / extent).toLong()
+            case Branch(val left, val right) -> if (y < left.total)
+                left.indexAt(y)
+            else
+                left.count + right.indexAt(y - left.total)
+        }
+    }
+    fun replace(start: Long, end: Long, count: Long, extent: Double): MdHeights {
+        if (start < 0L || end < start || end > this.count)
+            throw IllegalArgumentException(Some("Markdown layout replacement out of range"))
+        val first = mdSplitHeights(this, start)
+        val last = mdSplitHeights(first._2, end - start)
+        return mdJoinHeights(mdJoinHeights(first._1, mdHeightRun(count, extent)), last._2)
+    }
+    fun record(index: Long, extent: Double): MdHeights = replace(index, index + 1L, 1L, extent)
+}
+
+internal fun mdHeightRun(count: Long, extent: Double): MdHeights {
+    if (
+        count < 0L || !extent.isFinite() || extent <= 0.0 || !(count.toDouble() * extent).isFinite()
+    )
+        throw IllegalArgumentException(Some("Invalid Markdown layout extent"))
+    return MdHeights(MdHeightKind.Run(count, extent))
+}
+
+private fun mdHeightChildren(tree: MdHeights): (MdHeights, MdHeights) =
+    when (tree.kind) {
+        case Branch(val left, val right) -> (left, right)
+        case Run(_, _) -> throw IllegalStateException(
+            Some("Markdown layout rotation requires a branch")
+        )
+    }
+
+private fun mdHeightBranch(left: MdHeights, right: MdHeights): MdHeights {
+    if (left.count == 0L)
+        return right
+    if (right.count == 0L)
+        return left
+    when ((left.kind, right.kind)) {
+        case(MdHeightKind.Run(val a, val x), MdHeightKind.Run(val b, val y)) -> {
+            if (x == y)
+                return mdHeightRun(a + b, x)
+        }
+        else -> Unit
+    }
+    return MdHeights(MdHeightKind.Branch(left, right))
+}
+
+private fun mdBalanceHeights(left: MdHeights, right: MdHeights): MdHeights {
+    if (left.depth > right.depth + 1) {
+        val a = mdHeightChildren(left)
+        if (a._1.depth >= a._2.depth)
+            return mdHeightBranch(a._1, mdHeightBranch(a._2, right))
+        val b = mdHeightChildren(a._2)
+        return mdHeightBranch(mdHeightBranch(a._1, b._1), mdHeightBranch(b._2, right))
+    }
+    if (right.depth > left.depth + 1) {
+        val a = mdHeightChildren(right)
+        if (a._2.depth >= a._1.depth)
+            return mdHeightBranch(mdHeightBranch(left, a._1), a._2)
+        val b = mdHeightChildren(a._1)
+        return mdHeightBranch(mdHeightBranch(left, b._1), mdHeightBranch(b._2, a._2))
+    }
+    return mdHeightBranch(left, right)
+}
+
+private fun mdJoinHeights(left: MdHeights, right: MdHeights): MdHeights {
+    if (left.count == 0L)
+        return right
+    if (right.count == 0L)
+        return left
+    if (left.depth > right.depth + 1) {
+        val a = mdHeightChildren(left)
+        return mdBalanceHeights(a._1, mdJoinHeights(a._2, right))
+    }
+    if (right.depth > left.depth + 1) {
+        val a = mdHeightChildren(right)
+        return mdBalanceHeights(mdJoinHeights(left, a._1), a._2)
+    }
+    return mdHeightBranch(left, right)
+}
+
+private fun mdSplitHeights(tree: MdHeights, at: Long): (MdHeights, MdHeights) {
+    if (at == 0L)
+        return (mdHeightRun(0L, 1.0), tree)
+    if (at == tree.count)
+        return (tree, mdHeightRun(0L, 1.0))
+    return when (tree.kind) {
+        case Run(val count, val extent) -> (
+            mdHeightRun(at, extent),
+            mdHeightRun(count - at, extent)
+        )
+        case Branch(val left, val right) -> if (at < left.count) {
+            val cut = mdSplitHeights(left, at)
+            (cut._1, mdJoinHeights(cut._2, right))
+        } else {
+            val cut = mdSplitHeights(right, at - left.count)
+            (mdJoinHeights(left, cut._1), cut._2)
+        }
+    }
+}

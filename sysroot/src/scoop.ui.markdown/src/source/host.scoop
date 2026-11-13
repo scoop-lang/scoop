@@ -1,0 +1,384 @@
+package scoop.ui.markdown
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+internal struct MdSourceAnchor(val source: MarkdownAnchor, val delta: Double, val request: ULong)
+
+/** Mount-owned source viewport; the document, editor state and fonts remain borrowed. */
+public class MarkdownSourceHost public constructor(
+    internal val scope: ComponentScope,
+    initialState: MarkdownEditorState,
+    initialStyle: MarkdownSourceStyle = MarkdownSourceStyle(),
+    initialOptions: MarkdownSourceOptions = MarkdownSourceOptions(),
+    private var suppliedFonts: FontCollection? = None
+): Closeable {
+    internal var current = initialState
+    internal var style = initialStyle
+    internal var options = initialOptions
+    internal var closed = false
+    internal var input = MarkdownSourceInput(initialState, initialOptions.inputContextBytes)
+    internal val fonts: FontCollection get() = suppliedFonts ?: scope.defaultFonts
+    internal val window: Window get() = scope.nativeWindow
+    internal var heights =
+        mdHeightRun(initialState.snapshot.lineCount, mdSourceEstimate(initialStyle))
+    internal val rows = HashMap<Long, MdSourceRow>()
+    internal var layoutWidth: Double? = None
+    internal var maximumWidth = 0.0
+    internal var accepted: MarkdownSourceMeasurement? = None
+    internal var anchor: MdSourceAnchor? = None
+    internal var connection: TextInputConnection? = None
+    internal var sessionEnabled = false
+    internal var retiring = false
+    internal var performing = false
+    internal var revealNeeded = false
+    internal var preferredX: Double? = None
+    internal var cursorAffinity = TextAffinity.Downstream
+    internal var caretVisible = true
+    internal var drag: MdSourceDrag? = None
+    internal var changed: (MarkdownChange) -> Unit = { _ -> Unit }
+    private var subscription =
+        initialState.document.observe { change -> mdSourceChanged(this, change) }
+    public val scroll = ScrollState()
+    internal val viewport = scope.scrollViewport(scroll)
+    public val area =
+        scope.createArea(
+            focusable = true,
+            textInput = initialOptions.enabled && !initialOptions.readOnly
+        ) { context, event -> mdSourceEvent(this, context, event) }
+    public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
+    internal val blink =
+        scope.createDeadline {
+            if (!closed && area.isFocusActive && window.isVisible && !window.isOccluded) {
+                caretVisible = !caretVisible
+                scope.requestFrame()
+            }
+        }
+    internal val dragTimer = scope.createDeadline { mdSourceDragTick(this) }
+
+    init {
+        initialOptions.check()
+        area.scope.defaultAction = { context, event -> mdSourceEvent(this, context, event) }
+        area.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> mdSourceStopDrag(this)
+                    else -> Unit
+                }
+            }
+        area.scope.enabled = initialOptions.enabled
+    }
+
+    public val state: MarkdownEditorState get() {
+        checkOpen();
+        return current
+    }
+    public val isClosed: Boolean get() = closed
+    public val nativeInputState: TextInputState get() {
+        checkOpen();
+        return input.inputState
+    }
+    public val inputSourceRange: MarkdownRange get() {
+        checkOpen();
+        return input.sourceRange
+    }
+    public val measurement: MarkdownSourceMeasurement? get() {
+        checkOpen();
+        return accepted
+    }
+
+    internal fun checkOpen() {
+        if (closed || !scope.isMounted)
+            throw IllegalStateException(Some("Markdown source host is no longer mounted"))
+        current.snapshot
+    }
+
+    public fun update(
+        state: MarkdownEditorState,
+        style: MarkdownSourceStyle,
+        options: MarkdownSourceOptions = MarkdownSourceOptions(),
+        focus: FocusOptions = FocusOptions(visibility = FocusVisibility.Always),
+        onChanged: (MarkdownChange) -> Unit = { _ -> Unit },
+        fonts: FontCollection? = None
+    ) {
+        checkOpen()
+        state.checkEdit()
+        options.check()
+        val sameFonts =
+            when ((suppliedFonts, fonts)) {
+                case(Some(val before), Some(val after)) -> before === after
+                case(None, None) -> true
+                else -> false
+            }
+        val rebound = state !== current
+        val restart =
+            rebound ||
+                options.readOnly !=
+                this.options.readOnly ||
+                options.enabled !=
+                this.options.enabled ||
+                options.inputContextBytes !=
+                this.options.inputContextBytes
+        if (restart) {
+            retire()
+            input.close()
+            if (rebound) {
+                subscription.close()
+                current = state
+                subscription = state.document.observe { change -> mdSourceChanged(this, change) }
+            }
+            input = MarkdownSourceInput(state, options.inputContextBytes)
+        }
+        if (
+            rebound ||
+                !sameFonts ||
+                style !==
+                this.style ||
+                options.wrap !=
+                this.options.wrap ||
+                options.tabSize !=
+                this.options.tabSize ||
+                options.padding !=
+                this.options.padding
+        ) {
+            for (entry in rows)
+                entry.value.close()
+            rows.clear()
+            heights = mdHeightRun(state.snapshot.lineCount, mdSourceEstimate(style))
+            maximumWidth = 0.0
+            if (rebound)
+                anchor = None
+        }
+        suppliedFonts = fonts
+        this.style = style
+        this.options = options
+        this.focus.options = focus
+        changed = onChanged
+        area.scope.enabled = options.enabled
+        area.textInput = options.enabled && !options.readOnly
+        if (!ownsOtherComposition()) {
+            val previousInput = input.inputState.revision
+            if (input.synchronize())
+                retire()
+            if (input.inputState.revision != previousInput)
+                invalidate()
+            publishNative()
+        }
+    }
+
+    internal fun ownsOtherComposition(): Boolean =
+        when (current.composition) {
+            case Some(val active) -> active.owner !== input
+            case None -> false
+        }
+
+    public fun measure(
+        context: MeasureContext,
+        constraints: Constraints
+    ): MarkdownSourceMeasurement {
+        checkOpen()
+        return mdMeasureSource(this, context, constraints)
+    }
+    public fun scene(context: SceneContext, measurement: MarkdownSourceMeasurement) {
+        checkOpen()
+        mdSceneSource(this, context, measurement)
+    }
+    public fun execute(command: TextEditCommand): Boolean {
+        checkOpen()
+        current.checkEdit()
+        if (!options.enabled || !area.isFocusActive || !area.scope.isInputAllowed)
+            return false
+        return mdSourceCommand(this, command)
+    }
+    public fun hitTest(point: Point): MarkdownSourceHit? {
+        checkOpen()
+        val frame = accepted ?: return None
+        if (frame.sourceRevision != current.snapshot.revision)
+            return None
+        return frame.hit(point)
+    }
+    public fun caret(
+        position: MarkdownPosition,
+        bias: MarkdownBias = MarkdownBias.After,
+        affinity: TextAffinity? = None
+    ): Rect? {
+        checkOpen()
+        val frame = accepted ?: return None
+        if (frame.sourceRevision != current.snapshot.revision)
+            return None
+        return frame.caret(position, bias, affinity)
+    }
+
+    internal fun invalidate(reveal: Boolean = true) {
+        if (closed || !scope.isMounted)
+            return
+        area.setCaret(None, Some(input.inputState.revision))
+        caretVisible = true
+        blink.cancel()
+        if (reveal && area.isFocusActive)
+            revealNeeded = true
+        scope.requestLayout()
+    }
+    internal fun retire() {
+        if (scope.isMounted && !area.isClosed)
+            retiring = area.restartTextInput()
+    }
+    internal fun publishNative(origin: TextInputOrigin? = None) {
+        if (
+            closed ||
+                retiring ||
+                !sessionEnabled ||
+                !area.isFocusActive ||
+                !options.enabled ||
+                options.readOnly ||
+                ownsOtherComposition()
+        )
+            return
+        val active = connection ?: return
+        if (input.documentRevision != current.snapshot.revision)
+            return
+        val rect = area.visibleCaretBounds ?: Rect(0.0, 0.0, 0.0, 0.0)
+        window.publishTextInputState(
+            active,
+            input.snapshot(
+                LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))
+            ),
+            origin
+        )
+    }
+    internal fun perform(action: () -> Unit, reveal: Boolean = true) {
+        val composing = current.isComposing
+        performing = true
+        try {
+            action()
+        } finally {
+            performing = false
+            if (!closed && !ownsOtherComposition()) {
+                val relocated = input.synchronize()
+                if (relocated || (composing && !current.isComposing))
+                    retire()
+                invalidate(reveal)
+                publishNative()
+            }
+        }
+    }
+    internal fun scheduleBlink() {
+        if (
+            !closed &&
+                area.isFocusActive &&
+                window.isVisible &&
+                !window.isOccluded &&
+                !blink.isScheduled
+        )
+            blink.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(500L))
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        current.storage.checkMutation()
+        closed = true
+        var failure: Throwable? = None
+        failure = mdCleanup(failure) { subscription.close() }
+        failure = mdCleanup(failure) { input.close() }
+        failure = mdCleanup(failure) { blink.close() }
+        failure = mdCleanup(failure) { dragTimer.close() }
+        failure = mdCleanup(failure) { focus.close() }
+        failure = mdCleanup(failure) { area.close() }
+        failure = mdCleanup(failure) { viewport.close() }
+        failure = mdCleanup(failure) { accepted?.close() }
+        accepted = None
+        for (entry in rows)
+            failure = mdCleanup(failure) { entry.value.close() }
+        rows.clear()
+        mdThrow(failure)
+    }
+}
+
+internal fun mdCleanup(failure: Throwable?, action: () -> Unit): Throwable? {
+    try {
+        action();
+        return failure
+    }
+    catch (error: Throwable) {
+        return Some(failure ?: error)
+    }
+}
+
+internal fun mdThrow(failure: Throwable?) {
+    when (failure) {
+        case Some(val error) -> throw error;
+        case None -> Unit
+    }
+}
+
+internal fun mdSourceChanged(host: MarkdownSourceHost, change: MarkdownChange) {
+    if (host.closed)
+        return
+    val estimate = mdSourceEstimate(host.style)
+    if (change.kind == MarkdownChangeKind.Reset) {
+        host.heights = mdHeightRun(change.after.lineCount, estimate)
+        host.anchor = None
+        for (entry in host.rows)
+            entry.value.close()
+        host.rows.clear()
+    } else {
+        val first = change.before.lineAt(MarkdownPosition(change.replacements[0L].range.start))
+        val last =
+            change.before.lineAt(
+                MarkdownPosition(change.replacements[change.replacements.size - 1L].range.end)
+            )
+        val start =
+            if (first > 0L)
+                first - 1L
+            else
+                0L
+        val end =
+            if (last + 2L < change.before.lineCount)
+                last + 2L
+            else
+                change.before.lineCount
+        val shift = change.after.lineCount - change.before.lineCount
+        host.heights = host.heights.replace(start, end, end - start + shift, estimate)
+        val kept = ArrayList<(Long, MdSourceRow)>()
+        for (entry in host.rows) {
+            if (entry.key >= start && entry.key < end)
+                entry.value.close()
+            else
+                kept.add(
+                    (
+                        if (entry.key >= end)
+                            entry.key + shift
+                        else
+                            entry.key,
+                        entry.value
+                    )
+                )
+        }
+        host.rows.clear()
+        for (entry in kept)
+            host.rows[entry._1] = entry._2
+        when (host.anchor) {
+            case Some(val anchor) -> host.anchor =
+                Some(MdSourceAnchor(change.map(anchor.source), anchor.delta, anchor.request))
+            case None -> Unit
+        }
+    }
+    if (!host.performing) {
+        if (!host.ownsOtherComposition()) {
+            if (host.input.synchronize())
+                host.retire()
+        }
+        host.invalidate()
+    }
+    host.changed(change)
+}

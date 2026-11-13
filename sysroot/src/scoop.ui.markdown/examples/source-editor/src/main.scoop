@@ -1,0 +1,54 @@
+package scoop.examples.markdown.source
+
+import scoop.platform.fs.*
+import scoop.markdown.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+private class SourceWindow(
+    val editor: MarkdownEditorState,
+    val path: Path,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    shortcutBinding(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutModifiers(primary = true)
+                        ),
+                        {
+                            editor.acceptComposition()
+                            val snapshot = editor.snapshot
+                            path.writeText(snapshot.toMarkdown())
+                            editor.markSaved(snapshot.revision)
+                        }
+                    )
+                ]
+            )
+        }
+    }
+    public override fun render(): View = markdownSourceEditor(editor)
+}
+
+fun main(args: Array<String>) {
+    if (args.size != 1L) {
+        println("Usage: markdown-source-editor <markdown-file>")
+        return
+    }
+    val path = Path.fromString(args[0L])
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(path.readText()))
+    try {
+        runUiApplication(
+            "Scoop Markdown — " + args[0L],
+            { scope -> SourceWindow(editor, path, scope) }
+        )
+    } finally {
+        editor.close()
+    }
+}

@@ -1,0 +1,72 @@
+package scoop.ui.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownSourceLayoutTests {
+    @Test
+    fun `measured and unknown line runs survive local splices and keep old geometry`() {
+        var tree = mdHeightRun(1000000L, 20.0)
+        val original = tree
+        tree = tree.record(500000L, 60.0)
+        tree = tree.replace(10L, 12L, 4L, 20.0)
+        assertEquals(1000002L, tree.count)
+        assertEquals(10000040.0, tree.prefix(500002L))
+        assertEquals(10000100.0, tree.prefix(500003L))
+        assertEquals(500002L, tree.indexAt(10000080.0))
+        assertEquals(20000000.0, original.total)
+        assertTrue(tree.depth < 20)
+        tree = tree.replace(500002L, 500003L, 0L, 20.0)
+        assertEquals(20000020.0, tree.total)
+    }
+
+    @Test
+    fun `line extent tree matches an array across measurements insertions and deletions`() {
+        val expected = ArrayList<Double>()
+        for (_ in 0 ..< 100)
+            expected.add(20.0)
+        var tree = mdHeightRun(100L, 20.0)
+        for (step in 0L ..< 250L) {
+            val at = (step * 37L) % expected.size
+            if (step % 3L == 0L) {
+                val value = 12.0 + (step % 11L).toDouble()
+                tree = tree.record(at, value)
+                expected[at] = value
+            } else
+                if (step % 3L == 1L) {
+                    tree = tree.replace(at, at, 2L, 20.0)
+                    expected.add(at, 20.0)
+                    expected.add(at, 20.0)
+                } else {
+                    tree = tree.replace(at, at + 1L, 0L, 20.0)
+                    expected.removeAt(at)
+                }
+            assertEquals(expected.size, tree.count)
+            var total = 0.0
+            for (index in 0L ..< expected.size) {
+                assertEquals(total, tree.prefix(index))
+                assertEquals(index, tree.indexAt(total + expected[index] * 0.5))
+                total += expected[index]
+            }
+            assertEquals(total, tree.total)
+        }
+    }
+
+    @Test
+    fun `multiline indentation preserves CRLF selected direction and exact undo`() {
+        val source = "one\r\n  two\r\n\tthree\r\n"
+        val selection = MarkdownSelection(MarkdownPosition(source.byteLength), MarkdownPosition(0L))
+        val editor = MarkdownEditorState(MarkdownDocument.fromText(source), selection)
+        mdIndentSource(editor, 4, false)
+        assertEquals("\tone\r\n\t  two\r\n\t\tthree\r\n", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        assertEquals(selection, editor.selection)
+        mdIndentSource(editor, 4, true)
+        assertEquals("one\r\ntwo\r\nthree\r\n", editor.document.toMarkdown())
+        editor.undo()
+        assertEquals(source, editor.document.toMarkdown())
+        editor.close()
+    }
+}

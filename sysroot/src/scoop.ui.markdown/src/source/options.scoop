@@ -1,0 +1,52 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+
+public class MarkdownSourceStyle public constructor(
+    public val text: TextStyle =
+        textStyle {
+            families = ["monospace"];
+            fontSize = 14.0;
+            lineHeight = Some(1.4)
+        },
+    public val background: Color = Color.White,
+    public val selection: Color = Color(0.25, 0.48, 0.95, 0.3),
+    public val inactiveSelection: Color = Color(0.4, 0.4, 0.4, 0.2),
+    public val caret: Color = Color.Black,
+    public val marked: Color = Color(0.2, 0.4, 0.8)
+)
+
+public struct MarkdownSourceOptions(
+    val wrap: Boolean = true,
+    val readOnly: Boolean = false,
+    val enabled: Boolean = true,
+    val padding: Double = 12.0,
+    val overscan: Double = 80.0,
+    val tabSize: Int = 4,
+    val inputContextBytes: Long = 4096L
+) {
+    internal fun check() {
+        if (
+            !padding.isFinite() ||
+                padding <
+                0.0 ||
+                !overscan.isFinite() ||
+                overscan <
+                0.0 ||
+                tabSize <
+                1 ||
+                tabSize >
+                32 ||
+                inputContextBytes <
+                0L ||
+                inputContextBytes >
+                1152921504606846975L
+        )
+            throw IllegalArgumentException(Some("Invalid Markdown source editor options"))
+    }
+}
+
+internal fun mdSourceEstimate(style: MarkdownSourceStyle): Double =
+    style.text.fontSize * (style.text.lineHeight ?: 1.4)

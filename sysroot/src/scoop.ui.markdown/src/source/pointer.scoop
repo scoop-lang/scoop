@@ -1,0 +1,185 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.math.max
+import scoop.math.min
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.ScrollOrigin
+import scoop.window.*
+
+internal enum MdSourceDragUnit {
+    Character, Word, Line
+}
+
+internal class MdSourceDrag(
+    val anchor: MarkdownPosition,
+    val initial: MarkdownRange,
+    val unit: MdSourceDragUnit,
+    var windowPoint: Point
+) {
+    var waiting = false
+}
+
+private fun mdSourceDragRange(
+    host: MarkdownSourceHost,
+    position: MarkdownPosition,
+    unit: MdSourceDragUnit
+): MarkdownRange =
+    when (unit) {
+        case Character -> MarkdownRange(position.byteOffset, position.byteOffset)
+        case Word -> mdSourceWord(host, position)
+        case Line -> host.current.snapshot.lineRange(host.current.snapshot.lineAt(position), true)
+    }
+
+internal fun mdSourcePress(
+    host: MarkdownSourceHost,
+    pointer: InputPointer,
+    local: Point?,
+    clicks: Int
+) {
+    val point = local ?: return
+    val hit = host.hitTest(point) ?: return
+    val position = hit.position
+    host.area.requestFocus(FocusOrigin.Pointer)
+    val shift = pointer.state.modifiers.shift
+    val unit =
+        if (shift || clicks < 2)
+            MdSourceDragUnit.Character
+        else
+            if (clicks == 2)
+                MdSourceDragUnit.Word
+            else
+                MdSourceDragUnit.Line
+    val range = mdSourceDragRange(host, position, unit)
+    val anchor =
+        if (shift)
+            host.current.selection.anchor
+        else
+            MarkdownPosition(range.start)
+    val cursor =
+        if (unit == MdSourceDragUnit.Character)
+            position
+        else
+            MarkdownPosition(range.end)
+    mdSourceStopDrag(host)
+    host.perform({ host.current.setSelection(MarkdownSelection(anchor, cursor)) }, false)
+    host.cursorAffinity =
+        if (unit == MdSourceDragUnit.Character)
+            hit.affinity
+        else
+            TextAffinity.Upstream
+    host.drag =
+        Some(
+            MdSourceDrag(
+                anchor,
+                range,
+                unit,
+                Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y)
+            )
+        )
+    host.preferredX = None
+}
+
+internal fun mdSourceStopDrag(host: MarkdownSourceHost) {
+    host.drag = None
+    host.dragTimer.cancel()
+}
+
+internal fun mdSourceDragMove(host: MarkdownSourceHost) {
+    val drag = host.drag ?: return
+    if (drag.waiting)
+        return
+    val frame = host.accepted ?: return
+    val point = host.area.toLocal(drag.windowPoint) ?: return
+    val visible = frame.scrollSnapshot
+    val hit =
+        host.hitTest(
+            Point(
+                max(visible.offset.x, min(point.x, visible.offset.x + visible.viewport.width)),
+                max(
+                    visible.offset.y,
+                    min(point.y, visible.offset.y + visible.viewport.height - 0.5)
+                )
+            )
+        ) ?:
+            return
+    val at = hit.position
+    val range = mdSourceDragRange(host, at, drag.unit)
+    val selected =
+        if (drag.unit == MdSourceDragUnit.Character)
+            MarkdownSelection(drag.anchor, at)
+        else
+            if (range.start < drag.initial.start)
+                MarkdownSelection(MarkdownPosition(drag.initial.end), MarkdownPosition(range.start))
+            else
+                MarkdownSelection(MarkdownPosition(drag.initial.start), MarkdownPosition(range.end))
+    if (selected != host.current.selection || host.cursorAffinity != hit.affinity) {
+        host.perform({ host.current.setSelection(selected) }, false)
+        host.cursorAffinity = hit.affinity
+    }
+    mdSourceScheduleDrag(host)
+}
+
+private fun mdSourceDragDelta(host: MarkdownSourceHost): Point {
+    val drag = host.drag ?: return Point(0.0, 0.0)
+    val point = host.area.toLocal(drag.windowPoint) ?: return Point(0.0, 0.0)
+    val frame = host.accepted ?: return Point(0.0, 0.0)
+    val visible = frame.scrollSnapshot
+    val x = point.x - visible.offset.x
+    val y = point.y - visible.offset.y
+    val dx =
+        if (host.options.wrap)
+            0.0
+        else
+            if (x < 0.0)
+                max(-40.0, x * 0.25)
+            else
+                if (x > visible.viewport.width)
+                    min(40.0, (x - visible.viewport.width) * 0.25)
+                else
+                    0.0
+    val dy =
+        if (y < 0.0)
+            max(-40.0, y * 0.25)
+        else
+            if (y > visible.viewport.height)
+                min(40.0, (y - visible.viewport.height) * 0.25)
+            else
+                0.0
+    return Point(
+        max(-visible.offset.x, min(dx, visible.maximum.x - visible.offset.x)),
+        max(-visible.offset.y, min(dy, visible.maximum.y - visible.offset.y))
+    )
+}
+
+private fun mdSourceScheduleDrag(host: MarkdownSourceHost) {
+    if (host.closed || !host.area.isFocusActive || !host.window.isVisible || host.window.isOccluded)
+        return
+    if (mdSourceDragDelta(host) == Point(0.0, 0.0)) {
+        host.dragTimer.cancel();
+        return
+    }
+    if (!host.dragTimer.isScheduled)
+        host.dragTimer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+}
+
+internal fun mdSourceDragTick(host: MarkdownSourceHost) {
+    val drag = host.drag ?: return
+    if (host.closed || !host.area.isFocusActive || !host.window.isVisible || host.window.isOccluded)
+        return
+    val delta = host.scroll.scrollBy(mdSourceDragDelta(host), ScrollOrigin.User)
+    if (delta == Point(0.0, 0.0))
+        return
+    host.anchor = None
+    drag.waiting = true
+}
+
+internal fun mdSourceDragAccepted(host: MarkdownSourceHost) {
+    val drag = host.drag ?: return
+    drag.waiting = false
+    mdSourceDragMove(host)
+}

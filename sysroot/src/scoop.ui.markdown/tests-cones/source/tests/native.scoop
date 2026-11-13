@@ -1,0 +1,93 @@
+package scoop.tests.markdown.source
+
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.ui.markdown.*
+import scoop.window.*
+import scoop.window.native.*
+
+internal fun <T> mdNativeView(window: Window, action: (Ptr<Unit>) -> T): T {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, val view) -> action(view)
+                }
+            }
+        }
+    }
+}
+
+internal fun mdNativeText(window: Window, text: String, kind: Int = 0, selection: Long = 0L): Int =
+    mdNativeView(window) {
+        view -> @Unsafe
+        {
+            return@mdNativeView text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorText(
+                        view,
+                        kind,
+                        bytes,
+                        length,
+                        selection,
+                        0L,
+                        -1L,
+                        0L
+                    )
+                }
+            }
+        }
+    }
+
+internal fun mdNativeDocument(window: Window, host: MarkdownSourceHost): Boolean {
+    val input = host.nativeInputState
+    val selection = input.selection.range
+    return mdNativeView(window) {
+        view -> @Unsafe
+        {
+            return@mdNativeView input.surroundingText.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorDocument(
+                        view,
+                        bytes,
+                        length,
+                        selection.start,
+                        selection.end,
+                        input.markedRange?.start ?: -1L,
+                        input.markedRange?.end ?: -1L
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun mdPinyin(window: Window) {
+    assertEquals(
+        0,
+        mdNativeView(window) {
+            view -> @Unsafe
+            {
+                return@mdNativeView selectNativePinyin(view)
+            }
+        }
+    )
+}
+
+internal fun mdImeKey(window: Window, code: Int) {
+    assertEquals(
+        0,
+        mdNativeView(window) {
+            view -> @Unsafe
+            {
+                return@mdNativeView nativeImeKey(view, code)
+            }
+        }
+    )
+}

@@ -1,0 +1,171 @@
+package scoop.ui.markdown
+
+import scoop.graphics.*
+import scoop.graphics.text.TextAffinity
+import scoop.surface.*
+import scoop.ui.ScrollOrigin
+import scoop.window.*
+
+internal fun mdSourceEvent(
+    host: MarkdownSourceHost,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (host.closed || !host.scope.isMounted)
+        return
+    if (context.phase == RoutedPhase.Notification) {
+        when (event) {
+            case FocusChanged(val active) -> {
+                mdSourceStopDrag(host)
+                if (active) {
+                    host.current.acceptComposition()
+                    host.current.breakUndoGroup()
+                    if (host.input.synchronize())
+                        host.retire()
+                    host.invalidate()
+                    host.publishNative()
+                } else {
+                    if (!host.ownsOtherComposition())
+                        host.perform({ host.current.acceptComposition() }, false)
+                    host.retire()
+                    host.blink.cancel()
+                    host.revealNeeded = false
+                    host.scope.requestFrame()
+                }
+            }
+            case TextInput(val input) -> mdSourceNative(host, input)
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> mdSourceStopDrag(host)
+            else -> Unit
+        }
+        return
+    }
+    if (context.phase != RoutedPhase.Default || !host.options.enabled)
+        return
+    when (event) {
+        case TextCommand(val command) -> if (host.execute(command))
+            context.consume()
+        case Keyboard(val key) -> {
+            if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
+                return
+            var handled = false
+            for (command in key.textCommands)
+                if (host.execute(command))
+                    handled = true
+            if (handled) {
+                mdSourceStopDrag(host);
+                context.consume()
+            }
+        }
+        case Pointer(
+            InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)
+        ) -> {
+            if (state == ElementState.Pressed)
+                mdSourcePress(host, pointer, context.localPosition, count)
+            else
+                mdSourceStopDrag(host)
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Moved(val pointer)) -> when (host.drag) {
+            case Some(val drag) -> {
+                drag.windowPoint =
+                    Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y)
+                mdSourceDragMove(host)
+                context.consume()
+            }
+            case None -> Unit
+        }
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+            host.revealNeeded = false
+            host.anchor = None
+            host.scroll.cancelAnimation()
+            context.consumeScroll(host.style.text.fontSize) {
+                amount ->
+                val consumed =
+                    host.scroll.scrollBy(
+                        Point(
+                            if (host.options.wrap)
+                                0.0
+                            else
+                                -amount.x,
+                            -amount.y
+                        ),
+                        ScrollOrigin.User
+                    )
+                Point(-consumed.x, -consumed.y)
+            }
+        }
+        else -> Unit
+    }
+}
+
+private fun mdSourceNative(host: MarkdownSourceHost, event: TextInputEvent) {
+    when (event) {
+        case Enabled(val connection) -> {
+            host.connection = connection
+            host.sessionEnabled = true
+            host.retiring = false
+            host.publishNative()
+        }
+        case Disabled(val connection) -> {
+            if (host.connection != None && host.connection != connection)
+                return
+            host.connection = None
+            host.sessionEnabled = false
+            host.retiring = false
+            if (!host.ownsOtherComposition())
+                host.perform({ host.current.acceptComposition() }, false)
+        }
+        case Edit(val batch) -> {
+            if (
+                !host.sessionEnabled ||
+                    host.retiring ||
+                    !host.area.isFocusActive ||
+                    !host.options.enabled ||
+                    host.options.readOnly
+            )
+                return
+            when (batch.origin) {
+                case Some(val origin) -> if (host.connection != Some(origin.connection))
+                    return
+                case None -> Unit
+            }
+            mdSourceStopDrag(host)
+            var invalid = false
+            val prepared =
+                try {
+                    host.input.prepare(batch)
+                }
+                catch (error: IllegalArgumentException) {
+                    invalid = true;
+                    None
+                }
+                catch (error: IllegalStateException) {
+                    invalid = true;
+                    None
+                }
+            if (invalid) {
+                if (!host.ownsOtherComposition())
+                    host.perform({ host.current.cancelComposition() }, false)
+                host.retire()
+                return
+            }
+            when (prepared) {
+                case Some(val value) -> {
+                    host.performing = true
+                    try {
+                        host.input.publish(value)
+                    } finally {
+                        host.performing = false
+                    }
+                    host.cursorAffinity = TextAffinity.Downstream
+                    host.preferredX = None
+                    host.invalidate()
+                }
+                case None -> Unit
+            }
+            host.publishNative(batch.origin)
+            if (!host.current.isComposing && host.input.synchronize())
+                host.retire()
+        }
+    }
+}

@@ -1,0 +1,620 @@
+package scoop.tests.markdown.source
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.collections.contains
+import scoop.tests.graphics.readNativePixel
+import scoop.graphics.text.*
+import scoop.markdown.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.*
+import scoop.tests.window.*
+import scoop.text.repeat
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.markdown.*
+import scoop.window.*
+
+@Test
+private class MarkdownSourceWindowTests {
+    @Test
+    fun `large native source editor preserves input layout history and lifecycle`() {
+        val probe = MdWindowProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.field!!.isClosed)
+            assertTrue(probe.painted)
+            assertTrue(probe.discarded)
+            assertTrue(probe.largestRows < 200L)
+            assertFalse(probe.editor.isClosed)
+            assertFalse(probe.fonts.isClosed)
+        } catch (error: Throwable) {
+            mdReportFailure(error, probe.step.value)
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class MdWindowProbe: Closeable {
+    val original = "line 中文 source\n".repeat(100000L)
+    val editor = MarkdownEditorState(MarkdownDocument.fromText(original))
+    val second = MarkdownEditorState(MarkdownDocument.fromText("two"))
+    val displayed = state(editor)
+    val publicFocus = FocusHandle()
+    var ownerScope: ComponentScope? = None
+    var beforePresentation = 0L
+    val fonts = FontCollection()
+    val style =
+        MarkdownSourceStyle(
+            textStyle {
+                families = ["Markdown Test", "Markdown CJK"];
+                fontSize = 14.0;
+                lineHeight = Some(1.4)
+            }
+        )
+    val step = state(0)
+    var options = MarkdownSourceOptions(inputContextBytes = 128L)
+    var field: MarkdownSourceHost? = None
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var accepted = -1
+    var waiting = false
+    var inputReady = false
+    var inputStarts = 0
+    var compositionStarts = 0
+    var connection: TextInputConnection? = None
+    var compositionConnection: TextInputConnection? = None
+    var savedSource: Ptr<Unit>? = None
+    var committed = ""
+    var finished = false
+    var painted = false
+    var largestRows = 0L
+    var trial = false
+    var discardNext = false
+    var discarded = false
+    var retriedFocus = false
+    var expectedHit: MarkdownSourceHit? = None
+    init {
+        fonts.register(testSansBytes, "Markdown Test")
+        fonts.register(testCjkBytes, "Markdown CJK")
+    }
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop Markdown source verification";
+                            size = LogicalSize(560.0, 280.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> MdWindowRoot(this, scope) })
+                native.createDeadline {
+                    fail(
+                        Some(
+                            f"Markdown source window timeout at step ${
+                                this @MdWindowProbe.step.value
+                            }"
+                        )
+                    )
+                }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+            }
+            case Window(_, WindowEvent.TextInput(val input)) -> if (step.value >= 39) {
+                when (input) {
+                    case Enabled(_) -> inputReady = true
+                    case Disabled(_) -> inputReady = false
+                    else -> Unit
+                }
+            }
+            case AboutToWait -> {
+                if (!window!!.isFocused && !retriedFocus) {
+                    retriedFocus = true;
+                    window!!.requestFocus()
+                }
+                if (
+                    step.value >=
+                        39 &&
+                        publicFocus.isAttached &&
+                        !publicFocus.hasFocus &&
+                        !publicFocus.isPending
+                )
+                    publicFocus.requestFocus()
+                if (!waiting && ready()) {
+                    waiting = true
+                    active.proxy().post {
+                        owner ->
+                        waiting = false
+                        if (ready())
+                            advance(owner)
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+    private fun ready(): Boolean =
+        (
+            if (step.value >= 39)
+                frames!!.snapshot().presentations > beforePresentation && publicFocus.isFocusActive
+            else
+                accepted == step.value && field!!.area.isFocusActive
+        ) &&
+            window!!.isFocused &&
+            !window!!.isOccluded &&
+            !frames!!.snapshot().required &&
+            (options.readOnly || inputReady)
+
+    private fun next(action: () -> Unit = {}) {
+        beforePresentation = frames!!.snapshot().presentations
+        action()
+        step.value += 1
+        ownerScope!!.requestLayout()
+    }
+    private fun advance(active: ActiveApplication) {
+        val host = field!!
+        val native = window!!
+        when (step.value) {
+            case 0 -> {
+                assertTrue(host.measurement!!.measuredLineCount < 200L)
+                assertTrue(host.nativeInputState.surroundingText.byteLength < 270L)
+                assertTrue(mdNativeDocument(native, host))
+                compositionStarts = inputStarts
+                compositionConnection = connection
+                next { assertEquals(0, mdNativeText(native, "ni", 1, 2L)) }
+            }
+            case 1 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(Some(MarkdownRange(0L, 2L)), editor.markedRange)
+                assertEquals(compositionStarts, inputStarts)
+                next { assertEquals(0, mdNativeText(native, "你好😀", 1, 4L)) }
+            }
+            case 2 -> {
+                assertEquals(Some(MarkdownRange(0L, 10L)), editor.markedRange)
+                assertTrue(mdNativeDocument(native, host))
+                assertEquals(compositionConnection, connection)
+                trial = true
+                next { native.requestSize(LogicalSize(620.0, 300.0)) }
+            }
+            case 3 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(compositionConnection, connection)
+                next { host.scroll.scrollTo(Point(0.0, 10000.0)) }
+            }
+            case 4 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(compositionStarts, inputStarts)
+                assertEquals(None, host.area.visibleCaretBounds)
+                assertTrue(host.measurement!!.lineIndices.contains(0L))
+                next { host.execute(TextEditCommand.Cancel) }
+            }
+            case 5 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                assertFalse(editor.canUndo)
+                next { assertEquals(0, mdNativeText(native, "hello")) }
+            }
+            case 6 -> {
+                assertEquals("hello", editor.snapshot.read(MarkdownRange(0L, 5L)))
+                next { host.execute(TextEditCommand.Undo) }
+            }
+            case 7 -> {
+                assertEquals(original, editor.document.toMarkdown())
+                next {
+                    val at = editor.snapshot.positionOfLine(50000L);
+                    editor.setSelection(MarkdownSelection(at, at))
+                }
+            }
+            case 8 -> {
+                assertTrue(host.inputSourceRange.start > 0L)
+                assertTrue(host.nativeInputState.surroundingText.byteLength < 270L)
+                assertTrue(host.scroll.offset.y > 10000.0)
+                assertTrue(mdNativeDocument(native, host))
+                next {
+                    editor.document.reset("A\r\n😀é中\r\nZ")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(15L), MarkdownPosition(15L))
+                    )
+                }
+            }
+            case 9 -> next { host.execute(TextEditCommand.Delete(TextDeletion.Backward)) }
+            case 10 -> {
+                assertEquals("A\r\n😀é中Z", editor.document.toMarkdown())
+                next {
+                    host.execute(TextEditCommand.Undo)
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(10L), MarkdownPosition(10L))
+                    )
+                }
+            }
+            case 11 -> next { host.execute(TextEditCommand.Delete(TextDeletion.Backward)) }
+            case 12 -> {
+                assertEquals("A\r\n😀中\r\nZ", editor.document.toMarkdown())
+                next {
+                    host.execute(TextEditCommand.Undo)
+                    host.execute(TextEditCommand.SelectAll)
+                    host.execute(TextEditCommand.InsertTab)
+                }
+            }
+            case 13 -> {
+                assertEquals("\tA\r\n\t😀é中\r\n\tZ", editor.document.toMarkdown())
+                next {
+                    host.execute(TextEditCommand.Undo);
+                    options = MarkdownSourceOptions(readOnly = true, inputContextBytes = 128L)
+                }
+            }
+            case 14 -> {
+                val before = editor.document.toMarkdown()
+                host.execute(TextEditCommand.Delete(TextDeletion.Backward))
+                host.execute(TextEditCommand.Undo)
+                assertEquals(before, editor.document.toMarkdown())
+                assertEquals(1, mdNativeText(native, "blocked"))
+                next {
+                    options = MarkdownSourceOptions(inputContextBytes = 128L);
+                    editor.document.reset("")
+                }
+            }
+            case 15 -> {
+                @Unsafe
+                {
+                    savedSource =
+                        Some(saveNativeInputSource() ?: fail(Some("Cannot save input source")))
+                }
+                next { mdPinyin(native) }
+            }
+            case 16 -> {
+                compositionStarts = inputStarts
+                next { mdImeKey(native, 45) }
+            }
+            case 17 -> next { mdImeKey(native, 34) }
+            case 18 -> next { mdImeKey(native, 4) }
+            case 19 -> next { mdImeKey(native, 0) }
+            case 20 -> next { mdImeKey(native, 31) }
+            case 21 -> {
+                assertTrue(editor.isComposing)
+                assertEquals(compositionStarts, inputStarts)
+                assertTrue(mdNativeDocument(native, host))
+                next { mdImeKey(native, 49) }
+            }
+            case 22 -> {
+                assertFalse(editor.isComposing)
+                committed = editor.document.toMarkdown()
+                assertTrue(committed.byteLength > 0L)
+                assertTrue(committed != "nihao" && committed != "nihao ")
+                next { host.execute(TextEditCommand.Undo) }
+            }
+            case 23 -> {
+                assertEquals("", editor.document.toMarkdown())
+                next { host.execute(TextEditCommand.Redo) }
+            }
+            case 24 -> {
+                assertEquals(committed, editor.document.toMarkdown())
+                restoreSource()
+                next {
+                    editor.document.reset("word other\n");
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+                    )
+                }
+            }
+            case 25 -> next {
+                val rect = host.area.toWindow(host.caret(MarkdownPosition(2L))!!)!!
+                mdNativeView(native) {
+                    view -> @Unsafe
+                    {
+                        assertEquals(
+                            0,
+                            nativeEditorPointer(
+                                view,
+                                rect.x,
+                                rect.y + rect.height * 0.5,
+                                true,
+                                2,
+                                false
+                            )
+                        )
+                        assertEquals(
+                            0,
+                            nativeEditorPointer(
+                                view,
+                                rect.x,
+                                rect.y + rect.height * 0.5,
+                                false,
+                                2,
+                                false
+                            )
+                        )
+                    }
+                }
+            }
+            case 26 -> {
+                assertEquals(MarkdownRange(0L, 4L), editor.selection.range)
+                next {
+                    discardNext = true;
+                    native.requestSize(LogicalSize(580.0, 320.0))
+                }
+            }
+            case 27 -> {
+                assertTrue(discarded)
+                next {
+                    editor.document.reset("word ".repeat(3000L))
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+                    )
+                }
+            }
+            case 28 -> next { host.execute(TextEditCommand.Move(TextMovement.PageDown, false)) }
+            case 29 -> {
+                assertTrue(editor.selection.cursor.byteOffset > 0L)
+                assertTrue(host.scroll.offset.y > 0.0)
+                next { host.execute(TextEditCommand.Move(TextMovement.PageUp, false)) }
+            }
+            case 30 -> {
+                assertEquals(0L, editor.selection.cursor.byteOffset)
+                val hit = host.hitTest(Point(100000.0, 20.0))!!
+                assertEquals(TextAffinity.Upstream, hit.affinity)
+                expectedHit = Some(hit)
+                val rect =
+                    host.area.toWindow(host.caret(hit.position, affinity = Some(hit.affinity))!!)!!
+                next {
+                    mdNativeView(native) {
+                        view -> @Unsafe
+                        {
+                            assertEquals(
+                                0,
+                                nativeEditorPointer(
+                                    view,
+                                    rect.x,
+                                    rect.y + rect.height * 0.5,
+                                    true,
+                                    1,
+                                    false
+                                )
+                            )
+                            assertEquals(
+                                0,
+                                nativeEditorPointer(
+                                    view,
+                                    rect.x,
+                                    rect.y + rect.height * 0.5,
+                                    false,
+                                    1,
+                                    false
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            case 31 -> {
+                assertEquals(expectedHit!!.position, editor.selection.cursor)
+                assertTrue(host.area.visibleCaretBounds!!.y < 40.0)
+                next {
+                    editor.document.reset("é 😀\r\nX")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(1L), MarkdownPosition(1L))
+                    )
+                }
+            }
+            case 32 -> next { host.execute(TextEditCommand.Delete(TextDeletion.Forward)) }
+            case 33 -> {
+                assertEquals(" 😀\r\nX", editor.document.toMarkdown())
+                next {
+                    host.execute(TextEditCommand.Undo)
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(9L), MarkdownPosition(9L))
+                    )
+                }
+            }
+            case 34 -> next { host.execute(TextEditCommand.Delete(TextDeletion.Backward)) }
+            case 35 -> {
+                assertEquals("é 😀X", editor.document.toMarkdown())
+                next {
+                    editor.document.reset("abc אבג xyz")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(4L), MarkdownPosition(10L))
+                    )
+                }
+            }
+            case 36 -> next { host.execute(TextEditCommand.Move(TextMovement.Left, false)) }
+            case 37 -> {
+                assertEquals(10L, editor.selection.cursor.byteOffset)
+                next {
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(4L), MarkdownPosition(10L))
+                    )
+                    host.execute(TextEditCommand.Move(TextMovement.Right, false))
+                }
+            }
+            case 38 -> {
+                assertEquals(4L, editor.selection.cursor.byteOffset)
+                next {
+                    editor.document.reset("one")
+                    editor.setSelection(
+                        MarkdownSelection(MarkdownPosition(0L), MarkdownPosition(0L))
+                    )
+                }
+            }
+            case 39 -> next { assertEquals(0, mdNativeText(native, "X")) }
+            case 40 -> {
+                assertTrue(host.isClosed)
+                assertEquals("Xone", editor.document.toMarkdown())
+                next { displayed.value = second }
+            }
+            case 41 -> next { assertEquals(0, mdNativeText(native, "Y")) }
+            case 42 -> {
+                assertEquals("Xone", editor.document.toMarkdown())
+                assertEquals("Ytwo", second.document.toMarkdown())
+                finished = true
+                active.requestExit()
+            }
+            else -> fail(Some("Unexpected Markdown window step"))
+        }
+    }
+
+    fun restoreSource() {
+        when (savedSource) {
+            case Some(val value) -> {
+                savedSource = None;
+                @Unsafe
+                {
+                    assertEquals(0, restoreNativeInputSource(value))
+                }
+            }
+            case None -> Unit
+        }
+    }
+    public override fun close() {
+        restoreSource()
+        frames?.close()
+        editor.close()
+        second.close()
+        fonts.close()
+    }
+}
+
+private class MdWindowRoot(val probe: MdWindowProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        probe.ownerScope = Some(scope)
+    }
+    public override fun render(): View {
+        if (probe.step.value >= 39)
+            return markdownSourceEditor(
+                probe.displayed.value,
+                fonts = Some(probe.fonts),
+                focus = FocusOptions(handle = Some(probe.publicFocus))
+            )
+        probe.editor.snapshot
+        probe.editor.selection
+        probe.editor.markedRange
+        return cachedScene(
+            element(probe.step.value, { props, mount -> MdWindowField(probe, props, mount) })
+        )
+    }
+}
+
+private class MdWindowField(
+    val probe: MdWindowProbe,
+    val step: Props<Int>,
+    scope: ComponentScope
+): Element<MarkdownSourceMeasurement>(scope) {
+    val host =
+        scope.resource {
+            MarkdownSourceHost(scope, probe.editor, probe.style, probe.options, Some(probe.fonts))
+        }
+    public override fun onMount() {
+        probe.field = Some(host)
+        probe.scope = Some(scope)
+        scope.resource {
+            host.area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(val connection)) -> {
+                        probe.inputReady = true;
+                        probe.inputStarts += 1;
+                        probe.connection = connection
+                    }
+                    case TextInput(TextInputEvent.Disabled(_)) -> {
+                        probe.inputReady = false;
+                        probe.connection = None
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        host.focus.handle.requestFocus()
+    }
+    public override fun update(): UiInvalidation {
+        host.update(probe.editor, probe.style, probe.options, fonts = Some(probe.fonts))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        MarkdownSourceMeasurement
+    > {
+        if (probe.trial) {
+            probe.trial = false
+            val before = host.caret(probe.editor.selection.cursor)
+            val trial = host.measure(context, Constraints.tight(Size(100.0, 200.0)))
+            assertEquals(before, host.caret(probe.editor.selection.cursor))
+            trial.close()
+        }
+        val measured = host.measure(context, constraints)
+        if (measured.measuredLineCount > probe.largestRows)
+            probe.largestRows = measured.measuredLineCount
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: MarkdownSourceMeasurement) {
+        val previous = host.measurement
+        host.scene(context, measured)
+        if (!probe.painted)
+            context.draw {
+                paint -> for (x in 14 ..< 130)
+                    for (y in 14 ..< 38) {
+                        val value = mdPixel(paint.canvas, x.toDouble(), y.toDouble())
+                        if (value >= 0L && value % 256L < 240L)
+                            probe.painted = true
+                    }
+            }
+        val ticket = step.value
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false;
+            probe.window!!.requestSize(LogicalSize(600.0, 320.0))
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted = ticket
+            else
+                if (discard) {
+                    probe.discarded = true
+                    assertSame(previous!!, host.measurement!!)
+                    scope.requestFrame()
+                }
+        }
+    }
+}
+
+private fun mdPixel(canvas: Canvas, x: Double, y: Double): Long {
+    @Unsafe
+    {
+        return canvas.withSkiaCanvas {
+            pointer -> @Unsafe
+            {
+                return@withSkiaCanvas readNativePixel(pointer, x, y)
+            }
+        }
+    }
+}
+
+private fun mdReportFailure(error: Throwable, step: Int) {
+    println(f"Markdown window failure at step ${step}")
+    if (error is ResourceUseException) {
+        mdReportFailure(error.primaryFailure, step)
+        mdReportFailure(error.cleanupFailure, step)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+        } else
+            if (error is Exception)
+                println(error.message ?: "no message")
+    error.printStackTrace()
+}
