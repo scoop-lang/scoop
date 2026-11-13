@@ -109,7 +109,7 @@ enum DecodedResponseV1 {
         used_generators: Vec<crate::GeneratorToolInputV1>,
         compiler_inputs: Vec<crate::CompilerInputV1>,
         profile_map: Option<DecodedHostPathCarrier>,
-        profile_use: Option<scoop_profile::UseSummary>,
+        profile_use: Option<Box<scoop_profile::UseSummary>>,
     },
     Failure {
         request_id: Vec<u8>,
@@ -158,7 +158,7 @@ impl DecodedResponseV1 {
                 let result = ScoopcSuccessV1::new(product.validate()?, warnings, dumps)?
                     .with_used_generators(used_generators)
                     .with_compiler_inputs(compiler_inputs)
-                    .with_profile_use(profile_use)
+                    .with_profile_use(profile_use.map(|summary| *summary))
                     .with_profile_map(
                         profile_map
                             .map(DecodedHostPathCarrier::validate)
@@ -249,7 +249,7 @@ impl WireEncode for DecodedResponseV1 {
                     path.encode(encoder)?;
                 }
                 encoder.field(8)?;
-                scoop_profile::UseSummary::encode_optional(profile_use.as_ref(), encoder)
+                scoop_profile::UseSummary::encode_optional(profile_use.as_deref(), encoder)
             }
             Self::Failure {
                 request_id,
@@ -306,7 +306,9 @@ impl WireDecode for DecodedResponseV1 {
                         1 => DecodedHostPathCarrier::decode(d).map(Some),
                         tag => Err(crate::framing::unknown_tag(d, tag)),
                     })?,
-                    profile_use: decoder.field(8, scoop_profile::UseSummary::decode_optional)?,
+                    profile_use: decoder
+                        .field(8, scoop_profile::UseSummary::decode_optional)?
+                        .map(Box::new),
                 })
             }
             2 => {

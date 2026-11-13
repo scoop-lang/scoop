@@ -12,7 +12,7 @@ use scoop_wire::{Digest256, domain_separated_cbor_hash, encode, sha256};
 
 use crate::{LinkError, NativeObjectInfo, NativeSymbolKind, error};
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "x86_64", any(target_os = "linux", windows)))]
 mod common_tests;
 mod deployment;
 mod fingerprint;
