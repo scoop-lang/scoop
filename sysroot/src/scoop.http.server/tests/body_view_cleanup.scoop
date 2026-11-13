@@ -1,0 +1,110 @@
+package scoop.http.server
+
+import scoop.asyncio.*
+import scoop.http.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+@Test
+private class ServerBodyViewCleanupTests {
+    @Test
+    fun `raw and identity consumers stop reading during synchronous retirement`() {
+        eventLoop().run {
+            for (decoded in [false, true]) {
+                val input = DecompressionReadSource(TestSource("ab".toByteArray()))
+                val body = HttpRequestBody(input, fields = requestEncodedFields("identity"))
+                if (decoded)
+                    body.configureDecoding(requestDecompressionOptions())
+                val source = body.openStream()
+                NativeByteBuffer.allocate(1L).use suspend {
+                    buffer ->
+                    assertEquals(1L, source.readInto(buffer, 1L))
+                    assertEquals(97.toByte(), buffer.readByte())
+                    val views = body.takeViewsToClose()
+                    try {
+                        expectState { body.openRawStream() }
+                        expectState { body.setLimit(None) }
+                        yieldCoroutine()
+                        gcCollect()
+                        try {
+                            source.readInto(buffer, 0L)
+                            fail(Some("retired body remained readable"))
+                        } catch (_: IoClosedException) {}
+                        assertEquals(1, input.calls)
+                        assertEquals(1L, body.receivedBytes)
+                        assertEquals(1L, body.deliveredBytes)
+                        assertFalse(body.isComplete)
+                    } finally {
+                        if (present(views))
+                            views!!.close()
+                        Unit
+                    }
+                }
+                assertEquals("b", networkText(input))
+            }
+        }
+    }
+
+    @Test
+    fun `multipart and decoded views survive suspended cleanup without draining input`() {
+        eventLoop().run {
+            val data =
+                requestMultipartBytes([(MultipartPartHead.formData("value"), "abc".toByteArray())])
+            for (decoded in [false, true]) {
+                val input =
+                    DecompressionReadSource(
+                        TestSource(
+                            if (decoded)
+                                requestGzip(data)
+                            else
+                                data
+                        )
+                    )
+                val fields =
+                    if (decoded)
+                        [requestMultipartFields()[0L], field("Content-Encoding", "gzip")]
+                    else
+                        requestMultipartFields()
+                val body = HttpRequestBody(input, fields = fields)
+                if (decoded)
+                    body.configureDecoding(requestDecompressionOptions { this.bufferSize = 7L })
+                val reader = body.multipart(requestMultipartOptions { this.bufferSize = 7L })
+                try {
+                    val part = reader.nextPart()!!
+                    val source = part.openStream()
+                    NativeByteBuffer.allocate(1L).use suspend {
+                        buffer ->
+                        assertEquals(1L, source.readInto(buffer, 1L))
+                        assertEquals(97.toByte(), buffer.readByte())
+                        val calls = input.calls
+                        val received = body.receivedBytes
+                        val delivered = body.deliveredBytes
+                        val views = body.takeViewsToClose()
+                        try {
+                            expectState { body.openStream() }
+                            expectState { body.configureDecoding(requestDecompressionOptions()) }
+                            yieldCoroutine()
+                            gcCollect()
+                        } finally {
+                            if (present(views))
+                                views!!.close()
+                        }
+                        assertTrue(reader.isClosed)
+                        assertFalse(reader.isFinished)
+                        assertEquals(calls, input.calls)
+                        assertEquals(received, body.receivedBytes)
+                        assertEquals(delivered, body.deliveredBytes)
+                        expectMultipartState suspend {
+                            source.readInto(buffer, 0L);
+                            Unit
+                        }
+                    }
+                } finally {
+                    val views = body.takeViewsToClose()
+                    if (present(views))
+                        views!!.close()
+                }
+            }
+        }
+    }
+}

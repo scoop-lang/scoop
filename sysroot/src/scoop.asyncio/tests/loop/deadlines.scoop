@@ -1,0 +1,85 @@
+package scoop.asyncio
+
+import scoop.test.*
+import scoop.time.*
+
+@Test
+private class LoopDeadlineTests {
+    @Test
+    fun `equal waits order their starts without an absolute deadline`() {
+        val source = DeadlineSource()
+        val start = TimeMark(source, Duration.seconds(10L, 999999999L))
+        val later = start + Duration.nanoseconds(1L)
+        val huge = Duration.seconds(Long.MAX_VALUE, 999999999L)
+        for (wait in [Duration.ZERO, Duration.seconds(30L), huge]) {
+            val first = LoopDeadline(start, wait)
+            val same =
+                LoopDeadline(
+                    start,
+                    Duration.seconds(wait.floorSeconds, wait.nanosecondsOfSecond.toLong())
+                )
+            val second = LoopDeadline(later, wait)
+            assertFalse(first.before(first) || first.before(same) || same.before(first))
+            assertTrue(first.before(second))
+            assertFalse(second.before(first))
+        }
+    }
+
+    @Test
+    fun `an earlier start with a shorter wait stays before a later deadline`() {
+        val source = DeadlineSource()
+        val start = TimeMark(source, Duration.seconds(10L))
+        val later = start + Duration.seconds(1L)
+        for (wait in [Duration.seconds(30L), Duration.seconds(Long.MAX_VALUE)]) {
+            val earlier = LoopDeadline(start, wait - Duration.nanoseconds(1L))
+            val longer = LoopDeadline(later, wait)
+            assertTrue(earlier.before(longer))
+            assertFalse(longer.before(earlier))
+        }
+        val first = LoopDeadline(start, Duration.ZERO)
+        assertTrue(first.before(LoopDeadline(start, Duration.nanoseconds(1L))))
+        assertFalse(first.before(first))
+    }
+
+    @Test
+    fun `different waits compare equal deadlines and nanosecond differences`() {
+        val source = DeadlineSource()
+        val first =
+            LoopDeadline(
+                TimeMark(source, Duration.seconds(10L, 900000000L)),
+                Duration.seconds(1L, 200000000L)
+            )
+        val same =
+            LoopDeadline(TimeMark(source, Duration.seconds(11L)), Duration.seconds(1L, 100000000L))
+        val earlier = same.{duration: Duration.seconds(1L, 99999999L)}
+        assertFalse(first.before(same) || same.before(first))
+        assertTrue(earlier.before(first))
+        assertFalse(first.before(earlier))
+    }
+
+    @Test
+    fun `expiration includes the exact boundary without overflowing a long wait`() {
+        val source = DeadlineSource()
+        val start = TimeMark(source, Duration.seconds(10L, 900000000L))
+        val deadline = LoopDeadline(start, Duration.milliseconds(200L))
+        assertFalse(deadline.expired(TimeMark(source, Duration.seconds(11L, 99999999L))))
+        assertTrue(deadline.expired(TimeMark(source, Duration.seconds(11L, 100000000L))))
+        assertTrue(deadline.expired(TimeMark(source, Duration.seconds(11L, 100000001L))))
+        assertTrue(LoopDeadline(start, Duration.ZERO).expired(start))
+        val huge = LoopDeadline(start, Duration.seconds(Long.MAX_VALUE, 999999999L))
+        assertFalse(huge.expired(start) || huge.expired(start + Duration.seconds(1L)))
+        assertEquals(huge.duration, huge.remaining(start))
+    }
+
+    @Test
+    fun `equal waits still reject marks from different sources`() {
+        val first = LoopDeadline(DeadlineSource().markNow(), Duration.seconds(30L))
+        val second = LoopDeadline(DeadlineSource().markNow(), Duration.seconds(30L))
+        assertFailsWith<IllegalArgumentException> { first.before(second) }
+        assertFailsWith<IllegalArgumentException> { first.expired(second.started) }
+    }
+}
+
+private class DeadlineSource: TimeSource {
+    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
+}

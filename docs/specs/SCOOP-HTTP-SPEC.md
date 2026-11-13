@@ -161,6 +161,8 @@ H1 按顺序关联请求与响应，同一方向只允许一个消息 body 操�
 
 H1 操作在同一次连接状态边界完成同步准备、占用方向和安装本次 idle 状态；准备失败不留下在途操作。取消监听覆盖随后的实际 I/O，操作返回前撤销监听，并在同一次状态边界释放方向和 idle 状态。开始与结束的同步管理不要求另建挂起调用层；失败仍先保留已选择的取消／超时原因，再等待传输和借用的实际收尾。正常操作结束只在连接已经关闭中时推进关闭过程。
 
+H1 接收保留解码器事件的原有顺序；一次输入后的解码、事件入队和首个事件交付可在同一状态边界完成。已无未交付正文数据时，队首相邻 trailer 与结束事件在同一状态边界完成当前 body，不能跨过下一条消息头。消息完成、请求关联及取消监听摘取一起更新，监听的实际撤销始终在状态锁外执行；拒绝升级后的恢复失败仍沿原连接失败路径收尾。
+
 AsyncHttp1Connection 的 takeOwnershipAsClient／takeOwnershipAsServer 接收传输与 CoroutineScope。sendRequest／sendResponse 返回 AsyncHttp1Writer，每条消息用 finish 完成；receiveRequest 在正常 EOF 返回 None，receiveResponse 逐条交付信息／最终响应及 AsyncHttp1Body。body 在消费完数据及结束标记后公开已完成状态和 trailer，之后读取返回零；显式 close 未完成的 body 会关闭连接。服务端按接收顺序使用对应请求方法发送响应，拒绝升级后恢复 HTTP/1；接受切换后通过 takeTransport 移交前缀及传输。H1 的实际读写属于调用操作的 Job，连接另登记一个负责存活与本地关闭的 scope 子任务。
 
 完整响应重载 `sendResponse(head, buffer: NativeByteBuffer, count: Long = buffer.readableBytes, writeIdle: Duration? = ioTimeouts.writeIdle): Unit` 在一次写操作中发送头部、指定的全部正文并完成消息，不交付 writer。允许正文时使用精确 Content-Length；HEAD、无内容状态和切换响应要求 count 为零，沿原编码器处理元数据与定界。整个调用借用源 buffer，成功或失败后按底层实际接受的正文前缀推进游标并结束借用；头部字节不计入正文进度。传输错误、取消和 idle 超时关闭连接且不重试已发送内容。连接以至多 64 KiB 的输出块合并头部和正文，处理短写，最后 flush；不为整条大消息建立额外的完整副本。消息关联、信息响应、关闭与协议切换规则和 writer 入口相同。
@@ -175,7 +177,7 @@ AsyncHttp1Connection.pendingResponseFirstByteAt 返回下一条尚未交付完�
 
 `AsyncHttp1Connection.isReusable` 是已知协议状态的只读快照：连接开放、没有在途读写或未结束的消息／请求关联，且没有已知 EOF、关闭要求或协议切换时为 true。新建的空闲连接也可以为 true；完成所有信息／最终响应和双向正文之前为 false。它复用本连接的编解码状态，不发送探测、不读取 socket，不保证尚未观察到的对端关闭不会使下一次操作失败。池使用这一事实判断复用资格，不能自己重建 HTTP/1 持久连接或切换规则。
 
-H2 连接所有者作为调用者提供的 CoroutineScope 的子任务登记。共享传输读写使用该所有者的 Job；请求／流等待使用请求自己的 Job。请求取消只发出对应 RST_STREAM、丢弃该流剩余 body 并释放其等待，不取消共享 TLS read／write 的 Job。连接所有者取消关闭整条连接并完成所有流收尾。每次 native 步骤不另建 Job。
+H2 连接所有者作为调用者提供的 CoroutineScope 的子任务登记。共享传输读写使用该所有者的 Job；请求／流等待使用请求自己的 Job。请求取消只发出对应 RST_STREAM、丢弃该流剩余 body 并释放其等待，不取消共享 TLS read／write 的 Job。连接所有者取消关闭整条连接并完成所有流收尾。连接驱动每轮在安排正常 I/O 和空闲计时前观察所有者的取消状态；即使子任务的取消收尾先于所有者的取消回调执行，也应进入关闭流程，不再为已取消的所有者补建普通任务。关闭收尾仍可在已取消的 Job 下完成。每次 native 步骤不另建 Job。
 
 AsyncHttp2Connection 的 client／server 所有权工厂接收相同的 HTTP/2 options、limits、settings，以及可选的普通 onEvent 回调。openRequest 返回 AsyncHttp2Stream，acceptRequest 返回请求头与流；客户端流的 receiveResponse 逐条返回信息／最终响应，服务端流用 sendResponse 发送。流实现 AsyncByteStream／AsyncCloseable，readInto 与 writeFrom 允许双向并行，同一方向只能有一个等待；finish 提交结束标记和 trailer，flush 等待该流已接受的输出进入底层传输并完成其 flush，不等待对端确认。close 放弃本流余下数据并提交 CANCEL，不关闭共享连接。
 
@@ -215,7 +217,7 @@ H2 的读计时仅在该流等待响应头或 body 时有效，按 receiveWithPr
 
 HttpIoTimeoutException 保存 direction（HttpIoDirection.Read／Write）、protocol、streamId（H1 为零）、limit 和自上次进度以来的 elapsed。同步完成的传输也在完成边界检查已到期时限，迟到字节不把超时改成成功。H1 超时关闭该连接，H2 超时以 CANCEL 结束对应流并保留共享连接；由同次关闭产生的 IoClosedException 不覆盖已选择的超时，独立 I/O 错误和 ResourceUseException 的清理原因仍保留。
 
-H1 idle 每个读写方向复用一个连接级唤醒，使用 asyncio 的一次性定时通知并归属连接 owner Job。操作结束只清除当前计时状态；尚未到期的较早唤醒可由后续操作复用，新的较早期限则替换原通知。回调在连接状态锁下核对通知身份并检查当前实际 I/O 的时钟：没有活动计时则直接退休，有进度或新操作使期限延后则按需重新登记，已替换的迟到通知不能影响新操作。不会为空闲连接反复重新登记，也不保留已结束操作及其 Job。只有活动 I/O 的实际超时或当前通知失败才启动连接关闭。回调不改变 transport 调用的原始 Job，取消与真实 I/O 退休语义保持不变。
+H1 的空闲时钟和唤醒均归属连接，按读写方向复用。首次启用计时才创建该方向的时钟，后续操作安装自己的时限；操作结束清空本次时限及最近进度，关闭计时的操作不沿用上一操作的配置。唤醒使用 asyncio 的一次性定时通知并归属连接 owner Job；尚未到期的较早唤醒可由后续操作复用，新的较早期限则替换原通知。回调在连接状态锁下核对通知身份并检查当前实际 I/O 的时钟：没有活动计时则直接退休，有进度或新操作使期限延后则按需重新登记，已替换的迟到通知不能影响新操作。不会为空闲连接反复重新登记，也不保留已结束操作及其 Job。只有活动 I/O 的实际超时或当前通知失败才启动连接关闭。回调不改变 transport 调用的原始 Job，取消与真实 I/O 退休语义保持不变。
 
 H2 计时仍采用普通 CoroutineScope 子任务、EventLoop.sleep 与单调时钟；有进度时调整下一次剩余等待，不为每个 native 步骤创建任务。流结束后取消计时，close 等待这些子任务及其定时 I/O 的真实收尾；已取消 Job 的清理仍可完成。H1 在连接关闭或协议移交时清除并撤销两个方向的通知，不再等待无 buffer 借用的定时器；native timer 由 EventLoop 继续保活并退休，迟到回调不能再影响连接或移交后的 transport。两者均复用 EventLoop 的调度与退休机制，client 只传入配置并映射错误。
 

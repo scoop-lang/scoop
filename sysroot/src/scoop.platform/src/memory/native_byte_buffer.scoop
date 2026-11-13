@@ -3,6 +3,24 @@ package scoop.platform.memory
 import scoop.bytes.ByteOrder
 import scoop.platform.system.*
 
+private fun copyPinnedByteRange(
+    destination: Ptr<Byte>,
+    source: Array<Byte>,
+    offset: Long,
+    count: Long
+) {
+    @Unsafe
+    {
+        source.withDataPointer {
+            pointer,
+            _ -> @Unsafe
+            {
+                nativeMemoryMove(destination, pointer + offset, count)
+            }
+        }
+    }
+}
+
 /**
  * Owned growable native byte storage with separate read and write positions. Outstanding native
  * borrows restrict mutation and closure; explicitly close the buffer after use.
@@ -77,13 +95,21 @@ public class NativeByteBuffer private constructor(): Closeable {
         }
     }
 
-    private fun <T> withState(block: () -> T): T {
+    private fun acquireState() {
         while (!stateLock.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
+    }
+
+    private fun releaseState() {
+        stateLock.store(false, MemoryOrder.Release)
+    }
+
+    private fun <T> withState(block: () -> T): T {
+        acquireState()
         try {
             return block()
         }
         finally {
-            stateLock.store(false, MemoryOrder.Release)
+            releaseState()
         }
     }
 
@@ -310,42 +336,23 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     public fun writeBytes(array: List<Byte>, offset: Long = 0L, count: Long = array.size - offset) {
         requireArrayRange(array.size, offset, count)
-        @Unsafe
-        {
-            withWritableBytes {
-                destination, available ->
-                if (count > available)
-                    throw IndexOutOfBoundsException()
-                if (count > 0L) {
-                    if (array is Array<Byte>) {
-                        val source = array as Array<Byte>
-                        @Unsafe
-                        {
-                            source.withDataPointer {
-                                pointer,
-                                _ -> @Unsafe
-                                {
-                                    nativeMemoryMove(destination!!, pointer + offset, count)
-                                }
-                            }
-                        }
-                    } else {
-                        val snapshot = Array<Byte>(count) { index -> array[offset + index] }
-                        @Unsafe
-                        {
-                            snapshot.withDataPointer {
-                                pointer,
-                                _ -> @Unsafe
-                                {
-                                    nativeMemoryMove(destination!!, pointer, count)
-                                }
-                            }
-                        }
-                    }
+        val(destination, available) = beginScopedBorrow(true)
+        try {
+            if (count > available)
+                throw IndexOutOfBoundsException()
+            if (count > 0L) {
+                if (array is Array<Byte>) {
+                    copyPinnedByteRange(destination!!, array as Array<Byte>, offset, count)
+                } else {
+                    val snapshot = Array<Byte>(count) { index -> array[offset + index] }
+                    copyPinnedByteRange(destination!!, snapshot, 0L, count)
                 }
-                count
             }
+        } catch (error: Throwable) {
+            finishBorrow(0L, available, true)
+            throw error
         }
+        finishBorrow(count, available, true)
     }
 
     private fun read(width: Long, order: ByteOrder): ULong {
@@ -509,12 +516,12 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     @Unsafe
     public fun <R> withReadableBytes(block: (Ptr<Byte>?, Long) -> R): R {
-        val borrow = beginBorrow(None, false)
+        val(pointer, length) = beginScopedBorrow(false)
         try {
-            return block(borrow.pointer(), borrow.length)
+            return block(pointer, length)
         }
         finally {
-            borrow.complete(0L)
+            finishBorrow(0L, length, false)
         }
     }
 
@@ -524,16 +531,16 @@ public class NativeByteBuffer private constructor(): Closeable {
      */
     @Unsafe
     public fun withWritableBytes(block: (Ptr<Byte>?, Long) -> Long): Long {
-        val borrow = beginBorrow(None, true)
+        val(pointer, length) = beginScopedBorrow(true)
         val count =
             try {
-                block(borrow.pointer(), borrow.length)
+                block(pointer, length)
             }
             catch (error: Throwable) {
-                borrow.complete(0L);
+                finishBorrow(0L, length, true);
                 throw error
             }
-        borrow.complete(count)
+        finishBorrow(count, length, true)
         return count
     }
 
@@ -551,38 +558,62 @@ public class NativeByteBuffer private constructor(): Closeable {
     @Unsafe
     public fun borrowWritable(count: Long): NativeByteBorrow = beginBorrow(Some(count), true)
 
-    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow =
-        withState {
-            requireMutable()
-            val available =
-                if (writable)
-                    storageCapacity - writer
+    // The caller holds stateLock; both borrow forms validate the same range.
+    private fun borrowRange(count: Long?, writable: Boolean): (Ptr<Byte>?, Long) {
+        requireMutable()
+        val available =
+            if (writable)
+                storageCapacity - writer
+            else
+                writer - reader
+        val length = count ?: available
+        requireCount(length)
+        if (length > available)
+            throw IndexOutOfBoundsException()
+        val offset =
+            if (writable)
+                writer
+            else
+                reader
+        @Unsafe
+        {
+            val pointer: Ptr<Byte>? =
+                if (length == 0L)
+                    None
                 else
-                    writer - reader
-            val length = count ?: available
-            requireCount(length)
-            if (length > available)
-                throw IndexOutOfBoundsException()
-            val offset =
-                if (writable)
-                    writer
-                else
-                    reader
-            @Unsafe
-            {
-                val pointer: Ptr<Byte>? =
-                    if (length == 0L)
-                        None
-                    else
-                        Some(memory!! + offset)
-                val borrow = NativeByteBorrow(this, pointer, length, writable)
-                borrowed = true
-                return@withState borrow
-            }
+                    Some(memory!! + offset)
+            return (pointer, length)
         }
+    }
+
+    private fun beginScopedBorrow(writable: Boolean): (Ptr<Byte>?, Long) {
+        acquireState()
+        try {
+            val range = borrowRange(None, writable)
+            borrowed = true
+            return range
+        }
+        finally {
+            releaseState()
+        }
+    }
+
+    private fun beginBorrow(count: Long?, writable: Boolean): NativeByteBorrow {
+        acquireState()
+        try {
+            val(pointer, length) = borrowRange(count, writable)
+            val borrow = NativeByteBorrow(this, pointer, length, writable)
+            borrowed = true
+            return borrow
+        }
+        finally {
+            releaseState()
+        }
+    }
 
     internal fun finishBorrow(count: Long, length: Long, writable: Boolean) {
-        withState {
+        acquireState()
+        try {
             borrowed = false
             if (count < 0L || count > length)
                 throw IllegalArgumentException(Some("invalid borrowed byte count"))
@@ -590,6 +621,9 @@ public class NativeByteBuffer private constructor(): Closeable {
                 writer += count
             else
                 reader += count
+        }
+        finally {
+            releaseState()
         }
     }
 

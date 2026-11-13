@@ -45,6 +45,30 @@ private class ServerRoutingTests {
     }
 
     @Test
+    fun `decoded segments survive collection and a later invalid segment rejects the request`() {
+        val app =
+            routing {
+                get(
+                    "/{first}/{second}/{third}",
+                    suspend {
+                        ctx ->
+                        gcCollect()
+                        text(
+                            ctx.pathParams.text("first") +
+                                "|" +
+                                ctx.pathParams.text("second") +
+                                "|" +
+                                ctx.pathParams.text("third")
+                        )
+                    }
+                )
+            }
+        assertEquals("a/b|%2F|c d", exercise(app, "/a%2Fb/%252F/c%20d").text())
+        assertEquals(400U, exercise(app, "/a%2Fb/%252F/%xy").status)
+        assertEquals("one|two|three", exercise(app, "/one/two/three").text())
+    }
+
+    @Test
     fun `same shaped methods retain their own parameter names and builders freeze`() {
         val builders = ArrayList<RouterBuilder>()
         val app =
@@ -66,6 +90,57 @@ private class ServerRoutingTests {
         expectArgument { routing { get("/{*rest}/end", suspend { _ -> empty() }) } }
         expectArgument { routing { get("/{id}/{id}", suspend { _ -> empty() }) } }
         expectArgument { routing { route("bad method", "/", suspend { _ -> empty() }) } }
+    }
+
+    @Test
+    fun `a more specific fallback group does not intercept a selected endpoint`() {
+        val order = StringBuilder()
+        val routes =
+            routing {
+                use(
+                    suspend {
+                        _, next ->
+                        order.append("G")
+                        next()
+                        order.append("g")
+                    }
+                )
+                get(
+                    "/api/{id}/ready",
+                    suspend {
+                        ctx ->
+                        order.append("H")
+                        text(ctx.pathParams.text("id"))
+                    }
+                )
+                group("/api/fixed") {
+                    use(
+                        suspend {
+                            _, next ->
+                            order.append("S")
+                            next()
+                            order.append("s")
+                        }
+                    )
+                    fallback(
+                        suspend {
+                            _ ->
+                            order.append("F")
+                            text("group", 404U)
+                        }
+                    )
+                }
+            }
+        assertEquals("fixed", exercise(routes, "/api/fixed/ready").text())
+        assertEquals("GHg", order.toString())
+        val rejected = exercise(routes, "/api/fixed/ready", "POST")
+        assertEquals(405U, rejected.status)
+        assertEquals("GET, HEAD, OPTIONS", rejected.output.header("Allow"))
+        assertEquals("GHgGSsg", order.toString())
+        val missing = exercise(routes, "/api/fixed/absent")
+        assertEquals(404U, missing.status)
+        assertEquals("group", missing.text())
+        assertEquals("GHgGSsgGSFsg", order.toString())
     }
 
     @Test

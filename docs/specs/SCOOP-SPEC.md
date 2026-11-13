@@ -2350,7 +2350,7 @@ nonCancellableScope 用于取消后的必要异步清理。它建立只由当前
 
 正文退出后关闭直接子任务登记，已关闭 CoroutineScope 的 launch／async 抛 IllegalStateException。Job 仅在正文及所有已登记子任务完成后发布最终结果；完成前取消不等于已完成。父子及等待者引用在不再需要时解除。join 可多次、多等待者调用，只等待目标结束；await 同样可重复，返回保存的类型化结果或抛该任务的最终异常。coroutineScope 内部等待不被调用方的取消提前中断，必须等子树完成收尾。
 
-coroutineScope 与 nonCancellableScope 是当前 execution 内的词法作用域：建立独立 Job、安装其 binding，并以当前活动执行登记作为作用域正文的父执行归属，不额外登记或启动低层任务。正文结束先关闭 scope，再结束 Job；只在子树仍未结束时登记内部等待，已完成的 Job 可直接取得最终结果。正常正文结束与无活动 child／取消通知时的完成选择在同一临界区提交。Job 状态及其取消／完成监听共享同步边界，选择通知或撤销时同时移除登记并释放 callback 引用，实际通知仍在锁外；不能把完成通知抛出的异常重新当作正文失败再结束 Job。launch／async 和 withExecutor 继续建立独立 execution，保留强制投递与执行登记合同。
+coroutineScope 与 nonCancellableScope 是当前 execution 内的词法作用域：建立独立 Job、安装其 binding，并以当前活动执行登记作为作用域正文的父执行归属，不额外登记或启动低层任务。正文结束先关闭 scope，再结束 Job；只在子树仍未结束时登记内部等待，已完成的 Job 可直接取得最终结果。正常正文结束与无活动 child／取消通知时的完成选择在同一临界区提交。Job 状态变更及其取消／完成监听共享同步边界，选择通知或撤销时同时移除登记并释放 callback 引用，实际通知仍在锁外；不能把完成通知抛出的异常重新当作正文失败再结束 Job。只读状态查询可以使用 acquire 读取的单向发布状态：取消异常先初始化，再 release 发布取消标志；最终结果、父关联解除和监听摘取完成后，才 release 发布完成标志。ensureActive 观察到取消后读取同一个已发布异常，完成后的查询不改变取消状态。launch／async 和 withExecutor 继续建立独立 execution，保留强制投递与执行登记合同。
 
 launch／async 正文或其子任务的非取消失败立即向父任务传播，并向其他活动后代请求取消；传播到 coroutineScope 的作用域 Job 时止于该作用域。coroutineScope 先取消并等待自己的子树收尾，再从原挂起调用处抛出原失败，不能在调用方有机会 catch 之前取消调用方 Job 或其其他子任务。调用方未捕获时，异常按其自身任务的失败继续传播。core 以内部 propagatesFailure=false 表达该调用边界，不开放无归属 Job。
 
@@ -2420,7 +2420,7 @@ dispatchResume 与 dispatch 共用同一活动登记、恰好一次执行及 Dra
 
 所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。仅转交相同类型结果、没有后续处理或清理的尾挂起链可以共用调用方的握手，不要求每一层建立 frame／adapter；低层任务入口也必须提供这一边界，不能把用户 completion 直接交给 registration。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；从其他 execution 或无 execution 的上下文提交的结果按外部恢复调度，不能因经过尾转交而变成内部完成。公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
 
-execution 的驱动权、action 槽与调度义务通过同一原子状态交接；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。当前驱动读取自身登记由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
+execution 的外部恢复通过同一原子状态交接驱动权、action 槽与调度义务；发布者先取得槽位写权，再以 release 发布，驱动者以 acquire 领取后才可访问。旧驱动在 action 尚未写完时可以把后续调度义务交给发布者并退出，不等待发布线程；任一方都不得遗漏或重复投递。同一 execution 的内部完成复用当前驱动的独占执行权：确认仍处于 Running 后写入 action 并以 release 发布内部 ready，不经过跨驱动槽位竞争，仍须等当前 frame／Context／catch 访问退出后才消费。当前驱动读取自身登记也由其独占执行权保护；最终退出才清空登记。异常退出与在途发布竞争时，只由仍拥有 action 槽的一方清空该槽，保留单次登记释放与正常 managed 根。
 
 withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
 

@@ -8,86 +8,90 @@ import scoop.time.Duration
 
 internal suspend fun nextH1Event(state: H1State): Http1Event? {
     while (true) {
-        val ready = state.lock.withLock { state.events.removeFirstOrNone() }
-        if (present(ready))
-            return ready
-        val ended =
+        val(ready, ended) =
             state.lock.withLock {
+                val event = state.events.removeFirstOrNone()
+                if (present(event))
+                    return@withLock (event, false)
                 h1Open(state)
                 if (state.decoder.isSwitched)
                     throw IllegalStateException(Some("HTTP/1 transport has switched protocols"))
-                state.inputEnded
+                (event, state.inputEnded)
             }
+        if (present(ready))
+            return ready
         if (ended)
             return None
-        if (state.input.readableBytes == 0L) {
-            state.input.clear()
-            val requested = state.input.writableBytes
-            beginH1Io(state, true)
-            val count = state.transport.readInto(state.input, requested)
-            httpProgress(count, requested)
-            progressH1Io(state, true, count > 0L)
+        val received: Long? =
+            if (state.input.readableBytes == 0L) {
+                state.input.clear()
+                val requested = state.input.writableBytes
+                beginH1Io(state, true)
+                val count = state.transport.readInto(state.input, requested)
+                httpProgress(count, requested)
+                progressH1Io(state, true, count > 0L)
+                Some(count)
+            } else
+                None
+        val next =
             state.lock.withLock {
                 h1Open(state)
-                if (count > 0L && state.captureTimings)
-                    state.inputReceivedAt = Some(MonotonicTimeSource.markNow())
-                if (count == 0L) {
-                    state.inputEnded = true;
-                    state.decoder.endInput()
+                if (present(received)) {
+                    if (received!! > 0L && state.captureTimings)
+                        state.inputReceivedAt = Some(MonotonicTimeSource.markNow())
+                    if (received!! == 0L) {
+                        state.inputEnded = true;
+                        state.decoder.endInput()
+                    }
                 }
-                Unit
+                if (state.input.readableBytes != 0L) {
+                    if (state.captureTimings) {
+                        val received = state.decoder.receiveWithProgress(state.input)
+                        for (_ in 0L ..< received.startedMessages)
+                            state.responseStarts!!.addLast(state.inputReceivedAt!!)
+                    } else
+                        state.decoder.receive(state.input)
+                }
+                while (true) {
+                    val event = state.decoder.nextEvent()
+                    if (!present(event))
+                        break
+                    state.events.addLast(event!!)
+                }
+                state.events.removeFirstOrNone()
             }
-        }
-        state.lock.withLock {
-            h1Open(state)
-            if (state.input.readableBytes != 0L) {
-                if (state.captureTimings) {
-                    val received = state.decoder.receiveWithProgress(state.input)
-                    for (_ in 0L ..< received.startedMessages)
-                        state.responseStarts!!.addLast(state.inputReceivedAt!!)
-                } else
-                    state.decoder.receive(state.input)
-            }
-            while (true) {
-                val event = state.decoder.nextEvent()
-                if (!present(event))
-                    break
-                state.events.addLast(event!!)
-            }
-        }
+        if (present(next))
+            return next
     }
 }
 
 internal fun advanceH1End(state: H1State, body: H1Input) {
-    while (true) {
-        val(changed, ended) =
-            state.lock.withLock {
-                if (present(body.bytes) || state.events.size == 0L)
-                    return@withLock (false, false)
-                when (state.events.firstOrNone()!!) {
-                    case Trailers(val fields) -> {
-                        state.events.removeFirst();
-                        body.trailers = Some(fields);
-                        (true, false)
-                    }
-                    case End(val keepAlive) -> {
-                        state.events.removeFirst()
-                        body.keepAlive = keepAlive
-                        body.life.completed = true
-                        resumeH1AfterRejection(state, body)
-                        state.incoming = None;
-                        (true, true)
-                    }
-                    else -> (false, false)
-                }
+    val listener = state.lock.withLock { advanceH1EndLocked(state, body) }
+    if (present(listener))
+        listener!!.dispose()
+}
+
+private fun advanceH1EndLocked(state: H1State, body: H1Input): Disposable? {
+    if (present(body.bytes))
+        return None
+    while (state.events.size != 0L) {
+        when (state.events.firstOrNone()!!) {
+            case Trailers(val fields) -> {
+                state.events.removeFirst()
+                body.trailers = Some(fields)
             }
-        if (ended) {
-            completeH1Body(state, body.life);
-            return
+            case End(val keepAlive) -> {
+                state.events.removeFirst()
+                body.keepAlive = keepAlive
+                body.life.completed = true
+                resumeH1AfterRejection(state, body)
+                state.incoming = None
+                return completeH1BodyLocked(body.life)
+            }
+            else -> return None
         }
-        if (!changed)
-            return
     }
+    return None
 }
 
 internal fun resumeH1AfterRejection(state: H1State, body: H1Input) {
@@ -125,8 +129,13 @@ private fun incomingH1(
     finalResponse: Boolean = false
 ): H1Input {
     val body = H1Input(finalResponse, readIdle)
-    state.lock.withLock { state.incoming = Some(body) }
-    advanceH1End(state, body)
+    val listener =
+        state.lock.withLock {
+            state.incoming = Some(body)
+            advanceH1EndLocked(state, body)
+        }
+    if (present(listener))
+        listener!!.dispose()
     if (!body.life.completed)
         listenH1Body(state, body.life, httpJob(state.loop, true))
     return body
@@ -198,19 +207,18 @@ internal suspend fun receiveH1Response(state: H1State, readIdle: Duration?): Htt
 }
 
 internal suspend fun closeAfterH1Input(state: H1State, body: H1Input) {
-    val close =
-        state.lock.withLock {
-            if (state.closed || !body.life.completed || state.decoder.isSwitched)
-                false
-            else
-                if (state.decoder.role == HttpRole.Client) {
-                    if (body.finalResponse && (!body.keepAlive || state.encoder.mustClose))
-                        state.closeAfterOutput = true
-                    state.closeAfterOutput && !present(state.outgoing)
-                }
-                else
-                    body.responseFinished && !body.keepAlive
-        }
+    val close = state.lock.withLock { closeAfterH1InputLocked(state, body) }
     if (close)
         closeH1(state)
+}
+
+internal fun closeAfterH1InputLocked(state: H1State, body: H1Input): Boolean {
+    if (state.closed || !body.life.completed || state.decoder.isSwitched)
+        return false
+    if (state.decoder.role == HttpRole.Client) {
+        if (body.finalResponse && (!body.keepAlive || state.encoder.mustClose))
+            state.closeAfterOutput = true
+        return state.closeAfterOutput && !present(state.outgoing)
+    }
+    return body.responseFinished && !body.keepAlive
 }

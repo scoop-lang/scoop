@@ -18,43 +18,50 @@ internal class RequestDeadline(initial: Duration?, private val operation: String
     val selectedFailure: Throwable? get() = lock.withLock { failure }
 
     fun start(job: Job) {
-        lock.withLock { owner = Some(job) }
-        set(duration)
+        requireServerDuration(duration)
+        val previous =
+            lock.withLock {
+                owner = Some(job)
+                replace(duration)
+            }
+        previous?.dispose()
     }
 
     fun set(value: Duration?) {
         requireServerDuration(value)
-        val previous =
-            lock.withLock {
-                if (stopped || present(failure))
-                    throw IllegalStateException(Some("request deadline is no longer active"))
-                val job = owner!!
-                val next =
-                    if (present(value))
-                        Some(RequestAlarm(value!!))
-                    else
-                        None
-                val registration =
-                    when (next) {
-                        case Some(val target) -> context(job) {
-                            context(loop) {
-                                Some(
-                                    loop.schedule(
-                                        remainingServerTime(value, started)!!,
-                                        { error -> expire(target, error) }
-                                    )
-                                )
-                            }
-                        }
-                        case None -> None
-                    }
-                val saved = timer
-                duration = value
-                alarm = next
-                timer = registration
-                saved
-            }
+        val previous = lock.withLock { replace(value) }
         previous?.dispose()
+    }
+
+    // Called with lock held; timer disposal remains outside the state transition.
+    private fun replace(value: Duration?): Disposable? {
+        if (stopped || present(failure))
+            throw IllegalStateException(Some("request deadline is no longer active"))
+        val job = owner!!
+        val next =
+            if (present(value))
+                Some(RequestAlarm(value!!))
+            else
+                None
+        val registration =
+            when (next) {
+                case Some(val target) -> context(job) {
+                    context(loop) {
+                        Some(
+                            loop.schedule(
+                                remainingServerTime(value, started)!!,
+                                { error -> expire(target, error) }
+                            )
+                        )
+                    }
+                }
+                case None -> None
+            }
+        val saved = timer
+        duration = value
+        alarm = next
+        timer = registration
+        return saved
     }
 
     private fun expire(target: RequestAlarm, error: Throwable?) {

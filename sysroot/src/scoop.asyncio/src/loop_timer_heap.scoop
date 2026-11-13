@@ -4,8 +4,18 @@ import scoop.time.Duration
 import scoop.time.TimeMark
 
 internal struct LoopDeadline(val started: TimeMark, val duration: Duration) {
-    // Both durations are nonnegative. Their difference fits even for Long.MAX_VALUE seconds.
-    fun before(other: LoopDeadline): Boolean = started - other.started < other.duration - duration
+    fun before(other: LoopDeadline): Boolean {
+        val startOrder = started.compareTo(other.started)
+        val waitOrder = duration.compareTo(other.duration)
+        if (startOrder <= 0 && waitOrder <= 0)
+            return startOrder < 0 || waitOrder < 0
+        if (startOrder >= 0 && waitOrder >= 0)
+            return false
+        // Both durations are nonnegative. Their difference fits even for Long.MAX_VALUE seconds.
+        return started.reading - other.started.reading < other.duration - duration
+    }
+
+    fun expired(now: TimeMark): Boolean = now - started >= duration
 
     fun remaining(now: TimeMark): Duration = duration - (now - started)
 }

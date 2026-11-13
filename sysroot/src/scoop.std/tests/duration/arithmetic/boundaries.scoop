@@ -1,0 +1,42 @@
+package scoop.std.tests.duration.arithmetic
+
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class DurationArithmeticBoundaryTests {
+    @Test
+    fun `fractional carry restores an intermediate sum below the minimum`() {
+        val minimum = Duration.seconds(Long.MIN_VALUE, 1L)
+        val negativeNanosecond = Duration.nanoseconds(-1L)
+        assertEquals(Duration.seconds(Long.MIN_VALUE), minimum + negativeNanosecond)
+        assertEquals(Duration.seconds(Long.MIN_VALUE), negativeNanosecond + minimum)
+        assertEquals(Duration.ZERO, Duration.nanoseconds(-1L) + Duration.nanoseconds(1L))
+    }
+
+    @Test
+    fun `fractional borrow restores an intermediate difference above the maximum`() {
+        val minimum = Duration.seconds(Long.MIN_VALUE, 1L)
+        assertEquals(Duration.seconds(Long.MAX_VALUE, 999999999L), Duration.ZERO - minimum)
+        assertEquals(
+            Duration.seconds(Long.MAX_VALUE, 999999999L),
+            Duration.seconds(Long.MAX_VALUE) - Duration.nanoseconds(-999999999L)
+        )
+        assertEquals(Duration.nanoseconds(-1L), Duration.seconds(1L) - Duration.seconds(1L, 1L))
+    }
+
+    @Test
+    fun `unrepresentable final sums and differences still throw`() {
+        val minimum = Duration.seconds(Long.MIN_VALUE)
+        val maximum = Duration.seconds(Long.MAX_VALUE, 999999999L)
+        val nanosecond = Duration.nanoseconds(1L)
+        assertFailsWith<ArithmeticException> { minimum + -nanosecond }
+        assertFailsWith<ArithmeticException> { maximum + nanosecond }
+        assertFailsWith<ArithmeticException> { minimum - nanosecond }
+        assertFailsWith<ArithmeticException> { maximum - -nanosecond }
+        assertFailsWith<ArithmeticException> { minimum + minimum }
+        assertFailsWith<ArithmeticException> { maximum + maximum }
+        assertFailsWith<ArithmeticException> { minimum - maximum }
+        assertFailsWith<ArithmeticException> { maximum - minimum }
+    }
+}

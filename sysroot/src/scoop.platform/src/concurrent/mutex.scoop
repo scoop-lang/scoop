@@ -24,15 +24,23 @@ public class Mutex: Disposable {
         }
     }
 
-    internal fun <R> withNative(block: (Ptr<Unit>) -> R): R {
-        if (native == None)
-            throw IllegalStateException(Some("mutex is disposed"))
+    private fun acquireNative(): Ptr<Unit> {
+        val pointer = native ?: throw IllegalStateException(Some("mutex is disposed"))
         active.fetchAdd(1L, MemoryOrder.Relaxed)
+        return pointer
+    }
+
+    private fun releaseNative() {
+        active.fetchSub(1L, MemoryOrder.Relaxed)
+    }
+
+    internal fun <R> withNative(block: (Ptr<Unit>) -> R): R {
+        val pointer = acquireNative()
         try {
-            return block(native!!)
+            return block(pointer)
         }
         finally {
-            active.fetchSub(1L, MemoryOrder.Relaxed)
+            releaseNative()
         }
     }
 
@@ -40,35 +48,48 @@ public class Mutex: Disposable {
      * Blocks until this thread acquires the mutex.
      */
     public fun lock() {
-        withNative {
-            pointer -> @Unsafe
+        val pointer = acquireNative()
+        try {
+            @Unsafe
             {
                 if (nativeMutexTryLock(pointer).check("mutex lock") != 0)
                     nativeMutexLock(pointer, false).check("mutex lock")
             }
+        }
+        finally {
+            releaseNative()
         }
     }
 
     /**
      * Attempts acquisition without blocking and returns whether this thread acquired the mutex.
      */
-    public fun tryLock(): Boolean =
-        withNative {
-            pointer -> @Unsafe
+    public fun tryLock(): Boolean {
+        val pointer = acquireNative()
+        try {
+            @Unsafe
             {
-                return@withNative nativeMutexTryLock(pointer).check("mutex try lock") == 0
+                return nativeMutexTryLock(pointer).check("mutex try lock") == 0
             }
         }
+        finally {
+            releaseNative()
+        }
+    }
 
     /**
      * Releases the mutex held by this thread.
      */
     public fun unlock() {
-        withNative {
-            pointer -> @Unsafe
+        val pointer = acquireNative()
+        try {
+            @Unsafe
             {
                 nativeMutexUnlock(pointer).check("mutex unlock")
             }
+        }
+        finally {
+            releaseNative()
         }
     }
 

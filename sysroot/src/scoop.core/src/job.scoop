@@ -3,6 +3,10 @@
  */
 public class CancellationException public constructor(): Exception(Some("task was cancelled"))
 
+private const val JOB_CANCELLED: Int = 1
+
+private const val JOB_COMPLETED: Int = 2
+
 /**
  * Tracks a coroutine and its structured children. Completion waits for children; cancellation
  * requests propagate to children and registered handlers.
@@ -13,33 +17,34 @@ public open class Job internal constructor(
 ) {
     private val lock: CoroutineLock = CoroutineLock()
     private var parent: Job? = parent
-    private val children: ArrayList<Job> = ArrayList<Job>()
+    private var children: ArrayList<Job>? = None
     private val completionListeners: CoroutineListeners = CoroutineListeners(lock)
     private val cancellationListeners: CoroutineListeners = CoroutineListeners(lock)
     private var bodyEnded: Boolean = false
-    private var completed: Boolean = false
+    private val status: AtomicInt = AtomicInt(0)
     private var cancelling: Int = 0
     private var cancellation: CancellationException? = None
     private var failure: Throwable? = None
 
+    private val completed: Boolean get() = (status.load(MemoryOrder.Relaxed) and JOB_COMPLETED) != 0
+
     /**
      * Whether the job and its children have reached a terminal state.
      */
-    public val isCompleted: Boolean get() = lock.withLock { completed }
+    public val isCompleted: Boolean get() =
+        (status.load(MemoryOrder.Acquire) and JOB_COMPLETED) != 0
     /**
      * Whether cancellation has been requested for this job.
      */
-    public val isCancelled: Boolean get() = lock.withLock { !coroutineAbsent(cancellation) }
+    public val isCancelled: Boolean get() =
+        (status.load(MemoryOrder.Acquire) and JOB_CANCELLED) != 0
 
     /**
      * Throws the job's cancellation exception when cancellation has been requested.
      */
     public fun ensureActive() {
-        val reason = lock.withLock { cancellation }
-        when (reason) {
-            case Some(val error) -> throw error
-            case None -> {}
-        }
+        if ((status.load(MemoryOrder.Acquire) and JOB_CANCELLED) != 0)
+            throw cancellation!!
     }
 
     /**
@@ -55,32 +60,7 @@ public open class Job internal constructor(
      * job invokes it immediately.
      */
     public fun invokeOnCancellation(handler: (CancellationException) -> Unit): Disposable {
-        val(listener, callNow, tracked) =
-            lock.withLock {
-                if (!coroutineAbsent(cancellation)) {
-                    if (!completed)
-                        cancelling += 1
-                    return@withLock (
-                        CoroutineRegistration(
-                            cancellationListeners,
-                            { handler(cancellationReason()) }
-                        ),
-                        true,
-                        !completed
-                    )
-                }
-                if (completed) {
-                    val entry =
-                        CoroutineRegistration(
-                            cancellationListeners,
-                            { handler(cancellationReason()) }
-                        )
-                    entry.takeActionLocked()
-                    return@withLock (entry, false, false)
-                }
-                val entry = cancellationListeners.addLocked { handler(cancellationReason()) }
-                (entry, false, false)
-            }
+        val(listener, callNow, tracked) = lock.withLock { registerCancellationLocked(handler) }
         if (callNow) {
             try {
                 listener.fire()
@@ -99,6 +79,30 @@ public open class Job internal constructor(
         return listener
     }
 
+    private fun registerCancellationLocked(handler: (CancellationException) -> Unit): (
+        CoroutineRegistration,
+        Boolean,
+        Boolean
+    ) {
+        if (!coroutineAbsent(cancellation)) {
+            if (!completed)
+                cancelling += 1
+            return (
+                CoroutineRegistration(cancellationListeners, { handler(cancellationReason()) }),
+                true,
+                !completed
+            )
+        }
+        if (completed) {
+            val entry =
+                CoroutineRegistration(cancellationListeners, { handler(cancellationReason()) })
+            entry.takeActionLocked()
+            return (entry, false, false)
+        }
+        val entry = cancellationListeners.addLocked { handler(cancellationReason()) }
+        return (entry, false, false)
+    }
+
     private fun cancellationReason(): CancellationException = lock.withLock { cancellation!! }
 
     internal fun attach(child: Job) {
@@ -106,7 +110,9 @@ public open class Job internal constructor(
             lock.withLock {
                 if (bodyEnded)
                     throw IllegalStateException(Some("coroutine scope is closed"))
-                children.add(child)
+                if (coroutineAbsent(children))
+                    children = Some(ArrayList<Job>())
+                children!!.add(child)
                 !coroutineAbsent(cancellation)
             }
         if (cancelChild)
@@ -116,13 +122,18 @@ public open class Job internal constructor(
     private fun removeChild(child: Job) {
         val done =
             lock.withLock {
-                var index = 0L
-                while (index < children.size) {
-                    if (children[index] === child) {
-                        children.removeAt(index)
-                        break
+                when (children) {
+                    case None -> {}
+                    case Some(val values) -> {
+                        var index = 0L
+                        while (index < values.size) {
+                            if (values[index] === child) {
+                                values.removeAt(index)
+                                break
+                            }
+                            index += 1L
+                        }
                     }
-                    index += 1L
                 }
                 completeLocked()
             }
@@ -169,14 +180,19 @@ public open class Job internal constructor(
                     }
                     case None -> {}
                 }
-                if (coroutineAbsent(cancellation))
+                if (coroutineAbsent(cancellation)) {
                     cancellation = Some(CancellationException())
+                    status.store(JOB_CANCELLED, MemoryOrder.Release)
+                }
                 cancelling += 1
                 Some(
                     CoroutineCancellation(
                         parent,
                         propagate,
-                        children.toArray(),
+                        when (children) {
+                            case Some(val values) -> values.toArray()
+                            case None -> []
+                        },
                         cancellationListeners.takeLocked()
                     )
                 )
@@ -219,13 +235,16 @@ public open class Job internal constructor(
     }
 
     private fun completeLocked(): CoroutineCompletion? {
-        if (completed || !bodyEnded || children.size != 0L || cancelling != 0)
+        if (completed || !bodyEnded || cancelling != 0)
             return None
-        completed = true
+        if (!coroutineAbsent(children) && children!!.size != 0L)
+            return None
         val owner = parent
         parent = None
         cancellationListeners.clearLocked()
-        return Some(CoroutineCompletion(owner, completionListeners.takeLocked()))
+        val done = Some(CoroutineCompletion(owner, completionListeners.takeLocked()))
+        status.store(status.load(MemoryOrder.Relaxed) or JOB_COMPLETED, MemoryOrder.Release)
+        return done
     }
 
     private fun publishCompletion(batch: CoroutineCompletion?) {

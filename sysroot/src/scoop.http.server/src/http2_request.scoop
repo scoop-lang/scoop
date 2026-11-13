@@ -10,7 +10,11 @@ internal suspend fun executeHttp2Request(
     incoming: Http2IncomingRequest,
     requestId: String
 ) {
-    val started = MonotonicTimeSource.markNow()
+    val started =
+        if (present(state.options.request.onCompleted))
+            Some(MonotonicTimeSource.markNow())
+        else
+            None
     val result = RequestExecution()
     try {
         val output = Http2ResponseOutput(incoming.stream, incoming.head.method)
@@ -44,7 +48,9 @@ internal suspend fun executeHttp2Request(
         result.failure = Some(error)
     }
     finally {
-        closeRequestViews(result)
+        val views = takeRequestViews(result)
+        if (present(views))
+            closeRequestViews(result, views!!)
         try {
             if (!incoming.stream.isReadComplete || !incoming.stream.isWriteComplete)
                 incoming.stream.close()
@@ -57,14 +63,21 @@ internal suspend fun executeHttp2Request(
                         cleanup
                 )
         }
-        val cancelledByStream =
-            present(result.context) &&
-                result.context!!.requestJob.isCancelled &&
-                present(result.failure) &&
-                present(incoming.stream.failure) &&
-                result.failure!! ===
-                incoming.stream.failure!!
-        completeRequest(state.options.request.onCompleted, result, started, cancelledByStream)
+        if (present(started)) {
+            val cancelledByStream =
+                present(result.context) &&
+                    result.context!!.requestJob.isCancelled &&
+                    present(result.failure) &&
+                    present(incoming.stream.failure) &&
+                    result.failure!! ===
+                    incoming.stream.failure!!
+            completeRequest(
+                state.options.request.onCompleted!!,
+                result,
+                started!!,
+                cancelledByStream
+            )
+        }
         activity.finished(incoming.stream.id)
     }
 }

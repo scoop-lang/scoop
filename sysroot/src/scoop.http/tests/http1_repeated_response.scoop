@@ -94,4 +94,83 @@ private class Http1RepeatedResponseTests {
             assertEquals("HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n", String.fromUtf8(first))
         }
     }
+
+    @Test
+    fun `method snapshots survive collection and failed reads leave the encoder reusable`() {
+        val head =
+            HttpResponseHead(
+                HttpVersion.Http11,
+                200U,
+                fields = [HttpField("Content-Length".toByteArray(), "3".toByteArray())]
+            )
+        val method = ObservedResponseMethod("GET".toByteArray())
+        val expected = "HTTP/1.1 200 \r\nContent-Length: 3\r\n\r\n"
+        Http1Encoder(HttpRole.Server).use {
+            encoder ->
+            for (_ in 0 ..< 2) {
+                method.reset("GET".toByteArray())
+                val bytes = encoder.beginResponse(head, method, Http1BodyFraming.Length(3L))
+                assertEquals(1L, method.sizeReads)
+                assertEquals(3L, method.reads)
+                method.bytes = "HEAD".toByteArray()
+                gcCollect()
+                encoder.prepareBody(3L)
+                encoder.finish()
+                assertEquals(expected, String.fromUtf8(bytes))
+            }
+            val immutable = "GET".toByteArray()
+            for (_ in 0 ..< 2) {
+                gcCollect()
+                val bytes = encoder.beginResponse(head, immutable, Http1BodyFraming.Length(3L))
+                gcCollect()
+                encoder.prepareBody(3L)
+                encoder.finish()
+                assertEquals(expected, String.fromUtf8(bytes))
+            }
+            method.reset("GET".toByteArray())
+            method.failAt = 1L
+            assertFailsWith<IllegalStateException> {
+                encoder.beginResponse(head, method, Http1BodyFraming.Length(3L))
+            }
+            assertEquals(1L, method.sizeReads)
+            assertEquals(2L, method.reads)
+            assertFalse(encoder.isMessageOpen)
+            method.reset("HEAD".toByteArray())
+            assertEquals(expected, String.fromUtf8(encoder.beginResponse(head, method)))
+            assertEquals(1L, method.sizeReads)
+            assertEquals(4L, method.reads)
+            encoder.finish()
+        }
+    }
+}
+
+private class ObservedResponseMethod(var bytes: Array<Byte>): List<Byte> {
+    var sizeReads: Long = 0L
+    var reads: Long = 0L
+    var failAt: Long = -1L
+
+    fun reset(value: Array<Byte>) {
+        bytes = value
+        sizeReads = 0L
+        reads = 0L
+        failAt = -1L
+    }
+
+    public override val size: Long
+    get() {
+        sizeReads += 1L
+        gcCollect()
+        return bytes.size
+    }
+
+    public override operator fun iterator(): Iterator<Byte> = bytes.iterator()
+
+    public override operator fun get(index: Long): Byte {
+        assertEquals(reads, index)
+        reads += 1L
+        gcCollect()
+        if (index == failAt)
+            throw IllegalStateException(Some("method snapshot read failed"))
+        return bytes[index]
+    }
 }

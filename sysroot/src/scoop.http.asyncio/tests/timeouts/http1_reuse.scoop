@@ -3,11 +3,40 @@ package scoop.http.asyncio
 import scoop.asyncio.*
 import scoop.http.*
 import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.time.Duration
 
 @Test
 private class Http1IdleReuseTests {
+    @Test
+    fun `an old read wakeup observes progress in a later fragmented response`() {
+        withHttp1 suspend {
+            scope, _, transport, client, server ->
+            client.sendRequest(request()).finish()
+            receiveBytes(server.receiveRequest()!!.body)
+            server.sendResponse(response()).finish()
+            receiveBytes(client.receiveResponse(readIdle = Some(Duration.milliseconds(150L))).body)
+
+            client.sendRequest(request()).finish()
+            val sending =
+                scope.launch suspend {
+                    for (part in ["HTTP/1.1 200 OK\r\n", "Content-Length: 0\r\n", "\r\n"]) {
+                        currentEventLoop().sleep(Duration.milliseconds(250L))
+                        sendBytes(transport, part.toByteArray())
+                    }
+                }
+            val limit = Duration.milliseconds(600L)
+            val began = MonotonicTimeSource.markNow()
+            val incoming = client.receiveResponse(readIdle = Some(limit))
+            assertEquals(200U, incoming.head.status)
+            assertEquals(0L, receiveBytes(incoming.body).size)
+            assertTrue(MonotonicTimeSource.markNow() - began >= limit)
+            sending.join()
+            assertFalse(client.isClosed || scope.job.isCancelled)
+        }
+    }
+
     @Test
     fun `a later operation may outlive the previous idle deadline and caller Job`() {
         withHttp1 suspend {

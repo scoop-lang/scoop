@@ -69,7 +69,9 @@ private class ServerDecompressionFailureTests {
                     assertTrue(body.isComplete)
                 }
             } finally {
-                body.closeView()
+                val views = body.takeViewsToClose()
+                if (present(views))
+                    views!!.close()
             }
             var closed = false
             try {
@@ -119,7 +121,9 @@ private class ServerDecompressionFailureTests {
                     }
                     assertEquals(calls, input.calls)
                 } finally {
-                    body.closeView()
+                    val views = body.takeViewsToClose()
+                    if (present(views))
+                        views!!.close()
                 }
             }
         }

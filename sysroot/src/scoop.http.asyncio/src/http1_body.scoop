@@ -127,13 +127,16 @@ private suspend fun readH1Body(
                         body.trailers = Some(fields)
                     }
                     case End(val keepAlive) -> {
-                        state.lock.withLock {
-                            body.keepAlive = keepAlive
-                            body.life.completed = true
-                            resumeH1AfterRejection(state, body)
-                            state.incoming = None
-                        }
-                        completeH1Body(state, body.life)
+                        val listener =
+                            state.lock.withLock {
+                                body.keepAlive = keepAlive
+                                body.life.completed = true
+                                resumeH1AfterRejection(state, body)
+                                state.incoming = None
+                                completeH1BodyLocked(body.life)
+                            }
+                        if (present(listener))
+                            listener!!.dispose()
                     }
                     else -> throw IllegalStateException(Some("unexpected event in HTTP/1 body"))
                 }

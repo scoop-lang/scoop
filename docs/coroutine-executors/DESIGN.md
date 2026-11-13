@@ -331,7 +331,8 @@ continuation 的“结果已经确定”和 execution 的“现在可以驱动�
 
 execution 使用一个原子状态交接驱动权和单个 managed action 槽位，不为读取登记、提交、领取、退出判定分别取得同一把锁：
 
-- 当前为 `Running`：提交者先 CAS 取得 `Publishing`，再写 action 槽，最后以 release 发布 `ReadyInternal` 或 `ReadyExternal`；提交者不访问 frame。
+- 同 execution 的内部完成：adapter 以实际 execution 身份判定来源；确认当前仍为 `Running` 后，复用当前驱动的独占执行权写 action 槽，再以 release 发布 `ReadyInternal`。当前调用返回前驱动不会退出，不需要跨驱动槽位竞争，仍须等全部 frame／Context／catch 访问退出后才迭代消费。
+- 外部恢复在当前为 `Running` 时：提交者先 CAS 取得 `Publishing`，再写 action 槽，最后以 release 发布 `ReadyExternal`；提交者不访问 frame。强制 yield 仍走外部恢复路径。
 - 当前为 `Idle`：提交者 CAS 取得 `Detached`，写 action 槽并以 release 发布 `Queued`，然后投递唯一的 work。
 - 当前驱动退出：完成全部 Context／异常出口后，若仍为 `Running`，CAS 交出为 `Idle`；若提交者尚在 `Publishing`，CAS 改为 `Detached` 后直接返回，由提交者完成发布并投递，不等待被抢占的发布者。
 - 若退出时已经 acquire 观察到 ready，当前驱动取得已发布的 action。内部完成链直接迭代；有 executor 的外部恢复保持 action 槽并 release 发布 `Queued`，随后 dispatch。

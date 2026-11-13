@@ -8,6 +8,18 @@ private suspend fun callChain(gate: DriveGate, depth: Int): Int =
     else
         callChain(gate, depth - 1) + 1
 
+private suspend fun failingCallChain(gate: DriveGate, depth: Int, cleaned: ArrayList<Int>): Int {
+    try {
+        return if (depth == 0)
+            gate.await()
+        else
+            failingCallChain(gate, depth - 1, cleaned) + 1
+    } finally {
+        gcCollect()
+        cleaned.add(depth)
+    }
+}
+
 @Test
 private class CoroutineExecutorDriveTest {
     @Test
@@ -81,6 +93,83 @@ private class CoroutineExecutorDriveTest {
         assertEquals(42, done.value!!)
         assertEquals(1, done.calls)
         assertEquals(1, executor.submitted)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `another execution on the same executor still queues its result`() {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val first = DriveCompletion<Int>()
+        val second = DriveCompletion<Int>()
+        context(DriveMarker(7)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    val value = callChain(gate, 2)
+                    assertEquals(7, markerNumber())
+                    value
+                },
+                first
+            )
+        }
+        context(DriveMarker(9)) {
+            executor.runOne()
+            assertEquals(0, first.calls)
+            context(DriveMarker(8)) {
+                startDispatchedCoroutine(
+                    executor,
+                    {
+                        gate.waiter!!.resume(40)
+                        assertEquals(0, first.calls)
+                        assertEquals(1L, executor.queued)
+                        assertEquals(2, executor.active)
+                        assertEquals(8, markerNumber())
+                        20
+                    },
+                    second
+                )
+            }
+            executor.runOne()
+            assertEquals(9, markerNumber())
+            assertEquals(20, second.value!!)
+            assertEquals(0, first.calls)
+            gcCollect()
+            executor.runOne()
+            assertEquals(9, markerNumber())
+        }
+        assertEquals(42, first.value!!)
+        assertEquals(1, first.calls)
+        assertEquals(1, second.calls)
+        assertEquals(3, executor.submitted)
+        assertEquals(2, executor.completed)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `failed completion chains retain the exception and finish every cleanup`() {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val failure = Throwable()
+        val cleaned = ArrayList<Int>()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(executor, { failingCallChain(gate, 32, cleaned) }, done)
+        executor.runOne()
+        gcCollect()
+        gate.waiter!!.resumeWithException(failure)
+        assertEquals(0L, cleaned.size)
+        assertEquals(0, done.calls)
+        executor.runOne()
+        assertEquals(33L, cleaned.size)
+        var index = 0L
+        while (index < cleaned.size) {
+            assertEquals(index.toInt(), cleaned[index])
+            index += 1L
+        }
+        assertSame(failure, done.failure!!)
+        assertEquals(1, done.calls)
+        assertEquals(2, executor.submitted)
+        assertEquals(1, executor.completed)
         assertEquals(0, executor.active)
     }
 

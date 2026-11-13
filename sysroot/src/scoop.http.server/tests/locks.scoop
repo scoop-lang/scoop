@@ -1,0 +1,62 @@
+package scoop.http.server
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.yield
+import scoop.test.*
+
+private class ServerLockCounter {
+    var value: Long = 0L
+}
+
+@Test
+private class ServerLockTests {
+    @Test
+    fun `lock copies serialize concurrent state changes`() {
+        val lock = ServerLock()
+        val copies = [lock, lock]
+        val ready = AtomicInt(0)
+        val count = ServerLockCounter()
+        gcCollect()
+        val workers =
+            Array<Thread>(2L) {
+                index -> Thread.start {
+                    ready.fetchAdd(1)
+                    while (ready.load() != 2)
+                        yield()
+                    for (_ in 0L ..< 128L) {
+                        copies[index].withLock {
+                            val before = count.value
+                            yield()
+                            count.value = before + 1L
+                        }
+                    }
+                }
+            }
+        for (worker in workers)
+            worker.use { it.join() }
+        assertEquals(256L, count.value)
+    }
+
+    @Test
+    fun `a copied lock is released after collection and failure`() {
+        val lock = ServerLock()
+        val copy = lock
+        val failure = Throwable()
+        assertSame(
+            failure,
+            assertFailsWith<Throwable> {
+                copy.withLock<Unit> {
+                    gcCollect()
+                    throw failure
+                }
+            }
+        )
+        assertEquals(
+            7L,
+            lock.withLock {
+                gcCollect()
+                7L
+            }
+        )
+    }
+}

@@ -2,13 +2,21 @@
 internal class CoroutineLock {
     private val held: AtomicBoolean = AtomicBoolean(false)
 
-    internal fun <T> withLock(block: () -> T): T {
+    private fun acquire() {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
+    }
+
+    private fun unlock() {
+        held.store(false, MemoryOrder.Release)
+    }
+
+    internal fun <T> withLock(block: () -> T): T {
+        acquire()
         try {
             return block()
         }
         finally {
-            held.store(false, MemoryOrder.Release)
+            unlock()
         }
     }
 }
@@ -29,23 +37,25 @@ internal class CoroutineListeners(private val lock: CoroutineLock = CoroutineLoc
     }
 
     internal fun select(entry: CoroutineRegistration): (() -> Unit)? =
-        lock.withLock {
-            val callback = entry.takeActionLocked()
-            when (entries) {
-                case None -> {}
-                case Some(val values) -> if (!coroutineAbsent(callback)) {
-                    var index = 0L
-                    while (index < values.size) {
-                        if (values[index] === entry) {
-                            values.removeAt(index)
-                            break
-                        }
-                        index += 1L
+        lock.withLock { selectLocked(entry) }
+
+    private fun selectLocked(entry: CoroutineRegistration): (() -> Unit)? {
+        val callback = entry.takeActionLocked()
+        when (entries) {
+            case None -> {}
+            case Some(val values) -> if (!coroutineAbsent(callback)) {
+                var index = 0L
+                while (index < values.size) {
+                    if (values[index] === entry) {
+                        values.removeAt(index)
+                        break
                     }
+                    index += 1L
                 }
             }
-            callback
         }
+        return callback
+    }
 
     internal fun take(): ArrayList<CoroutineRegistration>? = lock.withLock { takeLocked() }
 

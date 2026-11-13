@@ -109,7 +109,9 @@ internal fun exercise(
         catch (error: Throwable) {
             result.failure = Some(error)
         }
-        closeRequestViews(result)
+        val views = takeRequestViews(result)
+        if (present(views))
+            closeRequestViews(result, views!!)
         Exchange(result.context!!, output, result.failure)
     }
 }

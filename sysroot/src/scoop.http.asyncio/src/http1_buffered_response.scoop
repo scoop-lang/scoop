@@ -175,7 +175,8 @@ private suspend fun writeH1BufferedResponse(
     state.output.ensureWritable(blockSize)
     var position = 0L
     while (position < size) {
-        state.output.clear()
+        if (position != 0L)
+            state.output.clear()
         if (position < head.size) {
             val remaining = head.size - position
             val count =
@@ -198,18 +199,20 @@ private suspend fun writeH1BufferedResponse(
             transfer.copyInto(state.output, offset, count)
             position += count
         }
-        while (state.output.readableBytes > 0L) {
+        var remaining = state.output.readableBytes
+        while (remaining > 0L) {
             beginH1Io(state, false)
-            val before = state.output.readableBytes
+            val before = remaining
             val written =
                 try {
                     state.transport.writeFrom(state.output, before)
                 }
                 finally {
-                    transfer.sent += before - state.output.readableBytes
+                    remaining = state.output.readableBytes
+                    transfer.sent += before - remaining
                 }
             httpProgress(written, before)
-            if (before - state.output.readableBytes != written)
+            if (before - remaining != written)
                 throw IllegalStateException(
                     Some("HTTP transport reported inconsistent write progress")
                 )

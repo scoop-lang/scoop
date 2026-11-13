@@ -1,0 +1,115 @@
+package scoop.concurrent.tests
+
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+private class JobPublicationState {
+    var job: Job? = None
+    var body: Continuation<Unit>? = None
+    var value: String? = None
+    var reason: CancellationException? = None
+}
+
+@Test
+private class JobStatePublicationTest {
+    @Test
+    fun `cancellation queries publish the original exception while notification is pending`() {
+        val state = JobPublicationState()
+        val done = TestResult<Unit>()
+        val gate = WorkerGate()
+        startCoroutine(
+            {
+                coroutineScope {
+                    state.job = Some(job)
+                    job.invokeOnCancellation {
+                        error ->
+                        state.reason = Some(error)
+                        gate.await()
+                    }
+                    suspendCoroutine<Unit> { next -> state.body = Some(next) }
+                }
+            },
+            done
+        )
+        val current = state.job!!
+        val observations =
+            Array<ThreadResult<CancellationException>>(2L) {
+                _ -> ThreadResult<CancellationException>()
+            }
+        val readers =
+            Array<Thread>(2L) {
+                index -> Thread.start {
+                    try {
+                        while (!current.isCancelled) {}
+                        assertFalse(current.isCompleted)
+                        observations[index].resume(
+                            assertFailsWith<CancellationException> { current.ensureActive() }
+                        )
+                    } catch (error: Throwable) {
+                        observations[index].resumeWithException(error)
+                    }
+                }
+            }
+        val canceller = Thread.start { current.cancel() }
+        gate.awaitEntered(1)
+        try {
+            for (observation in observations)
+                assertSame(state.reason!!, observation.await())
+            assertFalse(current.isCompleted)
+        } finally {
+            gate.open()
+            canceller.use { it.join() }
+            for (reader in readers)
+                reader.use { it.join() }
+        }
+        state.body!!.resume(Unit)
+        assertEquals(1, done.calls)
+        assertTrue(current.isCompleted)
+        assertTrue(current.isCancelled)
+        assertSame(
+            state.reason!!,
+            assertFailsWith<CancellationException> { current.ensureActive() }
+        )
+    }
+
+    @Test
+    fun `completion queries publish body results without introducing cancellation`() {
+        val state = JobPublicationState()
+        val done = TestResult<Unit>()
+        startCoroutine(
+            {
+                coroutineScope {
+                    state.job = Some(job)
+                    suspendCoroutine<Unit> { next -> state.body = Some(next) }
+                    state.value = Some("published body result")
+                }
+            },
+            done
+        )
+        val current = state.job!!
+        val observed = ThreadResult<String>()
+        val reader =
+            Thread.start {
+                try {
+                    while (!current.isCompleted) {}
+                    assertFalse(current.isCancelled)
+                    current.ensureActive()
+                    observed.resume(state.value!!)
+                } catch (error: Throwable) {
+                    observed.resumeWithException(error)
+                }
+            }
+        val completing = Thread.start { state.body!!.resume(Unit) }
+        try {
+            assertEquals("published body result", observed.await())
+        } finally {
+            completing.use { it.join() }
+            reader.use { it.join() }
+        }
+        done.get()
+        current.cancel()
+        assertTrue(current.isCompleted)
+        assertFalse(current.isCancelled)
+        current.ensureActive()
+    }
+}
