@@ -96,6 +96,10 @@ impl<'input> ValidatedSingleConeBuildRequest<'input> {
         self.request.debug_info
     }
 
+    pub const fn export_ir(&self) -> scoop_hir::IrTemplateExport {
+        self.request.export_ir
+    }
+
     pub const fn purpose(&self) -> CompilationPurpose {
         self.request.purpose
     }

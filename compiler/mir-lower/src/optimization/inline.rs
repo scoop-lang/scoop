@@ -247,6 +247,9 @@ impl Context<'_, '_> {
             return match self.imported.functions.get(&id) {
                 Some(function) if policy::executable(function) => Ok(Target::Imported(id)),
                 Some(_) => Err(InlineOutcome::UnsupportedBody),
+                None if self.imported.unsupported.contains(&id) => {
+                    Err(InlineOutcome::UnsupportedBody)
+                }
                 None => Err(InlineOutcome::NoBody),
             };
         }

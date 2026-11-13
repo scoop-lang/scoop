@@ -1355,6 +1355,7 @@ name = "scoop-protocol"
 version = "0.0.0"
 dependencies = [
  "base64",
+ "scoop-hir",
  "scoop-identity",
  "scoop-lir",
  "scoop-manifest",

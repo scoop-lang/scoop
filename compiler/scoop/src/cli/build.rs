@@ -90,6 +90,7 @@ pub(super) fn requests(
         diagnostics,
         optimization: profile.optimization(),
         debug_info,
+        export_ir: args.export_ir,
         purpose,
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)

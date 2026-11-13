@@ -14,11 +14,19 @@ impl Lowerer {
                         callable,
                         native_c: None,
                     },
-                lowering_role: mir::MirCallableLoweringRoleV1::PrimaryValueConstructor { owner },
+                lowering_role,
+                has_constructor_template,
                 signature,
                 ..
             }) = self.imported_dependency_callable_map.get(&source).cloned()
             else {
+                continue;
+            };
+            let mir::MirCallableLoweringRoleV1::PrimaryValueConstructor { owner } = lowering_role
+            else {
+                if has_constructor_template {
+                    bodies.unsupported.insert(callable);
+                }
                 continue;
             };
             let scoop_identity::CallableTemplateOrigin::Constructor(constructor) =

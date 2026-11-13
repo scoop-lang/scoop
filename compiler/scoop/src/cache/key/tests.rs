@@ -20,6 +20,23 @@ fn optimization_changes_only_the_current_compile_key() {
 }
 
 #[test]
+fn export_ir_changes_compile_reuse_without_changing_source_identity() {
+    let default = input(1);
+    let off = default
+        .clone()
+        .with_export_ir(scoop_protocol::IrTemplateExport::Off);
+    let full = default
+        .clone()
+        .with_export_ir(scoop_protocol::IrTemplateExport::Full);
+    assert_ne!(default.key().unwrap(), off.key().unwrap());
+    assert_ne!(default.key().unwrap(), full.key().unwrap());
+    assert_ne!(off.key().unwrap(), full.key().unwrap());
+    assert_eq!(off.current_semantic(), full.current_semantic());
+    assert_eq!(off.dependencies(), full.dependencies());
+    assert_eq!(off.cone(), full.cone());
+}
+
+#[test]
 fn debug_info_changes_code_reuse_without_changing_semantic_dependencies() {
     let none = input(1);
     let lines = none

@@ -137,6 +137,7 @@ pub(super) fn execute(
         diagnostics: reporter.diagnostics_policy(),
         optimization: Default::default(),
         debug_info: scoop_lir::DebugInfoLevel::None,
+        export_ir: scoop_protocol::IrTemplateExport::Default,
         purpose: scoop_protocol::CompilationPurpose::Production,
         jobs: args.jobs.unwrap_or_else(|| {
             std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)

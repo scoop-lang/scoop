@@ -244,6 +244,7 @@ fn lower_dependency_callables(
                 },
             };
         let target = ImportedCallableTarget {
+            has_constructor_template: selected.constructor_template().is_some(),
             entry,
             lowering_role: target.lowering_role(),
             signature: target.signature().clone(),

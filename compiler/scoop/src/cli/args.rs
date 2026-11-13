@@ -93,6 +93,9 @@ pub(super) struct BuildOptions {
     /// Native source debug information: none, line-tables or full; debug defaults to full.
     #[arg(long)]
     pub debug_info: Option<scoop_lir::DebugInfoLevel>,
+    /// Optional cross-Cone IR templates: off, default or full.
+    #[arg(long, default_value = "default")]
+    pub export_ir: scoop_protocol::IrTemplateExport,
     #[arg(long)]
     pub target_dir: Option<PathBuf>,
     #[arg(long)]

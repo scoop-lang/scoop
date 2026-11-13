@@ -1,8 +1,8 @@
 # Profiling、PGO 与 IR template 导出设计
 
-状态：设计提案，待实施。日期：2026-11-13。
+状态：实施中，进度与实际验证范围见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-13。
 
-本文规定下一阶段的运行信息采集、反馈优化、系统库组件和命令入口。文中的 `profiling`、`--export-ir`、`--profile-use`、`scoop pgo` 和安装器的 profiling 组件选项均为拟定接口；本次只编写设计，不修改编译器、runtime 或工具实现。
+本文规定运行信息采集、反馈优化、系统库组件和命令入口。文中的 `profiling`、`--export-ir`、`--profile-use`、`scoop pgo` 和安装器的 profiling 组件选项按实施记录分批交付，不能仅凭本设计认定已经可用。
 
 依据：[语言规范](../specs/SCOOP-SPEC.md)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范](../specs/SCOOP-IMPL-SPEC.md)、[路线图](../ROADMAP.md)。已有基础见[调用点内联评分](../program-performance/CALL-SITE-INLINING.md)、[CPU 采样归因](../program-performance/CPU-PROFILING.md)与[调试信息实现](../debugging/IMPLEMENTATION.md)。实施各阶段前，先同步对应权威规范；本文不把尚未实现的行为记为现有能力。
 

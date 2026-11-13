@@ -104,6 +104,7 @@ pub struct SingleConeBuildRequest {
     emit: StageDumpPolicy,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
+    export_ir: scoop_hir::IrTemplateExport,
     purpose: CompilationPurpose,
     native_inputs: NativeInputOrigin,
     generators: scoop_toolchain::GeneratorPrograms,
@@ -160,6 +161,7 @@ impl SingleConeBuildRequest {
             emit,
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
+            export_ir: scoop_hir::IrTemplateExport::Default,
             purpose: CompilationPurpose::Production,
             native_inputs: NativeInputOrigin::Source { sysroot: None },
             generators: scoop_toolchain::GeneratorPrograms::default(),
@@ -179,6 +181,11 @@ impl SingleConeBuildRequest {
 
     pub fn with_debug_info(mut self, level: scoop_lir::DebugInfoLevel) -> Self {
         self.debug_info = level;
+        self
+    }
+
+    pub fn with_export_ir(mut self, mode: scoop_hir::IrTemplateExport) -> Self {
+        self.export_ir = mode;
         self
     }
 

@@ -79,10 +79,29 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
     assert_eq!(decoded.build().optimization(), OptimizationMode::Release);
     assert_eq!(decoded.build().target(), request.build().target());
     let mut unknown = bytes;
-    let optimization = unknown.len() - 11;
+    let optimization = unknown.len() - 13;
     assert_eq!(unknown[optimization], 2);
     unknown[optimization] = 3;
     assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown).is_err());
+
+    for mode in [
+        IrTemplateExport::Off,
+        IrTemplateExport::Default,
+        IrTemplateExport::Full,
+    ] {
+        let exporting = ScoopcRequestEnvelopeV1::new(
+            request.request_id(),
+            request.build().clone().with_export_ir(mode),
+        );
+        let decoded =
+            decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&encode(&exporting).unwrap())
+                .unwrap()
+                .validate()
+                .unwrap();
+        assert_eq!(decoded.build().export_ir(), mode);
+        assert_eq!(decoded.build().target(), request.build().target());
+        assert_eq!(decoded, exporting);
+    }
 
     let native = request
         .build()
@@ -112,15 +131,15 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
         test
     );
     let mut unknown_purpose = bytes;
-    let purpose = unknown_purpose.len() - 7;
+    let purpose = unknown_purpose.len() - 9;
     assert_eq!(unknown_purpose[purpose], 2);
     unknown_purpose[purpose] = 3;
     assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown_purpose).is_err());
     let mut missing = encode(request.build()).unwrap();
-    let purpose = missing.len() - 6;
-    assert_eq!(&missing[purpose..], &[11, 1, 12, 0x80, 13, 0]);
+    let purpose = missing.len() - 8;
+    assert_eq!(&missing[purpose..], &[11, 1, 12, 0x80, 13, 0, 14, 2]);
     missing.drain(purpose..purpose + 2);
-    missing[0] = 0xac;
+    missing[0] = 0xad;
     assert!(decode_canonical::<super::decode::DecodedScoopcBuildRequestV1>(&missing).is_err());
 }
 

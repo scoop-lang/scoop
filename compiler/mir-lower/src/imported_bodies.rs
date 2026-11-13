@@ -8,6 +8,7 @@ mod intrinsics;
 #[derive(Default)]
 pub(super) struct ImportedBodies {
     pub functions: HashMap<mir::ExternalCallableUseId, mir::Function>,
+    pub unsupported: HashSet<mir::ExternalCallableUseId>,
     pub required: HashSet<mir::ExternalCallableUseId>,
     pub dispatch: dispatch::IntrinsicDispatch,
 }
@@ -17,6 +18,7 @@ pub(super) use dispatch::IntrinsicDispatch;
 impl Lowerer {
     pub(super) fn lower_imported_bodies(&mut self, module: &hir::Module) -> ImportedBodies {
         let mut bodies = HashMap::new();
+        let mut unsupported = HashSet::new();
         for (_, source) in module.imported_inline_bodies.iter() {
             let Some(ImportedCallableTarget {
                 entry:
@@ -30,6 +32,12 @@ impl Lowerer {
                 continue;
             };
             let callable = *callable;
+            // Suspend ABI lowering needs a local coroutine identity. A provider
+            // template remains available in HIR without becoming a local definition.
+            if source.is_suspend {
+                unsupported.insert(callable);
+                continue;
+            }
             let gc_effect = self.external_callables[callable].gc_effect();
             let mut lowerer = self.body_lowerer(
                 module,
@@ -78,6 +86,7 @@ impl Lowerer {
         }
         let mut bodies = ImportedBodies {
             functions: bodies,
+            unsupported,
             ..Default::default()
         };
         self.lower_imported_constructors(module, &mut bodies);

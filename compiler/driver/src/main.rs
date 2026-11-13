@@ -61,6 +61,9 @@ struct BuildArgs {
     /// Native source debug information: none, line-tables or full.
     #[arg(long)]
     debug_info: Option<scoop_lir::DebugInfoLevel>,
+    /// Optional cross-Cone IR templates: off, default or full.
+    #[arg(long, default_value = "default")]
+    export_ir: scoop_hir::IrTemplateExport,
     /// Maximum concurrent compiler workers; defaults to the available parallelism.
     #[arg(short = 'j', long)]
     jobs: Option<std::num::NonZeroUsize>,
@@ -131,6 +134,7 @@ fn main() -> ExitCode {
                 generators,
                 profile,
                 debug_info,
+                export_ir,
                 jobs,
             } = *args;
             build(
@@ -141,6 +145,7 @@ fn main() -> ExitCode {
                 emit,
                 scoopc::DirectBuildOptions {
                     optimization: profile.optimization(),
+                    export_ir,
                     debug_info: debug_info.unwrap_or(match profile {
                         Profile::Debug => scoop_lir::DebugInfoLevel::Full,
                         Profile::Release => scoop_lir::DebugInfoLevel::None,

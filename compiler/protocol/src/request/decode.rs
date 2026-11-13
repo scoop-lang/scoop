@@ -138,6 +138,7 @@ pub(super) struct DecodedScoopcBuildRequestV1 {
     emit: DecodedStageDumpPolicyV1,
     optimization: OptimizationMode,
     debug_info: DebugInfoLevel,
+    export_ir: IrTemplateExport,
     purpose: crate::CompilationPurpose,
     native_inputs: Vec<DecodedHostPathCarrier>,
     generators: Vec<crate::GeneratorRegistrationV1>,
@@ -168,6 +169,7 @@ impl DecodedScoopcBuildRequestV1 {
             request
                 .with_optimization(self.optimization)
                 .with_debug_info(self.debug_info)
+                .with_export_ir(self.export_ir)
                 .with_native_inputs(native_inputs)
                 .with_purpose(self.purpose)
         })
@@ -177,7 +179,7 @@ impl DecodedScoopcBuildRequestV1 {
 
 impl WireEncode for DecodedScoopcBuildRequestV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(13)?;
+        encoder.map(14)?;
         encoder.field(1)?;
         self.current.encode(encoder)?;
         encoder.field(2)?;
@@ -206,13 +208,15 @@ impl WireEncode for DecodedScoopcBuildRequestV1 {
             generator.encode(encoder)?;
         }
         encoder.field(13)?;
-        self.debug_info.encode(encoder)
+        self.debug_info.encode(encoder)?;
+        encoder.field(14)?;
+        self.export_ir.encode(encoder)
     }
 }
 
 impl WireDecode for DecodedScoopcBuildRequestV1 {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decoder.expect_map(13)?;
+        decoder.expect_map(14)?;
         let current = decoder.field(1, DecodedCurrentConeRequestV1::decode)?;
         let direct_slibs = decoder.field(2, |decoder| {
             decoder.decode_array(|decoder, _| DecodedHostPathCarrier::decode(decoder))
@@ -245,6 +249,7 @@ impl WireDecode for DecodedScoopcBuildRequestV1 {
                 d.decode_array(|d, _| crate::GeneratorRegistrationV1::decode(d))
             })?,
             debug_info: decoder.field(13, DebugInfoLevel::decode)?,
+            export_ir: decoder.field(14, IrTemplateExport::decode)?,
         })
     }
 }

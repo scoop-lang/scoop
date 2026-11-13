@@ -91,6 +91,8 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 普通应用验证使用 release，已有项目的明确 profile 要求优先。选择其他 target 时先确认工具包及 native 环境确实支持它，使用 `--target <triple>`，不从规划文档推断已支持的平台。
 
+构建库时可以用 `--export-ir off|default|full` 选择跨 Cone 优化正文的导出范围，例如 `scoop build library --release --export-ir full`。默认 `default` 保留当前可移植的普通正文及 helper 闭包；`full` 保留所有有 Scoop 正文的函数、方法、构造器和访问器及其支持声明，最终是否内联仍由 consumer 决定。`off` 关闭额外普通优化正文，泛型、默认实参等语义必需模板仍会导出。这一选项不改变公开可见性，也不能恢复预编译依赖已剪掉的正文；只影响本次实际构建的源码 Cone。
+
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。
 
 ## 语言服务查询

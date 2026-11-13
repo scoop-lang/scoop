@@ -35,6 +35,7 @@ pub struct BuildContext {
     pub diagnostics: DiagnosticsPolicy,
     pub optimization: scoop_lir::OptimizationMode,
     pub debug_info: scoop_lir::DebugInfoLevel,
+    pub export_ir: scoop_protocol::IrTemplateExport,
     pub purpose: scoop_protocol::CompilationPurpose,
     pub jobs: std::num::NonZeroUsize,
     pub generators: scoop_toolchain::GeneratorPrograms,

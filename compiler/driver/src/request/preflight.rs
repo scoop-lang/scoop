@@ -102,6 +102,7 @@ pub struct LoadedSingleConeBuildRequest {
     emit: StageDumpPolicy,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
+    export_ir: scoop_hir::IrTemplateExport,
     purpose: CompilationPurpose,
     native_inputs: super::NativeInputOrigin,
     generators: scoop_toolchain::GeneratorPrograms,

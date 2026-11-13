@@ -307,6 +307,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
                 world,
                 source_names,
                 test_dependencies,
+                self.request.export_ir(),
                 self.request.generators(),
                 inputs,
             );
@@ -318,6 +319,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
             world,
             source_names,
             self.request.output().documentation().is_some(),
+            self.request.export_ir(),
             self.request.generators(),
             inputs,
         )

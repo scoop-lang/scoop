@@ -226,6 +226,7 @@ pub struct ConeCompileCacheInputV1 {
     backend: BackendProfileFingerprint,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
+    export_ir: scoop_protocol::IrTemplateExport,
     purpose: CompilationPurpose,
 }
 
@@ -247,6 +248,7 @@ impl ConeCompileCacheInputV1 {
             backend,
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
+            export_ir: scoop_protocol::IrTemplateExport::Default,
             purpose: CompilationPurpose::Production,
         }
     }
@@ -258,6 +260,11 @@ impl ConeCompileCacheInputV1 {
 
     pub(crate) fn with_debug_info(mut self, level: scoop_lir::DebugInfoLevel) -> Self {
         self.debug_info = level;
+        self
+    }
+
+    pub(crate) fn with_export_ir(mut self, mode: scoop_protocol::IrTemplateExport) -> Self {
+        self.export_ir = mode;
         self
     }
 
@@ -289,7 +296,7 @@ impl ConeCompileCacheInputV1 {
 
 impl WireEncode for ConeCompileCacheInputV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(10)?;
+        encoder.map(11)?;
         encoder.field(1)?;
         encoder.unsigned(1)?;
         encoder.field(2)?;
@@ -309,7 +316,9 @@ impl WireEncode for ConeCompileCacheInputV1 {
         encoder.field(9)?;
         self.purpose.encode(encoder)?;
         encoder.field(10)?;
-        self.debug_info.encode(encoder)
+        self.debug_info.encode(encoder)?;
+        encoder.field(11)?;
+        self.export_ir.encode(encoder)
     }
 }
 

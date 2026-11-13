@@ -97,6 +97,7 @@ pub fn normalize_protocol_build_request(
         request
             .with_optimization(build.optimization())
             .with_debug_info(build.debug_info())
+            .with_export_ir(build.export_ir())
             .with_generators(
                 scoop_toolchain::GeneratorPrograms::from_registrations(build.generators())
                     .map_err(BuildRequestNormalizationError::Generators)?,
