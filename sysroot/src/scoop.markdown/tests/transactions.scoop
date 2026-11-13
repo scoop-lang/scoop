@@ -1,0 +1,141 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownTransactionTests {
+    private var calls = 0L
+    @Test
+    fun `multi-range edits publish once and their inverse restores exact source`() {
+        val document = MarkdownDocument.fromText("# title\r\n\n**雪** tail\n")
+        val original = document.toMarkdown()
+        val operations = ArrayList<MarkdownReplacement>()
+        operations.add(MarkdownReplacement(MarkdownRange(2L, 7L), "new"))
+        operations.add(MarkdownReplacement(MarkdownRange(12L, 15L), "😀"))
+        val edit = MarkdownEdit(0L, operations)
+        operations.clear()
+        val subscription =
+            document.observe {
+                change ->
+                calls += 1L
+                assertEquals(change.after.toMarkdown(), document.toMarkdown())
+            }
+        val change = document.apply(edit)
+        assertTrue(change.changed)
+        assertEquals("# new\r\n\n**😀** tail\n", document.toMarkdown())
+        assertEquals(1L, document.revision)
+        assertEquals(1L, calls)
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals(original, document.toMarkdown())
+        assertEquals(2L, calls)
+        assertEquals(original, change.before.toMarkdown())
+        subscription.close()
+    }
+
+    @Test
+    fun `adjacent deletes and same-point inserts preserve order and inverse coordinates`() {
+        val document = MarkdownDocument.fromText("abcdef")
+        val change =
+            document.apply(
+                MarkdownEdit(
+                    0L,
+                    [
+                        MarkdownReplacement(MarkdownRange(1L, 3L), ""),
+                        MarkdownReplacement(MarkdownRange(3L, 3L), "X"),
+                        MarkdownReplacement(MarkdownRange(3L, 3L), "Y"),
+                        MarkdownReplacement(MarkdownRange(3L, 5L), "")
+                    ]
+                )
+            )
+        assertEquals("aXYf", document.toMarkdown())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals("abcdef", document.toMarkdown())
+    }
+
+    @Test
+    fun `mapping honors insertion bias deleted spans and untouched suffixes`() {
+        val document = MarkdownDocument.fromText("abcdef")
+        val change =
+            document.apply(
+                MarkdownEdit(
+                    0L,
+                    [
+                        MarkdownReplacement(MarkdownRange(1L, 1L), "XX"),
+                        MarkdownReplacement(MarkdownRange(1L, 1L), "Y"),
+                        MarkdownReplacement(MarkdownRange(2L, 5L), "Q")
+                    ]
+                )
+            )
+        assertEquals("aXXYbQf", document.toMarkdown())
+        assertEquals(
+            1L,
+            change.map(markdownTestAnchor(1L, MarkdownBias.Before)).position.byteOffset
+        )
+        assertEquals(4L, change.map(markdownTestAnchor(1L, MarkdownBias.After)).position.byteOffset)
+        assertEquals(
+            5L,
+            change.map(markdownTestAnchor(3L, MarkdownBias.Before)).position.byteOffset
+        )
+        assertEquals(6L, change.map(markdownTestAnchor(3L, MarkdownBias.After)).position.byteOffset)
+        assertEquals(
+            6L,
+            change.map(markdownTestAnchor(5L, MarkdownBias.Before)).position.byteOffset
+        )
+        assertEquals(7L, change.map(markdownTestAnchor(6L, MarkdownBias.After)).position.byteOffset)
+    }
+
+    @Test
+    fun `a bad operation rejects the whole transaction before notifications`() {
+        val document = MarkdownDocument.fromText("雪abc")
+        val subscription = document.observe { _ -> calls += 1L }
+        assertFailsWith<IllegalArgumentException> {
+            document.apply(
+                MarkdownEdit(
+                    0L,
+                    [
+                        MarkdownReplacement(MarkdownRange(0L, 0L), "prefix"),
+                        MarkdownReplacement(MarkdownRange(1L, 3L), "bad")
+                    ]
+                )
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            document.apply(
+                MarkdownEdit(
+                    0L,
+                    [
+                        MarkdownReplacement(MarkdownRange(0L, 4L), "first"),
+                        MarkdownReplacement(MarkdownRange(3L, 5L), "overlap")
+                    ]
+                )
+            )
+        }
+        assertFailsWith<IllegalStateException> { document.apply(MarkdownEdit(1L, [])) }
+        assertEquals("雪abc", document.toMarkdown())
+        assertEquals(0L, document.revision)
+        assertEquals(0L, calls)
+        subscription.close()
+    }
+
+    @Test
+    fun `no-op edits share the revision while reset is an explicit reload`() {
+        val document = MarkdownDocument.fromText("same")
+        val original = document.snapshot()
+        val subscription = document.observe { _ -> calls += 1L }
+        val unchanged = document.replace(MarkdownRange(0L, 4L), "same")
+        assertFalse(unchanged.changed)
+        assertTrue(document.snapshot() === original)
+        assertFalse(document.apply(MarkdownEdit(0L, [])).changed)
+        assertEquals(0L, calls)
+        val reset = document.reset("same")
+        assertEquals(MarkdownChangeKind.Reset, reset.kind)
+        assertTrue(reset.changed)
+        assertEquals(1L, calls)
+        assertEquals(1L, document.revision)
+        assertTrue(document.documentId === original.documentId)
+        subscription.close()
+    }
+}
+
+private fun markdownTestAnchor(offset: Long, bias: MarkdownBias): MarkdownAnchor =
+    MarkdownAnchor(MarkdownPosition(offset), bias)

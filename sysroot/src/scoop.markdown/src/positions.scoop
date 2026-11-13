@@ -1,0 +1,35 @@
+package scoop.markdown
+
+/** A document-relative UTF-8 byte position, checked when consumed with a snapshot. */
+public struct MarkdownPosition(val byteOffset: Long)
+
+/** A half-open UTF-8 byte range. Endpoints must be Unicode scalar boundaries. */
+public struct MarkdownRange(val start: Long, val end: Long) {
+    public val byteLength: Long get() = end - start
+    public val isEmpty: Boolean get() = start == end
+}
+
+/** Determines which side of inserted or replaced text retains an anchor. */
+public enum MarkdownBias {
+    Before, After
+}
+
+/** A logical source position that can be mapped through a document change. */
+public struct MarkdownAnchor(
+    val position: MarkdownPosition,
+    val bias: MarkdownBias = MarkdownBias.After
+)
+
+/** Identity shared by one document and all of its immutable revisions. */
+public class MarkdownDocumentId internal constructor()
+
+internal fun requireMarkdown(condition: Boolean, message: String) {
+    if (!condition)
+        throw IllegalArgumentException(Some(message))
+}
+
+internal fun markdownAdd(left: Long, right: Long): Long {
+    if (right > Long.MAX_VALUE - left)
+        throw ArithmeticException()
+    return left + right
+}

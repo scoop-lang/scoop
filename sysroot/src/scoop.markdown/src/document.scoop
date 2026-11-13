@@ -1,0 +1,93 @@
+package scoop.markdown
+
+/** A serially edited Markdown source with persistent immutable snapshots. */
+public class MarkdownDocument private constructor(private var current: MarkdownSnapshot) {
+    private val subscriptions = ArrayList<MarkdownSubscription>()
+    private var notifying = false
+
+    public val documentId: MarkdownDocumentId get() = current.documentId
+    public val revision: Long get() = current.revision
+    public val byteLength: Long get() = current.byteLength
+    public val lineCount: Long get() = current.lineCount
+
+    public fun snapshot(): MarkdownSnapshot = current
+    public fun toMarkdown(): String = current.toMarkdown()
+    public fun writeTo(writer: TextWriter) {
+        current.writeTo(writer)
+    }
+
+    public fun apply(edit: MarkdownEdit): MarkdownChange {
+        checkMutation()
+        return publish(prepareMarkdownEdit(current, edit, MarkdownChangeKind.Edit))
+    }
+
+    public fun replace(range: MarkdownRange, text: String): MarkdownChange =
+        apply(MarkdownEdit(revision, [MarkdownReplacement(range, text)]))
+
+    /** Explicit external reload; observers can distinguish it from an undoable source edit. */
+    public fun reset(source: String): MarkdownChange {
+        checkMutation()
+        val edit =
+            MarkdownEdit(revision, [MarkdownReplacement(MarkdownRange(0L, byteLength), source)])
+        return publish(prepareMarkdownEdit(current, edit, MarkdownChangeKind.Reset))
+    }
+
+    public fun observe(callback: (MarkdownChange) -> Unit): MarkdownSubscription {
+        if (!notifying)
+            removeClosedSubscriptions()
+        val subscription = MarkdownSubscription(callback)
+        subscriptions.add(subscription)
+        return subscription
+    }
+
+    private fun checkMutation() {
+        if (notifying)
+            throw IllegalStateException(Some("Markdown change listeners cannot reenter an edit"))
+    }
+
+    private fun publish(change: MarkdownChange): MarkdownChange {
+        if (!change.changed)
+            return change
+        val listeners = subscriptions.toArray()
+        current = change.after
+        notifying = true
+        try {
+            var firstFailure: Throwable? = None
+            for (listener in listeners) {
+                try {
+                    listener.deliver(change)
+                }
+                catch (failure: Throwable) {
+                    firstFailure =
+                        when (firstFailure) {
+                            case Some(val previous) -> Some(previous)
+                            case None -> Some(failure)
+                        }
+                }
+            }
+            when (firstFailure) {
+                case Some(val failure) -> throw failure
+                case None -> return change
+            }
+        } finally {
+            notifying = false
+            removeClosedSubscriptions()
+        }
+    }
+
+    private fun removeClosedSubscriptions() {
+        var index = subscriptions.size
+        while (index > 0L) {
+            index -= 1L
+            if (!subscriptions[index].active)
+                subscriptions.removeAt(index)
+        }
+    }
+
+    public companion object {
+        public fun fromText(source: String): MarkdownDocument =
+            MarkdownDocument(
+                MarkdownSnapshot(MarkdownDocumentId(), 0L, markdownRopeFromText(source))
+            )
+    }
+}

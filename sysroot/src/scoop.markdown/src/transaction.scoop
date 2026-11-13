@@ -1,0 +1,65 @@
+package scoop.markdown
+
+private struct MarkdownPreparedReplacement(
+    val replacement: MarkdownReplacement,
+    val removed: String
+)
+
+internal fun prepareMarkdownEdit(
+    before: MarkdownSnapshot,
+    edit: MarkdownEdit,
+    kind: MarkdownChangeKind
+): MarkdownChange {
+    if (edit.baseRevision != before.revision)
+        throw IllegalStateException(Some("stale Markdown edit revision"))
+    var previousEnd = 0L
+    var removedBytes = 0L
+    var insertedBytes = 0L
+    for (replacement in edit.replacements) {
+        before.checkRange(replacement.range)
+        requireMarkdown(
+            replacement.range.start >= previousEnd,
+            "Markdown replacements overlap or are out of order"
+        )
+        previousEnd = replacement.range.end
+        removedBytes = markdownAdd(removedBytes, replacement.range.byteLength)
+        insertedBytes = markdownAdd(insertedBytes, replacement.text.byteLength)
+    }
+    markdownAdd(before.byteLength - removedBytes, insertedBytes)
+    val operations = ArrayList<MarkdownPreparedReplacement>()
+    for (replacement in edit.replacements) {
+        val removed = before.read(replacement.range)
+        if (kind == MarkdownChangeKind.Reset || replacement.text != removed)
+            operations.add(MarkdownPreparedReplacement(replacement, removed))
+    }
+    if (operations.size == 0L && kind == MarkdownChangeKind.Edit)
+        return MarkdownChange(before, before, [], [], kind)
+    val revision = markdownAdd(before.revision, 1L)
+    var output = markdownEmptyRope
+    var remaining = before.root
+    var consumed = 0L
+    val replacements = ArrayList<MarkdownReplacement>()
+    val inverse = ArrayList<MarkdownReplacement>()
+    for (operation in operations) {
+        val replacement = operation.replacement
+        val leading = markdownRopeSplit(remaining, replacement.range.start - consumed)
+        val removed = markdownRopeSplit(leading._2, replacement.range.byteLength)
+        output = markdownRopeJoin(output, leading._1)
+        val insertedStart = output.byteLength
+        output = markdownRopeJoin(output, markdownRopeFromText(replacement.text))
+        inverse.add(
+            MarkdownReplacement(MarkdownRange(insertedStart, output.byteLength), operation.removed)
+        )
+        replacements.add(replacement)
+        remaining = removed._2
+        consumed = replacement.range.end
+    }
+    output = markdownRopeJoin(output, remaining)
+    return MarkdownChange(
+        before,
+        MarkdownSnapshot(before.documentId, revision, output),
+        replacements.toArray(),
+        inverse.toArray(),
+        kind
+    )
+}

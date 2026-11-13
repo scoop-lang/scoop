@@ -1,0 +1,29 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+@Test
+private class MarkdownSourceExampleTests {
+    @Test
+    fun `a headless consumer writes both source revisions through the public API`() {
+        assertEquals(
+            "# Notes\n---\n# Updated notes\n\nA paragraph with **source formatting**.\n",
+            updateNotes()
+        )
+    }
+
+    @Test
+    fun `published changes map anchors and can be undone across the library boundary`() {
+        val document = MarkdownDocument.fromText("A雪\nB\n")
+        val change = document.replace(MarkdownRange(1L, 4L), "😀")
+        val anchor = change.map(MarkdownAnchor(MarkdownPosition(4L)))
+        assertEquals(5L, anchor.position.byteOffset)
+        val chunks = StringBuilder()
+        for (chunk in change.after.chunks())
+            chunks.append(chunk)
+        assertEquals("A😀\nB\n", chunks.toString())
+        document.apply(MarkdownEdit(document.revision, change.inverseReplacements))
+        assertEquals("A雪\nB\n", document.toMarkdown())
+    }
+}

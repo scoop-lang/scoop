@@ -1,0 +1,19 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+
+/** Edits a heading while retaining an independently readable previous revision. */
+public fun updateNotes(): String {
+    val document = MarkdownDocument.fromText("# Notes\n\nA paragraph with **source formatting**.\n")
+    val previous = document.snapshot()
+    document.replace(MarkdownRange(2L, 7L), "Updated notes")
+    val output = StringWriter()
+    output.write(previous.read(previous.lineRange(0L)))
+    output.write("\n---\n")
+    document.writeTo(output)
+    return output.toString()
+}
+
+fun main() {
+    println(updateNotes())
+}

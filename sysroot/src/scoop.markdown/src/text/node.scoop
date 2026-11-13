@@ -1,0 +1,115 @@
+package scoop.markdown
+
+internal enum MarkdownRopeContent {
+    Empty,
+    Leaf(val text: String, val bytes: Array<Byte>),
+    Branch(val left: MarkdownRope, val right: MarkdownRope)
+}
+
+/** Immutable AVL nodes aggregate bytes and logical CR/LF/CRLF line breaks. */
+internal class MarkdownRope(
+    val content: MarkdownRopeContent,
+    val byteLength: Long,
+    val lineBreaks: Long,
+    val height: Long,
+    val firstByte: Int,
+    val lastByte: Int
+)
+
+internal val markdownEmptyRope = MarkdownRope(MarkdownRopeContent.Empty, 0L, 0L, 0L, -1, -1)
+
+internal fun markdownContinuation(value: Byte): Boolean = value.toInt().and(192) == 128
+
+/** Input slices come from valid String encodings at already checked scalar boundaries. */
+internal fun markdownUtf8Slice(bytes: Array<Byte>, start: Long, end: Long): String {
+    val result = Array<Byte>(end - start) { index -> bytes[start + index] }
+    @Unsafe
+    {
+        return String.fromUtf8Unchecked(result)
+    }
+}
+
+internal fun markdownRopeLeaf(bytes: Array<Byte>): MarkdownRope {
+    if (bytes.size == 0L)
+        return markdownEmptyRope
+    var breaks = 0L
+    var previous = -1
+    for (value in bytes) {
+        val current = value.toInt().and(255)
+        if (current == 13 || (current == 10 && previous != 13))
+            breaks += 1L
+        previous = current
+    }
+    @Unsafe
+    {
+        val text = String.fromUtf8Unchecked(bytes)
+        return MarkdownRope(
+            MarkdownRopeContent.Leaf(text, bytes),
+            bytes.size,
+            breaks,
+            1L,
+            bytes[0L].toInt().and(255),
+            previous
+        )
+    }
+}
+
+internal fun markdownRopeBranch(left: MarkdownRope, right: MarkdownRope): MarkdownRope {
+    if (left.byteLength == 0L)
+        return right
+    if (right.byteLength == 0L)
+        return left
+    val joinedCrLf = left.lastByte == 13 && right.firstByte == 10
+    return MarkdownRope(
+        MarkdownRopeContent.Branch(left, right),
+        markdownAdd(left.byteLength, right.byteLength),
+        left.lineBreaks +
+            right.lineBreaks -
+            if (joinedCrLf)
+                1L
+            else
+                0L,
+        (
+            if (left.height > right.height)
+                left.height
+            else
+                right.height
+        ) +
+            1L,
+        left.firstByte,
+        right.lastByte
+    )
+}
+
+internal fun markdownRopeFromText(text: String): MarkdownRope {
+    val bytes = text.toByteArray()
+    val leaves = ArrayList<MarkdownRope>()
+    var start = 0L
+    while (start < bytes.size) {
+        val available = bytes.size - start
+        var end =
+            start +
+                if (available > 2048L)
+                    2048L
+                else
+                    available
+        while (end < bytes.size && markdownContinuation(bytes[end]))
+            end -= 1L
+        val begin = start
+        leaves.add(markdownRopeLeaf(Array<Byte>(end - begin) { index -> bytes[begin + index] }))
+        start = end
+    }
+    return markdownRopeBuild(leaves.toArray(), 0L, leaves.size)
+}
+
+private fun markdownRopeBuild(leaves: Array<MarkdownRope>, start: Long, end: Long): MarkdownRope {
+    if (start == end)
+        return markdownEmptyRope
+    if (end - start == 1L)
+        return leaves[start]
+    val middle = start + (end - start) / 2L
+    return markdownRopeBranch(
+        markdownRopeBuild(leaves, start, middle),
+        markdownRopeBuild(leaves, middle, end)
+    )
+}

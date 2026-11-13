@@ -1,0 +1,87 @@
+package scoop.markdown
+
+internal fun markdownRopeByte(node: MarkdownRope, position: Long): Byte =
+    when (node.content) {
+        case MarkdownRopeContent.Empty -> throw IndexOutOfBoundsException()
+        case MarkdownRopeContent.Leaf(_, val bytes) -> bytes[position]
+        case MarkdownRopeContent.Branch(val left, val right) -> if (position < left.byteLength)
+            markdownRopeByte(left, position)
+        else
+            markdownRopeByte(right, position - left.byteLength)
+    }
+
+/** Counts breaks in a prefix; a final CR is counted even if the next byte is LF. */
+internal fun markdownRopePrefixBreaks(node: MarkdownRope, end: Long): Long {
+    if (end == 0L)
+        return 0L
+    if (end == node.byteLength)
+        return node.lineBreaks
+    return when (node.content) {
+        case MarkdownRopeContent.Empty -> 0L
+        case MarkdownRopeContent.Leaf(_, val bytes) -> {
+            var count = 0L
+            var previous = -1
+            var index = 0L
+            while (index < end) {
+                val value = bytes[index].toInt().and(255)
+                if (value == 13 || (value == 10 && previous != 13))
+                    count += 1L
+                previous = value
+                index += 1L
+            }
+            count
+        }
+        case MarkdownRopeContent.Branch(val left, val right) -> if (end <= left.byteLength)
+            markdownRopePrefixBreaks(left, end)
+        else
+            left.lineBreaks +
+                markdownRopePrefixBreaks(right, end - left.byteLength) -
+                if (left.lastByte == 13 && right.firstByte == 10)
+                    1L
+                else
+                    0L
+    }
+}
+
+/** Finds the byte after the requested zero-based logical line terminator. */
+internal fun markdownRopeBreakEnd(node: MarkdownRope, ordinal: Long): Long =
+    when (node.content) {
+        case MarkdownRopeContent.Empty -> throw IndexOutOfBoundsException()
+        case MarkdownRopeContent.Leaf(_, val bytes) -> markdownLeafBreakEnd(bytes, ordinal)
+        case MarkdownRopeContent.Branch(val left, val right) -> {
+            val joinedCrLf = left.lastByte == 13 && right.firstByte == 10
+            if (joinedCrLf && ordinal == left.lineBreaks - 1L)
+                left.byteLength + 1L
+            else
+                if (ordinal < left.lineBreaks)
+                    markdownRopeBreakEnd(left, ordinal)
+                else
+                    left.byteLength +
+                        markdownRopeBreakEnd(
+                            right,
+                            ordinal -
+                                left.lineBreaks +
+                                if (joinedCrLf)
+                                    1L
+                                else
+                                    0L
+                        )
+        }
+    }
+
+private fun markdownLeafBreakEnd(bytes: Array<Byte>, ordinal: Long): Long {
+    var remaining = ordinal
+    var index = 0L
+    while (index < bytes.size) {
+        val value = bytes[index].toInt().and(255)
+        index += 1L
+        if (value == 13 || value == 10) {
+            if (value == 13 && index < bytes.size && bytes[index].toInt() == 10)
+                index += 1L
+            if (remaining == 0L)
+                return index
+            remaining -= 1L
+        }
+    }
+    throw IndexOutOfBoundsException()
+}

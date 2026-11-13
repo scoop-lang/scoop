@@ -1,0 +1,14 @@
+schema = 1
+
+[cone]
+group = "scoop.examples"
+name = "markdown-source"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.markdown" = { version = "0.1.0", path = "../.." }
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"

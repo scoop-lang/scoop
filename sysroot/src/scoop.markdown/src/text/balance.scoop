@@ -1,0 +1,90 @@
+package scoop.markdown
+
+private fun markdownRopeChildren(node: MarkdownRope): (MarkdownRope, MarkdownRope) =
+    when (node.content) {
+        case MarkdownRopeContent.Branch(val left, val right) -> (left, right)
+        else -> throw IllegalStateException(Some("invalid Markdown rope height"))
+    }
+
+private fun markdownRopeLeafBytes(node: MarkdownRope): Array<Byte> =
+    when (node.content) {
+        case MarkdownRopeContent.Leaf(_, val bytes) -> bytes
+        else -> throw IllegalStateException(Some("invalid Markdown rope leaf height"))
+    }
+
+private fun markdownRopeBalance(left: MarkdownRope, right: MarkdownRope): MarkdownRope {
+    if (left.height > right.height + 1L) {
+        val outer = markdownRopeChildren(left)
+        if (outer._1.height >= outer._2.height)
+            return markdownRopeBranch(outer._1, markdownRopeBranch(outer._2, right))
+        val inner = markdownRopeChildren(outer._2)
+        return markdownRopeBranch(
+            markdownRopeBranch(outer._1, inner._1),
+            markdownRopeBranch(inner._2, right)
+        )
+    }
+    if (right.height > left.height + 1L) {
+        val outer = markdownRopeChildren(right)
+        if (outer._2.height >= outer._1.height)
+            return markdownRopeBranch(markdownRopeBranch(left, outer._1), outer._2)
+        val inner = markdownRopeChildren(outer._1)
+        return markdownRopeBranch(
+            markdownRopeBranch(left, inner._1),
+            markdownRopeBranch(inner._2, outer._2)
+        )
+    }
+    return markdownRopeBranch(left, right)
+}
+
+/** Concatenation path-copies the taller tree and preserves untouched subtrees. */
+internal fun markdownRopeJoin(left: MarkdownRope, right: MarkdownRope): MarkdownRope {
+    if (left.byteLength == 0L)
+        return right
+    if (right.byteLength == 0L)
+        return left
+    if (left.height == 1L && right.height == 1L && left.byteLength + right.byteLength <= 2048L) {
+        val a = markdownRopeLeafBytes(left)
+        val b = markdownRopeLeafBytes(right)
+        return markdownRopeLeaf(
+            Array<Byte>(a.size + b.size) {
+                index -> if (index < a.size)
+                    a[index]
+                else
+                    b[index - a.size]
+            }
+        )
+    }
+    if (left.height > right.height + 1L) {
+        val children = markdownRopeChildren(left)
+        return markdownRopeBalance(children._1, markdownRopeJoin(children._2, right))
+    }
+    if (right.height > left.height + 1L) {
+        val children = markdownRopeChildren(right)
+        return markdownRopeBalance(markdownRopeJoin(left, children._1), children._2)
+    }
+    return markdownRopeBranch(left, right)
+}
+
+/** The caller has validated offset against this document and its scalar boundaries. */
+internal fun markdownRopeSplit(node: MarkdownRope, offset: Long): (MarkdownRope, MarkdownRope) {
+    if (offset == 0L)
+        return (markdownEmptyRope, node)
+    if (offset == node.byteLength)
+        return (node, markdownEmptyRope)
+    return when (node.content) {
+        case MarkdownRopeContent.Empty -> throw IllegalStateException(
+            Some("invalid empty rope split")
+        )
+        case MarkdownRopeContent.Leaf(_, val bytes) -> (
+            markdownRopeLeaf(Array<Byte>(offset) { index -> bytes[index] }),
+            markdownRopeLeaf(Array<Byte>(bytes.size - offset) { index -> bytes[offset + index] })
+        )
+        case MarkdownRopeContent.Branch(val left, val right) -> if (offset < left.byteLength) {
+            val parts = markdownRopeSplit(left, offset)
+            (parts._1, markdownRopeJoin(parts._2, right))
+        } else {
+            val parts = markdownRopeSplit(right, offset - left.byteLength)
+            (markdownRopeJoin(left, parts._1), parts._2)
+        }
+    }
+}

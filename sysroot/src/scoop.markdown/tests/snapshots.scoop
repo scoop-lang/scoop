@@ -1,0 +1,103 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownSnapshotTests {
+    @Test
+    fun `empty documents have one independently identified line`() {
+        val document = MarkdownDocument.fromText("")
+        val snapshot = document.snapshot()
+        assertEquals(0L, snapshot.byteLength)
+        assertEquals(1L, snapshot.lineCount)
+        assertEquals(0L, snapshot.positionOfLine(0L).byteOffset)
+        assertEquals(MarkdownRange(0L, 0L), snapshot.lineRange(0L))
+        assertEquals(0L, snapshot.lineAt(MarkdownPosition(0L)))
+        assertEquals(None, snapshot.chunks().iterator().next())
+        assertFalse(snapshot.documentId === MarkdownDocument.fromText("").documentId)
+        assertFailsWith<IllegalArgumentException> { snapshot.positionOfLine(1L) }
+    }
+
+    @Test
+    fun `raw UTF8 and all newline forms survive snapshots and writes`() {
+        val source = "\u{FEFF}# 雪😀\r\n\rline\n\u{0}tail\r"
+        val document = MarkdownDocument.fromText(source)
+        val snapshot = document.snapshot()
+        assertEquals(source, snapshot.toMarkdown())
+        assertEquals(5L, snapshot.lineCount)
+        assertEquals("\u{FEFF}# 雪😀", snapshot.read(snapshot.lineRange(0L)))
+        assertEquals("", snapshot.read(snapshot.lineRange(1L)))
+        assertEquals("line\n", snapshot.read(snapshot.lineRange(2L, true)))
+        assertEquals("\u{0}tail", snapshot.read(snapshot.lineRange(3L)))
+        assertEquals("", snapshot.read(snapshot.lineRange(4L)))
+        val writer = StringWriter()
+        document.writeTo(writer)
+        assertEquals(source, writer.toString())
+        document.replace(MarkdownRange(0L, 3L), "")
+        assertEquals(source, snapshot.toMarkdown())
+        assertTrue(snapshot.documentId === document.documentId)
+        assertEquals(0L, snapshot.revision)
+        assertEquals(1L, document.revision)
+    }
+
+    @Test
+    fun `CRLF straddling leaves remains one logical break`() {
+        val builder = StringBuilder()
+        for (index in 0L ..< 2047L)
+            builder.append("a")
+        builder.append("\r\n雪\r\nlast\n")
+        val document = MarkdownDocument.fromText(builder.toString())
+        val snapshot = document.snapshot()
+        assertEquals(4L, snapshot.lineCount)
+        assertEquals(2049L, snapshot.positionOfLine(1L).byteOffset)
+        assertEquals(0L, snapshot.lineAt(MarkdownPosition(2047L)))
+        assertEquals(0L, snapshot.lineAt(MarkdownPosition(2048L)))
+        assertEquals(1L, snapshot.lineAt(MarkdownPosition(2049L)))
+        assertEquals("雪", snapshot.read(snapshot.lineRange(1L)))
+        assertEquals("last", snapshot.read(snapshot.lineRange(2L)))
+        document.replace(MarkdownRange(2048L, 2049L), "")
+        assertEquals(2048L, document.snapshot().positionOfLine(1L).byteOffset)
+        assertEquals(4L, document.lineCount)
+        document.replace(MarkdownRange(2048L, 2048L), "\n")
+        assertEquals(snapshot.toMarkdown(), document.toMarkdown())
+    }
+
+    @Test
+    fun `chunk iterators are lazy reusable and stay on their original revision`() {
+        val builder = StringBuilder()
+        for (index in 0L ..< 1800L)
+            builder.append("雪😀")
+        val document = MarkdownDocument.fromText(builder.toString())
+        val snapshot = document.snapshot()
+        val chunks = snapshot.chunks(MarkdownRange(3L, snapshot.byteLength - 7L))
+        val first = chunks.iterator()
+        val second = chunks.iterator()
+        val prefix = first.next()!!
+        assertEquals(prefix, second.next()!!)
+        document.reset("different")
+        val actual = StringBuilder()
+        actual.append(prefix)
+        while (true) {
+            val chunk = first.next() ?: break
+            actual.append(chunk)
+        }
+        assertEquals(snapshot.read(MarkdownRange(3L, snapshot.byteLength - 7L)), actual.toString())
+        assertEquals(None, first.next())
+        assertEquals(None, first.next())
+    }
+
+    @Test
+    fun `scalar boundaries are required even for empty ranges`() {
+        val snapshot = MarkdownDocument.fromText("a雪😀z").snapshot()
+        assertEquals("雪😀", snapshot.read(MarkdownRange(1L, 8L)))
+        for (offset in [2L, 3L, 5L, 6L, 7L]) {
+            assertFailsWith<IllegalArgumentException> {
+                snapshot.read(MarkdownRange(offset, offset))
+            }
+            assertFailsWith<IllegalArgumentException> { snapshot.lineAt(MarkdownPosition(offset)) }
+        }
+        assertFailsWith<IllegalArgumentException> { snapshot.read(MarkdownRange(-1L, 0L)) }
+        assertFailsWith<IllegalArgumentException> { snapshot.read(MarkdownRange(4L, 1L)) }
+        assertFailsWith<IllegalArgumentException> { snapshot.read(MarkdownRange(0L, 10L)) }
+    }
+}

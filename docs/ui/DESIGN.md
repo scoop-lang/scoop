@@ -10,6 +10,8 @@
 
 2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-完整布局与更新合同汇总)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 
+2026-11-14 的 [Markdown 编辑器设计](markdown/DESIGN.md)覆盖源码、所见即所得和双栏编辑、大文档布局及扩展图像块；其[独立文档 Cone](../markdown/DESIGN.md)面向无 UI 的解析、结构化处理与 Markdown 生成。Mermaid 首期通过可替换工具生成图片展示，原生 SVG 接入后续验证。当前按纯 Scoop 方案实施，已交付范围见[实施记录](../markdown/PROGRESS.md)。
+
 ## 1. 分层目标
 
 UI 框架提供构建完全自绘控件的能力，应用可以只使用框架和 Surface 绘图／动画完成自己的界面。基础控件作为另一普通库构建：

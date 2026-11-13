@@ -1,0 +1,124 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownRopeTests {
+    @Test
+    fun `mixed edits agree with a flat source oracle and keep AVL invariants`() {
+        val builder = StringBuilder()
+        for (index in 0L ..< 900L)
+            builder.append("text\r\nnext\n")
+        var expected = builder.toString()
+        val document = MarkdownDocument.fromText(expected)
+        val original = document.snapshot()
+        var seed = 73L
+        for (iteration in 0L ..< 400L) {
+            seed = seed * 48271L % 2147483647L
+            val start = seed % (expected.byteLength + 1L)
+            val available = expected.byteLength - start
+            val length =
+                if (available < 5L)
+                    available
+                else
+                    seed % 6L
+            val inserted =
+                when (iteration % 3L) {
+                    case 0L -> "ABC"
+                    case 1L -> "\r\n"
+                    else -> ""
+                }
+            val previous = document.snapshot()
+            val change = document.replace(MarkdownRange(start, start + length), inserted)
+            expected =
+                expected.slice(0L, start) +
+                    inserted +
+                    expected.slice(start + length, expected.byteLength)
+            assertEquals(expected, document.toMarkdown())
+            assertEquals(previous.toMarkdown(), change.before.toMarkdown())
+            verifyMarkdownRope(document.snapshot().root)
+            if (iteration % 25L == 0L)
+                verifyMarkdownLines(document.snapshot(), expected)
+        }
+        assertEquals(builder.toString(), original.toMarkdown())
+        verifyMarkdownLines(document.snapshot(), expected)
+    }
+
+    @Test
+    fun `megabyte snapshots retain untouched subtrees after local Unicode edits`() {
+        val builder = StringBuilder()
+        for (index in 0L ..< 32000L)
+            builder.append("# 标题\n正文 **bold** 雪😀。\n\n")
+        val document = MarkdownDocument.fromText(builder.toString())
+        assertTrue(document.byteLength > 1048576L)
+        val original = document.snapshot()
+        val firstLeaf = firstMarkdownLeaf(original.root)
+        for (index in 0L ..< 100L) {
+            val start = document.snapshot().positionOfLine(48000L).byteOffset
+            document.replace(MarkdownRange(start, start), "追加😀")
+        }
+        assertTrue(firstMarkdownLeaf(document.snapshot().root) === firstLeaf)
+        assertEquals(96001L, document.lineCount)
+        assertEquals(builder.toString(), original.toMarkdown())
+        verifyMarkdownRope(document.snapshot().root)
+    }
+}
+
+private fun firstMarkdownLeaf(node: MarkdownRope): MarkdownRope =
+    when (node.content) {
+        case MarkdownRopeContent.Branch(val left, _) -> firstMarkdownLeaf(left)
+        else -> node
+    }
+
+private fun verifyMarkdownRope(node: MarkdownRope) {
+    when (node.content) {
+        case MarkdownRopeContent.Empty -> {
+            assertEquals(0L, node.byteLength)
+            assertEquals(0L, node.height)
+        }
+        case MarkdownRopeContent.Leaf(val text, val bytes) -> {
+            assertEquals(text.byteLength, node.byteLength)
+            assertEquals(bytes.size, node.byteLength)
+            assertTrue(node.byteLength > 0L && node.byteLength <= 2048L)
+            assertEquals(1L, node.height)
+        }
+        case MarkdownRopeContent.Branch(val left, val right) -> {
+            assertTrue(left.height <= right.height + 1L && right.height <= left.height + 1L)
+            assertEquals(left.byteLength + right.byteLength, node.byteLength)
+            assertEquals(
+                (
+                    if (left.height > right.height)
+                        left.height
+                    else
+                        right.height
+                ) +
+                    1L,
+                node.height
+            )
+            verifyMarkdownRope(left)
+            verifyMarkdownRope(right)
+        }
+    }
+}
+
+private fun verifyMarkdownLines(snapshot: MarkdownSnapshot, text: String) {
+    val bytes = text.toByteArray()
+    val starts = ArrayList<Long>()
+    starts.add(0L)
+    var index = 0L
+    while (index < bytes.size) {
+        val byte = bytes[index].toInt()
+        index += 1L
+        if (byte == 13 && index < bytes.size && bytes[index].toInt() == 10)
+            index += 1L
+        if (byte == 10 || byte == 13)
+            starts.add(index)
+    }
+    assertEquals(starts.size, snapshot.lineCount)
+    for (line in 0L ..< starts.size) {
+        assertEquals(starts[line], snapshot.positionOfLine(line).byteOffset)
+        assertEquals(line, snapshot.lineAt(MarkdownPosition(starts[line])))
+        if (line + 1L < starts.size)
+            assertEquals(line, snapshot.lineAt(MarkdownPosition(starts[line + 1L] - 1L)))
+    }
+}

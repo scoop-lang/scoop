@@ -1,0 +1,53 @@
+package scoop.markdown
+
+internal struct MarkdownRopeFrame(val node: MarkdownRope, val start: Long)
+
+internal class MarkdownChunks(val root: MarkdownRope, val range: MarkdownRange): Iterable<String> {
+    public override operator fun iterator(): Iterator<String> = MarkdownChunkIterator(root, range)
+}
+
+private class MarkdownChunkIterator(root: MarkdownRope, private val range: MarkdownRange): Iterator<
+    String
+> {
+    private val pending = ArrayList<MarkdownRopeFrame>()
+
+    init {
+        if (!range.isEmpty)
+            pending.add(MarkdownRopeFrame(root, 0L))
+    }
+
+    public override fun next(): String? {
+        while (pending.size > 0L) {
+            val frame = pending.removeAt(pending.size - 1L)
+            val node = frame.node
+            if (frame.start >= range.end || frame.start + node.byteLength <= range.start)
+                continue
+            when (node.content) {
+                case MarkdownRopeContent.Empty -> continue
+                case MarkdownRopeContent.Branch(val left, val right) -> {
+                    pending.add(MarkdownRopeFrame(right, frame.start + left.byteLength))
+                    pending.add(MarkdownRopeFrame(left, frame.start))
+                }
+                case MarkdownRopeContent.Leaf(val text, val bytes) -> {
+                    val start =
+                        if (range.start > frame.start)
+                            range.start - frame.start
+                        else
+                            0L
+                    val end =
+                        if (range.end < frame.start + node.byteLength)
+                            range.end - frame.start
+                        else
+                            node.byteLength
+                    return Some(
+                        if (start == 0L && end == node.byteLength)
+                            text
+                        else
+                            markdownUtf8Slice(bytes, start, end)
+                    )
+                }
+            }
+        }
+        return None
+    }
+}

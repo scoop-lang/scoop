@@ -1,0 +1,55 @@
+package scoop.markdown
+
+/** One source replacement, using coordinates from the edit's base revision. */
+public struct MarkdownReplacement(val range: MarkdownRange, val text: String)
+
+/** All ranges use one baseline and must be ordered and nonoverlapping. */
+public class MarkdownEdit public constructor(
+    public val baseRevision: Long,
+    replacements: List<MarkdownReplacement>
+) {
+    public val replacements: Array<MarkdownReplacement> = replacements.toArray()
+}
+
+public enum MarkdownChangeKind {
+    Edit, Reset
+}
+
+/** A published source difference and its inverse, retaining shared immutable snapshots. */
+public class MarkdownChange internal constructor(
+    public val before: MarkdownSnapshot,
+    public val after: MarkdownSnapshot,
+    public val replacements: Array<MarkdownReplacement>,
+    public val inverseReplacements: Array<MarkdownReplacement>,
+    public val kind: MarkdownChangeKind
+) {
+    public val changed: Boolean get() = before.revision != after.revision
+    public val beforeRevision: Long get() = before.revision
+    public val afterRevision: Long get() = after.revision
+
+    /** Maps a validated baseline anchor without depending on layout or parsed structure. */
+    public fun map(anchor: MarkdownAnchor): MarkdownAnchor {
+        val position = anchor.position.byteOffset
+        before.checkPosition(position)
+        var delta = 0L
+        for (replacement in replacements) {
+            val range = replacement.range
+            if (position < range.start)
+                break
+            if (position == range.start && anchor.bias == MarkdownBias.Before)
+                return MarkdownAnchor(MarkdownPosition(range.start + delta), anchor.bias)
+            if (position < range.end) {
+                val offset =
+                    range.start +
+                        delta +
+                        if (anchor.bias == MarkdownBias.After)
+                            replacement.text.byteLength
+                        else
+                            0L
+                return MarkdownAnchor(MarkdownPosition(offset), anchor.bias)
+            }
+            delta += replacement.text.byteLength - range.byteLength
+        }
+        return MarkdownAnchor(MarkdownPosition(position + delta), anchor.bias)
+    }
+}

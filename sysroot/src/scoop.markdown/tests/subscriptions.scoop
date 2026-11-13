@@ -1,0 +1,78 @@
+package scoop.markdown
+
+import scoop.test.*
+
+@Test
+private class MarkdownSubscriptionTests {
+    private var early = 0L
+    private var late = 0L
+    private var added = false
+    private var later: MarkdownSubscription? = None
+    private var calls = 0L
+    private var observed = ""
+
+    @Test
+    fun `listeners added during notification start on the next edit`() {
+        val document = MarkdownDocument.fromText("")
+        val subscription =
+            document.observe {
+                _ ->
+                early += 1L
+                if (!added) {
+                    added = true
+                    document.observe { _ -> late += 1L }
+                }
+            }
+        assertEquals(0L, early)
+        document.replace(MarkdownRange(0L, 0L), "a")
+        assertEquals(1L, early)
+        assertEquals(0L, late)
+        document.replace(MarkdownRange(1L, 1L), "b")
+        assertEquals(2L, early)
+        assertEquals(1L, late)
+        subscription.close()
+        subscription.close()
+        document.reset("")
+        assertEquals(2L, early)
+        assertEquals(2L, late)
+    }
+
+    @Test
+    fun `cancellation takes effect before an outstanding listener is called`() {
+        val document = MarkdownDocument.fromText("")
+        document.observe { _ -> later!!.close() }
+        later = Some(document.observe { _ -> calls += 1L })
+        document.reset("a")
+        assertEquals(0L, calls)
+    }
+
+    @Test
+    fun `callback failures do not roll back publication or starve other observers`() {
+        val document = MarkdownDocument.fromText("old")
+        val failing =
+            document.observe { _ -> throw IllegalArgumentException(Some("listener failure")) }
+        document.observe { change -> observed = change.after.toMarkdown() }
+        assertFailsWith<IllegalArgumentException> { document.reset("new") }
+        assertEquals("new", observed)
+        assertEquals("new", document.toMarkdown())
+        assertEquals(1L, document.revision)
+        failing.close()
+        document.reset("final")
+        assertEquals("final", observed)
+    }
+
+    @Test
+    fun `reentrant source changes are rejected before mutating current content`() {
+        val document = MarkdownDocument.fromText("")
+        document.observe {
+            _ ->
+            assertFailsWith<IllegalStateException> { document.reset("wrong") }
+            assertFailsWith<IllegalStateException> {
+                document.replace(MarkdownRange(0L, 0L), "wrong")
+            }
+        }
+        document.reset("right")
+        assertEquals("right", document.toMarkdown())
+        assertEquals(1L, document.revision)
+    }
+}

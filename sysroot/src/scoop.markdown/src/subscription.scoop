@@ -1,0 +1,24 @@
+package scoop.markdown
+
+/** Cancels a content subscription and releases its callback. Close is idempotent. */
+public class MarkdownSubscription internal constructor(
+    callback: (MarkdownChange) -> Unit
+): Closeable {
+    private var callback: ((MarkdownChange) -> Unit)? = Some(callback)
+    internal val active: Boolean get() =
+        when (callback) {
+            case Some(_) -> true
+            case None -> false
+        }
+
+    internal fun deliver(change: MarkdownChange) {
+        when (callback) {
+            case Some(val listener) -> listener(change)
+            case None -> return
+        }
+    }
+
+    public override fun close() {
+        callback = None
+    }
+}

@@ -1,0 +1,100 @@
+package scoop.markdown
+
+/** An immutable, structurally shared source revision with byte and line indices. */
+public class MarkdownSnapshot internal constructor(
+    public val documentId: MarkdownDocumentId,
+    public val revision: Long,
+    internal val root: MarkdownRope
+) {
+    public val byteLength: Long get() = root.byteLength
+    public val lineCount: Long get() = markdownAdd(root.lineBreaks, 1L)
+
+    internal fun checkPosition(position: Long) {
+        requireMarkdown(
+            position >= 0L && position <= byteLength,
+            "Markdown position is outside the document"
+        )
+        requireMarkdown(
+            position == byteLength || !markdownContinuation(markdownRopeByte(root, position)),
+            "Markdown position splits a UTF-8 scalar"
+        )
+    }
+
+    internal fun checkRange(range: MarkdownRange) {
+        requireMarkdown(range.start <= range.end, "Markdown range is reversed")
+        checkPosition(range.start)
+        checkPosition(range.end)
+    }
+
+    /** Iteration is lazy, reusable, and independent of subsequent document edits. */
+    public fun chunks(range: MarkdownRange = MarkdownRange(0L, byteLength)): Iterable<String> {
+        checkRange(range)
+        return MarkdownChunks(root, range)
+    }
+
+    /** Materializes only the requested UTF-8 range. */
+    public fun read(range: MarkdownRange): String {
+        val result = StringBuilder()
+        for (chunk in chunks(range))
+            result.append(chunk)
+        return result.toString()
+    }
+
+    /** Writes source chunks in order without materializing the complete document. */
+    public fun writeTo(writer: TextWriter) {
+        for (chunk in chunks())
+            writer.write(chunk)
+    }
+
+    public fun toMarkdown(): String = read(MarkdownRange(0L, byteLength))
+
+    /** Returns the zero-based logical line containing a scalar-boundary position. */
+    public fun lineAt(position: MarkdownPosition): Long {
+        val offset = position.byteOffset
+        checkPosition(offset)
+        val count = markdownRopePrefixBreaks(root, offset)
+        return count -
+            if (
+                offset >
+                    0L &&
+                    offset <
+                    byteLength &&
+                    markdownRopeByte(root, offset - 1L).toInt() ==
+                    13 &&
+                    markdownRopeByte(root, offset).toInt() ==
+                    10
+            )
+                1L
+            else
+                0L
+    }
+
+    public fun positionOfLine(line: Long): MarkdownPosition {
+        requireMarkdown(line >= 0L && line < lineCount, "Markdown line is outside the document")
+        return MarkdownPosition(
+            if (line == 0L)
+                0L
+            else
+                markdownRopeBreakEnd(root, line - 1L)
+        )
+    }
+
+    public fun lineRange(line: Long, includeTerminator: Boolean = false): MarkdownRange {
+        val start = positionOfLine(line).byteOffset
+        var end =
+            if (line + 1L < lineCount)
+                positionOfLine(line + 1L).byteOffset
+            else
+                byteLength
+        if (!includeTerminator && end > start) {
+            if (markdownRopeByte(root, end - 1L).toInt() == 10) {
+                end -= 1L
+                if (end > start && markdownRopeByte(root, end - 1L).toInt() == 13)
+                    end -= 1L
+            } else
+                if (markdownRopeByte(root, end - 1L).toInt() == 13)
+                    end -= 1L
+        }
+        return MarkdownRange(start, end)
+    }
+}

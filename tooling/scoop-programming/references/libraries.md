@@ -25,6 +25,7 @@
 | 文件、目录、进程、环境变量、线程                  | `scoop.platform`；`io/files`、`io/resources`、`io/processes`、`io/environment`；整合输入与计算见 `apps/file-report` |
 | 事件循环、任务、异步 I/O                          | `scoop.asyncio`；`async/tasks`                                                                 |
 | JSON 与类型 codec                                 | `scoop.json`；`json/typed`                                                                     |
+| Markdown 源文档、快照与编辑事务                    | `scoop.markdown` 的 README 与 `examples/source`；未安装的新库使用显式 path 依赖，解析／UI 的交付范围以库说明为准 |
 | HTTP 请求、服务端、路由及流式交互                 | `scoop.http.client`、`scoop.http.server`；`http/get`、`http/existing-connection` 及各库 README |
 | HTTP 协议与异步传输适配                           | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用                                       |
 | 命令行参数与测试                                  | `scoop.cli`、`scoop.test`；`cli/options`、`test/assertions`                                    |
