@@ -10,6 +10,7 @@
 #include "gc.h"
 #include "platform/primitives.h"
 #include "process_termination.h"
+#include "profiling/gc.h"
 #include "profiling/path.h"
 
 /* Own initialization and flushing, including Scoop's _exit path. This
@@ -52,6 +53,7 @@ static void finish(const char *reason, const int32_t *exit_code) {
   scoop_process_prepare_termination();
   if (atomic_load_explicit(&runtime_ready, memory_order_acquire))
     scoop_gc_write_metrics(metrics_file);
+  scoop_profile_gc_write(metrics_file);
   fprintf(metrics_file,
           "{\"scoop_profile\":1,\"event\":\"finish\",\"reason\":\"%s\",\"exit_"
           "code\":",
@@ -87,6 +89,7 @@ void scoop_profile_initialize(void) {
         strerror(errno));
     return;
   }
+  scoop_profile_gc_initialize(started_ns);
   if (atexit(finish_at_exit) != 0)
     fputs("scoop profiling: cannot register process exit writer\n", stderr);
 }

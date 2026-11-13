@@ -35,6 +35,8 @@ optimize 自动选择 Release/full 系统库，要求至少一个正常优化决
 
 `build.json` 保存最近一次成功训练构建；`builds/<link-fingerprint>/` 保存其独立映射副本；`runs/<run-id>/run.json` 记录运行配置与状态，其进程子目录由 runtime 写入 `counts.profraw` 和 `runtime.jsonl`。`merged/` 保存 `counts.profdata`、可直接用于低层 `--profile-use` 的 `profile.json`、`summary.json` 和输入更新记录。`optimization.json` 保存反馈消费者和最终输出路径。runtime 时间信息不混入执行频次。
 
+`runtime.jsonl` 同时保存 GC 总指标与事件时间线：`gc-cycle-begin/end` 描述完整或重启的收集周期，`gc-slice` 分开记录停稳等待、暂停和 worker CPU，`gc-phase` 关联周期与暂停片段。增量周期可以跨多次暂停；plan 包含 copy，reclaim 包含 vm-return，嵌套区间不要重复相加。时间以 runtime 初始化为原点，单位为纳秒。时间线最多保留 8,192 条事件，`gc-trace.dropped` 明确报告截断；总指标仍覆盖完整运行。
+
 训练默认追加；合并累加整数计数并保留全零记录。输入未变化且合并结果存在时直接复用；实际输入缺失、损坏或合并失败时停止，保留已有合并结果与 binary。编译失败不启动旧程序，配置不匹配不替换现有 binary。同一目录通过普通文件锁串行操作；不包含后台任务或隐式数据上传。
 
 ## 开发

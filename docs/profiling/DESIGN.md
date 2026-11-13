@@ -154,6 +154,8 @@ off 关闭的是**通过普通导出正文进行的跨 Cone 优化**，不是禁
 
 GC 事件时间线作为采集能力的下一批：记录单调时间、GC cycle、STW slice、phase 与相关计数，区分 rendezvous 等待、实际暂停和 worker CPU。一个增量周期可以包含多次暂停，不能用整个周期墙钟代替单次 STW 延迟。
 
+事件时刻取自实际 world phase 发布和既有 collector 阶段。phase 同时关联 cycle 与 slice；重启可能在一个 slice 内跨越两个周期，plan/copy 和 reclaim/vm-return 按嵌套区间解释。收集期间只复制既有标量到固定 8,192 条 native 缓冲，退出时写出已发布前缀并报告 dropped；不在暂停中写文件、扫描堆或产生托管分配。总指标继续覆盖完整运行，时间线截断单独表达。具体时间边界见运行时规范 §7。
+
 分配站点、实际分配类型/字节数，以及间接调用目标分布在有对应优化消费者时加入。分配采集必须覆盖 codegen 的 inline nursery fast path；只拦截 C runtime 分配入口会漏记。被优化消除的分配不算实际分配。
 
 首版不在每个函数入口/出口计时，不对每次分配采完整栈。native/runtime 耗时和物理调用栈继续由平台采样解释。runtime 事件不保存托管对象地址、不增加 GC roots，也不改变对象头布局。
