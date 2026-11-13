@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | A1：源文本、持久化快照、行索引、事务与通知 | 已完成 | 本机 release：文档库 16 项、独立 consumer 2 项测试通过 |
 | A2：CommonMark／GFM 解析、源码映射与查询 | 已完成 | 652 个 CommonMark、26 个 GFM 样例；文档库 23 项、consumer 3 项、真实仓库 2 项测试通过 |
-| A3：结构化修改、生成 DSL、扩展语法和无 UI 内容处理 | 待实施 | 读取→修改→生成及 mdBook 风格处理 |
+| A3：结构化修改、生成 DSL、扩展语法和无 UI 内容处理 | 实施中 | 生成 DSL 已完成；文档库 34 项、consumer 4 项通过；继续结构编辑与扩展处理 |
 | B：源码编辑、虚拟布局、双栏、统一历史及图像块 | 待实施 | 两份最大 spec 编辑保存，真实 Mermaid 图像适配 |
 | C：普通 Markdown 所见即所得编辑 | 待实施 | 表格、列表、链接、跨块操作、中文 IME 和三模式撤销 |
 | D：公式、指令和 Typora 编辑能力补齐 | 待实施 | 扩展来源映射、正确展示、错误恢复与编辑操作 |
@@ -50,3 +50,15 @@
 - `scoop doc` 与 `scoop api show ParsedMarkdown` 确认 API 可生成和查询。语料、移植算法及命名实体数据保留来源与许可。
 
 本批尚不包含跨 revision 身份复用、结构化修改、builder、脚注／数学／指令扩展或 UI。它们仍按 A3 与后续项目继续实施。临时 API 站点、原始日志和仓库文档测试 Cone 验收后清理；正常 Cone 构建缓存保留。
+
+## A3 生成 DSL 验证
+
+已实现 `markdownDocument`／`markdownText` 与 block、inline、list、table builders。生成路径处理普通文字、强调／删除线、代码围栏、链接／图片、嵌套引用和列表、任务条目、表格以及换行选项；不影响已有文档的逐字节保存。规范、README、编程导航和独立 consumer 同步更新。
+
+本机完成相关 fmt、check --tests --release；文档库 8 个容器、34 项 Scoop 测试通过，独立 consumer 3 个容器、4 项通过。除原有标准语料外，新增生成后解析回读、100 组 Unicode／标点／空白格式边界、围栏冲突、表格与链接组合，以及无效结构参数测试。真实 consumer 从另一个 Cone 使用 receiver DSL 生成并检查标题、格式、任务、Mermaid 源码块和表格。
+
+`scoop doc` 与 `scoop api show MarkdownDocumentBuilder` 确认新声明、来源和 import 可查询。临时 API 站点、参考下载和本批原始日志验收后清理，保留后续脚注需要的上游扩展语料。
+
+集成时同步修正三处解析／映射细节：GFM 网址在实体和转义解码前识别，邮箱仍在文字解码后识别；实体空格不被当作源码行尾空格删除或转成 hard break；邮箱目的地址中自动补出的 `mailto:` 前缀遵守 Before／After 源码偏向。652 个 CommonMark 和 26 个 GFM 样例继续通过。本批未改变工具链或系统库。
+
+结构事务、显式格式化、跨 revision 复用和扩展语法仍在 A3 后续范围内，UI 仍待后续项目。

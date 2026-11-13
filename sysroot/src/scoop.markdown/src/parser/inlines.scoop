@@ -32,6 +32,8 @@ internal class MdInlineParser(
         while (position < input.size) {
             val start = position
             val code = input.at(position)
+            if ((code == 104 || code == 119) && bareUri())
+                continue
             when (code) {
                 case 10 -> newline()
                 case 92 -> backslash()
@@ -94,7 +96,8 @@ internal class MdInlineParser(
                                 60 ||
                                 current ==
                                 38 ||
-                                (profile.strikethrough && current == 126)
+                                (profile.strikethrough && current == 126) ||
+                                (profile.autolinks && (current == 104 || current == 119))
                         )
                             break
                         position = input.scalarEnd(position)
@@ -148,13 +151,14 @@ internal class MdInlineParser(
         val start = position
         var rangeStart = input.range(start, start).start
         var hard = false
+        var spaces = 0L
+        while (input.at(start - spaces - 1L) == 32)
+            spaces += 1L
         when (val previous = block.last) {
-            case Some(val node) -> if (node.kind == MdKind.Text) {
+            case Some(val node) -> if (node.kind == MdKind.Text && spaces > 0L) {
                 val text = MdInput(node.text)
-                var end = text.size
-                while (end > 0L && text.at(end - 1L) == 32)
-                    end -= 1L
-                hard = text.size - end >= 2L
+                val end = text.size - spaces
+                hard = spaces >= 2L
                 if (end < text.size) {
                     rangeStart = text.range(end, end).start
                     node.text = text.slice(0L, end)

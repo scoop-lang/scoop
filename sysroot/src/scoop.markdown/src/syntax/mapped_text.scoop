@@ -82,6 +82,10 @@ public class MarkdownText internal constructor(
                         span.textRange.start
                 )
             if (offset <= span.sourceRange.end) {
+                if (offset == span.sourceRange.end && bias == MarkdownBias.After) {
+                    previous = span.textRange.end
+                    continue
+                }
                 if (span.mapping == MarkdownTextMapping.Literal) {
                     val target = span.textRange.start + offset - span.sourceRange.start
                     requireMarkdown(

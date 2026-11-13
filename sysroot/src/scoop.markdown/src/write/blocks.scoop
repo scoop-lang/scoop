@@ -1,0 +1,178 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdWriteDocument(blocks: Array<MdWriteBlock>, options: MarkdownWriteOptions): String {
+    val source = mdWriteBlocks(blocks, options)
+    val ended =
+        if (options.finalNewline && source != "" && !source.endsWith("\n"))
+            source + "\n"
+        else
+            source
+    return when (options.newline) {
+        case MarkdownNewline.Lf -> ended
+        case MarkdownNewline.CrLf -> ended.replace("\n", "\r\n")
+        case MarkdownNewline.Cr -> ended.replace("\n", "\r")
+    }
+}
+
+internal fun mdWriteBlocks(
+    blocks: Array<MdWriteBlock>,
+    options: MarkdownWriteOptions,
+    tight: Boolean = false
+): String {
+    val output = StringBuilder()
+    var count = 0L
+    var previousParagraph = false
+    var previousRaw = false
+    for (block in blocks) {
+        val source = mdWriteBlock(block, options)
+        if (source != "") {
+            val paragraph =
+                when (block) {
+                    case MdWriteBlock.Paragraph(_) -> true;
+                    else -> false
+                }
+            val raw =
+                when (block) {
+                    case MdWriteBlock.Raw(_) -> true;
+                    else -> false
+                }
+            if (count > 0L)
+                output.append(
+                    if (!tight || raw || previousRaw || (paragraph && previousParagraph))
+                        "\n\n"
+                    else
+                        "\n"
+                )
+            output.append(source)
+            previousParagraph = paragraph
+            previousRaw = raw
+            count += 1L
+        }
+    }
+    return output.toString()
+}
+
+internal fun mdWritePrefix(source: String, first: String, following: String): String {
+    val output = StringBuilder()
+    val lines = source.split("\n")
+    for (index in 0L ..< lines.size) {
+        if (index > 0L)
+            output.append('\n')
+        output.append(
+            if (index == 0L)
+                first
+            else
+                following
+        ).append(lines[index])
+    }
+    return output.toString()
+}
+
+internal fun mdWriteBlock(block: MdWriteBlock, options: MarkdownWriteOptions): String =
+    when (block) {
+        case MdWriteBlock.Paragraph(val parts) -> mdWriteInlines(parts)
+        case MdWriteBlock.Heading(val level, val parts) -> "#".repeat(level.toLong()) +
+            " " +
+            mdWriteInlines(parts, true)
+        case MdWriteBlock.Quote(val blocks) -> mdWritePrefix(
+            mdWriteBlocks(blocks, options),
+            "> ",
+            "> "
+        )
+        case MdWriteBlock.ListBlock(val ordered, val start, val tight, val items) -> mdWriteList(
+            ordered,
+            start,
+            tight,
+            items,
+            options
+        )
+        case MdWriteBlock.Fence(val language, val body) -> mdWriteFence(language, body)
+        case MdWriteBlock.ThematicBreak -> "***"
+        case MdWriteBlock.Table(val alignments, val rows) -> mdWriteTable(alignments, rows)
+        case MdWriteBlock.Raw(val source) -> mdWriteNewlines(source)
+    }
+
+internal fun mdWriteList(
+    ordered: Boolean,
+    start: Long,
+    tight: Boolean,
+    items: Array<MdWriteItem>,
+    options: MarkdownWriteOptions
+): String {
+    val output = StringBuilder()
+    for (index in 0L ..< items.size) {
+        if (index > 0L)
+            output.append(
+                if (tight)
+                    "\n"
+                else
+                    "\n\n"
+            )
+        val marker =
+            if (ordered)
+                start.toString() + "."
+            else
+                options.bullet.toString()
+        val padding =
+            if (marker.byteLength + 1L < options.listIndent.toLong())
+                options.listIndent.toLong() - marker.byteLength
+            else
+                1L
+        val prefix = marker + " ".repeat(padding)
+        val item = items[index]
+        var body = mdWriteBlocks(item.blocks, options, tight)
+        when (item.checked) {
+            case Some(val checked) -> {
+                requireMarkdown(
+                    item.blocks.size ==
+                        0L ||
+                        when (item.blocks[0L]) {
+                            case MdWriteBlock.Paragraph(_) -> true
+                            else -> false
+                        },
+                    "A Markdown task item starts with a paragraph"
+                )
+                body =
+                    (
+                        if (checked)
+                            "[x] "
+                        else
+                            "[ ] "
+                    ) +
+                        body
+            }
+            case None -> Unit
+        }
+        output.append(mdWritePrefix(body, prefix, " ".repeat(prefix.byteLength)))
+    }
+    return output.toString()
+}
+
+internal fun mdWriteTable(
+    alignments: Array<MarkdownAlignment>,
+    rows: Array<Array<Array<MdWriteInline>>>
+): String {
+    val output = StringBuilder()
+    for (index in 0L ..< rows.size) {
+        if (index > 0L)
+            output.append('\n')
+        output.append('|')
+        for (cell in rows[index])
+            output.append(' ').append(mdWriteInlines(cell, true, true)).append(" |")
+        if (index == 0L) {
+            output.append("\n|")
+            for (alignment in alignments)
+                output.append(
+                    when (alignment) {
+                        case MarkdownAlignment.None -> " --- |"
+                        case MarkdownAlignment.Left -> " :--- |"
+                        case MarkdownAlignment.Center -> " :---: |"
+                        case MarkdownAlignment.Right -> " ---: |"
+                    }
+                )
+        }
+    }
+    return output.toString()
+}

@@ -1,0 +1,287 @@
+package scoop.markdown
+
+import scoop.test.*
+import scoop.text.*
+
+@Test
+private class MarkdownGenerationTests {
+    @Test
+    fun `format boundaries compose across Unicode punctuation and separate text calls`() {
+        val samples = ["a", "!", " ", "雪", "😀", "。", "_", "**", "|", "\u{2003}"]
+        for (body in samples) {
+            for (left in samples) {
+                val doc =
+                    markdownDocument {
+                        paragraph {
+                            text(left)
+                            text("")
+                            emphasis {
+                                text("");
+                                text(body)
+                            }
+                            text(left)
+                            strong { text(body) }
+                            text(left)
+                            strikethrough { text(body) }
+                            text(left)
+                        }
+                    }
+                val outer = mdTestEscape(left)
+                val inner = mdTestEscape(body)
+                assertEquals(
+                    "<p>" +
+                        outer +
+                        "<em>" +
+                        inner +
+                        "</em>" +
+                        outer +
+                        "<strong>" +
+                        inner +
+                        "</strong>" +
+                        outer +
+                        "<del>" +
+                        inner +
+                        "</del>" +
+                        outer +
+                        "</p>\n",
+                    mdTestHtml(doc.parse()),
+                    Some(doc.toMarkdown())
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `entity whitespace remains text at explicit breaks`() {
+        val doc =
+            markdownDocument {
+                paragraph {
+                    text("left  ")
+                    softBreak()
+                    text("  right ")
+                    hardBreak()
+                    text("next")
+                }
+            }
+        assertEquals(
+            "<p>left  \n  right <br />\nnext</p>\n",
+            mdTestHtml(doc.parse()),
+            Some(doc.toMarkdown())
+        )
+        val raw = MarkdownDocument.fromText("a&#32;&#32;\nb\n")
+        assertEquals("<p>a  \nb</p>\n", mdTestHtml(raw.parse(MarkdownProfile.CommonMark)))
+    }
+
+    @Test
+    fun `literal writing retains visible text without creating Markdown structure`() {
+        val samples =
+            [
+                "# title",
+                "1. item",
+                "- [x] task",
+                "***",
+                "[link](target)",
+                "<tag> &amp;",
+                "www.example.com http://example.com",
+                "a|b\\c",
+                "  indented  ",
+                "a\tb\nc\rd",
+                "雪😀 *x* _y_ ~z~",
+                "\u{0}"
+            ]
+        for (sample in samples) {
+            val doc = markdownDocument { paragraph { text(sample) } }
+            val actual = mdTestHtml(doc.parse())
+            val expected = "<p>" + mdTestEscape(sample.replace("\u{0}", "\u{fffd}")) + "</p>\n"
+            assertEquals(expected, actual, Some(doc.toMarkdown()))
+        }
+        val email = markdownDocument { paragraph { text("user@example.com") } }
+        assertEquals(
+            "<p>user@example.com</p>\n",
+            mdTestHtml(email.parse(MarkdownProfile.CommonMark))
+        )
+        assertEquals(
+            "<p><a href=\"mailto:user@example.com\">user@example.com</a></p>\n",
+            mdTestHtml(email.parse())
+        )
+    }
+
+    @Test
+    fun `formatting handles punctuation whitespace adjacency and nested styles`() {
+        val doc =
+            markdownDocument {
+                paragraph {
+                    text("a")
+                    strong { text("!") }
+                    emphasis { text(" b ") }
+                    strikethrough { text("~") }
+                    text("z")
+                }
+                paragraph {
+                    strong { text("one") }
+                    strong { text("two") }
+                    emphasis { strong { text("both") } }
+                    strong { emphasis { text("also") } }
+                }
+                paragraph {
+                    strong { strong { text("once") } }
+                    emphasis {}
+                    code("")
+                }
+            }
+        assertEquals(
+            "<p>a<strong>!</strong><em> b </em><del>~</del>z</p>\n" +
+                "<p><strong>onetwo</strong><em><strong>both</strong></em><strong><em>also</em></strong></p>\n" +
+                "<p><strong>once</strong></p>\n",
+            mdTestHtml(doc.parse()),
+            Some(doc.toMarkdown())
+        )
+    }
+
+    @Test
+    fun `code delimiters quote all backtick runs and preserve edge spaces`() {
+        val samples = ["a`b", "`", "`````", " one ", "   ", "` edge", "end`", "a\r\nb\rc\nd"]
+        for (sample in samples) {
+            val doc = markdownDocument { paragraph { code(sample) } }
+            val expected =
+                "<p><code>" +
+                    mdTestEscape(mdWriteNewlines(sample).replace("\n", " ")) +
+                    "</code></p>\n"
+            assertEquals(expected, mdTestHtml(doc.parse()), Some(doc.toMarkdown()))
+        }
+        val doc =
+            markdownDocument {
+                fencedCode(body = "```\n雪\n~~~~\n", language = "mermaid")
+                fencedCode(body = "~~~\nbody", language = "odd`info")
+            }
+        assertEquals(
+            "<pre><code class=\"language-mermaid\">```\n雪\n~~~~\n</code></pre>\n" +
+                "<pre><code class=\"language-odd`info\">~~~\nbody\n</code></pre>\n",
+            mdTestHtml(doc.parse())
+        )
+    }
+
+    @Test
+    fun `links images breaks and raw source use their own escaping rules`() {
+        val doc =
+            markdownDocument {
+                heading(2) { text("Heading #") }
+                paragraph {
+                    link("a b)<雪>&", "quoted \" &\nline") { strong { text("[go]") } }
+                    softBreak()
+                    image("a [b] *c*", "a.png", "picture")
+                    hardBreak()
+                    rawMarkdown("*raw*")
+                }
+            }
+        assertEquals(
+            "<h2>Heading #</h2>\n<p><a href=\"a%20b)%3C%E9%9B%AA%3E&amp;\" title=\"quoted &quot; &amp;\nline\"><strong>[go]</strong></a>\n" +
+                "<img src=\"a.png\" alt=\"a [b] *c*\" title=\"picture\" /><br />\n<em>raw</em></p>\n",
+            mdTestHtml(doc.parse()),
+            Some(doc.toMarkdown())
+        )
+    }
+
+    @Test
+    fun `nested containers tasks and code retain line prefixes`() {
+        val doc =
+            markdownDocument {
+                blockQuote {
+                    paragraph { text("quote") }
+                    orderedList(start = 10L, tight = false) {
+                        item(checked = Some(true)) {
+                            paragraph { text("done") }
+                            bulletList { item { paragraph { text("nested") } } }
+                        }
+                        item { fencedCode(body = "line\n\n  body\n", language = "text") }
+                    }
+                }
+                thematicBreak()
+            }
+        assertEquals(
+            "<blockquote>\n<p>quote</p>\n<ol start=\"10\">\n" +
+                "<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> \n<p>done</p>\n<ul>\n<li>nested</li>\n</ul>\n</li>\n" +
+                "<li>\n<pre><code class=\"language-text\">line\n\n  body\n</code></pre>\n</li>\n</ol>\n</blockquote>\n<hr />\n",
+            mdTestHtml(doc.parse()),
+            Some(doc.toMarkdown())
+        )
+    }
+
+    @Test
+    fun `table cells preserve code pipes text and targets`() {
+        val doc =
+            markdownDocument {
+                table([MarkdownAlignment.Left, MarkdownAlignment.Right]) {
+                    header {
+                        cell { text("name") };
+                        cell { text("value") }
+                    }
+                    row {
+                        cell { text("a|b\\c") }
+                        cell {
+                            code("a|b");
+                            text(" ");
+                            link("a|b", "t|u") { text("go") }
+                        }
+                    }
+                }
+            }
+        assertEquals(
+            "<table>\n<thead>\n<tr>\n<th align=\"left\">name</th>\n<th align=\"right\">value</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n" +
+                "<td align=\"left\">a|b\\c</td>\n<td align=\"right\"><code>a|b</code> <a href=\"a%7Cb\" title=\"t|u\">go</a></td>\n" +
+                "</tr>\n</tbody>\n</table>\n",
+            mdTestHtml(doc.parse()),
+            Some(doc.toMarkdown())
+        )
+    }
+
+    @Test
+    fun `generation options never change an existing source document`() {
+        val original = MarkdownDocument.fromText("*  untouched\r\n")
+        val snapshot = original.snapshot()
+        val output =
+            markdownText(MarkdownWriteOptions(MarkdownNewline.CrLf, false, '+', 4)) {
+                bulletList {
+                    item { paragraph { text("one") } };
+                    item { paragraph { text("two") } }
+                }
+            }
+        assertEquals("+   one\r\n+   two", output)
+        assertEquals(snapshot.toMarkdown(), original.toMarkdown())
+        assertEquals(0L, original.snapshot().revision)
+        assertEquals("", markdownText())
+    }
+
+    @Test
+    fun `unrepresentable generated structures fail with argument errors`() {
+        assertFailsWith<IllegalArgumentException> { markdownText { heading(0) { text("bad") } } }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText(MarkdownWriteOptions(bullet = 'x')) {}
+        }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText { fencedCode("body", "bad\ninfo") }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText { paragraph { link("a") { link("b") { text("bad") } } } }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText {
+                paragraph {
+                    hardBreak();
+                    text("bad")
+                }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText { table { header { cell { code("\\|") } } } }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            markdownText {
+                table {
+                    header { cell { text("a") } };
+                    row {}
+                }
+            }
+        }
+    }
+}

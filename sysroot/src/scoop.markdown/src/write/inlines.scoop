@@ -1,0 +1,194 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdWriteStyle(part: MdWriteInline): Int =
+    when (part) {
+        case MdWriteInline.Emphasis(_) -> 1
+        case MdWriteInline.Strong(_) -> 2
+        case MdWriteInline.Strike(_) -> 4
+        case MdWriteInline.Code(_) -> 8
+        else -> 0
+    }
+
+internal fun mdWriteStyleChildren(part: MdWriteInline): Array<MdWriteInline> =
+    when (part) {
+        case MdWriteInline.Emphasis(val children) -> children
+        case MdWriteInline.Strong(val children) -> children
+        case MdWriteInline.Strike(val children) -> children
+        else -> []
+    }
+
+internal fun mdWriteBreak(part: MdWriteInline): Boolean =
+    when (part) {
+        case MdWriteInline.SoftBreak -> true
+        case MdWriteInline.HardBreak -> true
+        else -> false
+    }
+
+internal fun mdWriteInlines(
+    values: Array<MdWriteInline>,
+    singleLine: Boolean = false,
+    table: Boolean = false,
+    active: Int = 0,
+    inLink: Boolean = false
+): String {
+    val parts = mdWriteInlineValues(values, active)
+    val output = StringBuilder()
+    var index = 0L
+    while (index < parts.size) {
+        val part = parts[index]
+        val style = mdWriteStyle(part)
+        if (style != 0) {
+            val children = ArrayList<MdWriteInline>()
+            val code = StringBuilder()
+            var end = index
+            while (end < parts.size && mdWriteStyle(parts[end]) == style) {
+                when (parts[end]) {
+                    case MdWriteInline.Code(val text) -> code.append(text)
+                    else -> for (child in mdWriteStyleChildren(parts[end]))
+                        children.add(child)
+                }
+                end += 1L
+            }
+            if (style == 8)
+                output.append(mdWriteCode(code.toString(), table))
+            else {
+                val body =
+                    mdWriteInlines(children.toArray(), singleLine, table, active.or(style), inLink)
+                if (body != "") {
+                    val delimiter =
+                        if (active.and(style) != 0)
+                            ""
+                        else
+                            if (style == 1)
+                                "_"
+                            else
+                                if (style == 2)
+                                    "**"
+                                else
+                                    "~~"
+                    output.append(delimiter).append(body).append(delimiter)
+                }
+            }
+            index = end
+            continue
+        }
+        when (part) {
+            case MdWriteInline.Literal(val text) -> {
+                val combined = StringBuilder().append(text)
+                var end = index + 1L
+                while (end < parts.size) {
+                    when (parts[end]) {
+                        case MdWriteInline.Literal(val following) -> combined.append(following)
+                        else -> break
+                    }
+                    end += 1L
+                }
+                val literal = combined.toString()
+                val chars = literal.toCharArray()
+                if (chars.size > 0L) {
+                    val first = chars[0L]
+                    val last = chars[chars.size - 1L]
+                    val before = index > 0L && mdWriteStyle(parts[index - 1L]) != 0
+                    val after = end < parts.size && mdWriteStyle(parts[end]) != 0
+                    val leading =
+                        (index == 0L || mdWriteBreak(parts[index - 1L])) &&
+                            (first.toString().isBlank() || (active != 0 && mdEscape(first.code)))
+                    val trailing =
+                        (end == parts.size || mdWriteBreak(parts[end])) &&
+                            (last.toString().isBlank() || (active != 0 && mdEscape(last.code)))
+                    output.append(mdWriteLiteral(literal, before || leading, after || trailing))
+                }
+                index = end
+                continue
+            }
+            case MdWriteInline.Link(val label, val destination, val title) -> {
+                requireMarkdown(!inLink, "Markdown links cannot contain another link")
+                output.append('[').append(
+                    mdWriteInlines(label, singleLine, table, active, true)
+                ).append(']')
+                .append(mdWriteTarget(destination, title, table))
+            }
+            case MdWriteInline.Image(val alt, val destination, val title) -> {
+                output.append("![").append(mdWriteLiteral(alt, false, false)).append(']')
+                .append(mdWriteTarget(destination, title, table))
+            }
+            case MdWriteInline.SoftBreak -> mdWriteInlineBreak(
+                output,
+                parts,
+                index,
+                singleLine,
+                false
+            )
+            case MdWriteInline.HardBreak -> mdWriteInlineBreak(
+                output,
+                parts,
+                index,
+                singleLine,
+                true
+            )
+            case MdWriteInline.Raw(val source) -> output.append(source)
+            else -> Unit
+        }
+        index += 1L
+    }
+    return output.toString()
+}
+
+private fun mdWriteInlineValues(values: Array<MdWriteInline>, active: Int): Array<MdWriteInline> {
+    val parts = ArrayList<MdWriteInline>()
+    for (value in values) {
+        val style = mdWriteStyle(value)
+        if (style != 0 && style != 8) {
+            val children = mdWriteInlineValues(mdWriteStyleChildren(value), active.or(style))
+            if (active.and(style) != 0) {
+                for (child in children)
+                    parts.add(child)
+            } else
+                if (children.size > 0L)
+                    parts.add(
+                        if (style == 1)
+                            MdWriteInline.Emphasis(children)
+                        else
+                            if (style == 2)
+                                MdWriteInline.Strong(children)
+                            else
+                                MdWriteInline.Strike(children)
+                    )
+        } else
+            when (value) {
+                case MdWriteInline.Literal(val text) -> {
+                    if (text != "")
+                        parts.add(value)
+                }
+                case MdWriteInline.Code(val text) -> {
+                    if (text != "")
+                        parts.add(value)
+                }
+                case MdWriteInline.Raw(val text) -> {
+                    if (text != "")
+                        parts.add(value)
+                }
+                else -> parts.add(value)
+            }
+    }
+    return parts.toArray()
+}
+
+private fun mdWriteInlineBreak(
+    output: StringBuilder,
+    parts: Array<MdWriteInline>,
+    index: Long,
+    singleLine: Boolean,
+    hard: Boolean
+) {
+    requireMarkdown(!singleLine, "Markdown headings and table cells cannot contain line breaks")
+    requireMarkdown(
+        index > 0L && index + 1L < parts.size && !mdWriteBreak(parts[index - 1L]),
+        "An inline Markdown break needs content on both sides"
+    )
+    if (hard)
+        output.append('\\')
+    output.append('\n')
+}

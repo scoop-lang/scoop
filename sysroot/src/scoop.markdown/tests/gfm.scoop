@@ -7,6 +7,44 @@ import scoop.test.*
 @Test
 private class MarkdownGfmTests {
     @Test
+    fun `URL lexing precedes decoding while email linking follows text decoding`() {
+        val source =
+            "www\\.example.com http\\://example.com www&#46;example.com\n\n" +
+                "http://example.com/a&amp;b user&#64;example.com\n"
+        val parsed = MarkdownDocument.fromText(source).parse()
+        assertEquals(
+            "<p>www.example.com http://example.com www.example.com</p>\n" +
+                "<p><a href=\"http://example.com/a&amp;amp;b\">http://example.com/a&amp;amp;b</a> " +
+                "<a href=\"mailto:user@example.com\">user@example.com</a></p>\n",
+            mdTestHtml(parsed)
+        )
+        val email = parsed.root.children[1L].children[2L]
+        when (email.content) {
+            case MarkdownContent.Link(val target) -> {
+                assertEquals(
+                    0L,
+                    target.destination.textAt(
+                        MarkdownPosition(email.range.start),
+                        MarkdownBias.Before
+                    ).byteOffset
+                )
+                assertEquals(
+                    7L,
+                    target.destination.textAt(
+                        MarkdownPosition(email.range.start),
+                        MarkdownBias.After
+                    ).byteOffset
+                )
+                assertEquals(
+                    email.range.start,
+                    target.destination.sourceAt(MarkdownPosition(3L)).byteOffset
+                )
+            }
+            else -> assertTrue(false, Some("expected an email link"))
+        }
+    }
+
+    @Test
     fun `published GFM extension examples`() {
         val examples = Json.parse(includeStr("data/gfm-extensions.json"))
         assertEquals(26L, examples.size)

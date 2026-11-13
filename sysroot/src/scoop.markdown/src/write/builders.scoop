@@ -1,0 +1,148 @@
+package scoop.markdown
+
+/** Generates a new document without parsing it or rewriting an existing snapshot. */
+public fun markdownDocument(
+    options: MarkdownWriteOptions = MarkdownWriteOptions(),
+    configure: MarkdownDocumentBuilder.() -> Unit = {}
+): MarkdownDocument = MarkdownDocument.fromText(markdownText(options, configure))
+
+/** Generates Markdown using typed blocks and inlines. rawMarkdown is the explicit source escape hatch. */
+public fun markdownText(
+    options: MarkdownWriteOptions = MarkdownWriteOptions(),
+    configure: MarkdownDocumentBuilder.() -> Unit = {}
+): String {
+    mdWriteOptions(options)
+    val builder = MarkdownDocumentBuilder()
+    builder.configure()
+    return mdWriteDocument(builder.snapshot(), options)
+}
+
+/** Collects blocks in a document, block quote or list item. */
+public class MarkdownDocumentBuilder internal constructor() {
+    private val blocks = ArrayList<MdWriteBlock>()
+
+    public fun paragraph(configure: MarkdownInlineBuilder.() -> Unit) {
+        blocks.add(MdWriteBlock.Paragraph(mdCollectInlines(configure)))
+    }
+
+    public fun heading(level: Int, configure: MarkdownInlineBuilder.() -> Unit) {
+        requireMarkdown(level >= 1 && level <= 6, "Markdown heading level must be between 1 and 6")
+        blocks.add(MdWriteBlock.Heading(level, mdCollectInlines(configure)))
+    }
+
+    public fun blockQuote(configure: MarkdownDocumentBuilder.() -> Unit) {
+        val builder = MarkdownDocumentBuilder()
+        builder.configure()
+        blocks.add(MdWriteBlock.Quote(builder.snapshot()))
+    }
+
+    public fun bulletList(tight: Boolean = true, configure: MarkdownListBuilder.() -> Unit) {
+        list(false, 1L, tight, configure)
+    }
+
+    public fun orderedList(
+        start: Long = 1L,
+        tight: Boolean = true,
+        configure: MarkdownListBuilder.() -> Unit
+    ) {
+        requireMarkdown(
+            start >= 0L && start <= 999999999L,
+            "An ordered Markdown list starts with at most nine digits"
+        )
+        list(true, start, tight, configure)
+    }
+
+    private fun list(
+        ordered: Boolean,
+        start: Long,
+        tight: Boolean,
+        configure: MarkdownListBuilder.() -> Unit
+    ) {
+        val builder = MarkdownListBuilder()
+        builder.configure()
+        blocks.add(MdWriteBlock.ListBlock(ordered, start, tight, builder.snapshot()))
+    }
+
+    public fun fencedCode(body: String, language: String = "") {
+        blocks.add(MdWriteBlock.Fence(language, body))
+    }
+
+    public fun thematicBreak() {
+        blocks.add(MdWriteBlock.ThematicBreak)
+    }
+
+    public fun table(
+        alignments: Array<MarkdownAlignment> = [],
+        configure: MarkdownTableBuilder.() -> Unit
+    ) {
+        val builder = MarkdownTableBuilder(alignments)
+        builder.configure()
+        blocks.add(builder.snapshot())
+    }
+
+    /** Appends Markdown source. Its syntax may interact with adjacent blocks. */
+    public fun rawMarkdown(source: String) {
+        blocks.add(MdWriteBlock.Raw(source))
+    }
+
+    internal fun snapshot(): Array<MdWriteBlock> = blocks.toArray()
+}
+
+public class MarkdownListBuilder internal constructor() {
+    private val items = ArrayList<MdWriteItem>()
+
+    public fun item(checked: Boolean? = None, configure: MarkdownDocumentBuilder.() -> Unit = {}) {
+        val builder = MarkdownDocumentBuilder()
+        builder.configure()
+        items.add(MdWriteItem(builder.snapshot(), checked))
+    }
+
+    internal fun snapshot(): Array<MdWriteItem> = items.toArray()
+}
+
+public class MarkdownInlineBuilder internal constructor() {
+    private val parts = ArrayList<MdWriteInline>()
+
+    public fun text(value: String) {
+        parts.add(MdWriteInline.Literal(value))
+    }
+    public fun emphasis(configure: MarkdownInlineBuilder.() -> Unit) {
+        parts.add(MdWriteInline.Emphasis(mdCollectInlines(configure)))
+    }
+    public fun strong(configure: MarkdownInlineBuilder.() -> Unit) {
+        parts.add(MdWriteInline.Strong(mdCollectInlines(configure)))
+    }
+    public fun strikethrough(configure: MarkdownInlineBuilder.() -> Unit) {
+        parts.add(MdWriteInline.Strike(mdCollectInlines(configure)))
+    }
+    public fun code(value: String) {
+        parts.add(MdWriteInline.Code(value))
+    }
+    public fun link(
+        destination: String,
+        title: String = "",
+        configure: MarkdownInlineBuilder.() -> Unit
+    ) {
+        parts.add(MdWriteInline.Link(mdCollectInlines(configure), destination, title))
+    }
+    public fun image(alt: String, destination: String, title: String = "") {
+        parts.add(MdWriteInline.Image(alt, destination, title))
+    }
+    public fun softBreak() {
+        parts.add(MdWriteInline.SoftBreak)
+    }
+    public fun hardBreak() {
+        parts.add(MdWriteInline.HardBreak)
+    }
+    public fun rawMarkdown(source: String) {
+        parts.add(MdWriteInline.Raw(source))
+    }
+
+    internal fun snapshot(): Array<MdWriteInline> = parts.toArray()
+}
+
+internal fun mdCollectInlines(configure: MarkdownInlineBuilder.() -> Unit): Array<MdWriteInline> {
+    val builder = MarkdownInlineBuilder()
+    builder.configure()
+    return builder.snapshot()
+}

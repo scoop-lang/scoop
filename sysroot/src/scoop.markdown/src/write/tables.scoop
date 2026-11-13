@@ -1,0 +1,54 @@
+package scoop.markdown
+
+/** A generated GFM table has one nonempty header and a fixed column count. */
+public class MarkdownTableBuilder internal constructor(
+    private val alignments: Array<MarkdownAlignment>
+) {
+    private var columns = 0L
+    private val rows = ArrayList<Array<Array<MdWriteInline>>>()
+
+    public fun header(configure: MarkdownTableRowBuilder.() -> Unit) {
+        requireMarkdown(rows.size == 0L, "A Markdown table has one header before its rows")
+        val row = collect(configure)
+        requireMarkdown(row.size > 0L, "A Markdown table header needs at least one cell")
+        requireMarkdown(
+            alignments.size == 0L || alignments.size == row.size,
+            "Markdown table alignment count must match its columns"
+        )
+        columns = row.size
+        rows.add(row)
+    }
+
+    public fun row(configure: MarkdownTableRowBuilder.() -> Unit) {
+        requireMarkdown(columns > 0L, "A Markdown table needs a header before its rows")
+        val row = collect(configure)
+        requireMarkdown(row.size == columns, "Markdown table rows must match the header width")
+        rows.add(row)
+    }
+
+    private fun collect(configure: MarkdownTableRowBuilder.() -> Unit): Array<
+        Array<MdWriteInline>
+    > {
+        val builder = MarkdownTableRowBuilder()
+        builder.configure()
+        return builder.snapshot()
+    }
+
+    internal fun snapshot(): MdWriteBlock {
+        requireMarkdown(columns > 0L, "A Markdown table needs a nonempty header")
+        val alignment =
+            if (alignments.size == 0L)
+                Array<MarkdownAlignment>(columns) { _ -> MarkdownAlignment.None }
+            else
+                alignments
+        return MdWriteBlock.Table(alignment, rows.toArray())
+    }
+}
+
+public class MarkdownTableRowBuilder internal constructor() {
+    private val cells = ArrayList<Array<MdWriteInline>>()
+    public fun cell(configure: MarkdownInlineBuilder.() -> Unit = {}) {
+        cells.add(mdCollectInlines(configure))
+    }
+    internal fun snapshot(): Array<Array<MdWriteInline>> = cells.toArray()
+}

@@ -12,7 +12,7 @@ internal fun mdGfmAutolinks(root: MdBuildNode, syntax: MdSyntax) {
             var offset = 0L
             var run = 0L
             while (offset < input.size) {
-                when (val match = mdBareLink(input, offset, syntax)) {
+                when (val match = mdBareEmail(input, offset, syntax)) {
                     case Some(val link) -> {
                         if (run < offset) {
                             val range = input.range(run, offset)
@@ -67,4 +67,38 @@ internal fun mdGfmAutolinks(root: MdBuildNode, syntax: MdSyntax) {
             }
         }
     }
+}
+
+/** URL syntax is recognized before escapes and entities, unlike GFM email postprocessing. */
+internal fun MdInlineParser.bareUri(): Boolean {
+    if (!profile.autolinks || topBracket >= 0L)
+        return false
+    val match = mdBareUri(input, position) ?: return false
+    val range = input.range(position, match.end)
+    val node = MdBuildNode(MdKind.Link, range.start, range.end)
+    val target = MdTextBuilder()
+    target.add(
+        match.prefix,
+        MarkdownRange(range.start, range.start),
+        MarkdownTextMapping.Normalized
+    )
+    val label = input.slice(position, match.end)
+    target.append(label)
+    node.target =
+        Some(
+            MarkdownLinkTarget(
+                mdNormalizeUri(target.build(range.start)),
+                mdEmptyText(range.end),
+                MarkdownLinkStyle.Autolink,
+                "",
+                Some(range),
+                None
+            )
+        )
+    val text = MdBuildNode(MdKind.Text, range.start, range.end)
+    text.text = label
+    node.append(text)
+    block.append(node)
+    position = match.end
+    return true
 }

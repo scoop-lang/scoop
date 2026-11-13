@@ -96,7 +96,7 @@ internal fun mdBareEmailEnd(input: MdInput, start: Long, syntax: MdSyntax): Long
     return end
 }
 
-internal fun mdBareLink(input: MdInput, start: Long, syntax: MdSyntax): MdBareLink? {
+internal fun mdBareEmail(input: MdInput, start: Long, syntax: MdSyntax): MdBareLink? {
     val before = input.at(start - 1L)
     val first = input.at(start)
     if (!mdGfmLocal(before)) {
@@ -120,6 +120,18 @@ internal fun mdBareLink(input: MdInput, start: Long, syntax: MdSyntax): MdBareLi
             }
         }
     }
+    if (mdGfmLocal(before))
+        return None
+    val end = mdBareEmailEnd(input, start, syntax)
+    return if (end == 0L)
+        None
+    else
+        Some(MdBareLink(start, end, "mailto:"))
+}
+
+internal fun mdBareUri(input: MdInput, start: Long): MdBareLink? {
+    val before = input.at(start - 1L)
+    val first = input.at(start)
     val boundary =
         before <
             0 ||
@@ -189,11 +201,5 @@ internal fun mdBareLink(input: MdInput, start: Long, syntax: MdSyntax): MdBareLi
             )
         )
     }
-    if (mdGfmLocal(before))
-        return None
-    val end = mdBareEmailEnd(input, start, syntax)
-    return if (end == 0L)
-        None
-    else
-        Some(MdBareLink(start, end, "mailto:"))
+    return None
 }

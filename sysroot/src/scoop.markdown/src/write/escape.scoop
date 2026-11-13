@@ -1,0 +1,169 @@
+package scoop.markdown
+
+import scoop.text.*
+
+internal fun mdWriteNewlines(value: String): String =
+    value.replace("\r\n", "\n").replace("\r", "\n")
+
+internal fun mdWriteEntity(output: StringBuilder, value: Char) {
+    output.append("&#").append(
+        if (value.code == 0)
+            65533
+        else
+            value.code
+    ).append(';')
+}
+
+internal fun mdWriteLiteral(value: String, shieldStart: Boolean, shieldEnd: Boolean): String {
+    val characters = value.toCharArray()
+    val output = StringBuilder()
+    for (index in 0L ..< characters.size) {
+        val value = characters[index]
+        val edge = (index == 0L && shieldStart) || (index + 1L == characters.size && shieldEnd)
+        if (value.code == 0 || value == '\n' || value == '\r' || value == '\t' || edge)
+            mdWriteEntity(output, value)
+        else {
+            if (mdEscape(value.code))
+                output.append('\\')
+            output.append(value)
+        }
+    }
+    return output.toString()
+}
+
+internal fun mdWriteQuoted(value: String): String {
+    val output = StringBuilder()
+    for (character in value.toCharArray()) {
+        if (
+            character ==
+                '&' ||
+                character ==
+                '<' ||
+                character ==
+                '>' ||
+                character ==
+                '"' ||
+                character ==
+                '\n' ||
+                character ==
+                '\r' ||
+                character.code ==
+                0
+        )
+            mdWriteEntity(output, character)
+        else {
+            if (character == '\\')
+                output.append('\\')
+            output.append(character)
+        }
+    }
+    return output.toString()
+}
+
+internal fun mdWriteTarget(destination: String, title: String, table: Boolean = false): String {
+    val output = StringBuilder()
+    output.append("(<").append(mdWriteQuoted(destination)).append('>')
+    if (title != "")
+        output.append(" \"").append(mdWriteQuoted(title)).append('"')
+    val source = output.append(')').toString()
+    return if (table)
+        source.replace("|", "&#124;")
+    else
+        source
+}
+
+internal fun mdWriteRun(value: String, marker: Char): Long {
+    var longest = 0L
+    var count = 0L
+    for (character in value.toCharArray()) {
+        if (character == marker) {
+            count += 1L
+            if (count > longest)
+                longest = count
+        } else
+            count = 0L
+    }
+    return longest
+}
+
+internal fun mdWriteCode(value: String, table: Boolean): String {
+    val body = mdWriteNewlines(value).replace("\n", " ").replace("\u{0}", "\u{fffd}")
+    if (body == "")
+        return ""
+    if (table) {
+        var backslashes = 0L
+        for (character in body.toCharArray()) {
+            requireMarkdown(
+                character != '|' || backslashes % 2L == 0L,
+                "A GFM table code span cannot encode an odd backslash run before a pipe; use raw HTML for that cell"
+            )
+            if (character == '\\')
+                backslashes += 1L
+            else
+                backslashes = 0L
+        }
+    }
+    val delimiter = "`".repeat(mdWriteRun(body, '`') + 1L)
+    val padding =
+        body.startsWith("`") ||
+            body.endsWith("`") ||
+            (
+                body.startsWith(" ") &&
+                    body.endsWith(" ") &&
+                    body.trim { value -> value == ' ' } !=
+                    ""
+            )
+    val text =
+        if (table)
+            body.replace("|", "\\|")
+        else
+            body
+    return delimiter +
+        (
+            if (padding)
+                " "
+            else
+                ""
+        ) +
+        text +
+        (
+            if (padding)
+                " "
+            else
+                ""
+        ) +
+        delimiter
+}
+
+internal fun mdWriteFence(language: String, body: String): String {
+    requireMarkdown(
+        !language.contains("\r") && !language.contains("\n"),
+        "A Markdown code info string must fit on one line"
+    )
+    val marker =
+        if (language.contains("`"))
+            '~'
+        else
+            '`'
+    val content = mdWriteNewlines(body).replace("\u{0}", "\u{fffd}")
+    val longest = mdWriteRun(content, marker)
+    val fence =
+        marker.toString().repeat(
+            if (longest < 3L)
+                3L
+            else
+                longest + 1L
+        )
+    val info = mdWriteLiteral(language, language.startsWith(" "), language.endsWith(" "))
+    return fence +
+        info +
+        "\n" +
+        content +
+        (
+            if (content == "" || content.endsWith("\n"))
+                ""
+            else
+                "\n"
+        ) +
+        fence
+}

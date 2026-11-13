@@ -1,0 +1,50 @@
+package scoop.markdown
+
+/** Line endings for newly generated Markdown. Existing documents keep their original bytes. */
+public enum MarkdownNewline {
+    Lf, CrLf, Cr
+}
+
+public struct MarkdownWriteOptions(
+    val newline: MarkdownNewline = MarkdownNewline.Lf,
+    val finalNewline: Boolean = true,
+    val bullet: Char = '-',
+    val listIndent: Int = 2
+)
+
+internal enum MdWriteInline {
+    Literal(String),
+    Emphasis(Array<MdWriteInline>),
+    Strong(Array<MdWriteInline>),
+    Strike(Array<MdWriteInline>),
+    Code(String),
+    Link(Array<MdWriteInline>, String, String),
+    Image(String, String, String),
+    SoftBreak,
+    HardBreak,
+    Raw(String)
+}
+
+internal struct MdWriteItem(val blocks: Array<MdWriteBlock>, val checked: Boolean?)
+
+internal enum MdWriteBlock {
+    Paragraph(Array<MdWriteInline>),
+    Heading(Int, Array<MdWriteInline>),
+    Quote(Array<MdWriteBlock>),
+    ListBlock(Boolean, Long, Boolean, Array<MdWriteItem>),
+    Fence(String, String),
+    ThematicBreak,
+    Table(Array<MarkdownAlignment>, Array<Array<Array<MdWriteInline>>>),
+    Raw(String)
+}
+
+internal fun mdWriteOptions(options: MarkdownWriteOptions) {
+    requireMarkdown(
+        options.bullet == '-' || options.bullet == '+' || options.bullet == '*',
+        "Markdown bullet must be -, + or *"
+    )
+    requireMarkdown(
+        options.listIndent >= 2 && options.listIndent <= 4,
+        "Markdown list indentation must be between 2 and 4 columns"
+    )
+}

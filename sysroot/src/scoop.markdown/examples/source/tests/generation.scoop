@@ -1,0 +1,62 @@
+package scoop.examples.markdown
+
+import scoop.markdown.*
+import scoop.test.*
+
+private fun MarkdownDocumentBuilder.releaseNotes() {
+    heading(1) { text("Release notes") }
+    paragraph {
+        text("Includes ");
+        strong { text("Markdown") }
+    }
+    bulletList { item(checked = Some(true)) { paragraph { text("Generate files") } } }
+    fencedCode(language = "mermaid", body = "flowchart LR\n  A --> B\n")
+    table([MarkdownAlignment.Left, MarkdownAlignment.Center]) {
+        header {
+            cell { text("Feature") };
+            cell { text("State") }
+        }
+        row {
+            cell { text("Source") };
+            cell { code("ready") }
+        }
+    }
+}
+
+@Test
+private class MarkdownGenerationExampleTests {
+    @Test
+    fun `a headless consumer builds typed Markdown without graphics dependencies`() {
+        val document = markdownDocument { releaseNotes() }
+        assertEquals(markdownText { releaseNotes() }, document.toMarkdown())
+        assertEquals(0L, document.snapshot().revision)
+        val parsed = document.parse()
+        assertEquals(5L, parsed.root.children.size)
+        var strong = 0L
+        var tasks = 0L
+        var tables = 0L
+        var code = 0L
+        for (node in parsed.nodes())
+            when (node.content) {
+                case MarkdownContent.Strong -> strong += 1L
+                case MarkdownContent.ListItem(Some(val checked)) -> {
+                    assertTrue(checked);
+                    tasks += 1L
+                }
+                case MarkdownContent.CodeBlock(_, val info, val body) -> {
+                    assertEquals("mermaid", info.text)
+                    assertEquals("flowchart LR\n  A --> B\n", body.text)
+                    code += 1L
+                }
+                case MarkdownContent.Table(val columns) -> {
+                    assertEquals(2L, columns.size);
+                    tables += 1L
+                }
+                else -> Unit
+            }
+        assertEquals(1L, strong)
+        assertEquals(1L, tasks)
+        assertEquals(1L, tables)
+        assertEquals(1L, code)
+    }
+}
