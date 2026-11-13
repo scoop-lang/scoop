@@ -1889,6 +1889,8 @@ HttpLock 的 26／23 次及完整 server 的 14 次 ServerLock 保持；Job 查�
 
 普通 release 全部通过：platform **130**、concurrent **80**、asyncio **195**、http **313**、http.asyncio **168**、http.server **176**、http.client **254**，共 **1,316 项**。ByteInputListTest、ServerLockTests、Http1ArrayResponseTests、AsyncHttp2MessageTests 的 moving／minor 检查共 **30 项**全部通过。初次静态检查中的 Option<Throwable> 相等比较改为模式匹配；准备脚本的旧 predecessor 路径在编译前改为 baseline。分层工具句柄中途失联时实际进程继续成功，仅补跑汇总，没有重跑 36 个样本；原始失败与闭合记录保留。Scoop 格式／静态检查、外部 Ruff 0.16.10、shell 语法和 Git 空白检查通过；构建、实际测试、计时及诊断分开执行。仅 Linux 实机验收，未运行全 Rust／CLI fixture、其他平台、Gin／Axum 或上传性能验收。
 
+优化提交后，无冲突合并 main `222a7d1ad` 的 Windows asyncio 更新。生产差异位于 Windows 条件分支，Linux 生产逻辑保持；共享的 TCP 背压测试新增 socket 缓冲限制与分段写入。在独立补测 SDK 中叠加合并后的 asyncio 源码，格式／静态检查、实际构建及该用例 **1／1** 通过，验证取消的实际发送前缀和后续写入；这项与前述 1,316 项分别计数。未覆盖 Windows 实机。B66 已测 SDK、ELF 和性能结果保持合并前的固定版本；下一轮准备 SDK 时须同步仓库 asyncio 源码与测试。源码、`merge-main.patch`、补测 ELF、脚本和 `post-merge-validation.json` 保存在本轮目录，临时补测 SDK 收尾清理。
+
 最终完整 server profile 为 **6,861／23,629** 个用户态 cycles 样本，共 **30,490 个**。按 source Cone 归属 self：server **20.23%／19.41%**、core **16.22%／15.34%**、http.asyncio **13.06%／11.77%**、asyncio **5.48%／8.24%**、platform **3.94%／4.90%**、std **3.76%／3.34%**；最大单项 executeHttp1Request **3.83%／2.91%**。四个 acquire helper 合计 **4.53%／5.43%**，但优化报告存在更多内联，self 归属变化不等于减少相同比例的加锁或同步成本。剩余普通对象 **5,119.36 bytes**、闭包 **1,400**、frame **1,440**、adapter **888**、TaskContext **96**，22 个 Duration 仍占 704 bytes。仍无单一大头。
 
 完整小响应 CPU 为同轮 Go 的 **1.84／1.86 倍**，大响应 **1.92／1.77 倍**，长线目标未完成。下一轮以 B66 底座重新测协议接入与请求执行／分派，再按主要成本排序；不把新出现的单个 32-byte 闭包或旧时间成本直接当成主攻点。协议回退和四 worker 小响应延迟需要保留对照，历史 SSE 根因及 B51 协议四 worker 回退没有因此闭合。
