@@ -4,14 +4,24 @@ use scoop_profile::{BodyId, BodyKey, BodyLayout, Counter, Location, Position, Po
 
 #[test]
 fn profiling_counters_survive_production_object_emission() {
-    for target in [
+    for (target, odr) in [
         scoop_target_data::DARWIN_AARCH64_ID,
         scoop_target_data::LINUX_X86_64_GNU_ID,
+        scoop_target_data::LINUX_X86_64_MUSL_ID,
+        scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID,
         scoop_target_data::WINDOWS_X86_64_MINGW_UCRT_ID,
-    ] {
+        scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT_ID,
+    ]
+    .into_iter()
+    .flat_map(|target| [false, true].map(|odr| (target, odr)))
+    {
         let mut module = values_module();
         module.output = scoop_lir::LirOutput::Library;
         module.meta = string_metadata_for(scoop_target_data::layout(target).unwrap());
+        if odr {
+            module.functions[0].callable_body = odr_callable_body("profiled-shared");
+            refresh_test_safepoints(&mut module.functions[0]);
+        }
         for function in &mut module.functions {
             let key = BodyKey {
                 body: BodyId::from_key(function.callable_body.identity_record().key()),
@@ -50,7 +60,7 @@ fn profiling_counters_survive_production_object_emission() {
             profile,
             std::num::NonZeroUsize::MIN,
         )
-        .unwrap_or_else(|error| panic!("{target:?}: {error}"));
+        .unwrap_or_else(|error| panic!("{target:?}/ODR={odr}: {error}"));
         let partition =
             scoop_lir::ProducerUnitPartitionV1::from_foundation(&emitted.foundation).unwrap();
         let plans = scoop_slib::PlannedLinkObjectMemberSetV1::new(

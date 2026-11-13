@@ -77,3 +77,8 @@
 - Profiling runtime 沿现有 world phase 和 collector 记录 cycle、STW slice、八种 phase。增量周期跨片保持身份，显式 full 或 fallback 重启时保留已付出的成本；暂停、停稳等待、周期墙钟和 worker 任务 CPU 分别表达。已有 phase 时钟直接复用，计数取既有标量差值，不在暂停中扫描堆、分配托管对象或写文件。
 - 固定 native 缓冲发布不可变事件前缀，正常退出输出已发布部分；满缓冲累计 dropped，原 GC 总指标继续记录。普通 runtime 不编入事件存储和记录函数。规范与命令说明同步解释嵌套阶段及时间线截断。
 - 本机四种 profiling runtime 和普通 runtime 均按正式入口重建。真实程序保持 262,144 节点链表，覆盖增量周期跨片和 full 重启，验证阶段时间区间、嵌套关系、逐片计数与累计 CPU/任务/字节一致；另一进程执行 1,100 次 full GC，记录 8,192 条事件并明确报告 608 条丢失，总 collection 计数仍完整。正式 fixture 4 次外部调用通过，已有增量 GC 定向正确性测试通过。C 格式化、toolchain Clippy 与 fixture Python Ruff 通过（仅既有 Rust 警告）。原生跨平台和整体采集开销继续成组验收。
+
+### 原生验证中的对象修正
+
+- Linux 实际 profiling core 构建暴露了 ELF ODR 计数组与正文 COMDAT 分离的问题。LLVM 的通用 lowering 为潜在跨函数内联保留独立计数组；Scoop 按 callable 发射对象，在 LLVM 优化完成后将三个 profile 关联段统一归入该正文的现有 COMDAT，保留正常对象检查和记录格式。
+- 扩展生产对象回归覆盖 Darwin ARM64、GNU、musl、MSVC-UCRT、MinGW-UCRT、MinGW-MSVCRT 各自的 Strong／ODR 组合。修复前真实复现 GNU ODR 错误，修复后十二个组合的计数保留、对象定义及重定位检查通过。格式化及 codegen Clippy 通过（仅既有警告）；继续原生训练验收。

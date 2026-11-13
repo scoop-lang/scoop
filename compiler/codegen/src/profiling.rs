@@ -122,6 +122,34 @@ pub fn lower_counters(module: &Module<'_>, machine: &TargetMachine) {
     unsafe { scoop_lower_profile_counters(module.as_mut_ptr(), machine.as_mut_ptr()) };
 }
 
+/// LLVM initially separates counters from an ODR function for its general
+/// inliner. A production callable module has one final physical record; after
+/// optimization its ELF contributions must follow the selected callable group.
+pub(crate) fn associate_elf_callable_record(
+    module: &Module<'_>,
+    function_name: &str,
+) -> Result<(), CodegenError> {
+    let function = module.get_function(function_name).ok_or_else(|| {
+        CodegenError(format!(
+            "profiled ELF callable `{function_name}` is missing"
+        ))
+    })?;
+    let Some(group) = function.as_global_value().get_comdat() else {
+        return Ok(());
+    };
+    for global in module.get_globals() {
+        if global.get_section().is_some_and(|section| {
+            matches!(
+                section.to_bytes(),
+                b"__llvm_prf_cnts" | b"__llvm_prf_data" | b"__llvm_prf_names"
+            )
+        }) {
+            global.set_comdat(group);
+        }
+    }
+    Ok(())
+}
+
 /// Decode an indexed profile once, preserving all counters including zeros.
 pub fn decode_indexed_profile(bytes: &[u8]) -> Result<Vec<IndexedRecord>, CodegenError> {
     let mut records = Vec::<IndexedRecord>::new();

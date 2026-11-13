@@ -118,6 +118,9 @@ pub(super) fn prepare_callable_strong_llvm_module<'ctx, D, C, I>(
     }
     if profile.lir_target_profile().native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
         symbol_plans.prepare_callable(&llvm, machine)?;
+        if !module.meta.profile_bodies.is_empty() {
+            crate::profiling::associate_elf_callable_record(&llvm, function.symbol())?;
+        }
     }
     crate::metadata_sections::place_immutable_metadata(&llvm, profile);
     Ok(PreparedCallableModule {

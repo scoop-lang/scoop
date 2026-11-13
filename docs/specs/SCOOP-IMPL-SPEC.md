@@ -1127,7 +1127,7 @@ full 导出的普通访问器若直接操作 provider 全局存储或初始化�
 
 普通模板正文对 provider 全局属性的读写通过原 getter/setter 入口实现，保留初始化和 ThreadLocal 语义；native 全局继续经既有地址/指针读写合同。数组赋值沿 typed array/index 引用还原。导入正文中派生相等性等必要物化使用原定义的源码身份，不将外来源码编号索引到消费方源码表，也不重新按消费方可见性解释已解析的模板引用。
 
-LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，由 LLVM 的 section/COMDAT 规则选择和裁剪。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
+LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，沿对象格式的 section/COMDAT 规则选择和裁剪。每个 callable 完成 LLVM 优化之后，ELF ODR 计数与正文统一归入该 callable 的 COMDAT；不保留 LLVM 为通用跨函数内联临时建立的独立计数组。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
 
 `--profile-use <Scoop index>` 只与 release 构建组合，选择配套 Release/full 系统库并在普通机器降低入口一次读取索引、indexed counts 和映射；损坏或目标不符报告输入错误，局部正文不匹配按成本合同回退。`--profile-use-required` 要求提供索引，并在最终输出链接／发布之前要求本次源码构建至少一个优化实际消费反馈；源码依赖与根 Cone 的正常完成记录共同提供判断，不能逐个要求无候选的依赖使用反馈。直接 scoopc 构建的 required 作用于其单个 Cone。
 
