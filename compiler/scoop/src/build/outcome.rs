@@ -6,6 +6,7 @@ use crate::{BuildGraphOutcome, BuildProfile, SelectedSource};
 
 #[derive(Debug)]
 pub struct BuiltArtifacts {
+    pub invocation: Option<crate::options::BuildInvocation>,
     pub output: PathBuf,
     pub profile: BuildProfile,
     pub graph: BuildGraphOutcome,

@@ -127,6 +127,8 @@ native companion 显式作为 input，并用普通 argv 步骤调用 `${cc}`、`
 
 API 阅读器用例声明 `tools = ["scoop-api"]`，配套程序由 `cargo build -p scoop-api` 构建，路径可用 `--scoop-api` 或 `SCOOP_TEST_PAIRED_SCOOP_API` 指定。它读取公开文档数据，不启动编译器。
 
+PGO 命令用例声明 `tools = ["scoop-pgo", ...]`，配套程序由 `cargo build -p scoop-pgo` 构建，路径可用 `--scoop-pgo` 或 `SCOOP_TEST_PAIRED_SCOOP_PGO` 指定。它经正式 build 入口训练和反馈构建，需事先准备所选目标的 profiling 系统库组件；fixture 不自动重建系统库。
+
 LSP 进程用例声明 `tools = ["scoop-lsp", "python"]`，使用 `${scoop-lsp}` 和真实协议 peer；
 先构建 `cargo build -p scoop-lsp`。可用 `--scoop-lsp` 或 `SCOOP_TEST_PAIRED_SCOOP_LSP`
 选择服务器，runner 不自动构建，也不为项目加载准备 sysroot。

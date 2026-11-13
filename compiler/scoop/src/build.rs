@@ -184,6 +184,7 @@ fn prepare(
         let executable =
             finish().map_err(|error| error.with_context(graph.warnings(), &sources))?;
         let build = BuiltArtifacts {
+            invocation: request.invocation,
             output: output.path().to_owned(),
             profile: request.profile,
             graph,

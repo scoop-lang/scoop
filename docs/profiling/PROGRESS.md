@@ -11,7 +11,7 @@
 | 固定 MIR 采集位置、LLVM InstrProf 与 ODR 计数 | 逻辑位置及 MIR/LIR/LLVM 通道已实现；CLI 与真实训练验收随 profiling 批次接入 | 确定计数、内联映射、多线程、对象选择/裁剪 |
 | off/default/full IR template 导出 | 已实现，三平台代表目标验收完成 | 完整模板、语义必需模板保留、实际 consumer 与 Strong 归属 |
 | profiling profile 与 runtime 采集 | 已接通，本机真实运行验收通过；原生跨平台验收待成组进行 | 控制流/调用计数、运行指标、退出写出、release 无探针 |
-| MIR cost 反馈及 `scoop-pgo` | MIR 消费、位置诊断及 build Use 闭环已通过本机验证；便利命令进行中 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
+| MIR cost 反馈及 `scoop-pgo` | MIR 消费、位置诊断、build Use 与便利命令均已通过本机闭环；原生跨平台及性能对照待验证 | instrument → merge → optimize → run、配置复用及覆盖诊断 |
 | 可选 profiling 系统库组件 | 准备脚本及训练选库已实现；全量库构建、打包与安装接线进行中 | 两套 full 库、自动选库、独立下载安装和移除 |
 | GC phase/slice 事件 | 待实现 | 时间语义、采集开销和真实进程输出 |
 | 使用材料及发行配套 | 待实现 | 规范、帮助、编程指导、安装器和官网组件选项一致 |
@@ -64,3 +64,10 @@
 - `--profile-use-required` 在最终链接/发布前要求源码构建图中至少一个正常优化决策实际使用反馈，不要求每个依赖均有动态数据。直接 scoopc 构建则检查当前 Cone；完全未使用数据、目标不符和损坏输入均保留已有输出。
 - 本机正式 fixture 完成真实采集、合并、反馈构建和运行，确认生成程序无探针，优化事件包含原始次数。重复构建复用结果；追加计数与映射更新分别触发一次子编译。空映射允许低层静态回退，但 required 在缓存命中时仍拒绝发布。固定计数、业务输出、多线程和非零退出回归一并通过。
 - 格式化及相关 Clippy 通过（仅既有警告）；协议 50 项、缓存 18 项、显式构建文件更新测试通过。同步编程指导中的低层反馈入口；独立命令、GC 时间线、组件全量安装及原生跨平台训练仍在后续批次。
+
+### 独立 PGO 命令
+
+- 新增 host binary `scoop-pgo` 和正常 commands 安装入口。`scoop pgo instrument/optimize` 复用主驱动参数声明，成功 build JSON 保存实际根输入、target、工具和解析后的设置；外部命令分发只对子进程提供配套 driver/sysroot 环境。
+- instrument 默认 full，保存各次构建的独立映射，保持原始 argv、标准流和业务退出状态；支持追加训练和 `--no-run` 外部采集。optimize 自动选择 Release/full、要求实际反馈消费，并在配置核对和构建成功后发布新 binary。普通文件锁协调同一集合，合并按输入更新判断，损坏或缺失计数不回退到旧结果。
+- 本机完整 profiling fixture 通过 9 次外部调用，PGO 子流程覆盖 16 次 command 操作及真实程序运行：确定计数、空参数与 exit(7)、换 cwd 的相对路径复用、无探针输出、缓存复用、外部训练、显式输出、编译失败、配置冲突、无数据、损坏和缺失输入。workspace 默认成员变化后仍训练并优化原先选定的 Cone。前两次新增测试仅因测试目录重名及样例缺 package 声明失败，修正后最终组合全部通过。
+- 格式化与相关 Clippy 通过（仅既有警告），主驱动 CLI 41 项、共享选项/原生参数 2 项、PGO 参数 2 项、fixture runner 84 项（4 项条件跳过）通过。commands 打包布局 5 项通过，正式入口安装后已实际完成 instrument → optimize。同步命令帮助、tooling/scripts 说明、编程指导和 fixture 工具选择；GC 时间线、全量组件安装与跨平台验收继续后续批次。

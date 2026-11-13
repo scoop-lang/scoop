@@ -1133,6 +1133,10 @@ LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的�
 
 Compiler protocol 34 的 build field 16 保存可选反馈索引路径，success field 8 保存可选 UseSummary。普通编译更新记录保存该摘要及索引、计数、映射文件的路径／长度／修改时间；这些是构建输入，不受语言 include 文件的源码目录规则限制。缓存命中只比较已记录的输入状态，复用原摘要，不重新读取索引或调用 LLVM。反馈索引的选择进入 compile key，文件内容更新通过正常 compiler input 判断；profile 数据和 UseSummary 不写入共享 HIR、`.slib` 语义指纹或 runtime ABI。
 
+独立 `scoop-pgo` 安装到 host commands，通过 `scoop pgo instrument/optimize` 调用。外部命令分发只对子进程设置绝对 `SCOOP_DRIVER` 和解析后的 `SCOOP_SYSROOT`。PGO 复用主驱动公开的 build 参数声明；正常 build 成功 JSON 的 `invocation` 保存原 cwd、实际选择的根输入、canonical target、配套 compiler/sysroot/package manager 和解析后的选项。路径使用原生路径编码，相对输入在首次调用的 cwd 解析；未显式覆盖的阶段默认值分别按 Profiling 与 Release 选择。该记录服务命令复用，不进入编译缓存或 `.slib`。
+
+PGO 数据目录缺省为调用 cwd 下的 `target/pgo`，独立于 `--target-dir`。instrument 固定 Profiling、缺省 full，构建成功后保存映射，再运行原生进程；optimize 固定 Release/Use|required，不运行结果。同一目录使用普通文件锁协调；允许源码修改与重复训练，不混合根项目、target、导出策略或不同语义选项。已保存的 root 在后续省略输入时直接复用，工具和无探针资源位置、jobs、缓存、输出与诊断设置可覆盖。原始 argv 包括空字符串以原生编码保存，标准流与业务退出状态保持原样。`--no-run` 生成外部运行目录；后续 optimize 收集其实际计数。合并保留全零记录，输入更新先于读取和工具调用；新增或变化的输入经配套 LLVM merge 及同一 Scoop reader 成功后发布索引与摘要。损坏或缺失输入停止，不回退到旧合并结果。
+
 维护生产可用 `--system-library-root` 显式选择一套目标系统库目录，沿相同依赖通道传递，不改变 native sysroot。PM protocol 为 8，prepare request 的 `system_library_root` 传递上层已选路径；PM 沿正常依赖规则消费该路径，不决定采集或反馈模式。系统库在依赖解析之前选择：profiling 使用 `<sysroot>/lib/<target>/profiling/instrumented`，Release 反馈构建使用配套的 `profiling/release`，普通构建使用原 target 根。两套库由可选组件 `lib-profiling-<target>` 提供，所有系统 Cone 使用 full 导出。缺失组件时报告所需组件和安装方式，不隐式下载或回退到普通库；显式低层依赖及 core bootstrap 仍能生产该组件。native/GUI 资源沿原组件复用，runtime 选择独立带采集能力的对象索引和目标对应的 compiler-rt profile archive。程序输出目录与 `SCOOP_PROFILE_DIR` 不作为源码编译输入。
 
 `scoop --enable-gc-stress` 是可放在子命令前后的全局构建选项，对 build/run/test/link 的最终 runtime 选择生效，独立于 debug/release；低层 scoop-link 提供同名选项。默认选择不含 stress 支持的 runtime，启用后选择含 stress 能力的版本，再由运行时环境变量控制开关（运行时规范第 3 章）。该选择不改变 Scoop 源码编译或普通库 `.slib` 的身份、profile 和缓存；只影响 runtime 对象及最终链接结果。显式 `--runtime-objects` 的能力必须与请求相符。

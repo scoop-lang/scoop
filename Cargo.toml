@@ -32,6 +32,7 @@ members = [
     "compiler/target-data",
     "compiler/slib",
     "compiler/driver",
+    "tooling/scoop-pgo",
 ]
 # One-off technical spikes (docs/ROADMAP.md M0) carry their own
 # `[workspace]` table and are intentionally not members.

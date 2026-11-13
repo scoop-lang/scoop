@@ -2,7 +2,18 @@ use std::path::PathBuf;
 
 use crate::{BuildDumpRequest, ResolvedBuildGraph};
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, clap::ValueEnum)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    clap::ValueEnum,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(rename_all = "kebab-case")]
 pub enum BuildProfile {
     #[default]
     Debug,
@@ -42,6 +53,7 @@ pub enum RuntimeInput {
 
 /// Final user outputs and observations are separate from compilation inputs.
 pub struct BuildRequest {
+    pub invocation: Option<crate::options::BuildInvocation>,
     pub graph: ResolvedBuildGraph,
     pub profile: BuildProfile,
     pub cwd: PathBuf,

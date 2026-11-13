@@ -81,6 +81,7 @@ BUILTINS = {
     "scoop-lsp",
     "scoop-pm",
     "scoop-api",
+    "scoop-pgo",
     "terminal-host",
     "cc",
     "cc_family",

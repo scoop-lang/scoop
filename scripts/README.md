@@ -223,6 +223,8 @@ post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，
 
 `python3 scripts/build_scoop_api.py` 构建无 LLVM 执行依赖的 `scoop-api` 并安装到开发 sysroot 的 `commands/`；使用 workspace lockfile，可指定 `--sysroot` 与 `--target-dir`。完整发行流程也包含该命令。API 数据由原有 `scoop doc`／post-install 随同页面生成，查询不触发生成。用法和格式见 [API 查询](../docs/scoop-doc/API.md)。
 
+`python3 scripts/build_scoop_pgo.py` 构建并安装独立 `scoop-pgo`，同样使用 workspace lockfile，接受 `--sysroot` 与 `--target-dir`。正式入口为 `scoop pgo instrument/optimize`，默认自动选择 profiling 组件中的训练或反馈库；训练数据与普通构建缓存分开。开发时可用 `--llvm-profdata` 指向配套 LLVM 22.1，完整发行流程会安装该工具。使用方式见 [PGO 命令](../tooling/scoop-pgo/README.md)。
+
 `python3 scripts/build_scoop_example.py` 仅构建 `tooling/scoop-example` 并将命令安装到开发 sysroot，不调用编译器。它使用独立 Cargo lockfile；新增示例与正文位于 `sysroot/share/scoop/examples`，已有库示例保持原文件。可用 `--sysroot` 安装到另一份配套工具链，用 `--target-dir` 指定构建缓存。完整打包入口自动完成这一步，并复制所有主题材料。内容维护和独立测试见[阅读器说明](../tooling/scoop-example/README.md)。
 
 

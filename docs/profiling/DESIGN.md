@@ -293,7 +293,7 @@ profiling 可以链接用户显式选择的无插桩第三方预编译库，报�
 ### 9.2 日常入口
 
 ```sh
-# 首次使用时单独安装当前 target 的组件；profiling 是拟增加的组件选项。
+# 首次使用时单独安装当前 target 的组件；使用提供该组件的发行版本。
 scoop-install component add profiling --target aarch64-apple-darwin
 
 # 构建并运行第一份训练输入。
@@ -306,7 +306,7 @@ scoop pgo instrument . -- data/train-large.json
 scoop pgo optimize -o dist/app
 ```
 
-拟定语法：
+命令语法：
 
 ```text
 scoop pgo instrument [root-input] [build-options...]
@@ -336,21 +336,22 @@ root 选择沿现有 manifest/workspace/single-file 规则，必须得到一个�
 ```text
 target/pgo/
   build.json
-  builds/<build-id>/profile-map.json
+  builds/<build-id>/<ordinal>.profile.json
   instrumented/app
   runs/<run-id>/
-    raw/*.profraw
-    runtime-<pid>.jsonl
     run.json
+    <process-run-id>/counts.profraw
+    <process-run-id>/runtime.jsonl
   merged/
     counts.profdata
     profile.json
     summary.json
+    state.json
   optimized/app
   optimization.json
 ```
 
-实际可执行文件扩展名按 target 处理。build-id 复用正常构建结果的标识以区分位置映射，run-id 只用于文件不覆盖；两者不成为新的实体身份或产物真实性凭据。
+实际可执行文件扩展名按 target 处理。build-id 复用正常构建结果的 link fingerprint 以区分位置映射，run-id 只用于文件不覆盖；两者不成为新的实体身份或产物真实性凭据。
 
 `build.json` 保存版本、原构建 cwd、已选择 root/member、target、配套工具/sysroot、语义相关 build 设置和当前训练输出位置。路径按现有平台路径编码保存；相对 build 路径在首次构建时按原 cwd 解析，不能因 optimize 换了工作目录而改变含义。每次训练另外记录其运行 cwd、argv、进程状态和数据路径，不持久化整份环境或 stdin。
 
@@ -364,7 +365,7 @@ target/pgo/
 
 1. 解析本次 root 和设置；首次训练保存设置，追加训练核对目录所代表的配置。沿正常 PM、源码依赖、缓存与工具链流程构建 Profiling/Generate。
 2. 仅接受本次成功 build 返回的 executable 与 profile map，保存实际位置映射；编译失败不更新成功构建记录、不运行旧程序。
-3. 创建独立 run 目录，为训练子进程设置 `SCOOP_PROFILE_DIR`。工具统一设置该进程使用的 LLVM 输出模板，包含进程/模块区分，避免外部 `LLVM_PROFILE_FILE` 把结果写到未管理位置。原始程序参数、stdin/stdout/stderr 原样传递，不经 shell 拼接。
+3. 创建独立 run 目录，为训练子进程设置 `SCOOP_PROFILE_DIR`。Scoop runtime 使用 LLVM buffer 写出计数，并在目录内为每个进程创建独立子目录；不使用 `LLVM_PROFILE_FILE` 模板，因此外部 LLVM 路径设置不影响收集位置。原始程序参数、stdin/stdout/stderr 原样传递，不经 shell 拼接。
 4. 等待程序退出并保存真实状态。由目标 profile runtime 写出的完整 raw 文件进入本次合并输入；缺失、格式损坏或输出失败明确诊断，不把退出码零当作已有数据。
 5. 使用配套 `llvm-profdata merge` 合并本目录已完成训练的有效记录，生成 indexed profile、Scoop 索引和摘要。正常写出数据的非零业务退出同样可以提供样本，命令仍传回业务失败状态。
 

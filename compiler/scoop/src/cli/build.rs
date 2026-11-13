@@ -23,6 +23,9 @@ pub(super) fn requests(
     diagnostics: DiagnosticsPolicy,
 ) -> BuildResult<Vec<BuildRequest>> {
     let cwd = std::env::current_dir().map_err(config)?;
+    let args = args.normalized(&cwd)?;
+    let mut saved_options = args.clone();
+    let saved_package_manager = super::package_manager::executable(&cwd, package_manager.clone())?;
     let generators =
         scoop_toolchain::GeneratorPrograms::from_cli(&args.generators, &cwd).map_err(config)?;
     let triple = target(args.target)?;
@@ -145,23 +148,50 @@ pub(super) fn requests(
     }
     let output = output.map(|path| absolute(&cwd, path)).transpose()?;
     let libraries = paths(&cwd, args.library_path)?;
-    Ok(graphs
+    saved_options.target = Some(selection.target().contract().canonical_triple().to_owned());
+    saved_options.profile = Some(profile);
+    saved_options.release = false;
+    graphs
         .into_iter()
-        .map(|graph| BuildRequest {
-            graph,
-            profile,
-            cwd: cwd.clone(),
-            output: output.clone(),
-            emit_slib: false,
-            target_dir: Some(target_dir.clone()),
-            runtime: runtime.clone(),
-            enable_gc_stress,
-            enable_startup_stats,
-            final_link: final_link.clone(),
-            library_paths: libraries.clone(),
-            dumps: None,
-            require_executable,
-            profile_use_required: args.profile_use_required,
+        .map(|graph| {
+            let mut options = saved_options.clone();
+            options.root_input = Some(
+                graph
+                    .root_source_path()
+                    .ok_or_else(|| config("build root must have a source input"))?
+                    .to_owned(),
+            );
+            options.packages.members = Default::default();
+            options.scoopc = Some(graph.compiler().as_path().to_owned());
+            let path = |value: &std::path::Path| {
+                scoop_protocol::HostPathCarrier::from_path(value).map_err(config)
+            };
+            let invocation = scoop::options::BuildInvocation {
+                cwd: path(&cwd)?,
+                sysroot: path(graph.sysroot().as_path())?,
+                package_manager: path(&saved_package_manager)?,
+                enable_gc_stress,
+                enable_startup_stats,
+                effective_debug_info: debug_info.as_str().to_owned(),
+                options,
+            };
+            Ok(BuildRequest {
+                invocation: Some(invocation),
+                graph,
+                profile,
+                cwd: cwd.clone(),
+                output: output.clone(),
+                emit_slib: false,
+                target_dir: Some(target_dir.clone()),
+                runtime: runtime.clone(),
+                enable_gc_stress,
+                enable_startup_stats,
+                final_link: final_link.clone(),
+                library_paths: libraries.clone(),
+                dumps: None,
+                require_executable,
+                profile_use_required: args.profile_use_required,
+            })
         })
-        .collect())
+        .collect::<BuildResult<_>>()
 }

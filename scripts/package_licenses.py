@@ -99,6 +99,7 @@ def collect_bin(root, repository, host):
             "scoop-linker",
             "scoop-lsp",
             "scoop-pm",
+            "scoop-pgo",
             "scoop-example",
             "scoop-bundle",
         }

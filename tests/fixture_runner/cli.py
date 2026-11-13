@@ -55,6 +55,7 @@ def arguments(argv):
     parser.add_argument("--scoop-lsp", type=Path)
     parser.add_argument("--scoop-pm", type=Path)
     parser.add_argument("--scoop-api", type=Path)
+    parser.add_argument("--scoop-pgo", type=Path)
     parser.add_argument("--terminal-host", type=Path, help="prebuilt native PTY test host")
     parser.add_argument(
         "--target",
@@ -197,6 +198,7 @@ def environment(repo, work, fixtures, args):
         "scoop-lsp",
         "scoop-pm",
         "scoop-api",
+        "scoop-pgo",
         "terminal-host",
     ):
         configured = getattr(args, name.replace("-", "_")) or os.environ.get(
@@ -217,6 +219,7 @@ def environment(repo, work, fixtures, args):
         "scoop-lsp",
         "scoop-pm",
         "scoop-api",
+        "scoop-pgo",
         "terminal-host",
         "cc",
         "ar",

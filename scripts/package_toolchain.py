@@ -19,6 +19,7 @@ from urllib.parse import quote
 import build_scoop_bundle
 import build_scoop_api
 import build_scoop_example
+import build_scoop_pgo
 import package_debugger
 import package_licenses
 import package_llvm
@@ -247,7 +248,7 @@ def stage_commands(root, args):
     suffix = ".exe" if host_definition(args.host)["system"] == "Windows" else ""
     return {
         (sysroot / "commands" / (name + suffix)).resolve(): root / "commands" / (name + suffix)
-        for name in ("scoop-example", "scoop-bundle", "scoop-api")
+        for name in ("scoop-example", "scoop-bundle", "scoop-api", "scoop-pgo")
     }
 
 
@@ -700,6 +701,8 @@ def main():
             "scoop-pm",
             "-p",
             "scoop-api",
+            "-p",
+            "scoop-pgo",
             "--bins",
             "-j",
             str(args.jobs),
@@ -717,6 +720,7 @@ def main():
     example = build_scoop_example.build(args.work_dir / "scoop-example", example_environment)
     build_scoop_example.install(example, sysroot)
     build_scoop_api.install(cargo_output / "release" / ("scoop-api" + suffix), sysroot)
+    build_scoop_pgo.install(cargo_output / "release" / ("scoop-pgo" + suffix), sysroot)
     bundle = build_scoop_bundle.build(args.work_dir / "scoop-bundle", example_environment)
     build_scoop_bundle.install(bundle, sysroot)
     targets = list(host_definition(args.host)["distribution_targets"])
