@@ -2,6 +2,8 @@
 
 日期：2026-11-14。实现与设计见 [DESIGN.md](DESIGN.md)，分批提交和针对性测试见 [PROGRESS.md](PROGRESS.md)。原始进程日志、计数、逐次测量 JSON 和发行归档均保存在仓库外。
 
+基于这些数据对普通默认 release 的补充对照、具体优化机会及建议顺序见 [RELEASE-ANALYSIS.md](RELEASE-ANALYSIS.md)。
+
 **原生闭环。** 使用真实目标 compiler-rt、普通与 profiling runtime、两套 full core/std，执行 GC 时间线和 profiling/PGO 正式 fixture。每个完成目标覆盖 2 项、13 次外部进程调用，PGO 子流程另含 16 次命令操作；没有把跨目标对象生成当作原生运行。
 
 | 原生目标 | LLVM | 结果 |
