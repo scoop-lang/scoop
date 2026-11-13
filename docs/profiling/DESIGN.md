@@ -4,6 +4,8 @@
 
 本文规定运行信息采集、反馈优化、系统库组件和命令入口。`profiling`、`--export-ir`、`--profile-use`、`scoop pgo` 和安装器的 profiling 组件选项已在实现分支交付。首版反馈会改变现有 cost 决策，实际性能仍需对照验证；验收记录保留已观察到的回归及后续改进方向。
 
+[下一阶段规划](NEXT-STEPS.md)明确后续采用“保留默认内联、PGO 只追加”的策略，并安排上下文反馈、分支权重和带类型检查的去虚拟化。下文第 7 节描述首版当前实现，后续策略尚未实施；[缺省 release 分析](RELEASE-ANALYSIS.md)保留已有测量及独立静态优化建议。
+
 依据：[语言规范](../specs/SCOOP-SPEC.md)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范](../specs/SCOOP-IMPL-SPEC.md)、[路线图](../ROADMAP.md)。已有基础见[调用点内联评分](../program-performance/CALL-SITE-INLINING.md)、[CPU 采样归因](../program-performance/CPU-PROFILING.md)与[调试信息实现](../debugging/IMPLEMENTATION.md)。实施各阶段前，先同步对应权威规范；本文不把尚未实现的行为记为现有能力。
 
 ## 1. 目标与主要决定
