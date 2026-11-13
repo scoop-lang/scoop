@@ -5,14 +5,21 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
 import scoop.time.TimeMark
 
-internal class H1Idle(val reading: Boolean, val limit: Duration) {
+// The connection retains this clock; an absent limit ends the current operation.
+internal class H1Idle(val reading: Boolean, initialLimit: Duration) {
+    var limit: Duration? = Some(initialLimit)
     var progress: TimeMark? = None
 
-    fun remaining(now: TimeMark): Duration = limit - (now - progress!!)
+    fun stop() {
+        limit = None
+        progress = None
+    }
+
+    fun remaining(now: TimeMark): Duration = limit!! - (now - progress!!)
 
     fun expired(now: TimeMark): HttpIoTimeoutException? {
         val elapsed = now - progress!!
-        return if (elapsed >= limit)
+        return if (elapsed >= limit!!)
             Some(timeout(elapsed))
         else
             None
@@ -26,7 +33,7 @@ internal class H1Idle(val reading: Boolean, val limit: Duration) {
                 HttpIoDirection.Write,
             HttpProtocol.Http1,
             0,
-            limit,
+            limit!!,
             elapsed
         )
 }
@@ -45,15 +52,16 @@ internal fun beginH1Io(state: H1State, reading: Boolean) {
                     state.readIdle
                 else
                     state.writeIdle
-            if (!present(idle))
+            if (!present(idle) || !present(idle!!.limit))
                 return@withLock None
             val value = idle!!
+            val limit = value.limit!!
             val now = MonotonicTimeSource.markNow()
             val start = !present(value.progress)
             val expired =
                 if (start) {
                     value.progress = Some(now)
-                    if (value.limit == Duration.ZERO)
+                    if (limit == Duration.ZERO)
                         Some(value.timeout(Duration.ZERO))
                     else
                         None
@@ -63,7 +71,7 @@ internal fun beginH1Io(state: H1State, reading: Boolean) {
                 terminateH1(state, expired!!)
             else
                 if (start)
-                    armH1IdleLocked(state, reading, now, value.limit)
+                    armH1IdleLocked(state, reading, now, limit)
             expired
         }
     if (present(error)) {
@@ -81,7 +89,7 @@ internal fun progressH1Io(state: H1State, reading: Boolean, progressed: Boolean)
                     state.readIdle
                 else
                     state.writeIdle
-            if (!present(idle))
+            if (!present(idle) || !present(idle!!.limit))
                 return@withLock None
             val clock = idle!!
             val now = MonotonicTimeSource.markNow()

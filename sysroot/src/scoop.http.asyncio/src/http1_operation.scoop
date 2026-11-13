@@ -30,18 +30,26 @@ internal fun <P> beginH1Operation(
             )
                 throw IllegalStateException(Some("HTTP/1 direction is busy"))
             val value = prepare()
-            val clock =
-                if (present(idle))
-                    Some(H1Idle(reading, idle!!))
-                else
-                    None
-            if (reading) {
-                state.readBusy = true
-                state.readIdle = clock
-            } else {
-                state.writeBusy = true
-                state.writeIdle = clock
+            if (present(idle)) {
+                val previous =
+                    if (reading)
+                        state.readIdle
+                    else
+                        state.writeIdle
+                if (present(previous))
+                    previous!!.limit = idle
+                else {
+                    val clock = Some(H1Idle(reading, idle!!))
+                    if (reading)
+                        state.readIdle = clock
+                    else
+                        state.writeIdle = clock
+                }
             }
+            if (reading)
+                state.readBusy = true
+            else
+                state.writeBusy = true
             value
         }
     val listener =
@@ -67,19 +75,21 @@ private fun h1ClosedFailure(error: Throwable, selected: Throwable): Throwable {
 internal fun <P> endH1Operation(operation: H1Operation<P>) {
     operation.cancellation.dispose()
     val state = operation.state
-    val closing =
-        state.lock.withLock {
-            if (operation.reading) {
-                state.readBusy = false
-                state.readIdle = None
-            } else {
-                state.writeBusy = false
-                state.writeIdle = None
-            }
-            state.closing
-        }
+    val reading = operation.reading
+    val closing = state.lock.withLock { finishH1OperationLocked(state, reading) }
     if (closing)
         driveH1Close(state)
+}
+
+private fun finishH1OperationLocked(state: H1State, reading: Boolean): Boolean {
+    if (reading) {
+        state.readBusy = false
+        state.readIdle?.stop()
+    } else {
+        state.writeBusy = false
+        state.writeIdle?.stop()
+    }
+    return state.closing
 }
 
 internal suspend fun <P> failH1Operation(operation: H1Operation<P>, error: Throwable): Nothing {

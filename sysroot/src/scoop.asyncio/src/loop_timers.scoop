@@ -39,7 +39,7 @@ internal class LoopTimers(private val owner: LoopOwner) {
         val now = MonotonicTimeSource.markNow()
         while (pending.size != 0L) {
             val first = pending.first()
-            if (first.deadline.remaining(now) > Duration.ZERO)
+            if (!first.deadline.expired(now))
                 break
             pending.remove(first)
             notify(first, None)
