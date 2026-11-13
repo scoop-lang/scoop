@@ -9,6 +9,7 @@
 - `component(create, key)`／`component(props, create, key)` 在挂载时创建组件；`element` 以相同方式创建自绘元素，并接收显式 children。
 - `lazyElement(source, create, retention, key)` 及带 props 的重载创建按需容器，由 LazyElement 选择实际准备、测量和放置的条目；retention 缺省为 ItemRetention.Dispose。
 - `state(initial)` 支持成员属性委托，也可以由普通业务 Store 持有并供多个组件共享。render 中读取的 State 建立依赖；写入通知在 owner 上合并，条件读取改变时替换订阅。
+- 独立 Store 或控件在修改借用的文档模型之前，可用 `State.checkMutation()` 检查 owner 和 UI 阶段。它不读写值、不登记依赖或通知；正常 `value` setter 继续检查实际修改时机。
 - `Props<P>.value` 提供最新父级输入；`State.binding()` 或 `binding(get, set)` 读写原状态，不创建另一份值。
 - key 在直接父级内生效，节点类别及组件和 Props 的完整类型参与匹配。新挂载必须返回新的 class 实例；普通更新保留实例与本地状态。
 - 业务依赖可通过语言 Context 在实际运行／挂载入口安装。临时创建 View 不捕获 Context，属性委托在组件初始化时绑定一次。

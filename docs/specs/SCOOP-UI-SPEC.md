@@ -106,6 +106,8 @@ State 的持有者与 UI 订阅者分别确定。一个 State 可以在任何组
 
 状态对象绑定创建线程。值的读写及订阅维护在该线程执行；当前 UI 还要求该线程是窗口 owner。后台工作通过既有 owner 投递机制返回结果，不直接修改 UI 状态。相同 owner 上的多个 UiWindow 可以观察同一状态；不同 owner 不共享这套无锁状态对象。
 
+`State.checkMutation()` 公开检查同一 owner 及当前不在 render／measure／scene／draw 的条件；它不读取 value、不登记依赖、不修改值或发出通知。独立控件库可以在修改其借用的文档模型前执行这项检查，再同步发布新的 State。检查不跨挂起点授予后续修改资格；正常 setter 继续执行自己的实际边界检查。
+
 一次 `render` 使用一个库内、同步的依赖收集作用域：
 
 1. State getter 将当前组件节点记入本次读取集合，同一 State 的重复读取只登记一次。
