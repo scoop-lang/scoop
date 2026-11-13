@@ -21,4 +21,9 @@ fun main() {
     val empty: String? = Some("")
     println(empty.fold({ f"present, scalars=${it.charLength}" }, { "missing" }))
     println(missing.orElse { Some("fallback") }.getOrElse { "guest" })
+
+    when (missing) {
+        case Some(val value) -> println(value)
+        case None -> Unit
+    }
 }

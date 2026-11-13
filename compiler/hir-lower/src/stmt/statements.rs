@@ -43,7 +43,8 @@ impl Lowerer {
                     out.extend(sink);
                     return;
                 }
-                // Calls and updates may discard their result; declarations,
+                // Unit literals explicitly express no action. Calls and updates
+                // may discard their result; declarations,
                 // assignments and control flow have their own statement kinds.
                 // Constructions lower to `StructInit` /
                 // `VariantConstruct`, not `Call`, so they are rejected
@@ -61,7 +62,8 @@ impl Lowerer {
                     )
                     || matches!(
                         lowered.kind,
-                        hir::ExprKind::Call { .. }
+                        hir::ExprKind::UnitLiteral
+                            | hir::ExprKind::Call { .. }
                             | hir::ExprKind::MethodCall { .. }
                             | hir::ExprKind::DirectSuperMethodCall { .. }
                             | hir::ExprKind::CallableCall { .. } | hir::ExprKind::NativePointerCall { .. }

@@ -351,6 +351,7 @@ val s1 = (42,)                              // 1 元 tuple，类型 (Int,)
 
 - tuple 类型记作 `(T1, T2, ...)`，tuple 字面量记作 `(e1, e2, ...)`。
 - **0 元 tuple 写作 `()`**；其类型名为 `Unit`，`Unit` 既是类型名也是该值的构造器，`()` 与 `Unit` 等价。显式 `Unit.Companion` 通过类型名取得普通 companion；其他以 Unit 值为接收者的表达式（如 `Unit.equals(())`）保持值语义，`().Companion` 不是类型限定访问。
+- `Unit` 与 `()` 可以独立用作无操作语句，包括 `when` 的已处理但无需动作的分支。它们不求值其他内容；普通非调用表达式仍不能仅为丢弃结果而作为独立语句。
 - **1 元 tuple 必须写作 `(e,)`**（尾随逗号），类型记作 `(T,)`；`(e)` 是带括号的表达式 `e` 本身。消歧汇总：`()` = Unit；`(e)` = 括号表达式；`(e,)` = 1 元 tuple；`(e1, e2, ...)` = 多元 tuple。
 - 元素通过解构（见 4.6）或位置访问：`val (a, b) = t1`、`t1._1`、`t1._2`（位置访问从 `_1` 开始）。
 - tuple 是值类型：immutable、无 identity；全部元素可比较时条件派生同类型的 `operator fun equals`，不自动产生接口 conformance。Unit 的同类型比较恒为 true，core 另显式提供 `Equals<Unit>`（见 11.11）。

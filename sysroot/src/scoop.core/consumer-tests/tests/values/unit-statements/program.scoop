@@ -1,0 +1,51 @@
+package test.core
+
+import scoop.test.*
+
+@Test
+private class UnitStatementTests {
+    @Test
+    fun `unit spellings are explicit no operation statements`() {
+        var count = 0L
+        Unit
+        ()
+        val present: Long? = Some(2L)
+        val missing: Long? = None
+        when (present) {
+            case Some(val value) -> count += value
+            case None -> Unit
+        }
+        when (missing) {
+            case Some(val value) -> count += value
+            case None -> ()
+        }
+        if (count == 2L)
+            Unit
+        else
+            count += 100L
+        try {
+            Unit
+        } finally {
+            count += 1L
+        }
+        assertEquals(3L, count)
+    }
+
+    @Test
+    fun `nested unit arms preserve control flow and existing unit values`() {
+        val nested: Unit?? = Some(None)
+        var visited = false
+        when (nested) {
+            case Some(val inner) -> {
+                when (inner) {
+                    case Some(_) -> ()
+                    case None -> Unit
+                }
+                visited = true
+            }
+            case None -> Unit
+        }
+        assertTrue(visited)
+        assertEquals(Unit, ())
+    }
+}
