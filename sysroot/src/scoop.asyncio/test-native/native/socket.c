@@ -5,6 +5,16 @@ int scoop_test_socket_break_output(ScoopIoSocket *socket) {
     return shutdown(socket->socket, SD_SEND);
 }
 
+int scoop_test_socket_limit_buffers(ScoopIoSocket *sender, ScoopIoSocket *receiver) {
+    int capacity = 4096;
+    if (setsockopt(sender->socket, SOL_SOCKET, SO_SNDBUF, (const char *)&capacity,
+                   sizeof(capacity)) != 0 ||
+        setsockopt(receiver->socket, SOL_SOCKET, SO_RCVBUF, (const char *)&capacity,
+                   sizeof(capacity)) != 0)
+        return -WSAGetLastError();
+    return 0;
+}
+
 int scoop_test_socket_output_blocked(ScoopIoSocket *socket) {
     WSAPOLLFD wait = {.fd = socket->socket, .events = POLLOUT};
     if (WSAPoll(&wait, 1, 0) < 0)
@@ -29,6 +39,14 @@ int scoop_test_socket_break_output(void *pointer) {
     if (fd < 0)
         return fd;
     return shutdown(fd, SHUT_WR);
+}
+
+int scoop_test_socket_limit_buffers(void *sender, void *receiver) {
+    int capacity = 4096;
+    if (setsockopt(socket_fd(sender), SOL_SOCKET, SO_SNDBUF, &capacity, sizeof(capacity)) != 0 ||
+        setsockopt(socket_fd(receiver), SOL_SOCKET, SO_RCVBUF, &capacity, sizeof(capacity)) != 0)
+        return -errno;
+    return 0;
 }
 
 int scoop_test_socket_output_blocked(void *pointer) {

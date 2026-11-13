@@ -59,19 +59,26 @@ int scoop_test_iocp_socket_close(void) {
                      sizeof(capacity)) == 0);
     CHECK(setsockopt(server->socket, SOL_SOCKET, SO_RCVBUF, (const char *)&capacity,
                      sizeof(capacity)) == 0);
-    const unsigned length = 4 * 1024 * 1024;
+    const unsigned length = 65536;
     void *output = calloc(1, length);
     CHECK(output);
     unsigned char input = 0;
     CHECK(!scoop_io_tcp_read(client, 20, &input, 1));
-    CHECK(!scoop_io_tcp_write(client, 21, output, length));
+    ScoopIoEvent event;
+    for (unsigned i = 0; i < 64; i++) {
+        CHECK(!scoop_io_tcp_write(client, 21, output, length));
+        if (client->active == 2)
+            break;
+        CHECK(client->active == 1);
+        CHECK(!test_result(loop, &event) && event.id == 21 && event.kind == SCOOP_IO_BYTES &&
+              event.count > 0 && event.count <= length);
+    }
     CHECK(client->active == 2);
     SOCKET saved = client->socket;
     CHECK(!scoop_io_tcp_close(client, 22));
     DWORD flags;
     CHECK(GetHandleInformation((HANDLE)saved, &flags));
     unsigned seen = 0;
-    ScoopIoEvent event;
     for (unsigned i = 0; i < 3; i++) {
         CHECK(!test_result(loop, &event));
         CHECK(event.id >= 20 && event.id <= 22);

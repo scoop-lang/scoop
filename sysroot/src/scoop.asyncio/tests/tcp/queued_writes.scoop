@@ -32,7 +32,18 @@ private class AsyncTcpQueuedWriteTest {
                     fail(Some("queued write test timed out"))
                 }
             val(_, client, server) = tcpPair(loop, scope)
-            NativeByteBuffer.allocate(67108864L).use suspend {
+            @Unsafe
+            {
+                // Bound the real socket buffers before observing a pending write.
+                assertEquals(
+                    0,
+                    nativeLimitBuffers(
+                        (client as TcpStream).owner.pointer,
+                        (server as TcpStream).owner.pointer
+                    )
+                )
+            }
+            NativeByteBuffer.allocate(4194304L).use suspend {
                 output ->
                 @Unsafe
                 {
@@ -45,7 +56,19 @@ private class AsyncTcpQueuedWriteTest {
                         length
                     }
                 }
-                val writer = scope.launch suspend { client.writeFully(output) }
+                val writer =
+                    scope.launch suspend {
+                        // Winsock can accept one large non-overlapped send in full even with
+                        // small socket buffers. Separate writes must eventually observe backpressure.
+                        while (output.readableBytes > 0L) {
+                            val count =
+                                if (output.readableBytes > 65536L)
+                                    65536L
+                                else
+                                    output.readableBytes
+                            client.writeFully(output, count)
+                        }
+                    }
                 while (true) {
                     if (outputBlocked(backend, client)) {
                         // Backpressure can fall between two completed short writes.
@@ -97,6 +120,9 @@ private class AsyncTcpQueuedWriteTest {
 
 @Extern(name = "scoop_test_socket_output_blocked")
 private fun nativeOutputBlocked(endpoint: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_socket_limit_buffers")
+private fun nativeLimitBuffers(sender: Ptr<Unit>, receiver: Ptr<Unit>): Int
 
 @Extern(name = "memset")
 private fun fillNative(pointer: Ptr<Byte>?, value: Int, count: ULong): Ptr<Byte>?

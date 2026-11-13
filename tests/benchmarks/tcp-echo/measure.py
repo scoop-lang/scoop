@@ -1,4 +1,4 @@
-"""Compare fixed Scoop and Go TCP echo binaries on Linux or macOS."""
+"""Compare fixed Scoop and Go TCP echo binaries on Linux, macOS or Windows."""
 
 import argparse
 import json
@@ -18,20 +18,24 @@ def integers(value):
 
 
 def process(pid):
-    if sys.platform == "darwin":
+    if sys.platform in ("darwin", "win32"):
         import psutil
 
         child = psutil.Process(pid)
         with child.oneshot():
             cpu = child.cpu_times()
             switches = child.num_ctx_switches()
-            return {
+            memory = child.memory_info()
+            result = {
                 "user_s": cpu.user,
                 "system_s": cpu.system,
-                "VmRSS": child.memory_info().rss / 1024,
+                "VmRSS": memory.rss / 1024,
                 "Threads": child.num_threads(),
                 "context_switches": switches.voluntary + switches.involuntary,
             }
+            if sys.platform == "win32":
+                result["VmHWM"] = memory.peak_wset / 1024
+            return result
     root = Path(f"/proc/{pid}")
     ticks = os.sysconf("SC_CLK_TCK")
     fields = (root / "stat").read_text().rsplit(")", 1)[1].split()
@@ -136,8 +140,12 @@ def run_sample(args, configuration, connections, repeat, *, shards=1):
         "client_workers": args.client_workers,
         "platform": sys.platform,
         "cpu_affinity": "taskset" if server_cpus else "none",
-        "process_metrics": "psutil" if sys.platform == "darwin" else "procfs",
-        "rss_peak_source": "sampled_rss" if sys.platform == "darwin" else "VmHWM",
+        "process_metrics": "procfs" if sys.platform == "linux" else "psutil",
+        "rss_peak_source": {
+            "linux": "VmHWM",
+            "darwin": "sampled_rss",
+            "win32": "PeakWorkingSetSize",
+        }[sys.platform],
         "payload_bytes": args.payload,
         "buffer_bytes": args.buffer,
         "warmup_s": args.warmup,
@@ -314,11 +322,11 @@ def main():
         assert args.server_cpus and args.client_cpus, "CPU sets must not be empty"
         assert not set(args.server_cpus) & set(args.client_cpus), "CPU sets overlap"
         assert args.workers and max(args.workers) <= len(args.server_cpus)
-    elif sys.platform == "darwin":
+    elif sys.platform in ("darwin", "win32"):
         if args.server_cpus is not None or args.client_cpus is not None:
-            parser.error("macOS does not support taskset CPU affinity; omit CPU sets")
+            parser.error("this platform uses system scheduling; omit CPU sets")
     else:
-        parser.error("supported measurement platforms are Linux and macOS")
+        parser.error("supported measurement platforms are Linux, macOS and Windows")
     if args.client_workers is None:
         args.client_workers = len(args.client_cpus) if args.client_cpus else 8
     assert args.client_workers > 0

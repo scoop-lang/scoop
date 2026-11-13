@@ -6,8 +6,9 @@
 - `reactors.scoop`：架构诊断变体，同一进程启动指定数量的独立 event loop，每个 loop 在自己的线程处理连接和 I/O，仍共享进程 GC。使用从给定端口开始的连续端口，连接均匀分配；它没有跨 loop work stealing，不是 AsyncRuntime 的替代实现。
 - `server.go`：每个连接一个 goroutine，`GOMAXPROCS` 对应请求的 worker 数。
 - `client.go`：同一个 Go 客户端用于全部服务器；每连接仅有一个未完成请求，每次校验完整正文和变化的序号。连接建立后先预热，再计时，最后保持连接至测量器完成 CPU 快照。
-- `metrics.c`：在连接准备时设置 TCP_NODELAY、刷新就绪通知，并在整个工作负载前后打印既有 GC 指标，不参与 echo 热路径。Linux 从 listener 继承该选项，Darwin 在每次 accept 后为已连接 socket 显式设置；两者都在客户端开始预热前完成。
-- `measure.py`：依次测量固定二进制，保存原始输出与进程快照。Linux 将服务器与客户端绑定不同 CPU 并读取 `/proc`；macOS 使用 `psutil` 读取进程指标，由系统调度线程。
+- `client_clock_windows.go`：Windows 客户端的高精度单调时钟。该目标必须与 `client.go` 一起构建；QueryPerformanceCounter 同时用于吞吐窗口和逐请求延迟，结果记录时钟名称与频率。Go 的 Windows monotonic clock 基于 interrupt ticks，本机约 0.5 ms 的更新时间会把多数短往返记为零，不能直接用于延迟分位数。
+- `metrics.c`：在连接准备时设置 TCP_NODELAY、刷新就绪通知，并在整个工作负载前后打印既有 GC 指标，不参与 echo 热路径。Linux 从 listener 继承该选项，Darwin／Windows 在每次 accept 后为已连接 socket 显式设置；都在客户端开始预热前完成。Windows 通过本进程的 PSS handle 快照查找 socket，不把 SOCKET 当作小整数 fd。
+- `measure.py`：依次测量固定二进制，保存原始输出与进程快照。Linux 将服务器与客户端绑定不同 CPU 并读取 `/proc`；macOS／Windows 使用 `psutil` 读取进程指标，由系统调度线程。
 
 Linux 上所有服务器线程，包括 reactor worker、GC helper 和 Go runtime 线程，都受同一服务器 CPU 集合限制。因此 `AsyncRuntime(workers=1)` 与 Go `GOMAXPROCS=1` 都只有一个 CPU 的总资源。macOS 没有这里所需的硬 CPU 亲和性接口，worker 数只限制对应执行器的并行度，不限制 libdispatch、GC 或 Go runtime 的其他线程。当前 AsyncRuntime 由各 worker 驱动自己的 reactor，caller 等待结果；独立 eventLoop 则由 owner 驱动。线程数会另外记录。
 
@@ -70,6 +71,46 @@ python3 tests/benchmarks/tcp-echo/measure.py \
 ```
 
 结果明确记录 `cpu_affinity=none`。CPU 指标仍为整个服务器进程的用户态／内核态时间，100% 表示一个核；macOS 的 RSS 峰值是每 100 ms 采样的最大值，标记为 `sampled_rss`，不等同于 Linux 的 `VmHWM`。macOS 不记录 Linux 的逐线程 CPU 快照。比较优先使用同一台机器上的 Scoop／Go 数据，跨操作系统的绝对吞吐还受硬件、后端和线程调度方式影响。
+
+## Windows 构建与测量
+
+使用安装目录的 `sco.exe`、LLVM 和预编译库。下面在仓库根的 PowerShell 中运行；输出目录必须是新一轮的仓库外目录。C helper 与默认的 `x86_64-pc-windows-msvc-ucrt` 应用目标一致，MSVC／Windows SDK 的 include 目录按本机版本调整；编译器本身的 host triple 不决定应用的 CRT。Go 使用 PATH 中的安装，`uv` 为测量脚本提供固定版本的 `psutil`。
+
+```powershell
+$benchWork = "$env:USERPROFILE/benchmarks/tcp-echo-new-run"
+$scoopRoot = "$env:USERPROFILE/.scoop"
+$vcInclude = 'C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.51.36231/include'
+$sdkInclude = 'C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0'
+New-Item -ItemType Directory -Path "$benchWork/bin" -Force | Out-Null
+go build -trimpath -o "$benchWork/bin/go-echo.exe" tests/benchmarks/tcp-echo/server.go
+go build -trimpath -o "$benchWork/bin/echo-client.exe" `
+  tests/benchmarks/tcp-echo/client.go tests/benchmarks/tcp-echo/client_clock_windows.go
+& "$scoopRoot/libexec/llvm/bin/clang.exe" --target=x86_64-pc-windows-msvc `
+  -fms-runtime-lib=dll -nostdlibinc -idirafter "$vcInclude" `
+  -idirafter "$sdkInclude/ucrt" -idirafter "$sdkInclude/shared" `
+  -idirafter "$sdkInclude/um" -idirafter "$sdkInclude/winrt" `
+  -O2 -std=c11 -Wall -Wextra -Werror `
+  -D_WIN32_WINNT=0x0a00 -DWINVER=0x0a00 `
+  -I "$scoopRoot/include" `
+  -c tests/benchmarks/tcp-echo/metrics.c -o "$benchWork/metrics.o"
+& "$scoopRoot/libexec/llvm/bin/llvm-ar.exe" rcs `
+  "$benchWork/bin/libecho_metrics.a" "$benchWork/metrics.o"
+& "$scoopRoot/bin/sco.exe" build tests/benchmarks/tcp-echo/server.scoop --release `
+  --sysroot "$scoopRoot" --cache-dir "$benchWork/cache" --target-dir "$benchWork/target" `
+  --library-path "$benchWork/bin" -o "$benchWork/bin/scoop-echo.exe"
+
+uv run --with psutil==7.2.2 python tests/benchmarks/tcp-echo/measure.py `
+  --scoop-server "$benchWork/bin/scoop-echo.exe" --go-server "$benchWork/bin/go-echo.exe" `
+  --client "$benchWork/bin/echo-client.exe" --work "$benchWork/short-transfers" `
+  --workers 1,4 --connections 2 --payload 65536 --buffer 257 `
+  --seconds 0.3 --warmup 0.1 --repeats 1
+uv run --with psutil==7.2.2 python tests/benchmarks/tcp-echo/measure.py `
+  --scoop-server "$benchWork/bin/scoop-echo.exe" --go-server "$benchWork/bin/go-echo.exe" `
+  --client "$benchWork/bin/echo-client.exe" --work "$benchWork/results" `
+  --workers 1,4 --connections 1,64 --seconds 4 --warmup 1 --repeats 3
+```
+
+Windows 这组对照同样记录 `cpu_affinity=none`，worker 数只限定对应执行器的并行度；IOCP 收集、GC 和 Go runtime 的辅助线程仍由系统调度。CPU 时间覆盖整个进程。`VmRSS` 对应 working set，峰值取 Windows 的 `PeakWorkingSetSize`，包含进程启动以来的峰值；不与 macOS 的采样峰值混称同一统计。进程快照包括线程数和 context switches，不记录逐线程 CPU。
 
 ## reactor 架构对照
 

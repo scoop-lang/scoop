@@ -31,6 +31,14 @@ ScoopIoBatch scoop_io_tcp_flush(ScoopIoLoop *loop) {
     int64_t completed = 0;
     for (unsigned i = 0; i < count; i++) {
         ScoopIoTcpSubmission entry = submissions->entries[i];
+#if defined(_WIN32)
+        int status = scoop_io_tcp_transfer(entry.endpoint, entry.id, entry.bytes, entry.count,
+                                           entry.writing, &submissions->results[completed]);
+        if (status > 0) {
+            completed++;
+            continue;
+        }
+#else
 #if defined(__APPLE__)
         if (scoop_io_tcp_try_transfer(entry.endpoint, entry.id, entry.bytes, entry.count,
                                       entry.writing, &submissions->results[completed])) {
@@ -41,6 +49,7 @@ ScoopIoBatch scoop_io_tcp_flush(ScoopIoLoop *loop) {
         int status = entry.writing
                          ? scoop_io_tcp_write(entry.endpoint, entry.id, entry.bytes, entry.count)
                          : scoop_io_tcp_read(entry.endpoint, entry.id, entry.bytes, entry.count);
+#endif
         if (status < 0)
             submissions->results[completed++] =
                 (ScoopIoEvent){.id = entry.id, .kind = SCOOP_IO_POSIX_ERROR, .code = -status};

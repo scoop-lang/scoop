@@ -17,6 +17,10 @@ import (
 	"time"
 )
 
+var clockNow = time.Now
+var clockName = "time.Now"
+var clockFrequency int64
+
 // Logarithmic buckets have at most 1/64 relative width, with exact values below 64 ns.
 type sample struct {
 	histogram [4096]uint64
@@ -67,6 +71,9 @@ func main() {
 	warmup := flag.Float64("warmup", 1, "warmup seconds on the same connections")
 	workers := flag.Int("workers", 8, "client GOMAXPROCS")
 	flag.Parse()
+	if runtime.GOOS == "windows" && clockName == "time.Now" {
+		panic("include client_clock_windows.go when building the Windows client")
+	}
 	if *connections < 1 || *payload < 8 || *seconds <= 0 || *warmup < 0 || *workers < 1 {
 		panic("invalid client configuration")
 	}
@@ -96,7 +103,7 @@ func main() {
 	if !input.Scan() || input.Text() != "RUN" {
 		panic("expected RUN")
 	}
-	begin := time.Now()
+	begin := clockNow()
 	measuredBegin := begin.Add(time.Duration(*warmup * float64(time.Second)))
 	end := measuredBegin.Add(time.Duration(*seconds * float64(time.Second)))
 	results := make([]sample, *connections)
@@ -114,7 +121,7 @@ func main() {
 			}
 			result := &results[index]
 			for {
-				start := time.Now()
+				start := clockNow()
 				if !start.Before(end) {
 					break
 				}
@@ -127,7 +134,7 @@ func main() {
 					result.err = err.Error()
 					return
 				}
-				finished := time.Now()
+				finished := clockNow()
 				if !bytes.Equal(outgoing, incoming) {
 					result.err = "echo content mismatch"
 					return
@@ -146,7 +153,7 @@ func main() {
 			}
 		}(index, peer)
 	}
-	time.Sleep(time.Until(measuredBegin))
+	time.Sleep(measuredBegin.Sub(clockNow()))
 	fmt.Println("MEASURE_START")
 	group.Wait()
 	fmt.Println("MEASURE_END")
@@ -183,6 +190,7 @@ func main() {
 	}
 	duration := last.Sub(measuredBegin).Seconds()
 	result := map[string]any{
+		"clock": clockName, "clock_frequency_hz": clockFrequency,
 		"requests": merged.measured, "requests_with_warmup": merged.total,
 		"duration_s": duration, "qps": float64(merged.measured) / duration,
 		"payload_bytes": *payload, "connections": *connections,

@@ -120,6 +120,10 @@ path = "native/windows/socket_io.c"
 when = { os = "windows" }
 
 [[native.sources]]
+path = "native/windows/socket_write.c"
+when = { os = "windows" }
+
+[[native.sources]]
 path = "native/windows/file_io.c"
 when = { os = "windows" }
 

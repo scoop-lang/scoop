@@ -40,6 +40,13 @@ private class WindowsCompletionTest {
         }
     }
     @Test
+    fun `coalesced notifications retain bounded batches and concurrent publications`() {
+        @Unsafe
+        {
+            assertEquals(0, testNotificationBatches())
+        }
+    }
+    @Test
     fun `timers wake earlier deadlines and retire cancellation once`() {
         @Unsafe
         {
@@ -80,6 +87,9 @@ private class WindowsCompletionTest {
 
 @Extern(name = "scoop_test_iocp_notification")
 private fun testNotification(): Int
+
+@Extern(name = "scoop_test_iocp_notification_batches")
+private fun testNotificationBatches(): Int
 
 @Extern(name = "scoop_test_iocp_timers")
 private fun testTimers(): Int
