@@ -303,7 +303,7 @@ impl<'a> ProgramInputs<'a> {
         symbol == self.symbol("scoop_td_String")
             || symbol == self.symbol("__dso_handle")
             || (self.target.native_object_format() == scoop_lir::NativeObjectFormat::Elf64
-                && matches!(symbol, "_GLOBAL_OFFSET_TABLE_"))
+                && matches!(symbol, "_GLOBAL_OFFSET_TABLE_" | "__ehdr_start"))
             || (self.target.native_object_format() == scoop_lir::NativeObjectFormat::MachO64
                 && symbol.strip_prefix("section$").is_some_and(|rest| {
                     let parts: Vec<_> = rest.split('$').collect();

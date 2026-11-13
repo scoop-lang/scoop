@@ -82,3 +82,4 @@
 
 - Linux 实际 profiling core 构建暴露了 ELF ODR 计数组与正文 COMDAT 分离的问题。LLVM 的通用 lowering 为潜在跨函数内联保留独立计数组；Scoop 按 callable 发射对象，在 LLVM 优化完成后将三个 profile 关联段统一归入该正文的现有 COMDAT，保留正常对象检查和记录格式。
 - 扩展生产对象回归覆盖 Darwin ARM64、GNU、musl、MSVC-UCRT、MinGW-UCRT、MinGW-MSVCRT 各自的 Strong／ODR 组合。修复前真实复现 GNU ODR 错误，修复后十二个组合的计数保留、对象定义及重定位检查通过。格式化及 codegen Clippy 通过（仅既有警告）；继续原生训练验收。
+- Linux 原生链接进一步确认 compiler-rt 引用的 `__ehdr_start` 由最终 ELF linker 生成；将其加入已有 linker-defined 符号处理，不放宽普通未定义符号检查。格式化及 linker Clippy 通过（仅既有警告）。GNU 和 musl 各自使用原生 compiler-rt、四种普通和 profiling runtime，以及两套 full core/std，通过 GC 时间线与完整 profiling/PGO 正式 fixture：每个目标 2 项、13 次外部进程调用，包含多线程确定计数、数据追加与合并、配置复用、缓存更新、反馈优化、错误输入和无探针输出。

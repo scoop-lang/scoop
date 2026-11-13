@@ -1129,6 +1129,8 @@ full 导出的普通访问器若直接操作 provider 全局存储或初始化�
 
 LLVM InstrProf 的计数、记录与名字段属于随 callable 对象保存的原生辅助数据，沿对象格式的 section/COMDAT 规则选择和裁剪。每个 callable 完成 LLVM 优化之后，ELF ODR 计数与正文统一归入该 callable 的 COMDAT；不保留 LLVM 为通用跨函数内联临时建立的独立计数组。产物以 callable 的三个关联对象 atom（ProfileCounters、ProfileData、ProfileNames）保存这些段及原生重定位，使代码 fingerprint 与 ODR 选择涵盖实际计数布局；不解析或重建 LLVM 记录内部格式，不增加 GC roots 或语言 ABI。正文对这些本对象数据的引用按关联 atom 边界解析。该规则不放宽 Scoop callable、runtime record 或 GC metadata 的检查。
 
+ELF compiler-rt 引用的 `__ehdr_start` 是最终 linker 提供的 image header 符号，和该格式的 profiling section 起止标记一样交给最终链接解析，不要求普通 native 库提供定义。
+
 `--profile-use <Scoop index>` 只与 release 构建组合，选择配套 Release/full 系统库并在普通机器降低入口一次读取索引、indexed counts 和映射；损坏或目标不符报告输入错误，局部正文不匹配按成本合同回退。`--profile-use-required` 要求提供索引，并在最终输出链接／发布之前要求本次源码构建至少一个优化实际消费反馈；源码依赖与根 Cone 的正常完成记录共同提供判断，不能逐个要求无候选的依赖使用反馈。直接 scoopc 构建的 required 作用于其单个 Cone。
 
 Compiler protocol 34 的 build field 16 保存可选反馈索引路径，success field 8 保存可选 UseSummary。普通编译更新记录保存该摘要及索引、计数、映射文件的路径／长度／修改时间；这些是构建输入，不受语言 include 文件的源码目录规则限制。缓存命中只比较已记录的输入状态，复用原摘要，不重新读取索引或调用 LLVM。反馈索引的选择进入 compile key，文件内容更新通过正常 compiler input 判断；profile 数据和 UseSummary 不写入共享 HIR、`.slib` 语义指纹或 runtime ABI。
